@@ -58,24 +58,17 @@ python -m myrm_agent_harness._verify_distribution
 
 ## Consumer Install
 
-**Source is private; release wheels are public** on `Pursue-LLL/myrm-agent-harness-wheels`
-(GitHub Releases mirrored from private harness CI on `v*` tags).
+**Source is private; wheels are public on PyPI** (`myrm-agent-harness` + `myrm-agent-harness-core-{platform}`).
 
 OSS server CI, Docker, Tauri sidecar builds, and local production-like installs:
 
 ```bash
-MYRM_HARNESS_INSTALL_MODE=release ./scripts/dev/install_harness_dev.sh
+MYRM_HARNESS_INSTALL_MODE=pypi ./scripts/dev/install_harness_dev.sh
 ```
 
-Default release repo: `Pursue-LLL/myrm-agent-harness-wheels` (override with `MYRM_HARNESS_RELEASE_REPO`).
+Pin version in `myrm-agent-server/pyproject.toml` (includes `compiled-core` extra for platform core package).
 
-Pin version via `scripts/dev/harness_release_version.txt` or `MYRM_HARNESS_VERSION`.
-
-Downloads are verified against `harness_release_manifest.json` when present on the Release.
-
-Setup for the public wheels repo: [PUBLIC_WHEELS_REPO.md](./PUBLIC_WHEELS_REPO.md).
-
-Shared downloader: `scripts/dev/harness_release_download.py` (install script + Docker CI).
+Publish from private harness repo: push tag `v*` → `.github/workflows/publish-pypi.yml`.
 
 Local harness development (editable or source build):
 
@@ -84,14 +77,14 @@ MYRM_HARNESS_INSTALL_MODE=source ./scripts/dev/install_harness_dev.sh
 MYRM_HARNESS_EDITABLE=1 ./scripts/dev/install_harness_dev.sh
 ```
 
-Direct wheel install (after downloading release assets):
+Direct wheel install (after publishing):
 
 ```bash
-pip install myrm_agent_harness-0.1.0-*.whl myrm_agent_harness_core_linux_x64-0.1.0-*.whl
+pip install 'myrm-agent-harness[compiled-core]==0.1.0rc1'
 ```
 
-Server monorepo CI uses **release mode** (no private repo clone). Production Docker/Tauri
-sidecar builds install release wheels via `scripts/dev/install_harness_dev.sh` before PyInstaller.
+Server monorepo CI uses **pypi mode** (no private repo clone). Production Docker/Tauri
+sidecar builds install from PyPI via `scripts/dev/install_harness_dev.sh` before PyInstaller.
 
 ## Development Mode
 
@@ -152,9 +145,9 @@ Editable monorepo dev (transitional): `MYRM_HARNESS_EDITABLE=1 ./scripts/dev/ins
 
 | Workflow | Role |
 |----------|------|
-| `myrm-agent-harness/.github/workflows/build-core-wheels.yml` | 6-platform Nuitka matrix + tag → public wheels Release + SHA256 manifest |
+| `myrm-agent-harness/.github/workflows/publish-pypi.yml` | 6-platform Nuitka matrix + tag → PyPI (release + core wheels) |
 | `myrm-agent-harness/.github/workflows/boundary-check.yml` | Architecture tests (`-n0`) including `test_repo_hygiene` |
-| `.github/workflows/build-oss-server-docker.yml` | OSS public Dockerfile smoke (linux, wheel contexts) |
+| `.github/workflows/build-oss-server-docker.yml` | OSS public Dockerfile smoke (PyPI harness) |
 | `.github/workflows/build-official-runtime.yml` | Official runtime Docker image (linux-amd64) |
 
 ## References

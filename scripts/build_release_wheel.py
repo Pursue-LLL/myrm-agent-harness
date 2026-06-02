@@ -28,15 +28,27 @@ sys.path.insert(0, str(_REPO_ROOT))
 from harness_packaging.release import strip_manifest_sources_from_wheel  # noqa: E402
 
 
+from harness_packaging.compiled_core_extra import inject_compiled_core_extra  # noqa: E402
+from harness_packaging.version import read_harness_version  # noqa: E402
+
+
 def main() -> None:
     dist_dir = _REPO_ROOT / "dist"
     dist_dir.mkdir(exist_ok=True)
 
-    subprocess.run(
-        ["uv", "build", "--wheel", "--out-dir", str(dist_dir)],
-        check=True,
-        cwd=_REPO_ROOT,
-    )
+    pyproject = _REPO_ROOT / "pyproject.toml"
+    original_text = pyproject.read_text(encoding="utf-8")
+    version = read_harness_version(_REPO_ROOT)
+    injected_text = inject_compiled_core_extra(original_text, version)
+    pyproject.write_text(injected_text, encoding="utf-8")
+    try:
+        subprocess.run(
+            ["uv", "build", "--wheel", "--out-dir", str(dist_dir)],
+            check=True,
+            cwd=_REPO_ROOT,
+        )
+    finally:
+        pyproject.write_text(original_text, encoding="utf-8")
 
     wheels = sorted(dist_dir.glob("myrm_agent_harness-*.whl"))
     if not wheels:

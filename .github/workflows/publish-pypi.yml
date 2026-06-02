@@ -1,19 +1,23 @@
-name: Build Compiled Core Wheels
+name: Publish Harness to PyPI
 
 on:
   workflow_dispatch:
     inputs:
       platform:
-        description: "Platform key (e.g. darwin-arm64). Empty = matrix build."
+        description: "Platform key (e.g. darwin-arm64). Empty = full matrix + release wheel."
         required: false
         default: ""
   push:
     tags:
       - "v*"
 
+permissions:
+  contents: read
+
 jobs:
   build-core:
     name: "Core wheel (${{ matrix.platform }})"
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform == '' || inputs.platform == matrix.platform }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     strategy:
@@ -82,16 +86,18 @@ jobs:
           path: dist/myrm_agent_harness-*.whl
           if-no-files-found: error
 
-  publish-release:
-    name: Publish GitHub Release wheels
+  publish-pypi:
+    name: Upload wheels to PyPI
     if: startsWith(github.ref, 'refs/tags/')
     needs:
       - build-core
       - release-wheel
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
+    environment: pypi
     permissions:
-      contents: write
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -100,43 +106,27 @@ jobs:
         with:
           pattern: core-wheel-*
           merge-multiple: true
-          path: release-assets
+          path: pypi-upload
 
       - name: Download release wheel artifact
         uses: actions/download-artifact@v4
         with:
           name: release-wheel
-          path: release-assets
+          path: pypi-upload
 
-      - name: List release assets
-        run: ls -la release-assets/
+      - name: List wheels to upload
+        run: ls -la pypi-upload/
 
-      - name: Generate release manifest
-        run: python3 scripts/generate_release_manifest.py release-assets --tag "${GITHUB_REF_NAME}"
-
-      - name: Publish public wheels release
-        env:
-          GH_TOKEN: ${{ secrets.MYRM_HARNESS_WHEELS_PUBLISH_TOKEN }}
-          WHEELS_REPO: Pursue-LLL/myrm-agent-harness-wheels
-          IS_PRERELEASE: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
+      - name: Fail if no wheels collected
         run: |
-          set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          if [[ -z "${GH_TOKEN}" ]]; then
-            echo "MYRM_HARNESS_WHEELS_PUBLISH_TOKEN is not configured; cannot publish public wheels." >&2
+          count="$(find pypi-upload -name '*.whl' 2>/dev/null | wc -l | tr -d ' ')"
+          if [[ "${count}" -lt 2 ]]; then
+            echo "Expected release wheel + core wheels; found ${count}." >&2
             exit 1
           fi
-          if gh release view "${TAG}" --repo "${WHEELS_REPO}" >/dev/null 2>&1; then
-            gh release delete "${TAG}" --repo "${WHEELS_REPO}" --yes --cleanup-tag=false
-          fi
-          release_args=(
-            release create "${TAG}" release-assets/*
-            --repo "${WHEELS_REPO}"
-            --title "${TAG}"
-            --notes "Public harness wheels for ${TAG}. Source remains private in Pursue-LLL/myrm-agent-harness."
-          )
-          if [[ "${IS_PRERELEASE}" == "true" ]]; then
-            release_args+=(--prerelease)
-          fi
-          gh "${release_args[@]}"
 
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: pypi-upload
+          skip-existing: true

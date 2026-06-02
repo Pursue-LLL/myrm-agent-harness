@@ -1,6 +1,6 @@
 [project]
 name = "myrm-agent-harness"
-version = "0.1.0"
+version = "0.1.0rc1"
 description = "Myrm Agent Harness: Professional Agent framework built on LangChain with advanced skill system and MCP integration"
 authors = [{ name = "Myrm Agent Harness Contributors" }]
 requires-python = ">=3.13"
@@ -146,9 +146,8 @@ observability = [
 all = [
   "myrm-agent-harness[browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,memory-sqlite,memory-postgres,image-search]",
 ]
-# Platform core wheels publish to private PyPI first, then add a ``compiled-core``
-# extra with environment markers (see harness_packaging/DISTRIBUTION_SYSTEM.md).
-# Unpublished optional-deps break ``uv lock`` / ``uv sync`` resolution.
+# ``compiled-core`` optional-deps are injected into release wheel metadata at build time
+# (see harness_packaging/compiled_core_extra.py) so dev ``uv lock`` stays resolvable.
 
 [tool.uv]
 override-dependencies = [
