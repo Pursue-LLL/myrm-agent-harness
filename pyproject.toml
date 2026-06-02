@@ -1,0 +1,339 @@
+[project]
+name = "myrm-agent-harness"
+version = "0.1.0"
+description = "Myrm Agent Harness: Professional Agent framework built on LangChain with advanced skill system and MCP integration"
+authors = [{ name = "Myrm Agent Harness Contributors" }]
+requires-python = ">=3.13"
+readme = "README.md"
+license = { text = "Proprietary" }
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: Other/Proprietary License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries :: Application Frameworks",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Typing :: Typed",
+]
+
+dependencies = [
+  # --- LangChain 生态 (Agent 框架基础) ---
+  "langchain>=1.3.2",                  # Agent 编排核心
+  "langchain-core>=1.4.0",              # LangChain 基础抽象
+  "langgraph>=1.2.2",                  # 图状态机 Agent 运行时
+  "langgraph-checkpoint-sqlite>=3.1.0", # SQLite 状态持久化 (Memory)
+  # --- LLM 多供应商适配 ---
+  "litellm>=1.86.2", # 统一 LLM API 代理 (100+ 供应商)
+  # --- MCP 协议支持 ---
+  "langchain-mcp-adapters>=0.2.2", # MCP 工具/服务适配器
+  # --- 数据验证与序列化 ---
+  "pydantic>=2.13.4", # 数据模型验证
+  "PyYAML>=6.0.3",    # YAML 配置解析
+  # --- HTTP 与异步 I/O ---
+  "httpx[socks]>=0.28.1", # 异步 HTTP 客户端（含 SOCKS 代理支持）
+  "aiofiles>=25.1.0",     # 异步文件 I/O
+  "orjson>=3.11.9",       # 高性能 JSON 序列化
+  # --- 图片处理 (7 模块跨 4 层使用) ---
+  "Pillow>=12.2.0",       # 图片读写/resize/压缩 (image_reader + image_compressor + browser/diff + file_parsers + computer_use)
+  # --- Token 计数 ---
+  "tiktoken>=0.13.0", # OpenAI tokenizer (上下文窗口管理)
+  # --- ID 生成 ---
+  "nanoid>=2.0.0", # 短唯一 ID (workspace / cron job)
+  # --- 系统监控 (健康诊断核心依赖) ---
+  "psutil>=7.2.2", # 进程与系统监控 (CPU/Memory health probes)
+  # --- 监控与可观测性 (仅保留轻量级 API，SDK 移至 optional) ---
+  "opentelemetry-api>=1.42.1",
+  # --- Cron 定时任务 ---
+  "croniter>=6.2.2", # Cron 表达式解析与计算
+  # --- 检索器（基础） ---
+  "langchain-text-splitters>=1.1.2", # 代码感知文本分块
+  "tenacity>=9.1.4",                 # 重试机制
+  # --- 网页爬取与内容提取（基础） ---
+  "beautifulsoup4>=4.14.3", # HTML DOM 解析与清洗（ContentPruningFilter）
+  # --- Agent 协议与基础设施 ---
+  "agent-client-protocol>=0.10.1", # ACP 协议 SDK (Agent 间通信)
+  "filelock>=3.29.0",             # 跨进程文件锁 (Skill 并发控制)
+  "mcp>=1.27.1",                  # MCP 协议 SDK (Server transport)
+  "watchdog>=6.0.0",              # 文件系统变更监控 (backends/skills/watcher.py)
+  "prometheus-client>=0.25.0",    # Prometheus 指标采集 (observability/metrics + infra/tracing)
+  "sqlalchemy>=2.0.50",
+  "tree-sitter>=0.25.2",
+  "tree-sitter-python>=0.25.0",
+  "tree-sitter-javascript>=0.25.0",
+  "tree-sitter-typescript>=0.23.2",
+  "tree-sitter-go>=0.25.0",
+  "tree-sitter-rust>=0.24.2",
+  "tree-sitter-java>=0.23.5",
+]
+
+[project.urls]
+Repository = "https://github.com/myrm-agent/myrm-agent-harness"
+
+[project.scripts]
+verify-harness-distribution = "myrm_agent_harness._verify_distribution:main"
+
+[project.optional-dependencies]
+# toolkits/browser/ - 浏览器自动化（需要 Patchright）
+browser = [
+  "patchright>=1.60.0", # CDP 泄露修补浏览器引擎
+]
+# toolkits/vector/ - 向量存储（Qdrant 嵌入式/远程）
+qdrant = [
+  "qdrant-client>=1.18.0", # Qdrant SDK (embedded + remote)
+]
+# toolkits/retriever/ - 高级检索功能（中文分词、向量检索、稀疏检索）
+retrieval = [
+  "numpy>=2.4.6",     # embedding 序列化 + BM25 数值计算
+  "jieba>=0.42.1",    # 中文分词 (BM25 tokenizer)
+  "nltk>=3.9.4",      # 英文分词/词干提取/停用词
+  "rank-bm25>=0.2.2", # BM25 稀疏检索算法
+]
+# toolkits/retriever/embedding/ - 本地离线 embedding（fastembed ONNX，无需 API Key）
+local-embedding = [
+  "fastembed>=0.8.0", # ONNX Runtime 本地 embedding 推理 (bge-small-zh, MiniLM 等)
+]
+# utils/media/image_compressor - PNG 量化压缩（延迟导入，失败回退 Pillow）
+image-processing = [
+  "imagequant>=1.1.5",  # PNG 量化压缩 (pngquant 算法，Pillow 已在主依赖)
+]
+# toolkits/computer_use/ - 系统桌面控制（截图 + 键鼠模拟）
+computer-use = [
+  "pyautogui>=0.9.54",  # macOS/Linux 键鼠输入模拟 (Pillow 已在主依赖)
+]
+# toolkits/web_fetch/ - 反检测网页爬取（重依赖，仅 stealth 抓取场景需要）
+web = [
+  "scrapling[fetchers]>=0.4.8", # L1: curl_cffi TLS 指纹 HTTP / L3: Patchright+BrowserForge 反检测
+]
+
+# toolkits/web_search/image_search - 图片搜索（DuckDuckGo，免费无 API Key）
+image-search = [
+  "ddgs>=9.14.4", # DuckDuckGo Search SDK (images/text/news)
+]
+
+# toolkits/file_parsers/ - 文件解析（PDF/DOCX/Excel）
+file-parsers = [
+  "pdfplumber>=0.11.9", # PDF 文本+表格提取
+  "pypdfium2>=5.8.0",   # PDF 页面渲染为图片 (图片回退)
+  "python-docx>=1.2.0", # Word 文档解析
+  "openpyxl>=3.1.5",    # Excel 文件读写
+  "python-pptx>=1.0.2", # PowerPoint 文档解析
+]
+# infra/security/signature.py - FastAPI webhook signature verification
+fastapi = [
+  "fastapi>=0.136.3",
+]
+
+# toolkits/memory/ - 记忆持久化 (SQLite)
+memory-sqlite = [
+  "langgraph-checkpoint-sqlite>=3.0.3",
+  "aiosqlite>=0.22.1",
+  "dill>=0.4.1",
+]
+# toolkits/memory/ - 记忆持久化 (PostgreSQL)
+memory-postgres = [
+  "langgraph-checkpoint-postgres>=3.1.0",
+  "asyncpg>=0.31.0",
+  "dill>=0.4.1",
+]
+# 全链路追踪与指标 (SaaS 级监控)
+observability = [
+  "opentelemetry-sdk>=1.42.1",
+  "opentelemetry-instrumentation>=0.40b0",
+  "opentelemetry-exporter-otlp-proto-grpc>=1.42.1",
+  "openinference-instrumentation-langchain>=0.1.66",
+]
+all = [
+  "myrm-agent-harness[browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,memory-sqlite,memory-postgres,image-search]",
+]
+# Platform core wheels publish to private PyPI first, then add a ``compiled-core``
+# extra with environment markers (see harness_packaging/DISTRIBUTION_SYSTEM.md).
+# Unpublished optional-deps break ``uv lock`` / ``uv sync`` resolution.
+
+[tool.uv]
+override-dependencies = [
+  "click>=8.4.1",
+  "patchright>=1.59.1",
+  "openai>=2.38.0",
+  "aiohttp>=3.13.5",
+  "opentelemetry-semantic-conventions>=0.61b0"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Src layout: importable package lives under src/ (PyPA / Hatch 推荐实践)
+[tool.hatch.build.targets.wheel]
+packages = ["src/myrm_agent_harness"]
+
+[tool.hatch.build]
+exclude = [
+  "tests/",
+  "docs/",
+  ".github/",
+  "**/node_modules",
+  "**/.venv",
+  "**/__pycache__",
+  "**/*.pyc",
+  "**/*.pyo",
+  "**/.DS_Store",
+  "**/*.swp",
+  "**/*~",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+extend-exclude = []
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "RUF"]
+ignore = ["E501", "B008", "SIM108", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+  "S101",
+  "INP001",
+  "E402",
+  "B011",
+] # Allow assert, imports after sys.path in tests
+"tools/**/*.py" = [
+  "T201",
+  "INP001",
+  "S101",
+  "B011",
+] # Allow print/assert in CLI tools
+"src/**/routing/router.py" = [
+  "RUF006",
+  "SIM102",
+  "SIM105",
+] # Fire-and-forget tasks are intentional in command dispatch
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+mypy_path = "src"
+explicit_package_bases = true
+files = ["src/myrm_agent_harness"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-n auto --dist=loadscope --timeout=300"
+filterwarnings = [
+    "ignore:The default value of `allowed_objects` will change:langchain_core._api.deprecation.LangChainPendingDeprecationWarning"
+]
+markers = [
+  "architecture: Architecture consistency tests (boundary checks, dependency rules)",
+  "e2e: End-to-end tests (complete user workflows)",
+  "integration: Integration tests (run with real browser)",
+  "performance: Performance regression tests",
+  "slow: Slow tests that are still part of the regular suite",
+  "benchmark: Benchmark-style tests that compare implementations",
+  "allow_blocking_io: Opt out of the blockbuster blocking-IO gate for this test",
+]
+
+# 覆盖率门禁：核心模块行覆盖率 ≥80%。
+# 依赖真实文件系统/数据库的基础设施模块由独立集成任务覆盖。
+# CI: coverage run -m pytest tests/ -m "not integration and not e2e and not performance"
+#     coverage report
+[tool.coverage.run]
+source = ["myrm_agent_harness"]
+omit = [
+
+  "**/backends/skills/local.py",
+  "**/backends/skills/storage.py",
+  "**/backends/skills/composite.py",
+  "**/backends/skills/versioning.py",
+  "**/backends/skills/memory.py",
+  "**/backends/skills/factory.py",
+  "**/sub_agents/progress_calculator_example.py",
+]
+
+[tool.coverage.report]
+fail_under = 80
+precision = 1
+show_missing = true
+skip_covered = false
+include = [
+  "*/myrm_agent_harness/agent/goals/*",
+  "*/myrm_agent_harness/toolkits/llms/batch/*",
+  "*/myrm_agent_harness/toolkits/llms/routing/*",
+  "*/myrm_agent_harness/toolkits/goals/*",
+  "*/myrm_agent_harness/toolkits/code_execution/session/*",
+  "*/myrm_agent_harness/toolkits/code_execution/executors/common/wrapper_script.py",
+  "*/myrm_agent_harness/diagnostics/*",
+  "*/myrm_agent_harness/runtime/*",
+  "*/myrm_agent_harness/utils/*",
+  "*/myrm_agent_harness/eval/metrics.py",
+  "*/myrm_agent_harness/eval/memory_retrieval/*",
+  "*/myrm_agent_harness/toolkits/memory/*",
+  "*/myrm_agent_harness/toolkits/web_fetch/fetchers/*",
+  "*/myrm_agent_harness/toolkits/kanban/*",
+  "*/myrm_agent_harness/toolkits/tasks/*",
+  "*/myrm_agent_harness/toolkits/web_search/*",
+  "*/myrm_agent_harness/toolkits/wiki/*",
+  "*/myrm_agent_harness/toolkits/network/*",
+  "*/myrm_agent_harness/toolkits/mcp/*",
+  "*/myrm_agent_harness/toolkits/code_execution/security/*",
+  "*/myrm_agent_harness/toolkits/code_execution/env_probe.py",
+  "*/myrm_agent_harness/toolkits/code_execution/platform.py",
+  "*/myrm_agent_harness/infra/sqlite_backup.py",
+  "*/myrm_agent_harness/infra/tracing/*",
+  "*/myrm_agent_harness/backends/skills/*",
+  "*/myrm_agent_harness/agent/meta_tools/*",
+  "*/myrm_agent_harness/agent/skills/*",
+  "*/myrm_agent_harness/agent/security/*",
+  "*/myrm_agent_harness/agent/config/litellm_routing.py",
+  "*/myrm_agent_harness/agent/config/parsers.py",
+  "*/myrm_agent_harness/agent/tool_management/*",
+  "*/myrm_agent_harness/agent/hooks/*",
+  "*/myrm_agent_harness/agent/sub_agents/*",
+  "*/myrm_agent_harness/agent/middlewares/*",
+  "*/myrm_agent_harness/agent/streaming/*",
+  "*/myrm_agent_harness/agent/context_management/*",
+  "*/myrm_agent_harness/agent/event_log/*",
+  "*/myrm_agent_harness/agent/workspace_rules/*",
+  "*/myrm_agent_harness/agent/deep_research/*",
+  "*/myrm_agent_harness/agent/memory_extraction.py",
+  "*/myrm_agent_harness/toolkits/llms/adapters/*",
+  "*/myrm_agent_harness/toolkits/vector/*",
+  "*/myrm_agent_harness/toolkits/llms/video/*",
+  "*/myrm_agent_harness/toolkits/llms/image/*",
+  "*/myrm_agent_harness/toolkits/llms/core/*",
+  "*/myrm_agent_harness/toolkits/vision/*",
+  "*/myrm_agent_harness/toolkits/acp/*",
+  "*/myrm_agent_harness/toolkits/cron/*",
+  "*/myrm_agent_harness/observability/*",
+  "*/myrm_agent_harness/toolkits/local_file_search/*",
+  "*/myrm_agent_harness/toolkits/file_parsers/*",
+]
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "\\.\\.\\."]
+
+[dependency-groups]
+build = [
+  "nuitka>=2.6.9",
+  "build>=1.2.2",
+]
+dev = [
+  "pytest>=9.0.3",                   # 测试框架
+  "pytest-asyncio>=1.3.0",           # 异步测试支持
+  "pytest-cov>=7.1.0",               # 覆盖率报告
+  "pytest-benchmark>=5.2.3",         # 性能基准测试
+  "pytest-xdist>=3.6.1",             # 并行测试执行
+  "pytest-timeout>=2.3.1",           # 测试超时保护
+  "ruff>=0.15.12",                   # Linter + Formatter
+  "mypy>=1.20.2",                    # 静态类型检查
+  "aiosqlite>=0.22.1",               # SQLite async driver (for checkpoint tests)
+  "asyncpg>=0.31.0",                 # PostgreSQL async driver (for checkpoint tests)
+  "respx>=0.23.1",                   # HTTPX mock
+  "scikit-learn>=1.8.0",             # ML utilities (test)
+  "types-aiofiles>=25.1.0.20251011", # Type stubs
+  "types-psutil>=7.2.2.20260130",
+  "types-pyyaml>=6.0.12.20250915",
+  "blockbuster>=1.5.26",
+]

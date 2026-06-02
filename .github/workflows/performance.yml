@@ -1,0 +1,63 @@
+name: Performance Regression Tests
+
+on:
+  pull_request:
+    paths:
+      - 'src/myrm_agent_harness/**/*.py'
+      - 'pyproject.toml'
+      - 'benchmarks/bench_startup_performance.py'
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  startup-performance:
+    name: Startup Performance Benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: |
+          cd myrm-agent-harness
+          uv sync --all-extras
+
+      - name: Run startup performance benchmarks
+        run: |
+          cd myrm-agent-harness
+          uv run pytest benchmarks/bench_startup_performance.py -v --benchmark-only
+
+      - name: Run lazy loading tests
+        run: |
+          cd myrm-agent-harness
+          uv run pytest tests/test_lazy_loading_comprehensive.py tests/test_lazy_loading_consistency.py -v
+
+      - name: Run monitoring and preload tests
+        run: |
+          cd myrm-agent-harness
+          uv run pytest tests/test_monitoring.py tests/test_preload.py -v
+
+      - name: Run boundary detection benchmark
+        run: |
+          cd myrm-agent-harness
+          uv run python benchmarks/bench_boundary_detection.py --check-regression benchmarks/baseline_boundary.json
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: myrm-agent-harness/.benchmarks/
+          retention-days: 30

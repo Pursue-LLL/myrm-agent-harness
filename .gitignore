@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Misc
+*.log
+coverage.txt
+.env
+.env.local
+
+# Project-specific
+coverage*.json
+coverage_report/
+htmlcov*/
+.browsers/
+myrm-agent-server/
+.benchmarks/
+scratch/
+.myrm/
+.myrm/
+node_modules/
+package-lock.json
+test_output.txt
+
+# Temporary development reports (keep only core docs)
+*_STATUS.md
+*_REPORT.md
+*_BENCHMARK.md
+*_OPTIMIZATION.md
+*_VERIFICATION.md
+*_REVIEW*.md
+
+# Test artifacts
+local_storage/
+tests/local_storage/

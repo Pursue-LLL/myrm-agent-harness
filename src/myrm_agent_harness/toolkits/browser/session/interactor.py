@@ -1,0 +1,467 @@
+"""Element interaction — single responsibility.
+
+
+[INPUT]
+- patchright.async_api::Page (POS: Patchright page instance)
+- snapshot::RefInfo (POS: element ref metadata)
+- snapshot::resolve_locator (POS: rebuild Locator from RefInfo)
+- exceptions::RefNotFoundError (POS: structured ref-not-found exception)
+
+[OUTPUT]
+- Interactor: element interaction manager
+- RefNotFoundMetrics: ref failure statistics (global + sliding window failure rate, top refs/actions with cache optimization)
+
+[POS]
+Element interaction manager. Responsibilities:
+1. Element operations (13 actions: click/dblclick/type/fill/press/hover/focus/select/scroll/upload_file/drag/check/uncheck)
+2. Ref resolution (from ref ID to Locator, supports iframe refs)
+3. Interaction timeout control (10s)
+4. Ref failure diagnosis (URL change detection + smart suggestion generation + context refs sampling)
+5. Failure monitoring (failure rate, hot refs, hot actions statistics + periodic log output)
+
+Single responsibility: only handles element interaction logic; does not handle navigation, snapshot, extraction, etc. Tab-level URL state is managed by TabController.
+"""
+
+from __future__ import annotations
+
+import logging
+import random
+from collections import defaultdict, deque
+from dataclasses import dataclass, field
+from types import MappingProxyType
+from typing import TYPE_CHECKING
+
+from myrm_agent_harness.toolkits.browser.exceptions import RefNotFoundError
+from myrm_agent_harness.toolkits.browser.snapshot import resolve_locator
+
+if TYPE_CHECKING:
+    from patchright.async_api import Frame, Page
+
+    from myrm_agent_harness.toolkits.browser.snapshot import RefInfo
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RefNotFoundMetrics:
+    """Ref-not-found statistics data.
+
+    Provides both global and sliding-window (last 100) failure-rate views,
+    with cached top refs/actions queries.
+
+    Attributes:
+        total_failures: Total failure count.
+        total_interactions: Total interaction count.
+        failure_refs: Failure count per ref (ref_id -> count).
+        failure_by_action: Failure count per action type.
+    """
+
+    total_failures: int = 0
+    total_interactions: int = 0
+    failure_refs: dict[str, int] = field(default_factory=dict)
+    failure_by_action: dict[str, int] = field(default_factory=dict)
+
+    _recent_failures: deque[bool] = field(default_factory=lambda: deque(maxlen=100), init=False, repr=False)
+    _cached_top_refs: list[tuple[str, int]] | None = field(default=None, init=False, repr=False)
+    _cached_top_actions: list[tuple[str, int]] | None = field(default=None, init=False, repr=False)
+
+    def record_interaction(self, failed: bool, ref: str | None = None, action: str | None = None) -> None:
+        """Record a single interaction result.
+
+        Args:
+            failed: Whether the ref lookup failed.
+            ref: The failed ref ID (only required on failure).
+            action: The failed action (only required on failure).
+        """
+        self.total_interactions += 1
+        self._recent_failures.append(failed)
+
+        if failed:
+            self.total_failures += 1
+            if ref:
+                self.failure_refs[ref] = self.failure_refs.get(ref, 0) + 1
+            if action:
+                self.failure_by_action[action] = self.failure_by_action.get(action, 0) + 1
+            self._invalidate_cache()
+
+    def _invalidate_cache(self) -> None:
+        """Invalidate the sorted-result cache."""
+        self._cached_top_refs = None
+        self._cached_top_actions = None
+
+    @property
+    def failure_rate(self) -> float:
+        """Global failure rate (0.0-1.0)."""
+        if self.total_interactions == 0:
+            return 0.0
+        return self.total_failures / self.total_interactions
+
+    @property
+    def recent_failure_rate(self) -> float:
+        """Recent failure rate over the last 100 interactions (0.0-1.0)."""
+        if not self._recent_failures:
+            return 0.0
+        return sum(self._recent_failures) / len(self._recent_failures)
+
+    @property
+    def top_failed_refs(self) -> list[tuple[str, int]]:
+        """Top failed refs sorted by count descending (max 10, cached)."""
+        if self._cached_top_refs is None:
+            self._cached_top_refs = sorted(self.failure_refs.items(), key=lambda x: x[1], reverse=True)[:10]
+        return self._cached_top_refs
+
+    @property
+    def top_failed_actions(self) -> list[tuple[str, int]]:
+        """Top failed actions sorted by count descending (cached)."""
+        if self._cached_top_actions is None:
+            self._cached_top_actions = sorted(self.failure_by_action.items(), key=lambda x: x[1], reverse=True)
+        return self._cached_top_actions
+
+    def to_dict(self) -> dict[str, object]:
+        """Export metrics as a dict for logging and monitoring.
+
+        Returns:
+            Dict containing all metrics and computed properties.
+        """
+        return {
+            "total_failures": self.total_failures,
+            "total_interactions": self.total_interactions,
+            "failure_rate": self.failure_rate,
+            "recent_failure_rate": self.recent_failure_rate,
+            "top_failed_refs": self.top_failed_refs,
+            "top_failed_actions": self.top_failed_actions,
+        }
+
+
+_INTERACTION_TIMEOUT_MS = 10_000
+_VALID_ACTIONS = frozenset(
+    {
+        "click",
+        "dblclick",
+        "type",
+        "fill",
+        "press",
+        "hover",
+        "focus",
+        "select",
+        "scroll",
+        "upload_file",
+        "drag",
+        "check",
+        "uncheck",
+    }
+)
+
+
+class Interactor:
+    """Element interaction manager — single responsibility.
+
+    Responsibilities:
+    1. Element actions (13 types: click/dblclick/type/fill/press/hover/focus/select/scroll/upload_file/drag/check/uncheck)
+    2. Ref resolution (ref ID -> Locator, including iframe refs)
+    3. Interaction timeout control (10 s)
+    4. Ref-not-found diagnosis (URL change detection + smart suggestion generation + context ref sampling)
+    5. Failure monitoring (failure rate, hot refs/actions statistics + periodic log output)
+
+    Not responsible for: navigation, snapshot generation, content extraction, etc.
+    """
+
+    def __init__(self, page: Page, refs: dict[str, RefInfo], last_snapshot_url: str | None = None):
+        """Initialize Interactor
+
+        Args:
+            page: Patchright Page Instance
+            refs: Ref ID -> RefInfo mapping.
+            last_snapshot_url: URL from the last snapshot (used for smart diagnosis on ref failure).
+        """
+        self._page = page
+        self._refs = refs
+        self._metrics = RefNotFoundMetrics()
+        self._last_snapshot_url = last_snapshot_url
+
+    def update_refs(
+        self,
+        refs: dict[str, RefInfo] | MappingProxyType[str, RefInfo],
+        last_snapshot_url: str | None = None,
+    ) -> None:
+        """Update the refs mapping (called after each snapshot).
+
+        Args:
+            refs: New Ref ID -> RefInfo mapping (dict or MappingProxyType).
+            last_snapshot_url: URL of this snapshot (for subsequent ref-failure diagnosis).
+        """
+        self._refs = dict(refs) if isinstance(refs, MappingProxyType) else refs
+        if last_snapshot_url is not None:
+            self._last_snapshot_url = last_snapshot_url
+
+    def _get_context_refs(self, max_total: int = 15) -> list[dict[str, str]]:
+        """Get a context summary of currently available refs.
+
+        Returns a diverse sample of refs (grouped by role, preferring named refs).
+
+        Args:
+            max_total: Maximum number of refs to return.
+
+        Returns:
+            [{"ref": "e0", "role": "button", "name": "Submit"}, ...]
+        """
+        role_groups: dict[str, list[tuple[str, str]]] = defaultdict(list)
+        for ref_id, info in self._refs.items():
+            role_groups[info.role].append((ref_id, info.name))
+
+        for role, refs_list in role_groups.items():
+            role_groups[role] = sorted(refs_list, key=lambda x: (not x[1], x[0]))
+
+        result: list[dict[str, str]] = []
+        per_role = max(1, max_total // max(1, len(role_groups)))
+
+        for role in sorted(role_groups.keys()):
+            for ref_id, name in role_groups[role][:per_role]:
+                if len(result) >= max_total:
+                    return result
+                result.append({"ref": ref_id, "role": role, "name": name})
+
+        return result
+
+    @property
+    def metrics(self) -> RefNotFoundMetrics:
+        """Get ref-failure statistics data."""
+        return self._metrics
+
+    def _log_metrics_if_needed(self) -> None:
+        """Periodically log failure-rate statistics (every 100 interactions)."""
+        if self._metrics.total_interactions % 100 == 0 and self._metrics.total_failures > 0:
+            logger.info(
+                "Ref failure metrics: "
+                f"global_rate={self._metrics.failure_rate:.1%}, "
+                f"recent_rate={self._metrics.recent_failure_rate:.1%}, "
+                f"total_failures={self._metrics.total_failures}/{self._metrics.total_interactions}, "
+                f"top_failed_refs={self._metrics.top_failed_refs[:3]}, "
+                f"top_failed_actions={self._metrics.top_failed_actions}"
+            )
+
+    def _resolve_frame(self, ref: str) -> Page | Frame:
+        """Resolve ref to the corresponding Page or Frame instance.
+
+        If ref starts with 'f', it's an iframe ref (e.g., f1_e0).
+        Otherwise it's the main page.
+        """
+        if ref.startswith("f"):
+            parts = ref.split("_", 1)
+            if len(parts) == 2:
+                frame_idx_str = parts[0][1:]
+                try:
+                    frame_idx = int(frame_idx_str)
+                    if frame_idx < len(self._page.frames):
+                        return self._page.frames[frame_idx]
+                except ValueError:
+                    pass
+        return self._page
+
+    async def interact(self, action: str, ref: str, text: str = "") -> str:
+        """Execute an element interaction.
+
+        Args:
+            action: Interaction action (click/type/fill/...).
+            ref: Element ref ID (e0/e1/f1_e0/...).
+            text: Interaction text (required for type/fill/press/select).
+
+        Returns:
+            Description of the interaction result.
+
+        Raises:
+            ValueError: If the action is invalid.
+            RefNotFoundError: If the ref does not exist (includes structured diagnosis).
+        """
+        if action not in _VALID_ACTIONS:
+            raise ValueError(f"Invalid action: {action}, must be one of {_VALID_ACTIONS}")
+
+        if ref not in self._refs:
+            total_refs = len(self._refs)
+            ref_ids = self._refs.keys()
+            ref_range = f"{min(ref_ids)}-{max(ref_ids)}" if ref_ids else "none"
+            context_refs = self._get_context_refs(max_total=15)
+
+            self._metrics.record_interaction(failed=True, ref=ref, action=action)
+
+            current_url = self._page.url
+
+            logger.warning(
+                f"Ref not found: {ref} (action={action}, page={current_url}). "
+                f"Total refs: {total_refs}, Failure rate: {self._metrics.failure_rate:.1%} "
+                f"(recent: {self._metrics.recent_failure_rate:.1%})"
+            )
+
+            self._log_metrics_if_needed()
+
+            raise RefNotFoundError(
+                ref=ref,
+                total_refs=total_refs,
+                ref_range=ref_range,
+                context_refs=context_refs,
+                last_snapshot_url=self._last_snapshot_url,
+                context={
+                    "action": action,
+                    "text": text if text else None,
+                    "page_url": current_url,
+                },
+            )
+
+        self._metrics.record_interaction(failed=False)
+
+        ref_info = self._refs[ref]
+        frame = self._resolve_frame(ref)
+        locator = resolve_locator(frame, ref_info)
+
+        healed_msg = ""
+        try:
+            # Check if locator is attached. If DOM mutated significantly, this will timeout.
+            await locator.wait_for(state="attached", timeout=1500)
+        except Exception:
+            # Attempt spatial-fingerprint self-healing
+            from myrm_agent_harness.toolkits.browser.snapshot.self_healer import SelfHealer
+
+            healed_loc, new_name, distance = await SelfHealer.heal(frame, ref_info)
+            if healed_loc:
+                locator = healed_loc
+                healed_msg = f" [Auto-Healed to '{new_name or ref_info.name}']"
+                logger.info(f"Interactor: locator for {ref} self-healed.{healed_msg}")
+
+                try:
+                    from myrm_agent_harness.runtime.events.bus import get_event_bus
+                    from myrm_agent_harness.runtime.events.system_events import LocatorSelfHealedEvent
+
+                    get_event_bus().publish(
+                        LocatorSelfHealedEvent(
+                            ref=ref,
+                            old_name=ref_info.name,
+                            new_name=new_name or ref_info.name,
+                            url=self._page.url,
+                            role=ref_info.role,
+                            distance=distance,
+                        )
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to publish LocatorSelfHealedEvent: {e}")
+
+        from myrm_agent_harness.toolkits.browser.wait_strategies import (
+            WaitStrategy,
+            wait_for_page_ready,
+        )
+
+        async def _wait_after_action():
+            try:
+                # Wait for SPA stability after action (timeout=3000ms, quiet=500ms)
+                await wait_for_page_ready(self._page, strategy=WaitStrategy.SPA_STABLE, max_ms=3000)
+            except Exception as e:
+                logger.debug(f"Interactor: post-action SPA wait failed/timed out: {e}")
+
+        try:
+            if action == "click":
+                click_delay = random.randint(50, 150)
+                await locator.click(delay=click_delay, timeout=_INTERACTION_TIMEOUT_MS)
+                await _wait_after_action()
+                return f"Clicked {ref}{healed_msg}"
+
+            elif action == "dblclick":
+                click_delay = random.randint(50, 150)
+                await locator.dblclick(delay=click_delay, timeout=_INTERACTION_TIMEOUT_MS)
+                await _wait_after_action()
+                return f"Double-clicked {ref}{healed_msg}"
+
+            elif action == "type":
+                is_password = False
+                try:
+                    input_type = await locator.get_attribute("type", timeout=1000)
+                    if input_type and input_type.lower() == "password":
+                        is_password = True
+                except Exception:
+                    pass
+                display_text = "********" if is_password else text
+
+                delay_per_char = random.randint(30, 100)
+                typing_timeout = max(_INTERACTION_TIMEOUT_MS, len(text) * delay_per_char + 5000)
+                await locator.type(text, delay=delay_per_char, timeout=typing_timeout)
+                await _wait_after_action()
+                return f"Typed '{display_text}' into {ref}{healed_msg}"
+
+            elif action == "fill":
+                is_password = False
+                try:
+                    input_type = await locator.get_attribute("type", timeout=1000)
+                    if input_type and input_type.lower() == "password":
+                        is_password = True
+                except Exception:
+                    pass
+                display_text = "********" if is_password else text
+
+                await locator.fill(text, timeout=_INTERACTION_TIMEOUT_MS)
+                await _wait_after_action()
+                return f"Filled {ref} with '{display_text}'{healed_msg}"
+
+            elif action == "press":
+                await locator.press(text, timeout=_INTERACTION_TIMEOUT_MS)
+                await _wait_after_action()
+                return f"Pressed '{text}' on {ref}{healed_msg}"
+
+            elif action == "hover":
+                await locator.hover(timeout=_INTERACTION_TIMEOUT_MS)
+                return f"Hovered over {ref}{healed_msg}"
+
+            elif action == "focus":
+                await locator.focus(timeout=_INTERACTION_TIMEOUT_MS)
+                return f"Focused {ref}{healed_msg}"
+
+            elif action == "select":
+                await locator.select_option(text, timeout=_INTERACTION_TIMEOUT_MS)
+                return f"Selected '{text}' in {ref}{healed_msg}"
+
+            elif action == "scroll":
+                try:
+                    delta = int(text)
+                except ValueError as exc:
+                    raise ValueError(f"Scroll requires numeric text (pixel delta), got: {text}") from exc
+
+                await locator.scroll_into_view_if_needed(timeout=_INTERACTION_TIMEOUT_MS)
+                await self._page.evaluate(f"window.scrollBy(0, {delta})")
+                return f"Scrolled {delta}px{healed_msg}"
+
+            elif action == "upload_file":
+                await locator.set_input_files(text, timeout=_INTERACTION_TIMEOUT_MS)
+                return f"Uploaded file to {ref}: {text}{healed_msg}"
+
+            elif action == "drag":
+                parts = text.split(",")
+                if len(parts) != 2:
+                    raise ValueError(f"Drag requires 'x,y' text, got: {text}")
+
+                try:
+                    x, y = int(parts[0]), int(parts[1])
+                except ValueError as exc:
+                    raise ValueError(f"Drag requires numeric 'x,y', got: {text}") from exc
+
+                await locator.drag_to(self._page.locator("body"), target_position={"x": x, "y": y})
+                return f"Dragged {ref} to ({x}, {y}){healed_msg}"
+
+            elif action == "check":
+                await locator.check(timeout=_INTERACTION_TIMEOUT_MS)
+                return f"Checked {ref}{healed_msg}"
+
+            elif action == "uncheck":
+                await locator.uncheck(timeout=_INTERACTION_TIMEOUT_MS)
+                return f"Unchecked {ref}{healed_msg}"
+
+            return f"Unknown action: {action}"
+        except Exception as e:
+            error_msg = str(e)
+            if "TargetClosedError" in error_msg or "Target closed" in error_msg or "Timeout" in error_msg:
+                # This often happens when a native OS dialog (like a file picker or permission prompt)
+                # blocks the browser process, causing Playwright to timeout or lose the target.
+                logger.warning(f"Browser interaction failed with potential OS dialog block: {e}")
+                return (
+                    f"Interaction failed: {error_msg}\n\n"
+                    "[SYSTEM HINT: The browser might be blocked by a native OS dialog (e.g., File Upload, Permission Request). "
+                    "Playwright CANNOT interact with native OS dialogs. If you suspect an OS dialog is open, "
+                    "you MUST switch to 'desktop_snapshot' and 'desktop_interact_tool' to handle it.]"
+                )
+            raise

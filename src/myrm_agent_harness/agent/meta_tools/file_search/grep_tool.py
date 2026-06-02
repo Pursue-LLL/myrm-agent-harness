@@ -1,0 +1,434 @@
+"""内容搜索工具（Claude Code 兼容）
+
+[INPUT]
+- langchain.tools::tool (POS: LangChain 工具装饰器)
+- pydantic::BaseModel, Field (POS: 参数验证)
+- agent.config.file_io::FileIOConfig (POS: I/O 配置)
+- agent.security.redact::redact_sensitive_text (POS: 工具输出脱敏，防止凭证泄露到 LLM 上下文)
+- regex_validator::RegexValidator (POS: 正则表达式验证器，防止 ReDoS)
+- utils.lru_cache::LRUCache (POS: LRU 缓存)
+- _formatter (POS: Grep 结构化输出格式化器)
+
+[OUTPUT]
+- GrepInput: Grep 工具输入参数模型
+- create_grep_tool: 创建 Grep 工具的工厂函数
+
+[POS]
+Content search tool (Claude Code compatible). Searches file contents for matching text patterns
+with regex support, AST-aware structured output (symbol grouping), intelligent line truncation,
+and three-tier performance optimization (ripgrep > mmap+concurrency > pure Python).
+
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import hashlib
+import json
+import logging
+import mmap
+import re
+import subprocess
+import time
+from functools import lru_cache
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from langchain.tools import tool
+from langchain_core.runnables import RunnableConfig
+from pydantic import BaseModel, Field
+
+from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
+from myrm_agent_harness.agent.security.redact import redact_sensitive_text
+from myrm_agent_harness.toolkits.code_execution.executors.base import require_executor
+from myrm_agent_harness.utils.errors import ToolError
+from myrm_agent_harness.utils.lru_cache import LRUCache
+
+from .regex_validator import RegexValidator
+
+if TYPE_CHECKING:
+    from langchain_core.tools import BaseTool
+
+logger = logging.getLogger(__name__)
+
+
+#  性能优化：搜索结果缓存（使用项目统一的 LRUCache）
+def _make_cache_key(pattern: str, path: str, file_pattern: str, ignore_case: bool) -> str:
+    """生成缓存键（确保参数顺序一致性）"""
+    data = json.dumps(
+        {"pattern": pattern, "path": path, "file_pattern": file_pattern, "ignore_case": ignore_case}, sort_keys=True
+    )
+    return hashlib.md5(data.encode()).hexdigest()
+
+
+# 全局缓存实例（100条缓存，60秒过期）
+_search_cache: LRUCache[str] = LRUCache(maxsize=100, ttl=60, id="grep_search_cache")
+
+
+#  性能优化：ripgrep 检测（只检测一次）
+@lru_cache(maxsize=1)
+def _has_ripgrep() -> bool:
+    """检测系统是否有 ripgrep"""
+    try:
+        result = subprocess.run(["rg", "--version"], capture_output=True, timeout=1)
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+async def _ripgrep_search(
+    pattern: str,
+    search_path: Path,
+    file_pattern: str,
+    ignore_case: bool,
+    max_results: int,
+    timeout_seconds: float = 10.0,
+) -> list[dict[str, str | int]]:
+    """Execute search using ripgrep (fastest tier). Returns raw match list."""
+    cmd = ["rg", "--line-number", "--no-heading", "--color=never"]
+
+    if ignore_case:
+        cmd.append("--ignore-case")
+
+    if file_pattern != "**/*":
+        cmd.extend(["--glob", file_pattern])
+
+    cmd.extend(["--", pattern, str(search_path)])
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+
+        results: list[dict[str, str | int]] = []
+        stderr_data = bytearray()
+
+        async def _read_stderr():
+            while True:
+                chunk = await proc.stderr.read(4096)
+                if not chunk:
+                    break
+                stderr_data.extend(chunk)
+
+        async def _read_lines():
+            while True:
+                line_bytes = await proc.stdout.readline()
+                if not line_bytes:
+                    break
+                line = line_bytes.decode("utf-8", errors="replace").strip()
+                parts = line.split(":", 2)
+                if len(parts) >= 3:
+                    file_path, line_num, content = parts
+                    with contextlib.suppress(ValueError):
+                        results.append({"file": file_path, "line": int(line_num), "content": content})
+
+                if len(results) >= max_results:
+                    with contextlib.suppress(ProcessLookupError):
+                        proc.terminate()
+                    break
+            await proc.wait()
+
+        await asyncio.wait_for(asyncio.gather(_read_lines(), _read_stderr()), timeout=timeout_seconds)
+
+        if proc.returncode not in (0, 1, -15, 143) and len(results) < max_results:
+            logger.warning(f"ripgrep error: {stderr_data.decode('utf-8', errors='replace')}")
+            raise RuntimeError("ripgrep failed")
+
+        return results
+
+    except (TimeoutError, RuntimeError) as e:
+        logger.warning(f"ripgrep search failed: {e}, falling back to Python")
+        with contextlib.suppress(ProcessLookupError, AttributeError):
+            proc.terminate()
+        raise
+
+
+def _mmap_search_file(file: Path, regex, max_matches: int = 50) -> list[dict]:
+    """使用 mmap 搜索单个文件（内存高效）"""
+    results = []
+    try:
+        with open(file, "rb") as f:
+            # 空文件直接跳过
+            if f.seek(0, 2) == 0:
+                return results
+            f.seek(0)
+
+            # 使用 mmap（内存映射，不加载整个文件）
+            with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+                # 逐行扫描（mmap 支持迭代）
+                line_num = 0
+                for line_bytes in iter(mm.readline, b""):
+                    line_num += 1
+                    try:
+                        line = line_bytes.decode("utf-8").rstrip()
+                        if regex.search(line):
+                            results.append({"line": line_num, "content": line})
+                            if len(results) >= max_matches:
+                                break
+                    except UnicodeDecodeError:
+                        continue
+
+    except (OSError, ValueError):
+        # mmap 失败（如空文件、权限问题），fallback 到普通读取
+        pass
+
+    return results
+
+
+class GrepInput(BaseModel):
+    """Grep 工具输入参数"""
+
+    pattern: str = Field(description="搜索模式（支持正则表达式）")
+    path: str = Field(default=".", description="搜索路径（默认当前目录）")
+    file_pattern: str = Field(default="**/*", description="文件匹配模式（默认所有文件）")
+    ignore_case: bool = Field(default=False, description="是否忽略大小写（默认 False）")
+
+
+def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
+    """创建内容搜索工具
+
+    从 context 动态获取 executor 进行路径解析。
+    """
+    io_cfg = io_config or DEFAULT_FILE_IO_CONFIG
+    regex_validator = RegexValidator(io_cfg)
+
+    tool_description = f"""搜索文件内容（支持正则表达式）。
+
+用途：
+- 查找函数/类定义
+- 搜索变量引用
+- 代码审查
+- 查找 TODO/FIXME
+
+参数：
+- pattern: 搜索模式（必需，支持正则表达式）
+- path: 搜索路径（默认当前目录）
+- file_pattern: 文件匹配模式（默认 **/*，即所有文件）
+- ignore_case: 忽略大小写（默认 False）
+
+示例：
+- 查找函数定义：grep_tool(pattern="def main")
+- 在 Python 文件中查找：grep_tool(pattern="TODO", file_pattern="**/*.py")
+- 忽略大小写：grep_tool(pattern="error", ignore_case=True)
+- 正则搜索：grep_tool(pattern="class \\w+\\(.*\\):")
+- 查找导入语句：grep_tool(pattern="^import ", file_pattern="**/*.py")
+
+限制：
+- 最多显示前 {io_cfg.max_search_results} 个匹配结果
+- 最多搜索 {io_cfg.max_search_files} 个文件
+- 搜索超时：{int(io_cfg.search_timeout_seconds)}秒
+- 自动跳过二进制文件
+
+安全性：
+- 自动检测危险正则表达式（防止 ReDoS 攻击）
+- 限制搜索时间和资源使用
+
+注意：
+- 使用 Python 正则表达式语法
+- 特殊字符需要转义（如 \\.、\\(、\\)）
+"""
+
+    @tool("grep_tool", description=tool_description, args_schema=GrepInput)
+    async def grep_func(
+        pattern: str,
+        path: str = ".",
+        file_pattern: str = "**/*",
+        ignore_case: bool = False,
+        *,
+        config: RunnableConfig,  #  纯净设计：从 config 获取 context
+    ) -> str:
+        """搜索文件内容
+
+        Args:
+            pattern: 搜索模式（支持正则表达式）
+            path: 搜索路径
+            file_pattern: 文件匹配模式
+            ignore_case: 是否忽略大小写
+            config: LangChain 运行时配置（自动注入）
+
+        Returns:
+            匹配的行及其位置
+
+        Raises:
+            FileNotFoundError: 搜索路径不存在
+            PermissionError: 权限不足
+            ValueError: 路径不安全或参数错误
+            ToolError: 正则表达式错误或安全问题
+        """
+        try:
+            executor = require_executor()
+
+            try:
+                search_path = await executor.resolve_path(path)
+            except ValueError as e:
+                raise ToolError(
+                    message=f"Invalid path: {path} - {e}",
+                    user_hint=f"The path '{path}' is invalid or outside the workspace.",
+                ) from e
+
+            search_path_obj = Path(search_path)
+
+            # 验证路径存在
+            if not search_path_obj.exists():
+                raise ToolError(
+                    message=f"Path not found: {path}",
+                    user_hint=f"The path '{path}' does not exist. Please check the path and try again.",
+                )
+
+            cache_key = _make_cache_key(pattern, path, file_pattern, ignore_case)
+            cached_result = _search_cache.get(cache_key)
+            if cached_result is not None:
+                logger.debug(f"Grep cache hit: {cache_key[:8]}...")
+                return cached_result
+
+            flags = re.IGNORECASE if ignore_case else 0
+            regex = regex_validator.validate_and_compile(pattern, flags)
+
+            if io_cfg.enable_audit_log:
+                logger.info(
+                    f"SECURITY AUDIT: grep_tool - pattern={pattern}, path={path}, "
+                    f"file_pattern={file_pattern}, ignore_case={ignore_case}"
+                )
+
+            # --- Search phase: collect raw results from ripgrep or Python fallback ---
+            results: list[dict[str, str | int]] = []
+            files_searched = 0
+            used_ripgrep = False
+
+            if _has_ripgrep():
+                try:
+                    results = await _ripgrep_search(
+                        pattern,
+                        search_path_obj,
+                        file_pattern,
+                        ignore_case,
+                        io_cfg.max_search_results,
+                        io_cfg.search_timeout_seconds,
+                    )
+                    used_ripgrep = True
+                except Exception as e:
+                    logger.debug(f"ripgrep fallback: {e}")
+
+            if not used_ripgrep:
+                try:
+                    if search_path_obj.is_file():
+                        if search_path_obj.match(file_pattern) or file_pattern == "**/*":
+                            files = [search_path_obj]
+                        else:
+                            files = []
+                    else:
+                        files = list(search_path_obj.rglob(file_pattern))
+                except (ValueError, OSError) as e:
+                    raise ToolError(
+                        message=f"Invalid file pattern '{file_pattern}': {e}",
+                        user_hint=f"The file pattern '{file_pattern}' is invalid. Use patterns like '*.py', '**/*.js', etc.",
+                    ) from e
+
+                files = [f for f in files if f.is_file()]
+
+                if len(files) > io_cfg.max_search_files:
+                    logger.warning(
+                        f"Search file count ({len(files)}) exceeds limit ({io_cfg.max_search_files}). "
+                        "Limiting search scope."
+                    )
+                    files = files[: io_cfg.max_search_files]
+
+                start_time = time.time()
+
+                async def search_file(file: Path) -> list[dict[str, str | int]]:
+                    file_results: list[dict[str, str | int]] = []
+                    try:
+                        if file.suffix in {
+                            ".pyc",
+                            ".so",
+                            ".dll",
+                            ".exe",
+                            ".bin",
+                            ".jpg",
+                            ".png",
+                            ".gif",
+                            ".pdf",
+                            ".zip",
+                        }:
+                            return file_results
+
+                        try:
+                            file_matches = await asyncio.to_thread(_mmap_search_file, file, regex, io_cfg.max_search_results)
+                            try:
+                                rel_path = file.relative_to(search_path_obj)
+                            except ValueError:
+                                rel_path = file
+                            for match in file_matches:
+                                file_results.append(
+                                    {"file": str(rel_path), "line": match["line"], "content": match["content"]}
+                                )
+                        except Exception:
+                            content = await asyncio.to_thread(file.read_text, encoding="utf-8")
+                            for line_num, line in enumerate(content.splitlines(), 1):
+                                try:
+                                    if regex_validator.safe_search(regex, line):
+                                        try:
+                                            rel_path = file.relative_to(search_path_obj)
+                                        except ValueError:
+                                            rel_path = file
+                                        file_results.append(
+                                            {"file": str(rel_path), "line": line_num, "content": line.rstrip()}
+                                        )
+                                        if len(file_results) >= io_cfg.max_search_results:
+                                            break
+                                except ToolError:
+                                    break
+                    except (UnicodeDecodeError, PermissionError, OSError):
+                        pass
+                    return file_results
+
+                batch_size = 20
+                i = 0
+                batch: list[Path] = []
+                for i in range(0, len(files), batch_size):
+                    elapsed = time.time() - start_time
+                    if elapsed > io_cfg.search_timeout_seconds:
+                        logger.warning(f"Search timeout after {elapsed:.1f}s")
+                        break
+                    batch = files[i : i + batch_size]
+                    batch_results = await asyncio.gather(*[search_file(f) for f in batch])
+                    for file_results in batch_results:
+                        results.extend(file_results)
+                        if len(results) >= io_cfg.max_search_results:
+                            break
+                    if len(results) >= io_cfg.max_search_results:
+                        break
+                files_searched = min(i + len(batch), len(files))
+
+            # --- Format phase ---
+            from ._formatter import format_grep_results
+
+            if used_ripgrep:
+                files_searched = len({str(r["file"]) for r in results})
+
+            output = format_grep_results(
+                results,
+                pattern,
+                files_searched,
+                io_cfg.max_search_results,
+                is_regex=True,
+            )
+
+            output = redact_sensitive_text(output)
+            _search_cache.set(cache_key, output)
+
+            return output
+
+        except ToolError:
+            # ToolError 已经包含友好提示，直接传播
+            raise
+        except Exception as e:
+            # 未预期的错误，包装成 ToolError
+            logger.exception(f"Unexpected error in grep_tool: {e}")
+            raise ToolError(
+                message=f"Unexpected error during content search: {e}",
+                user_hint="An unexpected error occurred. Please check the search parameters and try again.",
+            ) from e
+
+    return grep_func

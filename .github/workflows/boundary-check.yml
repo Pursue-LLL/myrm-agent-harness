@@ -1,0 +1,71 @@
+name: Architecture Boundary Enforcement
+
+on:
+  pull_request:
+    paths:
+      - 'src/myrm_agent_harness/**/*.py'
+      - 'tests/architecture/**'
+      - 'harness_packaging/**'
+      - 'scripts/boundary_check.py'
+      - 'scripts/boundary_config.py'
+      - 'scripts/build_core.py'
+      - 'scripts/build_release_wheel.py'
+      - 'scripts/assemble_production.py'
+      - 'src/myrm_agent_harness/_verify_distribution.py'
+      - 'packages/myrm-agent-harness-core/**'
+      - '.pre-commit-config.yaml'
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'src/myrm_agent_harness/**/*.py'
+      - 'tests/architecture/**'
+      - 'harness_packaging/**'
+      - 'scripts/boundary_check.py'
+      - 'scripts/boundary_config.py'
+      - 'scripts/build_core.py'
+      - 'scripts/build_release_wheel.py'
+      - 'scripts/assemble_production.py'
+      - 'src/myrm_agent_harness/_verify_distribution.py'
+      - 'packages/myrm-agent-harness-core/**'
+      - '.pre-commit-config.yaml'
+
+jobs:
+  boundary-check:
+    name: Harness/Business Boundary Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Run boundary check (full scan)
+        run: uv run python scripts/boundary_check.py
+
+      - name: Install dependencies
+        run: uv sync --dev --group build
+
+      - name: Run architecture tests
+        run: uv run pytest tests/architecture/ -m architecture -n0 -v --tb=short
+
+      - name: Report success
+        if: success()
+        run: |
+          echo "✅ Boundary check passed: Framework layer is properly isolated from business layer"
+
+      - name: Report failure
+        if: failure()
+        run: |
+          echo "❌ Boundary violation detected!"
+          echo "The framework layer must not import from the business layer."
+          echo "See test output above for violation details and fix suggestions."

@@ -1,0 +1,41 @@
+{
+  "name": "coding_agent_life",
+  "version": "1.0.0",
+  "description": "Built-in memory retrieval eval dataset covering 8 categories with bilingual (EN/ZH) cases.",
+  "memories": [
+    {"id": "mem_arch_01", "content": "The team decided to use PostgreSQL instead of MongoDB for the main database because relational constraints are critical for billing data integrity.", "category": "architecture_decision", "language": "en"},
+    {"id": "mem_arch_02", "content": "团队决定使用 Redis 作为会话缓存层，因为 Memcached 不支持持久化，而我们需要在服务重启后恢复活跃会话。", "category": "architecture_decision", "language": "zh"},
+    {"id": "mem_workflow_01", "content": "Yesterday I fixed the login redirect bug that caused users to land on a 404 page after OAuth callback. The root cause was a missing trailing slash in the redirect URI.", "category": "workflow_event", "language": "en"},
+    {"id": "mem_workflow_02", "content": "今天修复了文件上传超时问题，原因是 Nginx 的 client_max_body_size 设置太小，改为 50MB 后问题解决。", "category": "workflow_event", "language": "zh"},
+    {"id": "mem_pref_01", "content": "User prefers Python over Java for backend services and always uses type hints. Dislikes verbose boilerplate code.", "category": "user_preference", "language": "en"},
+    {"id": "mem_pref_02", "content": "用户偏好使用 Tailwind CSS 而不是 Bootstrap，认为 utility-first 方式更灵活。不喜欢内联样式。", "category": "user_preference", "language": "zh"},
+    {"id": "mem_temporal_01", "content": "Last Monday the CI pipeline was down for 3 hours due to a Docker Hub rate limit. We switched to GitHub Container Registry as a workaround.", "category": "temporal_reasoning", "language": "en"},
+    {"id": "mem_temporal_02", "content": "上周五部署了新的监控系统 Grafana + Prometheus，替代了之前的 Datadog，因为成本太高。", "category": "temporal_reasoning", "language": "zh"},
+    {"id": "mem_cjk_01", "content": "项目采用微服务架构，使用 gRPC 进行服务间通信，消息队列选择 RabbitMQ 而非 Kafka，因为当前消息量不大。", "category": "cjk_retrieval", "language": "zh"},
+    {"id": "mem_cjk_02", "content": "数据库分库分表策略：按用户 ID 取模分到 8 个分片，每个分片独立的 PostgreSQL 实例。", "category": "cjk_retrieval", "language": "zh"},
+    {"id": "mem_multi_01", "content": "In session 1 we discussed the API rate limiting strategy. In session 2 we refined it to use sliding window counters stored in Redis.", "category": "multi_session", "language": "en"},
+    {"id": "mem_multi_02", "content": "第一次讨论了权限模型用 RBAC，第二次细化为 ABAC 混合模式，因为纯 RBAC 无法满足租户级别的细粒度控制。", "category": "multi_session", "language": "zh"},
+    {"id": "mem_update_01", "content": "UPDATE: We switched from REST to GraphQL for the mobile API. Previous decision to use REST is now deprecated.", "category": "knowledge_update", "language": "en"},
+    {"id": "mem_update_02", "content": "更新：前端框架从 Vue 2 迁移到 Vue 3 完成，之前关于 Vue 2 Options API 的偏好已过时。", "category": "knowledge_update", "language": "zh"},
+    {"id": "mem_proc_01", "content": "When deploying to production, always run database migrations first, then deploy the application code. Never deploy code before migrations are complete.", "category": "procedural_skill", "language": "en"},
+    {"id": "mem_proc_02", "content": "调试内存泄漏时，先用 memory_profiler 做基线测试，然后用 objgraph 追踪引用链，最后用 gc.get_referrers 定位泄漏源。", "category": "procedural_skill", "language": "zh"}
+  ],
+  "cases": [
+    {"id": "q_arch_01", "category": "architecture_decision", "query": "What database did the team choose for billing and why?", "gold_ids": ["mem_arch_01"], "language": "en"},
+    {"id": "q_arch_02", "category": "architecture_decision", "query": "团队选择了什么做会话缓存？为什么不用 Memcached？", "gold_ids": ["mem_arch_02"], "language": "zh"},
+    {"id": "q_workflow_01", "category": "workflow_event", "query": "What was the login redirect bug that was fixed recently?", "gold_ids": ["mem_workflow_01"], "language": "en"},
+    {"id": "q_workflow_02", "category": "workflow_event", "query": "文件上传超时问题是怎么解决的？", "gold_ids": ["mem_workflow_02"], "language": "zh"},
+    {"id": "q_pref_01", "category": "user_preference", "query": "What programming language does the user prefer for backend?", "gold_ids": ["mem_pref_01"], "language": "en"},
+    {"id": "q_pref_02", "category": "user_preference", "query": "用户喜欢用什么 CSS 框架？", "gold_ids": ["mem_pref_02"], "language": "zh"},
+    {"id": "q_temporal_01", "category": "temporal_reasoning", "query": "When was the CI pipeline down and what caused it?", "gold_ids": ["mem_temporal_01"], "language": "en"},
+    {"id": "q_temporal_02", "category": "temporal_reasoning", "query": "上周五部署了什么新的监控系统？", "gold_ids": ["mem_temporal_02"], "language": "zh"},
+    {"id": "q_cjk_01", "category": "cjk_retrieval", "query": "项目的服务间通信用什么协议？为什么不用 Kafka？", "gold_ids": ["mem_cjk_01"], "language": "zh"},
+    {"id": "q_cjk_02", "category": "cjk_retrieval", "query": "数据库分库分表的策略是什么？", "gold_ids": ["mem_cjk_02"], "language": "zh"},
+    {"id": "q_multi_01", "category": "multi_session", "query": "How did the API rate limiting strategy evolve across sessions?", "gold_ids": ["mem_multi_01"], "language": "en"},
+    {"id": "q_multi_02", "category": "multi_session", "query": "权限模型从 RBAC 到 ABAC 的演变过程是怎样的？", "gold_ids": ["mem_multi_02"], "language": "zh"},
+    {"id": "q_update_01", "category": "knowledge_update", "query": "What happened to the REST API decision for mobile?", "gold_ids": ["mem_update_01"], "language": "en"},
+    {"id": "q_update_02", "category": "knowledge_update", "query": "前端框架迁移到什么版本了？Vue 2 的决策还有效吗？", "gold_ids": ["mem_update_02"], "language": "zh"},
+    {"id": "q_proc_01", "category": "procedural_skill", "query": "What is the correct order for production deployment steps?", "gold_ids": ["mem_proc_01"], "language": "en"},
+    {"id": "q_proc_02", "category": "procedural_skill", "query": "调试内存泄漏应该怎么做？步骤是什么？", "gold_ids": ["mem_proc_02"], "language": "zh"}
+  ]
+}

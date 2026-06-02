@@ -1,0 +1,20 @@
+# Core IP modules compiled to native extensions in release wheels.
+#
+# Paths are relative to src/myrm_agent_harness/ (without .py suffix).
+# Development installs keep these as readable .py source.
+# Release CI replaces them with Nuitka-compiled .so via build_core.py.
+#
+# Incrementally expand this list as Nuitka compatibility is verified per module.
+
+modules:
+  # Skill evolution engine (core IP)
+  - agent/skills/evolution/core/engine
+  - agent/skills/evolution/pipeline/trace_analyzer
+  - agent/skills/evolution/core/proposal_builder
+
+  # Context management pipeline (core IP)
+  - agent/context_management/pipeline/engine
+
+  # Memory extraction strategies (core IP)
+  - toolkits/memory/strategies/extractor
+  - toolkits/memory/cognitive/deriver

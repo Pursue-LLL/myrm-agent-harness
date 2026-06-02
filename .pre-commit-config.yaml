@@ -1,0 +1,18 @@
+repos:
+  - repo: local
+    hooks:
+      - id: harness-boundary-check
+        name: Harness/Business Boundary Check
+        entry: python scripts/boundary_check.py --incremental
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: "Enforce framework-business separation (incremental: only changed files)"
+
+      - id: harness-tool-registry-check
+        name: Harness Tool Registry Consistency
+        entry: python scripts/validate_tool_registry.py --incremental
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: "Enforce that every @tool is registered in _TOOL_LAYERS and docs counts stay in sync"

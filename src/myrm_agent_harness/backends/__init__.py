@@ -1,0 +1,9 @@
+"""Backend implementations — profiles, secrets, and skills adapters.
+
+Import from subpackages directly:
+  - backends.profiles: AgentProfile, AgentProfileBackend, LocalProfileBackend, ...
+  - backends.secrets: AgentSecretBackend, LocalSecretBackend, ...
+  - backends.skills: SkillBackend, SkillMetadata, ...
+
+For storage backends, use toolkits.storage directly.
+"""
