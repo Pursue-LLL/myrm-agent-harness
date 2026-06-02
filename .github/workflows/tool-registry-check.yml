@@ -31,18 +31,15 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Checkout code (with server bootstrap)
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: false
 
-      - name: Checkout sibling server repo for bootstrap parsing
+      - name: Checkout OSS server monorepo for bootstrap parsing
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.repository_owner }}/myrm-agent-server
-          path: ../myrm-agent-server
-          ref: main
+          repository: Pursue-LLL/vortexai
+          path: vortexai
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
@@ -53,13 +50,14 @@ jobs:
         run: uv python install 3.13
 
       - name: Run full tool-registry validation
-        run: |
-          cd myrm-agent-harness
-          uv run python scripts/validate_tool_registry.py
+        env:
+          MYRM_SERVER_ROOT: ${{ github.workspace }}/vortexai/myrm-agent-server
+        run: uv run python scripts/validate_tool_registry.py
 
       - name: Verify docs counts are in sync
+        env:
+          MYRM_SERVER_ROOT: ${{ github.workspace }}/vortexai/myrm-agent-server
         run: |
-          cd myrm-agent-harness
           uv run python scripts/validate_tool_registry.py --generate-docs
           if ! git diff --quiet src/myrm_agent_harness/agent/tool_management/; then
             echo "::error::Docs are out of sync. Run scripts/validate_tool_registry.py --generate-docs locally and commit the result."

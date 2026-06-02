@@ -10,13 +10,36 @@ the boundary without spelunking the codebase.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-HARNESS_ROOT = REPO_ROOT / "myrm-agent-harness"
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+HARNESS_ROOT = Path(os.environ.get("MYRM_HARNESS_ROOT", _SCRIPTS_DIR.parent)).resolve()
 HARNESS_SRC = HARNESS_ROOT / "src" / "myrm_agent_harness"
-SERVER_ROOT = REPO_ROOT / "myrm-agent-server"
+
+
+def _resolve_server_root() -> Path:
+    if env_root := os.environ.get("MYRM_SERVER_ROOT"):
+        return Path(env_root).resolve()
+    candidates = (
+        HARNESS_ROOT / "vortexai" / "myrm-agent-server",
+        HARNESS_ROOT.parent / "open-perplexity" / "myrm-agent-server",
+        HARNESS_ROOT.parent / "vortexai" / "myrm-agent-server",
+        HARNESS_ROOT.parent / "myrm-agent-server",
+    )
+    for candidate in candidates:
+        if (candidate / "app").is_dir():
+            return candidate.resolve()
+    msg = (
+        "Could not locate myrm-agent-server checkout. "
+        "Set MYRM_SERVER_ROOT or checkout vortexai beside the harness repo."
+    )
+    raise FileNotFoundError(msg)
+
+
+SERVER_ROOT = _resolve_server_root()
 SERVER_SRC = SERVER_ROOT / "app"
+REPO_ROOT = HARNESS_ROOT
 
 SCAN_ROOTS: tuple[Path, ...] = (HARNESS_SRC, SERVER_SRC)
 
@@ -27,13 +50,10 @@ INTERNAL_TOOL_NAMES: frozenset[str] = frozenset({
     "submit_verdict",
 })
 
-# Tools registered in _TOOL_LAYERS but injected as raw JSON schemas (not via
-# @tool/@BaseTool).  The AST scanner will never find a source declaration for
-# these, so they appear as "ghost" entries without this exemption.
 SCHEMA_ONLY_TOOL_NAMES: frozenset[str] = frozenset({
-    "dispatch_research",   # Deep Research orchestrator state-machine signal
-    "finalize_report",     # Deep Research orchestrator state-machine signal
-    "think",               # Deep Research orchestrator state-machine signal
+    "dispatch_research",
+    "finalize_report",
+    "think",
 })
 
 CROSS_MODULE_CONSTANTS: dict[str, str] = {
@@ -41,22 +61,18 @@ CROSS_MODULE_CONSTANTS: dict[str, str] = {
     "TOOL_NAME": "skill_analyze_tool",
 }
 
-# Each whitelisted factory ships as an opt-in toolkit: the harness exports it
-# via `myrm_agent_harness.toolkits.<name>` (or lazy `__getattr__`), and business
-# code wires it in only when needed. Static grep cannot follow lazy imports,
-# so they look like orphans without this allow-list.
 ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset({
-    "create_desktop_tools",     # Desktop / computer-use opt-in toolkit
-    "create_browser_tools",          # Browser automation opt-in toolkit
-    "create_skill_select_tool",      # Built dynamically by SkillAgent depending on skill count
-    "create_huggingface_inference_tool",  # Lazy-loaded via toolkits/__init__::_LAZY_IMPORTS
-    "create_automation_tools",       # Optional automation toolkit
-    "create_calendar_tools",         # Optional calendar toolkit
-    "create_kanban_tools",           # Optional kanban toolkit
+    "create_desktop_tools",
+    "create_browser_tools",
+    "create_skill_select_tool",
+    "create_huggingface_inference_tool",
+    "create_automation_tools",
+    "create_calendar_tools",
+    "create_kanban_tools",
 })
 
-BOOTSTRAP_FILES: frozenset[str] = frozenset({
-    "myrm-agent-server/app/ai_agents/general_agent/tools/_tool_layer_bootstrap.py",
+BOOTSTRAP_FILE_PATHS: frozenset[Path] = frozenset({
+    SERVER_ROOT / "app/ai_agents/general_agent/tools/_tool_layer_bootstrap.py",
 })
 
 EXCLUDED_DIRS: frozenset[str] = frozenset({
