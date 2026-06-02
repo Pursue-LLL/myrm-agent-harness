@@ -71,7 +71,11 @@ Default release repo: `Pursue-LLL/myrm-agent-harness-wheels` (override with `MYR
 
 Pin version via `scripts/dev/harness_release_version.txt` or `MYRM_HARNESS_VERSION`.
 
+Downloads are verified against `harness_release_manifest.json` when present on the Release.
+
 Setup for the public wheels repo: [PUBLIC_WHEELS_REPO.md](./PUBLIC_WHEELS_REPO.md).
+
+Shared downloader: `scripts/dev/harness_release_download.py` (install script + Docker CI).
 
 Local harness development (editable or source build):
 
@@ -148,7 +152,7 @@ Editable monorepo dev (transitional): `MYRM_HARNESS_EDITABLE=1 ./scripts/dev/ins
 
 | Workflow | Role |
 |----------|------|
-| `myrm-agent-harness/.github/workflows/build-core-wheels.yml` | 6-platform Nuitka matrix + tag → private audit release + **public wheels mirror** |
+| `myrm-agent-harness/.github/workflows/build-core-wheels.yml` | 6-platform Nuitka matrix + tag → public wheels Release + SHA256 manifest |
 | `myrm-agent-harness/.github/workflows/boundary-check.yml` | Architecture tests (`-n0`) including `test_repo_hygiene` |
 | `.github/workflows/build-oss-server-docker.yml` | OSS public Dockerfile smoke (linux, wheel contexts) |
 | `.github/workflows/build-official-runtime.yml` | Official runtime Docker image (linux-amd64) |

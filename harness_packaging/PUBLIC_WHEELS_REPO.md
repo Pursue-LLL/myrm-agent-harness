@@ -24,8 +24,10 @@ Tauri, and SaaS image builds can download them without a PAT.
 `build-core-wheels.yml` on tag push:
 
 1. Builds 6 platform core wheels + 1 stripped release wheel (private repo CI).
-2. Creates a GitHub Release on the **private** repo (internal audit).
-3. Mirrors the same assets to **`myrm-agent-harness-wheels`** (public, anonymous download).
+2. Writes `harness_release_manifest.json` (SHA256 per wheel).
+3. Publishes wheels + manifest to **`myrm-agent-harness-wheels`** (public, anonymous download).
+
+Private repo Actions artifacts retain build outputs for audit (30-day retention).
 
 ## Consumer default
 
@@ -56,4 +58,4 @@ curl -sL "https://api.github.com/repos/Pursue-LLL/myrm-agent-harness-wheels/rele
   | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('assets',[])), 'assets')"
 ```
 
-Expect **7** `.whl` files (1 release + 6 core platforms).
+Expect **7** `.whl` files (1 release + 6 core platforms) plus **`harness_release_manifest.json`**.
