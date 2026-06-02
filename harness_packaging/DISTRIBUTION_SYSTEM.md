@@ -114,7 +114,7 @@ Runtime: `verify-harness-distribution --matplotlib-cjk`. CI: `.github/workflows/
 |------|--------|
 | Harness source | Private `Pursue-LLL/myrm-agent-harness` |
 | OSS install | `MYRM_HARNESS_INSTALL_MODE=pypi` (default) via `scripts/dev/install_harness_dev.sh` |
-| OSS CI | `require_harness_on_pypi.sh` — no PAT clone |
+| OSS CI | `check_harness_on_pypi.py` — no PAT clone |
 | Harness publish | Tag `v*` → `publish-pypi.yml` → PyPI |
 
 Editable dev: `MYRM_HARNESS_EDITABLE=1 ./scripts/dev/install_harness_dev.sh` (local harness clone).
@@ -123,7 +123,7 @@ Editable dev: `MYRM_HARNESS_EDITABLE=1 ./scripts/dev/install_harness_dev.sh` (lo
 
 | Workflow | Role |
 |----------|------|
-| `myrm-agent-harness/.github/workflows/publish-pypi.yml` | 6-platform Nuitka matrix + tag → PyPI (release + core wheels) |
+| `myrm-agent-harness/.github/workflows/publish-pypi.yml` | 6-platform Nuitka matrix + tag → validate 7 wheels → PyPI |
 | `myrm-agent-harness/.github/workflows/boundary-check.yml` | Architecture tests (`-n0`) including `test_repo_hygiene` |
 | `.github/workflows/build-oss-server-docker.yml` | OSS public Dockerfile smoke (PyPI harness) |
 | `.github/workflows/build-official-runtime.yml` | Official runtime Docker image (linux-amd64) |
