@@ -37,6 +37,7 @@ Ship `myrm-agent-harness` as a **closed-source Python package** that third-party
 | Post-install verify | `src/myrm_agent_harness/_verify_distribution.py` | Console script `verify-harness-distribution` (Docker / CI / Tauri) |
 | Distribution probe | `src/myrm_agent_harness/_distribution.py` | `source` vs `compiled` + fail-closed + core/release version match |
 | Version sync | `harness_packaging/version.py` | Read harness version; core wheel pins `myrm-agent-harness=={version}` |
+| Compiled-core metadata | `harness_packaging/compiled_core_extra.py` | Inject `compiled-core` optional-deps into release wheel at build time |
 
 ## Build Pipeline
 
@@ -92,54 +93,31 @@ Editable install (`uv sync`) ships all `.py` source. `_distribution.get_distribu
 
 ## Docker (Server Runtime)
 
-Two Dockerfiles — same runtime image, different build inputs:
-
 | File | Audience | Harness source |
 |------|----------|----------------|
-| `myrm-agent-server/docker/Dockerfile.official` | Private CI / monorepo | `assemble_production.py` inside harness-wheels stage |
-| `myrm-agent-server/Dockerfile` | Open-source consumers | Pre-built wheels; **build context = server repo root** |
+| `myrm-agent-server/docker/Dockerfile.official` | Private CI | `assemble_production.py` from harness checkout |
+| `myrm-agent-server/Dockerfile` | OSS consumers | PyPI (`read_harness_pypi_spec.py` + `uv pip install`) |
 
-Builder and runtime stages run `verify-harness-distribution` (runtime adds `--matplotlib-cjk`).
-
-Server builder pattern:
+OSS builder:
 
 ```bash
-uv sync --frozen --no-dev --all-extras --no-install-project --no-install-package myrm-agent-harness
-./docker/install_harness_wheels.sh /wheels/core /wheels/release
+uv sync --frozen --no-dev --all-extras --no-install-project \
+  --no-install-package myrm-agent-harness --no-sources-package myrm-agent-harness
+uv pip install "$(python3 docker/read_harness_pypi_spec.py)"
 ```
 
-`install_harness_wheels.sh` maps BuildKit `TARGETPLATFORM` → `linux-x64` / `linux-arm64`, requires exactly one core wheel, installs stripped release wheel, runs `verify-harness-distribution`.
+Runtime: `verify-harness-distribution --matplotlib-cjk`. CI: `.github/workflows/build-oss-server-docker.yml`.
 
-```bash
-# Official (monorepo root)
-docker build -f myrm-agent-server/docker/Dockerfile.official -t myrm/runtime:local .
+## OSS / Private Repo Split
 
-# Open-source (requires pre-built harness wheels; context = server repo root)
-cd myrm-agent-harness && uv sync --group build && .venv/bin/python scripts/assemble_production.py
-# harness-wheels context must contain only the PEP 427 stripped release wheel (dist/)
-cd myrm-agent-server
-docker build \
-  --build-context harness-wheels=../myrm-agent-harness/dist \
-  --build-context harness-core-wheels=../myrm-agent-harness/build/core/wheels \
-  -t myrm-server .
+| Item | Status |
+|------|--------|
+| Harness source | Private `Pursue-LLL/myrm-agent-harness` |
+| OSS install | `MYRM_HARNESS_INSTALL_MODE=pypi` (default) via `scripts/dev/install_harness_dev.sh` |
+| OSS CI | `require_harness_on_pypi.sh` — no PAT clone |
+| Harness publish | Tag `v*` → `publish-pypi.yml` → PyPI |
 
-# Monorepo checkout
-docker build -f myrm-agent-server/Dockerfile \
-  --build-context harness-wheels=myrm-agent-harness/dist \
-  --build-context harness-core-wheels=myrm-agent-harness/build/core/wheels \
-  -t myrm-server myrm-agent-server/
-```
-
-## P0: OSS / Private Repo Split
-
-| Phase | Action |
-|-------|--------|
-| R1 | `./scripts/dev/extract_harness_private_repo.sh /tmp/out` → push to **private** `myrm-agent-harness` Git |
-| R2 | `./scripts/dev/install_harness_dev.sh` — release wheel install (default) or source/editable dev |
-| R3 | `server-ci.yml` installs public GitHub Release wheels; harness CI stays in private repo |
-| R4 | Delete `myrm-agent-harness/` from OSS monorepo; replace `[tool.uv.sources]` path with private index |
-
-Editable monorepo dev (transitional): `MYRM_HARNESS_EDITABLE=1 ./scripts/dev/install_harness_dev.sh`
+Editable dev: `MYRM_HARNESS_EDITABLE=1 ./scripts/dev/install_harness_dev.sh` (local harness clone).
 
 ## CI
 

@@ -11,6 +11,7 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 | manifest.py | Core | Manifest loader and path validation |
 | platforms.py | Core | Platform key detection (six platforms) |
 | release.py | Core | Strip manifest `.py` in-place (PEP 427 compliant) |
+| compiled_core_extra.py | Core | Generate/inject `compiled-core` optional-deps for release wheel metadata |
 | assemble.py | Core | Unified production wheel assembly + venv install + post-install verify |
 | integrity.py | Core | Manifest import paths for dev/CI helpers |
 

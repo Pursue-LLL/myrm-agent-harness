@@ -3,6 +3,8 @@
 
 [INPUT]
 - harness_packaging.release::strip_manifest_sources_from_wheel (POS: Release wheel IP source stripping)
+- harness_packaging.compiled_core_extra::inject_compiled_core_extra (POS: compiled-core metadata injection)
+- harness_packaging.version::read_harness_version (POS: harness version reader)
 
 [OUTPUT]
 - main(): Build wheel via ``uv build``, strip manifest ``.py`` in-place (PEP 427)
@@ -25,10 +27,8 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
-from harness_packaging.release import strip_manifest_sources_from_wheel  # noqa: E402
-
-
 from harness_packaging.compiled_core_extra import inject_compiled_core_extra  # noqa: E402
+from harness_packaging.release import strip_manifest_sources_from_wheel  # noqa: E402
 from harness_packaging.version import read_harness_version  # noqa: E402
 
 

@@ -1,4 +1,15 @@
-"""Generate compiled-core optional-dependencies for release wheel metadata."""
+"""Generate compiled-core optional-dependencies for release wheel metadata.
+
+[INPUT]
+- harness_packaging.platforms::SUPPORTED_PLATFORMS (POS: platform key registry)
+
+[OUTPUT]
+- compiled_core_dependency_lines(): PEP 508 lines for platform core packages
+- inject_compiled_core_extra(): pyproject.toml text with compiled-core extra block
+
+[POS]
+Release wheel metadata helper. Keeps dev pyproject lockable without unpublished optional deps.
+"""
 
 from __future__ import annotations
 
@@ -29,7 +40,6 @@ def inject_compiled_core_extra(pyproject_text: str, version: str) -> str:
         return pyproject_text
 
     block_lines = [
-        "# Injected at release wheel build; platform packages must exist on PyPI.",
         "compiled-core = [",
         *compiled_core_dependency_lines(version),
         "]",
