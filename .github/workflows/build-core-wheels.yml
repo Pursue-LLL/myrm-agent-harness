@@ -119,6 +119,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.MYRM_HARNESS_WHEELS_PUBLISH_TOKEN }}
           WHEELS_REPO: Pursue-LLL/myrm-agent-harness-wheels
+          IS_PRERELEASE: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
@@ -129,9 +130,14 @@ jobs:
           if gh release view "${TAG}" --repo "${WHEELS_REPO}" >/dev/null 2>&1; then
             gh release delete "${TAG}" --repo "${WHEELS_REPO}" --yes --cleanup-tag=false
           fi
-          gh release create "${TAG}" release-assets/* \
-            --repo "${WHEELS_REPO}" \
-            --title "${TAG}" \
-            --prerelease="${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}" \
+          release_args=(
+            release create "${TAG}" release-assets/*
+            --repo "${WHEELS_REPO}"
+            --title "${TAG}"
             --notes "Public harness wheels for ${TAG}. Source remains private in Pursue-LLL/myrm-agent-harness."
+          )
+          if [[ "${IS_PRERELEASE}" == "true" ]]; then
+            release_args+=(--prerelease)
+          fi
+          gh "${release_args[@]}"
 
