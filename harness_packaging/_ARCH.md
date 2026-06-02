@@ -20,7 +20,8 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 | Script | Role |
 |--------|------|
 | `scripts/build_core.py` | Nuitka compile + platform core wheel (static force-include) |
-| `scripts/build_release_wheel.py` | Release wheel via `uv build` + strip manifest `.py` |
+| `scripts/build_release_wheel.py` | Release wheel via temp build dir + strip manifest `.py` |
+| `scripts/validate_pypi_wheels.py` | Gate: 7 wheels + version match before PyPI upload |
 | `scripts/assemble_production.py` | Full production pipeline + optional `--install` |
 
 ## Key Dependencies

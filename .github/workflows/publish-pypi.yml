@@ -114,16 +114,17 @@ jobs:
           name: release-wheel
           path: pypi-upload
 
-      - name: List wheels to upload
-        run: ls -la pypi-upload/
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
 
-      - name: Fail if no wheels collected
-        run: |
-          count="$(find pypi-upload -name '*.whl' 2>/dev/null | wc -l | tr -d ' ')"
-          if [[ "${count}" -lt 2 ]]; then
-            echo "Expected release wheel + core wheels; found ${count}." >&2
-            exit 1
-          fi
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install build dependencies
+        run: uv sync --group dev --group build
+
+      - name: Validate wheels before upload
+        run: uv run python scripts/validate_pypi_wheels.py pypi-upload
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

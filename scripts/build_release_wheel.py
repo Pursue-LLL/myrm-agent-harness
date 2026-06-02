@@ -20,8 +20,10 @@ Usage::
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -30,6 +32,24 @@ sys.path.insert(0, str(_REPO_ROOT))
 from harness_packaging.compiled_core_extra import inject_compiled_core_extra  # noqa: E402
 from harness_packaging.release import strip_manifest_sources_from_wheel  # noqa: E402
 from harness_packaging.version import read_harness_version  # noqa: E402
+
+_BUILD_SYMLINKS: tuple[str, ...] = ("src", "harness_packaging", "packages", "README.md")
+
+
+def _build_release_wheel_in_temp(injected_pyproject: str, dist_dir: Path) -> None:
+    """Build release wheel from an injected pyproject without mutating the repo tree."""
+    with tempfile.TemporaryDirectory(prefix="myrm-release-build-") as tmp:
+        tmp_path = Path(tmp)
+        for name in _BUILD_SYMLINKS:
+            source = _REPO_ROOT / name
+            if source.exists():
+                os.symlink(source, tmp_path / name, target_is_directory=source.is_dir())
+        (tmp_path / "pyproject.toml").write_text(injected_pyproject, encoding="utf-8")
+        subprocess.run(
+            ["uv", "build", "--wheel", "--out-dir", str(dist_dir)],
+            check=True,
+            cwd=tmp_path,
+        )
 
 
 def main() -> None:
@@ -40,15 +60,7 @@ def main() -> None:
     original_text = pyproject.read_text(encoding="utf-8")
     version = read_harness_version(_REPO_ROOT)
     injected_text = inject_compiled_core_extra(original_text, version)
-    pyproject.write_text(injected_text, encoding="utf-8")
-    try:
-        subprocess.run(
-            ["uv", "build", "--wheel", "--out-dir", str(dist_dir)],
-            check=True,
-            cwd=_REPO_ROOT,
-        )
-    finally:
-        pyproject.write_text(original_text, encoding="utf-8")
+    _build_release_wheel_in_temp(injected_text, dist_dir)
 
     wheels = sorted(dist_dir.glob("myrm_agent_harness-*.whl"))
     if not wheels:
