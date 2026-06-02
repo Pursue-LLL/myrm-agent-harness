@@ -54,9 +54,6 @@ coverage_report/
 htmlcov*/
 .browsers/
 myrm-agent-server/
-myrm-agent-harness/
-embeddings.db
-*.db
 .benchmarks/
 scratch/
 .myrm/

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 
 from myrm_agent_harness.toolkits.computer_use.execution.healer import try_bbox_click
@@ -72,6 +73,7 @@ class DesktopSession(ComputerSession):
         self._refs = DRefRegistry()
         self._view_update_callback = view_update_callback
         self._last_tree_text: str = ""
+        self._last_snapshot_time: float = 0.0
 
     @property
     def ref_registry(self) -> DRefRegistry:
@@ -108,6 +110,7 @@ class DesktopSession(ComputerSession):
         self._refs.replace(refs, meta)
         tree_text, enriched_meta = render_snapshot_tree(meta, refs)
         self._last_tree_text = tree_text
+        self._last_snapshot_time = time.time()
 
         screenshot_b64 = ""
         screenshot_size = (0, 0)
@@ -146,6 +149,23 @@ class DesktopSession(ComputerSession):
         modifiers: list[ModifierKey] | None = None,
     ) -> str | list[object]:
         del verify_goal  # reserved for roadmap #7
+        
+        # [SECURITY] Re-validation: If it's been > 5 seconds since the last snapshot,
+        # it's highly likely the execution was delayed (e.g., human-in-the-loop approval).
+        # The screen might have changed, causing a stale coordinate click. Re-verify silently.
+        REVALIDATION_THRESHOLD = 5.0
+        if time.time() - self._last_snapshot_time > REVALIDATION_THRESHOLD:
+            logger.info("[SECURITY] Re-validating desktop state before interaction (delayed %.1fs)", time.time() - self._last_snapshot_time)
+            try:
+                meta, refs = capture_snapshot(self._backend, "foreground", None)
+                if ref not in refs:
+                    return f"Safety Re-validation failed: The screen has changed significantly during approval. The target element '@{ref}' is no longer found. Please take a new snapshot to refresh the view and try again."
+                # Update registry quietly so the click uses the latest fresh coordinates
+                self._refs.replace(refs, meta)
+                self._last_snapshot_time = time.time()
+            except Exception as e:
+                return f"Safety Re-validation failed: Could not re-verify screen state ({str(e)})."
+
         try:
             element = self._refs.get(ref)
         except DRefStaleError as exc:

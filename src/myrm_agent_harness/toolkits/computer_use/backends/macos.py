@@ -96,6 +96,32 @@ class MacOSBackend:
         except Exception as e:
             return ActionResult(success=False, error=str(e))
 
+    async def type_credential(self, label: str) -> ActionResult:
+        """Type a credential (password or TOTP) securely from the CredentialVault."""
+        from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
+        vault = get_global_credential_vault()
+        
+        is_totp = label.endswith("-totp")
+        try:
+            if is_totp:
+                secret_text = vault.get_totp_token(label)
+            else:
+                secret_text = vault.get_password(label)
+        except Exception as e:
+            return ActionResult(success=False, error=f"Failed to retrieve credential for label '{label}': {e}")
+            
+        try:
+            if secret_text.isascii():
+                import pyautogui
+                interval = 12 / 1000.0
+                # pyautogui.write calls OS APIs directly, no subprocess arguments exposed
+                await asyncio.to_thread(pyautogui.write, secret_text, interval=interval)
+            else:
+                await self._paste_text(secret_text)
+            return ActionResult(success=True)
+        except Exception as e:
+            return ActionResult(success=False, error=str(e))
+
     async def _paste_text(self, text: str) -> None:
         """Type non-ASCII text via clipboard paste (Cmd+V), preserving original clipboard."""
         import pyautogui
@@ -330,25 +356,25 @@ def _get_active_window_title() -> str:
 
 def _is_browser_active() -> bool:
     """Check if the active application is a known web browser."""
+    from myrm_agent_harness.toolkits.computer_use.types import KNOWN_BROWSER_NAMES
     app_name = _get_active_window_title().lower()
-    known_browsers = ["google chrome", "chromium", "safari", "firefox", "microsoft edge", "brave browser", "arc", "patchright", "camoufox"]
-    return any(browser in app_name for browser in known_browsers)
+    return any(browser in app_name for browser in KNOWN_BROWSER_NAMES)
 
 
 _AX_DIALOG_SCRIPT = '''
 tell application "System Events"
     set frontApp to first application process whose frontmost is true
     set appName to name of frontApp
-    
+
     -- If target_app_names is provided, check if frontApp matches
     -- (This logic is handled in Python, here we just return the app name and dialog status)
-    
+
     set hasDialog to false
     try
         set win1 to window 1 of frontApp
         set winRole to role of win1
         set winSubrole to subrole of win1
-        
+
         if winRole is "AXWindow" and winSubrole is "AXDialog" then
             set hasDialog to true
         else if winRole is "AXWindow" and winSubrole is "AXSystemDialog" then
@@ -357,7 +383,7 @@ tell application "System Events"
             set hasDialog to true
         end if
     end try
-    
+
     return appName & "|||" & (hasDialog as string)
 end tell
 '''

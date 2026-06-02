@@ -28,10 +28,10 @@ async def test_record_citations_success():
         return []
         
     mock_vec.get.side_effect = mock_get
-    
-        count = await manager.record_citations(["mem-1", "mem-2"])
-        assert count == 2
-        assert mock_vec.upsert.call_count >= 2
+
+    count = await manager.record_citations(["mem-1", "mem-2"])
+    assert count == 2
+    assert mock_vec.upsert.call_count >= 2
 
 @pytest.mark.asyncio
 async def test_record_citations_empty():

@@ -177,3 +177,5 @@ class ApprovalInterceptedEventData:
 
     decision: str
     original_text: str | None = None
+    visual_context: dict[str, Any] | None = field(default=None)
+    action_description: str | None = field(default=None)

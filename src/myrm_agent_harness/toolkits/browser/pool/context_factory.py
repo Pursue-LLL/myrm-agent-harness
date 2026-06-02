@@ -23,6 +23,7 @@ Dedicated to BrowserContext creation and configuration, including:
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import platform
 from typing import TYPE_CHECKING
@@ -133,10 +134,8 @@ class ContextFactory:
         permissions = ctx_opts.get("permissions", [])
         if isinstance(permissions, list) and "clipboard-read" in permissions:
             # For Firefox/Camoufox, we might need to remove clipboard-read if it causes issues
-            try:
+            with contextlib.suppress(Exception):
                 # We can't easily check the browser type here, but we can try/except
-                pass
-            except Exception:
                 pass
 
         try:

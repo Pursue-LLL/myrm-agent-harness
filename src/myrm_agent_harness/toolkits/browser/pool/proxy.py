@@ -131,7 +131,7 @@ class RoundRobinProxyPool:
 
     def get_next(self) -> ProxyConfig:
         """Get next proxy in round-robin order, skipping quarantined ones.
-        
+
         Raises:
             ProxyPoolExhaustedError: If all proxies are currently quarantined.
         """
@@ -178,7 +178,7 @@ class RoundRobinProxyPool:
 
     def report_failure(self, session_id: str, base_quarantine_seconds: int = 60) -> None:
         """Report a proxy failure for a session.
-        
+
         Quarantines the proxy using exponential backoff based on consecutive failures,
         and releases the session binding.
         """

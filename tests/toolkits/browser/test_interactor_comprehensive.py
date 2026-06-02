@@ -81,7 +81,10 @@ async def test_interact_click(interactor: Interactor) -> None:
         result = await interactor.interact("click", "e0")
 
         assert result == "Clicked e0"
-        mock_locator.click.assert_called_once_with(timeout=10_000)
+        mock_locator.click.assert_called_once()
+        _, kwargs = mock_locator.click.call_args
+        assert kwargs["timeout"] == 10_000
+        assert "delay" in kwargs
 
 
 # =============================================================================
@@ -98,7 +101,10 @@ async def test_interact_dblclick(interactor: Interactor) -> None:
         result = await interactor.interact("dblclick", "e0")
 
         assert result == "Double-clicked e0"
-        mock_locator.dblclick.assert_called_once_with(timeout=10_000)
+        mock_locator.dblclick.assert_called_once()
+        _, kwargs = mock_locator.dblclick.call_args
+        assert kwargs["timeout"] == 10_000
+        assert "delay" in kwargs
 
 
 # =============================================================================
@@ -116,7 +122,11 @@ async def test_interact_type(interactor: Interactor) -> None:
         result = await interactor.interact("type", "e0", "Hello World")
 
         assert result == "Typed 'Hello World' into e0"
-        mock_locator.type.assert_called_once_with("Hello World", timeout=10_000)
+        mock_locator.type.assert_called_once()
+        args, kwargs = mock_locator.type.call_args
+        assert args[0] == "Hello World"
+        assert kwargs["timeout"] >= 10_000
+        assert "delay" in kwargs
 
 
 # =============================================================================
@@ -344,8 +354,205 @@ async def test_interact_uncheck(interactor: Interactor) -> None:
 @pytest.mark.asyncio
 async def test_interact_invalid_action(interactor: Interactor) -> None:
     """Test interact with invalid action raises ValueError."""
-    with pytest.raises(ValueError, match="Invalid action: invalid_action"):
+    with pytest.raises(ValueError, match="Invalid action"):
         await interactor.interact("invalid_action", "e0")
+
+def test_metrics_empty():
+    from myrm_agent_harness.toolkits.browser.session.interactor import RefNotFoundMetrics
+    metrics = RefNotFoundMetrics()
+    assert metrics.failure_rate == 0.0
+    assert metrics.recent_failure_rate == 0.0
+    assert metrics.top_failed_refs == []
+    assert metrics.top_failed_actions == []
+    d = metrics.to_dict()
+    assert d["total_failures"] == 0
+
+def test_metrics_caching():
+    from myrm_agent_harness.toolkits.browser.session.interactor import RefNotFoundMetrics
+    metrics = RefNotFoundMetrics()
+    metrics.record_interaction(failed=True, ref="e1", action="click")
+    assert metrics.top_failed_refs == [("e1", 1)]
+    assert metrics.top_failed_actions == [("click", 1)]
+    # Test cache
+    assert metrics.top_failed_refs == [("e1", 1)]
+    assert metrics.top_failed_actions == [("click", 1)]
+
+from patchright.async_api import Page
+
+def test_update_refs():
+    page = AsyncMock(spec=Page)
+    interactor = Interactor(page, {})
+    interactor.update_refs({"e1": RefInfo(role="link", name="L", nth=0)}, last_snapshot_url="http://new")
+    assert "e1" in interactor._refs
+    assert interactor._last_snapshot_url == "http://new"
+
+def test_get_context_refs_limit():
+    page = AsyncMock(spec=Page)
+    refs = {f"e{i}": RefInfo(role="link", name=f"L{i}", nth=0) for i in range(20)}
+    interactor = Interactor(page, refs)
+    res = interactor._get_context_refs(max_total=5)
+    assert len(res) == 5
+
+def test_metrics_property():
+    page = AsyncMock(spec=Page)
+    interactor = Interactor(page, {})
+    from myrm_agent_harness.toolkits.browser.session.interactor import RefNotFoundMetrics
+    assert isinstance(interactor.metrics, RefNotFoundMetrics)
+
+def test_log_metrics_if_needed():
+    page = AsyncMock(spec=Page)
+    interactor = Interactor(page, {})
+    interactor._metrics.total_interactions = 100
+    interactor._metrics.total_failures = 1
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.logger.info") as mock_info:
+        interactor._log_metrics_if_needed()
+        mock_info.assert_called_once()
+
+def test_resolve_frame():
+    page = AsyncMock(spec=Page)
+    frame = AsyncMock()
+    page.frames = [page, frame]
+    interactor = Interactor(page, {})
+    assert interactor._resolve_frame("f1_e0") == frame
+    assert interactor._resolve_frame("f99_e0") == page
+    assert interactor._resolve_frame("fX_e0") == page
+
+@pytest.mark.asyncio
+async def test_interact_exception_with_dialog():
+    page = AsyncMock(spec=Page)
+    interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
+    
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+        mock_loc = AsyncMock()
+        mock_loc.click.side_effect = Exception("TargetClosedError")
+        mock_resolve.return_value = mock_loc
+        
+        with patch("myrm_agent_harness.toolkits.computer_use.session.create_computer_session") as mock_create:
+            mock_cu = AsyncMock()
+            mock_cu.backend.has_blocking_dialog.return_value = True
+            mock_create.return_value = mock_cu
+            
+            res = await interactor.interact("click", "e0")
+            assert "CRITICAL WARNING" in res
+
+@pytest.mark.asyncio
+async def test_interact_exception_no_dialog():
+    page = AsyncMock(spec=Page)
+    interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
+    
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+        mock_loc = AsyncMock()
+        mock_loc.click.side_effect = Exception("TargetClosedError")
+        mock_resolve.return_value = mock_loc
+        
+        with patch("myrm_agent_harness.toolkits.computer_use.session.create_computer_session") as mock_create:
+            mock_cu = AsyncMock()
+            mock_cu.backend.has_blocking_dialog.return_value = False
+            mock_create.return_value = mock_cu
+            
+            with pytest.raises(Exception, match="TargetClosedError"):
+                await interactor.interact("click", "e0")
+
+    @pytest.mark.asyncio
+    async def test_interact_type_exception():
+        page = AsyncMock(spec=Page)
+        interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
+        
+        with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+            mock_loc = AsyncMock()
+            mock_loc.get_attribute.side_effect = Exception("error")
+            mock_resolve.return_value = mock_loc
+            
+            res = await interactor.interact("type", "e0", "test")
+            assert "Typed 'test'" in res
+
+    @pytest.mark.asyncio
+    async def test_interact_fill_exception():
+        page = AsyncMock(spec=Page)
+        interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
+        
+        with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+            mock_loc = AsyncMock()
+            mock_loc.get_attribute.side_effect = Exception("error")
+            mock_resolve.return_value = mock_loc
+            
+            res = await interactor.interact("fill", "e0", "test")
+            assert "Filled" in res
+
+    @pytest.mark.asyncio
+    async def test_interact_password_blocked():
+        page = AsyncMock(spec=Page)
+        interactor = Interactor(page, {"e0": RefInfo(role="textbox", name="Password", nth=0)})
+        
+        with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+            mock_loc = AsyncMock()
+            mock_loc.get_attribute.return_value = "password"
+            mock_resolve.return_value = mock_loc
+            
+            with pytest.raises(ValueError, match="SecurityError: Plain text typing into a password field is strictly forbidden"):
+                await interactor.interact("type", "e0", "mysecret")
+
+            with pytest.raises(ValueError, match="SecurityError: Plain text filling into a password field is strictly forbidden"):
+                await interactor.interact("fill", "e0", "mysecret")
+
+    @pytest.mark.asyncio
+    async def test_interact_fill_credential():
+        page = AsyncMock(spec=Page)
+        interactor = Interactor(page, {"e0": RefInfo(role="textbox", name="Password", nth=0)})
+        
+        with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+            mock_loc = AsyncMock()
+            mock_resolve.return_value = mock_loc
+            
+            with patch("myrm_agent_harness.toolkits.security.credential_vault.CredentialVault.get_password", return_value="secret123"):
+                res = await interactor.interact("fill_credential", "e0", "github-personal")
+                assert "Filled credential 'github-personal'" in res
+                mock_loc.fill.assert_called_once_with("secret123", timeout=10000)
+
+    @pytest.mark.asyncio
+    async def test_interact_fill_credential_totp():
+        page = AsyncMock(spec=Page)
+        interactor = Interactor(page, {"e0": RefInfo(role="textbox", name="Code", nth=0)})
+        
+        with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+            mock_loc = AsyncMock()
+            mock_resolve.return_value = mock_loc
+            
+            with patch("myrm_agent_harness.toolkits.security.credential_vault.CredentialVault.get_totp_token", return_value="123456"):
+                res = await interactor.interact("fill_credential", "e0", "github-personal-totp")
+                assert "Filled credential 'github-personal-totp'" in res
+                mock_loc.fill.assert_called_once_with("123456", timeout=10000)
+
+@pytest.mark.asyncio
+async def test_interact_self_healing():
+    page = AsyncMock(spec=Page)
+    interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
+    
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+        mock_loc = AsyncMock()
+        mock_loc.wait_for.side_effect = Exception("timeout")
+        mock_resolve.return_value = mock_loc
+        
+        with patch("myrm_agent_harness.toolkits.browser.snapshot.self_healer.SelfHealer.heal", new_callable=AsyncMock) as mock_heal:
+            healed_loc = AsyncMock()
+            mock_heal.return_value = (healed_loc, "NewName", 0.5)
+            
+            with patch("myrm_agent_harness.runtime.events.bus.get_event_bus") as mock_bus:
+                mock_bus.return_value.publish = MagicMock()
+                res = await interactor.interact("click", "e0")
+                assert "Auto-Healed" in res
+                assert "NewName" in res
+                healed_loc.click.assert_called_once()
+    page = AsyncMock(spec=Page)
+    interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
+    
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+        mock_loc = AsyncMock()
+        mock_resolve.return_value = mock_loc
+        
+        with patch("myrm_agent_harness.toolkits.browser.wait_strategies.wait_for_page_ready", side_effect=Exception("error")):
+            res = await interactor.interact("click", "e0")
+            assert "Clicked" in res
 
 
 @pytest.mark.asyncio

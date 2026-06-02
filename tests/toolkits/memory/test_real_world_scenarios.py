@@ -27,7 +27,7 @@ class TestDeveloperWorkflowScenario:
         retriever = MemoryRetriever(config)
 
         recent_usage = SemanticMemory(
-            content="Run tests with: pytest tests/ -v",
+            content="Run tests with: pytest myrm-agent-harness/tests/ -v",
             created_at=datetime.now(UTC) - timedelta(days=2),
             access_count=15,  # Frequently accessed
             importance=0.7,

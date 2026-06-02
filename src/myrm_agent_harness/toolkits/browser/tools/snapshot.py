@@ -146,15 +146,14 @@ def create_snapshot_tool(session: BrowserSession):
             # Only check if computer_use is theoretically available in the environment
             # We can safely attempt to import and check
             from myrm_agent_harness.toolkits.computer_use.session import create_computer_session
-            from myrm_agent_harness.toolkits.computer_use.types import ComputerUseConfig
+            from myrm_agent_harness.toolkits.computer_use.types import KNOWN_BROWSER_NAMES, ComputerUseConfig
 
             # Create a lightweight session just to check backend (it caches the backend)
             cu_session = create_computer_session(ComputerUseConfig())
 
             # Check if the browser process has a blocking dialog
             # We pass known browser names to ensure we only trigger if the dialog belongs to the browser
-            target_apps = ["Google Chrome", "Chromium", "Firefox", "Safari", "Microsoft Edge", "Brave Browser", "Arc", "Patchright", "Camoufox"]
-            has_dialog = await cu_session.backend.has_blocking_dialog(target_apps)
+            has_dialog = await cu_session.backend.has_blocking_dialog(list(KNOWN_BROWSER_NAMES))
 
             if has_dialog:
                 warning_msg = (

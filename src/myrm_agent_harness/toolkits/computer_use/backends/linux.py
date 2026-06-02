@@ -136,6 +136,37 @@ class LinuxBackend:
         except Exception as e:
             return ActionResult(success=False, error=str(e))
 
+    async def type_credential(self, label: str) -> ActionResult:
+        """Type a credential (password or TOTP) securely from the CredentialVault."""
+        from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
+        vault = get_global_credential_vault()
+        
+        is_totp = label.endswith("-totp")
+        try:
+            if is_totp:
+                secret_text = vault.get_totp_token(label)
+            else:
+                secret_text = vault.get_password(label)
+        except Exception as e:
+            return ActionResult(success=False, error=f"Failed to retrieve credential for label '{label}': {e}")
+            
+        try:
+            if secret_text.isascii():
+                proc = await asyncio.create_subprocess_shell(
+                    f"{self._display_prefix}xdotool type --delay 12 --file -",
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await proc.communicate(secret_text.encode("utf-8"))
+                if proc.returncode != 0:
+                    raise RuntimeError(f"xdotool type failed: {stderr.decode()}")
+            else:
+                await self._paste_text_xclip(secret_text)
+            return ActionResult(success=True)
+        except Exception as e:
+            return ActionResult(success=False, error=str(e))
+
     async def _paste_text_xclip(self, text: str) -> None:
         """Type non-ASCII text via xclip + Ctrl+V, preserving original clipboard."""
         saved_stdout, _, _ = await self._run_cmd("xclip -selection clipboard -o")
@@ -267,31 +298,16 @@ class LinuxBackend:
         Falls back to window name + WM class as minimal context.
         """
         try:
-            result = await asyncio.create_subprocess_exec(
-                *f"{self._display_prefix}xdotool getactivewindow getwindowname".split(),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, _ = await result.communicate()
-            win_title = stdout.decode().strip() if result.returncode == 0 else ""
+            result = await self._run_cmd("xdotool getactivewindow getwindowname")
+            win_title = result[0].strip() if result[2] == 0 else ""
 
             wm_class = ""
             try:
-                result2 = await asyncio.create_subprocess_exec(
-                    *f"{self._display_prefix}xdotool getactivewindow".split(),
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                stdout2, _ = await result2.communicate()
-                win_id = stdout2.decode().strip()
+                result2 = await self._run_cmd("xdotool getactivewindow")
+                win_id = result2[0].strip()
                 if win_id:
-                    result3 = await asyncio.create_subprocess_exec(
-                        *f"{self._display_prefix}xprop -id {win_id} WM_CLASS".split(),
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                    )
-                    stdout3, _ = await result3.communicate()
-                    wm_class = stdout3.decode().strip()
+                    result3 = await self._run_cmd(f"xprop -id {win_id} WM_CLASS")
+                    wm_class = result3[0].strip()
             except Exception:
                 pass
 
@@ -307,27 +323,17 @@ class LinuxBackend:
 
     async def has_blocking_dialog(self, target_app_names: list[str] | None = None) -> bool:
         """Check if there is an OS-level dialog window blocking the target application.
-        
+
         On Linux (X11), we check if the active window has _NET_WM_WINDOW_TYPE_DIALOG.
         """
         try:
-            result = await asyncio.create_subprocess_exec(
-                *f"{self._display_prefix}xdotool getactivewindow".split(),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, _ = await result.communicate()
-            win_id = stdout.decode().strip()
+            result = await self._run_cmd("xdotool getactivewindow")
+            win_id = result[0].strip()
             if not win_id:
                 return False
 
-            result2 = await asyncio.create_subprocess_exec(
-                *f"{self._display_prefix}xprop -id {win_id} _NET_WM_WINDOW_TYPE".split(),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout2, _ = await result2.communicate()
-            prop_out = stdout2.decode().strip()
+            result2 = await self._run_cmd(f"xprop -id {win_id} _NET_WM_WINDOW_TYPE")
+            prop_out = result2[0].strip()
 
             has_dialog = "_NET_WM_WINDOW_TYPE_DIALOG" in prop_out
             if not has_dialog:
@@ -336,13 +342,8 @@ class LinuxBackend:
             if target_app_names:
                 # We need to check if the dialog belongs to the target app
                 # This is an approximation based on WM_CLASS
-                result3 = await asyncio.create_subprocess_exec(
-                    *f"{self._display_prefix}xprop -id {win_id} WM_CLASS".split(),
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                stdout3, _ = await result3.communicate()
-                wm_class = stdout3.decode().strip().lower()
+                result3 = await self._run_cmd(f"xprop -id {win_id} WM_CLASS")
+                wm_class = result3[0].strip().lower()
                 if not any(target.lower() in wm_class for target in target_app_names):
                     return False
 
@@ -354,26 +355,17 @@ class LinuxBackend:
     async def is_browser_active(self) -> bool:
         """Check if the currently active (frontmost) window is a web browser."""
         try:
-            result = await asyncio.create_subprocess_exec(
-                *f"{self._display_prefix}xdotool getactivewindow".split(),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, _ = await result.communicate()
-            win_id = stdout.decode().strip()
+            from myrm_agent_harness.toolkits.computer_use.types import KNOWN_BROWSER_NAMES
+
+            result = await self._run_cmd("xdotool getactivewindow")
+            win_id = result[0].strip()
             if not win_id:
                 return False
 
-            result2 = await asyncio.create_subprocess_exec(
-                *f"{self._display_prefix}xprop -id {win_id} WM_CLASS".split(),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout2, _ = await result2.communicate()
-            wm_class = stdout2.decode().strip().lower()
+            result2 = await self._run_cmd(f"xprop -id {win_id} WM_CLASS")
+            wm_class = result2[0].strip().lower()
 
-            known_browsers = ["google-chrome", "chromium", "firefox", "brave", "microsoft-edge", "patchright", "camoufox"]
-            return any(browser in wm_class for browser in known_browsers)
+            return any(browser in wm_class for browser in KNOWN_BROWSER_NAMES)
         except Exception:
             return False
 

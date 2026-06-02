@@ -201,21 +201,11 @@ class TestLinuxBackendWindowText:
         from myrm_agent_harness.toolkits.computer_use.backends.linux import LinuxBackend
         assert isinstance(backend, LinuxBackend)
 
-        mock_proc = AsyncMock()
-        mock_proc.returncode = 0
-        mock_proc.communicate = AsyncMock(return_value=(b"Terminal - bash", b""))
-
-        mock_proc2 = AsyncMock()
-        mock_proc2.returncode = 0
-        mock_proc2.communicate = AsyncMock(return_value=(b"12345678", b""))
-
-        mock_proc3 = AsyncMock()
-        mock_proc3.returncode = 0
-        mock_proc3.communicate = AsyncMock(
-            return_value=(b'WM_CLASS(STRING) = "gnome-terminal", "Gnome-terminal"', b"")
-        )
-
-        with patch("asyncio.create_subprocess_exec", side_effect=[mock_proc, mock_proc2, mock_proc3]):
+        with patch.object(backend, "_run_cmd", side_effect=[
+            ("Terminal - bash", "", 0),
+            ("12345678", "", 0),
+            ('WM_CLASS(STRING) = "gnome-terminal", "Gnome-terminal"', "", 0),
+        ]):
             result = await backend.window_text()
 
         assert result.success is True
@@ -227,8 +217,9 @@ class TestLinuxBackendWindowText:
         from myrm_agent_harness.toolkits.computer_use.backends.linux import LinuxBackend
         assert isinstance(backend, LinuxBackend)
 
-        with patch(
-            "asyncio.create_subprocess_exec",
+        with patch.object(
+            backend,
+            "_run_cmd",
             side_effect=OSError("xdotool not found"),
         ):
             result = await backend.window_text()

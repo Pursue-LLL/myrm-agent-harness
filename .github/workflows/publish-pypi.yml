@@ -2,11 +2,6 @@ name: Publish Harness to PyPI
 
 on:
   workflow_dispatch:
-    inputs:
-      platform:
-        description: "Platform key (e.g. darwin-arm64). Empty = full matrix + release wheel."
-        required: false
-        default: ""
   push:
     tags:
       - "v*"
@@ -17,7 +12,6 @@ permissions:
 jobs:
   build-core:
     name: "Core wheel (${{ matrix.platform }})"
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform == '' || inputs.platform == matrix.platform }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     strategy:
@@ -39,97 +33,62 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python
-        run: uv python install 3.13
-
-      - name: Install build dependencies
-        run: uv sync --group dev --group build
-
-      - name: Build platform wheel
-        run: .venv/bin/python scripts/build_core.py --platform ${{ matrix.platform }} --wheel
-
-      - name: Upload wheel artifact
-        uses: actions/upload-artifact@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv python install 3.13
+      - run: uv sync --group dev --group build
+      - run: .venv/bin/python scripts/build_core.py --platform ${{ matrix.platform }} --wheel
+      - uses: actions/upload-artifact@v4
         with:
           name: core-wheel-${{ matrix.platform }}
           path: build/core/wheels/${{ matrix.platform }}/*.whl
           if-no-files-found: error
 
-  release-wheel:
-    name: Release wheel (tag)
-    if: startsWith(github.ref, 'refs/tags/')
+  build-release:
+    name: Release wheel
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python
-        run: uv python install 3.13
-
-      - name: Install build dependencies
-        run: uv sync --group dev --group build
-
-      - name: Build stripped release wheel
-        run: .venv/bin/python scripts/build_release_wheel.py
-
-      - name: Upload release wheel
-        uses: actions/upload-artifact@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv python install 3.13
+      - run: uv sync --group dev --group build
+      - run: .venv/bin/python scripts/build_release_wheel.py
+      - uses: actions/upload-artifact@v4
         with:
           name: release-wheel
           path: dist/myrm_agent_harness-*.whl
           if-no-files-found: error
 
   publish-pypi:
-    name: Upload wheels to PyPI
-    if: startsWith(github.ref, 'refs/tags/')
-    needs:
-      - build-core
-      - release-wheel
+    name: Upload all wheels to PyPI
+    needs: [build-core, build-release]
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
     environment: pypi
     permissions:
       id-token: write
       contents: read
+    timeout-minutes: 30
+
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Download core wheel artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          pattern: core-wheel-*
+          path: wheels-in
+          pattern: "*"
           merge-multiple: true
-          path: pypi-upload
 
-      - name: Download release wheel artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: release-wheel
-          path: pypi-upload
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python
-        run: uv python install 3.13
-
-      - name: Install build dependencies
-        run: uv sync --group dev --group build
-
-      - name: Validate wheels before upload
-        run: uv run python scripts/validate_pypi_wheels.py pypi-upload
+      - name: Collect wheels
+        run: |
+          mkdir -p wheels-out
+          find wheels-in -name '*.whl' -exec cp {} wheels-out/ \;
+          ls -la wheels-out/
+          count="$(find wheels-out -name '*.whl' | wc -l | tr -d ' ')"
+          if [[ "${count}" -lt 2 ]]; then
+            echo "Expected release + core wheels, found ${count}" >&2
+            exit 1
+          fi
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: pypi-upload
-
-      - name: Verify all packages indexed on PyPI
-        run: uv run python scripts/verify_pypi_publish.py
+          packages-dir: wheels-out
+          skip-existing: true

@@ -48,12 +48,13 @@ Agent → desktop_agent_tools (4 tools)
 | desktop_vision_tool | Explicit screenshot/coordinate fallback |
 
 ## Key Design Decisions
-
+    
 1. **Semantic-first**: AX/UIA/AT-SPI tree → @dref interact; vision only when AX is empty
 2. **View updates**: `desktop_snapshot` emits `DESKTOP_VIEW_UPDATE` via ToolProgressSink for frontend Desktop Inspector
 3. **Safety in session**: `desktop_vision_action` enforces blocked keys and dangerous type patterns
 4. **Multimodal responses**: Vision capture/actions return text + JPEG image blocks
 5. **Platform auto-detection**: reuses `detect_platform()` from code_execution
+6. **Security & Re-validation**: `desktop_interact` implements a Time-of-Check to Time-of-Use (TOCTOU) defense by re-capturing and verifying the @dref state if the action was delayed (e.g. by Human-in-the-Loop approval interception).
 
 ## Key Dependencies
 

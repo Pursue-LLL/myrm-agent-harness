@@ -106,11 +106,11 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
     class InteractInput(BaseModel):
         ref: str = Field(description="Element @dref from desktop_snapshot (e.g. 'd3').")
         action: DesktopInteractAction = Field(
-            description="One of: click, dblclick, fill, type, press, hover, focus, scroll.",
+            description="One of: click, dblclick, fill, type, fill_credential, type_credential, press, hover, focus, scroll.",
         )
         text: str = Field(
             default="",
-            description="Text for fill/type actions.",
+            description="Text for fill/type actions, or credential label for fill_credential/type_credential.",
         )
         verify_goal: str | None = Field(
             default=None,
@@ -140,7 +140,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
 
     class VisionInput(BaseModel):
         action: DesktopVisionAction = Field(
-            description="Explicit visual fallback action using screenshot coordinates.",
+            description="Explicit visual fallback action using screenshot coordinates. Can also be type_credential.",
         )
         coordinate: list[int] | None = Field(
             default=None,
@@ -148,7 +148,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
         )
         text: str | None = Field(
             default=None,
-            description="Text for type/key actions.",
+            description="Text for type/key actions, or credential label for type_credential.",
         )
         scroll_direction: ScrollDirection | None = Field(default=None)
         scroll_amount: int = Field(default=3)

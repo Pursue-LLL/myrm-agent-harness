@@ -195,6 +195,8 @@ DANGEROUS_ENV_VARS: frozenset[str] = frozenset(
         "CC",
         "CXX",
         "CARGO_BUILD_RUSTC",
+        # Credential Vault Master Key
+        "MYRM_VAULT_MASTER_KEY",
     }
 )
 

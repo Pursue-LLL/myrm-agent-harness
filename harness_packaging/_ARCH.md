@@ -11,7 +11,6 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 | manifest.py | Core | Manifest loader and path validation |
 | platforms.py | Core | Platform key detection (six platforms) |
 | release.py | Core | Strip manifest `.py` in-place (PEP 427 compliant) |
-| compiled_core_extra.py | Core | Generate/inject `compiled-core` optional-deps for release wheel metadata |
 | assemble.py | Core | Unified production wheel assembly + venv install + post-install verify |
 | integrity.py | Core | Manifest import paths for dev/CI helpers |
 
@@ -20,15 +19,17 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 | Script | Role |
 |--------|------|
 | `scripts/build_core.py` | Nuitka compile + platform core wheel (static force-include) |
-| `scripts/build_release_wheel.py` | Release wheel via temp build dir + strip manifest `.py` |
-| `scripts/validate_pypi_wheels.py` | Gate: 7 wheels + version match before PyPI upload |
-| `scripts/verify_pypi_publish.py` | Post-upload: poll PyPI until 7 packages are indexed |
+| `scripts/build_release_wheel.py` | Release wheel via `uv build` + strip manifest `.py` |
 | `scripts/assemble_production.py` | Full production pipeline + optional `--install` |
 
 ## Key Dependencies
 
 - `nuitka` (build group only)
 - `PyYAML` (manifest parsing)
+
+## PyPI
+
+Tag `v*` → `.github/workflows/publish-pypi.yml` uploads release + six platform core wheels.
 
 ## System Design
 

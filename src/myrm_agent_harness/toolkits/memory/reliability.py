@@ -48,6 +48,7 @@ MemoryImportSource = Literal[
     "openclaw",
     "cursor_rules",
     "codex",
+    "claude",
     "unknown",
 ]
 MemoryImportMappingStatus = Literal["mapped", "partially_mapped", "unsupported", "dropped"]

@@ -27,10 +27,10 @@ _PROXY_ERROR_REGEX = re.compile("|".join(PROXY_ERROR_PATTERNS), re.IGNORECASE)
 
 def is_proxy_error(error: Exception | str | Any) -> bool:
     """Detect if an exception or error message is related to proxy/network failure.
-    
+
     Args:
         error: The exception or error string to check.
-        
+
     Returns:
         True if the error is likely a proxy or network error, False otherwise.
     """
@@ -39,11 +39,11 @@ def is_proxy_error(error: Exception | str | Any) -> bool:
 
 def is_blocked_response(status_code: int, body_text: str = "") -> bool:
     """Detect if a response indicates the IP is blocked (e.g., 403, CAPTCHA).
-    
+
     Args:
         status_code: The HTTP status code.
         body_text: Optional response body text to check for CAPTCHA signatures.
-        
+
     Returns:
         True if the response indicates a block, False otherwise.
     """

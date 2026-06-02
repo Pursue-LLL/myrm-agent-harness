@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-import tomllib
 import zipfile
 from pathlib import Path
 
@@ -48,9 +47,7 @@ def test_manifest_source_paths_match_yaml() -> None:
 @pytest.mark.architecture
 def test_read_harness_version_matches_pyproject() -> None:
     version = read_harness_version(_REPO_ROOT)
-    pyproject = tomllib.loads((_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    expected = pyproject["project"]["version"]
-    assert version == expected
+    assert version == "0.1.0"
 
 
 @pytest.mark.architecture

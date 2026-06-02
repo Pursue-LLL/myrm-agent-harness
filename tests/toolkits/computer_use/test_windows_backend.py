@@ -378,6 +378,88 @@ class TestWindowsBackendWindowText:
 
         assert result.success is False
 
+    @pytest.mark.asyncio
+    async def test_has_blocking_dialog_true(self, backend, _mock_windows_env) -> None:
+        win_mod, _, mock_windll = _mock_windows_env
+        mock_windll.user32.GetForegroundWindow.return_value = 12345
+        
+        def mock_get_class_name(hwnd, buf, size):
+            buf.value = "#32770"
+            return len("#32770")
+        mock_windll.user32.GetClassNameW.side_effect = mock_get_class_name
+        
+        def mock_get_window_text_length(hwnd):
+            return len("Google Chrome")
+        mock_windll.user32.GetWindowTextLengthW.side_effect = mock_get_window_text_length
+        
+        def mock_get_window_text(hwnd, buf, size):
+            buf.value = "Google Chrome"
+            return len("Google Chrome")
+        mock_windll.user32.GetWindowTextW.side_effect = mock_get_window_text
+        
+        with patch("asyncio.to_thread", side_effect=lambda fn, *args: fn(*args)):
+            result = await backend.has_blocking_dialog(["Google Chrome"])
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_has_blocking_dialog_false(self, backend, _mock_windows_env) -> None:
+        win_mod, _, mock_windll = _mock_windows_env
+        mock_windll.user32.GetForegroundWindow.return_value = 12345
+        
+        def mock_get_class_name(hwnd, buf, size):
+            buf.value = "Chrome_WidgetWin_1"
+            return len("Chrome_WidgetWin_1")
+        mock_windll.user32.GetClassNameW.side_effect = mock_get_class_name
+        
+        with patch("asyncio.to_thread", side_effect=lambda fn, *args: fn(*args)):
+            result = await backend.has_blocking_dialog(["Google Chrome"])
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_has_blocking_dialog_exception(self, backend, _mock_windows_env) -> None:
+        win_mod, _, mock_windll = _mock_windows_env
+        mock_windll.user32.GetForegroundWindow.side_effect = Exception("error")
+        
+        with patch("asyncio.to_thread", side_effect=lambda fn, *args: fn(*args)):
+            result = await backend.has_blocking_dialog(["Google Chrome"])
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_is_browser_active_true(self, backend, _mock_windows_env) -> None:
+        win_mod, _, mock_windll = _mock_windows_env
+        mock_windll.user32.GetForegroundWindow.return_value = 12345
+        
+        def mock_get_window_text_length(hwnd):
+            return len("Google Chrome")
+        mock_windll.user32.GetWindowTextLengthW.side_effect = mock_get_window_text_length
+        
+        def mock_get_window_text(hwnd, buf, size):
+            buf.value = "Google Chrome"
+            return len("Google Chrome")
+        mock_windll.user32.GetWindowTextW.side_effect = mock_get_window_text
+        
+        with patch("asyncio.to_thread", side_effect=lambda fn, *args: fn(*args)):
+            result = await backend.is_browser_active()
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_is_browser_active_false(self, backend, _mock_windows_env) -> None:
+        win_mod, _, mock_windll = _mock_windows_env
+        mock_windll.user32.GetForegroundWindow.return_value = 12345
+        
+        def mock_get_window_text_length(hwnd):
+            return len("Notepad")
+        mock_windll.user32.GetWindowTextLengthW.side_effect = mock_get_window_text_length
+        
+        def mock_get_window_text(hwnd, buf, size):
+            buf.value = "Notepad"
+            return len("Notepad")
+        mock_windll.user32.GetWindowTextW.side_effect = mock_get_window_text
+        
+        with patch("asyncio.to_thread", side_effect=lambda fn, *args: fn(*args)):
+            result = await backend.is_browser_active()
+        assert result is False
+
 
 class TestCreateComputerSessionWindows:
     """Factory function routes to WindowsBackend on Windows."""

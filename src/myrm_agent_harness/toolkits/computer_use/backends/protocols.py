@@ -41,6 +41,14 @@ class ComputerBackend(Protocol):
         """Type text with optional keystroke delay."""
         ...
 
+    async def type_credential(self, label: str) -> ActionResult:
+        """Type a credential (password or TOTP) securely from the CredentialVault.
+        
+        The plain text is retrieved from the in-memory vault and injected directly
+        via OS APIs without appearing in the LLM context or logs.
+        """
+        ...
+
     async def key(self, keys: str) -> ActionResult:
         """Press key combination (e.g. 'ctrl+c', 'Return')."""
         ...
@@ -85,11 +93,11 @@ class ComputerBackend(Protocol):
 
     async def has_blocking_dialog(self, target_app_names: list[str] | None = None) -> bool:
         """Check if there is an OS-level dialog window blocking the target application.
-        
+
         Args:
             target_app_names: Optional list of app names to check against (e.g., ["Google Chrome", "Chromium"]).
                               If None, checks the frontmost app.
-                              
+
         Returns:
             True if a blocking dialog (like a file picker or permission prompt) is detected.
         """
@@ -97,7 +105,7 @@ class ComputerBackend(Protocol):
 
     async def is_browser_active(self) -> bool:
         """Check if the currently active (frontmost) window is a web browser.
-        
+
         Returns:
             True if the frontmost window belongs to a known browser.
         """

@@ -143,11 +143,17 @@ observability = [
   "opentelemetry-exporter-otlp-proto-grpc>=1.42.1",
   "openinference-instrumentation-langchain>=0.1.66",
 ]
-all = [
-  "myrm-agent-harness[browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,memory-sqlite,memory-postgres,image-search]",
+compiled-core = [
+  "myrm-agent-harness-core-darwin-arm64==0.1.0rc1; platform_system == 'Darwin' and platform_machine == 'arm64'",
+  "myrm-agent-harness-core-darwin-x64==0.1.0rc1; platform_system == 'Darwin' and platform_machine == 'x86_64'",
+  "myrm-agent-harness-core-linux-x64==0.1.0rc1; platform_system == 'Linux' and platform_machine == 'x86_64'",
+  "myrm-agent-harness-core-linux-arm64==0.1.0rc1; platform_system == 'Linux' and platform_machine == 'aarch64'",
+  "myrm-agent-harness-core-win32-x64==0.1.0rc1; platform_system == 'Windows' and platform_machine == 'AMD64'",
+  "myrm-agent-harness-core-win32-arm64==0.1.0rc1; platform_system == 'Windows' and platform_machine == 'ARM64'",
 ]
-# ``compiled-core`` optional-deps are injected into release wheel metadata at build time
-# (see harness_packaging/compiled_core_extra.py) so dev ``uv lock`` stays resolvable.
+all = [
+  "myrm-agent-harness[browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,memory-sqlite,memory-postgres,image-search,compiled-core]",
+]
 
 [tool.uv]
 override-dependencies = [

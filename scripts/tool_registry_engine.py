@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 from scripts.tool_registry_config import (
-    BOOTSTRAP_FILE_PATHS,
+    BOOTSTRAP_FILES,
     CROSS_MODULE_CONSTANTS,
     EXCLUDED_DIRS,
     HARNESS_SRC,
@@ -225,10 +225,13 @@ def _collect_factories(tree: ast.Module, path: Path) -> dict[str, Path]:
 def _count_call_sites(factory_names: set[str], scan_roots: tuple[Path, ...]) -> dict[str, list[Path]]:
     """Find direct call sites by static text search; bootstrap files excluded."""
     call_sites: dict[str, list[Path]] = {f: [] for f in factory_names}
-    bootstrap_paths = {path.resolve() for path in BOOTSTRAP_FILE_PATHS}
     for root in scan_roots:
         for path in _iter_python_files(root):
-            if path.resolve() in bootstrap_paths:
+            try:
+                rel = path.relative_to(REPO_ROOT).as_posix() if path.is_absolute() else str(path)
+            except ValueError:
+                rel = str(path)
+            if rel in BOOTSTRAP_FILES:
                 continue
             try:
                 content = path.read_text(encoding="utf-8")

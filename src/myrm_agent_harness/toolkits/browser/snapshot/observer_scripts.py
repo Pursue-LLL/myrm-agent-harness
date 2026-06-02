@@ -204,7 +204,7 @@ BBOX_COLLECTOR_SCRIPT = """
         if (role === 'checkbox') all.push(...root.querySelectorAll('input[type="checkbox"]'));
         if (role === 'radio') all.push(...root.querySelectorAll('input[type="radio"]'));
       } catch(e) {}
-      
+
       const els = root.querySelectorAll('*');
       for (const el of els) {
         if (el.shadowRoot) walk(el.shadowRoot);

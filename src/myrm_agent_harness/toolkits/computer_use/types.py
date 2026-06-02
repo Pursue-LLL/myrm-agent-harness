@@ -140,6 +140,23 @@ GPT4V_IMAGE_CONSTRAINTS = ImageConstraints(
 DEFAULT_IMAGE_CONSTRAINTS = CLAUDE_IMAGE_CONSTRAINTS
 
 
+KNOWN_BROWSER_NAMES = frozenset(
+    {
+        "google chrome",
+        "chromium",
+        "firefox",
+        "safari",
+        "microsoft edge",
+        "brave browser",
+        "arc",
+        "patchright",
+        "camoufox",
+        "google-chrome",
+        "microsoft-edge",
+        "brave",
+    }
+)
+
 @dataclass
 class ComputerUseConfig:
     """Configuration for computer use session."""

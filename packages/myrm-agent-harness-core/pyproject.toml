@@ -1,6 +1,6 @@
 [project]
 name = "myrm-agent-harness-core"
-version = "0.1.0rc1"
+version = "0.1.0"
 description = "Platform-specific compiled core extensions for myrm-agent-harness"
 authors = [{ name = "Myrm Agent Harness Contributors" }]
 requires-python = ">=3.13"

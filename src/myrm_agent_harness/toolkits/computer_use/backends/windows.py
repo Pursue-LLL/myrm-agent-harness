@@ -90,6 +90,32 @@ class WindowsBackend:
         except Exception as e:
             return ActionResult(success=False, error=str(e))
 
+    async def type_credential(self, label: str) -> ActionResult:
+        """Type a credential (password or TOTP) securely from the CredentialVault."""
+        from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
+        vault = get_global_credential_vault()
+        
+        is_totp = label.endswith("-totp")
+        try:
+            if is_totp:
+                secret_text = vault.get_totp_token(label)
+            else:
+                secret_text = vault.get_password(label)
+        except Exception as e:
+            return ActionResult(success=False, error=f"Failed to retrieve credential for label '{label}': {e}")
+            
+        try:
+            if secret_text.isascii():
+                import pyautogui
+                interval = 12 / 1000.0
+                # pyautogui.write calls OS APIs directly, no subprocess arguments exposed
+                await asyncio.to_thread(pyautogui.write, secret_text, interval=interval)
+            else:
+                await self._paste_text(secret_text)
+            return ActionResult(success=True)
+        except Exception as e:
+            return ActionResult(success=False, error=str(e))
+
     async def _paste_text(self, text: str) -> None:
         """Type non-ASCII text via clipboard paste (Ctrl+V), preserving original clipboard."""
         import pyautogui
@@ -197,7 +223,7 @@ class WindowsBackend:
 
     async def has_blocking_dialog(self, target_app_names: list[str] | None = None) -> bool:
         """Check if there is an OS-level dialog window blocking the target application.
-        
+
         On Windows, we check if the foreground window is a dialog.
         """
         return await asyncio.to_thread(_has_blocking_dialog_win, target_app_names)
@@ -259,9 +285,9 @@ def _get_active_window_title() -> str:
 
 def _is_browser_active_win() -> bool:
     """Check if the active application is a known web browser."""
+    from myrm_agent_harness.toolkits.computer_use.types import KNOWN_BROWSER_NAMES
     app_name = _get_active_window_title().lower()
-    known_browsers = ["google chrome", "chromium", "firefox", "microsoft edge", "brave", "patchright", "camoufox"]
-    return any(browser in app_name for browser in known_browsers)
+    return any(browser in app_name for browser in KNOWN_BROWSER_NAMES)
 
 
 def _has_blocking_dialog_win(target_app_names: list[str] | None = None) -> bool:
@@ -305,11 +331,11 @@ def _get_clipboard() -> str | None:
         user32 = ctypes.windll.user32  # type: ignore[attr-defined]
         kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
 
-        CF_UNICODETEXT = 13
+        cf_unicodetext = 13
         if not user32.OpenClipboard(None):
             return None
         try:
-            handle = user32.GetClipboardData(CF_UNICODETEXT)
+            handle = user32.GetClipboardData(cf_unicodetext)
             if not handle:
                 return None
             ptr = kernel32.GlobalLock(handle)
@@ -331,11 +357,11 @@ def _set_clipboard(text: str) -> None:
         user32 = ctypes.windll.user32  # type: ignore[attr-defined]
         kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
 
-        CF_UNICODETEXT = 13
-        GMEM_MOVEABLE = 0x0002
+        cf_unicodetext = 13
+        gmem_moveable = 0x0002
 
         encoded = text.encode("utf-16-le") + b"\x00\x00"
-        h_mem = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(encoded))
+        h_mem = kernel32.GlobalAlloc(gmem_moveable, len(encoded))
         if not h_mem:
             return
         ptr = kernel32.GlobalLock(h_mem)
@@ -352,7 +378,7 @@ def _set_clipboard(text: str) -> None:
             return
         try:
             user32.EmptyClipboard()
-            user32.SetClipboardData(CF_UNICODETEXT, h_mem)
+            user32.SetClipboardData(cf_unicodetext, h_mem)
         finally:
             user32.CloseClipboard()
     except Exception:

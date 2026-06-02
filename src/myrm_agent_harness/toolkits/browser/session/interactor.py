@@ -149,6 +149,7 @@ _VALID_ACTIONS = frozenset(
         "drag",
         "check",
         "uncheck",
+        "fill_credential",
     }
 )
 
@@ -377,7 +378,15 @@ class Interactor:
                         is_password = True
                 except Exception:
                     pass
-                display_text = "********" if is_password else text
+                
+                if is_password:
+                    raise ValueError(
+                        "SecurityError: Plain text typing into a password field is strictly forbidden. "
+                        "You MUST use the 'fill_credential' action and provide the credential label "
+                        "instead of the plain text password."
+                    )
+                
+                display_text = text
 
                 delay_per_char = random.randint(30, 100)
                 typing_timeout = max(_INTERACTION_TIMEOUT_MS, len(text) * delay_per_char + 5000)
@@ -393,11 +402,38 @@ class Interactor:
                         is_password = True
                 except Exception:
                     pass
-                display_text = "********" if is_password else text
+                
+                if is_password:
+                    raise ValueError(
+                        "SecurityError: Plain text filling into a password field is strictly forbidden. "
+                        "You MUST use the 'fill_credential' action and provide the credential label "
+                        "instead of the plain text password."
+                    )
+                
+                display_text = text
 
                 await locator.fill(text, timeout=_INTERACTION_TIMEOUT_MS)
                 await _wait_after_action()
                 return f"Filled {ref} with '{display_text}'{healed_msg}"
+
+            elif action == "fill_credential":
+                from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
+                vault = get_global_credential_vault()
+                
+                # Check if it's a TOTP request (e.g. label ends with -totp)
+                is_totp = text.endswith("-totp")
+                
+                try:
+                    if is_totp:
+                        secret_text = vault.get_totp_token(text)
+                    else:
+                        secret_text = vault.get_password(text)
+                except Exception as e:
+                    raise ValueError(f"Failed to retrieve credential for label '{text}': {e}") from e
+                
+                await locator.fill(secret_text, timeout=_INTERACTION_TIMEOUT_MS)
+                await _wait_after_action()
+                return f"Filled credential '{text}' into {ref}{healed_msg} [CREDENTIAL_FILLED]"
 
             elif action == "press":
                 await locator.press(text, timeout=_INTERACTION_TIMEOUT_MS)
@@ -457,11 +493,27 @@ class Interactor:
             if "TargetClosedError" in error_msg or "Target closed" in error_msg or "Timeout" in error_msg:
                 # This often happens when a native OS dialog (like a file picker or permission prompt)
                 # blocks the browser process, causing Playwright to timeout or lose the target.
-                logger.warning(f"Browser interaction failed with potential OS dialog block: {e}")
-                return (
-                    f"Interaction failed: {error_msg}\n\n"
-                    "[SYSTEM HINT: The browser might be blocked by a native OS dialog (e.g., File Upload, Permission Request). "
-                    "Playwright CANNOT interact with native OS dialogs. If you suspect an OS dialog is open, "
-                    "you MUST switch to 'desktop_snapshot' and 'desktop_interact_tool' to handle it.]"
-                )
+                
+                # Check if there is ACTUALLY a dialog before injecting the hint to avoid hallucination
+                has_dialog = False
+                try:
+                    from myrm_agent_harness.toolkits.computer_use.session import create_computer_session
+                    from myrm_agent_harness.toolkits.computer_use.types import ComputerUseConfig, KNOWN_BROWSER_NAMES
+                    cu_session = create_computer_session(ComputerUseConfig())
+                    has_dialog = await cu_session.backend.has_blocking_dialog(list(KNOWN_BROWSER_NAMES))
+                except Exception:
+                    pass
+
+                if has_dialog:
+                    logger.warning(f"Browser interaction failed and OS dialog detected: {e}")
+                    return (
+                        f"Interaction failed: {error_msg}\n\n"
+                        "[CRITICAL WARNING: A native OS dialog (e.g., File Upload, Permission Request) "
+                        "is currently blocking the browser. Playwright CANNOT interact with native OS dialogs. "
+                        "You MUST switch to 'desktop_snapshot' and 'desktop_interact_tool' immediately to handle it.]"
+                    )
+                else:
+                    # If no dialog is detected, it's just a regular timeout/error.
+                    # Don't inject the hint to avoid confusing the agent.
+                    logger.warning(f"Browser interaction failed (no OS dialog detected): {e}")
             raise
