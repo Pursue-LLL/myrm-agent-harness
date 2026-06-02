@@ -55,7 +55,7 @@ Myrm Agent Harness 是一个**生产级 Agent 框架**，基于 LangChain/LangGr
 
 | 模块       | 路径                                | 职责                                                                                                                                                                                                                               |
 | ---------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Core 层** | `myrm_agent_harness/core/`         | **框架无关基础能力层**。提供 security（安全检测/审计/防护）、config（LLM 配置）、events（事件类型/流式枚举）、hooks（Hook 类型定义/生命周期事件）、artifacts（工件类型/映射常量）。同时被 `agent/` 和 `toolkits/` 引用，消除二者间的耦合 |
+| **Core 层** | `myrm_agent_harness/core/`         | **框架无关基础能力层**。提供 security、config、events、hooks、artifacts、**features/**（Feature Flag）。同时被 `agent/` 和 `toolkits/` 引用，消除二者间的耦合 |
 | **Public API** | `myrm_agent_harness/api/`       | **闭源分发公开接口**。第三方框架与 server 的唯一推荐 import 路径（factory、Protocol、DTO）。详见 [DISTRIBUTION_SYSTEM.md](harness_packaging/DISTRIBUTION_SYSTEM.md) |
 | Agent 核心 | `myrm_agent_harness/agent/`         | 提供 BaseAgent 和 SkillAgent 两层抽象，集成上下文管理、Hook 系统、元工具、技能系统、文件快照                                                                                                                                       |
 | SDK 入口   | `myrm_agent_harness/client.py`      | SDK Facade — 对外暴露 `AgentClient`，提供简洁的 API 配置和运行 Agent 框架                                                                                                                                                          |
