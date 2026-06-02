@@ -3,23 +3,24 @@ name: Performance Regression Tests
 on:
   pull_request:
     paths:
-      - 'src/myrm_agent_harness/**/*.py'
-      - 'pyproject.toml'
-      - 'benchmarks/bench_startup_performance.py'
+      - "src/myrm_agent_harness/**/*.py"
+      - "pyproject.toml"
+      - "benchmarks/**"
+      - "tests/performance/**"
   push:
     branches:
       - main
       - develop
+  workflow_dispatch:
 
 jobs:
   startup-performance:
     name: Startup Performance Benchmarks
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
@@ -30,34 +31,40 @@ jobs:
         run: uv python install 3.13
 
       - name: Install dependencies
-        run: |
-          cd myrm-agent-harness
-          uv sync --all-extras
+        run: uv sync --all-extras
 
       - name: Run startup performance benchmarks
-        run: |
-          cd myrm-agent-harness
-          uv run pytest benchmarks/bench_startup_performance.py -v --benchmark-only
+        run: uv run pytest benchmarks/bench_startup_performance.py -v --benchmark-only
 
       - name: Run lazy loading tests
         run: |
-          cd myrm-agent-harness
-          uv run pytest tests/test_lazy_loading_comprehensive.py tests/test_lazy_loading_consistency.py -v
+          uv run pytest tests/test_lazy_loading_comprehensive.py \
+            tests/test_lazy_loading_consistency.py -v
 
       - name: Run monitoring and preload tests
-        run: |
-          cd myrm-agent-harness
-          uv run pytest tests/test_monitoring.py tests/test_preload.py -v
+        run: uv run pytest tests/test_monitoring.py tests/test_preload.py -v
 
       - name: Run boundary detection benchmark
         run: |
-          cd myrm-agent-harness
-          uv run python benchmarks/bench_boundary_detection.py --check-regression benchmarks/baseline_boundary.json
+          uv run python benchmarks/bench_boundary_detection.py \
+            --check-regression benchmarks/baseline_boundary.json
+
+      - name: Run context archive benchmark gate
+        run: |
+          uv run python benchmarks/context_archive_benchmark.py \
+            --iterations 1 --enforce-thresholds > context_archive_benchmark.json
+
+      - name: Run performance test suite
+        run: |
+          uv run pytest tests/performance/ --benchmark-json=current_benchmark.json || true
 
       - name: Upload benchmark results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
-          path: myrm-agent-harness/.benchmarks/
+          path: |
+            .benchmarks/
+            current_benchmark.json
+            context_archive_benchmark.json
           retention-days: 30

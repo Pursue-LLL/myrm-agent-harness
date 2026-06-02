@@ -93,7 +93,7 @@ jobs:
       - build-core
       - release-wheel
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     environment: pypi
     permissions:
       id-token: write
@@ -130,4 +130,6 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: pypi-upload
-          skip-existing: true
+
+      - name: Verify all packages indexed on PyPI
+        run: uv run python scripts/verify_pypi_publish.py

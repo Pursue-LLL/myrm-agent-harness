@@ -123,10 +123,13 @@ Editable dev: `MYRM_HARNESS_EDITABLE=1 ./scripts/dev/install_harness_dev.sh` (lo
 
 | Workflow | Role |
 |----------|------|
-| `myrm-agent-harness/.github/workflows/publish-pypi.yml` | 6-platform Nuitka matrix + tag → validate 7 wheels → PyPI |
+| `myrm-agent-harness/.github/workflows/publish-pypi.yml` | 6-platform Nuitka matrix + tag → validate 7 wheels → PyPI → post-verify |
 | `myrm-agent-harness/.github/workflows/boundary-check.yml` | Architecture tests (`-n0`) including `test_repo_hygiene` |
+| `myrm-agent-harness/.github/workflows/arm64-build.yml` | ARM64 unit tests + benchmarks |
+| `myrm-agent-harness/.github/workflows/performance.yml` | Startup/context-archive/performance regression |
+| `myrm-agent-harness/.github/workflows/security.yml` | License, SBOM, CVE (harness only) |
+| `myrm-agent-harness/.github/workflows/build-official-runtime.yml` | Official runtime Docker (source build; checks out vortexai) |
 | `.github/workflows/build-oss-server-docker.yml` | OSS public Dockerfile smoke (PyPI harness) |
-| `.github/workflows/build-official-runtime.yml` | Official runtime Docker image (linux-amd64) |
 
 ## References
 
