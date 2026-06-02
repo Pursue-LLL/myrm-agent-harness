@@ -109,9 +109,29 @@ jobs:
       - name: List release assets
         run: ls -la release-assets/
 
-      - name: Publish GitHub Release
+      - name: Publish GitHub Release (private repo audit)
         uses: softprops/action-gh-release@v2
         with:
           files: release-assets/**
           generate_release_notes: true
+
+      - name: Publish public wheels release
+        env:
+          GH_TOKEN: ${{ secrets.MYRM_HARNESS_WHEELS_PUBLISH_TOKEN }}
+          WHEELS_REPO: Pursue-LLL/myrm-agent-harness-wheels
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "MYRM_HARNESS_WHEELS_PUBLISH_TOKEN is not configured; cannot publish public wheels." >&2
+            exit 1
+          fi
+          if gh release view "${TAG}" --repo "${WHEELS_REPO}" >/dev/null 2>&1; then
+            gh release delete "${TAG}" --repo "${WHEELS_REPO}" --yes --cleanup-tag=false
+          fi
+          gh release create "${TAG}" release-assets/* \
+            --repo "${WHEELS_REPO}" \
+            --title "${TAG}" \
+            --prerelease="${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}" \
+            --notes "Public harness wheels for ${TAG}. Source remains private in Pursue-LLL/myrm-agent-harness."
 

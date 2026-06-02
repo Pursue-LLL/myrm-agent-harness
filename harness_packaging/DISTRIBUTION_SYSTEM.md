@@ -58,15 +58,20 @@ python -m myrm_agent_harness._verify_distribution
 
 ## Consumer Install
 
-**Source is private; release wheels are public** on GitHub Releases (`v*` tags).
+**Source is private; release wheels are public** on `Pursue-LLL/myrm-agent-harness-wheels`
+(GitHub Releases mirrored from private harness CI on `v*` tags).
 
-OSS server CI and local production-like installs:
+OSS server CI, Docker, Tauri sidecar builds, and local production-like installs:
 
 ```bash
 MYRM_HARNESS_INSTALL_MODE=release ./scripts/dev/install_harness_dev.sh
 ```
 
+Default release repo: `Pursue-LLL/myrm-agent-harness-wheels` (override with `MYRM_HARNESS_RELEASE_REPO`).
+
 Pin version via `scripts/dev/harness_release_version.txt` or `MYRM_HARNESS_VERSION`.
+
+Setup for the public wheels repo: [PUBLIC_WHEELS_REPO.md](./PUBLIC_WHEELS_REPO.md).
 
 Local harness development (editable or source build):
 
@@ -81,7 +86,8 @@ Direct wheel install (after downloading release assets):
 pip install myrm_agent_harness-0.1.0-*.whl myrm_agent_harness_core_linux_x64-0.1.0-*.whl
 ```
 
-Server monorepo CI uses **release mode** (no private repo clone). Production Docker/Tauri uses dual wheels.
+Server monorepo CI uses **release mode** (no private repo clone). Production Docker/Tauri
+sidecar builds install release wheels via `scripts/dev/install_harness_dev.sh` before PyInstaller.
 
 ## Development Mode
 
@@ -142,7 +148,7 @@ Editable monorepo dev (transitional): `MYRM_HARNESS_EDITABLE=1 ./scripts/dev/ins
 
 | Workflow | Role |
 |----------|------|
-| `myrm-agent-harness/.github/workflows/build-core-wheels.yml` | 6-platform Nuitka matrix + tag → **public GitHub Release** assets |
+| `myrm-agent-harness/.github/workflows/build-core-wheels.yml` | 6-platform Nuitka matrix + tag → private audit release + **public wheels mirror** |
 | `myrm-agent-harness/.github/workflows/boundary-check.yml` | Architecture tests (`-n0`) including `test_repo_hygiene` |
 | `.github/workflows/build-oss-server-docker.yml` | OSS public Dockerfile smoke (linux, wheel contexts) |
 | `.github/workflows/build-official-runtime.yml` | Official runtime Docker image (linux-amd64) |
