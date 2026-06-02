@@ -58,32 +58,30 @@ python -m myrm_agent_harness._verify_distribution
 
 ## Consumer Install
 
-After private PyPI publish, add the ``compiled-core`` extra to ``pyproject.toml``:
+**Source is private; release wheels are public** on GitHub Releases (`v*` tags).
 
-```toml
-compiled-core = [
-  "myrm-agent-harness-core-darwin-arm64>=0.1.0; platform_system=='Darwin' and platform_machine=='arm64'",
-  "myrm-agent-harness-core-darwin-x64>=0.1.0; platform_system=='Darwin' and platform_machine=='x86_64'",
-  "myrm-agent-harness-core-linux-x64>=0.1.0; platform_system=='Linux' and platform_machine=='x86_64'",
-  "myrm-agent-harness-core-linux-arm64>=0.1.0; platform_system=='Linux' and platform_machine=='aarch64'",
-  "myrm-agent-harness-core-win32-x64>=0.1.0; platform_system=='Windows' and platform_machine=='AMD64'",
-  "myrm-agent-harness-core-win32-arm64>=0.1.0; platform_system=='Windows' and platform_machine=='ARM64'",
-]
-```
-
-Then:
+OSS server CI and local production-like installs:
 
 ```bash
-pip install 'myrm-agent-harness[compiled-core]'
+MYRM_HARNESS_INSTALL_MODE=release ./scripts/dev/install_harness_dev.sh
 ```
 
-Until private PyPI is live, install explicitly:
+Pin version via `scripts/dev/harness_release_version.txt` or `MYRM_HARNESS_VERSION`.
+
+Local harness development (editable or source build):
 
 ```bash
-pip install myrm-agent-harness myrm-agent-harness-core-darwin-arm64
+MYRM_HARNESS_INSTALL_MODE=source ./scripts/dev/install_harness_dev.sh
+MYRM_HARNESS_EDITABLE=1 ./scripts/dev/install_harness_dev.sh
 ```
 
-Server monorepo dev uses editable harness source (`uv sync`); production Docker/Tauri uses dual wheels.
+Direct wheel install (after downloading release assets):
+
+```bash
+pip install myrm_agent_harness-0.1.0-*.whl myrm_agent_harness_core_linux_x64-0.1.0-*.whl
+```
+
+Server monorepo CI uses **release mode** (no private repo clone). Production Docker/Tauri uses dual wheels.
 
 ## Development Mode
 
@@ -134,8 +132,8 @@ docker build -f myrm-agent-server/Dockerfile \
 | Phase | Action |
 |-------|--------|
 | R1 | `./scripts/dev/extract_harness_private_repo.sh /tmp/out` → push to **private** `myrm-agent-harness` Git |
-| R2 | `./scripts/dev/install_harness_dev.sh` — wheel install for CI/production-like dev (`--no-sources-package`) |
-| R3 | `server-ci.yml` validates wheel path; harness CI stays in private repo workflows |
+| R2 | `./scripts/dev/install_harness_dev.sh` — release wheel install (default) or source/editable dev |
+| R3 | `server-ci.yml` installs public GitHub Release wheels; harness CI stays in private repo |
 | R4 | Delete `myrm-agent-harness/` from OSS monorepo; replace `[tool.uv.sources]` path with private index |
 
 Editable monorepo dev (transitional): `MYRM_HARNESS_EDITABLE=1 ./scripts/dev/install_harness_dev.sh`
@@ -144,8 +142,8 @@ Editable monorepo dev (transitional): `MYRM_HARNESS_EDITABLE=1 ./scripts/dev/ins
 
 | Workflow | Role |
 |----------|------|
-| `myrm-agent-harness/.github/workflows/build-core-wheels.yml` | 6-platform Nuitka matrix + tag release wheel artifact |
-| `myrm-agent-harness/.github/workflows/boundary-check.yml` | Architecture tests (`-n0`) on PR/push including distribution paths |
+| `myrm-agent-harness/.github/workflows/build-core-wheels.yml` | 6-platform Nuitka matrix + tag → **public GitHub Release** assets |
+| `myrm-agent-harness/.github/workflows/boundary-check.yml` | Architecture tests (`-n0`) including `test_repo_hygiene` |
 | `.github/workflows/build-oss-server-docker.yml` | OSS public Dockerfile smoke (linux, wheel contexts) |
 | `.github/workflows/build-official-runtime.yml` | Official runtime Docker image (linux-amd64) |
 
