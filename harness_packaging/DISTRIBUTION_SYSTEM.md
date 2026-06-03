@@ -96,8 +96,8 @@ Server CI runs `scripts/ci/require_harness_on_pypi.sh` before install.
 
 | Workflow | Role |
 |----------|------|
-| `publish-pypi.yml` | Tag release → PyPI (release + 6 core wheels) |
-| `build-core-wheels.yml` | Dev/matrix core wheel artifacts |
+| `publish-pypi.yml` | Tag release → PyPI (release + 6 core wheels); matrix from `.github/core-platform-matrix.json` |
+| `build-core-wheels.yml` | Dev/matrix core wheel artifacts (same shared matrix; optional `platform` input) |
 | `boundary-check.yml` | Architecture + distribution tests |
 
 ## References
