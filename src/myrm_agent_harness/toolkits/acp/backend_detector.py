@@ -32,9 +32,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+from myrm_agent_harness.toolkits.acp.toolchains import TOOLCHAIN_BASE_DIR
+
 _KNOWN_BACKENDS = ("claude", "codex", "gemini")
 
 _COMMON_PATHS = (
+    TOOLCHAIN_BASE_DIR / "bin",  # Check isolated toolchain first
     Path.home() / ".local" / "bin",
     Path("/usr/local/bin"),
     Path("/opt/homebrew/bin"),

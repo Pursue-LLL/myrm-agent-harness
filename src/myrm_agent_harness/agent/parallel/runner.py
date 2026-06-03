@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from inspect import isawaitable
 from typing import TYPE_CHECKING, cast
 
@@ -37,6 +37,7 @@ async def run_parallel_task_requests(
     race: bool = False,
     max_concurrent: int | None = None,
     budget_admission: _BatchBudgetAdmission | None = None,
+    on_progress: Callable[[int, str, dict[str, object] | None], Awaitable[None]] | None = None,
 ) -> dict[str, object]:
     """Run TaskRequest items concurrently via an existing delegate_task tool."""
     if not tasks:
@@ -53,15 +54,20 @@ async def run_parallel_task_requests(
     semaphore = asyncio.Semaphore(effective_concurrent)
 
     async def _run_task(task: TaskRequest, index: int) -> dict[str, object]:
+        if on_progress:
+            await on_progress(index, "running", None)
         async with semaphore:
             coroutine = getattr(delegate_tool, "coroutine", None)
             if coroutine is None:
-                return {
+                err_res = {
                     "success": False,
                     "error": "delegate_task tool has no async coroutine",
                     "task_index": index,
                     "agent_type": task.agent_type,
                 }
+                if on_progress:
+                    await on_progress(index, "failed", err_res)
+                return err_res
             res = await coroutine(
                 agent_type=task.agent_type,
                 objective=task.objective,
@@ -75,13 +81,20 @@ async def run_parallel_task_requests(
             if isinstance(res, dict):
                 res.setdefault("agent_type", task.agent_type)
                 res["task_index"] = index
+                if on_progress:
+                    status = "completed" if res.get("success") else "failed"
+                    await on_progress(index, status, res)
                 return res
-            return {
+            
+            err_res = {
                 "success": False,
                 "error": str(res),
                 "task_index": index,
                 "agent_type": task.agent_type,
             }
+            if on_progress:
+                await on_progress(index, "failed", err_res)
+            return err_res
 
     if race:
         pending_tasks: set[asyncio.Task[dict[str, object]]] = {

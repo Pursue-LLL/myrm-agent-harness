@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool
@@ -65,6 +66,7 @@ async def execute_swarm_fission(
     fission_payload: dict[str, object],
     *,
     max_concurrent: int | None = None,
+    on_progress: Callable[[int, str, dict[str, object] | None], Awaitable[None]] | None = None,
 ) -> dict[str, object]:
     """Execute swarm fission tasks using the same spawn path as batch_delegate_tasks."""
     tasks = parse_task_requests_from_payload(fission_payload)
@@ -91,6 +93,7 @@ async def execute_swarm_fission(
         wait=True,
         race=False,
         max_concurrent=effective_concurrent,
+        on_progress=on_progress,
     )
     batch_result = compact_batch_results_for_resume(
         batch_result,

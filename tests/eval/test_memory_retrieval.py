@@ -67,14 +67,23 @@ class TestLoadEvalCases:
 
 
 class TestMemoryRetrievalEvalRunner:
-    def test_perfect_retrieval(self) -> None:
+import asyncio
+
+def test_perfect_retrieval(self) -> None:
         cases = [
             MemoryRetrievalEvalCase(id="c1", category="cat_a", query="q1", gold_ids=["m1"]),
             MemoryRetrievalEvalCase(id="c2", category="cat_a", query="q2", gold_ids=["m2"]),
         ]
         adapter = _MockAdapter(hit_map={"q1": ["m1", "x", "y"], "q2": ["m2", "x", "y"]})
         runner = MemoryRetrievalEvalRunner(adapter)
-        summary = asyncio.get_event_loop().run_until_complete(runner.run(cases))
+        
+        # create new loop for the test since asyncio.get_event_loop() may fail if none exists in thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            summary = loop.run_until_complete(runner.run(cases))
+        finally:
+            loop.close()
 
         assert summary.total_cases == 2
         assert summary.recall_at_5 == pytest.approx(1.0)
@@ -88,7 +97,12 @@ class TestMemoryRetrievalEvalRunner:
         ]
         adapter = _MockAdapter(hit_map={"q1": ["x", "y", "z"]})
         runner = MemoryRetrievalEvalRunner(adapter)
-        summary = asyncio.get_event_loop().run_until_complete(runner.run(cases))
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            summary = loop.run_until_complete(runner.run(cases))
+        finally:
+            loop.close()
 
         assert summary.total_cases == 1
         assert summary.recall_at_5 == pytest.approx(0.0)
@@ -101,7 +115,12 @@ class TestMemoryRetrievalEvalRunner:
         ]
         adapter = _MockAdapter(hit_map={"q1": ["m1"], "q2": ["x"]})
         runner = MemoryRetrievalEvalRunner(adapter)
-        summary = asyncio.get_event_loop().run_until_complete(runner.run(cases))
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            summary = loop.run_until_complete(runner.run(cases))
+        finally:
+            loop.close()
 
         assert summary.total_cases == 2
         assert summary.recall_at_5 == pytest.approx(0.5)
@@ -113,7 +132,12 @@ class TestMemoryRetrievalEvalRunner:
     def test_empty_cases(self) -> None:
         adapter = _MockAdapter()
         runner = MemoryRetrievalEvalRunner(adapter)
-        summary = asyncio.get_event_loop().run_until_complete(runner.run([]))
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            summary = loop.run_until_complete(runner.run([]))
+        finally:
+            loop.close()
         assert summary.total_cases == 0
 
     def test_with_memories_ingest_and_clear(self) -> None:
@@ -134,7 +158,12 @@ class TestMemoryRetrievalEvalRunner:
         cases = [MemoryRetrievalEvalCase(id="c1", category="cat", query="q1", gold_ids=["m1"])]
         memories = [{"id": "m1", "content": "content 1", "category": "cat", "language": "en"}]
         runner = MemoryRetrievalEvalRunner(_TrackingAdapter())
-        summary = asyncio.get_event_loop().run_until_complete(runner.run(cases, memories=memories))
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            summary = loop.run_until_complete(runner.run(cases, memories=memories))
+        finally:
+            loop.close()
 
         assert len(ingested) == 1
         assert ingested[0] == ("m1", "content 1")
@@ -157,7 +186,12 @@ class TestMemoryRetrievalEvalRunner:
         cases = [MemoryRetrievalEvalCase(id="c1", category="cat", query="q1", gold_ids=["m1"])]
         memories = [{"id": "m1", "content": "test"}]
         runner = MemoryRetrievalEvalRunner(_FailClearAdapter())
-        summary = asyncio.get_event_loop().run_until_complete(runner.run(cases, memories=memories))
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            summary = loop.run_until_complete(runner.run(cases, memories=memories))
+        finally:
+            loop.close()
         assert summary.total_cases == 1
 
     def test_query_exception_returns_empty_retrieval(self) -> None:
