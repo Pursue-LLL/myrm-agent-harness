@@ -470,6 +470,81 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
             )
             self._conn.commit()
 
+    @_db_retry()
+    def _save_skills_batch_sync(self, records: list[SkillRecord]) -> None:
+        """Synchronous batch save - called via asyncio.to_thread()."""
+        if not records:
+            return
+        with self._mu:
+            # executemany automatically handles the transaction (BEGIN ... COMMIT) under the hood
+            self._conn.executemany(
+                """
+                INSERT OR REPLACE INTO skills (
+                    skill_id, name, description, content, path,
+                    evolution_type, version, parent_id, change_summary,
+                    lineage_created_at, lineage_created_by,
+                    total_selections, applied_count, completed_count, success_count,
+                    last_success_at, last_failure_at, consecutive_failures,
+                    traps, verification_steps, environment,
+                    created_at, updated_at, is_active, evolution_locked
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        record.skill_id,
+                        record.name,
+                        record.description,
+                        record.content,
+                        record.path,
+                        record.lineage.evolution_type.value,
+                        record.lineage.version,
+                        record.lineage.parent_id,
+                        record.lineage.change_summary,
+                        record.lineage.created_at.isoformat(),
+                        record.lineage.created_by,
+                        record.metrics.total_selections,
+                        record.metrics.applied_count,
+                        record.metrics.completed_count,
+                        record.metrics.success_count,
+                        (
+                            record.metrics.last_success_at.isoformat()
+                            if record.metrics.last_success_at
+                            else None
+                        ),
+                        (
+                            record.metrics.last_failure_at.isoformat()
+                            if record.metrics.last_failure_at
+                            else None
+                        ),
+                        record.metrics.consecutive_failures,
+                        json.dumps(record.traps, ensure_ascii=False),
+                        json.dumps(record.verification_steps, ensure_ascii=False),
+                        (
+                            json.dumps(record.environment.to_dict(), ensure_ascii=False)
+                            if record.environment
+                            else None
+                        ),
+                        record.created_at.isoformat(),
+                        record.updated_at.isoformat(),
+                        int(record.is_active),
+                        int(record.evolution_locked),
+                    )
+                    for record in records
+                ]
+            )
+            self._conn.commit()
+
+    async def save_skills_batch(self, records: list[SkillRecord]) -> None:
+        """Save or update multiple skill records in a single transaction.
+
+        Args:
+            records: List of SkillRecords to persist
+        """
+        self._ensure_open()
+        await asyncio.to_thread(self._save_skills_batch_sync, records)
+        for record in records:
+            await self._sync_skill_to_vector(record)
+
     async def save_skill(self, record: SkillRecord) -> None:
         """Save or update skill record.
 

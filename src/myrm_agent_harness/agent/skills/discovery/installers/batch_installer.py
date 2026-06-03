@@ -31,6 +31,7 @@ class HermesImportedSkill:
     description: str
     content: str
     files: dict[str, bytes] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     
     @property
     def skill_md_content(self) -> str:
@@ -86,7 +87,7 @@ class HermesBatchParser:
                 logger.warning(f"Skip {dir_name}: No SKILL.md or markdown file found.")
                 continue
             
-            name, description, trigger_keywords, pure_content = self._parse_hermes_metadata(skill_md_content, fallback_name=dir_name)
+            name, description, trigger_keywords, pure_content, metadata = self._parse_hermes_metadata(skill_md_content, fallback_name=dir_name)
             
             # 将 trigger_keywords 融入 description (适配我们的体系)
             if trigger_keywords:
@@ -97,12 +98,13 @@ class HermesBatchParser:
                 name=name,
                 description=description,
                 content=pure_content,
-                files=files
+                files=files,
+                metadata=metadata
             ))
             
         return results
 
-    def _parse_hermes_metadata(self, content: bytes, fallback_name: str) -> tuple[str, str, list[str], str]:
+    def _parse_hermes_metadata(self, content: bytes, fallback_name: str) -> tuple[str, str, list[str], str, dict]:
         """解析 Frontmatter 并分离元数据与正文"""
         text = content.decode("utf-8", errors="replace")
         
@@ -112,12 +114,14 @@ class HermesBatchParser:
         description = ""
         trigger_keywords: list[str] = []
         pure_content = text
+        metadata = {}
         
         if match:
             pure_content = text[match.end():].strip()
             try:
                 frontmatter = yaml.safe_load(match.group(1))
                 if isinstance(frontmatter, dict):
+                    metadata = frontmatter
                     name = str(frontmatter.get("name", name))
                     description = str(frontmatter.get("description", ""))
                     raw_keywords = frontmatter.get("trigger_keywords", [])
@@ -128,4 +132,4 @@ class HermesBatchParser:
             except Exception as e:
                 logger.warning(f"Failed to parse frontmatter for {fallback_name}: {e}")
                 
-        return name, description, trigger_keywords, pure_content
+        return name, description, trigger_keywords, pure_content, metadata

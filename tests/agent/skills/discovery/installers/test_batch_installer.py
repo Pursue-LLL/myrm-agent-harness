@@ -43,9 +43,9 @@ def summarize():
     # Verify translate_skill
     translate = next((s for s in skills if s.name == "translate_skill"), None)
     assert translate is not None
-    assert translate.description == "Translate text [Keywords: translate, 翻译]"
+    assert translate.description == "Translate text\n\n触发关键词(Patterns): translate, 翻译"
     assert "def translate():" in translate.content
-    assert "def util(): pass" in translate.content
+    assert "utils.py" in translate.files
     
     # Verify summarize_skill
     summarize = next((s for s in skills if s.name == "summarize_skill"), None)
@@ -67,8 +67,5 @@ async def test_hermes_batch_parser_no_md():
     zip_bytes = create_mock_zip(files)
     parser = HermesBatchParser()
     skills = parser.parse_zip(zip_bytes)
-    # Still extracts it but uses fallback name
-    assert len(skills) == 1
-    assert skills[0].name == "bad_skill"
-    assert skills[0].description == "Imported from batch zip"
-    assert "def main(): pass" in skills[0].content
+    # Should skip because no .md file is found
+    assert len(skills) == 0

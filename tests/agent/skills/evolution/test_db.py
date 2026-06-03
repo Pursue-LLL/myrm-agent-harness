@@ -275,3 +275,25 @@ async def test_delete_skills_by_agent(temp_db_path, skill_record):
     assert not p.exists()
 
     store.close()
+
+@pytest.mark.asyncio
+async def test_save_skills_batch(temp_db_path, skill_record):
+    store = SkillStore(db_path=temp_db_path)
+    # Create multiple records
+    records = []
+    for i in range(5):
+        import copy
+        r = copy.deepcopy(skill_record)
+        r.skill_id = f"batch_skill_{i}"
+        r.name = f"Batch Skill {i}"
+        records.append(r)
+        
+    await store.save_skills_batch(records)
+    
+    # Verify all were saved
+    for i in range(5):
+        s = store.get_skill(f"batch_skill_{i}")
+        assert s is not None
+        assert s.name == f"Batch Skill {i}"
+        
+    store.close()
