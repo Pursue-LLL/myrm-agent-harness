@@ -44,6 +44,24 @@ def _clone_workspace(src: Path, dst: Path) -> int:
     return sum(1 for _ in dst.rglob("*") if _.is_file())
 
 
+def _merge_tree_additive(src: Path, dst: Path) -> None:
+    """Merge src into dst without deleting files that exist only in dst.
+
+    Used when multiple isolated subagents merge back into the same parent workspace.
+    """
+    ignore_dirs = {".git"}
+    for src_dir, dirs, files in os.walk(src):
+        dirs[:] = [d for d in dirs if d not in ignore_dirs]
+        rel_path = os.path.relpath(src_dir, src)
+        dst_dir = dst / rel_path if rel_path != "." else dst
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        for f in files:
+            src_file = Path(src_dir) / f
+            dst_file = dst_dir / f
+            if not dst_file.exists() or not filecmp.cmp(src_file, dst_file, shallow=True):
+                shutil.copy2(src_file, dst_file)
+
+
 def _sync_tree(src: Path, dst: Path) -> None:
     """Perfectly mirror src directory to dst directory.
 

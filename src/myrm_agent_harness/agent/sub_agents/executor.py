@@ -101,6 +101,7 @@ class SubagentExecutor:
         # Workspace isolation: ISOLATED_COPY creates a hardlinked clone
 
         isolation_ctx = None
+        isolated_parent_ws: str | None = None
         if config.workspace_policy == WorkspacePolicy.ISOLATED_COPY:
             parent_ws = context.get("workspace_path")
             if parent_ws:
@@ -108,10 +109,12 @@ class SubagentExecutor:
                     isolated_workspace,
                 )
 
-                isolation_ctx = isolated_workspace(str(parent_ws))
+                isolated_parent_ws = str(parent_ws)
+                isolation_ctx = isolated_workspace(isolated_parent_ws)
                 child_ws, sync_back = await isolation_ctx.__aenter__()
                 context["workspace_path"] = str(child_ws)
                 context["_workspace_sync_back"] = sync_back
+                context["_isolated_parent_workspace"] = isolated_parent_ws
 
         from myrm_agent_harness.agent.hooks.executor import fire_hook
         from myrm_agent_harness.agent.hooks.types import HookEvent
@@ -128,6 +131,8 @@ class SubagentExecutor:
 
         parent_tracker = get_token_tracker()
         parent_taint = get_taint_tracker()
+        isolation_succeeded = False
+        pending_sync_back: object | None = None
 
         try:
             while retries_left > 0:
@@ -153,19 +158,28 @@ class SubagentExecutor:
                         resume_command=resume_command,
                         parent_progress_sink=parent_progress_sink,
                     )
-                    # Expose sync_back function for ISOLATED_COPY
                     if isolation_ctx and result.success:
+                        isolation_succeeded = True
                         sync_back_fn = context.get("_workspace_sync_back")
                         if sync_back_fn:
-                            from dataclasses import replace as dc_replace
+                            pending_sync_back = sync_back_fn
+                            if context.get("_defer_workspace_merge"):
+                                from dataclasses import replace as dc_replace
 
-                            extra = (
-                                dict(result.result)
-                                if isinstance(result.result, dict)
-                                else {"text": result.result}
-                            )
-                            extra["_workspace_sync_back"] = sync_back_fn
-                            result = dc_replace(result, result=extra)
+                                extra = (
+                                    dict(result.result)
+                                    if isinstance(result.result, dict)
+                                    else {"text": result.result}
+                                )
+                                extra["_workspace_sync_back"] = sync_back_fn
+                                extra["_isolated_child_workspace"] = str(
+                                    context.get("workspace_path", "")
+                                )
+                                if isolated_parent_ws:
+                                    extra["_isolated_parent_workspace"] = (
+                                        isolated_parent_ws
+                                    )
+                                result = dc_replace(result, result=extra)
                     return result
                 except TimeoutError:
                     retries_left -= 1
@@ -285,6 +299,14 @@ class SubagentExecutor:
         finally:
             if isolation_ctx:
                 try:
+                    if (
+                        isolation_succeeded
+                        and pending_sync_back is not None
+                        and not context.get("_defer_workspace_merge")
+                    ):
+                        sync_outcome = pending_sync_back()
+                        if asyncio.iscoroutine(sync_outcome):
+                            await sync_outcome
                     await isolation_ctx.__aexit__(None, None, None)
                 except Exception as e:
                     logger.warning(

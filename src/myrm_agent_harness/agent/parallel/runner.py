@@ -158,8 +158,15 @@ async def run_parallel_task_requests(
             parent_agent,
         )
 
-    coros = [_run_task(task, index) for index, task in enumerate(tasks)]
-    gathered = await asyncio.gather(*coros, return_exceptions=True)
+    parallel_write_batch = sum(1 for task in tasks if not task.readonly) > 1
+    if parallel_write_batch:
+        setattr(parent_agent, "_parallel_write_batch_active", True)
+    try:
+        coros = [_run_task(task, index) for index, task in enumerate(tasks)]
+        gathered = await asyncio.gather(*coros, return_exceptions=True)
+    finally:
+        if parallel_write_batch:
+            delattr(parent_agent, "_parallel_write_batch_active")
 
     final_results: list[dict[str, object]] = []
     for index, gathered_result in enumerate(gathered):
@@ -184,13 +191,18 @@ async def run_parallel_task_requests(
                 }
             )
 
-    return inject_capacity_signal(
-        {
-            **batch_summary(final_results),
-            "results": final_results,
-            "budget_admission": (
-                budget_admission.to_dict() if budget_admission else None
-            ),
-        },
-        parent_agent,
-    )
+    payload: dict[str, object] = {
+        **batch_summary(final_results),
+        "results": final_results,
+        "budget_admission": (
+            budget_admission.to_dict() if budget_admission else None
+        ),
+    }
+    if parallel_write_batch and wait and not race:
+        from myrm_agent_harness.agent.workspace_coordination.batch_merge import (
+            merge_batch_workspace_sync_backs,
+        )
+
+        payload.update(await merge_batch_workspace_sync_backs(final_results))
+
+    return inject_capacity_signal(payload, parent_agent)

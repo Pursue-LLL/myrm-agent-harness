@@ -280,6 +280,19 @@ def create_delegate_task_tool(
             if _ctx_key in parent_ctx:
                 child_context[_ctx_key] = parent_ctx[_ctx_key]
 
+        from myrm_agent_harness.agent.workspace_coordination.policy import (
+            apply_parallel_write_isolation,
+        )
+
+        config, child_context = apply_parallel_write_isolation(
+            config=config,
+            child_context=child_context,
+            readonly=readonly,
+            parallel_write_batch=bool(
+                getattr(parent_agent, "_parallel_write_batch_active", False)
+            ),
+        )
+
         logger.info(
             "Spawning subagent: type=%s, task_id=%s, wait=%s, scope=%s",
             agent_type,
