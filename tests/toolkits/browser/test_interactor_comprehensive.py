@@ -453,75 +453,81 @@ async def test_interact_exception_no_dialog():
             with pytest.raises(Exception, match="TargetClosedError"):
                 await interactor.interact("click", "e0")
 
-    @pytest.mark.asyncio
-    async def test_interact_type_exception():
-        page = AsyncMock(spec=Page)
-        interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
-        
-        with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
-            mock_loc = AsyncMock()
-            mock_loc.get_attribute.side_effect = Exception("error")
-            mock_resolve.return_value = mock_loc
-            
-            res = await interactor.interact("type", "e0", "test")
-            assert "Typed 'test'" in res
 
-    @pytest.mark.asyncio
-    async def test_interact_fill_exception():
-        page = AsyncMock(spec=Page)
-        interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
-        
-        with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
-            mock_loc = AsyncMock()
-            mock_loc.get_attribute.side_effect = Exception("error")
-            mock_resolve.return_value = mock_loc
-            
-            res = await interactor.interact("fill", "e0", "test")
-            assert "Filled" in res
+@pytest.mark.asyncio
+async def test_interact_type_exception():
+    page = AsyncMock(spec=Page)
+    interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
 
-    @pytest.mark.asyncio
-    async def test_interact_password_blocked():
-        page = AsyncMock(spec=Page)
-        interactor = Interactor(page, {"e0": RefInfo(role="textbox", name="Password", nth=0)})
-        
-        with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
-            mock_loc = AsyncMock()
-            mock_loc.get_attribute.return_value = "password"
-            mock_resolve.return_value = mock_loc
-            
-            with pytest.raises(ValueError, match="SecurityError: Plain text typing into a password field is strictly forbidden"):
-                await interactor.interact("type", "e0", "mysecret")
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+        mock_loc = AsyncMock()
+        mock_loc.get_attribute.side_effect = Exception("error")
+        mock_resolve.return_value = mock_loc
 
-            with pytest.raises(ValueError, match="SecurityError: Plain text filling into a password field is strictly forbidden"):
-                await interactor.interact("fill", "e0", "mysecret")
+        res = await interactor.interact("type", "e0", "test")
+        assert "Typed 'test'" in res
 
-    @pytest.mark.asyncio
-    async def test_interact_fill_credential():
-        page = AsyncMock(spec=Page)
-        interactor = Interactor(page, {"e0": RefInfo(role="textbox", name="Password", nth=0)})
-        
-        with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
-            mock_loc = AsyncMock()
-            mock_resolve.return_value = mock_loc
-            
-            with patch("myrm_agent_harness.toolkits.security.credential_vault.CredentialVault.get_password", return_value="secret123"):
-                res = await interactor.interact("fill_credential", "e0", "github-personal")
-                assert "Filled credential 'github-personal'" in res
-                mock_loc.fill.assert_called_once_with("secret123", timeout=10000)
 
-    @pytest.mark.asyncio
-    async def test_interact_fill_credential_totp():
-        page = AsyncMock(spec=Page)
-        interactor = Interactor(page, {"e0": RefInfo(role="textbox", name="Code", nth=0)})
-        
-        with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
-            mock_loc = AsyncMock()
-            mock_resolve.return_value = mock_loc
-            
-            with patch("myrm_agent_harness.toolkits.security.credential_vault.CredentialVault.get_totp_token", return_value="123456"):
-                res = await interactor.interact("fill_credential", "e0", "github-personal-totp")
-                assert "Filled credential 'github-personal-totp'" in res
-                mock_loc.fill.assert_called_once_with("123456", timeout=10000)
+@pytest.mark.asyncio
+async def test_interact_fill_exception():
+    page = AsyncMock(spec=Page)
+    interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
+
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+        mock_loc = AsyncMock()
+        mock_loc.get_attribute.side_effect = Exception("error")
+        mock_resolve.return_value = mock_loc
+
+        res = await interactor.interact("fill", "e0", "test")
+        assert "Filled" in res
+
+
+@pytest.mark.asyncio
+async def test_interact_password_blocked():
+    page = AsyncMock(spec=Page)
+    interactor = Interactor(page, {"e0": RefInfo(role="textbox", name="Password", nth=0)})
+
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+        mock_loc = AsyncMock()
+        mock_loc.get_attribute.return_value = "password"
+        mock_resolve.return_value = mock_loc
+
+        with pytest.raises(ValueError, match="SecurityError: Plain text typing into a password field is strictly forbidden"):
+            await interactor.interact("type", "e0", "mysecret")
+
+        with pytest.raises(ValueError, match="SecurityError: Plain text filling into a password field is strictly forbidden"):
+            await interactor.interact("fill", "e0", "mysecret")
+
+
+@pytest.mark.asyncio
+async def test_interact_fill_credential():
+    page = AsyncMock(spec=Page)
+    interactor = Interactor(page, {"e0": RefInfo(role="textbox", name="Password", nth=0)})
+
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+        mock_loc = AsyncMock()
+        mock_resolve.return_value = mock_loc
+
+        with patch("myrm_agent_harness.toolkits.security.credential_vault.CredentialVault.get_password", return_value="secret123"):
+            res = await interactor.interact("fill_credential", "e0", "github-personal")
+            assert "Filled credential 'github-personal'" in res
+            mock_loc.fill.assert_called_once_with("secret123", timeout=10000)
+
+
+@pytest.mark.asyncio
+async def test_interact_fill_credential_totp():
+    page = AsyncMock(spec=Page)
+    interactor = Interactor(page, {"e0": RefInfo(role="textbox", name="Code", nth=0)})
+
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+        mock_loc = AsyncMock()
+        mock_resolve.return_value = mock_loc
+
+        with patch("myrm_agent_harness.toolkits.security.credential_vault.CredentialVault.get_totp_token", return_value="123456"):
+            res = await interactor.interact("fill_credential", "e0", "github-personal-totp")
+            assert "Filled credential 'github-personal-totp'" in res
+            mock_loc.fill.assert_called_once_with("123456", timeout=10000)
+
 
 @pytest.mark.asyncio
 async def test_interact_self_healing():

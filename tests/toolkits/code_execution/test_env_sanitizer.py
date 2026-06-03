@@ -22,6 +22,12 @@ class TestSanitizeEnvDefaultPolicy:
         assert "LD_PRELOAD" not in result
         assert "HOME" in result
 
+    def test_vault_master_key_blocked(self) -> None:
+        env = {"HOME": "/home/user", "MYRM_VAULT_MASTER_KEY": "super-secret-key"}
+        result = sanitize_env(env)
+        assert "MYRM_VAULT_MASTER_KEY" not in result
+        assert "HOME" in result
+
     def test_prefix_match_blocked(self) -> None:
         env = {"LD_CUSTOM": "value", "HOME": "/home/user"}
         result = sanitize_env(env)

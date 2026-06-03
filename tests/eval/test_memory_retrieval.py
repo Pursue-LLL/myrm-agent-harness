@@ -209,7 +209,12 @@ def test_perfect_retrieval(self) -> None:
 
         cases = [MemoryRetrievalEvalCase(id="c1", category="cat", query="q1", gold_ids=["m1"])]
         runner = MemoryRetrievalEvalRunner(_FailQueryAdapter())
-        summary = asyncio.get_event_loop().run_until_complete(runner.run(cases))
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            summary = loop.run_until_complete(runner.run(cases))
+        finally:
+            loop.close()
         assert summary.total_cases == 1
         assert summary.recall_at_5 == pytest.approx(0.0)
         assert summary.mrr_score == pytest.approx(0.0)
