@@ -251,9 +251,9 @@ class TestOpenAPIBridge:
             result1 = await bridge.preview_spec(config)
             result2 = await bridge.preview_spec(config)
 
-        # Should only parse once (second call hits cache)
-        mock_parse_url.assert_called_once()
-        assert result1.title == result2.title
+            # Should only parse once (second call hits cache)
+            mock_parse_url.assert_called_once()
+            assert result1.title == result2.title
 
         # Cleanup
         OpenAPIBridge._spec_cache.pop(cache_key, None)
@@ -279,8 +279,8 @@ class TestOpenAPIBridge:
             bridge = OpenAPIBridge()
             await bridge.preview_spec(config)
 
-        # Should re-fetch because cache is expired
-        mock_parse_url.assert_called_once()
+            # Should re-fetch because cache is expired
+            mock_parse_url.assert_called_once()
 
         # Cleanup
         OpenAPIBridge._spec_cache.pop(cache_key, None)
