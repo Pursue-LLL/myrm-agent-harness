@@ -2,11 +2,11 @@
 """Validate wheel artifacts before PyPI upload.
 
 [INPUT]
-- harness_packaging.platforms::SUPPORTED_PLATFORMS (POS: platform key registry)
+- harness_packaging.platforms::PUBLISH_PLATFORMS (POS: active PyPI publish platform set)
 - harness_packaging.version::read_harness_version (POS: harness version reader)
 
 [OUTPUT]
-- main(): exit 0 when upload dir has exactly 7 version-matched wheels
+- main(): exit 0 when upload dir has release + all publish-platform core wheels
 
 [POS]
 Release pipeline gate preventing partial PyPI publishes.
@@ -22,7 +22,7 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
-from harness_packaging.platforms import SUPPORTED_PLATFORMS  # noqa: E402
+from harness_packaging.platforms import PUBLISH_PLATFORMS  # noqa: E402
 from harness_packaging.version import read_harness_version  # noqa: E402
 
 _RELEASE_PREFIX = "myrm_agent_harness-"
@@ -45,17 +45,26 @@ def _is_release_wheel(path: Path) -> bool:
 
 
 def _platform_from_core_wheel(path: Path) -> str | None:
-    for platform_key in SUPPORTED_PLATFORMS:
+    for platform_key in PUBLISH_PLATFORMS:
         token = platform_key.replace("-", "_")
         if f"myrm_agent_harness_core_{token}-" in path.name:
             return platform_key
     return None
 
 
+def expected_wheel_count() -> int:
+    return 1 + len(PUBLISH_PLATFORMS)
+
+
 def validate_upload_dir(upload_dir: Path, expected_version: str) -> None:
+    publish_platforms = PUBLISH_PLATFORMS
+    expected_total = expected_wheel_count()
     wheels = sorted(upload_dir.glob("*.whl"))
-    if len(wheels) != 7:
-        msg = f"Expected 7 wheels (1 release + 6 core), found {len(wheels)} in {upload_dir}"
+    if len(wheels) != expected_total:
+        msg = (
+            f"Expected {expected_total} wheels (1 release + {len(publish_platforms)} core), "
+            f"found {len(wheels)} in {upload_dir}"
+        )
         raise SystemExit(msg)
 
     release_wheels = [wheel for wheel in wheels if _is_release_wheel(wheel)]
@@ -64,8 +73,8 @@ def validate_upload_dir(upload_dir: Path, expected_version: str) -> None:
         raise SystemExit(msg)
 
     core_wheels = [wheel for wheel in wheels if wheel not in release_wheels]
-    if len(core_wheels) != 6:
-        msg = f"Expected 6 core wheels, found {len(core_wheels)}"
+    if len(core_wheels) != len(publish_platforms):
+        msg = f"Expected {len(publish_platforms)} core wheels, found {len(core_wheels)}"
         raise SystemExit(msg)
 
     expected_norm = _normalize_version(expected_version)
@@ -84,7 +93,7 @@ def validate_upload_dir(upload_dir: Path, expected_version: str) -> None:
                 raise SystemExit(f"Unrecognized core wheel platform: {wheel.name}")
             found_platforms.add(platform_key)
 
-    missing = set(SUPPORTED_PLATFORMS) - found_platforms
+    missing = set(publish_platforms) - found_platforms
     if missing:
         raise SystemExit(f"Missing core wheels for platforms: {sorted(missing)}")
 
@@ -100,7 +109,10 @@ def main() -> int:
     args = parser.parse_args()
     version = args.version or read_harness_version(_REPO_ROOT)
     validate_upload_dir(args.upload_dir, version)
-    print(f"Validated 7 wheels for myrm-agent-harness {version} in {args.upload_dir}")
+    print(
+        f"Validated {expected_wheel_count()} wheels for myrm-agent-harness {version} "
+        f"in {args.upload_dir}"
+    )
     return 0
 
 

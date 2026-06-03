@@ -280,6 +280,8 @@ def enhance_aria_tree(
                     height=raw_bbox["height"],
                     centerX=raw_bbox["centerX"],
                     centerY=raw_bbox["centerY"],
+                    viewport_x=raw_bbox.get("viewportX", 0),
+                    viewport_y=raw_bbox.get("viewportY", 0),
                     viewport_width=vp_width,
                     viewport_height=vp_height,
                 )

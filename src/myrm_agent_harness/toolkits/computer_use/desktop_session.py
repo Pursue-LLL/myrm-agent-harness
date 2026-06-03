@@ -211,6 +211,12 @@ class DesktopSession(ComputerSession):
     ) -> str | list[object]:
         from myrm_agent_harness.toolkits.computer_use import safety
 
+        # [SECURITY] Hard fuse for coordinate-based actions
+        REVALIDATION_THRESHOLD = 5.0
+        if time.time() - self._last_snapshot_time > REVALIDATION_THRESHOLD:
+            logger.warning("[SECURITY] Coordinate action blocked due to timeout (delayed %.1fs)", time.time() - self._last_snapshot_time)
+            return "Safety Re-validation failed: The action was delayed (likely by approval) and pixel coordinates are now considered stale and unsafe. Please use 'desktop_snapshot_tool' to take a new screenshot and replan the coordinate."
+
         if action in ("left_click", "right_click", "middle_click", "double_click", "triple_click"):
             if coordinate is None or len(coordinate) != 2:
                 return "Error: coordinate [x, y] is required for click actions"

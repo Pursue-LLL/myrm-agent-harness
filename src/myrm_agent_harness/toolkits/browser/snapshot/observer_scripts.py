@@ -260,6 +260,8 @@ BBOX_COLLECTOR_SCRIPT = """
         height: Math.round(rect.height),
         centerX: Math.round(centerX),
         centerY: Math.round(centerY),
+        viewportX: Math.round(rect.left),
+        viewportY: Math.round(rect.top),
         viewport: viewport
       };
     }

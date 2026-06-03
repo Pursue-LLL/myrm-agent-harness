@@ -54,7 +54,7 @@ Agent → desktop_agent_tools (4 tools)
 3. **Safety in session**: `desktop_vision_action` enforces blocked keys and dangerous type patterns
 4. **Multimodal responses**: Vision capture/actions return text + JPEG image blocks
 5. **Platform auto-detection**: reuses `detect_platform()` from code_execution
-6. **Security & Re-validation**: `desktop_interact` implements a Time-of-Check to Time-of-Use (TOCTOU) defense by re-capturing and verifying the @dref state if the action was delayed (e.g. by Human-in-the-Loop approval interception).
+6. **Security & Re-validation**: `desktop_interact` implements a Time-of-Check to Time-of-Use (TOCTOU) defense by re-capturing and verifying the @dref state if the action was delayed (e.g. by Human-in-the-Loop approval interception). `desktop_vision_action` implements a "hard fuse" that blocks stale coordinate actions if delayed by more than 5 seconds.
 
 ## Key Dependencies
 

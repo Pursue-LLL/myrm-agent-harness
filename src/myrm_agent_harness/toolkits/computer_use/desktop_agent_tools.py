@@ -33,6 +33,11 @@ from myrm_agent_harness.toolkits.element_ref.types import SnapshotScope
 
 def create_desktop_tools(session: DesktopSession) -> list[object]:
     """Create 4 semantic desktop tools bound to *session*."""
+    
+    from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
+    vault = get_global_credential_vault()
+    labels = vault.list_labels()
+    labels_str = ", ".join([f"'{lbl}'" for lbl in labels]) if labels else "none available"
 
     class InspectInput(BaseModel):
         pass
@@ -110,7 +115,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
         )
         text: str = Field(
             default="",
-            description="Text for fill/type actions, or credential label for fill_credential/type_credential.",
+            description=f"Text for fill/type actions, or credential label for fill_credential/type_credential (available labels: {labels_str}).",
         )
         verify_goal: str | None = Field(
             default=None,
@@ -148,7 +153,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
         )
         text: str | None = Field(
             default=None,
-            description="Text for type/key actions, or credential label for type_credential.",
+            description=f"Text for type/key actions, or credential label for type_credential (available labels: {labels_str}).",
         )
         scroll_direction: ScrollDirection | None = Field(default=None)
         scroll_amount: int = Field(default=3)

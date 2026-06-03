@@ -68,7 +68,7 @@ def core_package_name(platform_key: str | None = None) -> str:
     return f"myrm-agent-harness-core-{key}"
 
 
-SUPPORTED_PLATFORMS: tuple[str, ...] = (
+ALL_PLATFORMS: tuple[str, ...] = (
     "darwin-arm64",
     "darwin-x64",
     "linux-x64",
@@ -76,3 +76,11 @@ SUPPORTED_PLATFORMS: tuple[str, ...] = (
     "win32-x64",
     "win32-arm64",
 )
+
+# rc1 PyPI publish scope: Mac dev + Linux x64 Docker/CI. Expand to ALL_PLATFORMS before GA.
+PUBLISH_PLATFORMS: tuple[str, ...] = (
+    "darwin-arm64",
+    "linux-x64",
+)
+
+SUPPORTED_PLATFORMS = ALL_PLATFORMS

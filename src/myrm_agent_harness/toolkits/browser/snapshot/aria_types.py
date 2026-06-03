@@ -50,6 +50,8 @@ class BBoxData(TypedDict):
     height: int
     centerX: int
     centerY: int
+    viewportX: int
+    viewportY: int
     viewport: ViewportData
 
 
@@ -66,6 +68,8 @@ class BBox(NamedTuple):
     height: int
     centerX: int  # noqa: N815  match JS getBoundingClientRect API
     centerY: int  # noqa: N815  match JS getBoundingClientRect API
+    viewport_x: int
+    viewport_y: int
     viewport_width: int
     viewport_height: int
 

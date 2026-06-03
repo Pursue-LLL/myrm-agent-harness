@@ -314,6 +314,45 @@ class MemoryContextMiddleware(AgentMiddleware):  # type: ignore[type-arg]
         self,
         request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
     ) -> ModelResponse:
+        from langchain_core.messages import AIMessage
+        import copy
+
+        new_req_messages = []
+        req_modified = False
+        for msg in request.messages:
+            if isinstance(msg, AIMessage) and getattr(msg, "name", None):
+                prefix = f"[Agent: {msg.name}]\n"
+                if isinstance(msg.content, str) and not msg.content.startswith(prefix):
+                    new_msg = AIMessage(
+                        content=f"{prefix}{msg.content}",
+                        name=msg.name,
+                        tool_calls=getattr(msg, "tool_calls", []),
+                        additional_kwargs=getattr(msg, "additional_kwargs", {}),
+                        id=getattr(msg, "id", None),
+                    )
+                    new_req_messages.append(new_msg)
+                    req_modified = True
+                    continue
+                elif isinstance(msg.content, list) and len(msg.content) > 0 and msg.content[0].get("type") == "text":
+                    first_text = msg.content[0].get("text", "")
+                    if not first_text.startswith(prefix):
+                        new_content = copy.deepcopy(msg.content)
+                        new_content[0]["text"] = f"{prefix}{first_text}"
+                        new_msg = AIMessage(
+                            content=new_content,
+                            name=msg.name,
+                            tool_calls=getattr(msg, "tool_calls", []),
+                            additional_kwargs=getattr(msg, "additional_kwargs", {}),
+                            id=getattr(msg, "id", None),
+                        )
+                        new_req_messages.append(new_msg)
+                        req_modified = True
+                        continue
+            new_req_messages.append(msg)
+
+        if req_modified:
+            request = request.override(messages=new_req_messages)
+
         state = request.state
         state_messages = state.get("messages", [])
 

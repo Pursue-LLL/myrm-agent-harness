@@ -1,7 +1,7 @@
 # snapshot/
 
 ## Overview
-Snapshot module. Provides comprehensive snapshot capabilities, ARIA tree enhancements, and O(1) Self-Healing Locators via spatial BBox metrics.
+Snapshot module. Provides comprehensive snapshot capabilities, ARIA tree enhancements, and O(1) Self-Healing Locators via spatial BBox metrics. The BBox data includes strict `viewport_x`/`viewport_y` offset metrics to ensure precision rendering regardless of page scroll.
 
 ## File & Submodule Index
 

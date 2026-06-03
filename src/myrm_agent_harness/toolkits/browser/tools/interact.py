@@ -24,10 +24,16 @@ if TYPE_CHECKING:
 
 def create_interact_tool(session: BrowserSession):
     """Create browser_interact tool bound to session."""
+    
+    from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
+    vault = get_global_credential_vault()
+    labels = vault.list_labels()
+    labels_str = ", ".join([f"'{lbl}'" for lbl in labels]) if labels else "none available"
 
     class InteractInput(BaseModel):
         action: str = Field(
             description="One of: click, dblclick, type (append keystrokes), fill (clear then set value), "
+            "fill_credential (securely fill password/totp), "
             "press, hover, focus, select, scroll, upload_file, drag, "
             "check (idempotent checkbox on), uncheck (idempotent checkbox off)",
         )
@@ -37,6 +43,7 @@ def create_interact_tool(session: BrowserSession):
         text: str = Field(
             default="",
             description="Text for type/fill, key combo for press (e.g. 'Enter', 'Control+a'), "
+            f"credential label for fill_credential (available labels: {labels_str}), "
             "option value for select, signed scroll delta in pixels (positive=down, negative=up), "
             "file path for upload_file, target ref for drag. Omit for click/dblclick/hover/focus/check/uncheck.",
         )

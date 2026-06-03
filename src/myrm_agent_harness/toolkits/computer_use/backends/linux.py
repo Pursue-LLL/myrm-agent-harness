@@ -158,7 +158,7 @@ class LinuxBackend:
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                stdout, stderr = await proc.communicate(secret_text.encode("utf-8"))
+                _stdout, stderr = await proc.communicate(secret_text.encode("utf-8"))
                 if proc.returncode != 0:
                     raise RuntimeError(f"xdotool type failed: {stderr.decode()}")
             else:

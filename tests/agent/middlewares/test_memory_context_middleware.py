@@ -752,6 +752,38 @@ class TestInjectMemoryContext:
         handler.assert_awaited_once_with(req)
         mock_manager.get_context.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_aimessage_name_prefix(self, _inject_fn):
+        """AIMessages with a 'name' attribute get prefixed with [Agent: {Name}]."""
+        from langchain_core.messages import AIMessage
+        handler = AsyncMock()
+        req = _make_request(
+            messages=[
+                SystemMessage(content="sys"),
+                AIMessage(content="I am a response", name="SubAgentA"),
+                HumanMessage(content="Hello"),
+            ]
+        )
+        
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch("myrm_agent_harness.agent._skill_agent_context.get_memory_manager", return_value=mock_manager):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        injected_messages = req.override.call_args[1]["messages"]
+        ai_msg = next((m for m in injected_messages if isinstance(m, AIMessage)), None)
+        assert ai_msg is not None
+        assert ai_msg.content.startswith("[Agent: SubAgentA]\n")
+        assert "I am a response" in ai_msg.content
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

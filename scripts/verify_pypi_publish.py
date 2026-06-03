@@ -2,11 +2,11 @@
 """Verify all harness PyPI packages exist after upload.
 
 [INPUT]
-- harness_packaging.platforms::SUPPORTED_PLATFORMS (POS: platform key registry)
+- harness_packaging.platforms::PUBLISH_PLATFORMS (POS: active PyPI publish platform set)
 - harness_packaging.version::read_harness_version (POS: harness version reader)
 
 [OUTPUT]
-- main(): exit 0 when myrm-agent-harness + 6 core packages are indexed on PyPI
+- main(): exit 0 when myrm-agent-harness + publish-platform core packages are indexed
 
 [POS]
 Post-upload gate in publish-pypi.yml; prevents partial publishes from going green.
@@ -24,7 +24,7 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
-from harness_packaging.platforms import SUPPORTED_PLATFORMS  # noqa: E402
+from harness_packaging.platforms import PUBLISH_PLATFORMS  # noqa: E402
 from harness_packaging.version import read_harness_version  # noqa: E402
 
 
@@ -41,7 +41,7 @@ def _pypi_exists(package: str, version: str) -> bool:
 
 
 def _expected_packages() -> tuple[str, ...]:
-    core_packages = tuple(f"myrm-agent-harness-core-{platform_key}" for platform_key in SUPPORTED_PLATFORMS)
+    core_packages = tuple(f"myrm-agent-harness-core-{platform_key}" for platform_key in PUBLISH_PLATFORMS)
     return ("myrm-agent-harness", *core_packages)
 
 
@@ -55,10 +55,13 @@ def missing_packages(version: str) -> list[str]:
 
 def verify_published(version: str, *, max_attempts: int, delay_seconds: float) -> None:
     """Poll PyPI until all expected packages are indexed or fail."""
+    expected_count = len(_expected_packages())
     for attempt in range(1, max_attempts + 1):
         missing = missing_packages(version)
         if not missing:
-            print(f"PyPI publish verified: 7 packages for myrm-agent-harness {version}")
+            print(
+                f"PyPI publish verified: {expected_count} packages for myrm-agent-harness {version}"
+            )
             return
         if attempt < max_attempts:
             print(
