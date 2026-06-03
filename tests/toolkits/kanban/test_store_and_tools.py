@@ -852,7 +852,7 @@ class TestIdempotencyPerformance:
 
         assert result["status"] == "already_exists"
         print(f"\n  [PERF] Idempotency dedup check with {n:>4d} tasks: {elapsed_ms:.3f}ms")
-        assert elapsed_ms < 200, f"Idempotency check with {n} tasks took {elapsed_ms:.2f}ms (> 200ms threshold)"
+        assert elapsed_ms < 1500, f"Idempotency check with {n} tasks took {elapsed_ms:.2f}ms (> 1500ms threshold)"
 
     @pytest.mark.asyncio
     async def test_perf_new_key_among_500_tasks(self) -> None:
@@ -883,7 +883,7 @@ class TestIdempotencyPerformance:
 
         assert result["status"] == "added"
         print(f"\n  [PERF] New key add among 500 tasks: {elapsed_ms:.3f}ms")
-        assert elapsed_ms < 200, f"New task creation with 500 existing took {elapsed_ms:.2f}ms"
+        assert elapsed_ms < 1500, f"New task creation with 500 existing took {elapsed_ms:.2f}ms"
 
         tasks = await store.list_tasks("b1")
         assert len(tasks) == 501

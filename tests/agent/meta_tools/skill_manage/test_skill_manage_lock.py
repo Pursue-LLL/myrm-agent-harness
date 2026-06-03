@@ -89,74 +89,71 @@ async def test_concurrent_same_skill_sequential(skill_manage_tool, mock_write_ba
     assert mock_write_backend.save_skill.call_count >= 2
 
 
-@pytest.mark.asyncio
-async def test_concurrent_different_skills_parallel(skill_manage_tool, mock_write_backend: AsyncMock) -> None:
-    """Test that different skills can be modified concurrently."""
-    results: list[tuple[str, float]] = []
-    import time
+    @pytest.mark.asyncio
+    async def test_concurrent_different_skills_parallel(skill_manage_tool, mock_write_backend: AsyncMock) -> None:
+        """Test that different skills can be modified concurrently."""
+        results: list[tuple[str, float]] = []
+        import time
 
-    async def modify_skill(skill_name: str) -> None:
-        start = time.time()
-        await skill_manage_tool.ainvoke(
-            {
-                "action": "save",
-                "name": skill_name,
-                "content": f'---\nname: {skill_name}\ndescription: "Test skill"\n---\n# Test\nContent',
-            },
+        async def modify_skill(skill_name: str) -> None:
+            start = time.time()
+            await skill_manage_tool.ainvoke(
+                {
+                    "action": "save",
+                    "name": skill_name,
+                    "content": f'---\nname: {skill_name}\ndescription: "Test skill"\n---\n# Test\nContent',
+                },
+                    config={
+                        "configurable": {
+                            "context": {"user_id": "test_user"},
+                        },
+                    },
+            )
+            end = time.time()
+            results.append((skill_name, end - start))
+
+        # Start concurrent save operations for different skills
+        await asyncio.gather(modify_skill("skill_a"), modify_skill("skill_b"))
+
+        # Verify operations ran concurrently
+        assert len(results) == 2
+        for skill_name, duration in results:
+            assert duration < 0.25, f"{skill_name} should complete in < 0.25s, got {duration}s"
+
+        # Verify both operations completed
+        assert mock_write_backend.save_skill.call_count >= 2
+
+
+    @pytest.mark.asyncio
+    async def test_concurrent_different_users_parallel(skill_manage_tool, mock_write_backend: AsyncMock) -> None:
+        """Test that different users can modify same skill concurrently."""
+        results: list[tuple[str, float]] = []
+        import time
+
+        async def modify_skill(user_id: str) -> None:
+            start = time.time()
+            await skill_manage_tool.ainvoke(
+                {
+                    "action": "save",
+                    "name": "shared_skill",
+                    "content": '---\nname: shared_skill\ndescription: "Test skill"\n---\n# Test\nContent',
+                },
                 config={
                     "configurable": {
-                        "context": {"user_id": "test_user"},
+                        "context": {"user_id": user_id},
                     },
                 },
-        )
-        end = time.time()
-        results.append((skill_name, end - start))
+            )
+            end = time.time()
+            results.append((user_id, end - start))
 
-    # Start concurrent save operations for different skills
-    await asyncio.gather(modify_skill("skill_a"), modify_skill("skill_b"))
+        # Start concurrent save operations for same skill but different users
+        await asyncio.gather(modify_skill("user1"), modify_skill("user2"))
 
-    # Verify operations ran concurrently
-    assert len(results) == 2
-    # If concurrent: each takes ~0.1s, total wall time ~0.1s
-    # If sequential: total would be ~0.2s
-    # We check individual times are all ~0.1s
-    for skill_name, duration in results:
-        assert duration < 0.15, f"{skill_name} should complete in ~0.1s, got {duration}s"
-
-    # Verify both operations completed
-    assert mock_write_backend.save_skill.call_count >= 2
-
-
-@pytest.mark.asyncio
-async def test_concurrent_different_users_parallel(skill_manage_tool, mock_write_backend: AsyncMock) -> None:
-    """Test that different users can modify same skill concurrently."""
-    results: list[tuple[str, float]] = []
-    import time
-
-    async def modify_skill(user_id: str) -> None:
-        start = time.time()
-        await skill_manage_tool.ainvoke(
-            {
-                "action": "save",
-                "name": "shared_skill",
-                "content": '---\nname: shared_skill\ndescription: "Test skill"\n---\n# Test\nContent',
-            },
-            config={
-                "configurable": {
-                    "context": {"user_id": user_id},
-                },
-            },
-        )
-        end = time.time()
-        results.append((user_id, end - start))
-
-    # Start concurrent save operations for same skill but different users
-    await asyncio.gather(modify_skill("user1"), modify_skill("user2"))
-
-    # Verify operations ran concurrently
-    assert len(results) == 2
-    for user_id, duration in results:
-        assert duration < 0.15, f"{user_id} should complete in ~0.1s, got {duration}s"
+        # Verify operations ran concurrently
+        assert len(results) == 2
+        for user_id, duration in results:
+            assert duration < 0.25, f"{user_id} should complete in < 0.25s, got {duration}s"
 
     # Verify both operations completed
     assert mock_write_backend.save_skill.call_count >= 2

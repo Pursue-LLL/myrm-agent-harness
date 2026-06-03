@@ -386,7 +386,7 @@ class TestCodingYamlIntegration:
             / "coding.yaml"
         )
         if not path.exists():
-            pytest.skip("coding.yaml not found (run from monorepo root)")
+            pytest.skip("coding.yaml not found (run tests from harness repo root)")
         return path
 
     def test_coding_yaml_loads_successfully(self, coding_yaml_path):

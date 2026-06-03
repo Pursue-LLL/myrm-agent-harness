@@ -17,6 +17,11 @@ from myrm_agent_harness.agent.security.channel_presets import build_channel_secu
 from myrm_agent_harness.agent.security.config import parse_security_config
 from myrm_agent_harness.agent.security.types import Capability, SecurityConfig
 
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
+SERVER_ROOT = REPO_ROOT / "myrm-agent" / "myrm-agent-server"
+
 _YOLO_VALID_ACTIONS = {"on", "off", "toggle", "status"}
 
 
@@ -372,7 +377,7 @@ class TestPersonalityTemplates:
 
         sys.path.insert(0, str(SERVER_ROOT.parent))
         sys.path.insert(0, str(SERVER_ROOT))
-        from myrm_agent_server.app.ai_agents.personality_templates import PERSONALITY_TEMPLATES
+        from app.ai_agents.personality_templates import PERSONALITY_TEMPLATES
 
         assert len(PERSONALITY_TEMPLATES) == 16
 
@@ -381,7 +386,7 @@ class TestPersonalityTemplates:
 
         sys.path.insert(0, str(SERVER_ROOT.parent))
         sys.path.insert(0, str(SERVER_ROOT))
-        from myrm_agent_server.app.ai_agents.personality_templates import get_personality_template
+        from app.ai_agents.personality_templates import get_personality_template
 
         template = get_personality_template("friendly")
         assert template.name == "friendly"
@@ -393,7 +398,7 @@ class TestPersonalityTemplates:
 
         sys.path.insert(0, str(SERVER_ROOT.parent))
         sys.path.insert(0, str(SERVER_ROOT))
-        from myrm_agent_server.app.ai_agents.personality_templates import get_personality_template
+        from app.ai_agents.personality_templates import get_personality_template
 
         with pytest.raises(KeyError):
             get_personality_template("nonexistent")  # type: ignore[arg-type]
@@ -403,7 +408,7 @@ class TestPersonalityTemplates:
 
         sys.path.insert(0, str(SERVER_ROOT.parent))
         sys.path.insert(0, str(SERVER_ROOT))
-        from myrm_agent_server.app.ai_agents.personality_templates import is_valid_personality_style
+        from app.ai_agents.personality_templates import is_valid_personality_style
 
         assert is_valid_personality_style("professional") is True
         assert is_valid_personality_style("friendly") is True
@@ -415,7 +420,7 @@ class TestPersonalityTemplates:
 
         sys.path.insert(0, str(SERVER_ROOT.parent))
         sys.path.insert(0, str(SERVER_ROOT))
-        from myrm_agent_server.app.ai_agents.personality_templates import list_all_personalities
+        from app.ai_agents.personality_templates import list_all_personalities
 
         all_styles = list_all_personalities()
         assert len(all_styles) == 16
@@ -431,7 +436,7 @@ class TestPersonalityTemplates:
 
         sys.path.insert(0, str(SERVER_ROOT.parent))
         sys.path.insert(0, str(SERVER_ROOT))
-        from myrm_agent_server.app.ai_agents.personality_templates import PERSONALITY_TEMPLATES
+        from app.ai_agents.personality_templates import PERSONALITY_TEMPLATES
 
         for style, template in PERSONALITY_TEMPLATES.items():
             assert template.name == style
@@ -448,7 +453,7 @@ class TestPersonalityTemplates:
 
         sys.path.insert(0, str(SERVER_ROOT.parent))
         sys.path.insert(0, str(SERVER_ROOT))
-        from myrm_agent_server.app.ai_agents.personality_templates import PERSONALITY_TEMPLATES
+        from app.ai_agents.personality_templates import PERSONALITY_TEMPLATES
 
         assert "professional" in PERSONALITY_TEMPLATES
 

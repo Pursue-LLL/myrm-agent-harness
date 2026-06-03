@@ -55,13 +55,9 @@ verify-harness-distribution
 pip install 'myrm-agent-harness[file-parsers,...,compiled-core]==0.1.0'
 ```
 
-Or via monorepo helper:
+Or in `myrm-agent-server` after `uv sync` (PyPI, default for this repo).
 
-```bash
-./scripts/dev/install_harness_dev.sh   # MYRM_HARNESS_INSTALL_MODE=pypi (default)
-```
-
-Editable dev (harness clone): `MYRM_HARNESS_EDITABLE=1 ./scripts/dev/install_harness_dev.sh`
+Editable dev: `pip install -e /path/to/myrm-agent-harness[...]` when harness source is checked out locally.
 
 ## Development Mode
 
@@ -71,14 +67,14 @@ Editable install ships all `.py` source. `_distribution.get_distribution_mode()`
 
 | File | Audience | Harness source |
 |------|----------|----------------|
-| `myrm-agent-server/docker/Dockerfile.official` | Private CI / monorepo | `assemble_production.py` in-image |
-| `myrm-agent-server/Dockerfile` | Open-source consumers | PyPI `read_harness_pypi_spec.py` + `uv pip install` |
+| `myrm-agent-server/docker/Dockerfile.official` | Source-built wheels | `assemble_production.py` in-image |
+| `myrm-agent-server/Dockerfile` | PyPI consumers | `read_harness_pypi_spec.py` + `uv pip install` |
 
 ```bash
 # OSS (server repo root context)
 docker build -t myrm-server myrm-agent-server/
 
-# Official (monorepo root, harness source)
+# Official (harness + server trees available; build context = agent repo root)
 docker build -f myrm-agent-server/docker/Dockerfile.official -t myrm/runtime:local .
 ```
 
@@ -90,7 +86,7 @@ Tag `v*` (e.g. `v0.1.0rc1`, aligned with `project.version`) in **myrm-agent-harn
 2. Build stripped release wheel
 3. Upload all to PyPI (`skip-existing`)
 
-Server CI runs `scripts/ci/require_harness_on_pypi.sh` before install.
+Release automation verifies PyPI packages exist before refreshing server `uv.lock`.
 
 ## CI
 

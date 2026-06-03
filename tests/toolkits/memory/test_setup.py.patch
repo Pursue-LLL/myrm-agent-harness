@@ -1,0 +1,10 @@
+--- myrm-agent-harness/tests/toolkits/memory/test_setup.py
++++ myrm-agent-harness/tests/toolkits/memory/test_setup.py
+@@ -74,6 +74,7 @@
+         manager = await create_local_memory_manager(
+             base_path=base_path, embedding_config=embedding_config
+         )
++    print(f"\n[DEBUG] await_args: {mock_create_vector_store.await_args}, call_args: {mock_create_vector_store.call_args}\n")
+ 
+     mock_embedding_service.embed.assert_awaited_once_with("dimension probe")
+     assert mock_create_vector_store.await_args.args[0].embedding_dimension == 384

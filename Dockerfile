@@ -1,7 +1,7 @@
 # Myrm Agent Image - Agent-in-Sandbox Runtime
 #
 # Multi-stage build that creates a self-contained agent image:
-# Stage 1: Build myrm-agent-harness + myrm-control-plane sandbox_runtime
+# Stage 1: Build myrm-agent-harness + control-service sandbox_runtime
 # Stage 2: Combine with skill-sandbox base image
 #
 # The agent image contains everything needed to run an agent inside a sandbox:
@@ -11,7 +11,7 @@
 # - Python data science stack (from skill-sandbox base)
 #
 # Usage:
-#   docker build -t myrm-agent:latest -f Dockerfile --build-context control-plane=../myrm-control-plane .
+#   docker build -t myrm-agent:latest -f Dockerfile --build-context control-plane=<control-service-sources> .
 #   docker run -e CONTROL_PLANE_URL=ws://host:8001/ws -e SANDBOX_ID=abc123 myrm-agent:latest
 
 # ============================================================================
@@ -36,7 +36,7 @@ COPY pyproject.toml ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system ".[browser,retrieval,file-parsers,monitoring]"
 
-# Install sandbox_runtime from control-plane
+# Install sandbox_runtime from control-service build context (label: control-plane)
 COPY --from=control-plane pyproject.toml /cp/pyproject.toml
 COPY --from=control-plane src/ /cp/src/
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -50,7 +50,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ============================================================================
 # Stage 2: Runtime - Based on skill-sandbox for rich tooling
 # ============================================================================
-FROM open-perplexity/skill-sandbox:latest AS runtime
+FROM myrm/skill-sandbox:latest AS runtime
 
 USER root
 

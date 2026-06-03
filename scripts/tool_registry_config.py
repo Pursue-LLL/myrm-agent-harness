@@ -53,6 +53,14 @@ ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset({
     "create_automation_tools",       # Optional automation toolkit
     "create_calendar_tools",         # Optional calendar toolkit
     "create_kanban_tools",           # Optional kanban toolkit
+    "create_channel_notify_tool",
+    "create_conversation_search_tool",
+    "create_cron_tools",
+    "create_delegate_to_agent_tool",
+    "create_goal_tools",
+    "create_image_search_tool",
+    "create_local_browser_data_tool",
+    "create_memory_tools",
 })
 
 BOOTSTRAP_FILES: frozenset[str] = frozenset({

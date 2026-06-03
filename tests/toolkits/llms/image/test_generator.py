@@ -200,12 +200,19 @@ class TestMediaCallback:
 
         b64_data = base64.b64encode(b"fake-image-bytes").decode()
 
-        with patch("litellm.aimage_generation", new_callable=AsyncMock) as mock:
-            mock.return_value = _FakeResponse(data=[_FakeImageData(url=None, b64_json=b64_data)])
-            result = await gen.generate("test")
-
-        assert result.persisted_url == "https://storage/persisted.png"
-        callback.assert_called_once()
+        try:
+            import litellm
+            with patch.object(litellm, "aimage_generation", new_callable=AsyncMock) as mock:
+                mock.return_value = _FakeResponse(data=[_FakeImageData(url=None, b64_json=b64_data)])
+                result = await gen.generate("test")
+                assert result.persisted_url == "https://storage/persisted.png"
+                callback.assert_called_once()
+        except (ImportError, AttributeError):
+            with patch("myrm_agent_harness.toolkits.llms.image.generator.litellm") as mock_litellm:
+                mock_litellm.aimage_generation = AsyncMock(return_value=_FakeResponse(data=[_FakeImageData(url=None, b64_json=b64_data)]))
+                result = await gen.generate("test")
+                assert result.persisted_url == "https://storage/persisted.png"
+                callback.assert_called_once()
 
     @pytest.mark.asyncio()
     async def test_callback_invoked_on_url_result(self) -> None:
@@ -219,23 +226,43 @@ class TestMediaCallback:
 
         fake_image_bytes = b"downloaded-image-content"
 
-        with (
-            patch("litellm.aimage_generation", new_callable=AsyncMock) as mock_gen,
-            patch(
-                "myrm_agent_harness.toolkits.llms.image.models.ImageResult.to_bytes_with_mime",
-                new_callable=AsyncMock,
-                return_value=(fake_image_bytes, "image/png"),
-            ),
-        ):
-            mock_gen.return_value = _FakeResponse(data=[_FakeImageData(url="https://api/img.png", b64_json=None)])
-            result = await gen.generate("test")
+        try:
+            import litellm
+            with (
+                patch.object(litellm, "aimage_generation", new_callable=AsyncMock) as mock_gen,
+                patch(
+                    "myrm_agent_harness.toolkits.llms.image.models.ImageResult.to_bytes_with_mime",
+                    new_callable=AsyncMock,
+                    return_value=(fake_image_bytes, "image/png"),
+                ),
+            ):
+                mock_gen.return_value = _FakeResponse(data=[_FakeImageData(url="https://api/img.png", b64_json=None)])
+                result = await gen.generate("test")
 
-        assert result.persisted_url == "https://storage/persisted.png"
-        assert result.mime_type == "image/png"
-        callback.assert_called_once()
-        call_args = callback.call_args
-        assert call_args[0][0] == fake_image_bytes
-        assert call_args[0][1] == "image/png"
+                assert result.persisted_url == "https://storage/persisted.png"
+                assert result.mime_type == "image/png"
+                callback.assert_called_once()
+                call_args = callback.call_args
+                assert call_args[0][0] == fake_image_bytes
+                assert call_args[0][1] == "image/png"
+        except (ImportError, AttributeError):
+            with (
+                patch("myrm_agent_harness.toolkits.llms.image.generator.litellm") as mock_litellm,
+                patch(
+                    "myrm_agent_harness.toolkits.llms.image.models.ImageResult.to_bytes_with_mime",
+                    new_callable=AsyncMock,
+                    return_value=(fake_image_bytes, "image/png"),
+                ),
+            ):
+                mock_litellm.aimage_generation = AsyncMock(return_value=_FakeResponse(data=[_FakeImageData(url="https://api/img.png", b64_json=None)]))
+                result = await gen.generate("test")
+
+                assert result.persisted_url == "https://storage/persisted.png"
+                assert result.mime_type == "image/png"
+                callback.assert_called_once()
+                call_args = callback.call_args
+                assert call_args[0][0] == fake_image_bytes
+                assert call_args[0][1] == "image/png"
 
     @pytest.mark.asyncio()
     async def test_no_callback_without_config(self) -> None:
@@ -243,11 +270,17 @@ class TestMediaCallback:
         config = ImageGenerationConfig(model="dall-e-3")
         gen = ImageGenerator(config)
 
-        with patch("litellm.aimage_generation", new_callable=AsyncMock) as mock:
-            mock.return_value = _FakeResponse(data=[_FakeImageData(url="https://api/img.png", b64_json=None)])
-            result = await gen.generate("test")
-
-        assert result.persisted_url is None
+        try:
+            import litellm
+            with patch.object(litellm, "aimage_generation", new_callable=AsyncMock) as mock:
+                mock.return_value = _FakeResponse(data=[_FakeImageData(url="https://api/img.png", b64_json=None)])
+                result = await gen.generate("test")
+                assert result.persisted_url is None
+        except (ImportError, AttributeError):
+            with patch("myrm_agent_harness.toolkits.llms.image.generator.litellm") as mock_litellm:
+                mock_litellm.aimage_generation = AsyncMock(return_value=_FakeResponse(data=[_FakeImageData(url="https://api/img.png", b64_json=None)]))
+                result = await gen.generate("test")
+                assert result.persisted_url is None
 
     @pytest.mark.asyncio()
     async def test_callback_failure_does_not_break_generation(self) -> None:
@@ -259,18 +292,36 @@ class TestMediaCallback:
         )
         gen = ImageGenerator(config)
 
-        with (
-            patch("litellm.aimage_generation", new_callable=AsyncMock) as mock_gen,
-            patch(
-                "myrm_agent_harness.toolkits.llms.image.models.ImageResult.to_bytes_with_mime",
-                new_callable=AsyncMock,
-                return_value=(b"image-bytes", "image/png"),
-            ),
-        ):
-            mock_gen.return_value = _FakeResponse(data=[_FakeImageData(url="https://api/img.png")])
-            result = await gen.generate("test")
+        try:
+            import litellm
+            with (
+                patch.object(litellm, "aimage_generation", new_callable=AsyncMock) as mock_gen,
+                patch(
+                    "myrm_agent_harness.toolkits.llms.image.models.ImageResult.to_bytes_with_mime",
+                    new_callable=AsyncMock,
+                    return_value=(b"image-bytes", "image/png"),
+                ),
+            ):
+                mock_gen.return_value = _FakeResponse(data=[_FakeImageData(url="https://api/img.png")])
+                result = await gen.generate("test")
 
-        assert result.url == "https://api/img.png"
-        assert result.persisted_url is None
-        assert gen.call_count == 1
-        assert gen.error_count == 0
+                assert result.url == "https://api/img.png"
+                assert result.persisted_url is None
+                assert gen.call_count == 1
+                assert gen.error_count == 0
+        except (ImportError, AttributeError):
+            with (
+                patch("myrm_agent_harness.toolkits.llms.image.generator.litellm") as mock_litellm,
+                patch(
+                    "myrm_agent_harness.toolkits.llms.image.models.ImageResult.to_bytes_with_mime",
+                    new_callable=AsyncMock,
+                    return_value=(b"image-bytes", "image/png"),
+                ),
+            ):
+                mock_litellm.aimage_generation = AsyncMock(return_value=_FakeResponse(data=[_FakeImageData(url="https://api/img.png")]))
+                result = await gen.generate("test")
+
+                assert result.url == "https://api/img.png"
+                assert result.persisted_url is None
+                assert gen.call_count == 1
+                assert gen.error_count == 0
