@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 # Run at import time to isolate harness tests as well
 _temp_workspace = tempfile.mkdtemp(prefix="myrm_harness_test_")
 os.environ["MYRM_DATA_DIR"] = _temp_workspace
+os.environ["OTEL_METRICS_EXPORTER"] = "none"
+os.environ["OTEL_TRACES_EXPORTER"] = "none"
 
 
 def _cleanup_temp_workspace() -> None:
