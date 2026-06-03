@@ -66,22 +66,35 @@ class IsolatedToolchainManager:
         try:
             # Run blocking download in executor
             loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, urllib.request.urlretrieve, url, tar_path)
             
-            yield "Extracting Node.js..."
-            def extract():
-                with tarfile.open(tar_path, "r:gz") as tar:
-                    tar.extractall(path=self.base_dir)
-                    # Rename extracted folder to standard node_dir
-                    extracted_folder = tar.getnames()[0].split('/')[0]
-                    extracted_path = self.base_dir / extracted_folder
-                    if extracted_path != self.node_dir:
-                        if self.node_dir.exists():
-                            shutil.rmtree(self.node_dir)
-                        extracted_path.rename(self.node_dir)
+            # Simple file lock to prevent concurrent downloads
+            lock_file = self.base_dir / ".node_download.lock"
+            if lock_file.exists():
+                yield "Waiting for another process to finish downloading..."
+                while lock_file.exists():
+                    await asyncio.sleep(1)
             
-            await loop.run_in_executor(None, extract)
-            yield "Node.js environment setup complete."
+            try:
+                lock_file.touch()
+                await loop.run_in_executor(None, urllib.request.urlretrieve, url, tar_path)
+                
+                yield "Extracting Node.js..."
+                def extract():
+                    with tarfile.open(tar_path, "r:gz") as tar:
+                        tar.extractall(path=self.base_dir)
+                        # Rename extracted folder to standard node_dir
+                        extracted_folder = tar.getnames()[0].split('/')[0]
+                        extracted_path = self.base_dir / extracted_folder
+                        if extracted_path != self.node_dir:
+                            if self.node_dir.exists():
+                                shutil.rmtree(self.node_dir)
+                            extracted_path.rename(self.node_dir)
+                
+                await loop.run_in_executor(None, extract)
+                yield "Node.js environment setup complete."
+            finally:
+                if lock_file.exists():
+                    lock_file.unlink()
         finally:
             if tar_path.exists():
                 tar_path.unlink()
