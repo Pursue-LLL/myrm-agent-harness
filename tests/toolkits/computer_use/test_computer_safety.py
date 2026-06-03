@@ -206,11 +206,14 @@ class TestComputerActionSafetyIntegration:
     def session(self):
         from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
         from myrm_agent_harness.toolkits.computer_use.types import ComputerUseConfig, ScreenContext, ScreenInfo
+        import time
 
         backend = MagicMock()
         backend.screen_info.return_value = ScreenInfo(width=1920, height=1080, dpi_scale=1.0)
         backend.screen_context.return_value = ScreenContext(active_window="Terminal", mouse_x=100, mouse_y=200)
-        return DesktopSession(backend=backend, config=ComputerUseConfig())
+        s = DesktopSession(backend=backend, config=ComputerUseConfig())
+        s._last_snapshot_time = time.time()
+        return s
 
     @pytest.fixture
     def action_tool(self, session):
@@ -370,11 +373,13 @@ class TestComputerActionAllBranches:
             ScreenContext,
             ScreenInfo,
         )
+        import time
 
         backend = MagicMock()
         backend.screen_info.return_value = ScreenInfo(width=1920, height=1080, dpi_scale=1.0)
         backend.screen_context.return_value = ScreenContext(active_window="Test", mouse_x=100, mouse_y=200)
         s = DesktopSession(backend=backend, config=ComputerUseConfig())
+        s._last_snapshot_time = time.time()
         default_result = ActionResult(success=True, screenshot_base64="img", screenshot_size=(1920, 1080))
         s.click_at = AsyncMock(return_value=default_result)
         s.type_text = AsyncMock(return_value=default_result)

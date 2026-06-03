@@ -63,7 +63,7 @@ async def test_defensive_preset_has_resource_block() -> None:
     config = BrowserPoolConfig.defensive()
 
     assert config.resource_block.block_images is True
-    assert config.resource_block.block_stylesheets is True
+    assert config.resource_block.block_stylesheets is False
     assert config.resource_block.block_fonts is True
     assert config.resource_block.block_media is True
     assert config.resource_block.block_scripts is False

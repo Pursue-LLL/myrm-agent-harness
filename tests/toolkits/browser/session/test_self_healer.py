@@ -11,7 +11,7 @@ from myrm_agent_harness.toolkits.browser.snapshot.self_healer import SelfHealer
 @pytest.mark.asyncio
 async def test_self_healer_performance():
     page = AsyncMock(spec=Page)
-    ref_info = RefInfo(role="button", name="Submit", nth=0, bbox=BBox(x=10, y=10, width=100, height=30, centerX=60, centerY=25, viewport_width=1920, viewport_height=1080))
+    ref_info = RefInfo(role="button", name="Submit", nth=0, bbox=BBox(x=10, y=10, width=100, height=30, centerX=60, centerY=25, viewport_x=10, viewport_y=10, viewport_width=1920, viewport_height=1080))
 
     mock_candidates_locator = AsyncMock(spec=Locator)
     # Simulate a fast JS evaluation
@@ -46,7 +46,7 @@ async def test_self_healer_no_bbox():
 @pytest.mark.asyncio
 async def test_self_healer_success():
     page = AsyncMock(spec=Page)
-    ref_info = RefInfo(role="button", name="Submit", nth=0, bbox=BBox(x=10, y=10, width=100, height=30, centerX=60, centerY=25, viewport_width=1920, viewport_height=1080))
+    ref_info = RefInfo(role="button", name="Submit", nth=0, bbox=BBox(x=10, y=10, width=100, height=30, centerX=60, centerY=25, viewport_x=10, viewport_y=10, viewport_width=1920, viewport_height=1080))
 
     mock_candidates_locator = AsyncMock(spec=Locator)
     # Return index 1 as the best match and distance 15.5
@@ -74,7 +74,7 @@ async def test_self_healer_success():
 @pytest.mark.asyncio
 async def test_self_healer_cursor_roles():
     page = AsyncMock(spec=Page)
-    ref_info = RefInfo(role="clickable", name="Click Me", nth=0, bbox=BBox(x=10, y=10, width=100, height=30, centerX=60, centerY=25, viewport_width=1920, viewport_height=1080))
+    ref_info = RefInfo(role="clickable", name="Click Me", nth=0, bbox=BBox(x=10, y=10, width=100, height=30, centerX=60, centerY=25, viewport_x=10, viewport_y=10, viewport_width=1920, viewport_height=1080))
 
     mock_candidates_locator = AsyncMock(spec=Locator)
     mock_candidates_locator.evaluate_all.return_value = -1 # No match found

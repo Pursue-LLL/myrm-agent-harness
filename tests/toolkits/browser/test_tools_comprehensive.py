@@ -73,7 +73,7 @@ def test_create_browser_tools(mock_session: Any) -> None:
     """Test create_browser_tools returns 6 tools."""
     tools = create_browser_tools(mock_session)
 
-    assert len(tools) == 6
+    assert len(tools) == 7
     tool_names = {tool.name for tool in tools}
     assert tool_names == {
         "browser_navigate_tool",
@@ -82,6 +82,7 @@ def test_create_browser_tools(mock_session: Any) -> None:
         "browser_interact_tool",
         "browser_extract_tool",
         "browser_manage_tool",
+        "browser_execute_script_tool",
     }
 
 
@@ -99,7 +100,7 @@ async def test_browser_navigate_basic(mock_session: Any) -> None:
     result = await navigate_tool.ainvoke({"url": "https://example.com"})
 
     assert "Navigated" in result
-    mock_session.navigate.assert_called_once_with("https://example.com")
+    mock_session.navigate.assert_called_once_with("https://example.com", verify_goal=None)
 
 
 # =============================================================================
@@ -191,7 +192,7 @@ async def test_browser_interact_click(mock_session: Any) -> None:
     result = await interact_tool.ainvoke({"action": "click", "ref": "e0"})
 
     assert "Clicked" in result
-    mock_session.interact.assert_called_once_with("click", "e0", "")
+    mock_session.interact.assert_called_once_with("click", "e0", "", verify_goal=None)
 
 
 @pytest.mark.asyncio
@@ -202,7 +203,7 @@ async def test_browser_interact_with_text(mock_session: Any) -> None:
 
     await interact_tool.ainvoke({"action": "type", "ref": "e1", "text": "Hello"})
 
-    mock_session.interact.assert_called_once_with("type", "e1", "Hello")
+    mock_session.interact.assert_called_once_with("type", "e1", "Hello", verify_goal=None)
 
 
 # =============================================================================

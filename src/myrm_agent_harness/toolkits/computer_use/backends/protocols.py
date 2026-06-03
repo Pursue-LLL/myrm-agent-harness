@@ -43,7 +43,7 @@ class ComputerBackend(Protocol):
 
     async def type_credential(self, label: str) -> ActionResult:
         """Type a credential (password or TOTP) securely from the CredentialVault.
-        
+
         The plain text is retrieved from the in-memory vault and injected directly
         via OS APIs without appearing in the LLM context or logs.
         """

@@ -35,14 +35,15 @@ async def test_interactor_fill_password_redaction():
     mock_ref_info = RefInfo(role="textbox", name="password", nth=0)
     interactor = Interactor(page_mock, refs={"e1": mock_ref_info})
 
-    with pytest.MonkeyPatch.context() as m:
-        m.setattr("myrm_agent_harness.toolkits.browser.wait_strategies.wait_for_page_ready", AsyncMock())
-
-        result = await interactor.interact(
-            action="fill",
-            ref="e1",
-            text="super_secret_password"
-        )
+        with pytest.MonkeyPatch.context() as m:
+            m.setattr("myrm_agent_harness.toolkits.browser.wait_strategies.wait_for_page_ready", AsyncMock())
+    
+            with pytest.raises(ValueError, match="strictly forbidden"):
+                await interactor.interact(
+                    action="fill",
+                    ref="e1",
+                    text="super_secret_password"
+                )
 
         assert "********" in result
         assert "super_secret_password" not in result
@@ -84,14 +85,15 @@ async def test_interactor_type_password_redaction():
     mock_ref_info = RefInfo(role="textbox", name="password", nth=0)
     interactor = Interactor(page_mock, refs={"e3": mock_ref_info})
 
-    with pytest.MonkeyPatch.context() as m:
-        m.setattr("myrm_agent_harness.toolkits.browser.wait_strategies.wait_for_page_ready", AsyncMock())
-
-        result = await interactor.interact(
-            action="type",
-            ref="e3",
-            text="super_secret_password"
-        )
+        with pytest.MonkeyPatch.context() as m:
+            m.setattr("myrm_agent_harness.toolkits.browser.wait_strategies.wait_for_page_ready", AsyncMock())
+    
+            with pytest.raises(ValueError, match="strictly forbidden"):
+                await interactor.interact(
+                    action="type",
+                    ref="e3",
+                    text="super_secret_password"
+                )
 
         assert "********" in result
         assert "super_secret_password" not in result

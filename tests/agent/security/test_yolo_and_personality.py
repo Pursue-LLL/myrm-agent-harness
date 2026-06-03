@@ -370,7 +370,7 @@ class TestPersonalityTemplates:
     def test_all_8_styles_defined(self) -> None:
         import sys
 
-        sys.path.insert(0, "/Users/yululiu/projects/AI/open-perplexity/myrm-agent-server")
+        sys.path.insert(0, "/Users/yululiu/projects/AI/open-perplexity/myrm-agent/myrm-agent-server")
         from app.ai_agents.personality_templates import PERSONALITY_TEMPLATES
 
         assert len(PERSONALITY_TEMPLATES) == 16
@@ -378,7 +378,7 @@ class TestPersonalityTemplates:
     def test_get_valid_template(self) -> None:
         import sys
 
-        sys.path.insert(0, "/Users/yululiu/projects/AI/open-perplexity/myrm-agent-server")
+        sys.path.insert(0, "/Users/yululiu/projects/AI/open-perplexity/myrm-agent/myrm-agent-server")
         from app.ai_agents.personality_templates import get_personality_template
 
         template = get_personality_template("friendly")
@@ -389,7 +389,7 @@ class TestPersonalityTemplates:
     def test_get_invalid_template_raises(self) -> None:
         import sys
 
-        sys.path.insert(0, "/Users/yululiu/projects/AI/open-perplexity/myrm-agent-server")
+        sys.path.insert(0, "/Users/yululiu/projects/AI/open-perplexity/myrm-agent/myrm-agent-server")
         from app.ai_agents.personality_templates import get_personality_template
 
         with pytest.raises(KeyError):
@@ -398,7 +398,7 @@ class TestPersonalityTemplates:
     def test_is_valid_personality_style(self) -> None:
         import sys
 
-        sys.path.insert(0, "/Users/yululiu/projects/AI/open-perplexity/myrm-agent-server")
+        sys.path.insert(0, "/Users/yululiu/projects/AI/open-perplexity/myrm-agent/myrm-agent-server")
         from app.ai_agents.personality_templates import is_valid_personality_style
 
         assert is_valid_personality_style("professional") is True
@@ -409,7 +409,7 @@ class TestPersonalityTemplates:
     def test_list_all_personalities(self) -> None:
         import sys
 
-        sys.path.insert(0, "/Users/yululiu/projects/AI/open-perplexity/myrm-agent-server")
+        sys.path.insert(0, "/Users/yululiu/projects/AI/open-perplexity/myrm-agent/myrm-agent-server")
         from app.ai_agents.personality_templates import list_all_personalities
 
         all_styles = list_all_personalities()
@@ -424,7 +424,7 @@ class TestPersonalityTemplates:
     def test_all_templates_have_required_fields(self) -> None:
         import sys
 
-        sys.path.insert(0, "/Users/yululiu/projects/AI/open-perplexity/myrm-agent-server")
+        sys.path.insert(0, "/Users/yululiu/projects/AI/open-perplexity/myrm-agent/myrm-agent-server")
         from app.ai_agents.personality_templates import PERSONALITY_TEMPLATES
 
         for style, template in PERSONALITY_TEMPLATES.items():
@@ -440,7 +440,7 @@ class TestPersonalityTemplates:
     def test_professional_is_default(self) -> None:
         import sys
 
-        sys.path.insert(0, "/Users/yululiu/projects/AI/open-perplexity/myrm-agent-server")
+        sys.path.insert(0, "/Users/yululiu/projects/AI/open-perplexity/myrm-agent/myrm-agent-server")
         from app.ai_agents.personality_templates import PERSONALITY_TEMPLATES
 
         assert "professional" in PERSONALITY_TEMPLATES

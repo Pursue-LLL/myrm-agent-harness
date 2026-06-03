@@ -10,7 +10,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 README_PATH = REPO_ROOT / "README.md"
 HARNESS_ROOT = REPO_ROOT / "myrm-agent-harness"
-SERVER_ROOT = REPO_ROOT / "myrm-agent-server"
+SERVER_ROOT = REPO_ROOT / "myrm-agent" / "myrm-agent-server"
 CONTROL_PLANE_ROOT = REPO_ROOT / "myrm-control-plane"
 
 

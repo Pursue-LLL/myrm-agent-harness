@@ -32,8 +32,10 @@ class LocaleManager:
         from pathlib import Path
 
         locales_dir = (
-            Path(__file__).parent.parent.parent.parent.parent
-            / "toolkits"
+            Path(__file__).parent.parent.parent.parent.parent.parent.parent.parent
+            / "myrm-agent"
+            / "myrm-agent-server"
+            / "app"
             / "channels"
             / "i18n"
             / "locales"

@@ -384,7 +384,7 @@ class TestFallbackProvider:
             SearchResult(title="Fallback", link="https://fallback.com", snippet="Fallback result")
         ]
 
-        async def mock_get_service(instance):
+        async def mock_get_service(instance, bypass_gateway=False):
             if instance.config.search_service == "tavily":
                 return primary_service
             elif instance.config.search_service == "perplexity":
@@ -424,7 +424,7 @@ class TestFallbackProvider:
             SearchResult(title="SearxNG", link="https://example.com", snippet="SearxNG result")
         ]
 
-        async def mock_get_service(instance):
+        async def mock_get_service(instance, bypass_gateway=False):
             if instance.config.search_service == "tavily":
                 return primary_service
             elif instance.config.search_service == "searxng":
@@ -475,7 +475,7 @@ class TestFallbackProvider:
         service_mock = AsyncMock()
         service_mock.search.side_effect = quota_error
 
-        async def mock_get_service(instance):
+        async def mock_get_service(instance, bypass_gateway=False):
             return service_mock
 
         with patch.object(WebSearcher, "_get_search_service", mock_get_service):
@@ -537,7 +537,7 @@ class TestFallbackProvider:
 
         call_count = {"perplexity": 0, "exa_ai": 0}
 
-        async def mock_get_service(instance):
+        async def mock_get_service(instance, bypass_gateway=False):
             if instance.config.search_service == "tavily":
                 return primary_service
             elif instance.config.search_service == "perplexity":
@@ -576,7 +576,7 @@ class TestFallbackProvider:
             SearchResult(title="Cached", link="https://cached.com", snippet="Cached result")
         ]
 
-        async def mock_get_service(instance):
+        async def mock_get_service(instance, bypass_gateway=False):
             if instance.config.search_service == "tavily":
                 return primary_service
             elif instance.config.search_service == "perplexity":

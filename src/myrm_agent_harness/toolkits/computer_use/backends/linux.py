@@ -140,7 +140,7 @@ class LinuxBackend:
         """Type a credential (password or TOTP) securely from the CredentialVault."""
         from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
         vault = get_global_credential_vault()
-        
+
         is_totp = label.endswith("-totp")
         try:
             if is_totp:
@@ -149,7 +149,7 @@ class LinuxBackend:
                 secret_text = vault.get_password(label)
         except Exception as e:
             return ActionResult(success=False, error=f"Failed to retrieve credential for label '{label}': {e}")
-            
+
         try:
             if secret_text.isascii():
                 proc = await asyncio.create_subprocess_shell(

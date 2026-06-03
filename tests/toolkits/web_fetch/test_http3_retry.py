@@ -589,7 +589,7 @@ async def test_http2_none_http3_returns_http3_result(site_store: SiteExperienceS
 
 
 @pytest.mark.asyncio
-async def test_fetch_with_redirects_ssrf_blocked() -> None:
+async def test_fetch_with_redirects_ssrf_blocked(install_fake_scrapling: AsyncMock) -> None:
     fetcher = HttpFetcher()
 
     with patch(

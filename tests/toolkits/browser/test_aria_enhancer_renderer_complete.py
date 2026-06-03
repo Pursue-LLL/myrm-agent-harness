@@ -42,31 +42,31 @@ class TestAriaEnhancerCoverage:
         """Test calculate_semantic_position for all 9 grid positions."""
         vw, vh = 1920, 1080
 
-        bbox = BBox(0, 0, 100, 50, int(vw * 0.15), int(vh * 0.15), vw, vh)
+        bbox = BBox(0, 0, 100, 50, int(vw * 0.15), int(vh * 0.15), 0, 0, vw, vh)
         assert calculate_semantic_position(bbox) == "at top-left"
 
-        bbox = BBox(0, 0, 100, 50, int(vw * 0.5), int(vh * 0.15), vw, vh)
+        bbox = BBox(0, 0, 100, 50, int(vw * 0.5), int(vh * 0.15), 0, 0, vw, vh)
         assert calculate_semantic_position(bbox) == "at top"
 
-        bbox = BBox(0, 0, 100, 50, int(vw * 0.85), int(vh * 0.15), vw, vh)
+        bbox = BBox(0, 0, 100, 50, int(vw * 0.85), int(vh * 0.15), 0, 0, vw, vh)
         assert calculate_semantic_position(bbox) == "at top-right"
 
-        bbox = BBox(0, 0, 100, 50, int(vw * 0.15), int(vh * 0.5), vw, vh)
+        bbox = BBox(0, 0, 100, 50, int(vw * 0.15), int(vh * 0.5), 0, 0, vw, vh)
         assert calculate_semantic_position(bbox) == "at left"
 
-        bbox = BBox(0, 0, 100, 50, int(vw * 0.5), int(vh * 0.5), vw, vh)
+        bbox = BBox(0, 0, 100, 50, int(vw * 0.5), int(vh * 0.5), 0, 0, vw, vh)
         assert calculate_semantic_position(bbox) == "at center"
 
-        bbox = BBox(0, 0, 100, 50, int(vw * 0.85), int(vh * 0.5), vw, vh)
+        bbox = BBox(0, 0, 100, 50, int(vw * 0.85), int(vh * 0.5), 0, 0, vw, vh)
         assert calculate_semantic_position(bbox) == "at right"
 
-        bbox = BBox(0, 0, 100, 50, int(vw * 0.15), int(vh * 0.85), vw, vh)
+        bbox = BBox(0, 0, 100, 50, int(vw * 0.15), int(vh * 0.85), 0, 0, vw, vh)
         assert calculate_semantic_position(bbox) == "at bottom-left"
 
-        bbox = BBox(0, 0, 100, 50, int(vw * 0.5), int(vh * 0.85), vw, vh)
+        bbox = BBox(0, 0, 100, 50, int(vw * 0.5), int(vh * 0.85), 0, 0, vw, vh)
         assert calculate_semantic_position(bbox) == "at bottom"
 
-        bbox = BBox(0, 0, 100, 50, int(vw * 0.85), int(vh * 0.85), vw, vh)
+        bbox = BBox(0, 0, 100, 50, int(vw * 0.85), int(vh * 0.85), 0, 0, vw, vh)
         assert calculate_semantic_position(bbox) == "at bottom-right"
 
     def test_immutable_enhanced_node(self) -> None:

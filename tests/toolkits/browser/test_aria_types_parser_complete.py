@@ -40,7 +40,7 @@ class TestAriaTypesCoverage:
     def test_enhanced_node_initialization_full(self) -> None:
         """Test EnhancedNode with all parameters."""
         aria_node = AriaNode(role="button", name="Test")
-        bbox = BBox(10, 20, 100, 50, 60, 45, 1920, 1080)
+        bbox = BBox(10, 20, 100, 50, 60, 45, 10, 20, 1920, 1080)
         enhanced = EnhancedNode(
             node=aria_node,
             ref_id="e0",
@@ -68,7 +68,7 @@ class TestAriaTypesCoverage:
 
     def test_bbox_namedtuple(self) -> None:
         """Test BBox NamedTuple properties."""
-        bbox = BBox(10, 20, 100, 50, 60, 45, 1920, 1080)
+        bbox = BBox(10, 20, 100, 50, 60, 45, 10, 20, 1920, 1080)
         assert bbox.x == 10
         assert bbox.y == 20
         assert bbox.width == 100

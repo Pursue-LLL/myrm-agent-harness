@@ -180,6 +180,8 @@ class TestSemanticPositionCalculation:
             height=50,
             centerX=center_x,
             centerY=center_y,
+            viewport_x=0,
+            viewport_y=0,
             viewport_width=viewport_width,
             viewport_height=viewport_height,
         )
@@ -190,26 +192,26 @@ class TestSemanticPositionCalculation:
         # 33.33% 分界线：1920*0.33=633.6, 1080*0.33=356.4
         # 刚好在 top-left
         bbox1 = BBox(
-            x=0, y=0, width=100, height=50, centerX=633, centerY=356, viewport_width=1920, viewport_height=1080
+            x=0, y=0, width=100, height=50, centerX=633, centerY=356, viewport_x=0, viewport_y=0, viewport_width=1920, viewport_height=1080
         )
         assert calculate_semantic_position(bbox1) == "at top-left"
 
         # 刚好越过到 center
         bbox2 = BBox(
-            x=0, y=0, width=100, height=50, centerX=634, centerY=357, viewport_width=1920, viewport_height=1080
+            x=0, y=0, width=100, height=50, centerX=634, centerY=357, viewport_x=0, viewport_y=0, viewport_width=1920, viewport_height=1080
         )
         assert calculate_semantic_position(bbox2) == "at center"
 
         # 66.67% 分界线：1920*0.67=1286.4, 1080*0.67=723.6
         # 刚好在 center
         bbox3 = BBox(
-            x=0, y=0, width=100, height=50, centerX=1286, centerY=723, viewport_width=1920, viewport_height=1080
+            x=0, y=0, width=100, height=50, centerX=1286, centerY=723, viewport_x=0, viewport_y=0, viewport_width=1920, viewport_height=1080
         )
         assert calculate_semantic_position(bbox3) == "at center"
 
         # 刚好越过到 bottom-right
         bbox4 = BBox(
-            x=0, y=0, width=100, height=50, centerX=1287, centerY=724, viewport_width=1920, viewport_height=1080
+            x=0, y=0, width=100, height=50, centerX=1287, centerY=724, viewport_x=0, viewport_y=0, viewport_width=1920, viewport_height=1080
         )
         assert calculate_semantic_position(bbox4) == "at bottom-right"
 
@@ -449,7 +451,7 @@ class TestBBoxDataStructure:
     def test_bbox_namedtuple(self):
         """测试 BBox NamedTuple"""
         bbox = BBox(
-            x=100, y=200, width=300, height=400, centerX=250, centerY=400, viewport_width=1920, viewport_height=1080
+            x=100, y=200, width=300, height=400, centerX=250, centerY=400, viewport_x=0, viewport_y=0, viewport_width=1920, viewport_height=1080
         )
 
         assert bbox.x == 100
@@ -464,7 +466,7 @@ class TestBBoxDataStructure:
     def test_refinfo_with_bbox_and_position(self):
         """测试 RefInfo 包含 bbox 和 position"""
         bbox = BBox(
-            x=100, y=200, width=300, height=400, centerX=250, centerY=400, viewport_width=1920, viewport_height=1080
+            x=100, y=200, width=300, height=400, centerX=250, centerY=400, viewport_x=0, viewport_y=0, viewport_width=1920, viewport_height=1080
         )
         ref_info = RefInfo(role="button", name="Submit", nth=None, bbox=bbox, position="at top-left")
 
@@ -484,7 +486,7 @@ class TestBBoxDataStructure:
     def test_refinfo_with_only_bbox(self):
         """测试 RefInfo 只包含 bbox"""
         bbox = BBox(
-            x=100, y=200, width=300, height=400, centerX=250, centerY=400, viewport_width=1920, viewport_height=1080
+            x=100, y=200, width=300, height=400, centerX=250, centerY=400, viewport_x=0, viewport_y=0, viewport_width=1920, viewport_height=1080
         )
         ref_info = RefInfo(role="button", name="Submit", nth=None, bbox=bbox)
 

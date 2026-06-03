@@ -31,7 +31,7 @@ async def test_vision_verifier_no_llm(mock_page: Page):
     verifier = VisionVerifier(llm=None)
 
     # Mock FastComparator to simulate a visual change so it proceeds to Layer 3
-    verifier._comparator.compare = AsyncMock(
+    verifier._comparator.compare = MagicMock(
         return_value=MagicMock(similarity=0.5)
     )
 
@@ -51,7 +51,7 @@ async def test_vision_verifier_no_visual_change(mock_page: Page, mock_llm: Async
     verifier = VisionVerifier(llm=mock_llm)
 
     # Mock FastComparator to simulate NO visual change
-    verifier._comparator.compare = AsyncMock(
+    verifier._comparator.compare = MagicMock(
         return_value=MagicMock(similarity=0.995)
     )
 
@@ -72,7 +72,7 @@ async def test_vision_verifier_success(mock_page: Page, mock_llm: AsyncMock):
     verifier = VisionVerifier(llm=mock_llm)
 
     # Mock FastComparator to simulate a visual change
-    verifier._comparator.compare = AsyncMock(
+    verifier._comparator.compare = MagicMock(
         return_value=MagicMock(similarity=0.5)
     )
 
@@ -96,7 +96,7 @@ async def test_vision_verifier_llm_failure(mock_page: Page, mock_llm: AsyncMock)
     )
     verifier = VisionVerifier(llm=mock_llm)
 
-    verifier._comparator.compare = AsyncMock(
+    verifier._comparator.compare = MagicMock(
         return_value=MagicMock(similarity=0.5)
     )
 
@@ -119,7 +119,7 @@ async def test_vision_verifier_invalid_format(mock_page: Page, mock_llm: AsyncMo
     )
     verifier = VisionVerifier(llm=mock_llm)
 
-    verifier._comparator.compare = AsyncMock(
+    verifier._comparator.compare = MagicMock(
         return_value=MagicMock(similarity=0.5)
     )
 

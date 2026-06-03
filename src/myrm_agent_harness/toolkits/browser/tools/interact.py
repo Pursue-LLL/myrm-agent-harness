@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 def create_interact_tool(session: BrowserSession):
     """Create browser_interact tool bound to session."""
-    
+
     from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
     vault = get_global_credential_vault()
     labels = vault.list_labels()

@@ -126,9 +126,10 @@ async def test_browser_launch_retry_on_timeout() -> None:
 
     mock_playwright = AsyncMock()
     mock_playwright.chromium.launch = mock_launch
-    pool._browser_launcher._playwright = mock_playwright
+    launcher = pool._get_launcher(pool._config.engine)
+    launcher._playwright = mock_playwright
 
-    inst = await pool._browser_launcher.create_browser()
+    inst = await launcher.create_browser()
 
     assert attempt_count == 3
     assert inst.browser is not None
@@ -153,9 +154,10 @@ async def test_browser_launch_retry_on_connection_error() -> None:
 
     mock_playwright = AsyncMock()
     mock_playwright.chromium.launch = mock_launch
-    pool._browser_launcher._playwright = mock_playwright
+    launcher = pool._get_launcher(pool._config.engine)
+    launcher._playwright = mock_playwright
 
-    inst = await pool._browser_launcher.create_browser()
+    inst = await launcher.create_browser()
 
     assert attempt_count == 3
     assert inst.browser is not None
@@ -180,9 +182,10 @@ async def test_browser_launch_retry_on_generic_exception() -> None:
 
     mock_playwright = AsyncMock()
     mock_playwright.chromium.launch = mock_launch
-    pool._browser_launcher._playwright = mock_playwright
+    launcher = pool._get_launcher(pool._config.engine)
+    launcher._playwright = mock_playwright
 
-    await pool._browser_launcher.create_browser()
+    await launcher.create_browser()
 
     assert attempt_count == 2
 
@@ -199,10 +202,11 @@ async def test_browser_launch_all_attempts_fail() -> None:
 
     mock_playwright = AsyncMock()
     mock_playwright.chromium.launch = mock_launch
-    pool._browser_launcher._playwright = mock_playwright
+    launcher = pool._get_launcher(pool._config.engine)
+    launcher._playwright = mock_playwright
 
     with pytest.raises(BrowserLaunchError, match="Failed to create Browser after 3 attempts"):
-        await pool._browser_launcher.create_browser()
+        await launcher.create_browser()
 
     await pool.shutdown()
 
@@ -221,10 +225,12 @@ async def test_browser_scaling_on_high_load() -> None:
     mock_context = AsyncMock()
     mock_browser.new_context = AsyncMock(return_value=mock_context)
 
-    with patch.object(pool._browser_launcher, "create_browser") as mock_create:
+    launcher = pool._get_launcher(pool._config.engine)
+    with patch.object(launcher, "create_browser") as mock_create:
         mock_create.return_value = BrowserInstance(browser=mock_browser)
 
-        browser_inst = await pool._browser_launcher.create_browser()
+        launcher = pool._get_launcher(pool._config.engine)
+    browser_inst = await launcher.create_browser()
         browser_inst.load = 15
         pool._browsers.append(browser_inst)
 
@@ -296,7 +302,8 @@ async def test_create_context_with_emulation() -> None:
 
     pool = GlobalBrowserPool(max_browsers=1)
 
-    browser_inst = await pool._browser_launcher.create_browser()
+    launcher = pool._get_launcher(pool._config.engine)
+    browser_inst = await launcher.create_browser()
 
     emulation = EmulationConfig(
         geolocation=(39.9, 116.4),
@@ -324,7 +331,8 @@ async def test_create_context_emulation_and_extra_kwargs() -> None:
 
     pool = GlobalBrowserPool(max_browsers=1)
 
-    browser_inst = await pool._browser_launcher.create_browser()
+    launcher = pool._get_launcher(pool._config.engine)
+    browser_inst = await launcher.create_browser()
 
     emulation = EmulationConfig(locale="zh-CN", color_scheme="light")
 
@@ -386,12 +394,13 @@ async def test_shutdown_with_playwright_stop_exception() -> None:
 
     _page, _ctx_key = await pool.acquire_page(ContextType.CRAWL)
 
-    if pool._browser_launcher._playwright:
-        pool._browser_launcher._playwright.stop = AsyncMock(side_effect=RuntimeError("Playwright stop failed"))
+    launcher = pool._get_launcher(pool._config.engine)
+    if launcher._playwright:
+        launcher._playwright.stop = AsyncMock(side_effect=RuntimeError("Playwright stop failed"))
 
     await pool.shutdown()
 
-    assert pool._browser_launcher._playwright is None
+    assert launcher._playwright is None
 
 
 # =============================================================================

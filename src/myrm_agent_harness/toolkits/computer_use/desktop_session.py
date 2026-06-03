@@ -149,12 +149,12 @@ class DesktopSession(ComputerSession):
         modifiers: list[ModifierKey] | None = None,
     ) -> str | list[object]:
         del verify_goal  # reserved for roadmap #7
-        
+
         # [SECURITY] Re-validation: If it's been > 5 seconds since the last snapshot,
         # it's highly likely the execution was delayed (e.g., human-in-the-loop approval).
         # The screen might have changed, causing a stale coordinate click. Re-verify silently.
-        REVALIDATION_THRESHOLD = 5.0
-        if time.time() - self._last_snapshot_time > REVALIDATION_THRESHOLD:
+        revalidation_threshold = 5.0
+        if time.time() - self._last_snapshot_time > revalidation_threshold:
             logger.info("[SECURITY] Re-validating desktop state before interaction (delayed %.1fs)", time.time() - self._last_snapshot_time)
             try:
                 meta, refs = capture_snapshot(self._backend, "foreground", None)
@@ -164,7 +164,7 @@ class DesktopSession(ComputerSession):
                 self._refs.replace(refs, meta)
                 self._last_snapshot_time = time.time()
             except Exception as e:
-                return f"Safety Re-validation failed: Could not re-verify screen state ({str(e)})."
+                return f"Safety Re-validation failed: Could not re-verify screen state ({e!s})."
 
         try:
             element = self._refs.get(ref)
@@ -212,8 +212,8 @@ class DesktopSession(ComputerSession):
         from myrm_agent_harness.toolkits.computer_use import safety
 
         # [SECURITY] Hard fuse for coordinate-based actions
-        REVALIDATION_THRESHOLD = 5.0
-        if time.time() - self._last_snapshot_time > REVALIDATION_THRESHOLD:
+        revalidation_threshold = 5.0
+        if time.time() - self._last_snapshot_time > revalidation_threshold:
             logger.warning("[SECURITY] Coordinate action blocked due to timeout (delayed %.1fs)", time.time() - self._last_snapshot_time)
             return "Safety Re-validation failed: The action was delayed (likely by approval) and pixel coordinates are now considered stale and unsafe. Please use 'desktop_snapshot_tool' to take a new screenshot and replan the coordinate."
 
