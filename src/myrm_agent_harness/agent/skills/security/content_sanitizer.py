@@ -47,7 +47,7 @@ class ContentSanitizer:
         ignored_indices = ignored_indices or []
         
         lines = content.splitlines()
-        match_index = 0
+        redaction_index = 0
         
         for i, line in enumerate(lines):
             original_line = line
@@ -62,61 +62,48 @@ class ContentSanitizer:
                     if matched_str.startswith("/Users/") or matched_str.startswith("/home/"):
                         reason = "Absolute Path"
                         replacement = "<REDACTED_PATH>"
+                        start_idx = match.start()
+                        end_idx = match.end()
                     else:
                         reason = "API Key / Secret"
                         replacement = "<REDACTED_SECRET>"
-                        if len(match.groups()) > 0:
-                            matched_str = match.group(1)
+                        if len(match.groups()) > 0 and match.start(1) != -1:
+                            start_idx = match.start(1)
+                            end_idx = match.end(1)
+                        else:
+                            start_idx = match.start()
+                            end_idx = match.end()
                             
                     line_matches.append({
-                        "str": matched_str,
                         "replacement": replacement,
                         "reason": reason,
-                        "start": match.start(),
-                        "end": match.end()
+                        "start": start_idx,
+                        "end": end_idx
                     })
             
-            # 按起始位置倒序排序，避免替换时索引偏移
-            line_matches.sort(key=lambda x: x["start"], reverse=True)
-            
-            # 注意：因为我们是倒序处理，所以全局 match_index 的分配需要特别注意。
-            # 为了保证前后端索引一致，前端看到的索引是按行从上到下，行内从左到右。
-            # 所以我们需要先正序分配索引，然后再倒序执行替换。
-            
-            # 重新正序排序以分配索引
-            line_matches.sort(key=lambda x: x["start"])
-            for match_info in line_matches:
-                match_info["global_index"] = match_index
-                match_index += 1
+            if line_matches:
+                # 当前行存在敏感信息，分配一个 redaction_index
+                current_index = redaction_index
+                redaction_index += 1
                 
-            # 再次倒序排序执行替换
-            line_matches.sort(key=lambda x: x["start"], reverse=True)
-            
-            line_redacted = False
-            reasons = []
-            for match_info in line_matches:
-                if match_info["global_index"] not in ignored_indices:
-                    # 仅替换当前位置的字符串，避免误伤同行其他相同的字符串
-                    start = match_info["start"]
-                    end = match_info["end"]
-                    # 由于我们可能提取了 group(1)，所以需要重新定位精确的 start/end
-                    # 但为了简单起见，如果使用了 group(1)，直接用 replace 可能会替换错位置
-                    # 更稳妥的做法是直接对 modified_line 进行切片替换
-                    # 但因为我们之前存的 start/end 是整个 group(0) 的，如果 matched_str 是 group(1)，我们需要找它在 group(0) 中的相对位置
-                    # 简化处理：直接用 replace(matched_str, replacement, 1) 可能会有风险，但大多数情况够用。
-                    # 为了绝对安全，我们还是用 replace，但限制次数。
-                    modified_line = modified_line[:start] + modified_line[start:].replace(match_info["str"], match_info["replacement"], 1)
-                    line_redacted = True
-                    if match_info["reason"] not in reasons:
-                        reasons.append(match_info["reason"])
-            
-            if line_redacted:
-                redactions.append(Redaction(
-                    line_number=i + 1,
-                    original=original_line,
-                    redacted=modified_line,
-                    reason=" / ".join(reasons)
-                ))
+                if current_index not in ignored_indices:
+                    # 按起始位置倒序排序，避免替换时索引偏移
+                    line_matches.sort(key=lambda x: x["start"], reverse=True)
+                    
+                    reasons = []
+                    for match_info in line_matches:
+                        start = match_info["start"]
+                        end = match_info["end"]
+                        modified_line = modified_line[:start] + match_info["replacement"] + modified_line[end:]
+                        if match_info["reason"] not in reasons:
+                            reasons.append(match_info["reason"])
+                    
+                    redactions.append(Redaction(
+                        line_number=i + 1,
+                        original=original_line,
+                        redacted=modified_line,
+                        reason=" / ".join(reasons)
+                    ))
             
             sanitized_lines.append(modified_line)
             

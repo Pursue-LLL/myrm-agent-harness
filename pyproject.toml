@@ -271,7 +271,7 @@ include = [
   "*/myrm_agent_harness/toolkits/goals/*",
   "*/myrm_agent_harness/toolkits/code_execution/session/*",
   "*/myrm_agent_harness/toolkits/code_execution/executors/common/wrapper_script.py",
-  "*/myrm_agent_harness/diagnostics/*",
+  "*/myrm_agent_harness/observability/diagnostics/*",
   "*/myrm_agent_harness/runtime/*",
   "*/myrm_agent_harness/utils/*",
   "*/myrm_agent_harness/eval/metrics.py",

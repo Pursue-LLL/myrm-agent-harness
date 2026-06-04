@@ -68,6 +68,7 @@ async def _judge_completion(
     goal_provider: GoalProvider,
     goal: Goal,
     last_response: str,
+    collected_messages: list[BaseMessage] | None = None,
 ) -> bool:
     """Run the semantic completion judge. Returns True if the goal is complete.
 
@@ -86,7 +87,7 @@ async def _judge_completion(
     content = last_response[:_JUDGE_RESPONSE_MAX_CHARS]
 
     try:
-        result = await goal_provider.evaluate_semantic(criteria, content)
+        result = await goal_provider.evaluate_semantic(criteria, content, context_messages=collected_messages)
         if result.passed:
             logger.info(
                 "Judge verdict: DONE for goal %s", goal.goal_id
@@ -204,7 +205,7 @@ async def check_continuation(
     # 7. Semantic completion judge (skip first N turns)
     if goal.turns_used >= _JUDGE_SKIP_INITIAL_TURNS and tools_called_this_turn:
         last_response = _extract_last_ai_response(collected_messages)
-        is_complete = await _judge_completion(goal_provider, goal, last_response)
+        is_complete = await _judge_completion(goal_provider, goal, last_response, collected_messages)
         if is_complete:
             logger.info("Goal %s completed by semantic judge", goal.goal_id)
             await goal_provider.update_status(goal.goal_id, GoalStatus.COMPLETE)

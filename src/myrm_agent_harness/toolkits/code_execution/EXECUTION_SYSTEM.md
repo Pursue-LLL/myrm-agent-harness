@@ -134,6 +134,15 @@ Python wrapper 在用户代码运行前注入一个 import 钩子，惰性拦截
 - 错误分布（按 `ErrorCategory` 分类）
 - 支持 `.to_dict()` 结构化导出
 
+### 7. ExecutionInterceptor（执行拦截器）
+
+提供在破坏性操作（如文件写入、高危 Shell 命令）执行前的 Hook 机制。
+
+- **协议**：`ExecutionInterceptor.before_destructive_action(workspace_path, action_type, payload)`
+- **触发点**：`LocalExecutor.execute_bash`（仅高危命令）和 `LocalFileOpsMixin.write_file` / `delete_file`。
+- **安全保证**：拦截器调用被包裹在严格的 `asyncio.wait_for` 超时和 `try...except` 块中，**绝不阻塞**核心代码执行。
+- **业务集成**：`myrm-agent-server` 通过此 Hook 实现基于 Git 的底层文件系统自动快照（Auto-snapshot）。
+
 ---
 
 ## Agent-in-Sandbox vs Agent-outside-Sandbox

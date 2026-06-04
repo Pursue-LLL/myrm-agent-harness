@@ -316,6 +316,35 @@ def _strip_quoted_content(command: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def is_destructive_command(command: str) -> bool:
+    """Check if a command is destructive (modifies files/state significantly).
+    
+    This is used to trigger auto-snapshots before execution.
+    """
+    if not command or not command.strip():
+        return False
+        
+    stripped = _strip_quoted_content(command)
+    normalized = " ".join(stripped.split())
+    
+    # Common destructive commands
+    destructive_patterns = [
+        r"\brm\s+",
+        r"\bmv\s+",
+        r"\bsed\s+-i\b",
+        r"\bgit\s+(reset|clean|checkout|restore|apply)\b",
+        r"\bcp\s+.*-r\b",
+        r"\bfind\s+.*-delete\b",
+        r"\bfind\s+.*-exec\s+rm\b",
+        r">\s*\S+", # Redirection overwrite
+    ]
+    
+    for pattern in destructive_patterns:
+        if re.search(pattern, normalized, re.IGNORECASE):
+            return True
+            
+    return False
+
 def analyze_command(command: str) -> tuple[CommandThreat, ...]:
     """Analyze a shell command for security threats.
 

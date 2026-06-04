@@ -7,11 +7,37 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-README_PATH = REPO_ROOT / "README.md"
-HARNESS_ROOT = REPO_ROOT / "myrm-agent-harness"
-SERVER_ROOT = REPO_ROOT / "myrm-agent" / "myrm-agent-server"
-CONTROL_PLANE_ROOT = REPO_ROOT / "myrm-control-plane"
+_TEST_FILE = Path(__file__).resolve()
+
+
+def _resolve_harness_root() -> Path:
+    """Resolve harness repo root from tests/ regardless of monorepo layout."""
+    direct_root = _TEST_FILE.parents[1]
+    if (direct_root / "src" / "myrm_agent_harness").is_dir():
+        return direct_root
+
+    monorepo_root = _TEST_FILE.parents[2]
+    nested_root = monorepo_root / "myrm-agent-harness"
+    if (nested_root / "src" / "myrm_agent_harness").is_dir():
+        return nested_root
+
+    raise RuntimeError(
+        "Could not locate myrm-agent-harness root from tests/test_readme_claims.py"
+    )
+
+
+def _resolve_monorepo_root(harness_root: Path) -> Path | None:
+    candidate = harness_root.parent
+    if (candidate / "myrm-control-plane").is_dir() and (candidate / "myrm-agent").is_dir():
+        return candidate
+    return None
+
+
+HARNESS_ROOT = _resolve_harness_root()
+README_PATH = HARNESS_ROOT / "README.md"
+MONOREPO_ROOT = _resolve_monorepo_root(HARNESS_ROOT)
+SERVER_ROOT = MONOREPO_ROOT / "myrm-agent" / "myrm-agent-server" if MONOREPO_ROOT else None
+CONTROL_PLANE_ROOT = MONOREPO_ROOT / "myrm-control-plane" if MONOREPO_ROOT else None
 
 
 def _read_text(path: Path) -> str:
@@ -31,56 +57,77 @@ def _collect_harness_test_count() -> int:
     return int(match.group("count"))
 
 
-def test_readme_test_count_is_not_overstated() -> None:
+def test_readme_does_not_overstate_test_count() -> None:
+    """If README embeds a test count, it must not exceed collected tests."""
     readme = _read_text(README_PATH)
     match = re.search(r"(?P<count>\d+)\s+tests\s*\((?P<runtime>\d+\.\d+)s runtime\)", readme)
-    assert match is not None, "README test-count claim is missing or malformed"
+    if match is None:
+        assert "pytest tests/" in readme, "README should direct readers to pytest tests/"
+        return
 
     claimed_count = int(match.group("count"))
     actual_count = _collect_harness_test_count()
-
     assert actual_count >= claimed_count, (
         f"README claims {claimed_count} tests, but harness collected only {actual_count}"
     )
 
 
 @pytest.mark.parametrize(
-    ("label", "path", "symbol"),
+    ("label", "harness_relative", "monorepo_relative", "symbol"),
     [
         (
             "Local",
-            HARNESS_ROOT
-            / "src"
+            Path("src")
             / "myrm_agent_harness"
             / "toolkits"
             / "code_execution"
             / "executors"
             / "local"
             / "executor.py",
+            None,
             "LocalExecutor",
         ),
         (
             "Docker",
-            CONTROL_PLANE_ROOT / "src" / "myrm_control_plane" / "infra" / "compute" / "docker_operations.py",
+            None,
+            Path("src") / "myrm_control_plane" / "infra" / "compute" / "docker_operations.py",
             "DockerOperations",
         ),
         (
             "E2B",
-            CONTROL_PLANE_ROOT / "src" / "myrm_control_plane" / "infra" / "compute" / "e2b_runtime.py",
+            None,
+            Path("src") / "myrm_control_plane" / "infra" / "compute" / "e2b_runtime.py",
             "E2BRuntime",
         ),
     ],
 )
-def test_readme_sandbox_modes_have_code_support(label: str, path: Path, symbol: str) -> None:
+def test_readme_sandbox_modes_have_code_support(
+    label: str,
+    harness_relative: Path | None,
+    monorepo_relative: Path | None,
+    symbol: str,
+) -> None:
     readme = _read_text(README_PATH)
     assert label in readme, f"README does not mention sandbox mode '{label}'"
+
+    if harness_relative is not None:
+        path = HARNESS_ROOT / harness_relative
+    else:
+        if CONTROL_PLANE_ROOT is None or monorepo_relative is None:
+            pytest.skip("Docker/E2B sandbox modes live in myrm-control-plane (monorepo only)")
+        path = CONTROL_PLANE_ROOT / monorepo_relative
+
     assert path.exists(), f"Missing implementation file for sandbox mode '{label}': {path}"
     assert f"class {symbol}" in _read_text(path), f"Sandbox mode '{label}' is missing {symbol}"
 
 
 def test_readme_agent_count_matches_server_agents() -> None:
     readme = _read_text(README_PATH)
-    assert "1 个统一 Agent" in readme
+    if "1 个统一 Agent" not in readme:
+        pytest.skip("README no longer documents monorepo agent count; skipping server layout check")
+
+    if SERVER_ROOT is None:
+        pytest.skip("Server agent layout check requires myrm-agent monorepo checkout")
 
     agent_files = sorted((SERVER_ROOT / "app" / "ai_agents").glob("*/agent.py"))
     assert len(agent_files) == 1, f"Expected 1 top-level agent implementation, found {len(agent_files)}"
@@ -111,10 +158,18 @@ def test_readme_performance_claims_have_supporting_evidence(
     expected_snippet: str,
 ) -> None:
     readme = _read_text(README_PATH)
-    assert claim in readme, f"README does not contain performance claim '{claim}'"
+    if claim not in readme:
+        pytest.skip(f"README no longer advertises performance claim '{claim}'")
     assert support_path.exists(), f"Missing supporting artifact for claim '{claim}': {support_path}"
     assert expected_snippet in _read_text(support_path), (
         f"Supporting artifact for '{claim}' is missing '{expected_snippet}'"
+    )
+
+
+def test_readme_disclaims_fixed_performance_numbers() -> None:
+    readme = _read_text(README_PATH)
+    assert "不承诺固定加速比" in readme or "不列举固定数字" in readme, (
+        "README should disclaim hard-coded performance marketing numbers"
     )
 
 
@@ -219,13 +274,15 @@ def test_feature_multi_llm_support() -> None:
 
 
 def test_performance_test_suite_runtime() -> None:
-    """Verify test suite runtime is reasonable"""
+    """If README embeds a runtime claim, it must be reasonable."""
     readme = _read_text(README_PATH)
     runtime_match = re.search(r"(\d+\.\d+)s runtime", readme)
 
-    if runtime_match:
-        claimed_runtime = float(runtime_match.group(1))
-        assert claimed_runtime < 60.0, f"Test runtime claim ({claimed_runtime}s) seems too slow"
+    if runtime_match is None:
+        return
+
+    claimed_runtime = float(runtime_match.group(1))
+    assert claimed_runtime < 60.0, f"Test runtime claim ({claimed_runtime}s) seems too slow"
 
 
 def test_performance_browser_vault_benchmark_exists() -> None:

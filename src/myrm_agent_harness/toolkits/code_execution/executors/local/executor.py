@@ -59,6 +59,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+from myrm_agent_harness.toolkits.code_execution.interceptor import trigger_destructive_action_hook
+from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer import is_destructive_command
+
 class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
     """Local code executor.
 
@@ -292,6 +295,14 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             )
             self.metrics.record(blocked_result, "bash")
             return blocked_result
+
+        # Trigger auto-snapshot hook if command is destructive
+        if is_destructive_command(command):
+            await trigger_destructive_action_hook(
+                workspace_path=str(self._current_workspace) if self._current_workspace else "/tmp",
+                action_type="bash",
+                payload={"command": command, "session_id": context.session_id}
+            )
 
         self._setup_workspace(str(effective_cwd) if effective_cwd else None)
 

@@ -45,9 +45,9 @@ def test_manifest_source_paths_match_yaml() -> None:
 
 
 @pytest.mark.architecture
-    def test_read_harness_version_matches_pyproject() -> None:
-        version = read_harness_version(_REPO_ROOT)
-        assert version == "0.1.0rc1"
+def test_read_harness_version_matches_pyproject() -> None:
+    version = read_harness_version(_REPO_ROOT)
+    assert version == "0.1.0rc1"
 
 
 @pytest.mark.architecture

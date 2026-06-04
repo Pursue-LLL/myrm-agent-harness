@@ -3,11 +3,19 @@
 ## Overview
 Standalone benchmark probes for validating runtime and agent performance characteristics without writing report artifacts.
 
-## File Index
+## Active Benchmarks
 
-| File | Role | Description | I/O/P |
-|------|------|-------------|-------|
-| context_archive_benchmark.py | Diagnostic | Measures context archive hash, gzip, atomic write, schema-v2 restore-map write, reuse validation, restore guidance, and CacheTtlPrune large-payload prune costs across text/JSON/unicode payload samples, including estimator snapshots, with JSON-only stdout and optional threshold enforcement for regression gates. | ✅ |
+| File | Role | Description | CI |
+|------|------|-------------|-----|
+| bench_startup_performance.py | Diagnostic | Agent/toolkit import and startup latency regression gate | Yes |
+| bench_boundary_detection.py | Diagnostic | Harness/business boundary detection performance + regression vs `baseline_boundary.json` | Yes |
+| bench_batch_performance.py | Diagnostic | Message delivery queue batch throughput (documented in ARCHITECTURE.md) | No |
+| context_archive_benchmark.py | Diagnostic | Context archive hash, gzip, atomic write, schema-v2 restore-map costs | No |
+| baseline_boundary.json | Baseline | Saved boundary-detection baseline for `--check-regression` | Yes |
+
+## Archive
+
+One-off optimization and skill-search evaluation scripts are in `archive/`. See [archive/_ARCH.md](archive/_ARCH.md).
 
 ## Key Dependencies
 

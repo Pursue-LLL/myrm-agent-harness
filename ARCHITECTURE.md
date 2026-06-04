@@ -1,6 +1,6 @@
 # Myrm Agent Harness - 架构文档
 
-> **许可**: 独立**闭源**仓库。框架层不与业务逻辑耦合，类似 LangChain，供 `myrm-agent-server` 等业务项目引用。
+> **许可**: Proprietary（见 [LICENSE](LICENSE) 与 `pyproject.toml`）。框架层不与业务逻辑耦合，类似 LangChain，供 `myrm-agent-server` 等业务项目引用。
 
 > 📐 本项目采用分形自文档结构，通过 INPUT/OUTPUT/POS 三元组和文件夹架构文档形成自组织系统。
 
@@ -59,18 +59,38 @@ Myrm Agent Harness 是一个**生产级 Agent 框架**，基于 LangChain/LangGr
 | **Public API** | `myrm_agent_harness/api/`       | **闭源分发公开接口**。第三方框架与 server 的唯一推荐 import 路径（factory、Protocol、DTO）。详见 [DISTRIBUTION_SYSTEM.md](harness_packaging/DISTRIBUTION_SYSTEM.md) |
 | Agent 核心 | `myrm_agent_harness/agent/`         | 提供 BaseAgent 和 SkillAgent 两层抽象，集成上下文管理、Hook 系统、元工具、技能系统、文件快照                                                                                                                                       |
 | SDK 入口   | `myrm_agent_harness/client.py`      | SDK Facade — 对外暴露 `AgentClient`，提供简洁的 API 配置和运行 Agent 框架                                                                                                                                                          |
-| CLI 入口   | `myrm_agent_harness/cli/`           | 命令行入口和子命令，支持框架的命令行操作模式                                                                                                                                       |
+| ACP 薄入口 | `myrm_agent_harness/agent/acp/`    | 独立 ACP Server 的 default factory 与 CLI 入口；完整 ACP runtime 在 `toolkits/acp/`                                                                                                                                                |
 | 后端抽象层 | `myrm_agent_harness/backends/`      | 定义技能后端和存储后端的协议和实现，支持本地/云端/内存多种后端                                                                                                                                                                     |
 | 基础设施层 | `myrm_agent_harness/infra/`         | 提供通用机制：统一文件锁、消息投递队列（StorageProvider + 弹性机制 + Metrics）、链路追踪、增量状态监控                                                                                                                             |
 | 运行时层   | `myrm_agent_harness/runtime/`       | Agent 单实例运行时基础设施，管理 Agent 生命周期与执行环境                                                                                                                             |
-| 功能标志层 | `myrm_agent_harness/features/`      | 提供 Feature Flag 引擎，支持功能生命周期管理与运行时动态配置查询                                                                                                                                                                   |
-| 诊断自检层 | `myrm_agent_harness/diagnostics/`   | 提供 Diagnostic Protocol，使得工具天然具备健康报告能力，暴露各组件“为什么不能工作”的原因                                                                                                                                           |
+| 功能标志   | `myrm_agent_harness/core/features/` | Feature Flag 引擎，支持功能生命周期管理与运行时动态配置查询                                                                                                                                                                        |
+| 诊断自检   | `myrm_agent_harness/observability/diagnostics/` | Diagnostic Protocol — 健康探针、benchmark probes，暴露各组件“为什么不能工作”的原因                                                                                                                                    |
 | 观测监控层 | `myrm_agent_harness/observability/` | 提供全局 Prometheus 监控基建，记录 Agent 运行时关键指标（执行耗时、工具调用、Token 消耗等）                                                                                                                                        |
 | 评估测试层 | `myrm_agent_harness/eval/`          | 提供 Agent 行为评估与自动化测试框架，支持并发执行与沙箱原生断言                                                                                                                                                                    |
 | 工具包集合 | `myrm_agent_harness/toolkits/`      | **通用工具模块集，不与 Agent 框架耦合，可独立使用**。`__init__.py` 为通用能力导出入口，`xx_agent_tools.py` 导出 Agent 工具。提供沙箱执行、存储缓存、检索系统、知识库、网络搜索、浏览器自动化、本地文件语义搜索、MCP 集成、定时任务、多平台通道、语音生成 (TTS) 等能力 |
 | 工具函数库 | `myrm_agent_harness/utils/`         | 提供通用工具函数（错误处理、日志、文本处理、Token 追踪、URL 工具）                                                                                                                                                                 |
 | 测试套件   | `tests/`                            | 单元测试、集成测试、沙箱测试、性能测试                                                                                                                                                                             |
+| 性能基准   | `benchmarks/`                       | CI 回归基准（startup、boundary）；`archive/` 存放非门禁历史脚本                                                                                                                                                                    |
 | **分发构建** | `harness_packaging/`              | 闭源分发：`assemble.py`、core manifest、Nuitka 编译、release wheel 源码剥离。详见 [DISTRIBUTION_SYSTEM.md](harness_packaging/DISTRIBUTION_SYSTEM.md) |
+
+### 跨层概念映射
+
+同名概念分布在不同层级，职责不同；**不要合并目录**。
+
+| 概念 | 目录 | 职责 |
+|------|------|------|
+| **Security** | `core/security/` | 框架无关安全原语（path policy、redact、tool registry、detection/guards） |
+| | `agent/security/` | Agent 安全引擎（HITL、rate limiter、transcript classifier）；多数模块 re-export `core/security/` |
+| | `infra/security/` | 基础设施层安全辅助（与 delivery/locks 协同） |
+| | `toolkits/security/` | 工具级 credential vault 等 |
+| **Events** | `core/events/` | 框架级事件类型与流式枚举（agent/ 与 toolkits/ 共享） |
+| | `runtime/events/` | 单实例运行时事件分发与生命周期 |
+| | `infra/events/` | 基础设施事件（delivery 队列等） |
+| **Observability** | `observability/` | 全局 Prometheus metrics + Diagnostic Protocol |
+| | `agent/observability/` | Agent 运行时 EventBus 订阅与业务可观测性桥接 |
+| | `infra/tracing/` | OpenTelemetry 链路追踪与 tracing metrics |
+| **ACP** | `agent/acp/` | 独立 Server 场景的 default factory + `__main__` CLI |
+| | `toolkits/acp/` | ACP runtime、server、toolchains 完整实现 |
 
 ---
 
@@ -78,9 +98,9 @@ Myrm Agent Harness 是一个**生产级 Agent 框架**，基于 LangChain/LangGr
 
 ### 语言与框架
 
-- **Python**: >= 3.11
-- **LangChain**: >= 0.3.0（Agent 框架）
-- **LangGraph**: >= 0.2.0（流程编排）
+- **Python**: >= 3.13（见 `pyproject.toml`）
+- **LangChain**: >= 1.3.2（Agent 框架）
+- **LangGraph**: >= 1.2.2（流程编排）
 
 ### 核心库
 

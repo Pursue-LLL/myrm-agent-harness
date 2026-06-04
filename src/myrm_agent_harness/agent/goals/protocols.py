@@ -119,7 +119,9 @@ class GoalProvider(Protocol):
         """
         ...
 
-    async def evaluate_semantic(self, criteria: str, content: str) -> VerificationResult:
+    async def evaluate_semantic(
+        self, criteria: str, content: str, context_messages: list[Any] | None = None
+    ) -> VerificationResult:
         """Evaluate a semantic criterion using an LLM judge."""
         ...
 
