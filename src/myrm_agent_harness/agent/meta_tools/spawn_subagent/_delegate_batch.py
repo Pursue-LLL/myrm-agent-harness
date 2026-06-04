@@ -79,6 +79,17 @@ class BatchDelegateInput(BaseModel):
             "result and cancel the rest. Useful for trying multiple solutions simultaneously."
         ),
     )
+    tournament: bool = Field(
+        default=False,
+        description=(
+            "Tournament Mode: Run tasks in parallel, then use an LLM Judge to evaluate all successful "
+            "results via pairwise comparison and return only the best one. Useful for subjective/creative tasks."
+        ),
+    )
+    judge_criteria: str | None = Field(
+        default=None,
+        description="Criteria for the Judge Agent to evaluate the results in tournament mode (e.g., 'Best performance', 'Cleanest code').",
+    )
     max_concurrent: int | None = Field(
         default=None,
         description=(
@@ -164,6 +175,8 @@ def create_batch_delegate_tasks_tool(
         tasks: list[TaskRequest],
         wait: bool = True,
         race: bool = False,
+        tournament: bool = False,
+        judge_criteria: str | None = None,
         max_concurrent: int | None = None,
     ) -> dict[str, object]:
         """Spawn multiple specialized subagents concurrently.
@@ -171,10 +184,24 @@ def create_batch_delegate_tasks_tool(
         Use wait=true to wait for all results.
         Use race=true for Speculative Execution: spawn multiple subagents to solve
         a hard problem in parallel. The first one to succeed wins.
+        Use tournament=true to run tasks in parallel and use an LLM Judge to pick the best result.
         Use max_concurrent to control parallelism (default: 3 for race, 1 for non-race).
         """
         if not tasks:
             return {"success": False, "error": "No tasks provided."}
+
+        if tournament:
+            wait = True
+            race = False
+            for task in tasks:
+                task.objective = (
+                    "【TOURNAMENT MODE ACTIVE】\n"
+                    "You are competing against other agents. Your output will be judged.\n"
+                    "CRITICAL: You MUST NOT perform any irreversible external actions (e.g., sending emails, calling external webhooks, making payments). "
+                    "Your execution is speculative and your sandbox may be discarded if you lose the tournament. "
+                    "Confine all your work to the local sandbox files.\n\n"
+                    f"Original Objective:\n{task.objective}"
+                )
 
         max_batch = _DEFAULT_MAX_BATCH_TASKS
         if parent_type:
@@ -220,14 +247,92 @@ def create_batch_delegate_tasks_tool(
 
         from myrm_agent_harness.agent.parallel.runner import run_parallel_task_requests
 
-        return await run_parallel_task_requests(
+        payload = await run_parallel_task_requests(
             parent_agent=parent_agent,
             delegate_tool=_delegate,
             tasks=tasks,
             wait=wait,
             race=race,
+            skip_merge=tournament,
             max_concurrent=max_concurrent,
             budget_admission=budget_admission,
         )
 
+        if tournament and payload.get("success") and "results" in payload:
+            results = payload["results"]
+            if isinstance(results, list):
+                payload = await _run_tournament_bracket(parent_agent, results, judge_criteria)
+
+        return payload
+
     return batch_delegate_tasks_func
+
+async def _run_tournament_bracket(
+    parent_agent: "BaseAgent",
+    results: list[dict[str, object]],
+    judge_criteria: str | None,
+) -> dict[str, object]:
+    """Run a pairwise PK tournament to select the best result."""
+    candidates = [r for r in results if isinstance(r, dict) and r.get("success")]
+    if not candidates:
+        return {"success": False, "error": "Tournament failed: No successful tasks to judge."}
+    
+    if len(candidates) == 1:
+        winner = candidates[0]
+    else:
+        from langchain_core.messages import SystemMessage, HumanMessage
+        
+        llm = getattr(parent_agent, "llm", None)
+        if not llm:
+            logger.warning("Parent agent has no LLM attribute. Falling back to first successful result for tournament.")
+            winner = candidates[0]
+        else:
+            current_round = candidates
+            while len(current_round) > 1:
+                next_round = []
+                for i in range(0, len(current_round), 2):
+                    if i + 1 >= len(current_round):
+                        next_round.append(current_round[i])
+                        break
+                        
+                    cand_a = current_round[i]
+                    cand_b = current_round[i+1]
+                    
+                    res_a_str = str(cand_a.get("result", cand_a))[:20000]
+                    res_b_str = str(cand_b.get("result", cand_b))[:20000]
+                    
+                    sys_prompt = "You are an expert Judge Agent. Your task is to evaluate two candidate results based on the provided criteria and select the better one."
+                    human_prompt = f"Criteria: {judge_criteria or 'Select the overall best quality and most complete result.'}\n\n"
+                    human_prompt += f"--- Candidate A ---\n{res_a_str}\n\n"
+                    human_prompt += f"--- Candidate B ---\n{res_b_str}\n\n"
+                    human_prompt += "Which candidate is better? You MUST reply with exactly 'A' or 'B' on the first line, followed by your reasoning on subsequent lines."
+                    
+                    try:
+                        response = await llm.ainvoke([SystemMessage(content=sys_prompt), HumanMessage(content=human_prompt)])
+                        content = str(response.content).strip().upper()
+                        if content.startswith("A"):
+                            next_round.append(cand_a)
+                        elif content.startswith("B"):
+                            next_round.append(cand_b)
+                        else:
+                            next_round.append(cand_a)
+                    except Exception as e:
+                        logger.error("Error during tournament judging: %s", e)
+                        next_round.append(cand_a)
+                        
+                current_round = next_round
+            winner = current_round[0]
+
+    # Merge the winner's workspace if it has one
+    from myrm_agent_harness.agent.workspace_coordination.batch_merge import (
+        merge_batch_workspace_sync_backs,
+    )
+    merge_info = await merge_batch_workspace_sync_backs([winner])
+    
+    return {
+        "success": True,
+        "status": "completed",
+        "tournament_winner": True,
+        "result": winner,
+        **merge_info
+    }

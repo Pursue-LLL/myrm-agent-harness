@@ -35,6 +35,7 @@ async def run_parallel_task_requests(
     tasks: list[TaskRequest],
     wait: bool = True,
     race: bool = False,
+    skip_merge: bool = False,
     max_concurrent: int | None = None,
     budget_admission: _BatchBudgetAdmission | None = None,
     on_progress: Callable[[int, str, dict[str, object] | None], Awaitable[None]] | None = None,
@@ -211,7 +212,7 @@ async def run_parallel_task_requests(
             budget_admission.to_dict() if budget_admission else None
         ),
     }
-    if parallel_write_batch and wait and not race:
+    if parallel_write_batch and wait and not race and not skip_merge:
         from myrm_agent_harness.agent.workspace_coordination.batch_merge import (
             merge_batch_workspace_sync_backs,
         )
