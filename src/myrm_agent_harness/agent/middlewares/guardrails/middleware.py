@@ -23,8 +23,7 @@ logger = get_agent_logger(__name__)
 class GuardrailMiddleware(AgentMiddleware[Any, Any]):
     """Evaluate tool calls against a GuardrailProvider chain before execution.
     
-    Replaces the legacy PermissionCheckMiddleware to enable fine-grained, 
-    parameter-aware authorization policies.
+    Enables fine-grained, parameter-aware authorization policies.
     """
 
     def __init__(

@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class SkillBoundaryProvider(GuardrailProvider):
     """Provider that parses tool schema and enforces skill-specific boundaries.
     
-    Replaces the generic permission check with parameter-aware isolation.
+    Provides parameter-aware isolation based on skill permissions.
     """
 
     name = "skill_boundary"

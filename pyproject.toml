@@ -35,7 +35,6 @@ dependencies = [
   # --- HTTP 与异步 I/O ---
   "httpx>=0.28.1",        # 异步 HTTP 客户端（SOCKS 由 server/渠道层按需安装）
   "aiofiles>=25.1.0",     # 异步文件 I/O
-  "orjson>=3.11.9",       # 高性能 JSON 序列化
   # --- 图片处理 (7 模块跨 4 层使用) ---
   "Pillow>=12.2.0",       # 图片读写/resize/压缩 (image_reader + image_compressor + browser/diff + file_parsers + computer_use)
   # --- Token 计数 ---
@@ -79,6 +78,7 @@ verify-harness-distribution = "myrm_agent_harness._verify_distribution:main"
 # toolkits/browser/ - 浏览器自动化（需要 Patchright）
 browser = [
   "patchright>=1.60.1", # CDP 泄露修补浏览器引擎
+  "orjson>=3.11.9",     # session vault / persistence JSON (browser toolkit only)
 ]
 # toolkits/vector/ - 向量存储（Qdrant 嵌入式/远程）
 qdrant = [

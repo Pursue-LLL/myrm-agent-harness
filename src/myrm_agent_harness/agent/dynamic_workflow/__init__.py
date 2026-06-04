@@ -1,8 +1,6 @@
 import asyncio
-import json
 import uuid
 from collections.abc import AsyncIterable
-from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
@@ -60,7 +58,7 @@ async def run_dynamic_workflow_stream(
     query: str,
     chat_history: list[BaseMessage],
     cancel_token: CancellationToken | None = None,
-) -> AsyncIterable[dict[str, Any]]:
+) -> AsyncIterable[dict[str, object]]:
     """
     The core Dynamic Workflow Engine.
     """

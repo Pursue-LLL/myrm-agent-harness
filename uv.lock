@@ -2001,7 +2001,6 @@ dependencies = [
     { name = "mcp" },
     { name = "nanoid" },
     { name = "opentelemetry-api" },
-    { name = "orjson" },
     { name = "pillow" },
     { name = "prometheus-client" },
     { name = "psutil" },
