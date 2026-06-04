@@ -2,8 +2,6 @@
 
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import Any
-
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
@@ -20,7 +18,7 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 logger = get_agent_logger(__name__)
 
 
-class GuardrailMiddleware(AgentMiddleware[Any, Any]):
+class GuardrailMiddleware(AgentMiddleware[object, object]):
     """Evaluate tool calls against a GuardrailProvider chain before execution.
     
     Enables fine-grained, parameter-aware authorization policies.

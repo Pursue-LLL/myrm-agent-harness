@@ -58,6 +58,7 @@ Does your code need to import anything from agent/?
 | commitment/ | Commitment tracking — implicit promise detection and follow-up from conversations. |
 | computer_use/ | System-wide desktop automation — screen capture + coordinate-based input (macOS/Linux). |
 | cron/ | Scheduled task framework — scheduling engine, CRUD manager, built-in strategies. |
+| context/ | Unified context bundle — volume layout, facade, index/lifecycle hook registration. |
 | file_parsers/ | File format parsers — PDF, DOCX, Excel, text, and structured data extraction. |
 | huggingface/ | Hugging Face integration — model and dataset tools for agents. |
 | interaction/ | User interaction tools — AskQuestion dialog and clipboard operations. |

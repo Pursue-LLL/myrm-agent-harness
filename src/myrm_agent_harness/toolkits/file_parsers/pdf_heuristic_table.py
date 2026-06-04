@@ -19,18 +19,20 @@ logger = logging.getLogger(__name__)
 PARTIAL_NUMBERING_PATTERN = re.compile(r"^\.\d+$")
 
 
-def extract_heuristic_tables_from_page(
-    page: pdfplumber.page.Page,
+def extract_heuristic_tables_from_words(
+    words: list[dict[str, Any]],
+    page_width: float = 612.0,
 ) -> list[tuple[list[list[str]], tuple[float, float, float, float]]]:
     """
-    Extract form-style and borderless tables from a PDF page by analyzing word spatial positions.
+    Extract form-style and borderless tables by analyzing word spatial positions.
     Returns a list of tables, each represented as a tuple of (data_matrix, bbox).
     bbox format: (x0, y0, x1, y1)
     """
-    # Extract words with slight tolerance to keep closely packed characters together
-    words = page.extract_words(keep_blank_chars=False, x_tolerance=3, y_tolerance=3)
     if not words:
         return []
+
+    # Dynamic scaling for tolerance based on page width (assuming 612 as standard letter width)
+    dynamic_col_tolerance = max(15.0, page_width * 0.065)
 
     # Group words by their Y position (rows) using a 5-point tolerance
     y_tolerance = 5
@@ -42,7 +44,6 @@ def extract_heuristic_tables_from_page(
         rows_by_y[y_key].append(word)
 
     sorted_y_keys = sorted(rows_by_y.keys())
-    page_width = page.width if hasattr(page, "width") else 612
 
     # Step 1: Analyze each row to understand its structure
     row_info: list[dict[str, Any]] = []
@@ -142,9 +143,9 @@ def extract_heuristic_tables_from_page(
 
         aligned_columns: set[int] = set()
         for word in info["words"]:
-            word_x = word["x0"]
+            word_center_x = (word["x0"] + word["x1"]) / 2.0
             for col_idx, col_x in enumerate(global_columns):
-                if abs(word_x - col_x) < 40:
+                if abs(word_center_x - col_x) < dynamic_col_tolerance:
                     aligned_columns.add(col_idx)
                     break
 
@@ -182,7 +183,7 @@ def extract_heuristic_tables_from_page(
             cells: list[str] = ["" for _ in range(num_cols)]
 
             for word in info["words"]:
-                word_x = word["x0"]
+                word_center_x = (word["x0"] + word["x1"]) / 2.0
                 # Update table bounding box
                 min_x0 = min(min_x0, float(word["x0"]))
                 min_y0 = min(min_y0, float(word["top"]))
@@ -193,7 +194,7 @@ def extract_heuristic_tables_from_page(
                 assigned_col = num_cols - 1
                 for col_idx in range(num_cols - 1):
                     col_end = global_columns[col_idx + 1]
-                    if word_x < col_end - 20:
+                    if word_center_x < col_end - (dynamic_col_tolerance / 2):
                         assigned_col = col_idx
                         break
 

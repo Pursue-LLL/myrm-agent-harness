@@ -186,6 +186,19 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
                     "messages": serialized_msgs[-20:] # Only need recent context
                 })
             )
+            # Add trace analysis for skill extraction (CAPTURED evolution)
+            from myrm_agent_harness.agent.middlewares._session_context import get_event_logger
+            event_logger = get_event_logger()
+            if event_logger and event_logger._backend:
+                _fire_and_forget(
+                    registry.enqueue(
+                        session_id, user_id, "session_evidence_extraction", {
+                            "chat_id": chat_id,
+                            "agent_id": str(merged_context.get("agent_id", "default"))
+                        }
+                    )
+                )
+
         _fire_and_forget(
             registry.enqueue(session_id, user_id, "auto_skill_extraction", {})
         )

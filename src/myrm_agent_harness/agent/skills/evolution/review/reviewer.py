@@ -277,6 +277,8 @@ async def review_trajectory_with_llm(
             rubric.result_type == "nothing"
             or rubric.total_score < 0.6
             or rubric.anti_fragmentation_score < 0.6
+            or rubric.sandbox_compatibility_score < 0.6
+            or rubric.anti_pattern_score < 0.6
         ):
             logger.info(
                 f" Skill review: nothing valuable found or rejected by Rubric (Score: {rubric.total_score:.2f}). Reason: {rubric.reasoning}"

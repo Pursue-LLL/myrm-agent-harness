@@ -250,6 +250,62 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                 )
                             ]
                         )
+
+                        # Trigger CAPTURED evolution if there are anti-patterns (failures/corrections)
+                        if digest.anti_patterns:
+                            logger.info("Found %d anti-patterns in session %s, triggering CAPTURED evolution", len(digest.anti_patterns), session_id)
+                            try:
+                                from myrm_agent_harness.agent.skills.evolution.core.engine import SkillEvolutionEngine
+                                from myrm_agent_harness.agent.skills.evolution.db.store import get_skill_store
+                                from myrm_agent_harness.agent.middlewares._session_context import get_workspace_root
+
+                                # Get trajectory text
+                                events = await event_logger._backend.get_events(session_id)
+                                trajectory = "\n".join([f"[{e.event_type}] {e.data}" for e in events])
+
+                                # Need LLM for extraction
+                                memory_manager = get_memory_manager()
+                                llm = memory_manager._consolidation_llm.keywords.get('llm') if memory_manager and hasattr(memory_manager, '_consolidation_llm') else None
+                                
+                                # Default to something if no LLM found in memory_manager
+                                if llm is None:
+                                    logger.warning("No LLM found for CAPTURED evolution in session %s", session_id)
+                                else:
+                                    store = get_skill_store(get_workspace_root())
+                                    engine = SkillEvolutionEngine(store=store, llm=llm, event_log_backend=event_logger._backend)
+                                    
+                                    # Extract proposal
+                                    proposal = await engine.capture_skill_from_trajectory(trajectory=trajectory, session_id=session_id)
+                                    
+                                    if proposal:
+                                        logger.info("Successfully extracted skill proposal '%s' from session %s", proposal.skill_id, session_id)
+                                        # Save proposal as DRAFT skill
+                                        from myrm_agent_harness.agent.skills.evolution.core.types import SkillRecord
+                                        import json
+                                        
+                                        # Use custom tags to store draft status and proposal reasoning
+                                        env = proposal.environment or EnvironmentFingerprint(custom_tags={})
+                                        env.custom_tags["is_draft"] = "true"
+                                        env.custom_tags["proposal_reasoning"] = proposal.reasoning
+                                        env.custom_tags["proposal_score"] = str(proposal.score)
+                                        
+                                        draft_record = SkillRecord(
+                                            skill_id=proposal.skill_id,
+                                            name=proposal.skill_id,
+                                            description=proposal.reasoning[:200],  # Use reasoning as initial description
+                                            content=proposal.proposed_content,
+                                            path="",  # No path yet, it's a draft in DB
+                                            environment=env,
+                                            lineage=None, # type: ignore
+                                        )
+                                        
+                                        # Save to DB
+                                        store.save_skill(draft_record)
+                                        logger.info("Saved draft skill '%s' to DB", proposal.skill_id)
+                                        
+                            except Exception as e:
+                                logger.error("Failed to trigger CAPTURED evolution for session %s: %s", session_id, e, exc_info=True)
+
                     event_data = {
                         "extracted": bool(digest),
                         "anti_patterns_count": len(digest.anti_patterns) if digest else 0,

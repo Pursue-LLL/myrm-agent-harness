@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import typing
 from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -192,45 +193,50 @@ class PDFPlumberParser(FileParser):
     def _parse_sequential(
         self,
         pdf: pdfplumber.PDF,
-    ) -> list[tuple[str, list[PDFTable], str | None]]:
-        """Sequential parsing (page by page)"""
-        results: list[tuple[str, list[PDFTable], str | None]] = []
-
+    ) -> typing.Iterator[tuple[str, list[PDFTable], str | None]]:
+        """Sequential parsing (page by page) with streaming output"""
         for page in pdf.pages:
             try:
                 text = page.extract_text() or ""
                 tables: list[PDFTable] = []
                 if self._extract_tables:
                     tables = self._extract_page_tables(page)
-                results.append((text, tables, None))
+                yield (text, tables, None)
             except Exception as e:
-                results.append(("", [], f"{type(e).__name__}: {e}"))
+                yield ("", [], f"{type(e).__name__}: {e}")
             finally:
                 if hasattr(page, "close"):
                     page.close()  # Free cached page data immediately to prevent OOM on large PDFs
 
-        return results
-
     def _parse_parallel(
         self,
         pdf: pdfplumber.PDF,
-    ) -> list[tuple[str, list[PDFTable], str | None]]:
-        """Parallel parsing (multi-threaded)"""
+    ) -> typing.Iterator[tuple[str, list[PDFTable], str | None]]:
+        """Parallel parsing (multi-threaded) with streaming ordered output"""
         from concurrent.futures import ThreadPoolExecutor, as_completed
-
-        results: list[tuple[str, list[PDFTable], str | None] | None] = [None] * len(pdf.pages)
 
         with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
             future_to_idx = {executor.submit(self._parse_single_page, page): idx for idx, page in enumerate(pdf.pages)}
 
+            next_expected_idx = 0
+            buffer: dict[int, tuple[str, list[PDFTable], str | None]] = {}
+
             for future in as_completed(future_to_idx):
                 idx = future_to_idx[future]
                 try:
-                    results[idx] = future.result()
+                    result = future.result()
                 except Exception as e:
-                    results[idx] = ("", [], f"{type(e).__name__}: {e}")
+                    result = ("", [], f"{type(e).__name__}: {e}")
 
-        return [r for r in results if r is not None]
+                if idx == next_expected_idx:
+                    yield result
+                    next_expected_idx += 1
+                    # Yield any sequential results that have already completed and are waiting in buffer
+                    while next_expected_idx in buffer:
+                        yield buffer.pop(next_expected_idx)
+                        next_expected_idx += 1
+                else:
+                    buffer[idx] = result
 
     def _parse_single_page(
         self,
@@ -279,34 +285,51 @@ class PDFPlumberParser(FileParser):
                     table_bboxes.append(raw_table.bbox)
 
             # Secondary extraction: Heuristic form/borderless table extraction (Lazy Trigger)
-            # Only trigger if we have significant text density and we can filter out explicit tables
-            def _not_in_bboxes(obj: dict[str, Any]) -> bool:
-                """Check if object is completely outside all table bboxes."""
-                x0, y0, x1, y1 = obj.get("x0", 0), obj.get("top", 0), obj.get("x1", 0), obj.get("bottom", 0)
-                for bx0, by0, bx1, by1 in table_bboxes:
-                    # If the object intersects with the bbox, filter it out
-                    if not (x1 < bx0 or x0 > bx1 or y1 < by0 or y0 > by1):
-                        return False
-                return True
+            page_text = page.extract_text() or ""
+            
+            # Lazy Trigger: Only trigger if there are multiple wide spaces indicating columnar alignment,
+            # or if the page is extremely sparse (like a scanned invoice with few chars)
+            import re
+            trigger_heuristic = False
+            # Check for multiple instances of 3+ spaces (including Tab and NBSP) which often indicate aligned columns
+            if len(re.findall(r'[ \t\xa0]{3,}', page_text)) >= 3:
+                trigger_heuristic = True
+            elif len(page.chars) < 2000 and len(table_bboxes) == 0:
+                # Sparse page without explicit tables, might be a borderless form
+                trigger_heuristic = True
 
-            # Use native filter to exclude text inside explicit tables
-            filtered_page = page.filter(_not_in_bboxes) if table_bboxes else page
+            if trigger_heuristic:
+                # Memory-Dict Collision Masking: extract words once and filter in pure Python
+                all_words = page.extract_words(keep_blank_chars=False, x_tolerance=3, y_tolerance=3)
+                
+                remaining_words = []
+                for w in all_words:
+                    w_x0, w_y0, w_x1, w_y1 = w["x0"], w["top"], w["x1"], w["bottom"]
+                    in_any_bbox = False
+                    for bx0, by0, bx1, by1 in table_bboxes:
+                        # Check intersection
+                        if not (w_x1 < bx0 or w_x0 > bx1 or w_y1 < by0 or w_y0 > by1):
+                            in_any_bbox = True
+                            break
+                    if not in_any_bbox:
+                        remaining_words.append(w)
 
-            # Extract heuristic tables from the remaining text
-            from myrm_agent_harness.toolkits.file_parsers.pdf_heuristic_table import extract_heuristic_tables_from_page
-            heuristic_tables = extract_heuristic_tables_from_page(filtered_page)
+                if remaining_words:
+                    from myrm_agent_harness.toolkits.file_parsers.pdf_heuristic_table import extract_heuristic_tables_from_words
+                    page_width = page.width if hasattr(page, "width") else 612.0
+                    heuristic_tables = extract_heuristic_tables_from_words(remaining_words, float(page_width))
 
-            # Merge heuristic table results
-            base_idx = len(tables)
-            for h_idx, (h_data, h_bbox) in enumerate(heuristic_tables):
-                tables.append(
-                    PDFTable(
-                        page_number=0,
-                        table_index=base_idx + h_idx,
-                        data=h_data,
-                        bbox=h_bbox,
-                    )
-                )
+                    # Merge heuristic table results
+                    base_idx = len(tables)
+                    for h_idx, (h_data, h_bbox) in enumerate(heuristic_tables):
+                        tables.append(
+                            PDFTable(
+                                page_number=0,
+                                table_index=base_idx + h_idx,
+                                data=h_data,
+                                bbox=h_bbox,
+                            )
+                        )
 
             # Sort all tables by their vertical position (y0) to ensure correct reading order
             tables.sort(key=lambda t: t.bbox[1] if t.bbox else 0)

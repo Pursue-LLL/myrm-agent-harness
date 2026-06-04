@@ -6,14 +6,14 @@ Defines the core OAP (Open Agent Passport) Guardrail interfaces.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 @dataclass
 class GuardrailRequest:
     """Context passed to the provider for each tool call."""
     tool_name: str
-    tool_input: dict[str, Any]
+    tool_input: dict[str, object]
     agent_id: str | None = None
     session_id: str | None = None
     timestamp: str = ""
@@ -29,7 +29,7 @@ class GuardrailDecision:
     """Provider's allow/deny verdict."""
     allow: bool
     reasons: list[GuardrailReason] = field(default_factory=list)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, object] = field(default_factory=dict)
 
 @runtime_checkable
 class GuardrailProvider(Protocol):

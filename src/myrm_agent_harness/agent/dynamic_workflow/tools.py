@@ -32,10 +32,11 @@ class SpawnSubagentTool(BaseTool):
                 return cached
 
         config = SubagentConfig(
-            max_depth=2,
-            max_concurrent=10,
-            max_budget_usd=1.0,
-            max_budget_tokens=100000,
+            system_prompt="You are a sub-agent executing a specific task.",
+            max_spawn_depth=0,
+            concurrency_limit=10,
+            max_cost_usd=1.0,
+            budget_tokens=100000,
         )
         
         result = await self.manager.spawn_child(

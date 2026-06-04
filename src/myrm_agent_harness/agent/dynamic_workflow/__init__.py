@@ -1,11 +1,12 @@
 import asyncio
+import hashlib
 import uuid
 from collections.abc import AsyncIterable
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
-from myrm_agent_harness.agent.streaming.stream_buffer import CancellationToken
+from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
 from myrm_agent_harness.agent.dynamic_workflow.tools import SpawnSubagentTool
 from myrm_agent_harness.agent.sub_agents.manager import SubagentManager
@@ -57,12 +58,16 @@ async def run_dynamic_workflow_stream(
     llm: BaseChatModel,
     query: str,
     chat_history: list[BaseMessage],
+    chat_id: str,
+    message_id: str,
     cancel_token: CancellationToken | None = None,
 ) -> AsyncIterable[dict[str, object]]:
     """
     The core Dynamic Workflow Engine.
     """
-    workflow_id = f"wf_{uuid.uuid4().hex[:8]}"
+    # Deterministic workflow_id for cache resilience on network reconnects
+    hash_input = f"{chat_id}:{message_id}".encode("utf-8")
+    workflow_id = f"wf_{hashlib.md5(hash_input).hexdigest()[:12]}"
     
     yield {
         "type": "status",
