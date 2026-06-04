@@ -15,6 +15,9 @@ on:
       - 'packages/myrm-agent-harness-core/**'
       - '.pre-commit-config.yaml'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   boundary-check:
     name: Harness/Business Boundary Check

@@ -13,6 +13,9 @@ on:
       - 'scripts/validate_tool_registry.py'
       - '.pre-commit-config.yaml'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   tool-registry-check:
     name: Tool Registry Consistency Check
