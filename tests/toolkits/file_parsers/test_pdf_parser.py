@@ -15,7 +15,18 @@ def _make_mock_page(
     """Create a mock pdfplumber page."""
     page = Mock()
     page.extract_text = Mock(return_value=text)
-    page.extract_tables = Mock(return_value=tables or [])
+
+    raw_tables = []
+    if tables:
+        for table_data in tables:
+            rt = Mock()
+            rt.extract.return_value = table_data
+            rt.bbox = (0, 0, 100, 100)
+            raw_tables.append(rt)
+
+    page.find_tables = Mock(return_value=raw_tables)
+    page.chars = []
+    page.extract_words = Mock(return_value=[])
     page.page_obj = Mock()
     page.page_obj.pageid = page_obj_id
     return page
@@ -92,10 +103,12 @@ class TestParseSyncImportError:
         test_pdf = tmp_path / "test.pdf"
         test_pdf.write_text("dummy")
 
-        with patch.dict("sys.modules", {"pdfplumber": None}):
-            with patch("builtins.__import__", side_effect=ImportError("no pdfplumber")):
-                with pytest.raises(ImportError, match="pdfplumber"):
-                    parser.parse_sync(str(test_pdf))
+        with (
+            patch.dict("sys.modules", {"pdfplumber": None}),
+            patch("builtins.__import__", side_effect=ImportError("no pdfplumber")),
+            pytest.raises(ImportError, match="pdfplumber"),
+        ):
+            parser.parse_sync(str(test_pdf))
 
 
 class TestTableExtraction:
@@ -105,9 +118,14 @@ class TestTableExtraction:
         """Tables are extracted and cleaned."""
         parser = PDFPlumberParser(extract_tables=True, extract_bookmarks=False)
         page = Mock()
-        page.extract_tables = Mock(
-            return_value=[[["Header1", "Header2"], ["val1", "val2"], ["val3", None]]]
-        )
+
+        raw_table = Mock()
+        raw_table.extract.return_value = [["Header1", "Header2"], ["val1", "val2"], ["val3", None]]
+        raw_table.bbox = (0, 0, 100, 100)
+        page.find_tables = Mock(return_value=[raw_table])
+        page.extract_text = Mock(return_value="Page content")
+        page.chars = []
+        page.extract_words = Mock(return_value=[])
 
         tables = parser._extract_page_tables(page)
 
@@ -119,7 +137,10 @@ class TestTableExtraction:
         """Empty tables return empty list."""
         parser = PDFPlumberParser(extract_tables=True)
         page = Mock()
-        page.extract_tables = Mock(return_value=[])
+        page.find_tables = Mock(return_value=[])
+        page.extract_text = Mock(return_value="Page content")
+        page.chars = []
+        page.extract_words = Mock(return_value=[])
 
         tables = parser._extract_page_tables(page)
         assert tables == []
@@ -128,16 +149,17 @@ class TestTableExtraction:
         """Table extraction exception is handled gracefully."""
         parser = PDFPlumberParser(extract_tables=True)
         page = Mock()
-        page.extract_tables = Mock(side_effect=RuntimeError("corrupt"))
+        page.find_tables = Mock(side_effect=RuntimeError("corrupt"))
+        page.extract_text = Mock(return_value="Page content")
+        page.chars = []
+        page.extract_words = Mock(return_value=[])
 
         tables = parser._extract_page_tables(page)
         assert tables == []
 
     def test_clean_table_data_removes_empty_rows(self):
         """Rows with all empty cells are removed."""
-        result = PDFPlumberParser._clean_table_data(
-            [["a", "b"], [None, None], ["c", ""]]
-        )
+        result = PDFPlumberParser._clean_table_data([["a", "b"], [None, None], ["c", ""]])
         assert len(result) == 2
         assert result[0] == ["a", "b"]
         assert result[1] == ["c", ""]
@@ -168,9 +190,7 @@ class TestTableFormatting:
 
     def test_format_table_markdown_single_row(self):
         """Table with only headers (no data) produces fallback."""
-        table = PDFTable(
-            page_number=1, table_index=0, data=[["Col1"]], bbox=None
-        )
+        table = PDFTable(page_number=1, table_index=0, data=[["Col1"]], bbox=None)
         result = PDFPlumberParser._format_table_markdown(table)
         assert "empty" in result.lower()
 
@@ -239,9 +259,7 @@ class TestParallelParsing:
 
     def test_parallel_mode_activated(self, tmp_path):
         """Parallel mode triggers for >10 pages."""
-        parser = PDFPlumberParser(
-            parallel=True, extract_tables=False, extract_bookmarks=False
-        )
+        parser = PDFPlumberParser(parallel=True, extract_tables=False, extract_bookmarks=False)
         test_pdf = tmp_path / "test.pdf"
         test_pdf.write_text("dummy")
 

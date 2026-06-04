@@ -341,6 +341,12 @@ async def generate_structured_summary(
 
     protected_head = extract_protected_head(messages)
 
+    # Remove old preserved context messages to prevent accumulation
+    protected_head = [
+        msg for msg in protected_head
+        if not (isinstance(msg, SystemMessage) and str(msg.content).startswith("[SYSTEM: PRESERVED CONTEXT]"))
+    ]
+
     # --- Generic Context Preservation Logic ---
     # Extracts <preserve_context> tags from any message, deduplicates them,
     # truncates them to prevent OOM, and injects them into the protected_head
@@ -362,10 +368,11 @@ async def generate_structured_summary(
 
             block_hash = hashlib.md5(clean_match.encode('utf-8')).hexdigest()
             if block_hash not in rescued_context_blocks:
-                rescued_context_blocks[block_hash] = clean_match
+                # Re-wrap in tags so it survives multiple summarizations
+                rescued_context_blocks[block_hash] = f"<preserve_context>\n{clean_match}\n</preserve_context>"
 
     if rescued_context_blocks:
-        combined_preserved = "\n\n---\n\n".join(rescued_context_blocks.values())
+        combined_preserved = "\n\n".join(rescued_context_blocks.values())
         # Inject directly into protected_head (Prefix) to maximize cache hits
         protected_head.append(
             SystemMessage(content=f"[SYSTEM: PRESERVED CONTEXT]\nThe following critical context was preserved from history:\n{combined_preserved}")

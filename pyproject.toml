@@ -66,6 +66,7 @@ dependencies = [
   "tree-sitter-go>=0.25.0",
   "tree-sitter-rust>=0.24.2",
   "tree-sitter-java>=0.23.5",
+  "pdfplumber>=0.11.9",
 ]
 
 [project.urls]

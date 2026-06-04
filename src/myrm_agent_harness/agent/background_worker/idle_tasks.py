@@ -252,6 +252,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                         )
 
                         # Trigger CAPTURED evolution if there are anti-patterns (failures/corrections)
+                        proposal_dict = None
                         if digest.anti_patterns:
                             logger.info("Found %d anti-patterns in session %s, triggering CAPTURED evolution", len(digest.anti_patterns), session_id)
                             try:
@@ -274,34 +275,25 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                     store = get_skill_store(get_workspace_root())
                                     engine = SkillEvolutionEngine(store=store, llm=llm, event_log_backend=event_logger._backend)
                                     
+                                    # Get agent_id from payload
+                                    agent_id = task.payload.get("agent_id", "default")
+                                    chat_id = task.payload.get("chat_id")
+                                    
                                     # Extract proposal
                                     proposal = await engine.capture_skill_from_trajectory(trajectory=trajectory, session_id=session_id)
                                     
                                     if proposal:
                                         logger.info("Successfully extracted skill proposal '%s' from session %s", proposal.skill_id, session_id)
-                                        # Save proposal as DRAFT skill
-                                        from myrm_agent_harness.agent.skills.evolution.core.types import SkillRecord
-                                        import json
-                                        
-                                        # Use custom tags to store draft status and proposal reasoning
-                                        env = proposal.environment or EnvironmentFingerprint(custom_tags={})
-                                        env.custom_tags["is_draft"] = "true"
-                                        env.custom_tags["proposal_reasoning"] = proposal.reasoning
-                                        env.custom_tags["proposal_score"] = str(proposal.score)
-                                        
-                                        draft_record = SkillRecord(
-                                            skill_id=proposal.skill_id,
-                                            name=proposal.skill_id,
-                                            description=proposal.reasoning[:200],  # Use reasoning as initial description
-                                            content=proposal.proposed_content,
-                                            path="",  # No path yet, it's a draft in DB
-                                            environment=env,
-                                            lineage=None, # type: ignore
-                                        )
-                                        
-                                        # Save to DB
-                                        store.save_skill(draft_record)
-                                        logger.info("Saved draft skill '%s' to DB", proposal.skill_id)
+                                        # Do NOT save to SQLite here. Harness is pure.
+                                        # Instead, package it into the event data so Server can pick it up.
+                                        proposal_dict = {
+                                            "skill_id": proposal.skill_id,
+                                            "reasoning": proposal.reasoning,
+                                            "proposed_content": proposal.proposed_content,
+                                            "score": float(proposal.score),
+                                            "agent_id": agent_id,
+                                            "chat_id": chat_id
+                                        }
                                         
                             except Exception as e:
                                 logger.error("Failed to trigger CAPTURED evolution for session %s: %s", session_id, e, exc_info=True)
@@ -309,6 +301,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                     event_data = {
                         "extracted": bool(digest),
                         "anti_patterns_count": len(digest.anti_patterns) if digest else 0,
+                        "proposal": proposal_dict
                     }
                     logger.info("Session evidence extraction completed for %s", session_id)
                 else:

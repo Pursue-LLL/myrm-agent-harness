@@ -122,6 +122,11 @@ class FileReadInput(BaseModel):
         default=None, description="执行命令的原因（可选，用于日志）"
     )
 
+    preserve_in_context: bool = Field(
+        default=False,
+        description="如果为 true，读取的内容将被打上保护标签，在长对话压缩时不会被遗忘。仅对核心规范、技能文件等极其重要的内容使用。"
+    )
+
     @field_validator("paths", mode="before")
     @classmethod
     def normalize_paths(cls, v: list[str] | str | None) -> list[str] | None:
@@ -300,6 +305,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
         mode: str = "all",
         chunk_size_mb: int = 10,
         reason: str | None = None,
+        preserve_in_context: bool = False,
         *,
         config: RunnableConfig,
     ) -> str | Sequence[object]:
@@ -359,7 +365,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
 
             has_documents = bool(document_paths) and executor is not None
             if (use_multimodal or has_documents) and executor is not None:
-                return await _build_multimodal_result(
+                blocks = await _build_multimodal_result(
                     image_paths,
                     pdf_paths,
                     document_paths,
@@ -372,6 +378,10 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
                     vision_fallback_model_cfg=vision_fallback_model_cfg,
                     video_paths=video_paths,
                 )
+                if preserve_in_context:
+                    blocks.insert(0, create_text_block("<preserve_context>\n"))
+                    blocks.append(create_text_block("\n</preserve_context>"))
+                return blocks
 
             text_parts: list[str] = list(url_errors)
 
@@ -698,7 +708,10 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
                 text_parts.extend(text_content_parts)
 
             result = "\n\n".join(text_parts) if text_parts else "No results."
-            return redact_sensitive_text(result)
+            final_text = redact_sensitive_text(result)
+            if preserve_in_context:
+                final_text = f"<preserve_context>\n{final_text}\n</preserve_context>"
+            return final_text
 
         except ToolError:
             raise

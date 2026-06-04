@@ -1,6 +1,6 @@
 """Heuristic PDF Table Extractor
 
-Implements an advanced spatial coordinate clustering algorithm to extract 
+Implements an advanced spatial coordinate clustering algorithm to extract
 borderless forms and hidden-grid tables from PDF pages.
 """
 
@@ -11,7 +11,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    import pdfplumber.page
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -207,17 +207,11 @@ def extract_heuristic_tables_from_words(
 
         # Drop entirely empty columns for this specific table
         if table_data:
-            valid_cols = [
-                col_idx for col_idx in range(num_cols)
-                if any(row[col_idx].strip() for row in table_data)
-            ]
+            valid_cols = [col_idx for col_idx in range(num_cols) if any(row[col_idx].strip() for row in table_data)]
             if not valid_cols:
                 continue
 
-            cleaned_table = [
-                [row[col_idx] for col_idx in valid_cols]
-                for row in table_data
-            ]
+            cleaned_table = [[row[col_idx] for col_idx in valid_cols] for row in table_data]
 
             extracted_tables.append((cleaned_table, (min_x0, min_y0, max_x1, max_y1)))
 

@@ -5,7 +5,6 @@ Enforces parameter-aware boundaries for loaded skills.
 
 import logging
 from collections.abc import Callable
-from typing import Any
 
 from myrm_agent_harness.agent.middlewares.guardrails.core import (
     GuardrailDecision,
@@ -19,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class SkillBoundaryProvider(GuardrailProvider):
     """Provider that parses tool schema and enforces skill-specific boundaries.
-    
+
     Provides parameter-aware isolation based on skill permissions.
     """
 
@@ -47,7 +46,7 @@ class SkillBoundaryProvider(GuardrailProvider):
             return "env_var_access"
         return None
 
-    def _extract_critical_params(self, tool_name: str, tool_input: dict[str, Any]) -> str:
+    def _extract_critical_params(self, tool_name: str, tool_input: dict[str, object]) -> str:
         """Extract schema-aware boundary parameters."""
         perm_type = self._infer_permission_type(tool_name)
         if perm_type in ("file_read", "file_write", "file_delete"):

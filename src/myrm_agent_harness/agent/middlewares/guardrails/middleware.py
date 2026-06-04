@@ -2,6 +2,7 @@
 
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
@@ -20,7 +21,7 @@ logger = get_agent_logger(__name__)
 
 class GuardrailMiddleware(AgentMiddleware[object, object]):
     """Evaluate tool calls against a GuardrailProvider chain before execution.
-    
+
     Enables fine-grained, parameter-aware authorization policies.
     """
 
@@ -71,7 +72,7 @@ class GuardrailMiddleware(AgentMiddleware[object, object]):
 
     async def on_tool_start(self, tool: str, input_str: str, **kwargs: object) -> str | None:
         """Legacy compatibility for string-based check if needed.
-        
+
         We implement the actual interception in wrap_tool_call/awrap_tool_call instead.
         """
         return None

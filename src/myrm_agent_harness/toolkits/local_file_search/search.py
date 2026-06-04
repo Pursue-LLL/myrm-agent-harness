@@ -60,7 +60,7 @@ class LocalFileSearchEngine:
         directory_id_filter: str | None = None,
         score_threshold: float = 0.0,
     ) -> SearchResponse:
-        """Search indexed local files.
+        """Search indexed local files using Vector + BM25 dual-path recall.
 
         Args:
             query: Natural language search query
@@ -88,13 +88,84 @@ class LocalFileSearchEngine:
 
         candidate_k = top_k * 3 if self._reranker else top_k
 
-        results = await self._store.search(
+        # 1. Vector Search
+        vector_results = await self._store.search(
             collection=VECTOR_COLLECTION_NAME,
             query_vector=query_vector,
             limit=candidate_k,
             filters=filters if filters else None,
             score_threshold=score_threshold if score_threshold > 0 else None,
         )
+
+        # 2. BM25 Search (Path + Content approximation via scroll)
+        # In a real production system, BM25 index should be maintained by the indexer.
+        # Here we use the existing bm25_retrieval for exact filename and keyword matching
+        # by scrolling the vector store to get the corpus.
+        bm25_results = []
+        try:
+            from myrm_agent_harness.toolkits.retriever.bm25_retrieval import bm25_retrieval
+            
+            # Fetch all documents for BM25 (in a real system, this would be cached)
+            # We fetch up to 10000 documents to avoid OOM
+            all_docs = await self._store.scroll(
+                collection=VECTOR_COLLECTION_NAME,
+                limit=10000,
+                filters=filters if filters else None
+            )
+            
+            if all_docs:
+                # We build the BM25 corpus using both the file path and the content
+                corpus = [
+                    f"{doc.metadata.get('source_path', '')} {doc.content}" 
+                    for doc in all_docs
+                ]
+                
+                # Perform BM25 retrieval
+                bm25_hits = bm25_retrieval(corpus, query, top_k=candidate_k, only_relevant=True)
+                
+                # Convert BM25 hits to SearchResult format (score normalized to 0-1 range roughly)
+                max_bm25_score = max((score for _, score in bm25_hits), default=1.0)
+                for idx, score in bm25_hits:
+                    normalized_score = score / max_bm25_score if max_bm25_score > 0 else 0.0
+                    if score_threshold > 0 and normalized_score < score_threshold:
+                        continue
+                        
+                    from myrm_agent_harness.toolkits.vector.base import SearchResult
+                    bm25_results.append(
+                        SearchResult(
+                            document=all_docs[idx],
+                            score=normalized_score
+                        )
+                    )
+        except Exception as e:
+            logger.warning(f"BM25 retrieval failed: {e}")
+
+        # 3. RRF Fusion (Vector + BM25)
+        fused_results = []
+        if bm25_results:
+            # Simple RRF implementation for the two lists
+            rrf_k = 60
+            scores: dict[str, float] = {}
+            payloads: dict[str, SearchResult] = {}
+            
+            for rank, res in enumerate(vector_results):
+                payloads[res.document.id] = res
+                scores[res.document.id] = scores.get(res.document.id, 0.0) + 1.0 / (rrf_k + rank + 1)
+                
+            for rank, res in enumerate(bm25_results):
+                payloads[res.document.id] = res
+                scores[res.document.id] = scores.get(res.document.id, 0.0) + 1.0 / (rrf_k + rank + 1)
+                
+            # Sort by RRF score
+            ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:candidate_k]
+            
+            # Reconstruct results
+            for doc_id, _ in ordered:
+                fused_results.append(payloads[doc_id])
+        else:
+            fused_results = vector_results
+
+        results = fused_results
 
         if not results:
             elapsed = (time.perf_counter() - start_time) * 1000

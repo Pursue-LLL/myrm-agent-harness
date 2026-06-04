@@ -352,14 +352,14 @@ def create_delegate_task_tool(
                 logger.info(f"Running adversarial verification for subagent {task_id}")
                 from myrm_agent_harness.agent.sub_agents.orchestrator import run_with_verification
                 from myrm_agent_harness.agent.sub_agents.types import WorkspacePolicy
-                
+
                 v_type = verifier_agent_type or agent_type
                 v_config = await catalog.resolve(v_type)
                 if not v_config:
                     logger.warning("Verifier agent type '%s' not found, falling back to worker type '%s'", v_type, agent_type)
                     v_type = agent_type
                     v_config = config
-                
+
                 verifier_config = replace(v_config, workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX)
 
                 result = await run_with_verification(

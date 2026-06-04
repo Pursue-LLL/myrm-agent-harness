@@ -286,13 +286,14 @@ class PDFPlumberParser(FileParser):
 
             # Secondary extraction: Heuristic form/borderless table extraction (Lazy Trigger)
             page_text = page.extract_text() or ""
-            
+
             # Lazy Trigger: Only trigger if there are multiple wide spaces indicating columnar alignment,
             # or if the page is extremely sparse (like a scanned invoice with few chars)
             import re
+
             trigger_heuristic = False
             # Check for multiple instances of 3+ spaces (including Tab and NBSP) which often indicate aligned columns
-            if len(re.findall(r'[ \t\xa0]{3,}', page_text)) >= 3:
+            if len(re.findall(r"[ \t\xa0]{3,}", page_text)) >= 3:
                 trigger_heuristic = True
             elif len(page.chars) < 2000 and len(table_bboxes) == 0:
                 # Sparse page without explicit tables, might be a borderless form
@@ -301,7 +302,7 @@ class PDFPlumberParser(FileParser):
             if trigger_heuristic:
                 # Memory-Dict Collision Masking: extract words once and filter in pure Python
                 all_words = page.extract_words(keep_blank_chars=False, x_tolerance=3, y_tolerance=3)
-                
+
                 remaining_words = []
                 for w in all_words:
                     w_x0, w_y0, w_x1, w_y1 = w["x0"], w["top"], w["x1"], w["bottom"]
@@ -315,7 +316,10 @@ class PDFPlumberParser(FileParser):
                         remaining_words.append(w)
 
                 if remaining_words:
-                    from myrm_agent_harness.toolkits.file_parsers.pdf_heuristic_table import extract_heuristic_tables_from_words
+                    from myrm_agent_harness.toolkits.file_parsers.pdf_heuristic_table import (
+                        extract_heuristic_tables_from_words,
+                    )
+
                     page_width = page.width if hasattr(page, "width") else 612.0
                     heuristic_tables = extract_heuristic_tables_from_words(remaining_words, float(page_width))
 

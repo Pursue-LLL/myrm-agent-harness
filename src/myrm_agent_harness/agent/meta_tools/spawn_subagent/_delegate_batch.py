@@ -280,7 +280,7 @@ def create_batch_delegate_tasks_tool(
     return batch_delegate_tasks_func
 
 async def _run_tournament_bracket(
-    parent_agent: "BaseAgent",
+    parent_agent: BaseAgent,
     results: list[dict[str, object]],
     judge_criteria: str | None,
 ) -> dict[str, object]:
@@ -288,12 +288,12 @@ async def _run_tournament_bracket(
     candidates = [r for r in results if isinstance(r, dict) and r.get("success")]
     if not candidates:
         return {"success": False, "error": "Tournament failed: No successful tasks to judge."}
-    
+
     if len(candidates) == 1:
         winner = candidates[0]
     else:
-        from langchain_core.messages import SystemMessage, HumanMessage
-        
+        from langchain_core.messages import HumanMessage, SystemMessage
+
         llm = getattr(parent_agent, "llm", None)
         if not llm:
             logger.warning("Parent agent has no LLM attribute. Falling back to first successful result for tournament.")
@@ -306,19 +306,19 @@ async def _run_tournament_bracket(
                     if i + 1 >= len(current_round):
                         next_round.append(current_round[i])
                         break
-                        
+
                     cand_a = current_round[i]
                     cand_b = current_round[i+1]
-                    
+
                     res_a_str = str(cand_a.get("result", cand_a))[:20000]
                     res_b_str = str(cand_b.get("result", cand_b))[:20000]
-                    
+
                     sys_prompt = "You are an expert Judge Agent. Your task is to evaluate two candidate results based on the provided criteria and select the better one."
                     human_prompt = f"Criteria: {judge_criteria or 'Select the overall best quality and most complete result.'}\n\n"
                     human_prompt += f"--- Candidate A ---\n{res_a_str}\n\n"
                     human_prompt += f"--- Candidate B ---\n{res_b_str}\n\n"
                     human_prompt += "Which candidate is better? You MUST reply with exactly 'A' or 'B' on the first line, followed by your reasoning on subsequent lines."
-                    
+
                     try:
                         response = await llm.ainvoke([SystemMessage(content=sys_prompt), HumanMessage(content=human_prompt)])
                         content = str(response.content).strip().upper()
@@ -331,7 +331,7 @@ async def _run_tournament_bracket(
                     except Exception as e:
                         logger.error("Error during tournament judging: %s", e)
                         next_round.append(cand_a)
-                        
+
                 current_round = next_round
             winner = current_round[0]
 
@@ -340,7 +340,7 @@ async def _run_tournament_bracket(
         merge_batch_workspace_sync_backs,
     )
     merge_info = await merge_batch_workspace_sync_backs([winner])
-    
+
     return {
         "success": True,
         "status": "completed",
