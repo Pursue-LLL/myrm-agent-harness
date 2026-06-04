@@ -1,4 +1,4 @@
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
@@ -11,7 +11,6 @@ class SpawnSubagentInput(BaseModel):
     task_id: str = Field(..., description="Unique identifier for this sub-agent task.")
     agent_type: str = Field(..., description="Type of agent to spawn (e.g., 'generalPurpose', 'shell').")
     task_description: str = Field(..., description="The prompt/task for the sub-agent to execute.")
-    # Add other fields as needed, keeping it simple for now
 
 class SpawnSubagentTool(BaseTool):
     name: str = "spawn_subagent"
@@ -23,17 +22,15 @@ class SpawnSubagentTool(BaseTool):
     workflow_id: str
     store: Optional[WorkflowEventStore] = None
     
-    def _run(self, task_id: str, agent_type: str, task_description: str) -> Any:
+    def _run(self, task_id: str, agent_type: str, task_description: str) -> object:
         raise NotImplementedError("SpawnSubagentTool only supports async execution.")
         
-    async def _arun(self, task_id: str, agent_type: str, task_description: str) -> Any:
-        # 1. Check Event Store for cached result (Durable Execution)
+    async def _arun(self, task_id: str, agent_type: str, task_description: str) -> object:
         if self.store:
             cached = self.store.get_cached_result(self.workflow_id, task_id)
             if cached:
                 return cached
 
-        # 2. Default config for dynamic workflow sub-agents
         config = SubagentConfig(
             max_depth=2,
             max_concurrent=10,
@@ -41,7 +38,6 @@ class SpawnSubagentTool(BaseTool):
             max_budget_tokens=100000,
         )
         
-        # 3. Spawn and wait
         result = await self.manager.spawn_child(
             task_id=task_id,
             agent_type=agent_type,
@@ -49,10 +45,9 @@ class SpawnSubagentTool(BaseTool):
             config=config,
             context={},
             tool_registry_getter=self.tool_registry_getter,
-            wait=True, # Block until complete
+            wait=True,
         )
         
-        # 4. Format result
         if isinstance(result, dict):
             final_result = result
         else:
@@ -64,7 +59,6 @@ class SpawnSubagentTool(BaseTool):
                 "error": result.error,
             }
             
-        # 5. Save to Event Store
         if self.store:
             self.store.save_result(
                 workflow_id=self.workflow_id,

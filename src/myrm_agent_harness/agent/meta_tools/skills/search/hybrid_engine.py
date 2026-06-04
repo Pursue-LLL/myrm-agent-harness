@@ -21,14 +21,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from types import ModuleType
 from typing import TYPE_CHECKING
-
-import numpy as np
 
 from .engine import SkillSearchEngine
 from .types import SKILL_SEARCH_TOP_K, SearchMetadata, SkillSearchResult
 
 if TYPE_CHECKING:
+    import numpy as np
     import numpy.typing as npt
 
     from myrm_agent_harness.backends.skills.types import SkillMetadata
@@ -40,6 +40,17 @@ logger = logging.getLogger(__name__)
 DEFAULT_MIN_RELEVANCE_SCORE = 0.3
 DEFAULT_RRF_K = 60
 DEFAULT_RECALL_MULTIPLIER = 2
+
+
+def _require_numpy() -> ModuleType:
+    """Import numpy lazily so base installs without [retrieval] can import this module."""
+    try:
+        import numpy as np
+    except ImportError as exc:
+        raise RuntimeError(
+            "numpy is required for hybrid skill search. Install myrm-agent-harness[retrieval]."
+        ) from exc
+    return np
 
 
 class HybridSkillSearchEngine:
@@ -112,6 +123,7 @@ class HybridSkillSearchEngine:
             if self._skill_vectors is not None:
                 return
 
+            np = _require_numpy()
             start_time = time.perf_counter()
             corpus = [f"{s.name} {s.description}" for s in self._skills]
 
@@ -273,6 +285,7 @@ class HybridSkillSearchEngine:
         Returns:
             Embedding 搜索结果
         """
+        np = _require_numpy()
         embed_start = time.perf_counter()
 
         query_vector = np.array(await self._embeddings.embed(query), dtype=np.float64)

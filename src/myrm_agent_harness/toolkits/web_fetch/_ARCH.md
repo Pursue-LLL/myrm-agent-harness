@@ -26,3 +26,4 @@ Web fetch toolkit entry point. Re-exports the core crawl engine and result types
 ## Key Dependencies
 
 - `utils`
+- Core wheels: `beautifulsoup4`, `lxml` (see `content_pruning.py`, `tree_truncator.py`)

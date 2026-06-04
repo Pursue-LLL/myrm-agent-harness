@@ -49,7 +49,6 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from langchain_core.messages import HumanMessage
-from prometheus_client import REGISTRY, Counter, Histogram
 
 from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionRequest,
@@ -63,48 +62,30 @@ if TYPE_CHECKING:
 
     from .store import SkillStore
 
+from myrm_agent_harness.observability.metrics import (
+    get_or_create_counter,
+    get_or_create_histogram,
+)
+
 logger = logging.getLogger(__name__)
 
 
-# Prometheus metrics
-def _get_or_create_counter(name, documentation, labelnames):
-    if name in REGISTRY._names_to_collectors:
-        return REGISTRY._names_to_collectors[name]
-    return Counter(name, documentation, labelnames)
-
-
-def _get_or_create_histogram(name, documentation, buckets=None, labelnames=None):
-    if name in REGISTRY._names_to_collectors:
-        return REGISTRY._names_to_collectors[name]
-    kwargs = {}
-    if labelnames is not None:
-        kwargs["labelnames"] = labelnames
-    if buckets is not None:
-        kwargs["buckets"] = buckets
-    else:
-        kwargs["buckets"] = Histogram.DEFAULT_BUCKETS
-    return Histogram(name, documentation, **kwargs)
-
-
-SCREENING_TOTAL = _get_or_create_counter(
+SCREENING_TOTAL = get_or_create_counter(
     "evolution_screening_total",
     "Total evolution screening requests",
-    [
-        "phase",
-        "result",
-    ],  # phase: cooldown|llm_confirmation|none; result: allowed|blocked
+    ("phase", "result"),  # phase: cooldown|llm_confirmation|none; result: allowed|blocked
 )
 
-SCREENING_CONFIDENCE = _get_or_create_histogram(
+SCREENING_CONFIDENCE = get_or_create_histogram(
     "evolution_screening_confidence",
     "LLM confidence distribution for screening decisions",
-    buckets=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+    buckets=(0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
 )
 
-SCREENING_DURATION = _get_or_create_histogram(
+SCREENING_DURATION = get_or_create_histogram(
     "evolution_screening_duration_seconds",
     "Evolution screening duration in seconds",
-    labelnames=["phase"],  # phase: cooldown|llm_confirmation|total
+    labelnames=("phase",),  # phase: cooldown|llm_confirmation|total
 )
 
 __all__ = ["EvolutionScreener", "ScreeningResult"]

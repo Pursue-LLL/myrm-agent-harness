@@ -52,6 +52,8 @@ __all__ = [
     "create_counter",
     "create_gauge",
     "create_histogram",
+    "get_or_create_counter",
+    "get_or_create_histogram",
 ]
 
 
@@ -174,3 +176,52 @@ def create_histogram(
     if buckets:
         return Histogram(full_name, description, labelnames, buckets=buckets)
     return Histogram(full_name, description, labelnames)
+
+
+class _NoOpLabeled:
+    def inc(self, amount: float = 1) -> None:
+        pass
+
+    def observe(self, amount: float) -> None:
+        pass
+
+
+class _NoOpMetric:
+    def labels(self, **kwargs: object) -> _NoOpLabeled:
+        return _NoOpLabeled()
+
+
+def get_or_create_counter(
+    name: str,
+    documentation: str,
+    labelnames: tuple[str, ...] = (),
+) -> Counter | _NoOpMetric:
+    """Return an existing Prometheus counter or create one (idempotent by name)."""
+    if not PROMETHEUS_AVAILABLE:
+        return _NoOpMetric()
+    from prometheus_client import REGISTRY
+
+    existing = REGISTRY._names_to_collectors.get(name)
+    if existing is not None:
+        return existing  # type: ignore[return-value]
+    return Counter(name, documentation, labelnames)
+
+
+def get_or_create_histogram(
+    name: str,
+    documentation: str,
+    *,
+    labelnames: tuple[str, ...] = (),
+    buckets: tuple[float, ...] | None = None,
+) -> Histogram | _NoOpMetric:
+    """Return an existing Prometheus histogram or create one (idempotent by name)."""
+    if not PROMETHEUS_AVAILABLE:
+        return _NoOpMetric()
+    from prometheus_client import REGISTRY
+
+    existing = REGISTRY._names_to_collectors.get(name)
+    if existing is not None:
+        return existing  # type: ignore[return-value]
+    if buckets is not None:
+        return Histogram(name, documentation, labelnames, buckets=buckets)
+    return Histogram(name, documentation, labelnames)

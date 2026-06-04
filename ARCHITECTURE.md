@@ -107,19 +107,22 @@ Myrm Agent Harness 是一个**生产级 Agent 框架**，基于 LangChain/LangGr
 | 类别         | 库                                | 用途                          |
 | ------------ | --------------------------------- | ----------------------------- |
 | **类型系统** | Pydantic >= 2.0.0                 | 数据验证和类型定义            |
-| **异步 I/O** | aiofiles, httpx, aiodocker        | 文件、网络、容器异步操作      |
+| **异步 I/O** | aiofiles, httpx, aiosqlite        | 文件、网络、SQLite 异步操作   |
+| **HTML**     | beautifulsoup4, lxml              | 网页剪枝与 DOM 解析           |
+| **Checkpoint** | langgraph-checkpoint-sqlite, dill | 会话状态持久化与序列化      |
 | **沙箱执行** | Docker SDK                        | 容器化代码执行                |
 | **存储**     | aiofiles                          | 本地文件系统存储              |
-| **检索**     | rank-bm25, jieba                  | BM25 检索和中文分词           |
+| **检索**     | rank-bm25, jieba, tenacity (`[retrieval]`) | BM25、分词与云 embedding 重试 |
 | **浏览器**   | patchright                        | Playwright 超集，浏览器自动化 |
 | **文件解析** | pdfplumber, python-docx, openpyxl | PDF/Word/Excel 解析           |
 | **工具**     | nanoid                            | 唯一 ID 生成                  |
 
-### 可选依赖
+### 可选依赖（extras）
 
-- **E2B**: 云端沙箱执行（业务层扩展）
-- **S3**: 云存储后端（业务层实现）
-- **ripgrep**: 高性能文件搜索（12-50x 加速）
+- **`[retrieval]`**: numpy, jieba, rank-bm25, tenacity（云 embedding 重试）
+- **`[memory-postgres]`**: langgraph-checkpoint-postgres, asyncpg
+- **`[compiled-core]`**: 平台 native 扩展 wheel（见 `harness_packaging/DISTRIBUTION_SYSTEM.md`）
+- **E2B / S3 / ripgrep**: 由业务层或运行时可选接入
 
 ---
 

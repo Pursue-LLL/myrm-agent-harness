@@ -258,7 +258,7 @@ class PDFPlumberParser(FileParser):
         table_bboxes: list[tuple[float, float, float, float]] = []
 
         try:
-            # Track 1: Explicit line-based table extraction
+            # Primary extraction: Explicit line-based table extraction
             raw_tables = page.find_tables(self._table_settings)
 
             for idx, raw_table in enumerate(raw_tables):
@@ -278,7 +278,7 @@ class PDFPlumberParser(FileParser):
                     )
                     table_bboxes.append(raw_table.bbox)
 
-            # Track 2: Heuristic form/borderless table extraction (Lazy Trigger)
+            # Secondary extraction: Heuristic form/borderless table extraction (Lazy Trigger)
             # Only trigger if we have significant text density and we can filter out explicit tables
             def _not_in_bboxes(obj: dict[str, Any]) -> bool:
                 """Check if object is completely outside all table bboxes."""
@@ -296,7 +296,7 @@ class PDFPlumberParser(FileParser):
             from myrm_agent_harness.toolkits.file_parsers.pdf_heuristic_table import extract_heuristic_tables_from_page
             heuristic_tables = extract_heuristic_tables_from_page(filtered_page)
 
-            # Merge Track 2 results
+            # Merge heuristic table results
             base_idx = len(tables)
             for h_idx, (h_data, h_bbox) in enumerate(heuristic_tables):
                 tables.append(

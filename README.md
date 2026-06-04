@@ -82,8 +82,8 @@ await agent_b.run(user_b_message)
 ```bash
 pip install myrm-agent-harness
 
-# 安装可选依赖
-pip install myrm-agent-harness[sandbox,file-parsers]
+# 安装可选能力（浏览器、检索、网页抓取、文件解析等）
+pip install "myrm-agent-harness[browser,retrieval,web,file-parsers,memory-postgres]"
 
 # 🚀 可选：安装 ripgrep，由工具层在可用时优先走 ripgrep 实现
 # macOS

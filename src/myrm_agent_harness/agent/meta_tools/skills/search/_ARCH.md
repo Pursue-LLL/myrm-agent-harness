@@ -10,7 +10,7 @@ Skill search module.
 | __init__.py | Package | Skill search module. | — |
 | config_loader.py | Config | Loads external configuration for flexible synonym management. | ✅ |
 | engine.py | Core | Supports query expansion for handling synonyms and typos when enabled. | — |
-| hybrid_engine.py | Core | Hybrid search engine. Executes BM25 and embedding searches in parallel, fusing results with Reciproc | ✅ |
+| hybrid_engine.py | Core | Hybrid search (BM25 + embedding, RRF). Lazy-imports numpy; missing numpy raises RuntimeError pointing to `[retrieval]`. | ✅ |
 | query_expansion.py | Core | Improves search robustness through a clean, modular pipeline. | ✅ |
 | query_normalizer.py | Core | Handles case normalization, punctuation removal, underscore replacement, | ✅ |
 | query_parser.py | Core | - Detects "/" delimiter to identify multilingual format | ✅ |
@@ -22,3 +22,4 @@ Skill search module.
 
 - `backends`
 - `toolkits`
+- Optional: `myrm-agent-harness[retrieval]` (numpy for vector index paths in `hybrid_engine.py`)

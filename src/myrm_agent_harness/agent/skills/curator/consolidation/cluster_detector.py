@@ -23,13 +23,13 @@ import logging
 import re
 from collections import defaultdict
 from itertools import combinations
+from types import ModuleType
 from typing import TYPE_CHECKING
-
-import numpy as np
 
 from .types import SkillCluster
 
 if TYPE_CHECKING:
+    import numpy as np
     import numpy.typing as npt
 
     from myrm_agent_harness.backends.skills.types import SkillMetadata
@@ -40,6 +40,16 @@ logger = logging.getLogger(__name__)
 _MIN_CLUSTER_SIZE = 3
 _SIMILARITY_THRESHOLD = 0.75
 _PREFIX_MIN_LENGTH = 3
+
+
+def _require_numpy() -> ModuleType:
+    try:
+        import numpy as np
+    except ImportError as exc:
+        raise RuntimeError(
+            "numpy is required for skill cluster detection. Install myrm-agent-harness[retrieval]."
+        ) from exc
+    return np
 
 
 class ClusterDetector:
@@ -121,6 +131,7 @@ class ClusterDetector:
 
     async def _detect_embedding_clusters(self, skills: list[SkillMetadata]) -> list[SkillCluster]:
         """Cluster skills by embedding similarity using single-linkage."""
+        np = _require_numpy()
         corpus = [f"{s.name} {s.description}" for s in skills]
 
         batch_size = 50
@@ -138,6 +149,7 @@ class ClusterDetector:
 
     def _cosine_similarity_matrix(self, vectors: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """Compute pairwise cosine similarity matrix."""
+        np = _require_numpy()
         norms = np.linalg.norm(vectors, axis=1, keepdims=True)
         norms = np.maximum(norms, 1e-10)
         normalized = vectors / norms

@@ -1984,10 +1984,12 @@ source = { editable = "." }
 dependencies = [
     { name = "agent-client-protocol" },
     { name = "aiofiles" },
+    { name = "aiosqlite" },
     { name = "beautifulsoup4" },
     { name = "croniter" },
+    { name = "dill" },
     { name = "filelock" },
-    { name = "httpx", extra = ["socks"] },
+    { name = "httpx" },
     { name = "langchain" },
     { name = "langchain-core" },
     { name = "langchain-mcp-adapters" },
@@ -1995,6 +1997,7 @@ dependencies = [
     { name = "langgraph" },
     { name = "langgraph-checkpoint-sqlite" },
     { name = "litellm" },
+    { name = "lxml" },
     { name = "mcp" },
     { name = "nanoid" },
     { name = "opentelemetry-api" },
@@ -2005,7 +2008,6 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "sqlalchemy" },
-    { name = "tenacity" },
     { name = "tiktoken" },
     { name = "tree-sitter" },
     { name = "tree-sitter-go" },
@@ -2019,15 +2021,12 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
-    { name = "aiosqlite" },
     { name = "asyncpg" },
     { name = "ddgs" },
-    { name = "dill" },
     { name = "fastapi" },
     { name = "imagequant" },
     { name = "jieba" },
     { name = "langgraph-checkpoint-postgres" },
-    { name = "langgraph-checkpoint-sqlite" },
     { name = "nltk" },
     { name = "numpy" },
     { name = "openinference-instrumentation-langchain" },
@@ -2071,13 +2070,7 @@ local-embedding = [
 ]
 memory-postgres = [
     { name = "asyncpg" },
-    { name = "dill" },
     { name = "langgraph-checkpoint-postgres" },
-]
-memory-sqlite = [
-    { name = "aiosqlite" },
-    { name = "dill" },
-    { name = "langgraph-checkpoint-sqlite" },
 ]
 observability = [
     { name = "openinference-instrumentation-langchain" },
@@ -2093,6 +2086,7 @@ retrieval = [
     { name = "nltk" },
     { name = "numpy" },
     { name = "rank-bm25" },
+    { name = "tenacity" },
 ]
 web = [
     { name = "scrapling", extra = ["fetchers"] },
@@ -2126,17 +2120,16 @@ dev = [
 requires-dist = [
     { name = "agent-client-protocol", specifier = ">=0.10.1" },
     { name = "aiofiles", specifier = ">=25.1.0" },
-    { name = "aiosqlite", marker = "extra == 'memory-sqlite'", specifier = ">=0.22.1" },
+    { name = "aiosqlite", specifier = ">=0.22.1" },
     { name = "asyncpg", marker = "extra == 'memory-postgres'", specifier = ">=0.31.0" },
     { name = "beautifulsoup4", specifier = ">=4.14.3" },
     { name = "croniter", specifier = ">=6.2.2" },
     { name = "ddgs", marker = "extra == 'image-search'", specifier = ">=9.14.4" },
-    { name = "dill", marker = "extra == 'memory-postgres'", specifier = ">=0.4.1" },
-    { name = "dill", marker = "extra == 'memory-sqlite'", specifier = ">=0.4.1" },
+    { name = "dill", specifier = ">=0.4.1" },
     { name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.136.3" },
     { name = "fastembed", marker = "extra == 'local-embedding'", specifier = ">=0.8.0" },
     { name = "filelock", specifier = ">=3.29.0" },
-    { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "imagequant", marker = "extra == 'image-processing'", specifier = ">=1.1.5" },
     { name = "jieba", marker = "extra == 'retrieval'", specifier = ">=0.42.1" },
     { name = "langchain", specifier = ">=1.3.2" },
@@ -2146,10 +2139,10 @@ requires-dist = [
     { name = "langgraph", specifier = ">=1.2.2" },
     { name = "langgraph-checkpoint-postgres", marker = "extra == 'memory-postgres'", specifier = ">=3.1.0" },
     { name = "langgraph-checkpoint-sqlite", specifier = ">=3.1.0" },
-    { name = "langgraph-checkpoint-sqlite", marker = "extra == 'memory-sqlite'", specifier = ">=3.0.3" },
     { name = "litellm", specifier = ">=1.86.2" },
+    { name = "lxml", specifier = ">=6.0.0" },
     { name = "mcp", specifier = ">=1.27.1" },
-    { name = "myrm-agent-harness", extras = ["browser", "computer-use", "image-processing", "qdrant", "retrieval", "file-parsers", "fastapi", "observability", "memory-sqlite", "memory-postgres", "image-search"], marker = "extra == 'all'" },
+    { name = "myrm-agent-harness", extras = ["browser", "computer-use", "image-processing", "qdrant", "retrieval", "file-parsers", "fastapi", "observability", "memory-postgres", "image-search"], marker = "extra == 'all'" },
     { name = "nanoid", specifier = ">=2.0.0" },
     { name = "nltk", marker = "extra == 'retrieval'", specifier = ">=3.9.4" },
     { name = "numpy", marker = "extra == 'retrieval'", specifier = ">=2.4.6" },
@@ -2175,7 +2168,7 @@ requires-dist = [
     { name = "rank-bm25", marker = "extra == 'retrieval'", specifier = ">=0.2.2" },
     { name = "scrapling", extras = ["fetchers"], marker = "extra == 'web'", specifier = ">=0.4.8" },
     { name = "sqlalchemy", specifier = ">=2.0.50" },
-    { name = "tenacity", specifier = ">=9.1.4" },
+    { name = "tenacity", marker = "extra == 'retrieval'", specifier = ">=9.1.4" },
     { name = "tiktoken", specifier = ">=0.13.0" },
     { name = "tree-sitter", specifier = ">=0.25.2" },
     { name = "tree-sitter-go", specifier = ">=0.25.0" },
@@ -2186,7 +2179,7 @@ requires-dist = [
     { name = "tree-sitter-typescript", specifier = ">=0.23.2" },
     { name = "watchdog", specifier = ">=6.0.0" },
 ]
-provides-extras = ["browser", "qdrant", "retrieval", "local-embedding", "image-processing", "computer-use", "web", "image-search", "file-parsers", "fastapi", "memory-sqlite", "memory-postgres", "observability", "all"]
+provides-extras = ["browser", "qdrant", "retrieval", "local-embedding", "image-processing", "computer-use", "web", "image-search", "file-parsers", "fastapi", "memory-postgres", "observability", "compiled-core", "all"]
 
 [package.metadata.requires-dev]
 build = [

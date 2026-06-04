@@ -6,7 +6,8 @@
 - myrm_agent_harness.api::create_skill_agent (POS: Stable public agent factory)
 
 [OUTPUT]
-- run_verification(): Execute manifest import, distribution, and API checks
+- run_verification(): Execute manifest import, distribution, core-deps, and API checks
+- verify_core_runtime_imports(): Probe lxml/dill/aiosqlite/bs4 from core dependencies
 - main(): CLI entry for console script ``verify-harness-distribution``
 
 [POS]
@@ -44,6 +45,16 @@ def verify_public_api() -> None:
         raise TypeError(msg)
 
 
+def verify_core_runtime_imports() -> None:
+    """Probe Tier-0/Tier-1 dependencies declared in pyproject core dependencies."""
+    import aiosqlite  # noqa: F401
+    import dill  # noqa: F401
+    import lxml  # noqa: F401
+    from bs4 import BeautifulSoup
+
+    BeautifulSoup("<body>x</body>", "lxml")
+
+
 def verify_matplotlib_cjk() -> None:
     """Fail-fast CJK font check for server runtime images (matches Dockerfile.official)."""
     import matplotlib
@@ -73,6 +84,7 @@ def run_verification(*, matplotlib_cjk: bool = False) -> None:
     """Run all distribution checks."""
     verify_manifest_imports()
     verify_distribution_ready()
+    verify_core_runtime_imports()
     verify_public_api()
     print("harness distribution OK")
     if matplotlib_cjk:

@@ -22,7 +22,9 @@ dependencies = [
   "langchain>=1.3.4",                  # Agent 编排核心
   "langchain-core>=1.4.0",              # LangChain 基础抽象
   "langgraph>=1.2.4",                  # 图状态机 Agent 运行时
-  "langgraph-checkpoint-sqlite>=3.1.0", # SQLite 状态持久化 (Memory)
+  "langgraph-checkpoint-sqlite>=3.1.0", # SQLite 状态持久化 (checkpoint factory)
+  "aiosqlite>=0.22.1",                  # async SQLite (memory stores + checkpointer)
+  "dill>=0.4.1",                        # checkpoint serde (ChatLiteLLM / complex objects)
   # --- LLM 多供应商适配 ---
   "litellm>=1.87.0", # 统一 LLM API 代理 (100+ 供应商)
   # --- MCP 协议支持 ---
@@ -31,7 +33,7 @@ dependencies = [
   "pydantic>=2.13.4", # 数据模型验证
   "PyYAML>=6.0.3",    # YAML 配置解析
   # --- HTTP 与异步 I/O ---
-  "httpx[socks]>=0.28.1", # 异步 HTTP 客户端（含 SOCKS 代理支持）
+  "httpx>=0.28.1",        # 异步 HTTP 客户端（SOCKS 由 server/渠道层按需安装）
   "aiofiles>=25.1.0",     # 异步文件 I/O
   "orjson>=3.11.9",       # 高性能 JSON 序列化
   # --- 图片处理 (7 模块跨 4 层使用) ---
@@ -48,9 +50,9 @@ dependencies = [
   "croniter>=6.2.2", # Cron 表达式解析与计算
   # --- 检索器（基础） ---
   "langchain-text-splitters>=1.1.2", # 代码感知文本分块
-  "tenacity>=9.1.4",                 # 重试机制
   # --- 网页爬取与内容提取（基础） ---
   "beautifulsoup4>=4.14.3", # HTML DOM 解析与清洗（ContentPruningFilter）
+  "lxml>=6.0.0",            # bs4 lxml parser (content_pruning + tree_truncator)
   # --- Agent 协议与基础设施 ---
   "agent-client-protocol>=0.10.1", # ACP 协议 SDK (Agent 间通信)
   "filelock>=3.29.1",             # 跨进程文件锁 (Skill 并发控制)
@@ -85,6 +87,7 @@ qdrant = [
 # toolkits/retriever/ - 高级检索功能（中文分词、向量检索、稀疏检索）
 retrieval = [
   "numpy>=2.4.6",     # embedding 序列化 + BM25 数值计算
+  "tenacity>=9.1.4",  # cloud embedding / reranker retries
   "jieba>=0.42.1",    # 中文分词 (BM25 tokenizer)
   "nltk>=3.9.4",      # 英文分词/词干提取/停用词
   "rank-bm25>=0.2.2", # BM25 稀疏检索算法
@@ -124,17 +127,10 @@ fastapi = [
   "fastapi>=0.136.3",
 ]
 
-# toolkits/memory/ - 记忆持久化 (SQLite)
-memory-sqlite = [
-  "langgraph-checkpoint-sqlite>=3.0.3",
-  "aiosqlite>=0.22.1",
-  "dill>=0.4.1",
-]
-# toolkits/memory/ - 记忆持久化 (PostgreSQL)
+# toolkits/memory/ - 记忆持久化 (PostgreSQL); SQLite checkpoint deps live in core dependencies
 memory-postgres = [
   "langgraph-checkpoint-postgres>=3.1.0",
   "asyncpg>=0.31.0",
-  "dill>=0.4.1",
 ]
 # 全链路追踪与指标 (SaaS 级监控)
 observability = [
@@ -152,10 +148,12 @@ compiled-core = [
   "myrm-agent-harness-core-win32-arm64==0.1.0rc1; platform_system == 'Windows' and platform_machine == 'ARM64'",
 ]
 all = [
-  "myrm-agent-harness[browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,memory-sqlite,memory-postgres,image-search,compiled-core]",
+  "myrm-agent-harness[browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,memory-postgres,image-search]",
 ]
 
 [tool.uv]
+# Universal lock: skip Python 3.15+ splits where compiled-core platform wheels are not published.
+environments = ["python_full_version >= '3.13' and python_full_version < '3.14'"]
 override-dependencies = [
   "click>=8.4.1",
   "patchright>=1.59.1",
