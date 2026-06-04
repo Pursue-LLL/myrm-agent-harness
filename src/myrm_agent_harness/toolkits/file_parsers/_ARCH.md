@@ -16,5 +16,6 @@ File parsers toolkit entry point. Aggregates all file format parsers and provide
 | pdf.py | Core | PDF parser based on pdfplumber. Implements text layout preservation, Markdown table | ✅ |
 | pdf_heading.py | Core | Font-based heading detection for PDFs without bookmarks. Uses statistical font size analysis. | ✅ |
 | pdf_content_extractor.py | Core | Smart PDF extraction orchestrator. Auto-selects Text/Hybrid(embedded image)/Image(full-page | ✅ |
+| pdf_heuristic_table.py | Core | Heuristic table extractor based on spatial coordinate clustering for borderless forms. | ✅ |
 | pptx.py | Core | PowerPoint document parser (slide text, tables, speaker notes) | ✅ |
 | text.py | Core | Text file parser | ✅ |
