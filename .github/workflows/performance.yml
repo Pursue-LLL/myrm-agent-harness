@@ -6,20 +6,6 @@ on:
       - 'src/myrm_agent_harness/**/*.py'
       - 'pyproject.toml'
       - 'benchmarks/bench_startup_performance.py'
-  push:
-    branches:
-      - main
-      - develop
-    paths:
-      - 'src/myrm_agent_harness/**/*.py'
-      - 'pyproject.toml'
-      - 'benchmarks/bench_startup_performance.py'
-      - 'benchmarks/bench_boundary_detection.py'
-      - 'benchmarks/baseline_boundary.json'
-      - 'tests/test_lazy_loading_comprehensive.py'
-      - 'tests/test_lazy_loading_consistency.py'
-      - 'tests/test_monitoring.py'
-      - 'tests/test_preload.py'
 
 jobs:
   startup-performance:
@@ -60,4 +46,4 @@ jobs:
         with:
           name: benchmark-results
           path: .benchmarks/
-          retention-days: 30
+          retention-days: 7

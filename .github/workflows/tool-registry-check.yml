@@ -12,17 +12,6 @@ on:
       - 'scripts/tool_registry_engine.py'
       - 'scripts/validate_tool_registry.py'
       - '.pre-commit-config.yaml'
-  push:
-    branches:
-      - main
-      - develop
-    paths:
-      - 'src/myrm_agent_harness/**/*.py'
-      - 'src/myrm_agent_harness/agent/tool_management/tool_layers.py'
-      - 'src/myrm_agent_harness/agent/tool_management/*.md'
-      - 'tests/architecture/test_tool_registry.py'
-      - 'scripts/tool_registry_*.py'
-      - 'scripts/validate_tool_registry.py'
 
 jobs:
   tool-registry-check:

@@ -14,22 +14,6 @@ on:
       - 'src/myrm_agent_harness/_verify_distribution.py'
       - 'packages/myrm-agent-harness-core/**'
       - '.pre-commit-config.yaml'
-  push:
-    branches:
-      - main
-      - develop
-    paths:
-      - 'src/myrm_agent_harness/**/*.py'
-      - 'tests/architecture/**'
-      - 'harness_packaging/**'
-      - 'scripts/boundary_check.py'
-      - 'scripts/boundary_config.py'
-      - 'scripts/build_core.py'
-      - 'scripts/build_release_wheel.py'
-      - 'scripts/assemble_production.py'
-      - 'src/myrm_agent_harness/_verify_distribution.py'
-      - 'packages/myrm-agent-harness-core/**'
-      - '.pre-commit-config.yaml'
 
 jobs:
   boundary-check:
