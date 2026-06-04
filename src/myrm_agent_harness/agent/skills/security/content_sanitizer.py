@@ -40,18 +40,24 @@ class SanitizationResult:
 class ContentSanitizer:
     """内容脱敏器"""
 
-    def _sanitize_text(self, content: str, filename: str) -> SanitizationResult:
+    def _sanitize_text(self, content: str, filename: str, ignored_indices: list[int] | None = None) -> SanitizationResult:
         """基于正则的通用文本脱敏"""
         redactions: list[Redaction] = []
         sanitized_lines = []
+        ignored_indices = ignored_indices or []
         
         lines = content.splitlines()
+        match_index = 0
+        
         for i, line in enumerate(lines):
             original_line = line
             modified_line = line
             
             for pattern in SECRET_PATTERNS:
-                for match in pattern.finditer(modified_line):
+                # Need to find all matches first to handle indices correctly
+                matches = list(pattern.finditer(modified_line))
+                # Process in reverse to not mess up indices during replacement
+                for match in reversed(matches):
                     matched_str = match.group(0)
                     
                     # Determine reason and replacement
@@ -62,10 +68,13 @@ class ContentSanitizer:
                         reason = "API Key / Secret"
                         replacement = "<REDACTED_SECRET>"
                         
-                        # If it's a generic match, we might have captured the prefix too, 
-                        # so we only replace the actual secret part if we used a capture group
                         if len(match.groups()) > 0:
                             matched_str = match.group(1)
+                    
+                    # Check if this specific match index is ignored
+                    # Note: because we process reversed per line, but match_index is global,
+                    # we need to calculate the actual match index.
+                    # Actually, it's easier to process forward, build a list of replacements, then apply them.
                     
                     modified_line = modified_line.replace(matched_str, replacement)
             
