@@ -1,6 +1,5 @@
 import json
 import sqlite3
-from typing import Any
 from pathlib import Path
 
 class WorkflowEventStore:
@@ -30,7 +29,7 @@ class WorkflowEventStore:
                 """
             )
             
-    def get_cached_result(self, workflow_id: str, task_id: str) -> dict[str, Any] | None:
+    def get_cached_result(self, workflow_id: str, task_id: str) -> dict[str, object] | None:
         """Retrieve a previously completed sub-agent result."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
@@ -48,7 +47,7 @@ class WorkflowEventStore:
         task_id: str, 
         agent_type: str, 
         task_description: str, 
-        result: dict[str, Any]
+        result: dict[str, object]
     ) -> None:
         """Save a completed sub-agent result."""
         with sqlite3.connect(self.db_path) as conn:
