@@ -74,3 +74,86 @@ async def test_desktop_vision_action_success(mock_backend, mock_config):
         
         assert "completed" in result
         mock_click.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_desktop_inspect_returns_metadata(mock_backend, mock_config):
+    session = DesktopSession(backend=mock_backend, config=mock_config)
+    with patch(
+        "myrm_agent_harness.toolkits.computer_use.desktop_session.inspect_backend",
+        return_value={
+            "app_name": "Finder",
+            "window_title": "Desktop",
+            "interactive_estimate": 12,
+            "needs_permission": False,
+            "recommendation": "Use desktop_snapshot",
+        },
+    ):
+        result = await session.desktop_inspect()
+    assert "App: Finder" in result
+    assert "Recommendation: Use desktop_snapshot" in result
+
+
+@pytest.mark.asyncio
+async def test_desktop_interact_revalidation_capture_error(mock_backend, mock_config):
+    session = DesktopSession(backend=mock_backend, config=mock_config)
+    session._last_snapshot_time = time.time() - 10.0
+    with patch(
+        "myrm_agent_harness.toolkits.computer_use.desktop_session.capture_snapshot",
+        side_effect=RuntimeError("capture failed"),
+    ):
+        result = await session.desktop_interact(ref="e0", action="click")
+    assert "Could not re-verify screen state" in result
+
+
+@pytest.mark.asyncio
+async def test_desktop_interact_stale_ref(mock_backend, mock_config):
+    from myrm_agent_harness.toolkits.element_ref.errors import DRefStaleError
+
+    session = DesktopSession(backend=mock_backend, config=mock_config)
+    session._last_snapshot_time = time.time()
+    session._refs = MagicMock()
+    session._refs.get.side_effect = DRefStaleError("stale ref")
+    result = await session.desktop_interact(ref="e0", action="click")
+    assert "stale ref" in result
+
+
+@pytest.mark.asyncio
+async def test_export_inspector_snapshot_success(mock_backend, mock_config):
+    from myrm_agent_harness.toolkits.element_ref.types import BBox, ElementRef, SnapshotMeta
+
+    session = DesktopSession(backend=mock_backend, config=mock_config)
+    meta = SnapshotMeta(
+        ref_count=1,
+        app_name="TestApp",
+        window_title="Window",
+        scope="foreground",
+        needs_permission=False,
+    )
+    refs = {
+        "e0": ElementRef(
+            ref_id="e0",
+            role="button",
+            name="OK",
+            bbox=BBox(0, 0, 10, 10),
+            backend_key="k",
+        )
+    }
+    shot = MagicMock()
+    shot.success = True
+    shot.screenshot_base64 = "img"
+    shot.screenshot_size = (100, 80)
+
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.computer_use.desktop_session.capture_snapshot",
+            return_value=(meta, refs),
+        ),
+        patch.object(session, "take_screenshot", new_callable=AsyncMock, return_value=shot),
+        patch.object(session, "_emit_view_update", new_callable=AsyncMock),
+    ):
+        payload = await session.export_inspector_snapshot()
+
+    assert payload["app_name"] == "TestApp"
+    assert payload["screenshot_base64"] == "img"
+    assert payload["refs"]

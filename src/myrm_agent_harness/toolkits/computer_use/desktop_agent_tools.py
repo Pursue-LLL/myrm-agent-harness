@@ -84,7 +84,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
         # Context-Aware Soft Routing: Check if the active window is a web browser
         warning_msg = ""
         try:
-            is_browser = await session.backend.is_browser_active()
+            is_browser = await session._backend.is_browser_active()
             if is_browser:
                 warning_msg = (
                     "\n[SYSTEM HINT: The active window is a Web Browser. For interacting with web elements, "
