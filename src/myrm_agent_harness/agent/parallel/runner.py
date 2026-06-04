@@ -78,6 +78,9 @@ async def run_parallel_task_requests(
                 readonly=task.readonly,
                 complexity_tier=task.complexity_tier,
                 role=task.role,
+                verifier_prompt=task.verifier_prompt,
+                verifier_agent_type=task.verifier_agent_type,
+                max_verification_rounds=task.max_verification_rounds,
             )
             if isinstance(res, dict):
                 res.setdefault("agent_type", task.agent_type)

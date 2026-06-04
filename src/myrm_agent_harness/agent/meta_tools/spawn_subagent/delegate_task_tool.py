@@ -113,6 +113,18 @@ def create_delegate_task_tool(
             default=DelegateRole.LEAF,
             description="Delegation role for the child. 'leaf' cannot delegate further. 'orchestrator' may spawn child workers only when the catalog configuration explicitly allows it.",
         )
+        verifier_prompt: str | None = Field(
+            default=None,
+            description="Optional. If provided, enables adversarial verification. The verifier will use this prompt to critique the result and force a retry if it fails.",
+        )
+        verifier_agent_type: str | None = Field(
+            default=None,
+            description="Optional. The agent type to use for the verifier. If omitted, defaults to the same agent type as the worker.",
+        )
+        max_verification_rounds: int = Field(
+            default=2,
+            description="Maximum number of retry rounds if the verifier rejects the output.",
+        )
 
     @tool("delegate_task_tool", args_schema=SpawnSubagentInput)
     async def delegate_task_func(
@@ -124,6 +136,9 @@ def create_delegate_task_tool(
         readonly: bool = False,
         complexity_tier: str | None = None,
         role: DelegateRole = DelegateRole.LEAF,
+        verifier_prompt: str | None = None,
+        verifier_agent_type: str | None = None,
+        max_verification_rounds: int = 2,
     ) -> dict[str, object]:
         """Spawn a specialized subagent to handle a specific task.
 
@@ -333,30 +348,31 @@ def create_delegate_task_tool(
                     ephemeral_mem = EphemeralMemoryManager(global_mem)
                     reset_token = _memory_manager_var.set(ephemeral_mem)
 
-            _rt_cfg = getattr(parent_agent, "config", None)
-            _engine = getattr(_rt_cfg, "engine_params", None) if _rt_cfg else None
-            _raw_ep = getattr(parent_agent, "engine_params", {})
-            adversarial_verification = (
-                getattr(_engine, "adversarial_verification", False)
-                or (isinstance(_raw_ep, dict) and _raw_ep.get("adversarial_verification") is True)
-            )
-
-            if adversarial_verification and wait:
+            if verifier_prompt and wait:
                 logger.info(f"Running adversarial verification for subagent {task_id}")
                 from myrm_agent_harness.agent.sub_agents.orchestrator import run_with_verification
                 from myrm_agent_harness.agent.sub_agents.types import WorkspacePolicy
-                verifier_config = replace(config, workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX)
+                
+                v_type = verifier_agent_type or agent_type
+                v_config = await catalog.resolve(v_type)
+                if not v_config:
+                    logger.warning("Verifier agent type '%s' not found, falling back to worker type '%s'", v_type, agent_type)
+                    v_type = agent_type
+                    v_config = config
+                
+                verifier_config = replace(v_config, workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX)
 
                 result = await run_with_verification(
                     manager=parent_manager,
                     worker_type=agent_type,
                     worker_config=config,
                     worker_task=task,
-                    verifier_type=agent_type,  # Use same type but with readonly config
+                    verifier_type=v_type,
                     verifier_config=verifier_config,
                     context=child_context,
                     tool_registry_getter=tool_registry_getter,
-                    max_rounds=2,
+                    max_rounds=max_verification_rounds,
+                    verifier_task_template=verifier_prompt,
                 )
             else:
                 result = await parent_agent._spawn_child(

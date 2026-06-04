@@ -64,6 +64,18 @@ class TaskRequest(BaseModel):
         default=DelegateRole.LEAF,
         description="Delegation role for this child task.",
     )
+    verifier_prompt: str | None = Field(
+        default=None,
+        description="Optional. If provided, enables adversarial verification. The verifier will use this prompt to critique the result and force a retry if it fails.",
+    )
+    verifier_agent_type: str | None = Field(
+        default=None,
+        description="Optional. The agent type to use for the verifier. If omitted, defaults to the same agent type as the worker.",
+    )
+    max_verification_rounds: int = Field(
+        default=2,
+        description="Maximum number of retry rounds if the verifier rejects the output.",
+    )
 
 
 class BatchDelegateInput(BaseModel):
