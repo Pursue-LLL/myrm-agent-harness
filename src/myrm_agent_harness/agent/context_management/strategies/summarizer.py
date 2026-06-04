@@ -22,7 +22,7 @@ Context summarizer. Pure in-memory summarization strategy using structured summa
 from __future__ import annotations
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 
@@ -338,10 +338,30 @@ async def generate_structured_summary(
 
     protected_head = extract_protected_head(messages)
 
+    # --- Skill Rescue Logic ---
+    rescued_skill_messages = []
+    for msg in messages:
+        if isinstance(msg, ToolMessage):
+            # Check if it's a file read that looks like a skill, or a skill discovery result
+            is_skill_read = msg.name in ("read_file", "read_file_tool", "skill_discovery_tool", "discover_skills")
+            # Simple heuristic: if it contains typical skill YAML/Markdown markers
+            content_str = str(msg.content).lower()
+            looks_like_skill = "skill" in content_str and ("description:" in content_str or "instructions:" in content_str or "## skill" in content_str)
+            if is_skill_read and looks_like_skill:
+                # Create a wrapper message to explain why it's here
+                rescued_skill_messages.append(
+                    SystemMessage(content=f"[SKILL RESCUE] Preserved skill content from {msg.name}:\n{msg.content}")
+                )
+    # --------------------------
+
     summary_message = create_summary_message(summary, chat_id)
     middle_messages = [summary_message]
     if pre_compact_message is not None:
         middle_messages = [pre_compact_message, summary_message]
+
+    # Append rescued skills right after the summary so the agent doesn't forget them
+    middle_messages.extend(rescued_skill_messages)
+
     new_messages = protected_head + middle_messages + recent_messages
 
     new_tokens = estimate_messages_tokens(new_messages)
