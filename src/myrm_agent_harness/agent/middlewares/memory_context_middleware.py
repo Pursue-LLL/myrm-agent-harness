@@ -185,10 +185,10 @@ def _format_memory_context(ctx: dict[str, object], learned: dict[str, list[dict[
             # Format the created_at timestamp if present to provide age context
             created_at = p.get("created_at")
             time_prefix = f"[Created: {created_at[:10]}] " if created_at else ""
-            
+
             mem_id = p.get("id", "")
             id_label = f" [ID: {mem_id}]" if mem_id else ""
-            
+
             if p.get("source_error"):
                 corrections.append(f"{time_prefix}{safe_content} — AVOID: {sanitize(p['source_error'])}{id_label}")
             else:
@@ -209,16 +209,16 @@ def _format_memory_context(ctx: dict[str, object], learned: dict[str, list[dict[
             tool_label = f" [{tool_name}]" if tool_name else ""
             created_at = r.get("created_at")
             time_prefix = f"[Created: {created_at[:10]}] " if created_at else ""
-            
+
             mem_id = r.get("id", "")
             id_label = f" [ID: {mem_id}]" if mem_id else ""
-            
+
             formatted = f"{time_prefix}When: {sanitize(r['trigger'])} → Do: {sanitize(r['action'])}{tool_label}{id_label}"
             if r.get("reasoning"):
                 formatted += f" | Why: {sanitize(r['reasoning'])}"
             if r.get("application"):
                 formatted += f" | How: {sanitize(r['application'])}"
-                
+
             if tool_priority in ("critical", "high"):
                 critical_items.append(formatted)
             else:
@@ -314,8 +314,9 @@ class MemoryContextMiddleware(AgentMiddleware):  # type: ignore[type-arg]
         self,
         request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
     ) -> ModelResponse:
-        from langchain_core.messages import AIMessage
         import copy
+
+        from langchain_core.messages import AIMessage
 
         new_req_messages = []
         req_modified = False
@@ -425,7 +426,7 @@ class MemoryContextMiddleware(AgentMiddleware):  # type: ignore[type-arg]
         n_rules = len(learned_ctx.get("learned_rules", []))
         n_prefs = len(learned_ctx.get("learned_preferences", []))
         is_cold = stable_formatted == _COLD_START_CONTEXT
-        
+
         # Expose memory budget to the runner state for UX progress bars (Item 7)
         if hasattr(manager, "_config"):
             base_budget = manager._config.max_learned_context_chars
@@ -436,7 +437,7 @@ class MemoryContextMiddleware(AgentMiddleware):  # type: ignore[type-arg]
             used_chars = len(stable_formatted or "") + len(untrusted_formatted or "")
             state["memory_budget_used"] = used_chars
             state["memory_budget_total"] = total_budget
-            
+
             # Also store it on the manager for easy extraction in finalize_agent_stream_session
             manager._last_budget = {"used": used_chars, "total": total_budget}
 

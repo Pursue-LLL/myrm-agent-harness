@@ -1,8 +1,11 @@
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
-from myrm_agent_harness.toolkits.memory.types import ProceduralMemory, SemanticMemory
+from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
+
 
 @pytest.mark.asyncio
 async def test_record_citations_success():
@@ -11,22 +14,22 @@ async def test_record_citations_success():
     mock_emb = AsyncMock()
     config = MemoryConfig(embedding_model="test")
     manager = MemoryManager(config, user_id="test_user", relational=mock_rel, vector=mock_vec, embedding=mock_emb)
-    
+
     doc1 = MagicMock()
     doc1.id = "mem-1"
     doc1.content = "abc"
     doc1.metadata = {"user_id": "test_user"}
-    
+
     doc2 = MagicMock()
     doc2.id = "mem-2"
     doc2.content = "def"
     doc2.metadata = {"user_id": "test_user"}
-    
+
     async def mock_get(coll, ids):
         if "mem-1" in ids: return [doc1]
         if "mem-2" in ids: return [doc2]
         return []
-        
+
     mock_vec.get.side_effect = mock_get
 
     count = await manager.record_citations(["mem-1", "mem-2"])
@@ -46,7 +49,7 @@ async def test_update_procedural_memory_reasoning_application():
     mock_rel = AsyncMock()
     config = MemoryConfig(embedding_model="test")
     manager = MemoryManager(config, user_id="test_user", relational=mock_rel)
-    
+
     existing = ProceduralMemory(
         id="mem-1",
         content="abc",
@@ -54,16 +57,16 @@ async def test_update_procedural_memory_reasoning_application():
         action="a",
         source="agent_self"
     )
-    
+
     mock_rel.get_rule.return_value = existing
     mock_rel.update_rule.return_value = existing
-    
+
     updated = await manager.update_memory(
         "mem-1",
         reasoning="new reasoning",
         application="new app"
     )
-    
+
     mock_rel.update_rule.assert_awaited_once()
     called_mem = mock_rel.update_rule.call_args[0][1]
     assert called_mem.reasoning == "new reasoning"
@@ -74,10 +77,10 @@ async def test_get_tool_rules_success():
     mock_rel = AsyncMock()
     config = MemoryConfig(embedding_model="test")
     manager = MemoryManager(config, user_id="test_user", relational=mock_rel)
-    
+
     expected = [ProceduralMemory(id="m1", content="abc", trigger="t", action="a", source="agent_self")]
     mock_rel.list_rules_by_tool.return_value = expected
-    
+
     rules = await manager.get_tool_rules("my_tool")
     assert rules == expected
     mock_rel.list_rules_by_tool.assert_awaited_once_with("my_tool", active_only=True, limit=30, namespaces=manager._namespaces)

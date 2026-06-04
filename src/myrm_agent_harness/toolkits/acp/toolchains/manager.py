@@ -53,7 +53,7 @@ class IsolatedToolchainManager:
 
         return f"https://nodejs.org/dist/{NODE_VERSION}/node-{NODE_VERSION}-{os_name}-{arch}.tar.gz"
 
-    async def _download_and_extract_node(self) -> AsyncGenerator[str, None]:
+    async def _download_and_extract_node(self) -> AsyncGenerator[str]:
         """Download and extract portable Node.js."""
         if (self.node_dir / "bin" / "node").exists():
             yield "Node.js environment already exists."
@@ -66,18 +66,18 @@ class IsolatedToolchainManager:
         try:
             # Run blocking download in executor
             loop = asyncio.get_running_loop()
-            
+
             # Simple file lock to prevent concurrent downloads
             lock_file = self.base_dir / ".node_download.lock"
             if lock_file.exists():
                 yield "Waiting for another process to finish downloading..."
                 while lock_file.exists():
                     await asyncio.sleep(1)
-            
+
             try:
                 lock_file.touch()
                 await loop.run_in_executor(None, urllib.request.urlretrieve, url, tar_path)
-                
+
                 yield "Extracting Node.js..."
                 def extract():
                     with tarfile.open(tar_path, "r:gz") as tar:
@@ -89,7 +89,7 @@ class IsolatedToolchainManager:
                             if self.node_dir.exists():
                                 shutil.rmtree(self.node_dir)
                             extracted_path.rename(self.node_dir)
-                
+
                 await loop.run_in_executor(None, extract)
                 yield "Node.js environment setup complete."
             finally:
@@ -99,14 +99,14 @@ class IsolatedToolchainManager:
             if tar_path.exists():
                 tar_path.unlink()
 
-    async def install_backend(self, backend_name: str) -> AsyncGenerator[str, None]:
+    async def install_backend(self, backend_name: str) -> AsyncGenerator[str]:
         """Install a backend CLI into the isolated toolchain."""
         if backend_name not in BACKEND_NPM_MAP:
             yield f"Error: Unknown backend {backend_name}."
             return
 
         package_name = BACKEND_NPM_MAP[backend_name]
-        
+
         # 1. Ensure Node.js is installed
         async for msg in self._download_and_extract_node():
             yield msg
@@ -118,10 +118,10 @@ class IsolatedToolchainManager:
 
         # 2. Install the package
         yield f"Installing {package_name} via npm..."
-        
+
         # Use Taobao mirror for speed in mainland China
         registry = "https://registry.npmmirror.com"
-        
+
         # Install globally but with prefix set to our bin_dir
         cmd = [
             str(npm_path),
@@ -131,7 +131,7 @@ class IsolatedToolchainManager:
             "--prefix", str(self.base_dir),
             "--registry", registry
         ]
-        
+
         # Setup env to use our isolated node
         env = os.environ.copy()
         env["PATH"] = f"{self.node_dir / 'bin'}:{env.get('PATH', '')}"
@@ -143,16 +143,16 @@ class IsolatedToolchainManager:
                 stderr=asyncio.subprocess.STDOUT,
                 env=env
             )
-            
+
             if proc.stdout:
                 while True:
                     line = await proc.stdout.readline()
                     if not line:
                         break
                     yield line.decode("utf-8", errors="replace").strip()
-            
+
             await proc.wait()
-            
+
             if proc.returncode == 0:
                 yield f"Successfully installed {backend_name}."
             else:

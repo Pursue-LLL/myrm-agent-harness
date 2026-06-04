@@ -1,18 +1,21 @@
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-from myrm_agent_harness.toolkits.web_fetch.fetchers.http_fetcher import HttpFetcher
-from myrm_agent_harness.toolkits.browser.session_vault import SessionVault, SessionEntry
-from myrm_agent_harness.toolkits.browser.backends.file_backend import FileVaultBackend
-from pathlib import Path
 import http.cookiejar
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from myrm_agent_harness.toolkits.browser.backends.file_backend import FileVaultBackend
+from myrm_agent_harness.toolkits.browser.session_vault import SessionEntry, SessionVault
+from myrm_agent_harness.toolkits.web_fetch.fetchers.http_fetcher import HttpFetcher
+
 
 @pytest.mark.asyncio
 async def test_http_fetcher_cookiejar_injection(install_fake_scrapling: AsyncMock):
     """Test that HttpFetcher correctly injects cookies from SessionVault as a CookieJar"""
-    
+
     # Setup mock SessionVault
     mock_vault = MagicMock(spec=SessionVault)
-    
+
     # Create a mock SessionEntry with storage_state containing cookies
     import time
     mock_entry = SessionEntry(
@@ -51,12 +54,12 @@ async def test_http_fetcher_cookiejar_injection(install_fake_scrapling: AsyncMoc
             ]
         }
     )
-    
+
     mock_vault.load = AsyncMock(return_value=mock_entry)
-    
+
     # Initialize HttpFetcher with mock vault
     fetcher = HttpFetcher(session_vault=mock_vault)
-    
+
     # Mock AsyncFetcher.get to intercept the call and check kwargs
     mock_get = install_fake_scrapling
     with patch.dict("os.environ", {"MYRM_ENABLE_SSRF_SHIELD": "false", "MYRM_HTTP3_RETRY": "0"}):
@@ -67,28 +70,28 @@ async def test_http_fetcher_cookiejar_injection(install_fake_scrapling: AsyncMoc
         mock_response.url = "https://example.com/test"
         mock_response.headers = {"content-type": "text/html"}
         mock_get.return_value = mock_response
-        
+
         # Call fetch
         await fetcher.fetch("https://example.com/test")
-        
+
         # Verify SessionVault.load was called with correct domain
         mock_vault.load.assert_called_once_with("example.com")
-        
+
         # Verify AsyncFetcher.get was called
         mock_get.assert_called_once()
-        
+
         # Extract the kwargs passed to AsyncFetcher.get
         _, kwargs = mock_get.call_args
-        
+
         # Verify cookies were injected as a CookieJar
         assert "cookies" in kwargs
         cookie_jar = kwargs["cookies"]
         assert isinstance(cookie_jar, http.cookiejar.CookieJar)
-        
+
         # Extract cookies from CookieJar to verify contents
         cookies = list(cookie_jar)
         assert len(cookies) == 3
-        
+
         # Verify session_id cookie
         session_cookie = next(c for c in cookies if c.name == "session_id")
         assert session_cookie.value == "12345"
@@ -96,7 +99,7 @@ async def test_http_fetcher_cookiejar_injection(install_fake_scrapling: AsyncMoc
         assert session_cookie.path == "/"
         assert session_cookie.secure is True
         assert session_cookie.expires == 1700000000
-        
+
         # Verify temp_cookie (expires: -1 should be mapped to None)
         temp_cookie = next(c for c in cookies if c.name == "temp_cookie")
         assert temp_cookie.value == "abc"
@@ -104,7 +107,7 @@ async def test_http_fetcher_cookiejar_injection(install_fake_scrapling: AsyncMoc
         assert temp_cookie.path == "/api"
         assert temp_cookie.secure is False
         assert temp_cookie.expires is None
-        
+
         # Verify zero_expires_cookie (expires: 0 should be mapped to None)
         zero_cookie = next(c for c in cookies if c.name == "zero_expires_cookie")
         assert zero_cookie.value == "xyz"
@@ -116,13 +119,12 @@ async def test_http_fetcher_cookiejar_injection(install_fake_scrapling: AsyncMoc
 @pytest.mark.asyncio
 async def test_browser_fetcher_storage_state_injection():
     """Test that BrowserFetcher correctly passes storage_state to the browser pool"""
+    from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
     from myrm_agent_harness.toolkits.web_fetch.fetchers.browser_fetcher import BrowserFetcher
-    from myrm_agent_harness.toolkits.browser.pool import GlobalBrowserPool
-    from myrm_agent_harness.toolkits.browser.pool import ContextType
-    
+
     # Setup mock SessionVault
     mock_vault = MagicMock(spec=SessionVault)
-    
+
     # Create a mock SessionEntry with storage_state
     mock_storage_state = {"cookies": [{"name": "test", "value": "123", "domain": "example.com", "path": "/"}]}
     import time
@@ -132,28 +134,28 @@ async def test_browser_fetcher_storage_state_injection():
         expires_at=time.time() + 3600,
         storage_state=mock_storage_state
     )
-    
+
     mock_vault.load = AsyncMock(return_value=mock_entry)
-    
+
     # Setup mock BrowserPool
     mock_pool = MagicMock(spec=GlobalBrowserPool)
     mock_page = MagicMock()
     mock_page.content = AsyncMock(return_value="<html><body>Test</body></html>")
     mock_page.url = "https://example.com/test"
-    
+
     # The acquire_page method returns a tuple (page, context_key)
     mock_pool.acquire_page = AsyncMock(return_value=(mock_page, "crawl_example.com"))
     mock_pool.release_page = AsyncMock()
-    
+
     # Initialize BrowserFetcher with mock vault and pool
     fetcher = BrowserFetcher(browser_pool=mock_pool, session_vault=mock_vault)
-    
+
     # Call fetch
     await fetcher.fetch("https://example.com/test")
-    
+
     # Verify SessionVault.load was called with correct domain
     mock_vault.load.assert_called_once_with("example.com")
-    
+
     # Verify acquire_page was called with correct context_kwargs containing storage_state
     mock_pool.acquire_page.assert_called_once_with(
         ContextType.CRAWL,
@@ -166,7 +168,6 @@ async def test_browser_fetcher_storage_state_injection():
 import pytest
 
 from myrm_agent_harness.toolkits.web_fetch.fetchers.browser_fetcher import BrowserFetcher
-from myrm_agent_harness.toolkits.web_fetch.fetchers.http_fetcher import HttpFetcher
 from myrm_agent_harness.toolkits.web_fetch.fetchers.protocols import FetcherType, FetchResult
 from myrm_agent_harness.toolkits.web_fetch.fetchers.stealth_fetcher import StealthFetcher
 
@@ -174,9 +175,7 @@ from myrm_agent_harness.toolkits.web_fetch.fetchers.stealth_fetcher import Steal
 @pytest.mark.asyncio
 async def test_http_fetcher_initialization():
     """测试 HttpFetcher 初始化参数"""
-    from pathlib import Path
 
-    from myrm_agent_harness.toolkits.browser.backends.file_backend import FileVaultBackend
     from myrm_agent_harness.toolkits.browser.pool.proxy import ProxyConfig, RoundRobinProxyPool
     from myrm_agent_harness.toolkits.browser.session_vault import SessionVault
 
@@ -201,9 +200,7 @@ async def test_http_fetcher_shutdown():
 @pytest.mark.asyncio
 async def test_browser_fetcher_initialization():
     """测试 BrowserFetcher 初始化"""
-    from pathlib import Path
 
-    from myrm_agent_harness.toolkits.browser.backends.file_backend import FileVaultBackend
     from myrm_agent_harness.toolkits.browser.session_vault import SessionVault
 
     vault = SessionVault(FileVaultBackend(Path("/tmp/test")), b"0123456789abcdef0123456789abcdef")

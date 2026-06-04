@@ -10,14 +10,13 @@ Covers:
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 import pytest
 
 from myrm_agent_harness.agent.security.channel_presets import build_channel_security_config
 from myrm_agent_harness.agent.security.config import parse_security_config
 from myrm_agent_harness.agent.security.types import Capability, SecurityConfig
-
-from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 SERVER_ROOT = REPO_ROOT / "myrm-agent" / "myrm-agent-server"

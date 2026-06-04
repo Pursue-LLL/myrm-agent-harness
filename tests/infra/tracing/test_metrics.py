@@ -140,14 +140,14 @@ def test_multiple_meters():
     def test_get_meter_provider():
         """Test getting MeterProvider instance."""
         from myrm_agent_harness.infra.tracing.metrics.exporter import get_meter_provider
-    
+
         # Initially None - wait, in test environment it might be preserved from other tests.
         # But after setup, it MUST NOT be None if SDK is available
         try:
             import opentelemetry.sdk.metrics  # noqa
         except ImportError:
             pytest.skip("opentelemetry-sdk not installed")
-    
+
         # After setup
         setup_metrics(service_name="test-service")
         provider = get_meter_provider()

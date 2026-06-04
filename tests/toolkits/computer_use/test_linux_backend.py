@@ -1,7 +1,12 @@
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from myrm_agent_harness.toolkits.computer_use.backends.linux import LinuxBackend, _parse_display_num, _detect_linux_resolution
+import pytest
+
+from myrm_agent_harness.toolkits.computer_use.backends.linux import (
+    LinuxBackend,
+    _parse_display_num,
+)
+
 
 @pytest.fixture
 def backend():
@@ -26,11 +31,10 @@ async def test_run_cmd(backend):
 
 @pytest.mark.asyncio
 async def test_screenshot(backend):
-    with patch("shutil.which", return_value=True):
-        with patch.object(backend, "_run_cmd", return_value=("", "", 0)):
-            with patch("pathlib.Path.read_bytes", return_value=b"png"):
-                res = await backend.screenshot()
-                assert res == b"png"
+    with patch("shutil.which", return_value=True), patch.object(backend, "_run_cmd", return_value=("", "", 0)):
+        with patch("pathlib.Path.read_bytes", return_value=b"png"):
+            res = await backend.screenshot()
+            assert res == b"png"
 
 @pytest.mark.asyncio
 async def test_click(backend):

@@ -32,7 +32,7 @@ class HermesImportedSkill:
     content: str
     files: dict[str, bytes] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
-    
+
     @property
     def skill_md_content(self) -> str:
         """获取 SKILL.md 原始内容"""
@@ -44,17 +44,17 @@ class HermesBatchParser:
     
     解析包含多个技能目录的 ZIP 包，安全解压后分类提取为 DTO 列表。
     """
-    
+
     def parse_zip(self, zip_bytes: bytes) -> list[HermesImportedSkill]:
         """解析 ZIP 字节流为技能列表"""
         # safe_extract_zip 已内置防 Zip Bomb 和路径穿越的防御机制
         # strip_top_dir=False 保证我们能看到里面的不同技能目录
         all_files = safe_extract_zip(zip_bytes, strip_top_dir=False, forbidden_check=_is_excluded_file)
-        
+
         # 按顶层目录对文件进行分组 (Hermes 的 skill 都是目录级组织)
         # 例如 skill_a/SKILL.md, skill_b/SKILL.md
         skill_groups: dict[str, dict[str, bytes]] = {}
-        
+
         for path, content in all_files.items():
             parts = path.split("/")
             if len(parts) >= 2:
@@ -68,7 +68,7 @@ class HermesBatchParser:
                 if "." not in skill_groups:
                     skill_groups["."] = {}
                 skill_groups["."][path] = content
-        
+
         results: list[HermesImportedSkill] = []
         for dir_name, files in skill_groups.items():
             # 判断是否为合法技能：必须包含 SKILL.md 或者是 .md 文件直接构成
@@ -82,18 +82,18 @@ class HermesBatchParser:
                     skill_md_content = files[md_files[0]]
                     # 模拟为 SKILL.md
                     files["SKILL.md"] = skill_md_content
-            
+
             if not skill_md_content:
                 logger.warning(f"Skip {dir_name}: No SKILL.md or markdown file found.")
                 continue
-            
+
             name, description, trigger_keywords, pure_content, metadata = self._parse_hermes_metadata(skill_md_content, fallback_name=dir_name)
-            
+
             # 将 trigger_keywords 融入 description (适配我们的体系)
             if trigger_keywords:
                 pattern_suffix = f"\n\n触发关键词(Patterns): {', '.join(trigger_keywords)}"
                 description += pattern_suffix
-                
+
             results.append(HermesImportedSkill(
                 name=name,
                 description=description,
@@ -101,13 +101,13 @@ class HermesBatchParser:
                 files=files,
                 metadata=metadata
             ))
-            
+
         return results
 
     def _parse_hermes_metadata(self, content: bytes, fallback_name: str) -> tuple[str, str, list[str], str, dict]:
         """解析 Frontmatter 并分离元数据与正文"""
         text = content.decode("utf-8", errors="replace")
-        
+
         # 匹配 Frontmatter
         match = re.match(r"^---\s*\n(.*?)\n---\s*\n", text, re.DOTALL)
         name = fallback_name if fallback_name != "." else "unnamed_skill"
@@ -115,7 +115,7 @@ class HermesBatchParser:
         trigger_keywords: list[str] = []
         pure_content = text
         metadata = {}
-        
+
         if match:
             pure_content = text[match.end():].strip()
             try:
@@ -131,5 +131,5 @@ class HermesBatchParser:
                         trigger_keywords = [raw_keywords]
             except Exception as e:
                 logger.warning(f"Failed to parse frontmatter for {fallback_name}: {e}")
-                
+
         return name, description, trigger_keywords, pure_content, metadata

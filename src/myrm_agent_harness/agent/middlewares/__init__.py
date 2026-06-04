@@ -61,8 +61,9 @@ from myrm_agent_harness.agent.middlewares.filesystem_search_middleware import (
     FilesystemFileSearchMiddleware,
     create_filesystem_search_middleware,
 )
-from myrm_agent_harness.agent.middlewares.permission_middleware import (
-    PermissionCheckMiddleware,
+from myrm_agent_harness.agent.middlewares.guardrails import (
+    GuardrailMiddleware,
+    SkillBoundaryProvider,
 )
 from myrm_agent_harness.agent.middlewares.planner_middleware import planner_middleware
 from myrm_agent_harness.agent.middlewares.rate_limit import RateLimitMiddleware
@@ -91,8 +92,9 @@ __all__ = [
     "CompletionGuard",
     "FilesystemFileSearchMiddleware",
     # 权限检查
-    "PermissionCheckMiddleware",
+    "GuardrailMiddleware",
     "RateLimitMiddleware",
+    "SkillBoundaryProvider",
     # 验证工具
     "ValidationResult",
     "create_concurrency_limiter",

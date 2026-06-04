@@ -844,7 +844,7 @@ class MemoryManager:
         """
         if not memory_ids:
             return 0
-            
+
         updated_count = 0
         now = datetime.now(UTC)
         for mem_id in memory_ids:
@@ -856,7 +856,7 @@ class MemoryManager:
                 mem.last_accessed_at = now
                 if hasattr(mem, "memory_type"):
                     await self.update_memory(mem.id)  # Update just saves it via model_copy
-                    # Actually update_memory does not take access_count as kwarg. 
+                    # Actually update_memory does not take access_count as kwarg.
                     # Let's bypass update_memory and use the writer directly for this internal bump.
                     if isinstance(mem, (SemanticMemory, EpisodicMemory)):
                         v, e = self._vec()
@@ -873,7 +873,7 @@ class MemoryManager:
                     updated_count += 1
             except Exception as e:
                 logger.warning("Failed to record citation for memory %s: %s", mem_id, e)
-                
+
         return updated_count
 
     # ── Convenience: Profile ──

@@ -1,7 +1,10 @@
-import pytest
-import zipfile
 import io
+import zipfile
+
+import pytest
+
 from myrm_agent_harness.agent.skills.discovery.installers.batch_installer import HermesBatchParser
+
 
 def create_mock_zip(files: dict) -> bytes:
     zip_buffer = io.BytesIO()
@@ -34,19 +37,19 @@ def summarize():
         "ignored_root_file.txt": "ignore me"
     }
     zip_bytes = create_mock_zip(files)
-    
+
     parser = HermesBatchParser()
     skills = parser.parse_zip(zip_bytes)
-    
+
     assert len(skills) == 2
-    
+
     # Verify translate_skill
     translate = next((s for s in skills if s.name == "translate_skill"), None)
     assert translate is not None
     assert translate.description == "Translate text\n\n触发关键词(Patterns): translate, 翻译"
     assert "def translate():" in translate.content
     assert "utils.py" in translate.files
-    
+
     # Verify summarize_skill
     summarize = next((s for s in skills if s.name == "summarize_skill"), None)
     assert summarize is not None

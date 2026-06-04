@@ -19,15 +19,14 @@ import hmac
 import struct
 import time
 from dataclasses import dataclass
-from typing import Dict, Optional
 
 
 @dataclass
 class CredentialEntry:
     """A credential entry containing a password and/or TOTP seed."""
     label: str
-    password: Optional[str] = None
-    totp_seed: Optional[str] = None
+    password: str | None = None
+    totp_seed: str | None = None
 
 
 class CredentialVault:
@@ -39,9 +38,9 @@ class CredentialVault:
     """
 
     def __init__(self) -> None:
-        self._credentials: Dict[str, CredentialEntry] = {}
+        self._credentials: dict[str, CredentialEntry] = {}
 
-    def add_credential(self, label: str, password: Optional[str] = None, totp_seed: Optional[str] = None) -> None:
+    def add_credential(self, label: str, password: str | None = None, totp_seed: str | None = None) -> None:
         """Add a credential to the in-memory vault."""
         self._credentials[label] = CredentialEntry(label=label, password=password, totp_seed=totp_seed)
 
@@ -62,11 +61,11 @@ class CredentialVault:
         """
         if label not in self._credentials:
             raise KeyError(f"Credential label '{label}' not found in vault.")
-        
+
         entry = self._credentials[label]
         if not entry.password:
             raise ValueError(f"Credential '{label}' does not have a password configured.")
-        
+
         return entry.password
 
     def get_totp_token(self, label: str) -> str:
@@ -78,17 +77,17 @@ class CredentialVault:
         """
         if label not in self._credentials:
             raise KeyError(f"Credential label '{label}' not found in vault.")
-        
+
         entry = self._credentials[label]
         if not entry.totp_seed:
             raise ValueError(f"Credential '{label}' does not have a TOTP seed configured.")
-        
+
         try:
             # Pad the base32 string if necessary
             seed = entry.totp_seed.strip().replace(' ', '').upper()
             padding = (8 - len(seed) % 8) % 8
             seed += '=' * padding
-            
+
             key = base64.b32decode(seed)
             msg = struct.pack(">Q", int(time.time() / 30))
             h = hmac.new(key, msg, hashlib.sha1).digest()

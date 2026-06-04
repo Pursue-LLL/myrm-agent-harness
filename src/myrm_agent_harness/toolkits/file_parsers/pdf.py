@@ -205,6 +205,9 @@ class PDFPlumberParser(FileParser):
                 results.append((text, tables, None))
             except Exception as e:
                 results.append(("", [], f"{type(e).__name__}: {e}"))
+            finally:
+                if hasattr(page, "close"):
+                    page.close()  # Free cached page data immediately to prevent OOM on large PDFs
 
         return results
 
@@ -242,6 +245,9 @@ class PDFPlumberParser(FileParser):
             return (text, tables, None)
         except Exception as e:
             return ("", [], f"{type(e).__name__}: {e}")
+        finally:
+            if hasattr(page, "close"):
+                page.close()  # Free cached page data immediately to prevent OOM on large PDFs
 
     def _extract_page_tables(
         self,
@@ -249,26 +255,65 @@ class PDFPlumberParser(FileParser):
     ) -> list[PDFTable]:
         """Extract tables from page"""
         tables: list[PDFTable] = []
+        table_bboxes: list[tuple[float, float, float, float]] = []
 
         try:
-            raw_tables = page.extract_tables(self._table_settings)
-            if not raw_tables:
-                return tables
+            # Track 1: Explicit line-based table extraction
+            raw_tables = page.find_tables(self._table_settings)
 
             for idx, raw_table in enumerate(raw_tables):
-                if not raw_table or not any(raw_table):
+                table_data = raw_table.extract()
+                if not table_data or not any(table_data):
                     continue
 
-                cleaned = self._clean_table_data(raw_table)
+                cleaned = self._clean_table_data(table_data)
                 if cleaned:
                     tables.append(
                         PDFTable(
                             page_number=0,
                             table_index=idx,
                             data=cleaned,
-                            bbox=None,
+                            bbox=raw_table.bbox,
                         )
                     )
+                    table_bboxes.append(raw_table.bbox)
+
+            # Track 2: Heuristic form/borderless table extraction (Lazy Trigger)
+            # Only trigger if we have significant text density and we can filter out explicit tables
+            def _not_in_bboxes(obj: dict[str, Any]) -> bool:
+                """Check if object is completely outside all table bboxes."""
+                x0, y0, x1, y1 = obj.get("x0", 0), obj.get("top", 0), obj.get("x1", 0), obj.get("bottom", 0)
+                for bx0, by0, bx1, by1 in table_bboxes:
+                    # If the object intersects with the bbox, filter it out
+                    if not (x1 < bx0 or x0 > bx1 or y1 < by0 or y0 > by1):
+                        return False
+                return True
+
+            # Use native filter to exclude text inside explicit tables
+            filtered_page = page.filter(_not_in_bboxes) if table_bboxes else page
+
+            # Extract heuristic tables from the remaining text
+            from myrm_agent_harness.toolkits.file_parsers.pdf_heuristic_table import extract_heuristic_tables_from_page
+            heuristic_tables = extract_heuristic_tables_from_page(filtered_page)
+
+            # Merge Track 2 results
+            base_idx = len(tables)
+            for h_idx, (h_data, h_bbox) in enumerate(heuristic_tables):
+                tables.append(
+                    PDFTable(
+                        page_number=0,
+                        table_index=base_idx + h_idx,
+                        data=h_data,
+                        bbox=h_bbox,
+                    )
+                )
+
+            # Sort all tables by their vertical position (y0) to ensure correct reading order
+            tables.sort(key=lambda t: t.bbox[1] if t.bbox else 0)
+
+            # Reassign indices after sorting
+            for idx, table in enumerate(tables):
+                table.table_index = idx
 
         except Exception as e:
             logger.warning("Table extraction failed: %s", e)

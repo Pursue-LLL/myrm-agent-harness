@@ -764,7 +764,7 @@ class TestInjectMemoryContext:
                 HumanMessage(content="Hello"),
             ]
         )
-        
+
         mock_manager = MagicMock()
         mock_manager._config = MagicMock()
         mock_manager._config.max_learned_context_chars = 50000

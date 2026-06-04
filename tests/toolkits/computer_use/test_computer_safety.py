@@ -204,9 +204,10 @@ class TestComputerActionSafetyIntegration:
 
     @pytest.fixture
     def session(self):
+        import time
+
         from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
         from myrm_agent_harness.toolkits.computer_use.types import ComputerUseConfig, ScreenContext, ScreenInfo
-        import time
 
         backend = MagicMock()
         backend.screen_info.return_value = ScreenInfo(width=1920, height=1080, dpi_scale=1.0)
@@ -366,6 +367,8 @@ class TestComputerActionAllBranches:
 
     @pytest.fixture
     def session(self):
+        import time
+
         from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
         from myrm_agent_harness.toolkits.computer_use.types import (
             ActionResult,
@@ -373,7 +376,6 @@ class TestComputerActionAllBranches:
             ScreenContext,
             ScreenInfo,
         )
-        import time
 
         backend = MagicMock()
         backend.screen_info.return_value = ScreenInfo(width=1920, height=1080, dpi_scale=1.0)

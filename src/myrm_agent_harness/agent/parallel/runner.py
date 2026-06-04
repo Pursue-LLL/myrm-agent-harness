@@ -85,7 +85,7 @@ async def run_parallel_task_requests(
                     status = "completed" if res.get("success") else "failed"
                     await on_progress(index, status, res)
                 return res
-            
+
             err_res = {
                 "success": False,
                 "error": str(res),
@@ -173,7 +173,7 @@ async def run_parallel_task_requests(
 
     parallel_write_batch = sum(1 for task in tasks if not task.readonly) > 1
     if parallel_write_batch:
-        setattr(parent_agent, "_parallel_write_batch_active", True)
+        parent_agent._parallel_write_batch_active = True
     try:
         coros = [_run_task(task, index) for index, task in enumerate(tasks)]
         gathered = await asyncio.gather(*coros, return_exceptions=True)

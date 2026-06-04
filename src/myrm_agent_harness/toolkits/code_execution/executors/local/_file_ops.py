@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 from myrm_agent_harness.toolkits.code_execution.interceptor import trigger_destructive_action_hook
 
+
 @runtime_checkable
 class _ExecutorProtocol(Protocol):
     """Minimal interface required from the host executor."""
@@ -82,14 +83,14 @@ class LocalFileOpsMixin:
     async def write_file(self, path: str, content: str) -> None:
         safe = await self.resolve_path(path)  # type: ignore[attr-defined]
         self._guard_write(safe)
-        
+
         # Trigger auto-snapshot hook
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_write",
             payload={"path": safe, "size": len(content)}
         )
-        
+
         p = Path(safe)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding="utf-8")
@@ -97,13 +98,13 @@ class LocalFileOpsMixin:
     async def write_file_bytes(self, path: str, content: bytes) -> None:
         safe = await self.resolve_path(path)  # type: ignore[attr-defined]
         self._guard_write(safe)
-        
+
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_write",
             payload={"path": safe, "size": len(content)}
         )
-        
+
         p = Path(safe)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(content)
@@ -111,50 +112,50 @@ class LocalFileOpsMixin:
     async def write_file_atomic(self, path: str, content: str) -> None:
         safe = await self.resolve_path(path)  # type: ignore[attr-defined]
         self._guard_write(safe)
-        
+
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_write",
             payload={"path": safe, "size": len(content)}
         )
-        
+
         await async_atomic_write(safe, content)
 
     async def write_file_bytes_atomic(self, path: str, content: bytes) -> None:
         safe = await self.resolve_path(path)  # type: ignore[attr-defined]
         self._guard_write(safe)
-        
+
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_write",
             payload={"path": safe, "size": len(content)}
         )
-        
+
         await async_atomic_write(safe, content)
 
     async def append_file(self, path: str, content: str) -> None:
         safe = await self.resolve_path(path)  # type: ignore[attr-defined]
         self._guard_write(safe)
-        
+
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_append",
             payload={"path": safe, "size": len(content)}
         )
-        
+
         with open(safe, "a", encoding="utf-8") as f:
             f.write(content)
 
     async def delete_file(self, path: str) -> None:
         safe = await self.resolve_path(path)  # type: ignore[attr-defined]
         self._guard_write(safe)
-        
+
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_delete",
             payload={"path": safe}
         )
-        
+
         Path(safe).unlink(missing_ok=True)
 
     async def file_exists(self, path: str) -> bool:

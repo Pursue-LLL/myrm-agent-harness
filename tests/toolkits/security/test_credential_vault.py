@@ -1,12 +1,14 @@
+
 import pytest
-import time
+
 from myrm_agent_harness.toolkits.security.credential_vault import CredentialVault, get_global_credential_vault
+
 
 def test_credential_vault_add_remove():
     vault = CredentialVault()
     vault.add_credential("test-label", password="password123")
     assert vault.get_password("test-label") == "password123"
-    
+
     vault.remove_credential("test-label")
     with pytest.raises(KeyError):
         vault.get_password("test-label")
@@ -28,7 +30,7 @@ def test_credential_vault_totp():
     vault = CredentialVault()
     # JBSWY3DPEHPK3PXP is base32 for "Hello!\xDE\xAD\xBE\xEF"
     vault.add_credential("test-totp", totp_seed="JBSWY3DPEHPK3PXP")
-    
+
     token = vault.get_totp_token("test-totp")
     assert len(token) == 6
     assert token.isdigit()

@@ -378,14 +378,14 @@ class Interactor:
                         is_password = True
                 except Exception:
                     pass
-                
+
                 if is_password:
                     raise ValueError(
                         "SecurityError: Plain text typing into a password field is strictly forbidden. "
                         "You MUST use the 'fill_credential' action and provide the credential label "
                         "instead of the plain text password."
                     )
-                
+
                 display_text = text
 
                 delay_per_char = random.randint(30, 100)
@@ -402,14 +402,14 @@ class Interactor:
                         is_password = True
                 except Exception:
                     pass
-                
+
                 if is_password:
                     raise ValueError(
                         "SecurityError: Plain text filling into a password field is strictly forbidden. "
                         "You MUST use the 'fill_credential' action and provide the credential label "
                         "instead of the plain text password."
                     )
-                
+
                 display_text = text
 
                 await locator.fill(text, timeout=_INTERACTION_TIMEOUT_MS)
@@ -419,10 +419,10 @@ class Interactor:
             elif action == "fill_credential":
                 from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
                 vault = get_global_credential_vault()
-                
+
                 # Check if it's a TOTP request (e.g. label ends with -totp)
                 is_totp = text.endswith("-totp")
-                
+
                 try:
                     if is_totp:
                         secret_text = vault.get_totp_token(text)
@@ -430,7 +430,7 @@ class Interactor:
                         secret_text = vault.get_password(text)
                 except Exception as e:
                     raise ValueError(f"Failed to retrieve credential for label '{text}': {e}") from e
-                
+
                 await locator.fill(secret_text, timeout=_INTERACTION_TIMEOUT_MS)
                 await _wait_after_action()
                 return f"Filled credential '{text}' into {ref}{healed_msg} [CREDENTIAL_FILLED]"
@@ -493,12 +493,12 @@ class Interactor:
             if "TargetClosedError" in error_msg or "Target closed" in error_msg or "Timeout" in error_msg:
                 # This often happens when a native OS dialog (like a file picker or permission prompt)
                 # blocks the browser process, causing Playwright to timeout or lose the target.
-                
+
                 # Check if there is ACTUALLY a dialog before injecting the hint to avoid hallucination
                 has_dialog = False
                 try:
                     from myrm_agent_harness.toolkits.computer_use.session import create_computer_session
-                    from myrm_agent_harness.toolkits.computer_use.types import ComputerUseConfig, KNOWN_BROWSER_NAMES
+                    from myrm_agent_harness.toolkits.computer_use.types import KNOWN_BROWSER_NAMES, ComputerUseConfig
                     cu_session = create_computer_session(ComputerUseConfig())
                     has_dialog = await cu_session.backend.has_blocking_dialog(list(KNOWN_BROWSER_NAMES))
                 except Exception:

@@ -3,7 +3,6 @@
 支持两段式：先扫描返回 Diff，确认后再应用替换。
 """
 
-import ast
 import logging
 import re
 from dataclasses import dataclass
@@ -45,20 +44,20 @@ class ContentSanitizer:
         redactions: list[Redaction] = []
         sanitized_lines = []
         ignored_indices = ignored_indices or []
-        
+
         lines = content.splitlines()
         redaction_index = 0
-        
+
         for i, line in enumerate(lines):
             original_line = line
             modified_line = line
-            
+
             # 收集该行的所有匹配项
             line_matches = []
             for pattern in SECRET_PATTERNS:
                 for match in pattern.finditer(original_line):
                     matched_str = match.group(0)
-                    
+
                     if matched_str.startswith("/Users/") or matched_str.startswith("/home/"):
                         reason = "Absolute Path"
                         replacement = "<REDACTED_PATH>"
@@ -73,23 +72,23 @@ class ContentSanitizer:
                         else:
                             start_idx = match.start()
                             end_idx = match.end()
-                            
+
                     line_matches.append({
                         "replacement": replacement,
                         "reason": reason,
                         "start": start_idx,
                         "end": end_idx
                     })
-            
+
             if line_matches:
                 # 当前行存在敏感信息，分配一个 redaction_index
                 current_index = redaction_index
                 redaction_index += 1
-                
+
                 if current_index not in ignored_indices:
                     # 按起始位置倒序排序，避免替换时索引偏移
                     line_matches.sort(key=lambda x: x["start"], reverse=True)
-                    
+
                     reasons = []
                     for match_info in line_matches:
                         start = match_info["start"]
@@ -97,16 +96,16 @@ class ContentSanitizer:
                         modified_line = modified_line[:start] + match_info["replacement"] + modified_line[end:]
                         if match_info["reason"] not in reasons:
                             reasons.append(match_info["reason"])
-                    
+
                     redactions.append(Redaction(
                         line_number=i + 1,
                         original=original_line,
                         redacted=modified_line,
                         reason=" / ".join(reasons)
                     ))
-            
+
             sanitized_lines.append(modified_line)
-            
+
         return SanitizationResult(
             is_safe=len(redactions) == 0,
             redactions=redactions,
@@ -131,7 +130,7 @@ class ContentSanitizer:
             return self._sanitize_python_ast(text_content, filename, ignored_indices)
         elif filename.endswith(".md") or filename.endswith(".txt") or filename.endswith(".json") or filename.endswith(".yaml") or filename.endswith(".yml"):
             return self._sanitize_text(text_content, filename, ignored_indices)
-        
+
         return self._sanitize_text(text_content, filename, ignored_indices)
 
 content_sanitizer = ContentSanitizer()

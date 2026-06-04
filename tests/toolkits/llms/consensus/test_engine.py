@@ -497,7 +497,7 @@ class TestTimeouts:
 class TestStreamEventTypes:
     def test_kind_is_literal(self):
         from typing import Literal, get_type_hints
-    
+
         hints = get_type_hints(ConsensusStreamEvent, localns={"Literal": Literal})
         kind_type = str(hints["kind"])
         assert "Literal" in kind_type

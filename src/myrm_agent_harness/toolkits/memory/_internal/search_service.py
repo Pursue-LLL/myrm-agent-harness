@@ -25,7 +25,7 @@ from time import perf_counter
 from uuid import uuid4
 
 from myrm_agent_harness.toolkits.memory._assistant_retrieval import search_conversation_two_pass
-from myrm_agent_harness.toolkits.memory._internal.maintenance import bump_access_counts, enrich_with_graph
+from myrm_agent_harness.toolkits.memory._internal.maintenance import enrich_with_graph
 from myrm_agent_harness.toolkits.memory._internal.scope import apply_channel_affinity
 from myrm_agent_harness.toolkits.memory._internal.storage import (
     embed_single,

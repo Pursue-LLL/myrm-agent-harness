@@ -323,10 +323,10 @@ def is_destructive_command(command: str) -> bool:
     """
     if not command or not command.strip():
         return False
-        
+
     stripped = _strip_quoted_content(command)
     normalized = " ".join(stripped.split())
-    
+
     # Common destructive commands
     destructive_patterns = [
         r"\brm\s+",
@@ -338,11 +338,11 @@ def is_destructive_command(command: str) -> bool:
         r"\bfind\s+.*-exec\s+rm\b",
         r">\s*\S+", # Redirection overwrite
     ]
-    
+
     for pattern in destructive_patterns:
         if re.search(pattern, normalized, re.IGNORECASE):
             return True
-            
+
     return False
 
 def analyze_command(command: str) -> tuple[CommandThreat, ...]:

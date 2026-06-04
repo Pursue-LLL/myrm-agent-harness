@@ -379,6 +379,7 @@ def test_metrics_caching():
 
 from patchright.async_api import Page
 
+
 def test_update_refs():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {})
@@ -421,17 +422,17 @@ def test_resolve_frame():
 async def test_interact_exception_with_dialog():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
-    
+
     with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
         mock_loc = AsyncMock()
         mock_loc.click.side_effect = Exception("TargetClosedError")
         mock_resolve.return_value = mock_loc
-        
+
         with patch("myrm_agent_harness.toolkits.computer_use.session.create_computer_session") as mock_create:
             mock_cu = AsyncMock()
             mock_cu.backend.has_blocking_dialog.return_value = True
             mock_create.return_value = mock_cu
-            
+
             res = await interactor.interact("click", "e0")
             assert "CRITICAL WARNING" in res
 
@@ -439,17 +440,17 @@ async def test_interact_exception_with_dialog():
 async def test_interact_exception_no_dialog():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
-    
+
     with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
         mock_loc = AsyncMock()
         mock_loc.click.side_effect = Exception("TargetClosedError")
         mock_resolve.return_value = mock_loc
-        
+
         with patch("myrm_agent_harness.toolkits.computer_use.session.create_computer_session") as mock_create:
             mock_cu = AsyncMock()
             mock_cu.backend.has_blocking_dialog.return_value = False
             mock_create.return_value = mock_cu
-            
+
             with pytest.raises(Exception, match="TargetClosedError"):
                 await interactor.interact("click", "e0")
 
@@ -533,16 +534,16 @@ async def test_interact_fill_credential_totp():
 async def test_interact_self_healing():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
-    
+
     with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
         mock_loc = AsyncMock()
         mock_loc.wait_for.side_effect = Exception("timeout")
         mock_resolve.return_value = mock_loc
-        
+
         with patch("myrm_agent_harness.toolkits.browser.snapshot.self_healer.SelfHealer.heal", new_callable=AsyncMock) as mock_heal:
             healed_loc = AsyncMock()
             mock_heal.return_value = (healed_loc, "NewName", 0.5)
-            
+
             with patch("myrm_agent_harness.runtime.events.bus.get_event_bus") as mock_bus:
                 mock_bus.return_value.publish = MagicMock()
                 res = await interactor.interact("click", "e0")
@@ -551,11 +552,11 @@ async def test_interact_self_healing():
                 healed_loc.click.assert_called_once()
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
-    
+
     with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
         mock_loc = AsyncMock()
         mock_resolve.return_value = mock_loc
-        
+
         with patch("myrm_agent_harness.toolkits.browser.wait_strategies.wait_for_page_ready", side_effect=Exception("error")):
             res = await interactor.interact("click", "e0")
             assert "Clicked" in res

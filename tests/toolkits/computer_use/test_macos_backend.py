@@ -1,11 +1,18 @@
-import pytest
 import sys
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Mock pyautogui before importing MacOSBackend
 sys.modules['pyautogui'] = MagicMock()
 
-from myrm_agent_harness.toolkits.computer_use.backends.macos import MacOSBackend, _has_blocking_dialog, _is_browser_active, _detect_dpi_scale_quartz
+from myrm_agent_harness.toolkits.computer_use.backends.macos import (
+    MacOSBackend,
+    _detect_dpi_scale_quartz,
+    _has_blocking_dialog,
+    _is_browser_active,
+)
+
 
 @pytest.fixture
 def backend():

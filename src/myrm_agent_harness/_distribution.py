@@ -10,7 +10,8 @@ from __future__ import annotations
 import importlib
 from enum import StrEnum
 from functools import lru_cache
-from importlib.metadata import PackageNotFoundError, version as pkg_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as pkg_version
 from importlib.util import find_spec
 from pathlib import Path
 

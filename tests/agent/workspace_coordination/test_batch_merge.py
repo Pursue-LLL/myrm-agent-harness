@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, WorkspacePolicy
 from myrm_agent_harness.agent.sub_agents.workspace_isolation import _clone_workspace
 from myrm_agent_harness.agent.workspace_coordination.batch_merge import (
     merge_batch_workspace_sync_backs,
@@ -14,7 +15,6 @@ from myrm_agent_harness.agent.workspace_coordination.policy import (
     apply_parallel_write_isolation,
     count_parallel_writers,
 )
-from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, WorkspacePolicy
 
 
 @pytest.mark.asyncio

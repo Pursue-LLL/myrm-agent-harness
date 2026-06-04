@@ -368,7 +368,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
             Number of skills deleted.
         """
         self._ensure_open()
-        
+
         # Find all skills owned by this agent
         def _get_owned_skills() -> list[tuple[str, str]]:
             with self._reader() as conn:
@@ -380,15 +380,15 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
                     (agent_id,)
                 ).fetchall()
                 return [(row["skill_id"], row["path"]) for row in rows]
-                
+
         skill_data = await asyncio.to_thread(_get_owned_skills)
         if not skill_data:
             return 0
-            
+
         import os
         import shutil
         from pathlib import Path
-            
+
         for sid, spath in skill_data:
             # First, delete the physical file/folder if it exists
             if spath:
@@ -406,10 +406,10 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
                             os.remove(p)
                 except Exception as e:
                     logger.warning("Failed to physical delete skill %s at %s: %s", sid, spath, e)
-                    
+
             # Then delete from database
             await self.delete_skill(sid)
-            
+
         return len(skill_data)
 
     @_db_retry()

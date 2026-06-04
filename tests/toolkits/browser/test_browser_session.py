@@ -726,46 +726,46 @@ async def test_restart_with_storage_state(browser_session: BrowserSession) -> No
             }
         ]
     }
-    
+
     # We need to mock the page context to return the storage state
     mock_context = AsyncMock()
     mock_context.storage_state.return_value = mock_storage_state
-    
+
     # Mock the active page
     mock_page = AsyncMock()
     mock_page.url = "https://example.com"
     mock_page.context = mock_context
-    
+
     # Set up the tab controller to return our mock page
     browser_session._tab_controller.list_tabs = MagicMock(return_value=["tab_1"])
     browser_session._tab_controller.get_active_page = MagicMock(return_value=mock_page)
-    
+
     # Mock the close and new_tab methods
     browser_session.close = AsyncMock()
     browser_session.new_tab = AsyncMock()
     browser_session.navigate = AsyncMock()
-    
+
     # Mock the browser pool methods
     browser_session._browser_pool.destroy_context = AsyncMock()
     browser_session._browser_pool._browsers = []
-    
+
     # Run restart
     result = await browser_session.restart()
-    
+
     # Verify
     assert "Successfully restarted" in result
     browser_session.close.assert_called_once()
     browser_session.new_tab.assert_called_once()
-    
+
     # Verify cookie and localStorage injection
     mock_context.add_cookies.assert_called_once_with(mock_storage_state["cookies"])
     mock_context.add_init_script.assert_called_once()
-    
+
     # Verify the script contains our localStorage data
     script_arg = mock_context.add_init_script.call_args[0][0]
     assert "https://example.com" in script_arg
     assert "key1" in script_arg
     assert "val1" in script_arg
-    
+
     # Verify navigation was restored
     browser_session.navigate.assert_called_once_with("https://example.com")
