@@ -230,7 +230,7 @@ async def test_browser_scaling_on_high_load() -> None:
         mock_create.return_value = BrowserInstance(browser=mock_browser)
 
         launcher = pool._get_launcher(pool._config.engine)
-    browser_inst = await launcher.create_browser()
+        browser_inst = await launcher.create_browser()
         browser_inst.load = 15
         pool._browsers.append(browser_inst)
 

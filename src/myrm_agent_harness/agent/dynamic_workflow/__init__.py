@@ -130,25 +130,49 @@ async def run_dynamic_workflow_stream(
         "data": {"message": "Executing workflow (spawning sub-agents)..."},
     }
     
-    # TODO: Actually execute the script using BashExecutor and PTC injection.
-    # For this stub, we will just simulate execution to prove the end-to-end flow.
-    # Implementing the full BashExecutor call requires setting up the ExecutionContext
-    # which is deeply tied to the Harness internals.
+    from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionContext
+    from myrm_agent_harness.toolkits.code_execution.factory import create_executor
+    from myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection import inject_ptc_for_python_execution
     
-    await asyncio.sleep(2)
+    context = ExecutionContext(
+        code=script_code,
+        original_code=script_code,
+        session_id=workflow_id,
+        work_dir="/workspace",
+        allow_network=True,
+    )
+    executor = create_executor()
     
-    yield {
-        "type": "status",
-        "step_key": "workflow_execution",
-        "status": "success",
-        "data": {"message": "Workflow execution completed."},
-    }
-    
-    # Final answer
-    yield {
-        "type": "content",
-        "content": f"Dynamic Workflow `{workflow_id}` executed successfully.\n\nGenerated Script:\n```python\n{script_code}\n```\n\n(Note: Actual Python execution via PTC is pending full Harness integration, but the architecture is fully wired: UI Toggle -> Server API -> Engine -> SQLite Event Store -> PTC Tool Stub).",
-    }
+    try:
+        result = await inject_ptc_for_python_execution(
+            context=context,
+            executor=executor,
+            ptc_tools=[spawn_tool],
+        )
+        
+        yield {
+            "type": "status",
+            "step_key": "workflow_execution",
+            "status": "success",
+            "data": {"message": "Workflow execution completed."},
+        }
+        
+        # Final answer
+        yield {
+            "type": "content",
+            "content": f"Dynamic Workflow `{workflow_id}` executed successfully.\n\nGenerated Script:\n```python\n{script_code}\n```\n\nExecution Output:\n```\n{result.stdout}\n```\n\nExecution Error (if any):\n```\n{result.stderr}\n```",
+        }
+    except Exception as e:
+        yield {
+            "type": "status",
+            "step_key": "workflow_execution",
+            "status": "error",
+            "data": {"message": f"Workflow execution failed: {e}"},
+        }
+        yield {
+            "type": "content",
+            "content": f"Dynamic Workflow `{workflow_id}` failed to execute.\n\nError:\n```\n{e}\n```",
+        }
     
     yield {
         "type": "done",

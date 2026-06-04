@@ -28,32 +28,69 @@ logger = get_agent_logger(__name__)
 
 
 class SkillExtractionRubric(BaseModel):
-    """Class-First Rubric for skill extraction from trajectories."""
+    """Class-First 10-Dim Rubric for skill extraction from trajectories."""
 
-    accuracy_score: float = Field(
+    structure_score: float = Field(
         ...,
         ge=0.0,
         le=1.0,
-        description="Score (0.0-1.0): Does the trajectory contain genuinely useful, non-trivial problem-solving steps?",
+        description="Score (0.0-1.0): Frontmatter quality and structured format.",
+    )
+    workflow_clarity_score: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Score (0.0-1.0): Clarity of execution steps and parameters. Must be actionable.",
+    )
+    failure_mode_score: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Score (0.0-1.0): Explicit encoding of failure modes (if-then recovery branches). Low score if no error recovery is documented.",
+    )
+    anti_pattern_score: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Score (0.0-1.0): Clear negative examples and blacklists (what NOT to do).",
+    )
+    human_in_loop_score: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Score (0.0-1.0): Safe checkpoints for dangerous operations. Uses explicit visual markers.",
+    )
+    resource_integration_score: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Score (0.0-1.0): Proper use of artifacts, files, and scripts without hallucinated resources.",
+    )
+    anti_fluff_score: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Score (0.0-1.0): Free of AI-fluff words, concise and strict. No 'suggest' or 'maybe'.",
     )
     anti_fragmentation_score: float = Field(
         ...,
         ge=0.0,
         le=1.0,
-        description="Score (0.0-1.0): Is the proposed skill cohesive and generalizable? Low score if it hardcodes specific paths/names, uses fix-/debug-/audit- prefixes, or only applies to today's task.",
+        description="Score (0.0-1.0): Generalizable, does not hardcode specific paths/names. Not specific to today's task only.",
     )
-    redundancy_score: float = Field(
+    sandbox_compatibility_score: float = Field(
         ...,
         ge=0.0,
         le=1.0,
-        description="Score (0.0-1.0): Is this workflow NOT already covered by existing skills?",
+        description="Score (0.0-1.0): Sandbox-safe. Does not assume external global credentials or break out of workspace.",
     )
-    goal_alignment_score: float = Field(
+    multi_agent_isolation_score: float = Field(
         ...,
         ge=0.0,
         le=1.0,
-        description="Score (0.0-1.0): Did the execution path stay aligned with the original goal? (Low score if Goal Drift occurred).",
+        description="Score (0.0-1.0): Safe for shared usage, specifies targeted Agent_ID constraints or avoids polluting other agents' scopes.",
     )
+
     reasoning: str = Field(..., description="Detailed explanation for the scores.")
 
     result_type: Literal["nothing", "semantic_memory", "skill_draft", "skill_patch"] = (
@@ -87,16 +124,22 @@ class SkillExtractionRubric(BaseModel):
     def total_score(self) -> float:
         """Calculate weighted total score."""
         return (
-            (self.accuracy_score * 0.3)
-            + (self.anti_fragmentation_score * 0.2)
-            + (self.redundancy_score * 0.2)
-            + (self.goal_alignment_score * 0.3)
+            (self.structure_score * 0.05)
+            + (self.workflow_clarity_score * 0.15)
+            + (self.failure_mode_score * 0.15)
+            + (self.anti_pattern_score * 0.10)
+            + (self.human_in_loop_score * 0.05)
+            + (self.resource_integration_score * 0.05)
+            + (self.anti_fluff_score * 0.10)
+            + (self.anti_fragmentation_score * 0.10)
+            + (self.sandbox_compatibility_score * 0.15)
+            + (self.multi_agent_isolation_score * 0.10)
         )
 
 
-_REVIEW_PROMPT_TEMPLATE = """You are an expert software engineer reviewing a recent Agent conversation.
+_REVIEW_PROMPT_TEMPLATE = """You are an expert software architect reviewing an Agent conversation trajectory to extract durable skills.
 
-**Task**: Analyze the following conversation trajectory and determine if there's any valuable experience worth codifying as a reusable Skill or factual Semantic Memory.
+**Task**: Extract reusable Skills or Semantic Memory using our 10-Dimensional Sandbox-Ready Rubric.
 
 **Original Goal**:
 {original_goal}
@@ -111,31 +154,20 @@ _REVIEW_PROMPT_TEMPLATE = """You are an expert software engineer reviewing a rec
 {trajectory_skeleton}
 
 **Instructions**:
-1. Review the trajectory against the **Original Goal**. Did the agent achieve the goal? Was the path reasonable? Did the agent drift away from the original goal during execution?
-2. Focus on **non-trivial decision paths** (e.g., exploring multiple approaches, recovering from errors, combining tools in a novel way).
-3. Evaluate the potential extraction using the Class-First Rubric (Accuracy, Anti-fragmentation, Redundancy, Goal Alignment).
-4. **ANTI-DRIFT GUARD**: If the execution path significantly deviated from the Original Goal (Goal Drift), or if the final result does not match the original specification, you MUST score `goal_alignment_score` low and output `result_type: "nothing"`. Do not learn from drifted or failed paths.
-5. If the trajectory is trivial, or if the Rubric scores are low, output `result_type: "nothing"`.
-6. **DO NOT CAPTURE** any of the following — they harden into self-imposed constraints that harm future performance:
-   - Environment-dependent failures: missing binaries, fresh-install errors, unconfigured credentials, uninstalled packages, path mismatches. The user can fix these; they are not durable rules.
-   - Negative claims about tools or features ("X tool is broken", "cannot use Y", "browser does not work"). These become permanent refusals the agent cites long after the underlying issue is fixed.
-   - Session-specific transient errors that resolved before the conversation ended. If retrying worked, learn the retry pattern, not the original failure.
-   - One-off task narratives that do not generalize into a class of work (e.g., "summarize today's report").
-   If the ONLY signal in the trajectory is one of the above, output `result_type: "nothing"`.
-7. **NAMING CONSTRAINT**: If proposing a `skill_draft`, the `skill_name` MUST be class-level:
-   - FORBIDDEN: names starting with fix-/debug-/audit-, specific error strings, PR/issue numbers, feature codenames, library-alone names, or "today's task" patterns.
-   - REQUIRED: a name that still makes sense 6 months from now and covers a reusable class of work.
-   - If the best name you can think of only fits today's task, fall back to `skill_patch` on an existing skill instead.
-8. **PRIORITY ORDER** — prefer the earliest action that fits:
-   a. **skill_patch** to a currently-loaded skill (listed under "Active Skills Used in Session"). It was in play; it is the right place.
-   b. **skill_patch** to an existing umbrella skill (listed under "All Available Skills").
-   c. **skill_draft** only when no existing skill covers the class of work.
-   Bias heavily toward patching existing skills over creating new ones.
-9. **IMPORTANT**: Before proposing a new skill, check the "All Available Skills" list above. If a skill with similar functionality already exists, output a **skill_patch** to update it instead of creating a duplicate.
-10. If valuable experience is found and passes the Rubric:
-   a. **For Semantic Memory (Facts about user/project)**: Set `result_type: "semantic_memory"` and populate `content`.
-   b. **For Skill Draft (New reusable operation flow)**: Set `result_type: "skill_draft"` and populate `skill_name`, `skill_description`, `trigger_condition`, and `skill_steps`.
-   c. **For Skill Patch (Updating an existing skill)**: Set `result_type: "skill_patch"` and populate `skill_name` and `patch_content`.
+1. Focus heavily on **non-trivial error recovery** and **if-then failure modes**. If the agent hit a bug and recovered, you MUST extract the failure context and the fallback action.
+2. Evaluate using the 10-Dim Rubric:
+   - Structure & Workflow Clarity (no ambiguous "suggest" or "maybe").
+   - Failure Modes & Anti-patterns (explicitly state what NOT to do).
+   - Human-in-the-Loop & Resource Integration.
+   - Anti-fluff & Anti-fragmentation (must be generalizable).
+   - Sandbox & Multi-Agent Compatibility (must not break sandbox bounds or pollute other agents).
+3. **DO NOT CAPTURE** transient environment failures (e.g., "apt-get is missing", "network timed out") as permanent rules unless they represent a consistent fallback pattern (e.g., "always use pnpm instead of npm").
+4. **NAMING CONSTRAINT**: For `skill_draft`, the name MUST be class-level, generalized, and lowercase with hyphens (e.g. `nextjs-pnpm-resilient-install`).
+5. **PRIORITY ORDER**:
+   a. **skill_patch** to a currently-loaded skill.
+   b. **skill_patch** to an existing umbrella skill.
+   c. **skill_draft** only when no existing skill covers it.
+6. If the scores across the 10 dimensions are generally low (< 0.6 average) or if the skill is trivial, output `result_type: "nothing"`.
 
 **Output Format**: Use the provided structured JSON schema.
 """

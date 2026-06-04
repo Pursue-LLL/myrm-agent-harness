@@ -42,3 +42,4 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 ## Key Dependencies
 
 - `core`
+- Optional extra `[browser]`: `patchright`, `orjson` (`session_vault.py`, `session/session_persistence.py`)

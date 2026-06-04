@@ -119,10 +119,32 @@ class SkillAgentReviewMixin:
         """Determine if a background skill review should be triggered.
 
         Uses HeartbeatEvaluator for expression volume + task complexity assessment.
+        Includes Pre-Screener to block trajectories that completely failed.
         """
         stats: AgentRunStatistics | None = getattr(self, "last_run_stats", None)
         if stats is None:
             return False
+
+        # --- Pre-Screener Logic ---
+        if stats.was_cancelled:
+            logger.debug("Skill review skipped: run was cancelled.")
+            return False
+            
+        if stats.error_message:
+            logger.debug("Skill review skipped: run has fatal framework error.")
+            return False
+
+        try:
+            from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
+            executor = get_executor()
+            if executor and hasattr(executor, "metrics"):
+                metrics = executor.metrics
+                if metrics.total_executions > 0 and metrics.total_success == 0:
+                    logger.info("Skill review skipped (Pre-Screener): Trajectory had 0 successful tool executions.")
+                    return False
+        except Exception as e:
+            logger.debug("Skill review pre-screener failed to check executor metrics: %s", e)
+        # --------------------------
 
         tool_call_count = stats.tool_call_count
 

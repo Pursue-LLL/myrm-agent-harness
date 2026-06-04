@@ -567,7 +567,7 @@ async def create_skill_agent(
         event_log_backend=event_log_backend,
         trusted_skill_ids=trusted_skill_ids,
         skill_env_map=skill_env_map,
-        desired_skill_ids=spec.skill_ids or None,
+        desired_skill_ids=spec.skill_ids,
         skill_configs=spec.skill_configs,
         state_manager=state_manager,
         default_skill_instances=default_skill_instances,

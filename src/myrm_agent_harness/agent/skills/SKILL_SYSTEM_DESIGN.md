@@ -837,19 +837,18 @@ Scanner（编排器）
 - 失败时静默降级（try/except + warning log），绝不阻塞正常流程
 - 不阻断创建，只提供信息让 Agent 或人工审核做最终决策
 
-### 13.4 多智能体技能作用域与挂载 (Multi-Agent Skill Scoping & Sharing)
+### 13.4 多智能体技能池与按需加载 (Multi-Agent Skill Pool & On-Demand Loading)
 
-在多智能体架构下，为了防止技能污染并实现灵活的跨域调用，系统引入了**显式技能挂载 (Explicit Skill Mounting)**机制，而非简单的全局共享池。
+在 Agent in Sandbox 架构下，每个用户拥有完全物理隔离的私有沙箱与持久化存储。智能体的技能管理遵循**私有技能池与按需配置**的极简原则。
 
 **核心机制**：
-- **隔离提取 (Scoped Extraction)**：自动进化提炼出的技能会强制绑定当前智能体的 `Agent_ID`（写入 YAML Frontmatter 的 `scope_agent_id`）。写代码 Agent 学到的技能被隔离在自己的沙箱中，绝对不会污染写文章 Agent。
-- **显式挂载 (Explicit Mounting)**：用户可以在前端 GUI 的"智能体配置 -> 技能"面板中，主动浏览并选择性地"挂载 (Mount)"其他智能体提取的专属技能。
-- **状态存储 (State Storage)**：被挂载的跨域技能 ID 存储在 Agent 配置的 `mounted_skill_ids` 字段中。
-- **运行时组装 (Runtime Assembly)**：`SkillStore` 和 `SkillRegistry` 在运行时查询时，根据当前 `agent_id` 自动合并属于自己的技能（`scope_agent_id == agent_id`）和主动挂载的跨域技能（`skill_id IN mounted_skill_ids`），形成最终的沙箱技能边界。
+- **沙箱私有技能池 (Sandbox Private Skill Pool)**：无论是用户批量导入的技能包，还是智能体自动提取进化出的技能，均统一保存在用户专属沙箱底层的技能库中。
+- **零技能初始状态 (Zero-Skill Initialization)**：新建的智能体初始配置不包含任何技能（`AgentRuntimeSpec.skill_ids = []`）。底层 Factory 层严格遵循透传此配置，确保全新智能体以 0 技能启动，杜绝全局污染和提示词缓存命中率下降。
+- **按需显式装载 (Explicit On-Demand Loading)**：多智能体的能力差异和隔离完全由配置驱动。用户在前端 GUI 为不同的智能体显式分配所需的技能 ID。运行时 `SkillAgent` 仅精准加载被显式选中的技能，实现能力的逻辑隔离。
 
 **设计决策**：
-- 坚持 GUI-First 和显式授权原则。跨域技能调用不是黑盒魔术，而是用户可控、可见的配置项。
-- 技能挂载操作不会修改原技能的所有权（`scope_agent_id` 保持不变），仅仅在调用方智能体建立引用，清晰划分了能力的主权与使用权。
+- 坚持“奥卡姆剃刀”原则。放弃在技能文档物理层面强制绑定拥有者（如 `scope_agent_id`）的繁杂设计。智能体实例的 `skill_ids` 列表是定义其能力边界的唯一事实来源 (Single Source of Truth)。
+- 彻底拥抱 GUI-First，跨越智能体的能力复用与组合完全通过前端界面直观配置，所见即所得。
 
 ---
 

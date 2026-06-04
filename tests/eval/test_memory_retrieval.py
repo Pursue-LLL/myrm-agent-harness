@@ -67,16 +67,14 @@ class TestLoadEvalCases:
 
 
 class TestMemoryRetrievalEvalRunner:
-import asyncio
-
-def test_perfect_retrieval(self) -> None:
+    def test_perfect_retrieval(self) -> None:
         cases = [
             MemoryRetrievalEvalCase(id="c1", category="cat_a", query="q1", gold_ids=["m1"]),
             MemoryRetrievalEvalCase(id="c2", category="cat_a", query="q2", gold_ids=["m2"]),
         ]
         adapter = _MockAdapter(hit_map={"q1": ["m1", "x", "y"], "q2": ["m2", "x", "y"]})
         runner = MemoryRetrievalEvalRunner(adapter)
-        
+
         # create new loop for the test since asyncio.get_event_loop() may fail if none exists in thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
