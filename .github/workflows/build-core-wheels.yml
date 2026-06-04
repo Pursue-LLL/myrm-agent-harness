@@ -54,7 +54,7 @@ jobs:
         run: uv python install 3.13
 
       - name: Install build dependencies
-        run: uv sync --group dev --group build
+        run: uv sync --group build --no-install-project
 
       - name: Build platform wheel
         run: .venv/bin/python scripts/build_core.py --platform ${{ matrix.platform }} --wheel
