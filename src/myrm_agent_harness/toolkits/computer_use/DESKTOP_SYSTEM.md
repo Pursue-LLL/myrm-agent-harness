@@ -115,4 +115,4 @@ Injected via `DESKTOP_CONTROL_RULES` in `shared_rules.py` when `enable_computer_
 
 - Browser parity: [BROWSER_SYSTEM.md](../browser/BROWSER_SYSTEM.md)
 - Module index: [_ARCH.md](_ARCH.md)
-- Roadmap: `temp-docs/roadmap/COMPUTER_USE_HYBRID_DESKTOP_ENHANCEMENT.md`
+- 模块索引：[_ARCH.md](_ARCH.md)（hybrid desktop 规划仅在私有 vortexai `temp-docs/`，非本仓路径）

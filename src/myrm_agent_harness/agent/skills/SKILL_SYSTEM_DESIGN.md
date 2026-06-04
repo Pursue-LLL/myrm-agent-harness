@@ -3,7 +3,7 @@
 > 综合 14 个竞品项目（OpenClaw、Clawith、NanoClaw、Nanobot、NextClaw、Deer-Flow、CoPaw、LobsterAI、ironclaw、nexu、picoclaw、nullclaw、zeroclaw、opencode）的最佳实践，
 > 基于 myrm-agent-harness 现有架构设计的完整技能系统方案。
 >
-> 当前项目的实际落地状态与取舍结论以 `temp-docs/SKILL_SYSTEM_OPTIMIZATION_ROADMAP.md` 为准。
+> 落地状态以本仓实现为准；见 [skills/_ARCH.md](_ARCH.md)。维护者规划笔记在私有 vortexai 开发壳 `temp-docs/`（不在 harness 发行物内）。
 
 ---
 
