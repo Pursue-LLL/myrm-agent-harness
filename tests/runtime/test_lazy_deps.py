@@ -12,6 +12,8 @@ from myrm_agent_harness.runtime import lazy_deps
 @pytest.mark.parametrize(
     "feature,specs",
     [
+        ("platform.discord", ("discord-py[voice]>=2.7.1",)),
+        ("platform.feishu", ("lark-oapi>=1.6.8",)),
         ("platform.matrix", ("mautrix>=0.21.0", "aiohttp-socks>=0.11.0")),
         ("platform.matrix-e2ee", ("mautrix[encryption]>=0.21.0",)),
     ],

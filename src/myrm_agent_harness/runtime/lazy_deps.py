@@ -21,6 +21,12 @@ logger = logging.getLogger(__name__)
 
 # Keys are dot-separated feature names. Values match myrm-agent-server optional extras.
 LAZY_DEPS: dict[str, tuple[str, ...]] = {
+    "platform.discord": (
+        "discord-py[voice]>=2.7.1",
+    ),
+    "platform.feishu": (
+        "lark-oapi>=1.6.8",
+    ),
     "platform.matrix": (
         "mautrix>=0.21.0",
         "aiohttp-socks>=0.11.0",
