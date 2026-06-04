@@ -82,6 +82,14 @@ class DesktopSession(ComputerSession):
     def set_view_update_callback(self, callback: ViewUpdateCallback | None) -> None:
         self._view_update_callback = callback
 
+    def _snapshot_screen_fields(self) -> dict[str, int | float]:
+        info = self.screen_info
+        return {
+            "screen_width": info.width,
+            "screen_height": info.height,
+            "dpi_scale": info.dpi_scale,
+        }
+
     async def desktop_inspect(self) -> str:
         info = inspect_backend(self._backend)
         lines = [
@@ -319,6 +327,7 @@ class DesktopSession(ComputerSession):
             "needs_permission": meta.needs_permission,
             "viewport_width": viewport_width,
             "viewport_height": viewport_height,
+            **self._snapshot_screen_fields(),
         }
         if self._view_update_callback is not None:
             self._view_update_callback(payload)
@@ -366,6 +375,7 @@ class DesktopSession(ComputerSession):
                 "needs_permission": True,
                 "viewport_width": info.width,
                 "viewport_height": info.height,
+                **self._snapshot_screen_fields(),
             }
 
         self._refs.replace(refs, meta)
@@ -397,6 +407,7 @@ class DesktopSession(ComputerSession):
             "needs_permission": meta.needs_permission,
             "viewport_width": viewport_width,
             "viewport_height": viewport_height,
+            **self._snapshot_screen_fields(),
         }
 
 
