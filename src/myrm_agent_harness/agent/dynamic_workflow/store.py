@@ -2,7 +2,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-_BUSY_TIMEOUT_MS = 5000
+_BUSY_TIMEOUT_S = 5
 
 
 class WorkflowEventStore:
@@ -19,9 +19,8 @@ class WorkflowEventStore:
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, timeout=_BUSY_TIMEOUT_MS / 1000)
+        conn = sqlite3.connect(self.db_path, timeout=_BUSY_TIMEOUT_S)
         conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS}")
         return conn
 
     def _init_db(self) -> None:

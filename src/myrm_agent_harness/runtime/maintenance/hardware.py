@@ -49,6 +49,9 @@ class HardwareProfile:
     # Apple Silicon specific (Unified Memory)
     is_unified_memory: bool = False
 
+    # Disk Info
+    free_disk_gb: float | None = None
+
 
 def _detect_macos_hardware(profile: HardwareProfile) -> None:
     """Detect hardware on macOS using system_profiler."""
@@ -238,10 +241,15 @@ def detect_hardware_profile() -> HardwareProfile | None:
         # Total RAM in GB
         total_ram_gb = psutil.virtual_memory().total / (1024.0**3)
 
+        # Free Disk Space in GB (check user home directory)
+        import os
+        free_disk_gb = psutil.disk_usage(os.path.expanduser("~")).free / (1024.0**3)
+
         profile = HardwareProfile(
             os_type=os_type,  # type: ignore
             cpu_arch=cpu_arch,
-            total_ram_gb=total_ram_gb
+            total_ram_gb=total_ram_gb,
+            free_disk_gb=free_disk_gb
         )
 
         # OS-specific GPU detection

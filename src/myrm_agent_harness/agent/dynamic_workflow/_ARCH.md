@@ -41,5 +41,5 @@ Final Output to User
 ## Key Design Decisions
 
 1. **Code-as-Orchestrator**: Complex logic (loops, branches, parallelism) is pushed to Python code, keeping the LLM context clean.
-2. **Durable Execution**: The SQLite Event Store guarantees that if the Python script crashes, restarting it will instantly replay completed sub-agent tasks from cache. This is powered by a deterministic `workflow_id` derived from the HTTP session's `chat_id` and `message_id`, ensuring absolute idempotency during network retries.
+2. **Durable Execution**: The SQLite Event Store guarantees that if the Python script crashes, restarting it will instantly replay completed sub-agent tasks from cache. This is powered by a deterministic `workflow_id` derived from the HTTP session's `chat_id` and `message_id`, ensuring absolute idempotency during network retries. WAL journal mode is enabled for concurrent write safety when multiple sub-agents complete in parallel.
 3. **PTC Integration**: Leverages existing PTC infrastructure to expose the `spawn_subagent` capability to the generated script securely.

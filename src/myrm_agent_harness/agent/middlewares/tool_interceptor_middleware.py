@@ -125,13 +125,16 @@ async def tool_interceptor_middleware(
     tool_name = request.tool_call.get("name", "unknown")
 
     from myrm_agent_harness.infra.tracing import get_tracer
+    import time
 
     tracer = get_tracer("tool.execute")
     with tracer.start_as_current_span("tool.execute") as span:
         span.set_attribute("tool.name", tool_name)
+        start_time = time.perf_counter()
 
         try:
             result = await _tool_interceptor_middleware_inner(request, handler)
+            elapsed_time = time.perf_counter() - start_time
 
             status = "success"
             error_message = ""
@@ -149,10 +152,31 @@ async def tool_interceptor_middleware(
                 metrics_registry,
             )
 
+            agent_id_for_metrics = get_agent_id() or "base_agent"
+            session_id_for_metrics = get_approval_session() or "unknown_session"
+
             if metrics_registry.enabled:
                 metrics_registry.record_tool_call(
-                    agent_id=get_agent_id() or "base_agent", tool_name=tool_name, status=status
+                    agent_id=agent_id_for_metrics, tool_name=tool_name, status=status
                 )
+
+            # Record in SQLite via SkillStore if available
+            try:
+                from myrm_agent_harness.agent.skills.evolution.infra.integration import get_global_evolution_integration
+                evolution_integration = get_global_evolution_integration()
+                if evolution_integration and hasattr(evolution_integration, "store"):
+                    asyncio.create_task(
+                        evolution_integration.store.record_tool_execution(
+                            agent_id=agent_id_for_metrics,
+                            session_id=session_id_for_metrics,
+                            tool_name=tool_name,
+                            status=status,
+                            elapsed_time=elapsed_time,
+                            error_message=None
+                        )
+                    )
+            except Exception as e:
+                logger.debug("Failed to record tool execution to SQLite: %s", e)
 
             _track_skill_execution(
                 tool_name,
@@ -174,10 +198,39 @@ async def tool_interceptor_middleware(
                 metrics_registry,
             )
 
+            agent_id_for_metrics = get_agent_id() or "base_agent"
+            session_id_for_metrics = get_approval_session() or "unknown_session"
+
             if metrics_registry.enabled:
                 metrics_registry.record_tool_call(
-                    agent_id=get_agent_id() or "base_agent", tool_name=tool_name, status="error"
+                    agent_id=agent_id_for_metrics, tool_name=tool_name, status="error"
                 )
+
+            # Record in SQLite via SkillStore if available
+            try:
+                from myrm_agent_harness.agent.skills.evolution.infra.integration import get_global_evolution_integration
+                import time
+                
+                # Compute elapsed time roughly for error cases
+                try:
+                    elapsed_time = time.perf_counter() - start_time
+                except NameError:
+                    elapsed_time = 0.0
+
+                evolution_integration = get_global_evolution_integration()
+                if evolution_integration and hasattr(evolution_integration, "store"):
+                    asyncio.create_task(
+                        evolution_integration.store.record_tool_execution(
+                            agent_id=agent_id_for_metrics,
+                            session_id=session_id_for_metrics,
+                            tool_name=tool_name,
+                            status="error",
+                            elapsed_time=elapsed_time,
+                            error_message=str(e)
+                        )
+                    )
+            except Exception as store_e:
+                logger.debug("Failed to record tool execution to SQLite: %s", store_e)
 
             _track_skill_execution(
                 tool_name,

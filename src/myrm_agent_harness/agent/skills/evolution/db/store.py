@@ -680,6 +680,62 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
                 return False
             return bool(row["evolution_locked"])
 
+    @_db_retry()
+    def _record_tool_execution_sync(
+        self,
+        agent_id: str,
+        session_id: str,
+        tool_name: str,
+        status: str,
+        elapsed_time: float,
+        error_message: str | None,
+        timestamp: str
+    ) -> None:
+        """Synchronous insert for tool execution."""
+        with self._mu:
+            self._conn.execute(
+                """
+                INSERT INTO tool_executions (
+                    agent_id, session_id, tool_name, status, elapsed_time, error_message, timestamp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (agent_id, session_id, tool_name, status, elapsed_time, error_message, timestamp)
+            )
+            self._conn.commit()
+
+    async def record_tool_execution(
+        self,
+        agent_id: str,
+        session_id: str,
+        tool_name: str,
+        status: str,
+        elapsed_time: float,
+        error_message: str | None = None
+    ) -> None:
+        """Record a tool execution.
+
+        Args:
+            agent_id: The agent ID
+            session_id: The session ID
+            tool_name: The name of the tool
+            status: 'success' or 'error'
+            elapsed_time: Execution time in seconds
+            error_message: Optional error message
+        """
+        self._ensure_open()
+        from datetime import datetime
+        now = datetime.now().isoformat()
+        await asyncio.to_thread(
+            self._record_tool_execution_sync,
+            agent_id,
+            session_id,
+            tool_name,
+            status,
+            elapsed_time,
+            error_message,
+            now
+        )
+
     # Read operations (sync, use _reader())
     @_db_retry()
     def get_skill(self, skill_id: str) -> SkillRecord | None:
