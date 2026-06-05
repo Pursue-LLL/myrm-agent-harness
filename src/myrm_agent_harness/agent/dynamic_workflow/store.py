@@ -2,11 +2,15 @@ import json
 import sqlite3
 from pathlib import Path
 
+_BUSY_TIMEOUT_MS = 5000
+
 
 class WorkflowEventStore:
-    """
-    SQLite-based Event Sourcing for Dynamic Workflows.
+    """SQLite-based Event Sourcing for Dynamic Workflows.
+
     Records every sub-agent spawn result to allow durable execution and resume.
+    Uses WAL journal mode for concurrent read/write safety when multiple
+    sub-agents complete in parallel via ThreadPoolExecutor PTC scripts.
     """
 
     def __init__(self, db_path: str | Path):
@@ -14,8 +18,14 @@ class WorkflowEventStore:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path, timeout=_BUSY_TIMEOUT_MS / 1000)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS}")
+        return conn
+
     def _init_db(self) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS subagent_events (
@@ -32,7 +42,7 @@ class WorkflowEventStore:
 
     def get_cached_result(self, workflow_id: str, task_id: str) -> dict[str, object] | None:
         """Retrieve a previously completed sub-agent result."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.execute(
                 "SELECT result_json FROM subagent_events WHERE workflow_id = ? AND task_id = ?",
                 (workflow_id, task_id)
@@ -48,15 +58,15 @@ class WorkflowEventStore:
         task_id: str,
         agent_type: str,
         task_description: str,
-        result: dict[str, object]
+        result: dict[str, object],
     ) -> None:
         """Save a completed sub-agent result."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.execute(
                 """
-                INSERT OR REPLACE INTO subagent_events 
+                INSERT OR REPLACE INTO subagent_events
                 (workflow_id, task_id, agent_type, task_description, result_json)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (workflow_id, task_id, agent_type, task_description, json.dumps(result))
+                (workflow_id, task_id, agent_type, task_description, json.dumps(result)),
             )

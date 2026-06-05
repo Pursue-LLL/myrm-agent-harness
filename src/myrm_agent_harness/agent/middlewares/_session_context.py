@@ -42,6 +42,7 @@ _security_config_var: ContextVar[SecurityConfig | None] = ContextVar("security_c
 _workspace_root_var: ContextVar[str] = ContextVar("workspace_root", default="")
 _pseudonym_store_var: ContextVar[PseudonymStore | None] = ContextVar("pseudonym_store", default=None)
 _session_key_var: ContextVar[str] = ContextVar("approval_session_key", default="")
+_agent_id_var: ContextVar[str] = ContextVar("agent_id", default="")
 _user_id_var: ContextVar[str] = ContextVar("approval_user_id", default="")
 _event_logger_var: ContextVar[EventLogger | None] = ContextVar("event_logger", default=None)
 _allowed_domains_map_var: ContextVar[dict[str, list[str] | None] | None] = ContextVar("allowed_domains_map", default=None)
@@ -95,6 +96,16 @@ def set_approval_session(session_key: str) -> None:
 def get_approval_session() -> str:
     """Get the session key for the current async context."""
     return _session_key_var.get()
+
+
+def set_agent_id(agent_id: str) -> None:
+    """Set the agent ID for the current async context."""
+    _agent_id_var.set(agent_id)
+
+
+def get_agent_id() -> str:
+    """Get the agent ID for the current async context."""
+    return _agent_id_var.get()
 
 
 def set_approval_user_id(user_id: str) -> None:

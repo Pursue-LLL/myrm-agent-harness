@@ -172,6 +172,22 @@ CREATE TABLE IF NOT EXISTS evolution_constraints (
 
 CREATE INDEX IF NOT EXISTS idx_constraints_skill ON evolution_constraints(skill_id);
 CREATE INDEX IF NOT EXISTS idx_constraints_time ON evolution_constraints(created_at);
+
+CREATE TABLE IF NOT EXISTS tool_executions (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id            TEXT NOT NULL,
+    session_id          TEXT NOT NULL,
+    tool_name           TEXT NOT NULL,
+    status              TEXT NOT NULL,
+    elapsed_time        REAL NOT NULL,
+    error_message       TEXT,
+    timestamp           TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_tool_exec_agent ON tool_executions(agent_id);
+CREATE INDEX IF NOT EXISTS idx_tool_exec_session ON tool_executions(session_id);
+CREATE INDEX IF NOT EXISTS idx_tool_exec_tool ON tool_executions(tool_name);
+CREATE INDEX IF NOT EXISTS idx_tool_exec_time ON tool_executions(timestamp);
 """
 
 

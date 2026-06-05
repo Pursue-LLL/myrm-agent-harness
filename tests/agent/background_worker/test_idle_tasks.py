@@ -319,3 +319,209 @@ class TestRunContextCompaction:
             assert any(getattr(e, "message", "") == " Warming up cache..." for e in published)
         finally:
             del _idle_task_handlers["_context_compact_impl"]
+
+
+# ---------------------------------------------------------------------------
+# session_evidence_extraction CAPTURED evolution regression tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestSessionEvidenceExtractionCaptured:
+    """Regression tests for the CAPTURED skill evolution path in session_evidence_extraction.
+
+    Prevents Bug A class regressions: silent import failures in background tasks
+    that go unnoticed because they only log errors (no user-visible failure).
+    """
+
+    def _make_registry_and_task(self) -> tuple[AsyncMock, IdleTaskRecord]:
+        registry = AsyncMock(spec=IdleTaskRegistry)
+        task = IdleTaskRecord(
+            id=20,
+            session_id="sess_cap",
+            task_type="session_evidence_extraction",
+            payload={"agent_id": "agent_1", "chat_id": "chat_42"},
+            status="running",
+            created_at=0.0,
+        )
+        registry.acquire_next.return_value = task
+        return registry, task
+
+    async def test_captured_evolution_happy_path(self) -> None:
+        """When anti_patterns exist and LLM is available, proposal_dict is correctly constructed."""
+        registry, _ = self._make_registry_and_task()
+
+        mock_digest = MagicMock()
+        mock_digest.anti_patterns = ["pattern1"]
+        mock_digest.to_dict.return_value = {"anti_patterns": ["pattern1"]}
+
+        mock_proposal = MagicMock()
+        mock_proposal.skill_id = "error_handling_v1"
+        mock_proposal.reasoning = "Learned from repeated failures"
+        mock_proposal.proposed_content = "# Skill content\nAlways check return values"
+        mock_proposal.score = 0.85
+
+        mock_llm = MagicMock()
+
+        with (
+            patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_maintenance_scheduler") as mock_sched,
+            patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_event_bus") as mock_bus,
+            patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_memory_manager") as mock_mm,
+            patch("myrm_agent_harness.agent.middlewares.approval.get_event_logger") as mock_el,
+            patch("myrm_agent_harness.agent.skills.evolution.core.engine.SkillEvolutionEngine") as MockEngine,
+            patch("myrm_agent_harness.agent.skills.evolution.db.store.SkillStore") as MockStore,
+            patch("myrm_agent_harness.agent.middlewares._session_context.get_workspace_root", return_value="/tmp/ws"),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            scheduler = AsyncMock()
+            scheduler.report_outcome = MagicMock()
+            scheduler.request_capacity.return_value = CapacityTicket(
+                ticket_id="t1", task_type="session_evidence_extraction"
+            )
+            mock_sched.return_value = scheduler
+            mock_bus.return_value = MagicMock()
+
+            mm = MagicMock()
+            mm._consolidation_llm = MagicMock()
+            mm._consolidation_llm.keywords = {"llm": mock_llm}
+            mock_mm.return_value = mm
+
+            backend = AsyncMock()
+            backend.get_events = AsyncMock(return_value=[])
+            backend.append = AsyncMock()
+            event_logger = MagicMock()
+            event_logger._backend = backend
+            mock_el.return_value = event_logger
+
+            mock_extractor = AsyncMock()
+            mock_extractor.extract_digest = AsyncMock(return_value=mock_digest)
+            with patch(
+                "myrm_agent_harness.agent.event_log.evidence_extractor.SessionEvidenceExtractor",
+                return_value=mock_extractor,
+            ):
+                MockStore.return_value = MagicMock()
+                MockStore.return_value.close = MagicMock()
+                engine_instance = AsyncMock()
+                engine_instance.capture_skill_from_trajectory = AsyncMock(return_value=mock_proposal)
+                MockEngine.return_value = engine_instance
+
+                await default_idle_callback("sess_cap", registry)
+
+            event_bus = mock_bus.return_value
+            completed_events = [
+                c.args[0] for c in event_bus.publish.call_args_list
+                if hasattr(c.args[0], "status") and c.args[0].status == "completed"
+            ]
+            assert len(completed_events) == 1
+            event_data = completed_events[0].data
+
+            assert event_data["extracted"] is True
+            assert event_data["anti_patterns_count"] == 1
+            assert event_data["proposal"] is not None
+
+            proposal_dict = event_data["proposal"]
+            assert proposal_dict["skill_id"] == "error_handling_v1"
+            assert proposal_dict["reasoning"] == "Learned from repeated failures"
+            assert proposal_dict["proposed_content"] == "# Skill content\nAlways check return values"
+            assert proposal_dict["score"] == 0.85
+            assert proposal_dict["agent_id"] == "agent_1"
+            assert proposal_dict["chat_id"] == "chat_42"
+
+    async def test_captured_evolution_no_anti_patterns(self) -> None:
+        """When digest has no anti_patterns, CAPTURED evolution is skipped."""
+        registry, _ = self._make_registry_and_task()
+
+        mock_digest = MagicMock()
+        mock_digest.anti_patterns = []
+        mock_digest.to_dict.return_value = {"anti_patterns": []}
+
+        with (
+            patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_maintenance_scheduler") as mock_sched,
+            patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_event_bus") as mock_bus,
+            patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_memory_manager"),
+            patch("myrm_agent_harness.agent.middlewares.approval.get_event_logger") as mock_el,
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            scheduler = AsyncMock()
+            scheduler.report_outcome = MagicMock()
+            scheduler.request_capacity.return_value = CapacityTicket(
+                ticket_id="t2", task_type="session_evidence_extraction"
+            )
+            mock_sched.return_value = scheduler
+            mock_bus.return_value = MagicMock()
+
+            backend = AsyncMock()
+            backend.append = AsyncMock()
+            event_logger = MagicMock()
+            event_logger._backend = backend
+            mock_el.return_value = event_logger
+
+            mock_extractor = AsyncMock()
+            mock_extractor.extract_digest = AsyncMock(return_value=mock_digest)
+            with patch(
+                "myrm_agent_harness.agent.event_log.evidence_extractor.SessionEvidenceExtractor",
+                return_value=mock_extractor,
+            ):
+                await default_idle_callback("sess_cap", registry)
+
+            event_bus = mock_bus.return_value
+            completed_events = [
+                c.args[0] for c in event_bus.publish.call_args_list
+                if hasattr(c.args[0], "status") and c.args[0].status == "completed"
+            ]
+            assert len(completed_events) == 1
+            assert completed_events[0].data["proposal"] is None
+
+    async def test_captured_evolution_no_llm_graceful(self) -> None:
+        """When no LLM is available, logs warning and continues without crash."""
+        registry, _ = self._make_registry_and_task()
+
+        mock_digest = MagicMock()
+        mock_digest.anti_patterns = ["some_pattern"]
+        mock_digest.to_dict.return_value = {"anti_patterns": ["some_pattern"]}
+
+        with (
+            patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_maintenance_scheduler") as mock_sched,
+            patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_event_bus") as mock_bus,
+            patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_memory_manager") as mock_mm,
+            patch("myrm_agent_harness.agent.middlewares.approval.get_event_logger") as mock_el,
+            patch("myrm_agent_harness.agent.middlewares._session_context.get_workspace_root", return_value="/tmp/ws"),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            scheduler = AsyncMock()
+            scheduler.report_outcome = MagicMock()
+            scheduler.request_capacity.return_value = CapacityTicket(
+                ticket_id="t3", task_type="session_evidence_extraction"
+            )
+            mock_sched.return_value = scheduler
+            mock_bus.return_value = MagicMock()
+
+            mm = MagicMock()
+            mm._consolidation_llm = MagicMock()
+            mm._consolidation_llm.keywords = {"llm": None}
+            mock_mm.return_value = mm
+
+            backend = AsyncMock()
+            backend.get_events = AsyncMock(return_value=[])
+            backend.append = AsyncMock()
+            event_logger = MagicMock()
+            event_logger._backend = backend
+            mock_el.return_value = event_logger
+
+            mock_extractor = AsyncMock()
+            mock_extractor.extract_digest = AsyncMock(return_value=mock_digest)
+            with patch(
+                "myrm_agent_harness.agent.event_log.evidence_extractor.SessionEvidenceExtractor",
+                return_value=mock_extractor,
+            ):
+                await default_idle_callback("sess_cap", registry)
+
+            registry.mark_completed.assert_called_once_with(20)
+
+    async def test_captured_imports_succeed(self) -> None:
+        """Guard against Bug A regression: SkillStore and SkillEvolutionEngine import correctly."""
+        from myrm_agent_harness.agent.skills.evolution.core.engine import SkillEvolutionEngine
+        from myrm_agent_harness.agent.skills.evolution.db.store import SkillStore
+
+        assert SkillStore is not None
+        assert SkillEvolutionEngine is not None

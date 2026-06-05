@@ -13,6 +13,7 @@ Components:
 
 from myrm_agent_harness.agent.middlewares._session_context import (
     get_event_logger,
+    set_agent_id,
     set_approval_session,
     set_approval_user_id,
     set_event_logger,
@@ -43,6 +44,7 @@ __all__ = [
     "record_denial",
     "register_security_reviewer",
     "reset_denial_counter",
+    "set_agent_id",
     "set_approval_session",
     "set_approval_user_id",
     "set_event_logger",

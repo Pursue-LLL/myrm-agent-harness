@@ -20,40 +20,64 @@ from myrm_agent_harness.agent.skills.evolution.review.reviewer import (
 class TestSkillExtractionRubric:
     """Test the SkillExtractionRubric scoring model."""
 
+    def _make_rubric(self, score: float = 1.0, **overrides) -> SkillExtractionRubric:
+        fields = {
+            "structure_score": score,
+            "workflow_clarity_score": score,
+            "failure_mode_score": score,
+            "anti_pattern_score": score,
+            "human_in_loop_score": score,
+            "resource_integration_score": score,
+            "anti_fluff_score": score,
+            "anti_fragmentation_score": score,
+            "sandbox_compatibility_score": score,
+            "multi_agent_isolation_score": score,
+            "reasoning": "Test",
+            "result_type": "nothing",
+        }
+        fields.update(overrides)
+        return SkillExtractionRubric(**fields)
+
     def test_total_score_calculation(self):
-        rubric = SkillExtractionRubric(
-            accuracy_score=1.0,
-            anti_fragmentation_score=1.0,
-            redundancy_score=1.0,
-            goal_alignment_score=1.0,
+        rubric = self._make_rubric(
+            score=1.0,
             reasoning="All perfect",
             result_type="skill_draft",
             skill_name="test-skill",
             skill_steps="Step 1",
         )
-        assert rubric.total_score == 1.0
+        assert abs(rubric.total_score - 1.0) < 1e-6
 
     def test_total_score_weighted_average(self):
-        rubric = SkillExtractionRubric(
-            accuracy_score=0.8,
-            anti_fragmentation_score=0.6,
-            redundancy_score=0.4,
-            goal_alignment_score=0.2,
+        rubric = self._make_rubric(
+            structure_score=0.8,
+            workflow_clarity_score=0.6,
+            failure_mode_score=0.4,
+            anti_pattern_score=0.2,
+            human_in_loop_score=0.5,
+            resource_integration_score=0.7,
+            anti_fluff_score=0.3,
+            anti_fragmentation_score=0.9,
+            sandbox_compatibility_score=0.1,
+            multi_agent_isolation_score=0.6,
             reasoning="Mixed",
-            result_type="nothing",
         )
-        expected = (0.8 * 0.3) + (0.6 * 0.2) + (0.4 * 0.2) + (0.2 * 0.3)
+        expected = (
+            (0.8 * 0.05)
+            + (0.6 * 0.15)
+            + (0.4 * 0.15)
+            + (0.2 * 0.10)
+            + (0.5 * 0.05)
+            + (0.7 * 0.05)
+            + (0.3 * 0.10)
+            + (0.9 * 0.10)
+            + (0.1 * 0.15)
+            + (0.6 * 0.10)
+        )
         assert abs(rubric.total_score - expected) < 1e-6
 
     def test_total_score_zero(self):
-        rubric = SkillExtractionRubric(
-            accuracy_score=0.0,
-            anti_fragmentation_score=0.0,
-            redundancy_score=0.0,
-            goal_alignment_score=0.0,
-            reasoning="Nothing useful",
-            result_type="nothing",
-        )
+        rubric = self._make_rubric(score=0.0, reasoning="Nothing useful")
         assert rubric.total_score == 0.0
 
 
@@ -114,26 +138,25 @@ class TestReviewPromptTemplate:
         assert "DO NOT CAPTURE" in _REVIEW_PROMPT_TEMPLATE
 
     def test_contains_environment_failure_exclusion(self):
-        assert "Environment-dependent failures" in _REVIEW_PROMPT_TEMPLATE
+        assert "environment failures" in _REVIEW_PROMPT_TEMPLATE.lower()
 
-    def test_contains_negative_claims_exclusion(self):
-        assert "Negative claims about tools" in _REVIEW_PROMPT_TEMPLATE
+    def test_contains_anti_fragmentation_guidance(self):
+        assert "generalizable" in _REVIEW_PROMPT_TEMPLATE.lower()
 
-    def test_contains_transient_error_exclusion(self):
-        assert "Session-specific transient errors" in _REVIEW_PROMPT_TEMPLATE
+    def test_contains_sandbox_compatibility_guidance(self):
+        assert "sandbox" in _REVIEW_PROMPT_TEMPLATE.lower()
 
-    def test_contains_one_off_task_exclusion(self):
-        assert "One-off task narratives" in _REVIEW_PROMPT_TEMPLATE
+    def test_contains_rubric_dimensions(self):
+        assert "10-Dim" in _REVIEW_PROMPT_TEMPLATE
 
     def test_contains_naming_constraint(self):
         assert "NAMING CONSTRAINT" in _REVIEW_PROMPT_TEMPLATE
-        assert "fix-/debug-/audit-" in _REVIEW_PROMPT_TEMPLATE
-        assert "6 months" in _REVIEW_PROMPT_TEMPLATE
+        assert "lowercase" in _REVIEW_PROMPT_TEMPLATE
 
     def test_contains_priority_order(self):
         assert "PRIORITY ORDER" in _REVIEW_PROMPT_TEMPLATE
         assert "currently-loaded skill" in _REVIEW_PROMPT_TEMPLATE
-        assert "Bias heavily toward patching" in _REVIEW_PROMPT_TEMPLATE
+        assert "skill_patch" in _REVIEW_PROMPT_TEMPLATE
 
     def test_contains_all_format_placeholders(self):
         assert "{original_goal}" in _REVIEW_PROMPT_TEMPLATE
@@ -144,6 +167,25 @@ class TestReviewPromptTemplate:
 
 class TestReviewTrajectoryWithLLM:
     """Test the review_trajectory_with_llm function."""
+
+    def _make_rubric(self, score: float = 0.9, **overrides) -> SkillExtractionRubric:
+        """Create a rubric with all 10 dimensions set to `score`, then apply overrides."""
+        fields = {
+            "structure_score": score,
+            "workflow_clarity_score": score,
+            "failure_mode_score": score,
+            "anti_pattern_score": score,
+            "human_in_loop_score": score,
+            "resource_integration_score": score,
+            "anti_fluff_score": score,
+            "anti_fragmentation_score": score,
+            "sandbox_compatibility_score": score,
+            "multi_agent_isolation_score": score,
+            "reasoning": "Test",
+            "result_type": "nothing",
+        }
+        fields.update(overrides)
+        return SkillExtractionRubric(**fields)
 
     def _make_llm_mock(self, rubric_or_error: SkillExtractionRubric | Exception | None):
         """Create a properly mocked LLM that returns rubric on ainvoke."""
@@ -171,14 +213,7 @@ class TestReviewTrajectoryWithLLM:
 
     @pytest.mark.asyncio
     async def test_returns_no_value_when_result_type_nothing(self):
-        rubric = SkillExtractionRubric(
-            accuracy_score=0.9,
-            anti_fragmentation_score=0.9,
-            redundancy_score=0.9,
-            goal_alignment_score=0.9,
-            reasoning="Not worth it",
-            result_type="nothing",
-        )
+        rubric = self._make_rubric(reasoning="Not worth it", result_type="nothing")
         llm, _ = self._make_llm_mock(rubric)
         result = await review_trajectory_with_llm("<User>: test", llm)
         assert result is not None
@@ -186,11 +221,8 @@ class TestReviewTrajectoryWithLLM:
 
     @pytest.mark.asyncio
     async def test_rejects_low_total_score(self):
-        rubric = SkillExtractionRubric(
-            accuracy_score=0.3,
-            anti_fragmentation_score=0.3,
-            redundancy_score=0.3,
-            goal_alignment_score=0.3,
+        rubric = self._make_rubric(
+            score=0.3,
             reasoning="Low quality",
             result_type="skill_draft",
             skill_name="test",
@@ -204,11 +236,8 @@ class TestReviewTrajectoryWithLLM:
     @pytest.mark.asyncio
     async def test_rejects_low_anti_fragmentation_score(self):
         """Fragmented skills (fix-X, debug-Y naming) get rejected by threshold."""
-        rubric = SkillExtractionRubric(
-            accuracy_score=0.9,
+        rubric = self._make_rubric(
             anti_fragmentation_score=0.5,
-            redundancy_score=0.9,
-            goal_alignment_score=0.9,
             reasoning="Fragmented naming",
             result_type="skill_draft",
             skill_name="fix-specific-bug-today",
@@ -221,11 +250,7 @@ class TestReviewTrajectoryWithLLM:
 
     @pytest.mark.asyncio
     async def test_returns_skill_draft(self):
-        rubric = SkillExtractionRubric(
-            accuracy_score=0.9,
-            anti_fragmentation_score=0.8,
-            redundancy_score=0.8,
-            goal_alignment_score=0.9,
+        rubric = self._make_rubric(
             reasoning="Good workflow",
             result_type="skill_draft",
             skill_name="database-migration",
@@ -242,11 +267,7 @@ class TestReviewTrajectoryWithLLM:
 
     @pytest.mark.asyncio
     async def test_returns_skill_patch(self):
-        rubric = SkillExtractionRubric(
-            accuracy_score=0.8,
-            anti_fragmentation_score=0.9,
-            redundancy_score=0.7,
-            goal_alignment_score=0.8,
+        rubric = self._make_rubric(
             reasoning="Update existing skill",
             result_type="skill_patch",
             skill_name="python-coding",
@@ -262,11 +283,7 @@ class TestReviewTrajectoryWithLLM:
 
     @pytest.mark.asyncio
     async def test_returns_semantic_memory(self):
-        rubric = SkillExtractionRubric(
-            accuracy_score=0.8,
-            anti_fragmentation_score=0.9,
-            redundancy_score=0.8,
-            goal_alignment_score=0.9,
+        rubric = self._make_rubric(
             reasoning="User preference",
             result_type="semantic_memory",
             content="User prefers dark mode in all UIs",
@@ -280,11 +297,7 @@ class TestReviewTrajectoryWithLLM:
 
     @pytest.mark.asyncio
     async def test_rejects_empty_semantic_memory_content(self):
-        rubric = SkillExtractionRubric(
-            accuracy_score=0.9,
-            anti_fragmentation_score=0.9,
-            redundancy_score=0.9,
-            goal_alignment_score=0.9,
+        rubric = self._make_rubric(
             reasoning="Something",
             result_type="semantic_memory",
             content="",
@@ -296,11 +309,7 @@ class TestReviewTrajectoryWithLLM:
 
     @pytest.mark.asyncio
     async def test_rejects_skill_draft_missing_name(self):
-        rubric = SkillExtractionRubric(
-            accuracy_score=0.9,
-            anti_fragmentation_score=0.9,
-            redundancy_score=0.9,
-            goal_alignment_score=0.9,
+        rubric = self._make_rubric(
             reasoning="Missing name",
             result_type="skill_draft",
             skill_name="",
@@ -313,11 +322,7 @@ class TestReviewTrajectoryWithLLM:
 
     @pytest.mark.asyncio
     async def test_rejects_skill_patch_missing_patch_content(self):
-        rubric = SkillExtractionRubric(
-            accuracy_score=0.9,
-            anti_fragmentation_score=0.9,
-            redundancy_score=0.9,
-            goal_alignment_score=0.9,
+        rubric = self._make_rubric(
             reasoning="Missing patch",
             result_type="skill_patch",
             skill_name="some-skill",
@@ -346,14 +351,7 @@ class TestReviewTrajectoryWithLLM:
 
     @pytest.mark.asyncio
     async def test_passes_active_skills_to_prompt(self):
-        rubric = SkillExtractionRubric(
-            accuracy_score=0.3,
-            anti_fragmentation_score=0.3,
-            redundancy_score=0.3,
-            goal_alignment_score=0.3,
-            reasoning="Low",
-            result_type="nothing",
-        )
+        rubric = self._make_rubric(score=0.3, reasoning="Low")
         llm, structured_llm = self._make_llm_mock(rubric)
 
         await review_trajectory_with_llm(

@@ -51,6 +51,7 @@ from langgraph.types import Command
 from myrm_agent_harness.agent.artifacts import ArtifactContextManager
 from myrm_agent_harness.agent.event_log.logger import EventLogger
 from myrm_agent_harness.agent.middlewares.approval import (
+    set_agent_id,
     set_approval_session,
     set_event_logger,
     set_security_config,
@@ -179,6 +180,9 @@ async def run_agent_loop(
             else ""
         )
         set_approval_session(session_key)
+        
+        # Make sure agent_id is populated from config
+        set_agent_id(agent_state.config.agent_id)
 
         output_queue: asyncio.Queue[dict[str, object] | object] = asyncio.Queue()
 

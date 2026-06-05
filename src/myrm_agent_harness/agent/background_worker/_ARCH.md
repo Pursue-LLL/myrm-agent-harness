@@ -19,9 +19,9 @@ Background worker module for agent.
 |-----------|-------------|-----------------|
 | cognitive_consolidation | Merge and consolidate memory fragments | Built-in (idle_tasks.py) |
 | cognitive_subsumption | Erase redundant memories when a Skill is learned | Built-in (idle_tasks.py) |
-| session_evidence_extraction | Extract anti-patterns and evidence from session events | Built-in (idle_tasks.py) |
+| cognitive_derivation | Deep analysis of implicit user communication preferences | Built-in (idle_tasks.py) |
+| session_evidence_extraction | Extract anti-patterns and CAPTURED skill proposals from session events | Built-in (idle_tasks.py) |
 | context_compaction | Compress idle session context and preheat prefix cache | Built-in (idle_tasks.py) |
-| auto_skill_extraction | Auto-extract skills from successful agent runs | Via registered handler |
 
 ## Key Dependencies
 

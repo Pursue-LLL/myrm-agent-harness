@@ -11,6 +11,8 @@
 - agent.context_management.preheat::preheat_prefix_cache (POS: Prefix cache preheat utility for idle compression pipeline.)
 - agent.background_worker.shadow_context::restricted_shadow_context (POS: Execution-layer bulkhead isolation for background shadow workloads.)
 - agent.background_worker.registry::IdleTaskRecord (POS: Idle Task Registry for crash-resilient persistence and concurrency control.)
+- agent.skills.evolution.core.engine::SkillEvolutionEngine (POS: Skill evolution engine - Core of self-evolution system.)
+- agent.skills.evolution.db.store::SkillStore (POS: SQLite persistence for skill evolution system.)
 
 [OUTPUT]
 - register_idle_task_handler: Register a custom handler for a specific idle task type.
@@ -263,15 +265,15 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                     session_id,
                                 )
                                 try:
+                                    from pathlib import Path
+
                                     from myrm_agent_harness.agent.middlewares._session_context import get_workspace_root
                                     from myrm_agent_harness.agent.skills.evolution.core.engine import SkillEvolutionEngine
-                                    from myrm_agent_harness.agent.skills.evolution.db.store import get_skill_store
+                                    from myrm_agent_harness.agent.skills.evolution.db.store import SkillStore
 
-                                    # Get trajectory text
                                     events = await event_logger._backend.get_events(session_id)
                                     trajectory = "\n".join([f"[{e.event_type}] {e.data}" for e in events])
 
-                                    # Need LLM for extraction
                                     memory_manager = get_memory_manager()
                                     llm = (
                                         memory_manager._consolidation_llm.keywords.get("llm")
@@ -279,40 +281,39 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                         else None
                                     )
 
-                                    # Default to something if no LLM found in memory_manager
                                     if llm is None:
                                         logger.warning("No LLM found for CAPTURED evolution in session %s", session_id)
                                     else:
-                                        store = get_skill_store(get_workspace_root())
-                                        engine = SkillEvolutionEngine(
-                                            store=store, llm=llm, event_log_backend=event_logger._backend
-                                        )
-
-                                        # Get agent_id from payload
-                                        agent_id = task.payload.get("agent_id", "default")
-                                        chat_id = task.payload.get("chat_id")
-
-                                        # Extract proposal
-                                        proposal = await engine.capture_skill_from_trajectory(
-                                            trajectory=trajectory, session_id=session_id
-                                        )
-
-                                        if proposal:
-                                            logger.info(
-                                                "Successfully extracted skill proposal '%s' from session %s",
-                                                proposal.skill_id,
-                                                session_id,
+                                        workspace_root = Path(get_workspace_root())
+                                        store = SkillStore(db_path=workspace_root / ".myrm" / "skills.db")
+                                        try:
+                                            engine = SkillEvolutionEngine(
+                                                store=store, llm=llm, event_log_backend=event_logger._backend
                                             )
-                                            # Do NOT save to SQLite here. Harness is pure.
-                                            # Instead, package it into the event data so Server can pick it up.
-                                            proposal_dict = {
-                                                "skill_id": proposal.skill_id,
-                                                "reasoning": proposal.reasoning,
-                                                "proposed_content": proposal.proposed_content,
-                                                "score": float(proposal.score),
-                                                "agent_id": agent_id,
-                                                "chat_id": chat_id,
-                                            }
+
+                                            agent_id = task.payload.get("agent_id", "default")
+                                            chat_id = task.payload.get("chat_id")
+
+                                            proposal = await engine.capture_skill_from_trajectory(
+                                                trajectory=trajectory, session_id=session_id
+                                            )
+
+                                            if proposal:
+                                                logger.info(
+                                                    "Successfully extracted skill proposal '%s' from session %s",
+                                                    proposal.skill_id,
+                                                    session_id,
+                                                )
+                                                proposal_dict = {
+                                                    "skill_id": proposal.skill_id,
+                                                    "reasoning": proposal.reasoning,
+                                                    "proposed_content": proposal.proposed_content,
+                                                    "score": float(proposal.score),
+                                                    "agent_id": agent_id,
+                                                    "chat_id": chat_id,
+                                                }
+                                        finally:
+                                            store.close()
 
                                 except Exception as e:
                                     logger.error(

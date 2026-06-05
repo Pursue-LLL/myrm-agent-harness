@@ -51,6 +51,7 @@ from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
 from myrm_agent_harness.agent.middlewares._session_context import (
+    get_agent_id,
     get_event_logger,
 )
 from myrm_agent_harness.agent.middlewares._skill_failure_tracking import (
@@ -150,7 +151,7 @@ async def tool_interceptor_middleware(
 
             if metrics_registry.enabled:
                 metrics_registry.record_tool_call(
-                    agent_id="base_agent", tool_name=tool_name, status=status
+                    agent_id=get_agent_id() or "base_agent", tool_name=tool_name, status=status
                 )
 
             _track_skill_execution(
@@ -175,7 +176,7 @@ async def tool_interceptor_middleware(
 
             if metrics_registry.enabled:
                 metrics_registry.record_tool_call(
-                    agent_id="base_agent", tool_name=tool_name, status="error"
+                    agent_id=get_agent_id() or "base_agent", tool_name=tool_name, status="error"
                 )
 
             _track_skill_execution(

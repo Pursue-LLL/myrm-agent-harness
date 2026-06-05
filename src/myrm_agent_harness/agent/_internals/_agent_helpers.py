@@ -199,9 +199,6 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
                     )
                 )
 
-        _fire_and_forget(
-            registry.enqueue(session_id, user_id, "auto_skill_extraction", {})
-        )
         if chat_id:
             _fire_and_forget(
                 registry.enqueue(

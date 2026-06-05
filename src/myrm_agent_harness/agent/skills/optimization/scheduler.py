@@ -404,7 +404,13 @@ class OptimizationScheduler:
                 "error": str(e),
             }
 
-    async def trigger_batch_optimization(self, skill_ids: list[str], max_concurrent: int = 3, priority: int = 0) -> str:
+    async def trigger_batch_optimization(
+        self,
+        skill_ids: list[str],
+        max_concurrent: int = 3,
+        priority: int = 0,
+        batch_task_id: str | None = None,
+    ) -> str:
         """批量触发skill优化（F1）
 
         使用Semaphore控制并发数，避免过载。
@@ -413,11 +419,12 @@ class OptimizationScheduler:
             skill_ids: Skill ID列表
             max_concurrent: 最大并发数（默认3）
             priority: 任务优先级（默认0，仅用于记录）
+            batch_task_id: 可选预分配任务 ID（用于优化前快照等前置步骤）
 
         Returns:
             batch_task_id: 批量任务ID（用于查询进度）
         """
-        batch_task_id = f"batch_{uuid.uuid4().hex[:8]}"
+        batch_task_id = batch_task_id or f"batch_{uuid.uuid4().hex[:8]}"
 
         self._batch_tasks[batch_task_id] = {
             "total": len(skill_ids),
