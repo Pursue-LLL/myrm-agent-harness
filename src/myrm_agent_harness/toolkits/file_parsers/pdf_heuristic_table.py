@@ -166,7 +166,10 @@ def extract_heuristic_tables_from_words(
                     i += 1
                 elif not row_info[i]["is_paragraph"] and len(row_info[i]["aligned_columns"]) >= 1:
                     # Weak row (e.g. wrapped text). Check vertical gap from previous line.
-                    if row_info[i]["y_key"] - row_info[i - 1]["y_key"] <= 15:
+                    prev_words = row_info[i - 1]["words"]
+                    prev_h = sum(float(w["bottom"]) - float(w["top"]) for w in prev_words) / max(1, len(prev_words))
+
+                    if row_info[i]["y_key"] - row_info[i - 1]["y_key"] <= prev_h * 2.0 + 10.0:
                         i += 1
                     else:
                         break
