@@ -166,7 +166,7 @@ def extract_heuristic_tables_from_words(
                     i += 1
                 elif not row_info[i]["is_paragraph"] and len(row_info[i]["aligned_columns"]) >= 1:
                     # Weak row (e.g. wrapped text). Check vertical gap from previous line.
-                    if row_info[i]["y_key"] - row_info[i-1]["y_key"] <= 15:
+                    if row_info[i]["y_key"] - row_info[i - 1]["y_key"] <= 15:
                         i += 1
                     else:
                         break
@@ -196,13 +196,21 @@ def extract_heuristic_tables_from_words(
             r_min_y0 = float("inf")
             r_max_x1 = 0.0
             r_max_y1 = 0.0
+            r_height_sum = 0.0
+            r_word_count = 0
 
             for word in info["words"]:
                 word_center_x = (word["x0"] + word["x1"]) / 2.0
+                top_val = float(word["top"])
+                bottom_val = float(word["bottom"])
+
                 r_min_x0 = min(r_min_x0, float(word["x0"]))
-                r_min_y0 = min(r_min_y0, float(word["top"]))
+                r_min_y0 = min(r_min_y0, top_val)
                 r_max_x1 = max(r_max_x1, float(word["x1"]))
-                r_max_y1 = max(r_max_y1, float(word["bottom"]))
+                r_max_y1 = max(r_max_y1, bottom_val)
+
+                r_height_sum += bottom_val - top_val
+                r_word_count += 1
 
                 # Assign word to the correct column bucket
                 assigned_col = num_cols - 1
@@ -217,6 +225,8 @@ def extract_heuristic_tables_from_words(
                 else:
                     cells[assigned_col] = word["text"]
 
+            avg_h = r_height_sum / r_word_count if r_word_count > 0 else 12.0
+
             if r_min_y0 != float("inf"):
                 raw_rows.append(
                     {
@@ -225,8 +235,25 @@ def extract_heuristic_tables_from_words(
                         "y0": r_min_y0,
                         "x1": r_max_x1,
                         "y1": r_max_y1,
+                        "avg_h": avg_h,
                     }
                 )
+
+        def _needs_space(prev_text: str, curr_text: str) -> bool:
+            if not prev_text or not curr_text:
+                return False
+
+            def is_cjk(char: str) -> bool:
+                cp = ord(char)
+                return (
+                    0x4E00 <= cp <= 0x9FFF
+                    or 0x3400 <= cp <= 0x4DBF
+                    or 0x3040 <= cp <= 0x309F
+                    or 0x30A0 <= cp <= 0x30FF
+                    or 0xAC00 <= cp <= 0xD7AF
+                )
+
+            return not (is_cjk(prev_text[-1]) or is_cjk(curr_text[0]))
 
         # Post-Processing: Vertical Gap Analysis & Logical Row Merging
         merged_rows: list[dict[str, Any]] = []
@@ -245,8 +272,10 @@ def extract_heuristic_tables_from_words(
             populated_curr = sum(1 for c in curr_cells if c)
 
             is_wrap = False
-            # Vertical gap threshold for a continued line (typically < 12pt)
-            if gap < 12.0:
+            # Dynamic vertical gap threshold based on font line height (approx 1.5x)
+            dynamic_gap_threshold = max(12.0, (prev_r["avg_h"] + r["avg_h"]) / 2.0 * 1.5)
+
+            if gap < dynamic_gap_threshold:
                 collision = any(prev_cells[i] and curr_cells[i] for i in range(num_cols))
                 if not collision or (populated_curr < populated_prev and populated_curr <= max(1, num_cols // 2)):
                     is_wrap = True
@@ -256,12 +285,15 @@ def extract_heuristic_tables_from_words(
                 for i in range(num_cols):
                     if curr_cells[i]:
                         if prev_cells[i]:
-                            prev_r["cells"][i] += " " + curr_cells[i]
+                            space = " " if _needs_space(prev_cells[i], curr_cells[i]) else ""
+                            prev_r["cells"][i] += space + curr_cells[i]
                         else:
                             prev_r["cells"][i] = curr_cells[i]
                 prev_r["y1"] = max(prev_r["y1"], r["y1"])
                 prev_r["x0"] = min(prev_r["x0"], r["x0"])
                 prev_r["x1"] = max(prev_r["x1"], r["x1"])
+                # update average height for the merged row
+                prev_r["avg_h"] = (prev_r["avg_h"] + r["avg_h"]) / 2.0
             else:
                 merged_rows.append(r)
 

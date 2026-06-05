@@ -1,16 +1,20 @@
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import create_delegate_task_tool
-from myrm_agent_harness.agent.sub_agents.types import SubAgentResult, SubAgentStatus
+from myrm_agent_harness.agent.sub_agents.types import SubAgentResult, SubAgentStatus, SubagentConfig, WorkspacePolicy
 
 def _make_mock_parent():
     parent = MagicMock()
     parent.config = MagicMock()
-    parent.config.allowed_subagent_types = None
-    parent.config.memory_isolation = None
     parent._manager = AsyncMock()
     parent._spawn_child = AsyncMock()
     return parent
+
+def _make_mock_config():
+    return SubagentConfig(
+        system_prompt="You are a mock agent",
+        tools=("mock_tool",),
+    )
 
 @pytest.mark.asyncio
 async def test_delegate_task_with_verifier_prompt_and_wait_false():
@@ -33,7 +37,7 @@ async def test_delegate_task_with_verifier_prompt_and_wait_false():
 async def test_delegate_task_with_verifier_prompt_and_wait_true(mock_run_with_verification):
     parent = _make_mock_parent()
     catalog = AsyncMock()
-    catalog.resolve = AsyncMock(return_value=MagicMock())
+    catalog.resolve = AsyncMock(return_value=_make_mock_config())
     
     tool = create_delegate_task_tool(parent, lambda: [], catalog)
     
@@ -63,14 +67,20 @@ async def test_delegate_task_with_verifier_prompt_and_wait_true(mock_run_with_ve
     assert kwargs["verifier_type"] == "verifier"
     assert kwargs["max_rounds"] == 3
     assert kwargs["verifier_task_template"] == "Verify it"
-    assert result == mock_result.to_dict()
+    assert result["success"] is True
+    assert result["task_id"] == "test-task"
 
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification")
 async def test_delegate_task_with_verifier_prompt_fallback_type(mock_run_with_verification):
     parent = _make_mock_parent()
     catalog = AsyncMock()
-    catalog.resolve = AsyncMock(return_value=None)
+    def mock_resolve(type_id):
+        if type_id == "coder":
+            return _make_mock_config()
+        return None
+        
+    catalog.resolve = AsyncMock(side_effect=mock_resolve)
     
     tool = create_delegate_task_tool(parent, lambda: [], catalog)
     

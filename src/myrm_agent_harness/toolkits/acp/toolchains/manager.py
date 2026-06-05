@@ -23,8 +23,8 @@ NODE_VERSION = "v20.14.0"
 
 BACKEND_NPM_MAP = {
     "claude": "@anthropic-ai/claude-code",
-    "codex": "@sourcegraph/cody", # Placeholder for codex CLI
-    "gemini": "@google/genai-cli", # Placeholder
+    "codex": "@openai/codex",
+    "gemini": "@google/gemini-cli",
 }
 
 class IsolatedToolchainManager:
