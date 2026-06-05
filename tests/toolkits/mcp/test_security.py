@@ -531,6 +531,19 @@ class TestScanMcpRuntimeSurface:
         )
         assert any(f.threat_type == "sensitive_path" for f in result.findings)
 
+    def test_kube_path_in_args_flagged(self) -> None:
+        from myrm_agent_harness.toolkits.mcp.security import MCPConfigSnapshot, scan_mcp_config
+
+        result = scan_mcp_config(
+            MCPConfigSnapshot(
+                name="fs",
+                type="stdio",
+                command="node",
+                args=("~/.kube/config",),
+            )
+        )
+        assert any(f.threat_type == "sensitive_path" for f in result.findings)
+
     def test_scan_performance_under_50ms(self) -> None:
         import time
 
