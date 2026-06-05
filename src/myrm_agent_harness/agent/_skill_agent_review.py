@@ -129,7 +129,7 @@ class SkillAgentReviewMixin:
         if stats.was_cancelled:
             logger.debug("Skill review skipped: run was cancelled.")
             return False
-            
+
         if stats.error_message:
             logger.debug("Skill review skipped: run has fatal framework error.")
             return False

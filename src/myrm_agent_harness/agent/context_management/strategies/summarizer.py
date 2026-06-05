@@ -341,6 +341,10 @@ async def generate_structured_summary(
 
     protected_head = extract_protected_head(messages)
 
+    # Prevent overlap between protected_head and recent_messages
+    protected_ids = {id(m) for m in protected_head}
+    recent_messages = [m for m in recent_messages if id(m) not in protected_ids]
+
     # Remove old preserved context messages to prevent accumulation
     protected_head = [
         msg for msg in protected_head

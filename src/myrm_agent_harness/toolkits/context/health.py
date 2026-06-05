@@ -21,7 +21,6 @@ import os
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from .index import ContextIndexBackend
 from .spec import ContextScene
 
 HealthProbe = Callable[[], Awaitable[str]]

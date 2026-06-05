@@ -19,7 +19,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .spec import CONTEXT_BUNDLE_SCHEMA_VERSION, ContextBundleSpec
+from .spec import ContextBundleSpec
 from .volume import BUNDLE_MANIFEST_FILENAME, VolumeLayout
 
 

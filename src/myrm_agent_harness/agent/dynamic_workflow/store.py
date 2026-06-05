@@ -2,17 +2,18 @@ import json
 import sqlite3
 from pathlib import Path
 
+
 class WorkflowEventStore:
     """
     SQLite-based Event Sourcing for Dynamic Workflows.
     Records every sub-agent spawn result to allow durable execution and resume.
     """
-    
+
     def __init__(self, db_path: str | Path):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
-        
+
     def _init_db(self) -> None:
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
@@ -28,7 +29,7 @@ class WorkflowEventStore:
                 )
                 """
             )
-            
+
     def get_cached_result(self, workflow_id: str, task_id: str) -> dict[str, object] | None:
         """Retrieve a previously completed sub-agent result."""
         with sqlite3.connect(self.db_path) as conn:
@@ -40,13 +41,13 @@ class WorkflowEventStore:
             if row:
                 return json.loads(row[0])
         return None
-        
+
     def save_result(
-        self, 
-        workflow_id: str, 
-        task_id: str, 
-        agent_type: str, 
-        task_description: str, 
+        self,
+        workflow_id: str,
+        task_id: str,
+        agent_type: str,
+        task_description: str,
         result: dict[str, object]
     ) -> None:
         """Save a completed sub-agent result."""

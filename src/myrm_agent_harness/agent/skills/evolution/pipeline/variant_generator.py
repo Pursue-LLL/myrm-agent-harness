@@ -42,6 +42,7 @@ _EDITING_PRINCIPLES = """\
 - Default to targeted edits, not rewrites.
 - If multiple evidence points to the same section being wrong, edit that section.
 - For corner-case failures, add missing checks without changing unrelated sections.
+- When fixing missing environment dependencies, write idempotent shell commands (e.g., `if ! command -v jq &> /dev/null; then sudo apt-get update && sudo apt-get install -y jq; fi`) instead of unconditionally running installation commands.
 - Preserve original structure, heading order, terminology, and effective guidance.
 - If the skill contains concrete API details (endpoints, ports, schemas) that are \
 factually correct, KEEP them even if the agent misused them."""

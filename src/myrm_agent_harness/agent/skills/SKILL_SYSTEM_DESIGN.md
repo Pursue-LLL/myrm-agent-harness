@@ -780,12 +780,13 @@ Scanner（编排器）
 3. 数据库游标回拉与 0 成本 AST 分析 → 
    - 后台 Worker (TraceAnalyzer) 根据游标去 SQLite 捞出对应的 Trace 日志。
    - 引入 AST-Aware Static Analyzer，直接评估该切片是否闭环（比如如果切片中全是在报错死循环，直接丢弃），实现 0 Token 成本的垃圾拦截。
-4. LLM 提炼与多智能体作用域 (Multi-Agent Scoping) →
-   - 提取出可复用的套路。
-   - 自动给该技能打上当前正在使用的智能体 `Agent_ID` 标签，进行专属沙箱隔离（避免写代码 Agent 学到的技能污染写文章 Agent）。
-5. UI 无感通知与实时热重载 (Hot Reload) → 
-   - 提取完毕落盘后，通过 `SKILL_LEARNED` Hook 推送 WebSocket 到前端，右下角弹出 Toast 提示。
-   - `SkillWatcher` 热重载技能，用户在同一场长对话的后半段即可立刻享受到这个刚学到的新技能！
+4. LLM 提炼与事件解耦 (Event-Driven Decoupling) →
+   - 提取出可复用的套路 (EvolutionProposal)。
+   - 不再越权直接写库，而是附带出错时的 `Agent_ID`，封装进 `IdleTaskProgressEvent` 广播。
+5. 显式审批与负反馈闭环 (Explicit Approval & Negative Exemplars) → 
+   - Server 业务层捕获事件，落库为 `ApprovalRecord` 草稿。
+   - 前端 GUI 专属 Inbox 亮起红点，等待用户显式 Approve。保护了系统 Prompt Cache 不被后台提炼静默击穿。
+   - 如果用户 Reject，不仅删除草稿，还会写入记忆库的负面样本集（Negative Exemplars），防止未来引擎重复提炼相同废料。
 ```
 
 **设计决策**：

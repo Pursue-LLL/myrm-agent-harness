@@ -1,15 +1,13 @@
-import asyncio
 import hashlib
-import uuid
 from collections.abc import AsyncIterable
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
-from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
+from myrm_agent_harness.agent.base_agent import BaseAgent
 from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
 from myrm_agent_harness.agent.dynamic_workflow.tools import SpawnSubagentTool
-from myrm_agent_harness.agent.sub_agents.manager import SubagentManager
+from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
 # The prompt that instructs the LLM to write the orchestration script
 ORCHESTRATOR_PROMPT = """
@@ -66,20 +64,21 @@ async def run_dynamic_workflow_stream(
     The core Dynamic Workflow Engine.
     """
     # Deterministic workflow_id for cache resilience on network reconnects
-    hash_input = f"{chat_id}:{message_id}".encode("utf-8")
+    hash_input = f"{chat_id}:{message_id}".encode()
     workflow_id = f"wf_{hashlib.md5(hash_input).hexdigest()[:12]}"
-    
+
     yield {
         "type": "status",
         "step_key": "workflow_init",
         "status": "in_progress",
         "data": {"message": "Initializing Dynamic Workflow Engine..."},
     }
-    
+
     # 1. Initialize Event Store and Subagent Manager
     store = WorkflowEventStore(".myrm/workflow_events.db")
-    manager = SubagentManager() # Note: In a real app, this might need proper DI
-    
+    orchestrator_agent = BaseAgent(llm=llm)
+    manager = orchestrator_agent._subagent_manager
+
     # Create the tool that will be injected into PTC
     spawn_tool = SpawnSubagentTool(
         manager=manager,
@@ -87,14 +86,14 @@ async def run_dynamic_workflow_stream(
         workflow_id=workflow_id,
         store=store,
     )
-    
+
     yield {
         "type": "status",
         "step_key": "workflow_init",
         "status": "success",
         "data": {"message": "Engine initialized with Durable Execution (SQLite)."},
     }
-    
+
     # 2. Generate the Orchestration Script
     yield {
         "type": "status",
@@ -102,14 +101,14 @@ async def run_dynamic_workflow_stream(
         "status": "in_progress",
         "data": {"message": "Generating Python orchestration script..."},
     }
-    
+
     messages = [
         SystemMessage(content=ORCHESTRATOR_PROMPT),
     ] + chat_history + [HumanMessage(content=query)]
-    
+
     response = await llm.ainvoke(messages)
     script_code = response.content
-    
+
     # Clean up markdown if the LLM ignored instructions
     if isinstance(script_code, str):
         if script_code.startswith("```python"):
@@ -119,14 +118,14 @@ async def run_dynamic_workflow_stream(
         if script_code.endswith("```"):
             script_code = script_code[:-3]
         script_code = script_code.strip()
-    
+
     yield {
         "type": "status",
         "step_key": "workflow_planning",
         "status": "success",
         "data": {"message": "Orchestration script generated."},
     }
-    
+
     # 3. Execute the Script via PTC
     yield {
         "type": "status",
@@ -134,11 +133,11 @@ async def run_dynamic_workflow_stream(
         "status": "in_progress",
         "data": {"message": "Executing workflow (spawning sub-agents)..."},
     }
-    
+
     from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionContext
     from myrm_agent_harness.toolkits.code_execution.factory import create_executor
     from myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection import inject_ptc_for_python_execution
-    
+
     context = ExecutionContext(
         code=script_code,
         original_code=script_code,
@@ -147,21 +146,21 @@ async def run_dynamic_workflow_stream(
         allow_network=True,
     )
     executor = create_executor()
-    
+
     try:
         result = await inject_ptc_for_python_execution(
             context=context,
             executor=executor,
             ptc_tools=[spawn_tool],
         )
-        
+
         yield {
             "type": "status",
             "step_key": "workflow_execution",
             "status": "success",
             "data": {"message": "Workflow execution completed."},
         }
-        
+
         # Final answer
         yield {
             "type": "content",
@@ -178,7 +177,7 @@ async def run_dynamic_workflow_stream(
             "type": "content",
             "content": f"Dynamic Workflow `{workflow_id}` failed to execute.\n\nError:\n```\n{e}\n```",
         }
-    
+
     yield {
         "type": "done",
     }

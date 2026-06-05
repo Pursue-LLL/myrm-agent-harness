@@ -104,7 +104,7 @@ class LocalFileSearchEngine:
         bm25_results = []
         try:
             from myrm_agent_harness.toolkits.retriever.bm25_retrieval import bm25_retrieval
-            
+
             # Fetch all documents for BM25 (in a real system, this would be cached)
             # We fetch up to 10000 documents to avoid OOM
             all_docs = await self._store.scroll(
@@ -112,24 +112,24 @@ class LocalFileSearchEngine:
                 limit=10000,
                 filters=filters if filters else None
             )
-            
+
             if all_docs:
                 # We build the BM25 corpus using both the file path and the content
                 corpus = [
-                    f"{doc.metadata.get('source_path', '')} {doc.content}" 
+                    f"{doc.metadata.get('source_path', '')} {doc.content}"
                     for doc in all_docs
                 ]
-                
+
                 # Perform BM25 retrieval
                 bm25_hits = bm25_retrieval(corpus, query, top_k=candidate_k, only_relevant=True)
-                
+
                 # Convert BM25 hits to SearchResult format (score normalized to 0-1 range roughly)
                 max_bm25_score = max((score for _, score in bm25_hits), default=1.0)
                 for idx, score in bm25_hits:
                     normalized_score = score / max_bm25_score if max_bm25_score > 0 else 0.0
                     if score_threshold > 0 and normalized_score < score_threshold:
                         continue
-                        
+
                     from myrm_agent_harness.toolkits.vector.base import SearchResult
                     bm25_results.append(
                         SearchResult(
@@ -147,18 +147,18 @@ class LocalFileSearchEngine:
             rrf_k = 60
             scores: dict[str, float] = {}
             payloads: dict[str, SearchResult] = {}
-            
+
             for rank, res in enumerate(vector_results):
                 payloads[res.document.id] = res
                 scores[res.document.id] = scores.get(res.document.id, 0.0) + 1.0 / (rrf_k + rank + 1)
-                
+
             for rank, res in enumerate(bm25_results):
                 payloads[res.document.id] = res
                 scores[res.document.id] = scores.get(res.document.id, 0.0) + 1.0 / (rrf_k + rank + 1)
-                
+
             # Sort by RRF score
             ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:candidate_k]
-            
+
             # Reconstruct results
             for doc_id, _ in ordered:
                 fused_results.append(payloads[doc_id])

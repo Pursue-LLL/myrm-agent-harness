@@ -140,7 +140,7 @@ observability = [
   "opentelemetry-exporter-otlp-proto-grpc>=1.42.1",
   "openinference-instrumentation-langchain>=0.1.66",
 ]
-# PyPI platform core wheels — enable after first publish (see harness_packaging/DISTRIBUTION_SYSTEM.md).
+# PyPI platform core wheels — restored in follow-up commit after first publish (see DISTRIBUTION_SYSTEM.md).
 # compiled-core = [
 #   "myrm-agent-harness-core-darwin-arm64==0.1.0rc1; platform_system == 'Darwin' and platform_machine == 'arm64'",
 #   "myrm-agent-harness-core-darwin-x64==0.1.0rc1; platform_system == 'Darwin' and platform_machine == 'x86_64'",
@@ -304,6 +304,7 @@ include = [
   "*/myrm_agent_harness/agent/event_log/*",
   "*/myrm_agent_harness/agent/workspace_rules/*",
   "*/myrm_agent_harness/agent/deep_research/*",
+  "*/myrm_agent_harness/agent/dynamic_workflow/*",
   "*/myrm_agent_harness/agent/memory_extraction.py",
   "*/myrm_agent_harness/toolkits/llms/adapters/*",
   "*/myrm_agent_harness/toolkits/vector/*",

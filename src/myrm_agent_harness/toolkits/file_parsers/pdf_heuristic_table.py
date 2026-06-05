@@ -137,6 +137,7 @@ def extract_heuristic_tables_from_words(
 
     # Step 4: Classify rows that align with global columns
     for info in row_info:
+        info["aligned_columns"] = set()
         if info["is_paragraph"] or info["has_partial_numbering"]:
             info["is_table_row"] = False
             continue
@@ -149,6 +150,7 @@ def extract_heuristic_tables_from_words(
                     aligned_columns.add(col_idx)
                     break
 
+        info["aligned_columns"] = aligned_columns
         # A valid table row should span at least 2 global columns
         info["is_table_row"] = len(aligned_columns) >= 2
 
@@ -158,8 +160,18 @@ def extract_heuristic_tables_from_words(
     while i < len(row_info):
         if row_info[i]["is_table_row"]:
             start_idx = i
-            while i < len(row_info) and row_info[i]["is_table_row"]:
-                i += 1
+            i += 1
+            while i < len(row_info):
+                if row_info[i]["is_table_row"]:
+                    i += 1
+                elif not row_info[i]["is_paragraph"] and len(row_info[i]["aligned_columns"]) >= 1:
+                    # Weak row (e.g. wrapped text). Check vertical gap from previous line.
+                    if row_info[i]["y_key"] - row_info[i-1]["y_key"] <= 15:
+                        i += 1
+                    else:
+                        break
+                else:
+                    break
             end_idx = i
             table_regions.append((start_idx, end_idx))
         else:
@@ -175,20 +187,22 @@ def extract_heuristic_tables_from_words(
     num_cols = len(global_columns)
 
     for start, end in table_regions:
-        table_data: list[list[str]] = []
-        min_x0, min_y0, max_x1, max_y1 = float("inf"), float("inf"), 0.0, 0.0
+        raw_rows: list[dict[str, Any]] = []
 
         for idx in range(start, end):
             info = row_info[idx]
             cells: list[str] = ["" for _ in range(num_cols)]
+            r_min_x0 = float("inf")
+            r_min_y0 = float("inf")
+            r_max_x1 = 0.0
+            r_max_y1 = 0.0
 
             for word in info["words"]:
                 word_center_x = (word["x0"] + word["x1"]) / 2.0
-                # Update table bounding box
-                min_x0 = min(min_x0, float(word["x0"]))
-                min_y0 = min(min_y0, float(word["top"]))
-                max_x1 = max(max_x1, float(word["x1"]))
-                max_y1 = max(max_y1, float(word["bottom"]))
+                r_min_x0 = min(r_min_x0, float(word["x0"]))
+                r_min_y0 = min(r_min_y0, float(word["top"]))
+                r_max_x1 = max(r_max_x1, float(word["x1"]))
+                r_max_y1 = max(r_max_y1, float(word["bottom"]))
 
                 # Assign word to the correct column bucket
                 assigned_col = num_cols - 1
@@ -203,7 +217,63 @@ def extract_heuristic_tables_from_words(
                 else:
                     cells[assigned_col] = word["text"]
 
-            table_data.append([c.strip() for c in cells])
+            if r_min_y0 != float("inf"):
+                raw_rows.append(
+                    {
+                        "cells": [c.strip() for c in cells],
+                        "x0": r_min_x0,
+                        "y0": r_min_y0,
+                        "x1": r_max_x1,
+                        "y1": r_max_y1,
+                    }
+                )
+
+        # Post-Processing: Vertical Gap Analysis & Logical Row Merging
+        merged_rows: list[dict[str, Any]] = []
+        for r in raw_rows:
+            if not merged_rows:
+                merged_rows.append(r)
+                continue
+
+            prev_r = merged_rows[-1]
+            gap = r["y0"] - prev_r["y1"]
+
+            prev_cells = prev_r["cells"]
+            curr_cells = r["cells"]
+
+            populated_prev = sum(1 for c in prev_cells if c)
+            populated_curr = sum(1 for c in curr_cells if c)
+
+            is_wrap = False
+            # Vertical gap threshold for a continued line (typically < 12pt)
+            if gap < 12.0:
+                collision = any(prev_cells[i] and curr_cells[i] for i in range(num_cols))
+                if not collision or (populated_curr < populated_prev and populated_curr <= max(1, num_cols // 2)):
+                    is_wrap = True
+
+            if is_wrap:
+                # Suture the physical row into the logical row
+                for i in range(num_cols):
+                    if curr_cells[i]:
+                        if prev_cells[i]:
+                            prev_r["cells"][i] += " " + curr_cells[i]
+                        else:
+                            prev_r["cells"][i] = curr_cells[i]
+                prev_r["y1"] = max(prev_r["y1"], r["y1"])
+                prev_r["x0"] = min(prev_r["x0"], r["x0"])
+                prev_r["x1"] = max(prev_r["x1"], r["x1"])
+            else:
+                merged_rows.append(r)
+
+        table_data: list[list[str]] = []
+        min_x0, min_y0, max_x1, max_y1 = float("inf"), float("inf"), 0.0, 0.0
+
+        for r in merged_rows:
+            table_data.append(r["cells"])
+            min_x0 = min(min_x0, r["x0"])
+            min_y0 = min(min_y0, r["y0"])
+            max_x1 = max(max_x1, r["x1"])
+            max_y1 = max(max_y1, r["y1"])
 
         # Drop entirely empty columns for this specific table
         if table_data:
