@@ -133,6 +133,34 @@ class TestTableExtraction:
         assert tables[0].data[0] == ["Header1", "Header2"]
         assert tables[0].data[2] == ["val3", ""]
 
+    def test_extract_page_tables_heuristic_lazy_trigger(self):
+        """Heuristic borderless tables are extracted when lazy trigger fires."""
+        parser = PDFPlumberParser(extract_tables=True, extract_bookmarks=False)
+        page = Mock()
+        page.find_tables = Mock(return_value=[])
+        # 3+ wide-space gaps trigger heuristic path
+        page.extract_text = Mock(return_value="Item A    100.00    USD\nItem B    200.00    USD")
+        page.chars = [{"text": "x"}] * 100
+        page.width = 612.0
+        page.extract_words = Mock(
+            return_value=[
+                {"text": "Item", "x0": 50, "x1": 80, "top": 100, "bottom": 110},
+                {"text": "A", "x0": 85, "x1": 95, "top": 100, "bottom": 110},
+                {"text": "100.00", "x0": 200, "x1": 240, "top": 100, "bottom": 110},
+                {"text": "USD", "x0": 300, "x1": 330, "top": 100, "bottom": 110},
+                {"text": "Item", "x0": 50, "x1": 80, "top": 111, "bottom": 121},
+                {"text": "B", "x0": 85, "x1": 95, "top": 111, "bottom": 121},
+                {"text": "200.00", "x0": 200, "x1": 240, "top": 111, "bottom": 121},
+                {"text": "USD", "x0": 300, "x1": 330, "top": 111, "bottom": 121},
+            ]
+        )
+
+        tables = parser._extract_page_tables(page)
+
+        assert len(tables) == 1
+        assert tables[0].data[0][0] == "Item A"
+        assert tables[0].data[1][0] == "Item B"
+
     def test_extract_tables_empty(self):
         """Empty tables return empty list."""
         parser = PDFPlumberParser(extract_tables=True)

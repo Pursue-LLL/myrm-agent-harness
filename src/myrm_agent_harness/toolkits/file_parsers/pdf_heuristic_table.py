@@ -19,6 +19,23 @@ logger = logging.getLogger(__name__)
 PARTIAL_NUMBERING_PATTERN = re.compile(r"^\.\d+$")
 
 
+def _is_cjk_char(char: str) -> bool:
+    cp = ord(char)
+    return (
+        0x4E00 <= cp <= 0x9FFF
+        or 0x3400 <= cp <= 0x4DBF
+        or 0x3040 <= cp <= 0x309F
+        or 0x30A0 <= cp <= 0x30FF
+        or 0xAC00 <= cp <= 0xD7AF
+    )
+
+
+def _needs_space(prev_text: str, curr_text: str) -> bool:
+    if not prev_text or not curr_text:
+        return False
+    return not (_is_cjk_char(prev_text[-1]) or _is_cjk_char(curr_text[0]))
+
+
 def extract_heuristic_tables_from_words(
     words: list[dict[str, Any]],
     page_width: float = 612.0,
@@ -224,7 +241,8 @@ def extract_heuristic_tables_from_words(
                         break
 
                 if cells[assigned_col]:
-                    cells[assigned_col] += " " + word["text"]
+                    space = " " if _needs_space(cells[assigned_col], word["text"]) else ""
+                    cells[assigned_col] += space + word["text"]
                 else:
                     cells[assigned_col] = word["text"]
 
@@ -241,22 +259,6 @@ def extract_heuristic_tables_from_words(
                         "avg_h": avg_h,
                     }
                 )
-
-        def _needs_space(prev_text: str, curr_text: str) -> bool:
-            if not prev_text or not curr_text:
-                return False
-
-            def is_cjk(char: str) -> bool:
-                cp = ord(char)
-                return (
-                    0x4E00 <= cp <= 0x9FFF
-                    or 0x3400 <= cp <= 0x4DBF
-                    or 0x3040 <= cp <= 0x309F
-                    or 0x30A0 <= cp <= 0x30FF
-                    or 0xAC00 <= cp <= 0xD7AF
-                )
-
-            return not (is_cjk(prev_text[-1]) or is_cjk(curr_text[0]))
 
         # Post-Processing: Vertical Gap Analysis & Logical Row Merging
         merged_rows: list[dict[str, Any]] = []

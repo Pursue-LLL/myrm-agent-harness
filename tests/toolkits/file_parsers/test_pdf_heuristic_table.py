@@ -1,6 +1,46 @@
 """Unit tests for PDF heuristic table extractor."""
 
-from myrm_agent_harness.toolkits.file_parsers.pdf_heuristic_table import extract_heuristic_tables_from_words
+from myrm_agent_harness.toolkits.file_parsers.pdf_heuristic_table import (
+    _needs_space,
+    extract_heuristic_tables_from_words,
+)
+
+
+def test_needs_space_english_requires_space():
+    assert _needs_space("hello", "world") is True
+    assert _needs_space("Software", "License") is True
+
+
+def test_needs_space_cjk_no_space():
+    assert _needs_space("营业", "收入") is False
+    assert _needs_space("hello", "世界") is False
+    assert _needs_space("", "收入") is False
+    assert _needs_space("营业", "") is False
+
+
+def test_extract_heuristic_tables_empty_words():
+    assert extract_heuristic_tables_from_words([], page_width=612.0) == []
+
+
+def test_extract_heuristic_tables_same_row_english_keeps_space():
+    """English words on the same row in one cell should keep spaces."""
+    words = [
+        {"text": "Software", "x0": 50, "x1": 85, "top": 100, "bottom": 110},
+        {"text": "License", "x0": 90, "x1": 130, "top": 100, "bottom": 110},
+        {"text": "USD", "x0": 200, "x1": 230, "top": 100, "bottom": 110},
+        {"text": "A", "x0": 300, "x1": 310, "top": 100, "bottom": 110},
+        {"text": "Server", "x0": 50, "x1": 90, "top": 130, "bottom": 140},
+        {"text": "Fee", "x0": 95, "x1": 120, "top": 130, "bottom": 140},
+        {"text": "EUR", "x0": 200, "x1": 230, "top": 130, "bottom": 140},
+        {"text": "B", "x0": 300, "x1": 310, "top": 130, "bottom": 140},
+    ]
+
+    tables = extract_heuristic_tables_from_words(words, page_width=612.0)
+
+    assert len(tables) == 1
+    table_data, _ = tables[0]
+    assert table_data[0][0] == "Software License"
+    assert table_data[1][0] == "Server Fee"
 
 
 def test_extract_heuristic_tables_with_wrapped_text():
@@ -67,6 +107,29 @@ def test_extract_heuristic_tables_no_over_merging():
     assert len(table_data) == 2
     assert table_data[0] == ["Item A", "1", "100.00"]
     assert table_data[1] == ["Item B", "2", "200.00"]
+
+
+def test_extract_heuristic_tables_same_row_cjk_no_space():
+    """Test that CJK words on the same row in one cell merge without spaces."""
+    words = [
+        # Same row, same column: two CJK word boxes side by side
+        {"text": "营业", "x0": 50, "x1": 70, "top": 100, "bottom": 110},
+        {"text": "收入", "x0": 72, "x1": 92, "top": 100, "bottom": 110},
+        {"text": "100", "x0": 200, "x1": 220, "top": 100, "bottom": 110},
+        {"text": "A", "x0": 300, "x1": 310, "top": 100, "bottom": 110},
+        # Second row for table region >= 2
+        {"text": "利润", "x0": 50, "x1": 70, "top": 130, "bottom": 140},
+        {"text": "200", "x0": 200, "x1": 220, "top": 130, "bottom": 140},
+        {"text": "B", "x0": 300, "x1": 310, "top": 130, "bottom": 140},
+    ]
+
+    tables = extract_heuristic_tables_from_words(words, page_width=612.0)
+
+    assert len(tables) == 1
+    table_data, _ = tables[0]
+
+    assert table_data[0][0] == "营业收入"
+    assert table_data[0][1] == "100"
 
 
 def test_extract_heuristic_tables_cjk_no_space():

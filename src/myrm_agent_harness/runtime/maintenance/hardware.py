@@ -20,9 +20,10 @@ from __future__ import annotations
 import logging
 import platform
 import subprocess
-import sys
 from dataclasses import dataclass
 from typing import Literal
+
+import contextlib
 
 logger = logging.getLogger(__name__)
 
@@ -35,17 +36,17 @@ except (ImportError, TypeError):
 @dataclass
 class HardwareProfile:
     """Snapshot of physical hardware capabilities."""
-    
+
     os_type: Literal["macos", "windows", "linux", "unknown"]
     cpu_arch: str
     total_ram_gb: float
-    
+
     # GPU Info (can be None if detection fails or no GPU)
     has_gpu: bool = False
     gpu_name: str | None = None
     gpu_vram_gb: float | None = None
     gpu_vendor: Literal["apple", "nvidia", "amd", "intel", "unknown"] = "unknown"
-    
+
     # Apple Silicon specific (Unified Memory)
     is_unified_memory: bool = False
 
@@ -58,11 +59,11 @@ def _detect_macos_hardware(profile: HardwareProfile) -> None:
             profile.gpu_vendor = "apple"
             profile.is_unified_memory = True
             profile.has_gpu = True
-            
+
             # For Apple Silicon, VRAM is essentially the total RAM (unified)
             # We reserve some for the OS, but the theoretical max is close to total RAM
             profile.gpu_vram_gb = profile.total_ram_gb
-            
+
             # Try to get the specific chip name (e.g., "Apple M2 Max")
             try:
                 res = subprocess.run(
@@ -75,7 +76,7 @@ def _detect_macos_hardware(profile: HardwareProfile) -> None:
                     profile.gpu_name = "Apple Silicon"
             except Exception:
                 profile.gpu_name = "Apple Silicon"
-                
+
         else:
             # Intel Mac
             profile.is_unified_memory = False
@@ -85,8 +86,6 @@ def _detect_macos_hardware(profile: HardwareProfile) -> None:
                     capture_output=True, text=True, timeout=5
                 )
                 if res.returncode == 0:
-                    output = res.stdout.lower()
-                    
                     # Extract GPU name
                     for line in res.stdout.splitlines():
                         if "Chipset Model:" in line:
@@ -97,7 +96,7 @@ def _detect_macos_hardware(profile: HardwareProfile) -> None:
                             elif "intel" in profile.gpu_name.lower():
                                 profile.gpu_vendor = "intel"
                             break
-                            
+
                     # Extract VRAM
                     for line in res.stdout.splitlines():
                         if "VRAM (Total):" in line or "VRAM (Dynamic, Max):" in line:
@@ -123,7 +122,7 @@ def _detect_macos_hardware(profile: HardwareProfile) -> None:
 def _detect_linux_hardware(profile: HardwareProfile) -> None:
     """Detect hardware on Linux using nvidia-smi or lspci."""
     profile.is_unified_memory = False
-    
+
     # Try nvidia-smi first
     try:
         res = subprocess.run(
@@ -138,7 +137,7 @@ def _detect_linux_hardware(profile: HardwareProfile) -> None:
                     profile.gpu_name = parts[0].strip()
                     profile.gpu_vendor = "nvidia"
                     profile.has_gpu = True
-                    
+
                     vram_str = parts[1].strip()
                     if "MiB" in vram_str:
                         try:
@@ -148,7 +147,7 @@ def _detect_linux_hardware(profile: HardwareProfile) -> None:
             return  # Successfully found NVIDIA GPU
     except Exception:
         pass
-        
+
     # Fallback to lshw for AMD/Intel
     try:
         res = subprocess.run(
@@ -165,7 +164,7 @@ def _detect_linux_hardware(profile: HardwareProfile) -> None:
                 profile.gpu_vendor = "intel"
                 profile.has_gpu = True
                 profile.gpu_name = "Intel Integrated Graphics"
-                
+
             # Getting VRAM without nvidia-smi or rocm-smi is hard on Linux,
             # we leave it None to let the caller fallback to RAM heuristics
     except Exception:
@@ -175,7 +174,7 @@ def _detect_linux_hardware(profile: HardwareProfile) -> None:
 def _detect_windows_hardware(profile: HardwareProfile) -> None:
     """Detect hardware on Windows using wmic."""
     profile.is_unified_memory = False
-    
+
     try:
         # Get GPU Name
         res_name = subprocess.run(
@@ -188,7 +187,7 @@ def _detect_windows_hardware(profile: HardwareProfile) -> None:
                 # Skip header 'Name'
                 profile.gpu_name = lines[1]
                 profile.has_gpu = True
-                
+
                 name_lower = profile.gpu_name.lower()
                 if "nvidia" in name_lower:
                     profile.gpu_vendor = "nvidia"
@@ -196,7 +195,7 @@ def _detect_windows_hardware(profile: HardwareProfile) -> None:
                     profile.gpu_vendor = "amd"
                 elif "intel" in name_lower:
                     profile.gpu_vendor = "intel"
-                    
+
         # Get VRAM
         res_vram = subprocess.run(
             ["wmic", "path", "win32_VideoController", "get", "AdapterRAM"],
@@ -213,7 +212,7 @@ def _detect_windows_hardware(profile: HardwareProfile) -> None:
                     profile.gpu_vram_gb = ram_bytes / (1024.0**3)
                 except ValueError:
                     pass
-                    
+
     except Exception as e:
         logger.debug(f"Windows hardware detection failed: {e}")
 
@@ -221,14 +220,14 @@ def _detect_windows_hardware(profile: HardwareProfile) -> None:
 def detect_hardware_profile() -> HardwareProfile | None:
     """
     Detect physical hardware capabilities.
-    
+
     Returns None if basic detection fails (e.g., psutil missing).
     Never raises exceptions.
     """
     if psutil is None:
         logger.warning("psutil not available, cannot detect hardware profile")
         return None
-        
+
     try:
         # Basic OS and CPU info
         system = platform.system().lower()
@@ -240,18 +239,18 @@ def detect_hardware_profile() -> HardwareProfile | None:
             os_type = "linux"
         else:
             os_type = "unknown"
-            
+
         cpu_arch = platform.machine()
-        
+
         # Total RAM in GB
         total_ram_gb = psutil.virtual_memory().total / (1024.0**3)
-        
+
         profile = HardwareProfile(
             os_type=os_type,  # type: ignore
             cpu_arch=cpu_arch,
             total_ram_gb=total_ram_gb
         )
-        
+
         # OS-specific GPU detection
         if os_type == "macos":
             _detect_macos_hardware(profile)
@@ -259,9 +258,9 @@ def detect_hardware_profile() -> HardwareProfile | None:
             _detect_linux_hardware(profile)
         elif os_type == "windows":
             _detect_windows_hardware(profile)
-            
+
         return profile
-        
+
     except Exception as e:
         logger.error(f"Hardware profile detection encountered unexpected error: {e}")
         return None
