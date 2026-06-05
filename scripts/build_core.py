@@ -30,6 +30,7 @@ from harness_packaging.platforms import (  # noqa: E402
     PlatformSpec,
     core_package_name,
     get_current_platform,
+    platform_spec_for_key,
 )
 from harness_packaging.version import read_harness_version  # noqa: E402
 
@@ -257,11 +258,7 @@ def main() -> None:
 
     platform = get_current_platform()
     if args.platform is not None:
-        platform = PlatformSpec(
-            key=args.platform,
-            package_suffix=args.platform,
-            nuitka_target=None,
-        )
+        platform = platform_spec_for_key(args.platform)
 
     if args.wheel:
         build_platform_wheel(platform)

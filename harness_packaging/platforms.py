@@ -62,6 +62,22 @@ def get_current_platform() -> PlatformSpec:
     raise RuntimeError(msg)
 
 
+def platform_spec_for_key(key: str) -> PlatformSpec:
+    """Resolve a CI matrix platform key to a Nuitka build spec."""
+    if key not in ALL_PLATFORMS:
+        msg = f"Unknown platform key: {key!r}. Expected one of {ALL_PLATFORMS}"
+        raise ValueError(msg)
+    os_name, machine = key.split("-", 1)
+    if os_name == "darwin":
+        return PlatformSpec(key=key, package_suffix=key, nuitka_target=f"macos-{machine}")
+    if os_name == "linux":
+        return PlatformSpec(key=key, package_suffix=key, nuitka_target=f"linux-{machine}")
+    if os_name == "win32":
+        return PlatformSpec(key=key, package_suffix=key, nuitka_target=f"windows-{machine}-msvc")
+    msg = f"Unsupported platform key: {key!r}"
+    raise ValueError(msg)
+
+
 def core_package_name(platform_key: str | None = None) -> str:
     """Return the PyPI distribution name for a platform core package."""
     key = platform_key or get_current_platform().key
