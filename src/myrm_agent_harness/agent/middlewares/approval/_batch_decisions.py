@@ -4,8 +4,8 @@
 - agent.security (POS: security types, approval flow, audit, engine)
 
 [OUTPUT]
-- build_interrupt_payload: Build LangChain-standard interrupt payload for batch approval.
-- apply_approval_decisions: Apply user decisions to tool_calls and generate ToolMessages.
+- build_interrupt_payload: Build LangChain-standard interrupt payload for batch approval (includes optional command_spans for shell tools).
+- apply_approval_decisions: Apply user decisions to tool_calls and generate ToolMessages (blocks unsafe shell edits).
 
 [POS]
 Batch approval decision handling — interrupt payload construction and decision application.
@@ -35,6 +35,43 @@ __all__ = ["apply_approval_decisions", "build_interrupt_payload"]
 _DEFAULT_APPROVAL_TIMEOUT_SECONDS = 600
 _DEFAULT_TIMEOUT_BEHAVIOR = "deny"
 
+_EDIT_REAPPROVAL_MESSAGE = (
+    "Edited command requires new approval: modified shell commands with "
+    "non-safe risk must be re-submitted by the agent."
+)
+
+_SHELL_EDIT_PERMISSION_TYPES = frozenset({"shell_exec", "code_interpreter"})
+
+
+def _edited_shell_edit_block_reason(
+    tool_name: str,
+    permission_type: str,
+    original_args: dict[str, object],
+    edited_args: dict[str, object],
+) -> str | None:
+    """Return a rejection reason when an edited shell command must be re-approved."""
+    from myrm_agent_harness.toolkits.code_execution.security.command_explainer.extract import (
+        extract_shell_command_text,
+        is_shell_approval_tool,
+    )
+    from myrm_agent_harness.toolkits.code_execution.security.risk_classifier import (
+        CommandRiskLevel,
+        classify_command_risk,
+    )
+
+    if permission_type not in _SHELL_EDIT_PERMISSION_TYPES:
+        return None
+    if not is_shell_approval_tool(tool_name):
+        return None
+
+    original_cmd = extract_shell_command_text(original_args)
+    edited_cmd = extract_shell_command_text(edited_args)
+    if not edited_cmd or original_cmd.strip() == edited_cmd.strip():
+        return None
+    if classify_command_risk(edited_cmd) == CommandRiskLevel.SAFE:
+        return None
+    return _EDIT_REAPPROVAL_MESSAGE
+
 
 def build_interrupt_payload(
     pending_approval: list[tuple[int, ToolCall, str, str, dict[str, Any] | None]],
@@ -42,6 +79,7 @@ def build_interrupt_payload(
     *,
     approval_timeout_seconds: int | None = None,
     timeout_behavior: str = _DEFAULT_TIMEOUT_BEHAVIOR,
+    workspace_root: str | None = None,
 ) -> tuple[dict[str, Any], list[int]]:
     """Build LangChain-standard interrupt payload for batch approval.
 
@@ -65,9 +103,10 @@ def build_interrupt_payload(
         if extra_ctx and "ptc_tool_name_full" in extra_ctx:
             action_name = extra_ctx["ptc_tool_name_full"]
 
+        redacted_args = redact_for_display(tool_input)
         action_request: dict[str, object] = {
             "action": action_name,
-            "args": redact_for_display(tool_input),
+            "args": redacted_args,
             "description": reason,
         }
         if extra_ctx and "ptc_annotations" in extra_ctx:
@@ -76,6 +115,12 @@ def build_interrupt_payload(
         domains = extract_url_domains(permission_type, tool_input)
         if domains:
             action_request["domains"] = domains
+
+        from myrm_agent_harness.toolkits.code_execution.security.command_explainer.extract import (
+            build_shell_approval_fields,
+        )
+
+        action_request.update(build_shell_approval_fields(tool_name, redacted_args))
 
         review_config: dict[str, object] = {
             "allowedDecisions": ["approve", "reject", "edit"],
@@ -120,6 +165,8 @@ def build_interrupt_payload(
             "displayMode": display_mode,
         },
     }
+    if workspace_root:
+        payload["extensions"]["workspaceRoot"] = workspace_root
 
     return payload, interrupt_indices
 
@@ -227,22 +274,55 @@ async def apply_approval_decisions(
 
             elif decision_type == "edit":
                 edited_args = decision.get("args")
-                record_decision(tool_name, "USER_EDITED", reason)
 
+                edit_applied = False
                 if edited_args is not None:
-                    logger.warning("[APPROVAL] Tool %s: user edited args", tool_name)
-                    revised_tool_calls.append(
-                        ToolCall(
-                            type="tool_call",
-                            name=tool_call.get("name", "unknown"),
-                            args=edited_args,
-                            id=tool_call_id,
-                        )
+                    raw_original_args = tool_call.get("args", {})
+                    original_args = (
+                        dict(raw_original_args) if isinstance(raw_original_args, dict) else {}
                     )
+                    normalized_edited_args = (
+                        dict(edited_args) if isinstance(edited_args, dict) else {}
+                    )
+                    edit_block_reason = _edited_shell_edit_block_reason(
+                        tool_name,
+                        permission_type,
+                        original_args,
+                        normalized_edited_args,
+                    )
+                    if edit_block_reason is not None:
+                        logger.warning(
+                            "[APPROVAL] Tool %s: edited shell command blocked",
+                            tool_name,
+                        )
+                        record_decision(tool_name, "USER_EDIT_REJECTED", edit_block_reason)
+                        hint = record_denial(tool_name)
+                        artificial_tool_messages.append(
+                            ToolMessage(
+                                content=f"{edit_block_reason}{hint}",
+                                name=tool_name,
+                                tool_call_id=tool_call_id,
+                                status="error",
+                            )
+                        )
+                    else:
+                        logger.warning("[APPROVAL] Tool %s: user edited args", tool_name)
+                        record_decision(tool_name, "USER_EDITED", reason)
+                        revised_tool_calls.append(
+                            ToolCall(
+                                type="tool_call",
+                                name=tool_call.get("name", "unknown"),
+                                args=normalized_edited_args,
+                                id=tool_call_id,
+                            )
+                        )
+                        edit_applied = True
                 else:
+                    record_decision(tool_name, "USER_EDITED", reason)
                     revised_tool_calls.append(tool_call)
+                    edit_applied = True
 
-                if allow_always:
+                if edit_applied and allow_always:
                     from myrm_agent_harness.agent.middlewares._session_context import (
                         get_approval_user_id,
                     )

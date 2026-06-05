@@ -414,10 +414,20 @@ def create_delegate_task_tool(
                             action_requests = []
                         for req in action_requests:
                             if isinstance(req, dict):
+                                raw_args = req.get("args", {})
+                                args: dict[str, object] = (
+                                    dict(raw_args) if isinstance(raw_args, dict) else {}
+                                )
+                                command_spans = req.get("command_spans")
+                                if command_spans:
+                                    args["command_spans"] = command_spans
+                                command_span_risks = req.get("command_span_risks")
+                                if command_span_risks:
+                                    args["command_span_risks"] = command_span_risks
                                 tool_calls.append(
                                     {
                                         "name": req.get("action", "unknown"),
-                                        "args": req.get("args", {}),
+                                        "args": args,
                                     }
                                 )
                         if tool_calls:

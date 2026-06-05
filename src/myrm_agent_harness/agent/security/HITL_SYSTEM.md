@@ -66,7 +66,9 @@ interrupt({
         {
             "action": "tool_name",
             "args": {...},
-            "description": "reason"
+            "description": "reason",
+            "command_spans": [{"startIndex": 0, "endIndex": 3}],  # optional, shell tools
+            "command_span_risks": ["safe", "unknown"]  # parallel to command_spans
         }
     ],
     "reviewConfigs": [
@@ -74,6 +76,7 @@ interrupt({
     ],
     "extensions": {
         "timeout": {"seconds": 300, "expiresAt": timestamp, "behavior": "deny"},
+        "workspaceRoot": "/path/to/workspace",  # optional, shell approval context
         "approval": {
             "requestId": uuid,
             "sessionKey": "channel:chat_id",
@@ -99,6 +102,19 @@ interrupt({
 }
 ```
 
+### Shell 审批 Edit 安全门禁
+用户 edit 决策修改 shell 命令时，harness 在 `apply_approval_decisions` 中二次调用 `classify_command_risk`：
+- 命令文本未变 → 允许
+- 变更后仍为 SAFE → 允许（如 `rm -rf /` → `ls`）
+- 变更后为非 SAFE → 拒绝 edit，返回 ToolMessage，需 Agent 重新发起审批
+
+### 无 UI 通道的自治上下文自动拒绝
+以下执行上下文没有前端审批通道，遇到 ASK 决策时 `ToolApprovalMiddleware` 自动 deny，防止死锁：
+- **Subagent**：`is_subagent=True` 且无 `subagent_task_id`
+- **Shadow Agent**：`is_shadow_agent=True`（后台 idle 任务经 `restricted_shadow_context()` 设置）
+
+Shadow Agent 场景由 `agent/background_worker/shadow_context.py` 提供执行层舱壁：封死 Python/Bash 执行，写操作仅限技能边车路径。
+
 ---
 
 ## Web渠道流程
@@ -107,7 +123,7 @@ interrupt({
 ```
 Agent执行 → interrupt() → GraphInterrupt → SSE stream结束
 → Frontend收到tool_approval_request事件
-→ 弹出ToolApprovalDialog（展示所有tools，支持批量分组）
+→ 弹出ToolApprovalDialog（展示所有tools，支持批量分组；shell 工具展示终端命令 + pipeline span 高亮）
 ```
 
 ### 用户决策

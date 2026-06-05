@@ -11,9 +11,7 @@ with intelligent truncation and non-code file capping.
 
 from __future__ import annotations
 
-from pathlib import Path, PurePosixPath
-
-from .ast_parser import HAS_TREE_SITTER, ASTParser
+from pathlib import PurePosixPath
 
 MAX_LINE_CHARS = 240
 LINE_PREFIX_CONTEXT_CHARS = 80
@@ -72,7 +70,7 @@ def format_grep_results(
     max_results: int,
     is_regex: bool = True,
 ) -> str:
-    """Format grep results as flat file listing with non-code truncation.
+    """Format grep results as flat file:line listings with non-code truncation.
 
     Non-code files (JSON/YAML/etc) are capped to NON_CODE_MATCH_CAP matches
     per file to prevent token flooding.
@@ -91,10 +89,6 @@ def format_grep_results(
 
     lines: list[str] = [f"Found {len(results)} match(es) for '{pattern}' (searched {files_searched} file(s)):\n"]
 
-    # Group matches by their AST context
-    current_context: str | None = None
-    ast_parser = ASTParser() if HAS_TREE_SITTER else None
-
     for fp in files_order:
         file_matches = matches_by_file[fp]
 
@@ -106,26 +100,13 @@ def format_grep_results(
             visible_matches = file_matches
             omitted_count = 0
 
-        # Always print the file name first for code files
-        if not is_non_code and visible_matches:
-            lines.append(f"{fp}")
-
         for m in visible_matches:
             line_num = int(m["line"])
             content = compact_match_line(str(m["content"]), pattern, is_regex)
-
-            if not is_non_code:
-                ctx = ast_parser.get_context_for_line(Path(fp), line_num) if ast_parser else None
-                if ctx != current_context:
-                    if ctx:
-                        lines.append(f"  [{ctx}]")
-                    current_context = ctx
-                lines.append(f"    {line_num}: {content}")
-            else:
-                lines.append(f"{fp}:{line_num}: {content}")
+            lines.append(f"{fp}:{line_num}: {content}")
 
         if omitted_count > 0:
-            lines.append(f"  ... {omitted_count} more non-code matches omitted")
+            lines.append(f"  ... {omitted_count} more non-code matches omitted in {fp}")
 
     if len(results) >= max_results:
         lines.append(f"\n... (limited to first {max_results} results)")

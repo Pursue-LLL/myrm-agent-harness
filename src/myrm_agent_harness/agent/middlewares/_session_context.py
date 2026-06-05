@@ -17,6 +17,7 @@ ContextVars so they are not owned by any single middleware.
 - get_security_config: Get the active SecurityConfig for the current async context.
 - set_workspace_root: Set the workspace root for PathPolicy evaluation in the current async context.
 - set_canary_token / get_canary_token: Session-scoped canary token for output-side injection detection.
+- set_is_shadow_agent / reset_is_shadow_agent / get_is_shadow_agent: Background shadow-agent bulkhead flag.
 
 [POS]
 Middleware session context — shared ContextVars for the middleware chain.
@@ -24,7 +25,7 @@ Middleware session context — shared ContextVars for the middleware chain.
 
 from __future__ import annotations
 
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.security.terminal_error_registry import TerminalErrorRegistry
@@ -46,6 +47,7 @@ _event_logger_var: ContextVar[EventLogger | None] = ContextVar("event_logger", d
 _allowed_domains_map_var: ContextVar[dict[str, list[str] | None] | None] = ContextVar("allowed_domains_map", default=None)
 _is_subagent_var: ContextVar[bool] = ContextVar("is_subagent", default=False)
 _subagent_task_id_var: ContextVar[str | None] = ContextVar("subagent_task_id", default=None)
+_is_shadow_agent_var: ContextVar[bool] = ContextVar("is_shadow_agent", default=False)
 _canary_token_var: ContextVar[str] = ContextVar("canary_token", default="")
 
 
@@ -223,6 +225,21 @@ def get_subagent_task_id() -> str | None:
         The subagent task ID, or None if not in a subagent context.
     """
     return _subagent_task_id_var.get()
+
+
+def set_is_shadow_agent(is_shadow: bool) -> Token[bool]:
+    """Mark the current execution context as a background shadow agent."""
+    return _is_shadow_agent_var.set(is_shadow)
+
+
+def reset_is_shadow_agent(token: Token[bool]) -> None:
+    """Restore the previous shadow-agent flag."""
+    _is_shadow_agent_var.reset(token)
+
+
+def get_is_shadow_agent() -> bool:
+    """Return True when running inside a shadow-agent bulkhead context."""
+    return _is_shadow_agent_var.get()
 
 
 def set_canary_token(token: str) -> None:

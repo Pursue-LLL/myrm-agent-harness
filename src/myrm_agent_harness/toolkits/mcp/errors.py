@@ -13,6 +13,7 @@ genuine task cancellations (e.g. user /stop).
 
 [OUTPUT]
 - reraise_if_genuine_cancel: Re-raise *exc* if the current task was genuinely cancelled.
+- MCPRuntimePostureError: Raised when runtime surface scan blocks MCP tool registration.
 
 [POS]
 MCP error handling utilities.
@@ -21,6 +22,14 @@ MCP error handling utilities.
 from __future__ import annotations
 
 import asyncio
+
+
+class MCPRuntimePostureError(RuntimeError):
+    """Runtime MCP instructions/tool descriptions failed security posture."""
+
+    def __init__(self, message: str, *, server_name: str) -> None:
+        super().__init__(message)
+        self.server_name = server_name
 
 
 def reraise_if_genuine_cancel(exc: asyncio.CancelledError) -> None:

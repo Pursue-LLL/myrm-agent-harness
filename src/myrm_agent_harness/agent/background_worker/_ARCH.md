@@ -9,6 +9,7 @@ Background worker module for agent.
 |------|------|-------------|-------|
 | __init__.py | Package | Background worker module for agent. | — |
 | idle_tasks.py | Core | Default callbacks and tasks for the idle worker. | ✅ |
+| shadow_context.py | Core | Execution-layer bulkhead isolation (restricted executor + context manager). | ✅ |
 | idle_worker.py | Core | Idle Task Worker for scheduling background tasks when agent is inactive. | ✅ |
 | registry.py | Core | Idle Task Registry for crash-resilient persistence and concurrency control. | ✅ |
 

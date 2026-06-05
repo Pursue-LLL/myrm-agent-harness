@@ -13,6 +13,7 @@ Lifecycle: bind_workspace(path) -> execute()/execute_bash()/read_file()/... -> c
 - CodeExecutorMiddleware: Executor middleware base class (decorator pattern).
 - get_executor: Return the current executor for this async context, or ``...
 - set_executor: Bind (or clear) the executor for the current async context.
+- reset_executor: Restore a previous executor binding from a ContextVar token.
 - require_executor: Return the current executor, raising if unavailable.
 
 [POS]
@@ -48,6 +49,7 @@ __all__ = [
     "MCPConfigItem",
     "get_executor",
     "require_executor",
+    "reset_executor",
     "set_executor",
 ]
 
@@ -478,6 +480,11 @@ def get_executor() -> CodeExecutor | None:
 def set_executor(executor: CodeExecutor | None) -> Token[CodeExecutor | None]:
     """Bind (or clear) the executor for the current async context."""
     return _executor_var.set(executor)
+
+
+def reset_executor(token: Token[CodeExecutor | None]) -> None:
+    """Restore a previous executor binding from a :func:`set_executor` token."""
+    _executor_var.reset(token)
 
 
 def require_executor() -> CodeExecutor:

@@ -59,10 +59,8 @@ class TestFormatGrepResults:
             {"file": "b.py", "line": 10, "content": "hello again"},
         ]
         output = format_grep_results(results, "hello", 20, 100)
-        assert "a.py" in output
-        assert "5: hello world" in output
-        assert "b.py" in output
-        assert "10: hello again" in output
+        assert "a.py:5: hello world" in output
+        assert "b.py:10: hello again" in output
         assert "Found 2 match(es)" in output
 
     def test_non_code_file_capping(self) -> None:
@@ -102,7 +100,7 @@ class TestFormatGrepResults:
         matches = [{"file": "service.py", "line": i, "content": f"x = {i}"} for i in range(10)]
         output = format_grep_results(matches, "x", 1, 100)
         assert "non-code matches omitted" not in output
-        assert output.count("service.py") == 1
+        assert output.count("service.py:") == 10
         assert output.count("x =") == 10
 
     def test_multiple_files_ordered(self) -> None:
@@ -111,12 +109,10 @@ class TestFormatGrepResults:
             {"file": "b.py", "line": 20, "content": "match_b"},
         ]
         output = format_grep_results(results, "match", 5, 100)
-        assert "a.py" in output
-        assert "10: match_a" in output
-        assert "b.py" in output
-        assert "20: match_b" in output
-        a_pos = output.index("a.py")
-        b_pos = output.index("b.py")
+        assert "a.py:10: match_a" in output
+        assert "b.py:20: match_b" in output
+        a_pos = output.index("a.py:10")
+        b_pos = output.index("b.py:20")
         assert a_pos < b_pos
 
 

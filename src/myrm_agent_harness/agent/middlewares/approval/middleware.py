@@ -48,6 +48,7 @@ from langgraph.types import interrupt
 
 from myrm_agent_harness.agent.middlewares._session_context import (
     get_approval_session,
+    get_is_shadow_agent,
     get_is_subagent,
     get_security_config,
     get_workspace_root,
@@ -176,6 +177,7 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
             session_key,
             approval_timeout_seconds=config.approval_timeout_seconds,
             timeout_behavior=config.approval_timeout_behavior,
+            workspace_root=workspace_root,
         )
 
         # Determine the action type based on agent context
@@ -191,6 +193,15 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
                 return self._fallback_auto_deny(last_ai_msg, pending_approval, auto_denied, session_key)
             payload["action_type"] = action_type
             payload["subagent_task_id"] = task_id
+
+        # Shadow agents have no UI channel — auto-deny to prevent deadlocks.
+        if get_is_shadow_agent():
+            logger.warning(
+                "[SHADOW_AGENT_APPROVAL_BLOCKED] Shadow agent attempted high-risk operation "
+                "requiring user approval — auto-denying. session_key=%s",
+                session_key,
+            )
+            return self._fallback_auto_deny(last_ai_msg, pending_approval, auto_denied, session_key)
 
         batch_response = interrupt(payload)
 

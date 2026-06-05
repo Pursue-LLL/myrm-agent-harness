@@ -7,7 +7,7 @@
 - agent.security.redact::redact_sensitive_text (POS: 工具输出脱敏，防止凭证泄露到 LLM 上下文)
 - regex_validator::RegexValidator (POS: 正则表达式验证器，防止 ReDoS)
 - utils.lru_cache::LRUCache (POS: LRU 缓存)
-- _formatter (POS: Grep 结构化输出格式化器)
+- _formatter (POS: Grep flat path:line output formatter with line truncation)
 
 [OUTPUT]
 - GrepInput: Grep 工具输入参数模型
@@ -15,7 +15,7 @@
 
 [POS]
 Content search tool (Claude Code compatible). Searches file contents for matching text patterns
-with regex support, AST-aware structured output (symbol grouping), intelligent line truncation,
+with regex support, flat path:line output, intelligent line truncation,
 and three-tier performance optimization (ripgrep > mmap+concurrency > pure Python).
 
 """

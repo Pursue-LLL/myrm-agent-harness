@@ -32,6 +32,8 @@ prefix cache stability is never compromised.
 - langchain_mcp_adapters.tools::load_mcp_tools (POS: MCP→LangChain tool loader)
 - agent::MCPAgent (POS: MCP agent layer — shared tool post-processing)
 - config::sanitize_mcp_name_component (POS: MCP Configuration — name sanitizer for prefix fallback)
+- config_scan::scan_mcp_runtime_surface (POS: static/runtime MCP scanners)
+- errors::MCPRuntimePostureError (POS: MCP error handling utilities)
 
 [OUTPUT]
 - MCPSessionActor: persistent, self-reconnecting per-server session with
@@ -429,6 +431,37 @@ class MCPSessionActor:
             return False
         return True
 
+    def _enforce_runtime_posture(
+        self,
+        instructions: str | None,
+        processed: list[BaseTool],
+    ) -> None:
+        """Fail closed when MCP instructions, tool names, or tool descriptions are high/critical risk."""
+        from .config_scan import (
+            MCPRuntimeToolSurface,
+            format_mcp_scan_block_message,
+            scan_mcp_runtime_surface,
+        )
+        from .errors import MCPRuntimePostureError
+
+        surfaces = tuple(
+            MCPRuntimeToolSurface(
+                name=str(tool.name),
+                description=str(getattr(tool, "description", "") or ""),
+            )
+            for tool in processed
+        )
+        result = scan_mcp_runtime_surface(
+            self.server_name,
+            instructions=instructions,
+            tools=surfaces,
+        )
+        if not result.allow_use:
+            raise MCPRuntimePostureError(
+                format_mcp_scan_block_message(result),
+                server_name=self.server_name,
+            )
+
     def _apply_tools(self, init_result: object, raw_tools: list[BaseTool]) -> None:
         """Bind freshly enumerated tools to the live session.
 
@@ -446,9 +479,13 @@ class MCPSessionActor:
             self._tool_exclude,
             self._execute_timeout,
         )
+        instructions: str | None = None
+        if not self._ready.is_set():
+            instructions = _extract_instructions(init_result)
+        self._enforce_runtime_posture(instructions, processed)
         self._tools = {tool.name: tool for tool in processed}
         if not self._ready.is_set():
-            self._instructions = _extract_instructions(init_result)
+            self._instructions = instructions
             self._proxy_tools = [self._make_proxy(tool) for tool in processed]
             self._ready.set()
 
@@ -524,9 +561,24 @@ class MCPSessionActor:
                 self._tool_exclude,
                 self._execute_timeout,
             )
-            self._tools = {tool.name: tool for tool in processed}
-            new_names = set(self._tools)
+            new_names = {tool.name for tool in processed}
             added = new_names - old_names
+            if added:
+                added_tools = [tool for tool in processed if tool.name in added]
+                try:
+                    self._enforce_runtime_posture(None, added_tools)
+                except Exception as exc:
+                    from .errors import MCPRuntimePostureError
+
+                    if isinstance(exc, MCPRuntimePostureError):
+                        logger.warning(
+                            "MCP server '%s': runtime posture blocked dynamic tool refresh: %s",
+                            self.server_name,
+                            exc,
+                        )
+                        return
+                    raise
+            self._tools = {tool.name: tool for tool in processed}
             removed = old_names - new_names
             if added or removed:
                 parts: list[str] = []

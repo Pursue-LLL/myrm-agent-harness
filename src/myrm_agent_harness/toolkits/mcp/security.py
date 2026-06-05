@@ -19,10 +19,13 @@ via constructor parameters, not environment checks.
 - MCPResponseError: Response validation failure
 - MCPResponseValidator: Response size and structure validator
 - check_osv_malware: OSV MAL-* malware advisory check
+- Re-exports from config_scan (POS: static MCP configuration/runtime scanners)
+- config_scan_patterns (POS: compiled MCP security regex patterns, used by config_scan)
 
 [POS]
 MCP security primitives. Framework-level validators that any MCP integration
-can use. No deployment-mode awareness — behavior controlled via parameters.
+can use. Static scan APIs live in config_scan.py (patterns in config_scan_patterns.py)
+and are re-exported here.
 """
 
 from __future__ import annotations
@@ -34,6 +37,17 @@ from urllib.parse import urlparse
 import httpx
 from pydantic import BaseModel, Field
 
+from myrm_agent_harness.toolkits.mcp.config_scan import (
+    MCPConfigScanResult,
+    MCPConfigSnapshot,
+    MCPRuntimeScanResult,
+    MCPRuntimeToolSurface,
+    MCPScanFinding,
+    MCPScanSeverity,
+    format_mcp_scan_block_message,
+    scan_mcp_config,
+    scan_mcp_runtime_surface,
+)
 from myrm_agent_harness.utils.url_utils import (
     async_validate_url_for_ssrf,
     validate_scheme_and_hostname,
@@ -284,3 +298,22 @@ async def check_osv_malware(
     except Exception as exc:
         logger.debug("OSV check skipped for %s/%s: %s", ecosystem, package_name, exc)
         return None
+
+
+__all__ = [
+    "MCPConfigScanResult",
+    "MCPConfigSnapshot",
+    "MCPResponseError",
+    "MCPResponseValidator",
+    "MCPRuntimeScanResult",
+    "MCPRuntimeToolSurface",
+    "MCPScanFinding",
+    "MCPScanSeverity",
+    "MCPURLValidator",
+    "ResolvedURL",
+    "URLValidationError",
+    "check_osv_malware",
+    "format_mcp_scan_block_message",
+    "scan_mcp_config",
+    "scan_mcp_runtime_surface",
+]

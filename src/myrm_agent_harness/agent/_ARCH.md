@@ -21,7 +21,7 @@ Agent core module — public API.
 | _internals/ | Agent internal helpers — private implementation details for agent core files. |
 | acp/ | Agent Communication Protocol integration — default factory for standalone ACP server usage. |
 | artifacts/ | Artifacts system — artifact lifecycle management. |
-| background_worker/ | Background worker module for agent. |
+| background_worker/ | Background worker — idle task registry, shadow bulkhead isolation, and default idle callbacks. |
 | config/ | Agent configuration package — unified export of all config types and utilities. |
 | context_management/ | Context management module. |
 | coordination/ | Subagent P2P mailbox — session-scoped in-memory queues with optional JSONL persistence for sibling subagent direct messaging. |

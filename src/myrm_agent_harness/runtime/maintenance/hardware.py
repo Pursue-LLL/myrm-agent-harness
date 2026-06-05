@@ -17,13 +17,12 @@ Hardware sensing for local deployment.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import platform
 import subprocess
 from dataclasses import dataclass
 from typing import Literal
-
-import contextlib
 
 logger = logging.getLogger(__name__)
 
@@ -101,16 +100,12 @@ def _detect_macos_hardware(profile: HardwareProfile) -> None:
                     for line in res.stdout.splitlines():
                         if "VRAM (Total):" in line or "VRAM (Dynamic, Max):" in line:
                             vram_str = line.split(":", 1)[1].strip()
-                            if "GB" in vram_str:
-                                try:
-                                    profile.gpu_vram_gb = float(vram_str.replace("GB", "").strip())
-                                except ValueError:
-                                    pass
-                            elif "MB" in vram_str:
-                                try:
-                                    profile.gpu_vram_gb = float(vram_str.replace("MB", "").strip()) / 1024.0
-                                except ValueError:
-                                    pass
+                        if "GB" in vram_str:
+                            with contextlib.suppress(ValueError):
+                                profile.gpu_vram_gb = float(vram_str.replace("GB", "").strip())
+                        elif "MB" in vram_str:
+                            with contextlib.suppress(ValueError):
+                                profile.gpu_vram_gb = float(vram_str.replace("MB", "").strip()) / 1024.0
                             break
             except Exception as e:
                 logger.debug(f"macOS Intel GPU detection failed: {e}")
@@ -140,10 +135,8 @@ def _detect_linux_hardware(profile: HardwareProfile) -> None:
 
                     vram_str = parts[1].strip()
                     if "MiB" in vram_str:
-                        try:
+                        with contextlib.suppress(ValueError):
                             profile.gpu_vram_gb = float(vram_str.replace("MiB", "").strip()) / 1024.0
-                        except ValueError:
-                            pass
             return  # Successfully found NVIDIA GPU
     except Exception:
         pass
