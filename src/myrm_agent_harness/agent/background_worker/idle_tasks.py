@@ -28,9 +28,9 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.agent.background_worker.shadow_context import restricted_shadow_context
 from myrm_agent_harness.agent._skill_agent_context import get_memory_manager
 from myrm_agent_harness.agent.background_worker.registry import IdleTaskRegistry
+from myrm_agent_harness.agent.background_worker.shadow_context import restricted_shadow_context
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.runtime.events.bus import get_event_bus
 from myrm_agent_harness.runtime.events.idle_events import IdleTaskProgressEvent
@@ -268,7 +268,9 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                     from pathlib import Path
 
                                     from myrm_agent_harness.agent.middlewares._session_context import get_workspace_root
-                                    from myrm_agent_harness.agent.skills.evolution.core.engine import SkillEvolutionEngine
+                                    from myrm_agent_harness.agent.skills.evolution.core.engine import (
+                                        SkillEvolutionEngine,
+                                    )
                                     from myrm_agent_harness.agent.skills.evolution.db.store import SkillStore
 
                                     events = await event_logger._backend.get_events(session_id)

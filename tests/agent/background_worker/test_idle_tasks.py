@@ -368,8 +368,8 @@ class TestSessionEvidenceExtractionCaptured:
             patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_event_bus") as mock_bus,
             patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_memory_manager") as mock_mm,
             patch("myrm_agent_harness.agent.middlewares.approval.get_event_logger") as mock_el,
-            patch("myrm_agent_harness.agent.skills.evolution.core.engine.SkillEvolutionEngine") as MockEngine,
-            patch("myrm_agent_harness.agent.skills.evolution.db.store.SkillStore") as MockStore,
+            patch("myrm_agent_harness.agent.skills.evolution.core.engine.SkillEvolutionEngine") as mock_engine_cls,
+            patch("myrm_agent_harness.agent.skills.evolution.db.store.SkillStore") as mock_store_cls,
             patch("myrm_agent_harness.agent.middlewares._session_context.get_workspace_root", return_value="/tmp/ws"),
             patch("asyncio.sleep", new_callable=AsyncMock),
         ):
@@ -399,11 +399,11 @@ class TestSessionEvidenceExtractionCaptured:
                 "myrm_agent_harness.agent.event_log.evidence_extractor.SessionEvidenceExtractor",
                 return_value=mock_extractor,
             ):
-                MockStore.return_value = MagicMock()
-                MockStore.return_value.close = MagicMock()
+                mock_store_cls.return_value = MagicMock()
+                mock_store_cls.return_value.close = MagicMock()
                 engine_instance = AsyncMock()
                 engine_instance.capture_skill_from_trajectory = AsyncMock(return_value=mock_proposal)
-                MockEngine.return_value = engine_instance
+                mock_engine_cls.return_value = engine_instance
 
                 await default_idle_callback("sess_cap", registry)
 
