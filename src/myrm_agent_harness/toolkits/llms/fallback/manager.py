@@ -557,9 +557,7 @@ class ModelFallbackManager[T]:
 
                     # Failover to next candidate - trigger callback + ctx-bound emitter
                     emitter = get_active_failover_emitter()
-                    if idx < len(available) - 1 and (
-                        self._on_failover is not None or emitter is not None
-                    ):
+                    if idx < len(available) - 1 and (self._on_failover is not None or emitter is not None):
                         next_candidate = available[idx + 1]
                         policy = get_probe_policy(error_reason)
                         event = FailoverEvent(

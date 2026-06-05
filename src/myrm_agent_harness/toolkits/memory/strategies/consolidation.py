@@ -50,10 +50,26 @@ class MergeOp(BaseModel):
     source_ids: list[str]
     merged_content: str
     importance: float = Field(default=0.7, ge=0.0, le=1.0)
-    accuracy_score: float = Field(default=1.0, ge=0.0, le=1.0, description="Score (0-1): Does the merged memory accurately reflect the underlying truth without hallucination?")
-    anti_fragmentation_score: float = Field(default=1.0, ge=0.0, le=1.0, description="Score (0-1): Does this operation combine fragmented pieces into a cohesive whole?")
-    redundancy_score: float = Field(default=1.0, ge=0.0, le=1.0, description="Score (0-1): Does this operation successfully eliminate duplicate or overlapping information?")
+    accuracy_score: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Score (0-1): Does the merged memory accurately reflect the underlying truth without hallucination?",
+    )
+    anti_fragmentation_score: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Score (0-1): Does this operation combine fragmented pieces into a cohesive whole?",
+    )
+    redundancy_score: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Score (0-1): Does this operation successfully eliminate duplicate or overlapping information?",
+    )
     reasoning: str = Field(default="", description="Reasoning for the scores.")
+
 
 class CorrectOp(BaseModel):
     action: str = ConsolidationAction.CORRECT
@@ -63,6 +79,7 @@ class CorrectOp(BaseModel):
     anti_fragmentation_score: float = Field(default=1.0, ge=0.0, le=1.0)
     redundancy_score: float = Field(default=1.0, ge=0.0, le=1.0)
     reasoning: str = Field(default="")
+
 
 class UpdateContentOp(BaseModel):
     action: str = ConsolidationAction.UPDATE_CONTENT
@@ -172,6 +189,7 @@ def _build_id_map(memories: Sequence[AnyMemory]) -> dict[str, str]:
 
 class ConsolidationResponse(BaseModel):
     """Parsed LLM consolidation response containing operations and insights."""
+
     operations: list[ConsolidationOp] = Field(default_factory=list)
     insights: list[str] = Field(default_factory=list)
 
@@ -318,11 +336,11 @@ async def run_consolidation(
 
     try:
         from langchain_core.messages import HumanMessage, SystemMessage
+
         structured_llm = llm.with_structured_output(ConsolidationResponse)
-        response: ConsolidationResponse = await structured_llm.ainvoke([
-            SystemMessage(content=_SYSTEM_PROMPT),
-            HumanMessage(content=user_prompt)
-        ])
+        response: ConsolidationResponse = await structured_llm.ainvoke(
+            [SystemMessage(content=_SYSTEM_PROMPT), HumanMessage(content=user_prompt)]
+        )
 
         # Filter operations by Rubric score
         valid_ops = []
@@ -331,7 +349,9 @@ async def run_consolidation(
             if total_score >= 0.7:
                 valid_ops.append(op)
             else:
-                logger.info(f"Consolidation op {op.action} rejected by Rubric (Score: {total_score:.2f}). Reason: {op.reasoning}")
+                logger.info(
+                    f"Consolidation op {op.action} rejected by Rubric (Score: {total_score:.2f}). Reason: {op.reasoning}"
+                )
 
         parsed = ConsolidationResponse(operations=valid_ops, insights=response.insights)
     except Exception as e:
@@ -406,7 +426,9 @@ async def _fetch_incremental_memories(
 
     if manager.has_relational:
         try:
-            rules = await manager._rel().list_rules(active_only=True, limit=scroll_limit, namespaces=manager._namespaces)
+            rules = await manager._rel().list_rules(
+                active_only=True, limit=scroll_limit, namespaces=manager._namespaces
+            )
             for rule in rules:
                 if since is None or rule.created_at > since:
                     all_memories.append(rule)

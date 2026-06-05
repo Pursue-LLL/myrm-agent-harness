@@ -137,6 +137,7 @@ def create_execute_script_tool(session: BrowserSession):
 
         # 4. Prepare safe globals
         import builtins
+
         safe_builtins = {
             k: getattr(builtins, k)
             for k in dir(builtins)
@@ -185,10 +186,9 @@ def create_execute_script_tool(session: BrowserSession):
             try:
                 page = session._tab_controller.get_active_page()
                 from myrm_agent_harness.toolkits.browser.utils.selectors import PASSWORD_FIELD_SELECTOR
+
                 password_locator = page.locator(PASSWORD_FIELD_SELECTOR)
-                baseline_screenshot = await page.screenshot(
-                    type="png", full_page=False, mask=[password_locator]
-                )
+                baseline_screenshot = await page.screenshot(type="png", full_page=False, mask=[password_locator])
             except Exception as e:
                 logger.warning("Failed to take baseline screenshot for verification: %s", e)
 
@@ -200,6 +200,7 @@ def create_execute_script_tool(session: BrowserSession):
             output_buffer.write("\n[Error] Script execution timed out after 60 seconds.")
         except Exception:
             import traceback
+
             error_trace = traceback.format_exc()
             output_buffer.write(f"\n[Error] Runtime exception:\n{error_trace}")
         finally:

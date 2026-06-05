@@ -167,25 +167,17 @@ class SubagentExecutor:
                                 from dataclasses import replace as dc_replace
 
                                 extra = (
-                                    dict(result.result)
-                                    if isinstance(result.result, dict)
-                                    else {"text": result.result}
+                                    dict(result.result) if isinstance(result.result, dict) else {"text": result.result}
                                 )
                                 extra["_workspace_sync_back"] = sync_back_fn
-                                extra["_isolated_child_workspace"] = str(
-                                    context.get("workspace_path", "")
-                                )
+                                extra["_isolated_child_workspace"] = str(context.get("workspace_path", ""))
                                 if isolated_parent_ws:
-                                    extra["_isolated_parent_workspace"] = (
-                                        isolated_parent_ws
-                                    )
+                                    extra["_isolated_parent_workspace"] = isolated_parent_ws
                                 result = dc_replace(result, result=extra)
                     return result
                 except TimeoutError:
                     retries_left -= 1
-                    logger.warning(
-                        "[subagent:%s] Timeout, retries_left=%d", task_id, retries_left
-                    )
+                    logger.warning("[subagent:%s] Timeout, retries_left=%d", task_id, retries_left)
                     if retries_left > 0:
                         await asyncio.sleep(backoff_seconds)
                         backoff_seconds *= 2
@@ -355,9 +347,7 @@ class SubagentExecutor:
         parent_tools = tool_registry_getter()
         filtered_tools = filter_tools(config, parent_tools)
         if not filtered_tools and config.tools:
-            logger.warning(
-                "[subagent:%s] No tools after filtering for '%s'", task_id, agent_type
-            )
+            logger.warning("[subagent:%s] No tools after filtering for '%s'", task_id, agent_type)
 
         parent_manager = getattr(parent_agent, "_subagent_manager", None)
         current_depth = int(getattr(parent_manager, "current_depth", 0))
@@ -398,18 +388,12 @@ class SubagentExecutor:
 
         set_is_subagent(True)
         set_subagent_task_id(task_id)
-        logger.debug(
-            "[subagent:%s] Context marked as subagent for approval safety", task_id
-        )
+        logger.debug("[subagent:%s] Context marked as subagent for approval safety", task_id)
 
         chat_history = []
-        if config.context_mode == "fork" and getattr(
-            parent_agent, "checkpointer", None
-        ):
+        if config.context_mode == "fork" and getattr(parent_agent, "checkpointer", None):
             try:
-                parent_session_id = context.get("session_id") or getattr(
-                    parent_agent, "session_id", None
-                )
+                parent_session_id = context.get("session_id") or getattr(parent_agent, "session_id", None)
                 if parent_session_id:
                     parent_state = await parent_agent.checkpointer.aget(
                         {"configurable": {"thread_id": parent_session_id}}
@@ -421,15 +405,9 @@ class SubagentExecutor:
 
                             # 10/10 Scheme: Slice off the final AIMessage to prevent 'orphaned tool' 400 errors,
                             # while preserving all earlier messages identically to guarantee 100% Prefix Cache Hit.
-                            chat_history = (
-                                raw_msgs[:-1]
-                                if isinstance(raw_msgs[-1], AIMessage)
-                                else raw_msgs[:]
-                            )
+                            chat_history = raw_msgs[:-1] if isinstance(raw_msgs[-1], AIMessage) else raw_msgs[:]
             except Exception as e:
-                logger.warning(
-                    "[subagent:%s] Failed to fork parent context: %s", task_id, e
-                )
+                logger.warning("[subagent:%s] Failed to fork parent context: %s", task_id, e)
 
         try:
             query = resume_command if resume_command is not None else task_description
@@ -440,8 +418,7 @@ class SubagentExecutor:
                 system_override = (
                     f"\n\n[System Override] Ignore previous global role settings in the history. "
                     f"Your new designated role for this task is: {persona_desc}. "
-                    f"Your specific task is: {task_description}\n\n"
-                    + _HANDOVER_PROTOCOL_PROMPT
+                    f"Your specific task is: {task_description}\n\n" + _HANDOVER_PROTOCOL_PROMPT
                 )
                 query = system_override
 
@@ -472,13 +449,9 @@ class SubagentExecutor:
 
                 if event_type == AgentEventType.MESSAGE.value:
                     content = event.get("data", "")
-                    messages.append(
-                        content if isinstance(content, str) else str(content)
-                    )
+                    messages.append(content if isinstance(content, str) else str(content))
                 elif event_type == AgentEventType.ERROR.value:
-                    raise RuntimeError(
-                        f"Subagent error: {event.get('error', 'Unknown error')}"
-                    )
+                    raise RuntimeError(f"Subagent error: {event.get('error', 'Unknown error')}")
                 else:
                     await event_forwarder.handle_event(event)
 
@@ -495,9 +468,7 @@ class SubagentExecutor:
         payload = None
         if getattr(child_agent, "checkpointer", None):
             try:
-                state = await child_agent.checkpointer.aget(
-                    {"configurable": {"thread_id": task_id}}
-                )
+                state = await child_agent.checkpointer.aget({"configurable": {"thread_id": task_id}})
                 if state and getattr(state, "next", None):
                     is_interrupted = True
                     for task in getattr(state, "tasks", []):
@@ -509,21 +480,13 @@ class SubagentExecutor:
                         if payload:
                             break
             except Exception as e:
-                logger.warning(
-                    "[subagent:%s] Failed to check interrupt state: %s", task_id, e
-                )
+                logger.warning("[subagent:%s] Failed to check interrupt state: %s", task_id, e)
 
         duration = time.time() - start_time
-        child_usage = (
-            child_agent.last_run_stats.token_usage
-            if child_agent.last_run_stats
-            else None
-        )
+        child_usage = child_agent.last_run_stats.token_usage if child_agent.last_run_stats else None
 
         if is_interrupted:
-            action_type = (
-                payload.get("action_type") if isinstance(payload, dict) else None
-            )
+            action_type = payload.get("action_type") if isinstance(payload, dict) else None
 
             if action_type == "swarm_fission":
                 logger.info(
@@ -663,11 +626,7 @@ class SubagentExecutor:
         def child_tool_registry_getter() -> list[object]:
             return list(child_agent._cached_tools or child_agent.user_tools)
 
-        allowed_types = (
-            sorted(config.delegation_allowed_types)
-            if config.delegation_allowed_types is not None
-            else None
-        )
+        allowed_types = sorted(config.delegation_allowed_types) if config.delegation_allowed_types is not None else None
         delegate_tool = create_delegate_task_tool(
             child_agent,
             tool_registry_getter=child_tool_registry_getter,
@@ -675,9 +634,7 @@ class SubagentExecutor:
             parent_type=agent_type,
             allowed_types=allowed_types,
         )
-        await update_delegate_task_description(
-            delegate_tool, config.delegation_catalog, allowed_types
-        )
+        await update_delegate_task_description(delegate_tool, config.delegation_catalog, allowed_types)
         child_tool_by_name = {
             "delegate_task_tool": delegate_tool,
             "batch_delegate_tasks_tool": create_batch_delegate_tasks_tool(
@@ -701,10 +658,7 @@ class SubagentExecutor:
             "send_teammate_message_tool": create_send_teammate_message_tool(child_agent),
         }
         child_agent.add_tools(
-            [
-                child_tool_by_name[tool_name]
-                for tool_name in DELEGATION_CAPABILITY_MANIFEST.orchestrator_child_tools
-            ]
+            [child_tool_by_name[tool_name] for tool_name in DELEGATION_CAPABILITY_MANIFEST.orchestrator_child_tools]
         )
 
 
@@ -727,7 +681,8 @@ def _cascade_cancel_descendants(child_agent: BaseAgent | None) -> None:
         cancelled = child_agent.cancel_all_children()
         if cancelled > 0:
             logger.info(
-                "[subagent] Cascade-cancelled %d descendant task(s)", cancelled,
+                "[subagent] Cascade-cancelled %d descendant task(s)",
+                cancelled,
             )
     except Exception:
         logger.debug("[subagent] Cascade cancel failed", exc_info=True)
@@ -761,9 +716,7 @@ def _auto_vault_or_truncate(
 
     workspace_path = context.get("workspace_path")
     if not workspace_path or not isinstance(workspace_path, str):
-        logger.debug(
-            "[subagent:%s] No workspace_path - falling back to truncation", task_id
-        )
+        logger.debug("[subagent:%s] No workspace_path - falling back to truncation", task_id)
         return truncate_result(raw_result, config.max_result_tokens)
 
     try:
@@ -805,9 +758,7 @@ def _auto_vault_or_truncate(
 
 def _parse_handover_state(raw_result: str, task_id: str) -> AgentHandoverState | None:
     """Extract ``<handover>...</handover>`` JSON block from raw subagent output."""
-    match = re.search(
-        r"<handover>(.*?)</handover>", raw_result, re.DOTALL | re.IGNORECASE
-    )
+    match = re.search(r"<handover>(.*?)</handover>", raw_result, re.DOTALL | re.IGNORECASE)
     if not match:
         return None
 

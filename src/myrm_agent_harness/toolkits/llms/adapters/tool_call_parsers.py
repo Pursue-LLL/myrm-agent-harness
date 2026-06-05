@@ -93,7 +93,9 @@ def parse_tool_calls(
             dropped = len(tool_calls) - len(filtered)
             if dropped:
                 dropped_names = [tc.get("function", {}).get("name") for tc in tool_calls if tc not in filtered]
-                logger.warning(" Filtered %d hallucinated tool call(s) not in available_tools: %s", dropped, dropped_names)
+                logger.warning(
+                    " Filtered %d hallucinated tool call(s) not in available_tools: %s", dropped, dropped_names
+                )
             if filtered:
                 return filtered
         else:
@@ -240,6 +242,7 @@ def _parse_qwen_xml_json_format(
                 data = json.loads(match)
             except json.JSONDecodeError:
                 import re as regex
+
                 # Try to fix unescaped quotes: "key": ""value"" -> "key": "\"value\""
                 fixed_match = regex.sub(r'(:\s*)""([^"]+)""', r'\1"\\"\2\\""', match)
                 data = json.loads(fixed_match)
@@ -465,11 +468,15 @@ def _parse_deepseek_dsml_format(
         blocks = unclosed_pattern.findall(text)
 
     for idx, block in enumerate(blocks):
-        invoke_pattern = re.compile(r'<[｜|]+DSML[｜|]+invoke\s+name=["\']([^"\']+)["\']>(.*?)</[｜|]+DSML[｜|]+invoke>', re.DOTALL)
+        invoke_pattern = re.compile(
+            r'<[｜|]+DSML[｜|]+invoke\s+name=["\']([^"\']+)["\']>(.*?)</[｜|]+DSML[｜|]+invoke>', re.DOTALL
+        )
         invokes = invoke_pattern.findall(block)
 
         if not invokes:
-            invoke_pattern_unclosed = re.compile(r'<[｜|]+DSML[｜|]+invoke\s+name=["\']([^"\']+)["\']>(.*?)(?:<[｜|]+DSML[｜|]+invoke|$)', re.DOTALL)
+            invoke_pattern_unclosed = re.compile(
+                r'<[｜|]+DSML[｜|]+invoke\s+name=["\']([^"\']+)["\']>(.*?)(?:<[｜|]+DSML[｜|]+invoke|$)', re.DOTALL
+            )
             invokes = invoke_pattern_unclosed.findall(block)
 
         for tool_name, params_text in invokes:
@@ -478,7 +485,10 @@ def _parse_deepseek_dsml_format(
                 continue
 
             args: dict[str, Any] = {}
-            param_pattern = re.compile(r'<[｜|]+DSML[｜|]+parameter\s+name=["\']([^"\']+)["\']\s+string=["\'](true|false)["\']>(.*?)</[｜|]+DSML[｜|]+parameter>', re.DOTALL)
+            param_pattern = re.compile(
+                r'<[｜|]+DSML[｜|]+parameter\s+name=["\']([^"\']+)["\']\s+string=["\'](true|false)["\']>(.*?)</[｜|]+DSML[｜|]+parameter>',
+                re.DOTALL,
+            )
             params = param_pattern.findall(params_text)
 
             for p_name, is_string, p_value in params:
@@ -492,10 +502,7 @@ def _parse_deepseek_dsml_format(
                 "id": f"call_{uuid4().hex[:24]}",
                 "index": idx,
                 "type": "function",
-                "function": {
-                    "name": tool_name,
-                    "arguments": json.dumps(args, ensure_ascii=False)
-                }
+                "function": {"name": tool_name, "arguments": json.dumps(args, ensure_ascii=False)},
             }
             tool_calls.append(tool_call)
             logger.debug(f" DeepSeek DSML parsed: {tool_name}")
@@ -507,17 +514,13 @@ def _parse_deepseek_dsml_format(
 # XML Tool Tag Cleaner
 # ============================================================================
 
-_DSML_PATTERN = re.compile(
-    r"<[｜|]+DSML[｜|]+tool_calls>.*?</[｜|]+DSML[｜|]+tool_calls>", re.DOTALL
-)
+_DSML_PATTERN = re.compile(r"<[｜|]+DSML[｜|]+tool_calls>.*?</[｜|]+DSML[｜|]+tool_calls>", re.DOTALL)
 _DSML_UNCLOSED_PATTERN = re.compile(r"<[｜|]+DSML[｜|]+tool_calls>.*", re.DOTALL)
 _XML_TOOL_PATTERN = re.compile(
     r"<(tool_call|invoke(?:\s+name=[\"'][^\"']*[\"'])?)>.*?</(?:\1|invoke)>",
     re.DOTALL,
 )
-_XML_TOOL_UNCLOSED_PATTERN = re.compile(
-    r"<(tool_call|invoke(?:\s+name=[\"'][^\"']*[\"'])?)>.*", re.DOTALL
-)
+_XML_TOOL_UNCLOSED_PATTERN = re.compile(r"<(tool_call|invoke(?:\s+name=[\"'][^\"']*[\"'])?)>.*", re.DOTALL)
 _FUNCTION_CALLS_PATTERN = re.compile(
     r"<(?:antml:)?(?:function|tool)_calls>.*?</(?:antml:)?(?:function|tool)_calls>",
     re.DOTALL,

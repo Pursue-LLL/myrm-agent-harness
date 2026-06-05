@@ -423,7 +423,9 @@ def _split_shell_operators(command: str) -> list[str]:
             current.append(command[i + 1])
             i += 2
         elif not in_single and not in_double:
-            if (ch == "&" and i + 1 < n and command[i + 1] == "&") or (ch == "|" and i + 1 < n and command[i + 1] == "|"):
+            if (ch == "&" and i + 1 < n and command[i + 1] == "&") or (
+                ch == "|" and i + 1 < n and command[i + 1] == "|"
+            ):
                 segments.append("".join(current))
                 current = []
                 i += 2

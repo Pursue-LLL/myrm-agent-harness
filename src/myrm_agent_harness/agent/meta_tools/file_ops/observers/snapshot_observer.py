@@ -60,13 +60,11 @@ class FileSnapshot:
 
     @property
     def size_bytes(self) -> int:
-        return (
-            len(self.original_content.encode("utf-8")) if self.original_content else 0
-        )
+        return len(self.original_content.encode("utf-8")) if self.original_content else 0
 
 
-_snapshot_store_var: contextvars.ContextVar[SnapshotStore | None] = (
-    contextvars.ContextVar("snapshot_store", default=None)
+_snapshot_store_var: contextvars.ContextVar[SnapshotStore | None] = contextvars.ContextVar(
+    "snapshot_store", default=None
 )
 
 
@@ -79,9 +77,7 @@ class SnapshotStore:
     and TaintTracker). Each asyncio Task / agent run gets its own store.
     """
 
-    _lock: contextvars.ContextVar[asyncio.Lock | None] = contextvars.ContextVar(
-        "snapshot_store_lock", default=None
-    )
+    _lock: contextvars.ContextVar[asyncio.Lock | None] = contextvars.ContextVar("snapshot_store_lock", default=None)
 
     def __init__(self) -> None:
         self._store: dict[str, dict[str, list[FileSnapshot]]] = {}
@@ -130,25 +126,19 @@ class SnapshotStore:
         self._total_bytes += snapshot.size_bytes
         return True
 
-    def get_message_snapshots(
-        self, session_id: str, message_id: str
-    ) -> list[FileSnapshot]:
+    def get_message_snapshots(self, session_id: str, message_id: str) -> list[FileSnapshot]:
         return self._store.get(session_id, {}).get(message_id, [])
 
     def get_session_snapshots(self, session_id: str) -> dict[str, list[FileSnapshot]]:
         return dict(self._store.get(session_id, {}))
 
-    def get_file_snapshot(
-        self, session_id: str, message_id: str, path: str
-    ) -> FileSnapshot | None:
+    def get_file_snapshot(self, session_id: str, message_id: str, path: str) -> FileSnapshot | None:
         for snap in reversed(self.get_message_snapshots(session_id, message_id)):
             if snap.path == path:
                 return snap
         return None
 
-    def get_initial_file_snapshot(
-        self, session_id: str, message_id: str, path: str
-    ) -> FileSnapshot | None:
+    def get_initial_file_snapshot(self, session_id: str, message_id: str, path: str) -> FileSnapshot | None:
         """获取当前回合（message_id）中该文件的第一次快照，用于计算累积 Diff。"""
         for snap in self.get_message_snapshots(session_id, message_id):
             if snap.path == path:
@@ -171,25 +161,16 @@ class SnapshotStore:
                 count += 1
         return count
 
-    async def remove_persisted_message(
-        self, workspace_root: str, session_id: str, message_id: str
-    ) -> None:
+    async def remove_persisted_message(self, workspace_root: str, session_id: str, message_id: str) -> None:
         """Delete the on-disk snapshot file for a specific message."""
-        target = (
-            Path(workspace_root)
-            / SNAPSHOTS_DIR_NAME
-            / session_id
-            / f"{message_id}.json"
-        )
+        target = Path(workspace_root) / SNAPSHOTS_DIR_NAME / session_id / f"{message_id}.json"
         try:
             if target.is_file():
                 await asyncio.to_thread(target.unlink)
         except OSError:
             logger.warning("Failed to delete snapshot file: %s", target)
 
-    async def clear_persisted_session(
-        self, workspace_root: str, session_id: str
-    ) -> None:
+    async def clear_persisted_session(self, workspace_root: str, session_id: str) -> None:
         """Delete all on-disk snapshot files for a session."""
         session_dir = Path(workspace_root) / SNAPSHOTS_DIR_NAME / session_id
         try:
@@ -204,9 +185,7 @@ class SnapshotStore:
     def total_bytes(self) -> int:
         return self._total_bytes
 
-    async def persist_to_disk(
-        self, workspace_root: str, session_id: str, message_id: str
-    ) -> None:
+    async def persist_to_disk(self, workspace_root: str, session_id: str, message_id: str) -> None:
         snapshots = self.get_message_snapshots(session_id, message_id)
         if not snapshots:
             return
@@ -237,9 +216,7 @@ class SnapshotStore:
             )
 
     @classmethod
-    async def load_from_disk(
-        cls, workspace_root: str, session_id: str
-    ) -> list[tuple[str, list[FileSnapshot]]]:
+    async def load_from_disk(cls, workspace_root: str, session_id: str) -> list[tuple[str, list[FileSnapshot]]]:
         snapshots_dir = Path(workspace_root) / SNAPSHOTS_DIR_NAME / session_id
         if not snapshots_dir.is_dir():
             return []
@@ -262,9 +239,7 @@ class SnapshotStore:
                 ]
                 result.append((message_id, snaps))
         except (OSError, json.JSONDecodeError, KeyError):
-            logger.warning(
-                "Failed to load snapshots from disk for session=%s", session_id
-            )
+            logger.warning("Failed to load snapshots from disk for session=%s", session_id)
         return result
 
 
@@ -281,9 +256,7 @@ def _get_session_id() -> str:
         return "default"
 
 
-_current_message_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "snapshot_message_id", default=None
-)
+_current_message_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("snapshot_message_id", default=None)
 
 
 def set_current_message_id(msg_id: str) -> None:
@@ -308,21 +281,15 @@ class SnapshotObserver(FileOperationObserver):
     async def on_file_created(self, path: str, content: str) -> None:
         session_id = _get_session_id()
         message_id = get_current_message_id()
-        snap = FileSnapshot(
-            path=path, operation=SnapshotOp.CREATE, original_content=None
-        )
+        snap = FileSnapshot(path=path, operation=SnapshotOp.CREATE, original_content=None)
         store = SnapshotStore.get()
         store.record(session_id, message_id, snap)
         self._schedule_persist(store, session_id, message_id, path)
 
-    async def on_file_modified(
-        self, path: str, old_content: str, new_content: str
-    ) -> None:
+    async def on_file_modified(self, path: str, old_content: str, new_content: str) -> None:
         session_id = _get_session_id()
         message_id = get_current_message_id()
-        snap = FileSnapshot(
-            path=path, operation=SnapshotOp.MODIFY, original_content=old_content
-        )
+        snap = FileSnapshot(path=path, operation=SnapshotOp.MODIFY, original_content=old_content)
         store = SnapshotStore.get()
         store.record(session_id, message_id, snap)
         self._schedule_persist(store, session_id, message_id, path)
@@ -331,9 +298,7 @@ class SnapshotObserver(FileOperationObserver):
         pass
 
     @staticmethod
-    def _schedule_persist(
-        store: SnapshotStore, session_id: str, message_id: str, file_path: str
-    ) -> None:
+    def _schedule_persist(store: SnapshotStore, session_id: str, message_id: str, file_path: str) -> None:
         """Fire-and-forget disk persistence. Uses CWD as workspace root."""
         from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import (
             WorkspacePathResolver,
@@ -342,9 +307,7 @@ class SnapshotObserver(FileOperationObserver):
         workspace_root = str(WorkspacePathResolver.resolve_workspace_root())
         try:
             loop = asyncio.get_running_loop()
-            task = loop.create_task(
-                store.persist_to_disk(workspace_root, session_id, message_id)
-            )
+            task = loop.create_task(store.persist_to_disk(workspace_root, session_id, message_id))
             _persist_tasks.add(task)
             task.add_done_callback(_persist_tasks.discard)
         except RuntimeError:

@@ -41,9 +41,7 @@ class SensitiveFileValidator(Validator):
     3. Blocks write operations that could expose secrets
     """
 
-    def __init__(
-        self, io_config: FileIOConfig | None = None, block_sensitive_reads: bool = False
-    ) -> None:
+    def __init__(self, io_config: FileIOConfig | None = None, block_sensitive_reads: bool = False) -> None:
         """Initialize validator
 
         Args:
@@ -119,9 +117,7 @@ class SensitiveFileValidator(Validator):
 
         return False
 
-    def _handle_sensitive_file(
-        self, context: OperationContext, path: str, matched_pattern: str
-    ) -> None:
+    def _handle_sensitive_file(self, context: OperationContext, path: str, matched_pattern: str) -> None:
         """Handle sensitive file access
 
         Args:

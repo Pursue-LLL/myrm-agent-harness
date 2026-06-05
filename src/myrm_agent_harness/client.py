@@ -64,6 +64,7 @@ class AgentClient:
 
         if isinstance(llm, str):
             import os
+
             self.llm_config = LLMConfig(
                 model=llm,
                 api_key=api_key or os.environ.get("OPENAI_API_KEY", "dummy_key"),
@@ -93,6 +94,7 @@ class AgentClient:
     async def _build_agent(self) -> SkillAgent:
         """Construct the underlying SkillAgent instance."""
         import dataclasses
+
         spec = AgentRuntimeSpec(
             agent_id=self.agent_id,
             name=self.name,

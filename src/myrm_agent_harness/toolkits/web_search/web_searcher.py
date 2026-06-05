@@ -140,8 +140,7 @@ class WebSearcher:
             api_base = self.config.api_base
             if not api_base:
                 raise SearchConfigError(
-                    "SearxNG search requires api_base in SearchServiceConfig "
-                    "(configure via WebUI Settings)",
+                    "SearxNG search requires api_base in SearchServiceConfig (configure via WebUI Settings)",
                     config_key="api_base",
                 )
             api_key = self.config.api_key
@@ -246,20 +245,28 @@ class WebSearcher:
                 ):
                     error_msg = self._extract_key_error(exc).lower()
                     # Fallback on gateway errors (502, 503, 504) or insufficient funds (402)
-                    if "502" in error_msg or "503" in error_msg or "504" in error_msg or "402" in error_msg or "insufficient" in error_msg or "timeout" in error_msg:
+                    if (
+                        "502" in error_msg
+                        or "503" in error_msg
+                        or "504" in error_msg
+                        or "402" in error_msg
+                        or "insufficient" in error_msg
+                        or "timeout" in error_msg
+                    ):
                         logger.warning(
                             f"Gateway search failed ({error_msg}), falling back to direct provider API (BYOK)"
                         )
                         try:
                             from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
                             await dispatch_custom_event(
                                 "agent_status",
                                 {
                                     "event": "tool_fallback",
                                     "tool": "web_search_tool",
                                     "fallback_type": "gateway_failover",
-                                    "message": f"统一网关异常，正在无缝回退至本地直连 ({provider})..."
-                                }
+                                    "message": f"统一网关异常，正在无缝回退至本地直连 ({provider})...",
+                                },
                             )
                         except Exception:
                             pass
@@ -277,14 +284,15 @@ class WebSearcher:
                         )
                         try:
                             from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
                             await dispatch_custom_event(
                                 "agent_status",
                                 {
                                     "event": "tool_fallback",
                                     "tool": "web_search_tool",
                                     "fallback_type": "api_failover",
-                                    "message": f"主搜索服务异常，正在无缝切换至备用引擎 ({fallback_cfg.search_service})..."
-                                }
+                                    "message": f"主搜索服务异常，正在无缝切换至备用引擎 ({fallback_cfg.search_service})...",
+                                },
                             )
                         except Exception:
                             pass
@@ -446,7 +454,10 @@ class WebSearcher:
             RuntimeError: When all search queries fail, raises concise error message
         """
         overrides = per_query_overrides or [None] * len(queries)
-        tasks = [self.search_and_process(q, results_per_query, override) for q, override in zip(queries, overrides, strict=False)]
+        tasks = [
+            self.search_and_process(q, results_per_query, override)
+            for q, override in zip(queries, overrides, strict=False)
+        ]
         results = await asyncio.gather(*tasks)
 
         # Check if there are successful queries

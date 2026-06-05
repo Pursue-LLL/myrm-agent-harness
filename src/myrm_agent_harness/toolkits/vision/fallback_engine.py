@@ -99,10 +99,7 @@ class VisionFallbackEngine:
             err_str = str(e).lower()
             # 捕获 413 Payload Too Large / 415 异常进行 Reactive Resize
             if retry_count > 0 and (
-                "413" in err_str
-                or "payload too large" in err_str
-                or "415" in err_str
-                or "too large" in err_str
+                "413" in err_str or "payload too large" in err_str or "415" in err_str or "too large" in err_str
             ):
                 logger.warning(
                     "Vision API rejected payload due to size (%s). Triggering Reactive Resize...",
@@ -116,19 +113,11 @@ class VisionFallbackEngine:
                     # 质量压缩
                     compressed_bytes = image_compressor.compress(buffer, quality=0.5)
                     if compressed_bytes:
-                        compressed_b64 = base64.b64encode(compressed_bytes).decode(
-                            "ascii"
-                        )
-                        logger.info(
-                            "Reactive Resize successful. Retrying vision fallback..."
-                        )
-                        return await self.describe_image_b64(
-                            compressed_b64, mime_type, retry_count=0, prompt=prompt
-                        )
+                        compressed_b64 = base64.b64encode(compressed_bytes).decode("ascii")
+                        logger.info("Reactive Resize successful. Retrying vision fallback...")
+                        return await self.describe_image_b64(compressed_b64, mime_type, retry_count=0, prompt=prompt)
                     else:
-                        logger.warning(
-                            "Image compression returned empty. Fallback failed."
-                        )
+                        logger.warning("Image compression returned empty. Fallback failed.")
                 except Exception as comp_err:
                     logger.error("Reactive Resize failed: %s", comp_err)
 

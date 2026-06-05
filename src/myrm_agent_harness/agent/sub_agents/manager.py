@@ -82,17 +82,14 @@ class CapacitySnapshot:
     max_descendants: int
     remaining_descendants: int
 
+
 # Global registry mapping task_id to the SubagentManager that spawned it.
 # This allows Server API to find and control background subagents
 # without needing complex session lifecycle binding.
-ACTIVE_SUBAGENTS: weakref.WeakValueDictionary[str, SubagentManager] = (
-    weakref.WeakValueDictionary()
-)
+ACTIVE_SUBAGENTS: weakref.WeakValueDictionary[str, SubagentManager] = weakref.WeakValueDictionary()
 
 
-def _emit_global_subagent_event(
-    event_name: str, task_id: str, session_id: str, data: SubagentLifecycleData
-) -> None:
+def _emit_global_subagent_event(event_name: str, task_id: str, session_id: str, data: SubagentLifecycleData) -> None:
     try:
         from myrm_agent_harness.runtime.events import SubagentLifecycleEvent, get_event_bus
 
@@ -180,9 +177,7 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
         self._background_tasks: set[asyncio.Task[object]] = set()
         self._semaphore = asyncio.Semaphore(_DEFAULT_CONCURRENCY)
         self._current_depth = current_depth
-        self._budget_state = budget_state or DelegationBudgetState(
-            max_descendants=_DEFAULT_DESCENDANTS_PER_RUN
-        )
+        self._budget_state = budget_state or DelegationBudgetState(max_descendants=_DEFAULT_DESCENDANTS_PER_RUN)
         self._max_children_per_agent = max_children_per_agent
         self._notification_manager = NotificationManager()
         self._checkpoint_storage = SubagentCheckpointStorage()
@@ -226,8 +221,7 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
             max_descendants=self._budget_state.max_descendants,
             remaining_descendants=max(
                 0,
-                self._budget_state.max_descendants
-                - self._budget_state.spawned_descendants,
+                self._budget_state.max_descendants - self._budget_state.spawned_descendants,
             ),
         )
 
@@ -268,9 +262,7 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
     def _task_id_exists(self, task_id: str) -> bool:
         return task_id in self._children or task_id in self._children_results
 
-    def _validate_depth(
-        self, task_id: str, config: SubagentConfig
-    ) -> SubAgentResult | None:
+    def _validate_depth(self, task_id: str, config: SubagentConfig) -> SubAgentResult | None:
         if self._current_depth >= _MAX_GLOBAL_SPAWN_DEPTH:
             return SubAgentResult(
                 success=False,
@@ -280,10 +272,7 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
                 completed_at=time.time(),
                 status=SubAgentStatus.FAILED,
             )
-        if (
-            config.control_scope == ControlScope.ORCHESTRATOR
-            and self._current_depth >= config.max_spawn_depth
-        ):
+        if config.control_scope == ControlScope.ORCHESTRATOR and self._current_depth >= config.max_spawn_depth:
             return SubAgentResult(
                 success=False,
                 task_id=task_id,
@@ -294,9 +283,7 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
             )
         return None
 
-    def _validate_capacity(
-        self, task_id: str, agent_type: str, config: SubagentConfig
-    ) -> SubAgentResult | None:
+    def _validate_capacity(self, task_id: str, agent_type: str, config: SubagentConfig) -> SubAgentResult | None:
         active_children = sum(1 for task in self._children.values() if not task.done())
         max_active_children = min(
             self._max_children_per_agent,
@@ -308,8 +295,7 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
                 task_id=task_id,
                 agent_type=agent_type,
                 error=(
-                    f"Active child limit exceeded: {active_children}/{max_active_children} "
-                    "children already running"
+                    f"Active child limit exceeded: {active_children}/{max_active_children} children already running"
                 ),
                 completed_at=time.time(),
                 status=SubAgentStatus.FAILED,
@@ -440,11 +426,7 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
         """Evict oldest completed results (FIFO by completed_at) when cache exceeds 50 entries."""
         if len(self._children_results) <= 50:
             return
-        completed = [
-            (tid, r)
-            for tid, r in self._children_results.items()
-            if r.status != SubAgentStatus.RUNNING
-        ]
+        completed = [(tid, r) for tid, r in self._children_results.items() if r.status != SubAgentStatus.RUNNING]
         completed.sort(key=lambda x: x[1].completed_at)
         evict_count = len(self._children_results) - 50
         for tid, _ in completed[:evict_count]:
@@ -473,4 +455,3 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
         if config is None:
             return {}
         return self._build_observability_metadata(config)
-

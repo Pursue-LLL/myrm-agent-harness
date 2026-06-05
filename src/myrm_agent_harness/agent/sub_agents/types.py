@@ -72,17 +72,14 @@ class DelegationCapabilityManifest:
             }
         )
         return cls(
-            leaf_blocked_tools=frozenset(orchestrator_child_tools)
-            | privileged_skill_tools,
+            leaf_blocked_tools=frozenset(orchestrator_child_tools) | privileged_skill_tools,
             orchestrator_child_tools=orchestrator_child_tools,
             privileged_skill_tools=privileged_skill_tools,
         )
 
 
 DELEGATION_CAPABILITY_MANIFEST = DelegationCapabilityManifest.default()
-_SUBAGENT_DEFAULT_BLACKLIST: frozenset[str] = (
-    DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools
-)
+_SUBAGENT_DEFAULT_BLACKLIST: frozenset[str] = DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools
 
 
 class SubAgentStatus(StrEnum):

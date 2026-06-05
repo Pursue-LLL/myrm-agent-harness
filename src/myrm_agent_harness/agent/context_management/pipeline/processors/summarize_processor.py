@@ -60,9 +60,7 @@ _HALF_OPEN_PROBE_INTERVAL = 2
 
 # Tiered cooldown periods by error type
 _CIRCUIT_COOLDOWN_TRANSIENT = 60  # 1 minute for transient errors (timeout, rate limit)
-_CIRCUIT_COOLDOWN_PERMANENT = (
-    600  # 10 minutes for permanent errors (model not found, 503)
-)
+_CIRCUIT_COOLDOWN_PERMANENT = 600  # 10 minutes for permanent errors (model not found, 503)
 _CIRCUIT_COOLDOWN_AUTH = 1800  # 30 minutes for auth errors (invalid API key)
 
 _summarize_failures: int = 0
@@ -111,9 +109,7 @@ def _classify_error_type(exc: Exception) -> str:
     ):
         return "permanent"
 
-    status_code = getattr(exc, "status_code", None) or getattr(
-        getattr(exc, "response", None), "status_code", None
-    )
+    status_code = getattr(exc, "status_code", None) or getattr(getattr(exc, "response", None), "status_code", None)
     if status_code in (404, 503):
         return "permanent"
 
@@ -209,16 +205,16 @@ class SummarizeProcessor(BaseProcessor):
 
     _HOT_CACHE_WINDOW_SECONDS: float = 300.0  # 5 minutes
 
-    def _should_bypass_for_hot_cache(
-        self, context: ProcessorContext, current_tokens: int
-    ) -> bool:
+    def _should_bypass_for_hot_cache(self, context: ProcessorContext, current_tokens: int) -> bool:
         """Check whether to bypass summarization due to hot cache."""
         max_tokens = self.config.max_context_tokens or 128000
         if current_tokens >= max_tokens * 0.90:
             return False  # MUST summarize synchronously to avoid OOM
 
         last_active = context.metadata.get("last_activity_time")
-        return bool(isinstance(last_active, (int, float)) and time.time() - last_active < self._HOT_CACHE_WINDOW_SECONDS)
+        return bool(
+            isinstance(last_active, (int, float)) and time.time() - last_active < self._HOT_CACHE_WINDOW_SECONDS
+        )
 
     async def should_process(self, context: ProcessorContext) -> bool:
         global _skip_next_api_token_check
@@ -233,9 +229,7 @@ class SummarizeProcessor(BaseProcessor):
         if _skip_next_api_token_check:
             _skip_next_api_token_check = False
 
-        should_sum = should_summarize(
-            context.messages, config=self.config, ignore_api_tokens=ignore_api
-        )
+        should_sum = should_summarize(context.messages, config=self.config, ignore_api_tokens=ignore_api)
         if not should_sum:
             return False
 
@@ -279,9 +273,7 @@ class SummarizeProcessor(BaseProcessor):
             reason = "circuit breaker tripped" if circuit_open else "no LLM client"
             logger.warning("[Summarize] %s — using deterministic fallback", reason)
             _record_fallback_call()
-            return self._apply_deterministic_fallback(
-                context, original_tokens, last_msg_db_id
-            )
+            return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
 
         if circuit_open:
             logger.info("[Summarize] half-open probe — attempting LLM recovery")
@@ -321,13 +313,9 @@ class SummarizeProcessor(BaseProcessor):
                     exc,
                     auth_hint,
                 )
-                circuit_breaker_failures_total.labels(
-                    component="summarize", error_type="auth"
-                ).inc()
+                circuit_breaker_failures_total.labels(component="summarize", error_type="auth").inc()
                 circuit_breaker_state.labels(component="summarize").set(2)  # OPEN
-                return self._apply_deterministic_fallback(
-                    context, original_tokens, last_msg_db_id
-                )
+                return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
 
             _set_failures(prev + 1, error_type_classified)
             _record_fallback_call()
@@ -337,9 +325,7 @@ class SummarizeProcessor(BaseProcessor):
                 if error_type_classified != "transient"
                 else ("timeout" if "timeout" in str(exc).lower() else "other")
             )
-            circuit_breaker_failures_total.labels(
-                component="summarize", error_type=metrics_error_type
-            ).inc()
+            circuit_breaker_failures_total.labels(component="summarize", error_type=metrics_error_type).inc()
 
             if prev + 1 >= MAX_CONSECUTIVE_SUMMARIZE_FAILURES:
                 circuit_breaker_state.labels(component="summarize").set(2)  # OPEN
@@ -353,9 +339,7 @@ class SummarizeProcessor(BaseProcessor):
                 type(exc).__name__,
                 exc,
             )
-            return self._apply_deterministic_fallback(
-                context, original_tokens, last_msg_db_id
-            )
+            return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
 
         _set_failures(0)
         global _fallback_calls, _skip_next_api_token_check
@@ -389,9 +373,7 @@ class SummarizeProcessor(BaseProcessor):
         self, context: ProcessorContext, original_tokens: int, last_msg_db_id: object
     ) -> ProcessorContext:
         """Deterministic fallback: build a minimal summary without LLM."""
-        summary = _build_deterministic_summary(
-            context.messages, context.metadata, context.chat_id
-        )
+        summary = _build_deterministic_summary(context.messages, context.metadata, context.chat_id)
 
         from ...strategies.pre_compact_context import prepend_pre_compact_message
         from ...strategies.summary_builder import extract_protected_head
@@ -399,9 +381,7 @@ class SummarizeProcessor(BaseProcessor):
         protected_head = extract_protected_head(context.messages)
 
         tail_budget = int((self.config.max_context_tokens or 128000) * getattr(self.config, "tail_budget_ratio", 0.20))
-        recent_messages = extract_recent_messages(
-            context.messages, tail_budget
-        )
+        recent_messages = extract_recent_messages(context.messages, tail_budget)
         summary_message = create_summary_message(summary, context.chat_id)
 
         context.messages = prepend_pre_compact_message(

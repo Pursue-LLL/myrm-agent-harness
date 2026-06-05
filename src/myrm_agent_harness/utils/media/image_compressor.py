@@ -127,6 +127,7 @@ class ImageCompressor:
 
         # Apply EXIF orientation
         from PIL import ImageOps
+
         img = ImageOps.exif_transpose(img)
 
         # Resize if needed
@@ -253,6 +254,7 @@ class ImageCompressor:
     ) -> bytes | None:
         """Compress PNG using Pillow."""
         from PIL import ImageOps
+
         Image.MAX_IMAGE_PIXELS = None
         img = Image.open(input_path)
         img = ImageOps.exif_transpose(img)

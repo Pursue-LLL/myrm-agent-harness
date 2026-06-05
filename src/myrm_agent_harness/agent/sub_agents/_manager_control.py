@@ -75,9 +75,7 @@ class SubagentControlMixin:
 
         return children
 
-    async def _graceful_cancel_timeout_handler(
-        self, task_id: str, task: SubagentTask, timeout_seconds: float
-    ) -> None:
+    async def _graceful_cancel_timeout_handler(self, task_id: str, task: SubagentTask, timeout_seconds: float) -> None:
         """Force-cancel if graceful cancellation exceeds timeout."""
         try:
             await asyncio.sleep(timeout_seconds)
@@ -115,9 +113,7 @@ class SubagentControlMixin:
             self._cancel_flags[task_id] = True
             logger.info("[subagent:%s] Cancel flag set (GRACEFUL)", task_id)
             timeout_task = asyncio.create_task(
-                self._graceful_cancel_timeout_handler(
-                    task_id, task, config.graceful_cancel_timeout_seconds
-                )
+                self._graceful_cancel_timeout_handler(task_id, task, config.graceful_cancel_timeout_seconds)
             )
             self._graceful_cancel_timeouts[task_id] = timeout_task
         elif strategy == CancellationStrategy.CHECKPOINT:
@@ -143,9 +139,7 @@ class SubagentControlMixin:
             self._cancel_flags[task_id] = True
             logger.info("[subagent:%s] Cancel flag set (CHECKPOINT)", task_id)
             timeout_task = asyncio.create_task(
-                self._graceful_cancel_timeout_handler(
-                    task_id, task, config.graceful_cancel_timeout_seconds
-                )
+                self._graceful_cancel_timeout_handler(task_id, task, config.graceful_cancel_timeout_seconds)
             )
             self._graceful_cancel_timeouts[task_id] = timeout_task
 

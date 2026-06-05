@@ -56,9 +56,7 @@ def validate_sqlite_header(path: Path) -> None:
     except OSError:
         return  # cannot inspect; defer to the connection attempt
     if not head.startswith(_SQLITE_MAGIC):
-        raise SQLiteIntegrityError(
-            f"file is not a SQLite database (invalid header): {path}"
-        )
+        raise SQLiteIntegrityError(f"file is not a SQLite database (invalid header): {path}")
 
 
 def check_page_count_invariant(path: Path) -> None:
@@ -85,9 +83,7 @@ def check_page_count_invariant(path: Path) -> None:
     page_size = int.from_bytes(header[_PAGE_SIZE_OFFSET : _PAGE_SIZE_OFFSET + 2], "big")
     if page_size == 1:
         page_size = 65536  # SQLite encodes a 64 KiB page size as the value 1
-    page_count = int.from_bytes(
-        header[_PAGE_COUNT_OFFSET : _PAGE_COUNT_OFFSET + 4], "big"
-    )
+    page_count = int.from_bytes(header[_PAGE_COUNT_OFFSET : _PAGE_COUNT_OFFSET + 4], "big")
     if page_size == 0 or page_count == 0:
         return  # legacy header that does not maintain an in-file page count
 

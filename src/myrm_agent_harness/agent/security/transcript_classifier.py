@@ -40,9 +40,7 @@ logger = logging.getLogger(__name__)
 
 
 class ClassifierResultSchema(BaseModel):
-    decision: Literal["allow", "deny", "uncertain"] = Field(
-        description="The classification decision"
-    )
+    decision: Literal["allow", "deny", "uncertain"] = Field(description="The classification decision")
     reason: str = Field(description="Brief explanation for the decision")
 
 
@@ -174,9 +172,7 @@ class TranscriptClassifier:
         if workspace_root:
             user_parts.append(f"Workspace: {workspace_root}")
         if taint_labels:
-            user_parts.append(
-                f"Active Taint Labels: {', '.join(sorted(taint_labels))}"
-            )
+            user_parts.append(f"Active Taint Labels: {', '.join(sorted(taint_labels))}")
         if trusted_domains:
             user_parts.append(
                 f"## Trust Context\nUser-trusted domains (treat as INTERNAL, not external): "
@@ -194,9 +190,7 @@ class TranscriptClassifier:
             ]
 
             structured_llm = self._llm.with_structured_output(ClassifierResultSchema)
-            response = await asyncio.wait_for(
-                structured_llm.ainvoke(messages), timeout=self._timeout
-            )
+            response = await asyncio.wait_for(structured_llm.ainvoke(messages), timeout=self._timeout)
 
             decision = _DECISION_MAP.get(response.decision, ReviewDecision.UNCERTAIN)
             return ReviewResult(decision=decision, reason=response.reason)
@@ -219,4 +213,3 @@ class TranscriptClassifier:
                 decision=ReviewDecision.UNCERTAIN,
                 reason="Transcript classifier error",
             )
-

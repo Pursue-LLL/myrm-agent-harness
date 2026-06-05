@@ -133,16 +133,11 @@ class MCPConnection:
                 return actor
         return None
 
-    async def call(
-        self, server_name: str, tool_name: str, params: dict[str, object]
-    ) -> object:
+    async def call(self, server_name: str, tool_name: str, params: dict[str, object]) -> object:
         """Invoke a tool on the warm session of the given server."""
         actor = self._resolve_actor(server_name)
         if actor is None:
-            raise RuntimeError(
-                f"MCP server not found: {server_name}. "
-                f"Available servers: {list(self._actors)}"
-            )
+            raise RuntimeError(f"MCP server not found: {server_name}. Available servers: {list(self._actors)}")
 
         self.status = ConnectionStatus.ACTIVE
         self.metrics.use_count += 1
@@ -164,9 +159,7 @@ class MCPConnection:
         """Return True only if every server's session is alive and usable."""
         if self.status == ConnectionStatus.CLOSED:
             return False
-        healthy = bool(self._actors) and all(
-            actor.is_healthy() for actor in self._actors.values()
-        )
+        healthy = bool(self._actors) and all(actor.is_healthy() for actor in self._actors.values())
         if not healthy:
             self.status = ConnectionStatus.UNHEALTHY
         return healthy
@@ -192,9 +185,7 @@ class MCPConnection:
             "age_seconds": int(now - self.metrics.created_at),
             "idle_seconds": int(now - self.metrics.last_used),
             "use_count": self.metrics.use_count,
-            "avg_time_ms": int(
-                self.metrics.total_time * 1000 / max(1, self.metrics.use_count)
-            ),
+            "avg_time_ms": int(self.metrics.total_time * 1000 / max(1, self.metrics.use_count)),
             "error_count": self.metrics.error_count,
             "error_rate": f"{self.metrics.error_count / max(1, self.metrics.use_count) * 100:.1f}%",
         }
@@ -357,11 +348,7 @@ class MCPConnectionManager:
         # sessions for the same config (double-check after acquiring the lock).
         async with self._get_create_lock():
             existing = self._connections.get(config_hash)
-            if (
-                existing is not None
-                and existing.is_bound_to_current_loop()
-                and await existing.health_check()
-            ):
+            if existing is not None and existing.is_bound_to_current_loop() and await existing.health_check():
                 return existing
             return await self._create_connection(config, config_hash)
 
@@ -390,9 +377,7 @@ class MCPConnectionManager:
             await actor.start()
             return cfg.name, actor
 
-        results = await asyncio.gather(
-            *(_spawn(cfg) for cfg in config), return_exceptions=True
-        )
+        results = await asyncio.gather(*(_spawn(cfg) for cfg in config), return_exceptions=True)
 
         actors: dict[str, MCPSessionActor] = {}
         errors: list[str] = []
@@ -437,11 +422,7 @@ class MCPConnectionManager:
 
     async def _cleanup_expired(self) -> None:
         """Close and drop connections idle beyond the TTL."""
-        expired = [
-            config_hash
-            for config_hash, conn in self._connections.items()
-            if conn.is_expired(self._ttl)
-        ]
+        expired = [config_hash for config_hash, conn in self._connections.items() if conn.is_expired(self._ttl)]
         for config_hash in expired:
             conn = self._connections.pop(config_hash)
             await conn.close()
@@ -471,10 +452,7 @@ class MCPConnectionManager:
             "total_connections": len(self._connections),
             "started": self._started,
             "ttl": self._ttl,
-            "connections": {
-                config_hash[:16]: conn.get_stats()
-                for config_hash, conn in self._connections.items()
-            },
+            "connections": {config_hash[:16]: conn.get_stats() for config_hash, conn in self._connections.items()},
         }
 
     def __repr__(self) -> str:

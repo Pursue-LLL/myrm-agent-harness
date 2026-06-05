@@ -85,9 +85,7 @@ class PtcRpcServer:
     async def start(self) -> None:
         """Start the RPC server and begin accepting connections."""
         if self._use_tcp:
-            self._server = await asyncio.start_server(
-                self._handle_connection, "127.0.0.1", 0
-            )
+            self._server = await asyncio.start_server(self._handle_connection, "127.0.0.1", 0)
             sockets = self._server.sockets
             if sockets:
                 self._tcp_port = sockets[0].getsockname()[1]
@@ -95,15 +93,11 @@ class PtcRpcServer:
         else:
             socket_dir = Path(tempfile.gettempdir()) / "myrm_ptc"
             socket_dir.mkdir(parents=True, exist_ok=True)
-            self._socket_path = str(
-                socket_dir / f"ptc_{os.getpid()}_{id(self)}.sock"
-            )
+            self._socket_path = str(socket_dir / f"ptc_{os.getpid()}_{id(self)}.sock")
             if Path(self._socket_path).exists():
                 Path(self._socket_path).unlink()
 
-            self._server = await asyncio.start_unix_server(
-                self._handle_connection, path=self._socket_path
-            )
+            self._server = await asyncio.start_unix_server(self._handle_connection, path=self._socket_path)
             os.chmod(self._socket_path, 0o600)
             logger.debug("PTC RPC server listening on UDS %s", self._socket_path)
 
@@ -166,9 +160,7 @@ class PtcRpcServer:
             if self._call_count >= self._config.max_tool_calls:
                 await self._send_response(
                     writer,
-                    PtcRpcResponse(
-                        error=f"Tool call limit reached ({self._config.max_tool_calls})"
-                    ),
+                    PtcRpcResponse(error=f"Tool call limit reached ({self._config.max_tool_calls})"),
                 )
                 return
 
@@ -214,9 +206,7 @@ class PtcRpcServer:
         response: PtcRpcResponse,
     ) -> None:
         """Serialize and send a response with length prefix."""
-        payload = json.dumps(
-            response.model_dump(exclude_none=True)
-        ).encode("utf-8")
+        payload = json.dumps(response.model_dump(exclude_none=True)).encode("utf-8")
         header = struct.pack("!I", len(payload))
         writer.write(header + payload)
         await writer.drain()

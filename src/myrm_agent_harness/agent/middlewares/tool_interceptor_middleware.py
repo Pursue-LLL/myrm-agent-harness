@@ -91,9 +91,7 @@ def get_loop_guard() -> LoopGuard:
         return guard
 
 
-def reset_loop_guard(
-    *, is_resume: bool = False, graph_recursion_limit: int = 100
-) -> None:
+def reset_loop_guard(*, is_resume: bool = False, graph_recursion_limit: int = 100) -> None:
     """Reset the session-scoped loop guard state.
 
     Called at the start of each agent run and at each Goal continuation turn.
@@ -124,8 +122,9 @@ async def tool_interceptor_middleware(
     """Unified tool interception middleware with metrics collection."""
     tool_name = request.tool_call.get("name", "unknown")
 
-    from myrm_agent_harness.infra.tracing import get_tracer
     import time
+
+    from myrm_agent_harness.infra.tracing import get_tracer
 
     tracer = get_tracer("tool.execute")
     with tracer.start_as_current_span("tool.execute") as span:
@@ -156,13 +155,12 @@ async def tool_interceptor_middleware(
             session_id_for_metrics = get_approval_session() or "unknown_session"
 
             if metrics_registry.enabled:
-                metrics_registry.record_tool_call(
-                    agent_id=agent_id_for_metrics, tool_name=tool_name, status=status
-                )
+                metrics_registry.record_tool_call(agent_id=agent_id_for_metrics, tool_name=tool_name, status=status)
 
             # Record in SQLite via SkillStore if available
             try:
                 from myrm_agent_harness.agent.skills.evolution.infra.integration import get_global_evolution_integration
+
                 evolution_integration = get_global_evolution_integration()
                 if evolution_integration and hasattr(evolution_integration, "store"):
                     asyncio.create_task(
@@ -172,7 +170,7 @@ async def tool_interceptor_middleware(
                             tool_name=tool_name,
                             status=status,
                             elapsed_time=elapsed_time,
-                            error_message=None
+                            error_message=None,
                         )
                     )
             except Exception as e:
@@ -202,15 +200,14 @@ async def tool_interceptor_middleware(
             session_id_for_metrics = get_approval_session() or "unknown_session"
 
             if metrics_registry.enabled:
-                metrics_registry.record_tool_call(
-                    agent_id=agent_id_for_metrics, tool_name=tool_name, status="error"
-                )
+                metrics_registry.record_tool_call(agent_id=agent_id_for_metrics, tool_name=tool_name, status="error")
 
             # Record in SQLite via SkillStore if available
             try:
-                from myrm_agent_harness.agent.skills.evolution.infra.integration import get_global_evolution_integration
                 import time
-                
+
+                from myrm_agent_harness.agent.skills.evolution.infra.integration import get_global_evolution_integration
+
                 # Compute elapsed time roughly for error cases
                 try:
                     elapsed_time = time.perf_counter() - start_time
@@ -226,7 +223,7 @@ async def tool_interceptor_middleware(
                             tool_name=tool_name,
                             status="error",
                             elapsed_time=elapsed_time,
-                            error_message=str(e)
+                            error_message=str(e),
                         )
                     )
             except Exception as store_e:
@@ -285,9 +282,7 @@ async def _tool_interceptor_middleware_inner(
     tool_call_id = request.tool_call.get("id", "")
     tool_args: dict[str, object] = request.tool_call.get("args") or {}
 
-    pre_result = await run_pre_call_guards(
-        request, tool_name, tool_call_id, tool_args, get_loop_guard
-    )
+    pre_result = await run_pre_call_guards(request, tool_name, tool_call_id, tool_args, get_loop_guard)
     if isinstance(pre_result, ToolMessage):
         return pre_result
 
@@ -300,9 +295,7 @@ async def _tool_interceptor_middleware_inner(
 
     start_time = time.time()
 
-    heartbeat_task = asyncio.create_task(
-        emit_tool_heartbeat(tool_name, tool_call_id, start_time)
-    )
+    heartbeat_task = asyncio.create_task(emit_tool_heartbeat(tool_name, tool_call_id, start_time))
 
     try:
         from myrm_agent_harness.agent.middlewares._session_context import (
@@ -313,9 +306,7 @@ async def _tool_interceptor_middleware_inner(
 
         while True:
             try:
-                result = await execute_with_retry(
-                    request, handler, tool_name, tool_call_id, allowed_domains
-                )
+                result = await execute_with_retry(request, handler, tool_name, tool_call_id, allowed_domains)
                 break
             except Exception as e:
                 if type(e).__name__ == "ToolClarificationException":
@@ -335,10 +326,7 @@ async def _tool_interceptor_middleware_inner(
                     else:
                         decision = {}
 
-                    if (
-                        decision.get("type") == "approve"
-                        or decision.get("action") == "approve"
-                    ):
+                    if decision.get("type") == "approve" or decision.get("action") == "approve":
                         if decision.get("edited_payload"):
                             new_args = decision["edited_payload"]
                             request.tool_call["args"] = new_args
@@ -363,9 +351,7 @@ async def _tool_interceptor_middleware_inner(
         return result
 
     except asyncio.CancelledError as e:
-        return await handle_cancellation(
-            e, tool_name, tool_call_id, tool_args, start_time
-        )
+        return await handle_cancellation(e, tool_name, tool_call_id, tool_args, start_time)
 
     except Exception as e:
         return await handle_execution_error(e, tool_name, tool_call_id, tool_args)

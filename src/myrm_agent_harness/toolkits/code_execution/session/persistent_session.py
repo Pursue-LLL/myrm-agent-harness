@@ -97,7 +97,11 @@ async def _kill_process_tree(
     if is_windows:
         try:
             p = await asyncio.create_subprocess_exec(
-                "taskkill", "/F", "/T", "/PID", str(pid),
+                "taskkill",
+                "/F",
+                "/T",
+                "/PID",
+                str(pid),
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )
@@ -131,9 +135,7 @@ class PersistentSession(ABC):
 
     _SESSION_DIED_SENTINEL = "Session process ended unexpectedly"
 
-    def __init__(
-        self, config: SessionConfig, platform_info: PlatformInfo | None = None
-    ):
+    def __init__(self, config: SessionConfig, platform_info: PlatformInfo | None = None):
         self.config = config
         self._platform = platform_info or detect_platform()
         self._flavor = get_flavor(self._platform)
@@ -162,9 +164,7 @@ class PersistentSession(ABC):
         self._state = new_state
         self._state_changed.set()
         self._state_changed.clear()
-        logger.debug(
-            f" Session {self.config.session_id} state: {old_state.name} -> {new_state.name}"
-        )
+        logger.debug(f" Session {self.config.session_id} state: {old_state.name} -> {new_state.name}")
 
     async def _ensure_active(self) -> None:
         """Ensure the session is active, waiting for it if it's currently starting/recovering."""
@@ -234,9 +234,7 @@ class PersistentSession(ABC):
         await self.process.stdin.drain()
         await asyncio.sleep(0.15)
 
-    async def execute(
-        self, command: str, timeout: int | None = None
-    ) -> SessionExecutionResult:
+    async def execute(self, command: str, timeout: int | None = None) -> SessionExecutionResult:
         """Execute a command with auto-recovery."""
         timeout = timeout or self.config.timeout
         start_time = time.perf_counter()
@@ -267,14 +265,10 @@ class PersistentSession(ABC):
 
     def _should_recover(self, result: SessionExecutionResult) -> bool:
         return (
-            result.error is not None
-            and self._SESSION_DIED_SENTINEL in result.error
-            and self._consecutive_failures <= 1
+            result.error is not None and self._SESSION_DIED_SENTINEL in result.error and self._consecutive_failures <= 1
         )
 
-    async def _recover_and_retry(
-        self, command: str, timeout: int
-    ) -> SessionExecutionResult:
+    async def _recover_and_retry(self, command: str, timeout: int) -> SessionExecutionResult:
         await self._transit_state(SessionState.RECOVERING)
         logger.warning(f" Recovering session {self.config.session_id} after crash...")
         try:
@@ -286,9 +280,7 @@ class PersistentSession(ABC):
             return await self._execute_core(command, timeout)
         except Exception as e:
             await self._transit_state(SessionState.TERMINATED)
-            return SessionExecutionResult(
-                False, "", "", 1, error=f"Recovery failed: {e}"
-            )
+            return SessionExecutionResult(False, "", "", 1, error=f"Recovery failed: {e}")
 
     async def _execute_core(self, command: str, timeout: int) -> SessionExecutionResult:
         if not self.process or not self.process.stdin or not self.process.stdout:
@@ -296,18 +288,14 @@ class PersistentSession(ABC):
 
         end_marker = _generate_marker("END")
         exit_marker = _generate_marker("EXIT")
-        full_cmd = self._flavor.build_wrapped_command(
-            command, exit_marker, end_marker, self._platform.exit_code_var
-        )
+        full_cmd = self._flavor.build_wrapped_command(command, exit_marker, end_marker, self._platform.exit_code_var)
 
         try:
             self.process.stdin.write(full_cmd.encode())
             await self.process.stdin.drain()
         except Exception as e:
             self._consecutive_failures += 1
-            return SessionExecutionResult(
-                False, "", str(e), 1, error=f"IPC write failure: {e}"
-            )
+            return SessionExecutionResult(False, "", str(e), 1, error=f"IPC write failure: {e}")
 
         import aiofiles
 
@@ -344,27 +332,21 @@ class PersistentSession(ABC):
                                 error=err,
                             )
 
-                        safe_text = stream_buf.process_bytes(
-                            chunk, exit_marker, end_marker
-                        )
+                        safe_text = stream_buf.process_bytes(chunk, exit_marker, end_marker)
                         if safe_text:
                             await sop.write_tee(tee_file, safe_text)
                             scrubbed_text = scrub_sensitive_info(safe_text)
                             sse_emit = sop.accumulate_sse(scrubbed_text)
                             if sse_emit:
                                 with contextlib.suppress(RuntimeError):
-                                    await dispatch_custom_event(
-                                        "tool_stdout_chunk", {"chunk": sse_emit}
-                                    )
+                                    await dispatch_custom_event("tool_stdout_chunk", {"chunk": sse_emit})
 
                     remaining = sop.flush()
                     if remaining:
                         from contextlib import suppress
 
                         with suppress(RuntimeError):
-                            await dispatch_custom_event(
-                                "tool_stdout_chunk", {"chunk": remaining}
-                            )
+                            await dispatch_custom_event("tool_stdout_chunk", {"chunk": remaining})
         except TimeoutError:
             self._consecutive_failures += 1
             return SessionExecutionResult(
@@ -392,9 +374,7 @@ class PersistentSession(ABC):
 
         return SessionExecutionResult(success, stdout, "", exit_code)
 
-    async def execute_stream(
-        self, command: str, timeout: int | None = None
-    ) -> AsyncIterator[str]:
+    async def execute_stream(self, command: str, timeout: int | None = None) -> AsyncIterator[str]:
         """Yield performance-optimized output stream."""
         timeout = timeout or self.config.timeout
         await self._ensure_active()
@@ -423,18 +403,14 @@ class PersistentSession(ABC):
             tee_file_path = sop.setup_tee(self.config.work_dir)
 
             try:
-                async with aiofiles.open(
-                    tee_file_path, "w", encoding="utf-8"
-                ) as tee_file:
+                async with aiofiles.open(tee_file_path, "w", encoding="utf-8") as tee_file:
                     async with asyncio.timeout(timeout):
                         while not stream_buf.done:
                             chunk = await self.process.stdout.read(4096)
                             if not chunk:
                                 yield f"\n[ERROR] {self._SESSION_DIED_SENTINEL}\n"
                                 return
-                            safe_text = stream_buf.process_bytes(
-                                chunk, exit_marker, end_marker
-                            )
+                            safe_text = stream_buf.process_bytes(chunk, exit_marker, end_marker)
                             if safe_text:
                                 await sop.write_tee(tee_file, safe_text)
                                 sse_emit = sop.accumulate_sse(safe_text)
@@ -450,9 +426,7 @@ class PersistentSession(ABC):
     async def _kill_process_group(self, grace_period: float = 2.0) -> None:
         if not self.process or self.process.pid is None:
             return
-        await _kill_process_tree(
-            self.process, self._platform.is_windows, grace_period
-        )
+        await _kill_process_tree(self.process, self._platform.is_windows, grace_period)
 
     async def close(self) -> None:
         async with self._lock:
@@ -476,5 +450,3 @@ class PersistentSession(ABC):
             return res.success and "ok" in res.stdout
         except Exception:
             return False
-
-

@@ -86,6 +86,7 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
                 paths = [paths] if paths else []
         if paths and isinstance(paths, list):
             import os
+
             items = []
             for p in paths[:10]:
                 item = {"file_path": str(p), "action_type": "read"}
@@ -102,6 +103,7 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
         path = tool_args.get("path", "")
         if path:
             import os
+
             item = {"file_path": str(path), "action_type": "write"}
             try:
                 if os.path.exists(str(path)) and os.path.isfile(str(path)):
@@ -116,6 +118,7 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
         path = tool_args.get("path", "")
         if path:
             import os
+
             item = {"file_path": str(path), "action_type": "write"}
             try:
                 if os.path.exists(str(path)) and os.path.isfile(str(path)):
@@ -140,6 +143,7 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
         end_line = tool_args.get("end_line")
         if path:
             import os
+
             item = {"file_path": str(path)}
 
             # 注入 action_type

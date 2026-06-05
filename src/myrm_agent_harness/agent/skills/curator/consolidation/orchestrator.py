@@ -147,7 +147,8 @@ class SkillConsolidator:
         - Skills without storage_path (MCP skills)
         """
         return [
-            s for s in skills
+            s
+            for s in skills
             if not s.usage_stats.pinned
             and s.usage_stats.lifecycle_status != SkillLifecycleStatus.ARCHIVED
             and s.storage_path is not None

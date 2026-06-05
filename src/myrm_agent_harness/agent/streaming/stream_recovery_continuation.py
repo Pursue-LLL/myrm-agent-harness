@@ -106,9 +106,7 @@ class StreamContinuationRecoveryMixin:
         )
         return True
 
-    async def _handle_teammate_messages(
-        self, collected_messages: list[BaseMessage]
-    ) -> bool:
+    async def _handle_teammate_messages(self, collected_messages: list[BaseMessage]) -> bool:
         """Drain P2P teammate inbox into the next subagent turn and emit SSE."""
         ctx = self._ctx
         if ctx.stats.was_cancelled or ctx.drain_teammate_messages is None:
@@ -154,9 +152,7 @@ class StreamContinuationRecoveryMixin:
             )
         return True
 
-    async def _handle_subagent_notifications(
-        self, collected_messages: list[BaseMessage]
-    ) -> bool:
+    async def _handle_subagent_notifications(self, collected_messages: list[BaseMessage]) -> bool:
         """Drain subagent completion notifications and emit SSE event."""
         ctx = self._ctx
         if ctx.stats.was_cancelled or ctx.drain_subagent_notifications is None:
@@ -183,7 +179,6 @@ class StreamContinuationRecoveryMixin:
         )
         return False
 
-
     async def _handle_goal_continuation(
         self,
         collected_messages: list[BaseMessage],
@@ -203,9 +198,7 @@ class StreamContinuationRecoveryMixin:
 
         from myrm_agent_harness.agent.goals.continuation import check_continuation
 
-        session_id = str(
-            ctx.merged_context.get("chat_id", ctx.merged_context.get("session_id", ctx.message_id))
-        )
+        session_id = str(ctx.merged_context.get("chat_id", ctx.merged_context.get("session_id", ctx.message_id)))
         decision = await check_continuation(
             goal_provider=goal_provider,
             session_id=session_id,
@@ -242,11 +235,7 @@ class StreamContinuationRecoveryMixin:
         if decision.verdict in ("done", "budget"):
             # Check and emit trace slice on goal completion
             if hasattr(self, "_check_and_emit_trace_slice"):
-                _track_background_recovery_task(
-                    asyncio.create_task(
-                        self._check_and_emit_trace_slice(force_flush=True)
-                    )
-                )
+                _track_background_recovery_task(asyncio.create_task(self._check_and_emit_trace_slice(force_flush=True)))
 
         if decision.should_continue:
             messages_dict = ctx.agent_input

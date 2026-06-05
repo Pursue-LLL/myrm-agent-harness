@@ -73,11 +73,7 @@ class SubagentCheckpointManager:
         types_map = children_types or {}
         desc_map = children_descriptions or {}
 
-        running_tasks = [
-            task_id
-            for task_id, task in children.items()
-            if not task.done()
-        ]
+        running_tasks = [task_id for task_id, task in children.items() if not task.done()]
 
         if not running_tasks:
             logger.debug("[subagent] No running tasks to checkpoint")
@@ -99,12 +95,18 @@ class SubagentCheckpointManager:
             try:
                 if loop_running:
                     checkpoint = self._create_checkpoint_sync_safe(
-                        task_id, children_agents, children_configs, types_map,
+                        task_id,
+                        children_agents,
+                        children_configs,
+                        types_map,
                     )
                 else:
                     checkpoint = asyncio.run(
                         self.create_checkpoint_async(
-                            task_id, children_agents, children_configs, types_map,
+                            task_id,
+                            children_agents,
+                            children_configs,
+                            types_map,
                         )
                     )
 
@@ -121,7 +123,9 @@ class SubagentCheckpointManager:
                 if elapsed_ms > self._CHECKPOINT_SAVE_TIMEOUT_SECONDS * 1000:
                     logger.warning(
                         "[subagent:%s] Checkpoint save exceeded timeout (%.1fms > %.0fms)",
-                        task_id, elapsed_ms, self._CHECKPOINT_SAVE_TIMEOUT_SECONDS * 1000,
+                        task_id,
+                        elapsed_ms,
+                        self._CHECKPOINT_SAVE_TIMEOUT_SECONDS * 1000,
                     )
 
                 self._metrics.save_count += 1
@@ -274,7 +278,7 @@ class SubagentCheckpointManager:
         task_id: str,
         children_agents: dict[str, BaseAgent],
         children_configs: dict[str, SubagentConfig],
-        children_types: dict[str, str]
+        children_types: dict[str, str],
     ) -> SubagentCheckpoint:
         """Create checkpoint from current execution state (asynchronous version).
 
@@ -369,17 +373,15 @@ class SubagentCheckpointManager:
                 raise ValueError(f"Checkpoint {task_id} is not resumable")
 
             logger.info(
-                "[subagent:%s] Resuming from checkpoint "
-                "(agent_type=%s, progress=%.1f%%, messages=%d, context_keys=%d)",
-                task_id, checkpoint.agent_type, checkpoint.progress * 100,
-                len(checkpoint.messages), len(checkpoint.variables),
+                "[subagent:%s] Resuming from checkpoint (agent_type=%s, progress=%.1f%%, messages=%d, context_keys=%d)",
+                task_id,
+                checkpoint.agent_type,
+                checkpoint.progress * 100,
+                len(checkpoint.messages),
+                len(checkpoint.variables),
             )
 
-            accumulated = (
-                checkpoint.accumulated_runtime_seconds
-                if checkpoint.accumulated_runtime_seconds > 0
-                else None
-            )
+            accumulated = checkpoint.accumulated_runtime_seconds if checkpoint.accumulated_runtime_seconds > 0 else None
 
             result = SubAgentResult(
                 success=True,
@@ -410,9 +412,11 @@ class SubagentCheckpointManager:
             self._metrics.resume_total_ms += elapsed_ms
 
             logger.info(
-                "[subagent:%s] Checkpoint resume complete "
-                "(messages=%d, variables=%d, elapsed=%.1fms)",
-                task_id, len(checkpoint.messages), len(checkpoint.variables), elapsed_ms,
+                "[subagent:%s] Checkpoint resume complete (messages=%d, variables=%d, elapsed=%.1fms)",
+                task_id,
+                len(checkpoint.messages),
+                len(checkpoint.variables),
+                elapsed_ms,
             )
 
             return result
@@ -461,7 +465,10 @@ class SubagentCheckpointManager:
 
         try:
             checkpoint = await self.create_checkpoint_async(
-                task_id, children_agents, children_configs, children_types or {},
+                task_id,
+                children_agents,
+                children_configs,
+                children_types or {},
             )
             await self._storage.save(checkpoint)
 
@@ -475,7 +482,9 @@ class SubagentCheckpointManager:
 
             logger.info(
                 "[subagent:%s] Checkpoint saved (progress=%.1f%%, elapsed=%.1fms)",
-                task_id, checkpoint.progress * 100, elapsed_ms,
+                task_id,
+                checkpoint.progress * 100,
+                elapsed_ms,
             )
             return checkpoint
 

@@ -81,9 +81,7 @@ class ProposalBuilder:
             created_at=datetime.now(),
         )
 
-        logger.info(
-            "Built EvolutionProposal for skill %s (Score: %.2f)", skill.name, score
-        )
+        logger.info("Built EvolutionProposal for skill %s (Score: %.2f)", skill.name, score)
         return proposal
 
     @staticmethod

@@ -100,9 +100,7 @@ class LocalFSSyncBackend:
 
         return PushResult(success=True, pushed_count=pushed)
 
-    async def pull_skills(
-        self, since_version: str = "", name_filter: str = ""
-    ) -> PullResult:
+    async def pull_skills(self, since_version: str = "", name_filter: str = "") -> PullResult:
         """Pull updated skill bundles from shared storage."""
         manifest = await self._load_remote_manifest()
         new_count = 0
@@ -122,9 +120,7 @@ class LocalFSSyncBackend:
 
                 result = self._unpacker.unpack(zip_bytes)
                 if not result.success or not result.files:
-                    logger.warning(
-                        "Failed to unpack skill '%s': %s", name, result.error
-                    )
+                    logger.warning("Failed to unpack skill '%s': %s", name, result.error)
                     continue
 
                 skill_dir = self._local_skills / name

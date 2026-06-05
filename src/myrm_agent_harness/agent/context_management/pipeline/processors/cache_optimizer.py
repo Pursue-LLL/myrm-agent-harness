@@ -255,11 +255,7 @@ class ExplicitCacheProcessor(BaseProcessor):
             # 3 压缩边界后（如果有且距离合适）
             compress_idx_raw = context.metadata.get("last_compress_boundary_index")
             compress_idx = compress_idx_raw if isinstance(compress_idx_raw, int) else None
-            if (
-                compress_idx is not None
-                and compress_idx not in breakpoints
-                and compress_idx < len(messages) - 1
-            ):
+            if compress_idx is not None and compress_idx not in breakpoints and compress_idx < len(messages) - 1:
                 # 检查距离：至少间隔 min_message_gap 条消息
                 prev_bps = [b for b in breakpoints if b < compress_idx]
                 if not prev_bps or (compress_idx - max(prev_bps)) >= self.min_message_gap:
@@ -289,9 +285,7 @@ class ExplicitCacheProcessor(BaseProcessor):
 
         except Exception as e:
             # 错误处理：降级策略
-            logger.error(
-                f" [ExplicitCache] 断点计算失败: {type(e).__name__}: {e}，使用降级策略（仅缓存最后一条消息）"
-            )
+            logger.error(f" [ExplicitCache] 断点计算失败: {type(e).__name__}: {e}，使用降级策略（仅缓存最后一条消息）")
             # 降级：至少缓存最后一条消息（官方推荐的核心）
             last_idx = len(messages) - 1
             return [last_idx] if last_idx >= 0 else []
@@ -413,13 +407,11 @@ class ExplicitCacheProcessor(BaseProcessor):
             return False
 
         lower = base_url.lower()
-        return (
-            "api.anthropic.com" in lower
-            or "aiplatform.googleapis.com" in lower
-        )
+        return "api.anthropic.com" in lower or "aiplatform.googleapis.com" in lower
 
-    def _inject_cache_control(self, messages: list[BaseMessage], breakpoints: list[int],
-                              context: ProcessorContext) -> list[BaseMessage]:
+    def _inject_cache_control(
+        self, messages: list[BaseMessage], breakpoints: list[int], context: ProcessorContext
+    ) -> list[BaseMessage]:
         """在指定消息位置注入 cache_control 标记
 
         Args:

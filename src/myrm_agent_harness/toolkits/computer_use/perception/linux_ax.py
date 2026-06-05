@@ -54,8 +54,14 @@ def _try_pyatspi_snapshot() -> LinuxAxSnapshot | None:
             app_name = name
 
         if role_name in {
-            "push button", "check box", "text", "entry", "menu item",
-            "radio button", "combo box", "link",
+            "push button",
+            "check box",
+            "text",
+            "entry",
+            "menu item",
+            "radio button",
+            "combo box",
+            "link",
         }:
             try:
                 component = node.queryComponent()  # type: ignore[attr-defined]
@@ -120,9 +126,7 @@ def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -
     if not title:
         raise AXTreeEmptyError("no active window title")
 
-    raise AXTreeEmptyError(
-        "AT-SPI tree unavailable in this environment. Install pyatspi or use desktop_vision_tool."
-    )
+    raise AXTreeEmptyError("AT-SPI tree unavailable in this environment. Install pyatspi or use desktop_vision_tool.")
 
 
 def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionResult:

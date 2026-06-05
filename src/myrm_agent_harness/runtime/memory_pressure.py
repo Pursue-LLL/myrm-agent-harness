@@ -120,6 +120,7 @@ class PressureSubscriber(Protocol):
 
     async def on_pressure_change(self, event: PressureEvent) -> None: ...
 
+
 # Alias for clarity in shedding scenarios
 MemoryShedder = PressureSubscriber
 

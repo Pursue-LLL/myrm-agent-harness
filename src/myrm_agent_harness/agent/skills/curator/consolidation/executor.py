@@ -89,8 +89,7 @@ class ConsolidationExecutor:
         report.duration_seconds = time.perf_counter() - start_time
 
         logger.info(
-            "Consolidation complete: %d actions (%d success, %d failed), "
-            "skills %d → %d, %.1fs",
+            "Consolidation complete: %d actions (%d success, %d failed), skills %d → %d, %.1fs",
             len(actions),
             report.success_count,
             report.failure_count,
@@ -231,9 +230,7 @@ class ConsolidationExecutor:
             self._stats.flush()
 
             archived.append(name)
-            logger.info(
-                "Archived skill '%s' (merged into '%s')", name, merged_into
-            )
+            logger.info("Archived skill '%s' (merged into '%s')", name, merged_into)
 
         return tuple(archived)
 

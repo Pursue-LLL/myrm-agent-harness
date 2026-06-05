@@ -199,7 +199,8 @@ class PenaltyTracker:
 
         now = time.monotonic()
         active_count = sum(
-            1 for ts in timestamps
+            1
+            for ts in timestamps
             if (now - ts) < self.DECAY_HALF_LIFE_S * 3  # expire after 3 half-lives
         )
 
@@ -225,10 +226,7 @@ class PenaltyTracker:
         removed = 0
         for key in list(self._flags):
             before = len(self._flags[key])
-            self._flags[key] = [
-                ts for ts in self._flags[key]
-                if (now - ts) < self.DECAY_HALF_LIFE_S * 3
-            ]
+            self._flags[key] = [ts for ts in self._flags[key] if (now - ts) < self.DECAY_HALF_LIFE_S * 3]
             removed += before - len(self._flags[key])
             if not self._flags[key]:
                 del self._flags[key]
@@ -247,6 +245,7 @@ _penalty_tracker = PenaltyTracker()
 @dataclass(frozen=True)
 class WeightedKeyword:
     """A keyword with an associated weight for scoring."""
+
     keyword: str
     weight: float = 1.0
 
@@ -465,9 +464,7 @@ def _rule_based_classify(
     Uses multi-dimensional scoring (keyword + structural + contextual) aggregated
     into per-tier scores, then selects the highest-scoring tier above its threshold.
     """
-    scores = _compute_unified_score(
-        text, has_image, standard_keywords, reasoning_keywords, simple_indicators
-    )
+    scores = _compute_unified_score(text, has_image, standard_keywords, reasoning_keywords, simple_indicators)
 
     # Apply penalties (MR-14)
     scores = _penalty_tracker.apply_penalties(scores)
@@ -527,7 +524,9 @@ def _apply_momentum(
     if msg_len > _MOMENTUM_LONG_THRESHOLD:
         momentum_weight = 0.0
     elif msg_len >= _MOMENTUM_SHORT_THRESHOLD:
-        momentum_weight = 0.3 * (1.0 - (msg_len - _MOMENTUM_SHORT_THRESHOLD) / (_MOMENTUM_LONG_THRESHOLD - _MOMENTUM_SHORT_THRESHOLD))
+        momentum_weight = 0.3 * (
+            1.0 - (msg_len - _MOMENTUM_SHORT_THRESHOLD) / (_MOMENTUM_LONG_THRESHOLD - _MOMENTUM_SHORT_THRESHOLD)
+        )
     else:
         momentum_weight = 0.3 + 0.3 * (1.0 - msg_len / _MOMENTUM_SHORT_THRESHOLD)
 
@@ -557,7 +556,11 @@ def _apply_momentum(
     if adjusted != tier:
         logger.info(
             "Momentum override: %s → %s (weight=%.2f, history_avg=%.2f, effective=%.2f)",
-            tier, adjusted, momentum_weight, history_avg, effective_score,
+            tier,
+            adjusted,
+            momentum_weight,
+            history_avg,
+            effective_score,
         )
         return adjusted, True
 

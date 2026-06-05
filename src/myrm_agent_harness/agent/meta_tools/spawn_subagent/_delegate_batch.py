@@ -46,12 +46,8 @@ _DEFAULT_MAX_BATCH_TASKS = 5
 class TaskRequest(BaseModel):
     agent_type: str = Field(description="Type of subagent")
     objective: str = Field(description="Core objective for the subagent")
-    context_files: list[str] = Field(
-        default_factory=list, description="Relevant file paths"
-    )
-    context: dict[str, object] | None = Field(
-        default=None, description="Optional context data"
-    )
+    context_files: list[str] = Field(default_factory=list, description="Relevant file paths")
+    context: dict[str, object] | None = Field(default=None, description="Optional context data")
     readonly: bool = Field(
         default=False,
         description="If true, subagent cannot write files or run bash commands",
@@ -229,8 +225,7 @@ def create_batch_delegate_tasks_tool(
                 "status": "budget_exceeded",
                 "reason": "batch_size_exceeded",
                 "error": (
-                    f"Too many batch delegation tasks: {len(tasks)}/{max_batch}. "
-                    "Split the work into smaller batches."
+                    f"Too many batch delegation tasks: {len(tasks)}/{max_batch}. Split the work into smaller batches."
                 ),
             }
 
@@ -279,6 +274,7 @@ def create_batch_delegate_tasks_tool(
 
     return batch_delegate_tasks_func
 
+
 async def _run_tournament_bracket(
     parent_agent: BaseAgent,
     results: list[dict[str, object]],
@@ -308,19 +304,23 @@ async def _run_tournament_bracket(
                         break
 
                     cand_a = current_round[i]
-                    cand_b = current_round[i+1]
+                    cand_b = current_round[i + 1]
 
                     res_a_str = str(cand_a.get("result", cand_a))[:20000]
                     res_b_str = str(cand_b.get("result", cand_b))[:20000]
 
                     sys_prompt = "You are an expert Judge Agent. Your task is to evaluate two candidate results based on the provided criteria and select the better one."
-                    human_prompt = f"Criteria: {judge_criteria or 'Select the overall best quality and most complete result.'}\n\n"
+                    human_prompt = (
+                        f"Criteria: {judge_criteria or 'Select the overall best quality and most complete result.'}\n\n"
+                    )
                     human_prompt += f"--- Candidate A ---\n{res_a_str}\n\n"
                     human_prompt += f"--- Candidate B ---\n{res_b_str}\n\n"
                     human_prompt += "Which candidate is better? You MUST reply with exactly 'A' or 'B' on the first line, followed by your reasoning on subsequent lines."
 
                     try:
-                        response = await llm.ainvoke([SystemMessage(content=sys_prompt), HumanMessage(content=human_prompt)])
+                        response = await llm.ainvoke(
+                            [SystemMessage(content=sys_prompt), HumanMessage(content=human_prompt)]
+                        )
                         content = str(response.content).strip().upper()
                         if content.startswith("A"):
                             next_round.append(cand_a)
@@ -339,12 +339,7 @@ async def _run_tournament_bracket(
     from myrm_agent_harness.agent.workspace_coordination.batch_merge import (
         merge_batch_workspace_sync_backs,
     )
+
     merge_info = await merge_batch_workspace_sync_backs([winner])
 
-    return {
-        "success": True,
-        "status": "completed",
-        "tournament_winner": True,
-        "result": winner,
-        **merge_info
-    }
+    return {"success": True, "status": "completed", "tournament_winner": True, "result": winner, **merge_info}

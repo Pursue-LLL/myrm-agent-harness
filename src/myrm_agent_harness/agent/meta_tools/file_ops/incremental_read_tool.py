@@ -45,21 +45,20 @@ class IncrementalReadInput(BaseModel):
     file_path: str = Field(description="需要增量读取的本地日志文件路径。")
     cursor: str | int = Field(
         default="0",
-        description="上次读取结束时的全息游标凭证。首次读取传 '0'。必须严格使用上一次工具返回的 Next cursor 值（例如 '51200:8172391:a1b2c3d4:15'）。"
+        description="上次读取结束时的全息游标凭证。首次读取传 '0'。必须严格使用上一次工具返回的 Next cursor 值（例如 '51200:8172391:a1b2c3d4:15'）。",
     )
     filter_pattern: str | None = Field(
         default=None,
-        description="可选的正则表达式（Python 语法），用于仅保留匹配的新增行。例如 '(?i)error|warn|exception'。"
+        description="可选的正则表达式（Python 语法），用于仅保留匹配的新增行。例如 '(?i)error|warn|exception'。",
     )
     context_lines: int = Field(
-        default=5,
-        description="在使用 filter_pattern 过滤时，匹配行前后额外保留的上下文行数，便于查看完整的错误堆栈。"
+        default=5, description="在使用 filter_pattern 过滤时，匹配行前后额外保留的上下文行数，便于查看完整的错误堆栈。"
     )
 
 
 def _parse_cursor(cursor_str: str | int) -> tuple[int, int, str, int]:
     """解析全息游标字符串，返回 (offset, inode, head_hash, hash_len)"""
-    parts = str(cursor_str).split(':')
+    parts = str(cursor_str).split(":")
     if len(parts) == 4:
         try:
             return int(parts[0]), int(parts[1]), parts[2], int(parts[3])
@@ -133,7 +132,7 @@ def _read_and_filter_sync(
         return f"[No new logs found]\n\n[System] Current log read complete. To read new logs next time, use cursor={start_offset}:{current_inode}:{current_hash}:{current_hash_len}"
 
     # 安全行边界截断 (Newline Alignment)
-    last_newline_idx = new_data.rfind(b'\n')
+    last_newline_idx = new_data.rfind(b"\n")
     if last_newline_idx != -1:
         new_data = new_data[: last_newline_idx + 1]
         next_offset = start_offset + last_newline_idx + 1
@@ -143,8 +142,8 @@ def _read_and_filter_sync(
     next_cursor = f"{next_offset}:{current_inode}:{current_hash}:{current_hash_len}"
 
     text = new_data.decode("utf-8", errors="replace")
-    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-    text = ansi_escape.sub('', text)
+    ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+    text = ansi_escape.sub("", text)
     lines = text.splitlines()
 
     if filter_pattern:
@@ -176,7 +175,9 @@ def _read_and_filter_sync(
             max_lines = 500
             if len(lines) > max_lines:
                 lines = lines[-max_lines:]
-                lines.insert(0, f"[... earlier matched logs in this {chunk_size//1024}KB chunk truncated for length ...]")
+                lines.insert(
+                    0, f"[... earlier matched logs in this {chunk_size // 1024}KB chunk truncated for length ...]"
+                )
 
         except re.error as e:
             return f"Invalid regex pattern '{filter_pattern}': {e}"

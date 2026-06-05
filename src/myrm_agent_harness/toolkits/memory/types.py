@@ -481,14 +481,7 @@ class IntegrationMemory(BaseMemory):
 class MemorySearchResult(BaseModel):
     """Search result with relevance score."""
 
-    memory: (
-        SemanticMemory
-        | EpisodicMemory
-        | ConversationMemory
-        | ProceduralMemory
-        | ClaimMemory
-        | IntegrationMemory
-    )
+    memory: SemanticMemory | EpisodicMemory | ConversationMemory | ProceduralMemory | ClaimMemory | IntegrationMemory
     score: float = Field(ge=0.0, le=1.0)
     memory_type: MemoryType
 

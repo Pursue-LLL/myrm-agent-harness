@@ -75,6 +75,7 @@ def _kill_process_tree(proc: asyncio.subprocess.Process) -> None:
     if pid is None:
         return
     from myrm_agent_harness.utils.os_compat import kill_process_group
+
     kill_process_group(pid, signal.SIGKILL)
 
 
@@ -111,11 +112,10 @@ async def safe_exec(
             use_shell = True
         else:
             if not argv:
-                return ExecResult(
-                    stdout="", stderr="empty command", returncode=1, mode="direct"
-                )
+                return ExecResult(stdout="", stderr="empty command", returncode=1, mode="direct")
 
     from myrm_agent_harness.utils.os_compat import get_process_group_kwargs
+
     session_kwargs = get_process_group_kwargs()
 
     active_env = dict(env) if env is not None else dict(os.environ)
@@ -163,9 +163,7 @@ async def safe_exec(
         mode = "direct"
 
     try:
-        stdout_bytes, stderr_bytes = await asyncio.wait_for(
-            proc.communicate(), timeout=timeout
-        )
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except TimeoutError:
         _kill_process_tree(proc)
         raise

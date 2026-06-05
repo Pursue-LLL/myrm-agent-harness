@@ -34,13 +34,7 @@ async def write_to_clipboard(text: str) -> str:
     sink = get_tool_progress_sink()
     if sink:
         # Emit a special event for the client to execute the clipboard write
-        await sink.emit({
-            "type": "client_action",
-            "data": {
-                "action": "write_clipboard",
-                "payload": {"text": text}
-            }
-        })
+        await sink.emit({"type": "client_action", "data": {"action": "write_clipboard", "payload": {"text": text}}})
         # Wait a moment to ensure the event is sent
         await asyncio.sleep(0.5)
         return "Successfully requested the client to copy the text to the clipboard."

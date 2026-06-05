@@ -126,16 +126,20 @@ logger = logging.getLogger(__name__)
 
 _SYSTEM_MESSAGE_DENYLIST_HINTS = ("minimax",)
 
-_DEVELOPER_ROLE_PATTERN = re.compile(
-    r"^(?:gpt-(?:[5-9]|\d{2,})|codex|o[1-9]\d*)"
-)
+_DEVELOPER_ROLE_PATTERN = re.compile(r"^(?:gpt-(?:[5-9]|\d{2,})|codex|o[1-9]\d*)")
 
 # Parameters the framework may inject that must never be silently dropped
 # by LiteLLM's provider capability whitelist (see `litellm.drop_params`).
-_FRAMEWORK_REQUIRED_OPENAI_PARAMS: frozenset[str] = frozenset({
-    "tools", "tool_choice", "parallel_tool_calls",
-    "response_format", "stream", "stream_options",
-})
+_FRAMEWORK_REQUIRED_OPENAI_PARAMS: frozenset[str] = frozenset(
+    {
+        "tools",
+        "tool_choice",
+        "parallel_tool_calls",
+        "response_format",
+        "stream",
+        "stream_options",
+    }
+)
 
 
 class EmptyChoicesError(Exception):
@@ -206,13 +210,9 @@ class ChatLiteLLM(BaseChatModel):
         try:
             import litellm  # type: ignore
         except (ImportError, TypeError):
-            raise ValueError(
-                "Could not import litellm python package. Please install it with uv sync."
-            ) from None
+            raise ValueError("Could not import litellm python package. Please install it with uv sync.") from None
 
-        values["openai_api_key"] = get_from_dict_or_env(
-            values, "openai_api_key", "OPENAI_API_KEY", default=""
-        )
+        values["openai_api_key"] = get_from_dict_or_env(values, "openai_api_key", "OPENAI_API_KEY", default="")
         values["client"] = litellm
         return values
 
@@ -250,9 +250,7 @@ class ChatLiteLLM(BaseChatModel):
 
         # Inject Authorization header for providers that might need it explicitly (like minimax)
         api_key_val = self.api_key or self.openai_api_key
-        logger.debug(
-            f"_client_params api_key_val type: {type(api_key_val)}, val: {str(api_key_val)[:5]}***"
-        )
+        logger.debug(f"_client_params api_key_val type: {type(api_key_val)}, val: {str(api_key_val)[:5]}***")
         if api_key_val:
             extra_headers = self.model_kwargs.get("extra_headers", {})
             if "Authorization" not in extra_headers:
@@ -297,9 +295,7 @@ class ChatLiteLLM(BaseChatModel):
         if override is not None:
             params["max_tokens"] = override
             reset_ephemeral_max_output_tokens()
-            logger.info(
-                " Ephemeral max_tokens override applied: %d", override
-            )
+            logger.info(" Ephemeral max_tokens override applied: %d", override)
 
     def _convert_response_to_dict(self, response: Any) -> dict[str, Any]:
         if isinstance(response, dict):
@@ -308,9 +304,7 @@ class ChatLiteLLM(BaseChatModel):
             return response.model_dump()
         if hasattr(response, "dict"):
             return response.dict()
-        raise ValueError(
-            f"Unable to convert LiteLLM response to dict. Type: {type(response)}"
-        )
+        raise ValueError(f"Unable to convert LiteLLM response to dict. Type: {type(response)}")
 
     def _build_empty_choices_error(self, response: Mapping[str, Any]) -> str:
         error_msg = response.get("error", {})
@@ -339,9 +333,7 @@ class ChatLiteLLM(BaseChatModel):
         self,
         kwargs: dict[str, Any],
     ) -> tuple[list[str] | None, dict[str, dict[str, Any]] | None]:
-        logger.debug(
-            f"_extract_tool_context_from_kwargs keys: {list(kwargs.keys())}"
-        )
+        logger.debug(f"_extract_tool_context_from_kwargs keys: {list(kwargs.keys())}")
         tools = kwargs.get("tools")
         if not tools:
             logger.debug(f"tools is empty or not in kwargs. kwargs keys: {list(kwargs.keys())}")
@@ -423,10 +415,7 @@ class ChatLiteLLM(BaseChatModel):
             if "stop" in params:
                 raise ValueError("`stop` found in both the input and default params.")
             params["stop"] = stop
-        message_dicts = [
-            convert_message_to_dict(m)
-            for m in self._normalize_messages_for_provider(messages)
-        ]
+        message_dicts = [convert_message_to_dict(m) for m in self._normalize_messages_for_provider(messages)]
         if self._should_promote_system_to_developer() and message_dicts:
             first = message_dicts[0]
             if isinstance(first, dict) and first.get("role") == "system":
@@ -453,9 +442,7 @@ class ChatLiteLLM(BaseChatModel):
             if msg.get("role") == "assistant" and "reasoning_content" not in msg:
                 msg["reasoning_content"] = ""
 
-    def _normalize_messages_for_provider(
-        self, messages: list[BaseMessage]
-    ) -> list[BaseMessage]:
+    def _normalize_messages_for_provider(self, messages: list[BaseMessage]) -> list[BaseMessage]:
         """Normalize outbound messages for provider-specific role quirks.
 
         MiniMax rejects direct system messages in the current chat/completions
@@ -474,11 +461,7 @@ class ChatLiteLLM(BaseChatModel):
                     system_parts.append(text)
 
         if not system_parts:
-            return [
-                message
-                for message in messages
-                if not self._is_system_role_message(message)
-            ]
+            return [message for message in messages if not self._is_system_role_message(message)]
 
         merged_system = "\n\n".join(system_parts)
         normalized: list[BaseMessage] = []
@@ -496,19 +479,13 @@ class ChatLiteLLM(BaseChatModel):
                         *content,
                     ]
                 else:
-                    merged_content = (
-                        f"{merged_system}\n\n{content}" if content else merged_system
-                    )
+                    merged_content = f"{merged_system}\n\n{content}" if content else merged_system
 
                 normalized.append(
                     HumanMessage(
                         content=merged_content,
-                        additional_kwargs=dict(
-                            getattr(message, "additional_kwargs", {}) or {}
-                        ),
-                        response_metadata=dict(
-                            getattr(message, "response_metadata", {}) or {}
-                        ),
+                        additional_kwargs=dict(getattr(message, "additional_kwargs", {}) or {}),
+                        response_metadata=dict(getattr(message, "response_metadata", {}) or {}),
                         name=getattr(message, "name", None),
                         id=getattr(message, "id", None),
                     )
@@ -565,19 +542,13 @@ class ChatLiteLLM(BaseChatModel):
                 suppress_tool_calls_for_safety(choice["message"], finish_reason)
 
             try:
-                message = convert_dict_to_message(
-                    choice["message"], available_tools, tool_schemas
-                )
+                message = convert_dict_to_message(choice["message"], available_tools, tool_schemas)
             except Exception as e:
-                logger.error(
-                    f" Failed to convert message: {type(e).__name__} - {e!s}"
-                )
+                logger.error(f" Failed to convert message: {type(e).__name__} - {e!s}")
                 raise
 
             if isinstance(message, AIMessage):
-                message.response_metadata = {
-                    "model_name": self.model_name or self.model
-                }
+                message.response_metadata = {"model_name": self.model_name or self.model}
                 message.usage_metadata = create_usage_metadata(token_usage)
 
             generations.append(
@@ -600,9 +571,7 @@ class ChatLiteLLM(BaseChatModel):
     ) -> ChatResult:
         should_stream = kwargs.pop("streaming", self.streaming)
         if should_stream:
-            stream_iter = self._stream(
-                messages, stop=stop, run_manager=run_manager, **kwargs
-            )
+            stream_iter = self._stream(messages, stop=stop, run_manager=run_manager, **kwargs)
             return generate_from_stream(stream_iter)
 
         available_tools, tool_schemas = self._extract_tool_context_from_kwargs(kwargs)
@@ -633,9 +602,7 @@ class ChatLiteLLM(BaseChatModel):
             try:
                 response = self.client.completion(messages=message_dicts, **params)
                 response = self._convert_response_to_dict(response)
-                result = self._create_chat_result(
-                    response, available_tools, tool_schemas
-                )
+                result = self._create_chat_result(response, available_tools, tool_schemas)
 
                 # Update metrics: success after retry
                 if attempt > 0:
@@ -648,9 +615,7 @@ class ChatLiteLLM(BaseChatModel):
                 self._retry_metrics.sync_retry_count += 1
 
                 if attempt < max_attempts - 1:
-                    logger.warning(
-                        f" Empty choices (attempt {attempt + 1}), retrying..."
-                    )
+                    logger.warning(f" Empty choices (attempt {attempt + 1}), retrying...")
                     delay_ms = self.empty_retry_delay * 1000
                     self._retry_metrics.total_retry_delay_ms += delay_ms
                     time.sleep(self.empty_retry_delay)
@@ -664,11 +629,7 @@ class ChatLiteLLM(BaseChatModel):
 
                 if is_context_overflow(e):
                     available = parse_available_output_tokens_from_error(e)
-                    if (
-                        available is not None
-                        and available >= 500
-                        and attempt < max_attempts - 1
-                    ):
+                    if available is not None and available >= 500 and attempt < max_attempts - 1:
                         safe_tokens = max(1, available - 64)
                         logger.warning(
                             f" Context overflow, injecting ephemeral max_tokens={safe_tokens} (attempt {attempt + 1})"
@@ -682,9 +643,7 @@ class ChatLiteLLM(BaseChatModel):
                         raise e
 
                 model_name = self.model_name or self.model
-                logger.error(
-                    f" LiteLLM call failed: {type(e).__name__} - {e!s} (Model: {model_name})"
-                )
+                logger.error(f" LiteLLM call failed: {type(e).__name__} - {e!s} (Model: {model_name})")
                 raise
 
         if last_error:
@@ -727,9 +686,7 @@ class ChatLiteLLM(BaseChatModel):
             tool_call_chunks: list[ToolCallChunk] = []
             raw_tool_calls = delta.get("tool_calls")
             if emit_tool_call_chunks:
-                tool_call_chunks = build_tool_call_chunks(
-                    raw_tool_calls, tool_call_id_map
-                )
+                tool_call_chunks = build_tool_call_chunks(raw_tool_calls, tool_call_id_map)
             msg_chunk = AIMessageChunk(
                 content=content,
                 tool_call_chunks=tool_call_chunks,
@@ -757,9 +714,7 @@ class ChatLiteLLM(BaseChatModel):
                 msg_chunk = FunctionMessageChunk(content=content, name="")
             else:
                 # Fallback: assume it's a standard message chunk that only needs content and type
-                msg_chunk = default_chunk_class(
-                    content=content, type=default_chunk_class.__name__
-                )
+                msg_chunk = default_chunk_class(content=content, type=default_chunk_class.__name__)
 
         return ChatGenerationChunk(message=msg_chunk), msg_chunk.__class__
 
@@ -798,9 +753,7 @@ class ChatLiteLLM(BaseChatModel):
 
         prompt_tokens = int(usage_dict.get("prompt_tokens", 0) or 0)
         completion_tokens = int(usage_dict.get("completion_tokens", 0) or 0)
-        cost_result = compute_cost_by_tokens(
-            resolved_model, prompt_tokens, completion_tokens
-        )
+        cost_result = compute_cost_by_tokens(resolved_model, prompt_tokens, completion_tokens)
 
         record_token_usage(
             usage_dict,
@@ -857,28 +810,14 @@ class ChatLiteLLM(BaseChatModel):
                         agg.on_generation_chunk(cg_chunk, new_class)
 
                         # Filter content and reasoning_content through DSML buffer before yielding
-                        raw_content = (
-                            str(cg_chunk.message.content)
-                            if cg_chunk.message.content
-                            else ""
-                        )
+                        raw_content = str(cg_chunk.message.content) if cg_chunk.message.content else ""
                         safe_content = xml_content_buffer.process(raw_content)
 
-                        additional_kwargs = dict(
-                            getattr(cg_chunk.message, "additional_kwargs", {})
-                        )
+                        additional_kwargs = dict(getattr(cg_chunk.message, "additional_kwargs", {}))
                         raw_reasoning = additional_kwargs.get("reasoning_content", "")
-                        safe_reasoning = (
-                            xml_reasoning_buffer.process(str(raw_reasoning))
-                            if raw_reasoning
-                            else ""
-                        )
+                        safe_reasoning = xml_reasoning_buffer.process(str(raw_reasoning)) if raw_reasoning else ""
 
-                        if (
-                            safe_content
-                            or safe_reasoning
-                            or getattr(cg_chunk.message, "tool_call_chunks", [])
-                        ):
+                        if safe_content or safe_reasoning or getattr(cg_chunk.message, "tool_call_chunks", []):
                             msg_dict = dict(cg_chunk.message)
                             msg_dict.pop("type", None)
                             msg_dict["content"] = safe_content
@@ -893,15 +832,11 @@ class ChatLiteLLM(BaseChatModel):
                             safe_chunk = cg_chunk.message.__class__(**msg_dict)
                             safe_cg_chunk = ChatGenerationChunk(message=safe_chunk)
                             if run_manager:
-                                run_manager.on_llm_new_token(
-                                    safe_content, chunk=safe_cg_chunk
-                                )
+                                run_manager.on_llm_new_token(safe_content, chunk=safe_cg_chunk)
                             yield safe_cg_chunk
 
                 if agg.is_empty:
-                    raise EmptyStreamError(
-                        f"Stream produced no chunks. Model: {self.model_name or self.model}"
-                    )
+                    raise EmptyStreamError(f"Stream produced no chunks. Model: {self.model_name or self.model}")
 
                 # Flush buffers at the end of the stream
                 flushed_content = xml_content_buffer.flush()
@@ -909,15 +844,11 @@ class ChatLiteLLM(BaseChatModel):
                 if flushed_content or flushed_reasoning:
                     msg_dict = {"content": flushed_content}
                     if flushed_reasoning:
-                        msg_dict["additional_kwargs"] = {
-                            "reasoning_content": flushed_reasoning
-                        }
+                        msg_dict["additional_kwargs"] = {"reasoning_content": flushed_reasoning}
                     safe_chunk = agg.default_chunk_class(**msg_dict)
                     safe_cg_chunk = ChatGenerationChunk(message=safe_chunk)
                     if run_manager:
-                        run_manager.on_llm_new_token(
-                            flushed_content, chunk=safe_cg_chunk
-                        )
+                        run_manager.on_llm_new_token(flushed_content, chunk=safe_cg_chunk)
                     yield safe_cg_chunk
 
                 result = finalize_stream(
@@ -941,12 +872,8 @@ class ChatLiteLLM(BaseChatModel):
                 last_error = e
                 self._retry_metrics.stream_retry_count += 1
                 if attempt < max_attempts - 1:
-                    logger.warning(
-                        f" Empty stream (attempt {attempt + 1}), retrying..."
-                    )
-                    self._retry_metrics.total_retry_delay_ms += (
-                        self.empty_retry_delay * 1000
-                    )
+                    logger.warning(f" Empty stream (attempt {attempt + 1}), retrying...")
+                    self._retry_metrics.total_retry_delay_ms += self.empty_retry_delay * 1000
                     time.sleep(self.empty_retry_delay)
                 else:
                     logger.error(f" Empty stream after {max_attempts} attempts.")
@@ -983,23 +910,15 @@ class ChatLiteLLM(BaseChatModel):
         should_stream = kwargs.pop("streaming", self.streaming)
         if should_stream:
             try:
-                stream_iter = self._astream(
-                    messages=messages, stop=stop, run_manager=run_manager, **kwargs
-                )
+                stream_iter = self._astream(messages=messages, stop=stop, run_manager=run_manager, **kwargs)
                 return await agenerate_from_stream(stream_iter)
             except TypeError as e:
                 if "'NoneType' object is not iterable" in str(e):
-                    logger.warning(
-                        " LangChain agenerate_from_stream bug, falling back to non-streaming"
-                    )
-                    return await self._agenerate(
-                        messages, stop, run_manager, stream=False, **kwargs
-                    )
+                    logger.warning(" LangChain agenerate_from_stream bug, falling back to non-streaming")
+                    return await self._agenerate(messages, stop, run_manager, stream=False, **kwargs)
                 raise
             except Exception:
-                logger.error(
-                    f" LiteLLM streaming failed (Model: {self.model_name or self.model})"
-                )
+                logger.error(f" LiteLLM streaming failed (Model: {self.model_name or self.model})")
                 raise
 
         available_tools, tool_schemas = self._extract_tool_context_from_kwargs(kwargs)
@@ -1041,22 +960,16 @@ class ChatLiteLLM(BaseChatModel):
                     span.set_attribute("llm.model_name", model_name)
                     span.set_attribute("llm.request.attempt", attempt + 1)
 
-                    response = await self.client.acreate(
-                        messages=message_dicts, **params
-                    )
+                    response = await self.client.acreate(messages=message_dicts, **params)
                     response = self._convert_response_to_dict(response)
 
                     if usage := response.get("usage"):
-                        span.set_attribute(
-                            "llm.token_count.prompt", usage.get("prompt_tokens", 0)
-                        )
+                        span.set_attribute("llm.token_count.prompt", usage.get("prompt_tokens", 0))
                         span.set_attribute(
                             "llm.token_count.completion",
                             usage.get("completion_tokens", 0),
                         )
-                        span.set_attribute(
-                            "llm.token_count.total", usage.get("total_tokens", 0)
-                        )
+                        span.set_attribute("llm.token_count.total", usage.get("total_tokens", 0))
 
                 log_llm_response(response)
 
@@ -1070,9 +983,7 @@ class ChatLiteLLM(BaseChatModel):
 
                         record_finish_reason(fr)
 
-                result = self._create_chat_result(
-                    response, available_tools, tool_schemas
-                )
+                result = self._create_chat_result(response, available_tools, tool_schemas)
 
                 # Update metrics: success after retry
                 if attempt > 0:
@@ -1085,9 +996,7 @@ class ChatLiteLLM(BaseChatModel):
                 self._retry_metrics.async_retry_count += 1
 
                 if attempt < max_attempts - 1:
-                    logger.warning(
-                        f" Empty choices (attempt {attempt + 1}), retrying..."
-                    )
+                    logger.warning(f" Empty choices (attempt {attempt + 1}), retrying...")
                     delay_ms = self.empty_retry_delay * 1000
                     self._retry_metrics.total_retry_delay_ms += delay_ms
                     await asyncio.sleep(self.empty_retry_delay)
@@ -1101,11 +1010,7 @@ class ChatLiteLLM(BaseChatModel):
 
                 if is_context_overflow(e):
                     available = parse_available_output_tokens_from_error(e)
-                    if (
-                        available is not None
-                        and available >= 500
-                        and attempt < max_attempts - 1
-                    ):
+                    if available is not None and available >= 500 and attempt < max_attempts - 1:
                         safe_tokens = max(1, available - 64)
                         logger.warning(
                             f" Context overflow, injecting ephemeral max_tokens={safe_tokens} (attempt {attempt + 1})"
@@ -1118,9 +1023,7 @@ class ChatLiteLLM(BaseChatModel):
                         )
                         raise e
 
-                logger.error(
-                    f" LiteLLM acreate failed (Model: {self.model_name or self.model}): {e!s}"
-                )
+                logger.error(f" LiteLLM acreate failed (Model: {self.model_name or self.model}): {e!s}")
                 raise
 
         if last_error:
@@ -1139,9 +1042,7 @@ class ChatLiteLLM(BaseChatModel):
         global_sem, model_sem = await _get_semaphores(self.model_name or self.model)
 
         async with global_sem or contextlib.nullcontext(), model_sem or contextlib.nullcontext():
-            async for chunk in self._astream_inner(
-                messages, stop, run_manager, **kwargs
-            ):
+            async for chunk in self._astream_inner(messages, stop, run_manager, **kwargs):
                 yield chunk
 
     async def _astream_inner(
@@ -1210,28 +1111,14 @@ class ChatLiteLLM(BaseChatModel):
                         agg.on_generation_chunk(cg_chunk, new_class)
 
                         # Filter content and reasoning_content through DSML buffer before yielding
-                        raw_content = (
-                            str(cg_chunk.message.content)
-                            if cg_chunk.message.content
-                            else ""
-                        )
+                        raw_content = str(cg_chunk.message.content) if cg_chunk.message.content else ""
                         safe_content = xml_content_buffer.process(raw_content)
 
-                        additional_kwargs = dict(
-                            getattr(cg_chunk.message, "additional_kwargs", {})
-                        )
+                        additional_kwargs = dict(getattr(cg_chunk.message, "additional_kwargs", {}))
                         raw_reasoning = additional_kwargs.get("reasoning_content", "")
-                        safe_reasoning = (
-                            xml_reasoning_buffer.process(str(raw_reasoning))
-                            if raw_reasoning
-                            else ""
-                        )
+                        safe_reasoning = xml_reasoning_buffer.process(str(raw_reasoning)) if raw_reasoning else ""
 
-                        if (
-                            safe_content
-                            or safe_reasoning
-                            or getattr(cg_chunk.message, "tool_call_chunks", [])
-                        ):
+                        if safe_content or safe_reasoning or getattr(cg_chunk.message, "tool_call_chunks", []):
                             msg_dict = dict(cg_chunk.message)
                             msg_dict.pop("type", None)
                             msg_dict["content"] = safe_content
@@ -1246,17 +1133,13 @@ class ChatLiteLLM(BaseChatModel):
                             safe_chunk = cg_chunk.message.__class__(**msg_dict)
                             safe_cg_chunk = ChatGenerationChunk(message=safe_chunk)
                             if run_manager:
-                                await run_manager.on_llm_new_token(
-                                    safe_content, chunk=safe_cg_chunk
-                                )
+                                await run_manager.on_llm_new_token(safe_content, chunk=safe_cg_chunk)
                             yield safe_cg_chunk
 
                 logger.debug(f" Stream completed: total {agg.chunk_count} chunks")
 
                 if agg.is_empty:
-                    raise EmptyStreamError(
-                        f"Stream produced no chunks. Model: {model_name}"
-                    )
+                    raise EmptyStreamError(f"Stream produced no chunks. Model: {model_name}")
 
                 # Flush buffers at the end of the stream
                 flushed_content = xml_content_buffer.flush()
@@ -1264,15 +1147,11 @@ class ChatLiteLLM(BaseChatModel):
                 if flushed_content or flushed_reasoning:
                     msg_dict = {"content": flushed_content}
                     if flushed_reasoning:
-                        msg_dict["additional_kwargs"] = {
-                            "reasoning_content": flushed_reasoning
-                        }
+                        msg_dict["additional_kwargs"] = {"reasoning_content": flushed_reasoning}
                     safe_chunk = agg.default_chunk_class(**msg_dict)
                     safe_cg_chunk = ChatGenerationChunk(message=safe_chunk)
                     if run_manager:
-                        await run_manager.on_llm_new_token(
-                            flushed_content, chunk=safe_cg_chunk
-                        )
+                        await run_manager.on_llm_new_token(flushed_content, chunk=safe_cg_chunk)
                     yield safe_cg_chunk
 
                 result = finalize_stream(
@@ -1285,9 +1164,7 @@ class ChatLiteLLM(BaseChatModel):
                 )
                 if result.final_tool_chunk:
                     if run_manager:
-                        await run_manager.on_llm_new_token(
-                            "", chunk=result.final_tool_chunk
-                        )
+                        await run_manager.on_llm_new_token("", chunk=result.final_tool_chunk)
                     yield result.final_tool_chunk
 
                 if attempt > 0:
@@ -1298,12 +1175,8 @@ class ChatLiteLLM(BaseChatModel):
                 last_error = e
                 self._retry_metrics.stream_retry_count += 1
                 if attempt < max_attempts - 1:
-                    logger.warning(
-                        f" Empty stream (attempt {attempt + 1}), retrying..."
-                    )
-                    self._retry_metrics.total_retry_delay_ms += (
-                        self.empty_retry_delay * 1000
-                    )
+                    logger.warning(f" Empty stream (attempt {attempt + 1}), retrying...")
+                    self._retry_metrics.total_retry_delay_ms += self.empty_retry_delay * 1000
                     await asyncio.sleep(self.empty_retry_delay)
                 else:
                     logger.error(f" Empty stream after {max_attempts} attempts.")
@@ -1315,11 +1188,7 @@ class ChatLiteLLM(BaseChatModel):
 
                 if is_context_overflow(e):
                     available = parse_available_output_tokens_from_error(e)
-                    if (
-                        available is not None
-                        and available >= 500
-                        and attempt < max_attempts - 1
-                    ):
+                    if available is not None and available >= 500 and attempt < max_attempts - 1:
                         safe_tokens = max(1, available - 64)
                         logger.warning(
                             f" Context overflow, injecting ephemeral max_tokens={safe_tokens} (attempt {attempt + 1})"
@@ -1332,9 +1201,7 @@ class ChatLiteLLM(BaseChatModel):
                         )
                         raise e
 
-                logger.error(
-                    f" LiteLLM streaming failed (Model: {model_name}): {e!s}"
-                )
+                logger.error(f" LiteLLM streaming failed (Model: {model_name}): {e!s}")
                 raise
 
         if last_error:
@@ -1360,9 +1227,7 @@ class ChatLiteLLM(BaseChatModel):
         return should_skip_response_format(model)
 
     @staticmethod
-    def clean_model_kwargs(
-        kwargs: dict, model: str, additional_remove_keys: list[str] | None = None
-    ) -> dict:
+    def clean_model_kwargs(kwargs: dict, model: str, additional_remove_keys: list[str] | None = None) -> dict:
         return utils_clean_model_kwargs(kwargs, model, additional_remove_keys)
 
     def _get_model_name(self) -> str:
@@ -1373,22 +1238,16 @@ class ChatLiteLLM(BaseChatModel):
         if "tools" in kwargs:
             logger.debug(f"ainvoke tools count: {len(kwargs.get('tools', []))}")  # type: ignore[override]
         if kwargs.get("_in_fallback", False):
-            return await super().ainvoke(
-                input, config, **self.clean_model_kwargs(kwargs, self._get_model_name())
-            )
+            return await super().ainvoke(input, config, **self.clean_model_kwargs(kwargs, self._get_model_name()))
 
         result = await super().ainvoke(input, config, **kwargs)
         if not kwargs.get("_json_mode_fallback", False):
             return result
 
-        if result.content and (
-            isinstance(result.content, str) and result.content.strip()
-        ):
+        if result.content and (isinstance(result.content, str) and result.content.strip()):
             return result
 
-        reasoning_content = getattr(result, "additional_kwargs", {}).get(
-            "reasoning_content"
-        )
+        reasoning_content = getattr(result, "additional_kwargs", {}).get("reasoning_content")
         if (
             reasoning_content
             and isinstance(reasoning_content, str)
@@ -1428,9 +1287,7 @@ class ChatLiteLLM(BaseChatModel):
 
         if is_pydantic_schema:
             # schema is guaranteed to be Type[BaseModel] when is_pydantic_schema is True
-            output_parser: (
-                PydanticOutputParser | JsonOutputParser
-            ) = PydanticOutputParser(
+            output_parser: PydanticOutputParser | JsonOutputParser = PydanticOutputParser(
                 pydantic_object=schema  # type: ignore
             )
         else:
@@ -1441,9 +1298,7 @@ class ChatLiteLLM(BaseChatModel):
                 parsed=itemgetter("raw") | output_parser, parsing_error=lambda _: None
             )
             parser_none = RunnablePassthrough.assign(parsed=lambda _: None)
-            parser_with_fallback = parser_assign.with_fallbacks(
-                [parser_none], exception_key="parsing_error"
-            )
+            parser_with_fallback = parser_assign.with_fallbacks([parser_none], exception_key="parsing_error")
             return RunnableMap(raw=llm) | parser_with_fallback
 
         return llm | output_parser
@@ -1456,22 +1311,16 @@ class ChatLiteLLM(BaseChatModel):
         parallel_tool_calls: bool | None = None,
         **kwargs: Any,
     ) -> Runnable[LanguageModelInput, AIMessage]:
-        logger.debug(
-            f"bind_tools called with {len(tools) if tools else 0} tools"
-        )
+        logger.debug(f"bind_tools called with {len(tools) if tools else 0} tools")
         openai_tools: list[dict[str, Any]] = []
         for t in tools:
             if isinstance(t, dict) and "function" in t:
                 openai_tools.append(normalize_tool_schema(t))
             else:
                 try:
-                    openai_tools.append(
-                        normalize_tool_schema(convert_to_openai_tool(t))
-                    )
+                    openai_tools.append(normalize_tool_schema(convert_to_openai_tool(t)))
                 except Exception as e:
-                    logger.error(
-                        f"DEBUG: Failed to convert tool {getattr(t, 'name', t)}: {e}"
-                    )
+                    logger.error(f"DEBUG: Failed to convert tool {getattr(t, 'name', t)}: {e}")
                     continue
 
         tool_choice_param: str | dict[str, Any] | None = None
@@ -1487,9 +1336,7 @@ class ChatLiteLLM(BaseChatModel):
 
         bind_kwargs: dict[str, Any] = {"tools": openai_tools}
         if not openai_tools:
-            logger.warning(
-                f"DEBUG: openai_tools is empty! original tools count: {len(tools)}"
-            )
+            logger.warning(f"DEBUG: openai_tools is empty! original tools count: {len(tools)}")
         if tool_choice_param:
             bind_kwargs["tool_choice"] = tool_choice_param
         if parallel_tool_calls is not None:
@@ -1500,7 +1347,5 @@ class ChatLiteLLM(BaseChatModel):
         return self.bind(**bind_kwargs)
 
 
-def clean_model_kwargs(
-    kwargs: dict, model: str, additional_remove_keys: list[str] | None = None
-) -> dict:
+def clean_model_kwargs(kwargs: dict, model: str, additional_remove_keys: list[str] | None = None) -> dict:
     return ChatLiteLLM.clean_model_kwargs(kwargs, model, additional_remove_keys)

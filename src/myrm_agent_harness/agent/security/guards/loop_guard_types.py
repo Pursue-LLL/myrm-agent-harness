@@ -201,20 +201,14 @@ class LoopGuardMetrics:
 
     total_calls: int = 0
     total_detections: int = 0
-    detections_by_kind: dict[LoopKind, int] = field(
-        default_factory=lambda: defaultdict(int)
-    )
+    detections_by_kind: dict[LoopKind, int] = field(default_factory=lambda: defaultdict(int))
     detections_by_tool: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     streak_lengths: list[int] = field(default_factory=list)
     suggestions_given: int = 0
     suggestions_followed: int = 0
     effective_follows: float = 0.0
-    suggestion_quality_scores: dict[str, float] = field(
-        default_factory=lambda: defaultdict(float)
-    )
-    suggestion_attempt_counts: dict[str, int] = field(
-        default_factory=lambda: defaultdict(int)
-    )
+    suggestion_quality_scores: dict[str, float] = field(default_factory=lambda: defaultdict(float))
+    suggestion_attempt_counts: dict[str, int] = field(default_factory=lambda: defaultdict(int))
 
     @property
     def detection_rate(self) -> float:
@@ -243,9 +237,7 @@ class LoopGuardMetrics:
             return 0.0
         return self.suggestion_quality_scores.get(suggestion_key, 0.0) / attempts
 
-    def update_suggestion_quality(
-        self, suggestion_key: str, success_level: SuccessLevel
-    ) -> None:
+    def update_suggestion_quality(self, suggestion_key: str, success_level: SuccessLevel) -> None:
         """Update quality score for a suggestion based on outcome."""
         self.suggestion_attempt_counts[suggestion_key] += 1
 
@@ -258,10 +250,7 @@ class LoopGuardMetrics:
 
     def to_dict(self) -> dict[str, object]:
         """Export metrics as dictionary."""
-        suggestion_quality = {
-            key: f"{self.get_suggestion_quality(key):.2f}"
-            for key in self.suggestion_quality_scores
-        }
+        suggestion_quality = {key: f"{self.get_suggestion_quality(key):.2f}" for key in self.suggestion_quality_scores}
 
         return {
             "total_calls": self.total_calls,

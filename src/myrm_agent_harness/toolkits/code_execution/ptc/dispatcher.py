@@ -72,9 +72,7 @@ class PtcDispatcher:
 
         tool = self._tools_by_name.get(tool_name)
         if tool is None:
-            return self._record_error(
-                tool_name, request.args, start, f"Unknown tool: '{tool_name}'"
-            )
+            return self._record_error(tool_name, request.args, start, f"Unknown tool: '{tool_name}'")
 
         args = dict(request.args)
 

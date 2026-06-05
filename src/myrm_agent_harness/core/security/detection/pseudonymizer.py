@@ -109,15 +109,11 @@ def _extract_pii_items(
                 continue
             if name == "china_id_card" and not _china_id_valid(val):
                 continue
-            if name == "bank_card" and not _luhn_valid(
-                val.replace("-", "").replace(" ", "")
-            ):
+            if name == "bank_card" and not _luhn_valid(val.replace("-", "").replace(" ", "")):
                 continue
 
             ptype = _PATTERN_TO_TYPE.get(name, name.upper())
-            item_level = (
-                SensitivityLevel.S3 if name in s3_names else SensitivityLevel.S2
-            )
+            item_level = SensitivityLevel.S3 if name in s3_names else SensitivityLevel.S2
             items.append(
                 PIIItem(
                     original_text=val,

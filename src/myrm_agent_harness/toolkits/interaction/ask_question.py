@@ -19,9 +19,7 @@ from pydantic import BaseModel, Field, PrivateAttr
 class OptionItem(BaseModel):
     """An option item for a multiple-choice question."""
 
-    id: str = Field(
-        description="Unique identifier for this option. Use short, snake_case strings."
-    )
+    id: str = Field(description="Unique identifier for this option. Use short, snake_case strings.")
     label: str = Field(description="Display text for this option.")
     description: str | None = Field(
         default=None,
@@ -32,9 +30,7 @@ class OptionItem(BaseModel):
 class QuestionItem(BaseModel):
     """A structured question item."""
 
-    id: str = Field(
-        description="Unique identifier for this question. Use short, snake_case strings."
-    )
+    id: str = Field(description="Unique identifier for this question. Use short, snake_case strings.")
     prompt: str = Field(description="The question prompt to present to the user.")
     options: list[OptionItem] = Field(
         default_factory=list,
@@ -49,9 +45,7 @@ class QuestionItem(BaseModel):
 class AskQuestionInput(BaseModel):
     """Input schema for the ask_question tool."""
 
-    title: str | None = Field(
-        default=None, description="Optional title for the clarification form."
-    )
+    title: str | None = Field(default=None, description="Optional title for the clarification form.")
     questions: list[QuestionItem] = Field(
         min_length=1,
         description="A list of one or more clarifying questions to ask the user.",

@@ -69,9 +69,7 @@ _EXIT_CODE_SEMANTICS: dict[str, dict[int, str]] = {
     "ack": {1: "No matches found (not an error)"},
     "diff": {1: "Files differ (expected, not an error)"},
     "colordiff": {1: "Files differ (expected, not an error)"},
-    "find": {
-        1: "Some directories were inaccessible (partial results may still be valid)"
-    },
+    "find": {1: "Some directories were inaccessible (partial results may still be valid)"},
     "test": {1: "Condition evaluated to false (expected, not an error)"},
     "[": {1: "Condition evaluated to false (expected, not an error)"},
     "curl": {
@@ -399,9 +397,7 @@ def create_bash_tool(
                         message="run_in_background requires a bound session_id.",
                         user_hint="Background jobs are scoped per chat session.",
                     )
-                finish_listener, progress_listener = _build_background_listeners(
-                    session_id=session_id, config=config
-                )
+                finish_listener, progress_listener = _build_background_listeners(session_id=session_id, config=config)
                 info = await bash_executor.spawn_background(
                     command=command,
                     session_id=session_id,
@@ -470,9 +466,7 @@ def create_bash_tool(
             if session_id:
                 await _track_context_access_in_command(command, session_id)
 
-            formatted_content, is_truncated, trunc_meta = _format_result(
-                result, command
-            )
+            formatted_content, is_truncated, trunc_meta = _format_result(result, command)
 
             if is_truncated:
                 from myrm_agent_harness.utils.event_utils import dispatch_custom_event
@@ -492,9 +486,7 @@ def create_bash_tool(
             # supports vision, return ContentBlocks so the LLM sees the image
             # directly (no extra file_read_tool roundtrip).
             generated = result.get("generated_files")
-            generated_files: list[str] = (
-                list(generated) if isinstance(generated, list) else []
-            )
+            generated_files: list[str] = list(generated) if isinstance(generated, list) else []
             blocks = await _maybe_build_image_blocks(
                 text_content=formatted_content,
                 generated_files=generated_files,
@@ -557,9 +549,7 @@ def _build_background_listeners(
     # → final completion state on the same row). Phase information is carried
     # by ``message`` + ``level`` + ``progress``.
 
-    async def _on_progress(
-        info: "BackgroundProcessInfo", payload: dict[str, object]
-    ) -> None:
+    async def _on_progress(info: "BackgroundProcessInfo", payload: dict[str, object]) -> None:
         message = str(payload.get("message", "")) or info.command
         envelope: dict[str, object] = {
             "event": "ptc_notify",
@@ -580,9 +570,7 @@ def _build_background_listeners(
         # Surfacing these as ``error_category`` lets the LLM diagnose the
         # failure in one turn ("OOM, lower batch size") instead of guessing.
         error_category = _classify_background_exit(info)
-        if info.status == "killed" or (
-            info.status == "exited" and (info.exit_code or 0) == 0
-        ):
+        if info.status == "killed" or (info.status == "exited" and (info.exit_code or 0) == 0):
             level = "info"
         elif error_category in ("oom_killed", "segfault"):
             level = "alert"
@@ -687,9 +675,7 @@ async def _maybe_build_image_blocks(
 
     for image_path in inline_paths:
         try:
-            image_result = await read_image_as_content_blocks(
-                image_path, executor, supports_vision=True
-            )
+            image_result = await read_image_as_content_blocks(image_path, executor, supports_vision=True)
         except Exception as exc:  # FileNotFoundError or executor errors
             logger.warning("bash_tool: failed to inline image %s: %s", image_path, exc)
             continue
@@ -705,9 +691,7 @@ async def _maybe_build_image_blocks(
 
     if overflow_paths:
         paths_preview = ", ".join(overflow_paths[:8])
-        suffix = (
-            "" if len(overflow_paths) <= 8 else f" (+{len(overflow_paths) - 8} more)"
-        )
+        suffix = "" if len(overflow_paths) <= 8 else f" (+{len(overflow_paths) - 8} more)"
         blocks.append(
             create_text_block(
                 f"[bash_code_execute_tool] {len(overflow_paths)} additional image(s) "
@@ -728,9 +712,7 @@ def _is_image_artifact(path: str) -> bool:
     return is_image_path(path)
 
 
-def _truncate_bash_output(
-    output: str, max_chars: int = 8000
-) -> tuple[str, bool, dict[str, object]]:
+def _truncate_bash_output(output: str, max_chars: int = 8000) -> tuple[str, bool, dict[str, object]]:
     """Smart middle-truncation for bash output to preserve errors at the end."""
     if len(output) <= max_chars:
         return output, False, {}
@@ -754,9 +736,7 @@ def _truncate_bash_output(
     return f"{head}\n\n...{hint}...\n\n{tail}", True, meta
 
 
-def _format_result(
-    result: Mapping[str, object], command: str = ""
-) -> tuple[str, bool, dict[str, object]]:
+def _format_result(result: Mapping[str, object], command: str = "") -> tuple[str, bool, dict[str, object]]:
     """Format execution result with exit code semantic annotations.
 
     Uses <tool_output> tag wrapping to prevent prompt injection.
@@ -787,9 +767,7 @@ def _format_result(
         )
 
     stdout_str, stdout_trunc, stdout_meta = _truncate_bash_output(stdout_raw)
-    stderr_str, stderr_trunc, stderr_meta = _truncate_bash_output(
-        str(result.get("stderr", ""))
-    )
+    stderr_str, stderr_trunc, stderr_meta = _truncate_bash_output(str(result.get("stderr", "")))
 
     output_parts: list[str] = []
 

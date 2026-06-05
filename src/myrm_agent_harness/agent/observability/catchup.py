@@ -35,9 +35,7 @@ class CatchupBriefExtractor:
 
     @staticmethod
     def extract(
-        messages: list[dict[str, Any]],
-        progress_steps: list[dict[str, Any]],
-        status: str = "completed"
+        messages: list[dict[str, Any]], progress_steps: list[dict[str, Any]], status: str = "completed"
     ) -> CatchupBrief:
         """Extract a CatchupBrief from raw message data and progress steps.
 

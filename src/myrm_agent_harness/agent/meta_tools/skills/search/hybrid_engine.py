@@ -47,9 +47,7 @@ def _require_numpy() -> ModuleType:
     try:
         import numpy as np
     except ImportError as exc:
-        raise RuntimeError(
-            "numpy is required for hybrid skill search. Install myrm-agent-harness[retrieval]."
-        ) from exc
+        raise RuntimeError("numpy is required for hybrid skill search. Install myrm-agent-harness[retrieval].") from exc
     return np
 
 

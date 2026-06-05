@@ -55,7 +55,6 @@ from myrm_agent_harness.toolkits.memory.types import (
 )
 
 if TYPE_CHECKING:
-
     from myrm_agent_harness.toolkits.memory.config import MemoryConfig
     from myrm_agent_harness.toolkits.memory.protocols.cache import (
         EmbeddingCacheProtocol,
@@ -72,9 +71,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_DIGEST_FIELD_PATTERN = re.compile(
-    r"\*\*(Title|Goal|Result|Change Kind|Key Details)\*\*:\s*(.+)"
-)
+_DIGEST_FIELD_PATTERN = re.compile(r"\*\*(Title|Goal|Result|Change Kind|Key Details)\*\*:\s*(.+)")
 _NON_ALNUM_PATTERN = re.compile(r"[^a-z0-9]+")
 _POSITIVE_RESULT_HINTS = (
     "complete",
@@ -164,9 +161,7 @@ async def dedup_semantics(
     if skipped:
         total = len(memories)
         rate = skipped / total * 100 if total > 0 else 0
-        logger.warning(
-            "Dedup: skipped %d/%d near-duplicates (rate=%.1f%%)", skipped, total, rate
-        )
+        logger.warning("Dedup: skipped %d/%d near-duplicates (rate=%.1f%%)", skipped, total, rate)
     return [m for m, is_dup in zip(memories, dup_flags, strict=False) if not is_dup]
 
 
@@ -230,9 +225,7 @@ async def run_forgetting(
                         try:
                             await graph.delete_subgraph(memory_id)
                         except Exception as e:
-                            logger.warning(
-                                "Graph cleanup failed for %s: %s", memory_id, e
-                            )
+                            logger.warning("Graph cleanup failed for %s: %s", memory_id, e)
                             result.errors.append((memory_id, str(e)))
 
             elif fg_cfg.mode == ForgettingMode.ARCHIVE:
@@ -244,9 +237,7 @@ async def run_forgetting(
                         continue
                     doc.metadata["status"] = "archived"
                     doc.metadata["archived_at"] = now_iso
-                    doc.metadata["archive_reason"] = (
-                        f"retention={score.total_score:.3f}"
-                    )
+                    doc.metadata["archive_reason"] = f"retention={score.total_score:.3f}"
                     archive_docs.append(doc)
                 if archive_docs:
                     await vector.upsert(collection, archive_docs)
@@ -262,13 +253,9 @@ async def run_forgetting(
                 )
 
         if result.forgotten_count:
-            logger.warning(
-                "Forgetting DELETE: removed %d memories", result.forgotten_count
-            )
+            logger.warning("Forgetting DELETE: removed %d memories", result.forgotten_count)
         if result.archived_count:
-            logger.warning(
-                "Forgetting ARCHIVE: archived %d memories", result.archived_count
-            )
+            logger.warning("Forgetting ARCHIVE: archived %d memories", result.archived_count)
 
     except Exception as e:
         logger.warning("Forgetting scan failed (non-fatal): %s", e)
@@ -313,8 +300,6 @@ async def evaporate_task_digests(
     return len(docs)
 
 
-
-
 def _parse_task_digest_fields(content: str) -> dict[str, str]:
     parsed = {
         "title": "",
@@ -353,11 +338,7 @@ def _normalize_scope_fragment(value: str) -> str:
 
 def _scope_from_digest_doc(doc: VectorDocument) -> MemoryScope:
     raw_namespaces = doc.metadata.get("namespaces")
-    namespaces = (
-        [ns for ns in raw_namespaces if isinstance(ns, str)]
-        if isinstance(raw_namespaces, list)
-        else []
-    )
+    namespaces = [ns for ns in raw_namespaces if isinstance(ns, str)] if isinstance(raw_namespaces, list) else []
     primary_namespace = str(doc.metadata.get("primary_namespace", "")).strip()
     if not primary_namespace:
         primary_namespace = namespaces[-1] if namespaces else "global"
@@ -374,11 +355,7 @@ def _scope_from_digest_doc(doc: VectorDocument) -> MemoryScope:
 
 
 def _scope_properties(scope: MemoryScope) -> dict[str, str]:
-    scope_level = (
-        scope.primary_namespace.split(":", 1)[0]
-        if scope.primary_namespace
-        else "global"
-    )
+    scope_level = scope.primary_namespace.split(":", 1)[0] if scope.primary_namespace else "global"
     return {
         "primary_namespace": scope.primary_namespace,
         "scope_namespaces_json": "|".join(scope.namespaces),
@@ -391,17 +368,9 @@ def _scope_properties(scope: MemoryScope) -> dict[str, str]:
 
 
 def _scope_from_claim_node(claim_node: GraphNode) -> MemoryScope:
-    primary_namespace = (
-        str(claim_node.properties.get("primary_namespace", "")).strip() or "global"
-    )
-    raw_scope_namespaces = str(
-        claim_node.properties.get("scope_namespaces_json", "")
-    ).strip()
-    namespaces = (
-        [ns for ns in raw_scope_namespaces.split("|") if ns]
-        if raw_scope_namespaces
-        else [primary_namespace]
-    )
+    primary_namespace = str(claim_node.properties.get("primary_namespace", "")).strip() or "global"
+    raw_scope_namespaces = str(claim_node.properties.get("scope_namespaces_json", "")).strip()
+    namespaces = [ns for ns in raw_scope_namespaces.split("|") if ns] if raw_scope_namespaces else [primary_namespace]
     return MemoryScope(
         primary_namespace=primary_namespace,
         namespaces=namespaces,
@@ -412,9 +381,7 @@ def _scope_from_claim_node(claim_node: GraphNode) -> MemoryScope:
     )
 
 
-def _claim_node_visible_for_namespaces(
-    claim_node: GraphNode, namespaces: list[str] | None
-) -> bool:
+def _claim_node_visible_for_namespaces(claim_node: GraphNode, namespaces: list[str] | None) -> bool:
     if not namespaces:
         return True
     primary_namespace = str(claim_node.properties.get("primary_namespace", "")).strip()
@@ -431,9 +398,7 @@ def _classify_result_polarity(result: str) -> str:
 
 
 def _text_tokens(text: str) -> set[str]:
-    return {
-        token for token in _QUERY_TOKEN_PATTERN.findall(text.lower()) if len(token) >= 2
-    }
+    return {token for token in _QUERY_TOKEN_PATTERN.findall(text.lower()) if len(token) >= 2}
 
 
 def _token_overlap(left: str, right: str) -> float:
@@ -520,22 +485,13 @@ def _classify_claim_relation(
         )
         if value.strip()
     )
-    if (
-        goal_overlap >= 0.45
-        and _contains_hint(relation_haystack, _SUPERSEDE_HINTS)
-        and result_overlap < 0.85
-    ):
+    if goal_overlap >= 0.45 and _contains_hint(relation_haystack, _SUPERSEDE_HINTS) and result_overlap < 0.85:
         return "SUPERSEDED_BY", True
 
     if goal_overlap >= 0.45 and _contains_hint(relation_haystack, _CONSTRAINT_HINTS):
         return "CONSTRAINED_BY", False
 
-    if (
-        goal_overlap >= 0.6
-        and result_overlap < 0.2
-        and existing_result.strip()
-        and new_result.strip()
-    ):
+    if goal_overlap >= 0.6 and result_overlap < 0.2 and existing_result.strip() and new_result.strip():
         return "CONTRADICTED_BY", True
 
     return "SUPPORTED_BY", False
@@ -570,11 +526,7 @@ def _build_claim_model_summary(
 
 
 def _tokenize_query(query: str) -> set[str]:
-    return {
-        token
-        for token in _QUERY_TOKEN_PATTERN.findall(query.lower())
-        if len(token) >= 2
-    }
+    return {token for token in _QUERY_TOKEN_PATTERN.findall(query.lower()) if len(token) >= 2}
 
 
 def _score_claim_node(
@@ -601,11 +553,7 @@ def _score_claim_node(
         score -= 0.08
 
     latest_channel_id = str(claim_node.properties.get("latest_channel_id", ""))
-    if (
-        current_channel_id
-        and latest_channel_id
-        and latest_channel_id == current_channel_id
-    ):
+    if current_channel_id and latest_channel_id and latest_channel_id == current_channel_id:
         score += 0.06
 
     # Importance modulation (confidence as importance proxy, same as sibling scoring)
@@ -641,31 +589,19 @@ async def _search_claim_graph(
     for claim_node in claim_nodes:
         if not _claim_node_visible_for_namespaces(claim_node, namespaces):
             continue
-        score = _score_claim_node(
-            query_tokens, claim_node, current_channel_id=current_channel_id
-        )
+        score = _score_claim_node(query_tokens, claim_node, current_channel_id=current_channel_id)
         if score <= 0.0:
             continue
 
         freshness = str(claim_node.properties.get("freshness", "stale"))
-        contradiction_status = str(
-            claim_node.properties.get("contradiction_status", "none")
-        )
+        contradiction_status = str(claim_node.properties.get("contradiction_status", "none"))
         claim_scope = _scope_from_claim_node(claim_node)
-        latest_channel_id = (
-            str(claim_node.properties.get("latest_channel_id", ""))
-            or claim_scope.channel_id
-        )
+        latest_channel_id = str(claim_node.properties.get("latest_channel_id", "")) or claim_scope.channel_id
         claim_text = str(claim_node.properties.get("claim_text", "")).strip()
-        title = (
-            str(claim_node.properties.get("title", "Task Claim")).strip()
-            or "Task Claim"
-        )
+        title = str(claim_node.properties.get("title", "Task Claim")).strip() or "Task Claim"
         last_result = str(claim_node.properties.get("last_result", "")).strip()
         evidence_count = int(claim_node.properties.get("evidence_count", 0))
-        model_summary = str(
-            claim_node.properties.get("model_summary", "")
-        ).strip() or _build_claim_model_summary(
+        model_summary = str(claim_node.properties.get("model_summary", "")).strip() or _build_claim_model_summary(
             title=title,
             claim_text=claim_text,
             last_result=last_result,
@@ -674,15 +610,9 @@ async def _search_claim_graph(
             evidence_count=evidence_count,
         )
 
-        raw_last_evidence_at = str(
-            claim_node.properties.get("last_evidence_at", "")
-        ).strip()
+        raw_last_evidence_at = str(claim_node.properties.get("last_evidence_at", "")).strip()
         try:
-            claim_timestamp = (
-                datetime.fromisoformat(raw_last_evidence_at)
-                if raw_last_evidence_at
-                else now
-            )
+            claim_timestamp = datetime.fromisoformat(raw_last_evidence_at) if raw_last_evidence_at else now
         except ValueError:
             claim_timestamp = now
 
@@ -691,12 +621,8 @@ async def _search_claim_graph(
             content=model_summary,
             created_at=claim_timestamp,
             updated_at=claim_timestamp,
-            importance=min(
-                max(float(claim_node.properties.get("confidence", 0.75)), 0.0), 1.0
-            ),
-            confidence=min(
-                max(float(claim_node.properties.get("confidence", 0.75)), 0.0), 1.0
-            ),
+            importance=min(max(float(claim_node.properties.get("confidence", 0.75)), 0.0), 1.0),
+            confidence=min(max(float(claim_node.properties.get("confidence", 0.75)), 0.0), 1.0),
             claim_key=str(claim_node.properties.get("claim_key", "")),
             title=title,
             claim_text=claim_text,
@@ -710,9 +636,7 @@ async def _search_claim_graph(
             metadata={
                 "latest_channel_id": latest_channel_id or "",
                 "scope_level": str(claim_node.properties.get("scope_level", "")),
-                "latest_relationship_type": str(
-                    claim_node.properties.get("latest_relationship_type", "")
-                ),
+                "latest_relationship_type": str(claim_node.properties.get("latest_relationship_type", "")),
             },
         )
         results.append(
@@ -842,11 +766,7 @@ async def compile_claim_graph(
         updated_contradiction_status = (
             ClaimConflictState.CONFLICTED.value
             if is_conflicted
-            else str(
-                claim_node.properties.get(
-                    "contradiction_status", ClaimConflictState.NONE.value
-                )
-            )
+            else str(claim_node.properties.get("contradiction_status", ClaimConflictState.NONE.value))
         )
         updated_freshness = _freshness_bucket(freshness_days)
         updated_evidence_count = existing_evidence_count + 1
@@ -895,11 +815,7 @@ async def compile_claim_graph(
         )
 
         contradiction_status = (
-            str(
-                updated_claim.properties.get(
-                    "contradiction_status", ClaimConflictState.NONE.value
-                )
-            )
+            str(updated_claim.properties.get("contradiction_status", ClaimConflictState.NONE.value))
             if updated_claim is not None
             else ClaimConflictState.NONE.value
         )
@@ -929,9 +845,7 @@ async def _estimate_relation_counts(
     Only called for SemanticMemory. Concurrency is capped to avoid
     overwhelming the vector backend.
     """
-    embeddable = [
-        (m.id, m.embedding) for m in memories if getattr(m, "embedding", None)
-    ]
+    embeddable = [(m.id, m.embedding) for m in memories if getattr(m, "embedding", None)]
     if not embeddable:
         return {}
 
@@ -968,16 +882,8 @@ async def bump_access_counts(
             if isinstance(mem, (SemanticMemory, EpisodicMemory)):
                 mem.access_count += 1
                 mem.last_accessed_at = now
-        sem_docs = [
-            semantic_to_doc(r.memory)
-            for r in results
-            if isinstance(r.memory, SemanticMemory)
-        ]
-        epi_docs = [
-            episodic_to_doc(r.memory)
-            for r in results
-            if isinstance(r.memory, EpisodicMemory)
-        ]
+        sem_docs = [semantic_to_doc(r.memory) for r in results if isinstance(r.memory, SemanticMemory)]
+        epi_docs = [episodic_to_doc(r.memory) for r in results if isinstance(r.memory, EpisodicMemory)]
         if sem_docs:
             await vector.upsert(config.semantic_collection, sem_docs)
         if epi_docs:
@@ -1182,18 +1088,14 @@ async def enrich_with_graph(
 
     async def _fetch_siblings(memory_id: str) -> list[tuple[str, int]]:
         try:
-            return await graph.get_related_nodes_with_depth(
-                memory_id, "MENTIONS", max_depth=max_depth
-            )
+            return await graph.get_related_nodes_with_depth(memory_id, "MENTIONS", max_depth=max_depth)
         except Exception:
             try:
                 return [(mid, 1) for mid in await graph.get_related_nodes(memory_id, "MENTIONS")]
             except Exception:
                 return []
 
-    sibling_lists = await asyncio.gather(
-        *[_fetch_siblings(r.memory.id) for r in episodic_hits]
-    )
+    sibling_lists = await asyncio.gather(*[_fetch_siblings(r.memory.id) for r in episodic_hits])
     for siblings in sibling_lists:
         for mid, depth in siblings:
             if mid not in existing_ids and mid not in related_with_depth:

@@ -86,9 +86,7 @@ class EpisodicMemoryArchiveCheckpointStore:
         if tool_call_id:
             entities.append(f"tool_call:{tool_call_id}")
 
-        content = (
-            f"Archive checkpoint (tool={tool_name}, path={archive_path}):\n{summary.strip()}"
-        )
+        content = f"Archive checkpoint (tool={tool_name}, path={archive_path}):\n{summary.strip()}"
         memory = EpisodicMemory(
             content=content,
             source=RuleSource.AGENT_SELF,

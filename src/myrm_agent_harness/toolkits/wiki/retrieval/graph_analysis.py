@@ -128,12 +128,14 @@ def compute_graph_insights(conn: sqlite3.Connection) -> dict[str, list[dict]]:
         )
         max_possible = len(members) * (len(members) - 1) / 2
         cohesion = internal_edges / max_possible if max_possible > 0 else 0
-        community_info.append({
-            "id": comm_id,
-            "size": len(members),
-            "members": members[:10],
-            "cohesion": round(cohesion, 3),
-        })
+        community_info.append(
+            {
+                "id": comm_id,
+                "size": len(members),
+                "members": members[:10],
+                "cohesion": round(cohesion, 3),
+            }
+        )
 
     return {
         "unexpected_connections": unexpected[:20],

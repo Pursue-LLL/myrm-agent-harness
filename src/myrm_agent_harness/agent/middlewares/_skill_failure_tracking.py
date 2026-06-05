@@ -103,9 +103,7 @@ def track_skill_execution(
             return
 
         candidate = candidates[0]
-        tracking_task = asyncio.create_task(
-            evolution.record_execution(skill_id=candidate.skill_id, success=True)
-        )
+        tracking_task = asyncio.create_task(evolution.record_execution(skill_id=candidate.skill_id, success=True))
         tracking_task.add_done_callback(_log_skill_tracking_task_failure)
     except Exception as exc:
         logger.debug("Skill execution tracking skipped: %s", exc)
@@ -130,9 +128,7 @@ def _current_runtime_session_id() -> str | None:
     return session_id or None
 
 
-def _should_publish_skill_failure(
-    *, error_category: str | None, loop_kind: str | None
-) -> bool:
+def _should_publish_skill_failure(*, error_category: str | None, loop_kind: str | None) -> bool:
     if loop_kind:
         return True
     return error_category not in NON_SKILL_FAILURE_CATEGORIES
@@ -221,9 +217,7 @@ def _error_signature(tool_name: str, error_message: str) -> str:
 
 def _hash_tool_args(tool_args: dict[str, object]) -> str:
     try:
-        payload = json.dumps(
-            tool_args, ensure_ascii=False, sort_keys=True, default=repr
-        )
+        payload = json.dumps(tool_args, ensure_ascii=False, sort_keys=True, default=repr)
     except TypeError:
         payload = repr(tool_args)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]

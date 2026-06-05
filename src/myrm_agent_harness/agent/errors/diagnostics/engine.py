@@ -136,9 +136,7 @@ class LLMErrorDiagnostic:
             "欠费",
             "请充值",
         ]
-        if any(kw in full_text for kw in billing_keywords) or re.search(
-            r"(?<!\d)402(?!\d)", full_text
-        ):
+        if any(kw in full_text for kw in billing_keywords) or re.search(r"(?<!\d)402(?!\d)", full_text):
             user_message = locale_manager.translate("billing", "user_message", locale)
             resolution_steps = locale_manager.translate("billing", "resolution_steps", locale)
 
@@ -159,9 +157,7 @@ class LLMErrorDiagnostic:
             "authentication failed",
             "unauthorized",
         ]
-        if any(kw in full_text for kw in api_key_keywords) or re.search(
-            r"(?<!\d)(401|403)(?!\d)", full_text
-        ):
+        if any(kw in full_text for kw in api_key_keywords) or re.search(r"(?<!\d)(401|403)(?!\d)", full_text):
             user_message = locale_manager.translate("api_key", "user_message", locale)
             resolution_steps = locale_manager.translate("api_key", "resolution_steps", locale)
 
@@ -228,9 +224,7 @@ class LLMErrorDiagnostic:
 
         # 5. Rate limit
         rate_limit_keywords = ["rate limit", "too many requests", "quota exceeded"]
-        if any(kw in full_text for kw in rate_limit_keywords) or re.search(
-            r"(?<!\d)429(?!\d)", full_text
-        ):
+        if any(kw in full_text for kw in rate_limit_keywords) or re.search(r"(?<!\d)429(?!\d)", full_text):
             user_message = locale_manager.translate("rate_limit", "user_message", locale)
             resolution_steps = locale_manager.translate("rate_limit", "resolution_steps", locale)
 

@@ -12,8 +12,9 @@ _PATH_SCOPED_TOOLS = {
     "file_read_tool",
     "file_search_tool",
     "file_glob_tool",
-    "grep_search_tool"
+    "grep_search_tool",
 }
+
 
 def _paths_overlap(left: Path, right: Path) -> bool:
     """Return True when two paths may refer to the same subtree."""
@@ -23,6 +24,7 @@ def _paths_overlap(left: Path, right: Path) -> bool:
         return bool(left_parts) == bool(right_parts) and bool(left_parts)
     common_len = min(len(left_parts), len(right_parts))
     return left_parts[:common_len] == right_parts[:common_len]
+
 
 def _extract_parallel_scope_path(tool_name: str, function_args: dict[str, Any]) -> Path | None:
     """Return the normalized file target for path-scoped tools."""
@@ -38,6 +40,7 @@ def _extract_parallel_scope_path(tool_name: str, function_args: dict[str, Any]) 
         return Path(os.path.abspath(str(expanded)))
 
     return Path(os.path.abspath(str(Path.cwd() / expanded)))
+
 
 def should_parallelize_tool_batch(tool_calls: list[dict[str, Any]]) -> bool:
     """Return True when a tool-call batch is safe to run concurrently."""

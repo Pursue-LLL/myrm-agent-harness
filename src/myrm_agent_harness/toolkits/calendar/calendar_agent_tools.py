@@ -120,37 +120,39 @@ def create_calendar_tools(
                     status=status,
                 )
                 saved = await store.save_event(event)
-                return json.dumps({
-                    "status": "created",
-                    "event_id": saved.event_id,
-                    "title": saved.title,
-                    "start_at": saved.start_at.isoformat() if saved.start_at else None,
-                })
+                return json.dumps(
+                    {
+                        "status": "created",
+                        "event_id": saved.event_id,
+                        "title": saved.title,
+                        "start_at": saved.start_at.isoformat() if saved.start_at else None,
+                    }
+                )
 
             elif action == "list_events":
                 start = datetime.fromisoformat(date_from.replace("Z", "+00:00")) if date_from else None
                 end = datetime.fromisoformat(date_to.replace("Z", "+00:00")) if date_to else None
                 sf = status_filter if status_filter else None
 
-                events = await store.list_events(
-                    start=start, end=end, status=sf, limit=limit
-                )
+                events = await store.list_events(start=start, end=end, status=sf, limit=limit)
                 total = await store.count_events(start=start, end=end, status=sf)
 
-                return json.dumps({
-                    "total": total,
-                    "events": [
-                        {
-                            "event_id": e.event_id,
-                            "title": e.title,
-                            "start_at": e.start_at.isoformat() if e.start_at else None,
-                            "end_at": e.end_at.isoformat() if e.end_at else None,
-                            "status": e.status,
-                            "location": e.location,
-                        }
-                        for e in events
-                    ],
-                })
+                return json.dumps(
+                    {
+                        "total": total,
+                        "events": [
+                            {
+                                "event_id": e.event_id,
+                                "title": e.title,
+                                "start_at": e.start_at.isoformat() if e.start_at else None,
+                                "end_at": e.end_at.isoformat() if e.end_at else None,
+                                "status": e.status,
+                                "location": e.location,
+                            }
+                            for e in events
+                        ],
+                    }
+                )
 
             elif action == "get_event":
                 if not event_id:
@@ -158,18 +160,20 @@ def create_calendar_tools(
                 event = await store.get_event(event_id)
                 if not event:
                     return json.dumps({"error": f"Event {event_id} not found"})
-                return json.dumps({
-                    "event_id": event.event_id,
-                    "title": event.title,
-                    "description": event.description,
-                    "location": event.location,
-                    "start_at": event.start_at.isoformat() if event.start_at else None,
-                    "end_at": event.end_at.isoformat() if event.end_at else None,
-                    "all_day": event.all_day,
-                    "rrule": event.rrule,
-                    "status": event.status,
-                    "reminder_minutes": event.reminder_minutes,
-                })
+                return json.dumps(
+                    {
+                        "event_id": event.event_id,
+                        "title": event.title,
+                        "description": event.description,
+                        "location": event.location,
+                        "start_at": event.start_at.isoformat() if event.start_at else None,
+                        "end_at": event.end_at.isoformat() if event.end_at else None,
+                        "all_day": event.all_day,
+                        "rrule": event.rrule,
+                        "status": event.status,
+                        "reminder_minutes": event.reminder_minutes,
+                    }
+                )
 
             elif action == "update_event":
                 if not event_id:
@@ -198,11 +202,13 @@ def create_calendar_tools(
                     existing.status = status
 
                 saved = await store.save_event(existing)
-                return json.dumps({
-                    "status": "updated",
-                    "event_id": saved.event_id,
-                    "title": saved.title,
-                })
+                return json.dumps(
+                    {
+                        "status": "updated",
+                        "event_id": saved.event_id,
+                        "title": saved.title,
+                    }
+                )
 
             elif action == "delete_event":
                 if not event_id:
@@ -263,20 +269,16 @@ def create_calendar_tools(
 
             # 3. Find optimal free slots via the algorithmic engine
             free_slots = FreeBusyEngine.find_free_slots(
-                all_busy_slots,
-                search_start=start,
-                search_end=end,
-                duration_minutes=duration_minutes
+                all_busy_slots, search_start=start, search_end=end, duration_minutes=duration_minutes
             )
 
             # 4. Limit to top 3 optimal slots for frontend rendering
             recommended = free_slots[:3]
 
             if not recommended:
-                return json.dumps({
-                    "status": "no_slots_found",
-                    "message": "No common free time found in the specified range."
-                })
+                return json.dumps(
+                    {"status": "no_slots_found", "message": "No common free time found in the specified range."}
+                )
 
             formatted_slots = [
                 {
@@ -287,11 +289,13 @@ def create_calendar_tools(
                 for s in recommended
             ]
 
-            data_str = json.dumps({
-                "status": "success",
-                "slots": formatted_slots,
-                "attendees": attendees,
-            }).replace("'", "&#39;")
+            data_str = json.dumps(
+                {
+                    "status": "success",
+                    "slots": formatted_slots,
+                    "attendees": attendees,
+                }
+            ).replace("'", "&#39;")
 
             return f"<timeslotpicker data='{data_str}'></timeslotpicker>"
 

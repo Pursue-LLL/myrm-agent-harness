@@ -98,9 +98,7 @@ async def inject_ptc_for_python_execution(
         stub_path.write_text(stub_source, encoding="utf-8")
 
         child_env = server.get_child_env()
-        child_env["PYTHONPATH"] = (
-            stub_dir + os.pathsep + child_env.get("PYTHONPATH", "")
-        )
+        child_env["PYTHONPATH"] = stub_dir + os.pathsep + child_env.get("PYTHONPATH", "")
 
         patched_context = _patch_context_env(context, child_env)
 
@@ -113,9 +111,7 @@ async def inject_ptc_for_python_execution(
         result = await executor.execute(patched_context)
 
         if server.call_count > 0:
-            logger.info(
-                "PTC session: %d tool calls dispatched", server.call_count
-            )
+            logger.info("PTC session: %d tool calls dispatched", server.call_count)
             await _emit_ptc_trace(dispatcher, result.success)
 
         return result
@@ -128,9 +124,7 @@ async def inject_ptc_for_python_execution(
             shutil.rmtree(stub_dir, ignore_errors=True)
 
 
-async def _emit_ptc_trace(
-    dispatcher: PtcDispatcher, script_success: bool | None
-) -> None:
+async def _emit_ptc_trace(dispatcher: PtcDispatcher, script_success: bool | None) -> None:
     """Emit structured PTC execution trace to the observability layer."""
     records = dispatcher.records
     if not records:
@@ -164,17 +158,13 @@ async def _emit_ptc_trace(
         pass
 
 
-def _patch_context_env(
-    context: ExecutionContext, extra_env: dict[str, str]
-) -> ExecutionContext:
+def _patch_context_env(context: ExecutionContext, extra_env: dict[str, str]) -> ExecutionContext:
     """Create a new ExecutionContext with additional env vars merged."""
     from dataclasses import replace
 
     merged_env: dict[str, str] = dict(context.env) if context.env else {}
     if "PYTHONPATH" in merged_env and "PYTHONPATH" in extra_env:
-        extra_env["PYTHONPATH"] = (
-            extra_env["PYTHONPATH"] + os.pathsep + merged_env["PYTHONPATH"]
-        )
+        extra_env["PYTHONPATH"] = extra_env["PYTHONPATH"] + os.pathsep + merged_env["PYTHONPATH"]
     merged_env.update(extra_env)
 
     return replace(context, env=merged_env)

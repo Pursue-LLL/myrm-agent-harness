@@ -89,7 +89,9 @@ async def read_image_as_content_blocks(
         mime_type = "image/jpeg"
         logger.info(
             "Image %s compressed: %s -> %s",
-            path, size_display, _format_size(size_bytes),
+            path,
+            size_display,
+            _format_size(size_bytes),
         )
 
     if size_bytes > MAX_IMAGE_PAYLOAD_BYTES:

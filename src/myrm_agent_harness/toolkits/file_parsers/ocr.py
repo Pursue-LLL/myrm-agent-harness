@@ -82,10 +82,7 @@ class OCRParser(FileParser):
         try:
             from paddleocr import PaddleOCR
         except ImportError as e:
-            raise ImportError(
-                "paddleocr is required for OCRParser. "
-                "Install with: uv add paddleocr paddlepaddle"
-            ) from e
+            raise ImportError("paddleocr is required for OCRParser. Install with: uv add paddleocr paddlepaddle") from e
 
         self._engine = PaddleOCR(
             use_angle_cls=True,

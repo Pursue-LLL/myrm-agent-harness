@@ -63,6 +63,7 @@ class SkillBoundaryProvider(GuardrailProvider):
 
         try:
             from myrm_agent_harness.agent._skill_agent_context import get_loaded_skills
+
             loaded_skills = get_loaded_skills()
         except Exception as e:
             logger.warning("Failed to get loaded skills: %s", e)
@@ -89,9 +90,9 @@ class SkillBoundaryProvider(GuardrailProvider):
             reasons=[
                 GuardrailReason(
                     code="skill_boundary.violation",
-                    message=f"None of the loaded skills {skill_ids} have {permission_type} permission for target: {critical_input}"
+                    message=f"None of the loaded skills {skill_ids} have {permission_type} permission for target: {critical_input}",
                 )
-            ]
+            ],
         )
 
     async def aevaluate(self, request: GuardrailRequest) -> GuardrailDecision:

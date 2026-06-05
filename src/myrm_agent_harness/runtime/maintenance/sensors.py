@@ -78,9 +78,7 @@ class DeviceLoadSensor(LoadSensor):
         try:
             # --- Memory ---
             # Try cgroup v2 first
-            if os.path.exists("/sys/fs/cgroup/memory.current") and os.path.exists(
-                "/sys/fs/cgroup/memory.max"
-            ):
+            if os.path.exists("/sys/fs/cgroup/memory.current") and os.path.exists("/sys/fs/cgroup/memory.max"):
                 current = self._read_file_int("/sys/fs/cgroup/memory.current")
                 try:
                     with open("/sys/fs/cgroup/memory.max", encoding="utf-8") as f:
@@ -90,19 +88,13 @@ class DeviceLoadSensor(LoadSensor):
                 except Exception:
                     pass
             # Fallback to cgroup v1
-            elif os.path.exists(
-                "/sys/fs/cgroup/memory/memory.usage_in_bytes"
-            ) and os.path.exists("/sys/fs/cgroup/memory/memory.limit_in_bytes"):
-                current = self._read_file_int(
-                    "/sys/fs/cgroup/memory/memory.usage_in_bytes"
-                )
-                limit = self._read_file_int(
-                    "/sys/fs/cgroup/memory/memory.limit_in_bytes"
-                )
+            elif os.path.exists("/sys/fs/cgroup/memory/memory.usage_in_bytes") and os.path.exists(
+                "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+            ):
+                current = self._read_file_int("/sys/fs/cgroup/memory/memory.usage_in_bytes")
+                limit = self._read_file_int("/sys/fs/cgroup/memory/memory.limit_in_bytes")
                 # cgroup v1 often sets limit to a huge number (e.g., 9223372036854771712) if unbounded
-                if (
-                    current is not None and limit is not None and limit < 1024**4
-                ):  # Assume < 1TB is a real limit
+                if current is not None and limit is not None and limit < 1024**4:  # Assume < 1TB is a real limit
                     mem_pct = (current / limit) * 100.0
 
             # --- CPU ---
@@ -110,9 +102,7 @@ class DeviceLoadSensor(LoadSensor):
             cpus_allowed: float | None = None
 
             # Try cgroup v2
-            if os.path.exists("/sys/fs/cgroup/cpu.stat") and os.path.exists(
-                "/sys/fs/cgroup/cpu.max"
-            ):
+            if os.path.exists("/sys/fs/cgroup/cpu.stat") and os.path.exists("/sys/fs/cgroup/cpu.max"):
                 try:
                     with open("/sys/fs/cgroup/cpu.max", encoding="utf-8") as f:
                         parts = f.read().strip().split()
@@ -142,19 +132,12 @@ class DeviceLoadSensor(LoadSensor):
             # Calculate CPU percentage based on delta
             now = time.monotonic()
             if usage_usec is not None and cpus_allowed is not None:
-                if (
-                    self._last_cpu_usage_usec is not None
-                    and self._last_cpu_read_time is not None
-                ):
+                if self._last_cpu_usage_usec is not None and self._last_cpu_read_time is not None:
                     time_delta_sec = now - self._last_cpu_read_time
-                    usage_delta_sec = (
-                        usage_usec - self._last_cpu_usage_usec
-                    ) / 1_000_000.0
+                    usage_delta_sec = (usage_usec - self._last_cpu_usage_usec) / 1_000_000.0
                     if time_delta_sec > 0:
                         # usage_delta_sec is total CPU seconds used. Divide by wall time * cpus_allowed
-                        cpu_pct = (
-                            usage_delta_sec / (time_delta_sec * cpus_allowed)
-                        ) * 100.0
+                        cpu_pct = (usage_delta_sec / (time_delta_sec * cpus_allowed)) * 100.0
                         cpu_pct = min(100.0, max(0.0, cpu_pct))  # Clamp 0-100
 
                 self._last_cpu_usage_usec = usage_usec
@@ -174,27 +157,19 @@ class DeviceLoadSensor(LoadSensor):
 
         cgroup_cpu, cgroup_mem = self._get_cgroup_metrics()
 
-        raw_cpu = (
-            cgroup_cpu if cgroup_cpu is not None else psutil.cpu_percent(interval=0)
-        )
-        raw_mem = (
-            cgroup_mem if cgroup_mem is not None else psutil.virtual_memory().percent
-        )
+        raw_cpu = cgroup_cpu if cgroup_cpu is not None else psutil.cpu_percent(interval=0)
+        raw_mem = cgroup_mem if cgroup_mem is not None else psutil.virtual_memory().percent
 
         # Apply Exponential Moving Average (EMA) for smoothing
         if self._smoothed_cpu is None:
             self._smoothed_cpu = raw_cpu
         else:
-            self._smoothed_cpu = (
-                self._ema_alpha * raw_cpu + (1 - self._ema_alpha) * self._smoothed_cpu
-            )
+            self._smoothed_cpu = self._ema_alpha * raw_cpu + (1 - self._ema_alpha) * self._smoothed_cpu
 
         if self._smoothed_mem is None:
             self._smoothed_mem = raw_mem
         else:
-            self._smoothed_mem = (
-                self._ema_alpha * raw_mem + (1 - self._ema_alpha) * self._smoothed_mem
-            )
+            self._smoothed_mem = self._ema_alpha * raw_mem + (1 - self._ema_alpha) * self._smoothed_mem
 
         level = self._classify(self._smoothed_cpu, self._smoothed_mem)
 
@@ -240,11 +215,7 @@ class SaaSLoadSensor(LoadSensor):
         self._last_update = time.monotonic()
 
     def read(self) -> SystemLoadSnapshot:
-        staleness = (
-            time.monotonic() - self._last_update
-            if self._last_update > 0
-            else float("inf")
-        )
+        staleness = time.monotonic() - self._last_update if self._last_update > 0 else float("inf")
         if staleness > 120:
             return SystemLoadSnapshot(
                 level=SystemLoadLevel.NORMAL,

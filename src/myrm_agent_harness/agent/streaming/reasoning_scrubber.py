@@ -64,7 +64,7 @@ class ReasoningScrubber:
 
                     self.in_think_block = True
                     self.active_end_tag = "</" + found_tag[1:]
-                    self.buffer = self.buffer[earliest_idx + len(found_tag):]
+                    self.buffer = self.buffer[earliest_idx + len(found_tag) :]
                     continue
 
                 # 检查 buffer 结尾是否为某个起始标签的前缀（处理被网络切断的情况）
@@ -97,7 +97,7 @@ class ReasoningScrubber:
                         events.append((AgentEventType.REASONING, self.buffer[:idx]))
 
                     self.in_think_block = False
-                    self.buffer = self.buffer[idx + len(self.active_end_tag):]
+                    self.buffer = self.buffer[idx + len(self.active_end_tag) :]
                     self.active_end_tag = ""
                     continue
 

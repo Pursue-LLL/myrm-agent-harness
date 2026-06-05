@@ -20,10 +20,18 @@ informational shell tool exits (grep no-match, diff has-changes) as errors.
 
 import re
 
-_INFORMATIONAL_EXIT_1_COMMANDS: frozenset[str] = frozenset({
-    "grep", "egrep", "fgrep", "rg", "ag", "ack",
-    "diff", "colordiff",
-})
+_INFORMATIONAL_EXIT_1_COMMANDS: frozenset[str] = frozenset(
+    {
+        "grep",
+        "egrep",
+        "fgrep",
+        "rg",
+        "ag",
+        "ack",
+        "diff",
+        "colordiff",
+    }
+)
 
 _COMMAND_PATTERN = re.compile(r"^\s*(?:sudo\s+)?(?:[\w/.-]+/)?(\w[\w.-]*)")
 

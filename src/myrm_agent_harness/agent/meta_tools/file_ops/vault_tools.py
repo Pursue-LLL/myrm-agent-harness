@@ -32,6 +32,7 @@ logger = get_agent_logger(__name__)
 
 def _get_workspace_root() -> str | None:
     from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import WorkspacePathResolver
+
     try:
         return str(WorkspacePathResolver.resolve_workspace_root())
     except Exception as e:
@@ -42,12 +43,18 @@ def _get_workspace_root() -> str | None:
 class VaultPutInput(BaseModel):
     content: str = Field(description="The massive string content to store in the vault (JSON, CSV, markdown, etc.)")
     filename: str = Field(description="A descriptive filename for this artifact (e.g. 'financial_report_2026.md')")
-    content_type: str = Field(default="text/plain", description="MIME type (e.g., text/csv, application/json, text/markdown)")
-    description: str = Field(default="", description="Optional description of the content for other agents to understand")
+    content_type: str = Field(
+        default="text/plain", description="MIME type (e.g., text/csv, application/json, text/markdown)"
+    )
+    description: str = Field(
+        default="", description="Optional description of the content for other agents to understand"
+    )
 
 
 @tool("vault_put_tool", args_schema=VaultPutInput)
-async def vault_put_tool(content: str, filename: str, content_type: str = "text/plain", description: str = "") -> dict[str, Any]:
+async def vault_put_tool(
+    content: str, filename: str, content_type: str = "text/plain", description: str = ""
+) -> dict[str, Any]:
     """Store massive data/text into the Shared Artifact Vault and get a 'vault://' pointer back.
 
     CRITICAL: ALWAYS use this tool instead of outputting massive strings (e.g., generating >2000 lines of code/JSON/CSV)
@@ -67,12 +74,10 @@ async def vault_put_tool(content: str, filename: str, content_type: str = "text/
                 infer_artifact_type_from_extension,
                 push_inline_artifact,
             )
+
             inferred_type = infer_artifact_type_from_extension(filename)
             push_inline_artifact(
-                filename=filename,
-                preview_url=pointer,
-                artifact_type=inferred_type,
-                content_type=content_type
+                filename=filename, preview_url=pointer, artifact_type=inferred_type, content_type=content_type
             )
         except Exception as inner_e:
             logger.warning("Failed to push inline artifact for vault pointer %s: %s", pointer, inner_e)
@@ -81,7 +86,7 @@ async def vault_put_tool(content: str, filename: str, content_type: str = "text/
             "success": True,
             "message": f"Successfully stored {len(content)} characters.",
             "vault_pointer": pointer,
-            "instruction": f"CRITICAL: Include this pointer '{pointer}' in your final answer so the parent agent can access it!"
+            "instruction": f"CRITICAL: Include this pointer '{pointer}' in your final answer so the parent agent can access it!",
         }
     except Exception as e:
         logger.error(f"Vault Put failed: {e}")
@@ -90,7 +95,9 @@ async def vault_put_tool(content: str, filename: str, content_type: str = "text/
 
 class VaultGetInput(BaseModel):
     vault_pointer: str = Field(description="The vault pointer URI (e.g., vault://1234-abcd-5678)")
-    preview_only: bool = Field(default=True, description="If true, only returns the first 2000 chars to avoid blowing up your context.")
+    preview_only: bool = Field(
+        default=True, description="If true, only returns the first 2000 chars to avoid blowing up your context."
+    )
 
 
 @tool("vault_get_tool", args_schema=VaultGetInput)
@@ -142,7 +149,10 @@ async def vault_get_tool(vault_pointer: str, preview_only: bool = True) -> dict[
 class VaultExtractInput(BaseModel):
     vault_pointer: str = Field(description="The vault pointer URI (e.g., vault://1234-abcd-5678)")
     regex_pattern: str | None = Field(default=None, description="Optional regex pattern to match lines")
-    keyword: str | None = Field(default=None, description="Optional keyword to search for (case-insensitive). Provide either keyword or regex_pattern.")
+    keyword: str | None = Field(
+        default=None,
+        description="Optional keyword to search for (case-insensitive). Provide either keyword or regex_pattern.",
+    )
     max_lines: int = Field(default=50, description="Maximum number of matching lines to return")
     context_lines: int = Field(default=2, description="Number of context lines to include before and after each match")
 
@@ -190,6 +200,7 @@ async def vault_extract_tool(
 
         with open(obj_path, encoding="utf-8", errors="ignore") as f:
             from collections import deque
+
             buffer = deque(maxlen=context_lines)
             last_printed = -2
             print_next_n = 0
@@ -210,14 +221,14 @@ async def vault_extract_tool(
                         if buf_i > last_printed:
                             if buf_i > last_printed + 1 and last_printed != -2:
                                 result_lines.append("---")
-                            result_lines.append(f"[{buf_i+1}] {buf_line.strip()}")
+                            result_lines.append(f"[{buf_i + 1}] {buf_line.strip()}")
                             last_printed = buf_i
 
                     # 打印当前匹配行
                     if i > last_printed:
                         if i > last_printed + 1 and last_printed != -2:
                             result_lines.append("---")
-                        result_lines.append(f"[{i+1}] {line.strip()}")
+                        result_lines.append(f"[{i + 1}] {line.strip()}")
                         last_printed = i
 
                     print_next_n = context_lines
@@ -226,7 +237,7 @@ async def vault_extract_tool(
                         if i > last_printed:
                             if i > last_printed + 1 and last_printed != -2:
                                 result_lines.append("---")
-                            result_lines.append(f"[{i+1}] {line.strip()}")
+                            result_lines.append(f"[{i + 1}] {line.strip()}")
                             last_printed = i
                         print_next_n -= 1
 
@@ -236,13 +247,9 @@ async def vault_extract_tool(
                     break
 
         if not result_lines:
-             return {"success": True, "message": f"No matches found for '{keyword or regex_pattern}'."}
+            return {"success": True, "message": f"No matches found for '{keyword or regex_pattern}'."}
 
-        return {
-            "success": True,
-            "metadata": meta.to_dict(),
-            "extracted_content": "\n".join(result_lines)
-        }
+        return {"success": True, "metadata": meta.to_dict(), "extracted_content": "\n".join(result_lines)}
     except Exception as e:
         logger.error(f"Vault Extract failed: {e}")
         return {"success": False, "error": str(e)}

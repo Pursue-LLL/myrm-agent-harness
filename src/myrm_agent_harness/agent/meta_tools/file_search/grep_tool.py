@@ -354,7 +354,9 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
                             return file_results
 
                         try:
-                            file_matches = await asyncio.to_thread(_mmap_search_file, file, regex, io_cfg.max_search_results)
+                            file_matches = await asyncio.to_thread(
+                                _mmap_search_file, file, regex, io_cfg.max_search_results
+                            )
                             try:
                                 rel_path = file.relative_to(search_path_obj)
                             except ValueError:

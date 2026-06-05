@@ -72,15 +72,16 @@ class ToolCallDedupMiddleware(AgentMiddleware):  # type: ignore[type-arg]
     CRITICAL: Runs BEFORE dangling_tool_call_middleware to prevent synthetic
     insertion for duplicate IDs.
     """
+
     name = "tool_call_dedup_middleware"
 
     async def awrap_model_call(
-        self,
-        request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
+        self, request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
     ) -> ModelResponse:
         deduped = _dedup_tool_messages(list(request.messages))
         if deduped is not None:
             request = request.override(messages=deduped)
         return await handler(request)
+
 
 tool_call_dedup_middleware = ToolCallDedupMiddleware()

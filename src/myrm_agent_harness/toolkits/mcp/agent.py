@@ -145,8 +145,7 @@ class MCPAgent:
             content_blocks, artifact = result
             if isinstance(content_blocks, list):
                 has_multimodal = any(
-                    isinstance(b, dict) and b.get("type") not in ("text", None)
-                    for b in content_blocks
+                    isinstance(b, dict) and b.get("type") not in ("text", None) for b in content_blocks
                 )
 
                 if artifact is not None:
@@ -157,10 +156,12 @@ class MCPAgent:
                     )
                     if structured is not None:
                         content_blocks = list(content_blocks)
-                        content_blocks.append({
-                            "type": "text",
-                            "text": json.dumps(structured, ensure_ascii=False),
-                        })
+                        content_blocks.append(
+                            {
+                                "type": "text",
+                                "text": json.dumps(structured, ensure_ascii=False),
+                            }
+                        )
 
                 if has_multimodal:
                     return content_blocks  # type: ignore[return-value]
@@ -382,13 +383,19 @@ class MCPAgent:
                 last_error = f"connection timed out after {connect_timeout}s"
                 logger.warning(
                     "MCP server '%s' enumeration timed out after %.1fs (attempt %d/%d)",
-                    server_name, connect_timeout, attempt, _TOOL_FETCH_MAX_ATTEMPTS,
+                    server_name,
+                    connect_timeout,
+                    attempt,
+                    _TOOL_FETCH_MAX_ATTEMPTS,
                 )
             except Exception as e:
                 last_error = str(e)
                 logger.warning(
                     "MCP server '%s' enumeration failed (attempt %d/%d): %s",
-                    server_name, attempt, _TOOL_FETCH_MAX_ATTEMPTS, e,
+                    server_name,
+                    attempt,
+                    _TOOL_FETCH_MAX_ATTEMPTS,
+                    e,
                 )
 
             if attempt < _TOOL_FETCH_MAX_ATTEMPTS:
@@ -431,7 +438,6 @@ class MCPAgent:
                     getattr(cfg, "tool_exclude", None),
                 )
 
-
         if len(server_names) == 1:
             server_name, tools, error = await self.get_tools_from_server(
                 client,
@@ -443,7 +449,10 @@ class MCPAgent:
 
             include, exclude = tool_filter_by_server.get(server_name, (None, None))
             tools = self.process_session_tools(
-                tools, server_name, include, exclude,
+                tools,
+                server_name,
+                include,
+                exclude,
                 execute_timeout_by_server.get(server_name, 120.0),
             )
             self._store_tool_server_mapping(tools, server_name)
@@ -467,7 +476,10 @@ class MCPAgent:
 
                     include, exclude = tool_filter_by_server.get(server_name, (None, None))
                     tools = self.process_session_tools(
-                        tools, server_name, include, exclude,
+                        tools,
+                        server_name,
+                        include,
+                        exclude,
                         execute_timeout_by_server.get(server_name, 120.0),
                     )
                     self._store_tool_server_mapping(tools, server_name)

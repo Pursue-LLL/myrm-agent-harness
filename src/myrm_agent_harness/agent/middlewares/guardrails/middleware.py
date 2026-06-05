@@ -67,7 +67,7 @@ class GuardrailMiddleware(AgentMiddleware[object, object]):
             tool_call_id=tool_call_id,
             name=tool_name,
             status="error",
-            additional_kwargs={"error_category": "guardrail_blocked", "guardrail_code": reason_code}
+            additional_kwargs={"error_category": "guardrail_blocked", "guardrail_code": reason_code},
         )
 
     async def on_tool_start(self, tool: str, input_str: str, **kwargs: object) -> str | None:
@@ -96,7 +96,11 @@ class GuardrailMiddleware(AgentMiddleware[object, object]):
                 if self.fail_closed:
                     decision = GuardrailDecision(
                         allow=False,
-                        reasons=[GuardrailReason(code="oap.evaluator_error", message=f"guardrail error in {provider.name} (fail-closed)")]
+                        reasons=[
+                            GuardrailReason(
+                                code="oap.evaluator_error", message=f"guardrail error in {provider.name} (fail-closed)"
+                            )
+                        ],
                     )
                 else:
                     continue
@@ -107,9 +111,13 @@ class GuardrailMiddleware(AgentMiddleware[object, object]):
 
                 # Report to audit
                 from myrm_agent_harness.agent.security.audit import record_decision
-                record_decision(gr.tool_name, "GUARDRAIL_BLOCKED", f"provider={provider.name} code={code} reason={decision.reasons[0].message if decision.reasons else ''}")
+
+                record_decision(
+                    gr.tool_name,
+                    "GUARDRAIL_BLOCKED",
+                    f"provider={provider.name} code={code} reason={decision.reasons[0].message if decision.reasons else ''}",
+                )
 
                 return self._build_denied_message(request, decision)
 
         return await handler(request)
-

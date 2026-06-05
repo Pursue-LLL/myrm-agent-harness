@@ -77,11 +77,13 @@ async def intercept_goal_and_plan(
             await goal_provider.update_status(goal.goal_id, GoalStatus.ACTIVE)
             return
 
-        interrupt({
-            "type": "goal_approval_required",
-            "goal_id": goal.goal_id,
-            "message": "Plan generated. Waiting for user approval.",
-        })
+        interrupt(
+            {
+                "type": "goal_approval_required",
+                "goal_id": goal.goal_id,
+                "message": "Plan generated. Waiting for user approval.",
+            }
+        )
 
     except Exception as e:
         logger.error("Failed to generate plan for goal %s: %s", goal.goal_id, e)
@@ -95,8 +97,7 @@ async def intercept_goal_and_plan(
                 goal.goal_id,
                 exc_info=True,
             )
-        raise RuntimeError(
-            f"Goal execution aborted because plan generation failed: {e}"
-        ) from e
+        raise RuntimeError(f"Goal execution aborted because plan generation failed: {e}") from e
+
 
 __all__ = ["intercept_goal_and_plan"]

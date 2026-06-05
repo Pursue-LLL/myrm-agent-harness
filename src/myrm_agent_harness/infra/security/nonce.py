@@ -56,14 +56,10 @@ class NonceManager:
 
         nonce_length = len(nonce.encode("utf-8"))
         if nonce_length < self.MIN_NONCE_LENGTH:
-            logger.warning(
-                "Nonce too short: %d < %d", nonce_length, self.MIN_NONCE_LENGTH
-            )
+            logger.warning("Nonce too short: %d < %d", nonce_length, self.MIN_NONCE_LENGTH)
             return False
         if nonce_length > self.MAX_NONCE_LENGTH:
-            logger.warning(
-                "Nonce too long: %d > %d", nonce_length, self.MAX_NONCE_LENGTH
-            )
+            logger.warning("Nonce too long: %d > %d", nonce_length, self.MAX_NONCE_LENGTH)
             return False
 
         now = time.monotonic()

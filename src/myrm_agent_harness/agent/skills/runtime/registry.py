@@ -67,9 +67,7 @@ def _append_contract_summary(lines: list[str], skill: SkillMetadata) -> None:
 
     for trap in contract.potential_traps[:2]:
         trap_hint = f"{trap.description}; mitigate: {trap.mitigation}"
-        lines.append(
-            f" <trap severity={quoteattr(trap.severity)}>{escape(_truncate_summary_text(trap_hint))}</trap>"
-        )
+        lines.append(f" <trap severity={quoteattr(trap.severity)}>{escape(_truncate_summary_text(trap_hint))}</trap>")
 
     lines.append(" </contract>")
 

@@ -256,7 +256,9 @@ def unified_fusion(
         log_parts.append(f"rerank filter: removed {rerank_filtered_count} docs (threshold={rerank_score_threshold})")
     if fusion_filtered_count > 0:
         log_parts.append(f"fusion filter: removed {fusion_filtered_count} docs (threshold={fusion_score_threshold})")
-    log_parts.append(f"weights: w1={w1:.2f}(quality), w2={w2:.2f}(advantage), w3={w3:.2f}(consensus), w4={w4:.2f}(prestige)")
+    log_parts.append(
+        f"weights: w1={w1:.2f}(quality), w2={w2:.2f}(advantage), w3={w3:.2f}(consensus), w4={w4:.2f}(prestige)"
+    )
     logger.debug(" | ".join(log_parts))
 
     return sorted_results

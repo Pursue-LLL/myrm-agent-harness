@@ -138,10 +138,7 @@ def build_interrupt_payload(
         [req["action"] for req in action_requests],
     )
 
-    has_handover = any(
-        perm_type == "browser_human_handover"
-        for _, _, perm_type, _, _ in pending_approval
-    )
+    has_handover = any(perm_type == "browser_human_handover" for _, _, perm_type, _, _ in pending_approval)
     display_mode = "handover" if has_handover else "approval"
 
     effective_timeout = approval_timeout_seconds or _DEFAULT_APPROVAL_TIMEOUT_SECONDS
@@ -195,9 +192,7 @@ async def apply_approval_decisions(
     decision_idx = 0
 
     for idx, tool_call in enumerate(last_ai_msg.tool_calls):
-        denied = next(
-            ((d_idx, tc, msg) for d_idx, tc, msg in auto_denied if d_idx == idx), None
-        )
+        denied = next(((d_idx, tc, msg) for d_idx, tc, msg in auto_denied if d_idx == idx), None)
         if denied:
             _, _, error_msg = denied
             artificial_tool_messages.append(
@@ -214,16 +209,10 @@ async def apply_approval_decisions(
             decision = decisions[decision_idx]
             decision_idx += 1
 
-            _, _, permission_type, reason, extra_ctx = pending_approval[
-                decision_idx - 1
-            ]
+            _, _, permission_type, reason, extra_ctx = pending_approval[decision_idx - 1]
             tool_name = tool_call.get("name", "unknown")
             tool_call_id = tool_call.get("id", "")
-            allowlist_tool_name = (
-                extra_ctx.get("ptc_tool_name_full", tool_name)
-                if extra_ctx
-                else tool_name
-            )
+            allowlist_tool_name = extra_ctx.get("ptc_tool_name_full", tool_name) if extra_ctx else tool_name
 
             decision_type = decision.get("type", "reject")
             extensions = decision.get("extensions", {})
@@ -252,9 +241,7 @@ async def apply_approval_decisions(
                             "[DOMAIN_HITL] User approved domain(s) %s for session",
                             domains,
                         )
-                        record_decision(
-                            tool_name, "DOMAIN_APPROVED", f"domains: {domains}"
-                        )
+                        record_decision(tool_name, "DOMAIN_APPROVED", f"domains: {domains}")
 
                 if allow_always:
                     from myrm_agent_harness.agent.middlewares._session_context import (
@@ -278,12 +265,8 @@ async def apply_approval_decisions(
                 edit_applied = False
                 if edited_args is not None:
                     raw_original_args = tool_call.get("args", {})
-                    original_args = (
-                        dict(raw_original_args) if isinstance(raw_original_args, dict) else {}
-                    )
-                    normalized_edited_args = (
-                        dict(edited_args) if isinstance(edited_args, dict) else {}
-                    )
+                    original_args = dict(raw_original_args) if isinstance(raw_original_args, dict) else {}
+                    normalized_edited_args = dict(edited_args) if isinstance(edited_args, dict) else {}
                     edit_block_reason = _edited_shell_edit_block_reason(
                         tool_name,
                         permission_type,
@@ -338,9 +321,7 @@ async def apply_approval_decisions(
 
             else:
                 feedback = decision.get("feedback", "User rejected this action.")
-                logger.warning(
-                    "[SECURITY] Tool %s REJECTED by user: %s", tool_name, feedback
-                )
+                logger.warning("[SECURITY] Tool %s REJECTED by user: %s", tool_name, feedback)
                 record_decision(tool_name, "USER_REJECTED", feedback)
                 hint = record_denial(tool_name)
                 artificial_tool_messages.append(

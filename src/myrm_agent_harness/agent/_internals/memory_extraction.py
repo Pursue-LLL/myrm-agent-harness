@@ -101,9 +101,7 @@ def create_extraction_llm_func(
 
     async def llm_func(system: str, prompt: str) -> str:
         msgs = (
-            [SystemMessage(content=system), HumanMessage(content=prompt)]
-            if system
-            else [HumanMessage(content=prompt)]
+            [SystemMessage(content=system), HumanMessage(content=prompt)] if system else [HumanMessage(content=prompt)]
         )
         resp = await llm.ainvoke(msgs)
         return str(resp.content)
@@ -144,9 +142,7 @@ def create_conversation_memories(
             source_chat_id=source_chat_id,
             project_id=project_id,
             topic_id=topic_id,
-            language=(
-                "zh" if any(ord(c) > 0x4E00 for c in chunk.user_turn[:50]) else "en"
-            ),
+            language=("zh" if any(ord(c) > 0x4E00 for c in chunk.user_turn[:50]) else "en"),
         )
         conversation_memories.append(memory)
 
@@ -287,24 +283,16 @@ async def auto_extract_memories(
                         score,
                     )
 
-        if (
-            not correction_detected
-            and len(assistant_reply) < _MIN_REPLY_LEN_FOR_EXTRACTION
-            and len(messages) <= 3
-        ):
+        if not correction_detected and len(assistant_reply) < _MIN_REPLY_LEN_FOR_EXTRACTION and len(messages) <= 3:
             logger.info("Skipping memory extraction: trivial conversation")
             return
 
         verbatim_stored_count = 0
 
         if enable_verbatim:
-            conversation_memories = create_conversation_memories(
-                messages, source_chat_id=source_chat_id
-            )
+            conversation_memories = create_conversation_memories(messages, source_chat_id=source_chat_id)
             if conversation_memories:
-                stored_verbatim = await memory_manager.store_batch(
-                    conversation_memories
-                )
+                stored_verbatim = await memory_manager.store_batch(conversation_memories)
                 verbatim_stored_count = len(stored_verbatim)
                 logger.info(
                     "Stored %d verbatim conversation chunks",
@@ -314,12 +302,11 @@ async def auto_extract_memories(
         llm_for_extraction = extraction_llm or llm
         llm_func = create_extraction_llm_func(llm_for_extraction)
         if correction_detected:
-            logger.info(
-                "Correction signals detected in conversation, enhancing extraction prompt"
-            )
+            logger.info("Correction signals detected in conversation, enhancing extraction prompt")
         config = ExtractionConfig(enable_task_digest=True)
 
         from myrm_agent_harness.toolkits.memory.strategies.extractor import extract_memories_from_conversation
+
         result = await extract_memories_from_conversation(
             messages, llm_func=llm_func, config=config, correction_detected=correction_detected
         )
@@ -331,7 +318,9 @@ async def auto_extract_memories(
 
         deep_scan_llm = llm_func if deep_scan else None
         stored_count = await persist_extracted_memories(
-            result.memories, memory_manager, source_chat_id,
+            result.memories,
+            memory_manager,
+            source_chat_id,
             deep_scan_llm_func=deep_scan_llm,
         )
 
@@ -343,6 +332,4 @@ async def auto_extract_memories(
             result.extraction_time_ms,
         )
     except Exception as e:
-        logger.warning(
-            "Memory auto-extraction failed (non-fatal): %s", e, exc_info=True
-        )
+        logger.warning("Memory auto-extraction failed (non-fatal): %s", e, exc_info=True)

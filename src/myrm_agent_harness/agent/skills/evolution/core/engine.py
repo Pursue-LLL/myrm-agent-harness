@@ -97,9 +97,7 @@ class SkillEvolutionEngine:
         self._num_variants = num_variants_per_evolution
 
         # Initialize sub-modules
-        self._trace_analyzer = (
-            TraceAnalyzer(event_log_backend) if event_log_backend else None
-        )
+        self._trace_analyzer = TraceAnalyzer(event_log_backend) if event_log_backend else None
         self._variant_generator = VariantGenerator(llm)
         self._evaluator = BatchEvaluator(llm)
         self._proposal_builder = ProposalBuilder()
@@ -136,11 +134,7 @@ class SkillEvolutionEngine:
         if error_message:
             # Extract a short signature from the error message
             # For tracebacks, the last non-empty line contains the actual error (e.g., "ModuleNotFoundError: ...")
-            lines = [
-                line.strip()
-                for line in error_message.strip().split("\n")
-                if line.strip()
-            ]
+            lines = [line.strip() for line in error_message.strip().split("\n") if line.strip()]
             error_sig = lines[-1][:200] if lines else error_message[:200]
 
             candidate_skills = await self._store.search_skills(
@@ -153,9 +147,7 @@ class SkillEvolutionEngine:
                 match = candidate_skills[0]
                 # Don't match against itself
                 if match.skill_id != old_skill.skill_id:
-                    logger.info(
-                        f"Scan & Select: Found existing high-confidence fix '{match.name}' for error."
-                    )
+                    logger.info(f"Scan & Select: Found existing high-confidence fix '{match.name}' for error.")
                     return self._proposal_builder.build_proposal(
                         skill=old_skill,
                         evolution_type=EvolutionType.FIX,
@@ -170,17 +162,13 @@ class SkillEvolutionEngine:
         # 1. Extract Trajectory
         trajectory = ""
         if self._trace_analyzer and session_id:
-            trajectory = await self._trace_analyzer.extract_trajectory_with_code(
-                session_id, old_skill
-            )
+            trajectory = await self._trace_analyzer.extract_trajectory_with_code(session_id, old_skill)
         else:
             trajectory = f"Trajectory extraction not available. Error: {error_message}"
 
         # 1.5 Fetch historical constraints to prevent repeated mistakes
         constraints = self._store.get_evolution_constraints(skill_id, limit=5)
-        formatted_constraints = (
-            "\n".join([f"- {c}" for c in constraints]) if constraints else ""
-        )
+        formatted_constraints = "\n".join([f"- {c}" for c in constraints]) if constraints else ""
 
         # 2. Generate Variants
         feedback = f"Error: {error_message}\nContext: {task_context or 'None'}"
@@ -196,13 +184,11 @@ class SkillEvolutionEngine:
             return None
 
         # 3. Evaluate Variants
-        best_variant, score, reason, is_general = (
-            await self._evaluator.evaluate_variants(
-                original_skill=old_skill,
-                variants=variants,
-                feedback=feedback,
-                trajectory=trajectory,
-            )
+        best_variant, score, reason, is_general = await self._evaluator.evaluate_variants(
+            original_skill=old_skill,
+            variants=variants,
+            feedback=feedback,
+            trajectory=trajectory,
         )
 
         # 4. Build Proposal
@@ -217,9 +203,7 @@ class SkillEvolutionEngine:
             is_general=is_general,
         )
 
-    async def derive_skill_simple(
-        self, skill_id: str, user_feedback: str
-    ) -> EvolutionProposal | None:
+    async def derive_skill_simple(self, skill_id: str, user_feedback: str) -> EvolutionProposal | None:
         """DERIVED evolution: Optimize skill based on feedback."""
         old_skill = self._store.get_skill(skill_id)
         if not old_skill:
@@ -234,9 +218,7 @@ class SkillEvolutionEngine:
 
         trajectory = "User initiated optimization."
         constraints = self._store.get_evolution_constraints(skill_id, limit=5)
-        formatted_constraints = (
-            "\n".join([f"- {c}" for c in constraints]) if constraints else ""
-        )
+        formatted_constraints = "\n".join([f"- {c}" for c in constraints]) if constraints else ""
 
         variants = await self._variant_generator.generate_variants(
             skill=old_skill,
@@ -249,13 +231,11 @@ class SkillEvolutionEngine:
         if not variants:
             return None
 
-        best_variant, score, reason, is_general = (
-            await self._evaluator.evaluate_variants(
-                original_skill=old_skill,
-                variants=variants,
-                feedback=user_feedback,
-                trajectory=trajectory,
-            )
+        best_variant, score, reason, is_general = await self._evaluator.evaluate_variants(
+            original_skill=old_skill,
+            variants=variants,
+            feedback=user_feedback,
+            trajectory=trajectory,
         )
 
         return self._proposal_builder.build_proposal(
@@ -291,12 +271,9 @@ class SkillEvolutionEngine:
         Returns:
             EvolutionProposal or None if evidence insufficient or skill not found.
         """
-        if not evidence.has_sufficient_evidence(
-            min_total=min_evidence, min_failures=min_failures
-        ):
+        if not evidence.has_sufficient_evidence(min_total=min_evidence, min_failures=min_failures):
             logger.debug(
-                "Skipping evidence evolution for '%s': insufficient evidence "
-                "(%d total, %d failures, need %d/%d)",
+                "Skipping evidence evolution for '%s': insufficient evidence (%d total, %d failures, need %d/%d)",
                 evidence.skill_name,
                 evidence.total_evidence,
                 len(evidence.failure_cases),
@@ -311,9 +288,7 @@ class SkillEvolutionEngine:
             return None
 
         if old_skill.evolution_locked:
-            logger.warning(
-                f"Evidence evolution skipped: skill '{old_skill.name}' is locked."
-            )
+            logger.warning(f"Evidence evolution skipped: skill '{old_skill.name}' is locked.")
             return None
 
         logger.info(
@@ -328,8 +303,7 @@ class SkillEvolutionEngine:
         selected_action = self._select_evolution_action(old_skill, evidence)
         if selected_action == EvolutionType.OPTIMIZE_DESCRIPTION:
             logger.info(
-                "Action router selected OPTIMIZE_DESCRIPTION for '%s' "
-                "(fallback_rate=%.1f%%, effective_rate=%.1f%%)",
+                "Action router selected OPTIMIZE_DESCRIPTION for '%s' (fallback_rate=%.1f%%, effective_rate=%.1f%%)",
                 old_skill.name,
                 old_skill.metrics.fallback_rate * 100,
                 old_skill.metrics.effective_rate * 100,
@@ -337,9 +311,7 @@ class SkillEvolutionEngine:
             return await self.optimize_description(old_skill.skill_id, evidence)
 
         constraints = self._store.get_evolution_constraints(evidence.skill_id, limit=5)
-        formatted_constraints = (
-            "\n".join([f"- {c}" for c in constraints]) if constraints else ""
-        )
+        formatted_constraints = "\n".join([f"- {c}" for c in constraints]) if constraints else ""
 
         variants = await self._variant_generator.generate_variants_from_evidence(
             skill=old_skill,
@@ -357,13 +329,11 @@ class SkillEvolutionEngine:
             f"Common errors: {'; '.join(evidence.common_error_patterns[:3]) or 'N/A'}"
         )
 
-        best_variant, score, reason, is_general = (
-            await self._evaluator.evaluate_variants(
-                original_skill=old_skill,
-                variants=variants,
-                feedback=feedback_summary,
-                trajectory="Evidence-based analysis (aggregated across multiple executions).",
-            )
+        best_variant, score, reason, is_general = await self._evaluator.evaluate_variants(
+            original_skill=old_skill,
+            variants=variants,
+            feedback=feedback_summary,
+            trajectory="Evidence-based analysis (aggregated across multiple executions).",
         )
 
         return self._proposal_builder.build_proposal(
@@ -395,9 +365,7 @@ class SkillEvolutionEngine:
             return None
 
         if old_skill.evolution_locked:
-            logger.warning(
-                "OPTIMIZE_DESCRIPTION skipped: '%s' is locked.", old_skill.name
-            )
+            logger.warning("OPTIMIZE_DESCRIPTION skipped: '%s' is locked.", old_skill.name)
             return None
 
         logger.info("OPTIMIZE_DESCRIPTION started for '%s'", old_skill.name)
@@ -411,11 +379,9 @@ class SkillEvolutionEngine:
         if not desc_variants:
             return None
 
-        best_desc, score, reason, _ = (
-            await self._evaluator.evaluate_description_variants(
-                original_skill=old_skill,
-                variants=desc_variants,
-            )
+        best_desc, score, reason, _ = await self._evaluator.evaluate_description_variants(
+            original_skill=old_skill,
+            variants=desc_variants,
         )
 
         return self._proposal_builder.build_proposal(
@@ -430,9 +396,7 @@ class SkillEvolutionEngine:
         )
 
     @staticmethod
-    def _select_evolution_action(
-        skill: SkillRecord, evidence: SkillEvidenceGroup
-    ) -> EvolutionType:
+    def _select_evolution_action(skill: SkillRecord, evidence: SkillEvidenceGroup) -> EvolutionType:
         """Rule-based action routing: decide FIX vs OPTIMIZE_DESCRIPTION.
 
         Heuristic (zero LLM cost):
@@ -440,11 +404,7 @@ class SkillEvolutionEngine:
         - Low effective_rate → content has real bugs
         """
         metrics = evidence.metrics_snapshot or skill.metrics
-        if (
-            metrics.fallback_rate > 0.3
-            and metrics.effective_rate > 0.7
-            and metrics.total_selections >= 5
-        ):
+        if metrics.fallback_rate > 0.3 and metrics.effective_rate > 0.7 and metrics.total_selections >= 5:
             return EvolutionType.OPTIMIZE_DESCRIPTION
         return EvolutionType.FIX
 
@@ -476,7 +436,9 @@ class SkillEvolutionEngine:
             tool_call_ids=tool_call_ids,
         )
         if not slice_result or not slice_result.is_coherent:
-            logger.info(f"Slice {session_id} ({len(tool_call_ids)} calls) rejected by AST/Static analyzer: Not a coherent workflow.")
+            logger.info(
+                f"Slice {session_id} ({len(tool_call_ids)} calls) rejected by AST/Static analyzer: Not a coherent workflow."
+            )
             return None
 
         # 2. Extract pattern using LLM
@@ -484,6 +446,7 @@ class SkillEvolutionEngine:
         from myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor import (
             StructuredExtractor,
         )
+
         if not self._llm:
             return None
 
@@ -562,9 +525,7 @@ class SkillEvolutionEngine:
         result = await extractor.extract_from_trajectory(trajectory)
 
         if not result:
-            logger.debug(
-                f"No valid skill extracted from trajectory of session {session_id}"
-            )
+            logger.debug(f"No valid skill extracted from trajectory of session {session_id}")
             return None
 
         if not result.is_general:
@@ -572,9 +533,7 @@ class SkillEvolutionEngine:
             return None
 
         if result.confidence < 0.8:
-            logger.debug(
-                f"Skill {result.name} rejected: low confidence ({result.confidence})."
-            )
+            logger.debug(f"Skill {result.name} rejected: low confidence ({result.confidence}).")
             return None
 
         # Deduplication check (Trigram / Similarity)
@@ -624,9 +583,7 @@ class SkillEvolutionEngine:
 
         validation = validator.validate(temp_record)
         if not validation.valid:
-            logger.warning(
-                f"Skill {result.name} rejected: Validation failed - {validation.errors}"
-            )
+            logger.warning(f"Skill {result.name} rejected: Validation failed - {validation.errors}")
             return None
 
         from myrm_agent_harness.agent.skills.evolution.execution.sandbox_validator import (
@@ -636,9 +593,7 @@ class SkillEvolutionEngine:
         sandbox = SandboxValidator()
         is_safe, error_msg = await sandbox.dry_run_skill(temp_record)
         if not is_safe:
-            logger.warning(
-                f"Skill {result.name} rejected: Sandbox dry-run failed: {error_msg}"
-            )
+            logger.warning(f"Skill {result.name} rejected: Sandbox dry-run failed: {error_msg}")
             return None
 
         # Build proposal
@@ -660,9 +615,7 @@ class SkillEvolutionEngine:
 
         return proposal
 
-    async def evolve_multiple_concurrent(
-        self, requests: list[EvolutionRequest]
-    ) -> list[EvolutionProposal | None]:
+    async def evolve_multiple_concurrent(self, requests: list[EvolutionRequest]) -> list[EvolutionProposal | None]:
         """Evolve multiple skills concurrently with rate limiting."""
         if not requests:
             return []
@@ -672,18 +625,14 @@ class SkillEvolutionEngine:
                 if req.evolution_type == EvolutionType.FIX:
                     return await self.fix_skill(req.skill_id or "", req.reason)
                 elif req.evolution_type == EvolutionType.DERIVED:
-                    return await self.derive_skill_simple(
-                        req.skill_id or "", req.user_feedback
-                    )
+                    return await self.derive_skill_simple(req.skill_id or "", req.user_feedback)
                 elif req.evolution_type == EvolutionType.OPTIMIZE_DESCRIPTION:
                     return await self.optimize_description(req.skill_id or "")
                 elif req.evolution_type == EvolutionType.CAPTURED:
                     return None
                 return None
 
-        results = await asyncio.gather(
-            *[_evolve_with_limit(req) for req in requests], return_exceptions=True
-        )
+        results = await asyncio.gather(*[_evolve_with_limit(req) for req in requests], return_exceptions=True)
 
         final_results = []
         for i, result in enumerate(results):

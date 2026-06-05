@@ -104,9 +104,7 @@ class EvidenceAggregator:
 
         return evidence_groups
 
-    def _extract_common_error_patterns(
-        self, error_messages: list[str], top_n: int = 5
-    ) -> list[str]:
+    def _extract_common_error_patterns(self, error_messages: list[str], top_n: int = 5) -> list[str]:
         """Extract the most common error patterns from a list of error messages.
 
         Uses the last non-empty line of each error (typically the actual exception)

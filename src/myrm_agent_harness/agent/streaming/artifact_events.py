@@ -37,9 +37,7 @@ from .types import AgentEventType
 logger = get_agent_logger(__name__)
 
 
-async def emit_artifacts_ready_event(
-    message_id: str, context: dict[str, object]
-) -> AsyncGenerator[dict[str, object]]:
+async def emit_artifacts_ready_event(message_id: str, context: dict[str, object]) -> AsyncGenerator[dict[str, object]]:
     """发出 artifacts_ready 事件（懒加载设计）
 
     框架层只提供文件路径和读取方法，业务层按需读取和持久化。

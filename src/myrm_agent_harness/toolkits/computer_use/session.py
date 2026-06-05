@@ -121,7 +121,9 @@ class ComputerSession:
         bottom = top + phys_size
 
         b64, (sent_w, sent_h) = self._processor.crop_and_process(
-            raw_bytes, (left, top, right, bottom), info,
+            raw_bytes,
+            (left, top, right, bottom),
+            info,
         )
 
         return ActionResult(
@@ -261,12 +263,15 @@ def create_computer_session(
 
     if platform_info.os_type == "macos":
         from myrm_agent_harness.toolkits.computer_use.backends.macos import MacOSBackend
+
         backend: ComputerBackend = MacOSBackend()
     elif platform_info.os_type == "windows":
         from myrm_agent_harness.toolkits.computer_use.backends.windows import WindowsBackend
+
         backend = WindowsBackend()
     else:
         from myrm_agent_harness.toolkits.computer_use.backends.linux import LinuxBackend
+
         backend = LinuxBackend()
 
     return ComputerSession(backend=backend, config=config)

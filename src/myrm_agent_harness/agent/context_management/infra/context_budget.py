@@ -51,9 +51,9 @@ from .schemas import ContextConfig
 class ContextHealthStatus(StrEnum):
     """上下文健康状态"""
 
-    HEALTHY = "healthy" # 低于压缩阈值
-    WARNING = "warning" # 接近压缩阈值（>80%）
-    CRITICAL = "critical" # 接近摘要阈值（>80%），摘要失败会终止任务
+    HEALTHY = "healthy"  # 低于压缩阈值
+    WARNING = "warning"  # 接近压缩阈值（>80%）
+    CRITICAL = "critical"  # 接近摘要阈值（>80%），摘要失败会终止任务
 
 
 @dataclass

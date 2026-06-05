@@ -290,9 +290,7 @@ def _extract_status_code(error: Exception) -> int | None:
         code = getattr(current, "status", None)
         if isinstance(code, int) and 100 <= code < 600:
             return code
-        cause = getattr(current, "__cause__", None) or getattr(
-            current, "__context__", None
-        )
+        cause = getattr(current, "__cause__", None) or getattr(current, "__context__", None)
         if cause is None or cause is current:
             break
         current = cause
@@ -336,9 +334,7 @@ def normalize_provider_error(error: Exception) -> NormalizedError:
                         if isinstance(_inner, dict):
                             _inner_err = _inner.get("error", {})
                             if isinstance(_inner_err, dict):
-                                _metadata_msg = str(
-                                    _inner_err.get("message") or ""
-                                ).lower()
+                                _metadata_msg = str(_inner_err.get("message") or "").lower()
                     except (json.JSONDecodeError, TypeError):
                         pass
 
@@ -489,9 +485,7 @@ def extract_retry_after(exc: Exception) -> float | None:
                             return value
                     except (ValueError, TypeError):
                         pass
-        current = getattr(current, "__cause__", None) or getattr(
-            current, "__context__", None
-        )
+        current = getattr(current, "__cause__", None) or getattr(current, "__context__", None)
     return None
 
 

@@ -194,10 +194,8 @@ class ConsolidationReport:
         if not self.results:
             return "No consolidation actions were needed."
         lines = [
-            f"Consolidated {self.total_archived} skills into "
-            f"{self.success_count} umbrellas.",
-            f"Active skills: {self.skills_before} → {self.skills_after} "
-            f"(reduced by {self.net_reduction}).",
+            f"Consolidated {self.total_archived} skills into {self.success_count} umbrellas.",
+            f"Active skills: {self.skills_before} → {self.skills_after} (reduced by {self.net_reduction}).",
         ]
         if self.failure_count > 0:
             lines.append(f"⚠ {self.failure_count} action(s) failed.")

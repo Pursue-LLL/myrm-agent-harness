@@ -441,9 +441,7 @@ class OptimizationScheduler:
             f"max_concurrent={max_concurrent}, priority={priority}"
         )
 
-        batch_task = asyncio.create_task(
-            self._execute_batch_optimization(batch_task_id, skill_ids, max_concurrent)
-        )
+        batch_task = asyncio.create_task(self._execute_batch_optimization(batch_task_id, skill_ids, max_concurrent))
         self._bg_tasks.add(batch_task)
         batch_task.add_done_callback(self._bg_tasks.discard)
 

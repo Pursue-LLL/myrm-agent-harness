@@ -160,9 +160,7 @@ async def get_aria_tree(
     # Parameter validation
     if max_depth is not None:
         if not isinstance(max_depth, int):
-            raise ValueError(
-                f"max_depth must be int or None, got {type(max_depth).__name__}"
-            )
+            raise ValueError(f"max_depth must be int or None, got {type(max_depth).__name__}")
         if max_depth < 0:
             raise ValueError(f"max_depth must be >= 0, got {max_depth}")
         if max_depth > 100:
@@ -204,9 +202,7 @@ async def _get_aria_tree_fast(locator: Locator) -> str:
             for pwd in set(password_values):
                 escaped_pwd = re.escape(pwd)
                 # Match the password value at the end of a YAML line (e.g., `- textbox "Password": secret123`)
-                pattern = re.compile(
-                    r'(: \s*)[\'"]?' + escaped_pwd + r'[\'"]?(\s*)$', re.MULTILINE
-                )
+                pattern = re.compile(r'(: \s*)[\'"]?' + escaped_pwd + r'[\'"]?(\s*)$', re.MULTILINE)
                 aria_tree = pattern.sub(r'\1"[PASSWORD HIDDEN]"\2', aria_tree)
 
         logger.debug("ARIA tree acquired via Fast Path (Playwright API)")
@@ -236,9 +232,7 @@ async def _get_aria_tree_custom(locator: Locator, max_depth: int) -> str:
             timeout=3.0,
         )
         if not isinstance(yaml_output, str):
-            raise TypeError(
-                f"Custom Path returned {type(yaml_output).__name__}, expected str"
-            )
+            raise TypeError(f"Custom Path returned {type(yaml_output).__name__}, expected str")
         logger.debug(f"ARIA tree acquired via Custom Path (maxDepth={max_depth})")
         return yaml_output
 

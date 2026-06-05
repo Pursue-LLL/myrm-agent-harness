@@ -48,7 +48,7 @@ def truncate_html_soup(soup: BeautifulSoup, max_chars: int) -> tuple[BeautifulSo
     and perfectly closed tags.
     """
     # Defensive deep copy to prevent mutating the original agent memory / artifacts
-    soup_copy = BeautifulSoup(str(soup), 'lxml')
+    soup_copy = BeautifulSoup(str(soup), "lxml")
 
     total_len = len(str(soup_copy))
     if total_len <= max_chars:
@@ -122,10 +122,10 @@ def _get_aria_weight(role: str) -> float:
     return 1.0
 
 
-def _compute_aria_sizes(nodes: tuple['EnhancedNode', ...]) -> dict[int, int]:
+def _compute_aria_sizes(nodes: tuple["EnhancedNode", ...]) -> dict[int, int]:
     sizes: dict[int, int] = {}
 
-    def _visit(node: 'EnhancedNode') -> int:
+    def _visit(node: "EnhancedNode") -> int:
         my_size = len(node.node.role) + len(node.node.name) + 10
         if node.ref_id:
             my_size += len(node.ref_id) + 5
@@ -139,7 +139,7 @@ def _compute_aria_sizes(nodes: tuple['EnhancedNode', ...]) -> dict[int, int]:
     return sizes
 
 
-def truncate_aria_tree(nodes: list['EnhancedNode'], max_tokens: int) -> tuple[list['EnhancedNode'], bool]:
+def truncate_aria_tree(nodes: list["EnhancedNode"], max_tokens: int) -> tuple[list["EnhancedNode"], bool]:
     """
     Intelligently truncate an ARIA tree to fit within max_tokens.
     Returns a new deeply-copied truncated tree tuple.
@@ -153,7 +153,7 @@ def truncate_aria_tree(nodes: list['EnhancedNode'], max_tokens: int) -> tuple[li
     if total_size <= max_chars:
         return nodes, False
 
-    def _truncate_node(node: 'EnhancedNode', budget: int) -> 'EnhancedNode | None':
+    def _truncate_node(node: "EnhancedNode", budget: int) -> "EnhancedNode | None":
         node_size = sizes[id(node)]
         if node_size <= budget:
             return node
@@ -199,7 +199,7 @@ def truncate_aria_tree(nodes: list['EnhancedNode'], max_tokens: int) -> tuple[li
                 c_budget = int(available / len(node.children))
 
             if c_budget < 20:
-                pass # Drop
+                pass  # Drop
             elif c_budget < c_size:
                 truncated_c = _truncate_node(c, c_budget)
                 if truncated_c:

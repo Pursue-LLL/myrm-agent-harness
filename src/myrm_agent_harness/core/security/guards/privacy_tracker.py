@@ -31,9 +31,7 @@ from myrm_agent_harness.core.security.types import PrivacyPolicy, SensitivityLev
 
 logger = logging.getLogger(__name__)
 
-_privacy_policy_var: ContextVar[PrivacyPolicy | None] = ContextVar(
-    "core_privacy_policy", default=None
-)
+_privacy_policy_var: ContextVar[PrivacyPolicy | None] = ContextVar("core_privacy_policy", default=None)
 
 
 def set_privacy_policy(policy: PrivacyPolicy | None) -> None:
@@ -107,9 +105,7 @@ class PrivacyTracker:
         """Record a PII detection event, updating both turn and cumulative levels."""
         self._current_turn_level = _higher_level(self._current_turn_level, level)
         self._highest_level = _higher_level(self._highest_level, level)
-        self._turn_detections.append(
-            DetectionRecord(level=level, checkpoint=checkpoint, patterns=patterns or [])
-        )
+        self._turn_detections.append(DetectionRecord(level=level, checkpoint=checkpoint, patterns=patterns or []))
         if level != SensitivityLevel.S1:
             self._pending_event = True
             logger.warning(
@@ -154,11 +150,7 @@ class PrivacyTracker:
         self._pending_event = False
 
         policy = get_privacy_policy()
-        action = (
-            policy.s3_action.value
-            if self._current_turn_level == SensitivityLevel.S3
-            else policy.s2_action.value
-        )
+        action = policy.s3_action.value if self._current_turn_level == SensitivityLevel.S3 else policy.s2_action.value
         return {
             "current_turn_level": self._current_turn_level.value,
             "highest_level": self._highest_level.value,

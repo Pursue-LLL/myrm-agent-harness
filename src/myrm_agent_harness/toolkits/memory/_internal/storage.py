@@ -76,9 +76,7 @@ _memory_count_cache: dict[str, int] = {}
 _count_cache_hits: int = 0
 
 
-async def _get_adaptive_threshold(
-    vector: VectorStoreProtocol, collections: list[str], config: MemoryConfig
-) -> float:
+async def _get_adaptive_threshold(vector: VectorStoreProtocol, collections: list[str], config: MemoryConfig) -> float:
     """Get adaptive similarity threshold based on memory count.
 
     Caches memory_count and refreshes every 10 searches to avoid excessive queries.
@@ -156,9 +154,7 @@ def _scope_payload(scope: MemoryScope) -> dict[str, str | list[str]]:
 def _scope_from_metadata(meta: dict[str, object]) -> MemoryScope:
     raw_namespaces = meta.get("namespaces", [])
     namespaces = (
-        [value for value in raw_namespaces if isinstance(value, str)]
-        if isinstance(raw_namespaces, list)
-        else []
+        [value for value in raw_namespaces if isinstance(value, str)] if isinstance(raw_namespaces, list) else []
     )
     return MemoryScope(
         primary_namespace=str(meta.get("primary_namespace", "")),
@@ -175,34 +171,16 @@ def _lifecycle_payload(lifecycle: MemoryLifecycle | None) -> dict[str, str]:
         return {}
     return {
         "memory_tier": lifecycle.tier.value,
-        "digest_kind": (
-            lifecycle.digest_kind.value if lifecycle.digest_kind is not None else ""
-        ),
-        "evaporation_state": (
-            lifecycle.evaporation_state.value
-            if lifecycle.evaporation_state is not None
-            else ""
-        ),
-        "evaporated_at": (
-            lifecycle.evaporated_at.isoformat()
-            if lifecycle.evaporated_at is not None
-            else ""
-        ),
-        "claim_graph_state": (
-            lifecycle.claim_graph_state.value
-            if lifecycle.claim_graph_state is not None
-            else ""
-        ),
+        "digest_kind": (lifecycle.digest_kind.value if lifecycle.digest_kind is not None else ""),
+        "evaporation_state": (lifecycle.evaporation_state.value if lifecycle.evaporation_state is not None else ""),
+        "evaporated_at": (lifecycle.evaporated_at.isoformat() if lifecycle.evaporated_at is not None else ""),
+        "claim_graph_state": (lifecycle.claim_graph_state.value if lifecycle.claim_graph_state is not None else ""),
         "claim_graph_node_id": lifecycle.claim_graph_node_id or "",
         "claim_graph_updated_at": (
-            lifecycle.claim_graph_updated_at.isoformat()
-            if lifecycle.claim_graph_updated_at is not None
-            else ""
+            lifecycle.claim_graph_updated_at.isoformat() if lifecycle.claim_graph_updated_at is not None else ""
         ),
         "claim_graph_conflict": (
-            lifecycle.claim_graph_conflict.value
-            if lifecycle.claim_graph_conflict is not None
-            else ""
+            lifecycle.claim_graph_conflict.value if lifecycle.claim_graph_conflict is not None else ""
         ),
     }
 
@@ -213,11 +191,7 @@ def _lifecycle_from_metadata(meta: dict[str, object]) -> MemoryLifecycle | None:
         return None
 
     raw_digest_kind = str(meta.get("digest_kind", "")).strip()
-    digest_kind = (
-        DigestKind(raw_digest_kind)
-        if raw_digest_kind in {kind.value for kind in DigestKind}
-        else None
-    )
+    digest_kind = DigestKind(raw_digest_kind) if raw_digest_kind in {kind.value for kind in DigestKind} else None
 
     raw_evaporation_state = str(meta.get("evaporation_state", "")).strip()
     evaporation_state = (
@@ -242,18 +216,14 @@ def _lifecycle_from_metadata(meta: dict[str, object]) -> MemoryLifecycle | None:
 
     raw_evaporated_at = str(meta.get("evaporated_at", "")).strip()
     try:
-        evaporated_at = (
-            datetime.fromisoformat(raw_evaporated_at) if raw_evaporated_at else None
-        )
+        evaporated_at = datetime.fromisoformat(raw_evaporated_at) if raw_evaporated_at else None
     except ValueError:
         evaporated_at = None
 
     raw_claim_graph_updated_at = str(meta.get("claim_graph_updated_at", "")).strip()
     try:
         claim_graph_updated_at = (
-            datetime.fromisoformat(raw_claim_graph_updated_at)
-            if raw_claim_graph_updated_at
-            else None
+            datetime.fromisoformat(raw_claim_graph_updated_at) if raw_claim_graph_updated_at else None
         )
     except ValueError:
         claim_graph_updated_at = None
@@ -283,9 +253,7 @@ class MemoryNotFoundError(MemoryError):
 # ======================================================================
 
 
-async def embed_single(
-    text: str, embedding: EmbeddingProtocol, cache: EmbeddingCacheProtocol | None
-) -> list[float]:
+async def embed_single(text: str, embedding: EmbeddingProtocol, cache: EmbeddingCacheProtocol | None) -> list[float]:
     if cache is not None:
         cached = await cache.get(text)
         if cached is not None:
@@ -352,9 +320,7 @@ async def store_semantics_batch(
             if m.embedding is None:
                 m.embedding = vecs[idx]
                 idx += 1
-    await vector.upsert(
-        config.semantic_collection, [semantic_to_doc(m) for m in memories]
-    )
+    await vector.upsert(config.semantic_collection, [semantic_to_doc(m) for m in memories])
     return memories
 
 
@@ -408,9 +374,7 @@ async def store_episodics_batch(
             if m.embedding is None:
                 m.embedding = vecs[idx]
                 idx += 1
-    await vector.upsert(
-        config.episodic_collection, [episodic_to_doc(m) for m in memories]
-    )
+    await vector.upsert(config.episodic_collection, [episodic_to_doc(m) for m in memories])
 
     if graph is not None:
         for m in memories:
@@ -431,13 +395,9 @@ async def store_episodics_batch(
                             "name": entity,
                         },
                     )
-                    await graph.create_relationship(
-                        mem_node.id, entity_node.id, "MENTIONS"
-                    )
+                    await graph.create_relationship(mem_node.id, entity_node.id, "MENTIONS")
             except Exception as e:
-                logger.warning(
-                    "Graph indexing failed for batch item (non-fatal): %s", e
-                )
+                logger.warning("Graph indexing failed for batch item (non-fatal): %s", e)
     return memories
 
 
@@ -460,9 +420,7 @@ async def search_profile(
         if q_lower in entry.key.lower() or q_lower in str(entry.value).lower():
             scored.append(
                 MemorySearchResult(
-                    memory=SemanticMemory(
-                        content=f"{entry.key}: {entry.value}", importance=0.8
-                    ),
+                    memory=SemanticMemory(content=f"{entry.key}: {entry.value}", importance=0.8),
                     score=0.8,
                     memory_type=MemoryType.PROFILE,
                 )
@@ -480,9 +438,7 @@ async def search_semantic(
     since: datetime | None = None,
     until: datetime | None = None,
 ) -> list[MemorySearchResult]:
-    threshold = await _get_adaptive_threshold(
-        vector, [config.semantic_collection], config
-    )
+    threshold = await _get_adaptive_threshold(vector, [config.semantic_collection], config)
     hits = await vector.search(
         config.semantic_collection,
         query_vec,
@@ -510,9 +466,7 @@ async def search_episodic(
     since: datetime | None = None,
     until: datetime | None = None,
 ) -> list[MemorySearchResult]:
-    threshold = await _get_adaptive_threshold(
-        vector, [config.episodic_collection], config
-    )
+    threshold = await _get_adaptive_threshold(vector, [config.episodic_collection], config)
     hits = await vector.search(
         config.episodic_collection,
         query_vec,
@@ -539,9 +493,7 @@ async def search_procedural(
 ) -> list[MemorySearchResult]:
     rules = await relational.search_rules(query, limit=limit, namespaces=namespaces)
     return [
-        MemorySearchResult(
-            memory=r, score=max(0.5, 1.0 - i * 0.1), memory_type=MemoryType.PROCEDURAL
-        )
+        MemorySearchResult(memory=r, score=max(0.5, 1.0 - i * 0.1), memory_type=MemoryType.PROCEDURAL)
         for i, r in enumerate(rules)
     ]
 
@@ -581,9 +533,7 @@ async def search_bm25(
     Auto-degrades to empty results when total memory count exceeds bm25_max_corpus_size
     to maintain performance guarantees.
     """
-    sem_docs, epi_docs = await _scroll_vector_memories(
-        vector, config, namespaces, since=since, until=until
-    )
+    sem_docs, epi_docs = await _scroll_vector_memories(vector, config, namespaces, since=since, until=until)
     total_count = len(sem_docs) + len(epi_docs)
 
     if total_count > config.bm25_max_corpus_size:
@@ -621,11 +571,7 @@ async def search_bm25(
         memory_type = MemoryType.SEMANTIC if is_semantic else MemoryType.EPISODIC
         converter = doc_to_semantic if is_semantic else doc_to_episodic
         normalized_score = min(score / normalizer, 1.0)
-        results.append(
-            MemorySearchResult(
-                memory=converter(doc), score=normalized_score, memory_type=memory_type
-            )
-        )
+        results.append(MemorySearchResult(memory=converter(doc), score=normalized_score, memory_type=memory_type))
 
     return results
 
@@ -668,11 +614,7 @@ async def search_conversation(
     score_threshold = await _get_adaptive_threshold(vector, [collection], config)
 
     # Single-channel mode (summary only) - use search_multi_vector with only summary
-    if (
-        query_raw is None
-        and isinstance(vector, VectorStore)
-        and hasattr(vector, "search_multi_vector")
-    ):
+    if query_raw is None and isinstance(vector, VectorStore) and hasattr(vector, "search_multi_vector"):
         try:
             search_results = await vector.search_multi_vector(
                 collection,
@@ -684,18 +626,14 @@ async def search_conversation(
             )
             return [
                 MemorySearchResult(
-                    memory=doc_to_conversation(
-                        r.document, include_raw=include_raw, config=config
-                    ),
+                    memory=doc_to_conversation(r.document, include_raw=include_raw, config=config),
                     score=r.score,
                     memory_type=MemoryType.CONVERSATION,
                 )
                 for r in search_results
             ]
         except NotImplementedError:
-            logger.debug(
-                "Backend doesn't support search_multi_vector for single channel"
-            )
+            logger.debug("Backend doesn't support search_multi_vector for single channel")
 
     # Fallback for single-channel mode without search_multi_vector support
     if query_raw is None:
@@ -708,9 +646,7 @@ async def search_conversation(
         )
         return [
             MemorySearchResult(
-                memory=doc_to_conversation(
-                    r.document, include_raw=include_raw, config=config
-                ),
+                memory=doc_to_conversation(r.document, include_raw=include_raw, config=config),
                 score=r.score,
                 memory_type=MemoryType.CONVERSATION,
             )
@@ -730,18 +666,14 @@ async def search_conversation(
             )
             return [
                 MemorySearchResult(
-                    memory=doc_to_conversation(
-                        r.document, include_raw=include_raw, config=config
-                    ),
+                    memory=doc_to_conversation(r.document, include_raw=include_raw, config=config),
                     score=r.score,
                     memory_type=MemoryType.CONVERSATION,
                 )
                 for r in search_results
             ]
         except NotImplementedError:
-            logger.debug(
-                "Backend doesn't support search_multi_vector, falling back to 2x search + RRF"
-            )
+            logger.debug("Backend doesn't support search_multi_vector, falling back to 2x search + RRF")
 
     raw_hits = await vector.search(
         collection,
@@ -764,9 +696,7 @@ async def search_conversation(
 
     raw_results = [
         MemorySearchResult(
-            memory=doc_to_conversation(
-                r.document, include_raw=include_raw, config=config
-            ),
+            memory=doc_to_conversation(r.document, include_raw=include_raw, config=config),
             score=r.score,
             memory_type=MemoryType.CONVERSATION,
         )
@@ -774,9 +704,7 @@ async def search_conversation(
     ]
     summary_results = [
         MemorySearchResult(
-            memory=doc_to_conversation(
-                r.document, include_raw=include_raw, config=config
-            ),
+            memory=doc_to_conversation(r.document, include_raw=include_raw, config=config),
             score=r.score,
             memory_type=MemoryType.CONVERSATION,
         )
@@ -833,9 +761,7 @@ async def update_vector_memory(
     return memory
 
 
-async def delete_from_vector(
-    collection: str, ids: list[str], vector: VectorStoreProtocol
-) -> int:
+async def delete_from_vector(collection: str, ids: list[str], vector: VectorStoreProtocol) -> int:
     return await vector.delete(collection, ids)
 
 
@@ -856,13 +782,9 @@ async def load_context(
 
     tasks: dict[str, asyncio.Task[object]] = {}
     if include_profile:
-        tasks["profile"] = asyncio.create_task(
-            relational.list_profiles(namespaces=namespaces)
-        )
+        tasks["profile"] = asyncio.create_task(relational.list_profiles(namespaces=namespaces))
     if include_rules:
-        tasks["rules"] = asyncio.create_task(
-            relational.list_rules(active_only=True, namespaces=namespaces)
-        )
+        tasks["rules"] = asyncio.create_task(relational.list_rules(active_only=True, namespaces=namespaces))
 
     results = dict(
         zip(
@@ -895,9 +817,7 @@ async def load_context(
             for r in rules_raw:
                 if isinstance(r, ProceduralMemory):
                     if r.source == RuleSource.AGENT_SELF:
-                        agent_instrs.append(
-                            {"instruction": r.action, "priority": r.priority}
-                        )
+                        agent_instrs.append({"instruction": r.action, "priority": r.priority})
                     else:
                         user_rules.append(
                             {
@@ -1156,9 +1076,7 @@ async def store_conversations_batch(
                         threshold=config.blob_storage_threshold,
                         blob_dir=config.blob_storage_path,
                     )
-                    was_compressed = (
-                        False  # Externalized blobs are not inline compressed
-                    )
+                    was_compressed = False  # Externalized blobs are not inline compressed
                 else:
                     from myrm_agent_harness.toolkits.memory.compression import (
                         compress_if_needed,
@@ -1173,9 +1091,7 @@ async def store_conversations_batch(
                     )
 
                     if was_compressed and compressed_raw:
-                        raw_exchange_value = base64.b64encode(compressed_raw).decode(
-                            "utf-8"
-                        )
+                        raw_exchange_value = base64.b64encode(compressed_raw).decode("utf-8")
                     else:
                         raw_exchange_value = m.raw_exchange
 
@@ -1216,9 +1132,7 @@ async def store_conversations_batch(
                 collection_name=collection,
                 points=points,
             )
-            logger.debug(
-                "Stored %d conversation memories with dual-embeddings", len(memories)
-            )
+            logger.debug("Stored %d conversation memories with dual-embeddings", len(memories))
             return memories
         except Exception as e:
             logger.error("Failed to store conversations with named vectors: %s", e)
@@ -1410,12 +1324,8 @@ async def list_by_type(
     include_archived: bool = False,
 ) -> list[SemanticMemory | EpisodicMemory | ConversationMemory | ProceduralMemory]:
     if memory_type == MemoryType.PROFILE and relational:
-        entries = await relational.list_profiles(
-            limit=limit, offset=offset, namespaces=namespaces
-        )
-        visible_entries = [
-            entry for entry in entries if not entry.key.startswith("_system_")
-        ]
+        entries = await relational.list_profiles(limit=limit, offset=offset, namespaces=namespaces)
+        visible_entries = [entry for entry in entries if not entry.key.startswith("_system_")]
         return [
             SemanticMemory(
                 id=e.id,
@@ -1429,37 +1339,23 @@ async def list_by_type(
             for e in visible_entries
         ]
     if memory_type == MemoryType.PROCEDURAL and relational:
-        return list(
-            await relational.list_rules(
-                active_only=True, limit=limit, offset=offset, namespaces=namespaces
-            )
-        )
+        return list(await relational.list_rules(active_only=True, limit=limit, offset=offset, namespaces=namespaces))
     if memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC) and vector:
-        coll = (
-            config.semantic_collection
-            if memory_type == MemoryType.SEMANTIC
-            else config.episodic_collection
-        )
+        coll = config.semantic_collection if memory_type == MemoryType.SEMANTIC else config.episodic_collection
         docs, _ = await vector.scroll(
             coll,
             limit=limit,
             offset=offset,
-            filters=_user_filter(
-                namespaces=namespaces, include_archived=include_archived
-            ),
+            filters=_user_filter(namespaces=namespaces, include_archived=include_archived),
         )
-        converter = (
-            doc_to_semantic if memory_type == MemoryType.SEMANTIC else doc_to_episodic
-        )
+        converter = doc_to_semantic if memory_type == MemoryType.SEMANTIC else doc_to_episodic
         return [converter(d) for d in docs]
     if memory_type == MemoryType.CONVERSATION and vector:
         docs, _ = await vector.scroll(
             config.conversation_collection,
             limit=limit,
             offset=offset,
-            filters=_user_filter(
-                namespaces=namespaces, include_archived=include_archived
-            ),
+            filters=_user_filter(namespaces=namespaces, include_archived=include_archived),
         )
         return [doc_to_conversation(d, config=config) for d in docs]
     if memory_type == MemoryType.TASK_DIGEST and vector:
@@ -1489,14 +1385,8 @@ async def count_by_type(
     if memory_type == MemoryType.PROCEDURAL and relational:
         return await relational.count_rules(namespaces=namespaces)
     if memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC) and vector:
-        coll = (
-            config.semantic_collection
-            if memory_type == MemoryType.SEMANTIC
-            else config.episodic_collection
-        )
-        return await vector.count(
-            coll, filters=_user_filter(namespaces=namespaces, since=since)
-        )
+        coll = config.semantic_collection if memory_type == MemoryType.SEMANTIC else config.episodic_collection
+        return await vector.count(coll, filters=_user_filter(namespaces=namespaces, since=since))
     if memory_type == MemoryType.CONVERSATION and vector:
         return await vector.count(
             config.conversation_collection,
@@ -1527,12 +1417,6 @@ async def delete_by_type(
     if memory_type == MemoryType.PROCEDURAL and relational:
         return await relational.delete_all()
     if memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC) and vector:
-        coll = (
-            config.semantic_collection
-            if memory_type == MemoryType.SEMANTIC
-            else config.episodic_collection
-        )
-        return await vector.delete_by_filter(
-            coll, _user_filter(namespaces=namespaces, include_archived=True)
-        )
+        coll = config.semantic_collection if memory_type == MemoryType.SEMANTIC else config.episodic_collection
+        return await vector.delete_by_filter(coll, _user_filter(namespaces=namespaces, include_archived=True))
     return 0

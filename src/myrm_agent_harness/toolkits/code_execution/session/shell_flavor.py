@@ -28,23 +28,17 @@ class ShellFlavor(ABC):
     """Platform-specific shell behavior driver."""
 
     @abstractmethod
-    def build_init_commands(
-        self, work_dir: str, timeout: int, max_memory_mb: int
-    ) -> list[str]: ...
+    def build_init_commands(self, work_dir: str, timeout: int, max_memory_mb: int) -> list[str]: ...
 
     @abstractmethod
     def format_env_set(self, key: str, value: str) -> str: ...
 
     @abstractmethod
-    def build_wrapped_command(
-        self, command: str, exit_marker: str, end_marker: str, exit_code_var: str
-    ) -> str: ...
+    def build_wrapped_command(self, command: str, exit_marker: str, end_marker: str, exit_code_var: str) -> str: ...
 
 
 class BashFlavor(ShellFlavor):
-    def build_init_commands(
-        self, work_dir: str, timeout: int, max_memory_mb: int
-    ) -> list[str]:
+    def build_init_commands(self, work_dir: str, timeout: int, max_memory_mb: int) -> list[str]:
         memory_kb = max_memory_mb * 1024
         cpu_limit = max(600, timeout * 5)
 
@@ -54,9 +48,7 @@ class BashFlavor(ShellFlavor):
         if sys.platform == "darwin":
             ulimit_cmd = f"ulimit -t {cpu_limit} 2>/dev/null || true"
         else:
-            ulimit_cmd = (
-                f"ulimit -t {cpu_limit} -v {memory_kb} -u 512 2>/dev/null || true"
-            )
+            ulimit_cmd = f"ulimit -t {cpu_limit} -v {memory_kb} -u 512 2>/dev/null || true"
 
         return [
             "set +o history 2>/dev/null || true",
@@ -69,9 +61,7 @@ class BashFlavor(ShellFlavor):
         escaped = value.replace("\\\\", "\\\\\\\\").replace('"', '\\\\"')
         return f'export {key}="{escaped}"'
 
-    def build_wrapped_command(
-        self, command: str, exit_marker: str, end_marker: str, exit_code_var: str
-    ) -> str:
+    def build_wrapped_command(self, command: str, exit_marker: str, end_marker: str, exit_code_var: str) -> str:
         return (
             f"{{ {command}; }}\n"
             f"__myrm_rc__={exit_code_var}\n"
@@ -81,20 +71,14 @@ class BashFlavor(ShellFlavor):
 
 
 class WindowsFlavor(ShellFlavor):
-    def build_init_commands(
-        self, work_dir: str, timeout: int, max_memory_mb: int
-    ) -> list[str]:
+    def build_init_commands(self, work_dir: str, timeout: int, max_memory_mb: int) -> list[str]:
         return ["@echo off", "prompt $G", f'cd /d "{work_dir}"']
 
     def format_env_set(self, key: str, value: str) -> str:
         return f"set {key}={value.replace('%', '%%')}"
 
-    def build_wrapped_command(
-        self, command: str, exit_marker: str, end_marker: str, exit_code_var: str
-    ) -> str:
-        return (
-            f"{command}\r\necho {exit_marker}{exit_code_var}\r\necho {end_marker}\r\n"
-        )
+    def build_wrapped_command(self, command: str, exit_marker: str, end_marker: str, exit_code_var: str) -> str:
+        return f"{command}\r\necho {exit_marker}{exit_code_var}\r\necho {end_marker}\r\n"
 
 
 def get_flavor(platform_info: PlatformInfo) -> ShellFlavor:

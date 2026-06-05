@@ -236,6 +236,7 @@ async def _fetch_archive_checkpoint_milestone(
         from myrm_agent_harness.agent.context_management.archive_checkpoint.store import (
             list_recent_checkpoints,
         )
+
         records = await asyncio.wait_for(
             list_recent_checkpoints(manager, chat_id=chat_id, limit=8),
             timeout=2.0,
@@ -254,10 +255,7 @@ async def _fetch_archive_checkpoint_milestone(
     output_chars = 0
 
     for record in records[:4]:
-        prefix = (
-            f"- [archive_checkpoint] id:{record.memory_id} "
-            f"tool:{record.tool_name} path:{record.archive_path} "
-        )
+        prefix = f"- [archive_checkpoint] id:{record.memory_id} tool:{record.tool_name} path:{record.archive_path} "
         budgeted = budget_recall_line(
             prefix=prefix,
             content=sanitize(record.summary),

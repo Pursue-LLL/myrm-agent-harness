@@ -16,11 +16,25 @@ from typing import Literal, Protocol, runtime_checkable
 from pydantic import BaseModel, Field
 
 _REDACT_PATTERN = re.compile(r"[A-Za-z0-9_./+=:-]{32,}")
-_SENSITIVE_KEYS = frozenset({
-    "api_key", "apikey", "api-key", "access_token", "accesstoken",
-    "refresh_token", "refreshtoken", "secret", "password", "passwd",
-    "authorization", "bearer", "token", "credential", "private_key",
-})
+_SENSITIVE_KEYS = frozenset(
+    {
+        "api_key",
+        "apikey",
+        "api-key",
+        "access_token",
+        "accesstoken",
+        "refresh_token",
+        "refreshtoken",
+        "secret",
+        "password",
+        "passwd",
+        "authorization",
+        "bearer",
+        "token",
+        "credential",
+        "private_key",
+    }
+)
 
 HealthStatus = Literal["pass", "warn", "fail"]
 
@@ -38,13 +52,25 @@ class HealthReport(BaseModel):
     component_name: str = Field(..., description="Component name, e.g. 'BrowserToolkit'")
     status: HealthStatus = Field(..., description="Status: 'pass', 'warn', or 'fail'")
     message: str = Field(..., description="User-friendly status summary shown in the GUI")
-    code: str | None = Field(default=None, description="Structured error or status code for multi-language i18n mapping")
-    meta_data: dict[str, object] | None = Field(default=None, description="Structured metadata corresponding to the code")
-    detail: str | None = Field(default=None, description="Technical detail for developers (expandable in the dashboard)")
+    code: str | None = Field(
+        default=None, description="Structured error or status code for multi-language i18n mapping"
+    )
+    meta_data: dict[str, object] | None = Field(
+        default=None, description="Structured metadata corresponding to the code"
+    )
+    detail: str | None = Field(
+        default=None, description="Technical detail for developers (expandable in the dashboard)"
+    )
     fix_suggestion: str | None = Field(default=None, description="User-facing fix suggestion")
-    metrics: dict[str, float] | None = Field(default=None, description="Optional quantitative metrics (e.g., latency, throughput) for performance benchmarks")
-    measured: str | None = Field(default=None, description="Actual measured value when check fails (e.g., 'HTTP 404', 'Memory 95%')")
-    expected: str | None = Field(default=None, description="Expected value for a healthy state (e.g., 'HTTP 200', 'Memory <80%')")
+    metrics: dict[str, float] | None = Field(
+        default=None, description="Optional quantitative metrics (e.g., latency, throughput) for performance benchmarks"
+    )
+    measured: str | None = Field(
+        default=None, description="Actual measured value when check fails (e.g., 'HTTP 404', 'Memory 95%')"
+    )
+    expected: str | None = Field(
+        default=None, description="Expected value for a healthy state (e.g., 'HTTP 200', 'Memory <80%')"
+    )
     cause: str | None = Field(default=None, description="Root cause description explaining why the check failed")
 
 

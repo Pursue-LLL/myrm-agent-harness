@@ -58,20 +58,14 @@ class TaskStatus(StrEnum):
     ARCHIVED = "archived"
 
 
-_TERMINAL_STATUSES: frozenset[TaskStatus] = frozenset(
-    {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.ARCHIVED}
-)
+_TERMINAL_STATUSES: frozenset[TaskStatus] = frozenset({TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.ARCHIVED})
 
-_ACTIVE_STATUSES: frozenset[TaskStatus] = frozenset(
-    {TaskStatus.READY, TaskStatus.RUNNING, TaskStatus.BLOCKED}
-)
+_ACTIVE_STATUSES: frozenset[TaskStatus] = frozenset({TaskStatus.READY, TaskStatus.RUNNING, TaskStatus.BLOCKED})
 
 # Allowed transitions out of TRIAGE — protects state-machine integrity.
 # TRIAGE → BACKLOG (after specify, if deps unmet) / READY (after specify, no deps) /
 # ARCHIVED (manual discard). Direct TRIAGE → RUNNING etc. is illegal.
-_TRIAGE_ALLOWED_TARGETS: frozenset[TaskStatus] = frozenset(
-    {TaskStatus.BACKLOG, TaskStatus.READY, TaskStatus.ARCHIVED}
-)
+_TRIAGE_ALLOWED_TARGETS: frozenset[TaskStatus] = frozenset({TaskStatus.BACKLOG, TaskStatus.READY, TaskStatus.ARCHIVED})
 
 
 class BlockKind(StrEnum):
@@ -280,18 +274,14 @@ class KanbanTask:
             "extra_skill_ids": self.extra_skill_ids,
             "blocked_reason": self.blocked_reason,
             "block_kind": self.block_kind.value if self.block_kind else None,
-            "scheduled_until": (
-                self.scheduled_until.isoformat() if self.scheduled_until else None
-            ),
+            "scheduled_until": (self.scheduled_until.isoformat() if self.scheduled_until else None),
             "result": self.result,
             "error": self.error,
             "attachments": [a.to_dict() for a in self.attachments],
             "metadata": self.metadata,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
-            "completed_at": (
-                self.completed_at.isoformat() if self.completed_at else None
-            ),
+            "completed_at": (self.completed_at.isoformat() if self.completed_at else None),
         }
         if self.last_heartbeat_at:
             data["last_heartbeat_at"] = self.last_heartbeat_at.isoformat()
@@ -455,7 +445,4 @@ class TaskTimeoutError(Exception):
         self.task_id = task_id
         self.elapsed_seconds = elapsed_seconds
         self.limit_seconds = limit_seconds
-        super().__init__(
-            f"Task {task_id[:8]} timed out after {elapsed_seconds:.0f}s "
-            f"(limit {limit_seconds}s)"
-        )
+        super().__init__(f"Task {task_id[:8]} timed out after {elapsed_seconds:.0f}s (limit {limit_seconds}s)")

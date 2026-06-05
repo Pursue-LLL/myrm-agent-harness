@@ -130,9 +130,7 @@ class LocaleManager:
 
         return loc
 
-    def translate(
-        self, error_type: str, key: str, locale: str | None = None, **params: Any
-    ) -> str | list[str]:
+    def translate(self, error_type: str, key: str, locale: str | None = None, **params: Any) -> str | list[str]:
         """Translate a diagnostic message.
 
         Args:
@@ -155,9 +153,7 @@ class LocaleManager:
                     if key in error_translations:
                         template = error_translations[key]
                         if isinstance(template, list):
-                            return [
-                                self._safe_format(step, params) for step in template
-                            ]
+                            return [self._safe_format(step, params) for step in template]
                         return self._safe_format(template, params)
 
         logger.warning(
@@ -176,20 +172,14 @@ class LocaleManager:
 
             for error_type in REQUIRED_ERROR_TYPES:
                 if error_type not in translations:
-                    logger.warning(
-                        f"Missing translation for error type '{error_type}' in locale '{locale}'"
-                    )
+                    logger.warning(f"Missing translation for error type '{error_type}' in locale '{locale}'")
                     continue
 
                 error_trans = translations[error_type]
                 if "user_message" not in error_trans:
-                    logger.warning(
-                        f"Missing 'user_message' for error type '{error_type}' in locale '{locale}'"
-                    )
+                    logger.warning(f"Missing 'user_message' for error type '{error_type}' in locale '{locale}'")
                 if "resolution_steps" not in error_trans:
-                    logger.warning(
-                        f"Missing 'resolution_steps' for error type '{error_type}' in locale '{locale}'"
-                    )
+                    logger.warning(f"Missing 'resolution_steps' for error type '{error_type}' in locale '{locale}'")
 
     def _safe_format(self, template: str, params: dict[str, Any]) -> str:
         """Safely format template with parameters, using empty string for missing params."""
@@ -200,9 +190,7 @@ class LocaleManager:
             params_with_fallback = {**params, missing_key: ""}
             return self._safe_format(template, params_with_fallback)
 
-    def register_translations(
-        self, locale: str, translations: dict[str, dict[str, str | list[str]]]
-    ) -> None:
+    def register_translations(self, locale: str, translations: dict[str, dict[str, str | list[str]]]) -> None:
         """Register or merge custom translations for a locale."""
         existing = self._translations.get(locale)
         if existing is not None:

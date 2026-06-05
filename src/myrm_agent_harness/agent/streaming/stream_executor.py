@@ -190,16 +190,8 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                     initial_total_tokens = tracker.usage.total_tokens
                     initial_cached_tokens = tracker.usage.cached_tokens
                 else:
-                    initial_total_tokens = (
-                        ctx.stats.token_usage.total_tokens
-                        if ctx.stats.token_usage
-                        else 0
-                    )
-                    initial_cached_tokens = (
-                        ctx.stats.token_usage.cached_tokens
-                        if ctx.stats.token_usage
-                        else 0
-                    )
+                    initial_total_tokens = ctx.stats.token_usage.total_tokens if ctx.stats.token_usage else 0
+                    initial_cached_tokens = ctx.stats.token_usage.cached_tokens if ctx.stats.token_usage else 0
 
                 import time
 
@@ -210,9 +202,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                     collected_messages: list[BaseMessage] = []
                 else:
                     messages_dict = ctx.agent_input
-                    messages = cast(
-                        list["BaseMessage"], messages_dict.get("messages", [])
-                    )
+                    messages = cast(list["BaseMessage"], messages_dict.get("messages", []))
                     final_agent_input = {**messages_dict, **ctx.merged_context}
                     collected_messages = list(messages)
 
@@ -244,32 +234,21 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                         await self._dispatch_chunk(chunk, ctx, collected_messages)
 
                 except Exception as astream_exc:
-                    iteration_limit_hit = await self._handle_iteration_limit(
-                        astream_exc, collected_messages
-                    )
+                    iteration_limit_hit = await self._handle_iteration_limit(astream_exc, collected_messages)
                     if iteration_limit_hit:
                         if ctx.goal_provider is None:
                             break
-                        logger.info(
-                            " Iteration limit in goal mode — "
-                            "falling through to goal continuation"
-                        )
+                        logger.info(" Iteration limit in goal mode — falling through to goal continuation")
                     else:
-                        if await self._handle_thinking_signature(
-                            astream_exc, thinking_sig_attempted
-                        ):
+                        if await self._handle_thinking_signature(astream_exc, thinking_sig_attempted):
                             thinking_sig_attempted = True
                             continue
 
-                        if await self._handle_image_shrink(
-                            astream_exc, image_shrink_attempted
-                        ):
+                        if await self._handle_image_shrink(astream_exc, image_shrink_attempted):
                             image_shrink_attempted = True
                             continue
 
-                        if await self._handle_media_rejected(
-                            astream_exc, media_rejected_attempted
-                        ):
+                        if await self._handle_media_rejected(astream_exc, media_rejected_attempted):
                             media_rejected_attempted = True
                             continue
 
@@ -277,18 +256,14 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                             overflow_retries += 1
                             continue
 
-                        if await self._handle_overflow(
-                            astream_exc, overflow_retries
-                        ):
+                        if await self._handle_overflow(astream_exc, overflow_retries):
                             overflow_retries += 1
                             continue
 
                         if await self._handle_failover(astream_exc):
                             continue
 
-                        if await self._handle_transient_retry(
-                            astream_exc, transient_retries
-                        ):
+                        if await self._handle_transient_retry(astream_exc, transient_retries):
                             transient_retries += 1
                             continue
 
@@ -306,15 +281,11 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                 if await self._handle_escalation(collected_messages):
                     continue
 
-                if await self._handle_length_truncation(
-                    collected_messages, length_continue_retries
-                ):
+                if await self._handle_length_truncation(collected_messages, length_continue_retries):
                     length_continue_retries += 1
                     continue
 
-                if await self._handle_empty_response(
-                    collected_messages, empty_response_retries
-                ):
+                if await self._handle_empty_response(collected_messages, empty_response_retries):
                     empty_response_retries += 1
                     continue
 
@@ -324,28 +295,16 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
 
                 tracker = get_token_tracker()
 
-                tools_called_this_turn = (
-                    ctx.stats.tool_call_count > initial_tool_call_count
-                )
+                tools_called_this_turn = ctx.stats.tool_call_count > initial_tool_call_count
 
                 if tracker and tracker.usage:
                     current_total = tracker.usage.total_tokens
                     current_cached = tracker.usage.cached_tokens
                 else:
-                    current_total = (
-                        ctx.stats.token_usage.total_tokens
-                        if ctx.stats.token_usage
-                        else 0
-                    )
-                    current_cached = (
-                        ctx.stats.token_usage.cached_tokens
-                        if ctx.stats.token_usage
-                        else 0
-                    )
+                    current_total = ctx.stats.token_usage.total_tokens if ctx.stats.token_usage else 0
+                    current_cached = ctx.stats.token_usage.cached_tokens if ctx.stats.token_usage else 0
 
-                net_tokens_this_turn = (current_total - initial_total_tokens) - (
-                    current_cached - initial_cached_tokens
-                )
+                net_tokens_this_turn = (current_total - initial_total_tokens) - (current_cached - initial_cached_tokens)
                 time_this_turn_seconds = int(time.time() - initial_time)
 
                 # Check if we should emit trace slice based on call threshold
@@ -366,9 +325,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                 ):
                     reset_loop_guard(
                         is_resume=True,
-                        graph_recursion_limit=ctx.run_config.get(
-                            "recursion_limit", 100
-                        ),
+                        graph_recursion_limit=ctx.run_config.get("recursion_limit", 100),
                     )
                     continue
 
@@ -397,9 +354,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
             )
             escalation_flushed = self._escalation_scrubber.flush()
             if escalation_flushed:
-                for scrubbed_type, scrubbed_text in self._reasoning_scrubber.process(
-                    escalation_flushed
-                ):
+                for scrubbed_type, scrubbed_text in self._reasoning_scrubber.process(escalation_flushed):
                     if scrubbed_text:
                         restored = self._restore_pseudonyms(scrubbed_text)
                         await self._emit_event(
@@ -488,9 +443,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                 base_url=base_url,
             )
 
-            locale = (
-                ctx.merged_context.get("locale", "en") if ctx.merged_context else "en"
-            )
+            locale = ctx.merged_context.get("locale", "en") if ctx.merged_context else "en"
             cooldown_remaining_ms = error_event.get("cooldown_remaining_ms")
 
             diagnostic = LLMErrorDiagnostic.diagnose(

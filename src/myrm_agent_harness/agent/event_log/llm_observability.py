@@ -27,9 +27,7 @@ PROMPT_PREVIEW_MAX_LEN = 500
 _pending_tasks: set[asyncio.Task[None]] = set()
 
 
-def build_prompt_preview(
-    message_dicts: list[dict[str, object]], *, max_len: int = PROMPT_PREVIEW_MAX_LEN
-) -> str:
+def build_prompt_preview(message_dicts: list[dict[str, object]], *, max_len: int = PROMPT_PREVIEW_MAX_LEN) -> str:
     """Build a truncated preview of messages for replay — never mutates inputs."""
     parts: list[str] = []
     for msg in message_dicts:

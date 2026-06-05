@@ -110,11 +110,7 @@ async def evaluate_tool_batch(
                 yolo_active = False
 
         if yolo_active:
-            suffix = (
-                ""
-                if not config.yolo_mode_timeout
-                else f" (expires in {config.yolo_mode_timeout}s)"
-            )
+            suffix = "" if not config.yolo_mode_timeout else f" (expires in {config.yolo_mode_timeout}s)"
             logger.info(
                 "[YOLO] Auto-approving all %d tool calls%s (session: %s)",
                 len(tool_calls),
@@ -132,9 +128,7 @@ async def evaluate_tool_batch(
         tool_input: dict[str, object] = tool_call.get("args", {})
 
         permission_type = resolve_permission_type(tool_name, tool_input)
-        action, reason = evaluate_tool_call(
-            permission_type, tool_input, config, workspace_root=workspace_root
-        )
+        action, reason = evaluate_tool_call(permission_type, tool_input, config, workspace_root=workspace_root)
 
         extra_ctx = None
         if tool_name == "bash_code_execute_tool":
@@ -163,16 +157,11 @@ async def evaluate_tool_batch(
                 # Path Policy Enforcement for PTC
                 ptc_path = str(arguments.get("path", ""))
                 if ptc_path and workspace_root:
-                    path_action, path_reason = check_path_policy(
-                        ptc_path, config.path_policy, workspace_root
-                    )
+                    path_action, path_reason = check_path_policy(ptc_path, config.path_policy, workspace_root)
                     if path_action == PermissionAction.DENY:
                         action = PermissionAction.DENY
                         reason = f"PTC {path_reason}"
-                    elif (
-                        path_action == PermissionAction.ASK
-                        and action != PermissionAction.DENY
-                    ):
+                    elif path_action == PermissionAction.ASK and action != PermissionAction.DENY:
                         action = PermissionAction.ASK
                         reason = f"PTC {path_reason}"
 
@@ -195,15 +184,9 @@ async def evaluate_tool_batch(
             allowlist = get_allowlist()
             user_id = get_approval_user_id() or DEFAULT_USER_ID
             await allowlist.load_user(user_id)
-            effective_tool_name = (
-                extra_ctx.get("ptc_tool_name_full", tool_name)
-                if extra_ctx
-                else tool_name
-            )
+            effective_tool_name = extra_ctx.get("ptc_tool_name_full", tool_name) if extra_ctx else tool_name
             args_hash = args_hashes.get(idx)
-            if allowlist.check(
-                user_id, permission_type, effective_tool_name, args_hash
-            ):
+            if allowlist.check(user_id, permission_type, effective_tool_name, args_hash):
                 action = PermissionAction.ALLOW
                 reason = f"Allowlist auto-approve: {effective_tool_name}"
                 record_decision(tool_name, "ALLOWLIST_AUTO_APPROVE", reason)
@@ -228,8 +211,7 @@ async def evaluate_tool_batch(
                         if len(sources_list) > 5:
                             truncated_sources = sources_list[:5]
                             sources_str = (
-                                ", ".join(truncated_sources)
-                                + f" ... and {len(sources_list) - 5} more sources"
+                                ", ".join(truncated_sources) + f" ... and {len(sources_list) - 5} more sources"
                             )
                         else:
                             sources_str = ", ".join(sources_list)
@@ -258,9 +240,7 @@ async def evaluate_tool_batch(
                     and is_threshold_breached() == ThresholdBreach.NONE
                 ):
                     safe_tool_input = _truncate_tool_args(tool_input)
-                    command_repr = (
-                        f"Tool: {tool_name}\nArgs: {json.dumps(safe_tool_input)}"
-                    )
+                    command_repr = f"Tool: {tool_name}\nArgs: {json.dumps(safe_tool_input)}"
                     review_result = await _run_llm_review(
                         command_repr,
                         workspace_root,
@@ -281,9 +261,7 @@ async def evaluate_tool_batch(
                                 tool_name,
                                 review_result.reason,
                             )
-                            record_decision(
-                                tool_name, "LLM_REVIEW_ALLOW", review_result.reason
-                            )
+                            record_decision(tool_name, "LLM_REVIEW_ALLOW", review_result.reason)
                             auto_approved.append((idx, tool_call))
                             record_approval()
                             continue
@@ -293,9 +271,7 @@ async def evaluate_tool_batch(
                                 tool_name,
                                 review_result.reason,
                             )
-                            record_decision(
-                                tool_name, "LLM_REVIEW_DENY", review_result.reason
-                            )
+                            record_decision(tool_name, "LLM_REVIEW_DENY", review_result.reason)
                             hint = record_denial(tool_name)
                             auto_denied.append(
                                 (
@@ -342,19 +318,35 @@ async def evaluate_tool_batch(
                         if review_result.decision == ReviewDecision.DENY:
                             logger.warning(
                                 "[OUTBOUND_CHECK] Denied delegation %s: %s",
-                                tool_name, review_result.reason,
+                                tool_name,
+                                review_result.reason,
                             )
                             record_decision(tool_name, "OUTBOUND_DENY", review_result.reason)
                             hint = record_denial(tool_name)
-                            auto_denied.append((idx, tool_call, f"Delegation denied by outbound security check: {review_result.reason}{hint}"))
+                            auto_denied.append(
+                                (
+                                    idx,
+                                    tool_call,
+                                    f"Delegation denied by outbound security check: {review_result.reason}{hint}",
+                                )
+                            )
                             continue
                         if review_result.decision == ReviewDecision.UNCERTAIN:
                             logger.info(
                                 "[OUTBOUND_CHECK] Uncertain about delegation %s: %s",
-                                tool_name, review_result.reason,
+                                tool_name,
+                                review_result.reason,
                             )
                             record_decision(tool_name, "OUTBOUND_UNCERTAIN", review_result.reason)
-                            pending_approval.append((idx, tool_call, permission_type, f"Delegation needs review: {review_result.reason}", extra_ctx))
+                            pending_approval.append(
+                                (
+                                    idx,
+                                    tool_call,
+                                    permission_type,
+                                    f"Delegation needs review: {review_result.reason}",
+                                    extra_ctx,
+                                )
+                            )
                             continue
                         record_decision(tool_name, "OUTBOUND_ALLOW", "delegation cleared by outbound check")
 
@@ -391,21 +383,39 @@ async def evaluate_tool_batch(
                             if review_result.decision == ReviewDecision.DENY:
                                 logger.warning(
                                     "[SHELL_ESCALATION] Denied %s (ALLOW→DENY): %s",
-                                    tool_name, review_result.reason,
+                                    tool_name,
+                                    review_result.reason,
                                 )
                                 record_decision(tool_name, "SHELL_ESCALATION_DENY", review_result.reason)
                                 hint = record_denial(tool_name)
-                                auto_denied.append((idx, tool_call, f"Denied by auto-mode shell escalation: {review_result.reason}{hint}"))
+                                auto_denied.append(
+                                    (
+                                        idx,
+                                        tool_call,
+                                        f"Denied by auto-mode shell escalation: {review_result.reason}{hint}",
+                                    )
+                                )
                                 continue
                             if review_result.decision == ReviewDecision.UNCERTAIN:
                                 logger.info(
                                     "[SHELL_ESCALATION] Uncertain about %s: %s",
-                                    tool_name, review_result.reason,
+                                    tool_name,
+                                    review_result.reason,
                                 )
                                 record_decision(tool_name, "SHELL_ESCALATION_UNCERTAIN", review_result.reason)
-                                pending_approval.append((idx, tool_call, permission_type, f"Shell command needs review: {review_result.reason}", extra_ctx))
+                                pending_approval.append(
+                                    (
+                                        idx,
+                                        tool_call,
+                                        permission_type,
+                                        f"Shell command needs review: {review_result.reason}",
+                                        extra_ctx,
+                                    )
+                                )
                                 continue
-                            record_decision(tool_name, "SHELL_ESCALATION_ALLOW", "shell command cleared by escalation check")
+                            record_decision(
+                                tool_name, "SHELL_ESCALATION_ALLOW", "shell command cleared by escalation check"
+                            )
 
                 record_decision(tool_name, "ALLOW", reason)
                 auto_approved.append((idx, tool_call))
@@ -470,9 +480,7 @@ async def evaluate_tool_batch(
                     skill_hook_verdict.blocking_skill,
                     skill_hook_verdict.reason,
                 )
-                record_decision(
-                    tool_name, "SKILL_HOOK_BLOCK", skill_hook_verdict.reason
-                )
+                record_decision(tool_name, "SKILL_HOOK_BLOCK", skill_hook_verdict.reason)
                 hint = record_denial(tool_name)
                 auto_denied.append(
                     (
@@ -488,9 +496,7 @@ async def evaluate_tool_batch(
                     tool_name,
                     skill_hook_verdict.reason,
                 )
-                record_decision(
-                    tool_name, "SKILL_HOOK_APPROVAL", skill_hook_verdict.reason
-                )
+                record_decision(tool_name, "SKILL_HOOK_APPROVAL", skill_hook_verdict.reason)
                 pending_approval.append(
                     (
                         idx,
@@ -554,9 +560,7 @@ async def evaluate_tool_batch(
                             tool_name,
                             review_result.reason,
                         )
-                        record_decision(
-                            tool_name, "LLM_REVIEW_ALLOW", review_result.reason
-                        )
+                        record_decision(tool_name, "LLM_REVIEW_ALLOW", review_result.reason)
                         auto_approved.append((idx, tool_call))
                         record_approval()
                         continue
@@ -566,9 +570,7 @@ async def evaluate_tool_batch(
                             tool_name,
                             review_result.reason,
                         )
-                        record_decision(
-                            tool_name, "LLM_REVIEW_DENY", review_result.reason
-                        )
+                        record_decision(tool_name, "LLM_REVIEW_DENY", review_result.reason)
                         hint = record_denial(tool_name)
                         auto_denied.append(
                             (
@@ -578,9 +580,7 @@ async def evaluate_tool_batch(
                             )
                         )
                         continue
-                    record_decision(
-                        tool_name, "LLM_REVIEW_UNCERTAIN", review_result.reason
-                    )
+                    record_decision(tool_name, "LLM_REVIEW_UNCERTAIN", review_result.reason)
                     reason = f"{reason}\n\nAI Security Reviewer: {review_result.reason}"
 
         elif config.auto_mode_enabled and is_threshold_breached() != ThresholdBreach.NONE:
@@ -588,7 +588,9 @@ async def evaluate_tool_batch(
             logger.warning(
                 "[AUTO_MODE_SUSPENDED] Denial threshold breached (%s) — "
                 "tool %s falling through to HITL approval (session: %s)",
-                breach.value, tool_name, session_key,
+                breach.value,
+                tool_name,
+                session_key,
             )
             record_decision(tool_name, "AUTO_MODE_SUSPENDED", f"denial threshold: {breach.value}")
 
@@ -599,5 +601,3 @@ async def evaluate_tool_batch(
 
 _DEFAULT_APPROVAL_TIMEOUT_SECONDS = 300
 _DEFAULT_TIMEOUT_BEHAVIOR = "deny"
-
-

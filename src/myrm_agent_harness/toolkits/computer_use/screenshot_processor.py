@@ -57,11 +57,7 @@ def target_image_size(
     max_edge = constraints.max_edge_px
     max_tok = constraints.max_tokens
 
-    if (
-        width <= max_edge
-        and height <= max_edge
-        and _n_tokens_for_img(width, height, ppt) <= max_tok
-    ):
+    if width <= max_edge and height <= max_edge and _n_tokens_for_img(width, height, ppt) <= max_tok:
         return width, height
 
     if height > width:

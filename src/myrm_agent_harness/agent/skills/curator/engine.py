@@ -134,8 +134,7 @@ class SkillCurator:
 
         if result.total_transitions > 0:
             logger.info(
-                "Curator sweep complete: %d skills scanned, %d transitions "
-                "(%d stale, %d archived), %d pinned skipped",
+                "Curator sweep complete: %d skills scanned, %d transitions (%d stale, %d archived), %d pinned skipped",
                 result.skills_scanned,
                 result.total_transitions,
                 result.stale_count,
@@ -169,9 +168,7 @@ class SkillCurator:
 
         consolidation_result: ConsolidationPlan | ConsolidationReport | None = None
         if self.consolidation_available:
-            consolidation_result = await self._run_consolidation(
-                skills, dry_run=consolidation_dry_run
-            )
+            consolidation_result = await self._run_consolidation(skills, dry_run=consolidation_dry_run)
 
         return lifecycle_result, consolidation_result
 
@@ -207,9 +204,7 @@ class SkillCurator:
             logger.error("Consolidation pass failed: %s", e)
             return None
 
-    def _apply_lru_eviction(
-        self, skills: list[SkillMetadata], now: datetime, result: CuratorRunResult
-    ) -> None:
+    def _apply_lru_eviction(self, skills: list[SkillMetadata], now: datetime, result: CuratorRunResult) -> None:
         """Evict least-recently-used skills when active count exceeds max_skills."""
         already_transitioned = {t.skill_name for t in result.transitions}
         lru_candidates = self._strategy.select_lru_candidates(skills)

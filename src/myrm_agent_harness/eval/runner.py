@@ -139,6 +139,7 @@ class EvalRunner:
             response = await self._executor.execute(case.message, session_id=sid)
         except Exception as exc:
             import traceback
+
             traceback.print_exc()
             logger.warning("Eval case failed: %s — %s", case.message[:60], exc)
             result = EvalTurnResult(

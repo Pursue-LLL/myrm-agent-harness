@@ -56,21 +56,15 @@ class ThresholdQualityGate:
             return GateVerdict(passed=False, score=0.0, reasons=["Empty skill content"])
 
         if total_executions < self._min_executions:
-            reasons.append(
-                f"Insufficient executions ({total_executions} < {self._min_executions})"
-            )
+            reasons.append(f"Insufficient executions ({total_executions} < {self._min_executions})")
 
         if effective_rate < self._min_effective_rate:
-            reasons.append(
-                f"Low effective rate ({effective_rate:.2f} < {self._min_effective_rate:.2f})"
-            )
+            reasons.append(f"Low effective rate ({effective_rate:.2f} < {self._min_effective_rate:.2f})")
 
         passed = len(reasons) == 0
         score = effective_rate if passed else max(0.0, effective_rate * 0.5)
 
         if not passed:
-            logger.info(
-                "Quality gate rejected '%s': %s", skill_name, "; ".join(reasons)
-            )
+            logger.info("Quality gate rejected '%s': %s", skill_name, "; ".join(reasons))
 
         return GateVerdict(passed=passed, score=score, reasons=reasons)

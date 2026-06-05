@@ -117,16 +117,12 @@ async def execute_with_retry(
                         },
                     )
                 backoff = min(2**attempt + random.uniform(0, 1), 10.0)
-                logger.warning(
-                    f" Timeout [{tool_name}] attempt {attempt + 1}/2, retry in {backoff:.1f}s"
-                )
+                logger.warning(f" Timeout [{tool_name}] attempt {attempt + 1}/2, retry in {backoff:.1f}s")
                 await _emit_retry_event(tool_name, attempt, backoff)
                 await asyncio.sleep(backoff)
             else:
                 total_duration = time.time() - start_time
-                error_msg = (
-                    f"{tool_name} execution timed out after {attempt + 1} attempts"
-                )
+                error_msg = f"{tool_name} execution timed out after {attempt + 1} attempts"
                 user_hint = (
                     f"Timeout after {timeout}s. Tried {attempt + 1} times over {total_duration:.1f}s. "
                     "Try reducing data size or splitting the task."
@@ -155,16 +151,10 @@ async def execute_with_retry(
             if is_non_retryable(e, tool_name) or attempt == 1:
                 if error_history:
                     total_duration = time.time() - start_time
-                    error_msg = (
-                        f"{tool_name} execution failed after {attempt + 1} attempts"
-                    )
-                    original_hint = (
-                        getattr(e, "user_hint", "") if isinstance(e, ToolError) else ""
-                    )
+                    error_msg = f"{tool_name} execution failed after {attempt + 1} attempts"
+                    original_hint = getattr(e, "user_hint", "") if isinstance(e, ToolError) else ""
                     user_hint = f"Tried {attempt + 1} times over {total_duration:.1f}s. {original_hint}"
-                    logger.error(
-                        f" Tool execution final failure [{tool_name}]: {error_msg}"
-                    )
+                    logger.error(f" Tool execution final failure [{tool_name}]: {error_msg}")
                     if tool_execution_failed_total is not None:
                         tool_execution_failed_total.labels(tool_name=tool_name, error_type=type(e).__name__).inc()
                     raise ToolError(
@@ -184,11 +174,11 @@ async def execute_with_retry(
                     hint = getattr(e, "user_hint", None)
                     if category in ("network_blocked", "sandbox_ro"):
                         get_terminal_errors().add(category)
-                        logger.info(
-                            f" Circuit breaker registered terminal error: {category}"
-                        )
+                        logger.info(f" Circuit breaker registered terminal error: {category}")
                     if tool_execution_failed_total is not None:
-                        tool_execution_failed_total.labels(tool_name=tool_name, error_type=category or "tool_error").inc()
+                        tool_execution_failed_total.labels(
+                            tool_name=tool_name, error_type=category or "tool_error"
+                        ).inc()
                     return make_error_msg(
                         tool_name,
                         tool_call_id,
@@ -236,20 +226,14 @@ async def execute_with_retry(
                 )
             else:
                 backoff = min(2**attempt + random.uniform(0, 1), 10.0)
-                logger.warning(
-                    f" Error [{tool_name}] {type(e).__name__}: {str(e)[:100]}, retry in {backoff:.1f}s"
-                )
+                logger.warning(f" Error [{tool_name}] {type(e).__name__}: {str(e)[:100]}, retry in {backoff:.1f}s")
 
             await asyncio.sleep(backoff)
 
-    raise RuntimeError(
-        f"Unexpected: execute_with_retry loop completed without return for {tool_name}"
-    )
+    raise RuntimeError(f"Unexpected: execute_with_retry loop completed without return for {tool_name}")
 
 
-async def _emit_timeout_event(
-    tool_name: str, timeout: float, attempt: int, elapsed: float
-) -> None:
+async def _emit_timeout_event(tool_name: str, timeout: float, attempt: int, elapsed: float) -> None:
     """Emit TOOL_TIMEOUT to stream for real-time visibility."""
     try:
         from myrm_agent_harness.agent.streaming.types import AgentEventType

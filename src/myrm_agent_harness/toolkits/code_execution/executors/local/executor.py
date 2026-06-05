@@ -115,9 +115,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         """Register a read-only path (local mode)."""
         self._readonly_paths.append(path)
 
-    def _resolve_work_dir(
-        self, work_dir: str, workspace_root: Path | None
-    ) -> Path | None:
+    def _resolve_work_dir(self, work_dir: str, workspace_root: Path | None) -> Path | None:
         """Resolve abstract paths (e.g. /workspace/...) to local filesystem paths.
 
         In container environments these paths are used directly; LocalExecutor
@@ -142,7 +140,10 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         self._setup_workspace(context.workspace_root)
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix="_user_code.py", delete=False, encoding="utf-8",
+            mode="w",
+            suffix="_user_code.py",
+            delete=False,
+            encoding="utf-8",
         ) as code_file:
             code_file.write(context.code)
             code_file_path = Path(code_file.name)
@@ -157,7 +158,10 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         )
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix="_wrapper.py", delete=False, encoding="utf-8",
+            mode="w",
+            suffix="_wrapper.py",
+            delete=False,
+            encoding="utf-8",
         ) as wrapper_file:
             wrapper_file.write(wrapper_content)
             wrapper_path = Path(wrapper_file.name)
@@ -165,11 +169,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         try:
             effective_cwd = self._resolve_work_dir(
                 context.work_dir,
-                (
-                    Path(context.workspace_root)
-                    if context.workspace_root
-                    else self._current_workspace
-                ),
+                (Path(context.workspace_root) if context.workspace_root else self._current_workspace),
             )
 
             result = await self._run_subprocess(
@@ -184,7 +184,8 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             execution_time = time.time() - start_time
 
             generated_files = await self._file_scanner.scan(
-                start_time, self._current_workspace,
+                start_time,
+                self._current_workspace,
             )
 
             if result.success:
@@ -263,11 +264,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         self._helper.log_execution_start("LocalExecutor", "Bash (Persistent)", command)
 
         # Resolve working directory
-        workspace = (
-            Path(context.workspace_root)
-            if context.workspace_root
-            else self._current_workspace
-        )
+        workspace = Path(context.workspace_root) if context.workspace_root else self._current_workspace
         effective_cwd = self._resolve_work_dir(context.work_dir, workspace)
 
         # Security validation
@@ -283,9 +280,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         )
 
         if not validation_result.is_safe:
-            error_msg = (
-                f"Command blocked for security reasons: {validation_result.reason}"
-            )
+            error_msg = f"Command blocked for security reasons: {validation_result.reason}"
             logger.warning(f" [LocalExecutor] {error_msg}")
             blocked_result = ExecutionResult(
                 success=False,
@@ -302,7 +297,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             await trigger_destructive_action_hook(
                 workspace_path=str(self._current_workspace) if self._current_workspace else "/tmp",
                 action_type="bash",
-                payload={"command": command, "session_id": context.session_id}
+                payload={"command": command, "session_id": context.session_id},
             )
 
         self._setup_workspace(str(effective_cwd) if effective_cwd else None)
@@ -328,7 +323,8 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         execution_time = time.time() - start_time
 
         generated_files = await self._file_scanner.scan(
-            start_time, self._current_workspace,
+            start_time,
+            self._current_workspace,
         )
 
         if session_result.success:
@@ -360,20 +356,14 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         self.metrics.record(final_result, "bash")
         return final_result
 
-    async def execute_bash_stream(
-        self, context: ExecutionContext
-    ) -> AsyncIterator[str]:
+    async def execute_bash_stream(self, context: ExecutionContext) -> AsyncIterator[str]:
         """Execute a Bash command with real-time line-by-line output streaming."""
         from myrm_agent_harness.toolkits.code_execution.security.validator import (
             validate_command,
         )
 
         command = context.code
-        workspace = (
-            Path(context.workspace_root)
-            if context.workspace_root
-            else self._current_workspace
-        )
+        workspace = Path(context.workspace_root) if context.workspace_root else self._current_workspace
         effective_cwd = self._resolve_work_dir(context.work_dir, workspace)
 
         effective_allowed_hosts = None
@@ -409,9 +399,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         async for chunk in session.execute_stream(command, timeout):
             yield chunk
 
-    async def spawn_background_process(
-        self, context: ExecutionContext
-    ) -> AsyncProcessProtocol:
+    async def spawn_background_process(self, context: ExecutionContext) -> AsyncProcessProtocol:
         """Spawn a long-running background process with full-duplex streams.
 
         Uses OS-level sandboxing (e.g., bwrap) if available to isolate the process.
@@ -452,14 +440,10 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             if session.is_alive:
                 is_healthy = await session.check_health()
                 if is_healthy:
-                    logger.debug(
-                        f" [LocalExecutor] Reusing Bash session: {session_key}"
-                    )
+                    logger.debug(f" [LocalExecutor] Reusing Bash session: {session_key}")
                     return session
                 else:
-                    logger.warning(
-                        f" [LocalExecutor] Unhealthy Bash session, restarting: {session_key}"
-                    )
+                    logger.warning(f" [LocalExecutor] Unhealthy Bash session, restarting: {session_key}")
                     await session.close()
                     del self._bash_sessions[session_key]
 
@@ -487,23 +471,20 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         if not self._bash_sessions:
             return
 
-        logger.info(
-            f" [LocalExecutor] Cleaning up {len(self._bash_sessions)} Bash sessions"
-        )
+        logger.info(f" [LocalExecutor] Cleaning up {len(self._bash_sessions)} Bash sessions")
         for session_key, session in list(self._bash_sessions.items()):
             try:
                 await session.close()
             except Exception as e:
-                logger.warning(
-                    f" [LocalExecutor] Failed to close session {session_key}: {e}"
-                )
+                logger.warning(f" [LocalExecutor] Failed to close session {session_key}: {e}")
             finally:
                 del self._bash_sessions[session_key]
 
     async def _prepare_bash_command(self, command: str) -> str:
         """Rewrite workspace paths and pip commands for the local environment."""
         command = self._command_rewriter.rewrite_workspace_paths(
-            command, self._current_workspace,
+            command,
+            self._current_workspace,
         )
         return await self._venv_manager.rewrite_pip_command(command)
 

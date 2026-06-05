@@ -106,9 +106,7 @@ class SubdirectoryContextTracker:
                 if subdir_path.is_file():
                     rule = _load_rule_file(subdir_path, source=f"subdir:{subdir_file}")
                     if rule and total_chars + len(rule.content) <= _MAX_APPEND_CHARS:
-                        discovered_rules.append(
-                            f"[Discovered {subdir_file} in {directory}]\n{rule.content}"
-                        )
+                        discovered_rules.append(f"[Discovered {subdir_file} in {directory}]\n{rule.content}")
                         total_chars += len(rule.content)
 
             for filename in _RULE_FILENAMES:
@@ -116,9 +114,7 @@ class SubdirectoryContextTracker:
                 if filepath.is_file():
                     rule = _load_rule_file(filepath, source=f"subdir:{filename}")
                     if rule and total_chars + len(rule.content) <= _MAX_APPEND_CHARS:
-                        discovered_rules.append(
-                            f"[Discovered {filename} in {directory}]\n{rule.content}"
-                        )
+                        discovered_rules.append(f"[Discovered {filename} in {directory}]\n{rule.content}")
                         total_chars += len(rule.content)
 
         if not discovered_rules:
@@ -129,14 +125,9 @@ class SubdirectoryContextTracker:
             len(discovered_rules),
         )
 
-        return (
-            "\n\n--- Workspace Rules (discovered in accessed directory) ---\n"
-            + "\n\n".join(discovered_rules)
-        )
+        return "\n\n--- Workspace Rules (discovered in accessed directory) ---\n" + "\n\n".join(discovered_rules)
 
-    def _extract_directories(
-        self, tool_name: str, args: dict[str, object]
-    ) -> list[Path]:
+    def _extract_directories(self, tool_name: str, args: dict[str, object]) -> list[Path]:
         """Extract directory candidates from tool call arguments."""
         candidates: set[Path] = set()
 
@@ -208,9 +199,7 @@ class SubdirectoryContextTracker:
             return False
 
 
-_tracker_var: ContextVar[SubdirectoryContextTracker] = ContextVar(
-    "subdirectory_tracker"
-)
+_tracker_var: ContextVar[SubdirectoryContextTracker] = ContextVar("subdirectory_tracker")
 
 
 def get_subdirectory_tracker() -> SubdirectoryContextTracker | None:
@@ -232,9 +221,7 @@ def reset_subdirectory_tracker() -> None:
     """Reset the subdirectory tracker for the current session."""
     try:
         _tracker_var.get()
-        _tracker_var.set(
-            SubdirectoryContextTracker("")
-        )
+        _tracker_var.set(SubdirectoryContextTracker(""))
     except LookupError:
         pass
 

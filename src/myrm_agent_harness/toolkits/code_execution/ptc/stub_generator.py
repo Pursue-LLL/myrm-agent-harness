@@ -190,9 +190,7 @@ def generate_stubs(
 
     if use_tcp_fallback:
         preamble_lines = _PREAMBLE.split("\n")
-        module_doc_end = next(
-            i for i, line in enumerate(preamble_lines) if line.startswith("import json")
-        )
+        module_doc_end = next(i for i, line in enumerate(preamble_lines) if line.startswith("import json"))
         parts.append("\n".join(preamble_lines[:module_doc_end]))
         parts.append(
             "import json\n"

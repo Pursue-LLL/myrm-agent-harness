@@ -231,9 +231,7 @@ def _scan_directory(directory: Path) -> list[RuleFile]:
     seen_inodes: set[tuple[int, int]] = set()
 
     results.extend(_scan_rules_subdir(directory, _MYRM_RULES_DIR, "*.md", seen_inodes))
-    results.extend(
-        _scan_rules_subdir(directory, _CURSOR_RULES_DIR, "*.mdc", seen_inodes)
-    )
+    results.extend(_scan_rules_subdir(directory, _CURSOR_RULES_DIR, "*.mdc", seen_inodes))
 
     for subdir_file in (_CLAUDE_SUBDIR_FILE, _COPILOT_INSTRUCTIONS_FILE):
         subdir_path = directory / subdir_file
@@ -295,9 +293,7 @@ def scan_workspace_rules(workspace_root: str) -> list[RuleFile]:
 
         for rule in _scan_directory(current):
             if total_chars + len(rule.content) > MAX_TOTAL_CHARS:
-                logger.info(
-                    "Workspace rules total budget exceeded, skipping: %s", rule.path
-                )
+                logger.info("Workspace rules total budget exceeded, skipping: %s", rule.path)
                 continue
             results.append(rule)
             total_chars += len(rule.content)

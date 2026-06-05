@@ -40,9 +40,7 @@ def _utf8_byte_length(s: str) -> int:
     return len(s.encode("utf-8"))
 
 
-def _jsonl_line_for_event(
-    e: StructuredEvent, max_line_bytes: int
-) -> tuple[str, bool, int]:
+def _jsonl_line_for_event(e: StructuredEvent, max_line_bytes: int) -> tuple[str, bool, int]:
     """Serialize one event to a JSONL line; downsize if over ``max_line_bytes``.
 
     Returns:
@@ -58,11 +56,13 @@ def _jsonl_line_for_event(
         timestamp=e.timestamp,
         event_type=e.event_type,
         session_id=e.session_id,
-        data=EventPayload(**{
-            "_jsonl_oversized": True,
-            "_original_serialized_bytes": n,
-            "_max_line_bytes": max_line_bytes,
-        }),
+        data=EventPayload(
+            **{
+                "_jsonl_oversized": True,
+                "_original_serialized_bytes": n,
+                "_max_line_bytes": max_line_bytes,
+            }
+        ),
     )
     down_dict = down.to_dict()
     down_line = json.dumps(down_dict, ensure_ascii=False) + "\n"

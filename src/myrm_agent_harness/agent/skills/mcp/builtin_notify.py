@@ -113,25 +113,16 @@ async def notify_handler(params: dict[str, object]) -> None:
     if not isinstance(message, str) or not message:
         raise NotifyError("notify: 'message' must be a non-empty string.")
     if len(message.encode("utf-8")) > _MAX_MESSAGE_BYTES:
-        raise NotifyError(
-            f"notify: message exceeds {_MAX_MESSAGE_BYTES // 1024} KiB; "
-            "summarise before sending."
-        )
+        raise NotifyError(f"notify: message exceeds {_MAX_MESSAGE_BYTES // 1024} KiB; summarise before sending.")
 
     level_raw = params.get("level", "info")
     level = level_raw if isinstance(level_raw, str) else "info"
     if level not in _ALLOWED_LEVELS:
-        raise NotifyError(
-            f"notify: invalid level '{level}'. Expected one of {sorted(_ALLOWED_LEVELS)}."
-        )
+        raise NotifyError(f"notify: invalid level '{level}'. Expected one of {sorted(_ALLOWED_LEVELS)}.")
 
     progress = _coerce_optional_int(params.get("progress"), lo=0, hi=100, field="progress")
-    step_index = _coerce_optional_int(
-        params.get("step_index"), lo=1, hi=10_000_000, field="step_index"
-    )
-    total_steps = _coerce_optional_int(
-        params.get("total_steps"), lo=1, hi=10_000_000, field="total_steps"
-    )
+    step_index = _coerce_optional_int(params.get("step_index"), lo=1, hi=10_000_000, field="step_index")
+    total_steps = _coerce_optional_int(params.get("total_steps"), lo=1, hi=10_000_000, field="total_steps")
 
     category_raw = params.get("category")
     category: str | None
@@ -139,9 +130,7 @@ async def notify_handler(params: dict[str, object]) -> None:
         category = None
     elif isinstance(category_raw, str) and category_raw:
         if len(category_raw) > _MAX_CATEGORY_LEN:
-            raise NotifyError(
-                f"notify: 'category' must be ≤ {_MAX_CATEGORY_LEN} chars (got {len(category_raw)})."
-            )
+            raise NotifyError(f"notify: 'category' must be ≤ {_MAX_CATEGORY_LEN} chars (got {len(category_raw)}).")
         category = category_raw
     else:
         raise NotifyError("notify: 'category' must be a non-empty string when provided.")
@@ -155,9 +144,7 @@ async def notify_handler(params: dict[str, object]) -> None:
     config = get_session_config(session_id) if session_id else None
 
     if session_id and not _consume_token(session_id):
-        logger.debug(
-            "notify_handler: rate limited session=%s (>10 req/s burst 20)", session_id
-        )
+        logger.debug("notify_handler: rate limited session=%s (>10 req/s burst 20)", session_id)
         return None
 
     payload: dict[str, object] = {

@@ -35,7 +35,4 @@ class AXTreeEmptyError(ElementRefError):
 
     def __init__(self, reason: str = "") -> None:
         suffix = f" ({reason})" if reason else ""
-        super().__init__(
-            f"Accessibility tree is empty{suffix}. "
-            "Use desktop_vision_tool for canvas/custom-rendered UI."
-        )
+        super().__init__(f"Accessibility tree is empty{suffix}. Use desktop_vision_tool for canvas/custom-rendered UI.")

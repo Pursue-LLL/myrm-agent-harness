@@ -51,9 +51,8 @@ def build_objective_updated_steering_message(goal: Goal) -> str:
 
     constraints_reminder = ""
     if goal.constraints:
-        constraints_reminder = (
-            "\n\nActive constraints still apply — do not violate them:\n"
-            + "\n".join(f"- {c}" for c in goal.constraints)
+        constraints_reminder = "\n\nActive constraints still apply — do not violate them:\n" + "\n".join(
+            f"- {c}" for c in goal.constraints
         )
 
     return (

@@ -137,9 +137,7 @@ def create_default_pipeline(max_context_tokens: int | None = None) -> ContextPip
     External data security isolation is handled by the tool layer (content_boundary module),
     not duplicated in the pipeline layer.
     """
-    return ContextPipeline(
-        build_default_processors(max_context_tokens=max_context_tokens)
-    )
+    return ContextPipeline(build_default_processors(max_context_tokens=max_context_tokens))
 
 
 def build_default_processors(

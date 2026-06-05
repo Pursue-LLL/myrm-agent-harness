@@ -47,7 +47,7 @@ class ThrottleStrategy(Protocol):
 
 
 class NoThrottle:
-    """ no 限流（LocalMode/开发Mode）."""
+    """no 限流（LocalMode/开发Mode）."""
 
     async def before_navigate(self, url: str) -> None:
         pass

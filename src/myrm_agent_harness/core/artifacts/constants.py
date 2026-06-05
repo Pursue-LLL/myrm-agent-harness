@@ -171,9 +171,25 @@ _EXTRA_DOCUMENT_EXTENSIONS: frozenset[str] = frozenset({".log", ".csv"})
 
 _EXTRA_BINARY_EXTENSIONS: frozenset[str] = frozenset(
     {
-        ".pptx", ".docx", ".xlsx", ".zip", ".tar", ".gz", ".rar", ".7z",
-        ".exe", ".dmg", ".pkg", ".deb", ".rpm", ".apk", ".ipa",
-        ".mp4", ".avi", ".mov", ".mkv",
+        ".pptx",
+        ".docx",
+        ".xlsx",
+        ".zip",
+        ".tar",
+        ".gz",
+        ".rar",
+        ".7z",
+        ".exe",
+        ".dmg",
+        ".pkg",
+        ".deb",
+        ".rpm",
+        ".apk",
+        ".ipa",
+        ".mp4",
+        ".avi",
+        ".mov",
+        ".mkv",
     }
 )
 
@@ -219,9 +235,7 @@ MIME_TO_ARTIFACT_TYPE: dict[str, ArtifactType] = {
 
 # ==================== Security ====================
 
-ACTIVE_CONTENT_MIME_TYPES: frozenset[str] = frozenset(
-    {"text/html", "application/xhtml+xml", "image/svg+xml"}
-)
+ACTIVE_CONTENT_MIME_TYPES: frozenset[str] = frozenset({"text/html", "application/xhtml+xml", "image/svg+xml"})
 
 
 def is_active_content(mime_type: str) -> bool:

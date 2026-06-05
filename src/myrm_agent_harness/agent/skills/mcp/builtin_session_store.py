@@ -64,8 +64,7 @@ def _get_lock(workspace_root: str, session_id: str) -> asyncio.Lock:
 def _validate_session_id(session_id: str) -> None:
     if not _SAFE_SESSION_ID_RE.fullmatch(session_id):
         raise SessionStoreError(
-            f"session_store: invalid session_id {session_id!r}; "
-            "must match [A-Za-z0-9][A-Za-z0-9._-]* (max 128 chars)."
+            f"session_store: invalid session_id {session_id!r}; must match [A-Za-z0-9][A-Za-z0-9._-]* (max 128 chars)."
         )
 
 
@@ -81,25 +80,19 @@ def _resolve_store_path() -> tuple[Path, asyncio.Lock]:
 
     ctx = get_ipc_call_context()
     if ctx is None or not ctx.session_id or not ctx.workspace_root:
-        raise SessionStoreError(
-            "session_store requires session_id and workspace_root in IPC context."
-        )
+        raise SessionStoreError("session_store requires session_id and workspace_root in IPC context.")
 
     _validate_session_id(ctx.session_id)
 
     workspace_root = Path(ctx.workspace_root).resolve()
     store_dir = (workspace_root / _STORE_DIR_NAME).resolve()
     if not str(store_dir).startswith(str(workspace_root)):
-        raise SessionStoreError(
-            "session_store: resolved store directory escapes the workspace root."
-        )
+        raise SessionStoreError("session_store: resolved store directory escapes the workspace root.")
     store_dir.mkdir(parents=True, exist_ok=True)
 
     target = (store_dir / f"{ctx.session_id}.json").resolve()
     if not str(target).startswith(str(store_dir)):
-        raise SessionStoreError(
-            "session_store: resolved file path escapes the store directory."
-        )
+        raise SessionStoreError("session_store: resolved file path escapes the store directory.")
     return target, _get_lock(ctx.workspace_root, ctx.session_id)
 
 
@@ -140,9 +133,7 @@ async def session_store_handler(params: dict[str, object]) -> None:
     try:
         serialised = json.dumps(value, ensure_ascii=False)
     except (TypeError, ValueError) as exc:
-        raise SessionStoreError(
-            f"session_store: value for key '{key}' is not JSON-serialisable ({exc})."
-        ) from exc
+        raise SessionStoreError(f"session_store: value for key '{key}' is not JSON-serialisable ({exc}).") from exc
 
     if len(serialised.encode("utf-8")) > _MAX_VALUE_BYTES:
         raise SessionStoreError(

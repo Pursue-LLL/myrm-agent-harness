@@ -66,11 +66,7 @@ class RateLimitState:
     @property
     def highest_usage_pct(self) -> float:
         """Get the highest usage percentage across all buckets."""
-        pcts = [
-            b.usage_pct
-            for b in (self.rpm, self.rph, self.tpm, self.tph)
-            if b is not None
-        ]
+        pcts = [b.usage_pct for b in (self.rpm, self.rph, self.tpm, self.tph) if b is not None]
         return max(pcts) if pcts else 0.0
 
     def can_consume(self, tokens: int, requests: int = 1) -> bool:
@@ -84,25 +80,13 @@ class RateLimitState:
             True if quota is sufficient, False otherwise.
         """
         # Check requests
-        if (
-            self.rpm
-            and self.rpm.remaining < requests
-            and self.rpm.remaining_seconds_now > 0
-        ):
+        if self.rpm and self.rpm.remaining < requests and self.rpm.remaining_seconds_now > 0:
             return False
-        if (
-            self.rph
-            and self.rph.remaining < requests
-            and self.rph.remaining_seconds_now > 0
-        ):
+        if self.rph and self.rph.remaining < requests and self.rph.remaining_seconds_now > 0:
             return False
 
         # Check tokens
-        if (
-            self.tpm
-            and self.tpm.remaining < tokens
-            and self.tpm.remaining_seconds_now > 0
-        ):
+        if self.tpm and self.tpm.remaining < tokens and self.tpm.remaining_seconds_now > 0:
             return False
         return not (self.tph and self.tph.remaining < tokens and self.tph.remaining_seconds_now > 0)
 

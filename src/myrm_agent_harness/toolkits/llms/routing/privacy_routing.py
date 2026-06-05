@@ -137,9 +137,7 @@ class PrivacyRoutingModel(BaseChatModel):
             )
             self._verify_redaction_safety()
             return self.cloud_llm
-        raise RuntimeError(
-            f"Local model unavailable and fallback is 'block': {exc}"
-        ) from exc
+        raise RuntimeError(f"Local model unavailable and fallback is 'block': {exc}") from exc
 
     def _verify_redaction_safety(self) -> None:
         """Double-check that messages have been properly redacted before cloud fallback.
@@ -174,14 +172,10 @@ class PrivacyRoutingModel(BaseChatModel):
         except Exception:
             pass
 
-    def _get_target_and_kwargs(
-        self, target: Any, kwargs: dict[str, Any]
-    ) -> tuple[Any, dict[str, Any]]:
+    def _get_target_and_kwargs(self, target: Any, kwargs: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
         target_kwargs = kwargs.copy()
         actual_target = target
-        logger.warning(
-            f"DEBUG _get_target_and_kwargs: initial target type: {type(target)}"
-        )
+        logger.warning(f"DEBUG _get_target_and_kwargs: initial target type: {type(target)}")
         while hasattr(actual_target, "bound"):
             if hasattr(actual_target, "kwargs"):
                 target_kwargs.update(actual_target.kwargs)
@@ -205,12 +199,8 @@ class PrivacyRoutingModel(BaseChatModel):
         if target is self.local_llm:
             for attempt in range(_ROUTING_RETRY_COUNT + 1):
                 try:
-                    actual_target, target_kwargs = self._get_target_and_kwargs(
-                        target, kwargs
-                    )
-                    return actual_target._generate(
-                        messages, stop=stop, run_manager=run_manager, **target_kwargs
-                    )
+                    actual_target, target_kwargs = self._get_target_and_kwargs(target, kwargs)
+                    return actual_target._generate(messages, stop=stop, run_manager=run_manager, **target_kwargs)
                 except Exception as exc:
                     if attempt < _ROUTING_RETRY_COUNT:
                         logger.warning(
@@ -219,17 +209,11 @@ class PrivacyRoutingModel(BaseChatModel):
                         )
                         continue
                     target = self._handle_local_failure(exc)
-                    actual_target, target_kwargs = self._get_target_and_kwargs(
-                        target, kwargs
-                    )
-                    return actual_target._generate(
-                        messages, stop=stop, run_manager=run_manager, **target_kwargs
-                    )
+                    actual_target, target_kwargs = self._get_target_and_kwargs(target, kwargs)
+                    return actual_target._generate(messages, stop=stop, run_manager=run_manager, **target_kwargs)
 
         actual_target, target_kwargs = self._get_target_and_kwargs(target, kwargs)
-        return actual_target._generate(
-            messages, stop=stop, run_manager=run_manager, **target_kwargs
-        )
+        return actual_target._generate(messages, stop=stop, run_manager=run_manager, **target_kwargs)
 
     async def _agenerate(
         self,
@@ -245,12 +229,8 @@ class PrivacyRoutingModel(BaseChatModel):
         if target is self.local_llm:
             for attempt in range(_ROUTING_RETRY_COUNT + 1):
                 try:
-                    actual_target, target_kwargs = self._get_target_and_kwargs(
-                        target, kwargs
-                    )
-                    return await actual_target._agenerate(
-                        messages, stop=stop, run_manager=run_manager, **target_kwargs
-                    )
+                    actual_target, target_kwargs = self._get_target_and_kwargs(target, kwargs)
+                    return await actual_target._agenerate(messages, stop=stop, run_manager=run_manager, **target_kwargs)
                 except Exception as exc:
                     if attempt < _ROUTING_RETRY_COUNT:
                         logger.warning(
@@ -259,17 +239,11 @@ class PrivacyRoutingModel(BaseChatModel):
                         )
                         continue
                     target = self._handle_local_failure(exc)
-                    actual_target, target_kwargs = self._get_target_and_kwargs(
-                        target, kwargs
-                    )
-                    return await actual_target._agenerate(
-                        messages, stop=stop, run_manager=run_manager, **target_kwargs
-                    )
+                    actual_target, target_kwargs = self._get_target_and_kwargs(target, kwargs)
+                    return await actual_target._agenerate(messages, stop=stop, run_manager=run_manager, **target_kwargs)
 
         actual_target, target_kwargs = self._get_target_and_kwargs(target, kwargs)
-        return await actual_target._agenerate(
-            messages, stop=stop, run_manager=run_manager, **target_kwargs
-        )
+        return await actual_target._agenerate(messages, stop=stop, run_manager=run_manager, **target_kwargs)
 
     def _stream(
         self,
@@ -284,20 +258,14 @@ class PrivacyRoutingModel(BaseChatModel):
 
         if target is self.local_llm:
             try:
-                actual_target, target_kwargs = self._get_target_and_kwargs(
-                    target, kwargs
-                )
-                yield from actual_target._stream(
-                    messages, stop=stop, run_manager=run_manager, **target_kwargs
-                )
+                actual_target, target_kwargs = self._get_target_and_kwargs(target, kwargs)
+                yield from actual_target._stream(messages, stop=stop, run_manager=run_manager, **target_kwargs)
                 return
             except Exception as exc:
                 target = self._handle_local_failure(exc)
 
         actual_target, target_kwargs = self._get_target_and_kwargs(target, kwargs)
-        yield from actual_target._stream(
-            messages, stop=stop, run_manager=run_manager, **target_kwargs
-        )
+        yield from actual_target._stream(messages, stop=stop, run_manager=run_manager, **target_kwargs)
 
     async def _astream(
         self,
@@ -312,9 +280,7 @@ class PrivacyRoutingModel(BaseChatModel):
 
         if target is self.local_llm:
             try:
-                actual_target, target_kwargs = self._get_target_and_kwargs(
-                    target, kwargs
-                )
+                actual_target, target_kwargs = self._get_target_and_kwargs(target, kwargs)
                 async for chunk in actual_target._astream(
                     messages, stop=stop, run_manager=run_manager, **target_kwargs
                 ):
@@ -324,7 +290,5 @@ class PrivacyRoutingModel(BaseChatModel):
                 target = self._handle_local_failure(exc)
 
         actual_target, target_kwargs = self._get_target_and_kwargs(target, kwargs)
-        async for chunk in actual_target._astream(
-            messages, stop=stop, run_manager=run_manager, **target_kwargs
-        ):
+        async for chunk in actual_target._astream(messages, stop=stop, run_manager=run_manager, **target_kwargs):
             yield chunk

@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 class ProxyPoolExhaustedError(Exception):
     """Raised when all proxies in the pool are quarantined/exhausted."""
+
     pass
 
 
@@ -198,8 +199,13 @@ class RoundRobinProxyPool:
 
             expire_time = time.monotonic() + quarantine_seconds
             self._quarantine[proxy] = expire_time
-            logger.warning("Proxy %s quarantined for %d seconds (failure #%d) due to session %s",
-                           proxy.server, quarantine_seconds, failures, session_id)
+            logger.warning(
+                "Proxy %s quarantined for %d seconds (failure #%d) due to session %s",
+                proxy.server,
+                quarantine_seconds,
+                failures,
+                session_id,
+            )
 
     @property
     def active_session_count(self) -> int:

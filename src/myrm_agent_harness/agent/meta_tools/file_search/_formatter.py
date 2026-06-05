@@ -18,8 +18,20 @@ LINE_PREFIX_CONTEXT_CHARS = 80
 NON_CODE_MATCH_CAP = 3
 _NON_CODE_EXTENSIONS = frozenset(
     {
-        ".json", ".yaml", ".yml", ".md", ".txt", ".csv", ".toml", ".ini", ".cfg",
-        ".xml", ".html", ".lock", ".log", ".svg",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".md",
+        ".txt",
+        ".csv",
+        ".toml",
+        ".ini",
+        ".cfg",
+        ".xml",
+        ".html",
+        ".lock",
+        ".log",
+        ".svg",
     }
 )
 

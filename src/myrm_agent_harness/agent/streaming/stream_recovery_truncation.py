@@ -42,9 +42,7 @@ logger = get_agent_logger(__name__)
 # Set by truncation recovery to temporarily boost the output budget for the
 # next LLM call.  ChatLiteLLM reads this to override its configured max_tokens.
 # The token resets after a single use (the adapter clears it after reading).
-ephemeral_max_output_tokens: ContextVar[int | None] = ContextVar(
-    "ephemeral_max_output_tokens", default=None
-)
+ephemeral_max_output_tokens: ContextVar[int | None] = ContextVar("ephemeral_max_output_tokens", default=None)
 
 _MAX_EPHEMERAL_OUTPUT_TOKENS = 32768
 

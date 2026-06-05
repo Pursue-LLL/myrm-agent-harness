@@ -129,9 +129,7 @@ class SkillSyncManager:
             skill_dir = self._skills_path / skill_name
             skill_md = skill_dir / _SKILL_MD_FILE
             if not skill_md.exists():
-                logger.warning(
-                    "Skill '%s' has no SKILL.md, skipping push", skill_name
-                )
+                logger.warning("Skill '%s' has no SKILL.md, skipping push", skill_name)
                 continue
 
             content = skill_md.read_text(encoding="utf-8")

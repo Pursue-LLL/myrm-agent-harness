@@ -385,6 +385,7 @@ def payload_from_dataclass(obj: object) -> dict[str, object]:
     """Convert a frozen dataclass payload to dict for hook execution."""
     return asdict(obj)  # type: ignore[arg-type]
 
+
 def bootstrap_hook_registry() -> HookRegistry:
     """Get or create the session-scoped HookRegistry.
 

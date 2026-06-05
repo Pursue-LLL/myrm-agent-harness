@@ -152,9 +152,7 @@ class Extractor:
                         full_text += f"\\n\\n--- Frame {i} Content ---\\n"
                     full_text += frame_text
             except Exception as exc:
-                logger.debug(
-                    "Extractor: could not extract text from frame %d: %s", i, exc
-                )
+                logger.debug("Extractor: could not extract text from frame %d: %s", i, exc)
 
         import re
 
@@ -245,9 +243,7 @@ class Extractor:
             RuntimeError: If没 has 上次Screenshot
         """
         if self._prev_screenshot is None:
-            raise RuntimeError(
-                "No previous screenshot to compare with. Call extract_screenshot first."
-            )
+            raise RuntimeError("No previous screenshot to compare with. Call extract_screenshot first.")
 
         result = await self.compare_screenshots(self._prev_screenshot, strategy="fast")
         return result.to_llm_message()

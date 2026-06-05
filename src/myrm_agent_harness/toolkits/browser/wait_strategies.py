@@ -71,22 +71,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _record_to_domain_metrics(
-    metrics: WaitMetrics, domain: str, domain_metrics_manager: DomainMetricsManager
-) -> None:
+def _record_to_domain_metrics(metrics: WaitMetrics, domain: str, domain_metrics_manager: DomainMetricsManager) -> None:
     """RecordWaitMetrics to  DomainMetrics."""
 
     try:
         domain_metrics = domain_metrics_manager.get_or_create(domain)
 
-        if (
-            metrics.strategy == WaitStrategy.NETWORKIDLE
-            or metrics.reason == "network_only"
-        ):
+        if metrics.strategy == WaitStrategy.NETWORKIDLE or metrics.reason == "network_only":
             domain_metrics.record_wait_strategy("networkidle", metrics.elapsed_ms)
-            domain_metrics.record_networkidle_result(
-                success=metrics.reason == "network_only"
-            )
+            domain_metrics.record_networkidle_result(success=metrics.reason == "network_only")
 
         elif metrics.strategy in (WaitStrategy.HYBRID, WaitStrategy.SMART):
             if metrics.network_idle_ms is not None:
@@ -162,9 +155,7 @@ async def wait_for_page_ready(
         raise ValueError(f"grace_period_ms must be non-negative, got {grace_period_ms}")
 
     if quiet_ms > max_ms:
-        logger.warning(
-            f"quiet_ms ({quiet_ms}ms) exceeds max_ms ({max_ms}ms), adjusting to {max_ms}ms"
-        )
+        logger.warning(f"quiet_ms ({quiet_ms}ms) exceeds max_ms ({max_ms}ms), adjusting to {max_ms}ms")
         quiet_ms = max_ms
 
     start_time = time.perf_counter()

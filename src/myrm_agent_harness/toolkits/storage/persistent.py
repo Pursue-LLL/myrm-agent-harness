@@ -140,7 +140,7 @@ class PersistentStorageBackend(BaseFileSystemBackend):
     # ── 覆写：双卷List ─────────────────────────────────
 
     async def _list_in_volume(self, prefix: str, base_path: Path, recursive: bool) -> list[str]:
-        """ in single卷 in 列出File"""
+        """in single卷 in 列出File"""
         if prefix:
             key_normalized = os.path.normpath(prefix).lstrip("/")
             if self.namespace:

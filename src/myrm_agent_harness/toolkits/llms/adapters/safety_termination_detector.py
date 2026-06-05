@@ -29,16 +29,18 @@ logger = logging.getLogger(__name__)
 # OpenAI/Moonshot/DeepSeek: "content_filter"
 # Anthropic: "refusal"
 # Gemini: "SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "RECITATION", "IMAGE_SAFETY"
-SAFETY_FINISH_REASONS: frozenset[str] = frozenset({
-    "content_filter",
-    "refusal",
-    "SAFETY",
-    "BLOCKLIST",
-    "PROHIBITED_CONTENT",
-    "SPII",
-    "RECITATION",
-    "IMAGE_SAFETY",
-})
+SAFETY_FINISH_REASONS: frozenset[str] = frozenset(
+    {
+        "content_filter",
+        "refusal",
+        "SAFETY",
+        "BLOCKLIST",
+        "PROHIBITED_CONTENT",
+        "SPII",
+        "RECITATION",
+        "IMAGE_SAFETY",
+    }
+)
 
 
 def detect_safety_termination(finish_reason: str | None) -> bool:
@@ -66,9 +68,7 @@ def suppress_tool_calls_for_safety(
         return 0
 
     suppressed_count = len(tool_calls)
-    suppressed_names = [
-        tc.get("function", {}).get("name", "unknown") for tc in tool_calls
-    ]
+    suppressed_names = [tc.get("function", {}).get("name", "unknown") for tc in tool_calls]
 
     del aggregated_message["tool_calls"]
 

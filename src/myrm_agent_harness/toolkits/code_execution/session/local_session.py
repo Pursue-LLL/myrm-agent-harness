@@ -56,9 +56,7 @@ class LocalPersistentSession(PersistentSession):
         )
 
         mode = SandboxMode(self.config.sandbox_mode)
-        self._sandbox_provider, self._sandbox_status = detect_sandbox_provider(
-            mode=mode, platform_info=self._platform
-        )
+        self._sandbox_provider, self._sandbox_status = detect_sandbox_provider(mode=mode, platform_info=self._platform)
         if self._sandbox_policy is None:
             self._sandbox_policy = SandboxPolicy(writable_paths=(self.config.work_dir,))
 
@@ -76,11 +74,7 @@ class LocalPersistentSession(PersistentSession):
         p = self._platform
         shell_path, shell_args = p.shell_path, p.shell_args
 
-        if (
-            self._sandbox_status
-            and self._sandbox_status.enabled
-            and self._sandbox_policy
-        ):
+        if self._sandbox_status and self._sandbox_status.enabled and self._sandbox_policy:
             shell_path, shell_args = self._sandbox_provider.wrap_command(
                 shell_path=shell_path,
                 shell_args=shell_args,

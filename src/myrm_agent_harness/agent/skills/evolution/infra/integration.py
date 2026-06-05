@@ -207,7 +207,6 @@ class EvolutionIntegration:
 
             # Auto-create evolution tools if needed
             if enable_tool_calling and evolution_tools is None and self.executor:
-
                 from ..execution.tool_selector import (
                     EvolutionToolConfig,
                     create_evolution_tools,
@@ -231,9 +230,7 @@ class EvolutionIntegration:
 
             if enable_tde and self.test_executor is None:
                 self.test_executor = SubprocessCodeExecutor()
-                logger.debug(
-                    "EvolutionIntegration: auto-created subprocess test executor"
-                )
+                logger.debug("EvolutionIntegration: auto-created subprocess test executor")
 
             self.engine = SkillEvolutionEngine(
                 store=self.store,
@@ -250,11 +247,7 @@ class EvolutionIntegration:
         if enable_embedding_cache:
             cache_path = self.db_path.parent / "embeddings.db"
             self.embedding_cache = get_embedding_cache(cache_path)
-            if (
-                embedding
-                and hasattr(embedding, "_cache")
-                and embedding._cache is None
-            ):
+            if embedding and hasattr(embedding, "_cache") and embedding._cache is None:
                 embedding._cache = self.embedding_cache
                 logger.debug("Injected embedding_cache into provided embedding service")
 
@@ -296,6 +289,7 @@ class EvolutionIntegration:
 
         async def _handle_trace_slice(event: str, payload: dict[str, object]) -> Any:
             from myrm_agent_harness.agent.hooks.types import HookResult
+
             session_id = str(payload.get("session_id", ""))
 
             tool_call_ids = payload.get("tool_call_ids", [])
@@ -317,7 +311,7 @@ class EvolutionIntegration:
                             tool_call_ids=cast("list[str]", tool_call_ids),
                             agent_id=agent_id,
                         ),
-                        priority=QueuePriority.LOW
+                        priority=QueuePriority.LOW,
                     )
                 except Exception as e:
                     logger.warning("Failed to enqueue trace slice: %s", e)
@@ -328,7 +322,7 @@ class EvolutionIntegration:
             CallableHookDefinition(
                 fn=_handle_trace_slice,
                 block_on_failure=False,
-            )
+            ),
         )
 
     async def record_execution(
@@ -399,20 +393,14 @@ class EvolutionIntegration:
                 quarantine_reason = "1-Strike (Deterministic Error)"
             elif metrics.consecutive_failures >= 3:
                 needs_quarantine = True
-                quarantine_reason = (
-                    f"3-Strikes (Consecutive Failures: {metrics.consecutive_failures})"
-                )
+                quarantine_reason = f"3-Strikes (Consecutive Failures: {metrics.consecutive_failures})"
 
         if needs_quarantine:
             logger.error(
                 "HARD QUARANTINE: Skill %s deactivated. Reason: %s. Error: %s",
                 skill_id,
                 quarantine_reason,
-                (
-                    error_message.split("\n")[-1][:100]
-                    if "\n" in error_message
-                    else error_message[:100]
-                ),
+                (error_message.split("\n")[-1][:100] if "\n" in error_message else error_message[:100]),
             )
             await self.store.deactivate_skill(skill_id)
 
@@ -433,11 +421,7 @@ class EvolutionIntegration:
                 priority = (
                     QueuePriority.CRITICAL
                     if is_deterministic_error
-                    else (
-                        QueuePriority.HIGH
-                        if metrics.consecutive_failures < 3
-                        else QueuePriority.CRITICAL
-                    )
+                    else (QueuePriority.HIGH if metrics.consecutive_failures < 3 else QueuePriority.CRITICAL)
                 )
                 await self.queue.enqueue(
                     EvolutionRequest(
@@ -497,13 +481,9 @@ class EvolutionIntegration:
                 return None
 
         if evolution_type == EvolutionType.FIX:
-            return await self.engine.fix_skill(
-                skill_id, kwargs.get("reason", "Manual fix")
-            )
+            return await self.engine.fix_skill(skill_id, kwargs.get("reason", "Manual fix"))
         elif evolution_type == EvolutionType.DERIVED:
-            return await self.engine.derive_skill_simple(
-                skill_id, kwargs.get("user_feedback", "")
-            )
+            return await self.engine.derive_skill_simple(skill_id, kwargs.get("user_feedback", ""))
         elif evolution_type == EvolutionType.CAPTURED:
             return await self.engine.capture_skill_simple(
                 kwargs.get("repeated_commands", []),
@@ -577,9 +557,7 @@ class EvolutionIntegration:
         )
         return proposals
 
-    async def start_background_queue(
-        self, on_proposal_callback: Any | None = None
-    ) -> None:
+    async def start_background_queue(self, on_proposal_callback: Any | None = None) -> None:
         """Start background evolution queue.
 
         Args:

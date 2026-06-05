@@ -36,8 +36,6 @@ from myrm_agent_harness.backends.skills.types import (
 logger = logging.getLogger(__name__)
 
 
-
-
 def check_requirements(frontmatter: SkillFrontmatter) -> tuple[bool, str | None]:
     """Check if skill dependencies are satisfied.
 
@@ -97,7 +95,6 @@ def build_skill_metadata(
     scan_result = scan_skill_content(skill_name, content)
     allowed_tools = frontmatter.allowed_tools.split() if frontmatter.allowed_tools else None
 
-
     scan_summary = compute_scan_summary(scan_result)
 
     # Credential validation (if workspace_root provided)
@@ -125,8 +122,11 @@ def build_skill_metadata(
         if invalid:
             logger.warning(
                 "Skill '%s' declares %s=%s — unknown groups: %s (known: %s)",
-                skill_name, group_field_name, group_list,
-                invalid, sorted(TOOL_GROUP_NAMES),
+                skill_name,
+                group_field_name,
+                group_list,
+                invalid,
+                sorted(TOOL_GROUP_NAMES),
             )
 
     return SkillMetadata(

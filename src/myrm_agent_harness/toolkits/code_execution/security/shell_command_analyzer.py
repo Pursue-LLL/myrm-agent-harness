@@ -115,9 +115,7 @@ _INJECTION_VECTORS: tuple[tuple[str, str], ...] = (
 # semicolon as the command terminator. The `\;` must appear at the very end
 # of the normalized command to qualify — this prevents exempting chained
 # commands like `find ... \; && malicious`.
-_FIND_EXEC_TERMINATOR_RE = re.compile(
-    r"\bfind\b.*\s-(?:exec|execdir)\b.*\{\}\s*\\;\s*$"
-)
+_FIND_EXEC_TERMINATOR_RE = re.compile(r"\bfind\b.*\s-(?:exec|execdir)\b.*\{\}\s*\\;\s*$")
 
 _INJECTION_VECTORS_COMPILED: tuple[tuple[re.Pattern[str], str], ...] = tuple(
     (re.compile(pattern), desc) for pattern, desc in _INJECTION_VECTORS
@@ -318,7 +316,7 @@ def _strip_quoted_content(command: str) -> str:
 
 def is_destructive_command(command: str) -> bool:
     """Check if a command is destructive (modifies files/state significantly).
-    
+
     This is used to trigger auto-snapshots before execution.
     """
     if not command or not command.strip():
@@ -336,7 +334,7 @@ def is_destructive_command(command: str) -> bool:
         r"\bcp\s+.*-r\b",
         r"\bfind\s+.*-delete\b",
         r"\bfind\s+.*-exec\s+rm\b",
-        r">\s*\S+", # Redirection overwrite
+        r">\s*\S+",  # Redirection overwrite
     ]
 
     for pattern in destructive_patterns:
@@ -344,6 +342,7 @@ def is_destructive_command(command: str) -> bool:
             return True
 
     return False
+
 
 def analyze_command(command: str) -> tuple[CommandThreat, ...]:
     """Analyze a shell command for security threats.

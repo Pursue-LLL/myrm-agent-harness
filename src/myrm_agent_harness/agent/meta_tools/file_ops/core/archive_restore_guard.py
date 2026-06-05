@@ -46,8 +46,7 @@ def _estimate_tokens_from_file_size(byte_count: int) -> int:
     if safe_byte_count == 0:
         return 0
     return max(
-        (safe_byte_count + _ARCHIVE_BYTES_PER_TOKEN_ESTIMATE - 1)
-        // _ARCHIVE_BYTES_PER_TOKEN_ESTIMATE,
+        (safe_byte_count + _ARCHIVE_BYTES_PER_TOKEN_ESTIMATE - 1) // _ARCHIVE_BYTES_PER_TOKEN_ESTIMATE,
         1,
     )
 
@@ -62,10 +61,7 @@ def format_archive_restore_block(
         archive_path=archive_path,
         estimated_tokens=estimated_tokens,
     )
-    return (
-        f"{_ARCHIVE_RESTORE_BLOCK_PREFIX}\n"
-        f"{json.dumps(blocked_payload, ensure_ascii=False, sort_keys=True)}"
-    )
+    return f"{_ARCHIVE_RESTORE_BLOCK_PREFIX}\n{json.dumps(blocked_payload, ensure_ascii=False, sort_keys=True)}"
 
 
 def parse_archive_restore_block_payload(value: object) -> dict[str, object] | None:
@@ -114,8 +110,7 @@ async def evaluate_archive_full_read_before_content(
                 recorded=False,
                 reason="archive_restore_size_probe_failed",
                 message=(
-                    "Archived context restore blocked because the file size could not be "
-                    "validated before reading."
+                    "Archived context restore blocked because the file size could not be validated before reading."
                 ),
                 suggested_action="Read a narrow line range from the archive instead of the full file.",
                 guidance=build_archive_restore_guidance(

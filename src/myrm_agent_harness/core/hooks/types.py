@@ -50,12 +50,8 @@ class HookEvent(StrEnum):
 class _HookBase(BaseModel):
     """Shared fields for all hook types."""
 
-    matcher: str | None = Field(
-        default=None, description="fnmatch pattern to filter tool names (e.g. 'bash_*')"
-    )
-    block_on_failure: bool = Field(
-        default=False, description="If true, a failed hook blocks the main flow"
-    )
+    matcher: str | None = Field(default=None, description="fnmatch pattern to filter tool names (e.g. 'bash_*')")
+    block_on_failure: bool = Field(default=False, description="If true, a failed hook blocks the main flow")
     timeout_seconds: int = Field(default=30, ge=1, le=600)
 
 
@@ -97,9 +93,7 @@ class LLMHookDefinition(_HookBase):
     )
 
 
-HookDefinition = (
-    CallableHookDefinition | CommandHookDefinition | HttpHookDefinition | LLMHookDefinition
-)
+HookDefinition = CallableHookDefinition | CommandHookDefinition | HttpHookDefinition | LLMHookDefinition
 
 
 # ---------------------------------------------------------------------------

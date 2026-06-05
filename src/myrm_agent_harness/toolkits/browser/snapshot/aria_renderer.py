@@ -112,7 +112,10 @@ def truncate_snapshot(text: str, max_tokens: int) -> tuple[str, bool]:
             return f"{kept}\n(... {remaining} more lines, truncated at ~{max_tokens} tokens)", True
     return text, False
 
-def smart_truncate_snapshot(nodes: list[EnhancedNode], max_tokens: int, compact: bool = False) -> tuple[str, SnapshotMeta, bool]:
+
+def smart_truncate_snapshot(
+    nodes: list[EnhancedNode], max_tokens: int, compact: bool = False
+) -> tuple[str, SnapshotMeta, bool]:
     """
     Intelligently truncate the ARIA snapshot tree to fit within max_tokens.
     Returns (rendered_yaml, metadata, was_truncated).
@@ -122,6 +125,7 @@ def smart_truncate_snapshot(nodes: list[EnhancedNode], max_tokens: int, compact:
         return yaml_text, meta, False
 
     from myrm_agent_harness.utils.tree_truncator import truncate_aria_tree
+
     truncated_nodes, was_truncated = truncate_aria_tree(nodes, max_tokens)
     yaml_text, meta = render_to_yaml(truncated_nodes, compact=compact)
     return yaml_text, meta, was_truncated

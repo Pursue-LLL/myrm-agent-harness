@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 StoreFunc = Callable[[AnyMemory], Awaitable[AnyMemory]]
 
+
 class GovernanceService:
     """Owns governance workflows that should not live in MemoryManager."""
 

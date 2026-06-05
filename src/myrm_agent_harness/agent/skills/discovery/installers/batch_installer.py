@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 _EXCLUDED_SEGMENTS = frozenset({".git", ".venv", "__pycache__", "node_modules", ".DS_Store", "__MACOSX"})
 
+
 def _is_excluded_file(path: str) -> bool:
     parts = path.split("/")
     return any(part.startswith(".") or part in _EXCLUDED_SEGMENTS for part in parts)
@@ -27,6 +28,7 @@ def _is_excluded_file(path: str) -> bool:
 @dataclass
 class HermesImportedSkill:
     """从批量 ZIP 中解析出的单个技能 DTO"""
+
     name: str
     description: str
     content: str
@@ -41,7 +43,7 @@ class HermesImportedSkill:
 
 class HermesBatchParser:
     """Hermes 批量技能解析器
-    
+
     解析包含多个技能目录的 ZIP 包，安全解压后分类提取为 DTO 列表。
     """
 
@@ -87,20 +89,20 @@ class HermesBatchParser:
                 logger.warning(f"Skip {dir_name}: No SKILL.md or markdown file found.")
                 continue
 
-            name, description, trigger_keywords, pure_content, metadata = self._parse_hermes_metadata(skill_md_content, fallback_name=dir_name)
+            name, description, trigger_keywords, pure_content, metadata = self._parse_hermes_metadata(
+                skill_md_content, fallback_name=dir_name
+            )
 
             # 将 trigger_keywords 融入 description (适配我们的体系)
             if trigger_keywords:
                 pattern_suffix = f"\n\n触发关键词(Patterns): {', '.join(trigger_keywords)}"
                 description += pattern_suffix
 
-            results.append(HermesImportedSkill(
-                name=name,
-                description=description,
-                content=pure_content,
-                files=files,
-                metadata=metadata
-            ))
+            results.append(
+                HermesImportedSkill(
+                    name=name, description=description, content=pure_content, files=files, metadata=metadata
+                )
+            )
 
         return results
 
@@ -117,7 +119,7 @@ class HermesBatchParser:
         metadata = {}
 
         if match:
-            pure_content = text[match.end():].strip()
+            pure_content = text[match.end() :].strip()
             try:
                 frontmatter = yaml.safe_load(match.group(1))
                 if isinstance(frontmatter, dict):

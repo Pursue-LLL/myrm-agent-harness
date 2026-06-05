@@ -391,11 +391,8 @@ async def analyze_github_url(url: str, token: str | None = None) -> list[GitHubR
         # Return a list of specific GitHubRefs
         results = []
         for subdir in sorted(found_subdirs):
-            results.append(GitHubRef(
-                owner=ref.owner,
-                repo=ref.repo,
-                ref=branch,
-                subdirectory=subdir if subdir else None
-            ))
+            results.append(
+                GitHubRef(owner=ref.owner, repo=ref.repo, ref=branch, subdirectory=subdir if subdir else None)
+            )
 
         return results

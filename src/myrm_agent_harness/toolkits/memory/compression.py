@@ -75,16 +75,12 @@ def externalize_payload(
         with open(temp_path, "wb") as f:
             f.write(compressed)
         os.replace(temp_path, blob_file_path)
-        logger.debug(
-            "Externalized payload: %d bytes to %s", len(raw_bytes), blob_file_path
-        )
+        logger.debug("Externalized payload: %d bytes to %s", len(raw_bytes), blob_file_path)
 
     return f"{BLOB_POINTER_PREFIX}{content_hash}"
 
 
-def internalize_payload(
-    data: str | bytes, *, blob_dir: str | Path = "~/.myrm/blobs"
-) -> str:
+def internalize_payload(data: str | bytes, *, blob_dir: str | Path = "~/.myrm/blobs") -> str:
     """Restore an externalized payload from the file system.
 
     If the data is a blob pointer, it reads the corresponding file from `blob_dir`,
@@ -127,9 +123,7 @@ def internalize_payload(
     return str(data)
 
 
-def compress_payload(
-    data: str | bytes, *, threshold: int = DEFAULT_COMPRESSION_THRESHOLD
-) -> bytes:
+def compress_payload(data: str | bytes, *, threshold: int = DEFAULT_COMPRESSION_THRESHOLD) -> bytes:
     """Compress string or bytes with gzip if size exceeds threshold.
 
     Args:
@@ -203,9 +197,7 @@ def is_compressed(data: bytes) -> bool:
     return len(data) >= 2 and data[:2] == COMPRESSION_MAGIC_PREFIX
 
 
-def compress_if_needed(
-    data: str | bytes | None, *, threshold: int = DEFAULT_COMPRESSION_THRESHOLD
-) -> bytes | None:
+def compress_if_needed(data: str | bytes | None, *, threshold: int = DEFAULT_COMPRESSION_THRESHOLD) -> bytes | None:
     """Compress data only if it exceeds threshold and is not already compressed.
 
     Args:

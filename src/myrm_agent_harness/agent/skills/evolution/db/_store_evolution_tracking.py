@@ -199,9 +199,7 @@ class SkillEvolutionTrackingMixin:
             rejected_at_iso,
         )
 
-    def load_rejections(
-        self, skill_id: str | None = None, limit: int = 100
-    ) -> list[dict[str, object]]:
+    def load_rejections(self, skill_id: str | None = None, limit: int = 100) -> list[dict[str, object]]:
         """Load evolution rejection records.
 
         Args:
@@ -240,9 +238,7 @@ class SkillEvolutionTrackingMixin:
 
     # --- Evolution constraints ---
 
-    def _add_evolution_constraint_sync(
-        self, skill_id: str, constraint_text: str
-    ) -> None:
+    def _add_evolution_constraint_sync(self, skill_id: str, constraint_text: str) -> None:
         """Synchronous constraint save."""
         from datetime import datetime
 
@@ -256,9 +252,7 @@ class SkillEvolutionTrackingMixin:
             )
             self._conn.commit()
 
-    async def add_evolution_constraint(
-        self, skill_id: str, constraint_text: str
-    ) -> None:
+    async def add_evolution_constraint(self, skill_id: str, constraint_text: str) -> None:
         """Add a constraint/lesson for a specific skill.
 
         Args:
@@ -269,9 +263,7 @@ class SkillEvolutionTrackingMixin:
             return
 
         self._ensure_open()  # type: ignore[attr-defined]
-        await asyncio.to_thread(
-            self._add_evolution_constraint_sync, skill_id, constraint_text.strip()
-        )
+        await asyncio.to_thread(self._add_evolution_constraint_sync, skill_id, constraint_text.strip())
 
     def get_evolution_constraints(self, skill_id: str, limit: int = 5) -> list[str]:
         """Get recent constraints for a specific skill.

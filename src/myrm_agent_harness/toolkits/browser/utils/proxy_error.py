@@ -25,6 +25,7 @@ PROXY_ERROR_PATTERNS = [
 # Compiled regex for faster matching
 _PROXY_ERROR_REGEX = re.compile("|".join(PROXY_ERROR_PATTERNS), re.IGNORECASE)
 
+
 def is_proxy_error(error: Exception | str | Any) -> bool:
     """Detect if an exception or error message is related to proxy/network failure.
 
@@ -36,6 +37,7 @@ def is_proxy_error(error: Exception | str | Any) -> bool:
     """
     error_msg = str(error).lower()
     return bool(_PROXY_ERROR_REGEX.search(error_msg))
+
 
 def is_blocked_response(status_code: int, body_text: str = "") -> bool:
     """Detect if a response indicates the IP is blocked (e.g., 403, CAPTCHA).

@@ -349,9 +349,7 @@ class MemoryConfig:
     default_search_limit: int = 10
     similarity_threshold: float = 0.5
     enable_adaptive_threshold: bool = True
-    adaptive_threshold_strategy: AdaptiveThresholdStrategy = field(
-        default_factory=CountBasedThresholdStrategy
-    )
+    adaptive_threshold_strategy: AdaptiveThresholdStrategy = field(default_factory=CountBasedThresholdStrategy)
     forgetting_interval: int = 10
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     bm25_top_k: int = 50

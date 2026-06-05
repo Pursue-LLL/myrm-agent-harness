@@ -29,6 +29,7 @@ VAULT_PREFIX = "vault://"
 @dataclass
 class VaultObject:
     """Vault 中存储的对象元数据"""
+
     id: str
     filename: str
     content_type: str
@@ -58,10 +59,12 @@ class ArtifactVault:
 
     def get_object_path(self, obj_id: str) -> Path:
         from myrm_agent_harness.agent.security.path_security import safe_join_path
+
         return safe_join_path(self.objects_dir, obj_id)
 
     def _get_meta_path(self, obj_id: str) -> Path:
         from myrm_agent_harness.agent.security.path_security import safe_join_path
+
         return safe_join_path(self.meta_dir, f"{obj_id}.json")
 
     def put(self, content: str | bytes, filename: str, content_type: str | None = None, description: str = "") -> str:
@@ -112,12 +115,16 @@ class ArtifactVault:
             description=description,
         )
 
-        self._get_meta_path(obj_id).write_text(json.dumps(meta.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+        self._get_meta_path(obj_id).write_text(
+            json.dumps(meta.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
         logger.info("Vault 存入大文件: %s (%d bytes) -> %s%s", filename, size_bytes, VAULT_PREFIX, obj_id)
         return f"{VAULT_PREFIX}{obj_id}"
 
-    def put_file(self, file_path: str | Path, filename: str, content_type: str | None = None, description: str = "") -> str:
+    def put_file(
+        self, file_path: str | Path, filename: str, content_type: str | None = None, description: str = ""
+    ) -> str:
         """从本地文件路径存入一个大文件对象, 返回 vault:// 指针.
 
         使用流式读取和计算 Hash, 防止读取大文件时 OOM.
@@ -163,7 +170,9 @@ class ArtifactVault:
             description=description,
         )
 
-        self._get_meta_path(obj_id).write_text(json.dumps(meta.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+        self._get_meta_path(obj_id).write_text(
+            json.dumps(meta.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
         logger.info("Vault 从文件存入大对象: %s (%d bytes) -> %s%s", filename, size_bytes, VAULT_PREFIX, obj_id)
         return f"{VAULT_PREFIX}{obj_id}"
@@ -173,7 +182,7 @@ class ArtifactVault:
         if not uri.startswith(VAULT_PREFIX):
             raise ValueError(f"Invalid Vault URI: {uri}. Must start with {VAULT_PREFIX}")
 
-        obj_id = uri[len(VAULT_PREFIX):]
+        obj_id = uri[len(VAULT_PREFIX) :]
         obj_path = self.get_object_path(obj_id)
         if not obj_path.exists():
             raise FileNotFoundError(f"Vault object not found: {obj_id}")
@@ -185,7 +194,7 @@ class ArtifactVault:
         if not uri.startswith(VAULT_PREFIX):
             return None
 
-        obj_id = uri[len(VAULT_PREFIX):]
+        obj_id = uri[len(VAULT_PREFIX) :]
         meta_path = self._get_meta_path(obj_id)
         if not meta_path.exists():
             return None

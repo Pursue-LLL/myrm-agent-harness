@@ -67,9 +67,7 @@ class SkillSyncManifest:
         harden_connection_sync(conn, DEFAULT, db_path=self._db_path)
         return conn
 
-    def update_local(
-        self, skill_name: str, sha256: str, version: str = "1.0.0"
-    ) -> None:
+    def update_local(self, skill_name: str, sha256: str, version: str = "1.0.0") -> None:
         """Record local skill state after evolution or modification."""
         with self._connect() as conn:
             existing = conn.execute(
@@ -79,11 +77,7 @@ class SkillSyncManifest:
 
             if existing:
                 remote_sha = existing[0]
-                status = (
-                    _SYNC_STATUS_LOCAL_AHEAD
-                    if remote_sha and remote_sha != sha256
-                    else _SYNC_STATUS_LOCAL_ONLY
-                )
+                status = _SYNC_STATUS_LOCAL_AHEAD if remote_sha and remote_sha != sha256 else _SYNC_STATUS_LOCAL_ONLY
                 conn.execute(
                     """UPDATE sync_manifest
                        SET local_sha256 = ?, local_version = ?, sync_status = ?
@@ -108,11 +102,7 @@ class SkillSyncManifest:
 
             if existing:
                 local_sha = existing[0]
-                status = (
-                    _SYNC_STATUS_SYNCED
-                    if local_sha == sha256
-                    else _SYNC_STATUS_REMOTE_AHEAD
-                )
+                status = _SYNC_STATUS_SYNCED if local_sha == sha256 else _SYNC_STATUS_REMOTE_AHEAD
                 conn.execute(
                     """UPDATE sync_manifest
                        SET remote_sha256 = ?, remote_version = ?, last_pulled_at = ?, sync_status = ?
@@ -189,9 +179,7 @@ class SkillSyncManifest:
     def get_last_sync_time(self) -> datetime | None:
         """Get the most recent sync timestamp."""
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT value FROM sync_meta WHERE key = 'last_sync_at'"
-            ).fetchone()
+            row = conn.execute("SELECT value FROM sync_meta WHERE key = 'last_sync_at'").fetchone()
             if row:
                 return datetime.fromisoformat(row[0])
             return None
@@ -208,7 +196,5 @@ class SkillSyncManifest:
     def get_sync_counts(self) -> dict[str, int]:
         """Get counts by sync status for UI display."""
         with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT sync_status, COUNT(*) FROM sync_manifest GROUP BY sync_status"
-            ).fetchall()
+            rows = conn.execute("SELECT sync_status, COUNT(*) FROM sync_manifest GROUP BY sync_status").fetchall()
             return {r[0]: r[1] for r in rows}

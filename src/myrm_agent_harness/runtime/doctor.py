@@ -169,9 +169,10 @@ class Doctor:
                 sandbox_key = os.getenv("SANDBOX_API_KEY")
                 if not sandbox_key:
                     return DoctorCheckResult(
-                        "deploy_mode", CheckStatus.ERROR,
+                        "deploy_mode",
+                        CheckStatus.ERROR,
                         f"{mode_desc} — SANDBOX_API_KEY missing",
-                        fix="Set SANDBOX_API_KEY for sandbox mode"
+                        fix="Set SANDBOX_API_KEY for sandbox mode",
                     )
                 return DoctorCheckResult("deploy_mode", CheckStatus.OK, mode_desc)
 
@@ -180,9 +181,10 @@ class Doctor:
                 sandbox_key = os.getenv("SANDBOX_API_KEY")
                 if not sandbox_key:
                     return DoctorCheckResult(
-                        "deploy_mode", CheckStatus.WARNING,
+                        "deploy_mode",
+                        CheckStatus.WARNING,
                         f"{mode_desc} — SANDBOX_API_KEY not set, remote access unsecured",
-                        fix="Set SANDBOX_API_KEY to secure remote access"
+                        fix="Set SANDBOX_API_KEY to secure remote access",
                     )
 
             return DoctorCheckResult("deploy_mode", CheckStatus.OK, mode_desc)
@@ -223,18 +225,13 @@ class Doctor:
                     # 2xx, 401, 403 all indicate the endpoint is reachable
                     if resp.status_code < 500:
                         return DoctorCheckResult(
-                            "llm_conn", CheckStatus.OK,
-                            f"LLM endpoint reachable ({probe_url}, HTTP {resp.status_code})"
+                            "llm_conn", CheckStatus.OK, f"LLM endpoint reachable ({probe_url}, HTTP {resp.status_code})"
                         )
                     return DoctorCheckResult(
-                        "llm_conn", CheckStatus.WARNING,
-                        f"LLM endpoint returned HTTP {resp.status_code}"
+                        "llm_conn", CheckStatus.WARNING, f"LLM endpoint returned HTTP {resp.status_code}"
                     )
                 except httpx.ConnectError as e:
-                    return DoctorCheckResult(
-                        "llm_conn", CheckStatus.ERROR,
-                        f"LLM endpoint unreachable: {str(e)[:80]}"
-                    )
+                    return DoctorCheckResult("llm_conn", CheckStatus.ERROR, f"LLM endpoint unreachable: {str(e)[:80]}")
         except ImportError:
             # Fallback to full LLM call if httpx not available
             try:

@@ -130,8 +130,7 @@ class JobExecutor:
 
         context_from_text = await self._resolve_context_from(job)
         effective_context = (
-            f"{context_from_text}\n\n{context}" if context_from_text and context
-            else context_from_text or context
+            f"{context_from_text}\n\n{context}" if context_from_text and context else context_from_text or context
         )
 
         started = datetime.now(UTC)
@@ -391,9 +390,7 @@ class JobExecutor:
             output = runs[0].output
             if len(output) > _MAX_CONTEXT_FROM_CHARS:
                 output = output[:_MAX_CONTEXT_FROM_CHARS] + "\n[... output truncated ...]"
-            fragments.append(
-                f"## Output from task '{task_name}'\n\n{output}"
-            )
+            fragments.append(f"## Output from task '{task_name}'\n\n{output}")
         return "\n\n---\n\n".join(fragments)
 
     # ------------------------------------------------------------------

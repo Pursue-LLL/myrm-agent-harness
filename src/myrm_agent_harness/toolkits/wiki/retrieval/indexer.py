@@ -38,14 +38,81 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_STOP_WORDS = frozenset({
-    "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "if", "in", "into", "is", "it",
-    "no", "not", "of", "on", "or", "such", "that", "the", "their", "then", "there", "these", "they",
-    "this", "to", "was", "will", "with", "what", "how", "why", "who", "where", "when",
-    "does", "do", "did", "can", "could", "should", "would",
-    "的", "了", "和", "是", "就", "都", "而", "及", "与", "着", "或",
-    "一个", "没有", "我们", "你们", "他们", "它", "它们", "什么", "怎么", "如何", "为什么", "谁", "在哪", "何时",
-})
+_STOP_WORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "but",
+        "by",
+        "for",
+        "if",
+        "in",
+        "into",
+        "is",
+        "it",
+        "no",
+        "not",
+        "of",
+        "on",
+        "or",
+        "such",
+        "that",
+        "the",
+        "their",
+        "then",
+        "there",
+        "these",
+        "they",
+        "this",
+        "to",
+        "was",
+        "will",
+        "with",
+        "what",
+        "how",
+        "why",
+        "who",
+        "where",
+        "when",
+        "does",
+        "do",
+        "did",
+        "can",
+        "could",
+        "should",
+        "would",
+        "的",
+        "了",
+        "和",
+        "是",
+        "就",
+        "都",
+        "而",
+        "及",
+        "与",
+        "着",
+        "或",
+        "一个",
+        "没有",
+        "我们",
+        "你们",
+        "他们",
+        "它",
+        "它们",
+        "什么",
+        "怎么",
+        "如何",
+        "为什么",
+        "谁",
+        "在哪",
+        "何时",
+    }
+)
 
 _CJK_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF]+")
 
@@ -274,9 +341,7 @@ class WikiIndexer:
 
         # Source overlap: check if target's sources overlap with source's
         if source_files:
-            cursor = conn.execute(
-                "SELECT source FROM wiki_edges WHERE target = ? LIMIT 20", (target,)
-            )
+            cursor = conn.execute("SELECT source FROM wiki_edges WHERE target = ? LIMIT 20", (target,))
             target_neighbors = {row["source"] for row in cursor.fetchall()}
             # If target links back to concepts that share source files, add overlap bonus
             if target_neighbors:

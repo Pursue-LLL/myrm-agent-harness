@@ -132,15 +132,11 @@ class SQLiteTaskStore:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_user_id ON tasks(user_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_status ON tasks(status)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_task_type ON tasks(task_type)")
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_priority_created ON tasks(priority DESC, created_at ASC)"
-        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_priority_created ON tasks(priority DESC, created_at ASC)")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_idempotency_key ON tasks(idempotency_key) WHERE idempotency_key IS NOT NULL"
         )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_cache_key ON tasks(cache_key) WHERE cache_key IS NOT NULL"
-        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_cache_key ON tasks(cache_key) WHERE cache_key IS NOT NULL")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON tasks(created_at)")
 
         conn.commit()
@@ -192,11 +188,7 @@ class SQLiteTaskStore:
                     task.idempotency_key,
                     task.cache_key,
                     task.retry_count,
-                    (
-                        json.dumps(asdict(task.retry_policy))
-                        if task.retry_policy
-                        else None
-                    ),
+                    (json.dumps(asdict(task.retry_policy)) if task.retry_policy else None),
                     task.next_retry_at.isoformat() if task.next_retry_at else None,
                     task.progress,
                     task.progress_message,
@@ -204,11 +196,7 @@ class SQLiteTaskStore:
                     json.dumps(task.tags),
                     json.dumps(task.metadata),
                     task.worker_id,
-                    (
-                        task.worker_heartbeat_at.isoformat()
-                        if task.worker_heartbeat_at
-                        else None
-                    ),
+                    (task.worker_heartbeat_at.isoformat() if task.worker_heartbeat_at else None),
                 ),
             )
             conn.commit()
@@ -220,9 +208,7 @@ class SQLiteTaskStore:
         """Get task by ID."""
         conn = self._conn()
         try:
-            row = conn.execute(
-                "SELECT * FROM tasks WHERE task_id = ?", (task_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,)).fetchone()
             if not row:
                 return None
             return self._row_to_task(row)
@@ -240,9 +226,7 @@ class SQLiteTaskStore:
             for key, value in updates.items():
                 if key == "status":
                     set_parts.append("status = ?")
-                    values.append(
-                        value.value if isinstance(value, TaskStatus) else value
-                    )
+                    values.append(value.value if isinstance(value, TaskStatus) else value)
                 elif key == "error":
                     error: TaskError = value
                     set_parts.extend(
@@ -283,9 +267,7 @@ class SQLiteTaskStore:
             values.append(datetime.now(UTC).isoformat())
             values.append(task_id)
 
-            conn.execute(
-                f"UPDATE tasks SET {', '.join(set_parts)} WHERE task_id = ?", values
-            )
+            conn.execute(f"UPDATE tasks SET {', '.join(set_parts)} WHERE task_id = ?", values)
             conn.commit()
 
             return await self.get_task(task_id)
@@ -300,21 +282,13 @@ class SQLiteTaskStore:
             values = []
 
             if filters.status:
-                statuses = (
-                    filters.status
-                    if isinstance(filters.status, list)
-                    else [filters.status]
-                )
+                statuses = filters.status if isinstance(filters.status, list) else [filters.status]
                 placeholders = ",".join(["?"] * len(statuses))
                 where_parts.append(f"status IN ({placeholders})")
                 values.extend([s.value for s in statuses])
 
             if filters.task_type:
-                types = (
-                    filters.task_type
-                    if isinstance(filters.task_type, list)
-                    else [filters.task_type]
-                )
+                types = filters.task_type if isinstance(filters.task_type, list) else [filters.task_type]
                 placeholders = ",".join(["?"] * len(types))
                 where_parts.append(f"task_type IN ({placeholders})")
                 values.extend(types)
@@ -415,14 +389,8 @@ class SQLiteTaskStore:
             status=TaskStatus(row["status"]),
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),
-            started_at=(
-                datetime.fromisoformat(row["started_at"]) if row["started_at"] else None
-            ),
-            completed_at=(
-                datetime.fromisoformat(row["completed_at"])
-                if row["completed_at"]
-                else None
-            ),
+            started_at=(datetime.fromisoformat(row["started_at"]) if row["started_at"] else None),
+            completed_at=(datetime.fromisoformat(row["completed_at"]) if row["completed_at"] else None),
             payload=json.loads(row["payload"]),
             result=json.loads(row["result"]) if row["result"] else None,
             error=error,
@@ -432,11 +400,7 @@ class SQLiteTaskStore:
             cache_key=row["cache_key"],
             retry_count=row["retry_count"],
             retry_policy=retry_policy,
-            next_retry_at=(
-                datetime.fromisoformat(row["next_retry_at"])
-                if row["next_retry_at"]
-                else None
-            ),
+            next_retry_at=(datetime.fromisoformat(row["next_retry_at"]) if row["next_retry_at"] else None),
             progress=row["progress"],
             progress_message=row["progress_message"],
             cancellation_reason=row["cancellation_reason"],
@@ -444,9 +408,7 @@ class SQLiteTaskStore:
             metadata=json.loads(row["metadata"]),
             worker_id=row["worker_id"],
             worker_heartbeat_at=(
-                datetime.fromisoformat(row["worker_heartbeat_at"])
-                if row["worker_heartbeat_at"]
-                else None
+                datetime.fromisoformat(row["worker_heartbeat_at"]) if row["worker_heartbeat_at"] else None
             ),
         )
 

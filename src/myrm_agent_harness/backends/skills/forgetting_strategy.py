@@ -136,9 +136,7 @@ class CuratorConfig:
             ),
             protect_installed_skills=bool(data.get("protect_installed_skills", True)),
             consolidation_enabled=bool(data.get("consolidation_enabled", True)),
-            consolidation_min_skills=int(
-                data.get("consolidation_min_skills", _DEFAULT_CONSOLIDATION_MIN_SKILLS)
-            ),
+            consolidation_min_skills=int(data.get("consolidation_min_skills", _DEFAULT_CONSOLIDATION_MIN_SKILLS)),
             consolidation_min_cluster_size=int(
                 data.get("consolidation_min_cluster_size", _DEFAULT_CONSOLIDATION_MIN_CLUSTER_SIZE)
             ),
@@ -252,8 +250,7 @@ class DefaultForgettingStrategy:
                         skill_name=skill.name,
                         reason_type="archive",
                         reason_message=(
-                            f"Stale for {days_inactive} days "
-                            f"(archive threshold: {self._config.archive_after_days})"
+                            f"Stale for {days_inactive} days (archive threshold: {self._config.archive_after_days})"
                         ),
                         stats=stats,
                         target_status=SkillLifecycleStatus.ARCHIVED,
@@ -340,10 +337,7 @@ class DefaultForgettingStrategy:
             ForgettingReason(
                 skill_name=skill.name,
                 reason_type="lru_eviction",
-                reason_message=(
-                    f"LRU eviction (active skill count {len(eligible)} "
-                    f"> max {self._config.max_skills})"
-                ),
+                reason_message=(f"LRU eviction (active skill count {len(eligible)} > max {self._config.max_skills})"),
                 stats=skill.usage_stats,
                 target_status=SkillLifecycleStatus.STALE,
             )

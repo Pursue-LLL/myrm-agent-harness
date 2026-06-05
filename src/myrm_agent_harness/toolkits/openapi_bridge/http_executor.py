@@ -103,6 +103,7 @@ class OpenAPIExecutor:
 
         user_auth_headers: dict[str, str] = {}
         from myrm_agent_harness.core.security.types import user_credentials_ctx
+
         try:
             credentials = user_credentials_ctx.get()
             for cred in credentials:
@@ -110,6 +111,7 @@ class OpenAPIExecutor:
                     cred.issuer in self._base_url.lower()
                 ):
                     import time
+
                     token = cred.token
                     if (
                         cred.expires_at is not None
@@ -163,6 +165,7 @@ class OpenAPIExecutor:
 
                 if response.status_code == 401:
                     from myrm_agent_harness.core.security.types import user_credentials_ctx
+
                     try:
                         credentials = user_credentials_ctx.get()
                         for cred in credentials:
@@ -211,7 +214,11 @@ class OpenAPIExecutor:
                 if attempt < self._max_retries:
                     logger.warning(
                         "OpenAPI request %s %s returned %d, retrying (%d/%d)",
-                        method, url, response.status_code, attempt + 1, self._max_retries,
+                        method,
+                        url,
+                        response.status_code,
+                        attempt + 1,
+                        self._max_retries,
                     )
 
             except httpx.RequestError as e:
@@ -219,7 +226,11 @@ class OpenAPIExecutor:
                 if attempt < self._max_retries:
                     logger.warning(
                         "OpenAPI request %s %s failed: %s, retrying (%d/%d)",
-                        method, url, e, attempt + 1, self._max_retries,
+                        method,
+                        url,
+                        e,
+                        attempt + 1,
+                        self._max_retries,
                     )
 
         return f"Error after {self._max_retries + 1} attempts: {last_error}"
@@ -233,6 +244,7 @@ class OpenAPIExecutor:
     @staticmethod
     def _resolve_path(path_template: str, params: dict[str, str]) -> str:
         """Substitute path parameters in the URL template."""
+
         def replacer(match: re.Match[str]) -> str:
             param_name = match.group(1)
             if param_name in params:

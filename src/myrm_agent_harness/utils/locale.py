@@ -46,6 +46,7 @@ def normalize_locale(value: str | None) -> str:
 
     return raw
 
+
 def resolve_locale(
     *,
     explicit: str | None = None,

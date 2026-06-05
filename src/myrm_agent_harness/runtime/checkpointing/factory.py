@@ -148,14 +148,10 @@ async def _try_create_sqlite(
             await conn.close()
             raise
     except ImportError:
-        logger.warning(
-            "langgraph-checkpoint-sqlite not installed, falling back to MemorySaver"
-        )
+        logger.warning("langgraph-checkpoint-sqlite not installed, falling back to MemorySaver")
         logger.warning("   Install: uv add langgraph-checkpoint-sqlite")
     except Exception as e:
-        logger.error(
-            "SqliteSaver init failed: %s, falling back to MemorySaver", e, exc_info=True
-        )
+        logger.error("SqliteSaver init failed: %s, falling back to MemorySaver", e, exc_info=True)
     return None
 
 
@@ -173,9 +169,7 @@ async def _try_create_postgres(
         # Disable named prepared-statement cache to prevent cache-vs-server
         # desync under PgBouncer transaction mode (intermittent
         # "prepared statement does not exist" errors).
-        pool: asyncpg.Pool = await asyncpg.create_pool(
-            db_url, min_size=2, max_size=10, statement_cache_size=0
-        )
+        pool: asyncpg.Pool = await asyncpg.create_pool(db_url, min_size=2, max_size=10, statement_cache_size=0)
         try:
             saver = await _build_incremental_saver(pool, backend="postgres")
 
@@ -192,9 +186,7 @@ async def _try_create_postgres(
             await pool.close()
             raise
     except ImportError:
-        logger.warning(
-            "langgraph-checkpoint-postgres not installed, falling back to MemorySaver"
-        )
+        logger.warning("langgraph-checkpoint-postgres not installed, falling back to MemorySaver")
         logger.warning("   Install: uv add langgraph-checkpoint-postgres")
     except Exception as e:
         logger.error(

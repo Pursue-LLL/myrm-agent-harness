@@ -124,9 +124,7 @@ async def search_conversation_two_pass(
                 fusion="rrf",  # Single vector, no actual fusion
             )
         except NotImplementedError:
-            logger.debug(
-                "Backend doesn't support search_multi_vector, fallback to regular search"
-            )
+            logger.debug("Backend doesn't support search_multi_vector, fallback to regular search")
             pass1_results = await vector.search(
                 collection,
                 query_summary,
@@ -149,9 +147,7 @@ async def search_conversation_two_pass(
     pass1_ids = {r.document.id for r in pass1_results}
     pass1_memory_results = [
         MemorySearchResult(
-            memory=doc_to_conversation(
-                r.document, include_raw=include_raw, config=config
-            ),
+            memory=doc_to_conversation(r.document, include_raw=include_raw, config=config),
             score=r.score,
             memory_type=MemoryType.CONVERSATION,
         )
@@ -175,9 +171,7 @@ async def search_conversation_two_pass(
                     fusion="rrf",  # Single vector, no actual fusion
                 )
             except NotImplementedError:
-                logger.debug(
-                    "Backend doesn't support search_multi_vector for Pass 2, fallback"
-                )
+                logger.debug("Backend doesn't support search_multi_vector for Pass 2, fallback")
                 pass2_results = await vector.search(
                     collection,
                     query_raw,
@@ -196,9 +190,7 @@ async def search_conversation_two_pass(
 
         pass2_memory_results = [
             MemorySearchResult(
-                memory=doc_to_conversation(
-                    r.document, include_raw=include_raw, config=config
-                ),
+                memory=doc_to_conversation(r.document, include_raw=include_raw, config=config),
                 score=r.score,
                 memory_type=MemoryType.CONVERSATION,
             )
@@ -211,9 +203,7 @@ async def search_conversation_two_pass(
 
     # Post-Pass: Apply ResultBooster
     query_context = analyze_query(query)
-    boosted_results = boost_results(
-        pass2_memory_results, query, query_context, config.retrieval
-    )
+    boosted_results = boost_results(pass2_memory_results, query, query_context, config.retrieval)
 
     elapsed_ms = (time.perf_counter_ns() - start_ns) / 1_000_000
     get_search_metrics().record_two_pass_execution(elapsed_ms)

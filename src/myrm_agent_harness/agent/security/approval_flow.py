@@ -167,7 +167,9 @@ class Allowlist:
             self._entries[user_id] = {(e.permission, e.tool_name, e.tool_args_hash): e for e in entries}
             self._cache_meta[user_id] = (time.time(), lock)
 
-    def check(self, user_id: str, permission_type: str, tool_name: str | None = None, tool_args_hash: str | None = None) -> bool:
+    def check(
+        self, user_id: str, permission_type: str, tool_name: str | None = None, tool_args_hash: str | None = None
+    ) -> bool:
         """Check if the tool is in the user's allowlist.
 
         Matching priority:
@@ -192,7 +194,9 @@ class Allowlist:
             if entry.tool_name is None:
                 return True
 
-            if tool_name == entry.tool_name and (entry.tool_args_hash is None or entry.tool_args_hash == tool_args_hash):
+            if tool_name == entry.tool_name and (
+                entry.tool_args_hash is None or entry.tool_args_hash == tool_args_hash
+            ):
                 return True
 
         return False
@@ -227,7 +231,9 @@ class Allowlist:
             user_id,
         )
 
-    async def remove(self, user_id: str, permission: str, tool_name: str | None = None, tool_args_hash: str | None = None) -> None:
+    async def remove(
+        self, user_id: str, permission: str, tool_name: str | None = None, tool_args_hash: str | None = None
+    ) -> None:
         """Remove an allow-always entry (concurrent-safe)."""
         if user_id in self._cache_meta:
             _, lock = self._cache_meta[user_id]

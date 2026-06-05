@@ -76,18 +76,12 @@ class AgentLogger:
     def prune(self, message: str, removed: int, total: int, strategy: str = "") -> None:
         """Log a context pruning event."""
         strategy_str = f" ({strategy})" if strategy else ""
-        self._logger.info(
-            "[prune] %s%s: removed %d/%d messages", message, strategy_str, removed, total
-        )
+        self._logger.info("[prune] %s%s: removed %d/%d messages", message, strategy_str, removed, total)
 
-    def token_count(
-        self, message: str, tokens: int, total_tokens: int | None = None
-    ) -> None:
+    def token_count(self, message: str, tokens: int, total_tokens: int | None = None) -> None:
         """Log token usage statistics."""
         if total_tokens is not None:
-            self._logger.info(
-                "[tokens] %s: %d tokens (cumulative: %d)", message, tokens, total_tokens
-            )
+            self._logger.info("[tokens] %s: %d tokens (cumulative: %d)", message, tokens, total_tokens)
         else:
             self._logger.info("[tokens] %s: %d tokens", message, tokens)
 

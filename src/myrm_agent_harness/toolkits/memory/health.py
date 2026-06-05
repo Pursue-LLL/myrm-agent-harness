@@ -146,9 +146,7 @@ def compute_health(data: _HealthInput) -> HealthScore:
             )
         ]
         if stale_types:
-            suggestions.append(
-                f"Memory types lacking recent updates: {', '.join(stale_types)}"
-            )
+            suggestions.append(f"Memory types lacking recent updates: {', '.join(stale_types)}")
 
     strategy = ForgettingStrategy(data.forgetting_config)
     safe_count = 0
@@ -161,17 +159,13 @@ def compute_health(data: _HealthInput) -> HealthScore:
     dims["retention_health"] = round(retention, 4)
     if retention < 0.7:
         at_risk = total_memories - safe_count
-        suggestions.append(
-            f"{at_risk} memories at risk of forgetting — review importance settings"
-        )
+        suggestions.append(f"{at_risk} memories at risk of forgetting — review importance settings")
 
     if data.has_graph and data.coherence_sample_size > 0:
         coherence = data.coherent_count / data.coherence_sample_size
         dims["coherence"] = round(coherence, 4)
         if coherence < 0.3:
-            suggestions.append(
-                "Low graph connectivity — add relations between related memories"
-            )
+            suggestions.append("Low graph connectivity — add relations between related memories")
 
     weights = _WEIGHTS_WITH_GRAPH if data.has_graph else _WEIGHTS_NO_GRAPH
     weighted_sum = sum(dims.get(dim, 0.0) * w for dim, w in weights.items())
@@ -233,9 +227,7 @@ def detect_neglected(
     candidates: list[NeglectedMemory] = []
 
     for mem in memories:
-        if not (
-            getattr(mem, "pinned", False) or mem.importance >= importance_threshold
-        ):
+        if not (getattr(mem, "pinned", False) or mem.importance >= importance_threshold):
             continue
 
         ref_time = mem.last_accessed_at or mem.created_at
@@ -245,9 +237,7 @@ def detect_neglected(
             continue
 
         days = (now - ref_time).days
-        mem_type = getattr(
-            mem, "memory_type", type(mem).__name__.replace("Memory", "").lower()
-        )
+        mem_type = getattr(mem, "memory_type", type(mem).__name__.replace("Memory", "").lower())
         content = mem.content[:100] if len(mem.content) > 100 else mem.content
 
         candidates.append(

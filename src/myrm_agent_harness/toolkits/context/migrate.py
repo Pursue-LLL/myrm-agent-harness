@@ -99,8 +99,7 @@ def run_migration_dry_run(
         existing_version = manifest.get("schema_version")
         if existing_version != bundle_spec.schema_version:
             warnings.append(
-                f"Manifest schema_version={existing_version!r} differs from "
-                f"expected {bundle_spec.schema_version}"
+                f"Manifest schema_version={existing_version!r} differs from expected {bundle_spec.schema_version}"
             )
 
     return MigrationReport(

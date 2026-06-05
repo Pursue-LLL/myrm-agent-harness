@@ -24,17 +24,19 @@ class PolicyParseError(ValueError):
     """Raised when LLM output cannot be parsed into a valid policy config."""
 
 
-_VALID_TOP_KEYS = frozenset({
-    "permissions",
-    "pathPolicy",
-    "privacyPolicy",
-    "networkAllowlist",
-    "domainHitlEnabled",
-    "capabilities",
-    "approvalTimeoutSeconds",
-    "approvalTimeoutBehavior",
-    "autoReviewEnabled",
-})
+_VALID_TOP_KEYS = frozenset(
+    {
+        "permissions",
+        "pathPolicy",
+        "privacyPolicy",
+        "networkAllowlist",
+        "domainHitlEnabled",
+        "capabilities",
+        "approvalTimeoutSeconds",
+        "approvalTimeoutBehavior",
+        "autoReviewEnabled",
+    }
+)
 
 _VALID_ACTIONS = frozenset({"allow", "ask", "deny"})
 _VALID_PII_ACTIONS = frozenset({"warn", "redact", "pseudonymize", "block"})
@@ -66,14 +68,10 @@ def parse_policy_response(raw_text: str) -> dict[str, object]:
             parsed = _try_parse_json(extracted)
 
     if parsed is None:
-        raise PolicyParseError(
-            f"Failed to parse LLM output as JSON. Raw output (first 200 chars): {raw_text[:200]}"
-        )
+        raise PolicyParseError(f"Failed to parse LLM output as JSON. Raw output (first 200 chars): {raw_text[:200]}")
 
     if not isinstance(parsed, dict):
-        raise PolicyParseError(
-            f"Expected JSON object, got {type(parsed).__name__}"
-        )
+        raise PolicyParseError(f"Expected JSON object, got {type(parsed).__name__}")
 
     return _normalize_config(parsed)
 

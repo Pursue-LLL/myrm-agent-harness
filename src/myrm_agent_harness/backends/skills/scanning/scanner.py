@@ -105,7 +105,13 @@ class ScanResult:
     def max_severity(self) -> ScanSeverity | None:
         all_severities = [f.severity for f in self.findings]
         if self.ast_findings:
-            ast_sev_map = {"critical": ScanSeverity.CRITICAL, "high": ScanSeverity.HIGH, "medium": ScanSeverity.MEDIUM, "low": ScanSeverity.LOW, "info": ScanSeverity.INFO}
+            ast_sev_map = {
+                "critical": ScanSeverity.CRITICAL,
+                "high": ScanSeverity.HIGH,
+                "medium": ScanSeverity.MEDIUM,
+                "low": ScanSeverity.LOW,
+                "info": ScanSeverity.INFO,
+            }
             all_severities.extend(ast_sev_map.get(af.severity, ScanSeverity.INFO) for af in self.ast_findings)
         if not all_severities:
             return None
@@ -137,8 +143,7 @@ class ScanResult:
         parts = [f"{t}({c})" for t, c in sorted(counts.items())]
         total = len(self.findings) + len(self.ast_findings)
         return (
-            f"Skill '{self.skill_name}': {total} finding(s) — "
-            f"{', '.join(parts)} [trust: {self.trust_recommendation}]"
+            f"Skill '{self.skill_name}': {total} finding(s) — {', '.join(parts)} [trust: {self.trust_recommendation}]"
         )
 
 
@@ -289,7 +294,9 @@ _MAX_SCAN_FILES = 500
 _MAX_FILE_SIZE = 512 * 1024  # 512 KB
 _SCAN_TIMEOUT_S = 5.0
 _SKIP_DIRS = frozenset({"node_modules", ".git", "__pycache__", ".venv", "venv", ".svn", ".hg"})
-_TEXT_EXTENSIONS = frozenset({".py", ".sh", ".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".cfg", ".ini", ".js", ".ts"})
+_TEXT_EXTENSIONS = frozenset(
+    {".py", ".sh", ".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".cfg", ".ini", ".js", ".ts"}
+)
 
 
 def scan_skill_directory(

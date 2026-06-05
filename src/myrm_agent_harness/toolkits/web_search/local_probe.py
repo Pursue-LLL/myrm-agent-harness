@@ -59,10 +59,7 @@ async def _verify_searxng_search(base_url: str) -> tuple[bool, int, str | None]:
                 return False, elapsed, f"search HTTP {resp.status_code}"
             body = resp.text
             has_results = (
-                'class="result"' in body
-                or "class='result'" in body
-                or 'id="results"' in body
-                or "<article" in body
+                'class="result"' in body or "class='result'" in body or 'id="results"' in body or "<article" in body
             )
             if has_results:
                 return True, elapsed, None

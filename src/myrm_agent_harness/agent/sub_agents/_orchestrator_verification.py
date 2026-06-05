@@ -85,12 +85,7 @@ def _parse_verdict(raw_result: str) -> VerificationVerdict:
         if not passed:
             return passed, summary
         upper = raw.upper()
-        if (
-            "STDOUT" not in upper
-            and "STDERR" not in upper
-            and "EXECUTION" not in upper
-            and "TRACEBACK" not in upper
-        ):
+        if "STDOUT" not in upper and "STDERR" not in upper and "EXECUTION" not in upper and "TRACEBACK" not in upper:
             return False, (
                 "FAIL: Validation rejected. You must provide actual execution log "
                 "evidence (STDOUT/STDERR/EXECUTION) to grant a PASS."
@@ -106,11 +101,7 @@ def _parse_verdict(raw_result: str) -> VerificationVerdict:
         passed, summary = _enforce_evidence(passed, summary, raw_result)
 
         findings_raw = data.get("findings", [])
-        findings = [
-            {k: str(v) for k, v in item.items()}
-            for item in findings_raw
-            if isinstance(item, dict)
-        ]
+        findings = [{k: str(v) for k, v in item.items()} for item in findings_raw if isinstance(item, dict)]
         return VerificationVerdict(
             passed=passed,
             summary=summary,
@@ -123,9 +114,7 @@ def _parse_verdict(raw_result: str) -> VerificationVerdict:
 
     upper = raw_result.upper()
     if '"VERDICT": "PASS"' in upper or '"VERDICT":"PASS"' in upper:
-        passed, summary = _enforce_evidence(
-            True, "JSON parse failed; keyword PASS detected", raw_result
-        )
+        passed, summary = _enforce_evidence(True, "JSON parse failed; keyword PASS detected", raw_result)
         return VerificationVerdict(
             passed=passed,
             summary=summary,
@@ -228,11 +217,12 @@ async def run_with_verification(
         )
         if verifier_task_template:
             if "{worker_result}" in verifier_task_template:
-                verifier_task_desc = base_desc + verifier_task_template.replace(
-                    "{worker_result}", worker_result.result
-                )
+                verifier_task_desc = base_desc + verifier_task_template.replace("{worker_result}", worker_result.result)
             else:
-                verifier_task_desc = base_desc + f"SPECIFIC VERIFICATION CRITERIA:\n{verifier_task_template}\n\n## Worker Output\n\n{worker_result.result}"
+                verifier_task_desc = (
+                    base_desc
+                    + f"SPECIFIC VERIFICATION CRITERIA:\n{verifier_task_template}\n\n## Worker Output\n\n{worker_result.result}"
+                )
         else:
             verifier_task_desc = base_desc + f"## Worker Output\n\n{worker_result.result}"
 
@@ -258,9 +248,7 @@ async def run_with_verification(
                     metadata = getattr(t, "metadata", {}) or {}
                     is_readonly = metadata.get("readonly", None)
 
-                is_mcp = getattr(t, "is_mcp", False) or (
-                    getattr(t, "metadata", {}) or {}
-                ).get("is_mcp", False)
+                is_mcp = getattr(t, "is_mcp", False) or (getattr(t, "metadata", {}) or {}).get("is_mcp", False)
                 if is_mcp and not is_readonly:
                     continue
 
@@ -313,13 +301,9 @@ async def run_with_verification(
                         tool_registry_getter=verifier_tool_registry_getter,
                         wait=True,
                     )
-                context["_verifier_has_executed_code"] = (
-                    proxy_executor.has_executed_code
-                )
+                context["_verifier_has_executed_code"] = proxy_executor.has_executed_code
             else:
-                logger.warning(
-                    "[verification] No current executor found, cannot apply READ_ONLY_SANDBOX"
-                )
+                logger.warning("[verification] No current executor found, cannot apply READ_ONLY_SANDBOX")
                 verifier_result = await manager.spawn_child(
                     task_id=verifier_task_id,
                     agent_type=verifier_type,
@@ -425,18 +409,10 @@ async def run_with_verification(
                 f"Fix the following issues and re-execute the task. Do NOT repeat the same mistakes.\n\n"
                 f"### Verification Findings\n\n{findings_text}"
             )
-            logger.info(
-                "[verification] Round %d — FAIL, retrying with feedback", round_num
-            )
+            logger.info("[verification] Round %d — FAIL, retrying with feedback", round_num)
 
-    evidence_str = (
-        f"\n<verification_evidence>\n{verdict.raw}\n</verification_evidence>"
-        if verdict
-        else ""
-    )
+    evidence_str = f"\n<verification_evidence>\n{verdict.raw}\n</verification_evidence>" if verdict else ""
     last_worker_result.result = (
-        f"{last_worker_result.result}\n\n"
-        f"---\n[Verification: FAIL after {max_rounds} round(s)]"
-        f"{evidence_str}"
+        f"{last_worker_result.result}\n\n---\n[Verification: FAIL after {max_rounds} round(s)]{evidence_str}"
     )
     return last_worker_result

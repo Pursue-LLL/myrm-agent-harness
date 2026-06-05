@@ -140,9 +140,7 @@ class WorkspacePathIndexer:
         files: list[str] = []
         try:
             for current_root, dirnames, filenames in os.walk(root, followlinks=False):
-                dirnames[:] = [
-                    d for d in dirnames if d not in _IGNORED_DIRS and not d.startswith(".")
-                ]
+                dirnames[:] = [d for d in dirnames if d not in _IGNORED_DIRS and not d.startswith(".")]
                 current = Path(current_root)
                 for filename in filenames:
                     if filename.startswith("."):

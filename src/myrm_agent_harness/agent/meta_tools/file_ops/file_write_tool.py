@@ -49,9 +49,7 @@ class FileWriteInput(BaseModel):
         default=None,
         description="写入后自动执行的校验命令（如 'python -m py_compile file.py' 或 'node --check file.js'）。如果校验失败，将拒绝写入并返回错误。",
     )
-    reason: str | None = Field(
-        default=None, description="执行命令的原因（可选，用于日志）"
-    )
+    reason: str | None = Field(default=None, description="执行命令的原因（可选，用于日志）")
 
 
 def create_file_write_tool(skills: list[SkillMetadata] | None = None) -> BaseTool:

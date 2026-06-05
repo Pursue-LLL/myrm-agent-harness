@@ -176,13 +176,18 @@ def _repair_string_field_value(text: str, field_name: str) -> str | None:
 
 
 _LITERAL_PREFIXES: dict[str, str] = {
-    "t": "true", "tr": "true", "tru": "true",
-    "f": "false", "fa": "false", "fal": "false",
-    "fals": "false", "n": "null", "nu": "null", "nul": "null",
+    "t": "true",
+    "tr": "true",
+    "tru": "true",
+    "f": "false",
+    "fa": "false",
+    "fal": "false",
+    "fals": "false",
+    "n": "null",
+    "nu": "null",
+    "nul": "null",
 }
-_LITERAL_TAIL_RE = re.compile(
-    r"[{,:\[]\s*(t(?:r(?:u)?)?|f(?:a(?:l(?:s)?)?)?|n(?:u(?:l)?)?)\s*$"
-)
+_LITERAL_TAIL_RE = re.compile(r"[{,:\[]\s*(t(?:r(?:u)?)?|f(?:a(?:l(?:s)?)?)?|n(?:u(?:l)?)?)\s*$")
 _DANGLING_KEY_RE = re.compile(r'"\s*:\s*$')
 
 
@@ -227,7 +232,7 @@ def _close_truncated_json(text: str) -> str:
     candidate = re.sub(r"([:,\[]\s*)-\s*$", r"\g<1>0", candidate)
     literal_match = _LITERAL_TAIL_RE.search(candidate)
     if literal_match:
-        candidate = candidate[:literal_match.start(1)] + _LITERAL_PREFIXES[literal_match.group(1)]
+        candidate = candidate[: literal_match.start(1)] + _LITERAL_PREFIXES[literal_match.group(1)]
     if _DANGLING_KEY_RE.search(candidate):
         candidate += " null"
     for opener in reversed(stack):
@@ -425,7 +430,9 @@ def parse_tool_call_arguments_with_recovery(
                 )
         except json.JSONDecodeError:
             # Try removing excess closing delimiter
-            if (fixed.endswith("}") and fixed.count("}") > fixed.count("{")) or (fixed.endswith("]") and fixed.count("]") > fixed.count("[")):
+            if (fixed.endswith("}") and fixed.count("}") > fixed.count("{")) or (
+                fixed.endswith("]") and fixed.count("]") > fixed.count("[")
+            ):
                 fixed = fixed[:-1]
             else:
                 break

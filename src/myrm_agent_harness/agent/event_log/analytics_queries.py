@@ -416,7 +416,7 @@ async def get_global_tool_stability(
 
     # Build daily stability list (grouped by date + tool_name)
     daily_stability: list[ToolStabilityDaily] = []
-    for (date_str, entry_tool_name) in sorted(daily_data.keys()):
+    for date_str, entry_tool_name in sorted(daily_data.keys()):
         data = daily_data[(date_str, entry_tool_name)]
 
         total_calls = cast(int, data["total"])
@@ -480,6 +480,7 @@ def _failure_reasons(data: dict[str, object]) -> Counter[str]:
 
 async def _collect_events(result: object) -> list[StructuredEvent]:
     from collections.abc import Awaitable
+
     if isinstance(result, list):
         return result
     if isinstance(result, AsyncIterable):

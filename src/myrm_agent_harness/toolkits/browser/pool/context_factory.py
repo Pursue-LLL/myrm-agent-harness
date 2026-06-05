@@ -36,9 +36,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_TIMEOUT_MS = (
-    30000  # globaldefaulttimeout, overridesall page operation(evaluate/click/goto etc.)
-)
+_DEFAULT_TIMEOUT_MS = 30000  # globaldefaulttimeout, overridesall page operation(evaluate/click/goto etc.)
 _STEALTH_TYPE = "stealth"  # ContextType.STEALTH.value — avoid circular import
 
 _DEFAULT_CONTEXT_OPTIONS: dict[str, object] = {
@@ -122,12 +120,8 @@ class ContextFactory:
             All page operations (evaluate, click, goto, etc.) inherit the 30s timeout.
 
         """
-        ctx_opts = self._build_context_options(
-            context_type, emulation, extra_kwargs, context_key
-        )
-        domain_allowlist = (
-            extra_kwargs.get("domain_allowlist") if extra_kwargs else None
-        )
+        ctx_opts = self._build_context_options(context_type, emulation, extra_kwargs, context_key)
+        domain_allowlist = extra_kwargs.get("domain_allowlist") if extra_kwargs else None
         resource_block = extra_kwargs.get("resource_block") if extra_kwargs else None
 
         # Try to safely extract permissions, some engines (like Firefox) don't support all Chromium permissions
@@ -169,9 +163,7 @@ class ContextFactory:
 
         if domain_allowlist:
             try:
-                await self._install_domain_filter(
-                    context, domain_allowlist, resource_block
-                )
+                await self._install_domain_filter(context, domain_allowlist, resource_block)
             except Exception:
                 await context.close()
                 raise
@@ -202,9 +194,7 @@ class ContextFactory:
 
         if extra_kwargs:
             playwright_kwargs = {
-                k: v
-                for k, v in extra_kwargs.items()
-                if k not in ("domain_allowlist", "resource_block")
+                k: v for k, v in extra_kwargs.items() if k not in ("domain_allowlist", "resource_block")
             }
             ctx_opts.update(playwright_kwargs)
 

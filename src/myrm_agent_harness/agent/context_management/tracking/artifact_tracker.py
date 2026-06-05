@@ -31,7 +31,7 @@ class ArtifactAction(Enum):
     CREATED = "created"
     MODIFIED = "modified"
     DELETED = "deleted"
-    READ = "read" # Record read operations for files the Agent accessed
+    READ = "read"  # Record read operations for files the Agent accessed
 
 
 @dataclass

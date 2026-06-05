@@ -174,12 +174,14 @@ async def run_pre_call_guards(
                 tool_name,
                 str(pre_check_exc)[:200],
             )
-            interrupt({
-                "action_type": "tool_stuck",
-                "tool_name": tool_name,
-                "tool_call_id": tool_call_id,
-                "error_message": str(pre_check_exc),
-            })
+            interrupt(
+                {
+                    "action_type": "tool_stuck",
+                    "tool_name": tool_name,
+                    "tool_call_id": tool_call_id,
+                    "error_message": str(pre_check_exc),
+                }
+            )
             return make_error_msg(
                 tool_name,
                 tool_call_id,
@@ -282,9 +284,7 @@ async def run_pre_call_guards(
             error_category="pii_guard",
         )
 
-    return PreCallResult(
-        loop_guard, loop_verdict, freq_guard, freq_verdict, steering_token
-    )
+    return PreCallResult(loop_guard, loop_verdict, freq_guard, freq_verdict, steering_token)
 
 
 def _check_circuit_breaker(tool_name: str, tool_call_id: str) -> ToolMessage | None:
@@ -296,14 +296,8 @@ def _check_circuit_breaker(tool_name: str, tool_call_id: str) -> ToolMessage | N
         return None
 
     t_lower = tool_name.lower()
-    is_network_tool = any(
-        kw in t_lower
-        for kw in ["web", "search", "browser", "fetch", "http", "network", "mcp"]
-    )
-    is_write_tool = any(
-        kw in t_lower
-        for kw in ["write", "edit", "create", "delete", "mkdir", "rm", "append"]
-    )
+    is_network_tool = any(kw in t_lower for kw in ["web", "search", "browser", "fetch", "http", "network", "mcp"])
+    is_write_tool = any(kw in t_lower for kw in ["write", "edit", "create", "delete", "mkdir", "rm", "append"])
 
     blocker = None
     if "any" in terminal_errors:
@@ -315,9 +309,7 @@ def _check_circuit_breaker(tool_name: str, tool_call_id: str) -> ToolMessage | N
 
     if blocker:
         hint = f"Circuit breaker active for {blocker}. Previous failures indicate this resource is unavailable."
-        logger.warning(
-            "Circuit breaker: blocked %s due to terminal %s", tool_name, blocker
-        )
+        logger.warning("Circuit breaker: blocked %s due to terminal %s", tool_name, blocker)
         return make_error_msg(
             tool_name,
             tool_call_id,
@@ -397,9 +389,7 @@ async def run_post_call_guards(
         result_text = budget_verdict.content
     elif budget_verdict.action == BudgetAction.TRUNCATED:
         record_decision(tool_name, "CONTEXT_TRUNCATED", budget_verdict.reason)
-        logger.warning(
-            "Context budget truncated: %s -- %s", tool_name, budget_verdict.reason
-        )
+        logger.warning("Context budget truncated: %s -- %s", tool_name, budget_verdict.reason)
         result = ToolMessage(
             content=budget_verdict.content,
             name=tool_name,
@@ -486,9 +476,7 @@ async def run_post_call_guards(
         },
     )
     if post_hook_result.blocked or not post_hook_result.all_succeeded:
-        result = build_hook_failure_result(
-            result, post_hook_result, tool_name, tool_call_id, post_result_text
-        )
+        result = build_hook_failure_result(result, post_hook_result, tool_name, tool_call_id, post_result_text)
         await emit_hook_failure_event(tool_name, post_hook_result, AgentEventType)
 
     return result

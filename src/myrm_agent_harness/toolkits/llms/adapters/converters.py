@@ -69,7 +69,7 @@ def lc_tool_call_to_openai_tool_call(tool_call: ToolCall) -> dict:
 
 
 def ensure_arguments_json_string(tool_calls: list[dict]) -> list[dict]:
-    """ ensure  tool_calls  in   arguments 是Valid  JSON string。
+    """ensure  tool_calls  in   arguments 是Valid  JSON string。
 
     Handles dict→JSON conversion, None→"{}", and validates existing strings.
     Some providers (MiniMax code model) reject non-JSON arguments with 400.

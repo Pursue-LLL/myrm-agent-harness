@@ -41,9 +41,7 @@ async def build_trace(
     Returns:
         Fully populated ExecutionTrace.
     """
-    event_filter = (
-        EventFilter(start_sequence=start_sequence) if start_sequence else None
-    )
+    event_filter = EventFilter(start_sequence=start_sequence) if start_sequence else None
     events = await backend.get_events(session_id, event_filter)
     return _aggregate_events(session_id, events)
 
@@ -174,9 +172,7 @@ def _extract_metadata(event: StructuredEvent) -> TraceMetadata:
     )
 
 
-def _pop_pending(
-    pending: dict[str, list[_PendingTool]], tool_name: str
-) -> _PendingTool | None:
+def _pop_pending(pending: dict[str, list[_PendingTool]], tool_name: str) -> _PendingTool | None:
     """Pop the oldest pending tool by name (FIFO)."""
     queue = pending.get(tool_name)
     if not queue:
@@ -217,9 +213,7 @@ def _process_event(
         trace.end_time = event.timestamp
         summary = data.get("summary")
         if isinstance(summary, dict):
-            trace.total_tokens = int(summary.get("input_tokens", 0)) + int(
-                summary.get("output_tokens", 0)
-            )
+            trace.total_tokens = int(summary.get("input_tokens", 0)) + int(summary.get("output_tokens", 0))
         output = data.get("output") or data.get("result")
         if isinstance(output, str):
             trace.output = output
@@ -232,11 +226,7 @@ def _process_event(
                     sequence=event.sequence,
                     tool_name=tool_name,
                     start_time=event.timestamp,
-                    input_data={
-                        k: v
-                        for k, v in data.items()
-                        if not k.startswith("_") and k != "tool_name"
-                    },
+                    input_data={k: v for k, v in data.items() if not k.startswith("_") and k != "tool_name"},
                 )
             )
 
@@ -252,11 +242,7 @@ def _process_event(
                         tool_name=pt.tool_name,
                         start_time=pt.start_time,
                         end_time=event.timestamp,
-                        duration_ms=(
-                            float(duration_ms)
-                            if isinstance(duration_ms, (int, float))
-                            else None
-                        ),
+                        duration_ms=(float(duration_ms) if isinstance(duration_ms, (int, float)) else None),
                         success=True,
                         input_data=pt.input_data,
                         output_summary=_str_or_none(data.get("output_summary")),
@@ -276,11 +262,7 @@ def _process_event(
                     tool_name=tool_name,
                     start_time=pt.start_time if pt else event.timestamp,
                     end_time=event.timestamp,
-                    duration_ms=(
-                        float(duration_ms)
-                        if isinstance(duration_ms, (int, float))
-                        else None
-                    ),
+                    duration_ms=(float(duration_ms) if isinstance(duration_ms, (int, float)) else None),
                     success=False,
                     error=str(error_msg) if error_msg else None,
                     input_data=pt.input_data if pt else {},
@@ -312,11 +294,7 @@ def _process_event(
         usage = payload_data.get("usage", {})
         if isinstance(usage, dict):
             duration_ms_raw = payload_data.get("duration_ms")
-            duration_ms = (
-                float(duration_ms_raw)
-                if isinstance(duration_ms_raw, (int, float))
-                else None
-            )
+            duration_ms = float(duration_ms_raw) if isinstance(duration_ms_raw, (int, float)) else None
             pending_req = pending_llm.pop(0) if pending_llm else None
             end_time = event.timestamp
             if pending_req:
@@ -344,11 +322,7 @@ def _process_event(
                     prompt_preview=prompt_preview,
                     message_count=message_count,
                     duration_ms=duration_ms,
-                    ttft_ms=(
-                        float(payload_data.get("ttft_ms"))
-                        if payload_data.get("ttft_ms") is not None
-                        else None
-                    ),
+                    ttft_ms=(float(payload_data.get("ttft_ms")) if payload_data.get("ttft_ms") is not None else None),
                     prompt_tokens=int(usage.get("prompt_tokens", 0)),
                     completion_tokens=int(usage.get("completion_tokens", 0)),
                     total_tokens=int(usage.get("total_tokens", 0)),

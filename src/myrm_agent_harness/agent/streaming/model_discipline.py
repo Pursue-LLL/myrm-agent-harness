@@ -54,7 +54,7 @@ AGENT_CORE_RULES = (
     " Before asserting absence — Negative claims ('X is missing', 'there is no Z') — "
     "use a verification tool to confirm. "
     "If the tool returns nothing, state the absence WITH the tool name and "
-    'query as evidence (e.g. "No callers of foo() found (grep \'foo\')"). '
+    "query as evidence (e.g. \"No callers of foo() found (grep 'foo')\"). "
     "If no verification tool is available, qualify: "
     '"I have not verified this — it may be inaccurate."'
     " Use ONLY the native Function Calling API. "
@@ -86,8 +86,16 @@ _TOOL_ENFORCEMENT = (
 
 # Model name substrings that trigger tool-use enforcement.
 _ENFORCEMENT_FAMILIES: tuple[str, ...] = (
-    "gpt", "codex", "gemini", "gemma", "grok",
-    "glm", "qwen", "deepseek", "claude", "anthropic",
+    "gpt",
+    "codex",
+    "gemini",
+    "gemma",
+    "grok",
+    "glm",
+    "qwen",
+    "deepseek",
+    "claude",
+    "anthropic",
 )
 
 # ============================================================================
@@ -243,9 +251,7 @@ _ESCALATION_CONTRACT_TEMPLATE = (
 )
 
 
-def resolve_escalation_contract(
-    llm: BaseChatModel, target_llm: BaseChatModel | None
-) -> str:
+def resolve_escalation_contract(llm: BaseChatModel, target_llm: BaseChatModel | None) -> str:
     """Resolve the escalation contract prompt for the given LLM pair.
 
     Returns a fixed string to append to the system prompt when the current
@@ -263,9 +269,7 @@ def resolve_escalation_contract(
     if not current or not target or current == target:
         return ""
 
-    return _ESCALATION_CONTRACT_TEMPLATE.format(
-        current_model=current, target_model=target
-    )
+    return _ESCALATION_CONTRACT_TEMPLATE.format(current_model=current, target_model=target)
 
 
 def resolve_execution_discipline(llm: BaseChatModel) -> str:

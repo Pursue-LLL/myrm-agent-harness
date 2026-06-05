@@ -134,6 +134,7 @@ class WikiStructure:
                 deleted_count += 1
             except Exception as e:
                 import logging
+
                 logger = logging.getLogger(__name__)
                 logger.warning(f"Failed to unindex {md_file} before deletion: {e}")
 

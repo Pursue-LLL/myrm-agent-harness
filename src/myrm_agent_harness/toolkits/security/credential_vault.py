@@ -24,6 +24,7 @@ from dataclasses import dataclass
 @dataclass
 class CredentialEntry:
     """A credential entry containing a password and/or TOTP seed."""
+
     label: str
     password: str | None = None
     totp_seed: str | None = None
@@ -31,7 +32,7 @@ class CredentialEntry:
 
 class CredentialVault:
     """In-memory secure credential storage and resolver.
-    
+
     This vault is populated by the Server layer (which decrypts the credentials
     from the database) and is used by the Harness layer to resolve labels
     into actual passwords or TOTP tokens during execution.
@@ -54,7 +55,7 @@ class CredentialVault:
 
     def get_password(self, label: str) -> str:
         """Get the password for a given label.
-        
+
         Raises:
             KeyError: If the label is not found.
             ValueError: If the credential does not have a password.
@@ -70,7 +71,7 @@ class CredentialVault:
 
     def get_totp_token(self, label: str) -> str:
         """Generate a 6-digit TOTP token for a given label.
-        
+
         Raises:
             KeyError: If the label is not found.
             ValueError: If the credential does not have a TOTP seed, or if the seed is invalid.
@@ -84,15 +85,15 @@ class CredentialVault:
 
         try:
             # Pad the base32 string if necessary
-            seed = entry.totp_seed.strip().replace(' ', '').upper()
+            seed = entry.totp_seed.strip().replace(" ", "").upper()
             padding = (8 - len(seed) % 8) % 8
-            seed += '=' * padding
+            seed += "=" * padding
 
             key = base64.b32decode(seed)
             msg = struct.pack(">Q", int(time.time() / 30))
             h = hmac.new(key, msg, hashlib.sha1).digest()
             o = h[19] & 15
-            h_int = (struct.unpack(">I", h[o:o+4])[0] & 0x7fffffff) % 1000000
+            h_int = (struct.unpack(">I", h[o : o + 4])[0] & 0x7FFFFFFF) % 1000000
             return f"{h_int:06d}"
         except Exception as e:
             raise ValueError(f"Failed to generate TOTP token for '{label}': {e}") from e
@@ -101,8 +102,10 @@ class CredentialVault:
         """List all available credential labels."""
         return list(self._credentials.keys())
 
+
 # Global singleton for the execution engine to use
 _global_credential_vault = CredentialVault()
+
 
 def get_global_credential_vault() -> CredentialVault:
     """Get the global CredentialVault instance."""

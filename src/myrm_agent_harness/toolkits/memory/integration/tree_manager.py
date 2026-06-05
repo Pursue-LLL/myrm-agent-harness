@@ -191,9 +191,7 @@ class IntegrationTreeManager:
                 "summary": "",
             },
         )
-        await self._gs.create_relationship(
-            start_id=tree.id, end_id=node.id, rel_type="HAS_PROVIDER"
-        )
+        await self._gs.create_relationship(start_id=tree.id, end_id=node.id, rel_type="HAS_PROVIDER")
         return node.id
 
     async def _ensure_account_node(
@@ -216,9 +214,7 @@ class IntegrationTreeManager:
                 "summary": "",
             },
         )
-        await self._gs.create_relationship(
-            start_id=provider_node_id, end_id=node.id, rel_type="HAS_ACCOUNT"
-        )
+        await self._gs.create_relationship(start_id=provider_node_id, end_id=node.id, rel_type="HAS_ACCOUNT")
         return node.id
 
     async def _ensure_category_node(self, parent_id: str, category: str) -> str:
@@ -238,9 +234,7 @@ class IntegrationTreeManager:
                 "summary": "",
             },
         )
-        await self._gs.create_relationship(
-            start_id=parent_id, end_id=node.id, rel_type="HAS_CATEGORY"
-        )
+        await self._gs.create_relationship(start_id=parent_id, end_id=node.id, rel_type="HAS_CATEGORY")
         return node.id
 
     async def _update_root_meta(self, tree: IntegrationTree) -> None:

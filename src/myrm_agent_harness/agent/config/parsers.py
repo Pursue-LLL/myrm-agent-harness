@@ -20,9 +20,7 @@ from __future__ import annotations
 from myrm_agent_harness.agent.config.litellm_routing import litellm_route_prefix_for_effective
 
 
-def to_litellm_model(
-    provider: str, model: str, provider_type: str | None = None
-) -> str:
+def to_litellm_model(provider: str, model: str, provider_type: str | None = None) -> str:
     """Convert provider + model to LiteLLM format.
 
     For built-in OpenAI provider (provider=="openai", no provider_type override),

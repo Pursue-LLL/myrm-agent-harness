@@ -126,15 +126,21 @@ class ImageConstraints:
 
 
 CLAUDE_IMAGE_CONSTRAINTS = ImageConstraints(
-    max_edge_px=1568, max_tokens=1568, px_per_token=28,
+    max_edge_px=1568,
+    max_tokens=1568,
+    px_per_token=28,
 )
 
 CLAUDE_OPUS_47_IMAGE_CONSTRAINTS = ImageConstraints(
-    max_edge_px=2576, max_tokens=3750, px_per_token=28,
+    max_edge_px=2576,
+    max_tokens=3750,
+    px_per_token=28,
 )
 
 GPT4V_IMAGE_CONSTRAINTS = ImageConstraints(
-    max_edge_px=2048, max_tokens=2048, px_per_token=32,
+    max_edge_px=2048,
+    max_tokens=2048,
+    px_per_token=32,
 )
 
 DEFAULT_IMAGE_CONSTRAINTS = CLAUDE_IMAGE_CONSTRAINTS
@@ -156,6 +162,7 @@ KNOWN_BROWSER_NAMES = frozenset(
         "brave",
     }
 )
+
 
 @dataclass
 class ComputerUseConfig:

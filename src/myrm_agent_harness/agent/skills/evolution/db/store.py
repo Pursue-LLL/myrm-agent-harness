@@ -299,21 +299,13 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
 
     def _migrate_add_traps_columns(self) -> None:
         """Add traps/verification_steps/evolution_locked columns for existing DBs."""
-        cols = {
-            row[1] for row in self._conn.execute("PRAGMA table_info(skills)").fetchall()
-        }
+        cols = {row[1] for row in self._conn.execute("PRAGMA table_info(skills)").fetchall()}
         if "traps" not in cols:
-            self._conn.execute(
-                "ALTER TABLE skills ADD COLUMN traps TEXT NOT NULL DEFAULT '[]'"
-            )
+            self._conn.execute("ALTER TABLE skills ADD COLUMN traps TEXT NOT NULL DEFAULT '[]'")
         if "verification_steps" not in cols:
-            self._conn.execute(
-                "ALTER TABLE skills ADD COLUMN verification_steps TEXT NOT NULL DEFAULT '[]'"
-            )
+            self._conn.execute("ALTER TABLE skills ADD COLUMN verification_steps TEXT NOT NULL DEFAULT '[]'")
         if "evolution_locked" not in cols:
-            self._conn.execute(
-                "ALTER TABLE skills ADD COLUMN evolution_locked INTEGER NOT NULL DEFAULT 0"
-            )
+            self._conn.execute("ALTER TABLE skills ADD COLUMN evolution_locked INTEGER NOT NULL DEFAULT 0")
         if "environment" not in cols:
             self._conn.execute("ALTER TABLE skills ADD COLUMN environment TEXT")
 
@@ -353,15 +345,9 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
         """Synchronous delete - called via asyncio.to_thread()."""
         with self._mu:
             self._conn.execute("DELETE FROM skills WHERE skill_id = ?", (skill_id,))
-            self._conn.execute(
-                "DELETE FROM execution_analyses WHERE skill_id = ?", (skill_id,)
-            )
-            self._conn.execute(
-                "DELETE FROM evolution_rejections WHERE skill_id = ?", (skill_id,)
-            )
-            self._conn.execute(
-                "DELETE FROM evolution_constraints WHERE skill_id = ?", (skill_id,)
-            )
+            self._conn.execute("DELETE FROM execution_analyses WHERE skill_id = ?", (skill_id,))
+            self._conn.execute("DELETE FROM evolution_rejections WHERE skill_id = ?", (skill_id,))
+            self._conn.execute("DELETE FROM evolution_constraints WHERE skill_id = ?", (skill_id,))
             self._conn.commit()
 
     async def delete_skill(self, skill_id: str) -> None:
@@ -376,10 +362,10 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
 
     async def delete_skills_by_agent(self, agent_id: str) -> int:
         """Delete all skills owned by a specific agent.
-        
+
         Args:
             agent_id: The ID of the agent whose skills should be deleted.
-            
+
         Returns:
             Number of skills deleted.
         """
@@ -393,7 +379,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
                     SELECT skill_id, path FROM skills 
                     WHERE json_extract(environment, '$.custom_tags.scope_agent_id') = ?
                     """,
-                    (agent_id,)
+                    (agent_id,),
                 ).fetchall()
                 return [(row["skill_id"], row["path"]) for row in rows]
 
@@ -460,24 +446,12 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
                     record.metrics.applied_count,
                     record.metrics.completed_count,
                     record.metrics.success_count,
-                    (
-                        record.metrics.last_success_at.isoformat()
-                        if record.metrics.last_success_at
-                        else None
-                    ),
-                    (
-                        record.metrics.last_failure_at.isoformat()
-                        if record.metrics.last_failure_at
-                        else None
-                    ),
+                    (record.metrics.last_success_at.isoformat() if record.metrics.last_success_at else None),
+                    (record.metrics.last_failure_at.isoformat() if record.metrics.last_failure_at else None),
                     record.metrics.consecutive_failures,
                     json.dumps(record.traps, ensure_ascii=False),
                     json.dumps(record.verification_steps, ensure_ascii=False),
-                    (
-                        json.dumps(record.environment.to_dict(), ensure_ascii=False)
-                        if record.environment
-                        else None
-                    ),
+                    (json.dumps(record.environment.to_dict(), ensure_ascii=False) if record.environment else None),
                     record.created_at.isoformat(),
                     record.updated_at.isoformat(),
                     int(record.is_active),
@@ -522,31 +496,19 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
                         record.metrics.applied_count,
                         record.metrics.completed_count,
                         record.metrics.success_count,
-                        (
-                            record.metrics.last_success_at.isoformat()
-                            if record.metrics.last_success_at
-                            else None
-                        ),
-                        (
-                            record.metrics.last_failure_at.isoformat()
-                            if record.metrics.last_failure_at
-                            else None
-                        ),
+                        (record.metrics.last_success_at.isoformat() if record.metrics.last_success_at else None),
+                        (record.metrics.last_failure_at.isoformat() if record.metrics.last_failure_at else None),
                         record.metrics.consecutive_failures,
                         json.dumps(record.traps, ensure_ascii=False),
                         json.dumps(record.verification_steps, ensure_ascii=False),
-                        (
-                            json.dumps(record.environment.to_dict(), ensure_ascii=False)
-                            if record.environment
-                            else None
-                        ),
+                        (json.dumps(record.environment.to_dict(), ensure_ascii=False) if record.environment else None),
                         record.created_at.isoformat(),
                         record.updated_at.isoformat(),
                         int(record.is_active),
                         int(record.evolution_locked),
                     )
                     for record in records
-                ]
+                ],
             )
             self._conn.commit()
 
@@ -592,16 +554,8 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
                     metrics.applied_count,
                     metrics.completed_count,
                     metrics.success_count,
-                    (
-                        metrics.last_success_at.isoformat()
-                        if metrics.last_success_at
-                        else None
-                    ),
-                    (
-                        metrics.last_failure_at.isoformat()
-                        if metrics.last_failure_at
-                        else None
-                    ),
+                    (metrics.last_success_at.isoformat() if metrics.last_success_at else None),
+                    (metrics.last_failure_at.isoformat() if metrics.last_failure_at else None),
                     metrics.consecutive_failures,
                     skill_id,
                 ),
@@ -622,9 +576,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
     def _deactivate_skill_sync(self, skill_id: str) -> None:
         """Synchronous deactivation."""
         with self._mu:
-            self._conn.execute(
-                "UPDATE skills SET is_active = 0 WHERE skill_id = ?", (skill_id,)
-            )
+            self._conn.execute("UPDATE skills SET is_active = 0 WHERE skill_id = ?", (skill_id,))
             self._conn.commit()
 
     async def deactivate_skill(self, skill_id: str) -> None:
@@ -673,9 +625,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
         """
         self._ensure_open()
         with self._reader() as conn:
-            row = conn.execute(
-                "SELECT evolution_locked FROM skills WHERE skill_id = ?", (skill_id,)
-            ).fetchone()
+            row = conn.execute("SELECT evolution_locked FROM skills WHERE skill_id = ?", (skill_id,)).fetchone()
             if not row:
                 return False
             return bool(row["evolution_locked"])
@@ -689,7 +639,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
         status: str,
         elapsed_time: float,
         error_message: str | None,
-        timestamp: str
+        timestamp: str,
     ) -> None:
         """Synchronous insert for tool execution."""
         with self._mu:
@@ -699,7 +649,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
                     agent_id, session_id, tool_name, status, elapsed_time, error_message, timestamp
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (agent_id, session_id, tool_name, status, elapsed_time, error_message, timestamp)
+                (agent_id, session_id, tool_name, status, elapsed_time, error_message, timestamp),
             )
             self._conn.commit()
 
@@ -710,7 +660,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
         tool_name: str,
         status: str,
         elapsed_time: float,
-        error_message: str | None = None
+        error_message: str | None = None,
     ) -> None:
         """Record a tool execution.
 
@@ -724,16 +674,10 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
         """
         self._ensure_open()
         from datetime import datetime
+
         now = datetime.now().isoformat()
         await asyncio.to_thread(
-            self._record_tool_execution_sync,
-            agent_id,
-            session_id,
-            tool_name,
-            status,
-            elapsed_time,
-            error_message,
-            now
+            self._record_tool_execution_sync, agent_id, session_id, tool_name, status, elapsed_time, error_message, now
         )
 
     # Read operations (sync, use _reader())
@@ -749,9 +693,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
         """
         self._ensure_open()
         with self._reader() as conn:
-            row = conn.execute(
-                "SELECT * FROM skills WHERE skill_id = ?", (skill_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM skills WHERE skill_id = ?", (skill_id,)).fetchone()
             if not row:
                 return None
             return self._row_to_record(dict(row))
@@ -765,9 +707,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
             EvolutionType,
         )
 
-        env_dict = (
-            json.loads(row.get("environment")) if row.get("environment") else None
-        )
+        env_dict = json.loads(row.get("environment")) if row.get("environment") else None
 
         return SkillRecord(
             skill_id=row["skill_id"],
@@ -788,23 +728,13 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
                 applied_count=row["applied_count"],
                 completed_count=row["completed_count"],
                 success_count=row["success_count"],
-                last_success_at=(
-                    datetime.fromisoformat(row["last_success_at"])
-                    if row["last_success_at"]
-                    else None
-                ),
-                last_failure_at=(
-                    datetime.fromisoformat(row["last_failure_at"])
-                    if row["last_failure_at"]
-                    else None
-                ),
+                last_success_at=(datetime.fromisoformat(row["last_success_at"]) if row["last_success_at"] else None),
+                last_failure_at=(datetime.fromisoformat(row["last_failure_at"]) if row["last_failure_at"] else None),
                 consecutive_failures=row["consecutive_failures"],
             ),
             traps=json.loads(row.get("traps", "[]")),
             verification_steps=json.loads(row.get("verification_steps", "[]")),
-            environment=(
-                EnvironmentFingerprint.from_dict(env_dict) if env_dict else None
-            ),
+            environment=(EnvironmentFingerprint.from_dict(env_dict) if env_dict else None),
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),
             is_active=bool(row["is_active"]),

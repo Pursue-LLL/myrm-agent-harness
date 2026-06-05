@@ -118,9 +118,7 @@ def harden_connection_sync(
     return journal_mode
 
 
-def _apply_journal_mode_sync(
-    conn: sqlite3.Connection, profile: SQLiteProfile, db_path: Path | None
-) -> str:
+def _apply_journal_mode_sync(conn: sqlite3.Connection, profile: SQLiteProfile, db_path: Path | None) -> str:
     if not profile.use_wal:
         conn.execute("PRAGMA journal_mode=DELETE")
         return "DELETE"
@@ -130,9 +128,7 @@ def _apply_journal_mode_sync(
         return "WAL" if mode == "WAL" else mode
     except sqlite3.Error as exc:
         if should_fallback_to_delete(exc, db_path):
-            logger.warning(
-                "SQLite WAL unsupported on this filesystem (%s); using DELETE.", exc
-            )
+            logger.warning("SQLite WAL unsupported on this filesystem (%s); using DELETE.", exc)
             conn.execute("PRAGMA journal_mode=DELETE")
             return "DELETE"
         raise
@@ -159,9 +155,7 @@ async def harden_connection_async(
     return journal_mode
 
 
-async def _apply_journal_mode_async(
-    conn: aiosqlite.Connection, profile: SQLiteProfile, db_path: Path | None
-) -> str:
+async def _apply_journal_mode_async(conn: aiosqlite.Connection, profile: SQLiteProfile, db_path: Path | None) -> str:
     if not profile.use_wal:
         await conn.execute("PRAGMA journal_mode=DELETE")
         return "DELETE"
@@ -172,18 +166,14 @@ async def _apply_journal_mode_async(
         return "WAL" if mode == "WAL" else mode
     except sqlite3.Error as exc:
         if should_fallback_to_delete(exc, db_path):
-            logger.warning(
-                "SQLite WAL unsupported on this filesystem (%s); using DELETE.", exc
-            )
+            logger.warning("SQLite WAL unsupported on this filesystem (%s); using DELETE.", exc)
             await conn.execute("PRAGMA journal_mode=DELETE")
             return "DELETE"
         raise
 
 
 @asynccontextmanager
-async def connect_async(
-    db_path: str | Path, profile: SQLiteProfile = DEFAULT
-) -> AsyncIterator[aiosqlite.Connection]:
+async def connect_async(db_path: str | Path, profile: SQLiteProfile = DEFAULT) -> AsyncIterator[aiosqlite.Connection]:
     """Open + harden a short-lived aiosqlite connection, closing it on exit."""
     import aiosqlite
 

@@ -79,10 +79,7 @@ async def read_video_as_content_blocks(
     size_display = _format_size(size_bytes)
 
     if not supports_vision and not supports_video:
-        return (
-            f"[Video file: {path}] ({mime_type}, {size_display}. "
-            f"Current model does not support vision or video.)"
-        )
+        return f"[Video file: {path}] ({mime_type}, {size_display}. Current model does not support vision or video.)"
 
     if size_bytes > MAX_VIDEO_BYTES:
         return (
@@ -107,23 +104,13 @@ async def read_video_as_content_blocks(
         )
 
         try:
-            fallback_config = LLMConfig.model_validate(
-                vision_fallback_model_cfg, from_attributes=True
-            )
+            fallback_config = LLMConfig.model_validate(vision_fallback_model_cfg, from_attributes=True)
             engine = VideoAnalysisEngine(fallback_config)
-            description = await engine.analyze_local_video(
-                path, executor, supports_video=False
-            )
-            return (
-                f"[Video: {path}] ({mime_type}, {size_display})\n"
-                f"[Video Analysis]:\n{description}"
-            )
+            description = await engine.analyze_local_video(path, executor, supports_video=False)
+            return f"[Video: {path}] ({mime_type}, {size_display})\n[Video Analysis]:\n{description}"
         except Exception as e:
             logger.warning("Video analysis fallback failed: %s", e)
-            return (
-                f"[Video file: {path}] ({mime_type}, {size_display}. "
-                f"Video analysis failed: {e})"
-            )
+            return f"[Video file: {path}] ({mime_type}, {size_display}. Video analysis failed: {e})"
 
     return (
         f"[Video file: {path}] ({mime_type}, {size_display}. "

@@ -72,9 +72,7 @@ class XmlStreamBuffer:
         self.start_tag_pattern = re.compile(
             r"^(?:<[｜|]+DSML[｜|]+tool_calls>|<tool_call>|<invoke(?:\s+name=[\"'][^\"']*[\"'])?>)"
         )
-        self.end_tag_pattern = re.compile(
-            r"(?:</[｜|]+DSML[｜|]+tool_calls>|</tool_call>|</invoke>)"
-        )
+        self.end_tag_pattern = re.compile(r"(?:</[｜|]+DSML[｜|]+tool_calls>|</tool_call>|</invoke>)")
 
     def _is_prefix_of_start_tag(self, s: str) -> bool:
         if not s.startswith("<"):
@@ -194,15 +192,11 @@ class StreamAggregator:
 
     def aggregate_tool_calls_from_dict(self, chunk_dict: dict[str, Any]) -> None:
         """Extract and aggregate tool call chunks from a chunk dict."""
-        raw_tool_calls = (
-            chunk_dict.get("choices", [{}])[0].get("delta", {}).get("tool_calls")
-        )
+        raw_tool_calls = chunk_dict.get("choices", [{}])[0].get("delta", {}).get("tool_calls")
         for tc_chunk in build_tool_call_chunks(raw_tool_calls, self.tool_call_id_map):
             aggregate_tool_call_chunk(tc_chunk, self.tool_calls)
 
-    def on_generation_chunk(
-        self, cg_chunk: ChatGenerationChunk, new_class: type[BaseMessageChunk]
-    ) -> None:
+    def on_generation_chunk(self, cg_chunk: ChatGenerationChunk, new_class: type[BaseMessageChunk]) -> None:
         """Update aggregator state after a ChatGenerationChunk is produced."""
         if self.first_token_time is None:
             self.first_token_time = time.monotonic()
@@ -217,9 +211,7 @@ class StreamAggregator:
 
     @property
     def is_empty(self) -> bool:
-        return (
-            self.chunk_count == 0 and self.last_usage is None and not self.finish_reason
-        )
+        return self.chunk_count == 0 and self.last_usage is None and not self.finish_reason
 
     @property
     def duration_ms(self) -> float:
@@ -271,19 +263,11 @@ def finalize_stream(
         "content": "".join(agg.content),
         "role": "assistant",
     }
-    valid_tool_calls = (
-        [tc for tc in agg.tool_calls if tc["function"]["name"]]
-        if agg.tool_calls
-        else []
-    )
+    valid_tool_calls = [tc for tc in agg.tool_calls if tc["function"]["name"]] if agg.tool_calls else []
 
     if available_tools and valid_tool_calls:
         before_count = len(valid_tool_calls)
-        valid_tool_calls = [
-            tc
-            for tc in valid_tool_calls
-            if tc.get("function", {}).get("name") in available_tools
-        ]
+        valid_tool_calls = [tc for tc in valid_tool_calls if tc.get("function", {}).get("name") in available_tools]
         dropped = before_count - len(valid_tool_calls)
         if dropped:
             logger.warning(
@@ -303,9 +287,7 @@ def finalize_stream(
     if agg.reasoning:
         aggregated_message["reasoning_content"] = "".join(agg.reasoning)
 
-    parsed_tool_calls, _ = parse_tool_calls_from_reasoning(
-        agg.reasoning, valid_tool_calls, is_async=is_async
-    )
+    parsed_tool_calls, _ = parse_tool_calls_from_reasoning(agg.reasoning, valid_tool_calls, is_async=is_async)
 
     if not parsed_tool_calls and not valid_tool_calls:
         from myrm_agent_harness.toolkits.llms.adapters.tool_call_parsers import (
@@ -314,9 +296,7 @@ def finalize_stream(
 
         parsed_tool_calls = parse_tool_calls(aggregated_message)
         if parsed_tool_calls:
-            logger.warning(
-                f" Stream: parsed {len(parsed_tool_calls)} tool calls from content/reasoning_content"
-            )
+            logger.warning(f" Stream: parsed {len(parsed_tool_calls)} tool calls from content/reasoning_content")
 
             if agg.finish_reason == "stop":
                 agg.finish_reason = "tool_calls"
@@ -328,13 +308,11 @@ def finalize_stream(
         aggregated_message["content"] = clean_xml_tool_tags(aggregated_message["content"])
 
     if aggregated_message.get("reasoning_content"):
-        aggregated_message["reasoning_content"] = clean_xml_tool_tags(
-            aggregated_message["reasoning_content"]
-        )
+        aggregated_message["reasoning_content"] = clean_xml_tool_tags(aggregated_message["reasoning_content"])
 
     tool_call_source = parsed_tool_calls if parsed_tool_calls else valid_tool_calls
-    final_tool_chunk, corrected_tool_calls, recovery_metadata = (
-        build_final_tool_call_chunk(tool_call_source, tool_schemas)
+    final_tool_chunk, corrected_tool_calls, recovery_metadata = build_final_tool_call_chunk(
+        tool_call_source, tool_schemas
     )
     if corrected_tool_calls:
         aggregated_message["tool_calls"] = corrected_tool_calls
@@ -342,19 +320,13 @@ def finalize_stream(
         aggregated_message["tool_call_recovery"] = [
             item
             for item in recovery_metadata
-            if item["strategy"] != "standard_json"
-            or item["degraded"]
-            or not item["safe"]
+            if item["strategy"] != "standard_json" or item["degraded"] or not item["safe"]
         ]
 
     # Safety termination: suppress truncated tool_calls when provider stopped
     # generation for safety reasons, preventing corrupt half-formed arguments
     # from being dispatched.
-    safety_reason = (
-        agg.finish_reason
-        if agg.finish_reason and detect_safety_termination(agg.finish_reason)
-        else None
-    )
+    safety_reason = agg.finish_reason if agg.finish_reason and detect_safety_termination(agg.finish_reason) else None
     if safety_reason and aggregated_message.get("tool_calls"):
         suppress_tool_calls_for_safety(aggregated_message, safety_reason)
         aggregated_message.pop("tool_call_recovery", None)

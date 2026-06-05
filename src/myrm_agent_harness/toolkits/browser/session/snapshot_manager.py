@@ -110,7 +110,7 @@ class SnapshotManager:
             compact=compact,
             max_depth=max_depth,
             include_bbox=include_bbox,
-            max_tokens=max_tokens if not diff else 0, # Only truncate the full tree if we aren't doing a semantic diff
+            max_tokens=max_tokens if not diff else 0,  # Only truncate the full tree if we aren't doing a semantic diff
         )
 
         meta = SnapshotMeta(
@@ -129,9 +129,7 @@ class SnapshotManager:
         original_tree = aria_tree
         is_diff_output = diff and self._diff.has_baseline()
         if is_diff_output:
-            aria_tree = self._diff.generate_diff(
-                original_tree, refs, max_tokens, _ESTIMATED_CHARS_PER_TOKEN
-            )
+            aria_tree = self._diff.generate_diff(original_tree, refs, max_tokens, _ESTIMATED_CHARS_PER_TOKEN)
 
         self._diff.update_baseline(original_tree, refs)
 

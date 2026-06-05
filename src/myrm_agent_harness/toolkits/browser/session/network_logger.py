@@ -99,7 +99,7 @@ class NetworkLogger:
         self._on_request_failed(request)
 
     def detach_page(self, page: Page) -> None:
-        """ from 指定 Page 移除监听；Only当该 Page  is Current绑定Object时生效。"""
+        """from 指定 Page 移除监听；Only当该 Page  is Current绑定Object时生效。"""
         if self._bound_page is not page:
             return
         try:
@@ -119,7 +119,7 @@ class NetworkLogger:
             self.detach_page(self._bound_page)
 
     def start_capture(self, page: Page) -> None:
-        """ in  *page* 上Register网络监听； already 绑定Other Page 时会先 detach。
+        """in  *page* 上Register网络监听； already 绑定Other Page 时会先 detach。
 
         对同一 ``page`` 重复Call is 幂 etc.（ not 重复Register）。
 

@@ -85,9 +85,7 @@ async def create_default_checkpointer(
     conn = await aiosqlite.connect(str(db_path))
     from myrm_agent_harness.utils.db.sqlite import DEFAULT, harden_connection_async
 
-    await harden_connection_async(
-        conn, DEFAULT, db_path=Path(db_path) if db_path != ":memory:" else None
-    )
+    await harden_connection_async(conn, DEFAULT, db_path=Path(db_path) if db_path != ":memory:" else None)
 
     # Create checkpointer (uses default PickleSerde)
     checkpointer = AsyncSqliteSaver(conn)

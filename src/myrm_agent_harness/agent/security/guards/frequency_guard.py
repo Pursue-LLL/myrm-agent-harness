@@ -267,16 +267,8 @@ class FrequencyGuard:
             "total_warns": self._total_warns,
             "total_breaks": self._total_breaks,
             "current_window_size": len(self._calls),
-            "warn_rate": (
-                self._total_warns / self._total_checks
-                if self._total_checks > 0
-                else 0.0
-            ),
-            "break_rate": (
-                self._total_breaks / self._total_checks
-                if self._total_checks > 0
-                else 0.0
-            ),
+            "warn_rate": (self._total_warns / self._total_checks if self._total_checks > 0 else 0.0),
+            "break_rate": (self._total_breaks / self._total_checks if self._total_checks > 0 else 0.0),
         }
 
 

@@ -144,7 +144,7 @@ class FusionPipeline:
         return query_indexed_results
 
     def _get_dedup_key(self, doc: Document) -> str:
-        """ based on StrategyGet文档去重Key
+        """based on StrategyGet文档去重Key
 
         Args:
             doc: 文档Object

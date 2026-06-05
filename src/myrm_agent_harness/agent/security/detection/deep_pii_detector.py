@@ -155,9 +155,7 @@ def _build_user_prompt(texts: list[str], real_name: str) -> str:
     return "\n".join(parts)
 
 
-def _parse_detection_response(
-    raw: str, expected_count: int
-) -> list[list[DeepPIIItem]]:
+def _parse_detection_response(raw: str, expected_count: int) -> list[list[DeepPIIItem]]:
     """Parse LLM response into per-text PII item lists."""
     raw = sanitize_text(raw).strip()
 
@@ -171,6 +169,7 @@ def _parse_detection_response(
     except json.JSONDecodeError:
         try:
             import json_repair  # type: ignore[import-untyped]
+
             data = json_repair.loads(match.group(0))
         except Exception:
             logger.warning("[DEEP_PII] Failed to parse LLM response JSON")
@@ -208,9 +207,7 @@ def _parse_items(raw_items: list[object]) -> list[DeepPIIItem]:
     return items
 
 
-def _build_replacements(
-    items: list[DeepPIIItem], store: PseudonymStore
-) -> list[tuple[str, str]]:
+def _build_replacements(items: list[DeepPIIItem], store: PseudonymStore) -> list[tuple[str, str]]:
     """Build (original, pseudonym) replacement pairs sorted by length desc."""
     replacements: list[tuple[str, str]] = []
     for item in items:
@@ -224,9 +221,7 @@ def _build_replacements(
     return replacements
 
 
-def _apply_replacements(
-    text: str, replacements: list[tuple[str, str]]
-) -> str:
+def _apply_replacements(text: str, replacements: list[tuple[str, str]]) -> str:
     """Apply replacements to text, longest-first to avoid partial matches."""
     for original, pseudonym in replacements:
         text = text.replace(original, pseudonym)

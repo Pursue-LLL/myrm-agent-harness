@@ -162,11 +162,19 @@ class SQLitePreferenceFacetStore:
                  user_pinned=excluded.user_pinned,
                  user_forgotten=excluded.user_forgotten""",
             (
-                facet.id, facet.key, facet.value,
-                facet.category.value, facet.cue.value, facet.lifecycle.value,
-                facet.stability, facet.evidence_count, memory_ids_json,
-                first_seen_iso, last_seen_iso,
-                int(facet.user_pinned), int(facet.user_forgotten),
+                facet.id,
+                facet.key,
+                facet.value,
+                facet.category.value,
+                facet.cue.value,
+                facet.lifecycle.value,
+                facet.stability,
+                facet.evidence_count,
+                memory_ids_json,
+                first_seen_iso,
+                last_seen_iso,
+                int(facet.user_pinned),
+                int(facet.user_forgotten),
             ),
         )
         await conn.commit()
@@ -211,9 +219,7 @@ class SQLitePreferenceFacetStore:
 
     async def list_all(self) -> list[PreferenceFacet]:
         conn = await self._ensure_conn()
-        cursor = await conn.execute(
-            "SELECT * FROM preference_facets ORDER BY stability DESC"
-        )
+        cursor = await conn.execute("SELECT * FROM preference_facets ORDER BY stability DESC")
         rows = await cursor.fetchall()
         return [_facet_from_row(r) for r in rows]
 

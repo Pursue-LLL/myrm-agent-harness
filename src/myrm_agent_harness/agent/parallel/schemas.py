@@ -40,21 +40,9 @@ class ParallelTaskResults(BaseModel):
                         task_index=int(entry.get("task_index", index)),
                         agent_type=str(entry.get("agent_type") or "general"),
                         success=bool(entry.get("success")),
-                        result=(
-                            str(entry.get("result"))
-                            if entry.get("result") is not None
-                            else None
-                        ),
-                        error=(
-                            str(entry.get("error"))
-                            if entry.get("error") is not None
-                            else None
-                        ),
-                        task_id=(
-                            str(entry.get("task_id"))
-                            if entry.get("task_id") is not None
-                            else None
-                        ),
+                        result=(str(entry.get("result")) if entry.get("result") is not None else None),
+                        error=(str(entry.get("error")) if entry.get("error") is not None else None),
+                        task_id=(str(entry.get("task_id")) if entry.get("task_id") is not None else None),
                     )
                 )
         return cls(
@@ -66,9 +54,7 @@ class ParallelTaskResults(BaseModel):
             failure_reasons=[
                 str(reason)
                 for reason in (
-                    payload.get("failure_reasons")
-                    if isinstance(payload.get("failure_reasons"), list)
-                    else []
+                    payload.get("failure_reasons") if isinstance(payload.get("failure_reasons"), list) else []
                 )
             ],
             all_success=bool(payload.get("all_success")),

@@ -73,9 +73,7 @@ async def execute_dag_plan(
     limiter = ConcurrencyLimiter(max_concurrent)
 
     # State Reducer to safely collect results
-    def reducer_fn(
-        state: dict[str, SubAgentResult], patch: tuple[str, SubAgentResult]
-    ) -> dict[str, SubAgentResult]:
+    def reducer_fn(state: dict[str, SubAgentResult], patch: tuple[str, SubAgentResult]) -> dict[str, SubAgentResult]:
         step_id, result = patch
         new_state = state.copy()
         new_state[step_id] = result
@@ -106,9 +104,7 @@ async def execute_dag_plan(
 
             step_context["dag_previous_results"] = filtered_results
 
-            config = SubagentConfig(
-                system_prompt="You are a DAG step executor.", max_retries=2
-            )
+            config = SubagentConfig(system_prompt="You are a DAG step executor.", max_retries=2)
 
             # Node-level retry mechanism
             max_node_retries = 3
@@ -151,11 +147,7 @@ async def execute_dag_plan(
                             result=str(result.get("result", "")),
                             error=str(result.get("error", "")),
                             completed_at=time.time(),
-                            status=(
-                                SubAgentStatus.COMPLETED
-                                if result.get("success")
-                                else SubAgentStatus.FAILED
-                            ),
+                            status=(SubAgentStatus.COMPLETED if result.get("success") else SubAgentStatus.FAILED),
                         )
 
                     if result.success:
@@ -165,14 +157,10 @@ async def execute_dag_plan(
                             f"[DAG] Step {step_id} failed on attempt {attempt + 1}/{max_node_retries}: {result.error}"
                         )
                     if attempt < max_node_retries - 1:
-                        await asyncio.sleep(
-                            0.01
-                        )  # Exponential backoff (short for tests)
+                        await asyncio.sleep(0.01)  # Exponential backoff (short for tests)
 
                 except TimeoutError:
-                    logger.warning(
-                        f"[DAG] Timeout in step {step_id} on attempt {attempt + 1}/{max_node_retries}"
-                    )
+                    logger.warning(f"[DAG] Timeout in step {step_id} on attempt {attempt + 1}/{max_node_retries}")
                     result = SubAgentResult(
                         success=False,
                         task_id=f"dag-{step_id}",
@@ -223,9 +211,7 @@ async def execute_dag_plan(
                         if hasattr(step, "status"):
                             step.status = "pending"
                     else:
-                        logger.info(
-                            "[DAG] Step %s yielded with unsupported payload", step_id
-                        )
+                        logger.info("[DAG] Step %s yielded with unsupported payload", step_id)
                         if result.checkpoint_data:
                             yielded_checkpoints[step_id] = result.checkpoint_data
                         if hasattr(step, "status"):
@@ -239,9 +225,7 @@ async def execute_dag_plan(
                     logger.info(f"[DAG] Completed step {step_id}")
                 else:
                     if hasattr(plan, "add_error"):
-                        plan.add_error(
-                            "DAGExecutionError", result.error, step_id=step_id
-                        )
+                        plan.add_error("DAGExecutionError", result.error, step_id=step_id)
                     logger.error(f"[DAG] Failed step {step_id}: {result.error}")
 
             running_tasks.remove(step_id)
@@ -254,11 +238,7 @@ async def execute_dag_plan(
                 if hasattr(plan, "get_ready_steps"):
                     ready_steps = plan.get_ready_steps()
 
-                steps_to_start = [
-                    s
-                    for s in ready_steps
-                    if getattr(s, "step_id", "") not in running_tasks
-                ]
+                steps_to_start = [s for s in ready_steps if getattr(s, "step_id", "") not in running_tasks]
 
                 if not steps_to_start and not running_tasks:
                     break
@@ -280,9 +260,7 @@ async def execute_dag_plan(
                             tg._bg_tasks.add(_bg_task)
                             _bg_task.add_done_callback(tg._bg_tasks.discard)
                     except Exception as e:
-                        logger.error(
-                            f"[DAG] Failed to create task for step {step_id}: {e}"
-                        )
+                        logger.error(f"[DAG] Failed to create task for step {step_id}: {e}")
                         running_tasks.discard(step_id)
                         if hasattr(plan, "add_error"):
                             plan.add_error("DAGExecutionError", str(e), step_id=step_id)
@@ -442,9 +420,7 @@ async def wait_children(
         try:
             gather_coro = asyncio.gather(*running_tasks, return_exceptions=True)
             results: list[SubAgentResult | BaseException] = (
-                await asyncio.wait_for(gather_coro, timeout=timeout)
-                if timeout
-                else await gather_coro
+                await asyncio.wait_for(gather_coro, timeout=timeout) if timeout else await gather_coro
             )
         except TimeoutError:
             timed_out = True
@@ -454,9 +430,7 @@ async def wait_children(
             results = []
 
         if timed_out:
-            _collect_timed_out_results(
-                running_tasks, running_ids, successes, failures, timeout
-            )
+            _collect_timed_out_results(running_tasks, running_ids, successes, failures, timeout)
         else:
             _collect_gather_results(results, running_ids, successes, failures)
 
@@ -492,13 +466,9 @@ def _collect_timed_out_results(
                 else:
                     failures.append({"task_id": tid, "error": str(raw)})
             except Exception as exc:
-                failures.append(
-                    {"task_id": tid, "error": f"{type(exc).__name__}: {exc}"}
-                )
+                failures.append({"task_id": tid, "error": f"{type(exc).__name__}: {exc}"})
         else:
-            failures.append(
-                {"task_id": tid, "error": f"Batch timeout after {timeout}s"}
-            )
+            failures.append({"task_id": tid, "error": f"Batch timeout after {timeout}s"})
 
 
 def _collect_gather_results(

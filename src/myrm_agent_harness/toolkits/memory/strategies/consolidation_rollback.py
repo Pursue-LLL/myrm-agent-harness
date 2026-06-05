@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 class ConsolidationRollbackResult(BaseModel):
     """Result of a consolidation rollback operation."""
+
     rolled_back: int = 0
     skipped_conflict: int = 0
     errors: int = 0
@@ -53,10 +54,7 @@ async def get_last_consolidation_summary(manager: MemoryManager) -> dict[str, ob
     from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, MemoryType
 
     events = await manager.list_memories(MemoryType.EPISODIC, limit=50)
-    consolidation_events = [
-        e for e in events
-        if isinstance(e, EpisodicMemory) and e.event_type == "consolidation"
-    ]
+    consolidation_events = [e for e in events if isinstance(e, EpisodicMemory) and e.event_type == "consolidation"]
     if not consolidation_events:
         return None
 
@@ -95,10 +93,7 @@ async def rollback_last_consolidation(manager: MemoryManager) -> ConsolidationRo
     result = ConsolidationRollbackResult()
 
     events = await manager.list_memories(MemoryType.EPISODIC, limit=50)
-    consolidation_events = [
-        e for e in events
-        if isinstance(e, EpisodicMemory) and e.event_type == "consolidation"
-    ]
+    consolidation_events = [e for e in events if isinstance(e, EpisodicMemory) and e.event_type == "consolidation"]
     if not consolidation_events:
         return result
 
@@ -163,6 +158,8 @@ async def rollback_last_consolidation(manager: MemoryManager) -> ConsolidationRo
 
     logger.info(
         "Consolidation rollback complete: rolled_back=%d, skipped_conflict=%d, errors=%d",
-        result.rolled_back, result.skipped_conflict, result.errors,
+        result.rolled_back,
+        result.skipped_conflict,
+        result.errors,
     )
     return result

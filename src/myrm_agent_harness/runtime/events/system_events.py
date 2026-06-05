@@ -106,7 +106,6 @@ class SubagentLifecycleEvent(BaseEvent):
     session_id: str
     data: SubagentLifecycleData = field(default_factory=SubagentLifecycleData)
 
-
     vault_uri: str | None = None
     thread_id: str | None = None
     created_at: float = 0.0

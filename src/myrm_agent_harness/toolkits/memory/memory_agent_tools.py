@@ -74,7 +74,9 @@ _DRIFT_DEFENSE_FOOTER = (
     "To fix outdated memories: use memory_manage(action='correct') or memory_manage(action='delete')"
 )
 
-_CODE_PATH_PATTERN = re.compile(r"(\/[a-zA-Z0-9_\-\.]+)+\/?|[a-zA-Z0-9_\-\.]+\.(py|ts|tsx|js|jsx|json|yaml|yml|md|rs|go|java|c|cpp|h|hpp)")
+_CODE_PATH_PATTERN = re.compile(
+    r"(\/[a-zA-Z0-9_\-\.]+)+\/?|[a-zA-Z0-9_\-\.]+\.(py|ts|tsx|js|jsx|json|yaml|yml|md|rs|go|java|c|cpp|h|hpp)"
+)
 
 
 def create_memory_tools(manager: MemoryManager, recall_mode: RecallMode = RecallMode.HYBRID) -> list[object]:

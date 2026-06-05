@@ -184,10 +184,7 @@ class ClusterDetector:
                 if len(cluster_indices) >= max_cluster_size:
                     break
 
-                meets_all = all(
-                    sim_matrix[j, member] >= self._similarity_threshold
-                    for member in cluster_indices
-                )
+                meets_all = all(sim_matrix[j, member] >= self._similarity_threshold for member in cluster_indices)
                 if meets_all:
                     cluster_indices.append(j)
                     assigned[j] = True
@@ -198,10 +195,7 @@ class ClusterDetector:
             cluster_skills = [skills[idx] for idx in cluster_indices]
             skill_names = tuple(s.name for s in cluster_skills)
 
-            pair_sims = [
-                float(sim_matrix[a, b])
-                for a, b in combinations(cluster_indices, 2)
-            ]
+            pair_sims = [float(sim_matrix[a, b]) for a, b in combinations(cluster_indices, 2)]
             avg_sim = sum(pair_sims) / len(pair_sims) if pair_sims else 0.0
 
             domain = self._infer_domain(cluster_skills)
@@ -235,8 +229,7 @@ class ClusterDetector:
                 continue
 
             overlaps_significantly = any(
-                len(ec_set & existing) / max(len(ec_set), len(existing)) > 0.7
-                for existing in existing_skill_sets
+                len(ec_set & existing) / max(len(ec_set), len(existing)) > 0.7 for existing in existing_skill_sets
             )
             if overlaps_significantly:
                 continue
@@ -261,6 +254,7 @@ class ClusterDetector:
         prefixes = [re.split(r"[-_]", n)[0] for n in names if re.split(r"[-_]", n)]
         if prefixes:
             from collections import Counter
+
             most_common = Counter(prefixes).most_common(1)
             if most_common:
                 return most_common[0][0]

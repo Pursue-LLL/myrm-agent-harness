@@ -65,7 +65,7 @@ class NumpyVectorRetriever:
         self._embedding_computed = False
 
     async def ensure_embeddings(self) -> None:
-        """ ensure 文档Embedding already Compute并归一化"""
+        """ensure 文档Embedding already Compute并归一化"""
         if self._embedding_computed:
             return
 

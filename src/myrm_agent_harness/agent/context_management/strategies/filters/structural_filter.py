@@ -387,9 +387,7 @@ class StructuralFilter(BaseFilter):
 
         # 显示前几行作为预览
         preview_lines = lines[:10]
-        structure_overview = "内容预览:\n" + "\n".join(
-            f" {i + 1}: {line[:80]}" for i, line in enumerate(preview_lines)
-        )
+        structure_overview = "内容预览:\n" + "\n".join(f" {i + 1}: {line[:80]}" for i, line in enumerate(preview_lines))
         if total_lines > 10:
             structure_overview += f"\n  ... 还有 {total_lines - 10} 行"
 

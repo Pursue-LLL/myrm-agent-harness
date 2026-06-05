@@ -57,9 +57,7 @@ class ExecutorStorageAdapter(StorageProvider):
     async def get_text(self, key: str, encoding: str = "utf-8") -> str:
         return await self._executor.read_file(key)
 
-    async def write(
-        self, key: str, content: bytes, content_type: str | None = None
-    ) -> None:
+    async def write(self, key: str, content: bytes, content_type: str | None = None) -> None:
         await self._executor.write_file(key, content.decode("utf-8"))
 
     async def write_text(
@@ -113,6 +111,4 @@ class ExecutorStorageAdapter(StorageProvider):
         await self._executor.delete_file(src_key)
 
     async def get_url(self, key: str, expires_in: int = 3600) -> str:
-        raise NotImplementedError(
-            "ExecutorStorageAdapter does not support URL generation"
-        )
+        raise NotImplementedError("ExecutorStorageAdapter does not support URL generation")

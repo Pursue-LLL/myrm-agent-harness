@@ -1,16 +1,18 @@
 import json
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
-_BUSY_TIMEOUT_S = 5
+from myrm_agent_harness.utils.db.sqlite import CACHE, harden_connection_sync
 
 
 class WorkflowEventStore:
     """SQLite-based Event Sourcing for Dynamic Workflows.
 
     Records every sub-agent spawn result to allow durable execution and resume.
-    Uses WAL journal mode for concurrent read/write safety when multiple
-    sub-agents complete in parallel via ThreadPoolExecutor PTC scripts.
+    Uses the Harness unified SQLite hardening profile (CACHE) for WAL journaling,
+    concurrent write safety, and proper fallback when the filesystem cannot host WAL.
     """
 
     def __init__(self, db_path: str | Path):
@@ -18,10 +20,18 @@ class WorkflowEventStore:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, timeout=_BUSY_TIMEOUT_S)
-        conn.execute("PRAGMA journal_mode=WAL")
-        return conn
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        conn = sqlite3.connect(str(self.db_path))
+        harden_connection_sync(conn, CACHE, db_path=self.db_path)
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def _init_db(self) -> None:
         with self._connect() as conn:
@@ -43,8 +53,7 @@ class WorkflowEventStore:
         """Retrieve a previously completed sub-agent result."""
         with self._connect() as conn:
             cursor = conn.execute(
-                "SELECT result_json FROM subagent_events WHERE workflow_id = ? AND task_id = ?",
-                (workflow_id, task_id)
+                "SELECT result_json FROM subagent_events WHERE workflow_id = ? AND task_id = ?", (workflow_id, task_id)
             )
             row = cursor.fetchone()
             if row:

@@ -112,9 +112,7 @@ def evaluate_archive_refetch_for_path(
         return decision
 
     active_policy = policy or (
-        metrics.archive_restore_budget_policy
-        if metrics is not None
-        else DEFAULT_ARCHIVE_RESTORE_BUDGET_POLICY
+        metrics.archive_restore_budget_policy if metrics is not None else DEFAULT_ARCHIVE_RESTORE_BUDGET_POLICY
     )
     if not is_range_read and estimated_tokens > active_policy.max_full_restore_tokens:
         decision = ArchiveRefetchDecision(

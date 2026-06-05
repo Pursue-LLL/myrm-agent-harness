@@ -308,7 +308,9 @@ class GlobalBrowserPool(CrashWatchdogMixin):
 
                     # Safety Guard: Ensure no pages are currently in use
                     if pool and pool.active_pages_count > 0:
-                        logger.error(f"Concurrency Guard Triggered: {pool.active_pages_count} pages still active in {context_key}")
+                        logger.error(
+                            f"Concurrency Guard Triggered: {pool.active_pages_count} pages still active in {context_key}"
+                        )
                         raise RuntimeError(
                             f"Cannot destroy context {context_key}: "
                             f"{pool.active_pages_count} pages are still in use. "
@@ -329,7 +331,9 @@ class GlobalBrowserPool(CrashWatchdogMixin):
 
                     # Also check if this browser instance has no more contexts, if so we could close it
                     if not browser_inst.contexts:
-                        logger.info(f"Browser instance {browser_inst.engine} has no more contexts, but keeping it alive for future use.")
+                        logger.info(
+                            f"Browser instance {browser_inst.engine} has no more contexts, but keeping it alive for future use."
+                        )
                     return
 
             logger.warning(f"Context {context_key} not found for destruction")
@@ -410,7 +414,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
             # If least-loaded Browser is still busy and max_browsers not reached, create new one
             if least.load > SCALE_OUT_LOAD_THRESHOLD and len(self._browsers) < self._max_browsers:
                 inst = await launcher.create_browser()
-                inst._engine = engine # type: ignore
+                inst._engine = engine  # type: ignore
                 self._register_disconnect_handler(inst)
                 self._browsers.append(inst)
                 return inst
@@ -420,7 +424,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
         # All Browsers reached contexts limit
         if len(self._browsers) < self._max_browsers:
             inst = await launcher.create_browser()
-            inst._engine = engine # type: ignore
+            inst._engine = engine  # type: ignore
             self._register_disconnect_handler(inst)
             self._browsers.append(inst)
             return inst

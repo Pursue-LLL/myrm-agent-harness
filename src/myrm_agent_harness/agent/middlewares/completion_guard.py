@@ -63,14 +63,31 @@ logger = logging.getLogger(__name__)
 
 COMPLETION_CHECK_TOOL_NAME = "_completion_check"
 
-_MUTATION_TOOLS: frozenset[str] = frozenset({
-    "write_file", "create_file", "edit_file", "delete_file",
-    "file_write_tool", "file_edit_tool", "file_create_tool",
-    "execute_command", "run_terminal", "bash_tool", "bash_code_execute_tool",
-    "send_message", "git_commit", "git_push", "apply_diff",
-    "delegate_task_tool", "spawn_subagent",
-    "request_answer_user_tool", "answer_user", "finish", "complete_task",
-})
+_MUTATION_TOOLS: frozenset[str] = frozenset(
+    {
+        "write_file",
+        "create_file",
+        "edit_file",
+        "delete_file",
+        "file_write_tool",
+        "file_edit_tool",
+        "file_create_tool",
+        "execute_command",
+        "run_terminal",
+        "bash_tool",
+        "bash_code_execute_tool",
+        "send_message",
+        "git_commit",
+        "git_push",
+        "apply_diff",
+        "delegate_task_tool",
+        "spawn_subagent",
+        "request_answer_user_tool",
+        "answer_user",
+        "finish",
+        "complete_task",
+    }
+)
 
 _rejection_count: int = 0
 
@@ -167,9 +184,7 @@ def reset_completion_guard() -> None:
     _rejection_count = 0
 
 
-def _build_checklist(
-    records: list[CallRecord], workspace_root: str | None = None
-) -> tuple[str, bool]:
+def _build_checklist(records: list[CallRecord], workspace_root: str | None = None) -> tuple[str, bool]:
     """Generate a verification checklist from LoopGuard CallRecords.
 
     Groups tool calls by semantic category and produces targeted
@@ -190,9 +205,7 @@ def _build_checklist(
         groups.setdefault(grp, []).append(rec)
 
     verifications = [r for r in records if r.verification_type is not None]
-    failed_verifications = [
-        r for r in verifications if r.success_level == SuccessLevel.FAILURE
-    ]
+    failed_verifications = [r for r in verifications if r.success_level == SuccessLevel.FAILURE]
 
     items: list[str] = []
     has_critical_errors = False
@@ -242,18 +255,12 @@ def _build_checklist(
                 )
         elif failed_verifications:
             has_critical_errors = True
-            failed_types = {
-                r.verification_type.value
-                for r in failed_verifications
-                if r.verification_type
-            }
+            failed_types = {r.verification_type.value for r in failed_verifications if r.verification_type}
             items.append(
                 f"CRITICAL: Verification failed for: {', '.join(sorted(failed_types))}. You MUST fix failing checks before finishing."
             )
         else:
-            verified_types = {
-                r.verification_type.value for r in verifications if r.verification_type
-            }
+            verified_types = {r.verification_type.value for r in verifications if r.verification_type}
             items.append(
                 f"File modifications ({', '.join(sorted(write_tools))}) verified via "
                 f"{', '.join(sorted(verified_types))} — confirm results match expectations."
@@ -267,17 +274,38 @@ def _build_checklist(
         )
     elif has_writes:
         frontend_render_exts: frozenset[str] = frozenset(
-            {".tsx", ".jsx", ".vue", ".svelte", ".astro",
-             ".css", ".scss", ".less", ".html"}
+            {".tsx", ".jsx", ".vue", ".svelte", ".astro", ".css", ".scss", ".less", ".html"}
         )
         non_render_path_segments: frozenset[str] = frozenset(
-            {"test", "tests", "spec", "specs", "__tests__", "__test__",
-             "store", "stores", "service", "services",
-             "util", "utils", "hook", "hooks", "api",
-             "types", "constants", "schemas", "mocks", "mock"}
+            {
+                "test",
+                "tests",
+                "spec",
+                "specs",
+                "__tests__",
+                "__test__",
+                "store",
+                "stores",
+                "service",
+                "services",
+                "util",
+                "utils",
+                "hook",
+                "hooks",
+                "api",
+                "types",
+                "constants",
+                "schemas",
+                "mocks",
+                "mock",
+            }
         )
         non_render_filename_patterns: tuple[str, ...] = (
-            ".test.", ".spec.", ".d.ts", ".config.", ".stories.",
+            ".test.",
+            ".spec.",
+            ".d.ts",
+            ".config.",
+            ".stories.",
         )
 
         def _is_non_render_path(p: str) -> bool:
@@ -288,8 +316,7 @@ def _build_checklist(
             return any(pat in filename for pat in non_render_filename_patterns)
 
         has_render_file_writes = any(
-            any(path_lower.endswith(ext) for ext in frontend_render_exts)
-            and not _is_non_render_path(path_lower)
+            any(path_lower.endswith(ext) for ext in frontend_render_exts) and not _is_non_render_path(path_lower)
             for rec in groups[ToolGroup.WRITE]
             if (path_lower := str(rec.args.get("path", "")).lower())
         )
@@ -316,11 +343,7 @@ def _build_checklist(
 
     if ToolGroup.EXECUTE in groups:
         exec_tools = {r.tool_name for r in groups[ToolGroup.EXECUTE]}
-        failures = [
-            r
-            for r in groups[ToolGroup.EXECUTE]
-            if r.success_level == SuccessLevel.FAILURE
-        ]
+        failures = [r for r in groups[ToolGroup.EXECUTE] if r.success_level == SuccessLevel.FAILURE]
         item = f"Verify execution results from {', '.join(sorted(exec_tools))} match expectations."
         if failures:
             reported_failures.update(r.tool_name for r in failures)
@@ -332,10 +355,7 @@ def _build_checklist(
         items.append(item)
 
     other_failures = [
-        r
-        for r in records
-        if r.success_level == SuccessLevel.FAILURE
-        and r.tool_name not in reported_failures
+        r for r in records if r.success_level == SuccessLevel.FAILURE and r.tool_name not in reported_failures
     ]
     if other_failures:
         failed_tools = {r.tool_name for r in other_failures}
@@ -367,32 +387,22 @@ def _build_checklist(
             plan = planner_storage.load_plan()
             if plan:
                 uncompleted_steps = [
-                    step
-                    for step in plan.steps
-                    if step.status != "completed" and step.status != "skipped"
+                    step for step in plan.steps if step.status != "completed" and step.status != "skipped"
                 ]
                 if uncompleted_steps:
                     if has_writes:
                         has_critical_errors = True
-                        lines.append(
-                            "  CRITICAL: You have uncompleted steps in your Goal Plan!"
-                        )
+                        lines.append("  CRITICAL: You have uncompleted steps in your Goal Plan!")
                     else:
-                        lines.append(
-                            "  WARNING: You have uncompleted steps in your Goal Plan."
-                        )
+                        lines.append("  WARNING: You have uncompleted steps in your Goal Plan.")
                     for step in uncompleted_steps:
-                        lines.append(
-                            f" - Step {step.step_id}: {step.description} (Status: {step.status})"
-                        )
+                        lines.append(f" - Step {step.step_id}: {step.description} (Status: {step.status})")
                     if has_writes:
                         lines.append(
                             " You MUST complete these steps and call `planner_tool(action='update')` before finishing."
                         )
                     else:
-                        lines.append(
-                            " Review if remaining steps are still needed for your answer."
-                        )
+                        lines.append(" Review if remaining steps are still needed for your answer.")
                     lines.append("")
         except Exception as e:
             logger.warning("[CompletionGuard] Failed to load plan for checklist: %s", e)
@@ -402,17 +412,13 @@ def _build_checklist(
     lines.append("")
     lines.append("RULES:")
     lines.append('- "Looks correct" is NOT verification — run the actual check.')
-    lines.append(
-        "- Tests you wrote need independent verification — confirm they catch real bugs."
-    )
+    lines.append("- Tests you wrote need independent verification — confirm they catch real bugs.")
     lines.append('- "Should work" is NOT "verified" — execute and confirm.')
     lines.append("- If you cannot verify something, state what and why explicitly.")
     lines.append("")
 
     if has_critical_errors:
-        lines.append(
-            " STATUS: REJECTED. You have CRITICAL errors. You CANNOT finish the task until they are resolved."
-        )
+        lines.append(" STATUS: REJECTED. You have CRITICAL errors. You CANNOT finish the task until they are resolved.")
     else:
         lines.append(
             " STATUS: WARNINGS ONLY. If all checks pass, provide your final answer. If issues found, fix them first."
@@ -449,8 +455,15 @@ def _completion_check_tool(workspace_root: str = "", force_fail: bool = False) -
 
 
 _UNFINISHED_MARKERS: tuple[str, ...] = (
-    "...", "接下来我会", "I'll now", "Let me", "I will now",
-    "下面我来", "让我", "我现在", "Next, I'll",
+    "...",
+    "接下来我会",
+    "I'll now",
+    "Let me",
+    "I will now",
+    "下面我来",
+    "让我",
+    "我现在",
+    "Next, I'll",
 )
 
 _STRUCTURE_MARKERS: tuple[str, ...] = ("\n#", "\n-", "\n*", "\n1.", "```")
@@ -502,9 +515,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         """Expose the internal ``_completion_check`` tool for registration."""
         return [_completion_check_tool]
 
-    async def aafter_model(
-        self, state: dict[str, Any], runtime: Any
-    ) -> dict[str, Any] | None:
+    async def aafter_model(self, state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
         """Intercept completion attempts and inject verification when critical errors exist."""
         global _rejection_count
         if not self._enabled:
@@ -514,9 +525,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         if not messages:
             return None
 
-        last_ai_msg = next(
-            (msg for msg in reversed(messages) if isinstance(msg, AIMessage)), None
-        )
+        last_ai_msg = next((msg for msg in reversed(messages) if isinstance(msg, AIMessage)), None)
         if last_ai_msg is None:
             return None
 
@@ -532,9 +541,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                 "complete_task",
             }
             has_finish_tool = any(
-                tc.get("name") in finish_tool_names
-                for tc in last_ai_msg.tool_calls
-                if isinstance(tc, dict)
+                tc.get("name") in finish_tool_names for tc in last_ai_msg.tool_calls if isinstance(tc, dict)
             )
             if has_finish_tool:
                 is_attempting_completion = True
@@ -542,16 +549,10 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         if not is_attempting_completion:
             # --- Mixed Message Guard ---
             if last_ai_msg.content and last_ai_msg.tool_calls:
-                content_str = (
-                    last_ai_msg.content
-                    if isinstance(last_ai_msg.content, str)
-                    else str(last_ai_msg.content)
-                )
+                content_str = last_ai_msg.content if isinstance(last_ai_msg.content, str) else str(last_ai_msg.content)
                 if _is_substantive_final_response(content_str):
                     has_mutation = any(
-                        tc.get("name") in _MUTATION_TOOLS
-                        for tc in last_ai_msg.tool_calls
-                        if isinstance(tc, dict)
+                        tc.get("name") in _MUTATION_TOOLS for tc in last_ai_msg.tool_calls if isinstance(tc, dict)
                     )
                     if not has_mutation:
                         logger.info(
@@ -590,8 +591,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
 
         if current_rejections >= self._max_rejections:
             logger.error(
-                "[CompletionGuard] Max rejections (%d) reached. "
-                "Allowing agent to finish despite critical errors.",
+                "[CompletionGuard] Max rejections (%d) reached. Allowing agent to finish despite critical errors.",
                 self._max_rejections,
             )
             tool_call_id = f"call_{uuid.uuid4().hex[:24]}"
@@ -599,9 +599,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                 {
                     "name": COMPLETION_CHECK_TOOL_NAME,
                     "args": {
-                        "workspace_root": (
-                            str(workspace_root) if workspace_root else ""
-                        ),
+                        "workspace_root": (str(workspace_root) if workspace_root else ""),
                         "force_fail": True,
                     },
                     "id": tool_call_id,
@@ -613,8 +611,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
 
         _rejection_count = current_rejections + 1
         logger.warning(
-            "[CompletionGuard] Critical errors found. Blocking completion "
-            "(rejection %d/%d).",
+            "[CompletionGuard] Critical errors found. Blocking completion (rejection %d/%d).",
             current_rejections + 1,
             self._max_rejections,
         )
@@ -623,9 +620,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         last_ai_msg.tool_calls = [
             {
                 "name": COMPLETION_CHECK_TOOL_NAME,
-                "args": {
-                    "workspace_root": str(workspace_root) if workspace_root else ""
-                },
+                "args": {"workspace_root": str(workspace_root) if workspace_root else ""},
                 "id": tool_call_id,
                 "type": "tool_call",
             }

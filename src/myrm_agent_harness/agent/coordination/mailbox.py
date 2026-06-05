@@ -64,9 +64,7 @@ class TeammateMailbox:
     def unregister_active(self, task_id: str) -> None:
         self._active_roster.pop(task_id, None)
 
-    def list_active_roster(
-        self, exclude_task_id: str | None = None
-    ) -> list[dict[str, str]]:
+    def list_active_roster(self, exclude_task_id: str | None = None) -> list[dict[str, str]]:
         return [
             {"task_id": task_id, "agent_type": agent_type}
             for task_id, agent_type in self._active_roster.items()
@@ -175,9 +173,7 @@ def format_teammate_injection(messages: Iterable[TeammateMessage]) -> str | None
         return None
     lines = ["<teammate-message>"]
     for msg in items:
-        lines.append(
-            f"From {msg.from_task_id} ({msg.from_agent_type}) to {msg.to_task_id}: {msg.body}"
-        )
+        lines.append(f"From {msg.from_task_id} ({msg.from_agent_type}) to {msg.to_task_id}: {msg.body}")
     lines.append("</teammate-message>")
     return "\n".join(lines)
 

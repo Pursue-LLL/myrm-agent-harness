@@ -128,9 +128,7 @@ def _compute_tool_hashes(
         h = _sha256_hex(f"{name}:{schema}")
         per_tool[name] = h
         aggregate_parts.append(h)
-    aggregate = (
-        _sha256_hex("|".join(aggregate_parts)) if aggregate_parts else _sha256_hex("")
-    )
+    aggregate = _sha256_hex("|".join(aggregate_parts)) if aggregate_parts else _sha256_hex("")
     return aggregate, per_tool
 
 
@@ -195,28 +193,20 @@ class CacheBreakDetector:
             if prev.tool_definitions_hash != digest.tool_definitions_hash:
                 changes.tool_definitions_changed = True
                 changes.tool_count_delta = digest.tool_count - prev.tool_count
-                changes.changed_tools = _diff_tool_hashes(
-                    prev.per_tool_hashes, digest.per_tool_hashes
-                )
+                changes.changed_tools = _diff_tool_hashes(prev.per_tool_hashes, digest.per_tool_hashes)
             if prev.model_name != digest.model_name:
                 changes.model_changed = True
                 changes.prev_model = prev.model_name
                 changes.new_model = digest.model_name
 
-            has_any = (
-                changes.system_prompt_changed
-                or changes.tool_definitions_changed
-                or changes.model_changed
-            )
+            has_any = changes.system_prompt_changed or changes.tool_definitions_changed or changes.model_changed
             self._state.pending_changes = changes if has_any else None
         else:
             self._state.pending_changes = None
 
         self._state.prev_digest = digest
 
-    def check_cache_break(
-        self, cache_read_tokens: int, cache_creation_tokens: int = 0
-    ) -> CacheBreakEvent | None:
+    def check_cache_break(self, cache_read_tokens: int, cache_creation_tokens: int = 0) -> CacheBreakEvent | None:
         """Phase 2 (post-call): detect break and attribute causes.
 
         Returns CacheBreakEvent if a significant cache drop was detected,
@@ -243,10 +233,7 @@ class CacheBreakDetector:
             return None
 
         token_drop = prev_read - cache_read_tokens
-        if (
-            cache_read_tokens >= prev_read * CACHE_STABLE_RATIO
-            or token_drop < MIN_CACHE_BREAK_TOKEN_DROP
-        ):
+        if cache_read_tokens >= prev_read * CACHE_STABLE_RATIO or token_drop < MIN_CACHE_BREAK_TOKEN_DROP:
             self._state.pending_changes = None
             return None
 
@@ -285,9 +272,7 @@ class CacheBreakDetector:
         self._state.prev_cache_read = None
         logger.debug("[CacheBreak] compaction notified, baseline will reset")
 
-    def _build_reasons_and_actions(
-        self, elapsed_s: float
-    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    def _build_reasons_and_actions(self, elapsed_s: float) -> tuple[tuple[str, ...], tuple[str, ...]]:
         """Build both attribution reasons and corresponding suggested actions."""
         reasons: list[str] = []
         actions: list[str] = []
@@ -295,13 +280,8 @@ class CacheBreakDetector:
 
         if changes:
             if changes.model_changed:
-                reasons.append(
-                    f"model changed ({changes.prev_model} → {changes.new_model})"
-                )
-                actions.append(
-                    "Keep one model per session. "
-                    "Use sub-agents for tasks requiring different models."
-                )
+                reasons.append(f"model changed ({changes.prev_model} → {changes.new_model})")
+                actions.append("Keep one model per session. Use sub-agents for tasks requiring different models.")
             if changes.system_prompt_changed:
                 reasons.append("system prompt changed")
                 actions.append(
@@ -316,38 +296,24 @@ class CacheBreakDetector:
                     reasons.append(f"tools changed ({sign}{delta} tools)")
                 elif changes.changed_tools:
                     names = ", ".join(changes.changed_tools[:5])
-                    suffix = (
-                        f" +{len(changes.changed_tools) - 5} more"
-                        if len(changes.changed_tools) > 5
-                        else ""
-                    )
+                    suffix = f" +{len(changes.changed_tools) - 5} more" if len(changes.changed_tools) > 5 else ""
                     reasons.append(f"tool schema changed ({names}{suffix})")
                 else:
                     reasons.append("tool definitions changed")
                 actions.append(
-                    "Avoid adding/removing tools mid-session. "
-                    "Use deferred tool loading or skill invocation instead."
+                    "Avoid adding/removing tools mid-session. Use deferred tool loading or skill invocation instead."
                 )
 
         if not reasons:
             if elapsed_s > _CACHE_TTL_1HOUR_S:
                 reasons.append("likely 1h TTL expiry (prompt unchanged)")
-                actions.append(
-                    "Consider shorter sessions or providers with longer cache TTL."
-                )
+                actions.append("Consider shorter sessions or providers with longer cache TTL.")
             elif elapsed_s > _CACHE_TTL_5MIN_S:
                 reasons.append("likely 5min TTL expiry (prompt unchanged)")
-                actions.append(
-                    "Enable idle compaction to keep cache warm, "
-                    "or reduce time between requests."
-                )
+                actions.append("Enable idle compaction to keep cache warm, or reduce time between requests.")
             else:
-                reasons.append(
-                    "likely server-side (prompt unchanged, <5min gap)"
-                )
-                actions.append(
-                    "Provider-side cache eviction, no action needed."
-                )
+                reasons.append("likely server-side (prompt unchanged, <5min gap)")
+                actions.append("Provider-side cache eviction, no action needed.")
 
         return tuple(reasons), tuple(actions)
 
@@ -356,9 +322,7 @@ class CacheBreakDetector:
 # ContextVar lifecycle (mirrors token_tracker pattern)
 # ---------------------------------------------------------------------------
 
-_detector_var: ContextVar[CacheBreakDetector | None] = ContextVar(
-    "cache_break_detector", default=None
-)
+_detector_var: ContextVar[CacheBreakDetector | None] = ContextVar("cache_break_detector", default=None)
 
 
 def init_cache_break_detector() -> CacheBreakDetector:

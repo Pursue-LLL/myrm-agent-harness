@@ -58,9 +58,11 @@ from contextvars import ContextVar
 
 _ttfa_start_time: ContextVar[float | None] = ContextVar("ttfa_start_time", default=None)
 
+
 def record_ttfa_run_start() -> None:
     """Record the start time of an agent run for TTFA calculation."""
     _ttfa_start_time.set(time.time())
+
 
 def record_ttfa_first_action(agent_type: str = "unknown") -> None:
     """Record the Time-To-First-Action (TTFA) if this is the first tool call of the run."""
@@ -76,6 +78,7 @@ def record_ttfa_first_action(agent_type: str = "unknown") -> None:
         pass
     except Exception:
         pass
+
 
 tool_execution_total = create_counter(
     "tool_execution_total",

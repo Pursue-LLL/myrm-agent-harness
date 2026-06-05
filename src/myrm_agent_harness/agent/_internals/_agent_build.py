@@ -112,9 +112,7 @@ def build_middlewares(
 
     middlewares.extend(
         [
-            ToolCallLimitMiddleware(
-                run_limit=params.max_tool_calls, exit_behavior="continue"
-            ),
+            ToolCallLimitMiddleware(run_limit=params.max_tool_calls, exit_behavior="continue"),
             ToolCallLimitMiddleware(
                 tool_name="bash_code_execute_tool",
                 run_limit=params.max_bash_calls,
@@ -161,8 +159,7 @@ def _weave_dynamic_schemas(resolved_tools: list[BaseTool]) -> list[BaseTool]:
                 continue
             except Exception as e:
                 logger.warning(
-                    f"Tool '{tool.name}' failed to run dynamic_schema_modifier: {e}. "
-                    "Falling back to original schema."
+                    f"Tool '{tool.name}' failed to run dynamic_schema_modifier: {e}. Falling back to original schema."
                 )
         weaved_tools.append(tool)
 

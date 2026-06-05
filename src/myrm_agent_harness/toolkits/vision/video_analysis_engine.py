@@ -32,9 +32,18 @@ logger = logging.getLogger(__name__)
 MAX_VIDEO_BYTES = 100 * 1024 * 1024  # 100MB
 DEFAULT_FRAME_COUNT = 8
 
-VIDEO_EXTENSIONS: frozenset[str] = frozenset({
-    ".mp4", ".mov", ".webm", ".avi", ".mkv", ".flv", ".wmv", ".m4v",
-})
+VIDEO_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".mp4",
+        ".mov",
+        ".webm",
+        ".avi",
+        ".mkv",
+        ".flv",
+        ".wmv",
+        ".m4v",
+    }
+)
 
 VIDEO_MIME_TYPES: dict[str, str] = {
     ".mp4": "video/mp4",
@@ -79,11 +88,17 @@ async def _extract_frames_ffmpeg(
 
         # scene change detection: 提取场景切换帧（最多 frame_count 帧）
         cmd = [
-            "ffmpeg", "-i", video_path,
-            "-vf", "select='gt(scene\\,0.3)',setpts=N/FRAME_RATE/TB",
-            "-frames:v", str(frame_count),
-            "-q:v", "3",
-            "-y", output_pattern,
+            "ffmpeg",
+            "-i",
+            video_path,
+            "-vf",
+            "select='gt(scene\\,0.3)',setpts=N/FRAME_RATE/TB",
+            "-frames:v",
+            str(frame_count),
+            "-q:v",
+            "3",
+            "-y",
+            output_pattern,
         ]
 
         proc = await asyncio.create_subprocess_exec(
@@ -101,11 +116,17 @@ async def _extract_frames_ffmpeg(
                 f.unlink()
 
             cmd_uniform = [
-                "ffmpeg", "-i", video_path,
-                "-vf", f"fps=1/{max(1, 30 // frame_count)}",
-                "-frames:v", str(frame_count),
-                "-q:v", "3",
-                "-y", output_pattern,
+                "ffmpeg",
+                "-i",
+                video_path,
+                "-vf",
+                f"fps=1/{max(1, 30 // frame_count)}",
+                "-frames:v",
+                str(frame_count),
+                "-q:v",
+                "3",
+                "-y",
+                output_pattern,
             ]
             proc2 = await asyncio.create_subprocess_exec(
                 *cmd_uniform,
@@ -300,20 +321,17 @@ class VideoAnalysisEngine:
             return "[No frames could be extracted from the video]"
 
         effective_prompt = prompt or self._FRAME_PROMPT
-        content_blocks: list[dict[str, object]] = [
-            {"type": "text", "text": effective_prompt}
-        ]
+        content_blocks: list[dict[str, object]] = [{"type": "text", "text": effective_prompt}]
 
         for i, (frame_bytes, frame_mime) in enumerate(frames):
             frame_b64 = base64.b64encode(frame_bytes).decode("ascii")
-            content_blocks.append({
-                "type": "text",
-                "text": f"--- Frame {i + 1}/{len(frames)} ---"
-            })
-            content_blocks.append({
-                "type": "image_url",
-                "image_url": {"url": f"data:{frame_mime};base64,{frame_b64}"},
-            })
+            content_blocks.append({"type": "text", "text": f"--- Frame {i + 1}/{len(frames)} ---"})
+            content_blocks.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{frame_mime};base64,{frame_b64}"},
+                }
+            )
 
         msg = HumanMessage(content=content_blocks)
         try:

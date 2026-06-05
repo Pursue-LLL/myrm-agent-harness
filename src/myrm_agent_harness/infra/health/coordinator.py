@@ -82,9 +82,7 @@ async def run_health_checks(
                             recovery_result = await checker.recover()
 
                             if recovery_result.is_success():
-                                logger.info(
-                                    f" {name}: Recovery successful - {recovery_result.message}"
-                                )
+                                logger.info(f" {name}: Recovery successful - {recovery_result.message}")
                                 if recovery_result.actions_taken:
                                     for action in recovery_result.actions_taken:
                                         logger.info(f" • {action}")
@@ -95,27 +93,17 @@ async def run_health_checks(
                                     logger.info(f" {name}: Re-check passed")
                                     all_healthy = True
                                 else:
-                                    logger.warning(
-                                        f" {name}: Re-check failed - {check_result.message}"
-                                    )
+                                    logger.warning(f" {name}: Re-check failed - {check_result.message}")
                                 break
                             elif recovery_result.status == RecoveryStatus.PARTIAL:
-                                logger.warning(
-                                    f" {name}: Partial recovery - {recovery_result.message}"
-                                )
+                                logger.warning(f" {name}: Partial recovery - {recovery_result.message}")
                                 if attempt < max_retries:
-                                    logger.info(
-                                        f" → Retrying recovery (attempt {attempt + 2}/{max_retries + 1})..."
-                                    )
+                                    logger.info(f" → Retrying recovery (attempt {attempt + 2}/{max_retries + 1})...")
                                 break
                             else:
-                                logger.error(
-                                    f" {name}: Recovery failed - {recovery_result.message}"
-                                )
+                                logger.error(f" {name}: Recovery failed - {recovery_result.message}")
                                 if attempt < max_retries:
-                                    logger.info(
-                                        f" → Retrying recovery (attempt {attempt + 2}/{max_retries + 1})..."
-                                    )
+                                    logger.info(f" → Retrying recovery (attempt {attempt + 2}/{max_retries + 1})...")
                                 else:
                                     break
 
@@ -136,8 +124,6 @@ async def run_health_checks(
     if all_healthy:
         logger.info(" All components healthy, service startup can proceed")
     else:
-        logger.warning(
-            " Some components unhealthy, check logs above for recovery actions"
-        )
+        logger.warning(" Some components unhealthy, check logs above for recovery actions")
 
     return all_healthy, results

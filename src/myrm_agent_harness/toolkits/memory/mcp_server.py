@@ -335,9 +335,7 @@ class MemoryMCPServer:
                 if category == "event":
                     if not mgr.has_vector:
                         return "Event memory is not enabled."
-                    mem = await mgr.add_event(
-                        content, event_type="agent_observation", write_target=write_target
-                    )
+                    mem = await mgr.add_event(content, event_type="agent_observation", write_target=write_target)
                     return f"Event {'submitted for approval' if pending else 'stored'} (ID: {mem.id})"
 
                 if category == "preference":
@@ -355,9 +353,7 @@ class MemoryMCPServer:
                         return "Procedural memory is not enabled."
                     if not rule_trigger:
                         return "Rule requires 'rule_trigger'."
-                    mem = await mgr.add_rule(
-                        rule_trigger, content, priority=rule_priority, trigger_keywords=parsed_kw
-                    )
+                    mem = await mgr.add_rule(rule_trigger, content, priority=rule_priority, trigger_keywords=parsed_kw)
                     return f"Rule {'submitted for approval' if pending else 'stored'} (ID: {mem.id})"
 
                 if category == "instruction":
@@ -464,8 +460,7 @@ class MemoryMCPServer:
                         return "Knowledge memory is not enabled."
                     correction = await mgr.correct_memory(memory_id, new_content)
                     return (
-                        f"Memory corrected: old memory {memory_id} demoted, "
-                        f"new correction stored (ID: {correction.id})"
+                        f"Memory corrected: old memory {memory_id} demoted, new correction stored (ID: {correction.id})"
                     )
 
             except Exception as e:

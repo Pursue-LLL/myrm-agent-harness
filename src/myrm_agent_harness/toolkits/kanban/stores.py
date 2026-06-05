@@ -57,10 +57,7 @@ class InMemoryKanbanStore(KanbanStore):
         for r_id in run_ids:
             del self._runs[r_id]
         self._events = [e for e in self._events if e.task_id != task_id]
-        self._edges = [
-            e for e in self._edges
-            if e.parent_task_id != task_id and e.child_task_id != task_id
-        ]
+        self._edges = [e for e in self._edges if e.parent_task_id != task_id and e.child_task_id != task_id]
 
     # -- Board CRUD --
 
@@ -173,9 +170,7 @@ class InMemoryKanbanStore(KanbanStore):
 
     async def add_edge(self, parent_task_id: str, child_task_id: str) -> TaskEdge:
         if self._would_create_cycle(parent_task_id, child_task_id):
-            raise ValueError(
-                f"Adding edge {parent_task_id} -> {child_task_id} would create a cycle"
-            )
+            raise ValueError(f"Adding edge {parent_task_id} -> {child_task_id} would create a cycle")
         for e in self._edges:
             if e.parent_task_id == parent_task_id and e.child_task_id == child_task_id:
                 return e
@@ -186,8 +181,7 @@ class InMemoryKanbanStore(KanbanStore):
     async def remove_edge(self, parent_task_id: str, child_task_id: str) -> bool:
         before = len(self._edges)
         self._edges = [
-            e for e in self._edges
-            if not (e.parent_task_id == parent_task_id and e.child_task_id == child_task_id)
+            e for e in self._edges if not (e.parent_task_id == parent_task_id and e.child_task_id == child_task_id)
         ]
         return len(self._edges) < before
 
@@ -220,19 +214,13 @@ class InMemoryKanbanStore(KanbanStore):
         return True
 
     async def list_ready_tasks(self, board_id: str) -> list[KanbanTask]:
-        ready = [
-            t
-            for t in self._tasks.values()
-            if t.board_id == board_id and t.status == TaskStatus.READY
-        ]
+        ready = [t for t in self._tasks.values() if t.board_id == board_id and t.status == TaskStatus.READY]
         ready.sort(key=lambda t: (_PRIORITY_ORDER.get(t.priority, 2), t.created_at))
         return [copy.deepcopy(t) for t in ready]
 
     async def list_running_tasks(self, board_id: str) -> list[KanbanTask]:
         return [
-            copy.deepcopy(t)
-            for t in self._tasks.values()
-            if t.board_id == board_id and t.status == TaskStatus.RUNNING
+            copy.deepcopy(t) for t in self._tasks.values() if t.board_id == board_id and t.status == TaskStatus.RUNNING
         ]
 
     # -- Heartbeat operations --
@@ -244,9 +232,7 @@ class InMemoryKanbanStore(KanbanStore):
             if note is not None:
                 task.progress_note = note
 
-    async def list_zombie_tasks(
-        self, board_id: str, timeout_seconds: int
-    ) -> list[KanbanTask]:
+    async def list_zombie_tasks(self, board_id: str, timeout_seconds: int) -> list[KanbanTask]:
         now = datetime.now(UTC)
         zombies: list[KanbanTask] = []
         for t in self._tasks.values():
@@ -327,9 +313,9 @@ class InMemoryKanbanStore(KanbanStore):
         return event
 
     async def list_events(
-        self, task_id: str, *, since_id: int | None = None,
+        self,
+        task_id: str,
+        *,
+        since_id: int | None = None,
     ) -> list[TaskEvent]:
-        return [
-            e for e in self._events
-            if e.task_id == task_id and (since_id is None or e.event_id > since_id)
-        ]
+        return [e for e in self._events if e.task_id == task_id and (since_id is None or e.event_id > since_id)]

@@ -524,5 +524,3 @@ async def _resolve_image_inputs(sources: list[str]) -> list[bytes]:
         media_label="Image",
         allow_data_url=True,
     )
-
-

@@ -177,9 +177,7 @@ class FrameState:
 
         # Enhance the DOM inside the specific frame before ARIA extraction
         try:
-            await self._frame.evaluate(
-                "() => { if (window.__myrm_enhance_dom) window.__myrm_enhance_dom(); }"
-            )
+            await self._frame.evaluate("() => { if (window.__myrm_enhance_dom) window.__myrm_enhance_dom(); }")
         except Exception as exc:
             logger.debug(f"Failed to run dom enhancer on frame: {exc}")
 
@@ -213,9 +211,7 @@ class FrameState:
             bbox_map = await collect_bboxes(self._frame, aria_yaml)
 
         # Layer 3: Enhance tree with ref IDs and semantic positions
-        enhanced_nodes, refs = enhance_aria_tree(
-            aria_nodes, scope=scope, compact=compact, bbox_map=bbox_map
-        )
+        enhanced_nodes, refs = enhance_aria_tree(aria_nodes, scope=scope, compact=compact, bbox_map=bbox_map)
 
         # Layer 4: Render to text (with optional intelligent budget-aware truncation)
         was_truncated = False
@@ -227,15 +223,22 @@ class FrameState:
         if was_truncated:
             try:
                 from myrm_agent_harness.utils.event_utils import dispatch_custom_event
-                warn_task = asyncio.create_task(dispatch_custom_event(
-                    "agent_status",
-                    {
-                        "step_key": "ux_warning_truncated",
-                        "status": "warning",
-                        "items": [{"text": "Warning: The ARIA snapshot was intelligently truncated to fit within context limits."}],
-                        "metadata": {"type": "aria_truncation"}
-                    }
-                ))
+
+                warn_task = asyncio.create_task(
+                    dispatch_custom_event(
+                        "agent_status",
+                        {
+                            "step_key": "ux_warning_truncated",
+                            "status": "warning",
+                            "items": [
+                                {
+                                    "text": "Warning: The ARIA snapshot was intelligently truncated to fit within context limits."
+                                }
+                            ],
+                            "metadata": {"type": "aria_truncation"},
+                        },
+                    )
+                )
                 self._bg_tasks.add(warn_task)
                 warn_task.add_done_callback(self._bg_tasks.discard)
             except Exception as e:
@@ -264,9 +267,7 @@ class FrameState:
                         ref_counter += 1
 
                 if cursor_lines:
-                    enhanced_tree += "\n--- cursor-interactive ---\n" + "\n".join(
-                        cursor_lines
-                    )
+                    enhanced_tree += "\n--- cursor-interactive ---\n" + "\n".join(cursor_lines)
         else:
             self._cached_cursor_elements = None
 
@@ -303,9 +304,7 @@ class FrameState:
             ),
         )
 
-    def _incremental_snapshot(
-        self, base_snapshot: AriaSnapshot, total_changes: int
-    ) -> AriaSnapshot:
+    def _incremental_snapshot(self, base_snapshot: AriaSnapshot, total_changes: int) -> AriaSnapshot:
         """Create增量Snapshot
 
         Args:
@@ -322,14 +321,8 @@ class FrameState:
             timestamp=base_snapshot.timestamp,
             metrics=(
                 SnapshotMetrics(
-                    ref_count=(
-                        base_snapshot.metrics.ref_count if base_snapshot.metrics else 0
-                    ),
-                    estimated_tokens=(
-                        base_snapshot.metrics.estimated_tokens
-                        if base_snapshot.metrics
-                        else 0
-                    ),
+                    ref_count=(base_snapshot.metrics.ref_count if base_snapshot.metrics else 0),
+                    estimated_tokens=(base_snapshot.metrics.estimated_tokens if base_snapshot.metrics else 0),
                     changed_regions=total_changes,
                     total_changes=total_changes,
                 )
@@ -357,11 +350,7 @@ class FrameState:
             "total_updates": self._total_updates,
             "incremental_updates": self._incremental_updates,
             "full_updates": self._full_updates,
-            "cache_hit_rate": (
-                self._incremental_updates / self._total_updates
-                if self._total_updates > 0
-                else 0
-            ),
+            "cache_hit_rate": (self._incremental_updates / self._total_updates if self._total_updates > 0 else 0),
             "has_cache": self._cached_aria_tree is not None,
             "is_cross_origin": self._observer.is_cross_origin,
         }

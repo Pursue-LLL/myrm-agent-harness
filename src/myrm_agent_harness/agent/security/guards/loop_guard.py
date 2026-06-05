@@ -97,7 +97,7 @@ def _normalise_error_signature(result_text: str) -> str:
     for line in result_text.split("\n"):
         stripped = line.strip()
         if stripped.startswith("ToolExecutionError:"):
-            core = stripped[len("ToolExecutionError:"):].strip()
+            core = stripped[len("ToolExecutionError:") :].strip()
             break
     else:
         core = result_text[:200]
@@ -210,9 +210,7 @@ class LoopGuard(LoopDetectorMixin):
         self._budget_critical = critical
         self._budget_stuck = stuck
 
-    def _thresholds(
-        self, tool_name: str, args: dict[str, object] | None = None
-    ) -> tuple[int, int]:
+    def _thresholds(self, tool_name: str, args: dict[str, object] | None = None) -> tuple[int, int]:
         """Return (warn, break) thresholds, relaxed 2x for poll/idempotent tools."""
         from myrm_agent_harness.agent.security.tool_registry import (
             resolve_safety_metadata,
@@ -224,24 +222,16 @@ class LoopGuard(LoopDetectorMixin):
         if safety_meta.is_idempotent:
             is_idempotent = True
 
-        if (
-            not is_idempotent
-            and tool_name in ("bash_tool", "bash_code_execute_tool")
-            and args
-        ):
+        if not is_idempotent and tool_name in ("bash_tool", "bash_code_execute_tool") and args:
             command = str(args.get("command", "")).strip()
-            if command.startswith(
-                ("ls ", "cat ", "grep ", "find ", "pwd", "echo ", "head ", "tail ")
-            ):
+            if command.startswith(("ls ", "cat ", "grep ", "find ", "pwd", "echo ", "head ", "tail ")):
                 is_idempotent = True
 
         if tool_name in self._poll_tools or is_idempotent:
             return self._warn_threshold * 2, self._break_threshold * 2
         return self._warn_threshold, self._break_threshold
 
-    def feed_output_tokens(
-        self, call_index: int, tokens: int, *, has_tool_call: bool = False
-    ) -> None:
+    def feed_output_tokens(self, call_index: int, tokens: int, *, has_tool_call: bool = False) -> None:
         """Record LLM output token count for diminishing returns detection.
 
         When ``has_tool_call`` is True the tokens are *not* appended to
@@ -262,10 +252,7 @@ class LoopGuard(LoopDetectorMixin):
         args_hash = _stable_hash(args)
 
         if self._last_warning_tool is not None:
-            param_changed = (
-                tool_name == self._last_warning_tool
-                and self._last_warning_args_hash != args_hash
-            )
+            param_changed = tool_name == self._last_warning_tool and self._last_warning_args_hash != args_hash
             if param_changed:
                 self._metrics.suggestions_followed += 1
                 self._pending_follow_check = True
@@ -323,9 +310,7 @@ class LoopGuard(LoopDetectorMixin):
         elif tc >= self._budget_stuck:
             from myrm_agent_harness.agent.errors.agent_errors import ToolStuckException
 
-            self._record_detection(
-                tool_name, LoopKind.CONSECUTIVE_FAILURES, tc
-            )
+            self._record_detection(tool_name, LoopKind.CONSECUTIVE_FAILURES, tc)
             raise ToolStuckException(
                 f"TOOL_STUCK_EXCEPTION: Iteration budget exhausted "
                 f"({tc} tool calls). Provide your final answer now "
@@ -334,9 +319,7 @@ class LoopGuard(LoopDetectorMixin):
 
         return self._check_output_diminishing()
 
-    def record_result(
-        self, tool_name: str, args: dict[str, object], result_text: str
-    ) -> LoopVerdict:
+    def record_result(self, tool_name: str, args: dict[str, object], result_text: str) -> LoopVerdict:
         """Record a completed tool call and check for no-progress loops."""
         if not self._window:
             return VERDICT_ALLOW
@@ -350,9 +333,7 @@ class LoopGuard(LoopDetectorMixin):
         if self._pending_follow_check:
             self._metrics.effective_follows += success_level.weight
             if self._last_suggestion_key:
-                self._metrics.update_suggestion_quality(
-                    self._last_suggestion_key, success_level
-                )
+                self._metrics.update_suggestion_quality(self._last_suggestion_key, success_level)
                 self._last_suggestion_key = None
         self._pending_follow_check = False
 

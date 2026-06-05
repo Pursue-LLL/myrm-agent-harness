@@ -128,10 +128,7 @@ CHANNEL_OUTPUT_HINTS: dict[str, str] = {
         "\n\n[Output Format] You are on a chat platform via OneBot protocol. "
         "Basic Markdown is supported. Keep messages chat-friendly and concise."
     ),
-    "qq": (
-        "\n\n[Output Format] You are on QQ. "
-        "Basic Markdown is supported. Keep messages chat-friendly and concise."
-    ),
+    "qq": ("\n\n[Output Format] You are on QQ. Basic Markdown is supported. Keep messages chat-friendly and concise."),
     "wechat": (
         "\n\n[Output Format] You are on WeChat. "
         "Plain text only — no Markdown rendering. "
@@ -153,8 +150,7 @@ CHANNEL_OUTPUT_HINTS: dict[str, str] = {
         "Keep messages concise and conversational."
     ),
     "irc": (
-        "\n\n[Output Format] You are in an IRC channel. "
-        "Plain text only — no Markdown. Keep messages short and direct."
+        "\n\n[Output Format] You are in an IRC channel. Plain text only — no Markdown. Keep messages short and direct."
     ),
     "imessage": (
         "\n\n[Output Format] You are on iMessage. "
@@ -167,19 +163,13 @@ CHANNEL_OUTPUT_HINTS: dict[str, str] = {
         "code blocks, URLs, special characters, and any visual formatting. "
         "Speak as you would to a person in conversation."
     ),
-    "webhook": (
-        "\n\n[Output Format] You are responding via webhook. "
-        "Standard Markdown formatting is supported."
-    ),
+    "webhook": ("\n\n[Output Format] You are responding via webhook. Standard Markdown formatting is supported."),
     "api_server": (
         "\n\n[Output Format] You are responding through an API endpoint. "
         "The rendering layer is unknown — use plain text without Markdown "
         "formatting for maximum compatibility."
     ),
-    "zalo": (
-        "\n\n[Output Format] You are on Zalo. "
-        "Plain text only — no Markdown. Keep messages concise."
-    ),
+    "zalo": ("\n\n[Output Format] You are on Zalo. Plain text only — no Markdown. Keep messages concise."),
 }
 
 

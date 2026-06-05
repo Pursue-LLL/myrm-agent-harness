@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 
 _MAX_ELEMENTS = 500
 
-_AX_SNAPSHOT_SCRIPT = '''
+_AX_SNAPSHOT_SCRIPT = (
+    """
 on serializeElement(idx, elemRole, elemName, elemValue, posX, posY, sizeW, sizeH)
     set safeName to my escapeText(elemName)
     set safeValue to my escapeText(elemValue)
@@ -58,7 +59,11 @@ tell application "System Events"
     try
         set uiElements to entire contents of window 1 of frontApp
         set maxElements to count of uiElements
-        if maxElements > ''' + str(_MAX_ELEMENTS) + ''' then set maxElements to ''' + str(_MAX_ELEMENTS) + '''
+        if maxElements > """
+    + str(_MAX_ELEMENTS)
+    + """ then set maxElements to """
+    + str(_MAX_ELEMENTS)
+    + """
         repeat with i from 1 to maxElements
             set elem to item i of uiElements
             try
@@ -87,7 +92,8 @@ tell application "System Events"
     set AppleScript's text item delimiters to linefeed
     return lines as string
 end tell
-'''
+"""
+)
 
 
 @dataclass(frozen=True)
@@ -131,9 +137,18 @@ def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -
             continue
         backend_index, role, name, value, x_s, y_s, w_s, h_s = parts[:8]
         if role not in INTERACTIVE_AX_ROLES and role not in {
-            "AXButton", "AXCheckBox", "AXComboBox", "AXLink", "AXMenuItem",
-            "AXPopUpButton", "AXRadioButton", "AXSlider", "AXTabGroup",
-            "AXTextField", "AXTextArea", "AXStaticText",
+            "AXButton",
+            "AXCheckBox",
+            "AXComboBox",
+            "AXLink",
+            "AXMenuItem",
+            "AXPopUpButton",
+            "AXRadioButton",
+            "AXSlider",
+            "AXTabGroup",
+            "AXTextField",
+            "AXTextArea",
+            "AXStaticText",
         }:
             continue
         try:
@@ -168,7 +183,7 @@ def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -
     return MacAxSnapshot(meta=meta, refs=refs)
 
 
-_AX_INVOKE_SCRIPT = '''
+_AX_INVOKE_SCRIPT = """
 on escapeText(t)
     if t is missing value then return ""
     set s to t as string
@@ -215,7 +230,7 @@ on run argv
         return "UNSUPPORTED"
     end tell
 end run
-'''
+"""
 
 
 def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionResult:

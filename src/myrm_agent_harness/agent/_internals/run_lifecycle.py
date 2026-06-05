@@ -70,9 +70,7 @@ install_llm_observability_hook()
 
 _WS_BIND_CTX_KEY = "__workspace_storage_bind_token"  # legacy; never serialize — see _workspace_bind_handle_stash
 
-_workspace_bind_handle_stash: ContextVar[object | None] = ContextVar(
-    "workspace_bind_handle_stash", default=None
-)
+_workspace_bind_handle_stash: ContextVar[object | None] = ContextVar("workspace_bind_handle_stash", default=None)
 
 
 def _stash_workspace_bind_handle(handle: object) -> None:
@@ -96,10 +94,7 @@ def _init_pseudonym_store(workspace_path: str) -> None:
     policy = get_privacy_policy()
     if not policy.enabled:
         return
-    needs_store = (
-        policy.s2_action == PIIAction.PSEUDONYMIZE
-        or policy.s3_action == PIIAction.PSEUDONYMIZE
-    )
+    needs_store = policy.s2_action == PIIAction.PSEUDONYMIZE or policy.s3_action == PIIAction.PSEUDONYMIZE
     if not needs_store:
         return
 
@@ -128,10 +123,7 @@ def _register_pii_pseudonymizer(policy: object, store: object) -> None:
     def _pseudonymize(text: str) -> str:
         if not policy.enabled:
             return text
-        has_pseudonymize = (
-            policy.s2_action == PIIAction.PSEUDONYMIZE
-            or policy.s3_action == PIIAction.PSEUDONYMIZE
-        )
+        has_pseudonymize = policy.s2_action == PIIAction.PSEUDONYMIZE or policy.s3_action == PIIAction.PSEUDONYMIZE
         if not has_pseudonymize or store is None:
             return text
 
@@ -140,10 +132,7 @@ def _register_pii_pseudonymizer(policy: object, store: object) -> None:
             return text
 
         levels_to_process: list[SensitivityLevel] = [pii_result.level]
-        if (
-            pii_result.level == SensitivityLevel.S3
-            and policy.s2_action == PIIAction.PSEUDONYMIZE
-        ):
+        if pii_result.level == SensitivityLevel.S3 and policy.s2_action == PIIAction.PSEUDONYMIZE:
             levels_to_process.append(SensitivityLevel.S2)
 
         result = text
@@ -232,9 +221,7 @@ async def setup_workspace(
             logger.debug(f" Using provided Executor: {executor.get_executor_name()}")
 
         executor.bind_workspace(workspace_path)
-        logger.debug(
-            f" {executor.get_executor_name()}: workspace bound to {workspace_path}"
-        )
+        logger.debug(f" {executor.get_executor_name()}: workspace bound to {workspace_path}")
 
         from myrm_agent_harness.toolkits.code_execution.executors.base import (
             set_executor,
@@ -260,6 +247,7 @@ async def setup_workspace(
             stash_executor_for_session(session_id, executor)
 
         from myrm_agent_harness.observability.metrics.agent_metrics import record_ttfa_run_start
+
         record_ttfa_run_start()
 
     except Exception:
@@ -299,9 +287,7 @@ def cleanup_run(
 
         cancelled_count = cancel_all_fn()
         if cancelled_count > 0:
-            logger.info(
-                f" Cancelled {cancelled_count} running subagents on parent cleanup"
-            )
+            logger.info(f" Cancelled {cancelled_count} running subagents on parent cleanup")
 
         set_tool_progress_sink(None)
         set_cancel_token(None)
@@ -396,9 +382,7 @@ def _collect_tracker_stats(stats: AgentRunStatistics) -> None:
             }
             for model, mu in tracker.model_usage.items()
         }
-        stats.primary_model = max(
-            tracker.model_usage, key=lambda m: tracker.model_usage[m].total_tokens
-        )
+        stats.primary_model = max(tracker.model_usage, key=lambda m: tracker.model_usage[m].total_tokens)
 
     if tracker.usage.cached_tokens > 0:
         cache_stats = tracker.usage.get_cache_effectiveness()
@@ -412,9 +396,7 @@ def _collect_tracker_stats(stats: AgentRunStatistics) -> None:
 
     if tracker.total_cost_usd > 0:
         logger.warning(
-            f" [Session Cost] ${tracker.total_cost_usd:.6f} "
-            f"({tracker.call_count} calls, "
-            f"{tracker.error_count} errors)"
+            f" [Session Cost] ${tracker.total_cost_usd:.6f} ({tracker.call_count} calls, {tracker.error_count} errors)"
         )
 
 
@@ -437,9 +419,7 @@ def compute_context_budget_snapshot(
     if last_prompt <= 0:
         return None
 
-    max_ctx = (
-        max_context_tokens if max_context_tokens and max_context_tokens > 0 else 128_000
-    )
+    max_ctx = max_context_tokens if max_context_tokens and max_context_tokens > 0 else 128_000
     usage_pct = (last_prompt / max_ctx) * 100
 
     if usage_pct >= 90:
@@ -606,15 +586,9 @@ async def extract_checkpoint_state(
 
     if last_run_stats:
         stats = {
-            "token_usage": (
-                last_run_stats.token_usage.to_dict()
-                if last_run_stats.token_usage
-                else {}
-            ),
+            "token_usage": (last_run_stats.token_usage.to_dict() if last_run_stats.token_usage else {}),
             "duration_seconds": last_run_stats.duration_seconds,
-            "status": (
-                last_run_stats.status.value if last_run_stats.status else "unknown"
-            ),
+            "status": (last_run_stats.status.value if last_run_stats.status else "unknown"),
         }
         progress = 1.0 if last_run_stats.status else 0.5
 

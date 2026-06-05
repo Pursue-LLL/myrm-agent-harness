@@ -56,7 +56,8 @@ class OrphanRecoveryManager:
 
     @classmethod
     def get_instance(
-        cls, storage: SubagentCheckpointStorage | None = None,
+        cls,
+        storage: SubagentCheckpointStorage | None = None,
     ) -> OrphanRecoveryManager:
         """Get or create the module-level singleton instance."""
         global _instance
@@ -89,7 +90,8 @@ class OrphanRecoveryManager:
             loop = asyncio.get_running_loop()
             self._recovery_task = loop.create_task(_run())
             logger.info(
-                "[orphan-recovery] Scheduled scan in %.1fs", delay_seconds,
+                "[orphan-recovery] Scheduled scan in %.1fs",
+                delay_seconds,
             )
         except RuntimeError:
             logger.warning("[orphan-recovery] No event loop available, skipping")
@@ -120,9 +122,9 @@ class OrphanRecoveryManager:
             )
             notified += 1
             logger.info(
-                "[orphan-recovery:%s] Detected interrupted checkpoint "
-                "(agent_type=%s, progress=%.0f%%)",
-                checkpoint.task_id, checkpoint.agent_type,
+                "[orphan-recovery:%s] Detected interrupted checkpoint (agent_type=%s, progress=%.0f%%)",
+                checkpoint.task_id,
+                checkpoint.agent_type,
                 checkpoint.progress * 100,
             )
 
@@ -163,5 +165,7 @@ class OrphanRecoveryManager:
         except Exception:
             logger.debug(
                 "[orphan-recovery:%s] Failed to publish %s event",
-                task_id, event_name, exc_info=True,
+                task_id,
+                event_name,
+                exc_info=True,
             )

@@ -123,15 +123,11 @@ class BuiltinToolRegistry:
 
         lines = [
             "\n## PTC Built-in Tools",
-            "Available via `import myrm_tools` in Python scripts "
-            "(in skills: `from tools.{name} import {name}`):",
+            "Available via `import myrm_tools` in Python scripts (in skills: `from tools.{name} import {name}`):",
         ]
         for name, entry in sorted(self._tools.items()):
             params_str = ", ".join(f"{k}: {v}" for k, v in entry.parameters.items())
-            lines.append(
-                f"- `myrm_tools.{name}({params_str})` — {entry.description} "
-                f"-> {entry.return_type}"
-            )
+            lines.append(f"- `myrm_tools.{name}({params_str})` — {entry.description} -> {entry.return_type}")
 
         return "\n".join(lines)
 
@@ -222,10 +218,7 @@ def _register_default_tools(registry: BuiltinToolRegistry) -> None:
     registry.register(
         name="session_load",
         handler=session_load_handler,
-        description=(
-            "Load a value previously stored via session_store. Returns None when "
-            "the key is missing."
-        ),
+        description=("Load a value previously stored via session_store. Returns None when the key is missing."),
         parameters={"key": "str"},
         return_type="object | None",
     )

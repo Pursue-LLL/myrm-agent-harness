@@ -61,9 +61,7 @@ class SkillAgentToolsMixin:
                     )
                     if instance:
                         skill_env_map[skill_name] = instance.config.env_overrides
-                        logger.info(
-                            "Loaded skill instance: %s.%s", skill_name, instance_name
-                        )
+                        logger.info("Loaded skill instance: %s.%s", skill_name, instance_name)
                 except Exception as e:
                     logger.warning(
                         "Failed to load skill instance %s.%s: %s",
@@ -106,7 +104,8 @@ class SkillAgentToolsMixin:
 
         registry.register_many(meta_tools, source=ToolSource.META)
         registry.register_many(
-            normalize_tool_names(self.user_tools), source=ToolSource.USER  # type: ignore[attr-defined]
+            normalize_tool_names(self.user_tools),
+            source=ToolSource.USER,  # type: ignore[attr-defined]
         )
 
         if self.deferred_tools:  # type: ignore[attr-defined]
@@ -184,9 +183,7 @@ class SkillAgentToolsMixin:
             getattr(t, "name", getattr(t, "tool_name", None)) == "planner_tool"
             for t in self.user_tools  # type: ignore[attr-defined]
         ):
-            logger.info(
-                "planner_tool: user-provided override detected, skipping auto-creation"
-            )
+            logger.info("planner_tool: user-provided override detected, skipping auto-creation")
             return None
 
         try:
@@ -271,7 +268,8 @@ class SkillAgentToolsMixin:
 
             tools = create_wiki_tools(compiler, query_engine, linter, structure)
             logger.info(
-                " wiki tools auto-created (4 tools, base_dir=%s)", self._wiki_base_dir  # type: ignore[attr-defined]
+                " wiki tools auto-created (4 tools, base_dir=%s)",
+                self._wiki_base_dir,  # type: ignore[attr-defined]
             )
             return tools
         except Exception as e:
@@ -319,8 +317,4 @@ class SkillAgentToolsMixin:
         """Get all skill storage paths (absolute)."""
         skills = await self._get_cached_skills()  # type: ignore[attr-defined]
         base_path = storage_config.get_local_base_path()
-        return [
-            str(base_path / skill.storage_path)
-            for skill in skills
-            if skill.storage_path
-        ]
+        return [str(base_path / skill.storage_path) for skill in skills if skill.storage_path]

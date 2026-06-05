@@ -197,6 +197,7 @@ class FormatObserver(FileOperationObserver):
             return
 
         from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
+
         executor = get_executor()
 
         # If we have an executor, resolve the path to the workspace
@@ -204,6 +205,7 @@ class FormatObserver(FileOperationObserver):
         cwd = os.path.dirname(path) or None
         if executor:
             from pathlib import Path as _Path
+
             wp = _Path(executor.workspace_path).resolve()
             clean = path
             if clean.startswith("/workspace"):

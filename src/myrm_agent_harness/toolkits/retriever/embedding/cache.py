@@ -172,6 +172,7 @@ class EmbeddingCache:
 
         if persist_needed:
             import asyncio
+
             await asyncio.to_thread(self._persist_batch)
 
         logger.debug("EmbeddingCache PUT: %s", cache_key[:16])
@@ -186,6 +187,7 @@ class EmbeddingCache:
             List of embeddings (or None for cache misses)
         """
         import asyncio
+
         results = [None] * len(texts)
         miss_indices = []
 
@@ -254,6 +256,7 @@ class EmbeddingCache:
 
         if persist_needed:
             import asyncio
+
             await asyncio.to_thread(self._persist_batch)
 
     def _evict_if_needed(self) -> None:

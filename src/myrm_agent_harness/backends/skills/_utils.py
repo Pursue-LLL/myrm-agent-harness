@@ -337,9 +337,7 @@ def _parse_contract_duration(raw_contract: dict[str, object], skill_dir_name: st
             f"Skill '{skill_dir_name}' contract.estimated_duration_seconds must be numeric"
         ) from exc
     if math.isnan(duration) or math.isinf(duration):
-        raise SkillMetadataError(
-            f"Skill '{skill_dir_name}' contract.estimated_duration_seconds must be finite"
-        )
+        raise SkillMetadataError(f"Skill '{skill_dir_name}' contract.estimated_duration_seconds must be finite")
     if duration < 0:
         raise SkillMetadataError(f"Skill '{skill_dir_name}' contract.estimated_duration_seconds cannot be negative")
     return duration
@@ -555,7 +553,6 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
         allowed_domains = _extract_str_list(parsed.get("allowed-domains"))
         if not allowed_domains:
             allowed_domains = None
-
 
     # requires: optional, dependency declaration
     requires = _parse_requires(parsed)

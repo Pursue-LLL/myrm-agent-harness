@@ -197,7 +197,7 @@ def clean_text(text: str) -> str:
         garbled_count = text.count("�")
         # 如果乱码比例超过5%，认为是编码错误
         if garbled_count / len(text) > 0.05:
-            return "" # 返回空字符串，会被后续流程过滤掉
+            return ""  # 返回空字符串，会被后续流程过滤掉
 
     # 简化为两阶段清理策略
     text = _remove_useless_patterns(text)

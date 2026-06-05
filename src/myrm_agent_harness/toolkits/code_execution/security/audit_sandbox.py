@@ -56,15 +56,11 @@ def install(
             "os.spawn",
             "subprocess.Popen",
         ):
-            raise SecurityError(
-                f"Subprocess execution is strictly forbidden in the sandbox. Event: {event}"
-            )
+            raise SecurityError(f"Subprocess execution is strictly forbidden in the sandbox. Event: {event}")
 
         # 2. Memory / C-extension Escape (fallback if ctypes import block is bypassed)
         if event == "ctypes.dlopen":
-            raise SecurityError(
-                "Dynamic library loading (ctypes) is strictly forbidden."
-            )
+            raise SecurityError("Dynamic library loading (ctypes) is strictly forbidden.")
 
         # 3. Network Isolation
         if event == "socket.connect":
@@ -126,12 +122,7 @@ def install(
                 is_write = any(m in mode for m in ("w", "a", "+", "x"))
             elif isinstance(flags, int):
                 # O_WRONLY = 1, O_RDWR = 2, O_CREAT = 64 (0o100), O_APPEND = 1024 (0o2000)
-                is_write = (
-                    (flags & os.O_WRONLY)
-                    or (flags & os.O_RDWR)
-                    or (flags & os.O_CREAT)
-                    or (flags & os.O_APPEND)
-                )
+                is_write = (flags & os.O_WRONLY) or (flags & os.O_RDWR) or (flags & os.O_CREAT) or (flags & os.O_APPEND)
 
             if is_write:
                 try:
@@ -141,17 +132,12 @@ def install(
 
                 # Allow writes to workspace, system temp, and workspace temp
                 # Exception for standard pipes
-                if (
-                    not (
-                        resolved_path.startswith(workspace_real)
-                        or resolved_path.startswith(tmpdir_real)
-                        or resolved_path.startswith(workspace_tmp)
-                    )
-                    and resolved_path not in ("/dev/null", "/dev/stdout", "/dev/stderr")
-                ):
-                    raise SecurityError(
-                        f"Write operation outside allowed workspace blocked: {resolved_path}"
-                    )
+                if not (
+                    resolved_path.startswith(workspace_real)
+                    or resolved_path.startswith(tmpdir_real)
+                    or resolved_path.startswith(workspace_tmp)
+                ) and resolved_path not in ("/dev/null", "/dev/stdout", "/dev/stderr"):
+                    raise SecurityError(f"Write operation outside allowed workspace blocked: {resolved_path}")
 
             else:
                 # Read operation restrictions (prevent reading sensitive system files)
@@ -169,8 +155,6 @@ def install(
                     "/etc/passwd",
                 ]
                 if any(kw in resolved_path for kw in sensitive_keywords):
-                    raise SecurityError(
-                        f"Read access to sensitive file blocked: {resolved_path}"
-                    )
+                    raise SecurityError(f"Read access to sensitive file blocked: {resolved_path}")
 
     sys.addaudithook(audit_hook)

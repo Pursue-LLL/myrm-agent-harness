@@ -57,16 +57,12 @@ class LLMConfig(BaseModel):
     base_url: str | None = Field(default=None, description="API base URL")
     temperature: float | None = Field(default=None, description="Temperature parameter")
     streaming: bool = Field(default=True, description="Enable streaming")
-    model_kwargs: dict[str, object] | None = Field(
-        default=None, description="Model-specific parameters"
-    )
+    model_kwargs: dict[str, object] | None = Field(default=None, description="Model-specific parameters")
     max_context_tokens: int | None = Field(
         default=None,
         description="Context window size for dynamic compression and summary thresholds",
     )
-    supports_vision: bool = Field(
-        default=False, description="Whether the model supports vision/image input"
-    )
+    supports_vision: bool = Field(default=False, description="Whether the model supports vision/image input")
     supports_video: bool = Field(
         default=False, description="Whether the model supports native video input (e.g. Gemini)"
     )

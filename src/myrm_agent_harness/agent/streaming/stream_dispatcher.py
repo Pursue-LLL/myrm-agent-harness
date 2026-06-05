@@ -166,7 +166,9 @@ class StreamDispatcherMixin:
                         if scrubbed_text:
                             restored_text = self._restore_pseudonyms(scrubbed_text)
                             event_copy = dict(event)
-                            event_copy["type"] = scrubbed_type.value if hasattr(scrubbed_type, "value") else str(scrubbed_type)
+                            event_copy["type"] = (
+                                scrubbed_type.value if hasattr(scrubbed_type, "value") else str(scrubbed_type)
+                            )
                             event_copy["data"] = restored_text
                             await self._emit_event(event_copy, ctx)
                 else:
@@ -209,16 +211,10 @@ class StreamDispatcherMixin:
         cache_break = get_pending_cache_break_event()
         if cache_break is not None:
             reasons = cache_break.get("reasons", [])
-            reason_text = (
-                ", ".join(str(r) for r in reasons)
-                if isinstance(reasons, list)
-                else str(reasons)
-            )
+            reason_text = ", ".join(str(r) for r in reasons) if isinstance(reasons, list) else str(reasons)
             raw_actions = cache_break.get("suggested_actions", [])
             actions_text = (
-                ", ".join(str(a) for a in raw_actions)
-                if isinstance(raw_actions, list) and raw_actions
-                else ""
+                ", ".join(str(a) for a in raw_actions) if isinstance(raw_actions, list) and raw_actions else ""
             )
             await self._emit_event(
                 {
@@ -247,9 +243,7 @@ class StreamDispatcherMixin:
         event_name = data.get("name", "")
         if event_name == "tool_stdout_chunk":
             event_data = data.get("data", {})
-            chunk_text = (
-                event_data.get("chunk", "") if isinstance(event_data, dict) else ""
-            )
+            chunk_text = event_data.get("chunk", "") if isinstance(event_data, dict) else ""
             if chunk_text:
                 await self._emit_event(
                     {
@@ -340,9 +334,7 @@ class StreamDispatcherMixin:
 
         return self._pseudonym_restorer.process(text)
 
-    async def _emit_event(
-        self, event: dict[str, object] | AgentStreamEvent, ctx: StreamContext
-    ) -> None:
+    async def _emit_event(self, event: dict[str, object] | AgentStreamEvent, ctx: StreamContext) -> None:
         """Put event to output_queue via compactor and optionally log to event journal."""
         if isinstance(event, dict):
             event = AgentStreamEvent.from_dict(event)
@@ -350,9 +342,7 @@ class StreamDispatcherMixin:
         await self._compactor.put(event)
 
         if ctx.event_logger is not None:
-            event_type = (
-                event.type.value if hasattr(event.type, "value") else str(event.type)
-            )
+            event_type = event.type.value if hasattr(event.type, "value") else str(event.type)
             event_data = event.to_dict()
             event_data.pop("type", None)
             event_data.pop("messageId", None)

@@ -84,7 +84,9 @@ async def generate_tools(
 
     logger.info(
         "Generated %d tools for OpenAPI service '%s' (%d endpoints available)",
-        len(tools), config.name, len(spec.endpoints),
+        len(tools),
+        config.name,
+        len(spec.endpoints),
     )
     return tools
 

@@ -153,14 +153,10 @@ class ToolRegistry:
         for entry in self._entries:
             name = entry.tool.name
             existing = best.get(name)
-            if existing is None or source_priority(entry.source) < source_priority(
-                existing.source
-            ):
+            if existing is None or source_priority(entry.source) < source_priority(existing.source):
                 best[name] = entry
 
-        return sorted(
-            best.values(), key=lambda e: (e.layer or ToolLayer.EXTENDED, e.tool.name)
-        )
+        return sorted(best.values(), key=lambda e: (e.layer or ToolLayer.EXTENDED, e.tool.name))
 
     def resolve(self) -> list[BaseTool]:
         """Deduplicate and sort all registered tools.

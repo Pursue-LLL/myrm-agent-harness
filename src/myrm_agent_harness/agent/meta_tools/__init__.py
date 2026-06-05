@@ -89,6 +89,7 @@ class _AgentRuntimeProtocol(Protocol):
     _last_context: dict[str, object]
     _last_stage_commit_tokens: int
 
+
 SKILL_INLINE_THRESHOLD = 15
 SKILL_CORE_MAX = 10
 
@@ -162,7 +163,10 @@ def get_meta_tools(
         if hidden_names:
             logger.info(
                 " Tool-based skill filtering: %d/%d skills hidden (tool_names=%d, tool_groups=%d)",
-                len(hidden_names), pre_count, len(_atn), len(_atg),
+                len(hidden_names),
+                pre_count,
+                len(_atn),
+                len(_atg),
             )
             logger.debug(" Hidden skills: %s", hidden_names)
         skills = visible
@@ -221,13 +225,9 @@ def get_meta_tools(
                     hidden_count,
                 )
             else:
-                skill_select_tool = create_select_skill_tool(
-                    skills, skill_backend, has_manage_tool=has_manage_tool
-                )
+                skill_select_tool = create_select_skill_tool(skills, skill_backend, has_manage_tool=has_manage_tool)
                 tools.append(skill_select_tool)
-                logger.info(
-                    f" skill_select_tool 已加载({len(model_visible_skills)} 个模型可见技能全部内联)"
-                )
+                logger.info(f" skill_select_tool 已加载({len(model_visible_skills)} 个模型可见技能全部内联)")
     else:
         if not skills:
             logger.info(" skill_select_tool 未加载(无可用技能)")
@@ -247,9 +247,7 @@ def get_meta_tools(
 
     if has_manage_tool:
         assert write_backend is not None  # narrowed by has_manage_tool
-        skill_mgmt_tool = create_skill_manage_tool(
-            write_backend, skill_backend, similarity_checker
-        )
+        skill_mgmt_tool = create_skill_manage_tool(write_backend, skill_backend, similarity_checker)
         tools.append(skill_mgmt_tool)
         logger.info(" skill_manage_tool 已加载")
 
@@ -264,9 +262,7 @@ def get_meta_tools(
         file_write_tool = create_file_write_tool(skills=skills)
         file_edit_tool = create_file_edit_tool(skills=skills)
         incremental_read_tool = create_incremental_read_tool(skills=skills)
-        tools.extend(
-            [file_read_tool, file_write_tool, file_edit_tool, incremental_read_tool]
-        )
+        tools.extend([file_read_tool, file_write_tool, file_edit_tool, incremental_read_tool])
     else:
         logger.info("File tools disabled by caller configuration")
 
@@ -288,11 +284,13 @@ def get_meta_tools(
             ptc_tools=_ptc_tools_ref,
         )
         tools.append(bash_tool)
-        _deferred_tools.extend([
-            create_bash_process_list_tool(),
-            create_bash_process_output_tool(),
-            create_bash_process_kill_tool(),
-        ])
+        _deferred_tools.extend(
+            [
+                create_bash_process_list_tool(),
+                create_bash_process_output_tool(),
+                create_bash_process_kill_tool(),
+            ]
+        )
     else:
         logger.info("Bash tool disabled by caller configuration")
 
@@ -327,12 +325,9 @@ def get_meta_tools(
         )
         tools.append(discover_capability_tool)
         search_mode = "混合(BM25+Embedding+RRF)" if embedding_config is not None else "BM25"
-        cache_status = (
-            "+缓存" if embedding_cache is not None and embedding_config is not None else ""
-        )
+        cache_status = "+缓存" if embedding_cache is not None and embedding_config is not None else ""
         logger.info(
-            " 统一能力发现网关 discover_capability 已加载 "
-            "(外部技能搜索模式: %s%s, deferred工具: %d)",
+            " 统一能力发现网关 discover_capability 已加载 (外部技能搜索模式: %s%s, deferred工具: %d)",
             search_mode,
             cache_status,
             len(registry.get_deferred_tools()) if registry else 0,
@@ -354,10 +349,7 @@ def get_meta_tools(
 
     # PTC tools for bash Python execution — fill the mutable ref so that
     # BashExecutor.ptc_tools is populated before any actual execution.
-    _ptc_tools_ref.extend(
-        t for t in tools
-        if t.name not in ("bash_code_execute_tool", "request_answer_user_tool")
-    )
+    _ptc_tools_ref.extend(t for t in tools if t.name not in ("bash_code_execute_tool", "request_answer_user_tool"))
     logger.info(
         " PTC tools injected into bash_tool (%d tools exposed via myrm_tools)",
         len(_ptc_tools_ref),

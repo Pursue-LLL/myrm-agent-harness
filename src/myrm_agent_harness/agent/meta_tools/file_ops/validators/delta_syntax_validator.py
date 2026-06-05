@@ -23,11 +23,13 @@ from collections.abc import Callable
 # Type alias for linter function: takes file content, returns (is_success, error_message)
 LinterFunc = Callable[[str], tuple[bool, str]]
 
+
 def _strip_line_col(err_str: str) -> str:
     """提取错误特征签名，抹除可能偏移的行号/列号坐标"""
-    s = re.sub(r'\(?line \d+(?:, column \d+)?\)?', '', err_str, flags=re.IGNORECASE)
-    s = re.sub(r'line \d+ column \d+', '', s, flags=re.IGNORECASE)
+    s = re.sub(r"\(?line \d+(?:, column \d+)?\)?", "", err_str, flags=re.IGNORECASE)
+    s = re.sub(r"line \d+ column \d+", "", s, flags=re.IGNORECASE)
     return s.strip()
+
 
 def _lint_json_inproc(content: str) -> tuple[bool, str]:
     try:
@@ -37,6 +39,7 @@ def _lint_json_inproc(content: str) -> tuple[bool, str]:
         return False, f"JSONDecodeError: {e.msg} (line {e.lineno}, column {e.colno})"
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"
+
 
 def _lint_yaml_inproc(content: str) -> tuple[bool, str]:
     try:
@@ -50,6 +53,7 @@ def _lint_yaml_inproc(content: str) -> tuple[bool, str]:
         return False, f"YAMLError: {e}"
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"
+
 
 def _lint_toml_inproc(content: str) -> tuple[bool, str]:
     try:
@@ -65,6 +69,7 @@ def _lint_toml_inproc(content: str) -> tuple[bool, str]:
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"
 
+
 def _lint_python_inproc(content: str) -> tuple[bool, str]:
     try:
         ast.parse(content)
@@ -75,6 +80,7 @@ def _lint_python_inproc(content: str) -> tuple[bool, str]:
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"
 
+
 LINTERS_INPROC: dict[str, LinterFunc] = {
     ".py": _lint_python_inproc,
     ".json": _lint_json_inproc,
@@ -82,6 +88,7 @@ LINTERS_INPROC: dict[str, LinterFunc] = {
     ".yml": _lint_yaml_inproc,
     ".toml": _lint_toml_inproc,
 }
+
 
 class DeltaSyntaxValidator:
     """增量语法校验器
@@ -115,8 +122,7 @@ class DeltaSyntaxValidator:
         # 2. 如果没提供旧代码，所有的错误都是致命错误
         if pre_content is None:
             raise ValueError(
-                f"Syntax validation failed for {path}:\n{post_err}\n"
-                f"Please fix the syntax error before saving."
+                f"Syntax validation failed for {path}:\n{post_err}\nPlease fix the syntax error before saving."
             )
 
         # 3. 提供旧代码了，执行增量校验（Delta Lint）
@@ -124,8 +130,7 @@ class DeltaSyntaxValidator:
         if pre_ok or pre_err == "__SKIP__" or not pre_err:
             # 原来的代码是完全正确的，那么 post_err 全是新引入的错误
             raise ValueError(
-                f"New syntax errors introduced in {path}:\n{post_err}\n"
-                f"Please fix the error before saving."
+                f"New syntax errors introduced in {path}:\n{post_err}\nPlease fix the error before saving."
             )
 
         # 4. 原代码也有错，新代码也有错，对比两个错误的差异（Set-Difference）
@@ -136,8 +141,7 @@ class DeltaSyntaxValidator:
         # 为了给大模型报出带有准确行号的错误，我们保留原始的 post_lines 用于抛错
         # 但过滤条件是：它的“错误特征”不能存在于老错误里
         post_lines_to_report = [
-            line for line in post_err.splitlines()
-            if line.strip() and _strip_line_col(line) not in pre_signatures
+            line for line in post_err.splitlines() if line.strip() and _strip_line_col(line) not in pre_signatures
         ]
 
         if not post_lines_to_report:

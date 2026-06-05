@@ -128,5 +128,5 @@ def _could_be_partial_marker(text: str, prefix: str) -> bool:
     if len(text) <= len(prefix):
         return True
 
-    rest = text[len(prefix):]
+    rest = text[len(prefix) :]
     return rest[0] in (">", ":")

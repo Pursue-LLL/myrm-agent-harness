@@ -90,15 +90,16 @@ class DanglingToolCallMiddleware(AgentMiddleware):  # type: ignore[type-arg]
     Scans request.messages for AIMessages whose tool_calls have no matching
     ToolMessage, and inserts synthetic error responses at the correct position.
     """
+
     name = "dangling_tool_call_middleware"
 
     async def awrap_model_call(
-        self,
-        request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
+        self, request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
     ) -> ModelResponse:
         patched = _build_patched_messages(list(request.messages))
         if patched is not None:
             request = request.override(messages=patched)
         return await handler(request)
+
 
 dangling_tool_call_middleware = DanglingToolCallMiddleware()

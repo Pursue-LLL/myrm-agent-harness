@@ -54,7 +54,7 @@ class HybridSearchCoordinator:
         rerank_score_threshold: float = 0.0,
         fusion_score_threshold: float = 0.0,
     ) -> list[Document]:
-        """ directly 重Sort（Skip混合检索，适 for 小规模文档）"""
+        """directly 重Sort（Skip混合检索，适 for 小规模文档）"""
         if not _validate_inputs(queries, documents, final_top_k):
             return []
 

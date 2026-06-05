@@ -29,11 +29,11 @@ class DebugLoggerMiddleware(AgentMiddleware):  # type: ignore[type-arg]
 
     此中间件应放在链的最后，以查看最终消息。
     """
+
     name = "debug_logger_middleware"
 
     async def awrap_model_call(
-        self,
-        request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
+        self, request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
     ) -> ModelResponse:
         messages = list(request.messages)
 
@@ -62,7 +62,9 @@ class DebugLoggerMiddleware(AgentMiddleware):  # type: ignore[type-arg]
             # Special handling for tool calls (only AIMessage has tool_calls)
             tool_calls = getattr(msg, "tool_calls", None)
             if tool_calls:
-                tool_names = [tc.get("name", "") if hasattr(tc, "get") else getattr(tc, "name", "") for tc in tool_calls]
+                tool_names = [
+                    tc.get("name", "") if hasattr(tc, "get") else getattr(tc, "name", "") for tc in tool_calls
+                ]
                 log_lines.append(f" [{idx}] {msg_type}:  Tool calls -> {tool_names}")
             # Special handling for tool responses
             elif msg_type == "ToolMessage":
@@ -114,5 +116,6 @@ def _format_content(content: str) -> str:
         tail = content_str[-tail_len:]
         omitted = len(content_str) - head_len - tail_len
         return f"{head} ...(omitted {omitted} chars)... {tail}"
+
 
 debug_logger_middleware = DebugLoggerMiddleware()

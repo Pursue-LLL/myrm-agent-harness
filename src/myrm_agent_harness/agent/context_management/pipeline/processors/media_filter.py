@@ -39,6 +39,7 @@ logger = get_agent_logger(__name__)
 CAPABILITY_REJECTS_MEDIA = "rejects_media"
 DEFAULT_RETAIN_MEDIA_BLOCKS = 2
 
+
 class MediaFilterProcessor(BaseProcessor):
     """Proactively strip media content for models that cannot handle it.
 
@@ -113,9 +114,7 @@ class MediaFilterProcessor(BaseProcessor):
                     stripped_count += 1
 
         if stripped_count > 0:
-            context.tokens_saved += (
-                stripped_count * 500
-            )  # conservative estimate per message
+            context.tokens_saved += stripped_count * 500  # conservative estimate per message
 
             if strip_all:
                 logger.info(

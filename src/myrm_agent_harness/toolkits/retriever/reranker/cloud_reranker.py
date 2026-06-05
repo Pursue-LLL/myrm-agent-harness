@@ -227,7 +227,7 @@ class CloudReranker(RerankerService):
         documents: list[str],
         top_k: int,
     ) -> list[RerankResult]:
-        """ directly Call OpenAI compatible  rerank API（Connection池optimized）"""
+        """directly Call OpenAI compatible  rerank API（Connection池optimized）"""
         # Extractreal 模型名（去掉 openai/ Prefix）
         model_name = self._model.replace("openai/", "")
 
@@ -271,7 +271,7 @@ class CloudReranker(RerankerService):
         documents: list[str],
         top_k: int,
     ) -> list[RerankResult]:
-        """ via  LiteLLM Call rerank API"""
+        """via  LiteLLM Call rerank API"""
         try:
             import litellm
         except ImportError as e:

@@ -37,8 +37,6 @@ from .prompts import CLARIFICATION_PROMPT
 from .tools import FINALIZE_TOOL_NAME, _build_tool_schema, build_orchestrator_tools
 
 if TYPE_CHECKING:
-
-
     pass
 
 logger = get_agent_logger(__name__)
@@ -127,9 +125,7 @@ class DeepResearchPhasesMixin:
         messages: list[BaseMessage] = [SystemMessage(content=system_prompt), *history]
 
         finalize_schema = [
-            t
-            for t in build_orchestrator_tools(include_think=False)
-            if t["function"]["name"] == FINALIZE_TOOL_NAME
+            t for t in build_orchestrator_tools(include_think=False) if t["function"]["name"] == FINALIZE_TOOL_NAME
         ]  # type: ignore[index]
 
         ask_question_schema = _build_tool_schema(
@@ -306,9 +302,7 @@ class DeepResearchPhasesMixin:
                                 self._result.agent_results.append(  # type: ignore[attr-defined]
                                     {"task": task_text, "result": partial, "partial": True}
                                 )
-                                _push_status(
-                                    idx, task_text, "error", result_length=len(partial), partial=True
-                                )
+                                _push_status(idx, task_text, "error", result_length=len(partial), partial=True)
                                 return f"{partial}\n\n[Partial — agent encountered error: {err}]"
                             _push_status(idx, task_text, "error")
                             return f"[Research error: {err}]"
@@ -363,9 +357,7 @@ class DeepResearchPhasesMixin:
         ]
 
         if research_context:
-            messages.append(
-                HumanMessage(content=f"# Research Findings\n\n{research_context}")
-            )
+            messages.append(HumanMessage(content=f"# Research Findings\n\n{research_context}"))
 
         messages.append(HumanMessage(content=user_query))
 

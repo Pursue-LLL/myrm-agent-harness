@@ -128,22 +128,20 @@ def _parse_pyright_output(raw: str) -> list[Diagnostic]:
         if severity not in ("error",):
             continue
         rng = diag.get("range", {}).get("start", {})
-        diagnostics.append(Diagnostic(
-            file=diag.get("file", ""),
-            line=rng.get("line", 0) + 1,
-            col=rng.get("character", 0) + 1,
-            severity="error",
-            message=diag.get("message", ""),
-        ))
+        diagnostics.append(
+            Diagnostic(
+                file=diag.get("file", ""),
+                line=rng.get("line", 0) + 1,
+                col=rng.get("character", 0) + 1,
+                severity="error",
+                message=diag.get("message", ""),
+            )
+        )
     return diagnostics
 
 
-_GENERIC_DIAG_PATTERN = re.compile(
-    r"^(.+?)\((\d+),(\d+)\):\s*(error)\s+\w+:\s*(.+)$", re.MULTILINE
-)
-_GENERIC_DIAG_PATTERN_COLON = re.compile(
-    r"^(.+?):(\d+):(\d+)\s*[-–]\s*(error):\s*(.+)$", re.MULTILINE
-)
+_GENERIC_DIAG_PATTERN = re.compile(r"^(.+?)\((\d+),(\d+)\):\s*(error)\s+\w+:\s*(.+)$", re.MULTILINE)
+_GENERIC_DIAG_PATTERN_COLON = re.compile(r"^(.+?):(\d+):(\d+)\s*[-–]\s*(error):\s*(.+)$", re.MULTILINE)
 
 
 def _parse_generic_output(raw: str) -> list[Diagnostic]:
@@ -151,23 +149,27 @@ def _parse_generic_output(raw: str) -> list[Diagnostic]:
     diagnostics: list[Diagnostic] = []
 
     for m in _GENERIC_DIAG_PATTERN.finditer(raw):
-        diagnostics.append(Diagnostic(
-            file=m.group(1).strip(),
-            line=int(m.group(2)),
-            col=int(m.group(3)),
-            severity=m.group(4).lower(),
-            message=m.group(5).strip(),
-        ))
-
-    if not diagnostics:
-        for m in _GENERIC_DIAG_PATTERN_COLON.finditer(raw):
-            diagnostics.append(Diagnostic(
+        diagnostics.append(
+            Diagnostic(
                 file=m.group(1).strip(),
                 line=int(m.group(2)),
                 col=int(m.group(3)),
                 severity=m.group(4).lower(),
                 message=m.group(5).strip(),
-            ))
+            )
+        )
+
+    if not diagnostics:
+        for m in _GENERIC_DIAG_PATTERN_COLON.finditer(raw):
+            diagnostics.append(
+                Diagnostic(
+                    file=m.group(1).strip(),
+                    line=int(m.group(2)),
+                    col=int(m.group(3)),
+                    severity=m.group(4).lower(),
+                    message=m.group(5).strip(),
+                )
+            )
 
     return diagnostics
 
@@ -265,9 +267,7 @@ async def run_auto_verify(
     if not diagnostics:
         return None
 
-    filtered = _filter_diagnostics(
-        diagnostics, file_path, edit_line_start, edit_line_end
-    )
+    filtered = _filter_diagnostics(diagnostics, file_path, edit_line_start, edit_line_end)
 
     if not filtered:
         return None

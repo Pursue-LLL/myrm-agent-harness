@@ -121,7 +121,12 @@ class ResourceMonitor:
             tag = f"{prefix} " if prefix else ""
             logger.info(
                 "[MEMORY] %srss=%dmb vms=%dmb cpu=%.1f%% threads=%d uptime=%ds",
-                tag, rss_mb, vms_mb, cpu, threads, uptime,
+                tag,
+                rss_mb,
+                vms_mb,
+                cpu,
+                threads,
+                uptime,
             )
         except Exception:
             pass
@@ -131,7 +136,8 @@ class ResourceMonitor:
         self._start_time = time.monotonic()
         logger.info(
             "Starting resource monitor (interval=%ss, history=%d)",
-            self.report_interval, self.history_size,
+            self.report_interval,
+            self.history_size,
         )
         self._log_memory_snapshot("baseline")
         self._monitor_task = asyncio.create_task(self._monitor_loop())
@@ -152,12 +158,8 @@ class ResourceMonitor:
 
                 try:
                     from myrm_agent_harness.runtime.events import ResourceMetricsEvent, get_event_bus
-                    get_event_bus().publish(
-                        ResourceMetricsEvent(
-                            metrics=metrics.to_dict(),
-                            history=self.get_history()
-                        )
-                    )
+
+                    get_event_bus().publish(ResourceMetricsEvent(metrics=metrics.to_dict(), history=self.get_history()))
                 except Exception as e:
                     logger.debug("Failed to publish ResourceMetricsEvent: %s", e)
 
@@ -167,8 +169,10 @@ class ResourceMonitor:
                 else:
                     logger.debug(
                         "Resource: CPU=%.1f%%, RSS=%.0fMB, Native~=%.0fMB, Objects=%d",
-                        metrics.cpu_percent, metrics.memory_mb,
-                        metrics.native_mb_estimate, metrics.python_gc_objects,
+                        metrics.cpu_percent,
+                        metrics.memory_mb,
+                        metrics.native_mb_estimate,
+                        metrics.python_gc_objects,
                     )
 
             except asyncio.CancelledError:
@@ -210,12 +214,8 @@ class ResourceMonitor:
 
             # Network I/O
             net_io = psutil.net_io_counters()
-            network_sent_mb = (
-                net_io.bytes_sent - self._network_baseline.bytes_sent
-            ) / (1024 * 1024)
-            network_recv_mb = (
-                net_io.bytes_recv - self._network_baseline.bytes_recv
-            ) / (1024 * 1024)
+            network_sent_mb = (net_io.bytes_sent - self._network_baseline.bytes_sent) / (1024 * 1024)
+            network_recv_mb = (net_io.bytes_recv - self._network_baseline.bytes_recv) / (1024 * 1024)
 
             return ResourceMetrics(
                 cpu_percent=cpu_percent,
@@ -249,9 +249,7 @@ class ResourceMonitor:
         if self._is_profiling or tracemalloc.is_tracing():
             return False
 
-        logger.warning(
-            "Starting heap profiling (tracemalloc). This may impact performance."
-        )
+        logger.warning("Starting heap profiling (tracemalloc). This may impact performance.")
         tracemalloc.start(frames)
         self._is_profiling = True
         return True

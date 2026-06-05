@@ -165,10 +165,7 @@ class ConsolidationJudge:
             for s in cluster_skills
         )
 
-        broader_detail = "\n".join(
-            f"- {s.name}: {s.description}"
-            for s in broader_skills[:15]
-        ) or "None"
+        broader_detail = "\n".join(f"- {s.name}: {s.description}" for s in broader_skills[:15]) or "None"
 
         prompt = _JUDGE_PROMPT_TEMPLATE.format(
             cluster_size=len(cluster.skill_names),
@@ -200,10 +197,7 @@ class ConsolidationJudge:
                 )
                 return None
 
-            source_skills = tuple(
-                name for name in cluster.skill_names
-                if name != judgment.target_skill_name
-            )
+            source_skills = tuple(name for name in cluster.skill_names if name != judgment.target_skill_name)
 
             return ConsolidationAction(
                 action_type=action_type,
@@ -233,13 +227,10 @@ class ConsolidationJudge:
         for action in plan.actions:
             match action.action_type:
                 case ConsolidationActionType.MERGE:
-                    lines.append(
-                        f"• Merge {len(action.source_skills)} skills into '{action.target_skill}'"
-                    )
+                    lines.append(f"• Merge {len(action.source_skills)} skills into '{action.target_skill}'")
                 case ConsolidationActionType.CREATE_UMBRELLA:
                     lines.append(
-                        f"• Create umbrella '{action.target_skill}' absorbing "
-                        f"{len(action.source_skills)} skills"
+                        f"• Create umbrella '{action.target_skill}' absorbing {len(action.source_skills)} skills"
                     )
                 case ConsolidationActionType.DEMOTE:
                     lines.append(
@@ -249,7 +240,5 @@ class ConsolidationJudge:
                 case ConsolidationActionType.KEEP:
                     pass
 
-        lines.append(
-            f"\nEstimated net reduction: {plan.estimated_reduction} active skills"
-        )
+        lines.append(f"\nEstimated net reduction: {plan.estimated_reduction} active skills")
         return "\n".join(lines)

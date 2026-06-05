@@ -129,6 +129,8 @@ def create_extract_tool(session: BrowserSession):
                 include_aa=include_aa,
             )
             return result.to_llm_message()
-        return mark_untrusted(await session.extract_text(resume_cursor=resume_cursor, max_length=max_length, selector=selector))
+        return mark_untrusted(
+            await session.extract_text(resume_cursor=resume_cursor, max_length=max_length, selector=selector)
+        )
 
     return browser_extract

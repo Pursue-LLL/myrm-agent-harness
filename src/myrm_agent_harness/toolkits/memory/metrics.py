@@ -356,7 +356,10 @@ class _SearchTracker:
     __slots__ = ("_current_chat_id", "_metrics", "_recorded", "_searched_types", "_start_ns")
 
     def __init__(
-        self, metrics: SearchMetrics, searched_types: list[MemoryType], current_chat_id: str | None = None,
+        self,
+        metrics: SearchMetrics,
+        searched_types: list[MemoryType],
+        current_chat_id: str | None = None,
     ) -> None:
         self._metrics = metrics
         self._searched_types = searched_types

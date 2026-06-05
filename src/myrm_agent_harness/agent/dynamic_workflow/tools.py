@@ -13,6 +13,7 @@ class SpawnSubagentInput(BaseModel):
     agent_type: str = Field(..., description="Type of agent to spawn (e.g., 'generalPurpose', 'shell').")
     task_description: str = Field(..., description="The prompt/task for the sub-agent to execute.")
 
+
 class SpawnSubagentTool(BaseTool):
     name: str = "spawn_subagent"
     description: str = "Spawn a sub-agent to execute a task. This tool blocks until the sub-agent completes."
@@ -67,7 +68,7 @@ class SpawnSubagentTool(BaseTool):
                 task_id=task_id,
                 agent_type=agent_type,
                 task_description=task_description,
-                result=final_result
+                result=final_result,
             )
 
         return final_result

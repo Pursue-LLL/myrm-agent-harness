@@ -27,16 +27,12 @@ if TYPE_CHECKING:
 class SemanticCriterion(BaseCriterion):
     """Verifies completion by evaluating an artifact or outcome using an LLM judge."""
 
-    def __init__(
-        self, criteria: str, target_file: str | None = None, **kwargs: Any
-    ) -> None:
+    def __init__(self, criteria: str, target_file: str | None = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.criteria = criteria
         self.target_file = target_file
 
-    async def verify(
-        self, goal_provider: GoalProvider | None = None
-    ) -> VerificationResult:
+    async def verify(self, goal_provider: GoalProvider | None = None) -> VerificationResult:
         if not goal_provider:
             return VerificationResult(
                 passed=False,
@@ -71,9 +67,7 @@ class SemanticCriterion(BaseCriterion):
             content_to_verify = "(No specific file content provided. Evaluate based on general goal outcome.)"
 
         try:
-            return await goal_provider.evaluate_semantic(
-                self.criteria, content_to_verify
-            )
+            return await goal_provider.evaluate_semantic(self.criteria, content_to_verify)
         except Exception as e:
             return VerificationResult(
                 passed=False,

@@ -268,8 +268,13 @@ class PreferenceStabilityStrategy:
             await self._store.delete(loser.id)
             logger.info(
                 "Conflict resolution: dropped facet %s (%s=%s, stab=%.3f) in favor of %s=%s (stab=%.3f)",
-                loser.id, loser.key, loser.value, loser.stability,
-                winner.key, winner.value, winner.stability,
+                loser.id,
+                loser.key,
+                loser.value,
+                loser.stability,
+                winner.key,
+                winner.value,
+                winner.stability,
             )
 
     async def micro_rebuild(self) -> int:
@@ -370,7 +375,9 @@ class PreferenceStabilityStrategy:
                 await self._store.upsert(excess)
                 logger.info(
                     "Budget enforcement: demoted facet %s (%s=%s) from Active to Provisional",
-                    excess.id, excess.key, excess.value,
+                    excess.id,
+                    excess.key,
+                    excess.value,
                 )
 
 

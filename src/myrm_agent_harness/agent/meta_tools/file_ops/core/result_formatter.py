@@ -94,9 +94,7 @@ class ResultFormatter:
             ]
             result_content = "\n".join(numbered_lines)
 
-            formatted = (
-                f" {content.display_path} (lines {start_idx + 1}-{end_idx} of {total_lines}):\n{result_content}"
-            )
+            formatted = f" {content.display_path} (lines {start_idx + 1}-{end_idx} of {total_lines}):\n{result_content}"
         else:
             # 添加行号
             numbered_lines = [f"{i + 1:{LINE_NUMBER_WIDTH}}|{line}" for i, line in enumerate(content.lines)]

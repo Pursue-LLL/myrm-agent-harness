@@ -291,13 +291,13 @@ class CacheTtlPruneProcessor(BaseProcessor):
             if event.timestamp >= window_start and event.reason == "archive_reference_read"
         ]
         window_restore_events = [
-            event
-            for event in metrics.archive_restore_result_events
-            if event.timestamp >= window_start
+            event for event in metrics.archive_restore_result_events if event.timestamp >= window_start
         ]
         refetch_ratio = len(window_refetch_events) / sample_count if sample_count > 0 else 0.0
         restore_tokens = sum(event.estimated_tokens for event in window_restore_events)
-        net_tokens_saved = tokens_saved - sum(event.estimated_tokens for event in window_refetch_events) - restore_tokens
+        net_tokens_saved = (
+            tokens_saved - sum(event.estimated_tokens for event in window_refetch_events) - restore_tokens
+        )
         restore_cost_ratio = restore_tokens / tokens_saved if tokens_saved > 0 else 0.0
         restore_roi_ratio = net_tokens_saved / tokens_saved if tokens_saved > 0 else 0.0
 

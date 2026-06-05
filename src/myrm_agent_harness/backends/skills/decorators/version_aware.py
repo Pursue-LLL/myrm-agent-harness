@@ -107,7 +107,9 @@ class VersionAwareSkillBackend(SkillBackend):
                         return str(getattr(snapshot, "content", ""))
 
                     if not is_candidate:
-                        logger.debug("Baseline snapshot missing for %s v%s, falling back to disk", skill_name, version_id)
+                        logger.debug(
+                            "Baseline snapshot missing for %s v%s, falling back to disk", skill_name, version_id
+                        )
                         return await self.base_backend.get_skill_content(skill_name)
 
             # 2. Check for "Active" Persistent Versions (Optimized results)

@@ -103,14 +103,10 @@ class SkillStoreQueries:
                 (threshold,),
             ).fetchall()
 
-            logger.debug(
-                f"Skills needing fix (threshold={threshold}): {len(rows)} found"
-            )
+            logger.debug(f"Skills needing fix (threshold={threshold}): {len(rows)} found")
             return [self._row_to_record(dict(row)) for row in rows]
 
-    def get_skill_by_name_version(
-        self, name: str, version: int | None = None
-    ) -> SkillRecord | None:
+    def get_skill_by_name_version(self, name: str, version: int | None = None) -> SkillRecord | None:
         """Load skill by name and optional version.
 
         Args:
@@ -157,9 +153,7 @@ class SkillStoreQueries:
 
         with self._reader() as conn:
             while current_id:
-                row = conn.execute(
-                    "SELECT * FROM skills WHERE skill_id = ?", (current_id,)
-                ).fetchone()
+                row = conn.execute("SELECT * FROM skills WHERE skill_id = ?", (current_id,)).fetchone()
                 if not row:
                     break
                 record = self._row_to_record(dict(row))
@@ -307,9 +301,7 @@ class SkillStoreQueries:
                         rows = conn.execute(sql, tuple(params)).fetchall()
 
                     # Convert to records and sort by Qdrant order
-                    records = {
-                        row["skill_id"]: self._row_to_record(dict(row)) for row in rows
-                    }
+                    records = {row["skill_id"]: self._row_to_record(dict(row)) for row in rows}
                     final_results = []
                     for sid in skill_ids:
                         if sid in records:
@@ -319,9 +311,7 @@ class SkillStoreQueries:
 
                     return final_results
             except Exception as e:
-                logger.warning(
-                    f"Vector search failed, falling back to SQLite LIKE: {e}"
-                )
+                logger.warning(f"Vector search failed, falling back to SQLite LIKE: {e}")
                 # Fallthrough to SQLite LIKE search
 
         # Fallback / Original SQLite LIKE search path
@@ -364,3 +354,41 @@ class SkillStoreQueries:
             groups[row["skill_id"]].append(dict(row))
 
         return dict(groups)
+
+    async def get_agent_tool_health(self, agent_id: str, days: int = 7) -> list[dict[str, Any]]:
+        """Get aggregated tool health metrics for a specific agent.
+
+        Args:
+            agent_id: The agent ID
+            days: Lookback period in days
+
+        Returns:
+            List of dictionaries containing aggregated metrics per tool.
+        """
+        import asyncio
+        from datetime import datetime, timedelta
+
+        self._ensure_open()
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+
+        def _get_health() -> list[dict[str, Any]]:
+            with self._reader() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT 
+                        tool_name,
+                        COUNT(*) as total_calls,
+                        SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
+                        SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as error_count,
+                        AVG(elapsed_time) as avg_duration,
+                        MAX(elapsed_time) as max_duration
+                    FROM tool_executions
+                    WHERE agent_id = ? AND timestamp >= ?
+                    GROUP BY tool_name
+                    """,
+                    (agent_id, cutoff),
+                ).fetchall()
+
+                return [dict(row) for row in rows]
+
+        return await asyncio.to_thread(_get_health)

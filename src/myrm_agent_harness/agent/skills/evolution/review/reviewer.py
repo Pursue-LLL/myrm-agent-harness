@@ -93,32 +93,18 @@ class SkillExtractionRubric(BaseModel):
 
     reasoning: str = Field(..., description="Detailed explanation for the scores.")
 
-    result_type: Literal["nothing", "semantic_memory", "skill_draft", "skill_patch"] = (
-        Field(
-            ...,
-            description="The type of extraction to perform based on the scores. If total score is low, choose 'nothing'.",
-        )
+    result_type: Literal["nothing", "semantic_memory", "skill_draft", "skill_patch"] = Field(
+        ...,
+        description="The type of extraction to perform based on the scores. If total score is low, choose 'nothing'.",
     )
 
     # Only populate these if result_type != "nothing"
-    content: str | None = Field(
-        None, description="For semantic_memory: The factual statement."
-    )
-    skill_name: str | None = Field(
-        None, description="For skill_draft or skill_patch: The name of the skill."
-    )
-    skill_description: str | None = Field(
-        None, description="For skill_draft: Brief description."
-    )
-    trigger_condition: str | None = Field(
-        None, description="For skill_draft: When should this be used."
-    )
-    skill_steps: str | None = Field(
-        None, description="For skill_draft: Step-by-step guide or code snippet."
-    )
-    patch_content: str | None = Field(
-        None, description="For skill_patch: DIFF patch blocks."
-    )
+    content: str | None = Field(None, description="For semantic_memory: The factual statement.")
+    skill_name: str | None = Field(None, description="For skill_draft or skill_patch: The name of the skill.")
+    skill_description: str | None = Field(None, description="For skill_draft: Brief description.")
+    trigger_condition: str | None = Field(None, description="For skill_draft: When should this be used.")
+    skill_steps: str | None = Field(None, description="For skill_draft: Step-by-step guide or code snippet.")
+    patch_content: str | None = Field(None, description="For skill_patch: DIFF patch blocks.")
 
     @property
     def total_score(self) -> float:
@@ -252,9 +238,7 @@ async def review_trajectory_with_llm(
     if not trajectory_skeleton:
         return None
 
-    active_skills_str = (
-        "\\n".join([f"- {s}" for s in active_skills]) if active_skills else "None"
-    )
+    active_skills_str = "\\n".join([f"- {s}" for s in active_skills]) if active_skills else "None"
     catalog_str = all_skills_catalog if all_skills_catalog else "None"
     goal_str = original_goal if original_goal else "Not explicitly provided."
 
@@ -288,28 +272,18 @@ async def review_trajectory_with_llm(
         if rubric.result_type == "semantic_memory":
             content = str(rubric.content or "").strip()
             if not content:
-                logger.warning(
-                    " Skill review: semantic_memory has empty content, discarding"
-                )
+                logger.warning(" Skill review: semantic_memory has empty content, discarding")
                 return SkillReviewResult(has_value=False)
-            logger.info(
-                f" Skill review: found semantic memory (Score: {rubric.total_score:.2f})"
-            )
-            return SkillReviewResult(
-                has_value=True, result_type="semantic_memory", content=content
-            )
+            logger.info(f" Skill review: found semantic memory (Score: {rubric.total_score:.2f})")
+            return SkillReviewResult(has_value=True, result_type="semantic_memory", content=content)
 
         elif rubric.result_type == "skill_draft":
             skill_name = str(rubric.skill_name or "").strip()
             skill_steps = str(rubric.skill_steps or "").strip()
             if not skill_name or not skill_steps:
-                logger.warning(
-                    " Skill review: skill_draft missing name or steps, discarding"
-                )
+                logger.warning(" Skill review: skill_draft missing name or steps, discarding")
                 return SkillReviewResult(has_value=False)
-            logger.info(
-                f" Skill review: found skill draft (Score: {rubric.total_score:.2f})"
-            )
+            logger.info(f" Skill review: found skill draft (Score: {rubric.total_score:.2f})")
             return SkillReviewResult(
                 has_value=True,
                 result_type="skill_draft",
@@ -323,13 +297,9 @@ async def review_trajectory_with_llm(
             skill_name = str(rubric.skill_name or "").strip()
             patch_content = str(rubric.patch_content or "").strip()
             if not skill_name or not patch_content:
-                logger.warning(
-                    " Skill review: skill_patch missing name or patch_content, discarding"
-                )
+                logger.warning(" Skill review: skill_patch missing name or patch_content, discarding")
                 return SkillReviewResult(has_value=False)
-            logger.info(
-                f" Skill review: found skill patch for {skill_name} (Score: {rubric.total_score:.2f})"
-            )
+            logger.info(f" Skill review: found skill patch for {skill_name} (Score: {rubric.total_score:.2f})")
             return SkillReviewResult(
                 has_value=True,
                 result_type="skill_patch",

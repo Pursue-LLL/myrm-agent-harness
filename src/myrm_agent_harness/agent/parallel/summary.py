@@ -8,9 +8,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.agent.base_agent import BaseAgent
 
 
-def inject_capacity_signal(
-    result: dict[str, object], parent_agent: BaseAgent
-) -> dict[str, object]:
+def inject_capacity_signal(result: dict[str, object], parent_agent: BaseAgent) -> dict[str, object]:
     """Inject delegation capacity info into tool output for LLM decision context."""
     try:
         manager = parent_agent._subagent_manager

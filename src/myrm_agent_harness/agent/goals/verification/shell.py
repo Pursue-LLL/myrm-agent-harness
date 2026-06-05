@@ -35,9 +35,7 @@ class ShellCriterion(BaseCriterion):
         self.command = command
         self.timeout_seconds = timeout_seconds
 
-    async def verify(
-        self, goal_provider: GoalProvider | None = None
-    ) -> VerificationResult:
+    async def verify(self, goal_provider: GoalProvider | None = None) -> VerificationResult:
         executor = get_executor()
         if not executor:
             return VerificationResult(
@@ -76,6 +74,4 @@ class ShellCriterion(BaseCriterion):
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> ShellCriterion:
-        return cls(
-            command=data["command"], timeout_seconds=data.get("timeout_seconds", 60)
-        )
+        return cls(command=data["command"], timeout_seconds=data.get("timeout_seconds", 60))

@@ -139,7 +139,9 @@ def create_glob_tool(io_config: FileIOConfig | None = None) -> BaseTool:
                 )
 
             if io_cfg.enable_audit_log:
-                logger.info(f"SECURITY AUDIT: glob_tool - pattern={pattern}, path={path}, include_ignored={include_ignored}")
+                logger.info(
+                    f"SECURITY AUDIT: glob_tool - pattern={pattern}, path={path}, include_ignored={include_ignored}"
+                )
 
             import asyncio
 
@@ -183,8 +185,7 @@ def create_glob_tool(io_config: FileIOConfig | None = None) -> BaseTool:
                         await proc.wait()
 
                     await asyncio.wait_for(
-                        asyncio.gather(_read_lines(), _read_stderr()),
-                        timeout=io_cfg.search_timeout_seconds
+                        asyncio.gather(_read_lines(), _read_stderr()), timeout=io_cfg.search_timeout_seconds
                     )
 
                     # Ignore non-zero exit codes if we terminated it early
@@ -200,6 +201,7 @@ def create_glob_tool(io_config: FileIOConfig | None = None) -> BaseTool:
             if not used_ripgrep:
                 # Fallback to Python rglob
                 try:
+
                     def _do_rglob():
                         fallback_files = []
                         for match in search_path_obj.rglob(pattern):

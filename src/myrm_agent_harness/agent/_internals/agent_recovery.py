@@ -40,6 +40,7 @@ logger = get_agent_logger(__name__)
 # Context Overflow Recovery
 # ============================================================================
 
+
 async def emergency_compact(messages: list[BaseMessage]) -> int:
     """Aggressively compact *messages* in-place after a context overflow.
 
@@ -135,6 +136,7 @@ def truncate_oldest_rounds(messages: list[BaseMessage]) -> int:
 # LLM Failover
 # ============================================================================
 
+
 def rebuild_agent_with_llm(agent: BaseAgent, new_llm: BaseChatModel) -> None:
     """Rebuild agent graph with a different LLM for failover.
 
@@ -222,11 +224,14 @@ def build_error_context(
     documented at AgentPatterns.ai.
     """
     error_type = _extract_error_type(error)
-    hints = ERROR_RECOVERY_HINTS.get(error_type, [
-        "Analyse the error message carefully for clues",
-        "Consider alternative approaches to achieve the goal",
-        "Check if prerequisites or dependencies are missing",
-    ])
+    hints = ERROR_RECOVERY_HINTS.get(
+        error_type,
+        [
+            "Analyse the error message carefully for clues",
+            "Consider alternative approaches to achieve the goal",
+            "Check if prerequisites or dependencies are missing",
+        ],
+    )
 
     parts = [
         "## Error Recovery Context",
@@ -262,6 +267,7 @@ def _extract_error_type(error: str) -> str:
 # ============================================================================
 # Error Diagnostics
 # ============================================================================
+
 
 def diagnose_llm_error(
     exc: Exception,

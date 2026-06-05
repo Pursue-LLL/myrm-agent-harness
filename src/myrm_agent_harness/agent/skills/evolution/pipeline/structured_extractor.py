@@ -139,7 +139,8 @@ class StructuredExtractor:
             content = raw_result.content
             import json
             import re
-            match = re.search(r'\{.*\}', content, re.DOTALL)
+
+            match = re.search(r"\{.*\}", content, re.DOTALL)
             if match:
                 data = json.loads(match.group(0))
                 result = SkillCaptureResult(**data)

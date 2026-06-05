@@ -32,14 +32,10 @@ _LEAF_BATCH_SIZE = 50
 _SUMMARY_MAX_CHARS = 500
 
 _CHILD_SUMMARY_PROMPT = (
-    "Merge the following sub-summaries into one cohesive summary "
-    "(max {max_chars} chars):\n\n{children}"
+    "Merge the following sub-summaries into one cohesive summary (max {max_chars} chars):\n\n{children}"
 )
 
-_LEAF_PROMPT = (
-    "Summarise the following {count} data entries from {provider} "
-    "(type: {source_type}):\n\n{entries}"
-)
+_LEAF_PROMPT = "Summarise the following {count} data entries from {provider} (type: {source_type}):\n\n{entries}"
 
 
 class IntegrationSummariser:
@@ -121,14 +117,15 @@ class IntegrationSummariser:
             summary = await self._summarise(prompt)
         except Exception as exc:
             logger.error("LLM summarisation failed for node %s: %s", node.id, exc)
-            summary = "; ".join(child_summaries[:3])[:self._max_chars]
+            summary = "; ".join(child_summaries[:3])[: self._max_chars]
 
         await self._gs.update_node_properties(node.id, {"summary": summary})
         return summary
 
     async def _get_children(self, node_id: str) -> list[GraphNode]:
         child_ids = await self._gs.get_causal_chain(
-            node_id, depth=1,
+            node_id,
+            depth=1,
             relation_types=["HAS_PROVIDER", "HAS_ACCOUNT", "HAS_CATEGORY", "HAS_LEAF"],
         )
         nodes: list[GraphNode] = []

@@ -18,9 +18,7 @@ from typing import Any
 
 from .types import RateLimitBucket, RateLimitState
 
-_OPENAI_RESET_RE = re.compile(
-    r"(?:(\d+)h)?(?:(\d+)m(?!s))?(?:(\d+(?:\.\d+)?)s)?(?:(\d+)ms)?"
-)
+_OPENAI_RESET_RE = re.compile(r"(?:(\d+)h)?(?:(\d+)m(?!s))?(?:(\d+(?:\.\d+)?)s)?(?:(\d+)ms)?")
 
 
 def _parse_reset_time(val: Any) -> float | None:
@@ -113,31 +111,21 @@ def parse_rate_limit_headers(
         prefix = "anthropic-ratelimit-"
 
     # Check if any rate limit headers exist
-    has_rl = any(
-        k.startswith(prefix) or k.startswith("x-ratelimit-") for k in headers_lower
-    )
+    has_rl = any(k.startswith(prefix) or k.startswith("x-ratelimit-") for k in headers_lower)
     if not has_rl:
         return None
 
     # Helper to extract bucket
-    def _extract_bucket(
-        limit_key: str, remaining_key: str, reset_key: str
-    ) -> RateLimitBucket | None:
+    def _extract_bucket(limit_key: str, remaining_key: str, reset_key: str) -> RateLimitBucket | None:
         limit = _parse_int(headers_lower.get(limit_key))
         remaining = _parse_int(headers_lower.get(remaining_key))
         reset = _parse_reset_time(headers_lower.get(reset_key))
 
         # Fallback to standard x-ratelimit if provider-specific is missing
         if limit is None and prefix != "x-ratelimit-":
-            limit = _parse_int(
-                headers_lower.get(limit_key.replace(prefix, "x-ratelimit-"))
-            )
-            remaining = _parse_int(
-                headers_lower.get(remaining_key.replace(prefix, "x-ratelimit-"))
-            )
-            reset = _parse_reset_time(
-                headers_lower.get(reset_key.replace(prefix, "x-ratelimit-"))
-            )
+            limit = _parse_int(headers_lower.get(limit_key.replace(prefix, "x-ratelimit-")))
+            remaining = _parse_int(headers_lower.get(remaining_key.replace(prefix, "x-ratelimit-")))
+            reset = _parse_reset_time(headers_lower.get(reset_key.replace(prefix, "x-ratelimit-")))
 
         if limit is not None and remaining is not None and reset is not None:
             return RateLimitBucket(

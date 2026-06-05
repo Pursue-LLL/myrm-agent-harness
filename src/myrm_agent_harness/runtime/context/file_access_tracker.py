@@ -150,10 +150,13 @@ class FileAccessTracker:
         await self._ensure_initialized()
 
         try:
-            async with connect_async(self._db_path) as db, db.execute(
-                "SELECT last_accessed_at FROM file_access WHERE file_path = ?",
-                (file_path,),
-            ) as cursor:
+            async with (
+                connect_async(self._db_path) as db,
+                db.execute(
+                    "SELECT last_accessed_at FROM file_access WHERE file_path = ?",
+                    (file_path,),
+                ) as cursor,
+            ):
                 row = await cursor.fetchone()
                 if row:
                     return datetime.fromisoformat(row[0])
@@ -293,15 +296,18 @@ class FileAccessTracker:
         await self._ensure_initialized()
 
         try:
-            async with connect_async(self._db_path) as db, db.execute(
-                """
+            async with (
+                connect_async(self._db_path) as db,
+                db.execute(
+                    """
                     SELECT
                         COUNT(*) as total_files,
                         COUNT(DISTINCT session_id) as total_sessions,
                         SUM(access_count) as total_accesses
                     FROM file_access
                     """
-            ) as cursor:
+                ) as cursor,
+            ):
                 row = await cursor.fetchone()
                 if row:
                     return {

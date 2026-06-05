@@ -61,7 +61,7 @@ class LiteLLMSearch:
         self.timeout_seconds = timeout_seconds or 20
 
     async def search(self, query: str, num_results: int = 5, **kwargs) -> list[SearchResult]:
-        """ using LiteLLMPerform统一Search
+        """using LiteLLMPerform统一Search
 
         Args:
             query: SearchQuery

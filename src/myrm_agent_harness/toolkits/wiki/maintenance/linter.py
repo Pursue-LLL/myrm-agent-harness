@@ -299,7 +299,7 @@ class WikiLinter:
                         "You are a knowledge graph expert. Given a wiki article and a list of other concepts, "
                         "identify which concepts should be linked FROM this article using [[Wikilinks]]. "
                         "Only suggest links where there's a genuine semantic relationship. "
-                        "Return ONLY a JSON array of concept names to link, e.g. [\"Concept A\", \"Concept B\"]. "
+                        'Return ONLY a JSON array of concept names to link, e.g. ["Concept A", "Concept B"]. '
                         "Return [] if no links are needed."
                     )
                 )

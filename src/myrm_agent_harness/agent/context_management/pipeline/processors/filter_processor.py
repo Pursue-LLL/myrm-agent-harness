@@ -45,7 +45,9 @@ class FilterProcessor(BaseProcessor):
     支持工具保护：某些关键工具的输出不会被过滤。
     """
 
-    def __init__(self, protection_config: ToolProtectionConfig | None = None, context_config: ContextConfig | None = None):
+    def __init__(
+        self, protection_config: ToolProtectionConfig | None = None, context_config: ContextConfig | None = None
+    ):
         self.protection_config = protection_config or TOOL_PROTECTION_CONFIG
         self.context_config = context_config or DEFAULT_CONTEXT_CONFIG
 
@@ -63,7 +65,9 @@ class FilterProcessor(BaseProcessor):
 
         # Check aggregate limit for the latest turn
         latest_turn_msgs = self._get_latest_turn_tool_messages(context.messages)
-        aggregate_tokens = sum(get_token_count(msg.content if isinstance(msg.content, str) else "") for msg in latest_turn_msgs)
+        aggregate_tokens = sum(
+            get_token_count(msg.content if isinstance(msg.content, str) else "") for msg in latest_turn_msgs
+        )
         return aggregate_tokens > self.context_config.turn_aggregate_evict_threshold
 
     def _get_latest_turn_tool_messages(self, messages: list) -> list[ToolMessage]:
@@ -121,8 +125,7 @@ class FilterProcessor(BaseProcessor):
 
         # Filter out protected messages from aggregate consideration
         unprotected_turn_msgs = [
-            m for m in latest_turn_msgs
-            if not (m.name and self.protection_config.is_protected(m.name))
+            m for m in latest_turn_msgs if not (m.name and self.protection_config.is_protected(m.name))
         ]
 
         # Calculate current aggregate tokens

@@ -169,19 +169,21 @@ class Navigator:
         except Exception as e:
             # Catch TimeoutError (Playwright throws playwright.async_api.TimeoutError, which inherits from Exception)
             from patchright.async_api import TimeoutError as PlaywrightTimeoutError
+
             if isinstance(e, PlaywrightTimeoutError) or "Timeout" in str(e) or "timeout" in str(e).lower():
                 logger.warning(f"Navigator: timeout during navigation to {url}, attempting rescue via window.stop()")
                 try:
                     await self._page.evaluate("window.stop()")
                     from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
                     await dispatch_custom_event(
                         "agent_status",
                         {
                             "event": "tool_fallback",
                             "tool": "browser_navigate_tool",
                             "fallback_type": "timeout_rescue",
-                            "message": "页面部分资源加载超时，正在强制终止并提取现有可见内容..."
-                        }
+                            "message": "页面部分资源加载超时，正在强制终止并提取现有可见内容...",
+                        },
                     )
                 except Exception as stop_e:
                     logger.warning(f"Navigator: failed to stop page after timeout: {stop_e}")

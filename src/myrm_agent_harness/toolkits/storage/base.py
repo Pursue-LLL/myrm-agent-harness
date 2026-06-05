@@ -123,9 +123,7 @@ class StorageProvider(ABC):
         ...
 
     @abstractmethod
-    async def write(
-        self, key: str, content: bytes, content_type: str | None = None
-    ) -> None:
+    async def write(self, key: str, content: bytes, content_type: str | None = None) -> None:
         """Write file
 
         Args:

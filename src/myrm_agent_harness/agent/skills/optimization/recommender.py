@@ -33,11 +33,11 @@ if TYPE_CHECKING:
 class RecommendationReason(StrEnum):
     """推荐原因"""
 
-    LOW_QUALITY_HIGH_FREQ = "low_quality_high_frequency" # 低质量高频率
-    LONG_NOT_OPTIMIZED = "long_not_optimized" # 长期未优化
-    NEGATIVE_USER_FEEDBACK = "negative_user_feedback" # 用户反馈差
-    HIGH_FAILURE_RATE = "high_failure_rate" # 高失败率
-    PERFORMANCE_DEGRADATION = "performance_degradation" # 性能下降
+    LOW_QUALITY_HIGH_FREQ = "low_quality_high_frequency"  # 低质量高频率
+    LONG_NOT_OPTIMIZED = "long_not_optimized"  # 长期未优化
+    NEGATIVE_USER_FEEDBACK = "negative_user_feedback"  # 用户反馈差
+    HIGH_FAILURE_RATE = "high_failure_rate"  # 高失败率
+    PERFORMANCE_DEGRADATION = "performance_degradation"  # 性能下降
 
 
 @dataclass

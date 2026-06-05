@@ -90,9 +90,7 @@ async def create_local_memory_manager(
             test_vec = await embedding_service.embed("dimension probe")
             dim = len(test_vec)
         except Exception as e:
-            logger.warning(
-                f"Cannot determine embedding dimension, defaulting to 1536: {e}"
-            )
+            logger.warning(f"Cannot determine embedding dimension, defaulting to 1536: {e}")
             dim = 1536
 
     if vector_store is None:
@@ -110,9 +108,7 @@ async def create_local_memory_manager(
             ForgettingConfig,
         )
 
-        mem_config_args["forgetting"] = ForgettingConfig(
-            time_decay_half_life_days=time_decay_half_life_days
-        )
+        mem_config_args["forgetting"] = ForgettingConfig(time_decay_half_life_days=time_decay_half_life_days)
     mem_config = MemoryConfig(**mem_config_args)
     if vector_store:
         for coll in [mem_config.semantic_collection, mem_config.episodic_collection]:
@@ -145,9 +141,7 @@ async def create_local_memory_manager(
                         vectors_config=vectors_config,
                     )
         except Exception as e:
-            logger.warning(
-                f"Failed to ensure collection '{mem_config.conversation_collection}': {e}"
-            )
+            logger.warning(f"Failed to ensure collection '{mem_config.conversation_collection}': {e}")
 
     # 3. Initialize Embedding Cache
     from myrm_agent_harness.toolkits.memory import EmbeddingCache

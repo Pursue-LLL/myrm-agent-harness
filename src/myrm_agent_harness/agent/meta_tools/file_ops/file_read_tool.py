@@ -114,17 +114,13 @@ class FileReadInput(BaseModel):
         ),
     )
 
-    chunk_size_mb: int = Field(
-        default=10, description="streaming模式下的块大小（MB），默认10MB"
-    )
+    chunk_size_mb: int = Field(default=10, description="streaming模式下的块大小（MB），默认10MB")
 
-    reason: str | None = Field(
-        default=None, description="执行命令的原因（可选，用于日志）"
-    )
+    reason: str | None = Field(default=None, description="执行命令的原因（可选，用于日志）")
 
     preserve_in_context: bool = Field(
         default=False,
-        description="如果为 true，读取的内容将被打上保护标签，在长对话压缩时不会被遗忘。仅对核心规范、技能文件等极其重要的内容使用。"
+        description="如果为 true，读取的内容将被打上保护标签，在长对话压缩时不会被遗忘。仅对核心规范、技能文件等极其重要的内容使用。",
     )
 
     @field_validator("paths", mode="before")
@@ -173,9 +169,7 @@ async def _build_multimodal_result(
 
     for img_path in image_paths:
         if supports_vision:
-            result = await read_image_as_content_blocks(
-                img_path, executor, supports_vision=True
-            )
+            result = await read_image_as_content_blocks(img_path, executor, supports_vision=True)
             if isinstance(result, list):
                 blocks.extend(result)
             else:
@@ -187,37 +181,21 @@ async def _build_multimodal_result(
             )
 
             try:
-                fallback_config = LLMConfig.model_validate(
-                    vision_fallback_model_cfg, from_attributes=True
-                )
-                fallback_text = await VisionFallbackEngine(
-                    fallback_config
-                ).describe_local_image(img_path, executor)
-                blocks.append(
-                    create_text_block(
-                        f"[Image Analysis for {img_path}]:\n{fallback_text}"
-                    )
-                )
+                fallback_config = LLMConfig.model_validate(vision_fallback_model_cfg, from_attributes=True)
+                fallback_text = await VisionFallbackEngine(fallback_config).describe_local_image(img_path, executor)
+                blocks.append(create_text_block(f"[Image Analysis for {img_path}]:\n{fallback_text}"))
             except Exception as e:
                 logger.warning(f"Vision fallback failed for {img_path}: {e}")
-                blocks.append(
-                    create_text_block(
-                        f"[Image file: {img_path}] (Vision fallback failed: {e})"
-                    )
-                )
+                blocks.append(create_text_block(f"[Image file: {img_path}] (Vision fallback failed: {e})"))
         else:
-            result = await read_image_as_content_blocks(
-                img_path, executor, supports_vision=False
-            )
+            result = await read_image_as_content_blocks(img_path, executor, supports_vision=False)
             if isinstance(result, list):
                 blocks.extend(result)
             else:
                 blocks.append(create_text_block(result))
 
     for pdf_path in pdf_paths:
-        result = await read_pdf_as_content_blocks(
-            pdf_path, executor, supports_vision=supports_vision
-        )
+        result = await read_pdf_as_content_blocks(pdf_path, executor, supports_vision=supports_vision)
         if isinstance(result, list):
             blocks.extend(result)
         else:
@@ -227,7 +205,7 @@ async def _build_multimodal_result(
         result = await read_document_as_text(doc_path, executor)
         blocks.append(create_text_block(result))
 
-    for vid_path in (video_paths or []):
+    for vid_path in video_paths or []:
         result = await read_video_as_content_blocks(
             vid_path,
             executor,
@@ -317,9 +295,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
             url_errors: list[str] = []
             if url_paths:
                 rejected = ", ".join(url_paths[:3])
-                suffix = (
-                    f" (and {len(url_paths) - 3} more)" if len(url_paths) > 3 else ""
-                )
+                suffix = f" (and {len(url_paths) - 3} more)" if len(url_paths) > 3 else ""
                 url_errors.append(
                     f"file_read_tool cannot read URLs: {rejected}{suffix}. "
                     "This tool only supports local file paths, not web URLs."
@@ -335,20 +311,10 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
             supports_vision = bool(ctx.get("supports_vision", False))
             vision_fallback_model_cfg = ctx.get("vision_fallback_model_cfg")
 
-            image_paths = [
-                p.split(":")[0] for p in valid_paths if is_image_path(p.split(":")[0])
-            ]
-            pdf_paths = [
-                p.split(":")[0] for p in valid_paths if is_pdf_path(p.split(":")[0])
-            ]
-            document_paths = [
-                p.split(":")[0]
-                for p in valid_paths
-                if is_document_path(p.split(":")[0])
-            ]
-            video_paths = [
-                p.split(":")[0] for p in valid_paths if is_video_path(p.split(":")[0])
-            ]
+            image_paths = [p.split(":")[0] for p in valid_paths if is_image_path(p.split(":")[0])]
+            pdf_paths = [p.split(":")[0] for p in valid_paths if is_pdf_path(p.split(":")[0])]
+            document_paths = [p.split(":")[0] for p in valid_paths if is_document_path(p.split(":")[0])]
+            video_paths = [p.split(":")[0] for p in valid_paths if is_video_path(p.split(":")[0])]
             text_paths = [
                 p
                 for p in valid_paths
@@ -359,9 +325,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
             ]
 
             has_multimodal = (image_paths or pdf_paths or video_paths) and executor is not None
-            use_multimodal = has_multimodal and (
-                supports_vision or vision_fallback_model_cfg is not None
-            )
+            use_multimodal = has_multimodal and (supports_vision or vision_fallback_model_cfg is not None)
 
             has_documents = bool(document_paths) and executor is not None
             if (use_multimodal or has_documents) and executor is not None:
@@ -388,9 +352,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
             for img_path in image_paths:
                 if executor is not None:
                     if supports_vision:
-                        img_result = await read_image_as_content_blocks(
-                            img_path, executor, supports_vision=True
-                        )
+                        img_result = await read_image_as_content_blocks(img_path, executor, supports_vision=True)
                         if isinstance(img_result, str):
                             text_parts.append(img_result)
                     elif vision_fallback_model_cfg:
@@ -400,53 +362,35 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
                         )
 
                         try:
-                            fallback_config = LLMConfig.model_validate(
-                                vision_fallback_model_cfg, from_attributes=True
+                            fallback_config = LLMConfig.model_validate(vision_fallback_model_cfg, from_attributes=True)
+                            fallback_text = await VisionFallbackEngine(fallback_config).describe_local_image(
+                                img_path, executor
                             )
-                            fallback_text = await VisionFallbackEngine(
-                                fallback_config
-                            ).describe_local_image(img_path, executor)
-                            text_parts.append(
-                                f"[Image Analysis for {img_path}]:\n{fallback_text}"
-                            )
+                            text_parts.append(f"[Image Analysis for {img_path}]:\n{fallback_text}")
                         except Exception as e:
-                            logger.warning(
-                                f"Vision fallback failed for {img_path}: {e}"
-                            )
-                            text_parts.append(
-                                f"[Image file: {img_path}] (Vision fallback failed: {e})"
-                            )
+                            logger.warning(f"Vision fallback failed for {img_path}: {e}")
+                            text_parts.append(f"[Image file: {img_path}] (Vision fallback failed: {e})")
                     else:
-                        img_result = await read_image_as_content_blocks(
-                            img_path, executor, supports_vision=False
-                        )
+                        img_result = await read_image_as_content_blocks(img_path, executor, supports_vision=False)
                         if isinstance(img_result, str):
                             text_parts.append(img_result)
                 else:
-                    text_parts.append(
-                        f"[Image file: {img_path}] (No workspace filesystem available)"
-                    )
+                    text_parts.append(f"[Image file: {img_path}] (No workspace filesystem available)")
 
             for pdf_path in pdf_paths:
                 if executor is not None:
-                    pdf_result = await read_pdf_as_content_blocks(
-                        pdf_path, executor, supports_vision=False
-                    )
+                    pdf_result = await read_pdf_as_content_blocks(pdf_path, executor, supports_vision=False)
                     if isinstance(pdf_result, str):
                         text_parts.append(pdf_result)
                 else:
-                    text_parts.append(
-                        f"[PDF file: {pdf_path}] (No workspace filesystem available)"
-                    )
+                    text_parts.append(f"[PDF file: {pdf_path}] (No workspace filesystem available)")
 
             for doc_path in document_paths:
                 if executor is not None:
                     doc_result = await read_document_as_text(doc_path, executor)
                     text_parts.append(doc_result)
                 else:
-                    text_parts.append(
-                        f"[Document: {doc_path}] (No workspace filesystem available)"
-                    )
+                    text_parts.append(f"[Document: {doc_path}] (No workspace filesystem available)")
 
             for vid_path in video_paths:
                 if executor is not None:
@@ -460,9 +404,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
                     if isinstance(vid_result, str):
                         text_parts.append(vid_result)
                 else:
-                    text_parts.append(
-                        f"[Video file: {vid_path}] (No workspace filesystem available)"
-                    )
+                    text_parts.append(f"[Video file: {vid_path}] (No workspace filesystem available)")
 
             if text_paths:
                 # [A] 处理 streaming/preview 模式（大文件防OOM）
@@ -470,9 +412,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
 
                 for path_str in text_paths:
                     # 解析路径（移除行号范围）
-                    base_path_str = (
-                        path_str.split(":")[0] if ":" in path_str else path_str
-                    )
+                    base_path_str = path_str.split(":")[0] if ":" in path_str else path_str
 
                     # 如果是目录或有行号范围，使用原逻辑
                     if ":" in path_str or not executor:
@@ -486,9 +426,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
                         )
                         service = FileOperationService(op_context)
                         raw_out = await service.execute()
-                        truncated_text, was_truncated, meta = _truncate_file_output(
-                            raw_out, path_str=path_str
-                        )
+                        truncated_text, was_truncated, meta = _truncate_file_output(raw_out, path_str=path_str)
                         text_content_parts.append(truncated_text)
                         if was_truncated:
                             from myrm_agent_harness.utils.event_utils import (
@@ -521,9 +459,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
                             )
                             service = FileOperationService(op_context)
                             raw_out = await service.execute()
-                            truncated_text, was_truncated, meta = _truncate_file_output(
-                                raw_out, path_str=path_str
-                            )
+                            truncated_text, was_truncated, meta = _truncate_file_output(raw_out, path_str=path_str)
                             text_content_parts.append(truncated_text)
                             if was_truncated:
                                 from myrm_agent_harness.utils.event_utils import (
@@ -545,11 +481,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
                         workspace_path = Path(base_path_str)
                         if not workspace_path.is_absolute():
                             # 相对路径，转为绝对路径
-                            cwd = (
-                                Path(executor.workspace_path)
-                                if executor
-                                else Path.cwd()
-                            )
+                            cwd = Path(executor.workspace_path) if executor else Path.cwd()
                             workspace_path = cwd / workspace_path
 
                         if not workspace_path.exists():
@@ -563,9 +495,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
                             )
                             service = FileOperationService(op_context)
                             raw_out = await service.execute()
-                            truncated_text, was_truncated, meta = _truncate_file_output(
-                                raw_out, path_str=path_str
-                            )
+                            truncated_text, was_truncated, meta = _truncate_file_output(raw_out, path_str=path_str)
                             text_content_parts.append(truncated_text)
                             if was_truncated:
                                 from myrm_agent_harness.utils.event_utils import (
@@ -628,16 +558,10 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
                         # [E] 应用 mode 逻辑
                         if effective_mode == "preview":
                             content = await read_file_preview(workspace_path)
-                            text_content_parts.append(
-                                f"=== {base_path_str} (preview mode) ===\n{content}"
-                            )
+                            text_content_parts.append(f"=== {base_path_str} (preview mode) ===\n{content}")
                         elif effective_mode == "stream":
-                            content = await read_file_chunked(
-                                workspace_path, chunk_size_mb=chunk_size_mb
-                            )
-                            text_content_parts.append(
-                                f"=== {base_path_str} ===\n{content}"
-                            )
+                            content = await read_file_chunked(workspace_path, chunk_size_mb=chunk_size_mb)
+                            text_content_parts.append(f"=== {base_path_str} ===\n{content}")
                         else:
                             # mode='all'，使用原逻辑
                             op_context = OperationContext(
@@ -655,9 +579,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
                             )
                             text_content_parts.append(truncated_text)
                             if was_truncated:
-                                print(
-                                    f" TRUNCATED FILE READ: {path_str} - dispatching agent_status"
-                                )
+                                print(f" TRUNCATED FILE READ: {path_str} - dispatching agent_status")
                                 from myrm_agent_harness.utils.event_utils import (
                                     dispatch_custom_event,
                                 )
@@ -673,9 +595,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
                                 )
 
                     except Exception as e:
-                        logger.exception(
-                            f"Error processing {path_str} with mode={mode}: {e}"
-                        )
+                        logger.exception(f"Error processing {path_str} with mode={mode}: {e}")
                         # Fallback to original logic
                         op_context = OperationContext(
                             operation=OperationType.VIEW,
@@ -686,9 +606,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
                         )
                         service = FileOperationService(op_context)
                         raw_out = await service.execute()
-                        truncated_text, was_truncated, meta = _truncate_file_output(
-                            raw_out, path_str=path_str
-                        )
+                        truncated_text, was_truncated, meta = _truncate_file_output(raw_out, path_str=path_str)
                         text_content_parts.append(truncated_text)
                         if was_truncated:
                             from myrm_agent_harness.utils.event_utils import (

@@ -153,9 +153,7 @@ async def run_agent_loop(
     set_current_message_id(message_id)
 
     if agent_state.config.collect_artifacts:
-        artifact_ctx_manager: ArtifactContextManager | nullcontext[None] = (
-            ArtifactContextManager(message_id=message_id)
-        )
+        artifact_ctx_manager: ArtifactContextManager | nullcontext[None] = ArtifactContextManager(message_id=message_id)
     else:
         artifact_ctx_manager = nullcontext()
 
@@ -174,13 +172,9 @@ async def run_agent_loop(
             set_user_timezone(timezone)
 
         set_security_config(agent_state.config.security_config)
-        session_key = (
-            str(context.get("approval_session_key") or context.get("session_id") or "")
-            if context
-            else ""
-        )
+        session_key = str(context.get("approval_session_key") or context.get("session_id") or "") if context else ""
         set_approval_session(session_key)
-        
+
         # Make sure agent_id is populated from config
         set_agent_id(agent_state.config.agent_id)
 
@@ -214,9 +208,7 @@ async def run_agent_loop(
                 )
                 agent_state._tools_initialized = True
             except Exception:
-                logger.exception(
-                    " [Lifecycle] Tool initialization failed, agent startup aborted"
-                )
+                logger.exception(" [Lifecycle] Tool initialization failed, agent startup aborted")
                 raise
 
         event_logger: EventLogger | None = None
@@ -270,22 +262,23 @@ async def run_agent_loop(
 
         # Emit USER_TURN hook for auto-capture
         from myrm_agent_harness.agent.hooks.types import HookEvent
+
         if existing_executor:
-            _fire_and_forget(existing_executor.execute(
-                HookEvent.USER_TURN,
-                {"user_input": str(query_text), "session_id": session_key or message_id}
-            ))
+            _fire_and_forget(
+                existing_executor.execute(
+                    HookEvent.USER_TURN, {"user_input": str(query_text), "session_id": session_key or message_id}
+                )
+            )
         else:
-            _fire_and_forget(get_hook_executor().execute(
-                HookEvent.USER_TURN,
-                {"user_input": str(query_text), "session_id": session_key or message_id}
-            ))
+            _fire_and_forget(
+                get_hook_executor().execute(
+                    HookEvent.USER_TURN, {"user_input": str(query_text), "session_id": session_key or message_id}
+                )
+            )
 
         logger.step("Agent started")
         query_preview = str(query_text)[:100]
-        logger.info(
-            "Query: %s%s", query_preview, "..." if len(str(query_text)) > 100 else ""
-        )
+        logger.info("Query: %s%s", query_preview, "..." if len(str(query_text)) > 100 else "")
 
         tools_snapshot = agent_state._emit_tools_snapshot()
         if tools_snapshot is not None:
@@ -344,14 +337,10 @@ async def run_agent_loop(
 
         if is_resume:
             agent_input = cast("Command[Any] | AgentState[Any]", query)
-            logger.info(
-                f" Resume: {query.resume if hasattr(query, 'resume') else query}"
-            )
+            logger.info(f" Resume: {query.resume if hasattr(query, 'resume') else query}")
             # Prompt Cache preservation: Mark as Resume
             merged_context["is_resume"] = True
-            merged_context = validate_context(
-                merged_context, agent_state.context_schema
-            )
+            merged_context = validate_context(merged_context, agent_state.context_schema)
             merged_context = await agent_state._prepare_context(merged_context)
         else:
             messages = build_messages(query, chat_history)
@@ -367,15 +356,11 @@ async def run_agent_loop(
                     if isinstance(quote_raw, QuoteAttachment):
                         messages[-1].additional_kwargs["quote_attachment"] = quote_raw
                     elif (
-                        isinstance(quote_raw, dict)
-                        and "source_message_id" in quote_raw
-                        and "quoted_text" in quote_raw
+                        isinstance(quote_raw, dict) and "source_message_id" in quote_raw and "quoted_text" in quote_raw
                     ):
-                        messages[-1].additional_kwargs["quote_attachment"] = (
-                            QuoteAttachment(
-                                source_message_id=str(quote_raw["source_message_id"]),
-                                quoted_text=str(quote_raw["quoted_text"]),
-                            )
+                        messages[-1].additional_kwargs["quote_attachment"] = QuoteAttachment(
+                            source_message_id=str(quote_raw["source_message_id"]),
+                            quoted_text=str(quote_raw["quoted_text"]),
                         )
 
             inject_ephemeral_quote(messages)
@@ -394,9 +379,7 @@ async def run_agent_loop(
                     len(stale_notifications),
                 )
 
-            active_ctx = format_active_subagent_context(
-                agent_state._subagent_manager.list_children()
-            )
+            active_ctx = format_active_subagent_context(agent_state._subagent_manager.list_children())
             if active_ctx:
                 messages.append(HumanMessage(content=active_ctx))
                 logger.info(
@@ -404,9 +387,7 @@ async def run_agent_loop(
                     len(active_ctx),
                 )
 
-            merged_context = validate_context(
-                merged_context, agent_state.context_schema
-            )
+            merged_context = validate_context(merged_context, agent_state.context_schema)
             merged_context = await agent_state._prepare_context(merged_context)
 
             agent_input = cast("AgentState[Any]", {"messages": messages})
@@ -470,9 +451,7 @@ async def run_agent_loop(
         llm_info: dict[str, str | None] | None = None
         if agent_state.llm:
             # `model_name` on LangChain/LiteLLM may exist but be None; still prefer `model` when so.
-            model_name = getattr(agent_state.llm, "model_name", None) or getattr(
-                agent_state.llm, "model", None
-            )
+            model_name = getattr(agent_state.llm, "model_name", None) or getattr(agent_state.llm, "model", None)
             base_url = getattr(agent_state.llm, "base_url", None)
             if model_name:
                 llm_info = {
@@ -539,9 +518,7 @@ async def run_agent_loop(
         except Exception as e:
             from .agent_recovery import diagnose_llm_error
 
-            error_msg, diagnostic_dict = diagnose_llm_error(
-                e, agent_state.llm, agent_state.config.locale
-            )
+            error_msg, diagnostic_dict = diagnose_llm_error(e, agent_state.llm, agent_state.config.locale)
             error_type = type(e).__name__
 
             if not stats.error_message:
@@ -574,20 +551,12 @@ async def run_agent_loop(
 
             # If goal is present in context, use its max_tokens as max_ctx
             goal_dict = merged_context.get("goal")
-            if (
-                isinstance(goal_dict, dict)
-                and "max_tokens" in goal_dict
-                and goal_dict["max_tokens"]
-            ):
+            if isinstance(goal_dict, dict) and "max_tokens" in goal_dict and goal_dict["max_tokens"]:
                 max_ctx = goal_dict["max_tokens"]
             else:
-                max_ctx = (
-                    merged_context.get("max_context_tokens") if merged_context else None
-                )
+                max_ctx = merged_context.get("max_context_tokens") if merged_context else None
 
-            stats.context_budget = compute_context_budget_snapshot(
-                stats, int(max_ctx) if max_ctx is not None else None
-            )
+            stats.context_budget = compute_context_budget_snapshot(stats, int(max_ctx) if max_ctx is not None else None)
             agent_state._last_run_stats = stats
 
         # Artifacts must be collected before cleanup_run clears the executor.
@@ -616,13 +585,10 @@ async def run_agent_loop(
             )
 
         logger.success("Agent execution completed")
-        usage_info = (
-            f", tokens: {stats.token_usage.total_tokens}" if stats.token_usage else ""
-        )
+        usage_info = f", tokens: {stats.token_usage.total_tokens}" if stats.token_usage else ""
         cost_info = f", cost: ${stats.cost_usd:.6f}" if stats.cost_usd > 0 else ""
         logger.info(
-            "Execution stats [duration: %.2fs, nodes: %d, tool_calls: %d, "
-            "msg_chunks: %d%s%s]",
+            "Execution stats [duration: %.2fs, nodes: %d, tool_calls: %d, msg_chunks: %d%s%s]",
             stats.total_duration_seconds,
             stats.node_execution_count,
             stats.tool_call_count,

@@ -434,8 +434,7 @@ async def _do_list(mgr: CronManager, user_id: str, name_filter: str) -> str:
         fires_tag = f" [{j.fire_count}/{j.max_fires}]" if j.max_fires else ""
         ctx_tag = f" ←[{','.join(j.context_from)}]" if j.context_from else ""
         lines.append(
-            f"  {icon} [{j.id}] {j.name}{type_tag}{model_tag}{fires_tag}{ctx_tag}"
-            f" | {j.status.value} | next: {next_run}"
+            f"  {icon} [{j.id}] {j.name}{type_tag}{model_tag}{fires_tag}{ctx_tag} | {j.status.value} | next: {next_run}"
         )
     return "\n".join(lines)
 

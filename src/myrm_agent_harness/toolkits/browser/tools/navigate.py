@@ -58,5 +58,5 @@ def create_navigate_tool(session: BrowserSession):
 
     return with_dynamic_hints(
         browser_navigate,
-        {"web_search_tool": "For simple information retrieval, prefer web_search_tool (faster, cheaper)."}
+        {"web_search_tool": "For simple information retrieval, prefer web_search_tool (faster, cheaper)."},
     )

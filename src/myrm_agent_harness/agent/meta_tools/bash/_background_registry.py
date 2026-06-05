@@ -208,8 +208,7 @@ class BackgroundProcessRegistry:
                 entry.stderr_buffer[0][0] if entry.stderr_buffer else next_cursor,
             )
             dropped = oldest_kept > baseline + 1 and (
-                len(entry.stdout_buffer) == _OUTPUT_TAIL_LINES
-                or len(entry.stderr_buffer) == _OUTPUT_TAIL_LINES
+                len(entry.stdout_buffer) == _OUTPUT_TAIL_LINES or len(entry.stderr_buffer) == _OUTPUT_TAIL_LINES
             )
         else:
             dropped = False
@@ -369,9 +368,7 @@ class BackgroundProcessRegistry:
                     return
                 if not chunk:
                     break
-                raw = (
-                    chunk.decode("utf-8", errors="replace") if isinstance(chunk, bytes) else str(chunk)
-                ).rstrip()
+                raw = (chunk.decode("utf-8", errors="replace") if isinstance(chunk, bytes) else str(chunk)).rstrip()
                 if len(raw) > _LINE_MAX_BYTES:
                     text = raw[:_LINE_MAX_BYTES] + f"... [+{len(raw) - _LINE_MAX_BYTES} bytes truncated]"
                 else:

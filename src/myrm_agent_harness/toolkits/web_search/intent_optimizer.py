@@ -154,11 +154,7 @@ class KeywordSearchIntentDetector:
         query_lower = query.lower()
 
         for intent, patterns in _PRIORITY_PATTERNS:
-            match_count = sum(
-                1
-                for pattern in patterns
-                if re.search(pattern, query_lower, re.IGNORECASE)
-            )
+            match_count = sum(1 for pattern in patterns if re.search(pattern, query_lower, re.IGNORECASE))
             if match_count > 0:
                 confidence = min(0.5 + match_count * 0.2, 1.0)
                 return SearchIntentResult(intent=intent, confidence=confidence)

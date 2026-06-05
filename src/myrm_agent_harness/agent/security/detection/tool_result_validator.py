@@ -40,7 +40,7 @@ class ValidationResult:
 
     is_valid: bool
     reason: str = ""
-    severity: str = "info" # info, warning, error
+    severity: str = "info"  # info, warning, error
 
 
 # Error prefixes (error level)

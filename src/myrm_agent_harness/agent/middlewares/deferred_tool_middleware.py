@@ -37,7 +37,9 @@ from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
-_DISCOVER_TOOL_MESSAGE_NAMES = frozenset({"discover_capability", "discover_capability_tool"})  # TODO(2026-Q3): remove "discover_capability" legacy alias after migration settles
+_DISCOVER_TOOL_MESSAGE_NAMES = frozenset(
+    {"discover_capability", "discover_capability_tool"}
+)  # TODO(2026-Q3): remove "discover_capability" legacy alias after migration settles
 
 
 def _is_discover_capability_tool_message(name: str | None) -> bool:
@@ -61,9 +63,7 @@ def collect_activated_native_tool_names(messages: list[AnyMessage]) -> set[str]:
     """Parse discover_capability ToolMessages for <AutoMountTools> native tool names."""
     activated: set[str] = set()
     for msg in messages:
-        if not isinstance(msg, ToolMessage) or not _is_discover_capability_tool_message(
-            msg.name
-        ):
+        if not isinstance(msg, ToolMessage) or not _is_discover_capability_tool_message(msg.name):
             continue
         try:
             content = str(msg.content)
@@ -112,16 +112,11 @@ class DeferredToolMiddleware(AgentMiddleware[Any, Any, Any]):
 
         if activated_tool_names:
             deferred_tools = self.registry.get_deferred_tools()
-            existing_tool_names = {
-                t.name if hasattr(t, "name") else t.get("name") for t in request.tools
-            }
+            existing_tool_names = {t.name if hasattr(t, "name") else t.get("name") for t in request.tools}
 
             added_count = 0
             for tool in deferred_tools:
-                if (
-                    tool.name in activated_tool_names
-                    and tool.name not in existing_tool_names
-                ):
+                if tool.name in activated_tool_names and tool.name not in existing_tool_names:
                     request.tools.append(tool)
                     added_count += 1
 

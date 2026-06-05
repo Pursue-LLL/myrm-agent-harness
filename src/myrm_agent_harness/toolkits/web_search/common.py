@@ -52,7 +52,7 @@ class SearchResult(BaseModel):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "SearchResult":
-        """ from DictCreateSearchResultInstance，应用智能ContentClean up
+        """from DictCreateSearchResultInstance，应用智能ContentClean up
 
         Args:
             data: ContainsSearchResultData Dict
@@ -85,12 +85,14 @@ class SearchResult(BaseModel):
             parsed: list[Citation] = []
             for c in raw_citations:
                 if isinstance(c, dict) and c.get("url"):
-                    parsed.append(Citation(
-                        url=str(c["url"]),
-                        title=str(c.get("title", "")),
-                        start_index=c.get("start_index"),
-                        end_index=c.get("end_index"),
-                    ))
+                    parsed.append(
+                        Citation(
+                            url=str(c["url"]),
+                            title=str(c.get("title", "")),
+                            start_index=c.get("start_index"),
+                            end_index=c.get("end_index"),
+                        )
+                    )
             result["citations"] = parsed
 
         return cls(**result)

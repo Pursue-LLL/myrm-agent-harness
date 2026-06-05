@@ -43,9 +43,7 @@ class VerificationGatekeeper:
                 cls = CRITERION_REGISTRY[crit_type]
                 self.criteria.append(cls.from_dict(config))
 
-    async def verify_all(
-        self, goal_provider: GoalProvider | None = None
-    ) -> VerificationResult:
+    async def verify_all(self, goal_provider: GoalProvider | None = None) -> VerificationResult:
         """Run all criteria sequentially and aggregate errors."""
         if not self.criteria:
             return VerificationResult(passed=True)

@@ -317,9 +317,7 @@ class BashExecutor:
         )
 
         if use_python_execution:
-            result = await self._execute_python_with_ptc(
-                context, executor, mcp_config_items is not None
-            )
+            result = await self._execute_python_with_ptc(context, executor, mcp_config_items is not None)
         else:
             result = await executor.execute_bash(context)
 
@@ -603,9 +601,7 @@ class BashExecutor:
             inject_ptc_for_python_execution,
         )
 
-        return await inject_ptc_for_python_execution(
-            context, executor, self._ptc_tools
-        )
+        return await inject_ptc_for_python_execution(context, executor, self._ptc_tools)
 
     def _inject_resilience_script(self, prepared_code: str) -> str:
         """Prepend the bash resilience init script if available."""

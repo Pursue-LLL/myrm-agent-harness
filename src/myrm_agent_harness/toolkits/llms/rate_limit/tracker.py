@@ -62,9 +62,7 @@ class RateLimitTracker:
         with self._state_lock:
             return list(self._states.values())
 
-    def can_consume(
-        self, provider: str, model: str, tokens: int, requests: int = 1
-    ) -> bool:
+    def can_consume(self, provider: str, model: str, tokens: int, requests: int = 1) -> bool:
         """Check if there is enough quota for the given provider and model."""
         state = self.get_state(provider, model)
         if not state:

@@ -80,10 +80,7 @@ def detect_headings_by_font(
             len(headings),
             len(pdf.pages),
         )
-        return [
-            {"level": h.level, "title": h.title, "page_num": h.page_num}
-            for h in headings
-        ]
+        return [{"level": h.level, "title": h.title, "page_num": h.page_num} for h in headings]
 
     except Exception as e:
         logger.warning("Font heading detection failed: %s", e)
@@ -113,17 +110,14 @@ def _compute_heading_sizes(
         [
             s
             for s, count in size_counter.items()
-            if s >= body_size + cfg.min_delta
-            and count < size_counter[body_size] * 0.5
+            if s >= body_size + cfg.min_delta and count < size_counter[body_size] * 0.5
         ],
         reverse=True,
     )
 
     heading_sizes = heading_sizes[: cfg.max_levels]
     if not heading_sizes:
-        logger.debug(
-            "Font analysis: body_size=%.1fpt, no heading sizes found", body_size
-        )
+        logger.debug("Font analysis: body_size=%.1fpt, no heading sizes found", body_size)
         return {}
 
     size_to_level = {s: i + 1 for i, s in enumerate(heading_sizes)}
@@ -216,9 +210,7 @@ def _deduplicate_headers(
         return headings
 
     title_page_count: Counter[str] = Counter(h.title for h in headings)
-    header_titles = {
-        t for t, c in title_page_count.items() if c > total_pages * threshold
-    }
+    header_titles = {t for t, c in title_page_count.items() if c > total_pages * threshold}
 
     if header_titles:
         logger.debug(

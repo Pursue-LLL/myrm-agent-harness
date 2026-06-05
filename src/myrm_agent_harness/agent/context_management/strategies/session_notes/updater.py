@@ -270,8 +270,7 @@ class SessionNotesManager:
         updated_sections = _parse_notes_response(content)
         if not updated_sections:
             logger.info(
-                " [SessionNotes] Failed to parse LLM response, skipping. "
-                "Response preview: %s",
+                " [SessionNotes] Failed to parse LLM response, skipping. Response preview: %s",
                 content[:150],
             )
             return

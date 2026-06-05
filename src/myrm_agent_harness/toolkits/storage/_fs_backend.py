@@ -78,9 +78,7 @@ class BaseFileSystemBackend(StorageProvider):
 
     # ── write ───────────────────────────────────────────
 
-    async def write(
-        self, key: str, content: bytes, content_type: str | None = None
-    ) -> None:
+    async def write(self, key: str, content: bytes, content_type: str | None = None) -> None:
         from myrm_agent_harness.infra.atomic_write import async_atomic_write
 
         path = self._resolve_key_to_path(key)

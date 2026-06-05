@@ -95,13 +95,9 @@ def take_pending_explicit_cache_snapshot() -> PendingExplicitCacheSnapshot | Non
     return current
 
 
-_pending_cache_break: ContextVar[dict[str, object] | None] = ContextVar(
-    "pending_cache_break_event", default=None
-)
+_pending_cache_break: ContextVar[dict[str, object] | None] = ContextVar("pending_cache_break_event", default=None)
 
-_cache_usage_feedback: ContextVar[CacheUsageFeedback | None] = ContextVar(
-    "cache_usage_feedback", default=None
-)
+_cache_usage_feedback: ContextVar[CacheUsageFeedback | None] = ContextVar("cache_usage_feedback", default=None)
 
 
 def get_pending_cache_break_event() -> dict[str, object] | None:

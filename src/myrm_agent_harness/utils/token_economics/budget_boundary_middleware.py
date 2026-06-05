@@ -127,8 +127,10 @@ class BudgetBoundaryMiddleware(AgentMiddleware):  # type: ignore[type-arg]
     def _has_budget_hint(messages: list[Any]) -> bool:
         """Check if budget hint is already present (idempotency)."""
         for msg in reversed(messages[-3:]):
-            if isinstance(msg, HumanMessage) and isinstance(msg.content, str) and (
-                "Budget is running low" in msg.content or "Budget limit reached" in msg.content
+            if (
+                isinstance(msg, HumanMessage)
+                and isinstance(msg.content, str)
+                and ("Budget is running low" in msg.content or "Budget limit reached" in msg.content)
             ):
                 return True
         return False

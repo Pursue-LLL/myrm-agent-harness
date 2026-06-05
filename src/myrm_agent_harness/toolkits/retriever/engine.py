@@ -63,7 +63,9 @@ class RetrieverConfig(BaseModel):
 
     bm25_cache_max_size: int = Field(default=10, ge=1, le=100, description="Max BM25 index cache entries")
     content_hash_sample_size: int = Field(default=500, ge=100, le=5000, description="Content hash sample size (chars)")
-    hybrid_top_k_per_query: int = Field(default=50, ge=10, le=200, description="Docs returned per query in hybrid retrieval")
+    hybrid_top_k_per_query: int = Field(
+        default=50, ge=10, le=200, description="Docs returned per query in hybrid retrieval"
+    )
     rrf_k_parameter: int = Field(default=60, ge=1, le=1000, description="RRF fusion k parameter")
     bm25_candidate_multiplier: int = Field(default=2, ge=1, le=10, description="BM25 candidate pool expansion factor")
 
@@ -495,7 +497,7 @@ class RetrieverManager:
             engine = CrawlEngine(
                 use_raw_markdown=use_raw_markdown,
                 allow_private_networks=allow_private_networks,
-                session_vault=web_fetch_tools._http_fetcher._session_vault
+                session_vault=web_fetch_tools._http_fetcher._session_vault,
             )
             success_results, failed_results = await engine.crawl_many(urls)
 

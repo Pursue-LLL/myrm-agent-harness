@@ -23,7 +23,7 @@ def render_snapshot_tree(meta: SnapshotMeta, refs: dict[str, ElementRef]) -> str
         value_suffix = f' value="{element.value}"' if element.value else ""
         bbox = element.bbox
         lines.append(
-            f"@{ref_id} {element.role} \"{element.name}\"{value_suffix} "
+            f'@{ref_id} {element.role} "{element.name}"{value_suffix} '
             f"bbox=({bbox.x},{bbox.y} {bbox.width}x{bbox.height}) "
             f"actions=[{', '.join(element.actions)}]"
         )

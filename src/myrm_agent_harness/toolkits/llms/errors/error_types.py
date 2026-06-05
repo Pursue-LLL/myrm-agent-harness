@@ -26,12 +26,8 @@ class RecoverabilityLevel(Enum):
     """
 
     TRANSIENT = "transient"  # Temporary errors (rate_limit, overloaded, timeout)
-    SEMI_PERMANENT = (
-        "semi_permanent"  # Semi-permanent errors (billing, session_expired)
-    )
-    PERMANENT = (
-        "permanent"  # Permanent errors (auth_permanent, model_not_found, format)
-    )
+    SEMI_PERMANENT = "semi_permanent"  # Semi-permanent errors (billing, session_expired)
+    PERMANENT = "permanent"  # Permanent errors (auth_permanent, model_not_found, format)
 
 
 class FailoverReason(Enum):
@@ -45,9 +41,7 @@ class FailoverReason(Enum):
     OVERLOADED = "overloaded"  # Service overloaded/high demand
     TIMEOUT = "timeout"  # Network timeout or service unavailable
     THINKING_SIGNATURE = "thinking_signature"  # Anthropic thinking block signature invalid (retryable after strip)
-    IMAGE_TOO_LARGE = (
-        "image_too_large"  # Per-image size limit exceeded (retryable after shrink)
-    )
+    IMAGE_TOO_LARGE = "image_too_large"  # Per-image size limit exceeded (retryable after shrink)
     MEDIA_REJECTED = "media_rejected"  # Model does not support multimodal input (retryable after strip)
     UNKNOWN = "unknown"  # Unknown error (treat as transient)
 
@@ -58,17 +52,11 @@ class FailoverReason(Enum):
     # Permanent errors
     AUTH_PERMANENT = "auth_permanent"  # Permanent authentication failure
     MODEL_NOT_FOUND = "model_not_found"  # Model does not exist
-    PROVIDER_POLICY_BLOCKED = (
-        "provider_policy_blocked"  # Aggregator guardrail/data policy block
-    )
+    PROVIDER_POLICY_BLOCKED = "provider_policy_blocked"  # Aggregator guardrail/data policy block
     FORMAT_ERROR = "format"  # Invalid request format (our bug)
-    RESPONSE_FORMAT_ERROR = (
-        "response_format"  # LLM generated invalid JSON (model issue)
-    )
+    RESPONSE_FORMAT_ERROR = "response_format"  # LLM generated invalid JSON (model issue)
     CONTEXT_OVERFLOW = "context_overflow"  # Context window exceeded (special case)
-    LONG_CONTEXT_TIER = (
-        "long_context_tier"  # Anthropic subscription tier gate (compress, don't retry)
-    )
+    LONG_CONTEXT_TIER = "long_context_tier"  # Anthropic subscription tier gate (compress, don't retry)
     SAFETY_BLOCK = "safety_block"  # Content blocked by safety/moderation filters
 
     @property

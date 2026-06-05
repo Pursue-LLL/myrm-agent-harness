@@ -215,11 +215,7 @@ class MessageFilterPipeline:
                     "total_messages": len(messages),
                     "filtered_count": len(messages) - len(filtered),
                     "remaining_count": len(filtered),
-                    "filter_ratio": (
-                        (len(messages) - len(filtered)) / len(messages)
-                        if messages
-                        else 0.0
-                    ),
+                    "filter_ratio": ((len(messages) - len(filtered)) / len(messages) if messages else 0.0),
                     "performance": stats_summary,
                 },
             }

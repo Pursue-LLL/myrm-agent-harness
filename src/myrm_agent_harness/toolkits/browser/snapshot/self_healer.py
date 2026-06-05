@@ -14,10 +14,28 @@ from .aria_types import CURSOR_ROLES, RefInfo
 logger = logging.getLogger(__name__)
 
 # Dangerous words that trigger semantic veto (preventing a 'submit' from healing to a 'delete')
-FORBIDDEN_WORDS = frozenset({
-    "delete", "cancel", "remove", "drop", "clear", "discard", "abort", "close", "unsubscribe",
-    "删除", "取消", "移除", "清空", "丢弃", "退出", "关闭", "解绑", "解散"
-})
+FORBIDDEN_WORDS = frozenset(
+    {
+        "delete",
+        "cancel",
+        "remove",
+        "drop",
+        "clear",
+        "discard",
+        "abort",
+        "close",
+        "unsubscribe",
+        "删除",
+        "取消",
+        "移除",
+        "清空",
+        "丢弃",
+        "退出",
+        "关闭",
+        "解绑",
+        "解散",
+    }
+)
 
 _HEAL_JS = """
 (elements, args) => {
@@ -124,6 +142,7 @@ _HEAL_JS = """
 }
 """
 
+
 class SelfHealer:
     """Heals broken locators using spatial coordinates and semantic safeguards."""
 
@@ -149,7 +168,9 @@ class SelfHealer:
         try:
             if ref_info.role in CURSOR_ROLES:
                 # For clickable/focusable, query a broad range of interactive elements
-                candidates_locator = frame.locator("a, button, input, select, textarea, [onclick], [tabindex], [role='button'], [role='link'], [role='menuitem']")
+                candidates_locator = frame.locator(
+                    "a, button, input, select, textarea, [onclick], [tabindex], [role='button'], [role='link'], [role='menuitem']"
+                )
             else:
                 candidates_locator = frame.get_by_role(ref_info.role)
 
@@ -162,8 +183,8 @@ class SelfHealer:
                     "origHeight": orig_height,
                     "origName": ref_info.name,
                     "forbiddenWords": list(FORBIDDEN_WORDS),
-                    "origRole": ref_info.role
-                }
+                    "origRole": ref_info.role,
+                },
             )
 
             best_index = result[0] if isinstance(result, list) else -1
@@ -181,7 +202,9 @@ class SelfHealer:
                 except Exception:
                     pass
 
-                logger.info(f"SelfHealer: Successfully healed locator for {ref_info.role} '{ref_info.name}'. New text: '{healed_name}'")
+                logger.info(
+                    f"SelfHealer: Successfully healed locator for {ref_info.role} '{ref_info.name}'. New text: '{healed_name}'"
+                )
                 return healed_loc, healed_name, best_distance
 
         except Exception as e:

@@ -127,7 +127,9 @@ Display results using markdown image syntax: ![title](image_url)
             description="Maximum number of images to return (1-10)",
         )
         size: str | None = Field(default=None, description='Image size: "Small", "Medium", "Large", "Wallpaper"')
-        type_image: str | None = Field(default=None, description='Image type: "photo", "clipart", "gif", "transparent", "line"')
+        type_image: str | None = Field(
+            default=None, description='Image type: "photo", "clipart", "gif", "transparent", "line"'
+        )
         layout: str | None = Field(default=None, description='Layout: "Square", "Tall", "Wide"')
 
     @tool("image_search_tool", description=tool_description, args_schema=ImageSearchInput)

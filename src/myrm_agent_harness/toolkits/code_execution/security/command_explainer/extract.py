@@ -129,9 +129,7 @@ def _collect_command_spans(node: TreeSitterNode, spans: list[CommandSpan]) -> No
     if node.type == "pipeline":
         for child in node.named_children:
             if child.type == "command":
-                spans.append(
-                    {"startIndex": child.start_byte, "endIndex": child.end_byte}
-                )
+                spans.append({"startIndex": child.start_byte, "endIndex": child.end_byte})
         return
 
     if node.type == "command" and node.parent is not None and node.parent.type != "pipeline":

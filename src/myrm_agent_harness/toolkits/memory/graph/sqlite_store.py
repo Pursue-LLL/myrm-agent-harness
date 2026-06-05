@@ -206,7 +206,9 @@ class SQLiteGraphStore(GraphStore):
     async def get_node(self, node_id: str) -> GraphNode | None:
         conn = await self._get_connection()
         try:
-            async with conn.execute("SELECT id, labels, properties FROM graph_nodes WHERE id = ?", (node_id,)) as cursor:
+            async with conn.execute(
+                "SELECT id, labels, properties FROM graph_nodes WHERE id = ?", (node_id,)
+            ) as cursor:
                 row = await cursor.fetchone()
             if row:
                 return GraphNode(id=row[0], labels=json.loads(row[1]), properties=json.loads(row[2]))
@@ -457,9 +459,7 @@ class SQLiteGraphStore(GraphStore):
                     label_counts[label] = label_counts.get(label, 0) + 1
 
         rel_type_counts: dict[str, int] = {}
-        async with conn.execute(
-            "SELECT rel_type, COUNT(*) FROM graph_relationships GROUP BY rel_type"
-        ) as c:
+        async with conn.execute("SELECT rel_type, COUNT(*) FROM graph_relationships GROUP BY rel_type") as c:
             for row in await c.fetchall():
                 rel_type_counts[row[0]] = row[1]
 

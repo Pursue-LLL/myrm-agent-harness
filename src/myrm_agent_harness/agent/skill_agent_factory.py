@@ -154,13 +154,19 @@ async def _route_mcp_servers(
             mcp_direct_tools.extend(server_tools)
             logger.info(
                 "MCP hybrid: server '%s' (%d tools, ~%d tokens, threshold=%d) → direct",
-                cfg.name, len(server_tools), schema_tokens, direct_threshold,
+                cfg.name,
+                len(server_tools),
+                schema_tokens,
+                direct_threshold,
             )
         else:
             ptc_servers.append(cfg)
             logger.info(
                 "MCP hybrid: server '%s' (%d tools, ~%d tokens, threshold=%d) → PTC/Skill",
-                cfg.name, len(server_tools), schema_tokens, direct_threshold,
+                cfg.name,
+                len(server_tools),
+                schema_tokens,
+                direct_threshold,
             )
 
     if ptc_servers:
@@ -171,16 +177,15 @@ async def _route_mcp_servers(
 
         logger.info(
             "MCP PTC skill generation: %d server(s): %s",
-            len(ptc_servers), [s.name for s in ptc_servers],
+            len(ptc_servers),
+            [s.name for s in ptc_servers],
         )
         mcp_skills = await mcp_skill_generator.generate_metadata_only(ptc_servers)
         logger.info("MCP PTC skill generation: produced %d skill(s)", len(mcp_skills))
 
         for skill in mcp_skills:
             if skill.mcp:
-                server_configs = [
-                    cfg for cfg in ptc_servers if cfg.name == skill.mcp.server
-                ]
+                server_configs = [cfg for cfg in ptc_servers if cfg.name == skill.mcp.server]
                 if server_configs:
                     skill.mcp.config = [_config_to_dict(cfg) for cfg in server_configs]
                 else:
@@ -189,7 +194,8 @@ async def _route_mcp_servers(
 
     logger.info(
         "MCP hybrid summary: %d direct tools, %d PTC skills",
-        len(mcp_direct_tools), len(mcp_skills),
+        len(mcp_direct_tools),
+        len(mcp_skills),
     )
     return mcp_skills, mcp_direct_tools
 
@@ -344,10 +350,7 @@ async def create_skill_agent(
         logger.info(f" 创建 LLM 实例: {llm_config.model}")
 
     # 1.5 Privacy-aware model routing (wrap LLM if configured)
-    if (
-        privacy_routing_config is not None
-        and privacy_routing_config.local_model is not None
-    ):
+    if privacy_routing_config is not None and privacy_routing_config.local_model is not None:
         from myrm_agent_harness.toolkits.llms import (
             create_litellm_model as _create_model,
         )
@@ -432,9 +435,7 @@ async def create_skill_agent(
                 routes=new_routes,
                 default=skill_backend.default,
             )
-            logger.info(
-                f" 扁平化合并 MCP Skills + 用户 {len(skill_backend.routes)} 个后端路由"
-            )
+            logger.info(f" 扁平化合并 MCP Skills + 用户 {len(skill_backend.routes)} 个后端路由")
 
         else:
             # 场景 2: 用户传了简单后端
@@ -459,14 +460,8 @@ async def create_skill_agent(
         from dataclasses import fields as dataclass_fields
 
         known_fields = {field.name for field in dataclass_fields(EngineParams)}
-        filtered_params = {
-            key: value
-            for key, value in engine_params_dict.items()
-            if key in known_fields
-        }
-        engine_params = (
-            EngineParams(**filtered_params) if filtered_params else EngineParams()
-        )
+        filtered_params = {key: value for key, value in engine_params_dict.items() if key in known_fields}
+        engine_params = EngineParams(**filtered_params) if filtered_params else EngineParams()
     else:
         engine_params = EngineParams()
 
@@ -505,9 +500,7 @@ async def create_skill_agent(
         final_middlewares = []
         if engine_params.enable_context_compression:
             final_middlewares.append(create_context_pipeline_middleware(llm=llm))
-            logger.info(
-                f" 使用主 LLM 创建默认上下文管理中间件: {type(llm).__name__}"
-            )
+            logger.info(f" 使用主 LLM 创建默认上下文管理中间件: {type(llm).__name__}")
         else:
             logger.info(" 上下文管理中间件已通过 EngineParams 禁用")
     else:

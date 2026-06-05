@@ -176,7 +176,9 @@ class QdrantVectorStore(VectorStore):
                 dim = len(documents[0].vector)
                 await self.create_collection(collection, dimension=dim)
             else:
-                raise ValueError(f"Collection {collection} not found and cannot infer dimension from empty/vectorless documents") from None
+                raise ValueError(
+                    f"Collection {collection} not found and cannot infer dimension from empty/vectorless documents"
+                ) from None
 
         for doc in documents:
             if doc.vector is None:

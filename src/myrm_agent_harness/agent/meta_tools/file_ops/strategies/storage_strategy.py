@@ -52,9 +52,7 @@ class StorageBackendStrategy(FileSystemStrategy):
         """
         self.storage = storage_backend
 
-    async def read_file(
-        self, path: str, view_range: ViewRange | None = None
-    ) -> list[str]:
+    async def read_file(self, path: str, view_range: ViewRange | None = None) -> list[str]:
         """读取文件内容"""
         if not await self.storage.exists(path):
             raise FileNotFoundError(f"File not found: {path}")
@@ -102,9 +100,7 @@ class StorageBackendStrategy(FileSystemStrategy):
         if old_str in content:
             count = content.count(old_str)
             if count > 1:
-                raise ValueError(
-                    f"Found {count} matches. Please provide more context to make the match unique."
-                )
+                raise ValueError(f"Found {count} matches. Please provide more context to make the match unique.")
             new_content = content.replace(old_str, new_str, 1)
             if original_eol:
                 new_content = normalize_line_endings(new_content, original_eol)
@@ -192,9 +188,7 @@ class StorageBackendStrategy(FileSystemStrategy):
         如果 storage_backend 支持路径解析（如 ExecutorStorageAdapter），返回实际路径。
         否则返回相对路径（对于云存储等没有本地路径的存储）。
         """
-        if hasattr(self.storage, "_get_full_path") and callable(
-            self.storage._get_full_path
-        ):
+        if hasattr(self.storage, "_get_full_path") and callable(self.storage._get_full_path):
             return self.storage._get_full_path(path)  # type: ignore[attr-defined]
 
         # 对于其他 StorageProvider，返回路径本身

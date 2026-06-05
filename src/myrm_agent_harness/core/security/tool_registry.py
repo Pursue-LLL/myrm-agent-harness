@@ -141,53 +141,91 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
 # ---------------------------------------------------------------------------
 
 TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
-    "web": frozenset({
-        "web_search_tool", "web_fetch_tool", "image_search_tool",
-    }),
-    "browser": frozenset({
-        "browser_interact_tool", "browser_manage_tool",
-        "browser_navigate_tool", "browser_snapshot_tool",
-        "browser_extract_tool", "browser_inspect_tool",
-        "browser_local_search_tool",
-    }),
-    "file_ops": frozenset({
-        "file_read_tool", "file_write_tool", "file_edit_tool",
-        "glob_tool", "grep_tool", "search_local_files_tool",
-        "ast_search_tool",
-    }),
-    "shell": frozenset({
-        "bash_code_execute_tool", "bash_tool",
-        "bash_process_list_tool", "bash_process_output_tool",
-        "bash_process_kill_tool",
-    }),
-    "computer_use": frozenset({
-        "desktop_inspect_tool",
-        "desktop_snapshot_tool",
-        "desktop_interact_tool",
-        "desktop_vision_tool",
-    }),
-    "memory": frozenset({
-        "memory_recall_tool", "memory_save_tool", "memory_manage_tool",
-        "conversation_search_tool",
-    }),
-    "kanban": frozenset({
-        "kanban_show", "kanban_complete", "kanban_block",
-        "kanban_heartbeat", "kanban_comment",
-        "kanban_add_task", "kanban_list_tasks", "kanban_update_task",
-        "kanban_move_task", "kanban_delete_task",
-        "kanban_board_summary", "kanban_add_dependency",
-        "kanban_remove_dependency",
-        "kanban_create_board", "kanban_list_boards", "kanban_get_task",
-    }),
-    "wiki": frozenset({
-        "wiki_query_tool", "wiki_compile_tool",
-        "wiki_ingest_tool", "wiki_maintain_tool",
-    }),
+    "web": frozenset(
+        {
+            "web_search_tool",
+            "web_fetch_tool",
+            "image_search_tool",
+        }
+    ),
+    "browser": frozenset(
+        {
+            "browser_interact_tool",
+            "browser_manage_tool",
+            "browser_navigate_tool",
+            "browser_snapshot_tool",
+            "browser_extract_tool",
+            "browser_inspect_tool",
+            "browser_local_search_tool",
+        }
+    ),
+    "file_ops": frozenset(
+        {
+            "file_read_tool",
+            "file_write_tool",
+            "file_edit_tool",
+            "glob_tool",
+            "grep_tool",
+            "search_local_files_tool",
+            "ast_search_tool",
+        }
+    ),
+    "shell": frozenset(
+        {
+            "bash_code_execute_tool",
+            "bash_tool",
+            "bash_process_list_tool",
+            "bash_process_output_tool",
+            "bash_process_kill_tool",
+        }
+    ),
+    "computer_use": frozenset(
+        {
+            "desktop_inspect_tool",
+            "desktop_snapshot_tool",
+            "desktop_interact_tool",
+            "desktop_vision_tool",
+        }
+    ),
+    "memory": frozenset(
+        {
+            "memory_recall_tool",
+            "memory_save_tool",
+            "memory_manage_tool",
+            "conversation_search_tool",
+        }
+    ),
+    "kanban": frozenset(
+        {
+            "kanban_show",
+            "kanban_complete",
+            "kanban_block",
+            "kanban_heartbeat",
+            "kanban_comment",
+            "kanban_add_task",
+            "kanban_list_tasks",
+            "kanban_update_task",
+            "kanban_move_task",
+            "kanban_delete_task",
+            "kanban_board_summary",
+            "kanban_add_dependency",
+            "kanban_remove_dependency",
+            "kanban_create_board",
+            "kanban_list_boards",
+            "kanban_get_task",
+        }
+    ),
+    "wiki": frozenset(
+        {
+            "wiki_query_tool",
+            "wiki_compile_tool",
+            "wiki_ingest_tool",
+            "wiki_maintain_tool",
+        }
+    ),
 }
 
-TOOL_TO_GROUP: dict[str, str] = {
-    tool: group for group, tools in TOOL_GROUP_MAP.items() for tool in tools
-}
+TOOL_TO_GROUP: dict[str, str] = {tool: group for group, tools in TOOL_GROUP_MAP.items() for tool in tools}
 
 TOOL_GROUP_NAMES: frozenset[str] = frozenset(TOOL_GROUP_MAP)
 
@@ -272,9 +310,7 @@ def compute_canonical_args_hash(tool_name: str, tool_args: dict | None) -> str |
     return hashlib.sha256(sorted_json.encode()).hexdigest()[:16]
 
 
-def resolve_permission_type(
-    tool_name: str, tool_input: dict[str, object] | None = None
-) -> str:
+def resolve_permission_type(tool_name: str, tool_input: dict[str, object] | None = None) -> str:
     """Resolve a concrete tool name to its abstract permission type.
 
     Lookup order:
@@ -362,9 +398,7 @@ def register_ptc_safety_metadata(
     _PTC_TOOL_FLAT_INDEX[tool_name] = safety_meta
 
 
-def get_ptc_safety_metadata(
-    skill_name: str, tool_name: str
-) -> tuple[SafetyMetadata, MCPAnnotations] | None:
+def get_ptc_safety_metadata(skill_name: str, tool_name: str) -> tuple[SafetyMetadata, MCPAnnotations] | None:
     """Retrieve dynamic safety metadata for an MCP tool."""
     return _PTC_SAFETY_METADATA.get(skill_name, {}).get(tool_name)
 
@@ -392,39 +426,17 @@ _FAIL_CLOSED_DEFAULTS = SafetyMetadata()
 
 TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     # Read-only, concurrent-safe tools (all read-only tools are generally idempotent)
-    "file_read_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "grep_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "glob_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "ast_search_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "file_outline_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "code_impact_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "code_context_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "code_query_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "code_detect_changes_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "code_rename_tool": SafetyMetadata(
-        is_read_only=False, is_concurrent_safe=False, is_idempotent=False
-    ),
-    "browser_inspect_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
+    "file_read_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "grep_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "glob_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "ast_search_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "file_outline_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "code_impact_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "code_context_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "code_query_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "code_detect_changes_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "code_rename_tool": SafetyMetadata(is_read_only=False, is_concurrent_safe=False, is_idempotent=False),
+    "browser_inspect_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "browser_snapshot_tool": SafetyMetadata(
         is_read_only=True,
         is_concurrent_safe=True,
@@ -444,18 +456,14 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         is_concurrent_safe=True,
         is_idempotent=True,
         taint_label="external_network",
-        taint_extractor=lambda args: (
-            f"search_query: {args.get('query', '')}" if args.get("query") else None
-        ),
+        taint_extractor=lambda args: f"search_query: {args.get('query', '')}" if args.get("query") else None,
     ),
     "image_search_tool": SafetyMetadata(
         is_read_only=True,
         is_concurrent_safe=True,
         is_idempotent=True,
         taint_label="external_network",
-        taint_extractor=lambda args: (
-            f"image_query: {args.get('query', '')}" if args.get("query") else None
-        ),
+        taint_extractor=lambda args: f"image_query: {args.get('query', '')}" if args.get("query") else None,
     ),
     "web_fetch_tool": SafetyMetadata(
         is_read_only=True,
@@ -471,36 +479,16 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         taint_label="external_network",
         taint_extractor=lambda args: args.get("model_id"),
     ),
-    "conversation_search_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "memory_recall_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "planner_tool": SafetyMetadata(
-        is_read_only=False, is_concurrent_safe=False, is_idempotent=False
-    ),
-    "discover_capability_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "skill_discovery_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "skill_select_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "browser_local_search_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "request_answer_user_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "write_to_clipboard_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "render_ui_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
+    "conversation_search_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "memory_recall_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "planner_tool": SafetyMetadata(is_read_only=False, is_concurrent_safe=False, is_idempotent=False),
+    "discover_capability_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "skill_discovery_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "skill_select_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "browser_local_search_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "request_answer_user_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "write_to_clipboard_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "render_ui_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     # Concurrent-safe but not read-only (independent execution contexts)
     "delegate_task_tool": SafetyMetadata(is_concurrent_safe=True),
     "batch_delegate_tasks_tool": SafetyMetadata(is_concurrent_safe=True),
@@ -509,9 +497,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "bash_code_execute_tool": SafetyMetadata(is_destructive=True),
     "code_interpreter_tool": SafetyMetadata(is_destructive=True),
     "bash_tool": SafetyMetadata(is_destructive=True),
-    "file_write_tool": SafetyMetadata(
-        is_destructive=True, is_idempotent=True
-    ),  # Writing same content is idempotent
+    "file_write_tool": SafetyMetadata(is_destructive=True, is_idempotent=True),  # Writing same content is idempotent
     "file_edit_tool": SafetyMetadata(is_destructive=True),
     # Stateful tools (explicit fail-closed: is_concurrent_safe=False)
     "browser_navigate_tool": SafetyMetadata(
@@ -525,24 +511,14 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "skill_manage_tool": SafetyMetadata(),
     "memory_save_tool": SafetyMetadata(is_idempotent=True),
     "memory_manage_tool": SafetyMetadata(),
-    "get_goal_status_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
+    "get_goal_status_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "update_goal_status_tool": SafetyMetadata(),
-    "desktop_inspect_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "desktop_snapshot_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
+    "desktop_inspect_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "desktop_snapshot_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "desktop_interact_tool": SafetyMetadata(is_destructive=True),
     "desktop_vision_tool": SafetyMetadata(is_destructive=True),
-    "ask_question_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "skill_analyze_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
+    "ask_question_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "skill_analyze_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
 }
 
 

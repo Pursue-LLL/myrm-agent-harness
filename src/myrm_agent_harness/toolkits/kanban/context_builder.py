@@ -110,10 +110,7 @@ async def build_task_context(store: KanbanStore, task_id: str) -> str:
             lines.extend(parent_results)
 
     events = await store.list_events(task_id)
-    comments = [
-        e for e in events
-        if e.kind == TaskEventKind.USER_COMMENT and e.payload
-    ]
+    comments = [e for e in events if e.kind == TaskEventKind.USER_COMMENT and e.payload]
     if comments:
         if len(comments) > _CTX_MAX_COMMENTS:
             omitted_c = len(comments) - _CTX_MAX_COMMENTS
@@ -160,14 +157,8 @@ def build_multimodal_query(
     if not attachments:
         return text_context
 
-    image_attachments = [
-        a for a in attachments
-        if a.mime_type.startswith(_IMAGE_MIME_PREFIXES)
-    ]
-    doc_attachments = [
-        a for a in attachments
-        if not a.mime_type.startswith(_IMAGE_MIME_PREFIXES)
-    ]
+    image_attachments = [a for a in attachments if a.mime_type.startswith(_IMAGE_MIME_PREFIXES)]
+    doc_attachments = [a for a in attachments if not a.mime_type.startswith(_IMAGE_MIME_PREFIXES)]
 
     if not image_attachments and not doc_attachments:
         return text_context
@@ -176,20 +167,26 @@ def build_multimodal_query(
 
     for att in image_attachments:
         if has_vision:
-            blocks.append({
-                "type": "image_url",
-                "image_url": {"url": att.content_ref},
-            })
+            blocks.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": att.content_ref},
+                }
+            )
         else:
-            blocks.append({
-                "type": "text",
-                "text": f"[Attached image: {att.filename} ({att.size_bytes / 1024:.0f}KB) — model lacks vision, describe or switch model]",
-            })
+            blocks.append(
+                {
+                    "type": "text",
+                    "text": f"[Attached image: {att.filename} ({att.size_bytes / 1024:.0f}KB) — model lacks vision, describe or switch model]",
+                }
+            )
 
     for att in doc_attachments:
-        blocks.append({
-            "type": "text",
-            "text": f"[Attached file: {att.filename} ({att.size_bytes / 1024:.0f}KB, {att.mime_type}) ref={att.content_ref}]",
-        })
+        blocks.append(
+            {
+                "type": "text",
+                "text": f"[Attached file: {att.filename} ({att.size_bytes / 1024:.0f}KB, {att.mime_type}) ref={att.content_ref}]",
+            }
+        )
 
     return blocks

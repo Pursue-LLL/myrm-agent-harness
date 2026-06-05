@@ -120,9 +120,7 @@ class MCPRuntimeScanResult:
 
     @property
     def allow_use(self) -> bool:
-        return not any(
-            f.severity in (MCPScanSeverity.HIGH, MCPScanSeverity.CRITICAL) for f in self.findings
-        )
+        return not any(f.severity in (MCPScanSeverity.HIGH, MCPScanSeverity.CRITICAL) for f in self.findings)
 
 
 def _is_secret_reference(value: str) -> bool:
@@ -317,9 +315,7 @@ def scan_mcp_config(config: MCPConfigSnapshot) -> MCPConfigScanResult:
                     )
                 )
 
-    findings.extend(
-        _scan_text_for_injection(config.description, field="description", label="description")
-    )
+    findings.extend(_scan_text_for_injection(config.description, field="description", label="description"))
 
     return MCPConfigScanResult(server_name=config.name, findings=tuple(findings))
 
@@ -333,9 +329,7 @@ def scan_mcp_runtime_surface(
     """Scan MCP instructions, tool names, and tool descriptions for prompt injection."""
     findings: list[MCPScanFinding] = []
     if instructions:
-        findings.extend(
-            _scan_text_for_injection(instructions, field="instructions", label="server instructions")
-        )
+        findings.extend(_scan_text_for_injection(instructions, field="instructions", label="server instructions"))
     for tool in tools:
         findings.extend(
             _scan_identifier_for_injection(

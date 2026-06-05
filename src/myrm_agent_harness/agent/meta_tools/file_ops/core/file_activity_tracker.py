@@ -93,9 +93,7 @@ class FileActivityTracker:
         access = FileAccess(agent_id=agent_id, line_start=line_start, line_end=line_end)
         self._activities.setdefault(norm, []).append(access)
 
-    def check_conflict(
-        self, agent_id: str, path: str, line_start: int, line_end: int
-    ) -> ConflictResult | None:
+    def check_conflict(self, agent_id: str, path: str, line_start: int, line_end: int) -> ConflictResult | None:
         """Check if the proposed write conflicts with recent activity by other agents.
 
         Returns the most severe conflict found, or None if safe.

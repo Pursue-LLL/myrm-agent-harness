@@ -131,11 +131,13 @@ def create_automation_tools(
                     agent_id=agent_id,
                 )
                 saved = await store.save_rule(rule)
-                return json.dumps({
-                    "status": "created",
-                    "rule_id": saved.rule_id,
-                    "name": saved.name,
-                })
+                return json.dumps(
+                    {
+                        "status": "created",
+                        "rule_id": saved.rule_id,
+                        "name": saved.name,
+                    }
+                )
 
             elif action == "list_rules":
                 sf = None
@@ -149,26 +151,26 @@ def create_automation_tools(
                 elif enabled_filter == "false":
                     ef = False
 
-                rules = await store.list_rules(
-                    status=sf, enabled=ef, limit=limit
-                )
+                rules = await store.list_rules(status=sf, enabled=ef, limit=limit)
                 total = await store.count_rules(status=sf, enabled=ef)
 
-                return json.dumps({
-                    "total": total,
-                    "rules": [
-                        {
-                            "rule_id": r.rule_id,
-                            "name": r.name,
-                            "trigger_type": r.trigger_type.value,
-                            "action_type": r.action_type.value,
-                            "enabled": r.enabled,
-                            "status": r.status.value,
-                            "trigger_count": r.trigger_count,
-                        }
-                        for r in rules
-                    ],
-                })
+                return json.dumps(
+                    {
+                        "total": total,
+                        "rules": [
+                            {
+                                "rule_id": r.rule_id,
+                                "name": r.name,
+                                "trigger_type": r.trigger_type.value,
+                                "action_type": r.action_type.value,
+                                "enabled": r.enabled,
+                                "status": r.status.value,
+                                "trigger_count": r.trigger_count,
+                            }
+                            for r in rules
+                        ],
+                    }
+                )
 
             elif action == "get_rule":
                 if not rule_id:
@@ -176,23 +178,21 @@ def create_automation_tools(
                 rule = await store.get_rule(rule_id)
                 if not rule:
                     return json.dumps({"error": f"Rule {rule_id} not found"})
-                return json.dumps({
-                    "rule_id": rule.rule_id,
-                    "name": rule.name,
-                    "description": rule.description,
-                    "trigger_type": rule.trigger_type.value,
-                    "trigger_config": rule.trigger_config,
-                    "action_type": rule.action_type.value,
-                    "action_config": rule.action_config,
-                    "enabled": rule.enabled,
-                    "status": rule.status.value,
-                    "trigger_count": rule.trigger_count,
-                    "last_triggered_at": (
-                        rule.last_triggered_at.isoformat()
-                        if rule.last_triggered_at
-                        else None
-                    ),
-                })
+                return json.dumps(
+                    {
+                        "rule_id": rule.rule_id,
+                        "name": rule.name,
+                        "description": rule.description,
+                        "trigger_type": rule.trigger_type.value,
+                        "trigger_config": rule.trigger_config,
+                        "action_type": rule.action_type.value,
+                        "action_config": rule.action_config,
+                        "enabled": rule.enabled,
+                        "status": rule.status.value,
+                        "trigger_count": rule.trigger_count,
+                        "last_triggered_at": (rule.last_triggered_at.isoformat() if rule.last_triggered_at else None),
+                    }
+                )
 
             elif action == "update_rule":
                 if not rule_id:
@@ -211,11 +211,13 @@ def create_automation_tools(
                     existing.action_config = json.loads(action_config)
 
                 saved = await store.save_rule(existing)
-                return json.dumps({
-                    "status": "updated",
-                    "rule_id": saved.rule_id,
-                    "name": saved.name,
-                })
+                return json.dumps(
+                    {
+                        "status": "updated",
+                        "rule_id": saved.rule_id,
+                        "name": saved.name,
+                    }
+                )
 
             elif action == "enable_rule":
                 if not rule_id:
@@ -226,11 +228,13 @@ def create_automation_tools(
                 existing.enabled = True
                 existing.status = AutomationRuleStatus.ACTIVE
                 saved = await store.save_rule(existing)
-                return json.dumps({
-                    "status": "enabled",
-                    "rule_id": saved.rule_id,
-                    "name": saved.name,
-                })
+                return json.dumps(
+                    {
+                        "status": "enabled",
+                        "rule_id": saved.rule_id,
+                        "name": saved.name,
+                    }
+                )
 
             elif action == "disable_rule":
                 if not rule_id:
@@ -241,11 +245,13 @@ def create_automation_tools(
                 existing.enabled = False
                 existing.status = AutomationRuleStatus.DISABLED
                 saved = await store.save_rule(existing)
-                return json.dumps({
-                    "status": "disabled",
-                    "rule_id": saved.rule_id,
-                    "name": saved.name,
-                })
+                return json.dumps(
+                    {
+                        "status": "disabled",
+                        "rule_id": saved.rule_id,
+                        "name": saved.name,
+                    }
+                )
 
             elif action == "delete_rule":
                 if not rule_id:

@@ -60,9 +60,7 @@ class TracingConfig:
     """
 
     enable_local_ui: bool = False  # 是否启用本地 Phoenix UI (需安装 [ui] 依赖)
-    enable_langsmith: bool = (
-        False  # 是否启用 LangSmith (需配置 LANGCHAIN_TRACING_V2 等环境变量)
-    )
+    enable_langsmith: bool = False  # 是否启用 LangSmith (需配置 LANGCHAIN_TRACING_V2 等环境变量)
     phoenix_project_name: str = "myrm-agent"  # Phoenix 项目名称
 
 
@@ -96,38 +94,24 @@ class AgentConfig(BaseModel):
     llm: LLMConfig = Field(..., description="LLM configuration")
 
     # 技能后端（可选）
-    skill_backend: object | None = Field(
-        default=None, description="Skill backend for loading skills"
-    )
+    skill_backend: object | None = Field(default=None, description="Skill backend for loading skills")
 
     # MCP 配置（可选）
-    mcp_configs: list[object] | None = Field(
-        default=None, description="MCP server configurations"
-    )
+    mcp_configs: list[object] | None = Field(default=None, description="MCP server configurations")
 
     # 存储配置（可选）
-    storage_config: StorageConfig | None = Field(
-        default=None, description="Storage backend configuration"
-    )
+    storage_config: StorageConfig | None = Field(default=None, description="Storage backend configuration")
 
     # 可视化追踪配置（可选）
-    tracing_config: TracingConfig | None = Field(
-        default=None, description="Tracing and UI configuration"
-    )
+    tracing_config: TracingConfig | None = Field(default=None, description="Tracing and UI configuration")
 
     # 代码执行配置（可选）
-    code_execution_config: object | None = Field(
-        default=None, description="Code execution sandbox configuration"
-    )
+    code_execution_config: object | None = Field(default=None, description="Code execution sandbox configuration")
 
     # Agent 配置
     system_prompt: str | None = Field(default=None, description="Custom system prompt")
-    recursion_limit: int = Field(
-        default=50, description="Maximum recursion depth", ge=1, le=1000
-    )
-    timeout_seconds: int | None = Field(
-        default=None, description="Global timeout in seconds", gt=0
-    )
+    recursion_limit: int = Field(default=50, description="Maximum recursion depth", ge=1, le=1000)
+    timeout_seconds: int | None = Field(default=None, description="Global timeout in seconds", gt=0)
     parallel_tool_calls: bool | None = Field(
         default=None, description="Enable parallel tool calls (None=use LLM default)"
     )
@@ -137,17 +121,11 @@ class AgentConfig(BaseModel):
     )
 
     # 工件配置
-    enable_artifacts: bool = Field(
-        default=True, description="Enable artifact generation"
-    )
-    artifacts_output_path: str | None = Field(
-        default=None, description="Output path for generated artifacts"
-    )
+    enable_artifacts: bool = Field(default=True, description="Enable artifact generation")
+    artifacts_output_path: str | None = Field(default=None, description="Output path for generated artifacts")
 
     # Planner 子智能体配置（可选）
-    planner_config: object | None = Field(
-        default=None, description="Planner subagent configuration"
-    )
+    planner_config: object | None = Field(default=None, description="Planner subagent configuration")
     planner_llm_config: LLMConfig | None = Field(
         default=None,
         description="Dedicated LLM config for planner (optional, defaults to main LLM)",
@@ -171,9 +149,7 @@ class AgentConfig(BaseModel):
             if not v.strip():
                 raise ValueError("system_prompt cannot be empty string")
             if len(v) > 100_000:
-                raise ValueError(
-                    f"system_prompt too large: {len(v)} > 100000 characters"
-                )
+                raise ValueError(f"system_prompt too large: {len(v)} > 100000 characters")
         return v
 
     @model_validator(mode="after")
@@ -240,15 +216,12 @@ class AgentConfig(BaseModel):
         storage_config = StorageConfig(
             backend_type=os.getenv("MYRM_STORAGE_BACKEND", "local"),
             root_dir=os.getenv("MYRM_WORKSPACE_PATH", "./workspace"),
-            virtual_mode=os.getenv("MYRM_STORAGE_VIRTUAL_MODE", "true").lower()
-            == "true",
+            virtual_mode=os.getenv("MYRM_STORAGE_VIRTUAL_MODE", "true").lower() == "true",
         )
 
         tracing_config = TracingConfig(
-            enable_local_ui=os.getenv("MYRM_ENABLE_LOCAL_UI", "false").lower()
-            == "true",
-            enable_langsmith=os.getenv("LANGCHAIN_TRACING_V2", "false").lower()
-            == "true",
+            enable_local_ui=os.getenv("MYRM_ENABLE_LOCAL_UI", "false").lower() == "true",
+            enable_langsmith=os.getenv("LANGCHAIN_TRACING_V2", "false").lower() == "true",
             phoenix_project_name=os.getenv("MYRM_PHOENIX_PROJECT", "myrm-agent"),
         )
 
@@ -262,12 +235,9 @@ class AgentConfig(BaseModel):
             storage_config=storage_config,
             tracing_config=tracing_config,
             recursion_limit=int(os.getenv("MYRM_RECURSION_LIMIT", "50")),
-            timeout_seconds=(
-                int(ts) if (ts := os.getenv("MYRM_TIMEOUT_SECONDS")) else None
-            ),
+            timeout_seconds=(int(ts) if (ts := os.getenv("MYRM_TIMEOUT_SECONDS")) else None),
             parallel_tool_calls=parallel_tool_calls,
-            enable_artifacts=os.getenv("MYRM_ENABLE_ARTIFACTS", "true").lower()
-            == "true",
+            enable_artifacts=os.getenv("MYRM_ENABLE_ARTIFACTS", "true").lower() == "true",
         )
 
 

@@ -78,12 +78,12 @@ class SkillVectorSyncMixin:
             text = _build_embed_text(record)
             vector = await self._embedding.embed(text)
             payload = _build_payload(record)
-            doc = VectorDocument(id=record.skill_id, content=record.description or record.name, vector=vector, metadata=payload)
+            doc = VectorDocument(
+                id=record.skill_id, content=record.description or record.name, vector=vector, metadata=payload
+            )
             await self._vector_store.upsert(self.VECTOR_COLLECTION_NAME, [doc])
         except Exception as e:
-            logger.warning(
-                f"Failed to sync skill {record.skill_id} to vector store: {e}"
-            )
+            logger.warning(f"Failed to sync skill {record.skill_id} to vector store: {e}")
 
     async def _delete_skill_from_vector(self, skill_id: str) -> None:
         """Delete a skill from the vector store."""
@@ -93,9 +93,7 @@ class SkillVectorSyncMixin:
         try:
             await self._vector_store.delete(self.VECTOR_COLLECTION_NAME, [skill_id])
         except Exception as e:
-            logger.warning(
-                f"Failed to delete skill {skill_id} from vector store: {e}"
-            )
+            logger.warning(f"Failed to delete skill {skill_id} from vector store: {e}")
 
     async def sync_vectors(self) -> None:
         """Synchronize SQLite active skills with Vector Store.
@@ -111,9 +109,7 @@ class SkillVectorSyncMixin:
 
         try:
             with self._reader() as conn:  # type: ignore[attr-defined]
-                rows = conn.execute(
-                    "SELECT * FROM skills WHERE is_active = 1"
-                ).fetchall()
+                rows = conn.execute("SELECT * FROM skills WHERE is_active = 1").fetchall()
                 active_records = [
                     self._row_to_record(dict(row))  # type: ignore[attr-defined]
                     for row in rows
@@ -123,9 +119,7 @@ class SkillVectorSyncMixin:
                 return
 
             with contextlib.suppress(Exception):
-                await self._vector_store.get_collection_info(
-                    self.VECTOR_COLLECTION_NAME
-                )
+                await self._vector_store.get_collection_info(self.VECTOR_COLLECTION_NAME)
 
             batch_size = 20
             for i in range(0, len(active_records), batch_size):
@@ -144,8 +138,6 @@ class SkillVectorSyncMixin:
                 ]
                 await self._vector_store.upsert(self.VECTOR_COLLECTION_NAME, docs)
 
-            logger.info(
-                f"Successfully synchronized {len(active_records)} skills to vector store."
-            )
+            logger.info(f"Successfully synchronized {len(active_records)} skills to vector store.")
         except Exception as e:
             logger.error(f"Failed to synchronize vectors: {e}")

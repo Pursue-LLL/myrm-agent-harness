@@ -26,9 +26,9 @@ from typing import Any
 class MetricType(StrEnum):
     """Metric类型"""
 
-    COUNTER = "counter" # 计数器（只增不减）
-    GAUGE = "gauge" # 仪表（可增可减）
-    HISTOGRAM = "histogram" # 直方图（记录分布）
+    COUNTER = "counter"  # 计数器（只增不减）
+    GAUGE = "gauge"  # 仪表（可增可减）
+    HISTOGRAM = "histogram"  # 直方图（记录分布）
 
 
 @dataclass

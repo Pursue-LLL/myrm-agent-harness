@@ -143,8 +143,10 @@ class WebSearchTools:
             override = resolve_search_params(intent_result, provider)
             per_query_overrides.append(override)
             if override:
-                logger.info(f"Intent detected: query='{q[:50]}' intent={intent_result.intent.value} "
-                            f"confidence={intent_result.confidence:.2f} override={override}")
+                logger.info(
+                    f"Intent detected: query='{q[:50]}' intent={intent_result.intent.value} "
+                    f"confidence={intent_result.confidence:.2f} override={override}"
+                )
 
         search_results = await self._searcher.multi_query_parallel_search(
             questions, search_results_per_query, per_query_overrides
@@ -416,14 +418,15 @@ async def _precision_mode_search(
         )
         try:
             from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
             await dispatch_custom_event(
                 "agent_status",
                 {
                     "event": "tool_fallback",
                     "tool": "web_search_tool",
                     "fallback_type": "reranker_degraded",
-                    "message": "语义重排服务异常，已自动降级为 BM25 基础检索以保证结果返回..."
-                }
+                    "message": "语义重排服务异常，已自动降级为 BM25 基础检索以保证结果返回...",
+                },
             )
         except Exception:
             pass

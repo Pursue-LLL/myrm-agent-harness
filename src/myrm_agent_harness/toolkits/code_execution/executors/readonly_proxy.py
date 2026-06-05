@@ -59,64 +59,48 @@ class ReadonlyExecutorProxy(CodeExecutorMiddleware):
     async def execute_bash(self, context: ExecutionContext) -> ExecutionResult:
         self.has_executed_code = True
         from myrm_agent_harness.toolkits.code_execution.sandbox import detect_sandbox_provider
+
         _provider, status = detect_sandbox_provider()
         if not status.enabled:
             return ExecutionResult(
                 success=False,
                 error="[Security Fallback] Bash execution is strictly disabled in Read-Only Sandbox because OS-level isolation is unavailable on this host. Use python execution or read tools.",
                 stderr="[Security Fallback] Bash execution disabled.",
-                exit_code=1
+                exit_code=1,
             )
         return await self.inner.execute_bash(self._enforce_readonly_context(context))
 
-    async def execute_bash_stream(
-        self, context: ExecutionContext
-    ) -> AsyncIterator[str]:
+    async def execute_bash_stream(self, context: ExecutionContext) -> AsyncIterator[str]:
         self.has_executed_code = True
         from myrm_agent_harness.toolkits.code_execution.sandbox import detect_sandbox_provider
+
         _provider, status = detect_sandbox_provider()
         if not status.enabled:
             yield "[Security Fallback] Bash execution is strictly disabled in Read-Only Sandbox because OS-level isolation is unavailable on this host."
             return
 
-        async for chunk in self.inner.execute_bash_stream(
-            self._enforce_readonly_context(context)
-        ):
+        async for chunk in self.inner.execute_bash_stream(self._enforce_readonly_context(context)):
             yield chunk
 
     # Native file write operations intercepted
 
     async def write_file(self, path: str, content: str) -> None:
-        raise PermissionError(
-            f"Write denied: verifier is running in read-only sandbox — {path}"
-        )
+        raise PermissionError(f"Write denied: verifier is running in read-only sandbox — {path}")
 
     async def write_file_bytes(self, path: str, content: bytes) -> None:
-        raise PermissionError(
-            f"Write denied: verifier is running in read-only sandbox — {path}"
-        )
+        raise PermissionError(f"Write denied: verifier is running in read-only sandbox — {path}")
 
     async def write_file_atomic(self, path: str, content: str) -> None:
-        raise PermissionError(
-            f"Write denied: verifier is running in read-only sandbox — {path}"
-        )
+        raise PermissionError(f"Write denied: verifier is running in read-only sandbox — {path}")
 
     async def write_file_bytes_atomic(self, path: str, content: bytes) -> None:
-        raise PermissionError(
-            f"Write denied: verifier is running in read-only sandbox — {path}"
-        )
+        raise PermissionError(f"Write denied: verifier is running in read-only sandbox — {path}")
 
     async def append_file(self, path: str, content: str) -> None:
-        raise PermissionError(
-            f"Write denied: verifier is running in read-only sandbox — {path}"
-        )
+        raise PermissionError(f"Write denied: verifier is running in read-only sandbox — {path}")
 
     async def delete_file(self, path: str) -> None:
-        raise PermissionError(
-            f"Delete denied: verifier is running in read-only sandbox — {path}"
-        )
+        raise PermissionError(f"Delete denied: verifier is running in read-only sandbox — {path}")
 
     async def mkdir(self, path: str) -> None:
-        raise PermissionError(
-            f"Mkdir denied: verifier is running in read-only sandbox — {path}"
-        )
+        raise PermissionError(f"Mkdir denied: verifier is running in read-only sandbox — {path}")

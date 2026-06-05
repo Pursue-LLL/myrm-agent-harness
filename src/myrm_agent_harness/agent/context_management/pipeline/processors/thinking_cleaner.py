@@ -112,8 +112,7 @@ class ThinkingBlockCleaner(BaseProcessor):
         if total:
             context.tokens_saved += chars_dropped // 4
             logger.warning(
-                " [ThinkingBlockCleaner] cleaned %d items "
-                "(rc=%d, tb=%d, chars_dropped=%d, anthropic=%s)",
+                " [ThinkingBlockCleaner] cleaned %d items (rc=%d, tb=%d, chars_dropped=%d, anthropic=%s)",
                 total,
                 cleaned_rc,
                 cleaned_tb,

@@ -80,9 +80,7 @@ def create_discover_capability_tool(
             HybridSkillSearchEngine,
         )
 
-        engine = HybridSkillSearchEngine(
-            all_skills, embedding_config, embedding_cache=cache
-        )
+        engine = HybridSkillSearchEngine(all_skills, embedding_config, embedding_cache=cache)
     elif all_skills:
         from myrm_agent_harness.agent.meta_tools.skills.search.engine import (
             SkillSearchEngine,
@@ -123,9 +121,7 @@ Use this tool when you need a capability that is not currently in your tool list
         description=tool_description,
         args_schema=DiscoverCapabilityInput,
     )
-    async def discover_capability_func(
-        query: str, mode: Literal["bm25", "regex"] = "bm25"
-    ) -> str:
+    async def discover_capability_func(query: str, mode: Literal["bm25", "regex"] = "bm25") -> str:
         """Search for capabilities across native tools and external skills."""
         if engine is None:
             return f"No capabilities found matching '{query}'. Try broader terms or synonyms."
@@ -173,9 +169,7 @@ Use this tool when you need a capability that is not currently in your tool list
             )
 
         if external_matches:
-            skill_text = "\n".join(
-                f"- **{s.name}**: {s.description}" for s in external_matches
-            )
+            skill_text = "\n".join(f"- **{s.name}**: {s.description}" for s in external_matches)
             results.append(
                 f"###  Found External Skills (You MUST use `skill_select_tool` to load their SOPs before using):\n"
                 f"<ExternalSkills>\n{skill_text}\n</ExternalSkills>"

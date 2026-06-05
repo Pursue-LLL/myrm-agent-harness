@@ -37,7 +37,7 @@ class CircuitBreakerOpenError(Exception):
 class CircuitBreakerCallback(Protocol):
     """熔断器回调Protocol.
 
-     for 监听熔断器State变化，Support实时告警 and 监控。
+    for 监听熔断器State变化，Support实时告警 and 监控。
     """
 
     def on_open(self, domain: str, failure_count: int) -> None:
@@ -119,7 +119,7 @@ class CircuitBreaker:
         return True
 
     async def call(self, url: str, func: Callable[[], Awaitable[_T]]) -> _T:
-        """ via 熔断器ExecuteFunction.
+        """via 熔断器ExecuteFunction.
 
         Args:
             url: 目标URL

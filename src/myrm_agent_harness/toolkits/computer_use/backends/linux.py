@@ -97,7 +97,11 @@ class LinuxBackend:
             tmp_path.unlink(missing_ok=True)
 
     async def click(
-        self, x: int, y: int, button: str = "left", clicks: int = 1,
+        self,
+        x: int,
+        y: int,
+        button: str = "left",
+        clicks: int = 1,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
         xdotool_mods = [_MODIFIER_TO_XDOTOOL[m] for m in modifiers] if modifiers else []
@@ -127,9 +131,7 @@ class LinuxBackend:
             if text.isascii():
                 for i in range(0, len(text), chunk_size):
                     chunk = text[i : i + chunk_size]
-                    await self._run_cmd(
-                        f"xdotool type --delay {delay_ms} -- {shlex.quote(chunk)}"
-                    )
+                    await self._run_cmd(f"xdotool type --delay {delay_ms} -- {shlex.quote(chunk)}")
             else:
                 await self._paste_text_xclip(text)
             return ActionResult(success=True)
@@ -139,6 +141,7 @@ class LinuxBackend:
     async def type_credential(self, label: str) -> ActionResult:
         """Type a credential (password or TOTP) securely from the CredentialVault."""
         from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
+
         vault = get_global_credential_vault()
 
         is_totp = label.endswith("-totp")
@@ -203,7 +206,11 @@ class LinuxBackend:
             return ActionResult(success=False, error=str(e))
 
     async def scroll(
-        self, x: int, y: int, direction: str, amount: int = 3,
+        self,
+        x: int,
+        y: int,
+        direction: str,
+        amount: int = 3,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
         xdotool_mods = [_MODIFIER_TO_XDOTOOL[m] for m in modifiers] if modifiers else []
@@ -226,7 +233,11 @@ class LinuxBackend:
                 await self._run_cmd(f"xdotool keyup {mod}")
 
     async def drag(
-        self, start_x: int, start_y: int, end_x: int, end_y: int,
+        self,
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
         xdotool_mods = [_MODIFIER_TO_XDOTOOL[m] for m in modifiers] if modifiers else []
@@ -235,10 +246,7 @@ class LinuxBackend:
                 await self._run_cmd(f"xdotool keydown {mod}")
 
             await self._run_cmd(
-                f"xdotool mousemove --sync {start_x} {start_y} "
-                f"mousedown 1 "
-                f"mousemove --sync {end_x} {end_y} "
-                f"mouseup 1"
+                f"xdotool mousemove --sync {start_x} {start_y} mousedown 1 mousemove --sync {end_x} {end_y} mouseup 1"
             )
 
             return ActionResult(success=True)
@@ -269,7 +277,9 @@ class LinuxBackend:
         try:
             result = subprocess.run(
                 f"{self._display_prefix}xdotool getactivewindow getwindowname".split(),
-                capture_output=True, text=True, timeout=2,
+                capture_output=True,
+                text=True,
+                timeout=2,
             )
             window_title = result.stdout.strip() if result.returncode == 0 else ""
         except Exception:
@@ -278,7 +288,9 @@ class LinuxBackend:
         try:
             result = subprocess.run(
                 f"{self._display_prefix}xdotool getmouselocation".split(),
-                capture_output=True, text=True, timeout=2,
+                capture_output=True,
+                text=True,
+                timeout=2,
             )
             if result.returncode == 0:
                 parts = result.stdout.strip().split()
@@ -375,7 +387,10 @@ def _detect_linux_resolution(display_prefix: str) -> tuple[int, int]:
     for cmd in [f"{display_prefix}xdpyinfo", f"{display_prefix}xrandr"]:
         try:
             result = subprocess.run(
-                cmd.split(), capture_output=True, text=True, timeout=5,
+                cmd.split(),
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             for line in result.stdout.splitlines():
                 if "dimensions:" in line:

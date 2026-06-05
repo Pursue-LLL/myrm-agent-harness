@@ -110,15 +110,13 @@ def build_extraction_prompt(
     if language == "zh":
         parts.append("\n**IMPORTANT**: Write reason and suggestedText in Chinese (中文).")
 
-    parts.append("\nExtract implicit commitments. Output JSON only: {\"candidates\": [...]}")
-    parts.append("If no commitments found, output: {\"candidates\": []}")
+    parts.append('\nExtract implicit commitments. Output JSON only: {"candidates": [...]}')
+    parts.append('If no commitments found, output: {"candidates": []}')
 
     return "\n".join(parts)
 
 
-def _truncate_head_tail(
-    messages: Sequence[dict[str, str]], max_chars: int
-) -> list[dict[str, str]]:
+def _truncate_head_tail(messages: Sequence[dict[str, str]], max_chars: int) -> list[dict[str, str]]:
     """Keep first 2 + fill from end within budget."""
     total = sum(len(m.get("content", "")) for m in messages)
     if total <= max_chars or len(messages) <= _HEAD_COUNT:
@@ -189,17 +187,19 @@ def _parse_response(raw: str) -> ExtractionBatchResult:
             if not earliest:
                 continue
 
-            candidates.append(CommitmentCandidate(
-                kind=CommitmentKind(kind_val),
-                sensitivity=CommitmentSensitivity(sens_val),
-                reason=str(item.get("reason", "")).strip(),
-                suggested_text=str(item.get("suggestedText", "")).strip(),
-                dedupe_key=str(item.get("dedupeKey", "")).strip(),
-                confidence=float(item.get("confidence", 0.0)),
-                due_window_earliest=earliest,
-                due_window_latest=due.get("latest") if isinstance(due, dict) else None,
-                due_window_timezone=due.get("timezone") if isinstance(due, dict) else None,
-            ))
+            candidates.append(
+                CommitmentCandidate(
+                    kind=CommitmentKind(kind_val),
+                    sensitivity=CommitmentSensitivity(sens_val),
+                    reason=str(item.get("reason", "")).strip(),
+                    suggested_text=str(item.get("suggestedText", "")).strip(),
+                    dedupe_key=str(item.get("dedupeKey", "")).strip(),
+                    confidence=float(item.get("confidence", 0.0)),
+                    due_window_earliest=earliest,
+                    due_window_latest=due.get("latest") if isinstance(due, dict) else None,
+                    due_window_timezone=due.get("timezone") if isinstance(due, dict) else None,
+                )
+            )
         except (ValueError, TypeError, KeyError) as e:
             logger.warning("Commitment extraction: skipping malformed candidate: %s", e)
 

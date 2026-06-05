@@ -71,9 +71,7 @@ def explain_policy(config: dict[str, object], locale: str = "zh") -> str:
     return "\n".join(lines)
 
 
-def _explain_permissions(
-    config: dict[str, object], lines: list[str], idx: int
-) -> None:
+def _explain_permissions(config: dict[str, object], lines: list[str], idx: int) -> None:
     """Explain permission rules."""
     permissions = config.get("permissions")
     if not isinstance(permissions, dict):
@@ -94,9 +92,7 @@ def _explain_permissions(
                 lines.append(f"  • {perm_label} [{pattern}]: {action_label}")
 
 
-def _explain_path_policy(
-    config: dict[str, object], lines: list[str], idx: int
-) -> None:
+def _explain_path_policy(config: dict[str, object], lines: list[str], idx: int) -> None:
     """Explain path policy."""
     path_policy = config.get("pathPolicy")
     if not isinstance(path_policy, dict):
@@ -117,9 +113,7 @@ def _explain_path_policy(
             lines.append(f"  • {path}")
 
 
-def _explain_privacy(
-    config: dict[str, object], lines: list[str], idx: int
-) -> None:
+def _explain_privacy(config: dict[str, object], lines: list[str], idx: int) -> None:
     """Explain privacy policy."""
     privacy = config.get("privacyPolicy")
     if not isinstance(privacy, dict):
@@ -144,9 +138,7 @@ def _explain_privacy(
             lines.append(f"  • {deep_label}")
 
 
-def _explain_network(
-    config: dict[str, object], lines: list[str], idx: int
-) -> None:
+def _explain_network(config: dict[str, object], lines: list[str], idx: int) -> None:
     """Explain network allowlist."""
     allowlist = config.get("networkAllowlist")
     if isinstance(allowlist, list) and allowlist:
@@ -164,9 +156,7 @@ def _explain_network(
         lines.append(f"  • {label}")
 
 
-def _explain_misc(
-    config: dict[str, object], lines: list[str], idx: int
-) -> None:
+def _explain_misc(config: dict[str, object], lines: list[str], idx: int) -> None:
     """Explain miscellaneous settings."""
     timeout = config.get("approvalTimeoutSeconds")
     if isinstance(timeout, (int, float)):

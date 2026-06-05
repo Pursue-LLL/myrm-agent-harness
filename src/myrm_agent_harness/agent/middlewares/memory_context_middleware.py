@@ -145,7 +145,9 @@ def _partition_budget_sections(
     return stable_body, untrusted_body
 
 
-def _format_memory_context(ctx: dict[str, object], learned: dict[str, list[dict[str, str]]]) -> tuple[str | None, str | None]:
+def _format_memory_context(
+    ctx: dict[str, object], learned: dict[str, list[dict[str, str]]]
+) -> tuple[str | None, str | None]:
     stable_sections: list[BudgetedSection] = []
     untrusted_sections: list[BudgetedSection] = []
 
@@ -158,7 +160,6 @@ def _format_memory_context(ctx: dict[str, object], learned: dict[str, list[dict[
 
     peer_profile = dict(ctx.get("peer_profile", {}))
     peer_items = [f"{k}: {v}" for k, v in peer_profile.items()] if peer_profile else []
-
 
     if peer_items:
         stable_sections.append(BudgetedSection("Our Relationship & Your Persona", peer_items, priority=1))
@@ -197,7 +198,9 @@ def _format_memory_context(ctx: dict[str, object], learned: dict[str, list[dict[
             # Corrections are user-explicit feedback → belongs in Stable layer
             stable_sections.append(BudgetedSection("Corrections (must follow)", corrections, priority=4))
         if preferences:
-            untrusted_sections.append(BudgetedSection("Learned Preferences (from past interactions)", preferences, priority=6))
+            untrusted_sections.append(
+                BudgetedSection("Learned Preferences (from past interactions)", preferences, priority=6)
+            )
 
     learned_rules = learned.get("learned_rules", [])
     if learned_rules:
@@ -213,7 +216,9 @@ def _format_memory_context(ctx: dict[str, object], learned: dict[str, list[dict[
             mem_id = r.get("id", "")
             id_label = f" [ID: {mem_id}]" if mem_id else ""
 
-            formatted = f"{time_prefix}When: {sanitize(r['trigger'])} → Do: {sanitize(r['action'])}{tool_label}{id_label}"
+            formatted = (
+                f"{time_prefix}When: {sanitize(r['trigger'])} → Do: {sanitize(r['action'])}{tool_label}{id_label}"
+            )
             if r.get("reasoning"):
                 formatted += f" | Why: {sanitize(r['reasoning'])}"
             if r.get("application"):
@@ -226,7 +231,9 @@ def _format_memory_context(ctx: dict[str, object], learned: dict[str, list[dict[
         if critical_items:
             stable_sections.append(BudgetedSection("Tool Safety Rules (must follow)", critical_items, priority=2))
         if normal_items:
-            untrusted_sections.append(BudgetedSection("Learned Rules (from past interactions)", normal_items, priority=5))
+            untrusted_sections.append(
+                BudgetedSection("Learned Rules (from past interactions)", normal_items, priority=5)
+            )
 
     is_cold = not stable_sections and not untrusted_sections
 
@@ -308,11 +315,11 @@ class MemoryContextMiddleware(AgentMiddleware):  # type: ignore[type-arg]
 
     Requires context key: "memory_manager" (MemoryManager with user_id bound).
     """
+
     name = "memory_context_middleware"
 
     async def awrap_model_call(
-        self,
-        request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
+        self, request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
     ) -> ModelResponse:
         import copy
 

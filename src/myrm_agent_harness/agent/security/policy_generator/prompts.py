@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any
 
-POLICY_GENERATION_SYSTEM_PROMPT = '''You are a security policy generator for an AI Agent execution engine.
+POLICY_GENERATION_SYSTEM_PROMPT = """You are a security policy generator for an AI Agent execution engine.
 
 Your task: convert natural language security requirements into a structured JSON configuration.
 
@@ -161,7 +161,7 @@ User: "客服场景：只允许搜索和浏览网页，对所有PII进行脱敏�
 4. When the user mentions "dangerous commands", map to shell_exec deny patterns for: rm, mkfs, dd, chmod 777, format.
 5. Default to the safest reasonable interpretation when ambiguous.
 6. "脱敏" = redact, "可逆脱敏" = pseudonymize, "加密" = pseudonymize.
-'''
+"""
 
 
 def build_messages(

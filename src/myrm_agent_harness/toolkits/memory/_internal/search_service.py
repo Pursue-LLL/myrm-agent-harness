@@ -199,7 +199,11 @@ class MemorySearchService:
             rank_start = perf_counter()
             query_context = analyze_query(sanitized_query)
             final = self._rank_results(
-                result_lists=result_lists, query=sanitized_query, limit=limit, use_rrf=use_rrf, config=runtime_config,
+                result_lists=result_lists,
+                query=sanitized_query,
+                limit=limit,
+                use_rrf=use_rrf,
+                config=runtime_config,
                 query_context=query_context,
             )
             steps.append(
@@ -381,16 +385,12 @@ class MemorySearchService:
     ) -> None:
         if memory_type == MemoryType.PROFILE and self._relational is not None:
             tasks.append(
-                asyncio.create_task(
-                    search_profile(query, limit, self._relational, namespaces=self._namespaces)
-                )
+                asyncio.create_task(search_profile(query, limit, self._relational, namespaces=self._namespaces))
             )
             return
         if memory_type == MemoryType.PROCEDURAL and self._relational is not None:
             tasks.append(
-                asyncio.create_task(
-                    search_procedural(query, limit, self._relational, namespaces=self._namespaces)
-                )
+                asyncio.create_task(search_procedural(query, limit, self._relational, namespaces=self._namespaces))
             )
             return
         if memory_type == MemoryType.SEMANTIC and self._vector is not None and query_vector is not None:

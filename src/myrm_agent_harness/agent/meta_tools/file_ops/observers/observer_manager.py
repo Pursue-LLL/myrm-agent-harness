@@ -64,9 +64,7 @@ class ObserverManager:
             len(self.observers),
         )
         for observer in self.observers:
-            logger.info(
-                "Calling on_file_created on observer: %s", type(observer).__name__
-            )
+            logger.info("Calling on_file_created on observer: %s", type(observer).__name__)
             try:
                 await observer.on_file_created(path, content)
             except Exception as e:
@@ -77,9 +75,7 @@ class ObserverManager:
                     exc_info=True,
                 )
 
-    async def notify_file_modified(
-        self, path: str, old_content: str, new_content: str
-    ) -> None:
+    async def notify_file_modified(self, path: str, old_content: str, new_content: str) -> None:
         """通知文件修改事件
 
         Args:
@@ -96,9 +92,7 @@ class ObserverManager:
             len(self.observers),
         )
         for observer in self.observers:
-            logger.info(
-                "Calling on_file_modified on observer: %s", type(observer).__name__
-            )
+            logger.info("Calling on_file_modified on observer: %s", type(observer).__name__)
             try:
                 await observer.on_file_modified(path, old_content, new_content)
             except Exception as e:
@@ -118,9 +112,7 @@ class ObserverManager:
         for observer in self.observers:
             await observer.on_file_viewed(path)
 
-    async def notify_operation_complete(
-        self, operation: OperationType, path: str
-    ) -> None:
+    async def notify_operation_complete(self, operation: OperationType, path: str) -> None:
         """通知操作完成事件
 
         Args:

@@ -165,9 +165,7 @@ class SkillAutoUpdateChecker:
         if not self._discovery_service:
             return SkillInstallResult(success=False, error="No SkillDiscoveryService configured")
 
-        return await self._discovery_service.install(
-            skill_id=update_info.skill_id, source=update_info.source
-        )
+        return await self._discovery_service.install(skill_id=update_info.skill_id, source=update_info.source)
 
 
 _checker: SkillAutoUpdateChecker | None = None

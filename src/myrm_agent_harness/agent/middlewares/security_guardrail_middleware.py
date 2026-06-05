@@ -136,7 +136,9 @@ def _apply_pii_actions(
             else:
                 result, count = redact_pii(result)
                 if count > 0:
-                    record_decision(source, "PII_REDACTED", f"level={level.value} count={count} (pseudonymize fallback)")
+                    record_decision(
+                        source, "PII_REDACTED", f"level={level.value} count={count} (pseudonymize fallback)"
+                    )
                     logger.warning("[PII] Pseudonymize fallback to redact: %d items (%s)", count, source)
         elif action == PIIAction.REDACT:
             result, count = redact_pii(result)
@@ -171,20 +173,15 @@ class SecurityGuardrailMiddleware(AgentMiddleware):  # type: ignore[type-arg]
                         f"Do NOT call tools that depend on '{err}'."
                     )
             if constraints:
-                constraint_text = (
-                    "[SYSTEM_ENFORCED] Environment capability constraints detected:\n"
-                    + "\n".join(f"- {c}" for c in constraints)
+                constraint_text = "[SYSTEM_ENFORCED] Environment capability constraints detected:\n" + "\n".join(
+                    f"- {c}" for c in constraints
                 )
                 new_messages = [*list(request.messages), HumanMessage(content=constraint_text)]
-                logger.info(
-                    "Circuit breaker cognition injected: %s", sorted(terminal_errors)
-                )
+                logger.info("Circuit breaker cognition injected: %s", sorted(terminal_errors))
                 return await handler(request.override(messages=new_messages))
         return await handler(request)
 
-    def before_model(
-        self, state: dict[str, Any], runtime: Any
-    ) -> dict[str, Any] | None:
+    def before_model(self, state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
         messages = state.get("messages", [])
         if not messages:
             return None
@@ -206,9 +203,7 @@ class SecurityGuardrailMiddleware(AgentMiddleware):  # type: ignore[type-arg]
                         pii_result = classify_content(content, policy)
                         if pii_result.level != SensitivityLevel.S1:
                             tracker = get_privacy_tracker()
-                            tracker.record(
-                                pii_result.level, "user_message", pii_result.patterns
-                            )
+                            tracker.record(pii_result.level, "user_message", pii_result.patterns)
                             from myrm_agent_harness.agent.security.audit import (
                                 record_decision,
                             )
@@ -220,7 +215,10 @@ class SecurityGuardrailMiddleware(AgentMiddleware):  # type: ignore[type-arg]
                             )
                             levels_to_process = _levels_to_process(pii_result.level, policy)
                             processed = _apply_pii_actions(
-                                content, levels_to_process, policy, "user_input",
+                                content,
+                                levels_to_process,
+                                policy,
+                                "user_input",
                             )
                             if processed is None:
                                 if new_messages is None:
@@ -249,9 +247,7 @@ class SecurityGuardrailMiddleware(AgentMiddleware):  # type: ignore[type-arg]
                                 if new_messages is None:
                                     new_messages = list(messages)
                                 idx = messages.index(msg)
-                                new_messages[idx] = HumanMessage(
-                                    content=processed, id=msg.id
-                                )
+                                new_messages[idx] = HumanMessage(content=processed, id=msg.id)
                 break
 
         # Layer ③: Tool Result Redact — sanitize credentials in recent ToolMessages
@@ -310,9 +306,7 @@ class SecurityGuardrailMiddleware(AgentMiddleware):  # type: ignore[type-arg]
             )
 
             text_leaked = check_canary(modified, canary)
-            args_leaked = bool(last_ai_msg.tool_calls) and check_canary(
-                last_ai_msg.tool_calls, canary
-            )
+            args_leaked = bool(last_ai_msg.tool_calls) and check_canary(last_ai_msg.tool_calls, canary)
             if text_leaked or args_leaked:
                 from myrm_agent_harness.agent.security.audit import record_decision
 
@@ -344,7 +338,10 @@ class SecurityGuardrailMiddleware(AgentMiddleware):  # type: ignore[type-arg]
             if pii_result.level != SensitivityLevel.S1:
                 levels_to_process = _levels_to_process(pii_result.level, policy)
                 result = _apply_pii_actions(
-                    modified, levels_to_process, policy, "ai_response",
+                    modified,
+                    levels_to_process,
+                    policy,
+                    "ai_response",
                 )
                 if result is None:
                     # BLOCK in after_model: can't block an already-generated

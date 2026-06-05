@@ -74,9 +74,7 @@ _EN_EDICT_PATTERNS: list[tuple[re.Pattern[str], Literal["en", "zh"]]] = [
 
 _ZH_EDICT_PATTERNS: list[tuple[re.Pattern[str], Literal["en", "zh"]]] = [
     (
-        re.compile(
-            r"(?:禁止|不要|不准|别|不许|严禁)(?:再)?(?:用|使用|执行|运行)(.+?)(?:[，。！？\n]|$)"
-        ),
+        re.compile(r"(?:禁止|不要|不准|别|不许|严禁)(?:再)?(?:用|使用|执行|运行)(.+?)(?:[，。！？\n]|$)"),
         "zh",
     ),
     (re.compile(r"(?:禁止|不要|不准|别|不许|严禁)(.+?)(?:[，。！？\n]|$)"), "zh"),
@@ -107,20 +105,14 @@ def extract_tool_edicts(text: str) -> list[DetectedEdict]:
     for pattern, lang in _ALL_EDICT_PATTERNS:
         for match in pattern.finditer(text):
             full = match.group(0).strip()
-            captured = (
-                match.group(1).strip()
-                if match.lastindex and match.lastindex >= 1
-                else full
-            )
+            captured = match.group(1).strip() if match.lastindex and match.lastindex >= 1 else full
             if len(captured) < 3 or len(captured) > 200:
                 continue
             key = captured.lower()
             if key in seen:
                 continue
             seen.add(key)
-            edicts.append(
-                DetectedEdict(rule_text=captured, language=lang, original_match=full)
-            )
+            edicts.append(DetectedEdict(rule_text=captured, language=lang, original_match=full))
 
     return edicts
 
@@ -212,18 +204,14 @@ class ToolMemoryCaptureHook:
         self._pending_rules = []
         return rules
 
-    async def on_post_tool_use(
-        self, event: str, payload: dict[str, object]
-    ) -> HookResult:
+    async def on_post_tool_use(self, event: str, payload: dict[str, object]) -> HookResult:
         """Handle POST_TOOL_USE: track last used tool."""
         tool_name = str(payload.get("tool_name", ""))
         if tool_name:
             self._last_tool_name = tool_name
         return HookResult(hook_type="tool_memory_capture", success=True)
 
-    async def on_user_turn(
-        self, event: str, payload: dict[str, object]
-    ) -> HookResult:
+    async def on_user_turn(self, event: str, payload: dict[str, object]) -> HookResult:
         """Handle USER_TURN: detect edicts in user input."""
         user_input = str(payload.get("user_input", ""))
         if not user_input:
@@ -252,9 +240,7 @@ class ToolMemoryCaptureHook:
 
         return HookResult(hook_type="tool_memory_capture", success=True)
 
-    async def on_post_tool_failure(
-        self, event: str, payload: dict[str, object]
-    ) -> HookResult:
+    async def on_post_tool_failure(self, event: str, payload: dict[str, object]) -> HookResult:
         """Handle POST_TOOL_USE_FAILURE: track repeated failures."""
         tool_name = str(payload.get("tool_name", ""))
         error = str(payload.get("error", ""))
@@ -283,9 +269,7 @@ class ToolMemoryCaptureHook:
                 count,
             )
 
-        return HookResult(
-            hook_type="tool_memory_capture", success=True, output=f"failures={count}"
-        )
+        return HookResult(hook_type="tool_memory_capture", success=True, output=f"failures={count}")
 
     def reset_session(self) -> None:
         """Reset failure counters for a new session."""

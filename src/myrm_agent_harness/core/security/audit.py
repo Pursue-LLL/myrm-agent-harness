@@ -105,6 +105,7 @@ def record_decision(tool_name: str, decision: DecisionKind, reason: str, *, tain
     if "BLOCK" in decision or "DENY" in decision or "REDACT" in decision or "LEAK" in decision:
         try:
             from myrm_agent_harness.observability.metrics.security_metrics import policy_denial_total
+
             # Extract basic action like block, redact, deny
             action = "block"
             if "REDACT" in decision:

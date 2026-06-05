@@ -33,6 +33,7 @@ _TOTAL_THRESHOLD = 20
 
 class ThresholdBreach(StrEnum):
     """Which denial threshold was breached."""
+
     NONE = "none"
     CONSECUTIVE = "consecutive"
     TOTAL = "total"
@@ -41,6 +42,7 @@ class ThresholdBreach(StrEnum):
 @dataclass
 class DenialState:
     """Session-scoped denial tracking state."""
+
     per_tool: dict[str, int] = field(default_factory=dict)
     consecutive: int = 0
     total: int = 0
@@ -49,6 +51,7 @@ class DenialState:
 @dataclass(frozen=True, slots=True)
 class DenialResult:
     """Return value from record_denial."""
+
     hint: str
     breach: ThresholdBreach
     consecutive_count: int

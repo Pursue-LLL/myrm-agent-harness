@@ -99,10 +99,7 @@ class TabController:
             await self._evict_lru()
 
         page, ctx_key = await self._pool.acquire_page(
-            self._context_type,
-            context_key,
-            self._context_kwargs,
-            engine_preference=engine_preference
+            self._context_type, context_key, self._context_kwargs, engine_preference=engine_preference
         )
 
         tab_id = f"tab{self._tab_counter}"

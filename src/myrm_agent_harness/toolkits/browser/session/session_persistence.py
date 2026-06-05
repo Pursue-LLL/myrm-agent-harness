@@ -111,7 +111,7 @@ class SessionPersistence:
         )
 
     async def restore(self, context: BrowserContext, page: Page, domain: str) -> str:
-        """ from EncryptStorageRestoreSessionState
+        """from EncryptStorageRestoreSessionState
 
         AutoFilter过期Session(Default 30 天 TTL)。
 

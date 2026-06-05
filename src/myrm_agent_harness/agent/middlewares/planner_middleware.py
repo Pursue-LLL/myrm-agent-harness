@@ -43,11 +43,7 @@ def planner_middleware(
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelResponse:
 
-        context = (
-            getattr(request.runtime, "context", None)
-            if hasattr(request, "runtime") and request.runtime
-            else None
-        )
+        context = getattr(request.runtime, "context", None) if hasattr(request, "runtime") and request.runtime else None
         workspace_root = None
         if isinstance(context, dict):
             workspace_root = context.get("workspace_root")
@@ -66,11 +62,7 @@ def planner_middleware(
         ]
 
         for i, step in enumerate(plan.steps, 1):
-            deps_str = (
-                f" (depends on: {', '.join(step.dependencies)})"
-                if step.dependencies
-                else ""
-            )
+            deps_str = f" (depends on: {', '.join(step.dependencies)})" if step.dependencies else ""
             blueprint_lines.append(f"#### Phase {i}: {step.description}")
             blueprint_lines.append(f"- **Step ID:** `{step.step_id}`")
             blueprint_lines.append(f"- **Expected Output:** {step.expected_output}")
@@ -93,17 +85,13 @@ def planner_middleware(
 
         # --- Dynamic Anti-Drift Reminder (Transient) ---
         # Find the current active step
-        uncompleted_steps = [
-            s for s in plan.steps if s.status not in ("completed", "skipped")
-        ]
+        uncompleted_steps = [s for s in plan.steps if s.status not in ("completed", "skipped")]
         reminder_lines = []
 
         if uncompleted_steps:
             current_step = uncompleted_steps[0]
 
-            completed_count = sum(
-                1 for s in plan.steps if s.status in ("completed", "skipped")
-            )
+            completed_count = sum(1 for s in plan.steps if s.status in ("completed", "skipped"))
             total_count = len(plan.steps)
             progress_parts = []
             for s in plan.steps:
@@ -116,16 +104,18 @@ def planner_middleware(
                 else:
                     progress_parts.append(s.step_id)
 
-            reminder_lines.extend([
-                " ANTI-DRIFT REMINDER (Current Focus)",
-                f"You are currently working on Phase `{current_step.step_id}`: {current_step.description}",
-                f"Expected Output: {current_step.expected_output}",
-                f"Progress: [{completed_count}/{total_count}] {', '.join(progress_parts)}",
-                "",
-                "Stay focused on this specific phase. Do not drift to other tasks.",
-                "Before finishing this phase, briefly summarize your work and confirm it aligns with the original goal.",
-                f"Once this phase is complete and verified, you MUST call `planner_tool(action='update', completed_step_id='{current_step.step_id}', feedback='<summary of work AND any key architectural decisions made>')` before proceeding.",
-            ])
+            reminder_lines.extend(
+                [
+                    " ANTI-DRIFT REMINDER (Current Focus)",
+                    f"You are currently working on Phase `{current_step.step_id}`: {current_step.description}",
+                    f"Expected Output: {current_step.expected_output}",
+                    f"Progress: [{completed_count}/{total_count}] {', '.join(progress_parts)}",
+                    "",
+                    "Stay focused on this specific phase. Do not drift to other tasks.",
+                    "Before finishing this phase, briefly summarize your work and confirm it aligns with the original goal.",
+                    f"Once this phase is complete and verified, you MUST call `planner_tool(action='update', completed_step_id='{current_step.step_id}', feedback='<summary of work AND any key architectural decisions made>')` before proceeding.",
+                ]
+            )
 
         # --- Decision Log (Transient XML Injection) ---
         # Inject decisions using XML tags to prevent context compression amnesia
@@ -134,23 +124,29 @@ def planner_middleware(
         if active_decisions:
             if reminder_lines:
                 reminder_lines.append("\n")
-            reminder_lines.extend([
-                "<system_directives>",
-                " <architectural_decisions>",
-                " <!-- The following are key architectural decisions from previous phases. You MUST adhere to them. -->",
-            ])
+            reminder_lines.extend(
+                [
+                    "<system_directives>",
+                    " <architectural_decisions>",
+                    " <!-- The following are key architectural decisions from previous phases. You MUST adhere to them. -->",
+                ]
+            )
             for dec in active_decisions:
-                reminder_lines.extend([
-                    f" <decision id=\"{dec.id}\">",
-                    f" <topic>{dec.topic}</topic>",
-                    f" <content>{dec.decision}</content>",
-                    f" <rationale>{dec.rationale}</rationale>",
-                    " </decision>",
-                ])
-            reminder_lines.extend([
-                " </architectural_decisions>",
-                "</system_directives>",
-            ])
+                reminder_lines.extend(
+                    [
+                        f' <decision id="{dec.id}">',
+                        f" <topic>{dec.topic}</topic>",
+                        f" <content>{dec.decision}</content>",
+                        f" <rationale>{dec.rationale}</rationale>",
+                        " </decision>",
+                    ]
+                )
+            reminder_lines.extend(
+                [
+                    " </architectural_decisions>",
+                    "</system_directives>",
+                ]
+            )
 
         # Combine blueprint + anti-drift + decisions into a single HumanMessage injection.
         # All dynamic content goes to HumanMessage to keep SystemMessage hash stable (prompt cache).

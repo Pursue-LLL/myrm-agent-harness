@@ -53,9 +53,7 @@ class IPCCallContext:
     trace_id: str
 
 
-_ipc_call_context: ContextVar[IPCCallContext | None] = ContextVar(
-    "ipc_call_context", default=None
-)
+_ipc_call_context: ContextVar[IPCCallContext | None] = ContextVar("ipc_call_context", default=None)
 
 
 def get_ipc_call_context() -> IPCCallContext | None:

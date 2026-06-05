@@ -88,9 +88,7 @@ class MaintenanceService:
         self._vector = vector
         self._graph = graph
 
-    async def collect_snapshot(
-        self, *, count_memories_func: CountMemoriesFunc
-    ) -> MemorySnapshot | None:
+    async def collect_snapshot(self, *, count_memories_func: CountMemoriesFunc) -> MemorySnapshot | None:
         try:
             semantic = await count_memories_func(MemoryType.SEMANTIC)
             episodic = await count_memories_func(MemoryType.EPISODIC)
@@ -99,9 +97,7 @@ class MaintenanceService:
             logger.warning("Snapshot collection failed: %s", exc)
             return None
 
-    async def scroll_all_memories(
-        self, *, list_memories_func: ListMemoriesFunc
-    ) -> list[AnyMemory]:
+    async def scroll_all_memories(self, *, list_memories_func: ListMemoriesFunc) -> list[AnyMemory]:
         result: list[AnyMemory] = []
         for memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC):
             try:
@@ -129,9 +125,7 @@ class MaintenanceService:
             ForgettableMemory,
         )
 
-        health_input = _HealthInput(
-            has_graph=self._graph is not None, forgetting_config=self._config.forgetting
-        )
+        health_input = _HealthInput(has_graph=self._graph is not None, forgetting_config=self._config.forgetting)
 
         all_memories: list[ForgettableMemory] = []
         for memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC):
@@ -154,9 +148,7 @@ class MaintenanceService:
                 try:
                     recent = await list_memories_func(memory_type, 1)
                     if recent:
-                        health_input.type_latest_update[memory_type.value] = recent[
-                            0
-                        ].updated_at
+                        health_input.type_latest_update[memory_type.value] = recent[0].updated_at
                 except Exception:
                     pass
 
@@ -169,9 +161,7 @@ class MaintenanceService:
                 except Exception:
                     return False
 
-            results = await asyncio.gather(
-                *[has_relations(memory.id) for memory in sample]
-            )
+            results = await asyncio.gather(*[has_relations(memory.id) for memory in sample])
             health_input.coherent_count = sum(results)
             health_input.coherence_sample_size = len(sample)
 
@@ -186,9 +176,7 @@ class MaintenanceService:
         collect_snapshot_func: Callable[[], Awaitable[MemorySnapshot | None]],
         compute_health_func: ComputeHealthFunc,
         scroll_all_memories_func: ScrollAllFunc,
-        run_consolidation_func: Callable[
-            [ConsolidationConfig, bool], Awaitable[MaintenanceConsolidationResult]
-        ],
+        run_consolidation_func: Callable[[ConsolidationConfig, bool], Awaitable[MaintenanceConsolidationResult]],
         preference_rebuild_func: Callable[[], Awaitable[tuple[int, int, int]]] | None = None,
     ) -> MaintenanceReport:
         if lock.locked():
@@ -208,9 +196,7 @@ class MaintenanceService:
 
             if consolidation_enabled:
                 try:
-                    consolidation = await run_consolidation_func(
-                        self._config.consolidation, force
-                    )
+                    consolidation = await run_consolidation_func(self._config.consolidation, force)
                     consolidation_merged = consolidation.merged
                     consolidation_corrected = consolidation.corrected
                     consolidation_updated = consolidation.updated
@@ -230,26 +216,18 @@ class MaintenanceService:
                     logger.warning("Maintenance blob GC failed: %s", exc)
 
                 try:
-                    digests_evaporated = await evaporate_task_digests(
-                        self._vector, self._config
-                    )
+                    digests_evaporated = await evaporate_task_digests(self._vector, self._config)
                 except Exception as exc:
                     logger.warning("Maintenance digest evaporation failed: %s", exc)
 
                 if self._graph is not None:
                     try:
-                        claims_compiled = await compile_claim_graph(
-                            self._vector, self._graph, self._config
-                        )
+                        claims_compiled = await compile_claim_graph(self._vector, self._graph, self._config)
                     except Exception as exc:
-                        logger.warning(
-                            "Maintenance claim graph compilation failed: %s", exc
-                        )
+                        logger.warning("Maintenance claim graph compilation failed: %s", exc)
 
                 try:
-                    forgetting = await run_forgetting(
-                        self._vector, self._config, self._graph
-                    )
+                    forgetting = await run_forgetting(self._vector, self._config, self._graph)
                     forgotten_count = forgetting.forgotten_count
                     archived_count = forgetting.archived_count
                 except Exception as exc:
@@ -262,7 +240,9 @@ class MaintenanceService:
                     if pref_promoted or pref_demoted or pref_dropped:
                         logger.info(
                             "Preference stability rebuild: promoted=%d demoted=%d dropped=%d",
-                            pref_promoted, pref_demoted, pref_dropped,
+                            pref_promoted,
+                            pref_demoted,
+                            pref_dropped,
                         )
                 except Exception as exc:
                     logger.warning("Maintenance preference rebuild failed: %s", exc)

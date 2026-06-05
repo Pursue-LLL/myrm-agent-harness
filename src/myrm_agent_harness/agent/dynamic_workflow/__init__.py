@@ -52,6 +52,7 @@ print(json.dumps(results, indent=2))
 Write ONLY the Python script. Do not include markdown formatting or explanations. The script will be executed in a secure sandbox.
 """
 
+
 async def run_dynamic_workflow_stream(
     llm: BaseChatModel,
     query: str,
@@ -82,7 +83,7 @@ async def run_dynamic_workflow_stream(
     # Create the tool that will be injected into PTC
     spawn_tool = SpawnSubagentTool(
         manager=manager,
-        tool_registry_getter=lambda: [], # We can inject more tools later
+        tool_registry_getter=lambda: [],  # We can inject more tools later
         workflow_id=workflow_id,
         store=store,
     )
@@ -102,9 +103,13 @@ async def run_dynamic_workflow_stream(
         "data": {"message": "Generating Python orchestration script..."},
     }
 
-    messages = [
-        SystemMessage(content=ORCHESTRATOR_PROMPT),
-    ] + chat_history + [HumanMessage(content=query)]
+    messages = (
+        [
+            SystemMessage(content=ORCHESTRATOR_PROMPT),
+        ]
+        + chat_history
+        + [HumanMessage(content=query)]
+    )
 
     response = await llm.ainvoke(messages)
     script_code = response.content

@@ -7,29 +7,31 @@ from typing import Literal, NamedTuple
 
 SnapshotScope = Literal["foreground", "window_title", "full_screen"]
 
-INTERACTIVE_AX_ROLES: frozenset[str] = frozenset({
-    "AXButton",
-    "AXCheckBox",
-    "AXComboBox",
-    "AXDisclosureTriangle",
-    "AXLink",
-    "AXMenuItem",
-    "AXPopUpButton",
-    "AXRadioButton",
-    "AXSlider",
-    "AXTabGroup",
-    "AXTextField",
-    "AXTextArea",
-    "Button",
-    "CheckBox",
-    "ComboBox",
-    "EditControl",
-    "HyperlinkControl",
-    "ListItemControl",
-    "MenuItemControl",
-    "RadioButtonControl",
-    "TabItemControl",
-})
+INTERACTIVE_AX_ROLES: frozenset[str] = frozenset(
+    {
+        "AXButton",
+        "AXCheckBox",
+        "AXComboBox",
+        "AXDisclosureTriangle",
+        "AXLink",
+        "AXMenuItem",
+        "AXPopUpButton",
+        "AXRadioButton",
+        "AXSlider",
+        "AXTabGroup",
+        "AXTextField",
+        "AXTextArea",
+        "Button",
+        "CheckBox",
+        "ComboBox",
+        "EditControl",
+        "HyperlinkControl",
+        "ListItemControl",
+        "MenuItemControl",
+        "RadioButtonControl",
+        "TabItemControl",
+    }
+)
 
 
 class BBox(NamedTuple):

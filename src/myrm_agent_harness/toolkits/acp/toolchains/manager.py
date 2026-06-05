@@ -27,6 +27,7 @@ BACKEND_NPM_MAP = {
     "gemini": "@google/gemini-cli",
 }
 
+
 class IsolatedToolchainManager:
     """Manages isolated toolchains for external CLI agents."""
 
@@ -79,11 +80,12 @@ class IsolatedToolchainManager:
                 await loop.run_in_executor(None, urllib.request.urlretrieve, url, tar_path)
 
                 yield "Extracting Node.js..."
+
                 def extract():
                     with tarfile.open(tar_path, "r:gz") as tar:
                         tar.extractall(path=self.base_dir)
                         # Rename extracted folder to standard node_dir
-                        extracted_folder = tar.getnames()[0].split('/')[0]
+                        extracted_folder = tar.getnames()[0].split("/")[0]
                         extracted_path = self.base_dir / extracted_folder
                         if extracted_path != self.node_dir:
                             if self.node_dir.exists():
@@ -123,14 +125,7 @@ class IsolatedToolchainManager:
         registry = "https://registry.npmmirror.com"
 
         # Install globally but with prefix set to our bin_dir
-        cmd = [
-            str(npm_path),
-            "install",
-            "-g",
-            package_name,
-            "--prefix", str(self.base_dir),
-            "--registry", registry
-        ]
+        cmd = [str(npm_path), "install", "-g", package_name, "--prefix", str(self.base_dir), "--registry", registry]
 
         # Setup env to use our isolated node
         env = os.environ.copy()
@@ -138,10 +133,7 @@ class IsolatedToolchainManager:
 
         try:
             proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-                env=env
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, env=env
             )
 
             if proc.stdout:

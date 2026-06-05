@@ -58,7 +58,11 @@ class SecurityBoundaryMiddleware(AgentMiddleware):  # type: ignore[type-arg]
         # Check if already injected (idempotency)
         if insert_idx < len(messages):
             existing_msg = messages[insert_idx]
-            if isinstance(existing_msg, SystemMessage) and isinstance(existing_msg.content, str) and "<data_boundary_rules" in existing_msg.content:
+            if (
+                isinstance(existing_msg, SystemMessage)
+                and isinstance(existing_msg.content, str)
+                and "<data_boundary_rules" in existing_msg.content
+            ):
                 return None
 
         new_messages = list(messages)

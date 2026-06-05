@@ -38,7 +38,7 @@ def _size_check_wrapper(cmd: str) -> str:
         f"  _kb=$(du -sk . 2>/dev/null | cut -f1); "
         f'  if [ "$_kb" -gt {limit_kb} ] 2>/dev/null; then '
         f'    echo "ERROR: Extracted size exceeds {_MAX_EXTRACT_SIZE_MB}MB limit" >&2; '
-        f'    (exit 1); '
+        f"    (exit 1); "
         f"  fi; "
         f"fi; "
         f'echo "$_out"; (exit $_ec)'

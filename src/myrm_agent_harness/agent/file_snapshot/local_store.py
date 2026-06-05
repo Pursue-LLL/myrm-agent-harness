@@ -279,18 +279,22 @@ class LocalFileSnapshotStore:
             current = working_dir / rel_path_str
 
             if not current.exists():
-                changes.append(FileChange(
-                    path=rel_path_str,
-                    change_type="deleted",
-                    old_size=file_meta.get("size"),
-                ))
+                changes.append(
+                    FileChange(
+                        path=rel_path_str,
+                        change_type="deleted",
+                        old_size=file_meta.get("size"),
+                    )
+                )
             elif current.stat().st_mtime > file_meta.get("mtime", 0):
-                changes.append(FileChange(
-                    path=rel_path_str,
-                    change_type="modified",
-                    old_size=file_meta.get("size"),
-                    new_size=current.stat().st_size,
-                ))
+                changes.append(
+                    FileChange(
+                        path=rel_path_str,
+                        change_type="modified",
+                        old_size=file_meta.get("size"),
+                        new_size=current.stat().st_size,
+                    )
+                )
 
         # Check for new files not in snapshot
         for root, dirs, files in os.walk(working_dir):
@@ -299,11 +303,13 @@ class LocalFileSnapshotStore:
                 src = Path(root) / filename
                 rel_path = str(src.relative_to(working_dir))
                 if rel_path not in snapshot_files:
-                    changes.append(FileChange(
-                        path=rel_path,
-                        change_type="added",
-                        new_size=src.stat().st_size,
-                    ))
+                    changes.append(
+                        FileChange(
+                            path=rel_path,
+                            change_type="added",
+                            new_size=src.stat().st_size,
+                        )
+                    )
 
         return FileDiff(
             snapshot_id=snapshot_id,
@@ -331,14 +337,16 @@ class LocalFileSnapshotStore:
             try:
                 with open(manifest_path, encoding="utf-8") as f:
                     manifest = json.load(f)
-                snapshots.append(FileSnapshotInfo(
-                    snapshot_id=manifest["snapshot_id"],
-                    working_dir=manifest["working_dir"],
-                    trigger=SnapshotTrigger(manifest["trigger"]),
-                    created_at=manifest["created_at"],
-                    file_count=manifest.get("file_count", 0),
-                    description=manifest.get("description", ""),
-                ))
+                snapshots.append(
+                    FileSnapshotInfo(
+                        snapshot_id=manifest["snapshot_id"],
+                        working_dir=manifest["working_dir"],
+                        trigger=SnapshotTrigger(manifest["trigger"]),
+                        created_at=manifest["created_at"],
+                        file_count=manifest.get("file_count", 0),
+                        description=manifest.get("description", ""),
+                    )
+                )
             except Exception as e:
                 logger.warning("Failed to read snapshot manifest %s: %s", snap_dir, e)
 

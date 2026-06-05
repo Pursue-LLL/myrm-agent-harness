@@ -86,31 +86,35 @@ class MCPClientManager:
 
         # read_timeout_seconds = execution timeout for MCP tool calls
         client_config: dict[str, object] = {
-            "session_kwargs": {
-                "read_timeout_seconds": timedelta(seconds=execute_timeout)
-            }
+            "session_kwargs": {"read_timeout_seconds": timedelta(seconds=execute_timeout)}
         }
 
         if server_type == "sse":
-            client_config.update({
-                "url": server_config.url,
-                "transport": "sse",
-                "timeout": connect_timeout,
-                "sse_read_timeout": execute_timeout,
-            })
+            client_config.update(
+                {
+                    "url": server_config.url,
+                    "transport": "sse",
+                    "timeout": connect_timeout,
+                    "sse_read_timeout": execute_timeout,
+                }
+            )
         elif server_type == "streamable_http":
-            client_config.update({
-                "url": server_config.url,
-                "transport": "streamable_http",
-                "timeout": connect_timeout,
-                "sse_read_timeout": execute_timeout,
-            })
+            client_config.update(
+                {
+                    "url": server_config.url,
+                    "transport": "streamable_http",
+                    "timeout": connect_timeout,
+                    "sse_read_timeout": execute_timeout,
+                }
+            )
         elif server_type == "stdio":
-            client_config.update({
-                "command": server_config.command,
-                "args": server_config.args or [],
-                "transport": "stdio",
-            })
+            client_config.update(
+                {
+                    "command": server_config.command,
+                    "args": server_config.args or [],
+                    "transport": "stdio",
+                }
+            )
         else:
             raise ValueError(f"Unsupported transport type: {server_type}")
 
@@ -161,9 +165,7 @@ class MCPClientManager:
             return MultiServerMCPClient({})
 
     @staticmethod
-    def _resolve_tls_path(
-        raw_path: str, label: str, server_name: str, *, allow_dir: bool = False
-    ) -> str:
+    def _resolve_tls_path(raw_path: str, label: str, server_name: str, *, allow_dir: bool = False) -> str:
         """Expand ~ and validate that the TLS path exists.
 
         ``allow_dir`` permits an OpenSSL ``capath`` directory for the CA bundle
@@ -174,9 +176,7 @@ class MCPClientManager:
         if path.is_file() or (allow_dir and path.is_dir()):
             return expanded
         kind = "file or directory" if allow_dir else "file"
-        raise FileNotFoundError(
-            f"MCP server '{server_name}': {label} {kind} not found: {expanded}"
-        )
+        raise FileNotFoundError(f"MCP server '{server_name}': {label} {kind} not found: {expanded}")
 
     @staticmethod
     def _build_ssl_context(
@@ -206,9 +206,7 @@ class MCPClientManager:
         if ssl_verify is False:
             ssl_context = httpx.create_ssl_context(verify=False)
         elif isinstance(ssl_verify, str):
-            ca_path = MCPClientManager._resolve_tls_path(
-                ssl_verify, "ssl_verify (CA bundle)", name, allow_dir=True
-            )
+            ca_path = MCPClientManager._resolve_tls_path(ssl_verify, "ssl_verify (CA bundle)", name, allow_dir=True)
             ssl_context = (
                 ssl.create_default_context(capath=ca_path)
                 if Path(ca_path).is_dir()
@@ -225,17 +223,13 @@ class MCPClientManager:
                     f"(a private key cannot be used without its certificate)"
                 )
             if client_key_password is not None:
-                raise ValueError(
-                    f"MCP server '{name}': 'client_key_password' provided without 'client_cert'"
-                )
+                raise ValueError(f"MCP server '{name}': 'client_key_password' provided without 'client_cert'")
             return ssl_context
 
         # 3) Load the client certificate chain (mTLS), supporting encrypted keys.
         cert_path = MCPClientManager._resolve_tls_path(client_cert, "client_cert", name)
         key_path = (
-            MCPClientManager._resolve_tls_path(client_key, "client_key", name)
-            if client_key is not None
-            else None
+            MCPClientManager._resolve_tls_path(client_key, "client_key", name) if client_key is not None else None
         )
         password = client_key_password if client_key_password is not None else _noninteractive_passphrase
         try:
@@ -246,9 +240,7 @@ class MCPClientManager:
                 if client_key_password
                 else "the key may be passphrase-protected — set client_key_password"
             )
-            raise ValueError(
-                f"MCP server '{name}': failed to load client certificate/key: {exc} ({hint})"
-            ) from exc
+            raise ValueError(f"MCP server '{name}': failed to load client certificate/key: {exc} ({hint})") from exc
 
         return ssl_context
 

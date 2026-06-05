@@ -44,9 +44,7 @@ class SandboxValidator:
     """
 
     def __init__(self, timeout_seconds: float = 10.0):
-        self._test_executor = SubprocessCodeExecutor(
-            timeout_seconds=timeout_seconds, allow_network=False
-        )
+        self._test_executor = SubprocessCodeExecutor(timeout_seconds=timeout_seconds, allow_network=False)
         self._timeout_seconds = timeout_seconds
 
     def _run_ast_analysis(self, python_code: str) -> tuple[bool, str]:
@@ -65,11 +63,7 @@ class SandboxValidator:
 
         # Check for high-risk operations
         for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Name)
-                and node.func.id in ("eval", "exec")
-            ):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("eval", "exec"):
                 return (
                     False,
                     f"HighRiskOperation: Use of '{node.func.id}' is strictly prohibited.\n```python\n{node.func.id}(...)\n```",
@@ -87,9 +81,7 @@ class SandboxValidator:
             # 1.5 0-cost AST Static Analysis (Replaces LLM Fuzzing)
             ast_passed, ast_msg = self._run_ast_analysis(combined_code)
             if not ast_passed:
-                logger.warning(
-                    f"AST Static Analysis failed for {skill.name}: {ast_msg}"
-                )
+                logger.warning(f"AST Static Analysis failed for {skill.name}: {ast_msg}")
                 return False, ast_msg
 
             pytest_code = """
@@ -103,9 +95,7 @@ def test_syntax():
                 skill_name=skill.name,
             )
             if not result.passed:
-                logger.warning(
-                    f"Dry-run syntax check failed for {skill.name}:\n{result.stdout}\n{result.stderr}"
-                )
+                logger.warning(f"Dry-run syntax check failed for {skill.name}:\n{result.stdout}\n{result.stderr}")
                 return False, f"Syntax Check Failed: {result.stderr or result.stdout}"
 
         # 2. Execute Verification Steps (if any) securely using framework engine
@@ -125,7 +115,10 @@ def test_syntax():
 
                         # 2.5 Block inline script execution bypasses
                         if re.search(r"(python|python3|node)\s+-c\s+[\"']", cmd):
-                            return False, f"HighRiskOperation: Inline script execution via bash (`python -c`) is strictly prohibited to prevent AST bypasses.\n```bash\n{cmd}\n```"
+                            return (
+                                False,
+                                f"HighRiskOperation: Inline script execution via bash (`python -c`) is strictly prohibited to prevent AST bypasses.\n```bash\n{cmd}\n```",
+                            )
 
                         # Execute via the framework's 5-layer validated Bash execution
                         context = ExecutionContext(

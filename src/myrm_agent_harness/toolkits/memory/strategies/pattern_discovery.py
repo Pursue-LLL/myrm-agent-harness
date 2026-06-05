@@ -58,9 +58,7 @@ class DiscoveredPattern(BaseModel):
 
     title: str = Field(description="Short pattern name (< 60 chars)")
     description: str = Field(description="What this pattern means for the user")
-    evidence_summary: str = Field(
-        description="Key memories or events supporting this pattern"
-    )
+    evidence_summary: str = Field(description="Key memories or events supporting this pattern")
     durability: PatternDurability = Field(default=PatternDurability.EMERGING)
     confidence: float = Field(default=0.7, ge=0.0, le=1.0)
     actionable_suggestion: str = Field(
@@ -138,9 +136,7 @@ async def increment_consolidation_count(manager: MemoryManager) -> None:
         return
     raw = await manager.get_profile_attribute(_PROFILE_KEY_CONSOLIDATION_COUNT)
     current = int(raw) if raw else 0
-    await manager.set_profile_attribute(
-        _PROFILE_KEY_CONSOLIDATION_COUNT, str(current + 1)
-    )
+    await manager.set_profile_attribute(_PROFILE_KEY_CONSOLIDATION_COUNT, str(current + 1))
 
 
 _SYSTEM_PROMPT = """You are a behavioral pattern analyst. Given a user's accumulated memories, consolidation insights, and knowledge claims, identify cross-cycle behavioral patterns the user may not be aware of.
@@ -203,11 +199,7 @@ async def _collect_insights(manager: MemoryManager, limit: int = 30) -> list[str
             "consolidation insight pattern observation",
             limit=limit,
         )
-        return [
-            r.memory.content
-            for r in results
-            if "consolidation-insight" in getattr(r.memory, "tags", [])
-        ]
+        return [r.memory.content for r in results if "consolidation-insight" in getattr(r.memory, "tags", [])]
     except Exception as exc:
         logger.warning("Pattern discovery: failed to collect insights: %s", exc)
         return []
@@ -222,11 +214,7 @@ async def _collect_claims(manager: MemoryManager, limit: int = 30) -> list[str]:
         if graph is None:
             return []
         nodes = await graph.find_nodes(labels=["Claim"], filters={}, limit=limit)
-        return [
-            str(n.properties.get("content", ""))
-            for n in nodes
-            if n.properties.get("content")
-        ]
+        return [str(n.properties.get("content", "")) for n in nodes if n.properties.get("content")]
     except Exception as exc:
         logger.warning("Pattern discovery: failed to collect claims: %s", exc)
         return []
@@ -253,9 +241,7 @@ async def run_pattern_discovery(
     start = datetime.now(UTC)
 
     if not await should_run_pattern_discovery(manager):
-        return PatternReport(
-            skipped=True, skip_reason="memory system not yet mature enough"
-        )
+        return PatternReport(skipped=True, skip_reason="memory system not yet mature enough")
 
     from myrm_agent_harness.toolkits.memory.types import MemoryType
 
@@ -316,9 +302,7 @@ async def run_pattern_discovery(
     await _update_discovery_timestamp(manager, start)
     if manager.has_relational:
         with contextlib.suppress(Exception):
-            await manager.set_profile_attribute(
-                _PROFILE_KEY_MEMORY_SET_HASH, current_hash
-            )
+            await manager.set_profile_attribute(_PROFILE_KEY_MEMORY_SET_HASH, current_hash)
 
     elapsed = (datetime.now(UTC) - start).total_seconds() * 1000
     report = PatternReport(
@@ -350,12 +334,8 @@ async def _persist_patterns(
 
     summary_parts = []
     for p in patterns:
-        suggestion = (
-            f" Suggestion: {p.actionable_suggestion}" if p.actionable_suggestion else ""
-        )
-        summary_parts.append(
-            f"[{p.durability.value}] {p.title}: {p.description}{suggestion}"
-        )
+        suggestion = f" Suggestion: {p.actionable_suggestion}" if p.actionable_suggestion else ""
+        summary_parts.append(f"[{p.durability.value}] {p.title}: {p.description}{suggestion}")
 
     if meta_observation:
         summary_parts.append(f"Overall: {meta_observation}")
@@ -376,9 +356,7 @@ async def _update_discovery_timestamp(manager: MemoryManager, ts: datetime) -> N
     if not manager.has_relational:
         return
     try:
-        await manager.set_profile_attribute(
-            _PROFILE_KEY_LAST_PATTERN_DISCOVERY, ts.isoformat()
-        )
+        await manager.set_profile_attribute(_PROFILE_KEY_LAST_PATTERN_DISCOVERY, ts.isoformat())
     except Exception as exc:
         logger.warning("Failed to update pattern discovery timestamp: %s", exc)
 

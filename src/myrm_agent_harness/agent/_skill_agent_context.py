@@ -33,17 +33,11 @@ logger = get_agent_logger(__name__)
 
 _background_tasks: set[asyncio.Task[None]] = set()
 
-_storage_backend_var: ContextVar[StorageProvider | None] = ContextVar(
-    "storage_backend", default=None
-)
-_memory_manager_var: ContextVar[MemoryManager | None] = ContextVar(
-    "memory_manager", default=None
-)
-_loaded_skills_var: ContextVar[list[SkillMetadata] | None] = ContextVar(
-    "loaded_skills", default=None
-)
-_permission_invalidation_callback: ContextVar[Callable[[str, str], None] | None] = (
-    ContextVar("permission_invalidation_callback", default=None)
+_storage_backend_var: ContextVar[StorageProvider | None] = ContextVar("storage_backend", default=None)
+_memory_manager_var: ContextVar[MemoryManager | None] = ContextVar("memory_manager", default=None)
+_loaded_skills_var: ContextVar[list[SkillMetadata] | None] = ContextVar("loaded_skills", default=None)
+_permission_invalidation_callback: ContextVar[Callable[[str, str], None] | None] = ContextVar(
+    "permission_invalidation_callback", default=None
 )
 _task_intent_var: ContextVar[str] = ContextVar("task_intent", default="")
 
@@ -175,9 +169,7 @@ def invalidate_permissions(user_id: str, skill_id: str) -> None:
     if callback:
         try:
             callback(user_id, skill_id)
-            logger.info(
-                "Permission cache invalidated: user=%s, skill=%s", user_id, skill_id
-            )
+            logger.info("Permission cache invalidated: user=%s, skill=%s", user_id, skill_id)
         except Exception as e:
             logger.error(
                 "Failed to invalidate permission cache: user=%s, skill=%s, error=%s",

@@ -35,9 +35,7 @@ class _QueueSink:
 
     __slots__ = ("_message_id", "_queue")
 
-    def __init__(
-        self, queue: asyncio.Queue[_EventDict | object], message_id: str
-    ) -> None:
+    def __init__(self, queue: asyncio.Queue[_EventDict | object], message_id: str) -> None:
         self._queue = queue
         self._message_id = message_id
 
@@ -50,9 +48,7 @@ class _QueueSink:
         await self._queue.put(event)
 
 
-_tool_progress_sink: ContextVar[ToolProgressSink | None] = ContextVar(
-    "_tool_progress_sink", default=None
-)
+_tool_progress_sink: ContextVar[ToolProgressSink | None] = ContextVar("_tool_progress_sink", default=None)
 
 
 def get_tool_progress_sink() -> ToolProgressSink | None:

@@ -69,8 +69,7 @@ def _detect_macos_hardware(profile: HardwareProfile) -> None:
             # Try to get the specific chip name (e.g., "Apple M2 Max")
             try:
                 res = subprocess.run(
-                    ["sysctl", "-n", "machdep.cpu.brand_string"],
-                    capture_output=True, text=True, timeout=2
+                    ["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True, timeout=2
                 )
                 if res.returncode == 0 and res.stdout.strip():
                     profile.gpu_name = res.stdout.strip()
@@ -84,8 +83,7 @@ def _detect_macos_hardware(profile: HardwareProfile) -> None:
             profile.is_unified_memory = False
             try:
                 res = subprocess.run(
-                    ["system_profiler", "SPDisplaysDataType"],
-                    capture_output=True, text=True, timeout=5
+                    ["system_profiler", "SPDisplaysDataType"], capture_output=True, text=True, timeout=5
                 )
                 if res.returncode == 0:
                     # Extract GPU name
@@ -125,7 +123,9 @@ def _detect_linux_hardware(profile: HardwareProfile) -> None:
     try:
         res = subprocess.run(
             ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
-            capture_output=True, text=True, timeout=5
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if res.returncode == 0 and res.stdout.strip():
             lines = res.stdout.strip().splitlines()
@@ -146,16 +146,13 @@ def _detect_linux_hardware(profile: HardwareProfile) -> None:
 
     # Fallback to lshw for AMD/Intel
     try:
-        res = subprocess.run(
-            ["lshw", "-C", "display", "-short"],
-            capture_output=True, text=True, timeout=5
-        )
+        res = subprocess.run(["lshw", "-C", "display", "-short"], capture_output=True, text=True, timeout=5)
         if res.returncode == 0:
             output = res.stdout.lower()
             if "amd" in output or "radeon" in output:
                 profile.gpu_vendor = "amd"
                 profile.has_gpu = True
-                profile.gpu_name = "AMD Radeon GPU" # lshw -short doesn't always give clean names
+                profile.gpu_name = "AMD Radeon GPU"  # lshw -short doesn't always give clean names
             elif "intel" in output:
                 profile.gpu_vendor = "intel"
                 profile.has_gpu = True
@@ -174,8 +171,7 @@ def _detect_windows_hardware(profile: HardwareProfile) -> None:
     try:
         # Get GPU Name
         res_name = subprocess.run(
-            ["wmic", "path", "win32_VideoController", "get", "name"],
-            capture_output=True, text=True, timeout=5
+            ["wmic", "path", "win32_VideoController", "get", "name"], capture_output=True, text=True, timeout=5
         )
         if res_name.returncode == 0:
             lines = [line.strip() for line in res_name.stdout.splitlines() if line.strip()]
@@ -194,8 +190,7 @@ def _detect_windows_hardware(profile: HardwareProfile) -> None:
 
         # Get VRAM
         res_vram = subprocess.run(
-            ["wmic", "path", "win32_VideoController", "get", "AdapterRAM"],
-            capture_output=True, text=True, timeout=5
+            ["wmic", "path", "win32_VideoController", "get", "AdapterRAM"], capture_output=True, text=True, timeout=5
         )
         if res_vram.returncode == 0:
             lines = [line.strip() for line in res_vram.stdout.splitlines() if line.strip()]
@@ -243,13 +238,14 @@ def detect_hardware_profile() -> HardwareProfile | None:
 
         # Free Disk Space in GB (check user home directory)
         import os
+
         free_disk_gb = psutil.disk_usage(os.path.expanduser("~")).free / (1024.0**3)
 
         profile = HardwareProfile(
             os_type=os_type,  # type: ignore
             cpu_arch=cpu_arch,
             total_ram_gb=total_ram_gb,
-            free_disk_gb=free_disk_gb
+            free_disk_gb=free_disk_gb,
         )
 
         # OS-specific GPU detection

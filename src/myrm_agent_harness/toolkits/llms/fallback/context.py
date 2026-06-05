@@ -46,9 +46,7 @@ class FailoverEmitter(Protocol):
         """Notify subscribers that a previously-cold model recovered."""
 
 
-failover_emitter_ctx: ContextVar[FailoverEmitter | None] = ContextVar(
-    "failover_emitter_ctx", default=None
-)
+failover_emitter_ctx: ContextVar[FailoverEmitter | None] = ContextVar("failover_emitter_ctx", default=None)
 
 
 @asynccontextmanager

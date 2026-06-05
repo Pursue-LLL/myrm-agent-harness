@@ -68,7 +68,7 @@ class LocalStorageBackend(BaseFileSystemBackend):
     def _resolve_key_to_path(self, key: str) -> Path:
         """ParseStorageKey to LocalFile系统Path
 
-         使用 safe_join_path 确保路径安全，防止路径遍历、空字节和符号链接攻击。
+        使用 safe_join_path 确保路径安全，防止路径遍历、空字节和符号链接攻击。
         """
         from myrm_agent_harness.core.security.path_security import safe_join_path
 

@@ -177,7 +177,12 @@ class IntegrationFetcher:
         elapsed = time.monotonic() - t0
         logger.info(
             "Sync complete: provider=%s created=%d updated=%d skipped=%d failed=%d (%.1fs)",
-            provider_id, created, updated, skipped, failed, elapsed,
+            provider_id,
+            created,
+            updated,
+            skipped,
+            failed,
+            elapsed,
         )
 
         return IntegrationSyncResult(
@@ -264,9 +269,7 @@ class IntegrationFetcher:
         if external_object_id:
             self._known_external_ids.add(f"{provider}::{external_object_id}")
 
-    def _leaf_to_memory(
-        self, leaf: IntegrationLeaf, embedding: list[float], tree_id: str
-    ) -> IntegrationMemory:
+    def _leaf_to_memory(self, leaf: IntegrationLeaf, embedding: list[float], tree_id: str) -> IntegrationMemory:
         return IntegrationMemory(
             id=leaf.id,
             content=leaf.content or leaf.summary or leaf.title,

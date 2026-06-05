@@ -212,9 +212,7 @@ def classify_execution_error(result: ExecutionResult) -> str | None:
         if result.exit_code == 127:
             return "not_found"
 
-    combined = " ".join(
-        filter(None, [result.error, result.stderr, result.stdout[:500]])
-    )
+    combined = " ".join(filter(None, [result.error, result.stderr, result.stdout[:500]]))
     for category, patterns in _ERROR_PATTERNS:
         if any(pattern in combined for pattern in patterns):
             return category
@@ -375,9 +373,7 @@ class ExecutionMetrics:
     def total_time_ms(self) -> float:
         return self.total_time * 1000
 
-    def record(
-        self, result: ExecutionResult, execution_type: Literal["python", "bash"]
-    ) -> None:
+    def record(self, result: ExecutionResult, execution_type: Literal["python", "bash"]) -> None:
         """Record a single execution result."""
         self.total_executions += 1
 
@@ -400,20 +396,12 @@ class ExecutionMetrics:
     @property
     def avg_time(self) -> float:
         """Average execution time in seconds."""
-        return (
-            self.total_time / self.total_executions
-            if self.total_executions > 0
-            else 0.0
-        )
+        return self.total_time / self.total_executions if self.total_executions > 0 else 0.0
 
     @property
     def success_rate(self) -> float:
         """Success rate as a fraction (0.0 to 1.0)."""
-        return (
-            self.total_success / self.total_executions
-            if self.total_executions > 0
-            else 0.0
-        )
+        return self.total_success / self.total_executions if self.total_executions > 0 else 0.0
 
     @property
     def uptime(self) -> float:

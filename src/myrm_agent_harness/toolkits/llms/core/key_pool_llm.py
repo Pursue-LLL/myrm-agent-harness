@@ -36,11 +36,13 @@ from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind, classi
 logger = logging.getLogger(__name__)
 
 
-_KEY_ROTATABLE_KINDS = frozenset({
-    ErrorKind.RATE_LIMIT,
-    ErrorKind.AUTH,
-    ErrorKind.BILLING,
-})
+_KEY_ROTATABLE_KINDS = frozenset(
+    {
+        ErrorKind.RATE_LIMIT,
+        ErrorKind.AUTH,
+        ErrorKind.BILLING,
+    }
+)
 
 
 class KeyPoolLLM(BaseChatModel):

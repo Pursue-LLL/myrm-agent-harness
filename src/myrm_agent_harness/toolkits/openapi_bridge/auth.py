@@ -78,10 +78,7 @@ class OpenAPIAuthProvider:
         Returns:
             Dict of query params, or empty dict if not applicable.
         """
-        if (
-            self._config.type == AuthType.API_KEY
-            and self._config.api_key_location == "query"
-        ):
+        if self._config.type == AuthType.API_KEY and self._config.api_key_location == "query":
             return {self._config.api_key_header: self._config.api_key or ""}
         return {}
 

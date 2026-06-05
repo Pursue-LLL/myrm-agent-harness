@@ -82,9 +82,7 @@ def _get_structured_llm_or_parser(
         structured_llm = llm.with_structured_output(StructuredSummary)
         return structured_llm, None
     except NotImplementedError:
-        logger.warning(
-            " Model does not support with_structured_output natively, degrading to PydanticOutputParser"
-        )
+        logger.warning(" Model does not support with_structured_output natively, degrading to PydanticOutputParser")
         return None, PydanticOutputParser(pydantic_object=_FallbackSummaryModel)
 
 
@@ -107,10 +105,7 @@ def _redact_summary_fields(summary: StructuredSummary) -> StructuredSummary:
             setattr(
                 summary,
                 field_name,
-                [
-                    redact_leaks(item) if isinstance(item, str) else item
-                    for item in value
-                ],
+                [redact_leaks(item) if isinstance(item, str) else item for item in value],
             )
     return summary
 
@@ -126,9 +121,7 @@ async def _invoke_summary(
     if parser:
         instructions = parser.get_format_instructions()
         final_prompt = f"{prompt}\n\n{instructions}"
-        response = await llm.ainvoke(
-            _build_summary_invocation_messages(final_prompt, cache_prefix_messages)
-        )
+        response = await llm.ainvoke(_build_summary_invocation_messages(final_prompt, cache_prefix_messages))
         parsed = parser.invoke(response)
         summary = parsed.to_structured_summary()
     else:
@@ -180,7 +173,8 @@ def _guard_aux_context(
         logger.warning(
             "[Summarize] Aux model context too small to hold even the prompt "
             "(limit=%d, prompt_overhead=%d) — skipping guard",
-            aux_limit, prompt_tokens,
+            aux_limit,
+            prompt_tokens,
         )
         return messages
 
@@ -201,9 +195,12 @@ def _guard_aux_context(
         trimmed = messages[-1:]
 
     logger.warning(
-        "[Summarize] Aux context guard: trimmed %d → %d messages "
-        "(aux_limit=%d, safe_budget=%d, original_tokens=%d)",
-        len(messages), len(trimmed), aux_limit, safe_budget, total_tokens,
+        "[Summarize] Aux context guard: trimmed %d → %d messages (aux_limit=%d, safe_budget=%d, original_tokens=%d)",
+        len(messages),
+        len(trimmed),
+        aux_limit,
+        safe_budget,
+        total_tokens,
     )
     return trimmed
 
@@ -324,9 +321,7 @@ async def generate_structured_summary(
             summary.context_dump_path = dump_path
             logger.warning(" No new content, keeping existing summary")
     else:
-        summary = await _summarize_full_with_audit(
-            llm, messages, dump_path, entities, focus_topic=focus_topic
-        )
+        summary = await _summarize_full_with_audit(llm, messages, dump_path, entities, focus_topic=focus_topic)
 
     tail_budget = int((cfg.max_context_tokens or 128000) * getattr(cfg, "tail_budget_ratio", 0.20))
     recent_messages = extract_recent_messages(messages, tail_budget)
@@ -347,7 +342,8 @@ async def generate_structured_summary(
 
     # Remove old preserved context messages to prevent accumulation
     protected_head = [
-        msg for msg in protected_head
+        msg
+        for msg in protected_head
         if not (isinstance(msg, SystemMessage) and str(msg.content).startswith("[SYSTEM: PRESERVED CONTEXT]"))
     ]
 
@@ -370,7 +366,7 @@ async def generate_structured_summary(
             if len(clean_match) > max_preserve_chars:
                 clean_match = clean_match[:max_preserve_chars] + "\n...[TRUNCATED]"
 
-            block_hash = hashlib.md5(clean_match.encode('utf-8')).hexdigest()
+            block_hash = hashlib.md5(clean_match.encode("utf-8")).hexdigest()
             if block_hash not in rescued_context_blocks:
                 # Re-wrap in tags so it survives multiple summarizations
                 rescued_context_blocks[block_hash] = f"<preserve_context>\n{clean_match}\n</preserve_context>"
@@ -379,7 +375,9 @@ async def generate_structured_summary(
         combined_preserved = "\n\n".join(rescued_context_blocks.values())
         # Inject directly into protected_head (Prefix) to maximize cache hits
         protected_head.append(
-            SystemMessage(content=f"[SYSTEM: PRESERVED CONTEXT]\nThe following critical context was preserved from history:\n{combined_preserved}")
+            SystemMessage(
+                content=f"[SYSTEM: PRESERVED CONTEXT]\nThe following critical context was preserved from history:\n{combined_preserved}"
+            )
         )
     # --------------------------
 
@@ -393,14 +391,10 @@ async def generate_structured_summary(
     new_tokens = estimate_messages_tokens(new_messages)
     saved_tokens = original_tokens - new_tokens
 
-    logger.warning(
-        " Summary done: %d -> %d tokens (saved %d)", original_tokens, new_tokens, saved_tokens
-    )
+    logger.warning(" Summary done: %d -> %d tokens (saved %d)", original_tokens, new_tokens, saved_tokens)
 
     mode_detail = "incremental" if is_incremental else "full"
-    _record_summarize_to_metrics(
-        saved_tokens, f"Summarized {len(messages)} messages ({mode_detail})"
-    )
+    _record_summarize_to_metrics(saved_tokens, f"Summarized {len(messages)} messages ({mode_detail})")
 
     return new_messages, summary
 
@@ -519,17 +513,13 @@ async def _summarize_full_with_audit(
 
     structured_llm, parser = _get_structured_llm_or_parser(llm)
 
-    prompt_tokens = estimate_messages_tokens(
-        [HumanMessage(content=cache_safe_base_prompt)]
-    )
+    prompt_tokens = estimate_messages_tokens([HumanMessage(content=cache_safe_base_prompt)])
     guarded_messages = _guard_aux_context(messages, llm, prompt_tokens)
 
     for attempt in range(_MAX_AUDIT_RETRIES + 1):
         prompt = cache_safe_base_prompt
         if attempt > 0 and best is not None:
-            guidance = build_retry_guidance(
-                audit_summary(best, messages, entities=entities)
-            )
+            guidance = build_retry_guidance(audit_summary(best, messages, entities=entities))
             prompt = f"{cache_safe_base_prompt}\n\n Quality feedback:\n{guidance}"
 
         try:
@@ -605,17 +595,13 @@ async def _summarize_incremental_with_audit(
 
     structured_llm, parser = _get_structured_llm_or_parser(llm)
 
-    prompt_tokens = estimate_messages_tokens(
-        [HumanMessage(content=cache_safe_base_prompt)]
-    )
+    prompt_tokens = estimate_messages_tokens([HumanMessage(content=cache_safe_base_prompt)])
     guarded_new_messages = _guard_aux_context(new_messages, llm, prompt_tokens)
 
     for attempt in range(_MAX_AUDIT_RETRIES + 1):
         prompt = cache_safe_base_prompt
         if attempt > 0 and best is not None:
-            guidance = build_retry_guidance(
-                audit_summary(best, all_messages, entities=entities)
-            )
+            guidance = build_retry_guidance(audit_summary(best, all_messages, entities=entities))
             prompt = f"{cache_safe_base_prompt}\n\n Quality feedback:\n{guidance}"
 
         try:

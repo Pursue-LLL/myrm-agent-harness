@@ -172,6 +172,7 @@ def safe_join_path(base_dir: str | Path, user_input: str | Path) -> Path:
 
     # 获取虚拟绝对最终路径
     import os
+
     final_virtual_path = Path(os.path.normpath(base_path_obj / user_path))
 
     try:

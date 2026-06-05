@@ -172,13 +172,9 @@ class VariantGenerator:
             return [skill.content]
 
         prompt = self._build_evidence_prompt(skill, evidence, constraints)
-        variants = await self._generate_concurrent(
-            prompt, num_variants, "evidence_variant"
-        )
+        variants = await self._generate_concurrent(prompt, num_variants, "evidence_variant")
         if not variants:
-            logger.warning(
-                "All evidence variant generations failed. Returning original."
-            )
+            logger.warning("All evidence variant generations failed. Returning original.")
             return [skill.content]
         return variants
 
@@ -208,17 +204,13 @@ class VariantGenerator:
     # Shared concurrent generation
     # ------------------------------------------------------------------
 
-    async def _generate_concurrent(
-        self, prompt: str, num_variants: int, label: str
-    ) -> list[str]:
+    async def _generate_concurrent(self, prompt: str, num_variants: int, label: str) -> list[str]:
         """Run parallel LLM calls and filter empty results."""
 
         async def _generate_one(index: int) -> str:
             try:
                 msg = [
-                    HumanMessage(
-                        content=f"{prompt}\n\nProduce variant #{index} with a distinct approach if possible."
-                    )
+                    HumanMessage(content=f"{prompt}\n\nProduce variant #{index} with a distinct approach if possible.")
                 ]
                 resp = await self._llm.ainvoke(msg)  # type: ignore[union-attr]
                 return self._extract_content(resp.content)
@@ -226,9 +218,7 @@ class VariantGenerator:
                 logger.error("Failed to generate %s %d: %s", label, index, e)
                 return ""
 
-        variants = await asyncio.gather(
-            *[_generate_one(i) for i in range(num_variants)]
-        )
+        variants = await asyncio.gather(*[_generate_one(i) for i in range(num_variants)])
         valid = [v for v in variants if v.strip()]
         if not valid:
             logger.warning("All %s generations failed. Returning empty.", label)
@@ -240,9 +230,7 @@ class VariantGenerator:
     # Prompt builders
     # ------------------------------------------------------------------
 
-    def _build_variant_prompt(
-        self, skill: SkillRecord, feedback: str, trajectory: str, constraints: str = ""
-    ) -> str:
+    def _build_variant_prompt(self, skill: SkillRecord, feedback: str, trajectory: str, constraints: str = "") -> str:
         """Build prompt for FIX/DERIVED evolution with modular assembly."""
         is_preference = feedback.startswith("[PREFERENCE]")
         clean_feedback = feedback.removeprefix("[PREFERENCE]").strip() if is_preference else feedback
@@ -274,9 +262,7 @@ class VariantGenerator:
             sections.append(traps_section)
 
         if constraints:
-            sections.append(
-                f"\n## Historical Constraints (MUST obey or rejection is guaranteed)\n{constraints}"
-            )
+            sections.append(f"\n## Historical Constraints (MUST obey or rejection is guaranteed)\n{constraints}")
 
         sections.append(f"\nCurrent Skill Content:\n{skill.content[:4000]}")
         sections.append(_STRUCTURED_OUTPUT)
@@ -302,8 +288,7 @@ class VariantGenerator:
             lines = [f"- Task: {c.task_context or 'N/A'}" for c in cases]
             sections.append(
                 f"## WORKING SCENARIOS ({len(evidence.success_cases)} total)\n"
-                "These work correctly. Your fix MUST NOT break them:\n"
-                + "\n".join(lines)
+                "These work correctly. Your fix MUST NOT break them:\n" + "\n".join(lines)
             )
 
         if evidence.failure_cases:
@@ -313,8 +298,7 @@ class VariantGenerator:
                 err = c.error_message[:150] if c.error_message else "N/A"
                 lines.append(f"- Task: {c.task_context or 'N/A'} | Error: {err}")
             sections.append(
-                f"## FAILING SCENARIOS ({len(evidence.failure_cases)} total)\n"
-                "These need fixing:\n" + "\n".join(lines)
+                f"## FAILING SCENARIOS ({len(evidence.failure_cases)} total)\nThese need fixing:\n" + "\n".join(lines)
             )
 
         if evidence.common_error_patterns:
@@ -342,9 +326,7 @@ class VariantGenerator:
 
         return "\n\n".join(sections)
 
-    def _build_description_prompt(
-        self, skill: SkillRecord, evidence: SkillEvidenceGroup | None = None
-    ) -> str:
+    def _build_description_prompt(self, skill: SkillRecord, evidence: SkillEvidenceGroup | None = None) -> str:
         """Build prompt for description-only optimization."""
         sections = [_DESCRIPTION_SYSTEM]
         sections.append(f"Skill Name: {skill.name}")
@@ -357,10 +339,7 @@ class VariantGenerator:
                 sections.append("Scenarios where this skill works: " + "; ".join(tasks))
             if evidence.failure_cases:
                 tasks = [c.task_context or "N/A" for c in evidence.failure_cases[:3]]
-                sections.append(
-                    "Scenarios where this skill was wrongly matched: "
-                    + "; ".join(tasks)
-                )
+                sections.append("Scenarios where this skill was wrongly matched: " + "; ".join(tasks))
 
         return "\n\n".join(sections)
 
@@ -374,10 +353,7 @@ class VariantGenerator:
         traps = skill.get_high_severity_traps(max_count=3)
         if not traps:
             return ""
-        lines = [
-            f"- [{t.get('severity', 'medium').upper()}] {t.get('description', '')}"
-            for t in traps
-        ]
+        lines = [f"- [{t.get('severity', 'medium').upper()}] {t.get('description', '')}" for t in traps]
         return "## Known Traps (avoid these pitfalls)\n" + "\n".join(lines)
 
     @staticmethod

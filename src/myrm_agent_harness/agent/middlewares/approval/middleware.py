@@ -93,7 +93,10 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
 
         # Extract recent human messages for intent context (Reasoning-Blind: only user text)
         from langchain_core.messages import HumanMessage
-        recent_human_msgs = [msg.content for msg in messages[-10:] if isinstance(msg, HumanMessage) and isinstance(msg.content, str)]
+
+        recent_human_msgs = [
+            msg.content for msg in messages[-10:] if isinstance(msg, HumanMessage) and isinstance(msg.content, str)
+        ]
         intent_context = "\n".join(recent_human_msgs) if recent_human_msgs else None
 
         if intent_context and len(intent_context) > 2000:
@@ -104,13 +107,15 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
         recent_tool_calls: tuple[RecentToolCall, ...] = ()
         if config.auto_mode_enabled:
             tc_list: list[RecentToolCall] = []
-            for msg in messages[-(window_size * 2):]:
+            for msg in messages[-(window_size * 2) :]:
                 if isinstance(msg, AIMessage) and msg.tool_calls:
                     for tc in msg.tool_calls:
-                        tc_list.append(RecentToolCall(
-                            tool_name=tc.get("name", "unknown"),
-                            args=tc.get("args", {}),
-                        ))
+                        tc_list.append(
+                            RecentToolCall(
+                                tool_name=tc.get("name", "unknown"),
+                                args=tc.get("args", {}),
+                            )
+                        )
             recent_tool_calls = tuple(tc_list[-window_size:])
 
         # Extract session-level taint labels for the classifier
@@ -119,13 +124,20 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
             from myrm_agent_harness.agent.security.guards.taint_tracker import (
                 get_taint_tracker,
             )
+
             tracker = get_taint_tracker()
             if tracker.is_tainted:
                 session_taint_labels = frozenset(str(lbl) for lbl in tracker.labels)
 
         _auto_approved, auto_denied, pending_approval = await evaluate_tool_batch(
-            last_ai_msg.tool_calls, config, is_cron, workspace_root, session_key, args_hashes,
-            intent_context=intent_context, recent_tool_calls=recent_tool_calls,
+            last_ai_msg.tool_calls,
+            config,
+            is_cron,
+            workspace_root,
+            session_key,
+            args_hashes,
+            intent_context=intent_context,
+            recent_tool_calls=recent_tool_calls,
             taint_labels=session_taint_labels,
         )
 
@@ -140,7 +152,13 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
                 if not rate_limiter.check_limit(user_id):
                     logger.warning("[RATE_LIMIT] Approval rate limit exceeded for user %s", user_id)
                     for idx, tool_call, _permission_type, _reason, _ in pending_approval:
-                        auto_denied.append((idx, tool_call, " Too many approval requests. Rate limit exceeded. Please try again later."))
+                        auto_denied.append(
+                            (
+                                idx,
+                                tool_call,
+                                " Too many approval requests. Rate limit exceeded. Please try again later.",
+                            )
+                        )
                         record_decision(tool_call.get("name", "unknown"), "DENY", "Approval rate limit exceeded")
                     pending_approval.clear()
 
@@ -187,6 +205,7 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
         # and the server knows how to route the approval resolution.
         if get_is_subagent():
             from myrm_agent_harness.agent.middlewares._session_context import get_subagent_task_id
+
             task_id = get_subagent_task_id()
             if not task_id:
                 logger.warning("Subagent context active but no task_id found. Falling back to auto-deny.")

@@ -45,13 +45,9 @@ async def run_parallel_task_requests(
         return {"success": False, "error": "No tasks provided."}
 
     if max_concurrent is not None:
-        effective_concurrent = max(
-            1, min(max_concurrent, len(tasks), DEFAULT_MAX_BATCH_PARALLEL)
-        )
+        effective_concurrent = max(1, min(max_concurrent, len(tasks), DEFAULT_MAX_BATCH_PARALLEL))
     else:
-        effective_concurrent = (
-            3 if race else 1
-        )
+        effective_concurrent = 3 if race else 1
     semaphore = asyncio.Semaphore(effective_concurrent)
 
     async def _run_task(task: TaskRequest, index: int) -> dict[str, object]:
@@ -102,16 +98,13 @@ async def run_parallel_task_requests(
 
     if race:
         pending_tasks: set[asyncio.Task[dict[str, object]]] = {
-            asyncio.create_task(_run_task(task, index))
-            for index, task in enumerate(tasks)
+            asyncio.create_task(_run_task(task, index)) for index, task in enumerate(tasks)
         }
         winner_result: dict[str, object] | None = None
         failed_results: list[object] = []
 
         while pending_tasks:
-            done, pending_tasks = await asyncio.wait(
-                pending_tasks, return_when=asyncio.FIRST_COMPLETED
-            )
+            done, pending_tasks = await asyncio.wait(pending_tasks, return_when=asyncio.FIRST_COMPLETED)
             for task in done:
                 try:
                     res = task.result()
@@ -133,9 +126,7 @@ async def run_parallel_task_requests(
                         winner_result["race_merge_status"] = "success"
                         del winner_result["_workspace_sync_back"]
                     except Exception as exc:
-                        logger.error(
-                            "Error syncing speculative execution workspace: %s", exc
-                        )
+                        logger.error("Error syncing speculative execution workspace: %s", exc)
                         winner_result["race_merge_status"] = "error"
                         winner_result["race_merge_error"] = str(exc)
 
@@ -150,16 +141,13 @@ async def run_parallel_task_requests(
                     "status": "completed",
                     "race_winner": True,
                     "result": winner_result,
-                    "budget_admission": (
-                        budget_admission.to_dict() if budget_admission else None
-                    ),
+                    "budget_admission": (budget_admission.to_dict() if budget_admission else None),
                 },
                 parent_agent,
             )
 
         normalized_failures = [
-            res if isinstance(res, dict) else {"success": False, "error": str(res)}
-            for res in failed_results
+            res if isinstance(res, dict) else {"success": False, "error": str(res)} for res in failed_results
         ]
         return inject_capacity_signal(
             {
@@ -168,9 +156,7 @@ async def run_parallel_task_requests(
                 "error": "All speculative execution tasks failed.",
                 "failed_results": failed_results,
                 **batch_summary(normalized_failures),
-                "budget_admission": (
-                    budget_admission.to_dict() if budget_admission else None
-                ),
+                "budget_admission": (budget_admission.to_dict() if budget_admission else None),
             },
             parent_agent,
         )
@@ -211,9 +197,7 @@ async def run_parallel_task_requests(
     payload: dict[str, object] = {
         **batch_summary(final_results),
         "results": final_results,
-        "budget_admission": (
-            budget_admission.to_dict() if budget_admission else None
-        ),
+        "budget_admission": (budget_admission.to_dict() if budget_admission else None),
     }
     if parallel_write_batch and wait and not race and not skip_merge:
         from myrm_agent_harness.agent.workspace_coordination.batch_merge import (

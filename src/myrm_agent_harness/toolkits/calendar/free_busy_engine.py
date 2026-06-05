@@ -135,9 +135,7 @@ class FreeBusyEngine:
 
             if slot_start < slot_end:
                 # Find all busy slots that overlap with this working window
-                overlapping_busy = [
-                    b for b in merged_busy if b.start < slot_end and b.end > slot_start
-                ]
+                overlapping_busy = [b for b in merged_busy if b.start < slot_end and b.end > slot_start]
 
                 window_start = slot_start
                 for busy in overlapping_busy:

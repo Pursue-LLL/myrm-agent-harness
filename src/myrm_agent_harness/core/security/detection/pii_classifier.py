@@ -430,7 +430,9 @@ def _extract_paths(params: dict[str, object]) -> list[str]:
     for key, value in params.items():
         if not isinstance(value, str):
             continue
-        if key.lower() in _PATH_KEYS or (("/" in value or "\\" in value) and len(value) < 500 and not value.startswith("http")):
+        if key.lower() in _PATH_KEYS or (
+            ("/" in value or "\\" in value) and len(value) < 500 and not value.startswith("http")
+        ):
             paths.append(value)
     # Extract paths from command strings
     command = params.get("command") or params.get("code")

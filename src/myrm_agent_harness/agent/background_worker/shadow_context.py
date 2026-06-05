@@ -165,7 +165,7 @@ def _is_relative_write_allowed(relative: str) -> bool:
 async def restricted_shadow_context(
     *,
     suppress_logs: bool = False,
-) -> AsyncGenerator[None, None]:
+) -> AsyncGenerator[None]:
     """Apply shadow-agent bulkhead isolation for the current async context.
 
     Args:

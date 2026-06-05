@@ -51,7 +51,10 @@ class MacOSBackend:
 
         try:
             proc = await asyncio.create_subprocess_exec(
-                "screencapture", "-x", "-C", str(tmp_path),
+                "screencapture",
+                "-x",
+                "-C",
+                str(tmp_path),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -63,16 +66,25 @@ class MacOSBackend:
             tmp_path.unlink(missing_ok=True)
 
     async def click(
-        self, x: int, y: int, button: str = "left", clicks: int = 1,
+        self,
+        x: int,
+        y: int,
+        button: str = "left",
+        clicks: int = 1,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
         import pyautogui
+
         pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
         try:
             for key in pyautogui_keys:
                 await asyncio.to_thread(pyautogui.keyDown, key)
             await asyncio.to_thread(
-                pyautogui.click, x=x, y=y, button=button, clicks=clicks,
+                pyautogui.click,
+                x=x,
+                y=y,
+                button=button,
+                clicks=clicks,
             )
             return ActionResult(success=True)
         except Exception as e:
@@ -86,6 +98,7 @@ class MacOSBackend:
         try:
             if text.isascii():
                 import pyautogui
+
                 interval = delay_ms / 1000.0
                 for i in range(0, len(text), chunk_size):
                     chunk = text[i : i + chunk_size]
@@ -99,6 +112,7 @@ class MacOSBackend:
     async def type_credential(self, label: str) -> ActionResult:
         """Type a credential (password or TOTP) securely from the CredentialVault."""
         from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
+
         vault = get_global_credential_vault()
 
         is_totp = label.endswith("-totp")
@@ -113,6 +127,7 @@ class MacOSBackend:
         try:
             if secret_text.isascii():
                 import pyautogui
+
                 interval = 12 / 1000.0
                 # pyautogui.write calls OS APIs directly, no subprocess arguments exposed
                 await asyncio.to_thread(pyautogui.write, secret_text, interval=interval)
@@ -137,6 +152,7 @@ class MacOSBackend:
 
     async def key(self, keys: str) -> ActionResult:
         import pyautogui
+
         try:
             parts = [k.strip() for k in keys.split("+")]
             if len(parts) > 1:
@@ -149,6 +165,7 @@ class MacOSBackend:
 
     async def mouse_move(self, x: int, y: int) -> ActionResult:
         import pyautogui
+
         try:
             await asyncio.to_thread(pyautogui.moveTo, x, y)
             return ActionResult(success=True)
@@ -156,10 +173,15 @@ class MacOSBackend:
             return ActionResult(success=False, error=str(e))
 
     async def scroll(
-        self, x: int, y: int, direction: str, amount: int = 3,
+        self,
+        x: int,
+        y: int,
+        direction: str,
+        amount: int = 3,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
         import pyautogui
+
         pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
         try:
             await asyncio.to_thread(pyautogui.moveTo, x, y)
@@ -180,10 +202,15 @@ class MacOSBackend:
                 await asyncio.to_thread(pyautogui.keyUp, key)
 
     async def drag(
-        self, start_x: int, start_y: int, end_x: int, end_y: int,
+        self,
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
         import pyautogui
+
         pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
         try:
             for key in pyautogui_keys:
@@ -192,7 +219,8 @@ class MacOSBackend:
             await asyncio.to_thread(pyautogui.moveTo, start_x, start_y)
             await asyncio.to_thread(
                 pyautogui.drag,
-                end_x - start_x, end_y - start_y,
+                end_x - start_x,
+                end_y - start_y,
                 duration=0.5,
             )
 
@@ -212,6 +240,7 @@ class MacOSBackend:
             return self._screen_info
 
         import pyautogui
+
         size = pyautogui.size()
         dpi_scale = _detect_dpi_scale_quartz(size.width)
         self._screen_info = ScreenInfo(
@@ -223,6 +252,7 @@ class MacOSBackend:
 
     def screen_context(self) -> ScreenContext:
         import pyautogui
+
         pos = pyautogui.position()
         return ScreenContext(
             active_window=_get_active_window_title(),
@@ -243,7 +273,7 @@ class MacOSBackend:
         return await asyncio.to_thread(_is_browser_active)
 
 
-_AX_TEXT_SCRIPT = '''
+_AX_TEXT_SCRIPT = """
 tell application "System Events"
     set frontApp to first application process whose frontmost is true
     set appName to name of frontApp
@@ -274,7 +304,7 @@ tell application "System Events"
     set AppleScript's text item delimiters to linefeed
     return appName & "|||" & winTitle & "|||" & (textParts as string)
 end tell
-'''
+"""
 
 
 def _extract_window_text() -> WindowTextResult:
@@ -282,7 +312,9 @@ def _extract_window_text() -> WindowTextResult:
     try:
         result = subprocess.run(
             ["osascript", "-e", _AX_TEXT_SCRIPT],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if result.returncode != 0:
             stderr = result.stderr.strip()
@@ -319,6 +351,7 @@ def _detect_dpi_scale_quartz(logical_width: int) -> float:
     """Detect DPI scale via AppKit NSScreen.backingScaleFactor (accurate, no string parsing)."""
     try:
         from AppKit import NSScreen
+
         screen = NSScreen.mainScreen()
         scale = screen.backingScaleFactor()
         if scale > 0:
@@ -329,7 +362,9 @@ def _detect_dpi_scale_quartz(logical_width: int) -> float:
     try:
         result = subprocess.run(
             ["system_profiler", "SPDisplaysDataType"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         for line in result.stdout.splitlines():
             if "Retina" in line.lower() or "@2x" in line:
@@ -344,10 +379,14 @@ def _get_active_window_title() -> str:
     """Get frontmost application window title via AppleScript."""
     try:
         result = subprocess.run(
-            ["osascript", "-e",
-             'tell application "System Events" to get name of first application process '
-             'whose frontmost is true'],
-            capture_output=True, text=True, timeout=2,
+            [
+                "osascript",
+                "-e",
+                'tell application "System Events" to get name of first application process whose frontmost is true',
+            ],
+            capture_output=True,
+            text=True,
+            timeout=2,
         )
         return result.stdout.strip() if result.returncode == 0 else ""
     except Exception:
@@ -357,11 +396,12 @@ def _get_active_window_title() -> str:
 def _is_browser_active() -> bool:
     """Check if the active application is a known web browser."""
     from myrm_agent_harness.toolkits.computer_use.types import KNOWN_BROWSER_NAMES
+
     app_name = _get_active_window_title().lower()
     return any(browser in app_name for browser in KNOWN_BROWSER_NAMES)
 
 
-_AX_DIALOG_SCRIPT = '''
+_AX_DIALOG_SCRIPT = """
 tell application "System Events"
     set frontApp to first application process whose frontmost is true
     set appName to name of frontApp
@@ -386,14 +426,17 @@ tell application "System Events"
 
     return appName & "|||" & (hasDialog as string)
 end tell
-'''
+"""
+
 
 def _has_blocking_dialog(target_app_names: list[str] | None = None) -> bool:
     """Check if the frontmost app has a blocking dialog (AXDialog or AXSheet)."""
     try:
         result = subprocess.run(
             ["osascript", "-e", _AX_DIALOG_SCRIPT],
-            capture_output=True, text=True, timeout=2,
+            capture_output=True,
+            text=True,
+            timeout=2,
         )
         if result.returncode != 0:
             return False

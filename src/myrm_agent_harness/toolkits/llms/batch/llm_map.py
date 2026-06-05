@@ -119,10 +119,7 @@ def _extract_text(response: object) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        parts = [
-            seg.get("text", "") if isinstance(seg, dict) else str(seg)
-            for seg in content
-        ]
+        parts = [seg.get("text", "") if isinstance(seg, dict) else str(seg) for seg in content]
         return "".join(parts)
     return str(content)
 
@@ -166,9 +163,7 @@ async def llm_map(
     limiter = ConcurrencyLimiter(concurrency)
     structured_llm = llm.with_structured_output(response_schema) if response_schema else None
     structured_fallback = (
-        fallback_llm.with_structured_output(response_schema)
-        if (response_schema and fallback_llm is not None)
-        else None
+        fallback_llm.with_structured_output(response_schema) if (response_schema and fallback_llm is not None) else None
     )
 
     total = len(items)

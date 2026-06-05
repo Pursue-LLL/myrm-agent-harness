@@ -123,9 +123,7 @@ class AutoSnapshotInterceptor:
                 if path:
                     description = f"Before deleting {path}"
 
-            snapshot_id = await self._store.take_snapshot(
-                working_dir, trigger, description
-            )
+            snapshot_id = await self._store.take_snapshot(working_dir, trigger, description)
             self._snapshotted.add(dedup_key)
             logger.info(
                 "Auto-snapshot %s before %s (working_dir=%s)",

@@ -66,10 +66,9 @@ class VisionVerifier:
         # Take new screenshot
         try:
             from ..utils.selectors import PASSWORD_FIELD_SELECTOR
+
             password_locator = page.locator(PASSWORD_FIELD_SELECTOR)
-            new_screenshot = await page.screenshot(
-                type="png", full_page=False, mask=[password_locator]
-            )
+            new_screenshot = await page.screenshot(type="png", full_page=False, mask=[password_locator])
         except Exception as e:
             return False, f"Verification failed: Could not take new screenshot ({e})"
 
@@ -81,9 +80,7 @@ class VisionVerifier:
             b64_baseline = base64.b64encode(baseline_screenshot).decode("utf-8")
             b64_new = base64.b64encode(new_screenshot).decode("utf-8")
 
-            result = self._comparator.compare(
-                b64_baseline, b64_new
-            )
+            result = self._comparator.compare(b64_baseline, b64_new)
             if result.similarity >= 0.99:
                 return False, "Verification failed (Layer 2): The screen did not change visually after the action."
         except Exception as e:

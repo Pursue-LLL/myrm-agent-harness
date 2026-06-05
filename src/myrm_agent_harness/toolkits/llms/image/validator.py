@@ -131,11 +131,7 @@ class ImageValidator:
             raise ValidationError(
                 f"Size '{size}' not supported by {profile.name}. "
                 f"Allowed sizes: {sorted(profile.allowed_sizes)}"
-                + (
-                    f", aspect ratios: {sorted(profile.allowed_aspect_ratios)}"
-                    if profile.allowed_aspect_ratios
-                    else ""
-                )
+                + (f", aspect ratios: {sorted(profile.allowed_aspect_ratios)}" if profile.allowed_aspect_ratios else "")
             )
 
     @staticmethod

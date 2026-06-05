@@ -18,23 +18,25 @@ import subprocess
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_IGNORED_DIRS = frozenset({
-    ".git",
-    "node_modules",
-    "__pycache__",
-    "venv",
-    ".venv",
-    "env",
-    ".env",
-    ".idea",
-    ".vscode",
-    "dist",
-    "build",
-    "target",
-    "out",
-    ".next",
-    ".nuxt",
-})
+_DEFAULT_IGNORED_DIRS = frozenset(
+    {
+        ".git",
+        "node_modules",
+        "__pycache__",
+        "venv",
+        ".venv",
+        "env",
+        ".env",
+        ".idea",
+        ".vscode",
+        "dist",
+        "build",
+        "target",
+        "out",
+        ".next",
+        ".nuxt",
+    }
+)
 
 _MAX_FALLBACK_FILES = 50000
 _GIT_TIMEOUT_SECONDS = 2.0
@@ -61,16 +63,16 @@ class WorkspaceFileIndexer:
                     cwd=resolved,
                     capture_output=True,
                     timeout=_GIT_TIMEOUT_SECONDS,
-                    check=True
+                    check=True,
                 )
                 if result.stdout:
-                    files = result.stdout.split(b'\0')
+                    files = result.stdout.split(b"\0")
                     # decode and filter empty strings
-                    decoded_files = [f.decode('utf-8', errors='replace') for f in files if f]
+                    decoded_files = [f.decode("utf-8", errors="replace") for f in files if f]
                     # git ls-files uses '/' for separators regardless of OS
                     # we convert to OS separator if needed
-                    if os.sep != '/':
-                        decoded_files = [f.replace('/', os.sep) for f in decoded_files]
+                    if os.sep != "/":
+                        decoded_files = [f.replace("/", os.sep) for f in decoded_files]
                     return decoded_files
             except Exception as e:
                 logger.debug("git ls-files failed in %s: %s, falling back to os.walk", resolved, e)
@@ -83,10 +85,7 @@ class WorkspaceFileIndexer:
         files: list[str] = []
         for current_root, dirs, filenames in os.walk(root_real):
             # In-place filtering of directories
-            dirs[:] = [
-                d for d in dirs
-                if not d.startswith(".") and d not in _DEFAULT_IGNORED_DIRS
-            ]
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in _DEFAULT_IGNORED_DIRS]
 
             for fname in filenames:
                 if fname.startswith("."):

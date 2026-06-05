@@ -83,10 +83,7 @@ class PseudonymStore:
             )
         """
         )
-        self._conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_pseudonyms_type "
-            "ON pseudonyms(privacy_type)"
-        )
+        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_pseudonyms_type ON pseudonyms(privacy_type)")
         self._conn.commit()
 
     def _next_pseudonym(self, privacy_type: str) -> str:
@@ -149,8 +146,7 @@ class PseudonymStore:
     def stats(self) -> dict[str, int]:
         """Return entry counts grouped by privacy_type."""
         rows = self._conn.execute(
-            "SELECT privacy_type, COUNT(*) AS cnt FROM pseudonyms "
-            "GROUP BY privacy_type"
+            "SELECT privacy_type, COUNT(*) AS cnt FROM pseudonyms GROUP BY privacy_type"
         ).fetchall()
         return {row["privacy_type"]: row["cnt"] for row in rows}
 

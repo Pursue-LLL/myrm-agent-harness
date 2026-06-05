@@ -85,17 +85,13 @@ class LoopDetectorMixin:
     _last_detection_kind: LoopKind | None
     _last_suggestion_key: str | None
 
-    def _thresholds(
-        self, tool_name: str, args: dict[str, object] | None = None
-    ) -> tuple[int, int]: ...
+    def _thresholds(self, tool_name: str, args: dict[str, object] | None = None) -> tuple[int, int]: ...
 
     # -------------------------------------------------------------------
     # Detection methods
     # -------------------------------------------------------------------
 
-    def _check_repetition(
-        self, calls: list[CallRecord], tool_name: str, args_hash: str
-    ) -> LoopVerdict:
+    def _check_repetition(self, calls: list[CallRecord], tool_name: str, args_hash: str) -> LoopVerdict:
         """Same tool + same args N consecutive times -> WARN or BREAK."""
         streak = 0
         failure_streak = 0
@@ -121,8 +117,7 @@ class LoopDetectorMixin:
         if streak >= warn_t:
             self._record_detection(tool_name, LoopKind.REPETITION, streak, args_hash)
             quality_map = {
-                key: self._metrics.get_suggestion_quality(key)
-                for key in self._metrics.suggestion_quality_scores
+                key: self._metrics.get_suggestion_quality(key) for key in self._metrics.suggestion_quality_scores
             }
             suggestion = generate_dynamic_suggestion(tool_name, calls, quality_map)
             severity, emoji = get_severity_level(streak)
@@ -162,10 +157,7 @@ class LoopDetectorMixin:
         for i in range(needed):
             expected_name = a_name if i % 2 == 0 else b_name
             expected_hash = a_hash if i % 2 == 0 else b_hash
-            if (
-                recent[i].tool_name != expected_name
-                or recent[i].args_hash != expected_hash
-            ):
+            if recent[i].tool_name != expected_name or recent[i].args_hash != expected_hash:
                 return VERDICT_ALLOW
 
         self._record_detection(a_name, LoopKind.PING_PONG, self._pp_cycles)
@@ -180,9 +172,7 @@ class LoopDetectorMixin:
             loop_kind=LoopKind.PING_PONG.value,
         )
 
-    def _check_no_progress(
-        self, calls: list[CallRecord], tool_name: str
-    ) -> LoopVerdict:
+    def _check_no_progress(self, calls: list[CallRecord], tool_name: str) -> LoopVerdict:
         """Same tool called N times with identical result hashes -> WARN."""
         last = calls[-1]
         if not last.result_hash:
@@ -190,11 +180,7 @@ class LoopDetectorMixin:
 
         streak = 0
         for rec in reversed(calls):
-            if (
-                rec.tool_name == last.tool_name
-                and rec.result_hash
-                and rec.result_hash == last.result_hash
-            ):
+            if rec.tool_name == last.tool_name and rec.result_hash and rec.result_hash == last.result_hash:
                 streak += 1
             else:
                 break
@@ -204,8 +190,7 @@ class LoopDetectorMixin:
         if streak >= self._np_threshold or streak >= warn_t:
             self._record_detection(tool_name, LoopKind.NO_PROGRESS, streak)
             quality_map = {
-                key: self._metrics.get_suggestion_quality(key)
-                for key in self._metrics.suggestion_quality_scores
+                key: self._metrics.get_suggestion_quality(key) for key in self._metrics.suggestion_quality_scores
             }
             suggestion = generate_dynamic_suggestion(tool_name, calls, quality_map)
             severity, emoji = get_severity_level(streak)
@@ -229,28 +214,22 @@ class LoopDetectorMixin:
             return VERDICT_ALLOW
 
         if len(history) >= self._dim_break_streak:
-            tail = history[-self._dim_break_streak:]
+            tail = history[-self._dim_break_streak :]
             if all(t < self._dim_threshold for t in tail):
                 streak = self._dim_break_streak
-                self._record_detection(
-                    _OUTPUT_TOOL_KEY, LoopKind.OUTPUT_DIMINISHING, streak
-                )
+                self._record_detection(_OUTPUT_TOOL_KEY, LoopKind.OUTPUT_DIMINISHING, streak)
                 severity, emoji = get_severity_level(streak)
                 return LoopVerdict(
                     action=LoopAction.BREAK,
-                    reason=(
-                        f"LLM output has been below {self._dim_threshold} tokens for {streak} consecutive rounds"
-                    ),
+                    reason=(f"LLM output has been below {self._dim_threshold} tokens for {streak} consecutive rounds"),
                     backoff_hint=f"{emoji} {severity}: {_DIMINISHING_HINT}",
                     loop_kind=LoopKind.OUTPUT_DIMINISHING.value,
                 )
 
-        tail = history[-self._dim_warn_streak:]
+        tail = history[-self._dim_warn_streak :]
         if all(t < self._dim_threshold for t in tail):
             streak = self._dim_warn_streak
-            self._record_detection(
-                _OUTPUT_TOOL_KEY, LoopKind.OUTPUT_DIMINISHING, streak
-            )
+            self._record_detection(_OUTPUT_TOOL_KEY, LoopKind.OUTPUT_DIMINISHING, streak)
             severity, emoji = get_severity_level(streak)
             return LoopVerdict(
                 action=LoopAction.WARN,
@@ -281,18 +260,14 @@ class LoopDetectorMixin:
             from myrm_agent_harness.agent.errors.agent_errors import ToolStuckException
 
             last_failed_tool = past_calls[-1].tool_name
-            self._record_detection(
-                last_failed_tool, LoopKind.CONSECUTIVE_FAILURES, failure_streak
-            )
+            self._record_detection(last_failed_tool, LoopKind.CONSECUTIVE_FAILURES, failure_streak)
             raise ToolStuckException(
                 f"TOOL_STUCK_EXCEPTION: 连续 {failure_streak} 次工具调用失败, 强行切断防止死循环浪费资源。"
             )
 
         return VERDICT_ALLOW
 
-    def _check_error_signature(
-        self, tool_name: str, result_text: str
-    ) -> LoopVerdict:
+    def _check_error_signature(self, tool_name: str, result_text: str) -> LoopVerdict:
         """Cross-tool error signature detection."""
         from .loop_guard import _normalise_error_signature
 
@@ -322,15 +297,13 @@ class LoopDetectorMixin:
         self._current_phase = self._infer_phase()
         adaptive_threshold = self._current_phase.divergence_failure_threshold
 
-        recent_window = calls[-self._div_threshold:]
+        recent_window = calls[-self._div_threshold :]
         unique_groups = {get_tool_group(rec.tool_name) for rec in recent_window}
 
         if len(unique_groups) < 4:
             return VERDICT_ALLOW
 
-        failures = sum(
-            1 for rec in recent_window if rec.success_level == SuccessLevel.FAILURE
-        )
+        failures = sum(1 for rec in recent_window if rec.success_level == SuccessLevel.FAILURE)
         failure_rate = failures / len(recent_window)
 
         if failure_rate < adaptive_threshold:
@@ -338,9 +311,7 @@ class LoopDetectorMixin:
 
         unique_tools = {rec.tool_name for rec in recent_window}
         tool_names = ", ".join(sorted(unique_tools)[:5])
-        group_names = ", ".join(
-            g.value for g in sorted(unique_groups, key=lambda x: x.value)
-        )
+        group_names = ", ".join(g.value for g in sorted(unique_groups, key=lambda x: x.value))
 
         if failure_rate > 0.7:
             severity = "ERROR"
@@ -430,9 +401,7 @@ class LoopDetectorMixin:
     # Metrics and stats recording
     # -------------------------------------------------------------------
 
-    def _record_detection(
-        self, tool_name: str, kind: LoopKind, streak: int, args_hash: str | None = None
-    ) -> None:
+    def _record_detection(self, tool_name: str, kind: LoopKind, streak: int, args_hash: str | None = None) -> None:
         """Update metrics and optionally persist a detection event."""
         self._metrics.total_detections += 1
         self._metrics.detections_by_kind[kind] += 1
@@ -448,11 +417,7 @@ class LoopDetectorMixin:
             severity, _ = get_severity_level(streak)
             try:
                 last_rec = self._window[-1] if self._window else None
-                args_sample = (
-                    {k: str(v)[:50] for k, v in last_rec.args.items()}
-                    if last_rec and last_rec.args
-                    else None
-                )
+                args_sample = {k: str(v)[:50] for k, v in last_rec.args.items()} if last_rec and last_rec.args else None
                 self._stats_db.record_event(
                     tool_name=tool_name,
                     loop_kind=kind,

@@ -172,9 +172,7 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
         self._on_skill_review_ready = on_skill_review_ready
         self._embedding_config: EmbeddingConfig | None = embedding_config
         self._default_skill_instances = default_skill_instances or {}
-        self._trusted_skill_ids: frozenset[str] = (
-            frozenset(trusted_skill_ids) if trusted_skill_ids else frozenset()
-        )
+        self._trusted_skill_ids: frozenset[str] = frozenset(trusted_skill_ids) if trusted_skill_ids else frozenset()
         self._skill_env_map = skill_env_map
         self._desired_skill_ids: list[str] | None = desired_skill_ids
         self._similarity_checker: SkillSimilarityChecker | None = similarity_checker
@@ -206,9 +204,7 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
 
         skills: list[SkillMetadata] = []
         try:
-            if self._desired_skill_ids is not None and hasattr(
-                self.skill_backend, "load_skills"
-            ):
+            if self._desired_skill_ids is not None and hasattr(self.skill_backend, "load_skills"):
                 skills = await self.skill_backend.load_skills(self._desired_skill_ids)
                 logger.debug(
                     "Loaded %d/%d skills from skill_backend (desired_ids=%s)",
@@ -228,10 +224,7 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
 
                 for skill in skills:
                     sid = skill.storage_skill_id or skill.name
-                    if (
-                        sid in self._trusted_skill_ids
-                        and skill.trust < SkillTrust.TRUSTED
-                    ):
+                    if sid in self._trusted_skill_ids and skill.trust < SkillTrust.TRUSTED:
                         skill.trust = SkillTrust.TRUSTED
         except Exception as e:
             logger.warning("Failed to load skills from skill_backend: %s", e)
@@ -239,9 +232,7 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
 
         return skills
 
-    async def load_skill_instance(
-        self, skill_name: str, instance_name: str
-    ) -> "SkillInstance":
+    async def load_skill_instance(self, skill_name: str, instance_name: str) -> "SkillInstance":
         """Load a skill instance with configuration and state.
 
         Provides programmatic access to multi-instance skill support. Combines:
@@ -272,9 +263,7 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
             >>> token = instance.get_env("GITHUB_TOKEN")
         """
         if self.state_manager is None:
-            raise ValueError(
-                "state_manager not configured. Pass SkillStateManager to SkillAgent.__init__"
-            )
+            raise ValueError("state_manager not configured. Pass SkillStateManager to SkillAgent.__init__")
 
         if self.skill_backend is None:
             raise ValueError("skill_backend not configured")
@@ -311,9 +300,7 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
 
     _USE_SKILL_PATTERN = re.compile(r"^\[use\s+([\w-]+)\]\s*(.*)", re.DOTALL)
 
-    async def _preload_explicit_skill(
-        self, query: str
-    ) -> tuple[str, SkillMetadata | None]:
+    async def _preload_explicit_skill(self, query: str) -> tuple[str, SkillMetadata | None]:
         """Detect ``[use skill_name]`` prefix and pre-inject SOP into query.
 
         When the user explicitly invokes a skill (via slash command or command palette),
@@ -429,10 +416,7 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
         if not file_entries:
             return ""
 
-        return (
-            f"[This skill has supporting files in {skill_meta.name}/]:\n"
-            + "\n".join(file_entries)
-        )
+        return f"[This skill has supporting files in {skill_meta.name}/]:\n" + "\n".join(file_entries)
 
     async def run(
         self,
@@ -480,17 +464,11 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
 
             # Create a background task for cleanup to ensure zero blocking of the UI thread
             async def _background_cleanup(active_skills: list[str]) -> None:
-                logger.info(
-                    "_background_cleanup executing for skills: %s", active_skills
-                )
+                logger.info("_background_cleanup executing for skills: %s", active_skills)
                 try:
-                    await self._cleanup_session(
-                        query, chat_history, assistant_chunks, active_skills
-                    )
+                    await self._cleanup_session(query, chat_history, assistant_chunks, active_skills)
                 except Exception as e:
-                    logger.error(
-                        "Background session cleanup failed: %s", e, exc_info=True
-                    )
+                    logger.error("Background session cleanup failed: %s", e, exc_info=True)
 
             logger.info("Creating _background_cleanup task")
             task = asyncio.create_task(_background_cleanup(active_skills_list))
@@ -501,9 +479,7 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
                 set_memory_manager(None)
                 reset_loaded_skills()
             except Exception as ctx_error:
-                logger.error(
-                    "Error cleaning up ContextVar: %s", ctx_error, exc_info=True
-                )
+                logger.error("Error cleaning up ContextVar: %s", ctx_error, exc_info=True)
 
     async def _init_hook_lifecycle(
         self,
@@ -533,17 +509,11 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
             register_to_hook_registry(registry, get_event_logger())
 
         if skill and skill.hooks:
-            logger.info(
-                "Hooks activated: %s (%d hooks)", skill.name, registry.total_count
-            )
+            logger.info("Hooks activated: %s (%d hooks)", skill.name, registry.total_count)
         else:
-            logger.debug(
-                " Framework-level hooks activated (%d hooks)", registry.total_count
-            )
+            logger.debug(" Framework-level hooks activated (%d hooks)", registry.total_count)
 
-    def _begin_memory_session(
-        self, context: dict[str, object] | None, message_id: str | None
-    ) -> None:
+    def _begin_memory_session(self, context: dict[str, object] | None, message_id: str | None) -> None:
         if self.memory_manager is not None:
             chat_id = str((context or {}).get("chat_id", message_id or "default"))
             from myrm_agent_harness.agent.hooks import get_hook_executor

@@ -47,7 +47,8 @@ logger = get_agent_logger(__name__)
 KanbanToolMode = Literal["worker", "orchestrator", "full"]
 
 _DURATION_RE = re.compile(
-    r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$", re.IGNORECASE,
+    r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$",
+    re.IGNORECASE,
 )
 
 
@@ -63,7 +64,10 @@ def _parse_until(value: str) -> datetime | None:
         minutes = int(m.group(3) or 0)
         seconds = int(m.group(4) or 0)
         return datetime.now(UTC) + timedelta(
-            days=days, hours=hours, minutes=minutes, seconds=seconds,
+            days=days,
+            hours=hours,
+            minutes=minutes,
+            seconds=seconds,
         )
     try:
         dt = datetime.fromisoformat(value)
@@ -72,6 +76,7 @@ def _parse_until(value: str) -> datetime | None:
         return dt
     except ValueError:
         return None
+
 
 _STATUS_TO_EVENT_KIND: dict[TaskStatus, TaskEventKind] = {
     TaskStatus.BLOCKED: TaskEventKind.BLOCKED,
@@ -100,8 +105,7 @@ def get_worker_lifecycle_guidance(
     """
     heartbeat_interval = max(30, zombie_timeout_seconds // 2)
     runtime_note = (
-        f"Your task has a runtime limit of {max_runtime_seconds}s. "
-        "Plan accordingly and do not exceed it."
+        f"Your task has a runtime limit of {max_runtime_seconds}s. Plan accordingly and do not exceed it."
         if max_runtime_seconds
         else ""
     )
@@ -150,18 +154,24 @@ def create_kanban_tools(
     tools: list[BaseTool] = []
 
     if mode in ("worker", "full"):
-        tools.extend(_build_worker_tools(
-            store, dispatcher,
-            current_task_id=current_task_id,
-            agent_id=agent_id,
-        ))
+        tools.extend(
+            _build_worker_tools(
+                store,
+                dispatcher,
+                current_task_id=current_task_id,
+                agent_id=agent_id,
+            )
+        )
 
     if mode in ("orchestrator", "full"):
-        tools.extend(_build_orchestrator_tools(
-            store, dispatcher,
-            default_board_id=default_board_id,
-            agent_id=agent_id,
-        ))
+        tools.extend(
+            _build_orchestrator_tools(
+                store,
+                dispatcher,
+                default_board_id=default_board_id,
+                agent_id=agent_id,
+            )
+        )
 
     if mode == "full":
         tools.extend(_build_management_tools(store, default_board_id=default_board_id))
@@ -246,7 +256,8 @@ def _build_worker_tools(
         saved = await store.save_task(task)
 
         await store.append_event(
-            resolved_id, TaskEventKind.COMPLETED,
+            resolved_id,
+            TaskEventKind.COMPLETED,
             payload={"from": old_status.value, "to": "completed", "summary": summary},
         )
 
@@ -283,10 +294,12 @@ def _build_worker_tools(
         if until:
             scheduled_until = _parse_until(until)
             if scheduled_until is None:
-                return json.dumps({
-                    "error": f"Invalid 'until' format: {until!r}. "
-                    "Use ISO-8601 (e.g. '2026-06-01T04:00:00Z') or duration (e.g. '30m', '2h', '1d').",
-                })
+                return json.dumps(
+                    {
+                        "error": f"Invalid 'until' format: {until!r}. "
+                        "Use ISO-8601 (e.g. '2026-06-01T04:00:00Z') or duration (e.g. '30m', '2h', '1d').",
+                    }
+                )
         block_kind = BlockKind.SCHEDULED if scheduled_until else BlockKind.HUMAN
 
         old_status = task.status
@@ -299,7 +312,8 @@ def _build_worker_tools(
         saved = await store.save_task(task)
 
         await store.append_event(
-            resolved_id, TaskEventKind.BLOCKED,
+            resolved_id,
+            TaskEventKind.BLOCKED,
             payload={
                 "from": old_status.value,
                 "reason": reason,
@@ -331,7 +345,8 @@ def _build_worker_tools(
 
         await store.update_heartbeat(resolved_id, note=note)
         await store.append_event(
-            resolved_id, TaskEventKind.HEARTBEAT,
+            resolved_id,
+            TaskEventKind.HEARTBEAT,
             payload={"note": note},
         )
 
@@ -363,14 +378,17 @@ def _build_worker_tools(
 
         author = agent_id or "worker"
         event = await store.append_event(
-            task_id, TaskEventKind.USER_COMMENT,
+            task_id,
+            TaskEventKind.USER_COMMENT,
             payload={"body": body.strip(), "author": author},
         )
-        return json.dumps({
-            "status": "comment_added",
-            "task_id": task_id,
-            "event_id": event.event_id,
-        })
+        return json.dumps(
+            {
+                "status": "comment_added",
+                "task_id": task_id,
+                "event_id": event.event_id,
+            }
+        )
 
     return [kanban_show, kanban_complete, kanban_block, kanban_heartbeat, kanban_comment]
 
@@ -427,7 +445,9 @@ def _build_orchestrator_tools(
         # Idempotency check
         if idempotency_key:
             existing = await _find_task_by_idempotency_key(
-                store, resolved_board_id, idempotency_key,
+                store,
+                resolved_board_id,
+                idempotency_key,
             )
             if existing:
                 return json.dumps({"status": "already_exists", "task": existing.to_dict()})
@@ -444,9 +464,9 @@ def _build_orchestrator_tools(
         dep_ids = [d.strip() for d in depends_on.split(",") if d.strip()] if depends_on else []
         initial_status = TaskStatus.BACKLOG if dep_ids else TaskStatus.READY
 
-        parsed_skills: list[str] = list(dict.fromkeys(
-            s for raw in skills.split(",") if (s := raw.strip())
-        )) if skills else []
+        parsed_skills: list[str] = (
+            list(dict.fromkeys(s for raw in skills.split(",") if (s := raw.strip()))) if skills else []
+        )
 
         task = KanbanTask(
             task_id=uuid.uuid4().hex[:12],
@@ -510,7 +530,9 @@ def _build_orchestrator_tools(
                 return json.dumps({"error": f"Invalid status_filter: {status_filter}"})
 
         tasks = await store.list_tasks(
-            resolved_board_id, status=status, agent_id=agent_id_filter or None,
+            resolved_board_id,
+            status=status,
+            agent_id=agent_id_filter or None,
         )
         return json.dumps({"tasks": [t.to_dict() for t in tasks], "count": len(tasks)})
 
@@ -558,9 +580,7 @@ def _build_orchestrator_tools(
             if skills.strip().upper() == "CLEAR":
                 task.extra_skill_ids = []
             else:
-                task.extra_skill_ids = list(dict.fromkeys(
-                    s for raw in skills.split(",") if (s := raw.strip())
-                ))
+                task.extra_skill_ids = list(dict.fromkeys(s for raw in skills.split(",") if (s := raw.strip())))
 
         saved = await store.save_task(task)
         return json.dumps({"status": "updated", "task": saved.to_dict()})
@@ -614,7 +634,8 @@ def _build_orchestrator_tools(
             if old_status == TaskStatus.BLOCKED and saved.status == TaskStatus.READY:
                 payload["source"] = "manual"
             await store.append_event(
-                task_id, event_kind,
+                task_id,
+                event_kind,
                 payload=payload,
             )
 
@@ -638,7 +659,8 @@ def _build_orchestrator_tools(
                     child.status = TaskStatus.READY
                     await store.save_task(child)
                     await store.append_event(
-                        child_id, TaskEventKind.PROMOTED,
+                        child_id,
+                        TaskEventKind.PROMOTED,
                         payload={"reason": "parent_deleted", "deleted_task_id": task_id},
                     )
         return json.dumps({"status": "deleted" if deleted else "not_found", "task_id": task_id})
@@ -655,11 +677,13 @@ def _build_orchestrator_tools(
 
         status_counts = await store.count_tasks_grouped(resolved_board_id)
         total = sum(status_counts.values())
-        return json.dumps({
-            "board": board.to_dict(),
-            "task_counts": status_counts,
-            "total_tasks": total,
-        })
+        return json.dumps(
+            {
+                "board": board.to_dict(),
+                "task_counts": status_counts,
+                "total_tasks": total,
+            }
+        )
 
     @tool("kanban_add_dependency")
     async def kanban_add_dependency(task_id: str, dependency_task_id: str) -> str:
@@ -697,16 +721,22 @@ def _build_orchestrator_tools(
                 child.status = TaskStatus.READY
                 await store.save_task(child)
                 await store.append_event(
-                    task_id, TaskEventKind.PROMOTED,
+                    task_id,
+                    TaskEventKind.PROMOTED,
                     payload={"reason": "all_dependencies_met"},
                 )
 
         return json.dumps({"status": "dependency_removed", "task_id": task_id})
 
     return [
-        kanban_add_task, kanban_list_tasks, kanban_update_task,
-        kanban_move_task, kanban_delete_task, kanban_board_summary,
-        kanban_add_dependency, kanban_remove_dependency,
+        kanban_add_task,
+        kanban_list_tasks,
+        kanban_update_task,
+        kanban_move_task,
+        kanban_delete_task,
+        kanban_board_summary,
+        kanban_add_dependency,
+        kanban_remove_dependency,
     ]
 
 

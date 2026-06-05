@@ -115,16 +115,12 @@ def _collect_and_deduplicate_urls(
         if url not in url_to_index:
             title = doc.metadata.get("title", "")
             date = doc.metadata.get("date", "")
-            snippet = doc.metadata.get("snippet", "") or doc.metadata.get(
-                "description", ""
-            )
+            snippet = doc.metadata.get("snippet", "") or doc.metadata.get("description", "")
 
             doc_index = len(url_to_index) + 1
             url_to_index[url] = doc_index
 
-            sources_metadata.append(
-                {"url": url, "title": title, "snippet": snippet, "date": date}
-            )
+            sources_metadata.append({"url": url, "title": title, "snippet": snippet, "date": date})
 
             header = format_document_header(
                 index=doc_index,
@@ -137,11 +133,7 @@ def _collect_and_deduplicate_urls(
             url_to_header[url] = header
             url_to_contents[url] = []
 
-        content = (
-            extract_clean_content_for_context(doc.page_content)
-            if extract_clean_content
-            else doc.page_content
-        )
+        content = extract_clean_content_for_context(doc.page_content) if extract_clean_content else doc.page_content
         url_to_contents[url].append(content.strip())
 
     return DocumentCollection(
@@ -177,9 +169,7 @@ def _estimate_token_overhead(
 
     # 快速预检第一个header，推测整体开销级别
     first_url = next(iter(collection.url_to_index))
-    first_header_tokens = get_token_count(
-        collection.url_to_header[first_url], token_encoding
-    )
+    first_header_tokens = get_token_count(collection.url_to_header[first_url], token_encoding)
 
     # 分级估算
     if first_header_tokens <= 20:
@@ -293,9 +283,7 @@ def _apply_token_truncation(
         if max_content_tokens is not None and allocation > max_content_tokens:
             allocation = max_content_tokens
 
-        truncated_content = truncate_by_tokens_with_boundary(
-            full_content, allocation, token_encoding
-        )
+        truncated_content = truncate_by_tokens_with_boundary(full_content, allocation, token_encoding)
         if len(truncated_content) < len(full_content):
             truncated_count += 1
 
@@ -375,11 +363,7 @@ def format_crawl_results(
         )
 
         # 获取内容
-        content = (
-            extract_clean_content_for_context(doc.page_content)
-            if extract_clean_content
-            else doc.page_content
-        )
+        content = extract_clean_content_for_context(doc.page_content) if extract_clean_content else doc.page_content
 
         context_parts.append(f"{header}\n\n{content}\n\n")
 
@@ -428,9 +412,7 @@ def format_documents_with_metadata(
         return [], "", None
 
     # 阶段 1：收集并去重 URL
-    collection = _collect_and_deduplicate_urls(
-        documents, include_title, include_date, extract_clean_content
-    )
+    collection = _collect_and_deduplicate_urls(documents, include_title, include_date, extract_clean_content)
 
     num_urls = len(collection.url_to_index)
     truncated_count = 0
@@ -441,10 +423,7 @@ def format_documents_with_metadata(
     if total_max_tokens or max_content_tokens:
         # collection当前包含所有输入文档
         original_parts = [
-            collection.url_to_header[url]
-            + "\n\n"
-            + "\n".join(collection.url_to_contents[url])
-            + "\n\n"
+            collection.url_to_header[url] + "\n\n" + "\n".join(collection.url_to_contents[url]) + "\n\n"
             for url in collection.url_to_index
         ]
         original_text = "".join(original_parts).strip()
@@ -454,8 +433,8 @@ def format_documents_with_metadata(
     if total_max_tokens or max_content_tokens:
         # 自适应估算与分配
         if total_max_tokens:
-            questions_budget, header_budget, separator_budget, header_per_doc = (
-                _estimate_token_overhead(collection, questions, token_encoding)
+            questions_budget, header_budget, separator_budget, header_per_doc = _estimate_token_overhead(
+                collection, questions, token_encoding
             )
             estimated_overhead = questions_budget + header_budget + separator_budget
 
@@ -490,11 +469,7 @@ def format_documents_with_metadata(
         else:
             # 仅max_content_tokens控制：使用统一的单文档限制
             # 若max_content_tokens为None，使用默认上限（实际不会截断）
-            single_doc_limit = (
-                max_content_tokens
-                if max_content_tokens is not None
-                else _MAX_SINGLE_DOC_TOKENS
-            )
+            single_doc_limit = max_content_tokens if max_content_tokens is not None else _MAX_SINGLE_DOC_TOKENS
             allocations = [single_doc_limit] * num_urls
 
         # 应用截断
@@ -503,23 +478,17 @@ def format_documents_with_metadata(
         )
     else:
         # 无 token 控制：直接拼接
-        url_final_content = {
-            url: "\n\n".join(collection.url_to_contents[url])
-            for url in collection.url_to_index
-        }
+        url_final_content = {url: "\n\n".join(collection.url_to_contents[url]) for url in collection.url_to_index}
 
     # 阶段 3：最终拼接
     formatted_parts = [
-        f"{collection.url_to_header[url]}\n\n{url_final_content[url]}\n\n"
-        for url in collection.url_to_index
+        f"{collection.url_to_header[url]}\n\n{url_final_content[url]}\n\n" for url in collection.url_to_index
     ]
     formatted_text = "".join(formatted_parts).strip()
 
     if questions:
         keywords_str = ", ".join(questions)
-        formatted_text = (
-            f"relevant results for keywords [{keywords_str}]:\n{formatted_text}"
-        )
+        formatted_text = f"relevant results for keywords [{keywords_str}]:\n{formatted_text}"
 
     # 计算统计信息
     if total_max_tokens or max_content_tokens:
@@ -530,9 +499,7 @@ def format_documents_with_metadata(
             final_tokens=final_tokens,
             truncated_docs=truncated_count,
             total_docs=num_urls,
-            retention_ratio=(
-                final_tokens / original_tokens if original_tokens > 0 else 1.0
-            ),
+            retention_ratio=(final_tokens / original_tokens if original_tokens > 0 else 1.0),
         )
 
         if total_max_tokens:

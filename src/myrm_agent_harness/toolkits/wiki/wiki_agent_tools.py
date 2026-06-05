@@ -59,7 +59,9 @@ def create_wiki_tools(
     async def wiki_ingest(
         source: Annotated[str, "URL or file path to ingest"],
         filename: Annotated[str, "Optional custom filename"] = "",
-        folder_path: Annotated[str, "Optional logical folder path to categorize this document (e.g., 'Research/AI')"] = "",
+        folder_path: Annotated[
+            str, "Optional logical folder path to categorize this document (e.g., 'Research/AI')"
+        ] = "",
     ) -> str:
         """
         Ingest a document into the wiki raw/ directory.

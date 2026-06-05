@@ -149,23 +149,23 @@ class SecurityValidationResult:
 class OptimizationStatus(StrEnum):
     """优化状态枚举"""
 
-    PENDING = "pending" # 等待中
-    IN_PROGRESS = "in_progress" # 进行中
-    TESTING = "testing" # A/B测试中
-    COMPLETED = "completed" # 已完成
-    FAILED = "failed" # 失败
-    ROLLED_BACK = "rolled_back" # 已回滚
+    PENDING = "pending"  # 等待中
+    IN_PROGRESS = "in_progress"  # 进行中
+    TESTING = "testing"  # A/B测试中
+    COMPLETED = "completed"  # 已完成
+    FAILED = "failed"  # 失败
+    ROLLED_BACK = "rolled_back"  # 已回滚
 
 
 class ABTestStatus(StrEnum):
     """A/B测试状态枚举"""
 
-    RUNNING = "running" # 运行中
-    BASELINE_WIN = "baseline_win" # 基线版本胜出
-    CANDIDATE_WIN = "candidate_win" # 候选版本胜出
-    NO_DIFFERENCE = "no_difference" # 无显著差异
-    FAILED = "failed" # 测试失败
-    STOPPED = "stopped" # 提前停止
+    RUNNING = "running"  # 运行中
+    BASELINE_WIN = "baseline_win"  # 基线版本胜出
+    CANDIDATE_WIN = "candidate_win"  # 候选版本胜出
+    NO_DIFFERENCE = "no_difference"  # 无显著差异
+    FAILED = "failed"  # 测试失败
+    STOPPED = "stopped"  # 提前停止
 
 
 @dataclass

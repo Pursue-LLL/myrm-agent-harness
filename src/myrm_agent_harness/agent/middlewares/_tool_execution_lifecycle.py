@@ -100,9 +100,7 @@ def resolve_dynamic_tool(request: ToolCallRequest) -> ToolCallRequest:
 # ---------------------------------------------------------------------------
 
 
-async def emit_tool_heartbeat(
-    tool_name: str, tool_call_id: str, start_time: float
-) -> None:
+async def emit_tool_heartbeat(tool_name: str, tool_call_id: str, start_time: float) -> None:
     """Emit periodic heartbeat events for long-running tools."""
     from myrm_agent_harness.agent.streaming.types import AgentEventType
     from myrm_agent_harness.utils.runtime.progress_sink import get_tool_progress_sink
@@ -224,12 +222,14 @@ async def handle_execution_error(
             tool_name,
             str(e)[:200],
         )
-        interrupt({
-            "action_type": "tool_stuck",
-            "tool_name": tool_name,
-            "tool_call_id": tool_call_id,
-            "error_message": str(e),
-        })
+        interrupt(
+            {
+                "action_type": "tool_stuck",
+                "tool_name": tool_name,
+                "tool_call_id": tool_call_id,
+                "error_message": str(e),
+            }
+        )
 
     error_type = type(e).__name__
     error_msg = str(e)
@@ -266,9 +266,7 @@ async def handle_execution_error(
     )
 
     error_category: str | None = (
-        getattr(e, "diagnostic_info", {}).get("error_category")
-        if hasattr(e, "diagnostic_info")
-        else None
+        getattr(e, "diagnostic_info", {}).get("error_category") if hasattr(e, "diagnostic_info") else None
     )
     return make_error_msg(
         tool_name,

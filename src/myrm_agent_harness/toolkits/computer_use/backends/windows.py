@@ -57,16 +57,25 @@ class WindowsBackend:
         return await asyncio.to_thread(_capture)
 
     async def click(
-        self, x: int, y: int, button: str = "left", clicks: int = 1,
+        self,
+        x: int,
+        y: int,
+        button: str = "left",
+        clicks: int = 1,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
         import pyautogui
+
         pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
         try:
             for key in pyautogui_keys:
                 await asyncio.to_thread(pyautogui.keyDown, key)
             await asyncio.to_thread(
-                pyautogui.click, x=x, y=y, button=button, clicks=clicks,
+                pyautogui.click,
+                x=x,
+                y=y,
+                button=button,
+                clicks=clicks,
             )
             return ActionResult(success=True)
         except Exception as e:
@@ -80,6 +89,7 @@ class WindowsBackend:
         try:
             if text.isascii():
                 import pyautogui
+
                 interval = delay_ms / 1000.0
                 for i in range(0, len(text), chunk_size):
                     chunk = text[i : i + chunk_size]
@@ -93,6 +103,7 @@ class WindowsBackend:
     async def type_credential(self, label: str) -> ActionResult:
         """Type a credential (password or TOTP) securely from the CredentialVault."""
         from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
+
         vault = get_global_credential_vault()
 
         is_totp = label.endswith("-totp")
@@ -107,6 +118,7 @@ class WindowsBackend:
         try:
             if secret_text.isascii():
                 import pyautogui
+
                 interval = 12 / 1000.0
                 # pyautogui.write calls OS APIs directly, no subprocess arguments exposed
                 await asyncio.to_thread(pyautogui.write, secret_text, interval=interval)
@@ -130,6 +142,7 @@ class WindowsBackend:
 
     async def key(self, keys: str) -> ActionResult:
         import pyautogui
+
         try:
             parts = [k.strip() for k in keys.split("+")]
             if len(parts) > 1:
@@ -142,6 +155,7 @@ class WindowsBackend:
 
     async def mouse_move(self, x: int, y: int) -> ActionResult:
         import pyautogui
+
         try:
             await asyncio.to_thread(pyautogui.moveTo, x, y)
             return ActionResult(success=True)
@@ -149,10 +163,15 @@ class WindowsBackend:
             return ActionResult(success=False, error=str(e))
 
     async def scroll(
-        self, x: int, y: int, direction: str, amount: int = 3,
+        self,
+        x: int,
+        y: int,
+        direction: str,
+        amount: int = 3,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
         import pyautogui
+
         pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
         try:
             await asyncio.to_thread(pyautogui.moveTo, x, y)
@@ -173,10 +192,15 @@ class WindowsBackend:
                 await asyncio.to_thread(pyautogui.keyUp, key)
 
     async def drag(
-        self, start_x: int, start_y: int, end_x: int, end_y: int,
+        self,
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
         import pyautogui
+
         pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
         try:
             for key in pyautogui_keys:
@@ -185,7 +209,8 @@ class WindowsBackend:
             await asyncio.to_thread(pyautogui.moveTo, start_x, start_y)
             await asyncio.to_thread(
                 pyautogui.drag,
-                end_x - start_x, end_y - start_y,
+                end_x - start_x,
+                end_y - start_y,
                 duration=0.5,
             )
 
@@ -210,6 +235,7 @@ class WindowsBackend:
 
     def screen_context(self) -> ScreenContext:
         import pyautogui
+
         pos = pyautogui.position()
         return ScreenContext(
             active_window=_get_active_window_title(),
@@ -264,6 +290,7 @@ def _detect_screen_info() -> tuple[int, int, float]:
     except Exception:
         # Absolute fallback
         import pyautogui
+
         size = pyautogui.size()
         return size.width, size.height, 1.0
 
@@ -286,6 +313,7 @@ def _get_active_window_title() -> str:
 def _is_browser_active_win() -> bool:
     """Check if the active application is a known web browser."""
     from myrm_agent_harness.toolkits.computer_use.types import KNOWN_BROWSER_NAMES
+
     app_name = _get_active_window_title().lower()
     return any(browser in app_name for browser in KNOWN_BROWSER_NAMES)
 
@@ -416,7 +444,10 @@ def _extract_window_text_uia() -> WindowTextResult:
 
 
 def _collect_text_recursive(
-    control: object, text_parts: list[str], max_depth: int, max_elements: int,
+    control: object,
+    text_parts: list[str],
+    max_depth: int,
+    max_elements: int,
 ) -> None:
     """Recursively collect text from UI Automation elements."""
     if max_depth <= 0 or len(text_parts) >= max_elements:

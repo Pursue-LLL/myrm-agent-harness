@@ -39,8 +39,7 @@ class _NotifyInput(BaseModel):
 
     channel: str = Field(
         description=(
-            "Target channel name (e.g. 'telegram', 'slack'). "
-            "If only one target is configured, this can be omitted."
+            "Target channel name (e.g. 'telegram', 'slack'). If only one target is configured, this can be omitted."
         ),
         default="",
     )
@@ -108,32 +107,21 @@ def create_channel_notify_tool(
         else:
             body_truncated = body
 
-        resolved_target = _resolve_target(
-            channel, target, config.allowed_targets
-        )
+        resolved_target = _resolve_target(channel, target, config.allowed_targets)
         if resolved_target is None:
             available = ", ".join(
-                f"{t.channel}:{t.recipient_id}" + (f" ({t.label})" if t.label else "")
-                for t in config.allowed_targets
+                f"{t.channel}:{t.recipient_id}" + (f" ({t.label})" if t.label else "") for t in config.allowed_targets
             )
-            return (
-                f"Error: target not found or not allowed. "
-                f"Available targets: [{available}]"
-            )
+            return f"Error: target not found or not allowed. Available targets: [{available}]"
 
         result = await sender.send(resolved_target, body_truncated)
 
         session_state.send_count += 1
-        session_state.targets_used.append(
-            f"{resolved_target.channel}:{resolved_target.recipient_id}"
-        )
+        session_state.targets_used.append(f"{resolved_target.channel}:{resolved_target.recipient_id}")
 
         if result.success:
             label = resolved_target.label or resolved_target.recipient_id
-            return (
-                f"Notification sent successfully to {resolved_target.channel} "
-                f"({label})."
-            )
+            return f"Notification sent successfully to {resolved_target.channel} ({label})."
         return f"Error: failed to send notification — {result.error}"
 
     return channel_notify_tool

@@ -36,7 +36,7 @@ logger = get_agent_logger(__name__)
 
 _FILE_PATH_RE = re.compile(
     r"(?:^|[\s\"'`(])("
-    r"(?:[\w./-]+/[\w.-]+\.[\w]{1,6})" # path/to/file.ext
+    r"(?:[\w./-]+/[\w.-]+\.[\w]{1,6})"  # path/to/file.ext
     r"|(?:[\w.-]+\.(?:py|ts|tsx|js|jsx|rs|go|java|yaml|yml|json|toml|md|sql|sh|css|html))"
     r")"
 )

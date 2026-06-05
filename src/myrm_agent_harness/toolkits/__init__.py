@@ -33,7 +33,6 @@ Generic, framework-agnostic toolkit collection. No agent coupling — each toolk
 - storage: storage service
 - web_fetch: layered crawl engine
 - local_browser_data: local browser data search (Chrome/Edge bookmarks and history)
-- local_file_search: semantic search over user's local files (SHA256 incremental indexing, hybrid retrieval)
 - web_search: web search tools
 """
 
@@ -57,7 +56,6 @@ __all__ = [
     "create_image_search_tool",
     "create_litellm_model",
     "create_local_browser_data_tool",
-    "create_local_file_search_tools",
     "create_memory_tools",
     "create_web_fetch_tool",
     "create_web_search_tool",
@@ -81,17 +79,25 @@ _LAZY_IMPORTS = {
         "create_conversation_search_tool",
     ),
     "create_web_fetch_tool": ("myrm_agent_harness.toolkits.web_fetch.web_fetch_agent_tools", "create_web_fetch_tool"),
-    "create_web_search_tool": ("myrm_agent_harness.toolkits.web_search.web_search_agent_tools", "create_web_search_tool"),
-    "create_huggingface_inference_tool": ("myrm_agent_harness.toolkits.huggingface", "create_huggingface_inference_tool"),
-    "create_image_search_tool": ("myrm_agent_harness.toolkits.web_search.image_search_tool", "create_image_search_tool"),
-    "create_delegate_to_agent_tool": ("myrm_agent_harness.toolkits.acp.acp_agent_tools", "create_delegate_to_agent_tool"),
+    "create_web_search_tool": (
+        "myrm_agent_harness.toolkits.web_search.web_search_agent_tools",
+        "create_web_search_tool",
+    ),
+    "create_huggingface_inference_tool": (
+        "myrm_agent_harness.toolkits.huggingface",
+        "create_huggingface_inference_tool",
+    ),
+    "create_image_search_tool": (
+        "myrm_agent_harness.toolkits.web_search.image_search_tool",
+        "create_image_search_tool",
+    ),
+    "create_delegate_to_agent_tool": (
+        "myrm_agent_harness.toolkits.acp.acp_agent_tools",
+        "create_delegate_to_agent_tool",
+    ),
     "create_local_browser_data_tool": (
         "myrm_agent_harness.toolkits.local_browser_data",
         "create_local_browser_data_tool",
-    ),
-    "create_local_file_search_tools": (
-        "myrm_agent_harness.toolkits.local_file_search.local_file_search_agent_tools",
-        "create_local_file_search_tools",
     ),
 }
 

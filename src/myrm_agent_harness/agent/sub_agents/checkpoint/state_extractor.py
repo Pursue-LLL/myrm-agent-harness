@@ -153,9 +153,7 @@ async def restore_subagent_state(child_agent: BaseAgent, checkpoint_data: dict[s
 
     # 2. 恢复消息到checkpointer
     if messages and child_agent.checkpointer is not None:
-        restored_count = await _restore_messages_to_checkpointer(
-            child_agent, messages
-        )
+        restored_count = await _restore_messages_to_checkpointer(child_agent, messages)
         logger.info(
             "Restored %d/%d messages to checkpointer",
             restored_count,

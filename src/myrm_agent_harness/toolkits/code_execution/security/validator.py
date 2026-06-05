@@ -404,9 +404,7 @@ def is_path_allowed(path: str | Path, mode: str = "read") -> bool:
 # ============================================================
 
 
-def validate_path_component(
-    component: str, component_name: str = "path component"
-) -> ValidationResult:
+def validate_path_component(component: str, component_name: str = "path component") -> ValidationResult:
     """Validate a path component for safety (user_id, chat_id, workspace_id, etc.).
 
     Prevents path traversal attacks and filesystem restriction bypass.
@@ -470,9 +468,7 @@ def validate_path_component(
     return ValidationResult(is_safe=True)
 
 
-def is_path_component_safe(
-    component: str, component_name: str = "path component"
-) -> bool:
+def is_path_component_safe(component: str, component_name: str = "path component") -> bool:
     """Check if a path component is safe (convenience wrapper)."""
     return validate_path_component(component, component_name).is_safe
 
@@ -545,8 +541,6 @@ def sanitize_env(
         filtered[key] = value
 
     if blocked:
-        _env_logger.info(
-            f" Blocked {len(blocked)} env vars ({inherit_policy}): {', '.join(sorted(blocked))}"
-        )
+        _env_logger.info(f" Blocked {len(blocked)} env vars ({inherit_policy}): {', '.join(sorted(blocked))}")
 
     return filtered

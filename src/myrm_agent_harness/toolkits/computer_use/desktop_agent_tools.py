@@ -35,6 +35,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
     """Create 4 semantic desktop tools bound to *session*."""
 
     from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
+
     vault = get_global_credential_vault()
     labels = vault.list_labels()
     labels_str = ", ".join([f"'{lbl}'" for lbl in labels]) if labels else "none available"

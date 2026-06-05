@@ -143,7 +143,6 @@ def parse_tool_calls_from_reasoning(
     mode_str = "Async" if is_async else "Sync"
     logger.warning(f" Parsed {len(parsed_tool_calls)} tool calls from reasoning_content ({mode_str} streaming mode)")
 
-
     tool_call_chunks: list[ToolCallChunk] = []
     for idx, tc in enumerate(parsed_tool_calls):
         tool_call_chunks.append(

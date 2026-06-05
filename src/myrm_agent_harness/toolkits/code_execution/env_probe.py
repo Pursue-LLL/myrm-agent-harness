@@ -63,7 +63,11 @@ def _python_version_of(binary: str) -> str | None:
     if not shutil.which(binary):
         return None
     rc, out, _err = _run(
-        [binary, "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"]
+        [
+            binary,
+            "-c",
+            "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')",
+        ]
     )
     if rc == 0 and out:
         return out
@@ -122,12 +126,7 @@ def _build_probe_line() -> str:
 
     mismatch = bool(pip_bound_to and py3_ver and not py3_ver.startswith(pip_bound_to))
 
-    silent_conditions = (
-        py3_ver is not None
-        and py3_has_pip
-        and not mismatch
-        and (not py3_pep668 or has_uv)
-    )
+    silent_conditions = py3_ver is not None and py3_has_pip and not mismatch and (not py3_pep668 or has_uv)
     if silent_conditions:
         return ""
 

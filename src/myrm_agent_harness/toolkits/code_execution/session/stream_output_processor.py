@@ -80,9 +80,7 @@ class StreamOutputProcessor:
         tee_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            log_files = sorted(
-                tee_dir.glob("cmd_*.log"), key=lambda p: p.stat().st_mtime
-            )
+            log_files = sorted(tee_dir.glob("cmd_*.log"), key=lambda p: p.stat().st_mtime)
             if len(log_files) > _TEE_KEEP_COUNT:
                 for f in log_files[:-_TEE_KEEP_COUNT]:
                     f.unlink(missing_ok=True)
@@ -109,10 +107,7 @@ class StreamOutputProcessor:
             if allowed_bytes > 0:
                 encoded = text.encode("utf-8", errors="replace")[:allowed_bytes]
                 await tee_file.write(encoded.decode("utf-8", errors="ignore"))
-            await tee_file.write(
-                "\n\n[System Warning: Tee log file exceeded 50MB hard limit "
-                "and was truncated.]\n"
-            )
+            await tee_file.write("\n\n[System Warning: Tee log file exceeded 50MB hard limit and was truncated.]\n")
             self._tee_truncated = True
         else:
             await tee_file.write(text)
@@ -155,8 +150,7 @@ class StreamOutputProcessor:
 
     def _build_valve_warning(self) -> str:
         limit_note = (
-            " (Note: The log file itself reached the 50MB physical limit "
-            "and was also truncated.)"
+            " (Note: The log file itself reached the 50MB physical limit and was also truncated.)"
             if self._tee_truncated
             else ""
         )
@@ -169,8 +163,7 @@ class StreamOutputProcessor:
     def build_truncation_system_note(self) -> str:
         """Build the system note appended to stdout when output was truncated."""
         limit_note = (
-            " (Note: The log file itself reached the 50MB physical limit "
-            "and was also truncated.)"
+            " (Note: The log file itself reached the 50MB physical limit and was also truncated.)"
             if self._tee_truncated
             else ""
         )

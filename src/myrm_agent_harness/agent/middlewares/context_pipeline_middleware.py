@@ -174,9 +174,7 @@ def create_context_pipeline_middleware(
 
     _notes_manager: SessionNotesManager | None = None
     if session_notes_llm is not None:
-        _notes_manager = SessionNotesManager(
-            llm=session_notes_llm, on_persist=on_notes_persist
-        )
+        _notes_manager = SessionNotesManager(llm=session_notes_llm, on_persist=on_notes_persist)
 
     def _get_or_create_pipeline(
         max_context_tokens: int | None,
@@ -271,31 +269,21 @@ def create_context_pipeline_middleware(
                         )
 
                 total_tool_calls = _count_tool_calls(messages)
-                await _notes_manager.maybe_trigger_update(
-                    messages, total_tokens, total_tool_calls
-                )
+                await _notes_manager.maybe_trigger_update(messages, total_tokens, total_tool_calls)
 
             async with acquire_context_lock(chat_id):
                 clear_pending_explicit_cache_snapshot()
 
                 # Extract merged_context from request for Prompt Cache preservation flags
-                runtime_context = (
-                    getattr(request.runtime, "context", {})
-                    if hasattr(request, "runtime")
-                    else {}
-                )
-                merged_ctx = (
-                    runtime_context if isinstance(runtime_context, dict) else {}
-                )
+                runtime_context = getattr(request.runtime, "context", {}) if hasattr(request, "runtime") else {}
+                merged_ctx = runtime_context if isinstance(runtime_context, dict) else {}
                 is_resume = merged_ctx.get("is_resume", False)
 
                 force_proactive_reset = merged_ctx.get("subagent_finished_flag", False)
                 if force_proactive_reset:
                     merged_ctx["subagent_finished_flag"] = False
 
-                if not force_proactive_reset and merged_ctx.get(
-                    "active_stage_commit_flag", False
-                ):
+                if not force_proactive_reset and merged_ctx.get("active_stage_commit_flag", False):
                     force_proactive_reset = True
                     merged_ctx["active_stage_commit_flag"] = False
 
@@ -384,9 +372,7 @@ def create_context_pipeline_middleware(
                     logger.debug("Failed to dispatch cache pruning status event: %s", e)
 
             if result.tokens_saved > 0 or result.messages is not messages:
-                request = request.override(
-                    messages=cast(list[AnyMessage], result.messages)
-                )
+                request = request.override(messages=cast(list[AnyMessage], result.messages))
 
                 # Reset read-before-edit gate when context is compressed/summarized,
                 # because the model no longer has byte-level visibility of previously
@@ -407,14 +393,8 @@ def create_context_pipeline_middleware(
                     tool_names_and_schemas=extract_tool_names_and_schemas(request),
                 )
 
-            if (
-                on_summary_persist is not None
-                and result.structured_summary is not None
-                and chat_id
-            ):
-                persist_task = asyncio.create_task(
-                    _safe_persist_summary(on_summary_persist, chat_id, result)
-                )
+            if on_summary_persist is not None and result.structured_summary is not None and chat_id:
+                persist_task = asyncio.create_task(_safe_persist_summary(on_summary_persist, chat_id, result))
                 _summary_persist_tasks.add(persist_task)
                 persist_task.add_done_callback(_summary_persist_tasks.discard)
 
@@ -461,9 +441,7 @@ def _extract_last_message_db_id(request: ModelRequest) -> str | None:
         return None
 
 
-async def _safe_persist_summary(
-    callback: SummaryPersistCallback, chat_id: str, result: ProcessorContext
-) -> None:
+async def _safe_persist_summary(callback: SummaryPersistCallback, chat_id: str, result: ProcessorContext) -> None:
     """Safely invoke summary persist callback (fire-and-forget, non-blocking)."""
     try:
         await callback(

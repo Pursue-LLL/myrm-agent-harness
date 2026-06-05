@@ -103,18 +103,12 @@ class SubprocessCodeExecutor:
                 import shutil
 
                 for item in skill_dir.iterdir():
-                    if item.is_file() and (
-                        item.name.startswith("test_") or item.name.endswith("_test.py")
-                    ):
+                    if item.is_file() and (item.name.startswith("test_") or item.name.endswith("_test.py")):
                         try:
                             shutil.copy2(item, workspace / item.name)
-                            logger.debug(
-                                "Copied regression test %s to TDE workspace", item.name
-                            )
+                            logger.debug("Copied regression test %s to TDE workspace", item.name)
                         except Exception as e:
-                            logger.warning(
-                                "Failed to copy regression test %s: %s", item.name, e
-                            )
+                            logger.warning("Failed to copy regression test %s: %s", item.name, e)
 
             env = os.environ.copy()
             env["EVOLUTION_SKILL_PATH"] = str(skill_path)
@@ -133,9 +127,7 @@ class SubprocessCodeExecutor:
 
             parent_pythonpath = str(WorkspacePathResolver.resolve_workspace_root())
             existing_pythonpath = env.get("PYTHONPATH", "")
-            env["PYTHONPATH"] = os.pathsep.join(
-                part for part in (parent_pythonpath, existing_pythonpath) if part
-            )
+            env["PYTHONPATH"] = os.pathsep.join(part for part in (parent_pythonpath, existing_pythonpath) if part)
 
             # Build the pytest command wrapped with PEP 578 audit sandbox
             pytest_cmd_args = [
@@ -157,7 +149,10 @@ class SubprocessCodeExecutor:
                     allow_network=self._allow_network,
                 )
                 wrapped_cmd, wrapped_args = provider.wrap_command(
-                    sys.executable, tuple(pytest_cmd_args), str(workspace), policy,
+                    sys.executable,
+                    tuple(pytest_cmd_args),
+                    str(workspace),
+                    policy,
                 )
                 pytest_cmd = [wrapped_cmd, *wrapped_args]
             else:

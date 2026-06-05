@@ -44,8 +44,7 @@ class LocalEmbedding(EmbeddingService):
             from fastembed import TextEmbedding
         except ImportError as e:
             raise ImportError(
-                "fastembed is required for local embeddings. "
-                "Install with: uv add 'myrm-agent-harness[local-embedding]'"
+                "fastembed is required for local embeddings. Install with: uv add 'myrm-agent-harness[local-embedding]'"
             ) from e
 
         import os
@@ -72,15 +71,11 @@ class LocalEmbedding(EmbeddingService):
         return self._dimension
 
     async def embed(self, text: str) -> list[float]:
-        results = await asyncio.to_thread(
-            lambda: list(self._text_embedding.embed([text]))
-        )
+        results = await asyncio.to_thread(lambda: list(self._text_embedding.embed([text])))
         return results[0].tolist() if results else [0.0] * self._dimension
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        results = await asyncio.to_thread(
-            lambda: list(self._text_embedding.embed(texts))
-        )
+        results = await asyncio.to_thread(lambda: list(self._text_embedding.embed(texts)))
         return [vec.tolist() for vec in results]

@@ -131,15 +131,13 @@ class ConsensusEngine:
                 elapsed_seconds=elapsed,
                 success=False,
                 error=(
-                    f"Only {len(successful)}/{len(ref_responses)} reference "
-                    f"models succeeded (min={cfg.min_successful})"
+                    f"Only {len(successful)}/{len(ref_responses)} reference models succeeded (min={cfg.min_successful})"
                 ),
             )
 
         if len(successful) == 1:
             logger.info(
-                "Consensus: 1 reference succeeded, returning it without "
-                "aggregation (%s)",
+                "Consensus: 1 reference succeeded, returning it without aggregation (%s)",
                 successful[0].model,
             )
             return self._success_result(successful[0].content, ref_responses, t0)
@@ -205,8 +203,7 @@ class ConsensusEngine:
         if len(successful) == 1:
             single = successful[0]
             logger.info(
-                "Consensus stream: 1 reference succeeded, returning it without "
-                "aggregation (%s)",
+                "Consensus stream: 1 reference succeeded, returning it without aggregation (%s)",
                 single.model,
             )
             yield ConsensusStreamEvent(kind="agg_chunk", chunk=single.content)
@@ -217,9 +214,7 @@ class ConsensusEngine:
             return
 
         final_chunks: list[str] = []
-        async for chunk in self._aggregate_stream(
-            query, successful, cancel_token, system_prompt
-        ):
+        async for chunk in self._aggregate_stream(query, successful, cancel_token, system_prompt):
             final_chunks.append(chunk)
             yield ConsensusStreamEvent(kind="agg_chunk", chunk=chunk)
 
@@ -282,10 +277,7 @@ class ConsensusEngine:
         if cancel_token and cancel_token.is_cancelled:
             return []
 
-        tasks = [
-            self._query_single(llm, query, system_prompt)
-            for llm in self._refs
-        ]
+        tasks = [self._query_single(llm, query, system_prompt) for llm in self._refs]
         try:
             return list(
                 await asyncio.wait_for(
@@ -335,7 +327,7 @@ class ConsensusEngine:
                     last_error = "empty response"
                     logger.warning("%s returned empty (attempt %d)", model_name, attempt)
                     if attempt < cfg.max_retries_per_model:
-                        await asyncio.sleep(min(2 ** attempt, 30))
+                        await asyncio.sleep(min(2**attempt, 30))
                         continue
                     break
 
@@ -356,7 +348,7 @@ class ConsensusEngine:
                 logger.warning("%s error (attempt %d): %s", model_name, attempt, last_error)
 
             if attempt < cfg.max_retries_per_model:
-                await asyncio.sleep(min(2 ** attempt, 30))
+                await asyncio.sleep(min(2**attempt, 30))
 
         elapsed = time.monotonic() - t0
         return ReferenceResponse(
@@ -387,9 +379,7 @@ class ConsensusEngine:
         try:
             for attempt in (1, 2):
                 streamed = await asyncio.wait_for(
-                    collect_stream(
-                        self._agg, messages, self._cfg.aggregator_temperature
-                    ),
+                    collect_stream(self._agg, messages, self._cfg.aggregator_temperature),
                     timeout=self._cfg.timeout_per_model,
                 )
                 content = streamed.strip()

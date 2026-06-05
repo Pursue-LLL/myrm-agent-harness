@@ -29,9 +29,7 @@ from threading import Lock
 from typing import Literal, TypedDict
 
 # Type别名
-ReasonType = Literal[
-    "quiet", "capped", "network_only", "dom_only", "both", "first_completed"
-]
+ReasonType = Literal["quiet", "capped", "network_only", "dom_only", "both", "first_completed"]
 
 
 class DOMStableResult(TypedDict):
@@ -144,9 +142,7 @@ class WaitStrategyStats:
             self.total_elapsed_ms += elapsed_ms
 
             strategy_name = str(strategy.value)
-            self.strategy_counts[strategy_name] = (
-                self.strategy_counts.get(strategy_name, 0) + 1
-            )
+            self.strategy_counts[strategy_name] = self.strategy_counts.get(strategy_name, 0) + 1
 
             if strategy == WaitStrategy.SMART:
                 if reason == "network_only":
@@ -165,19 +161,13 @@ class WaitStrategyStats:
         with self._lock:
             stats: dict[str, object] = {
                 "total_calls": self.total_calls,
-                "avg_elapsed_ms": (
-                    self.total_elapsed_ms / self.total_calls
-                    if self.total_calls > 0
-                    else 0
-                ),
+                "avg_elapsed_ms": (self.total_elapsed_ms / self.total_calls if self.total_calls > 0 else 0),
                 "strategy_usage": dict(self.strategy_counts),
             }
 
             smart_total = self.smart_fast_path_hits + self.smart_fast_path_misses
             if smart_total > 0:
-                stats["smart_fast_path_hit_rate"] = (
-                    self.smart_fast_path_hits / smart_total
-                )
+                stats["smart_fast_path_hit_rate"] = self.smart_fast_path_hits / smart_total
                 stats["smart_fast_path_hits"] = self.smart_fast_path_hits
                 stats["smart_fast_path_misses"] = self.smart_fast_path_misses
 

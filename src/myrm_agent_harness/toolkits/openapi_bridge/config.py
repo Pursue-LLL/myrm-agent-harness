@@ -57,9 +57,7 @@ class AuthConfig(BaseModel):
 
     api_key: str | None = Field(default=None, description="API key value")
     api_key_header: str = Field(default="X-API-Key", description="Header name for API key")
-    api_key_location: Literal["header", "query"] = Field(
-        default="header", description="Where to send the API key"
-    )
+    api_key_location: Literal["header", "query"] = Field(default="header", description="Where to send the API key")
 
     bearer_token: str | None = Field(default=None, description="Bearer token")
 
@@ -82,9 +80,7 @@ class AuthConfig(BaseModel):
         if self.type == AuthType.OAUTH2_CLIENT_CREDENTIALS and (
             not self.token_url or not self.client_id or not self.client_secret
         ):
-            raise ValueError(
-                "token_url, client_id, and client_secret are required for oauth2_client_credentials"
-            )
+            raise ValueError("token_url, client_id, and client_secret are required for oauth2_client_credentials")
         return self
 
 
@@ -132,9 +128,7 @@ class OpenAPIServiceConfig(BaseModel):
     )
     enabled: bool = Field(default=True, description="Whether service is active")
     description: str = Field(default="", description="Human-readable description")
-    request_timeout: float = Field(
-        default=30.0, ge=1.0, le=300.0, description="Per-request timeout (seconds)"
-    )
+    request_timeout: float = Field(default=30.0, ge=1.0, le=300.0, description="Per-request timeout (seconds)")
     max_retries: int = Field(default=2, ge=0, le=5, description="Max retries on transient failures")
 
     @model_validator(mode="after")

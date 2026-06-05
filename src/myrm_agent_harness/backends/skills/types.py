@@ -181,9 +181,7 @@ class SkillUsageStats:
             "call_count": self.call_count,
             "success_count": self.success_count,
             "failure_count": self.failure_count,
-            "last_used_at": (
-                self.last_used_at.isoformat() if self.last_used_at else None
-            ),
+            "last_used_at": (self.last_used_at.isoformat() if self.last_used_at else None),
             "total_duration_ms": self.total_duration_ms,
             "success_rate": self.success_rate,
             "avg_duration_ms": self.avg_duration_ms,
@@ -213,8 +211,7 @@ class SkillUsageStats:
         raw_status = data.get("lifecycle_status", SkillLifecycleStatus.ACTIVE)
         lifecycle_status = (
             raw_status
-            if isinstance(raw_status, str)
-            and raw_status in SkillLifecycleStatus.__members__.values()
+            if isinstance(raw_status, str) and raw_status in SkillLifecycleStatus.__members__.values()
             else SkillLifecycleStatus.ACTIVE
         )
 
@@ -702,9 +699,7 @@ class SkillInstanceConfig:
         if self.instance_name != self.instance_name.strip():
             raise ValueError("instance_name cannot contain leading/trailing whitespace")
         if not re.match(r"^[a-zA-Z0-9_-]+$", self.instance_name):
-            raise ValueError(
-                "instance_name must contain only alphanumeric characters, underscores, and dashes"
-            )
+            raise ValueError("instance_name must contain only alphanumeric characters, underscores, and dashes")
 
         # Validate skill_name
         if not self.skill_name or not isinstance(self.skill_name, str):
@@ -715,13 +710,9 @@ class SkillInstanceConfig:
             raise ValueError("env_overrides must be a dict")
         for key, value in self.env_overrides.items():
             if not isinstance(key, str) or not key:
-                raise ValueError(
-                    f"env_overrides key must be non-empty string, got: {key!r}"
-                )
+                raise ValueError(f"env_overrides key must be non-empty string, got: {key!r}")
             if not isinstance(value, str):
-                raise ValueError(
-                    f"env_overrides value must be string, got {type(value).__name__} for key {key!r}"
-                )
+                raise ValueError(f"env_overrides value must be string, got {type(value).__name__} for key {key!r}")
 
         # Validate config_overrides
         if not isinstance(self.config_overrides, dict):

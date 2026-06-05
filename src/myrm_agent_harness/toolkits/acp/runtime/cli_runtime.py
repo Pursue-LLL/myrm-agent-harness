@@ -133,6 +133,7 @@ class CliRuntime(BaseRuntime):
             args.append(prompt)
 
         from myrm_agent_harness.utils.os_compat import get_process_group_kwargs
+
         self._process = await asyncio.create_subprocess_exec(
             *args,
             stdin=asyncio.subprocess.PIPE if uses_stdin else asyncio.subprocess.DEVNULL,
@@ -214,6 +215,7 @@ class CliRuntime(BaseRuntime):
             return
         pid = self._process.pid
         from myrm_agent_harness.utils.os_compat import kill_process_group
+
         try:
             if pid is not None:
                 kill_process_group(pid, signal.SIGTERM)

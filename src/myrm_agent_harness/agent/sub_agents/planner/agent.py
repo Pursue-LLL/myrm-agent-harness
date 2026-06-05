@@ -155,15 +155,11 @@ class PlannerAgent:
                 )
                 for idx, method in enumerate(error.attempt_history, 1):
                     escalation_note += f" {idx}. {method}\n"
-                escalation_note += (
-                    "\nRecommendation: Seek user help or adjust plan to skip this step."
-                )
+                escalation_note += "\nRecommendation: Seek user help or adjust plan to skip this step."
 
                 plan.notes = (plan.notes or "") + escalation_note
 
-                logger.warning(
-                    f" Error escalated: {error.error_type} (retry {error.retry_count} times)"
-                )
+                logger.warning(f" Error escalated: {error.error_type} (retry {error.retry_count} times)")
 
     async def create_plan(self, task_description: str) -> Plan:
         """Create new plan
@@ -184,9 +180,7 @@ class PlannerAgent:
 
         messages = [
             SystemMessage(content=self.system_prompt),
-            HumanMessage(
-                content=f"Please create a plan for the following task:\n\n{task_description}"
-            ),
+            HumanMessage(content=f"Please create a plan for the following task:\n\n{task_description}"),
         ]
 
         plan = await structured_llm.ainvoke(messages)
@@ -231,9 +225,7 @@ class PlannerAgent:
             get_update_plan_prompt,
         )
 
-        logger.warning(
-            f" PlannerAgent: Updating plan - Completed: {completed_step_id}"
-        )
+        logger.warning(f" PlannerAgent: Updating plan - Completed: {completed_step_id}")
 
         # If only marking completed without feedback, no LLM call needed
         if completed_step_id and not feedback:

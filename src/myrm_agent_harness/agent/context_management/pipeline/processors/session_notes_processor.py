@@ -89,8 +89,7 @@ class SessionNotesProcessor(BaseProcessor):
 
         summary_message = HumanMessage(
             content=(
-                f"[System note: Session Notes Summary — not user input]\n"
-                f"{UNVERIFIED_CONTEXT_MARKER}\n\n{summary_text}"
+                f"[System note: Session Notes Summary — not user input]\n{UNVERIFIED_CONTEXT_MARKER}\n\n{summary_text}"
             )
         )
 

@@ -81,9 +81,7 @@ def row_to_procedural(row: tuple[object, ...]) -> ProceduralMemory:
 
     tool_name_val = str(row[16]) if row[16] else None
     try:
-        tool_priority = (
-            ToolRulePriority(row[17]) if row[17] else ToolRulePriority.NORMAL
-        )
+        tool_priority = ToolRulePriority(row[17]) if row[17] else ToolRulePriority.NORMAL
     except ValueError:
         tool_priority = ToolRulePriority.NORMAL
 

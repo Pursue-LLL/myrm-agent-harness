@@ -44,16 +44,18 @@ class CompletionStatus(StrEnum):
 
 
 _TRUNCATED_REASONS = frozenset({"length", "max_tokens"})
-_FILTERED_REASONS = frozenset({
-    "content_filter",
-    "refusal",
-    "SAFETY",
-    "BLOCKLIST",
-    "PROHIBITED_CONTENT",
-    "SPII",
-    "RECITATION",
-    "IMAGE_SAFETY",
-})
+_FILTERED_REASONS = frozenset(
+    {
+        "content_filter",
+        "refusal",
+        "SAFETY",
+        "BLOCKLIST",
+        "PROHIBITED_CONTENT",
+        "SPII",
+        "RECITATION",
+        "IMAGE_SAFETY",
+    }
+)
 
 
 def map_to_completion_status(raw_finish_reason: str | None) -> CompletionStatus:

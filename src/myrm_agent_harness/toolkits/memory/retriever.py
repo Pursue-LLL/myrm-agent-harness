@@ -42,7 +42,12 @@ class MemoryRetriever:
         self._signal_calc = SignalCalculator()
 
     def rank(
-        self, results: list[MemorySearchResult], *, limit: int = 10, query: str = "", query_context: object | None = None
+        self,
+        results: list[MemorySearchResult],
+        *,
+        limit: int = 10,
+        query: str = "",
+        query_context: object | None = None,
     ) -> list[MemorySearchResult]:
         """Apply geometric mean scoring, correction suppression, and MMR diversity."""
         if not results:
@@ -59,7 +64,11 @@ class MemoryRetriever:
         return self._normalise(scores, items, limit)
 
     def fuse(
-        self, result_lists: list[list[MemorySearchResult]], *, limit: int = 10, query: str = "",
+        self,
+        result_lists: list[list[MemorySearchResult]],
+        *,
+        limit: int = 10,
+        query: str = "",
         query_context: object | None = None,
     ) -> list[MemorySearchResult]:
         """Fuse multiple result lists using RRF, correction suppression, and MMR diversity.

@@ -102,17 +102,11 @@ async def spawn_background_process(
         sanitize_env,
     )
 
-    workspace = (
-        Path(context.workspace_root) if context.workspace_root else current_workspace
-    )
+    workspace = Path(context.workspace_root) if context.workspace_root else current_workspace
     effective_cwd = resolve_work_dir(context.work_dir, workspace)
     setup_workspace(str(effective_cwd) if effective_cwd else None)
 
-    base_env = {
-        k: v
-        for k, v in os.environ.items()
-        if k in ("PATH", "HOME", "USER", "LANG", "LC_ALL")
-    }
+    base_env = {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "USER", "LANG", "LC_ALL")}
     env = sanitize_env(base_env)
 
     if venv_path.exists():
@@ -147,9 +141,7 @@ async def spawn_background_process(
             writable_paths=(work_dir_str,),
             allow_network=context.allow_network,
         )
-        wrapped_cmd, wrapped_args = provider.wrap_command(
-            cmd, tuple(args), work_dir_str, policy
-        )
+        wrapped_cmd, wrapped_args = provider.wrap_command(cmd, tuple(args), work_dir_str, policy)
         full_cmd_array = [wrapped_cmd, *wrapped_args]
     else:
         full_cmd_array = [cmd, *args]

@@ -98,9 +98,7 @@ class RateLimitMiddleware(AgentMiddleware[Any, Any]):
         request: ModelRequest,
         handler: Callable[[ModelRequest], ModelResponse],
     ) -> ModelResponse | Any:
-        raise NotImplementedError(
-            "RateLimitMiddleware does not support synchronous wrap_model_call"
-        )
+        raise NotImplementedError("RateLimitMiddleware does not support synchronous wrap_model_call")
 
     async def awrap_model_call(
         self,
@@ -129,8 +127,7 @@ class RateLimitMiddleware(AgentMiddleware[Any, Any]):
                 wait_seconds = min(min(exhausted_waits), MAX_PROACTIVE_WAIT)
 
                 logger.warning(
-                    "Proactive Throttling: all tracked providers exhausted, "
-                    "sleeping %.1fs (cap %ds)",
+                    "Proactive Throttling: all tracked providers exhausted, sleeping %.1fs (cap %ds)",
                     wait_seconds,
                     int(MAX_PROACTIVE_WAIT),
                 )

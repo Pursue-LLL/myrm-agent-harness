@@ -115,29 +115,16 @@ def create_planner_tool(
                 deps = getattr(step, "dependencies", [])
 
                 if step_id and desc:
-                    nodes.append({
-                        "id": step_id,
-                        "data": {
-                            "label": desc,
-                            "status": status,
-                            "expected_output": expected,
-                            "risk_level": risk
+                    nodes.append(
+                        {
+                            "id": step_id,
+                            "data": {"label": desc, "status": status, "expected_output": expected, "risk_level": risk},
                         }
-                    })
+                    )
                     for dep in deps:
-                        edges.append({
-                            "id": f"e_{dep}_{step_id}",
-                            "source": dep,
-                            "target": step_id
-                        })
+                        edges.append({"id": f"e_{dep}_{step_id}", "source": dep, "target": step_id})
 
-            dispatch_custom_event(
-                "dag_state_update",
-                {
-                    "nodes": nodes,
-                    "edges": edges
-                }
-            )
+            dispatch_custom_event("dag_state_update", {"nodes": nodes, "edges": edges})
 
             # Emit each step as a child of the root
             steps = getattr(plan, "steps", [])

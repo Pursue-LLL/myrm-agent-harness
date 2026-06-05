@@ -18,6 +18,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+
 class LinkRefactorEngine:
     """
     Engine to update markdown links when files are moved or renamed.
@@ -62,20 +63,22 @@ class LinkRefactorEngine:
 
         return updated_files_count
 
-    def _update_content_links(self, content: str, current_file: Path, old_target: Path, new_target: Path, is_dir: bool) -> str:
+    def _update_content_links(
+        self, content: str, current_file: Path, old_target: Path, new_target: Path, is_dir: bool
+    ) -> str:
         """
         Update markdown links in the content.
         Matches [text](link) and updates the link if it resolves to old_target.
         """
         # Regex to find markdown links: [text](url)
-        link_pattern = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
+        link_pattern = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 
         def replacer(match):
             text = match.group(1)
             url = match.group(2)
 
             # Ignore absolute URLs or anchors
-            if url.startswith(('http://', 'https://', '#', 'mailto:')):
+            if url.startswith(("http://", "https://", "#", "mailto:")):
                 return match.group(0)
 
             try:
@@ -101,9 +104,10 @@ class LinkRefactorEngine:
 
                     # Calculate new relative path from current file to new target
                     import os
+
                     new_rel_path = os.path.relpath(new_abs_path, current_file.parent)
                     # Ensure forward slashes for markdown links
-                    new_rel_path = new_rel_path.replace('\\', '/')
+                    new_rel_path = new_rel_path.replace("\\", "/")
 
                     return f"[{text}]({new_rel_path})"
             except Exception:

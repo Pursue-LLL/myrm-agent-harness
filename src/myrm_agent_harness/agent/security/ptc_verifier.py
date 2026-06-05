@@ -45,9 +45,7 @@ _SAFE_NODE_TYPES = {
     ast.Set,
 }
 
-_SAFE_BUILTINS = {
-    "print", "len", "str", "int", "float", "bool", "dict", "list", "set", "tuple"
-}
+_SAFE_BUILTINS = {"print", "len", "str", "int", "float", "bool", "dict", "list", "set", "tuple"}
 
 
 def _verify_pure_ptc(tree: ast.Module) -> bool:
@@ -68,7 +66,9 @@ def _verify_pure_ptc(tree: ast.Module) -> bool:
             if not node.module:
                 return False
             # Allow: "from skills.xxx import yyy", "from xxx_skill import yyy", "from tools.xxx import yyy"
-            if not (node.module.startswith("skills.") or node.module.startswith("tools.") or node.module.endswith("_skill")):
+            if not (
+                node.module.startswith("skills.") or node.module.startswith("tools.") or node.module.endswith("_skill")
+            ):
                 return False
             # Register imported names as allowed functions
             for alias in node.names:

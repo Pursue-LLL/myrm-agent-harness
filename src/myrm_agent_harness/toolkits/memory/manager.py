@@ -296,16 +296,12 @@ class MemoryManager:
             namespaces=self._namespaces,
             scope=self._scope,
         )
-        self._maintenance_service = MaintenanceService(
-            config=config, vector=vector, graph=graph
-        )
+        self._maintenance_service = MaintenanceService(config=config, vector=vector, graph=graph)
         self._consolidation_llm: BaseChatModel | None = consolidation_llm
         self._fts5_searcher: FTS5SearcherFunc | None = fts5_searcher
         self._maintenance_lock = asyncio.Lock()
         self._preference_strategy: PreferenceStabilityStrategy | None = (
-            PreferenceStabilityStrategy(preference_facet_store)
-            if preference_facet_store is not None
-            else None
+            PreferenceStabilityStrategy(preference_facet_store) if preference_facet_store is not None else None
         )
         self._recurrence_detector: RecurrenceDetector | None = (
             self._init_recurrence_detector(config)
@@ -443,9 +439,7 @@ class MemoryManager:
 
     async def batch_approve(self, pending_ids: list[str]) -> tuple[int, list[str]]:
         """Returns (success_count, failed_ids)."""
-        return await self._governance.batch_approve(
-            pending_ids, approve_func=self.approve
-        )
+        return await self._governance.batch_approve(pending_ids, approve_func=self.approve)
 
     async def batch_reject(self, pending_ids: list[str]) -> int:
         return await self._governance.batch_reject(pending_ids)
@@ -465,11 +459,22 @@ class MemoryManager:
 
         hook = ToolMemoryCaptureHook()
         if hook_registry is not None:
-            if not any(isinstance(h, CallableHookDefinition) and h.fn.__name__ == "on_post_tool_failure" for h in hook_registry._hooks.get(HookEvent.POST_TOOL_USE_FAILURE, [])):
-                hook_registry.register(HookEvent.POST_TOOL_USE_FAILURE, CallableHookDefinition(fn=hook.on_post_tool_failure))
-            if not any(isinstance(h, CallableHookDefinition) and h.fn.__name__ == "on_post_tool_use" for h in hook_registry._hooks.get(HookEvent.POST_TOOL_USE, [])):
+            if not any(
+                isinstance(h, CallableHookDefinition) and h.fn.__name__ == "on_post_tool_failure"
+                for h in hook_registry._hooks.get(HookEvent.POST_TOOL_USE_FAILURE, [])
+            ):
+                hook_registry.register(
+                    HookEvent.POST_TOOL_USE_FAILURE, CallableHookDefinition(fn=hook.on_post_tool_failure)
+                )
+            if not any(
+                isinstance(h, CallableHookDefinition) and h.fn.__name__ == "on_post_tool_use"
+                for h in hook_registry._hooks.get(HookEvent.POST_TOOL_USE, [])
+            ):
                 hook_registry.register(HookEvent.POST_TOOL_USE, CallableHookDefinition(fn=hook.on_post_tool_use))
-            if not any(isinstance(h, CallableHookDefinition) and h.fn.__name__ == "on_user_turn" for h in hook_registry._hooks.get(HookEvent.USER_TURN, [])):
+            if not any(
+                isinstance(h, CallableHookDefinition) and h.fn.__name__ == "on_user_turn"
+                for h in hook_registry._hooks.get(HookEvent.USER_TURN, [])
+            ):
                 hook_registry.register(HookEvent.USER_TURN, CallableHookDefinition(fn=hook.on_user_turn))
 
         self._active_session = MemorySession(manager=self, chat_id=chat_id, tool_capture_hook=hook)
@@ -486,15 +491,10 @@ class MemoryManager:
             try:
                 promoted = await self._preference_strategy.micro_rebuild()
                 if promoted:
-                    logger.info(
-                        "Preference micro-rebuild: %d promoted to Active", promoted
-                    )
+                    logger.info("Preference micro-rebuild: %d promoted to Active", promoted)
             except Exception as e:
                 logger.warning("Preference micro-rebuild failed (non-fatal): %s", e)
-        if (
-            self._session_count % self._config.forgetting_interval == 0
-            and self._vector is not None
-        ):
+        if self._session_count % self._config.forgetting_interval == 0 and self._vector is not None:
             task = asyncio.create_task(self._guarded_forgetting())
             task.add_done_callback(_log_background_task_failure)
         self._maybe_consolidate()
@@ -518,9 +518,7 @@ class MemoryManager:
             return
         try:
             llm_func = self._build_recurrence_llm_func()
-            result = await self._recurrence_detector.check_recurrence(
-                summary, llm_func=llm_func
-            )
+            result = await self._recurrence_detector.check_recurrence(summary, llm_func=llm_func)
 
             if not result.triggered or not result.consolidated_content:
                 return
@@ -546,6 +544,7 @@ class MemoryManager:
 
         async def _call(system_prompt: str, user_prompt: str) -> str:
             from langchain_core.messages import HumanMessage, SystemMessage
+
             messages = [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)]
             response = await self._consolidation_llm.ainvoke(messages)  # type: ignore[union-attr]
             return str(response.content)
@@ -611,9 +610,7 @@ class MemoryManager:
     def active_session(self) -> MemorySession | None:
         return self._active_session
 
-    async def store(
-        self, memory: AnyMemory, *, _bypass_approval: bool = False
-    ) -> AnyMemory:
+    async def store(self, memory: AnyMemory, *, _bypass_approval: bool = False) -> AnyMemory:
         result = await self._writer.store(memory, bypass_approval=_bypass_approval)
         self._stores_since_consolidation += 1
         trigger = self._config.consolidation.message_count_trigger
@@ -676,7 +673,6 @@ class MemoryManager:
             namespaces=self._namespaces,
         )
 
-
         return ctx
 
     async def get_learned_context(self) -> dict[str, list[dict[str, str]]]:
@@ -689,11 +685,7 @@ class MemoryManager:
         preferences instead of raw vector scroll for higher precision.
         """
         rules_task = (
-            asyncio.create_task(
-                self._relational.list_rules(
-                    active_only=True, limit=50, namespaces=self._namespaces
-                )
-            )
+            asyncio.create_task(self._relational.list_rules(active_only=True, limit=50, namespaces=self._namespaces))
             if self._relational
             else None
         )
@@ -751,9 +743,7 @@ class MemoryManager:
                 logger.warning("Learned context preferences query error: %s", e)
 
         rules.sort(key=lambda r: r.priority, reverse=True)
-        preferences.sort(
-            key=lambda m: m.importance * m.preference_strength, reverse=True
-        )
+        preferences.sort(key=lambda m: m.importance * m.preference_strength, reverse=True)
 
         base_budget = self._config.max_learned_context_chars
         if self._config.model_context_tokens:
@@ -838,7 +828,7 @@ class MemoryManager:
 
     async def record_citations(self, memory_ids: list[str]) -> int:
         """Explicitly record LLM citations for lifecycle decay tracking.
-        
+
         Bumps the access_count and last_accessed_at for the cited memories.
         Returns the number of successfully updated memories.
         """
@@ -880,9 +870,7 @@ class MemoryManager:
 
     async def set_profile_attribute(self, key: str, value: str) -> str | None:
         """Set a profile attribute. Returns pending_id if approval is required, else None."""
-        return await self._governance.set_profile_attribute(
-            key, value, approval_required=self.approval_required
-        )
+        return await self._governance.set_profile_attribute(key, value, approval_required=self.approval_required)
 
     async def get_profile_attribute(self, key: str) -> str | None:
         return await self._governance.get_profile_attribute(key)
@@ -971,9 +959,7 @@ class MemoryManager:
 
     # ── Delete ──
 
-    async def delete_memory(
-        self, collection: str, ids: list[str], *, allow_pinned: bool = True
-    ) -> int:
+    async def delete_memory(self, collection: str, ids: list[str], *, allow_pinned: bool = True) -> int:
         if self._vector is None:
             raise MemoryError("Vector backend is required but not provided")
         if ids:
@@ -1032,11 +1018,7 @@ class MemoryManager:
             for memory_type, collection in vector_collections.items():
                 if memory_type not in selected_types:
                     continue
-                memory_ids = [
-                    doc_id
-                    for doc_id, owned in await self._collect_vector_ids(collection, filters)
-                    if owned
-                ]
+                memory_ids = [doc_id for doc_id, owned in await self._collect_vector_ids(collection, filters) if owned]
                 deleted = await self.delete_memory(collection, memory_ids)
                 counts[memory_type.value] = deleted
 
@@ -1253,9 +1235,7 @@ class MemoryManager:
                 if memory_type not in selected_types:
                     continue
                 matches[memory_type.value] = [
-                    doc_id
-                    for doc_id, owned in await self._collect_vector_ids(collection, filters)
-                    if owned
+                    doc_id for doc_id, owned in await self._collect_vector_ids(collection, filters) if owned
                 ]
 
         if MemoryType.PROCEDURAL in selected_types and self._relational is not None:
@@ -1324,7 +1304,11 @@ class MemoryManager:
                 )
                 if not rules:
                     break
-                rule_refs.extend(_memory_ref(rule.id, rule.metadata) for rule in rules if rule.metadata.get(metadata_key) == metadata_value)
+                rule_refs.extend(
+                    _memory_ref(rule.id, rule.metadata)
+                    for rule in rules
+                    if rule.metadata.get(metadata_key) == metadata_value
+                )
                 offset += len(rules)
             refs[MemoryType.PROCEDURAL.value] = rule_refs
 
@@ -1401,9 +1385,7 @@ class MemoryManager:
             doc = docs[0]
             if doc.metadata.get("user_id") != self._user_id:
                 raise MemoryNotFoundError(f"Memory {memory_id} not found")
-            is_archived = doc.metadata.get("status") == "archived" or doc.metadata.get(
-                "archived"
-            )
+            is_archived = doc.metadata.get("status") == "archived" or doc.metadata.get("archived")
             if not is_archived:
                 raise MemoryError(f"Memory {memory_id} is not archived")
             doc.metadata["status"] = "active"
@@ -1446,9 +1428,7 @@ class MemoryManager:
             include_archived=include_archived,
         )
 
-    async def count_memories(
-        self, memory_type: MemoryType, *, since: datetime | None = None
-    ) -> int:
+    async def count_memories(self, memory_type: MemoryType, *, since: datetime | None = None) -> int:
         return await count_by_type(
             memory_type,
             relational=self._relational,
@@ -1469,16 +1449,12 @@ class MemoryManager:
 
     async def _collect_snapshot(self) -> MemorySnapshot | None:
         """Collect a point-in-time count of active semantic + episodic memories."""
-        return await self._maintenance_service.collect_snapshot(
-            count_memories_func=self.count_memories
-        )
+        return await self._maintenance_service.collect_snapshot(count_memories_func=self.count_memories)
 
     async def _scroll_all_memories(self) -> list[AnyMemory]:
         """Scroll all semantic + episodic memories for maintenance analysis."""
         return await self._maintenance_service.scroll_all_memories(
-            list_memories_func=lambda memory_type, limit: self.list_memories(
-                memory_type, limit=limit
-            )
+            list_memories_func=lambda memory_type, limit: self.list_memories(memory_type, limit=limit)
         )
 
     async def compute_health_score(self) -> HealthScore:
@@ -1488,9 +1464,7 @@ class MemoryManager:
         """
         return await self._maintenance_service.compute_health_score(
             count_memories_func=self.count_memories,
-            list_memories_func=lambda memory_type, limit: self.list_memories(
-                memory_type, limit=limit
-            ),
+            list_memories_func=lambda memory_type, limit: self.list_memories(memory_type, limit=limit),
         )
 
     async def archive_memories_auto(self) -> ArchivalResult:
@@ -1537,9 +1511,7 @@ class MemoryManager:
 
         return await archive_memories(candidates=candidates, vector=self._vector)
 
-    async def search_archived(
-        self, query: str, memory_type: MemoryType, *, limit: int = 10
-    ) -> list[VectorDocument]:
+    async def search_archived(self, query: str, memory_type: MemoryType, *, limit: int = 10) -> list[VectorDocument]:
         """Search archived memories (historical data access).
 
         Args:
@@ -1570,9 +1542,7 @@ class MemoryManager:
             namespaces=self._namespaces,
         )
 
-    async def unarchive_memories(
-        self, memory_ids: list[str], memory_type: MemoryType
-    ) -> int:
+    async def unarchive_memories(self, memory_ids: list[str], memory_type: MemoryType) -> int:
         """Restore archived memories to active collections.
 
         Args:
@@ -1591,13 +1561,9 @@ class MemoryManager:
             msg = "Unarchival requires vector store"
             raise ValueError(msg)
 
-        return await unarchive_memories(
-            memory_ids=memory_ids, memory_type=memory_type, vector=self._vector
-        )
+        return await unarchive_memories(memory_ids=memory_ids, memory_type=memory_type, vector=self._vector)
 
-    async def create_backup(
-        self, strategy: MemoryBackupStrategy, description: str | None = None
-    ) -> BackupResult:
+    async def create_backup(self, strategy: MemoryBackupStrategy, description: str | None = None) -> BackupResult:
         """Create a complete memory backup using provided strategy.
 
         Args:
@@ -1615,13 +1581,9 @@ class MemoryManager:
             msg = "Backup requires vector store"
             raise ValueError(msg)
 
-        return await strategy.create_backup(
-            vector=self._vector, relational=self._relational, description=description
-        )
+        return await strategy.create_backup(vector=self._vector, relational=self._relational, description=description)
 
-    async def list_backups(
-        self, strategy: MemoryBackupStrategy
-    ) -> list[BackupMetadata]:
+    async def list_backups(self, strategy: MemoryBackupStrategy) -> list[BackupMetadata]:
         """List available backups using provided strategy.
 
         Args:
@@ -1660,9 +1622,7 @@ class MemoryManager:
             overwrite=overwrite,
         )
 
-    async def delete_backup(
-        self, backup_id: str, strategy: MemoryBackupStrategy
-    ) -> bool:
+    async def delete_backup(self, backup_id: str, strategy: MemoryBackupStrategy) -> bool:
         """Delete a backup using provided strategy.
 
         Args:
@@ -1689,9 +1649,7 @@ class MemoryManager:
         return await self._maintenance_service.run_cycle(
             force=force,
             lock=self._maintenance_lock,
-            consolidation_enabled=self._consolidation_llm is not None
-            and self.has_vector
-            and self.has_relational,
+            consolidation_enabled=self._consolidation_llm is not None and self.has_vector and self.has_relational,
             collect_snapshot_func=self._collect_snapshot,
             compute_health_func=self.compute_health_score,
             scroll_all_memories_func=self._scroll_all_memories,
@@ -1699,9 +1657,7 @@ class MemoryManager:
             preference_rebuild_func=self._run_preference_rebuild,
         )
 
-    async def _run_consolidation_cycle(
-        self, cfg: ConsolidationConfig, force: bool
-    ) -> MaintenanceConsolidationResult:
+    async def _run_consolidation_cycle(self, cfg: ConsolidationConfig, force: bool) -> MaintenanceConsolidationResult:
         if self._consolidation_llm is None:
             return MaintenanceConsolidationResult((0, 0, 0, 0, ()))
 
@@ -1746,9 +1702,7 @@ class MemoryManager:
             all_facets = await self._preference_strategy._store.list_all()
             coll = self._config.semantic_collection
             for facet in all_facets:
-                normalized_strength = (
-                    min(facet.stability / 3.0, 1.0) if not facet.user_pinned else 1.0
-                )
+                normalized_strength = min(facet.stability / 3.0, 1.0) if not facet.user_pinned else 1.0
                 if facet.user_forgotten:
                     normalized_strength = 0.0
                 for mid in facet.memory_ids:
@@ -1772,9 +1726,7 @@ class MemoryManager:
 
     # ── User Feedback Rating ──
 
-    async def rate_memory(
-        self, memory_id: str, score: int, collection: str | None = None
-    ) -> bool:
+    async def rate_memory(self, memory_id: str, score: int, collection: str | None = None) -> bool:
         """Update a memory's user_rating using asymmetric Exponential Moving Average.
 
         Score is an integer in [1, 5] (user-facing Likert scale).
@@ -1802,9 +1754,7 @@ class MemoryManager:
         alpha_negative = self._config.rating_alpha_negative
 
         collections = (
-            [collection]
-            if collection
-            else [self._config.semantic_collection, self._config.episodic_collection]
+            [collection] if collection else [self._config.semantic_collection, self._config.episodic_collection]
         )
         for coll in collections:
             try:
@@ -1843,11 +1793,7 @@ class MemoryManager:
                 )
             )
         if self._relational is not None:
-            tasks.append(
-                asyncio.create_task(
-                    self._relational.get_rule(memory_id, namespaces=self._namespaces)
-                )
-            )
+            tasks.append(asyncio.create_task(self._relational.get_rule(memory_id, namespaces=self._namespaces)))
         for r in await asyncio.gather(*tasks, return_exceptions=True):
             if isinstance(r, BaseException):
                 logger.warning("Get memory error: %s", r)
@@ -1855,9 +1801,7 @@ class MemoryManager:
                 return r
         return None
 
-    async def correct_memory(
-        self, memory_id: str, corrected_content: str
-    ) -> SemanticMemory:
+    async def correct_memory(self, memory_id: str, corrected_content: str) -> SemanticMemory:
         """Correct a factually wrong memory: demote the old one and create a linked correction.
 
         Returns the newly created correction memory.
@@ -1866,9 +1810,7 @@ class MemoryManager:
         if existing is None:
             raise MemoryNotFoundError(f"Memory {memory_id} not found")
         if not isinstance(existing, SemanticMemory):
-            raise MemoryError(
-                f"Correction only supports SemanticMemory, got {type(existing).__name__}"
-            )
+            raise MemoryError(f"Correction only supports SemanticMemory, got {type(existing).__name__}")
 
         demoted = existing.model_copy(deep=True)
         demoted.importance = max(existing.importance * 0.3, 0.05)
@@ -1878,11 +1820,7 @@ class MemoryManager:
         v, e = self._vec()
         await update_vector_memory(demoted, False, v, self._config, e, self._cache)
 
-        pref_strength = (
-            min(existing.preference_strength + 0.1, 1.0)
-            if existing.preference_strength > 0
-            else 0.0
-        )
+        pref_strength = min(existing.preference_strength + 0.1, 1.0) if existing.preference_strength > 0 else 0.0
         correction = SemanticMemory(
             content=corrected_content,
             importance=min(existing.importance + 0.2, 1.0),
@@ -1983,9 +1921,7 @@ class MemoryManager:
         updated.updated_at = datetime.now(UTC)
 
         if content_changed and self._config.security_scan_enabled:
-            scan_and_clean_memory(
-                updated, block_threshold=self._config.injection_block_threshold
-            )
+            scan_and_clean_memory(updated, block_threshold=self._config.injection_block_threshold)
 
         if isinstance(updated, (SemanticMemory, EpisodicMemory)):
             v, e = self._vec()
@@ -2031,22 +1967,14 @@ class MemoryManager:
                 bound.scope.task_id = None
         return bound
 
-    def _apply_channel_affinity(
-        self, results: list[MemorySearchResult]
-    ) -> list[MemorySearchResult]:
-        return apply_channel_affinity(
-            results, current_channel_id=self._scope.channel_id
-        )
+    def _apply_channel_affinity(self, results: list[MemorySearchResult]) -> list[MemorySearchResult]:
+        return apply_channel_affinity(results, current_channel_id=self._scope.channel_id)
 
     async def _store_semantic(self, memory: SemanticMemory) -> SemanticMemory:
         v, e = self._vec()
-        return await store_semantic(
-            self._bind_scope(memory), v, self._config, e, self._cache
-        )
+        return await store_semantic(self._bind_scope(memory), v, self._config, e, self._cache)
 
-    async def _store_semantics_batch(
-        self, memories: list[SemanticMemory]
-    ) -> list[SemanticMemory]:
+    async def _store_semantics_batch(self, memories: list[SemanticMemory]) -> list[SemanticMemory]:
         v, e = self._vec()
         return await store_semantics_batch(
             [self._bind_scope(memory) for memory in memories],
@@ -2058,13 +1986,9 @@ class MemoryManager:
 
     async def _store_episodic(self, memory: EpisodicMemory) -> EpisodicMemory:
         v, e = self._vec()
-        return await store_episodic(
-            self._bind_scope(memory), v, self._config, e, self._cache, self._graph
-        )
+        return await store_episodic(self._bind_scope(memory), v, self._config, e, self._cache, self._graph)
 
-    async def _store_episodics_batch(
-        self, memories: list[EpisodicMemory]
-    ) -> list[EpisodicMemory]:
+    async def _store_episodics_batch(self, memories: list[EpisodicMemory]) -> list[EpisodicMemory]:
         v, e = self._vec()
         return await store_episodics_batch(
             [self._bind_scope(memory) for memory in memories],
@@ -2075,9 +1999,7 @@ class MemoryManager:
             self._graph,
         )
 
-    async def _store_conversations_batch(
-        self, memories: list[ConversationMemory]
-    ) -> list[ConversationMemory]:
+    async def _store_conversations_batch(self, memories: list[ConversationMemory]) -> list[ConversationMemory]:
         from myrm_agent_harness.toolkits.memory._internal.storage import (
             store_conversations_batch,
         )
@@ -2094,9 +2016,7 @@ class MemoryManager:
     async def _store_procedural(self, memory: ProceduralMemory) -> ProceduralMemory:
         return await self._rel().create_rule(memory)
 
-    async def _store_procedurals_batch(
-        self, memories: list[ProceduralMemory]
-    ) -> list[ProceduralMemory]:
+    async def _store_procedurals_batch(self, memories: list[ProceduralMemory]) -> list[ProceduralMemory]:
         return [await self._rel().create_rule(m) for m in memories]
 
     async def _run_consolidation_safe(self, cfg: ConsolidationConfig) -> None:
@@ -2137,9 +2057,7 @@ class MemoryManager:
                     if not exists:
                         return 0
 
-                    docs, _ = await self._vector.scroll(
-                        collection, limit=limit, filters={"archived": False}
-                    )
+                    docs, _ = await self._vector.scroll(collection, limit=limit, filters={"archived": False})
                     if not docs:
                         return 0
 
@@ -2149,11 +2067,7 @@ class MemoryManager:
                             texts.append(doc.content)
                         elif isinstance(doc, dict) and "content" in doc:
                             texts.append(doc["content"])
-                        elif (
-                            hasattr(doc, "payload")
-                            and doc.payload
-                            and "content" in doc.payload
-                        ):
+                        elif hasattr(doc, "payload") and doc.payload and "content" in doc.payload:
                             texts.append(doc.payload["content"])
 
                     if not texts:
@@ -2163,9 +2077,7 @@ class MemoryManager:
                     )
 
                     await embed_batch(texts, self._embedding, self._cache)
-                    logger.info(
-                        "Warmed up %d embeddings from %s", len(texts), collection
-                    )
+                    logger.info("Warmed up %d embeddings from %s", len(texts), collection)
                     return len(texts)
                 except Exception as e:
                     logger.warning("Warmup failed for %s: %s", collection, e)
@@ -2174,9 +2086,7 @@ class MemoryManager:
             results = await asyncio.gather(*[warmup_collection(c) for c in collections])
             total = sum(results)
             if total > 0:
-                logger.info(
-                    "Embedding cache warmup completed: %d embeddings preloaded", total
-                )
+                logger.info("Embedding cache warmup completed: %d embeddings preloaded", total)
         except Exception as e:
             logger.warning("Embedding cache warmup failed: %s", e)
 
@@ -2194,9 +2104,7 @@ class MemoryManager:
             if mem_type == MemoryType.TASK_DIGEST:
                 continue
             try:
-                memories = await self.list_memories(
-                    mem_type, limit=10000, include_archived=True
-                )
+                memories = await self.list_memories(mem_type, limit=10000, include_archived=True)
                 if memories:
                     serialized: list[dict[str, object]] = []
                     for m in memories:
@@ -2226,9 +2134,7 @@ class MemoryManager:
         """
         counts: dict[str, int] = {}
 
-        type_parsers: dict[
-            str, type[SemanticMemory | EpisodicMemory | ProceduralMemory]
-        ] = {
+        type_parsers: dict[str, type[SemanticMemory | EpisodicMemory | ProceduralMemory]] = {
             MemoryType.SEMANTIC.value: SemanticMemory,
             MemoryType.EPISODIC.value: EpisodicMemory,
             MemoryType.PROCEDURAL.value: ProceduralMemory,
@@ -2260,26 +2166,18 @@ class MemoryManager:
                 memories: list[SemanticMemory | EpisodicMemory | ProceduralMemory] = []
                 for entry in entries:
                     try:
-                        clean = {
-                            k: v
-                            for k, v in entry.items()
-                            if k not in ("id", "embedding")
-                        }
+                        clean = {k: v for k, v in entry.items() if k not in ("id", "embedding")}
                         mem = parser.model_validate(clean)
                         memories.append(mem)
                     except Exception as e:
-                        logger.warning(
-                            "Import parse failed for %s entry: %s", type_name, e
-                        )
+                        logger.warning("Import parse failed for %s entry: %s", type_name, e)
 
                 if memories:
                     try:
                         stored = await self.store_batch(memories)
                         counts[type_name] = len(stored)
                     except Exception as e:
-                        logger.warning(
-                            "Import batch store failed for %s: %s", type_name, e
-                        )
+                        logger.warning("Import batch store failed for %s: %s", type_name, e)
                         counts[type_name] = 0
                 else:
                     counts[type_name] = 0

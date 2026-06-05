@@ -45,7 +45,9 @@ _session_key_var: ContextVar[str] = ContextVar("approval_session_key", default="
 _agent_id_var: ContextVar[str] = ContextVar("agent_id", default="")
 _user_id_var: ContextVar[str] = ContextVar("approval_user_id", default="")
 _event_logger_var: ContextVar[EventLogger | None] = ContextVar("event_logger", default=None)
-_allowed_domains_map_var: ContextVar[dict[str, list[str] | None] | None] = ContextVar("allowed_domains_map", default=None)
+_allowed_domains_map_var: ContextVar[dict[str, list[str] | None] | None] = ContextVar(
+    "allowed_domains_map", default=None
+)
 _is_subagent_var: ContextVar[bool] = ContextVar("is_subagent", default=False)
 _subagent_task_id_var: ContextVar[str | None] = ContextVar("subagent_task_id", default=None)
 _is_shadow_agent_var: ContextVar[bool] = ContextVar("is_shadow_agent", default=False)
@@ -178,12 +180,8 @@ def reset_terminal_errors() -> None:
         _terminal_errors_var.set(registry)
 
 
-_active_tool_registry_var: ContextVar[ToolRegistry | None] = ContextVar(
-    "active_tool_registry", default=None
-)
-_active_resolved_tools_var: ContextVar[list[BaseTool] | None] = ContextVar(
-    "active_resolved_tools", default=None
-)
+_active_tool_registry_var: ContextVar[ToolRegistry | None] = ContextVar("active_tool_registry", default=None)
+_active_resolved_tools_var: ContextVar[list[BaseTool] | None] = ContextVar("active_resolved_tools", default=None)
 
 
 def set_active_tool_registry(registry: ToolRegistry) -> None:

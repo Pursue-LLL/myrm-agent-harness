@@ -43,17 +43,11 @@ def create_goal_tools(goal_provider: GoalProvider, session_id: str) -> list[Base
         budget_info = []
         if goal.budget:
             if goal.budget.max_tokens is not None:
-                budget_info.append(
-                    f"Tokens: {goal.tokens_used} / {goal.budget.max_tokens}"
-                )
+                budget_info.append(f"Tokens: {goal.tokens_used} / {goal.budget.max_tokens}")
             if goal.budget.max_usd is not None:
-                budget_info.append(
-                    f"Cost: ${goal.cost_usd:.4f} / ${goal.budget.max_usd:.4f}"
-                )
+                budget_info.append(f"Cost: ${goal.cost_usd:.4f} / ${goal.budget.max_usd:.4f}")
             if goal.budget.max_time_seconds is not None:
-                budget_info.append(
-                    f"Time: {goal.time_used_seconds}s / {goal.budget.max_time_seconds}s"
-                )
+                budget_info.append(f"Time: {goal.time_used_seconds}s / {goal.budget.max_time_seconds}s")
 
         budget_str = ", ".join(budget_info) if budget_info else "No budget limits"
 
@@ -95,9 +89,7 @@ Budget/Usage: {budget_str}
                     await goal_provider.increment_verification_retries(goal.goal_id)
                     goal = await goal_provider.get_active_goal(session_id)
                     if goal and getattr(goal, "verification_retries", 0) >= max_retries:
-                        await goal_provider.update_status(
-                            goal.goal_id, GoalStatus.NEEDS_HUMAN_REVIEW
-                        )
+                        await goal_provider.update_status(goal.goal_id, GoalStatus.NEEDS_HUMAN_REVIEW)
                         return f"Error: Verification failed {max_retries} times. Goal has been paused for human review. Reason: {result.reason}\nLogs:\n{result.error_logs}"
                     return f"Error: Verification failed. You MUST fix this before completing. Reason: {result.reason}\nLogs:\n{result.error_logs}"
 

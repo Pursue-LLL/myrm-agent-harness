@@ -59,9 +59,7 @@ def get_session_config(session_id: str) -> RunnableConfig | None:
 
 
 @asynccontextmanager
-async def session_scope(
-    session_id: str | None, config: RunnableConfig | None
-) -> AsyncIterator[None]:
+async def session_scope(session_id: str | None, config: RunnableConfig | None) -> AsyncIterator[None]:
     """Register ``config`` for the duration of an async block.
 
     Both arguments are tolerated as None so call sites do not need to guard

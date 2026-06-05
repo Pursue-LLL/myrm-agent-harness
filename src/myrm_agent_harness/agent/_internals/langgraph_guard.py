@@ -86,7 +86,8 @@ def apply_langgraph_tool_args_guard() -> None:
         return result
 
     def _coerce_stringified_json(
-        args: dict[str, object], coercible: frozenset[str],
+        args: dict[str, object],
+        coercible: frozenset[str],
     ) -> None:
         """Parse JSON strings in-place for fields that expect array/object."""
         for key in coercible:
@@ -124,6 +125,7 @@ def apply_langgraph_tool_args_guard() -> None:
 
     _orig_inject = getattr(ToolNode, "_inject_tool_args", None)
     if _orig_inject:
+
         def _safe_inject(self, tool_call, tool_runtime, tool=None):  # type: ignore[no-untyped-def]
             tc_id = tool_call.get("id", "")
             if tool_call.get("args") is None:
@@ -150,13 +152,13 @@ def apply_langgraph_tool_args_guard() -> None:
     _orig_afunc = getattr(ToolNode, "_afunc", None)
 
     if _orig_afunc:
+
         async def _afunc_with_guard(self, input, config, runtime):  # type: ignore[no-untyped-def]
             import asyncio
 
             from langchain_core.messages import ToolMessage
             from langchain_core.runnables.config import get_config_list
             from langgraph.prebuilt.tool_node import ToolRuntime
-
 
             tool_calls, input_type = self._parse_input(input)
             config_list = get_config_list(config, len(tool_calls))
@@ -186,7 +188,9 @@ def apply_langgraph_tool_args_guard() -> None:
             if not has_unsafe:
                 for call in tool_calls:
                     call["__smart_concurrent_safe__"] = True
-                coros = [self._arun_one(call, input_type, tr) for call, tr in zip(tool_calls, tool_runtimes, strict=False)]
+                coros = [
+                    self._arun_one(call, input_type, tr) for call, tr in zip(tool_calls, tool_runtimes, strict=False)
+                ]
                 outputs = await asyncio.gather(*coros)
             else:
                 for call, tr in zip(tool_calls, tool_runtimes, strict=False):
@@ -194,21 +198,23 @@ def apply_langgraph_tool_args_guard() -> None:
                     outputs.append(out)
 
                     failed = False
-                    if (hasattr(out, "status") and out.status == "error") or (isinstance(out, list) and any(getattr(m, "status", None) == "error" for m in out)):
+                    if (hasattr(out, "status") and out.status == "error") or (
+                        isinstance(out, list) and any(getattr(m, "status", None) == "error" for m in out)
+                    ):
                         failed = True
 
                     if failed:
                         logger.warning(
                             "Mid-batch action failed (%s). Preserving partial results and aborting remainder.",
-                            call.get("name", "")
+                            call.get("name", ""),
                         )
-                        for rem_call in tool_calls[len(outputs):]:
+                        for rem_call in tool_calls[len(outputs) :]:
                             outputs.append(
                                 ToolMessage(
                                     content="Aborted: A previous tool call in this batch failed. Mid-batch short-circuit applied.",
                                     name=rem_call.get("name", "unknown"),
                                     tool_call_id=rem_call.get("id", ""),
-                                    status="error"
+                                    status="error",
                                 )
                             )
                         break
@@ -220,11 +226,11 @@ def apply_langgraph_tool_args_guard() -> None:
     _orig_func = getattr(ToolNode, "_func", None)
 
     if _orig_func:
+
         def _func_with_guard(self, input, config, runtime):  # type: ignore[no-untyped-def]
             from langchain_core.messages import ToolMessage
             from langchain_core.runnables.config import get_config_list
             from langgraph.prebuilt.tool_node import ToolRuntime
-
 
             tool_calls, input_type = self._parse_input(input)
             config_list = get_config_list(config, len(tool_calls))
@@ -255,6 +261,7 @@ def apply_langgraph_tool_args_guard() -> None:
                 for call in tool_calls:
                     call["__smart_concurrent_safe__"] = True
                 from langchain_core.runnables.config import get_executor_for_config
+
                 with get_executor_for_config(config) as executor:
                     input_types = [input_type] * len(tool_calls)
                     outputs = list(executor.map(self._run_one, tool_calls, input_types, tool_runtimes))
@@ -264,21 +271,23 @@ def apply_langgraph_tool_args_guard() -> None:
                     outputs.append(out)
 
                     failed = False
-                    if (hasattr(out, "status") and out.status == "error") or (isinstance(out, list) and any(getattr(m, "status", None) == "error" for m in out)):
+                    if (hasattr(out, "status") and out.status == "error") or (
+                        isinstance(out, list) and any(getattr(m, "status", None) == "error" for m in out)
+                    ):
                         failed = True
 
                     if failed:
                         logger.warning(
                             "Mid-batch action failed (%s). Preserving partial results and aborting remainder.",
-                            call.get("name", "")
+                            call.get("name", ""),
                         )
-                        for rem_call in tool_calls[len(outputs):]:
+                        for rem_call in tool_calls[len(outputs) :]:
                             outputs.append(
                                 ToolMessage(
                                     content="Aborted: A previous tool call in this batch failed. Mid-batch short-circuit applied.",
                                     name=rem_call.get("name", "unknown"),
                                     tool_call_id=rem_call.get("id", ""),
-                                    status="error"
+                                    status="error",
                                 )
                             )
                         break

@@ -33,6 +33,7 @@ class ArtifactObserver(FileOperationObserver):
             logger.warning(f" [ArtifactObserver] on_file_created: path={path}, executor={executor}")
             if executor:
                 from pathlib import Path as _Path
+
                 wp = _Path(executor.workspace_path).resolve()
                 clean = path
                 if clean.startswith("/workspace"):
@@ -56,6 +57,7 @@ class ArtifactObserver(FileOperationObserver):
             executor = get_executor()
             if executor:
                 from pathlib import Path as _Path
+
                 wp = _Path(executor.workspace_path).resolve()
                 clean = path
                 if clean.startswith("/workspace"):

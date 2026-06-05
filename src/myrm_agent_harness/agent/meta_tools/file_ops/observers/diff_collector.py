@@ -32,9 +32,7 @@ _MAX_DIFF_LINES = 2000
 _FILE_DIFF_EVENT = AgentEventType.FILE_DIFF.value
 
 
-def _compute_unified_diff(
-    old_content: str, new_content: str, path: str, is_new: bool
-) -> tuple[str, int, int, int]:
+def _compute_unified_diff(old_content: str, new_content: str, path: str, is_new: bool) -> tuple[str, int, int, int]:
     """Compute unified diff and line-change stats.
 
     Returns:
@@ -46,18 +44,10 @@ def _compute_unified_diff(
     fromfile = "/dev/null" if is_new else f"a/{path}"
     tofile = f"b/{path}"
 
-    diff_lines = list(
-        difflib.unified_diff(
-            old_lines, new_lines, fromfile=fromfile, tofile=tofile, n=3
-        )
-    )
+    diff_lines = list(difflib.unified_diff(old_lines, new_lines, fromfile=fromfile, tofile=tofile, n=3))
 
-    added = sum(
-        1 for ln in diff_lines if ln.startswith("+") and not ln.startswith("+++")
-    )
-    removed = sum(
-        1 for ln in diff_lines if ln.startswith("-") and not ln.startswith("---")
-    )
+    added = sum(1 for ln in diff_lines if ln.startswith("+") and not ln.startswith("+++"))
+    removed = sum(1 for ln in diff_lines if ln.startswith("-") and not ln.startswith("---"))
 
     return "".join(diff_lines), added, removed, len(diff_lines)
 
@@ -74,27 +64,19 @@ class DiffCollectorObserver(FileOperationObserver):
         if not content:
             logger.warning("Empty content for %s, skipping diff", path)
             return
-        await self._emit_diff(
-            old_content="", new_content=content, path=path, is_new=True
-        )
+        await self._emit_diff(old_content="", new_content=content, path=path, is_new=True)
 
-    async def on_file_modified(
-        self, path: str, old_content: str, new_content: str
-    ) -> None:
+    async def on_file_modified(self, path: str, old_content: str, new_content: str) -> None:
         logger.info("on_file_modified called for %s", path)
         if old_content == new_content:
             logger.warning("Content unchanged for %s, skipping diff", path)
             return
-        await self._emit_diff(
-            old_content=old_content, new_content=new_content, path=path, is_new=False
-        )
+        await self._emit_diff(old_content=old_content, new_content=new_content, path=path, is_new=False)
 
     async def on_file_viewed(self, path: str) -> None:
         pass
 
-    async def _emit_diff(
-        self, *, old_content: str, new_content: str, path: str, is_new: bool
-    ) -> None:
+    async def _emit_diff(self, *, old_content: str, new_content: str, path: str, is_new: bool) -> None:
         try:
             from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer import (
                 SnapshotOp,
@@ -108,9 +90,7 @@ class DiffCollectorObserver(FileOperationObserver):
 
             sink = get_tool_progress_sink()
             if sink is None:
-                logger.warning(
-                    "No ToolProgressSink available, skipping diff emit for %s", path
-                )
+                logger.warning("No ToolProgressSink available, skipping diff emit for %s", path)
                 return
 
             # 获取回合初的初始快照，以计算累积 Diff
@@ -121,8 +101,7 @@ class DiffCollectorObserver(FileOperationObserver):
 
             if initial_snap:
                 snap_is_blank_create = (
-                    initial_snap.operation == SnapshotOp.CREATE
-                    and initial_snap.original_content is None
+                    initial_snap.operation == SnapshotOp.CREATE and initial_snap.original_content is None
                 )
                 if snap_is_blank_create and not is_new:
                     # CREATE 误报在 MODIFY 之前入队时，避免把整个修改算成「从空文件新增」
@@ -135,9 +114,7 @@ class DiffCollectorObserver(FileOperationObserver):
                 base_content = old_content
                 base_is_new = is_new
 
-            diff_text, added, removed, line_count = _compute_unified_diff(
-                base_content, new_content, path, base_is_new
-            )
+            diff_text, added, removed, line_count = _compute_unified_diff(base_content, new_content, path, base_is_new)
             if not diff_text:
                 return
 

@@ -156,7 +156,8 @@ class UniversalAggregator(SkillQualityAggregator):
 
         logger.debug("Using raw records aggregation")
         records = await self._data_source.query_raw_records(
-            skill_id=None, time_range_days=time_range_days,
+            skill_id=None,
+            time_range_days=time_range_days,
         )
 
         return self._aggregate_records_by_user(records, cutoff_date)

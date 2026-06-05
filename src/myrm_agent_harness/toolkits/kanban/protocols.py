@@ -171,9 +171,7 @@ class KanbanStore(Protocol):
         """
         ...
 
-    async def list_zombie_tasks(
-        self, board_id: str, timeout_seconds: int
-    ) -> list[KanbanTask]:
+    async def list_zombie_tasks(self, board_id: str, timeout_seconds: int) -> list[KanbanTask]:
         """Return RUNNING tasks whose last heartbeat is older than timeout."""
         ...
 
@@ -216,7 +214,10 @@ class KanbanStore(Protocol):
         ...
 
     async def list_events(
-        self, task_id: str, *, since_id: int | None = None,
+        self,
+        task_id: str,
+        *,
+        since_id: int | None = None,
     ) -> list[TaskEvent]:
         """Return events for a task, ordered by event_id ascending.
 

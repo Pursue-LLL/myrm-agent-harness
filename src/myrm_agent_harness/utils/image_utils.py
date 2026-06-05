@@ -32,11 +32,7 @@ BASE64_DATA_URL_PREFIX = "data:image/"
 
 def is_base64_data_url(url: str) -> bool:
     """Check if a URL is a base64-encoded data URL for an image."""
-    return (
-        isinstance(url, str)
-        and url.startswith(BASE64_DATA_URL_PREFIX)
-        and ";base64," in url
-    )
+    return isinstance(url, str) and url.startswith(BASE64_DATA_URL_PREFIX) and ";base64," in url
 
 
 _IMAGE_CONTENT_TYPES = frozenset({"image_url", "image", "input_image"})
@@ -138,9 +134,7 @@ def content_has_images(content: str | list[object]) -> bool:
 
 _VIDEO_CONTENT_TYPES = frozenset({"video_url", "video", "input_video"})
 _AUDIO_CONTENT_TYPES = frozenset({"audio_url", "audio", "input_audio"})
-_ALL_MEDIA_CONTENT_TYPES = (
-    _IMAGE_CONTENT_TYPES | _VIDEO_CONTENT_TYPES | _AUDIO_CONTENT_TYPES
-)
+_ALL_MEDIA_CONTENT_TYPES = _IMAGE_CONTENT_TYPES | _VIDEO_CONTENT_TYPES | _AUDIO_CONTENT_TYPES
 
 
 def is_media_content_item(item: object) -> bool:
@@ -155,9 +149,7 @@ def content_has_media(content: str | list[object]) -> bool:
     return any(is_media_content_item(item) for item in content)
 
 
-_PLACEHOLDER_MEDIA_STRIPPED = (
-    "[Media removed — model does not support multimodal input]"
-)
+_PLACEHOLDER_MEDIA_STRIPPED = "[Media removed — model does not support multimodal input]"
 
 
 def strip_all_media_from_content(

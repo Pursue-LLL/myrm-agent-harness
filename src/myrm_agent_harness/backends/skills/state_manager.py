@@ -410,8 +410,7 @@ def _validate_config_overrides(
         for req_field in required_fields:
             if isinstance(req_field, str) and req_field not in overrides:
                 raise ValueError(
-                    f"Skill '{skill_name}' instance '{instance_name}': "
-                    f"missing required config field '{req_field}'"
+                    f"Skill '{skill_name}' instance '{instance_name}': missing required config field '{req_field}'"
                 )
 
     errors: list[str] = []
@@ -424,9 +423,7 @@ def _validate_config_overrides(
         if isinstance(prop_type, str) and prop_type in _JSON_SCHEMA_TYPE_MAP:
             expected_types = _JSON_SCHEMA_TYPE_MAP[prop_type]
             if not isinstance(value, expected_types):
-                errors.append(
-                    f"field '{key}': expected {prop_type}, got {type(value).__name__}"
-                )
+                errors.append(f"field '{key}': expected {prop_type}, got {type(value).__name__}")
                 continue
 
         enum_values = prop_schema.get("enum")
@@ -443,6 +440,4 @@ def _validate_config_overrides(
 
     if errors:
         joined = "; ".join(errors)
-        raise ValueError(
-            f"Skill '{skill_name}' instance '{instance_name}' config validation failed: {joined}"
-        )
+        raise ValueError(f"Skill '{skill_name}' instance '{instance_name}' config validation failed: {joined}")

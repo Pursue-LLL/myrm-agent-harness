@@ -122,7 +122,8 @@ def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionRe
 
     _flatten(control)
     interactive = [
-        node for node in flat
+        node
+        for node in flat
         if getattr(node, "ControlTypeName", "") in _INTERACTIVE_TYPES
         and getattr(node, "BoundingRectangle", None) is not None
     ]

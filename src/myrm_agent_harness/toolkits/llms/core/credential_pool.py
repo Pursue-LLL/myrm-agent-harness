@@ -140,9 +140,7 @@ class CredentialPool:
         self._cooldown_s = max(cooldown_s, 1.0)
         self._next_idx = 0
         self._strategy = (
-            CredentialPoolStrategy.ROUND_ROBIN
-            if len(self._slots) <= 1
-            else CredentialPoolStrategy.resolve(strategy)
+            CredentialPoolStrategy.ROUND_ROBIN if len(self._slots) <= 1 else CredentialPoolStrategy.resolve(strategy)
         )
 
     @property
@@ -285,9 +283,7 @@ class CredentialPool:
             "available_keys": len(available_slots),
             "total_calls": sum(s.call_count for s in self._slots),
             "total_rate_limits": sum(s.rate_limit_count for s in self._slots),
-            "max_consecutive_rate_limits": max(
-                (s.consecutive_rate_limit_count for s in self._slots), default=0
-            ),
+            "max_consecutive_rate_limits": max((s.consecutive_rate_limit_count for s in self._slots), default=0),
             "total_errors": sum(s.error_count for s in self._slots),
             "keys": [
                 {

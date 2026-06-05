@@ -65,11 +65,10 @@ class AsyncTTSEngine:
                     or "insufficient" in error_msg
                     or "timeout" in error_msg
                 ):
-                    logger.warning(
-                        f"Gateway TTS failed ({error_msg}), falling back to direct provider API (BYOK)"
-                    )
+                    logger.warning(f"Gateway TTS failed ({error_msg}), falling back to direct provider API (BYOK)")
                     try:
                         from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
                         await dispatch_custom_event(
                             "agent_status",
                             {
@@ -77,7 +76,7 @@ class AsyncTTSEngine:
                                 "tool": "tts_tool",
                                 "fallback_type": "gateway_failover",
                                 "message": f"统一网关异常，正在无缝回退至本地直连 ({self.config.provider})...",
-                            }
+                            },
                         )
                     except Exception:
                         pass
@@ -85,7 +84,7 @@ class AsyncTTSEngine:
                     continue  # Retry immediately with direct connection
 
                 if attempt < max_attempts - 1:
-                    await asyncio.sleep(1.0 * (2 ** attempt))
+                    await asyncio.sleep(1.0 * (2**attempt))
 
         latency_ms = (time.time() - start_time) * 1000
         raise TTSGenerationError(

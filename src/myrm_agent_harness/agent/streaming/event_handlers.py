@@ -74,19 +74,11 @@ async def process_updates_chunk(
                 for item in node_output:
                     if isinstance(item, Interrupt) and hasattr(item, "value"):
                         payload = item.value
-                        action_requests = (
-                            payload.get("actionRequests", [])
-                            if isinstance(payload, dict)
-                            else []
-                        )
-                        tool_names = [
-                            str(r.get("action", "?"))
-                            for r in action_requests
-                            if isinstance(r, dict)
-                        ] or ["unknown"]
-                        logger.info(
-                            "LangGraph interrupt triggered: %s", ", ".join(tool_names)
-                        )
+                        action_requests = payload.get("actionRequests", []) if isinstance(payload, dict) else []
+                        tool_names = [str(r.get("action", "?")) for r in action_requests if isinstance(r, dict)] or [
+                            "unknown"
+                        ]
+                        logger.info("LangGraph interrupt triggered: %s", ", ".join(tool_names))
                         yield {
                             "type": AgentEventType.TOOL_APPROVAL_REQUEST.value,
                             "data": item.value,
@@ -100,11 +92,7 @@ async def process_updates_chunk(
         messages = cast(list[object], node_output["messages"])
         for msg in messages:
             if collected_messages is not None and isinstance(msg, BaseMessage):
-                if (
-                    isinstance(msg, AIMessage)
-                    and not msg.content
-                    and not msg.tool_calls
-                ):
+                if isinstance(msg, AIMessage) and not msg.content and not msg.tool_calls:
                     logger.debug("Skipping empty AIMessage from collected_messages")
                 else:
                     collected_messages.append(msg)
@@ -224,9 +212,7 @@ async def _handle_tool_result(
         tool_metadata = _extract_tool_metadata(msg)
 
         if source_tracker and tool_metadata:
-            async for source_event in _emit_source_events(
-                tool_metadata, message_id, source_tracker
-            ):
+            async for source_event in _emit_source_events(tool_metadata, message_id, source_tracker):
                 yield source_event
 
     except Exception as e:
@@ -377,10 +363,7 @@ def _is_tool_call_chunk(message_chunk: object) -> bool:
     content_blocks = getattr(message_chunk, "content_blocks", None)
     is_tool_call_block = bool(
         content_blocks
-        and any(
-            isinstance(b, dict) and b.get("type") in ("tool_call", "tool_call_chunk")
-            for b in content_blocks
-        )
+        and any(isinstance(b, dict) and b.get("type") in ("tool_call", "tool_call_chunk") for b in content_blocks)
     )
     has_tool_calls = bool(getattr(message_chunk, "tool_calls", None))
     has_tool_call_chunks = bool(getattr(message_chunk, "tool_call_chunks", None))

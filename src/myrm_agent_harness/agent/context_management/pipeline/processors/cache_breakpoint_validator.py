@@ -132,8 +132,7 @@ def validate_token_distances(breakpoints: list[int], messages: list[BaseMessage]
                 )
             else:
                 logger.warning(
-                    f" [ExplicitCache] 断点 #{curr_bp} 间隔过小 "
-                    f"(tokens={segment_tokens}, messages={message_gap})，跳过"
+                    f" [ExplicitCache] 断点 #{curr_bp} 间隔过小 (tokens={segment_tokens}, messages={message_gap})，跳过"
                 )
 
     return validated

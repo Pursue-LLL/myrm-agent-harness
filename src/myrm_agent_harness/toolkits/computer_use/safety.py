@@ -15,13 +15,15 @@ _KEY_ALIASES: dict[str, str] = {
     "opt": "option",
 }
 
-_BLOCKED_KEY_COMBOS: frozenset[frozenset[str]] = frozenset({
-    frozenset({"cmd", "shift", "backspace"}),
-    frozenset({"cmd", "option", "backspace"}),
-    frozenset({"cmd", "ctrl", "q"}),
-    frozenset({"cmd", "shift", "q"}),
-    frozenset({"cmd", "option", "shift", "q"}),
-})
+_BLOCKED_KEY_COMBOS: frozenset[frozenset[str]] = frozenset(
+    {
+        frozenset({"cmd", "shift", "backspace"}),
+        frozenset({"cmd", "option", "backspace"}),
+        frozenset({"cmd", "ctrl", "q"}),
+        frozenset({"cmd", "shift", "q"}),
+        frozenset({"cmd", "option", "shift", "q"}),
+    }
+)
 
 _DANGEROUS_TYPE_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"curl\s+[^|]*\|\s*(?:ba)?sh", re.IGNORECASE),

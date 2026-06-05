@@ -45,9 +45,7 @@ class VectorStoreProtocol(Protocol):
     the vector backend for the memory system.
     """
 
-    async def upsert(
-        self, collection: str, documents: Sequence[VectorDocument]
-    ) -> list[str]: ...
+    async def upsert(self, collection: str, documents: Sequence[VectorDocument]) -> list[str]: ...
 
     async def search(
         self,
@@ -74,13 +72,9 @@ class VectorStoreProtocol(Protocol):
         filters: FilterDict | None = None,
     ) -> tuple[list[VectorDocument], str | None]: ...
 
-    async def ensure_collection(
-        self, name: str, dimension: int, *, distance: str = "cosine"
-    ) -> None: ...
+    async def ensure_collection(self, name: str, dimension: int, *, distance: str = "cosine") -> None: ...
 
-    async def count(
-        self, collection: str, filters: FilterDict | None = None
-    ) -> int: ...
+    async def count(self, collection: str, filters: FilterDict | None = None) -> int: ...
 
     async def health_check(self) -> bool: ...
 

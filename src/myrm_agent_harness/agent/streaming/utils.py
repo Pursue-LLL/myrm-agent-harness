@@ -70,9 +70,7 @@ DATETIME_SYSTEM_RULES = (
 
 
 user_timezone_var: ContextVar[str | None] = ContextVar("user_timezone", default=None)
-datetime_injection_enabled_var: ContextVar[bool] = ContextVar(
-    "datetime_injection_enabled", default=True
-)
+datetime_injection_enabled_var: ContextVar[bool] = ContextVar("datetime_injection_enabled", default=True)
 
 
 def set_user_timezone(timezone: str | None) -> None:
@@ -129,9 +127,7 @@ def get_datetime_prompt(timezone: str | None = None, dt: datetime | None = None)
 # ============================================================================
 
 
-def validate_context(
-    context: dict[str, object] | None, context_schema: type | None
-) -> dict[str, object]:
+def validate_context(context: dict[str, object] | None, context_schema: type | None) -> dict[str, object]:
     """验证并处理 context
 
     Raises:
@@ -162,9 +158,7 @@ def validate_context(
                 f"Provided keys: {list(context.keys())}"
             ) from e
         except Exception as e:
-            raise ValueError(
-                f"Context validation failed for schema {context_schema.__name__}: {e}"
-            ) from e
+            raise ValueError(f"Context validation failed for schema {context_schema.__name__}: {e}") from e
     return context or {}
 
 

@@ -36,9 +36,7 @@ class BaseCriterion(ABC):
         self.config = kwargs
 
     @abstractmethod
-    async def verify(
-        self, goal_provider: GoalProvider | None = None
-    ) -> VerificationResult:
+    async def verify(self, goal_provider: GoalProvider | None = None) -> VerificationResult:
         """Execute the verification logic.
 
         Args:

@@ -94,7 +94,12 @@ def filter_tools(config: SubagentConfig, parent_tools: list[BaseTool]) -> list[B
     return filtered
 
 
-async def resolve_llm(config: SubagentConfig, parent_agent: BaseAgent, complexity_tier: str | None = None, task_description: str | None = None) -> object:
+async def resolve_llm(
+    config: SubagentConfig,
+    parent_agent: BaseAgent,
+    complexity_tier: str | None = None,
+    task_description: str | None = None,
+) -> object:
     """Resolve LLM via 4-level chain: config.llm → model_resolver → config.model log → parent LLM.
 
     Level 1: config.llm — pre-built LLM instance (set by business layer)
@@ -110,6 +115,7 @@ async def resolve_llm(config: SubagentConfig, parent_agent: BaseAgent, complexit
             try:
                 # Pass complexity_tier and task_description to model_resolver if it supports it
                 import inspect
+
                 sig = inspect.signature(config.model_resolver.resolve)
                 kwargs = {}
                 if "complexity_tier" in sig.parameters:
@@ -231,12 +237,13 @@ async def build_child_agent(
     else:
         system_prompt = config.system_prompt
         system_prompt = (
-            f"{system_prompt}\n\n{_HANDOVER_PROTOCOL_PROMPT}"
-            if system_prompt
-            else _HANDOVER_PROTOCOL_PROMPT
+            f"{system_prompt}\n\n{_HANDOVER_PROTOCOL_PROMPT}" if system_prompt else _HANDOVER_PROTOCOL_PROMPT
         )
 
-    llm = cast(BaseChatModel, await resolve_llm(config, parent_agent, complexity_tier=complexity_tier, task_description=task_description))
+    llm = cast(
+        BaseChatModel,
+        await resolve_llm(config, parent_agent, complexity_tier=complexity_tier, task_description=task_description),
+    )
 
     from myrm_agent_harness.agent.types import AgentRuntimeConfig
 

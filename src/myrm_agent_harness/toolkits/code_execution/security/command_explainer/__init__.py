@@ -13,8 +13,8 @@ from myrm_agent_harness.toolkits.code_execution.security.command_explainer.types
 )
 
 __all__ = [
-    "CommandSpan",
     "MAX_COMMAND_SPAN_SOURCE_CHARS",
+    "CommandSpan",
     "SpanRiskLevel",
     "build_shell_approval_fields",
     "extract_command_spans",

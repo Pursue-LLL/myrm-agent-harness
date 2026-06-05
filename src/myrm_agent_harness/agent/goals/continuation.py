@@ -81,7 +81,7 @@ async def _judge_completion(
     if goal.subgoals:
         criteria += "\n\nCRITICAL - Newly Added Subgoals (Latest subgoals take absolute precedence):\n"
         for i, sg in enumerate(goal.subgoals):
-            criteria += f"{i+1}. {sg.get('text')} (Added at: {sg.get('created_at')})\n"
+            criteria += f"{i + 1}. {sg.get('text')} (Added at: {sg.get('created_at')})\n"
 
     # Truncate response to avoid sending too much to the judge
     content = last_response[:_JUDGE_RESPONSE_MAX_CHARS]
@@ -89,9 +89,7 @@ async def _judge_completion(
     try:
         result = await goal_provider.evaluate_semantic(criteria, content, context_messages=collected_messages)
         if result.passed:
-            logger.info(
-                "Judge verdict: DONE for goal %s", goal.goal_id
-            )
+            logger.info("Judge verdict: DONE for goal %s", goal.goal_id)
             return True
         logger.info(
             "Judge verdict: CONTINUE for goal %s (reason: %s)",
@@ -170,7 +168,9 @@ async def check_continuation(
 
     logger.info(
         "Goal %s: status=%s, turn=%d after accounting",
-        goal.goal_id, goal.status.value, goal.turns_used,
+        goal.goal_id,
+        goal.status.value,
+        goal.turns_used,
     )
 
     # Handle suppression trigger (zero tool calls -> suppress next turn)
@@ -218,7 +218,9 @@ async def check_continuation(
 
     logger.info(
         "Goal %s continuing: turn=%d, tokens=%d",
-        goal.goal_id, goal.turns_used, goal.tokens_used,
+        goal.goal_id,
+        goal.turns_used,
+        goal.tokens_used,
     )
 
     # Reset suppression for the new turn

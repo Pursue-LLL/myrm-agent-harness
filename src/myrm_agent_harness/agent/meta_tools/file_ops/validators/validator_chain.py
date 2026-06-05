@@ -59,11 +59,9 @@ class ValidatorChain:
         # 4. 文件大小验证
         # 5. 权限验证（文件存在性、操作合法性）
         self.chain = PathValidator(allowed_base_paths, config)
-        self.chain.set_next(
-            SensitiveFileValidator(config, block_sensitive_reads)
-        ).set_next(BinaryValidator()).set_next(SizeValidator(strategy)).set_next(
-            PermissionValidator(strategy)
-        )
+        self.chain.set_next(SensitiveFileValidator(config, block_sensitive_reads)).set_next(BinaryValidator()).set_next(
+            SizeValidator(strategy)
+        ).set_next(PermissionValidator(strategy))
 
     async def validate(self, context: OperationContext, path: str) -> None:
         """执行验证链

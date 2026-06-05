@@ -45,9 +45,7 @@ def build_aggregation_messages(
     ``persona`` and ``AGGREGATOR_SYSTEM`` are stable across a given agent's
     calls, while the per-request reference answers follow and remain dynamic.
     """
-    numbered = "\n".join(
-        f"{i + 1}. [{r.model}]: {r.content}" for i, r in enumerate(successful)
-    )
+    numbered = "\n".join(f"{i + 1}. [{r.model}]: {r.content}" for i, r in enumerate(successful))
     base = AGGREGATOR_SYSTEM
     if system_prompt:
         base = f"{system_prompt}\n\n{AGGREGATOR_SYSTEM}"

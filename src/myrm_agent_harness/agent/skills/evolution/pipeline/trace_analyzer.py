@@ -37,9 +37,7 @@ class TraceAnalyzer:
     def __init__(self, backend: EventLogBackend) -> None:
         self._backend = backend
 
-    async def analyze_slice(
-        self, session_id: str, tool_call_ids: list[str]
-    ) -> Any:
+    async def analyze_slice(self, session_id: str, tool_call_ids: list[str]) -> Any:
         """Analyze a specific slice of the execution trace.
 
         Args:
@@ -50,6 +48,7 @@ class TraceAnalyzer:
             An object with `formatted_trace` and `is_coherent` properties, or None if failed.
         """
         from dataclasses import dataclass
+
         @dataclass
         class SliceResult:
             formatted_trace: str
@@ -62,11 +61,7 @@ class TraceAnalyzer:
         # We fetch tool use events (pre/post/failure)
         events = await self._backend.get_events(
             session_id,
-            EventFilter(
-                event_types=frozenset(
-                    {"pre_tool_use", "post_tool_use", "post_tool_use_failure"}
-                )
-            ),
+            EventFilter(event_types=frozenset({"pre_tool_use", "post_tool_use", "post_tool_use_failure"})),
         )
 
         if not events:
@@ -113,18 +108,14 @@ class TraceAnalyzer:
         root cause analysis accuracy.
         """
         # Get the base trajectory analysis
-        trajectory = await self.extract_trajectory(
-            session_id, skill.skill_id, max_token_budget=1500
-        )
+        trajectory = await self.extract_trajectory(session_id, skill.skill_id, max_token_budget=1500)
 
         # Append the code context
         code_context = f"\n\n## 技能代码上下文 (Skill Code Context)\n```python\n{skill.content}\n```\n"
 
         return trajectory + code_context
 
-    async def extract_trajectory(
-        self, session_id: str, skill_id: str, max_token_budget: int = 2000
-    ) -> str:
+    async def extract_trajectory(self, session_id: str, skill_id: str, max_token_budget: int = 2000) -> str:
         """Extract a formatted string of the execution trace leading to a failure.
 
         Args:
@@ -141,9 +132,7 @@ class TraceAnalyzer:
             return "Trace analysis unavailable (no EventLogBackend)."
 
         # 1. Get session overview (fetch all to get the latest timeline events)
-        summary = await get_session_summary(
-            self._backend, session_id, events_limit=10000, timeline_limit=10000
-        )
+        summary = await get_session_summary(self._backend, session_id, events_limit=10000, timeline_limit=10000)
 
         # 2. Get tool usage stats
         tool_stats = await get_tool_usage_stats(self._backend, session_id)
@@ -151,11 +140,7 @@ class TraceAnalyzer:
         # 3. Get error events (fetch all to get the latest errors)
         all_error_events = await self._backend.get_events(
             session_id,
-            EventFilter(
-                event_types=frozenset(
-                    {"tool_error", "agent_error", "tool_timeout", "tool_failure"}
-                )
-            ),
+            EventFilter(event_types=frozenset({"tool_error", "agent_error", "tool_timeout", "tool_failure"})),
         )
         # Take the last 20 errors
         error_events = all_error_events[-20:] if all_error_events else []
@@ -174,9 +159,7 @@ class TraceAnalyzer:
         )
 
         elapsed_ms = (time.time() - start_time) * 1000
-        logger.info(
-            f"TraceAnalyzer executed in {elapsed_ms:.1f}ms for session {session_id}"
-        )
+        logger.info(f"TraceAnalyzer executed in {elapsed_ms:.1f}ms for session {session_id}")
 
         return result
 
@@ -194,9 +177,7 @@ class TraceAnalyzer:
 
         if "tool_timeout" in error_types and error_types["tool_timeout"] > 3:
             return "timeout"
-        elif any(
-            "permission" in r.lower() or "403" in r.lower() for r in failure_reasons
-        ):
+        elif any("permission" in r.lower() or "403" in r.lower() for r in failure_reasons):
             return "permission"
         elif "tool_error" in error_types or "tool_failure" in error_types:
             return "tool_error"
@@ -261,9 +242,7 @@ class TraceAnalyzer:
             lines.append(" **修复建议**: 检查文件/目录权限，或检查 API 认证信息。")
         elif failure_mode == "tool_error":
             lines.append(" **可能原因**: 工具调用错误。")
-            lines.append(
-                " **修复建议**: 检查传入参数是否符合工具 schema，或检查逻辑漏洞。"
-            )
+            lines.append(" **修复建议**: 检查传入参数是否符合工具 schema，或检查逻辑漏洞。")
 
         lines.append("")
 
@@ -271,9 +250,7 @@ class TraceAnalyzer:
         if tool_stats:
             lines.append("## 工具统计 (Tool Stats)")
             for stat in tool_stats[:5]:
-                success_rate = (
-                    stat.success_count / stat.total_calls if stat.total_calls > 0 else 0
-                )
+                success_rate = stat.success_count / stat.total_calls if stat.total_calls > 0 else 0
                 marker = " (Target)" if stat.tool_name == skill_id else ""
                 lines.append(
                     f"- **{stat.tool_name}**{marker}: "
@@ -296,9 +273,7 @@ class TraceAnalyzer:
                 is_target = any(e.data.get("tool_name") == skill_id for e in evts)
                 marker = " " if is_target else ""
 
-                lines.append(
-                    f"{i+1}. [{evts[0].event_type}]{marker} (出现 {len(evts)} 次) {error_msg}"
-                )
+                lines.append(f"{i + 1}. [{evts[0].event_type}]{marker} (出现 {len(evts)} 次) {error_msg}")
             lines.append("")
 
         # 5. Benchmark Overview
@@ -307,8 +282,7 @@ class TraceAnalyzer:
         lines.append(f"- 错误总数: {len(error_events)}")
         if tool_stats:
             avg_success_rate = sum(
-                s.success_count / s.total_calls if s.total_calls > 0 else 0
-                for s in tool_stats
+                s.success_count / s.total_calls if s.total_calls > 0 else 0 for s in tool_stats
             ) / len(tool_stats)
             lines.append(f"- 平均成功率: {avg_success_rate:.1%}")
 
@@ -317,9 +291,7 @@ class TraceAnalyzer:
             lines.append("\n## 执行时间线 (Timeline)")
             for evt in summary.events_timeline[-5:]:  # Last 5 events
                 marker = " " if evt.data.get("tool_name") == skill_id else ""
-                lines.append(
-                    f"- {evt.event_type}: {evt.data.get('tool_name', '')}{marker}"
-                )
+                lines.append(f"- {evt.event_type}: {evt.data.get('tool_name', '')}{marker}")
 
         output = "\n".join(lines)
 

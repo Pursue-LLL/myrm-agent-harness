@@ -88,9 +88,7 @@ class SQLiteSkillSnapshot:
 
         try:
             with self._connect() as conn:
-                cursor = conn.execute(
-                    "SELECT skill_name, storage_path, content, trust FROM skill_snapshots"
-                )
+                cursor = conn.execute("SELECT skill_name, storage_path, content, trust FROM skill_snapshots")
                 rows = cursor.fetchall()
                 cursor.close()
 
@@ -111,9 +109,7 @@ class SQLiteSkillSnapshot:
                     except (SkillMetadataError, ValueError) as e:
                         logger.debug(f"Snapshot skill '{skill_name}' invalid: {e}")
                     except Exception as e:
-                        logger.warning(
-                            f"Failed to reconstruct snapshot skill '{skill_name}': {e}"
-                        )
+                        logger.warning(f"Failed to reconstruct snapshot skill '{skill_name}': {e}")
 
         except sqlite3.Error as e:
             logger.warning(f"Failed to read from snapshot DB at {self.db_path}: {e}")
@@ -160,20 +156,14 @@ class SQLiteSkillSnapshot:
                             ),
                         )
                     except (OSError, UnicodeDecodeError) as e:
-                        logger.warning(
-                            f"Failed to read SKILL.md for snapshotting '{meta.name}': {e}"
-                        )
+                        logger.warning(f"Failed to read SKILL.md for snapshotting '{meta.name}': {e}")
 
                 conn.commit()
-                logger.info(
-                    f"Updated {len(skills)} skills in snapshot {self.db_path.name}"
-                )
+                logger.info(f"Updated {len(skills)} skills in snapshot {self.db_path.name}")
         except sqlite3.Error as e:
             logger.warning(f"Failed to write to snapshot DB at {self.db_path}: {e}")
 
-    def upsert_from_path(
-        self, skill_md_path: Path | str, workspace_root: Path | None = None
-    ) -> bool:
+    def upsert_from_path(self, skill_md_path: Path | str, workspace_root: Path | None = None) -> bool:
         """Parse a single SKILL.md file and update the snapshot.
 
         Returns True if successfully upserted, False otherwise.
@@ -228,18 +218,14 @@ class SQLiteSkillSnapshot:
 
         try:
             with self._connect() as conn:
-                cursor = conn.execute(
-                    "DELETE FROM skill_snapshots WHERE skill_name = ?", (skill_name,)
-                )
+                cursor = conn.execute("DELETE FROM skill_snapshots WHERE skill_name = ?", (skill_name,))
                 deleted = cursor.rowcount > 0
                 conn.commit()
             if deleted:
                 logger.info(f" Snapshot removed skill: {skill_name}")
             return deleted
         except sqlite3.Error as e:
-            logger.warning(
-                f"Failed to delete skill '{skill_name}' from snapshot DB: {e}"
-            )
+            logger.warning(f"Failed to delete skill '{skill_name}' from snapshot DB: {e}")
             return False
 
     def sync_all(self, workspace_root: Path | str, max_depth: int = 3) -> None:
@@ -255,9 +241,7 @@ class SQLiteSkillSnapshot:
         db_state = {}
         try:
             with self._connect() as conn:
-                cursor = conn.execute(
-                    "SELECT skill_name, storage_path, file_mtime FROM skill_snapshots"
-                )
+                cursor = conn.execute("SELECT skill_name, storage_path, file_mtime FROM skill_snapshots")
                 rows = cursor.fetchall()
                 cursor.close()
                 for name, path, mtime in rows:
@@ -330,22 +314,16 @@ class SQLiteSkillSnapshot:
                 logger.warning(f"Failed to delete obsolete skills during sync: {e}")
 
         if updated_count > 0 or deleted_count > 0:
-            logger.info(
-                f" Snapshot sync complete: {updated_count} updated, {deleted_count} deleted."
-            )
+            logger.info(f" Snapshot sync complete: {updated_count} updated, {deleted_count} deleted.")
 
     def delete_skill(self, skill_name: str) -> None:
         """Remove a skill from the snapshot."""
         try:
             with self._connect() as conn:
-                conn.execute(
-                    "DELETE FROM skill_snapshots WHERE skill_name = ?", (skill_name,)
-                )
+                conn.execute("DELETE FROM skill_snapshots WHERE skill_name = ?", (skill_name,))
                 conn.commit()
         except sqlite3.Error as e:
-            logger.warning(
-                f"Failed to delete skill '{skill_name}' from snapshot DB: {e}"
-            )
+            logger.warning(f"Failed to delete skill '{skill_name}' from snapshot DB: {e}")
 
     def clear(self) -> None:
         """Clear all snapshot data."""

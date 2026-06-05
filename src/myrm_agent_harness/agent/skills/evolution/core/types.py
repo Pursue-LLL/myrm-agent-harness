@@ -33,9 +33,7 @@ class EvolutionType(StrEnum):
     DERIVED = "derived"  # Optimize/enhance based on user feedback
     CAPTURED = "captured"  # Capture repeated user commands as new skills
     SLICE_EXTRACTION = "slice_extraction"  # Extract from execution trace slice
-    OPTIMIZE_DESCRIPTION = (
-        "optimize_description"  # Refine description for better matching
-    )
+    OPTIMIZE_DESCRIPTION = "optimize_description"  # Refine description for better matching
 
 
 @dataclass
@@ -219,11 +217,7 @@ class SkillLineage:
             version=data.get("version", 1),
             parent_id=data.get("parent_id"),
             change_summary=data.get("change_summary", ""),
-            created_at=(
-                datetime.fromisoformat(data["created_at"])
-                if data.get("created_at")
-                else datetime.now()
-            ),
+            created_at=(datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now()),
             created_by=data.get("created_by", ""),
         )
 
@@ -290,16 +284,8 @@ class SkillRecord:
                 "applied_count": self.metrics.applied_count,
                 "completed_count": self.metrics.completed_count,
                 "success_count": self.metrics.success_count,
-                "last_success_at": (
-                    self.metrics.last_success_at.isoformat()
-                    if self.metrics.last_success_at
-                    else None
-                ),
-                "last_failure_at": (
-                    self.metrics.last_failure_at.isoformat()
-                    if self.metrics.last_failure_at
-                    else None
-                ),
+                "last_success_at": (self.metrics.last_success_at.isoformat() if self.metrics.last_success_at else None),
+                "last_failure_at": (self.metrics.last_failure_at.isoformat() if self.metrics.last_failure_at else None),
                 "consecutive_failures": self.metrics.consecutive_failures,
             },
             "created_at": self.created_at.isoformat(),
@@ -319,14 +305,10 @@ class SkillRecord:
             completed_count=metrics_data.get("completed_count", 0),
             success_count=metrics_data.get("success_count", 0),
             last_success_at=(
-                datetime.fromisoformat(metrics_data["last_success_at"])
-                if metrics_data.get("last_success_at")
-                else None
+                datetime.fromisoformat(metrics_data["last_success_at"]) if metrics_data.get("last_success_at") else None
             ),
             last_failure_at=(
-                datetime.fromisoformat(metrics_data["last_failure_at"])
-                if metrics_data.get("last_failure_at")
-                else None
+                datetime.fromisoformat(metrics_data["last_failure_at"]) if metrics_data.get("last_failure_at") else None
             ),
             consecutive_failures=metrics_data.get("consecutive_failures", 0),
         )
@@ -339,11 +321,7 @@ class SkillRecord:
             path=data["path"],
             lineage=SkillLineage.from_dict(data["lineage"]),
             metrics=metrics,
-            environment=(
-                EnvironmentFingerprint.from_dict(data["environment"])
-                if data.get("environment")
-                else None
-            ),
+            environment=(EnvironmentFingerprint.from_dict(data["environment"]) if data.get("environment") else None),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
             is_active=data.get("is_active", True),
@@ -359,14 +337,12 @@ class EvolutionRequest:
 
     evolution_type: EvolutionType
     skill_id: str | None = None  # For FIX/DERIVED, None for CAPTURED
-    reason: str = (
-        ""  # Error message for FIX, user feedback for DERIVED, pattern for CAPTURED
-    )
+    reason: str = ""  # Error message for FIX, user feedback for DERIVED, pattern for CAPTURED
     user_feedback: str = ""  # Optional user feedback for DERIVED
     repeated_commands: list[str] = field(default_factory=list)  # For CAPTURED
     session_id: str = ""  # For SLICE_EXTRACTION
-    tool_call_ids: list[str] = field(default_factory=list) # For SLICE_EXTRACTION
-    agent_id: str | None = None # For SLICE_EXTRACTION
+    tool_call_ids: list[str] = field(default_factory=list)  # For SLICE_EXTRACTION
+    agent_id: str | None = None  # For SLICE_EXTRACTION
     force_retry: bool = False  # GUI-First explicit flag to bypass cooldowns
 
     def to_dict(self) -> dict[str, Any]:
@@ -403,9 +379,7 @@ class EvolutionProposal:
     is_general: bool = False
     environment: EnvironmentFingerprint | None = None
     agent_id: str | None = None
-    edit_summary: dict[str, Any] | None = (
-        None  # {preserved_sections, changed_sections, notes}
-    )
+    edit_summary: dict[str, Any] | None = None  # {preserved_sections, changed_sections, notes}
     created_at: datetime = field(default_factory=datetime.now)
 
     def to_dict(self) -> dict[str, Any]:
@@ -485,10 +459,6 @@ class SkillEvidenceGroup:
             return 0.0
         return len(self.success_cases) / self.total_evidence
 
-    def has_sufficient_evidence(
-        self, min_total: int = 3, min_failures: int = 1
-    ) -> bool:
+    def has_sufficient_evidence(self, min_total: int = 3, min_failures: int = 1) -> bool:
         """Check if there is enough evidence to justify evolution."""
-        return (
-            self.total_evidence >= min_total and len(self.failure_cases) >= min_failures
-        )
+        return self.total_evidence >= min_total and len(self.failure_cases) >= min_failures

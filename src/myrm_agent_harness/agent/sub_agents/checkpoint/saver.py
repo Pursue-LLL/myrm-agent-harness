@@ -253,9 +253,7 @@ class SubagentCheckpointStorage:
             logger.error("Failed to delete checkpoint %s: %s", task_id, e)
             raise
 
-    async def list_checkpoints(
-        self, session_id: str | None = None
-    ) -> list[SubagentCheckpoint]:
+    async def list_checkpoints(self, session_id: str | None = None) -> list[SubagentCheckpoint]:
         """List all saved checkpoints.
 
         Args:
@@ -279,9 +277,7 @@ class SubagentCheckpointStorage:
 
                     checkpoints.append(checkpoint)
                 except Exception as e:
-                    logger.warning(
-                        "Failed to load checkpoint from %s: %s", file_path, e
-                    )
+                    logger.warning("Failed to load checkpoint from %s: %s", file_path, e)
                     continue
 
             # Sort by timestamp descending (newest first)

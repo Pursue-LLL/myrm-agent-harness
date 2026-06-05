@@ -74,7 +74,9 @@ async def check_network_health() -> HealthReport:
                 last_failure = f"{type(e).__name__}: {e}"
                 continue
 
-    detail = f"All probe URLs unreachable. Last failure: {last_failure}" if last_failure else "All probe URLs unreachable."
+    detail = (
+        f"All probe URLs unreachable. Last failure: {last_failure}" if last_failure else "All probe URLs unreachable."
+    )
     return HealthReport(
         component_name="Network",
         status="fail",

@@ -272,8 +272,7 @@ class ManagedLLM(BaseChatModel):
 
             if tokens > threshold:
                 logger.warning(
-                    f" Preflight Guard Blocked: Estimated tokens {tokens} "
-                    f"> threshold {threshold} (limit: {limit})"
+                    f" Preflight Guard Blocked: Estimated tokens {tokens} > threshold {threshold} (limit: {limit})"
                 )
                 raise MyrmLLMError(
                     error_code=FailoverReason.CONTEXT_OVERFLOW,

@@ -32,8 +32,8 @@ _FALLBACK_RESET_TIMEOUT_MS = 5000
 class PagePool:
     """Page Object池 — 零拷贝复用，CDP fastReset.
 
-     via  CDP 命令清EmptyPageState（清除 cookies、storage、网络State），
-     avoid Trigger导航事件。SupportAuto扩缩容，Maximum池Size限制 prevent 内存泄漏。
+    via  CDP 命令清EmptyPageState（清除 cookies、storage、网络State），
+    avoid Trigger导航事件。SupportAuto扩缩容，Maximum池Size限制 prevent 内存泄漏。
     """
 
     def __init__(self, context: BrowserContext, max_size: int = 10) -> None:

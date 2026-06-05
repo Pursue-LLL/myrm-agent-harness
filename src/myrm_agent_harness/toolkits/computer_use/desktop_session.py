@@ -134,10 +134,7 @@ class DesktopSession(ComputerSession):
             meta=enriched_meta,
         )
 
-        header = (
-            f"Desktop snapshot ready ({enriched_meta.ref_count} refs, "
-            f"~{enriched_meta.token_estimate} tokens)."
-        )
+        header = f"Desktop snapshot ready ({enriched_meta.ref_count} refs, ~{enriched_meta.token_estimate} tokens)."
         if include_screenshot and screenshot_b64:
             from langchain_core.messages.content import ContentBlock, create_image_block, create_text_block
 
@@ -163,7 +160,10 @@ class DesktopSession(ComputerSession):
         # The screen might have changed, causing a stale coordinate click. Re-verify silently.
         revalidation_threshold = 5.0
         if time.time() - self._last_snapshot_time > revalidation_threshold:
-            logger.info("[SECURITY] Re-validating desktop state before interaction (delayed %.1fs)", time.time() - self._last_snapshot_time)
+            logger.info(
+                "[SECURITY] Re-validating desktop state before interaction (delayed %.1fs)",
+                time.time() - self._last_snapshot_time,
+            )
             try:
                 meta, refs = capture_snapshot(self._backend, "foreground", None)
                 if ref not in refs:
@@ -222,7 +222,10 @@ class DesktopSession(ComputerSession):
         # [SECURITY] Hard fuse for coordinate-based actions
         revalidation_threshold = 5.0
         if time.time() - self._last_snapshot_time > revalidation_threshold:
-            logger.warning("[SECURITY] Coordinate action blocked due to timeout (delayed %.1fs)", time.time() - self._last_snapshot_time)
+            logger.warning(
+                "[SECURITY] Coordinate action blocked due to timeout (delayed %.1fs)",
+                time.time() - self._last_snapshot_time,
+            )
             return "Safety Re-validation failed: The action was delayed (likely by approval) and pixel coordinates are now considered stale and unsafe. Please use 'desktop_snapshot_tool' to take a new screenshot and replan the coordinate."
 
         if action in ("left_click", "right_click", "middle_click", "double_click", "triple_click"):
@@ -231,7 +234,11 @@ class DesktopSession(ComputerSession):
             clicks = {"double_click": 2, "triple_click": 3}.get(action, 1)
             button = {"right_click": "right", "middle_click": "middle"}.get(action, "left")
             result = await self.click_at(
-                coordinate[0], coordinate[1], button=button, clicks=clicks, modifiers=modifiers,
+                coordinate[0],
+                coordinate[1],
+                button=button,
+                clicks=clicks,
+                modifiers=modifiers,
             )
         elif action == "type":
             if not text:
@@ -251,13 +258,21 @@ class DesktopSession(ComputerSession):
             if coordinate is None or len(coordinate) != 2 or not scroll_direction:
                 return "Error: coordinate and scroll_direction are required for scroll"
             result = await self.scroll_at(
-                coordinate[0], coordinate[1], scroll_direction, scroll_amount, modifiers=modifiers,
+                coordinate[0],
+                coordinate[1],
+                scroll_direction,
+                scroll_amount,
+                modifiers=modifiers,
             )
         elif action == "drag":
             if start_coordinate is None or coordinate is None:
                 return "Error: start_coordinate and coordinate are required for drag"
             result = await self.drag(
-                start_coordinate[0], start_coordinate[1], coordinate[0], coordinate[1], modifiers=modifiers,
+                start_coordinate[0],
+                start_coordinate[1],
+                coordinate[0],
+                coordinate[1],
+                modifiers=modifiers,
             )
         elif action == "mouse_move":
             if coordinate is None or len(coordinate) != 2:
@@ -334,10 +349,12 @@ class DesktopSession(ComputerSession):
 
         sink = get_tool_progress_sink()
         if sink is not None:
-            await sink.emit({
-                "type": AgentEventType.DESKTOP_VIEW_UPDATE.value,
-                "data": payload,
-            })
+            await sink.emit(
+                {
+                    "type": AgentEventType.DESKTOP_VIEW_UPDATE.value,
+                    "data": payload,
+                }
+            )
 
     async def _emit_permission_view_update(self) -> None:
         from myrm_agent_harness.toolkits.element_ref.types import SnapshotMeta

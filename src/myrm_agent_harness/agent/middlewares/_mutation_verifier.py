@@ -25,15 +25,15 @@ from contextvars import ContextVar
 from typing import Any
 
 # File-mutating tool names tracked by this verifier
-_FILE_MUTATING_TOOLS: frozenset[str] = frozenset({
-    "file_write_tool",
-    "file_edit_tool",
-})
+_FILE_MUTATING_TOOLS: frozenset[str] = frozenset(
+    {
+        "file_write_tool",
+        "file_edit_tool",
+    }
+)
 
 # Per-turn state: {normalized_path: {tool: str, error_preview: str}}
-_mutation_state_var: ContextVar[dict[str, dict[str, str]]] = ContextVar(
-    "mutation_verifier_state"
-)
+_mutation_state_var: ContextVar[dict[str, dict[str, str]]] = ContextVar("mutation_verifier_state")
 
 # Max files shown in the failure summary (prevents flooding)
 _MAX_DISPLAY_FILES = 10
@@ -93,11 +93,13 @@ def format_mutation_failures() -> dict[str, Any] | None:
     files = []
     items = list(failed.items())
     for path, info in items[:_MAX_DISPLAY_FILES]:
-        files.append({
-            "path": path,
-            "tool": info["tool"],
-            "error_preview": info["error_preview"],
-        })
+        files.append(
+            {
+                "path": path,
+                "tool": info["tool"],
+                "error_preview": info["error_preview"],
+            }
+        )
 
     payload: dict[str, Any] = {
         "failed_count": len(failed),
@@ -125,4 +127,4 @@ def _truncate_error(content: str | None, max_len: int = 200) -> str:
     text = content.strip()
     if len(text) <= max_len:
         return text
-    return text[:max_len - 1] + "\u2026"
+    return text[: max_len - 1] + "\u2026"

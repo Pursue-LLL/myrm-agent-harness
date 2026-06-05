@@ -107,12 +107,8 @@ class KanbanDispatcher:
         if self._running:
             return
         self._running = True
-        self._dispatch_task = asyncio.create_task(
-            self._dispatch_loop(), name="kanban-dispatch"
-        )
-        self._zombie_task = asyncio.create_task(
-            self._zombie_loop(), name="kanban-zombie"
-        )
+        self._dispatch_task = asyncio.create_task(self._dispatch_loop(), name="kanban-dispatch")
+        self._zombie_task = asyncio.create_task(self._zombie_loop(), name="kanban-zombie")
         logger.info(
             "Kanban dispatcher started for board=%s worker=%s",
             self._board.board_id,
@@ -134,17 +130,20 @@ class KanbanDispatcher:
         if self._exec_tasks:
             logger.info(
                 "Waiting for %d executing tasks (timeout=%.0fs)",
-                len(self._exec_tasks), graceful_timeout,
+                len(self._exec_tasks),
+                graceful_timeout,
             )
             _done, pending = await asyncio.wait(
-                self._exec_tasks, timeout=graceful_timeout,
+                self._exec_tasks,
+                timeout=graceful_timeout,
             )
             for t in pending:
                 t.cancel()
             if pending:
                 logger.warning(
                     "%d tasks did not finish within %.0fs, cancelled",
-                    len(pending), graceful_timeout,
+                    len(pending),
+                    graceful_timeout,
                 )
 
         logger.info("Kanban dispatcher stopped for board=%s", self._board.board_id)
@@ -178,7 +177,8 @@ class KanbanDispatcher:
             if not r.is_finished:
                 active_run_id = r.run_id
                 await self._store.complete_run(
-                    r.run_id, TaskRunOutcome.RECLAIMED,
+                    r.run_id,
+                    TaskRunOutcome.RECLAIMED,
                     error=f"manual_reclaim: {reason or 'user request'}",
                 )
                 break
@@ -190,14 +190,17 @@ class KanbanDispatcher:
         task.progress_note = None
         await self._store.save_task(task)
         await self._store.append_event(
-            task_id, TaskEventKind.RECLAIMED,
+            task_id,
+            TaskEventKind.RECLAIMED,
             payload={"manual": True, "reason": reason or "user request"},
             run_id=active_run_id,
         )
         self.emit("task_reclaimed", task)
         self.wake()
         logger.info(
-            "Task %s manually reclaimed: %s", task_id[:8], reason or "user request",
+            "Task %s manually reclaimed: %s",
+            task_id[:8],
+            reason or "user request",
         )
         return True
 
@@ -207,19 +210,13 @@ class KanbanDispatcher:
         settings = self._board.settings
         while self._running:
             try:
-                running_count = len(
-                    await self._store.list_running_tasks(self._board.board_id)
-                )
+                running_count = len(await self._store.list_running_tasks(self._board.board_id))
                 available_slots = settings.max_concurrent_tasks - running_count
 
                 if available_slots > 0:
-                    ready_tasks = await self._store.list_ready_tasks(
-                        self._board.board_id
-                    )
+                    ready_tasks = await self._store.list_ready_tasks(self._board.board_id)
                     for task in ready_tasks[:available_slots]:
-                        claimed = await self._store.claim_task(
-                            task.task_id, self._worker_id
-                        )
+                        claimed = await self._store.claim_task(task.task_id, self._worker_id)
                         if claimed:
                             t = asyncio.create_task(
                                 self._execute_task(task.task_id),
@@ -258,14 +255,17 @@ class KanbanDispatcher:
         if task.status != TaskStatus.RUNNING:
             logger.warning(
                 "Task %s status drifted to %s after claim, aborting execution",
-                task_id[:8], task.status.value,
+                task_id[:8],
+                task.status.value,
             )
             return
 
         run = await self._store.create_run(task_id, self._worker_id)
         await self._store.append_event(
-            task_id, TaskEventKind.CLAIMED,
-            payload={"worker_id": self._worker_id}, run_id=run.run_id,
+            task_id,
+            TaskEventKind.CLAIMED,
+            payload={"worker_id": self._worker_id},
+            run_id=run.run_id,
         )
         self.emit("task_started", task)
 
@@ -292,7 +292,9 @@ class KanbanDispatcher:
             with contextlib.suppress(asyncio.CancelledError):
                 await heartbeat_handle
             await self._handle_timeout(
-                task_id, str(exc), run.run_id,
+                task_id,
+                str(exc),
+                run.run_id,
                 elapsed_seconds=exc.elapsed_seconds,
                 limit_seconds=exc.limit_seconds,
             )
@@ -303,7 +305,10 @@ class KanbanDispatcher:
             await self._handle_failure(task_id, str(exc), run.run_id)
 
     async def _handle_success(
-        self, task_id: str, result: str, run_id: str,
+        self,
+        task_id: str,
+        result: str,
+        run_id: str,
     ) -> None:
         task = await self._store.get_task(task_id)
         if task is None:
@@ -313,7 +318,9 @@ class KanbanDispatcher:
                 # Agent called kanban_complete directly — task already done.
                 # Finalize run as COMPLETED and ensure dependents are promoted.
                 await self._store.complete_run(
-                    run_id, TaskRunOutcome.COMPLETED, summary=task.result or result,
+                    run_id,
+                    TaskRunOutcome.COMPLETED,
+                    summary=task.result or result,
                 )
                 self.emit("task_completed", task)
                 await self._promote_dependents(task_id)
@@ -322,10 +329,12 @@ class KanbanDispatcher:
             else:
                 logger.warning(
                     "Task %s status changed to %s during execution, discarding success result",
-                    task_id[:8], task.status.value,
+                    task_id[:8],
+                    task.status.value,
                 )
                 await self._store.complete_run(
-                    run_id, TaskRunOutcome.RECLAIMED,
+                    run_id,
+                    TaskRunOutcome.RECLAIMED,
                     error="Status changed during execution",
                 )
             return
@@ -333,12 +342,14 @@ class KanbanDispatcher:
         if self._verifier:
             try:
                 vr = await asyncio.wait_for(
-                    self._verifier.verify(task, result), timeout=60.0,
+                    self._verifier.verify(task, result),
+                    timeout=60.0,
                 )
             except TimeoutError:
                 logger.warning("Task %s verification timed out", task_id[:8])
                 await self._store.append_event(
-                    task_id, TaskEventKind.VERIFICATION_FAILED,
+                    task_id,
+                    TaskEventKind.VERIFICATION_FAILED,
                     payload={"reason": "Verification timed out"},
                     run_id=run_id,
                 )
@@ -347,22 +358,28 @@ class KanbanDispatcher:
             except Exception as exc:
                 logger.warning("Task %s verification error: %s", task_id[:8], exc)
                 await self._store.append_event(
-                    task_id, TaskEventKind.VERIFICATION_FAILED,
+                    task_id,
+                    TaskEventKind.VERIFICATION_FAILED,
                     payload={"reason": f"Verification error: {exc}"},
                     run_id=run_id,
                 )
                 await self._handle_failure(
-                    task_id, f"Verification error: {exc}", run_id,
+                    task_id,
+                    f"Verification error: {exc}",
+                    run_id,
                 )
                 return
 
             if not vr.passed:
                 reason = vr.reason or "Completion verification failed"
                 logger.warning(
-                    "Task %s failed verification: %s", task_id[:8], reason,
+                    "Task %s failed verification: %s",
+                    task_id[:8],
+                    reason,
                 )
                 await self._store.append_event(
-                    task_id, TaskEventKind.VERIFICATION_FAILED,
+                    task_id,
+                    TaskEventKind.VERIFICATION_FAILED,
                     payload={"reason": reason, "error_logs": vr.error_logs or ""},
                     run_id=run_id,
                 )
@@ -378,10 +395,14 @@ class KanbanDispatcher:
         task.progress_note = None
         await self._store.save_task(task)
         await self._store.complete_run(
-            run_id, TaskRunOutcome.COMPLETED, summary=result,
+            run_id,
+            TaskRunOutcome.COMPLETED,
+            summary=result,
         )
         await self._store.append_event(
-            task_id, TaskEventKind.COMPLETED, run_id=run_id,
+            task_id,
+            TaskEventKind.COMPLETED,
+            run_id=run_id,
         )
         self.emit("task_completed", task)
         await self._promote_dependents(task_id)
@@ -389,7 +410,10 @@ class KanbanDispatcher:
         logger.info("Task %s completed", task_id[:8])
 
     async def _handle_failure(
-        self, task_id: str, error: str, run_id: str,
+        self,
+        task_id: str,
+        error: str,
+        run_id: str,
     ) -> None:
         task = await self._store.get_task(task_id)
         if task is None:
@@ -397,14 +421,21 @@ class KanbanDispatcher:
         if task.status != TaskStatus.RUNNING:
             logger.warning(
                 "Task %s status changed to %s during execution, discarding failure",
-                task_id[:8], task.status.value,
+                task_id[:8],
+                task.status.value,
             )
             await self._store.complete_run(
-                run_id, TaskRunOutcome.RECLAIMED, error="Status changed during execution",
+                run_id,
+                TaskRunOutcome.RECLAIMED,
+                error="Status changed during execution",
             )
             return
         await self._apply_failure_pipeline(
-            task, error, run_id, outcome=TaskRunOutcome.CRASHED, reason="crashed",
+            task,
+            error,
+            run_id,
+            outcome=TaskRunOutcome.CRASHED,
+            reason="crashed",
         )
 
     async def _handle_timeout(
@@ -422,14 +453,18 @@ class KanbanDispatcher:
         if task.status != TaskStatus.RUNNING:
             logger.warning(
                 "Task %s status changed to %s during execution, discarding timeout",
-                task_id[:8], task.status.value,
+                task_id[:8],
+                task.status.value,
             )
             await self._store.complete_run(
-                run_id, TaskRunOutcome.RECLAIMED, error="Status changed during execution",
+                run_id,
+                TaskRunOutcome.RECLAIMED,
+                error="Status changed during execution",
             )
             return
         await self._store.append_event(
-            task_id, TaskEventKind.TIMED_OUT,
+            task_id,
+            TaskEventKind.TIMED_OUT,
             payload={
                 "elapsed_seconds": round(elapsed_seconds, 1),
                 "limit_seconds": limit_seconds,
@@ -438,10 +473,16 @@ class KanbanDispatcher:
         )
         logger.warning(
             "Task %s timed out after %.0fs (limit %ds)",
-            task_id[:8], elapsed_seconds, limit_seconds,
+            task_id[:8],
+            elapsed_seconds,
+            limit_seconds,
         )
         await self._apply_failure_pipeline(
-            task, error, run_id, outcome=TaskRunOutcome.TIMED_OUT, reason="timed_out",
+            task,
+            error,
+            run_id,
+            outcome=TaskRunOutcome.TIMED_OUT,
+            reason="timed_out",
         )
 
     async def _apply_failure_pipeline(
@@ -465,13 +506,13 @@ class KanbanDispatcher:
             task.status = TaskStatus.BLOCKED
             task.block_kind = BlockKind.HUMAN
             task.blocked_reason = (
-                f"Auto-blocked after {task.consecutive_failures} consecutive "
-                f"failures (last: {reason})"
+                f"Auto-blocked after {task.consecutive_failures} consecutive failures (last: {reason})"
             )
             logger.warning("Task %s auto-blocked: %s", task_id[:8], task.blocked_reason)
             await self._store.complete_run(run_id, outcome, error=error)
             await self._store.append_event(
-                task_id, TaskEventKind.BLOCKED,
+                task_id,
+                TaskEventKind.BLOCKED,
                 payload={"reason": task.blocked_reason, "block_kind": "human"},
                 run_id=run_id,
             )
@@ -483,19 +524,18 @@ class KanbanDispatcher:
                 task.status = TaskStatus.BLOCKED
                 task.block_kind = BlockKind.SCHEDULED
                 task.scheduled_until = wake_at
-                task.blocked_reason = (
-                    f"Transient error detected, auto-retry at "
-                    f"{wake_at.strftime('%H:%M UTC')}"
-                )
+                task.blocked_reason = f"Transient error detected, auto-retry at {wake_at.strftime('%H:%M UTC')}"
                 logger.info(
-                    "Task %s transient error (attempt %d/%d), "
-                    "scheduled backoff until %s",
-                    task_id[:8], task.retry_count, task.max_retries,
+                    "Task %s transient error (attempt %d/%d), scheduled backoff until %s",
+                    task_id[:8],
+                    task.retry_count,
+                    task.max_retries,
                     wake_at.isoformat(),
                 )
                 await self._store.complete_run(run_id, outcome, error=error)
                 await self._store.append_event(
-                    task_id, TaskEventKind.BLOCKED,
+                    task_id,
+                    TaskEventKind.BLOCKED,
                     payload={
                         "reason": task.blocked_reason,
                         "block_kind": "scheduled",
@@ -509,11 +549,15 @@ class KanbanDispatcher:
                 task.status = TaskStatus.READY
                 logger.info(
                     "Task %s %s (attempt %d/%d), re-queuing",
-                    task_id[:8], reason, task.retry_count, task.max_retries,
+                    task_id[:8],
+                    reason,
+                    task.retry_count,
+                    task.max_retries,
                 )
                 await self._store.complete_run(run_id, outcome, error=error)
                 await self._store.append_event(
-                    task_id, TaskEventKind.RETRYING,
+                    task_id,
+                    TaskEventKind.RETRYING,
                     payload={
                         "attempt": task.retry_count,
                         "max": task.max_retries,
@@ -528,7 +572,9 @@ class KanbanDispatcher:
             logger.warning("Task %s exhausted retries (last: %s)", task_id[:8], reason)
             await self._store.complete_run(run_id, outcome, error=error)
             await self._store.append_event(
-                task_id, TaskEventKind.FAILED, run_id=run_id,
+                task_id,
+                TaskEventKind.FAILED,
+                run_id=run_id,
             )
             self.emit("task_failed", task)
 
@@ -552,13 +598,15 @@ class KanbanDispatcher:
                 child.status = TaskStatus.READY
                 await self._store.save_task(child)
                 await self._store.append_event(
-                    child_id, TaskEventKind.PROMOTED,
+                    child_id,
+                    TaskEventKind.PROMOTED,
                     payload={"trigger_task_id": completed_task_id},
                 )
                 self.emit("task_promoted", child)
                 logger.info(
                     "Task %s promoted to READY (parent %s completed)",
-                    child_id[:8], completed_task_id[:8],
+                    child_id[:8],
+                    completed_task_id[:8],
                 )
 
     # -- Heartbeat --
@@ -576,9 +624,7 @@ class KanbanDispatcher:
         check_interval = max(settings.zombie_timeout_seconds // 2, 30)
         while self._running:
             try:
-                zombies = await self._store.list_zombie_tasks(
-                    self._board.board_id, settings.zombie_timeout_seconds
-                )
+                zombies = await self._store.list_zombie_tasks(self._board.board_id, settings.zombie_timeout_seconds)
                 for task in zombies:
                     logger.warning(
                         "Zombie detected: task=%s, last_heartbeat=%s",
@@ -610,13 +656,15 @@ class KanbanDispatcher:
             task.error = ""
             await self._store.save_task(task)
             await self._store.append_event(
-                task.task_id, TaskEventKind.UNBLOCKED,
+                task.task_id,
+                TaskEventKind.UNBLOCKED,
                 payload={"source": "auto_schedule", "target": target.value},
             )
             self.emit("task_unblocked", task)
             logger.info(
                 "Task %s auto-unblocked (scheduled wakeup) -> %s",
-                task.task_id[:8], target.value,
+                task.task_id[:8],
+                target.value,
             )
         if due_tasks:
             self.wake()
@@ -634,14 +682,17 @@ class KanbanDispatcher:
             if not r.is_finished:
                 active_run_id = r.run_id
                 await self._store.complete_run(
-                    r.run_id, TaskRunOutcome.RECLAIMED,
+                    r.run_id,
+                    TaskRunOutcome.RECLAIMED,
                     error="Heartbeat timeout",
                 )
                 break
 
         await self._store.append_event(
-            task.task_id, TaskEventKind.RECLAIMED,
-            payload={"reason": "heartbeat_timeout"}, run_id=active_run_id,
+            task.task_id,
+            TaskEventKind.RECLAIMED,
+            payload={"reason": "heartbeat_timeout"},
+            run_id=active_run_id,
         )
 
         settings = self._board.settings

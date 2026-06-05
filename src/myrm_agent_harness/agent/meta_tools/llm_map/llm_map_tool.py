@@ -121,8 +121,7 @@ def _resolve_workspace_root() -> str | None:
 
 def _serialise_items(report: LlmMapReport) -> list[dict[str, object]]:
     return [
-        {"index": r.index, "id": r.id, "status": r.status, "output": r.output, "error": r.error}
-        for r in report.items
+        {"index": r.index, "id": r.id, "status": r.status, "output": r.output, "error": r.error} for r in report.items
     ]
 
 
@@ -249,9 +248,9 @@ def create_llm_map_tool(
 
         result: dict[str, object] = {"success": True, "summary": summary, "preview": _build_preview(report)}
         if report.failed:
-            result["failures"] = [
-                {"id": r.id, "error": r.error} for r in report.items if r.status == "failed"
-            ][:MAX_FAILURE_SAMPLES]
+            result["failures"] = [{"id": r.id, "error": r.error} for r in report.items if r.status == "failed"][
+                :MAX_FAILURE_SAMPLES
+            ]
 
         full_json = json.dumps(serialised, ensure_ascii=False)
         if len(full_json) <= INLINE_RESULT_THRESHOLD_CHARS:

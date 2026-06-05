@@ -22,10 +22,12 @@ from langchain_core.runnables.config import var_child_runnable_config
 
 class FallbackEventData(TypedDict):
     """Fallback event data structure for UI telemetry."""
+
     event: str  # Always "tool_fallback"
-    tool: str   # The tool name (e.g., "bash_code_execute_tool")
-    fallback_type: str # The type of fallback (e.g., "network_timeout", "antibot_bypass")
-    message: str # Human-readable message for the UI
+    tool: str  # The tool name (e.g., "bash_code_execute_tool")
+    fallback_type: str  # The type of fallback (e.g., "network_timeout", "antibot_bypass")
+    message: str  # Human-readable message for the UI
+
 
 async def dispatch_custom_event(name: str, data: Any, config: RunnableConfig | None = None) -> None:
     """分发自定义事件，兼容不同版本的 LangGraph。
@@ -54,4 +56,5 @@ async def dispatch_custom_event(name: str, data: Any, config: RunnableConfig | N
 
     # 回退到 LangChain 的 adispatch_custom_event (兼容 LangGraph 0.1.x)
     from langchain_core.callbacks.manager import adispatch_custom_event
+
     await adispatch_custom_event(name, data, config=config)

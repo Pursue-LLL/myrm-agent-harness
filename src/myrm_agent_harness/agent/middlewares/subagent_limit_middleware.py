@@ -58,11 +58,11 @@ def _truncate_delegate_calls(message: AIMessage, max_concurrent: int) -> AIMessa
 
 class SubagentLimitMiddleware(AgentMiddleware):  # type: ignore[type-arg]
     """Truncate excess delegate_task tool calls in the LLM response."""
+
     name = "subagent_limit_middleware"
 
     async def awrap_model_call(
-        self,
-        request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
+        self, request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
     ) -> ModelResponse:
         response = await handler(request)
 
@@ -79,5 +79,6 @@ class SubagentLimitMiddleware(AgentMiddleware):  # type: ignore[type-arg]
             return dataclasses.replace(response, result=new_result)
 
         return response
+
 
 subagent_limit_middleware = SubagentLimitMiddleware()

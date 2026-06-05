@@ -100,9 +100,7 @@ class SubagentSpawnMixin:
                     timeout=config.timeout_seconds,
                 )
             except TimeoutError:
-                logger.warning(
-                    "[subagent:%s] Hard timeout after %ss", task_id, config.timeout_seconds
-                )
+                logger.warning("[subagent:%s] Hard timeout after %ss", task_id, config.timeout_seconds)
                 return SubAgentResult(
                     success=False,
                     task_id=task_id,
@@ -294,9 +292,7 @@ class SubagentSpawnMixin:
                 description=task_description,
                 role=config.delegation_role.value,
                 control_scope=config.control_scope.value,
-                budget=to_json_object(
-                    budget_payload if isinstance(budget_payload, dict) else None
-                ),
+                budget=to_json_object(budget_payload if isinstance(budget_payload, dict) else None),
             ),
         )
 
@@ -323,10 +319,7 @@ class SubagentSpawnMixin:
                 result = await asyncio.wait_for(task, timeout=config.timeout_seconds)
                 elapsed = time.time() - start_time
 
-                if (
-                    result.status == SubAgentStatus.CANCELLED
-                    and elapsed >= config.timeout_seconds
-                ):
+                if result.status == SubAgentStatus.CANCELLED and elapsed >= config.timeout_seconds:
                     return SubAgentResult(
                         success=False,
                         task_id=task_id,

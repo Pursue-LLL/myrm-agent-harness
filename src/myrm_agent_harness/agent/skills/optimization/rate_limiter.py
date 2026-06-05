@@ -40,9 +40,7 @@ class UserRateLimiter:
     3. 自动重置：每日0点重置配额
     """
 
-    def __init__(
-        self, max_concurrent_per_user: int = 3, daily_quota_per_user: int = 50
-    ):
+    def __init__(self, max_concurrent_per_user: int = 3, daily_quota_per_user: int = 50):
         """初始化速率限制器
 
         Args:
@@ -93,8 +91,7 @@ class UserRateLimiter:
         if quota["count"] >= self.daily_quota_per_user:
             reset_at_str = quota["reset_at"].strftime("%Y-%m-%d %H:%M:%S")
             raise RateLimitExceeded(
-                f"Daily quota exceeded. Limit: {self.daily_quota_per_user}/day. "
-                f"Resets at {reset_at_str}",
+                f"Daily quota exceeded. Limit: {self.daily_quota_per_user}/day. Resets at {reset_at_str}",
                 retry_after=reset_at_str,
             )
 

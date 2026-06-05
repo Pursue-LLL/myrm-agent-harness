@@ -116,9 +116,7 @@ class BoundedStringIO(io.StringIO):
         return super().write(s)
 '''
 
-    allowed_hosts_str = (
-        repr(set(allowed_hosts)) if allowed_hosts is not None else "None"
-    )
+    allowed_hosts_str = repr(set(allowed_hosts)) if allowed_hosts is not None else "None"
 
     return f'''#!/usr/bin/env python3
 """Unified execution wrapper script.
@@ -379,9 +377,7 @@ def parse_execution_output(stdout: str, stderr: str, exit_code: int) -> Executio
     Returns:
         Parsed ExecutionOutput.
     """
-    result_match = re.search(
-        r"__RESULT_START__\s*(.+?)\s*__RESULT_END__", stdout, re.DOTALL
-    )
+    result_match = re.search(r"__RESULT_START__\s*(.+?)\s*__RESULT_END__", stdout, re.DOTALL)
 
     if result_match:
         try:

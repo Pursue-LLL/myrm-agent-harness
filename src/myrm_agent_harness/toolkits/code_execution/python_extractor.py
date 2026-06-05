@@ -81,7 +81,7 @@ def _extract_python_c(command: str) -> str | None:
     if m is None:
         return None
 
-    rest = command[m.end():]
+    rest = command[m.end() :]
     if not rest:
         return None
 

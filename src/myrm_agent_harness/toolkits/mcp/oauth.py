@@ -159,9 +159,7 @@ class MCPOAuthProvider:
     def oauth_config(self) -> MCPOAuthConfig:
         return self._oauth_config
 
-    async def get_auth_headers(
-        self, server_name: str, server_url: str
-    ) -> dict[str, str]:
+    async def get_auth_headers(self, server_name: str, server_url: str) -> dict[str, str]:
         """Return OAuth Authorization headers for the MCP connection.
 
         Attempts token retrieval from cache, refreshes if expired, and returns
@@ -188,9 +186,7 @@ class MCPOAuthProvider:
 
     async def _try_refresh(self, refresh_token: str) -> MCPOAuthToken | None:
         try:
-            return await self._token_store.refresh_token_exchange(
-                self._server_name, self._oauth_config, refresh_token
-            )
+            return await self._token_store.refresh_token_exchange(self._server_name, self._oauth_config, refresh_token)
         except Exception:
             logger.warning(
                 "OAuth token refresh failed for MCP server '%s'",

@@ -74,7 +74,9 @@ async def benchmark_llm_ttft() -> HealthReport:
             message=f"LLM TTFT: {ttft:.2f}s",
             detail=f"TTFT: {ttft:.2f}s, Tokens: {token_count}, TPS: {tps:.1f}",
             metrics={"ttft_s": ttft, "tps": tps, "total_time_s": total_time},
-            fix_suggestion="Consider switching LLM providers if TTFT is consistently high." if status != "pass" else None,
+            fix_suggestion="Consider switching LLM providers if TTFT is consistently high."
+            if status != "pass"
+            else None,
         )
     except Exception as e:
         return HealthReport(
@@ -121,7 +123,9 @@ async def benchmark_embedding_latency() -> HealthReport:
             message=f"Embedding Latency: {latency:.2f}s",
             detail=f"Latency for standard chunk: {latency:.2f}s",
             metrics={"latency_s": latency},
-            fix_suggestion="Consider using a cloud embedding provider if local embeddings are too slow." if status != "pass" else None,
+            fix_suggestion="Consider using a cloud embedding provider if local embeddings are too slow."
+            if status != "pass"
+            else None,
         )
     except Exception as e:
         return HealthReport(

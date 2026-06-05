@@ -237,9 +237,7 @@ class ExecutorStdioTransport:
             list(self.parameters.args) if self.parameters.args else None,
         )
         if advisory:
-            raise RuntimeError(
-                f"[MCP Transport {self.server_name}] Malware advisory detected: {advisory}"
-            )
+            raise RuntimeError(f"[MCP Transport {self.server_name}] Malware advisory detected: {advisory}")
 
         try:
             self._process = await self.executor.spawn_background_process(context)

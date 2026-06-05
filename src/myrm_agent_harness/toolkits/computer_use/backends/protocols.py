@@ -31,7 +31,11 @@ class ComputerBackend(Protocol):
         ...
 
     async def click(
-        self, x: int, y: int, button: str = "left", clicks: int = 1,
+        self,
+        x: int,
+        y: int,
+        button: str = "left",
+        clicks: int = 1,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
         """Click at screen coordinates (x, y) with optional modifier keys held."""
@@ -58,14 +62,22 @@ class ComputerBackend(Protocol):
         ...
 
     async def scroll(
-        self, x: int, y: int, direction: str, amount: int = 3,
+        self,
+        x: int,
+        y: int,
+        direction: str,
+        amount: int = 3,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
         """Scroll at position in the given direction with optional modifier keys held."""
         ...
 
     async def drag(
-        self, start_x: int, start_y: int, end_x: int, end_y: int,
+        self,
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
         """Click-drag from start to end coordinates with optional modifier keys held."""

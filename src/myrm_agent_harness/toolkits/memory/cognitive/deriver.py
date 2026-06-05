@@ -52,6 +52,7 @@ Example Output:
 ]
 """
 
+
 class CognitiveDeriver:
     """Async Dialectic Reasoning Engine for implicit preference extraction."""
 
@@ -60,7 +61,9 @@ class CognitiveDeriver:
         self.llm_func = manager._consolidation_llm
         self.graph = manager.graph_store
 
-    async def run_derivation(self, session_id: str, chat_id: str, messages: list[dict[str, str]]) -> dict[str, bool | int | str]:
+    async def run_derivation(
+        self, session_id: str, chat_id: str, messages: list[dict[str, str]]
+    ) -> dict[str, bool | int | str]:
         """Run dialectic reasoning on recent messages and update the vector and graph."""
         if not self.llm_func:
             return {"skipped": True, "reason": "No LLM configured"}
@@ -71,7 +74,7 @@ class CognitiveDeriver:
         # Format messages
         formatted = "\\n".join(
             f"[{m.get('role', 'user').upper()}]: {m.get('content', '')}"
-            for m in messages[-10:] # Analyze last 10 messages
+            for m in messages[-10:]  # Analyze last 10 messages
         )
 
         prompt = f"## Recent Conversation\\n\\n{formatted}\\n\\n## Task\\nExtract implicit preferences as JSON array."
@@ -81,6 +84,7 @@ class CognitiveDeriver:
 
             # Extract JSON
             import re
+
             match = re.search(r"(\\[.*\\])", raw, re.DOTALL)
             if match:
                 raw = match.group(1)
@@ -104,7 +108,9 @@ class CognitiveDeriver:
                 if change_kind in ("contradict", "supersede"):
                     has_disruptive_change = True
 
-                await self._store_preference_claim(session_id, chat_id, pref_key, pref_claim, confidence, scope, change_kind)
+                await self._store_preference_claim(
+                    session_id, chat_id, pref_key, pref_claim, confidence, scope, change_kind
+                )
                 extracted_count += 1
 
             return {"success": True, "extracted_count": extracted_count, "has_disruptive_change": has_disruptive_change}
@@ -114,8 +120,14 @@ class CognitiveDeriver:
             return {"success": False, "error": str(e)}
 
     async def _store_preference_claim(
-        self, session_id: str, chat_id: str, pref_key: str, pref_claim: str,
-        confidence: float, scope: str, change_kind: str
+        self,
+        session_id: str,
+        chat_id: str,
+        pref_key: str,
+        pref_claim: str,
+        confidence: float,
+        scope: str,
+        change_kind: str,
     ) -> None:
         """Store the derived preference as a Claim node in the graph and Dual-Write to Vector."""
         now = datetime.now(UTC)
@@ -143,8 +155,8 @@ class CognitiveDeriver:
                 "preference_key": pref_key,
                 "scope": scope,
                 "change_kind": change_kind,
-                "derivation_time": now.isoformat()
-            }
+                "derivation_time": now.isoformat(),
+            },
         )
 
         try:
@@ -178,7 +190,7 @@ class CognitiveDeriver:
                 "channel_id": "cognitive_deriver",
                 "freshness_days": 0,
                 "primary_namespace": session_id,
-            }
+            },
         )
 
         # 2. Get or Create Claim Node
@@ -208,7 +220,7 @@ class CognitiveDeriver:
                 "last_evidence_at": now.isoformat(),
                 "latest_channel_id": "cognitive_deriver",
                 "latest_source_memory_id": evidence_id,
-            }
+            },
         )
 
         existing_evidence_count = int(claim_node.properties.get("evidence_count", 0))
@@ -244,7 +256,7 @@ class CognitiveDeriver:
             properties={
                 "confidence": confidence,
                 "freshness_days": 0.0,
-            }
+            },
         )
 
         # 4. Update Claim Node
@@ -264,5 +276,5 @@ class CognitiveDeriver:
                 "latest_relationship_type": relationship_type,
                 "last_evidence_at": now.isoformat(),
                 "latest_source_memory_id": evidence_id,
-            }
+            },
         )

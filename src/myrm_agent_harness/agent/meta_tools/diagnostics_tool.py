@@ -77,4 +77,3 @@ async def runtime_diagnostics_tool(include_passed: bool = False) -> dict[str, ob
         "components": components,
         "read_only": True,
     }
-

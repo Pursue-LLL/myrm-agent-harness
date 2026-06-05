@@ -38,12 +38,14 @@ class PolicyWarning:
     field: str
 
 
-_DANGEROUS_PERMISSION_PATTERNS = frozenset({
-    ("shell_exec", "*", "allow"),
-    ("code_interpreter", "*", "allow"),
-    ("browser_evaluate", "*", "allow"),
-    ("file_delete", "*", "allow"),
-})
+_DANGEROUS_PERMISSION_PATTERNS = frozenset(
+    {
+        ("shell_exec", "*", "allow"),
+        ("code_interpreter", "*", "allow"),
+        ("browser_evaluate", "*", "allow"),
+        ("file_delete", "*", "allow"),
+    }
+)
 
 
 def validate_generated_policy(
@@ -63,11 +65,13 @@ def validate_generated_policy(
     warnings: list[PolicyWarning] = []
 
     if not generated:
-        warnings.append(PolicyWarning(
-            message="Generated policy is empty — no changes will be applied",
-            severity=WarningSeverity.WARNING,
-            field="root",
-        ))
+        warnings.append(
+            PolicyWarning(
+                message="Generated policy is empty — no changes will be applied",
+                severity=WarningSeverity.WARNING,
+                field="root",
+            )
+        )
         return True, warnings
 
     _check_permissions(generated, warnings)
@@ -91,19 +95,23 @@ def _check_permissions(config: dict[str, object], warnings: list[PolicyWarning])
     for perm, value in permissions.items():
         if isinstance(value, str) and value == "allow":
             if (perm, "*", "allow") in _DANGEROUS_PERMISSION_PATTERNS:
-                warnings.append(PolicyWarning(
-                    message=f"Allowing all '{perm}' operations is dangerous",
-                    severity=WarningSeverity.DANGER,
-                    field=f"permissions.{perm}",
-                ))
+                warnings.append(
+                    PolicyWarning(
+                        message=f"Allowing all '{perm}' operations is dangerous",
+                        severity=WarningSeverity.DANGER,
+                        field=f"permissions.{perm}",
+                    )
+                )
         elif isinstance(value, dict):
             for pattern, action in value.items():
                 if action == "allow" and pattern == "*" and (perm, "*", "allow") in _DANGEROUS_PERMISSION_PATTERNS:
-                    warnings.append(PolicyWarning(
-                        message=f"Allowing all '{perm}' operations is dangerous",
-                        severity=WarningSeverity.DANGER,
-                        field=f"permissions.{perm}.{pattern}",
-                    ))
+                    warnings.append(
+                        PolicyWarning(
+                            message=f"Allowing all '{perm}' operations is dangerous",
+                            severity=WarningSeverity.DANGER,
+                            field=f"permissions.{perm}.{pattern}",
+                        )
+                    )
 
 
 def _check_path_policy(config: dict[str, object], warnings: list[PolicyWarning]) -> None:
@@ -117,17 +125,21 @@ def _check_path_policy(config: dict[str, object], warnings: list[PolicyWarning])
         for root in allowed_roots:
             root_str = str(root)
             if root_str in ("/", "~", "C:\\"):
-                warnings.append(PolicyWarning(
-                    message=f"Allowing root path '{root_str}' as allowed_root bypasses path protection",
-                    severity=WarningSeverity.DANGER,
-                    field="pathPolicy.allowedRoots",
-                ))
+                warnings.append(
+                    PolicyWarning(
+                        message=f"Allowing root path '{root_str}' as allowed_root bypasses path protection",
+                        severity=WarningSeverity.DANGER,
+                        field="pathPolicy.allowedRoots",
+                    )
+                )
             elif root_str.startswith("/etc") or root_str.startswith("/sys"):
-                warnings.append(PolicyWarning(
-                    message=f"System path '{root_str}' in allowedRoots is unusual",
-                    severity=WarningSeverity.WARNING,
-                    field="pathPolicy.allowedRoots",
-                ))
+                warnings.append(
+                    PolicyWarning(
+                        message=f"System path '{root_str}' in allowedRoots is unusual",
+                        severity=WarningSeverity.WARNING,
+                        field="pathPolicy.allowedRoots",
+                    )
+                )
 
 
 def _check_privacy_policy(config: dict[str, object], warnings: list[PolicyWarning]) -> None:
@@ -137,11 +149,13 @@ def _check_privacy_policy(config: dict[str, object], warnings: list[PolicyWarnin
         return
 
     if privacy.get("enabled") and privacy.get("s3Action") == "warn":
-        warnings.append(PolicyWarning(
-            message="S3 (confidential) data set to 'warn' only — ID cards and bank cards will not be protected",
-            severity=WarningSeverity.WARNING,
-            field="privacyPolicy.s3Action",
-        ))
+        warnings.append(
+            PolicyWarning(
+                message="S3 (confidential) data set to 'warn' only — ID cards and bank cards will not be protected",
+                severity=WarningSeverity.WARNING,
+                field="privacyPolicy.s3Action",
+            )
+        )
 
 
 def _check_network_allowlist(config: dict[str, object], warnings: list[PolicyWarning]) -> None:
@@ -153,11 +167,13 @@ def _check_network_allowlist(config: dict[str, object], warnings: list[PolicyWar
     for domain in allowlist:
         domain_str = str(domain)
         if domain_str == "*" or domain_str == "*.*":
-            warnings.append(PolicyWarning(
-                message="Wildcard '*' in network allowlist disables all domain approval checks",
-                severity=WarningSeverity.DANGER,
-                field="networkAllowlist",
-            ))
+            warnings.append(
+                PolicyWarning(
+                    message="Wildcard '*' in network allowlist disables all domain approval checks",
+                    severity=WarningSeverity.DANGER,
+                    field="networkAllowlist",
+                )
+            )
 
 
 def _check_conflicts(
@@ -180,15 +196,11 @@ def _check_conflicts(
         gen_action = gen_value if isinstance(gen_value, str) else None
         cur_action = cur_value if isinstance(cur_value, str) else None
 
-        if (
-            gen_action
-            and cur_action
-            and gen_action != cur_action
-            and gen_action == "allow"
-            and cur_action == "deny"
-        ):
-            warnings.append(PolicyWarning(
-                message=f"Overriding existing DENY on '{perm}' with ALLOW",
-                severity=WarningSeverity.WARNING,
-                field=f"permissions.{perm}",
-            ))
+        if gen_action and cur_action and gen_action != cur_action and gen_action == "allow" and cur_action == "deny":
+            warnings.append(
+                PolicyWarning(
+                    message=f"Overriding existing DENY on '{perm}' with ALLOW",
+                    severity=WarningSeverity.WARNING,
+                    field=f"permissions.{perm}",
+                )
+            )

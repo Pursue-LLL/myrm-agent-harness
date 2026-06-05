@@ -37,24 +37,53 @@ LLMFunc = Callable[[str, str], Awaitable[str]]
 
 _RECURRENCE_COLLECTION_SUFFIX = "_recurrence_buffer"
 
-_IMPORTANCE_KEYWORDS_EN = frozenset({
-    "allergy", "allergic", "anaphylaxis",
-    "medication", "prescription",
-    "diabetes", "asthma", "epilepsy",
-    "emergency", "hospital",
-    "password", "credential",
-    "deadline", "urgent",
-    "phobia", "trauma",
-    "intolerance",
-    "wheelchair", "disability",
-})
+_IMPORTANCE_KEYWORDS_EN = frozenset(
+    {
+        "allergy",
+        "allergic",
+        "anaphylaxis",
+        "medication",
+        "prescription",
+        "diabetes",
+        "asthma",
+        "epilepsy",
+        "emergency",
+        "hospital",
+        "password",
+        "credential",
+        "deadline",
+        "urgent",
+        "phobia",
+        "trauma",
+        "intolerance",
+        "wheelchair",
+        "disability",
+    }
+)
 
-_IMPORTANCE_KEYWORDS_CN = frozenset({
-    "过敏", "药物", "处方", "糖尿病", "哮喘", "癫痫",
-    "急诊", "医院", "密码", "密钥", "凭证",
-    "截止日期", "紧急", "恐惧", "创伤",
-    "饮食禁忌", "不耐受", "残疾", "轮椅",
-})
+_IMPORTANCE_KEYWORDS_CN = frozenset(
+    {
+        "过敏",
+        "药物",
+        "处方",
+        "糖尿病",
+        "哮喘",
+        "癫痫",
+        "急诊",
+        "医院",
+        "密码",
+        "密钥",
+        "凭证",
+        "截止日期",
+        "紧急",
+        "恐惧",
+        "创伤",
+        "饮食禁忌",
+        "不耐受",
+        "残疾",
+        "轮椅",
+    }
+)
 
 _CONSOLIDATION_SYSTEM_PROMPT = """\
 You are a memory consolidation specialist. Given multiple conversation snippets \
@@ -163,12 +192,14 @@ class RecurrenceDetector:
         now_iso = datetime.now(UTC).isoformat()
         await self._vector.upsert(
             self._collection,
-            [VectorDocument(
-                id=doc_id,
-                content=session_summary,
-                vector=query_vec,
-                metadata={"created_at": now_iso},
-            )],
+            [
+                VectorDocument(
+                    id=doc_id,
+                    content=session_summary,
+                    vector=query_vec,
+                    metadata={"created_at": now_iso},
+                )
+            ],
         )
 
         await self._evict_old_entries()
@@ -222,13 +253,9 @@ class RecurrenceDetector:
             return
 
         excess = count - self._buffer_capacity
-        docs, _ = await self._vector.scroll(
-            self._collection, limit=excess
-        )
+        docs, _ = await self._vector.scroll(self._collection, limit=excess)
         if docs:
-            await self._vector.delete(
-                self._collection, [d.id for d in docs]
-            )
+            await self._vector.delete(self._collection, [d.id for d in docs])
 
 
 def _is_important(text: str) -> bool:

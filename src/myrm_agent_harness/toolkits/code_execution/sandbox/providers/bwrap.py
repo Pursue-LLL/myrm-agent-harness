@@ -89,7 +89,9 @@ class BwrapProvider:
         # Bind python's own paths so the sandbox can run python
         base_prefix = sys.base_prefix
         prefix = sys.prefix
-        seen: set[str] = set(["/", "/bin", "/usr", "/lib", "/lib64", "/etc/resolv.conf", "/etc/ssl/certs", "/dev", "/proc", "/tmp"])
+        seen: set[str] = set(
+            ["/", "/bin", "/usr", "/lib", "/lib64", "/etc/resolv.conf", "/etc/ssl/certs", "/dev", "/proc", "/tmp"]
+        )
 
         for path in (base_prefix, prefix):
             if path not in seen:

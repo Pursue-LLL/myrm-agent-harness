@@ -18,10 +18,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 class ActiveCacheHealer:
     """Monitors cache hit rate and triggers context compression if it drops."""
 
-    def __init__(self, memory_manager: 'MemoryManager', threshold: float = 0.4, consecutive_drops: int = 3):
+    def __init__(self, memory_manager: "MemoryManager", threshold: float = 0.4, consecutive_drops: int = 3):
         self.memory_manager = memory_manager
         self.threshold = threshold
         self.consecutive_drops = consecutive_drops
@@ -44,7 +45,9 @@ class ActiveCacheHealer:
             self._drop_count = 0
 
         if self._drop_count >= self.consecutive_drops:
-            logger.warning(f"[CacheHealer] Hit rate below {self.threshold:.1%} for {self.consecutive_drops} consecutive turns. Triggering healing.")
+            logger.warning(
+                f"[CacheHealer] Hit rate below {self.threshold:.1%} for {self.consecutive_drops} consecutive turns. Triggering healing."
+            )
             await self._trigger_healing()
             self._drop_count = 0
             return True
@@ -61,7 +64,7 @@ class ActiveCacheHealer:
             logger.info("[CacheHealer] Cache healing triggered. (Integration with pipeline required)")
 
             # If memory_manager is actually the pipeline engine or has a process method:
-            if hasattr(self.memory_manager, 'process'):
+            if hasattr(self.memory_manager, "process"):
                 # We would ideally inject a marker into the ProcessorContext to force compression
                 pass
         except Exception as e:

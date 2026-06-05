@@ -418,6 +418,7 @@ class Interactor:
 
             elif action == "fill_credential":
                 from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
+
                 vault = get_global_credential_vault()
 
                 # Check if it's a TOTP request (e.g. label ends with -totp)
@@ -499,6 +500,7 @@ class Interactor:
                 try:
                     from myrm_agent_harness.toolkits.computer_use.session import create_computer_session
                     from myrm_agent_harness.toolkits.computer_use.types import KNOWN_BROWSER_NAMES, ComputerUseConfig
+
                     cu_session = create_computer_session(ComputerUseConfig())
                     has_dialog = await cu_session.backend.has_blocking_dialog(list(KNOWN_BROWSER_NAMES))
                 except Exception:

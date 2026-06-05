@@ -60,11 +60,7 @@ class SkillAgentReviewMixin:
         if isinstance(query, str):
             user_text = query
         elif isinstance(query, list):
-            user_parts = [
-                str(m.get("content", ""))
-                for m in query
-                if m.get("role") == "user"
-            ]
+            user_parts = [str(m.get("content", "")) for m in query if m.get("role") == "user"]
             user_text = " ".join(user_parts)
         else:
             return ""
@@ -98,9 +94,7 @@ class SkillAgentReviewMixin:
                 assert wiki_compiler is not None
 
                 chat_id = getattr(config, "chat_id", None) or "unknown"
-                raw_path = wiki_structure.get_raw_file_path(
-                    f"conversation_{chat_id}.md"
-                )
+                raw_path = wiki_structure.get_raw_file_path(f"conversation_{chat_id}.md")
                 raw_path.write_text(archive_content, encoding="utf-8")
                 await wiki_compiler.compile_all()
                 logger.info("Wiki auto-archive completed: %s", raw_path.name)
@@ -109,13 +103,9 @@ class SkillAgentReviewMixin:
 
         task = asyncio.create_task(_archive())
         track_background_task(task)
-        logger.info(
-            "Wiki auto-archive scheduled (content=%d chars)", len(archive_content)
-        )
+        logger.info("Wiki auto-archive scheduled (content=%d chars)", len(archive_content))
 
-    def _should_trigger_skill_review(
-        self, query: str | list[dict[str, object]] | object
-    ) -> bool:
+    def _should_trigger_skill_review(self, query: str | list[dict[str, object]] | object) -> bool:
         """Determine if a background skill review should be triggered.
 
         Uses HeartbeatEvaluator for expression volume + task complexity assessment.
@@ -136,6 +126,7 @@ class SkillAgentReviewMixin:
 
         try:
             from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
+
             executor = get_executor()
             if executor and hasattr(executor, "metrics"):
                 metrics = executor.metrics
@@ -212,11 +203,7 @@ class SkillAgentReviewMixin:
         if agent_instance is not None:
             try:
                 state_snapshot = await agent_instance.aget_state(config)
-                if (
-                    state_snapshot
-                    and state_snapshot.values
-                    and "messages" in state_snapshot.values
-                ):
+                if state_snapshot and state_snapshot.values and "messages" in state_snapshot.values:
                     messages = list(state_snapshot.values["messages"])
                     fetched_state = True
             except Exception as e:
@@ -242,9 +229,7 @@ class SkillAgentReviewMixin:
             try:
                 cached: list[SkillMetadata] = await get_cached()
                 if cached:
-                    all_skills_catalog = "\n".join(
-                        f"- {s.name} — {s.description}" for s in cached
-                    )
+                    all_skills_catalog = "\n".join(f"- {s.name} — {s.description}" for s in cached)
             except Exception:
                 pass
 
@@ -307,9 +292,7 @@ class SkillAgentReviewMixin:
             try:
                 persisted = await memory_manager.end_session()
                 if persisted:
-                    logger.info(
-                        "Memory session flush: %d memories persisted", len(persisted)
-                    )
+                    logger.info("Memory session flush: %d memories persisted", len(persisted))
             except Exception as e:
                 logger.warning("Memory session flush failed: %s", e)
 
@@ -323,9 +306,7 @@ class SkillAgentReviewMixin:
 
                 privacy = get_privacy_policy()
                 llm: BaseChatModel = self.llm
-                extraction_llm: BaseChatModel | None = getattr(
-                    self, "_extraction_llm", None
-                )
+                extraction_llm: BaseChatModel | None = getattr(self, "_extraction_llm", None)
                 task = asyncio.create_task(
                     auto_extract_memories(
                         query,
@@ -342,17 +323,13 @@ class SkillAgentReviewMixin:
 
             recurrence_summary = self._build_recurrence_summary(query, assistant_chunks)
             if recurrence_summary:
-                recurrence_task = asyncio.create_task(
-                    memory_manager.check_session_recurrence(recurrence_summary)
-                )
+                recurrence_task = asyncio.create_task(memory_manager.check_session_recurrence(recurrence_summary))
                 track_background_task(recurrence_task)
 
         on_session_cleanup = getattr(self, "_on_session_cleanup", None)
         if on_session_cleanup is not None:
             if isinstance(query, str):
-                messages_for_hook: list[dict[str, object]] = [
-                    {"role": "user", "content": query}
-                ]
+                messages_for_hook: list[dict[str, object]] = [{"role": "user", "content": query}]
             elif isinstance(query, list):
                 messages_for_hook = [
                     {
@@ -363,9 +340,7 @@ class SkillAgentReviewMixin:
                 ]
             else:
                 messages_for_hook = []
-            messages_for_hook.append(
-                {"role": "assistant", "content": "".join(assistant_chunks)}
-            )
+            messages_for_hook.append({"role": "assistant", "content": "".join(assistant_chunks)})
 
             async def _run_session_cleanup() -> None:
                 try:
@@ -379,9 +354,7 @@ class SkillAgentReviewMixin:
         self._maybe_archive_to_wiki(query, assistant_chunks)
 
         if self._should_trigger_skill_review(query):
-            await self._trigger_background_skill_review(
-                query, chat_history, assistant_chunks, active_skills
-            )
+            await self._trigger_background_skill_review(query, chat_history, assistant_chunks, active_skills)
 
         # Reset active skill reference
         if hasattr(self, "_active_skill"):

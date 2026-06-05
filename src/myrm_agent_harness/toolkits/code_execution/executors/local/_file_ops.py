@@ -88,7 +88,7 @@ class LocalFileOpsMixin:
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_write",
-            payload={"path": safe, "size": len(content)}
+            payload={"path": safe, "size": len(content)},
         )
 
         p = Path(safe)
@@ -102,7 +102,7 @@ class LocalFileOpsMixin:
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_write",
-            payload={"path": safe, "size": len(content)}
+            payload={"path": safe, "size": len(content)},
         )
 
         p = Path(safe)
@@ -116,7 +116,7 @@ class LocalFileOpsMixin:
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_write",
-            payload={"path": safe, "size": len(content)}
+            payload={"path": safe, "size": len(content)},
         )
 
         await async_atomic_write(safe, content)
@@ -128,7 +128,7 @@ class LocalFileOpsMixin:
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_write",
-            payload={"path": safe, "size": len(content)}
+            payload={"path": safe, "size": len(content)},
         )
 
         await async_atomic_write(safe, content)
@@ -140,7 +140,7 @@ class LocalFileOpsMixin:
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_append",
-            payload={"path": safe, "size": len(content)}
+            payload={"path": safe, "size": len(content)},
         )
 
         with open(safe, "a", encoding="utf-8") as f:
@@ -153,7 +153,7 @@ class LocalFileOpsMixin:
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_delete",
-            payload={"path": safe}
+            payload={"path": safe},
         )
 
         Path(safe).unlink(missing_ok=True)

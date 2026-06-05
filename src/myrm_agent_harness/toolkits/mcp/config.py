@@ -228,7 +228,7 @@ _MCP_DELIM = "__"
 
 def is_mcp_tool_name(name: str) -> bool:
     """Return True if *name* follows the ``mcp__{server}__{tool}`` convention."""
-    return name.startswith(_MCP_PREFIX) and _MCP_DELIM in name[len(_MCP_PREFIX):]
+    return name.startswith(_MCP_PREFIX) and _MCP_DELIM in name[len(_MCP_PREFIX) :]
 
 
 def parse_mcp_tool_name(name: str) -> tuple[str, str] | None:
@@ -240,11 +240,11 @@ def parse_mcp_tool_name(name: str) -> tuple[str, str] | None:
     """
     if not name.startswith(_MCP_PREFIX):
         return None
-    rest = name[len(_MCP_PREFIX):]
+    rest = name[len(_MCP_PREFIX) :]
     idx = rest.find(_MCP_DELIM)
     if idx <= 0:
         return None
-    return rest[:idx], rest[idx + len(_MCP_DELIM):]
+    return rest[:idx], rest[idx + len(_MCP_DELIM) :]
 
 
 __all__ = [

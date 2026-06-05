@@ -149,7 +149,7 @@ class ABTestEngine:
 
             if not is_significant:
                 ab_test.status = ABTestStatus.NO_DIFFERENCE
-                ab_test.winner = "baseline" # 无显著差异，保守选择baseline
+                ab_test.winner = "baseline"  # 无显著差异，保守选择baseline
                 logger.info(f"A/B test no significant difference: {ab_test.skill_id}")
             elif candidate_score.overall_score > ab_test.baseline_score.overall_score:
                 ab_test.status = ABTestStatus.CANDIDATE_WIN

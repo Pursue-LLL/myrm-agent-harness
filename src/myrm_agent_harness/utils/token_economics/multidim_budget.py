@@ -189,7 +189,10 @@ class MultidimensionalBudgetGuard:
                 dim = self._identify_exceeded_dimension()
                 logger.warning(
                     "Budget EXCEEDED [%s]: session=$%.4f, daily=$%.4f, call=$%.4f",
-                    dim, self._session_cost, self._daily_cost, cost,
+                    dim,
+                    self._session_cost,
+                    self._daily_cost,
+                    cost,
                 )
                 if self._on_exceeded:
                     pending_callback = (self._on_exceeded, self._session_cost, self._get_active_limit(), dim)
@@ -199,7 +202,9 @@ class MultidimensionalBudgetGuard:
                 dim = self._identify_finalization_dimension()
                 logger.warning(
                     "Budget FINALIZATION [%s]: session=$%.4f, daily=$%.4f",
-                    dim, self._session_cost, self._daily_cost,
+                    dim,
+                    self._session_cost,
+                    self._daily_cost,
                 )
                 if self._on_finalization:
                     pending_callback = (self._on_finalization, self._session_cost, self._get_active_limit(), dim)
@@ -209,7 +214,9 @@ class MultidimensionalBudgetGuard:
                 dim = self._identify_warning_dimension()
                 logger.warning(
                     "Budget WARNING [%s]: session=$%.4f, daily=$%.4f",
-                    dim, self._session_cost, self._daily_cost,
+                    dim,
+                    self._session_cost,
+                    self._daily_cost,
                 )
                 if self._on_warning:
                     pending_callback = (self._on_warning, self._session_cost, self._get_active_limit(), dim)

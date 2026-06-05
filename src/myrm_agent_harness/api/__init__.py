@@ -65,9 +65,7 @@ if __debug__:
     _missing = _all_set - _lazy_set
     _extra = _lazy_set - _all_set
     if _missing or _extra:
-        raise RuntimeError(
-            f"api: __all__ and _EXPORTS mismatch: missing={_missing}, extra={_extra}"
-        )
+        raise RuntimeError(f"api: __all__ and _EXPORTS mismatch: missing={_missing}, extra={_extra}")
 
 
 def __getattr__(name: str) -> object:

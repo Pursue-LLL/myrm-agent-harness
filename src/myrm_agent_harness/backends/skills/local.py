@@ -98,22 +98,13 @@ class LocalSkillBackend(SkillBackend):
                 if snapshot_skills:
                     valid_snapshot_skills = []
                     for skill in snapshot_skills:
-                        skill_dir = (
-                            Path(skill.storage_path)
-                            if skill.storage_path
-                            else self.skills_dir / skill.name
-                        )
+                        skill_dir = Path(skill.storage_path) if skill.storage_path else self.skills_dir / skill.name
                         usage_stats = self._read_lifecycle_stats(skill_dir)
                         if usage_stats is not None:
                             object.__setattr__(skill, "usage_stats", usage_stats)
 
-                        if (
-                            skill.usage_stats.lifecycle_status
-                            == SkillLifecycleStatus.ARCHIVED
-                        ):
-                            logger.debug(
-                                f"Skipping archived skill '{skill.name}' from snapshot"
-                            )
+                        if skill.usage_stats.lifecycle_status == SkillLifecycleStatus.ARCHIVED:
+                            logger.debug(f"Skipping archived skill '{skill.name}' from snapshot")
                             continue
                         valid_snapshot_skills.append(skill)
 
@@ -179,9 +170,7 @@ class LocalSkillBackend(SkillBackend):
                 )
             except UnicodeDecodeError as e:
                 #  Encoding error - use warning
-                logger.warning(
-                    f" Cannot read '{skill_name}/SKILL.md': {e}\n   Ensure file is UTF-8 encoded."
-                )
+                logger.warning(f" Cannot read '{skill_name}/SKILL.md': {e}\n   Ensure file is UTF-8 encoded.")
             except Exception as e:
                 #  Unexpected error - use error
                 logger.error(
@@ -219,9 +208,7 @@ class LocalSkillBackend(SkillBackend):
         skill_md = self.skills_dir / skill_name / "SKILL.md"
 
         if not skill_md.exists():
-            raise FileNotFoundError(
-                f"SKILL.md not found for skill '{skill_name}'. Expected path: {skill_md}"
-            )
+            raise FileNotFoundError(f"SKILL.md not found for skill '{skill_name}'. Expected path: {skill_md}")
 
         return skill_md.read_text(encoding="utf-8")
 
@@ -241,9 +228,7 @@ class LocalSkillBackend(SkillBackend):
         file_path = self.skills_dir / skill_name / path
 
         if not file_path.exists() or not file_path.is_file():
-            raise FileNotFoundError(
-                f"Resource not found: {path} in skill '{skill_name}'"
-            )
+            raise FileNotFoundError(f"Resource not found: {path} in skill '{skill_name}'")
 
         return file_path.read_bytes()
 
@@ -252,11 +237,7 @@ class LocalSkillBackend(SkillBackend):
         skill_dir = self.skills_dir / skill_name
         if not skill_dir.exists():
             return []
-        return [
-            str(f.relative_to(skill_dir))
-            for f in skill_dir.rglob("*")
-            if f.is_file() and f.name != "SKILL.md"
-        ]
+        return [str(f.relative_to(skill_dir)) for f in skill_dir.rglob("*") if f.is_file() and f.name != "SKILL.md"]
 
     @staticmethod
     def _read_lifecycle_stats(skill_dir: Path) -> SkillUsageStats | None:
@@ -274,9 +255,7 @@ class LocalSkillBackend(SkillBackend):
             return None
 
 
-_WORKSPACE_SKIP_DIRS = frozenset(
-    {".git", ".venv", "node_modules", "__pycache__", ".cache", "dist", "build"}
-)
+_WORKSPACE_SKIP_DIRS = frozenset({".git", ".venv", "node_modules", "__pycache__", ".cache", "dist", "build"})
 
 
 def scan_workspace_skills(
@@ -314,22 +293,13 @@ def scan_workspace_skills(
             if snapshot_skills:
                 valid_snapshot_skills = []
                 for skill in snapshot_skills:
-                    skill_dir = (
-                        Path(skill.storage_path)
-                        if skill.storage_path
-                        else root / skill.name
-                    )
+                    skill_dir = Path(skill.storage_path) if skill.storage_path else root / skill.name
                     usage_stats = LocalSkillBackend._read_lifecycle_stats(skill_dir)
                     if usage_stats is not None:
                         object.__setattr__(skill, "usage_stats", usage_stats)
 
-                    if (
-                        skill.usage_stats.lifecycle_status
-                        == SkillLifecycleStatus.ARCHIVED
-                    ):
-                        logger.debug(
-                            f"Skipping archived workspace skill '{skill.name}' from snapshot"
-                        )
+                    if skill.usage_stats.lifecycle_status == SkillLifecycleStatus.ARCHIVED:
+                        logger.debug(f"Skipping archived workspace skill '{skill.name}' from snapshot")
                         continue
                     valid_snapshot_skills.append(skill)
 
@@ -346,11 +316,7 @@ def scan_workspace_skills(
             return
         try:
             for item in directory.iterdir():
-                if (
-                    not item.is_dir()
-                    or item.name.startswith(".")
-                    or item.name in _WORKSPACE_SKIP_DIRS
-                ):
+                if not item.is_dir() or item.name.startswith(".") or item.name in _WORKSPACE_SKIP_DIRS:
                     continue
                 skill_md = item / "SKILL.md"
                 if skill_md.exists():
@@ -389,6 +355,4 @@ def _try_load_skill(
     except (SkillMetadataError, UnicodeDecodeError):
         pass
     except Exception as e:
-        logger.warning(
-            "Unexpected error loading workspace skill '%s': %s", skill_dir.name, e
-        )
+        logger.warning("Unexpected error loading workspace skill '%s': %s", skill_dir.name, e)

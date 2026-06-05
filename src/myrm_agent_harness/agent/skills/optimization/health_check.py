@@ -79,7 +79,9 @@ class HealthCheckProtocol(Protocol):
         ...
 
 
-async def aggregate_health_checks(components: dict[str, HealthCheckProtocol], strict: bool = True) -> AggregatedHealthResult:
+async def aggregate_health_checks(
+    components: dict[str, HealthCheckProtocol], strict: bool = True
+) -> AggregatedHealthResult:
     """聚合多个组件的健康检查
 
     将多个组件的健康检查聚合为整体健康状态。

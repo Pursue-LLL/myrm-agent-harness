@@ -87,16 +87,12 @@ def create_delegate_task_tool(
         agent_type: str = Field(
             description="Type of subagent (must match an exact type_id from the <Available_Team_Roster> or context list)"
         )
-        objective: str = Field(
-            description="Clear description of the core objective for the subagent"
-        )
+        objective: str = Field(description="Clear description of the core objective for the subagent")
         context_files: list[str] = Field(
             default_factory=list,
             description="List of relevant file paths or resources for this task",
         )
-        context: dict[str, object] | None = Field(
-            default=None, description="Optional context data"
-        )
+        context: dict[str, object] | None = Field(default=None, description="Optional context data")
         wait: bool = Field(
             default=False,
             description="Wait for result (true) or return task_id (false)",
@@ -163,9 +159,7 @@ def create_delegate_task_tool(
 
         task = objective
         if context_files:
-            task += "\n\nRelevant files/resources:\n" + "\n".join(
-                f"- {f}" for f in context_files
-            )
+            task += "\n\nRelevant files/resources:\n" + "\n".join(f"- {f}" for f in context_files)
 
         if context:
             try:
@@ -178,9 +172,7 @@ def create_delegate_task_tool(
         parent_ctx = getattr(parent_agent, "_last_context", None) or {}
         requested_role = _normalize_role(role)
 
-        payload_hash = _compute_payload_hash(
-            agent_type, task, requested_role.value, context
-        )
+        payload_hash = _compute_payload_hash(agent_type, task, requested_role.value, context)
         history_hashes = list(parent_ctx.get("subagent_payload_hashes", []))
         if history_hashes.count(payload_hash) >= 1:
             logger.error(
@@ -198,9 +190,7 @@ def create_delegate_task_tool(
         parent_ctx["subagent_payload_hashes"] = history_hashes
 
         sid = str(parent_ctx.get("session_id", ""))
-        key = _cache_key(
-            agent_type, task, context, session_id=sid, role=requested_role.value
-        )
+        key = _cache_key(agent_type, task, context, session_id=sid, role=requested_role.value)
         cached = _get_cached(key)
         if cached is not None:
             return {
@@ -221,9 +211,7 @@ def create_delegate_task_tool(
 
         parent_manager = getattr(parent_agent, "_subagent_manager", None)
         current_depth = int(getattr(parent_manager, "current_depth", 0))
-        allowed_type_set = (
-            frozenset(allowed_types) if allowed_types is not None else None
-        )
+        allowed_type_set = frozenset(allowed_types) if allowed_types is not None else None
 
         if requested_role == DelegateRole.ORCHESTRATOR:
             if config.control_scope != ControlScope.ORCHESTRATOR:
@@ -234,9 +222,7 @@ def create_delegate_task_tool(
                     agent_type=agent_type,
                     task_id=task_id,
                     session_id=sid,
-                    details=(
-                        f"Agent type '{agent_type}' is not allowed to run as an orchestrator."
-                    ),
+                    details=(f"Agent type '{agent_type}' is not allowed to run as an orchestrator."),
                 )
             if config.max_spawn_depth <= current_depth:
                 return _policy_denied(
@@ -289,9 +275,7 @@ def create_delegate_task_tool(
         # Enforce memory isolation: block memory write tools for READ_ONLY_GLOBAL
         if config.memory_isolation == MemoryIsolationPolicy.READ_ONLY_GLOBAL:
             memory_write_tools = frozenset({"memory_save_tool", "memory_manage_tool"})
-            config = replace(
-                config, disallowed_tools=config.disallowed_tools | memory_write_tools
-            )
+            config = replace(config, disallowed_tools=config.disallowed_tools | memory_write_tools)
 
         cancel_token = get_cancel_token()
 
@@ -309,9 +293,7 @@ def create_delegate_task_tool(
             config=config,
             child_context=child_context,
             readonly=readonly,
-            parallel_write_batch=bool(
-                getattr(parent_agent, "_parallel_write_batch_active", False)
-            ),
+            parallel_write_batch=bool(getattr(parent_agent, "_parallel_write_batch_active", False)),
         )
 
         logger.info(
@@ -335,21 +317,12 @@ def create_delegate_task_tool(
 
             global_mem = get_memory_manager()
             if global_mem:
-                if (
-                    config.memory_isolation
-                    == MemoryIsolationPolicy.COLLABORATIVE_SESSION
-                ):
+                if config.memory_isolation == MemoryIsolationPolicy.COLLABORATIVE_SESSION:
                     if not hasattr(parent_agent, "_collaborative_memory"):
-                        parent_agent._collaborative_memory = EphemeralMemoryManager(
-                            global_mem
-                        )
-                    reset_token = _memory_manager_var.set(
-                        parent_agent._collaborative_memory
-                    )
+                        parent_agent._collaborative_memory = EphemeralMemoryManager(global_mem)
+                    reset_token = _memory_manager_var.set(parent_agent._collaborative_memory)
                 elif config.memory_isolation == MemoryIsolationPolicy.READ_ONLY_GLOBAL:
-                    reset_token = _memory_manager_var.set(
-                        ReadOnlyMemoryView(global_mem)
-                    )
+                    reset_token = _memory_manager_var.set(ReadOnlyMemoryView(global_mem))
                 else:
                     ephemeral_mem = EphemeralMemoryManager(global_mem)
                     reset_token = _memory_manager_var.set(ephemeral_mem)
@@ -362,7 +335,9 @@ def create_delegate_task_tool(
                 v_type = verifier_agent_type or agent_type
                 v_config = await catalog.resolve(v_type)
                 if not v_config:
-                    logger.warning("Verifier agent type '%s' not found, falling back to worker type '%s'", v_type, agent_type)
+                    logger.warning(
+                        "Verifier agent type '%s' not found, falling back to worker type '%s'", v_type, agent_type
+                    )
                     v_type = agent_type
                     v_config = config
 
@@ -415,9 +390,7 @@ def create_delegate_task_tool(
                         for req in action_requests:
                             if isinstance(req, dict):
                                 raw_args = req.get("args", {})
-                                args: dict[str, object] = (
-                                    dict(raw_args) if isinstance(raw_args, dict) else {}
-                                )
+                                args: dict[str, object] = dict(raw_args) if isinstance(raw_args, dict) else {}
                                 command_spans = req.get("command_spans")
                                 if command_spans:
                                     args["command_spans"] = command_spans
@@ -465,17 +438,11 @@ def create_delegate_task_tool(
             if isinstance(result, dict) and wait and result.get("success"):
                 _put_cache(key, result.get("result", {}))
 
-            final_result = (
-                result
-                if isinstance(result, dict)
-                else {"success": False, "error": str(result)}
-            )
+            final_result = result if isinstance(result, dict) else {"success": False, "error": str(result)}
             return _inject_capacity_signal(final_result, parent_agent)
 
         except TimeoutError:
-            logger.error(
-                "Subagent %s timed out after %ds", task_id, config.timeout_seconds
-            )
+            logger.error("Subagent %s timed out after %ds", task_id, config.timeout_seconds)
             return {
                 "success": False,
                 "error": f"Timeout after {config.timeout_seconds}s",

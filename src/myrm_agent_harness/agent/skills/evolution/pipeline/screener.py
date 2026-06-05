@@ -163,9 +163,7 @@ class EvolutionScreener:
             SCREENING_DURATION.labels(phase="locked").observe(time.time() - start_time)
             SCREENING_DURATION.labels(phase="total").observe(time.time() - start_time)
             SCREENING_CONFIDENCE.observe(1.0)
-            return ScreeningResult(
-                allowed=False, reason=reason, phase="locked", confidence=1.0
-            )
+            return ScreeningResult(allowed=False, reason=reason, phase="locked", confidence=1.0)
 
         # Phase 0.5: Intent-Aware Cooldown Override
         # If user explicitly requests to continue fixing via GUI flag, bypass cooldown
@@ -189,20 +187,12 @@ class EvolutionScreener:
                     reason = "Skill is locked from auto-evolution (user-protected in SKILL.md)"
                     await self._log_rejection_event(request.skill_id, "locked", reason)
                     SCREENING_TOTAL.labels(phase="locked", result="blocked").inc()
-                    SCREENING_DURATION.labels(phase="locked").observe(
-                        time.time() - start_time
-                    )
-                    SCREENING_DURATION.labels(phase="total").observe(
-                        time.time() - start_time
-                    )
+                    SCREENING_DURATION.labels(phase="locked").observe(time.time() - start_time)
+                    SCREENING_DURATION.labels(phase="total").observe(time.time() - start_time)
                     SCREENING_CONFIDENCE.observe(1.0)
-                    return ScreeningResult(
-                        allowed=False, reason=reason, phase="locked", confidence=1.0
-                    )
+                    return ScreeningResult(allowed=False, reason=reason, phase="locked", confidence=1.0)
             except Exception as e:
-                logger.debug(
-                    f"Failed to parse frontmatter during evolution screening: {e}"
-                )
+                logger.debug(f"Failed to parse frontmatter during evolution screening: {e}")
 
             # Phase 1: Cooldown check
             if not intent_override:
@@ -216,52 +206,34 @@ class EvolutionScreener:
                 time_since_evolution = (now - updated_at).total_seconds()
                 if time_since_evolution < self._cooldown_seconds:
                     reason = f"Skill recently evolved ({time_since_evolution:.0f}s < {self._cooldown_seconds}s)"
-                    await self._log_rejection_event(
-                        request.skill_id, "cooldown", reason
-                    )
+                    await self._log_rejection_event(request.skill_id, "cooldown", reason)
                     # Metrics
                     SCREENING_TOTAL.labels(phase="cooldown", result="blocked").inc()
-                    SCREENING_DURATION.labels(phase="cooldown").observe(
-                        time.time() - start_time
-                    )
-                    SCREENING_DURATION.labels(phase="total").observe(
-                        time.time() - start_time
-                    )
+                    SCREENING_DURATION.labels(phase="cooldown").observe(time.time() - start_time)
+                    SCREENING_DURATION.labels(phase="total").observe(time.time() - start_time)
                     SCREENING_CONFIDENCE.observe(1.0)
-                    return ScreeningResult(
-                        allowed=False, reason=reason, phase="cooldown", confidence=1.0
-                    )
+                    return ScreeningResult(allowed=False, reason=reason, phase="cooldown", confidence=1.0)
 
                 # Check if recently rejected
-                rejections = self._store.load_rejections(
-                    skill_id=request.skill_id, limit=1
-                )
+                rejections = self._store.load_rejections(skill_id=request.skill_id, limit=1)
                 if rejections:
                     last_rejection = rejections[0]
                     try:
-                        rejected_at = datetime.fromisoformat(
-                            last_rejection["rejected_at"]
-                        )
+                        rejected_at = datetime.fromisoformat(last_rejection["rejected_at"])
                         if rejected_at.tzinfo:
                             now_rej = datetime.now(rejected_at.tzinfo)
                         else:
                             now_rej = datetime.now()
                         time_since_rejection = (now_rej - rejected_at).total_seconds()
                         if time_since_rejection < self._cooldown_seconds:
-                            reason = f"Skill recently rejected ({time_since_rejection:.0f}s < {self._cooldown_seconds}s)"
-                            await self._log_rejection_event(
-                                request.skill_id, "cooldown", reason
+                            reason = (
+                                f"Skill recently rejected ({time_since_rejection:.0f}s < {self._cooldown_seconds}s)"
                             )
+                            await self._log_rejection_event(request.skill_id, "cooldown", reason)
                             # Metrics
-                            SCREENING_TOTAL.labels(
-                                phase="cooldown", result="blocked"
-                            ).inc()
-                            SCREENING_DURATION.labels(phase="cooldown").observe(
-                                time.time() - start_time
-                            )
-                            SCREENING_DURATION.labels(phase="total").observe(
-                                time.time() - start_time
-                            )
+                            SCREENING_TOTAL.labels(phase="cooldown", result="blocked").inc()
+                            SCREENING_DURATION.labels(phase="cooldown").observe(time.time() - start_time)
+                            SCREENING_DURATION.labels(phase="total").observe(time.time() - start_time)
                             SCREENING_CONFIDENCE.observe(1.0)
                             return ScreeningResult(
                                 allowed=False,
@@ -294,15 +266,9 @@ class EvolutionScreener:
                     skill.name,
                     reason,
                 )
-                SCREENING_TOTAL.labels(
-                    phase="static_interception", result="allowed"
-                ).inc()
-                SCREENING_DURATION.labels(phase="static_interception").observe(
-                    time.time() - start_time
-                )
-                SCREENING_DURATION.labels(phase="total").observe(
-                    time.time() - start_time
-                )
+                SCREENING_TOTAL.labels(phase="static_interception", result="allowed").inc()
+                SCREENING_DURATION.labels(phase="static_interception").observe(time.time() - start_time)
+                SCREENING_DURATION.labels(phase="total").observe(time.time() - start_time)
                 SCREENING_CONFIDENCE.observe(1.0)
                 return ScreeningResult(
                     allowed=True,
@@ -339,15 +305,9 @@ class EvolutionScreener:
                         reason[:100],
                     )
                     # Metrics
-                    SCREENING_TOTAL.labels(
-                        phase="llm_confirmation", result="allowed"
-                    ).inc()
-                    SCREENING_DURATION.labels(phase="llm_confirmation").observe(
-                        time.time() - start_time
-                    )
-                    SCREENING_DURATION.labels(phase="total").observe(
-                        time.time() - start_time
-                    )
+                    SCREENING_TOTAL.labels(phase="llm_confirmation", result="allowed").inc()
+                    SCREENING_DURATION.labels(phase="llm_confirmation").observe(time.time() - start_time)
+                    SCREENING_DURATION.labels(phase="total").observe(time.time() - start_time)
                     SCREENING_CONFIDENCE.observe(confidence)
                     return ScreeningResult(
                         allowed=True,
@@ -363,19 +323,11 @@ class EvolutionScreener:
                         confidence,
                         reason[:100],
                     )
-                    await self._log_rejection_event(
-                        skill.skill_id, "llm_confirmation", reason, confidence
-                    )
+                    await self._log_rejection_event(skill.skill_id, "llm_confirmation", reason, confidence)
                     # Metrics
-                    SCREENING_TOTAL.labels(
-                        phase="llm_confirmation", result="blocked"
-                    ).inc()
-                    SCREENING_DURATION.labels(phase="llm_confirmation").observe(
-                        time.time() - start_time
-                    )
-                    SCREENING_DURATION.labels(phase="total").observe(
-                        time.time() - start_time
-                    )
+                    SCREENING_TOTAL.labels(phase="llm_confirmation", result="blocked").inc()
+                    SCREENING_DURATION.labels(phase="llm_confirmation").observe(time.time() - start_time)
+                    SCREENING_DURATION.labels(phase="total").observe(time.time() - start_time)
                     SCREENING_CONFIDENCE.observe(confidence)
                     return ScreeningResult(
                         allowed=False,
@@ -385,18 +337,12 @@ class EvolutionScreener:
                     )
 
             except Exception as e:
-                logger.error(
-                    "LLM confirmation failed for skill '%s': %s", skill.name, e
-                )
+                logger.error("LLM confirmation failed for skill '%s': %s", skill.name, e)
                 # Fail-safe: allow evolution on LLM errors (don't block valid fixes)
                 # Metrics
                 SCREENING_TOTAL.labels(phase="llm_confirmation", result="allowed").inc()
-                SCREENING_DURATION.labels(phase="llm_confirmation").observe(
-                    time.time() - start_time
-                )
-                SCREENING_DURATION.labels(phase="total").observe(
-                    time.time() - start_time
-                )
+                SCREENING_DURATION.labels(phase="llm_confirmation").observe(time.time() - start_time)
+                SCREENING_DURATION.labels(phase="total").observe(time.time() - start_time)
                 SCREENING_CONFIDENCE.observe(0.0)
                 return ScreeningResult(
                     allowed=True,
@@ -415,9 +361,7 @@ class EvolutionScreener:
             confidence=1.0,
         )
 
-    async def _log_rejection_event(
-        self, skill_id: str, phase: str, reason: str, confidence: float = 1.0
-    ) -> None:
+    async def _log_rejection_event(self, skill_id: str, phase: str, reason: str, confidence: float = 1.0) -> None:
         """Log rejection event to EventLogger if configured.
 
         Args:
@@ -481,9 +425,7 @@ class EvolutionScreener:
             "quota",
             "unavailable",
         ]
-        found_keywords = [
-            kw for kw in error_keywords if kw.lower() in error_log.lower()
-        ]
+        found_keywords = [kw for kw in error_keywords if kw.lower() in error_log.lower()]
         if found_keywords:
             signals["error_keywords"] = ", ".join(found_keywords[:3])
 
@@ -558,9 +500,7 @@ class EvolutionScreener:
         # Default: allow if unclear
         return True, content.strip(), 0.5
 
-    def _build_confirmation_prompt(
-        self, skill_content: str, error_log: str, error_signals: dict[str, str]
-    ) -> str:
+    def _build_confirmation_prompt(self, skill_content: str, error_log: str, error_signals: dict[str, str]) -> str:
         """Build optimized prompt for LLM confirmation.
 
         Key optimizations:
@@ -587,9 +527,7 @@ class EvolutionScreener:
             if "error_keywords" in error_signals:
                 signals_parts.append(f"Keywords: {error_signals['error_keywords']}")
             if signals_parts:
-                signals_text = "\n\nError Signals:\n" + "\n".join(
-                    f"- {p}" for p in signals_parts
-                )
+                signals_text = "\n\nError Signals:\n" + "\n".join(f"- {p}" for p in signals_parts)
 
         return f"""Analyze if the skill code has a real defect that requires modification.
 

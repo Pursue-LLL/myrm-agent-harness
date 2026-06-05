@@ -189,9 +189,7 @@ async def compress_messages_async(
     ]
 
     if len(compressible_groups) <= cfg.keep_recent_calls:
-        logger.warning(
-            f"[压缩] 可压缩工具调用数 ({len(compressible_groups)}) <= 保留数 ({cfg.keep_recent_calls}),跳过"
-        )
+        logger.warning(f"[压缩] 可压缩工具调用数 ({len(compressible_groups)}) <= 保留数 ({cfg.keep_recent_calls}),跳过")
         return messages, 0
 
     # 计算需要压缩的数量(保留最近 N 个)
@@ -251,7 +249,9 @@ async def compress_messages_async(
             original_content = tool_msg.content if isinstance(tool_msg.content, str) else json.dumps(tool_msg.content)
             original_tokens = get_token_count(original_content)
             if original_tokens >= 500 and ai_msg:
-                evicted_pairs.append(EvictedToolCall(ai_msg=ai_msg, tool_msg=tool_msg, original_content=original_content))
+                evicted_pairs.append(
+                    EvictedToolCall(ai_msg=ai_msg, tool_msg=tool_msg, original_content=original_content)
+                )
 
         saved = await compress_tool_message_async(
             tool_msg,

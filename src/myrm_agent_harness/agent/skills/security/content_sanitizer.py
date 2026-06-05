@@ -24,11 +24,13 @@ SECRET_PATTERNS = [
     re.compile(r"(?<=[\s\"'])/home/[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_.-]+)+"),
 ]
 
+
 class Redaction(TypedDict):
     line_number: int
     original: str
     redacted: str
     reason: str
+
 
 @dataclass
 class SanitizationResult:
@@ -36,10 +38,13 @@ class SanitizationResult:
     redactions: list[Redaction]
     sanitized_content: str
 
+
 class ContentSanitizer:
     """内容脱敏器"""
 
-    def _sanitize_text(self, content: str, filename: str, ignored_indices: list[int] | None = None) -> SanitizationResult:
+    def _sanitize_text(
+        self, content: str, filename: str, ignored_indices: list[int] | None = None
+    ) -> SanitizationResult:
         """基于正则的通用文本脱敏"""
         redactions: list[Redaction] = []
         sanitized_lines = []
@@ -73,12 +78,9 @@ class ContentSanitizer:
                             start_idx = match.start()
                             end_idx = match.end()
 
-                    line_matches.append({
-                        "replacement": replacement,
-                        "reason": reason,
-                        "start": start_idx,
-                        "end": end_idx
-                    })
+                    line_matches.append(
+                        {"replacement": replacement, "reason": reason, "start": start_idx, "end": end_idx}
+                    )
 
             if line_matches:
                 # 当前行存在敏感信息，分配一个 redaction_index
@@ -97,26 +99,30 @@ class ContentSanitizer:
                         if match_info["reason"] not in reasons:
                             reasons.append(match_info["reason"])
 
-                    redactions.append(Redaction(
-                        line_number=i + 1,
-                        original=original_line,
-                        redacted=modified_line,
-                        reason=" / ".join(reasons)
-                    ))
+                    redactions.append(
+                        Redaction(
+                            line_number=i + 1,
+                            original=original_line,
+                            redacted=modified_line,
+                            reason=" / ".join(reasons),
+                        )
+                    )
 
             sanitized_lines.append(modified_line)
 
         return SanitizationResult(
-            is_safe=len(redactions) == 0,
-            redactions=redactions,
-            sanitized_content="\n".join(sanitized_lines)
+            is_safe=len(redactions) == 0, redactions=redactions, sanitized_content="\n".join(sanitized_lines)
         )
 
-    def _sanitize_python_ast(self, content: str, filename: str, ignored_indices: list[int] | None = None) -> SanitizationResult:
+    def _sanitize_python_ast(
+        self, content: str, filename: str, ignored_indices: list[int] | None = None
+    ) -> SanitizationResult:
         """基于 AST 的 Python 代码脱敏 (更精确)"""
         return self._sanitize_text(content, filename, ignored_indices)
 
-    def sanitize(self, content: str | bytes, filename: str, ignored_indices: list[int] | None = None) -> SanitizationResult:
+    def sanitize(
+        self, content: str | bytes, filename: str, ignored_indices: list[int] | None = None
+    ) -> SanitizationResult:
         """扫描并脱敏文件内容"""
         if isinstance(content, bytes):
             try:
@@ -128,9 +134,16 @@ class ContentSanitizer:
 
         if filename.endswith(".py"):
             return self._sanitize_python_ast(text_content, filename, ignored_indices)
-        elif filename.endswith(".md") or filename.endswith(".txt") or filename.endswith(".json") or filename.endswith(".yaml") or filename.endswith(".yml"):
+        elif (
+            filename.endswith(".md")
+            or filename.endswith(".txt")
+            or filename.endswith(".json")
+            or filename.endswith(".yaml")
+            or filename.endswith(".yml")
+        ):
             return self._sanitize_text(text_content, filename, ignored_indices)
 
         return self._sanitize_text(text_content, filename, ignored_indices)
+
 
 content_sanitizer = ContentSanitizer()

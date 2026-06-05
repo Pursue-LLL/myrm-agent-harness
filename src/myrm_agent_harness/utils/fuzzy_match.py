@@ -446,10 +446,7 @@ def find_closest_lines(
         if (start, end) in seen:
             continue
         seen.add((start, end))
-        parts.append("\n".join(
-            f"{start + j + 1:4d}| {content_lines[start + j]}"
-            for j in range(end - start)
-        ))
+        parts.append("\n".join(f"{start + j + 1:4d}| {content_lines[start + j]}" for j in range(end - start)))
     return ("\n\nDid you mean one of these sections?\n" + "\n---\n".join(parts)) if parts else ""
 
 

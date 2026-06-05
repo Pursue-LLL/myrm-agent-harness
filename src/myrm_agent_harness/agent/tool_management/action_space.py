@@ -100,11 +100,11 @@ class ActionSpaceProfiler:
         if hasattr(tool, "args_schema") and tool.args_schema:
             if hasattr(tool.args_schema, "model_json_schema"):
                 return tool.args_schema.model_json_schema()
-            return tool.args_schema.schema() # type: ignore
+            return tool.args_schema.schema()  # type: ignore
         # 兼容 StructuredTool
         if hasattr(tool, "get_input_schema"):
             schema_model = tool.get_input_schema()
             if hasattr(schema_model, "model_json_schema"):
                 return schema_model.model_json_schema()
-            return schema_model.schema() # type: ignore
+            return schema_model.schema()  # type: ignore
         return None

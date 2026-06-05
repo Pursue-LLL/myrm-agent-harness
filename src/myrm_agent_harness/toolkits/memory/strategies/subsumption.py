@@ -56,7 +56,9 @@ async def judge_subsumption(
         from pydantic import BaseModel, Field
 
         class SubsumptionResult(BaseModel):
-            subsumed: bool = Field(..., description="True if the old memory is completely subsumed by the new knowledge.")
+            subsumed: bool = Field(
+                ..., description="True if the old memory is completely subsumed by the new knowledge."
+            )
             reason: str = Field(..., description="Detailed reasoning for the decision.")
 
         structured_llm = llm.with_structured_output(SubsumptionResult)

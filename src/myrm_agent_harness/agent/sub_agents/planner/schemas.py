@@ -83,6 +83,7 @@ class DecisionRecord(BaseModel):
 
     Tracks key decisions made during the plan execution.
     """
+
     id: str | None = Field(default=None, description="Unique identifier for the decision (e.g., 'DEC-001')")
     topic: str | None = Field(default=None, description="The topic or component this decision applies to")
     decision: str = Field(description="The actual decision made")
@@ -90,9 +91,8 @@ class DecisionRecord(BaseModel):
     status: Literal["active", "superseded", "deprecated"] = Field(
         default="active", description="Status of the decision"
     )
-    timestamp: str = Field(
-        default_factory=lambda: datetime.now().isoformat(), description="When the decision was made"
-    )
+    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat(), description="When the decision was made")
+
 
 class Plan(BaseModel):
     """Structured plan (Scratchpad pattern)
@@ -111,7 +111,9 @@ class Plan(BaseModel):
     notes: str | None = Field(default=None, description="Additional notes from planner, e.g., risk warnings")
     # Scratchpad extension fields
     key_findings: list[str] = Field(default_factory=list, description="Key findings discovered during execution")
-    decisions: list[DecisionRecord] = Field(default_factory=list, description="Architectural decisions made during execution")
+    decisions: list[DecisionRecord] = Field(
+        default_factory=list, description="Architectural decisions made during execution"
+    )
     pending_issues: list[str] = Field(default_factory=list, description="Pending issues to be resolved later")
 
     # Error tracking (Manus 3.0 core feature)

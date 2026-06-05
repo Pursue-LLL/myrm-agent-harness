@@ -130,7 +130,9 @@ Example:
             min_length=1,
             max_length=5,
         )
-        reason: str = Field(default="", description="Search rationale, express key information in minimal tokens, max 100 chars")
+        reason: str = Field(
+            default="", description="Search rationale, express key information in minimal tokens, max 100 chars"
+        )
 
         @field_validator("questions", mode="before")
         @classmethod
