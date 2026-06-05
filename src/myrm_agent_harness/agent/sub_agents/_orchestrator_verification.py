@@ -216,22 +216,25 @@ async def run_with_verification(
 
         verifier_task_id = f"verify-check-{round_num}-{verifier_type}"
 
+        base_desc = (
+            "You are an Adversarial Sandbox Verifier.\n"
+            "Verify the following work output by strictly applying your verification protocol.\n\n"
+            "CRITICAL RULES:\n"
+            "1. Do NOT just read the code and guess if it works. You MUST write and execute test scripts "
+            "(via run_bash or python_execute) or run curl/ping to physically verify the output.\n"
+            "2. You MUST include the actual execution logs (STDOUT/STDERR) from your tests in your final response.\n"
+            "3. A 'PASS' verdict without execution evidence will be REJECTED by the system. "
+            "The system tracks your execution at the OS level, so you cannot fake it by just writing 'STDOUT'.\n\n"
+        )
         if verifier_task_template:
-            verifier_task_desc = verifier_task_template.replace(
-                "{worker_result}", worker_result.result
-            )
+            if "{worker_result}" in verifier_task_template:
+                verifier_task_desc = base_desc + verifier_task_template.replace(
+                    "{worker_result}", worker_result.result
+                )
+            else:
+                verifier_task_desc = base_desc + f"SPECIFIC VERIFICATION CRITERIA:\n{verifier_task_template}\n\n## Worker Output\n\n{worker_result.result}"
         else:
-            verifier_task_desc = (
-                f"You are an Adversarial Sandbox Verifier.\n"
-                f"Verify the following work output by strictly applying your verification protocol.\n\n"
-                f"CRITICAL RULES:\n"
-                f"1. Do NOT just read the code and guess if it works. You MUST write and execute test scripts "
-                f"(via run_bash or python_execute) or run curl/ping to physically verify the output.\n"
-                f"2. You MUST include the actual execution logs (STDOUT/STDERR) from your tests in your final response.\n"
-                f"3. A 'PASS' verdict without execution evidence will be REJECTED by the system. "
-                f"The system tracks your execution at the OS level, so you cannot fake it by just writing 'STDOUT'.\n\n"
-                f"## Worker Output\n\n{worker_result.result}"
-            )
+            verifier_task_desc = base_desc + f"## Worker Output\n\n{worker_result.result}"
 
         round_verifier_config = dataclasses.replace(
             verifier_config,

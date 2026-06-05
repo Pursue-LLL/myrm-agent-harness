@@ -155,6 +155,12 @@ def create_delegate_task_tool(
                 "error": f"Agent type '{agent_type}' not allowed.",
             }
 
+        if verifier_prompt and not wait:
+            return {
+                "success": False,
+                "error": "Adversarial verification requires wait=True. Please set wait=True or remove verifier_prompt.",
+            }
+
         task = objective
         if context_files:
             task += "\n\nRelevant files/resources:\n" + "\n".join(
