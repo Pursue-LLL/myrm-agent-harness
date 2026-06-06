@@ -1,4 +1,15 @@
-"""PyPI index probes shared by publish verify and maintainer sync-lock checks."""
+"""PyPI index probes for publish verify and maintainer sync-lock checks.
+
+[INPUT]
+- PyPI JSON API (https://pypi.org/pypi/{package}/{version}/json)
+
+[OUTPUT]
+- pypi_package_exists(): whether a package version is indexed
+- release_has_compiled_core_extra(): whether release wheel exposes compiled-core extra
+
+[POS]
+Shared PyPI index probe helpers for harness distribution gates.
+"""
 
 from __future__ import annotations
 

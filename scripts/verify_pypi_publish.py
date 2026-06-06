@@ -3,6 +3,8 @@
 
 [INPUT]
 - harness_packaging.platforms::PUBLISH_PLATFORMS (POS: active PyPI publish platform set)
+- harness_packaging.pypi_index::pypi_package_exists (POS: PyPI index probe helpers)
+- harness_packaging.pypi_index::release_has_compiled_core_extra (POS: PyPI index probe helpers)
 - harness_packaging.version::read_harness_version (POS: harness version reader)
 
 [OUTPUT]

@@ -22,8 +22,8 @@ def test_expected_packages_count() -> None:
 
 def test_missing_packages_reports_all_absent() -> None:
     with (
-        patch("scripts.verify_pypi_publish._pypi_exists", return_value=False),
-        patch("scripts.verify_pypi_publish._release_has_compiled_core_extra", return_value=False),
+        patch("scripts.verify_pypi_publish.pypi_package_exists", return_value=False),
+        patch("scripts.verify_pypi_publish.release_has_compiled_core_extra", return_value=False),
     ):
         missing = missing_packages("0.1.0rc2")
     assert len(missing) == 8
@@ -32,8 +32,8 @@ def test_missing_packages_reports_all_absent() -> None:
 
 def test_release_extra_missing_is_reported() -> None:
     with (
-        patch("scripts.verify_pypi_publish._pypi_exists", return_value=True),
-        patch("scripts.verify_pypi_publish._release_has_compiled_core_extra", return_value=False),
+        patch("scripts.verify_pypi_publish.pypi_package_exists", return_value=True),
+        patch("scripts.verify_pypi_publish.release_has_compiled_core_extra", return_value=False),
     ):
         missing = missing_packages("0.1.0rc2")
     assert missing == ["myrm-agent-harness==0.1.0rc2 missing [compiled-core] extra metadata"]
