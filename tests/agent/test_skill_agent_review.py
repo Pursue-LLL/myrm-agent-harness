@@ -180,6 +180,8 @@ class TestTriggerBackgroundSkillReview:
         mock_rubric = MagicMock()
         mock_rubric.total_score = 0.9
         mock_rubric.anti_fragmentation_score = 0.9
+        mock_rubric.sandbox_compatibility_score = 0.9
+        mock_rubric.anti_pattern_score = 0.9
         mock_rubric.result_type = "semantic_memory"
         mock_rubric.skill_name = None
         mock_rubric.skill_description = None
