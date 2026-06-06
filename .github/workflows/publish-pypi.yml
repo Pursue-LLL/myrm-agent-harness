@@ -112,7 +112,6 @@ jobs:
     timeout-minutes: 30
     environment: pypi
     permissions:
-      id-token: write
       contents: read
     steps:
       - uses: actions/checkout@v4
@@ -156,23 +155,22 @@ jobs:
           echo "release wheels: $(ls -1 pypi-upload-release | wc -l | tr -d ' ')"
           echo "core wheels: $(ls -1 pypi-upload-core | wc -l | tr -d ' ')"
 
-      - name: Publish release wheel (Trusted Publisher / OIDC)
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: pypi-upload-release
-          skip-existing: true
-
-      - name: Publish core wheels (API token)
+      - name: Publish wheels (API token)
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
           if [ -z "${TWINE_PASSWORD}" ]; then
-            echo "::error::Set repository secret PYPI_API_TOKEN for core wheel uploads." >&2
-            echo "::error::OIDC cannot upload to myrm-agent-harness-core-* projects." >&2
+            echo "::error::Set repository secret PYPI_API_TOKEN for harness PyPI uploads." >&2
             exit 1
           fi
-          uv tool run twine upload --non-interactive --skip-existing pypi-upload-core/*.whl
+          shopt -s nullglob
+          wheels=(pypi-upload-release/*.whl pypi-upload-core/*.whl)
+          if [ "${#wheels[@]}" -eq 0 ]; then
+            echo "::error::No wheels staged for upload." >&2
+            exit 1
+          fi
+          uv tool run twine upload --non-interactive --skip-existing "${wheels[@]}"
 
       - name: Verify all packages indexed on PyPI
         run: uv run python scripts/verify_pypi_publish.py
