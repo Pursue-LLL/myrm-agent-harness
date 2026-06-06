@@ -282,6 +282,7 @@ include = [
   "*/myrm_agent_harness/toolkits/wiki/*",
   "*/myrm_agent_harness/toolkits/network/*",
   "*/myrm_agent_harness/toolkits/mcp/*",
+  "*/myrm_agent_harness/toolkits/code_execution/ptc/*",
   "*/myrm_agent_harness/toolkits/code_execution/security/*",
   "*/myrm_agent_harness/toolkits/code_execution/env_probe.py",
   "*/myrm_agent_harness/toolkits/code_execution/platform.py",
