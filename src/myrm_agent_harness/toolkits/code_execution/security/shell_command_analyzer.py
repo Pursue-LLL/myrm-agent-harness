@@ -191,9 +191,9 @@ _DANGEROUS_COMMANDS: tuple[tuple[str, str], ...] = (
     # --- bash built-in networking (bypasses firewall / tool allowlists) ---
     (r"/dev/tcp/", "Bash built-in networking (bypass)"),
     # --- configuration protection ---
-    (r"(?:>|sed\s|awk\s|rm\s|cp\s|mv\s).*?\b(eslint\.config\.[a-z]+|\.eslintrc(\.[a-z]+)?|\.prettierrc(\.[a-z]+)?|prettier\.config\.[a-z]+|biome\.jsonc?|\.?ruff\.toml|tsconfig(\..+)?\.json|\.stylelintrc(\.[a-z]+)?|\.markdownlint(rc|\.[a-z]+)|\.shellcheckrc|jest\.config\.[a-z]+|commitlint\.config\.[a-z]+|\.cursorrules|rule\.mdc)\b", "Modifying configuration file via shell"),
+    (r"(?:>|sed\s|awk\s|rm\s|cp\s|mv\s).*?(?:\s|^|/)(eslint\.config\.[a-z]+|\.eslintrc(\.[a-z]+)?|\.prettierrc(\.[a-z]+)?|prettier\.config\.[a-z]+|biome\.jsonc?|\.?ruff\.toml|tsconfig(\..+)?\.json|\.stylelintrc(\.[a-z]+)?|\.markdownlint(rc|\.[a-z]+)|\.shellcheckrc|jest\.config\.[a-z]+|commitlint\.config\.[a-z]+|\.cursorrules|rule\.mdc)(?:\s|$)", "Modifying configuration file via shell"),
     # --- lockfile protection (allows rm/mv for resetting, blocks sed/awk/echo for text manipulation) ---
-    (r"(?:>|sed\s|awk\s|echo\s).*?\b(package-lock\.json|uv\.lock|poetry\.lock|pnpm-lock\.yaml|bun\.lockb|yarn\.lock|go\.sum|Cargo\.lock|Gemfile\.lock|composer\.lock)\b", "Modifying lockfile via shell"),
+    (r"(?:>|sed\s|awk\s|echo\s).*?(?:\s|^|/)(package-lock\.json|uv\.lock|poetry\.lock|pnpm-lock\.yaml|bun\.lockb|yarn\.lock|go\.sum|Cargo\.lock|Gemfile\.lock|composer\.lock)(?:\s|$)", "Modifying lockfile via shell"),
 )
 
 _DANGEROUS_COMMANDS_COMPILED: tuple[tuple[re.Pattern[str], str], ...] = tuple(

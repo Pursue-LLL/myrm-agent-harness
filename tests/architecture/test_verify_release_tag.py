@@ -8,7 +8,7 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.verify_release_tag import main  # noqa: E402
+from scripts.verify_release_tag import main
 
 
 def test_tag_gate_skips_non_tag_ref(monkeypatch) -> None:
