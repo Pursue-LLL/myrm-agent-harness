@@ -18,7 +18,7 @@ def _touch(dir_path: Path, name: str) -> Path:
 
 
 def test_validate_upload_dir_accepts_seven_wheels(tmp_path: Path) -> None:
-    version = "0.1.0rc1"
+    version = "0.1.0rc2"
     _touch(tmp_path, f"myrm_agent_harness-{version}-py3-none-any.whl")
     for platform_key in (
         "darwin-arm64",
@@ -34,7 +34,7 @@ def test_validate_upload_dir_accepts_seven_wheels(tmp_path: Path) -> None:
 
 
 def test_validate_upload_dir_rejects_missing_core(tmp_path: Path) -> None:
-    version = "0.1.0rc1"
+    version = "0.1.0rc2"
     _touch(tmp_path, f"myrm_agent_harness-{version}-py3-none-any.whl")
     _touch(tmp_path, f"myrm_agent_harness_core_linux_x64-{version}-cp313-cp313-linux_x86_64.whl")
     try:

@@ -6,7 +6,7 @@
 - harness_packaging.version::read_harness_version (POS: harness version reader)
 
 [OUTPUT]
-- main(): exit 0 when myrm-agent-harness + publish-platform core packages are indexed
+- main(): exit 0 when release + core packages are indexed and release exposes compiled-core extra
 
 [POS]
 Post-upload gate in publish-pypi.yml; prevents partial publishes from going green.
@@ -15,6 +15,8 @@ Post-upload gate in publish-pypi.yml; prevents partial publishes from going gree
 from __future__ import annotations
 
 import argparse
+import json
+import re
 import sys
 import time
 import urllib.error
@@ -45,11 +47,33 @@ def _expected_packages() -> tuple[str, ...]:
     return ("myrm-agent-harness", *core_packages)
 
 
+def _release_has_compiled_core_extra(version: str) -> bool:
+    url = f"https://pypi.org/pypi/myrm-agent-harness/{version}/json"
+    request = urllib.request.Request(url, headers={"User-Agent": "myrm-verify-pypi-publish"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return False
+        raise
+    info = payload.get("info")
+    if not isinstance(info, dict):
+        return False
+    requires_dist = info.get("requires_dist")
+    if not isinstance(requires_dist, list):
+        return False
+    pattern = re.compile(r"extra == ['\"]compiled-core['\"]")
+    return any(isinstance(req, str) and pattern.search(req) for req in requires_dist)
+
+
 def missing_packages(version: str) -> list[str]:
     missing: list[str] = []
     for package in _expected_packages():
         if not _pypi_exists(package, version):
             missing.append(f"{package}=={version}")
+    if not _release_has_compiled_core_extra(version):
+        missing.append(f"myrm-agent-harness=={version} missing [compiled-core] extra metadata")
     return missing
 
 
