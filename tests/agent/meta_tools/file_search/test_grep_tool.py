@@ -2,7 +2,6 @@
 
 Covers:
 - Factory creation and tool metadata
-- Cache key generation and cache behavior
 - ripgrep detection
 - ripgrep search engine (tier 1)
 - mmap search engine (tier 2)
@@ -25,10 +24,8 @@ from myrm_agent_harness.agent.config import FileIOConfig
 from myrm_agent_harness.agent.meta_tools.file_search.grep_tool import (
     GrepInput,
     _has_ripgrep,
-    _make_cache_key,
     _mmap_search_file,
     _ripgrep_search,
-    _search_cache,
     create_grep_tool,
 )
 from myrm_agent_harness.utils.errors import ToolError
@@ -64,14 +61,6 @@ def mock_executor(workspace: Path) -> MagicMock:
     return executor
 
 
-@pytest.fixture(autouse=True)
-def _clear_grep_cache():
-    """Clear grep cache before each test."""
-    _search_cache.clear()
-    yield
-    _search_cache.clear()
-
-
 @pytest.fixture
 def runnable_config() -> RunnableConfig:
     return RunnableConfig(configurable={})
@@ -95,33 +84,6 @@ class TestGrepInput:
         assert inp.path == "src"
         assert inp.file_pattern == "**/*.py"
         assert inp.ignore_case is True
-
-
-# ---------------------------------------------------------------------------
-# Tests: Cache key generation
-# ---------------------------------------------------------------------------
-
-
-class TestCacheKey:
-    def test_deterministic(self) -> None:
-        k1 = _make_cache_key("pat", ".", "**/*", False)
-        k2 = _make_cache_key("pat", ".", "**/*", False)
-        assert k1 == k2
-
-    def test_differs_on_pattern(self) -> None:
-        k1 = _make_cache_key("a", ".", "**/*", False)
-        k2 = _make_cache_key("b", ".", "**/*", False)
-        assert k1 != k2
-
-    def test_differs_on_ignore_case(self) -> None:
-        k1 = _make_cache_key("a", ".", "**/*", False)
-        k2 = _make_cache_key("a", ".", "**/*", True)
-        assert k1 != k2
-
-    def test_differs_on_path(self) -> None:
-        k1 = _make_cache_key("a", ".", "**/*", False)
-        k2 = _make_cache_key("a", "src", "**/*", False)
-        assert k1 != k2
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +163,7 @@ class TestRipgrepSearch:
     async def test_basic_search(self, workspace: Path) -> None:
         if not _has_ripgrep():
             pytest.skip("ripgrep not installed")
-        results = await _ripgrep_search("def", workspace, "**/*", False, 100)
+        results = await _ripgrep_search("def", workspace, "**/*", False, 0, 100)
         assert len(results) >= 2
         files = {r["file"] for r in results}
         assert any("hello.py" in f for f in files)
@@ -210,13 +172,13 @@ class TestRipgrepSearch:
         if not _has_ripgrep():
             pytest.skip("ripgrep not installed")
         (workspace / "case.txt").write_text("Hello\nHELLO\nhello\n")
-        results = await _ripgrep_search("hello", workspace, "**/*", True, 100)
+        results = await _ripgrep_search("hello", workspace, "**/*", True, 0, 100)
         assert len(results) >= 3
 
     async def test_file_pattern_filter(self, workspace: Path) -> None:
         if not _has_ripgrep():
             pytest.skip("ripgrep not installed")
-        results = await _ripgrep_search("import", workspace, "**/*.py", False, 100)
+        results = await _ripgrep_search("import", workspace, "**/*.py", False, 0, 100)
         for r in results:
             assert str(r["file"]).endswith(".py")
 
@@ -225,13 +187,13 @@ class TestRipgrepSearch:
             pytest.skip("ripgrep not installed")
         many = workspace / "big.py"
         many.write_text("\n".join(f"match_{i} = True" for i in range(200)))
-        results = await _ripgrep_search("match_", workspace, "**/*", False, 5)
+        results = await _ripgrep_search("match_", workspace, "**/*", False, 0, 5)
         assert len(results) <= 5
 
     async def test_no_match_returns_empty(self, workspace: Path) -> None:
         if not _has_ripgrep():
             pytest.skip("ripgrep not installed")
-        results = await _ripgrep_search("NONEXISTENT_STRING_12345", workspace, "**/*", False, 100)
+        results = await _ripgrep_search("NONEXISTENT_STRING_12345", workspace, "**/*", False, 0, 100)
         assert results == []
 
 

@@ -74,9 +74,9 @@ async def test_deterministic_workflow_id(tmp_path, monkeypatch, mock_parent_agen
         )
     ]
 
-    content1 = [c for c in chunks1 if c.get("type") == "content"]
-    content2 = [c for c in chunks2 if c.get("type") == "content"]
-    assert content1 and content2
+    msg1 = [c for c in chunks1 if c.get("type") == "message"]
+    msg2 = [c for c in chunks2 if c.get("type") == "message"]
+    assert msg1 and msg2
 
     import hashlib
 
@@ -126,7 +126,7 @@ async def test_workflow_status_steps(tmp_path, monkeypatch, mock_parent_agent):
     assert "workflow_init" in step_keys
     assert "workflow_planning" in step_keys
     assert "workflow_execution" in step_keys
-    assert any(c.get("type") == "done" for c in chunks)
+    assert any(c.get("type") == "message_end" for c in chunks)
 
 
 @pytest.mark.asyncio
@@ -179,7 +179,7 @@ async def test_markdown_script_cleanup(tmp_path, monkeypatch, mock_parent_agent)
 
 @pytest.mark.asyncio
 async def test_ptc_execution_failure(tmp_path, monkeypatch, mock_parent_agent):
-    """PTC failure must yield error status and error content."""
+    """PTC failure must yield error status and message with error details."""
     db_path = tmp_path / "events.db"
     monkeypatch.chdir(tmp_path)
 
@@ -214,19 +214,19 @@ async def test_ptc_execution_failure(tmp_path, monkeypatch, mock_parent_agent):
     error_status = [
         c
         for c in chunks
-        if c.get("type") == "status"
-        and c.get("step_key") == "workflow_execution"
-        and c.get("status") == "error"
+        if c.get("type") == "status" and c.get("step_key") == "workflow_execution" and c.get("status") == "error"
     ]
     assert error_status
-    content = next(c["content"] for c in chunks if c.get("type") == "content")
-    assert "failed" in content.lower()
-    assert "sandbox exploded" in content
+    msg_chunk = next(c for c in chunks if c.get("type") == "message")
+    assert "failed" in str(msg_chunk.get("data", "")).lower()
+    assert "sandbox exploded" in str(msg_chunk.get("data", ""))
+    end_chunk = next(c for c in chunks if c.get("type") == "message_end")
+    assert end_chunk["completion_status"] == "error"
 
 
 @pytest.mark.asyncio
 async def test_cancel_token_early_exit(tmp_path, monkeypatch, mock_parent_agent):
-    """Cancelled token should terminate workflow early."""
+    """Cancelled token should terminate workflow early with message_end."""
     db_path = tmp_path / "events.db"
     monkeypatch.chdir(tmp_path)
 
@@ -254,9 +254,9 @@ async def test_cancel_token_early_exit(tmp_path, monkeypatch, mock_parent_agent)
         )
     ]
 
-    assert any(c.get("type") == "done" for c in chunks)
-    error_statuses = [c for c in chunks if c.get("status") == "error"]
-    assert error_statuses
+    assert any(c.get("type") == "message_end" for c in chunks)
+    end_chunk = next(c for c in chunks if c.get("type") == "message_end")
+    assert end_chunk["completion_status"] == "cancelled"
 
 
 @pytest.mark.asyncio
@@ -303,3 +303,333 @@ async def test_override_allowed_passed_to_ptc(tmp_path, monkeypatch, mock_parent
 
     assert captured_override
     assert "spawn_subagent" in captured_override[0]
+
+
+@pytest.mark.asyncio
+async def test_catalog_injects_types_into_orchestrator_prompt(tmp_path, monkeypatch, mock_parent_agent):
+    """When catalog is provided, available types are injected into the orchestrator prompt."""
+    db_path = tmp_path / "events.db"
+    monkeypatch.chdir(tmp_path)
+
+    from dataclasses import dataclass
+
+    @dataclass
+    class FakeConfig:
+        system_prompt: str = ""
+        description: str = ""
+        display_name: str = ""
+
+    class TestCatalog:
+        async def list_available(self) -> list[str]:
+            return ["coder", "researcher"]
+
+        async def resolve(self, type_id: str):
+            return FakeConfig(description=f"{type_id} specialist", system_prompt="x")
+
+    from myrm_agent_harness.agent.dynamic_workflow import store as store_mod
+
+    original_init = store_mod.WorkflowEventStore.__init__
+
+    def patched_init(self, path):
+        original_init(self, str(db_path))
+
+    monkeypatch.setattr(store_mod.WorkflowEventStore, "__init__", patched_init)
+
+    captured_messages: list[list] = []
+
+    class CaptureLLM:
+        async def ainvoke(self, messages, config=None):
+            captured_messages.append(messages)
+            return AIMessage(content="print('ok')")
+
+    mock_parent_agent.llm = CaptureLLM()
+
+    async def mock_ptc(context, executor, ptc_tools, override_allowed=frozenset()):
+        class Result:
+            stdout = "ok"
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection.inject_ptc_for_python_execution",
+        mock_ptc,
+    )
+
+    _ = [
+        c
+        async for c in run_dynamic_workflow_stream(
+            parent_agent=mock_parent_agent,
+            query="test",
+            chat_history=[],
+            chat_id="c1",
+            message_id="m1",
+            catalog=TestCatalog(),
+        )
+    ]
+
+    assert captured_messages
+    system_content = captured_messages[0][0].content
+    assert '"coder": coder specialist' in system_content
+    assert '"researcher": researcher specialist' in system_content
+
+
+@pytest.mark.asyncio
+async def test_non_string_llm_content(tmp_path, monkeypatch, mock_parent_agent):
+    """LLM returning non-string content (list chunks) must still be handled."""
+    db_path = tmp_path / "events.db"
+    monkeypatch.chdir(tmp_path)
+
+    class ListContentLLM:
+        async def ainvoke(self, messages, config=None):
+            return AIMessage(content=[{"type": "text", "text": "print('from_list')"}])
+
+    mock_parent_agent.llm = ListContentLLM()
+
+    from myrm_agent_harness.agent.dynamic_workflow import store as store_mod
+
+    original_init = store_mod.WorkflowEventStore.__init__
+
+    def patched_init(self, path):
+        original_init(self, str(db_path))
+
+    monkeypatch.setattr(store_mod.WorkflowEventStore, "__init__", patched_init)
+
+    captured_code: list[str] = []
+
+    async def mock_ptc(context, executor, ptc_tools, override_allowed=frozenset()):
+        captured_code.append(context.code)
+
+        class Result:
+            stdout = "ok"
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection.inject_ptc_for_python_execution",
+        mock_ptc,
+    )
+
+    chunks = [
+        c
+        async for c in run_dynamic_workflow_stream(
+            parent_agent=mock_parent_agent,
+            query="test",
+            chat_history=[],
+            chat_id="c1",
+            message_id="m1",
+        )
+    ]
+
+    assert any(c.get("type") == "message_end" for c in chunks)
+
+
+@pytest.mark.asyncio
+async def test_summarization_failure_fallback(tmp_path, monkeypatch, mock_parent_agent):
+    """When summarization LLM fails, raw output is used as fallback."""
+    db_path = tmp_path / "events.db"
+    monkeypatch.chdir(tmp_path)
+
+    from myrm_agent_harness.agent.dynamic_workflow import store as store_mod
+
+    original_init = store_mod.WorkflowEventStore.__init__
+
+    def patched_init(self, path):
+        original_init(self, str(db_path))
+
+    monkeypatch.setattr(store_mod.WorkflowEventStore, "__init__", patched_init)
+
+    call_count = {"n": 0}
+
+    class FailSecondCallLLM:
+        async def ainvoke(self, messages, config=None):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return AIMessage(content="print('hello world')")
+            raise RuntimeError("Summarization API down")
+
+    mock_parent_agent.llm = FailSecondCallLLM()
+
+    async def mock_ptc(context, executor, ptc_tools, override_allowed=frozenset()):
+        class Result:
+            stdout = "result_data_here"
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection.inject_ptc_for_python_execution",
+        mock_ptc,
+    )
+
+    chunks = [
+        c
+        async for c in run_dynamic_workflow_stream(
+            parent_agent=mock_parent_agent,
+            query="test",
+            chat_history=[],
+            chat_id="c1",
+            message_id="m1",
+        )
+    ]
+
+    msg_chunks = [c for c in chunks if c.get("type") == "message"]
+    assert msg_chunks
+    assert "result_data_here" in msg_chunks[0]["data"]
+
+
+@pytest.mark.asyncio
+async def test_stdout_truncation(tmp_path, monkeypatch, mock_parent_agent):
+    """Long stdout exceeding _MAX_STDOUT_FOR_SUMMARY is truncated."""
+    db_path = tmp_path / "events.db"
+    monkeypatch.chdir(tmp_path)
+
+    from myrm_agent_harness.agent.dynamic_workflow import store as store_mod
+
+    original_init = store_mod.WorkflowEventStore.__init__
+
+    def patched_init(self, path):
+        original_init(self, str(db_path))
+
+    monkeypatch.setattr(store_mod.WorkflowEventStore, "__init__", patched_init)
+
+    captured_summary_input: list[str] = []
+    call_count = {"n": 0}
+
+    class TrackSummarizationLLM:
+        async def ainvoke(self, messages, config=None):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return AIMessage(content="print('x')")
+            captured_summary_input.append(messages[1].content)
+            return AIMessage(content="Summary done")
+
+    mock_parent_agent.llm = TrackSummarizationLLM()
+
+    long_output = "x" * 40_000
+
+    async def mock_ptc(context, executor, ptc_tools, override_allowed=frozenset()):
+        class Result:
+            stdout = long_output
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection.inject_ptc_for_python_execution",
+        mock_ptc,
+    )
+
+    _ = [
+        c
+        async for c in run_dynamic_workflow_stream(
+            parent_agent=mock_parent_agent,
+            query="test",
+            chat_history=[],
+            chat_id="c1",
+            message_id="m1",
+        )
+    ]
+
+    assert captured_summary_input
+    assert "[...truncated" in captured_summary_input[0]
+
+
+@pytest.mark.asyncio
+async def test_empty_stdout_no_output_message(tmp_path, monkeypatch, mock_parent_agent):
+    """When PTC produces no stdout/stderr, a 'no output' message is yielded."""
+    db_path = tmp_path / "events.db"
+    monkeypatch.chdir(tmp_path)
+
+    from myrm_agent_harness.agent.dynamic_workflow import store as store_mod
+
+    original_init = store_mod.WorkflowEventStore.__init__
+
+    def patched_init(self, path):
+        original_init(self, str(db_path))
+
+    monkeypatch.setattr(store_mod.WorkflowEventStore, "__init__", patched_init)
+
+    async def mock_ptc(context, executor, ptc_tools, override_allowed=frozenset()):
+        class Result:
+            stdout = ""
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection.inject_ptc_for_python_execution",
+        mock_ptc,
+    )
+
+    chunks = [
+        c
+        async for c in run_dynamic_workflow_stream(
+            parent_agent=mock_parent_agent,
+            query="test",
+            chat_history=[],
+            chat_id="c1",
+            message_id="m1",
+        )
+    ]
+
+    msg_chunks = [c for c in chunks if c.get("type") == "message"]
+    assert msg_chunks
+    assert "no output" in msg_chunks[0]["data"].lower() or "completed" in msg_chunks[0]["data"].lower()
+
+
+@pytest.mark.asyncio
+async def test_stderr_included_in_summary(tmp_path, monkeypatch, mock_parent_agent):
+    """When stderr is present, it's included in the summary input."""
+    db_path = tmp_path / "events.db"
+    monkeypatch.chdir(tmp_path)
+
+    from myrm_agent_harness.agent.dynamic_workflow import store as store_mod
+
+    original_init = store_mod.WorkflowEventStore.__init__
+
+    def patched_init(self, path):
+        original_init(self, str(db_path))
+
+    monkeypatch.setattr(store_mod.WorkflowEventStore, "__init__", patched_init)
+
+    captured_summary_input: list[str] = []
+    call_count = {"n": 0}
+
+    class TrackSummarizationLLM:
+        async def ainvoke(self, messages, config=None):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return AIMessage(content="print('x')")
+            captured_summary_input.append(messages[1].content)
+            return AIMessage(content="Summary with errors")
+
+    mock_parent_agent.llm = TrackSummarizationLLM()
+
+    async def mock_ptc(context, executor, ptc_tools, override_allowed=frozenset()):
+        class Result:
+            stdout = "partial output"
+            stderr = "WARNING: something bad happened"
+
+        return Result()
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection.inject_ptc_for_python_execution",
+        mock_ptc,
+    )
+
+    _ = [
+        c
+        async for c in run_dynamic_workflow_stream(
+            parent_agent=mock_parent_agent,
+            query="test",
+            chat_history=[],
+            chat_id="c1",
+            message_id="m1",
+        )
+    ]
+
+    assert captured_summary_input
+    assert "Execution Errors" in captured_summary_input[0]
+    assert "WARNING: something bad happened" in captured_summary_input[0]

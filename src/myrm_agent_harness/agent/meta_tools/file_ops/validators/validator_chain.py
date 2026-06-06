@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
 
 from .binary_validator import BinaryValidator
+from .config_protection_validator import ConfigProtectionValidator
 from .path_validator import PathValidator
 from .permission_validator import PermissionValidator
 from .sensitive_file_validator import SensitiveFileValidator
@@ -55,13 +56,14 @@ class ValidatorChain:
         # 构建验证器链：
         # 1. 路径验证（路径遍历、符号链接、危险路径）
         # 2. 敏感文件检测（credentials、keys 等）
-        # 3. 二进制数据检测（防止写入乱码）
-        # 4. 文件大小验证
-        # 5. 权限验证（文件存在性、操作合法性）
+        # 3. 配置文件保护（防止 Agent 削弱 linter/formatter 规则）
+        # 4. 二进制数据检测（防止写入乱码）
+        # 5. 文件大小验证
+        # 6. 权限验证（文件存在性、操作合法性）
         self.chain = PathValidator(allowed_base_paths, config)
-        self.chain.set_next(SensitiveFileValidator(config, block_sensitive_reads)).set_next(BinaryValidator()).set_next(
-            SizeValidator(strategy)
-        ).set_next(PermissionValidator(strategy))
+        self.chain.set_next(SensitiveFileValidator(config, block_sensitive_reads)).set_next(
+            ConfigProtectionValidator()
+        ).set_next(BinaryValidator()).set_next(SizeValidator(strategy)).set_next(PermissionValidator(strategy))
 
     async def validate(self, context: OperationContext, path: str) -> None:
         """执行验证链

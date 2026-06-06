@@ -6,9 +6,11 @@
 - dynamic_workflow.tools::SpawnSubagentTool (POS: PTC bridge tool)
 - toolkits.code_execution.ptc::inject_ptc_for_python_execution (POS: Sandbox execution)
 - utils.runtime.cancellation::CancellationToken
+- agent.sub_agents.types::SubagentCatalog (POS: Catalog protocol for type discovery)
 
 [OUTPUT]
 - run_dynamic_workflow_stream: AsyncIterable[dict] yielding AgentEventType-compatible SSE events
+- _build_available_types_hint: Generates dynamic agent_type listing for ORCHESTRATOR_PROMPT
 
 [POS]
 Third-generation orchestration layer. Breaks context limits by having the LLM
@@ -106,6 +108,43 @@ RULES:
 _MAX_STDOUT_FOR_SUMMARY = 32_000
 
 
+async def _build_available_types_hint(catalog: SubagentCatalog | None) -> str:
+    """Build a dynamic hint listing available subagent types for the LLM.
+
+    Uses the SubagentCatalog protocol (which includes YAML presets, JIT configs,
+    AND user-defined database agents) when provided. Falls back to the global
+    SUBAGENT_CONFIGS registry when catalog is None.
+    """
+    if catalog is not None:
+        available_ids = await catalog.list_available()
+        if not available_ids:
+            return ""
+
+        lines = ["Available agent_type values (use the exact string):"]
+        for type_id in available_ids[:50]:
+            cfg = await catalog.resolve(type_id)
+            if cfg:
+                desc = cfg.description or cfg.display_name or cfg.system_prompt[:80]
+                lines.append(f'- "{type_id}": {desc}')
+        if len(available_ids) > 50:
+            lines.append(f"... and {len(available_ids) - 50} more available.")
+        lines.append('- "generalPurpose": General-purpose agent for any task (default)')
+        return "\n".join(lines)
+
+    from myrm_agent_harness.agent.sub_agents.registry import SUBAGENT_CONFIGS
+
+    if not SUBAGENT_CONFIGS:
+        return ""
+
+    lines = ["Available agent_type values (use the exact string):"]
+    for name, config in sorted(SUBAGENT_CONFIGS.items()):
+        desc = config.description or name
+        lines.append(f'- "{name}": {desc}')
+    lines.append('- "generalPurpose": General-purpose agent for any task (default)')
+
+    return "\n".join(lines)
+
+
 async def run_dynamic_workflow_stream(
     parent_agent: BaseAgent,
     query: str,
@@ -165,7 +204,13 @@ async def run_dynamic_workflow_stream(
     }
 
     llm = parent_agent.llm
-    messages = [SystemMessage(content=ORCHESTRATOR_PROMPT), *chat_history, HumanMessage(content=query)]
+
+    orchestrator_prompt = ORCHESTRATOR_PROMPT
+    available_types = await _build_available_types_hint(catalog)
+    if available_types:
+        orchestrator_prompt = f"{orchestrator_prompt}\n\n{available_types}"
+
+    messages = [SystemMessage(content=orchestrator_prompt), *chat_history, HumanMessage(content=query)]
     response = await llm.ainvoke(messages)
     script_code = response.content
 
@@ -252,7 +297,11 @@ async def run_dynamic_workflow_stream(
 
             try:
                 summary_response = await llm.ainvoke(summary_messages)
-                summary_text = summary_response.content if isinstance(summary_response.content, str) else str(summary_response.content)
+                summary_text = (
+                    summary_response.content
+                    if isinstance(summary_response.content, str)
+                    else str(summary_response.content)
+                )
             except Exception as e:
                 logger.warning("Summarization LLM call failed, falling back to raw output: %s", e)
                 summary_text = f"## Workflow Results\n\n```\n{truncated}\n```"

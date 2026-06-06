@@ -43,7 +43,6 @@ from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
 from myrm_agent_harness.agent.security.redact import redact_sensitive_text
 from myrm_agent_harness.toolkits.code_execution.executors.base import require_executor
 from myrm_agent_harness.utils.errors import ToolError
-from myrm_agent_harness.utils.lru_cache import LRUCache
 
 from .regex_validator import RegexValidator
 
@@ -51,19 +50,6 @@ if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
 logger = logging.getLogger(__name__)
-
-
-#  性能优化：搜索结果缓存（使用项目统一的 LRUCache）
-def _make_cache_key(pattern: str, path: str, file_pattern: str, ignore_case: bool) -> str:
-    """生成缓存键（确保参数顺序一致性）"""
-    data = json.dumps(
-        {"pattern": pattern, "path": path, "file_pattern": file_pattern, "ignore_case": ignore_case}, sort_keys=True
-    )
-    return hashlib.md5(data.encode()).hexdigest()
-
-
-# 全局缓存实例（100条缓存，60秒过期）
-_search_cache: LRUCache[str] = LRUCache(maxsize=100, ttl=60, id="grep_search_cache")
 
 
 #  性能优化：ripgrep 检测（只检测一次）
@@ -82,14 +68,18 @@ async def _ripgrep_search(
     search_path: Path,
     file_pattern: str,
     ignore_case: bool,
+    context_lines: int,
     max_results: int,
     timeout_seconds: float = 10.0,
 ) -> list[dict[str, str | int]]:
     """Execute search using ripgrep (fastest tier). Returns raw match list."""
-    cmd = ["rg", "--line-number", "--no-heading", "--color=never"]
+    cmd = ["rg", "--json"]
 
     if ignore_case:
         cmd.append("--ignore-case")
+
+    if context_lines > 0:
+        cmd.extend(["-C", str(context_lines)])
 
     if file_pattern != "**/*":
         cmd.extend(["--glob", file_pattern])
@@ -112,26 +102,44 @@ async def _ripgrep_search(
                 stderr_data.extend(chunk)
 
         async def _read_lines():
+            match_count = 0
             while True:
                 line_bytes = await proc.stdout.readline()
                 if not line_bytes:
                     break
-                line = line_bytes.decode("utf-8", errors="replace").strip()
-                parts = line.split(":", 2)
-                if len(parts) >= 3:
-                    file_path, line_num, content = parts
-                    with contextlib.suppress(ValueError):
-                        results.append({"file": file_path, "line": int(line_num), "content": content})
-
-                if len(results) >= max_results:
-                    with contextlib.suppress(ProcessLookupError):
-                        proc.terminate()
-                    break
+                
+                try:
+                    line_str = line_bytes.decode("utf-8").strip()
+                    if not line_str:
+                        continue
+                    data = json.loads(line_str)
+                    
+                    if data.get("type") in ("match", "context"):
+                        path_text = data["data"]["path"]["text"]
+                        line_num = data["data"]["line_number"]
+                        content = data["data"]["lines"]["text"].rstrip("\n")
+                        line_type = data["type"]
+                        
+                        results.append({
+                            "file": path_text,
+                            "line": line_num,
+                            "content": content,
+                            "type": line_type
+                        })
+                        
+                        if line_type == "match":
+                            match_count += 1
+                            if match_count >= max_results:
+                                with contextlib.suppress(ProcessLookupError):
+                                    proc.terminate()
+                                break
+                except (json.JSONDecodeError, KeyError):
+                    continue
             await proc.wait()
 
         await asyncio.wait_for(asyncio.gather(_read_lines(), _read_stderr()), timeout=timeout_seconds)
 
-        if proc.returncode not in (0, 1, -15, 143) and len(results) < max_results:
+        if proc.returncode not in (0, 1, -15, 143) and match_count < max_results:
             logger.warning(f"ripgrep error: {stderr_data.decode('utf-8', errors='replace')}")
             raise RuntimeError("ripgrep failed")
 
@@ -183,6 +191,7 @@ class GrepInput(BaseModel):
     path: str = Field(default=".", description="搜索路径（默认当前目录）")
     file_pattern: str = Field(default="**/*", description="文件匹配模式（默认所有文件）")
     ignore_case: bool = Field(default=False, description="是否忽略大小写（默认 False）")
+    context_lines: int = Field(default=0, ge=0, le=10, description="匹配行前后的上下文行数（默认 0，最大 10）")
 
 
 def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
@@ -193,7 +202,7 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
     io_cfg = io_config or DEFAULT_FILE_IO_CONFIG
     regex_validator = RegexValidator(io_cfg)
 
-    tool_description = f"""搜索文件内容（支持正则表达式）。
+    tool_description = f"""搜索文件内容（支持正则表达式）。Output: one line per match as 'path:line_number: content'.
 
 用途：
 - 查找函数/类定义
@@ -235,6 +244,7 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
         path: str = ".",
         file_pattern: str = "**/*",
         ignore_case: bool = False,
+        context_lines: int = 0,
         *,
         config: RunnableConfig,  #  纯净设计：从 config 获取 context
     ) -> str:
@@ -245,6 +255,7 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
             path: 搜索路径
             file_pattern: 文件匹配模式
             ignore_case: 是否忽略大小写
+            context_lines: 匹配行前后的上下文行数
             config: LangChain 运行时配置（自动注入）
 
         Returns:
@@ -276,12 +287,6 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
                     user_hint=f"The path '{path}' does not exist. Please check the path and try again.",
                 )
 
-            cache_key = _make_cache_key(pattern, path, file_pattern, ignore_case)
-            cached_result = _search_cache.get(cache_key)
-            if cached_result is not None:
-                logger.debug(f"Grep cache hit: {cache_key[:8]}...")
-                return cached_result
-
             flags = re.IGNORECASE if ignore_case else 0
             regex = regex_validator.validate_and_compile(pattern, flags)
 
@@ -303,6 +308,7 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
                         search_path_obj,
                         file_pattern,
                         ignore_case,
+                        context_lines,
                         io_cfg.max_search_results,
                         io_cfg.search_timeout_seconds,
                     )
@@ -418,7 +424,6 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
             )
 
             output = redact_sensitive_text(output)
-            _search_cache.set(cache_key, output)
 
             return output
 

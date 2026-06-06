@@ -545,7 +545,7 @@ async def get_agent_tool_health(
     results: list[dict[str, Any]] = []
     for tool_name, data in tool_data.items():
         durations = _durations(data)
-        avg_duration = (sum(durations) / len(durations) / 1000.0) if durations else 0.0 # Convert ms to seconds to match previous API
+        avg_duration = (sum(durations) / len(durations) / 1000.0) if durations else 0.0
         max_duration = (max(durations) / 1000.0) if durations else 0.0
 
         results.append({

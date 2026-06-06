@@ -262,7 +262,16 @@ def get_meta_tools(
         file_write_tool = create_file_write_tool(skills=skills)
         file_edit_tool = create_file_edit_tool(skills=skills)
         incremental_read_tool = create_incremental_read_tool(skills=skills)
-        tools.extend([file_read_tool, file_write_tool, file_edit_tool, incremental_read_tool])
+        glob_tool = create_glob_tool()
+        grep_tool = create_grep_tool()
+        tools.extend([
+            file_read_tool, 
+            file_write_tool, 
+            file_edit_tool, 
+            incremental_read_tool,
+            glob_tool,
+            grep_tool
+        ])
     else:
         logger.info("File tools disabled by caller configuration")
 

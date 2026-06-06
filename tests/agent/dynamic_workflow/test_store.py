@@ -16,14 +16,12 @@ def temp_db_path(tmp_path):
 
 
 def test_store_init(temp_db_path):
-    store = WorkflowEventStore(temp_db_path)
+    WorkflowEventStore(temp_db_path)
     assert Path(temp_db_path).exists()
 
     conn = sqlite3.connect(temp_db_path)
     try:
-        cursor = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='subagent_events'"
-        )
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='subagent_events'")
         assert cursor.fetchone() is not None
 
         journal = conn.execute("PRAGMA journal_mode").fetchone()[0]
@@ -71,9 +69,8 @@ def test_connect_rollback_on_error(temp_db_path):
 
     store.save_result("wf_err", "t1", "type", "desc", {"ok": True})
 
-    with pytest.raises(sqlite3.OperationalError):
-        with store._connect() as conn:
-            conn.execute("INSERT INTO nonexistent_table VALUES (1)")
+    with pytest.raises(sqlite3.OperationalError), store._connect() as conn:
+        conn.execute("INSERT INTO nonexistent_table VALUES (1)")
 
     cached = store.get_cached_result("wf_err", "t1")
     assert cached == {"ok": True}

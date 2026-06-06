@@ -59,7 +59,7 @@ def create_glob_tool(io_config: FileIOConfig | None = None) -> BaseTool:
 
     @tool(
         "glob_tool",
-        description=f"""搜索匹配的文件（支持通配符）。
+        description=f"""搜索匹配的文件（支持通配符）。Output: one file path per line.
 
 用途：
 - 查找特定类型的文件

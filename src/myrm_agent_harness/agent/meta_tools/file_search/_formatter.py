@@ -98,29 +98,45 @@ def format_grep_results(
             files_order.append(fp)
             matches_by_file[fp] = []
         matches_by_file[fp].append(r)
+        
+    total_matches = sum(1 for r in results if r.get("type", "match") == "match")
 
-    lines: list[str] = [f"Found {len(results)} match(es) for '{pattern}' (searched {files_searched} file(s)):\n"]
+    lines: list[str] = [f"Found {total_matches} match(es) for '{pattern}' (searched {files_searched} file(s)):\n"]
 
     for fp in files_order:
         file_matches = matches_by_file[fp]
 
         is_non_code = _is_non_code_file(fp)
-        if is_non_code and len(file_matches) > NON_CODE_MATCH_CAP:
-            visible_matches = file_matches[:NON_CODE_MATCH_CAP]
-            omitted_count = len(file_matches) - NON_CODE_MATCH_CAP
-        else:
-            visible_matches = file_matches
-            omitted_count = 0
+        visible_matches = []
+        match_count = 0
+        
+        for m in file_matches:
+            if m.get("type", "match") == "match":
+                match_count += 1
+            if is_non_code and match_count > NON_CODE_MATCH_CAP:
+                break
+            visible_matches.append(m)
+            
+        total_file_matches = sum(1 for m in file_matches if m.get("type", "match") == "match")
+        omitted_count = total_file_matches - match_count if is_non_code else 0
 
+        last_line_num = -2
         for m in visible_matches:
             line_num = int(m["line"])
             content = compact_match_line(str(m["content"]), pattern, is_regex)
-            lines.append(f"{fp}:{line_num}: {content}")
+            line_type = m.get("type", "match")
+            
+            if last_line_num != -2 and line_num > last_line_num + 1:
+                lines.append("--")
+            last_line_num = line_num
+            
+            sep = ":" if line_type == "match" else "-"
+            lines.append(f"{fp}{sep}{line_num}{sep} {content}")
 
         if omitted_count > 0:
             lines.append(f"  ... {omitted_count} more non-code matches omitted in {fp}")
 
-    if len(results) >= max_results:
+    if total_matches >= max_results:
         lines.append(f"\n... (limited to first {max_results} results)")
 
     return "\n".join(lines)
