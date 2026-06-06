@@ -81,12 +81,28 @@ PROTECTED_CONFIG_NAMES: frozenset[str] = frozenset(
     )
 )
 
+PROTECTED_LOCKFILE_NAMES: frozenset[str] = frozenset(
+    (
+        "package-lock.json",
+        "yarn.lock",
+        "pnpm-lock.yaml",
+        "bun.lockb",
+        "uv.lock",
+        "poetry.lock",
+        "Pipfile.lock",
+        "go.sum",
+        "Cargo.lock",
+        "Gemfile.lock",
+        "composer.lock",
+    )
+)
+
 
 class ConfigProtectionValidator(Validator):
-    """Blocks modifications to existing linter/formatter config files.
+    """Blocks modifications to existing linter/formatter config files and lockfiles.
 
     Allows first-time creation (project scaffolding) but blocks edits to
-    existing configs, forcing the agent to fix source code instead.
+    existing configs/lockfiles, forcing the agent to fix source code or use package managers.
     """
 
     async def _do_validate(self, context: OperationContext, path: str) -> None:
@@ -94,15 +110,25 @@ class ConfigProtectionValidator(Validator):
             return
 
         basename = Path(path).name
-        if basename not in PROTECTED_CONFIG_NAMES:
+        is_config = basename in PROTECTED_CONFIG_NAMES
+        is_lockfile = basename in PROTECTED_LOCKFILE_NAMES
+
+        if not (is_config or is_lockfile):
             return
 
         if context.operation in (OperationType.CREATE, OperationType.STR_REPLACE):
             if os.path.exists(path):
-                raise PermissionError(
-                    f"BLOCKED: Modifying '{basename}' is not allowed.\n"
-                    f"Fix the source code to satisfy linter/formatter rules "
-                    f"instead of weakening the configuration.\n"
-                    f"If you encounter lint errors, fix the actual code that "
-                    f"violates the rules rather than disabling or relaxing them."
-                )
+                if is_lockfile:
+                    raise PermissionError(
+                        f"BLOCKED: 严禁手动修改锁文件 '{basename}'。\n"
+                        f"请使用合法的包管理器命令（如 uv sync, npm install, pnpm install）来解决依赖，\n"
+                        f"绝对不要尝试通过字符串替换或直接编辑来解决版本冲突！"
+                    )
+                else:
+                    raise PermissionError(
+                        f"BLOCKED: Modifying '{basename}' is not allowed.\n"
+                        f"Fix the source code to satisfy linter/formatter rules "
+                        f"instead of weakening the configuration.\n"
+                        f"If you encounter lint errors, fix the actual code that "
+                        f"violates the rules rather than disabling or relaxing them."
+                    )
