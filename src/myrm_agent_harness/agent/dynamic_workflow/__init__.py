@@ -1,14 +1,14 @@
 """Dynamic Workflow Engine — LLM-generated Python orchestration with PTC.
 
 [INPUT]
-- base_agent::BaseAgent (POS: Parent agent with full tool/catalog/budget context)
-- dynamic_workflow.store::WorkflowEventStore (POS: SQLite durable execution cache)
-- dynamic_workflow.tools::SpawnSubagentTool (POS: PTC bridge to delegate path)
-- toolkits.code_execution.ptc.ptc_injection::inject_ptc_for_python_execution
+- agent.base_agent::BaseAgent (POS: Parent agent with full tool registry and _spawn_child)
+- dynamic_workflow.store::WorkflowEventStore (POS: L2 persistent cache for durability)
+- dynamic_workflow.tools::SpawnSubagentTool (POS: PTC bridge tool)
+- toolkits.code_execution.ptc::inject_ptc_for_python_execution (POS: Sandbox execution)
 - utils.runtime.cancellation::CancellationToken
 
 [OUTPUT]
-- run_dynamic_workflow_stream: Async generator yielding AgentEventType-compatible SSE events
+- run_dynamic_workflow_stream: AsyncIterable[dict] yielding AgentEventType-compatible SSE events
 
 [POS]
 Third-generation orchestration layer. Breaks context limits by having the LLM
@@ -25,8 +25,12 @@ from typing import TYPE_CHECKING
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
+from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
+from myrm_agent_harness.agent.dynamic_workflow.tools import SpawnSubagentTool
+
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.base_agent import BaseAgent
+    from myrm_agent_harness.agent.sub_agents.types import SubagentCatalog
     from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
 logger = logging.getLogger(__name__)
@@ -109,23 +113,9 @@ async def run_dynamic_workflow_stream(
     chat_id: str,
     message_id: str,
     cancel_token: CancellationToken | None = None,
+    catalog: SubagentCatalog | None = None,
 ) -> AsyncIterable[dict[str, object]]:
-    """Core Dynamic Workflow Engine.
-
-    Generates a Python orchestration script via LLM, executes it in PTC sandbox,
-    then summarizes results into user-readable Markdown.
-
-    Args:
-        parent_agent: Fully configured BaseAgent with tools, catalog, and budget.
-        query: User's original query text.
-        chat_history: Conversation history as LangChain messages.
-        chat_id: Chat session identifier.
-        message_id: Message identifier for deterministic workflow_id.
-        cancel_token: Cooperative cancellation signal.
-    """
-    from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
-    from myrm_agent_harness.agent.dynamic_workflow.tools import SpawnSubagentTool
-
+    """Core Dynamic Workflow Engine with full capability inheritance."""
     hash_input = f"{chat_id}:{message_id}".encode()
     workflow_id = f"wf_{hashlib.md5(hash_input).hexdigest()[:12]}"
 
@@ -150,6 +140,7 @@ async def run_dynamic_workflow_stream(
         parent_agent=parent_agent,
         tool_registry_getter=_tool_registry_getter,
         workflow_id=workflow_id,
+        catalog=catalog,
         store=store,
         cancel_token=cancel_token,
     )
@@ -174,7 +165,7 @@ async def run_dynamic_workflow_stream(
     }
 
     llm = parent_agent.llm
-    messages = [SystemMessage(content=ORCHESTRATOR_PROMPT)] + chat_history + [HumanMessage(content=query)]
+    messages = [SystemMessage(content=ORCHESTRATOR_PROMPT), *chat_history, HumanMessage(content=query)]
     response = await llm.ainvoke(messages)
     script_code = response.content
 
@@ -221,6 +212,7 @@ async def run_dynamic_workflow_stream(
     )
     executor = create_executor()
 
+    workflow_failed = False
     try:
         result = await inject_ptc_for_python_execution(
             context=context,
@@ -245,11 +237,11 @@ async def run_dynamic_workflow_stream(
         stderr = (result.stderr or "").strip()
 
         if stdout or stderr:
-            truncated_stdout = stdout[-_MAX_STDOUT_FOR_SUMMARY:] if len(stdout) > _MAX_STDOUT_FOR_SUMMARY else stdout
+            truncated = stdout[-_MAX_STDOUT_FOR_SUMMARY:] if len(stdout) > _MAX_STDOUT_FOR_SUMMARY else stdout
             if len(stdout) > _MAX_STDOUT_FOR_SUMMARY:
-                truncated_stdout = f"[...truncated {len(stdout) - _MAX_STDOUT_FOR_SUMMARY} chars...]\n" + truncated_stdout
+                truncated = f"[...truncated {len(stdout) - _MAX_STDOUT_FOR_SUMMARY} chars...]\n" + truncated
 
-            summary_input = f"User Request:\n{query}\n\nExecution Output:\n{truncated_stdout}"
+            summary_input = f"User Request:\n{query}\n\nExecution Output:\n{truncated}"
             if stderr:
                 summary_input += f"\n\nExecution Errors:\n{stderr}"
 
@@ -263,7 +255,7 @@ async def run_dynamic_workflow_stream(
                 summary_text = summary_response.content if isinstance(summary_response.content, str) else str(summary_response.content)
             except Exception as e:
                 logger.warning("Summarization LLM call failed, falling back to raw output: %s", e)
-                summary_text = f"## Workflow Results\n\n```\n{truncated_stdout}\n```"
+                summary_text = f"## Workflow Results\n\n```\n{truncated}\n```"
                 if stderr:
                     summary_text += f"\n\n### Errors\n```\n{stderr}\n```"
         else:
@@ -276,6 +268,7 @@ async def run_dynamic_workflow_stream(
         }
 
     except Exception as e:
+        workflow_failed = True
         logger.error("Dynamic Workflow execution failed: %s", e, exc_info=True)
         yield {
             "type": "status",
@@ -293,5 +286,5 @@ async def run_dynamic_workflow_stream(
         "type": "message_end",
         "messageId": message_id,
         "usage": {},
-        "completion_status": "success",
+        "completion_status": "error" if workflow_failed else "success",
     }

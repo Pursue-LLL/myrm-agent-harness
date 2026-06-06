@@ -3,6 +3,7 @@
 [INPUT]
 - base_agent::BaseAgent (POS: Parent agent with _spawn_child capability)
 - dynamic_workflow.store::WorkflowEventStore (POS: L2 persistent cache)
+- sub_agents.types::SubagentCatalog, SubagentConfig (POS: Agent configuration)
 - utils.runtime.cancellation::CancellationToken
 
 [OUTPUT]
@@ -19,17 +20,11 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
-
-if TYPE_CHECKING:
-    from myrm_agent_harness.agent.base_agent import BaseAgent
-    from myrm_agent_harness.agent.sub_agents.types import SubagentCatalog
-    from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
 logger = logging.getLogger(__name__)
 
@@ -46,16 +41,18 @@ class SpawnSubagentInput(BaseModel):
 class SpawnSubagentTool(BaseTool):
     """PTC tool that spawns sub-agents through the parent agent's delegate path."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     name: str = "spawn_subagent"
     description: str = "Spawn a sub-agent to execute a task. This tool blocks until the sub-agent completes."
     args_schema: type[BaseModel] = SpawnSubagentInput
 
-    parent_agent: BaseAgent
+    parent_agent: object
     tool_registry_getter: Callable[[], list[object]]
     workflow_id: str
-    catalog: SubagentCatalog | None = None
+    catalog: object | None = None
     store: WorkflowEventStore | None = None
-    cancel_token: CancellationToken | None = None
+    cancel_token: object | None = None
 
     def _run(self, task_id: str, agent_type: str, task_description: str) -> object:
         raise NotImplementedError("SpawnSubagentTool only supports async execution.")

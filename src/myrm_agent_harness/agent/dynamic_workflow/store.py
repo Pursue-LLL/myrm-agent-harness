@@ -1,3 +1,18 @@
+"""WorkflowEventStore — SQLite-based durable execution cache for Dynamic Workflows.
+
+[INPUT]
+- utils.db.sqlite::CACHE, harden_connection_sync (POS: Unified SQLite hardening profile)
+
+[OUTPUT]
+- WorkflowEventStore: Persistent cache for sub-agent spawn results
+
+[POS]
+Provides L2 persistent caching for the Dynamic Workflow Engine. When a PTC script
+crashes or the network reconnects, completed sub-agent results are replayed from
+cache rather than re-executed. Connections use harden_connection_sync(CACHE) for
+WAL journaling, concurrent write safety, and filesystem fallback.
+"""
+
 import json
 import sqlite3
 from collections.abc import Iterator
