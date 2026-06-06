@@ -162,22 +162,11 @@ jobs:
           packages-dir: pypi-upload-release
           skip-existing: true
 
-      - name: Publish core wheels (API token)
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: |
-          if [ -z "${TWINE_PASSWORD}" ]; then
-            echo "::error::Set repository secret PYPI_API_TOKEN for core wheel uploads." >&2
-            exit 1
-          fi
-          shopt -s nullglob
-          core_wheels=(pypi-upload-core/*.whl)
-          if [ "${#core_wheels[@]}" -eq 0 ]; then
-            echo "::error::No core wheels staged for upload." >&2
-            exit 1
-          fi
-          uv tool run twine upload --non-interactive --skip-existing "${core_wheels[@]}"
+      - name: Publish core wheels (Trusted Publisher / OIDC)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: pypi-upload-core
+          skip-existing: true
 
       - name: Verify all packages indexed on PyPI
         run: uv run python scripts/verify_pypi_publish.py
