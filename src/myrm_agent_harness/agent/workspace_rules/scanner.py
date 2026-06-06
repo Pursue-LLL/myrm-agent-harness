@@ -226,16 +226,19 @@ def _scan_rules_subdir(
 
 
 def _scan_directory(directory: Path) -> list[RuleFile]:
-    """Scan a single directory for rule files (First-Match-Wins)."""
+    """Scan a single directory for rule files.
+    
+    Uses First-Match-Wins for global rule files to prevent conflicts,
+    but always loads specific rule directories (.myrm/rules, .cursor/rules).
+    """
     results: list[RuleFile] = []
     seen_inodes: set[tuple[int, int]] = set()
 
-    # 1. .myrm/rules/*.md
-    myrm_rules = _scan_rules_subdir(directory, _MYRM_RULES_DIR, "*.md", seen_inodes)
-    if myrm_rules:
-        return myrm_rules
+    # 1. Load specific rule directories (always loaded)
+    results.extend(_scan_rules_subdir(directory, _MYRM_RULES_DIR, "*.md", seen_inodes))
+    results.extend(_scan_rules_subdir(directory, _CURSOR_RULES_DIR, "*.mdc", seen_inodes))
 
-    # 2. Single files in priority order
+    # 2. First-Match-Wins for global rule files
     for filename in _RULE_FILENAMES:
         filepath = directory / filename
         if filepath.is_file():
@@ -245,41 +248,21 @@ def _scan_directory(directory: Path) -> list[RuleFile]:
                 rule = _load_rule_file(filepath, source=filename)
                 if rule:
                     results.append(rule)
+                    return results  # Stop after finding the highest priority global file
 
-            # If we matched .cursorrules, we also load .cursor/rules/*.mdc
-            if filename == ".cursorrules":
-                results.extend(_scan_rules_subdir(directory, _CURSOR_RULES_DIR, "*.mdc", seen_inodes))
+    # 3. Check fallback subdirectories if no global file was found
+    for subdir_file in (_CLAUDE_SUBDIR_FILE, _COPILOT_INSTRUCTIONS_FILE):
+        filepath = directory / subdir_file
+        if filepath.is_file():
+            key = _inode_key(filepath)
+            if key not in seen_inodes:
+                seen_inodes.add(key)
+                rule = _load_rule_file(filepath, source=subdir_file)
+                if rule:
+                    results.append(rule)
+                    return results  # Stop after finding the highest priority fallback
 
-            # First-Match-Wins: return immediately after finding the highest priority file
-            if results:
-                return results
-
-    # 3. .cursor/rules/*.mdc (if .cursorrules didn't exist)
-    cursor_rules = _scan_rules_subdir(directory, _CURSOR_RULES_DIR, "*.mdc", seen_inodes)
-    if cursor_rules:
-        return cursor_rules
-
-    # 4. .claude/CLAUDE.md
-    claude_subdir = directory / _CLAUDE_SUBDIR_FILE
-    if claude_subdir.is_file():
-        key = _inode_key(claude_subdir)
-        if key not in seen_inodes:
-            seen_inodes.add(key)
-            rule = _load_rule_file(claude_subdir, source=_CLAUDE_SUBDIR_FILE)
-            if rule:
-                return [rule]
-
-    # 5. .github/copilot-instructions.md
-    copilot = directory / _COPILOT_INSTRUCTIONS_FILE
-    if copilot.is_file():
-        key = _inode_key(copilot)
-        if key not in seen_inodes:
-            seen_inodes.add(key)
-            rule = _load_rule_file(copilot, source=_COPILOT_INSTRUCTIONS_FILE)
-            if rule:
-                return [rule]
-
-    return []
+    return results
 
 
 def scan_workspace_rules(workspace_root: str) -> list[RuleFile]:

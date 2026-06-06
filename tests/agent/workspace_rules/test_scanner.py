@@ -138,8 +138,12 @@ class TestScanDirectory:
         cursor_dir.mkdir(parents=True)
         (cursor_dir / "rule.mdc").write_text("Cursor rule")
         results = _scan_directory(workspace_dir)
-        assert len(results) == 1
-        assert results[0].source == "AGENTS.md"
+        # Should contain AGENTS.md (global) AND rule.mdc (specific), but NOT CLAUDE.md
+        assert len(results) == 2
+        sources = [r.source for r in results]
+        assert "AGENTS.md" in sources
+        assert ".cursor/rules" in sources
+        assert "CLAUDE.md" not in sources
 
     def test_discovers_claude_subdir(self, workspace_dir: Path) -> None:
         claude_dir = workspace_dir / ".claude"

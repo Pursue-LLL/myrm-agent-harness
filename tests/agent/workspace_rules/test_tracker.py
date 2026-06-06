@@ -123,15 +123,13 @@ class TestSubdirectoryContextTracker:
         assert "Shell discovered" in result
 
     def test_respects_max_append_chars(self, workspace: Path) -> None:
-        # Create 3 directories
-        (workspace / "dir0").mkdir()
-        (workspace / "dir0" / "AGENTS.md").write_text("X" * 8000)
-        
-        (workspace / "dir1").mkdir()
-        (workspace / "dir1" / "AGENTS.md").write_text("X" * 2000)
-        
-        (workspace / "dir2").mkdir()
-        (workspace / "dir2" / "AGENTS.md").write_text("X" * 8000)
+        # Create 5 directories, each with a 5000-char rule file
+        # 5 * 5000 = 25000 > 16000. The 4th file will trigger truncation,
+        # and the 5th file will hit the `break` condition.
+        for i in range(5):
+            d = workspace / f"dir{i}"
+            d.mkdir()
+            (d / "AGENTS.md").write_text("X" * 5000)
 
         tracker = SubdirectoryContextTracker(str(workspace))
         result = tracker.check_tool_call(
@@ -140,6 +138,8 @@ class TestSubdirectoryContextTracker:
                 "path": str(workspace / "dir0"),
                 "file_path": str(workspace / "dir1"),
                 "directory": str(workspace / "dir2"),
+                "cwd": str(workspace / "dir3"),
+                "target": str(workspace / "dir4"),
             },
             "content",
         )
