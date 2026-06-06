@@ -93,6 +93,7 @@ class OptimizationScheduler:
 
         # 批量任务追踪（F6简化版）
         self._batch_tasks: dict[str, dict[str, Any]] = {}
+        self._batch_cancel_tokens: dict[str, asyncio.Event] = {}
         self._bg_tasks: set[asyncio.Task[None]] = set()
 
         # Metrics统计（F8）
@@ -404,6 +405,31 @@ class OptimizationScheduler:
                 "error": str(e),
             }
 
+    def _is_batch_cancelled(self, batch_task_id: str) -> bool:
+        token = self._batch_cancel_tokens.get(batch_task_id)
+        return token is not None and token.is_set()
+
+    async def cancel_batch_optimization(self, batch_task_id: str) -> bool:
+        """Request cancellation of a running batch optimization.
+
+        Args:
+            batch_task_id: Batch task ID to cancel
+
+        Returns:
+            True if cancellation was requested, False if batch not found
+        """
+        if batch_task_id not in self._batch_tasks:
+            return False
+
+        token = self._batch_cancel_tokens.get(batch_task_id)
+        if token is None:
+            return False
+
+        token.set()
+        self._batch_tasks[batch_task_id]["status"] = "cancelled"
+        logger.info("Batch optimization cancellation requested: %s", batch_task_id)
+        return True
+
     async def trigger_batch_optimization(
         self,
         skill_ids: list[str],
@@ -435,6 +461,7 @@ class OptimizationScheduler:
             "skill_ids": skill_ids,
             "priority": priority,
         }
+        self._batch_cancel_tokens[batch_task_id] = asyncio.Event()
 
         logger.info(
             f"Batch optimization started: {batch_task_id}, {len(skill_ids)} skills, "
@@ -455,93 +482,120 @@ class OptimizationScheduler:
             skill_ids: Skill ID列表
             max_concurrent: 最大并发数
         """
-        semaphore = asyncio.Semaphore(max_concurrent)
+        try:
+            semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def optimize_one(skill_id: str) -> bool:
-            """优化单个skill（带并发控制）"""
-            async with semaphore:
-                try:
-                    samples = await self.execution_provider.get_skill_executions(skill_id=skill_id, days=7)
-
-                    if not samples:
-                        logger.warning(f"No execution samples for skill: {skill_id}")
+            async def optimize_one(skill_id: str) -> bool:
+                """优化单个skill（带并发控制）"""
+                async with semaphore:
+                    if self._is_batch_cancelled(batch_task_id):
+                        logger.info(
+                            "Batch %s cancelled, skipping skill %s",
+                            batch_task_id,
+                            skill_id,
+                        )
                         return False
 
-                    quality_score = await self.quality_calculator.calculate(samples, skill_id=skill_id)
+                    try:
+                        samples = await self.execution_provider.get_skill_executions(skill_id=skill_id, days=7)
 
-                    if quality_score.overall_score < self.config.monitoring.optimization_threshold:
-                        skill_metadata = await self.execution_provider.get_skill_metadata(skill_id)
-                        if skill_metadata:
-                            # Load content for optimization
-                            content = await self.execution_provider.get_skill_content(skill_id)
-                            await self.optimizer.optimize_skill(skill_metadata, quality_score, content=content)
-                            logger.info(f"Batch optimization completed for skill: {skill_id}")
-                        else:
-                            logger.warning(f"Skill metadata not found: {skill_id}")
+                        if not samples:
+                            logger.warning(f"No execution samples for skill: {skill_id}")
                             return False
+
+                        quality_score = await self.quality_calculator.calculate(samples, skill_id=skill_id)
+
+                        if quality_score.overall_score < self.config.monitoring.optimization_threshold:
+                            skill_metadata = await self.execution_provider.get_skill_metadata(skill_id)
+                            if skill_metadata:
+                                if self._is_batch_cancelled(batch_task_id):
+                                    return False
+
+                                content = await self.execution_provider.get_skill_content(skill_id)
+                                await self.optimizer.optimize_skill(skill_metadata, quality_score, content=content)
+
+                                if self._is_batch_cancelled(batch_task_id):
+                                    logger.info(
+                                        "Batch %s cancelled, discarding optimization result for %s",
+                                        batch_task_id,
+                                        skill_id,
+                                    )
+                                    return False
+
+                                logger.info(f"Batch optimization completed for skill: {skill_id}")
+                            else:
+                                logger.warning(f"Skill metadata not found: {skill_id}")
+                                return False
+                        else:
+                            logger.info(
+                                f"Skill quality above threshold, skipping: {skill_id} "
+                                f"(score: {quality_score.overall_score})"
+                            )
+
+                        return True
+
+                    except Exception as e:
+                        logger.error(f"Batch optimization error for {skill_id}: {e}")
+                        return False
+
+            total = len(skill_ids)
+            completed = 0
+            failed = 0
+
+            tasks = [asyncio.create_task(optimize_one(skill_id)) for skill_id in skill_ids]
+
+            for task in asyncio.as_completed(tasks):
+                try:
+                    result = await task
+                    if result:
+                        completed += 1
                     else:
-                        logger.info(
-                            f"Skill quality above threshold, skipping: {skill_id} (score: {quality_score.overall_score})"
-                        )
-
-                    return True
-
-                except Exception as e:
-                    logger.error(f"Batch optimization error for {skill_id}: {e}")
-                    return False
-
-        # P1-6: 支持进度事件，逐个处理任务
-        total = len(skill_ids)
-        completed = 0
-        failed = 0
-
-        # 创建任务并逐个等待，每完成一个发送进度事件
-        tasks = [asyncio.create_task(optimize_one(skill_id)) for skill_id in skill_ids]
-
-        for task in asyncio.as_completed(tasks):
-            try:
-                result = await task
-                if result:
-                    completed += 1
-                else:
+                        failed += 1
+                except Exception:
                     failed += 1
-            except Exception:
-                failed += 1
 
-            # 发射进度事件 (P1-6)
-            progress_percent = (completed + failed) / total
-            await self.event_emitter.emit(
-                "batch_optimization_progress",
+                progress_percent = (completed + failed) / total
+                await self.event_emitter.emit(
+                    "batch_optimization_progress",
+                    {
+                        "batch_task_id": batch_task_id,
+                        "total": total,
+                        "completed": completed,
+                        "failed": failed,
+                        "progress_percent": progress_percent,
+                    },
+                )
+
+            final_status = "cancelled" if self._is_batch_cancelled(batch_task_id) else "completed"
+            self._batch_tasks[batch_task_id].update(
                 {
-                    "batch_task_id": batch_task_id,
-                    "total": total,
                     "completed": completed,
                     "failed": failed,
-                    "progress_percent": progress_percent,
-                },
+                    "status": final_status,
+                    "completed_at": datetime.now(),
+                }
             )
 
-        # 更新最终状态
-        self._batch_tasks[batch_task_id].update(
-            {
-                "completed": completed,
-                "failed": failed,
-                "status": "completed",
-                "completed_at": datetime.now(),
-            }
-        )
+            logger.info(
+                "Batch optimization finished: %s, status=%s, succeeded=%s, failed=%s",
+                batch_task_id,
+                final_status,
+                completed,
+                failed,
+            )
 
-        logger.info(f"Batch optimization completed: {batch_task_id}, succeeded={completed}, failed={failed}")
-
-        await self.event_emitter.emit(
-            "batch_optimization_completed",
-            {
-                "batch_task_id": batch_task_id,
-                "total": len(skill_ids),
-                "succeeded": completed,
-                "failed": failed,
-            },
-        )
+            await self.event_emitter.emit(
+                "batch_optimization_completed",
+                {
+                    "batch_task_id": batch_task_id,
+                    "total": len(skill_ids),
+                    "succeeded": completed,
+                    "failed": failed,
+                    "status": final_status,
+                },
+            )
+        finally:
+            self._batch_cancel_tokens.pop(batch_task_id, None)
 
     def get_batch_status(self, batch_task_id: str) -> dict[str, Any] | None:
         """获取批量任务状态（F6）
