@@ -139,15 +139,14 @@ observability = [
   "opentelemetry-exporter-otlp-proto-grpc>=1.42.1",
   "openinference-instrumentation-langchain>=0.1.66",
 ]
-# PyPI platform core wheels — restored in follow-up commit after first publish (see DISTRIBUTION_SYSTEM.md).
-# compiled-core = [
-#   "myrm-agent-harness-core-darwin-arm64==0.1.0rc1; platform_system == 'Darwin' and platform_machine == 'arm64'",
-#   "myrm-agent-harness-core-darwin-x64==0.1.0rc1; platform_system == 'Darwin' and platform_machine == 'x86_64'",
-#   "myrm-agent-harness-core-linux-x64==0.1.0rc1; platform_system == 'Linux' and platform_machine == 'x86_64'",
-#   "myrm-agent-harness-core-linux-arm64==0.1.0rc1; platform_system == 'Linux' and platform_machine == 'aarch64'",
-#   "myrm-agent-harness-core-win32-x64==0.1.0rc1; platform_system == 'Windows' and platform_machine == 'AMD64'",
-#   "myrm-agent-harness-core-win32-arm64==0.1.0rc1; platform_system == 'Windows' and platform_machine == 'ARM64'",
-# ]
+compiled-core = [
+  "myrm-agent-harness-core-darwin-arm64==0.1.0rc1; platform_system == 'Darwin' and platform_machine == 'arm64'",
+  "myrm-agent-harness-core-darwin-x64==0.1.0rc1; platform_system == 'Darwin' and platform_machine == 'x86_64'",
+  "myrm-agent-harness-core-linux-x64==0.1.0rc1; platform_system == 'Linux' and platform_machine == 'x86_64'",
+  "myrm-agent-harness-core-linux-arm64==0.1.0rc1; platform_system == 'Linux' and platform_machine == 'aarch64'",
+  "myrm-agent-harness-core-win32-x64==0.1.0rc1; platform_system == 'Windows' and platform_machine == 'AMD64'",
+  "myrm-agent-harness-core-win32-arm64==0.1.0rc1; platform_system == 'Windows' and platform_machine == 'ARM64'",
+]
 all = [
   "myrm-agent-harness[browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,memory-postgres,image-search,shell-ast]",
 ]

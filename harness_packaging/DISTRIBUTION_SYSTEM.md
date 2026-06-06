@@ -84,15 +84,19 @@ Tag `v*` (e.g. `v0.1.0rc1`, aligned with `project.version`) in **myrm-agent-harn
 
 1. Matrix build six `myrm-agent-harness-core-*` wheels
 2. Build stripped release wheel
-3. Upload all to PyPI (`skip-existing`)
+3. Upload release wheel via GitHub **Trusted Publisher (OIDC)** (`environment: pypi`)
+4. Upload six core wheels via **Trusted Publisher (OIDC)** on each `myrm-agent-harness-core-*` PyPI project
+5. `scripts/verify_pypi_publish.py` polls until all seven packages are indexed (`skip-existing` on re-runs)
 
-Release automation verifies PyPI packages exist before refreshing server `uv.lock`.
+Each PyPI project needs a GitHub publisher: Owner `Pursue-LLL`, repository `myrm-agent-harness`, workflow `publish-pypi.yml`, environment `pypi`.
+
+One-time bootstrap for new core project names (OIDC cannot create projects): `scripts/bootstrap_pypi_core_upload.sh` with `PYPI_API_TOKEN`, then add Trusted Publisher on PyPI.
 
 ## CI
 
 | Workflow | Role |
 |----------|------|
-| `publish-pypi.yml` | Tag release → PyPI (release + 6 core wheels); matrix from `.github/core-platform-matrix.json` |
+| `publish-pypi.yml` | Tag release → PyPI (OIDC upload for release + 6 core wheels); matrix from `.github/core-platform-matrix.json` |
 | `build-core-wheels.yml` | Dev/matrix core wheel artifacts (same shared matrix; optional `platform` input) |
 | `boundary-check.yml` | Architecture + distribution tests |
 
