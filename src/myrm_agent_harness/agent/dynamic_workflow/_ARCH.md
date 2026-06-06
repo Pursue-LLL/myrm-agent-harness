@@ -11,7 +11,7 @@ User Request (use_workflow=True)
 Server API (stream_loop.py → stream_lane_factory.py)
   - Budget gate: should_block_execution()
   - Token tracker: init_token_tracker() ... reset_token_tracker()
-  - Agent factory: AgentFactory.create_general_agent(params)
+  - Agent factory: build_general_agent(wrapper, chat_id) → BaseAgent
        ↓
 Dynamic Workflow Engine (__init__.py)
   - cancel_token checked at each phase boundary

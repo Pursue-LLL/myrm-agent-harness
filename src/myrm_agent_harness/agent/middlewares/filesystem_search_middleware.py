@@ -15,6 +15,7 @@
 兼容 LangChain 中间件系统。
 
 [INPUT]
+- langchain.agents.middleware::AgentMiddleware (POS: Base middleware class for LangChain agent lifecycle hooks and tool injection.)
 - agent.config::FileIOConfig (POS: Configuration and type definitions for the Deep Research system. Pure data structures with no business logic dependencies.)
 - toolkits.storage.base::StorageProvider (POS: Storage provider abstract base class. Defines the unified storage interface contract for all storage backends. Supports file read/write, delete, list, info query, and namespace isolation. Method names use read/write (not get/put), fully compatible with the StorageBackend Protocol.)
 
@@ -117,7 +118,7 @@ class FilesystemFileSearchMiddleware(AgentMiddleware):
         # Store ripgrep preference (will be auto-detected by grep_tool)
         self._use_ripgrep = use_ripgrep
 
-        self.tools: list[BaseTool] = self._build_tools()
+        self._tools: list[BaseTool] = self._build_tools()
 
         logger.info(
             "FilesystemFileSearchMiddleware initialized: root=%s, "
@@ -147,8 +148,8 @@ class FilesystemFileSearchMiddleware(AgentMiddleware):
         return [glob_tool, grep_tool]
 
     def get_tools(self) -> list[BaseTool]:
-        """获取文件搜索工具 (backward-compatible alias for self.tools)"""
-        return self.tools
+        """Return glob and grep tools for registration by the agent framework."""
+        return self._tools
 
 
 # Convenience function for creating middleware
