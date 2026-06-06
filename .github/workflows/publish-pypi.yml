@@ -65,6 +65,11 @@ jobs:
       - name: Install build dependencies
         run: uv sync --only-group build --no-install-project --frozen
 
+      - name: Verify tag matches pyproject version
+        env:
+          GITHUB_REF: ${{ github.ref }}
+        run: uv run --no-project python scripts/verify_release_tag.py
+
       - name: Build platform wheel
         run: uv run --no-project python scripts/build_core.py --platform ${{ matrix.platform }} --wheel
 
@@ -91,6 +96,11 @@ jobs:
 
       - name: Install build dependencies
         run: uv sync --only-group build --no-install-project --frozen
+
+      - name: Verify tag matches pyproject version
+        env:
+          GITHUB_REF: ${{ github.ref }}
+        run: uv run --no-project python scripts/verify_release_tag.py
 
       - name: Build stripped release wheel
         run: uv run --no-project python scripts/build_release_wheel.py

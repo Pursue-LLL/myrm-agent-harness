@@ -82,11 +82,14 @@ docker build -f myrm-agent-server/docker/Dockerfile.official -t myrm/runtime:loc
 
 Tag `v*` (e.g. `v0.1.0rc1`, aligned with `project.version`) in **myrm-agent-harness** triggers `.github/workflows/publish-pypi.yml`:
 
+0. `scripts/verify_release_tag.py` asserts `refs/tags/v{version}` matches `project.version` before any wheel build
 1. Matrix build six `myrm-agent-harness-core-*` wheels
 2. Build stripped release wheel
-3. Upload release wheel via GitHub **Trusted Publisher (OIDC)** (`environment: pypi`)
-4. Upload six core wheels via **Trusted Publisher (OIDC)** on each `myrm-agent-harness-core-*` PyPI project
-5. `scripts/verify_pypi_publish.py` polls until all seven packages are indexed (`skip-existing` on re-runs)
+3. `publish-release` job uploads the release wheel (OIDC, `environment: pypi`)
+4. `publish-core` matrix (one job per platform) uploads each core wheel — OIDC tokens are project-scoped; batch upload fails with 403
+5. `publish-verify` runs `scripts/verify_pypi_publish.py` (release must expose `[compiled-core]` extra; `skip-existing` on re-runs)
+
+CI build jobs use `uv sync --only-group build --frozen` and `uv run --no-project` so the editable project is not installed before wheels exist on PyPI.
 
 Each PyPI project needs a GitHub publisher: Owner `Pursue-LLL`, repository `myrm-agent-harness`, workflow `publish-pypi.yml`, environment `pypi`.
 
