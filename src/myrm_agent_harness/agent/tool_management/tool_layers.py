@@ -101,10 +101,8 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # --- Cron 定时任务 ---
     "cron_manage_tool": ToolLayer.EXTENDED,
     # --- 文件搜索 ---
-    "get_local_file_index_status_tool": ToolLayer.EXTENDED,
     "glob_tool": ToolLayer.EXTENDED,
     "grep_tool": ToolLayer.EXTENDED,
-    "search_local_files_tool": ToolLayer.EXTENDED,
     # --- Git 相关 ---
     "commit_stage_tool": ToolLayer.EXTENDED,
     # --- Goal 工具 ---

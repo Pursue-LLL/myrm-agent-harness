@@ -227,12 +227,9 @@
 |---|--------|------------------:|----------|------|
 | 80 | huggingface_inference_tool | 55 | `harness/toolkits/huggingface/huggingface_agent_tools.py` | 调用 HuggingFace Serverless API（文生图/语音/分类） |
 
-### 4.20 本地文件搜索工具（启用文件索引时加载）
+### 4.20 本地文件搜索工具（已移除，未来重新实现时恢复）
 
-| # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
-|---|--------|------------------:|----------|------|
-| 81 | search_local_files_tool | 57 | `harness/toolkits/local_file_search/local_file_search_agent_tools.py` | 本地文件语义搜索（PDF/Word/Excel/代码等） |
-| 82 | get_local_file_index_status_tool | 22 | `harness/toolkits/local_file_search/local_file_search_agent_tools.py` | 查看本地文件索引状态与进度 |
+> 工具 `search_local_files_tool` 和 `get_local_file_index_status_tool` 的源码已移除，待重新设计后恢复。
 
 ### 4.21 Deep Research 编排器伪工具（仅深度搜索模式，JSON Schema 注入 LLM）
 

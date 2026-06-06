@@ -166,7 +166,6 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
             "file_edit_tool",
             "glob_tool",
             "grep_tool",
-            "search_local_files_tool",
             "ast_search_tool",
         }
     ),
