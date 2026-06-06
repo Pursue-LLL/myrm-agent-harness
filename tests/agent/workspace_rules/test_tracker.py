@@ -123,15 +123,29 @@ class TestSubdirectoryContextTracker:
         assert "Shell discovered" in result
 
     def test_respects_max_append_chars(self, workspace: Path) -> None:
-        (workspace / "src" / "AGENTS.md").write_text("X" * 20000)
+        # Create 3 directories
+        (workspace / "dir0").mkdir()
+        (workspace / "dir0" / "AGENTS.md").write_text("X" * 8000)
+        
+        (workspace / "dir1").mkdir()
+        (workspace / "dir1" / "AGENTS.md").write_text("X" * 2000)
+        
+        (workspace / "dir2").mkdir()
+        (workspace / "dir2" / "AGENTS.md").write_text("X" * 8000)
+
         tracker = SubdirectoryContextTracker(str(workspace))
         result = tracker.check_tool_call(
             "read_file",
-            {"path": str(workspace / "src" / "main.py")},
+            {
+                "path": str(workspace / "dir0"),
+                "file_path": str(workspace / "dir1"),
+                "directory": str(workspace / "dir2"),
+            },
             "content",
         )
-        if result:
-            assert len(result) <= 16500
+        assert result is not None
+        assert "truncated AGENTS.md: exceeded total append budget" in result
+        assert len(result) <= 17000
 
     def test_discovers_claude_subdir_in_subdirectory(self, workspace: Path) -> None:
         """Tracker discovers .claude/CLAUDE.md in newly accessed subdirectories."""
