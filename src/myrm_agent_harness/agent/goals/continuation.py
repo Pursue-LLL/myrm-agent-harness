@@ -1,7 +1,7 @@
 """Continuation guard chain for Goal engine.
 
 [INPUT]
-- .protocol::GoalProvider (POS: Goal provider protocol)
+- .protocols::GoalProvider (POS: Goal provider protocol)
 - .audit::build_continuation_prompt, build_judge_criteria (POS: Prompt/criteria builders)
 - .types::ContinuationDecision, GoalStatus (POS: Guard chain result)
 - langchain_core.messages::HumanMessage, AIMessage (POS: Message types)
@@ -9,11 +9,12 @@
 - utils.runtime.steering::SteeringToken (POS: Steering state)
 
 [OUTPUT]
-- check_continuation: Evaluates the 7-step guard chain, returns ContinuationDecision.
+- check_continuation: Evaluates the guard chain, returns ContinuationDecision.
 
 [POS]
 Core logic for determining if a goal should automatically continue to the next turn.
-Evaluates budget, suppression, cancellation, steering, and semantic completion.
+Evaluates budget, suppression, cancellation, steering, convergence, loop restart,
+and semantic completion.
 Returns a structured ContinuationDecision with verdict/reason for downstream consumers.
 """
 
@@ -173,9 +174,10 @@ async def check_continuation(
         goal.turns_used,
     )
 
-    # Handle suppression trigger (zero tool calls -> suppress next turn)
+    # Track no-progress streak for convergence detection
     if not tools_called_this_turn:
         await goal_provider.suppress_continuation(session_id)
+    goal = await goal_provider.record_progress(goal.goal_id, made_progress=tools_called_this_turn)
 
     # 3. Cancelled?
     if cancel_token and cancel_token.is_cancelled:
@@ -193,10 +195,47 @@ async def check_continuation(
         logger.warning("Goal %s stopped: budget limited", goal.goal_id)
         return _make_decision("budget", "Budget exhausted", goal)
 
-    # 6. Continuation suppressed (zero tool calls)?
+    # 6. Convergence detection + suppression (zero tool calls)
     is_suppressed = await goal_provider.is_continuation_suppressed(session_id)
 
     if is_suppressed:
+        convergence_window = goal.budget.convergence_window if goal.budget else None
+
+        # 6a. Convergence reached: no progress for K consecutive turns → COMPLETE
+        if convergence_window and goal.no_progress_streak >= convergence_window:
+            logger.info(
+                "Goal %s completed by convergence (streak=%d, window=%d)",
+                goal.goal_id,
+                goal.no_progress_streak,
+                convergence_window,
+            )
+            await goal_provider.update_status(goal.goal_id, GoalStatus.COMPLETE)
+            await goal_provider.reset_suppression(session_id)
+            return _make_decision(
+                "convergence",
+                f"No new progress for {goal.no_progress_streak} consecutive turns — convergence reached",
+                goal,
+            )
+
+        # 6b. Loop-on-pause: restart with fresh context instead of staying PAUSED
+        loop_on_pause = goal.budget.loop_on_pause if goal.budget else False
+        max_restarts = goal.budget.max_loop_restarts if goal.budget else 10
+        if loop_on_pause and goal.loop_restarts < max_restarts:
+            goal = await goal_provider.record_loop_restart(goal.goal_id)
+            logger.info(
+                "Goal %s: loop restart %d/%d (no tool calls, restarting with fresh context)",
+                goal.goal_id,
+                goal.loop_restarts,
+                max_restarts,
+            )
+            await goal_provider.reset_suppression(session_id)
+            return _make_decision(
+                "loop_restart",
+                f"Loop restart {goal.loop_restarts}/{max_restarts} — restarting with fresh context",
+                goal,
+            )
+
+        # 6c. Standard suppression: pause the goal
         logger.warning("Goal %s stopped: suppressed (zero progress)", goal.goal_id)
         await goal_provider.update_status(goal.goal_id, GoalStatus.PAUSED)
         await goal_provider.reset_suppression(session_id)

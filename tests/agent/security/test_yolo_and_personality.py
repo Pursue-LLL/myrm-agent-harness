@@ -765,7 +765,6 @@ class TestBatchProcessorComprehensive:
         assert payload["extensions"]["workspaceRoot"] == "/workspace/proj"
 
     def test_build_interrupt_payload_redacted_span_alignment(self) -> None:
-        from myrm_agent_harness.agent.middlewares.approval.batch_processor import build_interrupt_payload
         from myrm_agent_harness.agent.security.redact import redact_for_display
         from myrm_agent_harness.toolkits.code_execution.security.command_explainer.extract import (
             build_shell_approval_fields,

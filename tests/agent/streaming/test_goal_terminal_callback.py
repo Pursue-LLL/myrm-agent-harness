@@ -68,6 +68,7 @@ class TestGoalTerminalCallbackTrigger:
             goal=goal, status_changed=False, budget_exhausted=False
         )
         goal_provider.evaluate_semantic.return_value = MagicMock(passed=True, reason="done")
+        goal_provider.record_progress.return_value = goal
 
         ctx = _make_ctx(on_goal_terminal=callback, goal_provider=goal_provider)
 
@@ -115,6 +116,7 @@ class TestGoalTerminalCallbackTrigger:
         goal_provider.account_usage.return_value = MagicMock(
             goal=goal, status_changed=True, budget_exhausted=True
         )
+        goal_provider.record_progress.return_value = goal
 
         ctx = _make_ctx(on_goal_terminal=callback, goal_provider=goal_provider)
 
@@ -162,6 +164,7 @@ class TestGoalTerminalCallbackTrigger:
             goal=goal, status_changed=False, budget_exhausted=False
         )
         goal_provider.evaluate_semantic.return_value = MagicMock(passed=False, reason="not done")
+        goal_provider.record_progress.return_value = goal
 
         ctx = _make_ctx(on_goal_terminal=callback, goal_provider=goal_provider)
 
@@ -202,6 +205,7 @@ class TestGoalTerminalCallbackTrigger:
             goal=goal, status_changed=False, budget_exhausted=False
         )
         goal_provider.evaluate_semantic.return_value = MagicMock(passed=True, reason="done")
+        goal_provider.record_progress.return_value = goal
 
         ctx = _make_ctx(on_goal_terminal=None, goal_provider=goal_provider)
 
@@ -239,6 +243,7 @@ class TestGoalTerminalCallbackTrigger:
         goal_provider.account_usage.return_value = MagicMock(
             goal=goal, status_changed=False, budget_exhausted=False
         )
+        goal_provider.record_progress.return_value = goal
 
         cancel_token = MagicMock()
         cancel_token.is_cancelled = True

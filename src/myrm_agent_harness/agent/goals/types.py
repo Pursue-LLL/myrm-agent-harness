@@ -44,12 +44,24 @@ class GoalBudget:
     """Budget limits for a Goal.
 
     Four dimensions: tokens, USD cost, wall-clock time, and turns.
+    Plus convergence/loop control for open-ended objectives.
     """
 
     max_tokens: int | None = None
     max_usd: float | None = None
     max_time_seconds: int | None = None
     max_turns: int | None = None
+
+    convergence_window: int | None = None
+    """Auto-complete when agent shows no progress for K consecutive turns.
+    None = disabled. Typical value: 3."""
+
+    loop_on_pause: bool = False
+    """When True, automatically restart with fresh context after PAUSED
+    instead of waiting for external trigger (Cron / user)."""
+
+    max_loop_restarts: int = 10
+    """Safety cap for loop_on_pause to prevent infinite restart cycles."""
 
 
 @dataclass
@@ -87,6 +99,10 @@ class Goal:
     cost_usd: float = 0.0
     turns_used: int = 0
 
+    # Convergence tracking: consecutive turns with zero tool calls (no progress).
+    no_progress_streak: int = 0
+    loop_restarts: int = 0
+
     # Metadata
     created_at: datetime = field(default_factory=_utc_now)
     updated_at: datetime = field(default_factory=_utc_now)
@@ -117,6 +133,9 @@ class Goal:
                     "max_usd": self.budget.max_usd,
                     "max_time_seconds": self.budget.max_time_seconds,
                     "max_turns": self.budget.max_turns,
+                    "convergence_window": self.budget.convergence_window,
+                    "loop_on_pause": self.budget.loop_on_pause,
+                    "max_loop_restarts": self.budget.max_loop_restarts,
                 }
                 if self.budget
                 else None
@@ -128,6 +147,8 @@ class Goal:
             "time_used_seconds": self.time_used_seconds,
             "cost_usd": self.cost_usd,
             "turns_used": self.turns_used,
+            "no_progress_streak": self.no_progress_streak,
+            "loop_restarts": self.loop_restarts,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "metadata": self.metadata,
@@ -178,6 +199,8 @@ ContinuationVerdict = Literal[
     "suppressed",
     "steering",
     "no_goal",
+    "convergence",
+    "loop_restart",
 ]
 
 

@@ -32,7 +32,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_MAX_APPEND_CHARS = 4000
+_MAX_APPEND_CHARS = 16000
 _MAX_ANCESTOR_WALK = 5
 
 _PATH_ARG_KEYS: frozenset[str] = frozenset(
@@ -83,10 +83,7 @@ class SubdirectoryContextTracker:
             return None
 
         from myrm_agent_harness.agent.workspace_rules.scanner import (
-            _CLAUDE_SUBDIR_FILE,
-            _COPILOT_INSTRUCTIONS_FILE,
-            _RULE_FILENAMES,
-            _load_rule_file,
+            _scan_directory,
         )
 
         discovered_rules: list[str] = []
@@ -101,21 +98,20 @@ class SubdirectoryContextTracker:
             if not self._is_within_workspace(directory):
                 continue
 
-            for subdir_file in (_CLAUDE_SUBDIR_FILE, _COPILOT_INSTRUCTIONS_FILE):
-                subdir_path = directory / subdir_file
-                if subdir_path.is_file():
-                    rule = _load_rule_file(subdir_path, source=f"subdir:{subdir_file}")
-                    if rule and total_chars + len(rule.content) <= _MAX_APPEND_CHARS:
-                        discovered_rules.append(f"[Discovered {subdir_file} in {directory}]\n{rule.content}")
-                        total_chars += len(rule.content)
+            rules = _scan_directory(directory)
+            for rule in rules:
+                if total_chars >= _MAX_APPEND_CHARS:
+                    break
 
-            for filename in _RULE_FILENAMES:
-                filepath = directory / filename
-                if filepath.is_file():
-                    rule = _load_rule_file(filepath, source=f"subdir:{filename}")
-                    if rule and total_chars + len(rule.content) <= _MAX_APPEND_CHARS:
-                        discovered_rules.append(f"[Discovered {filename} in {directory}]\n{rule.content}")
-                        total_chars += len(rule.content)
+                content = rule.content
+                remaining = _MAX_APPEND_CHARS - total_chars
+
+                if len(content) > remaining:
+                    # Truncate to fit remaining budget
+                    content = content[:remaining] + f"\n\n[...truncated {Path(rule.path).name}: exceeded total append budget]"
+
+                discovered_rules.append(f"[Discovered {Path(rule.path).name} in {directory}]\n{content}")
+                total_chars += len(content)
 
         if not discovered_rules:
             return None

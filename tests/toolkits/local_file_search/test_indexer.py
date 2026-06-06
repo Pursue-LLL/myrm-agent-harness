@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
-
 from myrm_agent_harness.toolkits.local_file_search.config import (
     LocalFileSearchConfig,
 )

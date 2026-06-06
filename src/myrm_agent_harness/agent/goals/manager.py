@@ -1,7 +1,7 @@
 """GoalManager state machine and lifecycle control.
 
 [INPUT]
-- .protocol::GoalProvider (POS: GoalProvider protocol)
+- .protocols::GoalProvider (POS: GoalProvider protocol)
 - .types::Goal, GoalStatus, GoalBudget, GoalAccountingOutcome (POS: Goal data types)
 - .storage::GoalStorage (POS: SQLite persistence)
 
@@ -10,7 +10,7 @@
 
 [POS]
 Core state machine for the Goal engine. Handles creation, status transitions,
-usage accounting, and continuation suppression.
+usage accounting, continuation suppression, progress tracking, and loop restart recording.
 """
 
 from __future__ import annotations
@@ -150,6 +150,9 @@ class GoalManager(GoalProvider):
                 max_usd=goal.budget.max_usd,
                 max_time_seconds=goal.budget.max_time_seconds,
                 max_turns=goal.budget.max_turns,
+                convergence_window=goal.budget.convergence_window,
+                loop_on_pause=goal.budget.loop_on_pause,
+                max_loop_restarts=goal.budget.max_loop_restarts,
             )
 
         goal.updated_at = datetime.now(UTC)
@@ -224,11 +227,38 @@ class GoalManager(GoalProvider):
         logger.info("Goal %s verification retries reset to 0", goal_id)
         return goal
 
+    async def record_progress(self, goal_id: str, *, made_progress: bool) -> Goal:
+        """Update the no-progress streak counter for convergence detection."""
+        goal = await self._storage.get_goal(goal_id)
+        if not goal:
+            raise ValueError(f"Goal {goal_id} not found")
+
+        if made_progress:
+            goal.no_progress_streak = 0
+        else:
+            goal.no_progress_streak += 1
+
+        goal.updated_at = datetime.now(UTC)
+        await self._storage.save_goal(goal)
+        return goal
+
+    async def record_loop_restart(self, goal_id: str) -> Goal:
+        """Increment the loop_restarts counter."""
+        goal = await self._storage.get_goal(goal_id)
+        if not goal:
+            raise ValueError(f"Goal {goal_id} not found")
+
+        goal.loop_restarts += 1
+        goal.updated_at = datetime.now(UTC)
+        await self._storage.save_goal(goal)
+        logger.info("Goal %s loop restart #%d", goal_id, goal.loop_restarts)
+        return goal
+
     async def resume_goal(self, goal_id: str, *, reset_turns: bool = True) -> Goal:
         """Resume a paused/budget-limited goal.
 
-        Transitions status back to ACTIVE and optionally resets turns_used
-        to allow the goal to continue working within a fresh turn budget.
+        Transitions status back to ACTIVE, resets convergence counters
+        (no_progress_streak, loop_restarts), and optionally resets turns_used.
         """
         goal = await self._storage.get_goal(goal_id)
         if not goal:
@@ -240,6 +270,8 @@ class GoalManager(GoalProvider):
         goal.status = GoalStatus.ACTIVE
         if reset_turns:
             goal.turns_used = 0
+        goal.no_progress_streak = 0
+        goal.loop_restarts = 0
         goal.updated_at = datetime.now(UTC)
         await self._storage.save_goal(goal)
         record_goal_resumed()

@@ -123,7 +123,7 @@ class TestSubdirectoryContextTracker:
         assert "Shell discovered" in result
 
     def test_respects_max_append_chars(self, workspace: Path) -> None:
-        (workspace / "src" / "AGENTS.md").write_text("X" * 5000)
+        (workspace / "src" / "AGENTS.md").write_text("X" * 20000)
         tracker = SubdirectoryContextTracker(str(workspace))
         result = tracker.check_tool_call(
             "read_file",
@@ -131,7 +131,7 @@ class TestSubdirectoryContextTracker:
             "content",
         )
         if result:
-            assert len(result) <= 5000
+            assert len(result) <= 16500
 
     def test_discovers_claude_subdir_in_subdirectory(self, workspace: Path) -> None:
         """Tracker discovers .claude/CLAUDE.md in newly accessed subdirectories."""
@@ -146,10 +146,10 @@ class TestSubdirectoryContextTracker:
         )
         assert result is not None
         assert "Claude subdir rules in src" in result
-        assert ".claude/CLAUDE.md" in result
+        assert "CLAUDE.md" in result
 
-    def test_claude_subdir_coexists_with_root_rules(self, workspace: Path) -> None:
-        """Both .claude/CLAUDE.md and AGENTS.md in same subdir are discovered."""
+    def test_claude_subdir_overridden_by_root_rules(self, workspace: Path) -> None:
+        """AGENTS.md overrides .claude/CLAUDE.md in same subdir (First-Match-Wins)."""
         subdir = workspace / "src"
         claude_dir = subdir / ".claude"
         claude_dir.mkdir()
@@ -162,7 +162,7 @@ class TestSubdirectoryContextTracker:
             "content",
         )
         assert result is not None
-        assert "Claude rules" in result
+        assert "Claude rules" not in result
         assert "Agent rules" in result
 
     def test_discovers_windsurfrules_in_subdirectory(self, workspace: Path) -> None:
@@ -190,10 +190,10 @@ class TestSubdirectoryContextTracker:
         )
         assert result is not None
         assert "Copilot subdir rules" in result
-        assert ".github/copilot-instructions.md" in result
+        assert "copilot-instructions.md" in result
 
-    def test_copilot_and_windsurf_coexist_in_subdirectory(self, workspace: Path) -> None:
-        """Both copilot-instructions.md and .windsurfrules are discovered together."""
+    def test_copilot_overridden_by_windsurfrules(self, workspace: Path) -> None:
+        """copilot-instructions.md is overridden by .windsurfrules (First-Match-Wins)."""
         subdir = workspace / "src"
         github_dir = subdir / ".github"
         github_dir.mkdir()
@@ -206,7 +206,7 @@ class TestSubdirectoryContextTracker:
             "content",
         )
         assert result is not None
-        assert "Copilot rules" in result
+        assert "Copilot rules" not in result
         assert "Windsurf rules" in result
 
     def test_empty_workspace_root(self) -> None:

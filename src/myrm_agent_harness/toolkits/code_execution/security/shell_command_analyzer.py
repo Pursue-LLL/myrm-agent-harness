@@ -190,6 +190,8 @@ _DANGEROUS_COMMANDS: tuple[tuple[str, str], ...] = (
     (r"/proc/[^/]+/environ\b", "Reading process environment variables"),
     # --- bash built-in networking (bypasses firewall / tool allowlists) ---
     (r"/dev/tcp/", "Bash built-in networking (bypass)"),
+    # --- configuration protection ---
+    (r"(?:>|sed\s|awk\s|rm\s|cp\s|mv\s).*?\b(eslint\.config\.[a-z]+|\.eslintrc(\.[a-z]+)?|\.prettierrc(\.[a-z]+)?|prettier\.config\.[a-z]+|biome\.jsonc?|\.?ruff\.toml|tsconfig(\..+)?\.json|\.stylelintrc(\.[a-z]+)?|\.markdownlint(rc|\.[a-z]+)|\.shellcheckrc|jest\.config\.[a-z]+|commitlint\.config\.[a-z]+|\.cursorrules|rule\.mdc)\b", "Modifying configuration file via shell"),
 )
 
 _DANGEROUS_COMMANDS_COMPILED: tuple[tuple[re.Pattern[str], str], ...] = tuple(

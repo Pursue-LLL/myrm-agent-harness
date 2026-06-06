@@ -11,7 +11,7 @@
 - agent.types::AgentEventType, AgentRunStatistics (POS: 类型定义)
 
 [OUTPUT]
-- StreamContext: 执行上下文 dataclass (含 drain_subagent_notifications 可选回调)
+- StreamContext: 执行上下文 dataclass (含 drain_subagent_notifications, on_loop_restart 等可选回调)
 - StreamExecutor: 流式执行引擎
 
 [POS]
@@ -92,6 +92,7 @@ class StreamContext:
     llm_info: dict[str, str | None] | None = None
     goal_provider: GoalProvider | None = None
     on_goal_terminal: Callable[[Goal, list[BaseMessage], GoalExecutionSummary], Awaitable[None]] | None = None
+    on_loop_restart: Callable[[str, Goal], Awaitable[None]] | None = None
     escalation_target_llm: BaseChatModel | None = None
     llm: BaseChatModel | None = None
 

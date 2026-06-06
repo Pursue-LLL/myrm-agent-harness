@@ -106,26 +106,26 @@ async def _ripgrep_search(
                 line_bytes = await proc.stdout.readline()
                 if not line_bytes:
                     break
-                
+
                 try:
                     line_str = line_bytes.decode("utf-8").strip()
                     if not line_str:
                         continue
                     data = json.loads(line_str)
-                    
+
                     if data.get("type") in ("match", "context"):
                         path_text = data["data"]["path"]["text"]
                         line_num = data["data"]["line_number"]
                         content = data["data"]["lines"]["text"].rstrip("\n")
                         line_type = data["type"]
-                        
+
                         results.append({
                             "file": path_text,
                             "line": line_num,
                             "content": content,
                             "type": line_type
                         })
-                        
+
                         if line_type == "match":
                             match_count += 1
                             if match_count >= max_results:

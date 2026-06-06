@@ -115,7 +115,8 @@ class GoalProvider(Protocol):
     async def resume_goal(self, goal_id: str, *, reset_turns: bool = True) -> Goal:
         """Resume a paused/budget-limited goal.
 
-        Transitions status back to ACTIVE and optionally resets turns_used.
+        Transitions status back to ACTIVE, resets convergence counters
+        (no_progress_streak, loop_restarts), and optionally resets turns_used.
         """
         ...
 
@@ -161,6 +162,17 @@ class GoalProvider(Protocol):
 
     async def reorder_queue(self, session_id: str, ordered_goal_ids: list[str]) -> None:
         """Reorder the goal queue by the provided ordered goal IDs."""
+        ...
+
+    async def record_progress(self, goal_id: str, *, made_progress: bool) -> Goal:
+        """Update the no-progress streak counter for convergence detection.
+
+        If made_progress=True, resets streak to 0. Otherwise increments by 1.
+        """
+        ...
+
+    async def record_loop_restart(self, goal_id: str) -> Goal:
+        """Increment the loop_restarts counter."""
         ...
 
     async def update_constraints(self, goal_id: str, constraints: list[str]) -> Goal:

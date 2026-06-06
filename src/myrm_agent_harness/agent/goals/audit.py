@@ -83,13 +83,30 @@ def build_continuation_prompt(goal: Goal) -> str:
         for i, c in enumerate(goal.constraints):
             constraints_block += f"  {i + 1}. {c}\n"
 
+    convergence_block = ""
+    if (
+        goal.budget
+        and goal.budget.convergence_window is not None
+        and goal.turns_used >= goal.budget.convergence_window
+    ):
+        convergence_block = (
+            "\n\nConvergence awareness:\n"
+            f"- Convergence window: {goal.budget.convergence_window} turns. "
+            f"No-progress streak: {goal.no_progress_streak}/{goal.budget.convergence_window}.\n"
+            "- If you have thoroughly explored and found no new issues, "
+            "artifacts, or actionable items in recent turns, "
+            "explicitly declare the goal COMPLETE with a convergence summary.\n"
+            "- Do NOT keep searching indefinitely when diminishing returns are evident.\n"
+        )
+
     return (
         "[Continuing toward your standing goal]\n\n"
         f"<untrusted_objective>\n{goal.objective}\n</untrusted_objective>\n"
         f"{learnings_block}"
         f"{subgoals_block}"
         f"{constraints_block}\n\n"
-        f"Budget:\n{budget_text}\n\n"
+        f"Budget:\n{budget_text}\n"
+        f"{convergence_block}\n"
         "Fidelity:\n"
         "- This goal persists across turns. Ending this turn does not require shrinking the objective to what fits now.\n"
         "- Keep the full objective intact. Do not redefine success around a smaller, easier, or narrower task.\n"

@@ -265,9 +265,9 @@ def get_meta_tools(
         glob_tool = create_glob_tool()
         grep_tool = create_grep_tool()
         tools.extend([
-            file_read_tool, 
-            file_write_tool, 
-            file_edit_tool, 
+            file_read_tool,
+            file_write_tool,
+            file_edit_tool,
             incremental_read_tool,
             glob_tool,
             grep_tool

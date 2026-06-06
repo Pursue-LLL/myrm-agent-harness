@@ -102,6 +102,9 @@ class GoalStorage:
                 "max_usd": goal.budget.max_usd,
                 "max_time_seconds": goal.budget.max_time_seconds,
                 "max_turns": goal.budget.max_turns,
+                "convergence_window": goal.budget.convergence_window,
+                "loop_on_pause": goal.budget.loop_on_pause,
+                "max_loop_restarts": goal.budget.max_loop_restarts,
             }
 
         return {
@@ -121,6 +124,8 @@ class GoalStorage:
             "time_used_seconds": goal.time_used_seconds,
             "cost_usd": goal.cost_usd,
             "turns_used": goal.turns_used,
+            "no_progress_streak": goal.no_progress_streak,
+            "loop_restarts": goal.loop_restarts,
             "created_at": goal.created_at.isoformat(),
             "updated_at": goal.updated_at.isoformat(),
             "metadata": goal.metadata,
@@ -135,6 +140,9 @@ class GoalStorage:
                 max_usd=b_data.get("max_usd"),
                 max_time_seconds=b_data.get("max_time_seconds"),
                 max_turns=b_data.get("max_turns"),
+                convergence_window=b_data.get("convergence_window"),
+                loop_on_pause=b_data.get("loop_on_pause", False),
+                max_loop_restarts=b_data.get("max_loop_restarts", 10),
             )
 
         return Goal(
@@ -154,6 +162,8 @@ class GoalStorage:
             time_used_seconds=data.get("time_used_seconds", 0),
             cost_usd=data.get("cost_usd", 0.0),
             turns_used=data.get("turns_used", 0),
+            no_progress_streak=data.get("no_progress_streak", 0),
+            loop_restarts=data.get("loop_restarts", 0),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
             metadata=data.get("metadata", {}),

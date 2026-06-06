@@ -216,7 +216,7 @@ class StreamContinuationRecoveryMixin:
             goal_data: dict[str, object] = {}
             summary: GoalExecutionSummary | None = None
             if goal:
-                if decision.verdict in ("done", "budget"):
+                if decision.verdict in ("done", "budget", "convergence"):
                     summary = self._assemble_execution_summary(goal)
                     goal.metadata["execution_summary"] = summary.to_dict()
                 goal_data = goal.to_dict()
@@ -232,8 +232,7 @@ class StreamContinuationRecoveryMixin:
                 }
             )
 
-        if decision.verdict in ("done", "budget"):
-            # Check and emit trace slice on goal completion
+        if decision.verdict in ("done", "budget", "convergence"):
             if hasattr(self, "_check_and_emit_trace_slice"):
                 _track_background_recovery_task(asyncio.create_task(self._check_and_emit_trace_slice(force_flush=True)))
 
@@ -246,9 +245,15 @@ class StreamContinuationRecoveryMixin:
             self.streaming_final_answer = False
             return True
 
-        if decision.verdict in ("done", "budget") and ctx.on_goal_terminal and goal and summary:
+        if decision.verdict in ("done", "budget", "convergence") and ctx.on_goal_terminal and goal and summary:
             _track_background_recovery_task(
                 asyncio.create_task(ctx.on_goal_terminal(goal, list(collected_messages), summary))
+            )
+
+        # loop_restart: trigger a new agent stream with fresh context
+        if decision.verdict == "loop_restart" and goal and ctx.on_loop_restart:
+            _track_background_recovery_task(
+                asyncio.create_task(ctx.on_loop_restart(session_id, goal))
             )
 
         return False

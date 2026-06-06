@@ -261,6 +261,36 @@ async def test_resume_goal(goal_manager):
 
 
 @pytest.mark.asyncio
+async def test_resume_goal_resets_convergence_counters(goal_manager):
+    """resume_goal must reset no_progress_streak and loop_restarts to prevent
+    immediate re-convergence after manual resume."""
+    session_id = "session-resume-conv"
+    goal = await goal_manager.create_goal(
+        session_id,
+        "Test convergence reset on resume",
+        budget=GoalBudget(max_turns=20, convergence_window=3, loop_on_pause=True, max_loop_restarts=5),
+    )
+
+    # Simulate convergence state
+    await goal_manager.record_progress(goal.goal_id, made_progress=False)
+    await goal_manager.record_progress(goal.goal_id, made_progress=False)
+    await goal_manager.record_progress(goal.goal_id, made_progress=False)
+    await goal_manager.record_loop_restart(goal.goal_id)
+    await goal_manager.record_loop_restart(goal.goal_id)
+
+    pre = await goal_manager.get_goal(goal.goal_id)
+    assert pre.no_progress_streak == 3
+    assert pre.loop_restarts == 2
+
+    await goal_manager.update_status(goal.goal_id, GoalStatus.PAUSED)
+    resumed = await goal_manager.resume_goal(goal.goal_id)
+
+    assert resumed.status == GoalStatus.ACTIVE
+    assert resumed.no_progress_streak == 0
+    assert resumed.loop_restarts == 0
+
+
+@pytest.mark.asyncio
 async def test_resume_goal_errors(goal_manager):
     with pytest.raises(ValueError, match="not found"):
         await goal_manager.resume_goal("nonexistent")

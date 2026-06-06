@@ -131,14 +131,15 @@ class TestScanDirectory:
         results = _scan_directory(workspace_dir)
         assert any(r.source == "HERMES.md" for r in results)
 
-    def test_multiple_files_coexist(self, workspace_dir: Path) -> None:
+    def test_first_match_wins_priority(self, workspace_dir: Path) -> None:
         (workspace_dir / "AGENTS.md").write_text("# Agents")
         (workspace_dir / "CLAUDE.md").write_text("# Claude")
         cursor_dir = workspace_dir / ".cursor" / "rules"
         cursor_dir.mkdir(parents=True)
         (cursor_dir / "rule.mdc").write_text("Cursor rule")
         results = _scan_directory(workspace_dir)
-        assert len(results) >= 3
+        assert len(results) == 1
+        assert results[0].source == "AGENTS.md"
 
     def test_discovers_claude_subdir(self, workspace_dir: Path) -> None:
         claude_dir = workspace_dir / ".claude"
@@ -149,23 +150,23 @@ class TestScanDirectory:
         assert any("Claude Code project rules" in r.content for r in results)
 
     def test_claude_subdir_deduped_against_root(self, workspace_dir: Path) -> None:
-        """When both CLAUDE.md and .claude/CLAUDE.md exist, both are loaded (different content)."""
+        """When both CLAUDE.md and .claude/CLAUDE.md exist, only CLAUDE.md is loaded (First-Match-Wins)."""
         (workspace_dir / "CLAUDE.md").write_text("# Root Claude rules")
         claude_dir = workspace_dir / ".claude"
         claude_dir.mkdir()
         (claude_dir / "CLAUDE.md").write_text("# Subdir Claude rules")
         results = _scan_directory(workspace_dir)
         sources = [r.source for r in results]
-        assert ".claude/CLAUDE.md" in sources
+        assert ".claude/CLAUDE.md" not in sources
         assert "CLAUDE.md" in sources
 
-    def test_hermes_md_coexists_with_agents_md(self, workspace_dir: Path) -> None:
+    def test_hermes_md_overrides_agents_md(self, workspace_dir: Path) -> None:
         (workspace_dir / ".hermes.md").write_text("# Hermes rules")
         (workspace_dir / "AGENTS.md").write_text("# Agent rules")
         results = _scan_directory(workspace_dir)
         sources = {r.source for r in results}
         assert ".hermes.md" in sources
-        assert "AGENTS.md" in sources
+        assert "AGENTS.md" not in sources
 
     def test_discovers_windsurfrules(self, workspace_dir: Path) -> None:
         (workspace_dir / ".windsurfrules").write_text("# Windsurf project rules")
@@ -181,7 +182,7 @@ class TestScanDirectory:
         assert any(r.source == ".github/copilot-instructions.md" for r in results)
         assert any("Copilot instructions" in r.content for r in results)
 
-    def test_copilot_instructions_coexists_with_others(self, workspace_dir: Path) -> None:
+    def test_copilot_instructions_overridden_by_agents_md(self, workspace_dir: Path) -> None:
         (workspace_dir / "AGENTS.md").write_text("# Agents")
         (workspace_dir / ".windsurfrules").write_text("# Windsurf")
         github_dir = workspace_dir / ".github"
@@ -190,8 +191,8 @@ class TestScanDirectory:
         results = _scan_directory(workspace_dir)
         sources = {r.source for r in results}
         assert "AGENTS.md" in sources
-        assert ".windsurfrules" in sources
-        assert ".github/copilot-instructions.md" in sources
+        assert ".windsurfrules" not in sources
+        assert ".github/copilot-instructions.md" not in sources
 
 
 class TestScanWorkspaceRules:
