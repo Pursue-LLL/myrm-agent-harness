@@ -488,8 +488,83 @@ async def _collect_events(result: object) -> list[StructuredEvent]:
     return list(await cast(Awaitable[Any], result))
 
 
+async def get_agent_tool_health(
+    backend: EventLogBackend, agent_id: str, *, days: int = 7
+) -> list[dict[str, Any]]:
+    """Get aggregated tool health metrics for a specific agent.
+
+    Args:
+        backend: The EventLogBackend instance
+        agent_id: The agent ID
+        days: Lookback period in days
+
+    Returns:
+        List of dictionaries containing aggregated metrics per tool.
+    """
+    import asyncio
+    import time
+
+    start_time = time.time() - (days * 24 * 3600)
+    event_filter = EventFilter(
+        event_types=frozenset({"tool_start", "tool_end", "tool_failure", "tool_timeout"}), start_time=start_time
+    )
+
+    # Dictionary to aggregate metrics by tool_name.
+    # tool_name -> {"total_calls": 0, "success_count": 0, "error_count": 0, "durations": []}
+    tool_data: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {"total_calls": 0, "success_count": 0, "error_count": 0, "durations": []}
+    )
+
+    session_ids = await backend.get_all_session_ids()
+    tasks = [backend.get_events(session_id, event_filter) for session_id in session_ids]
+    all_session_events = await asyncio.gather(*tasks)
+
+    for events in all_session_events:
+        for event in await _collect_events(events):
+            if event.data.get("_agent_id") != agent_id:
+                continue
+
+            tool_name = event.data.get("tool_name")
+            if not isinstance(tool_name, str):
+                continue
+
+            data = tool_data[tool_name]
+            if event.event_type == "tool_start":
+                data["total_calls"] = cast(int, data["total_calls"]) + 1
+            elif event.event_type == "tool_end":
+                data["success_count"] = cast(int, data["success_count"]) + 1
+                duration_ms = event.data.get("duration_ms")
+                if isinstance(duration_ms, (int, float)):
+                    _durations(data).append(float(duration_ms))
+            elif event.event_type in {"tool_failure", "tool_timeout"}:
+                data["error_count"] = cast(int, data["error_count"]) + 1
+                duration_ms = event.data.get("duration_ms")
+                if isinstance(duration_ms, (int, float)):
+                    _durations(data).append(float(duration_ms))
+
+    results: list[dict[str, Any]] = []
+    for tool_name, data in tool_data.items():
+        durations = _durations(data)
+        avg_duration = (sum(durations) / len(durations) / 1000.0) if durations else 0.0 # Convert ms to seconds to match previous API
+        max_duration = (max(durations) / 1000.0) if durations else 0.0
+
+        results.append({
+            "tool_name": tool_name,
+            "total_calls": data["total_calls"],
+            "success_count": data["success_count"],
+            "error_count": data["error_count"],
+            "avg_duration": avg_duration,
+            "max_duration": max_duration,
+        })
+
+    # Sort by total_calls descending
+    results.sort(key=lambda item: item["total_calls"], reverse=True)
+    return results
+
+
 __all__ = [
     "get_activity_patterns",
+    "get_agent_tool_health",
     "get_bash_audit_logs",
     "get_bash_execution_stats",
     "get_global_tool_stability",

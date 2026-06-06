@@ -21,6 +21,7 @@ import asyncio
 import logging
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from .protocols import EventLogBackend
 from .types import DailyActivity, EventFilter, GlobalActivityPatterns, ToolStabilityAnalytics, TopSession
@@ -158,6 +159,21 @@ class EventLogAnalytics:
         session_ids = await self._backend.get_all_session_ids()
 
         return await get_global_tool_stability(self._backend, session_ids, tool_name=tool_name, start_time=start_time)
+
+    async def get_agent_tool_health(
+        self, agent_id: str, days: int = 7
+    ) -> list[dict[str, Any]]:
+        """Get aggregated tool health metrics for a specific agent.
+
+        Args:
+            agent_id: The agent ID
+            days: Lookback period in days
+
+        Returns:
+            List of dictionaries containing aggregated metrics per tool.
+        """
+        from .analytics_queries import get_agent_tool_health
+        return await get_agent_tool_health(self._backend, agent_id, days=days)
 
     def _calculate_max_streak(self, daily_activities: list[DailyActivity]) -> int:
         """Calculate maximum consecutive active days streak.

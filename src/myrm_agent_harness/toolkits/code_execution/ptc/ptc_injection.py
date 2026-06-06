@@ -49,6 +49,7 @@ async def inject_ptc_for_python_execution(
     context: ExecutionContext,
     executor: CodeExecutor,
     ptc_tools: list[BaseTool],
+    override_allowed: frozenset[str] = frozenset(),
 ) -> ExecutionResult:
     """Execute Python code with full PTC (all Agent tools accessible via RPC).
 
@@ -78,7 +79,7 @@ async def inject_ptc_for_python_execution(
         max_tool_calls=50,
         timeout_seconds=min(context.timeout or 300, 600),
     )
-    dispatcher = PtcDispatcher(ptc_tools)
+    dispatcher = PtcDispatcher(ptc_tools, override_allowed=override_allowed)
     server = PtcRpcServer(config, dispatcher)
 
     try:

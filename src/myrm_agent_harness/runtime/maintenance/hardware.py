@@ -101,13 +101,13 @@ def _detect_macos_hardware(profile: HardwareProfile) -> None:
                     for line in res.stdout.splitlines():
                         if "VRAM (Total):" in line or "VRAM (Dynamic, Max):" in line:
                             vram_str = line.split(":", 1)[1].strip()
-                        if "GB" in vram_str:
-                            with contextlib.suppress(ValueError):
-                                profile.gpu_vram_gb = float(vram_str.replace("GB", "").strip())
-                        elif "MB" in vram_str:
-                            with contextlib.suppress(ValueError):
-                                profile.gpu_vram_gb = float(vram_str.replace("MB", "").strip()) / 1024.0
-                            break
+                            if "GB" in vram_str:
+                                with contextlib.suppress(ValueError):
+                                    profile.gpu_vram_gb = float(vram_str.replace("GB", "").strip())
+                            elif "MB" in vram_str:
+                                with contextlib.suppress(ValueError):
+                                    profile.gpu_vram_gb = float(vram_str.replace("MB", "").strip()) / 1024.0
+                                break
             except Exception as e:
                 logger.debug(f"macOS Intel GPU detection failed: {e}")
 

@@ -1,23 +1,59 @@
-import hashlib
-from collections.abc import AsyncIterable
+"""Dynamic Workflow Engine — LLM-generated Python orchestration with PTC.
 
-from langchain_core.language_models import BaseChatModel
+[INPUT]
+- base_agent::BaseAgent (POS: Parent agent with full tool/catalog/budget context)
+- dynamic_workflow.store::WorkflowEventStore (POS: SQLite durable execution cache)
+- dynamic_workflow.tools::SpawnSubagentTool (POS: PTC bridge to delegate path)
+- toolkits.code_execution.ptc.ptc_injection::inject_ptc_for_python_execution
+- utils.runtime.cancellation::CancellationToken
+
+[OUTPUT]
+- run_dynamic_workflow_stream: Async generator yielding AgentEventType-compatible SSE events
+
+[POS]
+Third-generation orchestration layer. Breaks context limits by having the LLM
+write Python scripts that spawn sub-agents via PTC. Sub-agents inherit the full
+tool registry, catalog, and budget from the parent agent through the delegate path.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import logging
+from collections.abc import AsyncIterable
+from typing import TYPE_CHECKING
+
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
-from myrm_agent_harness.agent.base_agent import BaseAgent
-from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
-from myrm_agent_harness.agent.dynamic_workflow.tools import SpawnSubagentTool
-from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
+if TYPE_CHECKING:
+    from myrm_agent_harness.agent.base_agent import BaseAgent
+    from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
-# The prompt that instructs the LLM to write the orchestration script
-ORCHESTRATOR_PROMPT = """
-You are a Dynamic Workflow Orchestrator. Your task is to solve the user's complex request by writing a Python script that orchestrates multiple sub-agents.
+logger = logging.getLogger(__name__)
+
+ORCHESTRATOR_PROMPT = """\
+You are a Dynamic Workflow Orchestrator. Your task is to solve the user's complex \
+request by writing a Python script that orchestrates multiple sub-agents.
 
 You have access to a special Python module called `myrm_tools`.
 It contains a function: `myrm_tools.spawn_subagent(task_id: str, agent_type: str, task_description: str) -> dict`
 
-This function spawns a sub-agent and blocks until it completes.
-To achieve massive parallelism, you MUST use `concurrent.futures.ThreadPoolExecutor` to call `myrm_tools.spawn_subagent` concurrently.
+This function spawns a sub-agent that has FULL access to tools (web search, file \
+operations, code execution, etc.). It blocks until the sub-agent completes and \
+returns a dict with keys: success, task_id, agent_type, result, error.
+
+IMPORTANT RULES:
+1. Use `concurrent.futures.ThreadPoolExecutor` with max_workers <= 8 for parallelism.
+2. Wrap EACH spawn_subagent call in try/except to isolate failures:
+   ```
+   try:
+       result = myrm_tools.spawn_subagent(...)
+   except Exception as e:
+       result = {"success": False, "error": str(e)}
+   ```
+3. For simple tasks (web search, data lookup), use agent_type="generalPurpose".
+4. Print a final JSON summary with ALL results using: print(json.dumps(results, indent=2, ensure_ascii=False))
+5. Do NOT use Date.now(), random(), or any non-deterministic functions.
 
 Example Script:
 ```python
@@ -26,45 +62,70 @@ import myrm_tools
 import json
 
 def run_task(task_id, description):
-    print(f"Starting {task_id}...")
-    result = myrm_tools.spawn_subagent(
-        task_id=task_id,
-        agent_type="generalPurpose",
-        task_description=description
-    )
-    print(f"Finished {task_id}.")
-    return result
+    try:
+        result = myrm_tools.spawn_subagent(
+            task_id=task_id,
+            agent_type="generalPurpose",
+            task_description=description
+        )
+    except Exception as e:
+        result = {"success": False, "error": str(e)}
+    return {"task_id": task_id, **result}
 
 tasks = [
-    ("task_1", "Analyze the frontend codebase for authentication logic."),
-    ("task_2", "Analyze the backend codebase for authentication logic.")
+    ("task_1", "Analyze the frontend architecture and list key components."),
+    ("task_2", "Analyze the backend API endpoints and their patterns.")
 ]
 
-with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
     futures = [executor.submit(run_task, tid, desc) for tid, desc in tasks]
     results = [f.result() for f in concurrent.futures.as_completed(futures)]
 
-print("All tasks completed. Aggregating results...")
-# ... process results ...
-print(json.dumps(results, indent=2))
+print(json.dumps(results, indent=2, ensure_ascii=False))
 ```
 
-Write ONLY the Python script. Do not include markdown formatting or explanations. The script will be executed in a secure sandbox.
-"""
+Write ONLY the Python script. Do not include markdown formatting or explanations. \
+The script will be executed in a secure sandbox."""
+
+SUMMARIZATION_PROMPT = """\
+You are summarizing the results of a Dynamic Workflow that executed multiple \
+sub-agent tasks in parallel. Based on the execution output below, produce a \
+clear, well-organized Markdown summary for the user.
+
+RULES:
+- Focus on the actual findings and results, NOT the execution mechanics.
+- If tasks failed, briefly note which ones and why.
+- Use headers, bullet points, and tables where appropriate.
+- Be concise but thorough. Do not omit important findings.
+- Write in the same language as the user's original request."""
+
+_MAX_STDOUT_FOR_SUMMARY = 32_000
 
 
 async def run_dynamic_workflow_stream(
-    llm: BaseChatModel,
+    parent_agent: BaseAgent,
     query: str,
     chat_history: list[BaseMessage],
     chat_id: str,
     message_id: str,
     cancel_token: CancellationToken | None = None,
 ) -> AsyncIterable[dict[str, object]]:
+    """Core Dynamic Workflow Engine.
+
+    Generates a Python orchestration script via LLM, executes it in PTC sandbox,
+    then summarizes results into user-readable Markdown.
+
+    Args:
+        parent_agent: Fully configured BaseAgent with tools, catalog, and budget.
+        query: User's original query text.
+        chat_history: Conversation history as LangChain messages.
+        chat_id: Chat session identifier.
+        message_id: Message identifier for deterministic workflow_id.
+        cancel_token: Cooperative cancellation signal.
     """
-    The core Dynamic Workflow Engine.
-    """
-    # Deterministic workflow_id for cache resilience on network reconnects
+    from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
+    from myrm_agent_harness.agent.dynamic_workflow.tools import SpawnSubagentTool
+
     hash_input = f"{chat_id}:{message_id}".encode()
     workflow_id = f"wf_{hashlib.md5(hash_input).hexdigest()[:12]}"
 
@@ -75,17 +136,22 @@ async def run_dynamic_workflow_stream(
         "data": {"message": "Initializing Dynamic Workflow Engine..."},
     }
 
-    # 1. Initialize Event Store and Subagent Manager
-    store = WorkflowEventStore(".myrm/workflow_events.db")
-    orchestrator_agent = BaseAgent(llm=llm)
-    manager = orchestrator_agent._subagent_manager
+    if cancel_token and cancel_token.is_cancelled:
+        yield {"type": "status", "step_key": "workflow_init", "status": "error", "data": {"message": "Cancelled."}}
+        yield {"type": "message_end", "messageId": message_id, "usage": {}, "completion_status": "cancelled"}
+        return
 
-    # Create the tool that will be injected into PTC
+    store = WorkflowEventStore(".myrm/workflow_events.db")
+
+    def _tool_registry_getter() -> list[object]:
+        return list(parent_agent._cached_tools or parent_agent.user_tools) if parent_agent else []
+
     spawn_tool = SpawnSubagentTool(
-        manager=manager,
-        tool_registry_getter=lambda: [],  # We can inject more tools later
+        parent_agent=parent_agent,
+        tool_registry_getter=_tool_registry_getter,
         workflow_id=workflow_id,
         store=store,
+        cancel_token=cancel_token,
     )
 
     yield {
@@ -95,26 +161,23 @@ async def run_dynamic_workflow_stream(
         "data": {"message": "Engine initialized with Durable Execution (SQLite)."},
     }
 
-    # 2. Generate the Orchestration Script
+    # --- Phase 2: Generate orchestration script ---
+    if cancel_token and cancel_token.is_cancelled:
+        yield {"type": "message_end", "messageId": message_id, "usage": {}, "completion_status": "cancelled"}
+        return
+
     yield {
         "type": "status",
         "step_key": "workflow_planning",
         "status": "in_progress",
-        "data": {"message": "Generating Python orchestration script..."},
+        "data": {"message": "Generating orchestration script..."},
     }
 
-    messages = (
-        [
-            SystemMessage(content=ORCHESTRATOR_PROMPT),
-        ]
-        + chat_history
-        + [HumanMessage(content=query)]
-    )
-
+    llm = parent_agent.llm
+    messages = [SystemMessage(content=ORCHESTRATOR_PROMPT)] + chat_history + [HumanMessage(content=query)]
     response = await llm.ainvoke(messages)
     script_code = response.content
 
-    # Clean up markdown if the LLM ignored instructions
     if isinstance(script_code, str):
         if script_code.startswith("```python"):
             script_code = script_code[9:]
@@ -131,7 +194,11 @@ async def run_dynamic_workflow_stream(
         "data": {"message": "Orchestration script generated."},
     }
 
-    # 3. Execute the Script via PTC
+    # --- Phase 3: Execute via PTC ---
+    if cancel_token and cancel_token.is_cancelled:
+        yield {"type": "message_end", "messageId": message_id, "usage": {}, "completion_status": "cancelled"}
+        return
+
     yield {
         "type": "status",
         "step_key": "workflow_execution",
@@ -141,7 +208,9 @@ async def run_dynamic_workflow_stream(
 
     from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionContext
     from myrm_agent_harness.toolkits.code_execution.factory import create_executor
-    from myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection import inject_ptc_for_python_execution
+    from myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection import (
+        inject_ptc_for_python_execution,
+    )
 
     context = ExecutionContext(
         code=script_code,
@@ -157,6 +226,7 @@ async def run_dynamic_workflow_stream(
             context=context,
             executor=executor,
             ptc_tools=[spawn_tool],
+            override_allowed=frozenset({"spawn_subagent"}),
         )
 
         yield {
@@ -166,12 +236,47 @@ async def run_dynamic_workflow_stream(
             "data": {"message": "Workflow execution completed."},
         }
 
-        # Final answer
+        # --- Phase 4: Summarize results ---
+        if cancel_token and cancel_token.is_cancelled:
+            yield {"type": "message_end", "messageId": message_id, "usage": {}, "completion_status": "cancelled"}
+            return
+
+        stdout = (result.stdout or "").strip()
+        stderr = (result.stderr or "").strip()
+
+        if stdout or stderr:
+            truncated_stdout = stdout[-_MAX_STDOUT_FOR_SUMMARY:] if len(stdout) > _MAX_STDOUT_FOR_SUMMARY else stdout
+            if len(stdout) > _MAX_STDOUT_FOR_SUMMARY:
+                truncated_stdout = f"[...truncated {len(stdout) - _MAX_STDOUT_FOR_SUMMARY} chars...]\n" + truncated_stdout
+
+            summary_input = f"User Request:\n{query}\n\nExecution Output:\n{truncated_stdout}"
+            if stderr:
+                summary_input += f"\n\nExecution Errors:\n{stderr}"
+
+            summary_messages = [
+                SystemMessage(content=SUMMARIZATION_PROMPT),
+                HumanMessage(content=summary_input),
+            ]
+
+            try:
+                summary_response = await llm.ainvoke(summary_messages)
+                summary_text = summary_response.content if isinstance(summary_response.content, str) else str(summary_response.content)
+            except Exception as e:
+                logger.warning("Summarization LLM call failed, falling back to raw output: %s", e)
+                summary_text = f"## Workflow Results\n\n```\n{truncated_stdout}\n```"
+                if stderr:
+                    summary_text += f"\n\n### Errors\n```\n{stderr}\n```"
+        else:
+            summary_text = f"Dynamic Workflow `{workflow_id}` completed but produced no output."
+
         yield {
-            "type": "content",
-            "content": f"Dynamic Workflow `{workflow_id}` executed successfully.\n\nGenerated Script:\n```python\n{script_code}\n```\n\nExecution Output:\n```\n{result.stdout}\n```\n\nExecution Error (if any):\n```\n{result.stderr}\n```",
+            "type": "message",
+            "messageId": message_id,
+            "data": summary_text,
         }
+
     except Exception as e:
+        logger.error("Dynamic Workflow execution failed: %s", e, exc_info=True)
         yield {
             "type": "status",
             "step_key": "workflow_execution",
@@ -179,10 +284,14 @@ async def run_dynamic_workflow_stream(
             "data": {"message": f"Workflow execution failed: {e}"},
         }
         yield {
-            "type": "content",
-            "content": f"Dynamic Workflow `{workflow_id}` failed to execute.\n\nError:\n```\n{e}\n```",
+            "type": "message",
+            "messageId": message_id,
+            "data": f"Dynamic Workflow `{workflow_id}` failed.\n\n**Error:** {e}",
         }
 
     yield {
-        "type": "done",
+        "type": "message_end",
+        "messageId": message_id,
+        "usage": {},
+        "completion_status": "success",
     }

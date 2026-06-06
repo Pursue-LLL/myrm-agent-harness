@@ -46,8 +46,13 @@ class PtcDispatcher:
     Maintains a name->tool mapping and records call traces for observability.
     """
 
-    def __init__(self, tools: list[BaseTool]) -> None:
+    def __init__(
+        self,
+        tools: list[BaseTool],
+        override_allowed: frozenset[str] = frozenset(),
+    ) -> None:
         self._tools_by_name: dict[str, BaseTool] = {t.name: t for t in tools}
+        self._override_allowed = override_allowed
         self._records: list[PtcToolCallRecord] = []
 
     @property
@@ -65,7 +70,7 @@ class PtcDispatcher:
         start = time.perf_counter()
         tool_name = request.tool
 
-        if tool_name in _BLOCKED_TOOLS:
+        if tool_name in _BLOCKED_TOOLS and tool_name not in self._override_allowed:
             return self._record_error(
                 tool_name, request.args, start, f"Tool '{tool_name}' is not callable from PTC scripts"
             )

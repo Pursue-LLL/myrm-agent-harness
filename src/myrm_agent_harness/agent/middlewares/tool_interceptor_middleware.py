@@ -157,25 +157,6 @@ async def tool_interceptor_middleware(
             if metrics_registry.enabled:
                 metrics_registry.record_tool_call(agent_id=agent_id_for_metrics, tool_name=tool_name, status=status)
 
-            # Record in SQLite via SkillStore if available
-            try:
-                from myrm_agent_harness.agent.skills.evolution.infra.integration import get_global_evolution_integration
-
-                evolution_integration = get_global_evolution_integration()
-                if evolution_integration and hasattr(evolution_integration, "store"):
-                    asyncio.create_task(
-                        evolution_integration.store.record_tool_execution(
-                            agent_id=agent_id_for_metrics,
-                            session_id=session_id_for_metrics,
-                            tool_name=tool_name,
-                            status=status,
-                            elapsed_time=elapsed_time,
-                            error_message=None,
-                        )
-                    )
-            except Exception as e:
-                logger.debug("Failed to record tool execution to SQLite: %s", e)
-
             _track_skill_execution(
                 tool_name,
                 tool_call_id=str(request.tool_call.get("id", "")),
@@ -201,33 +182,6 @@ async def tool_interceptor_middleware(
 
             if metrics_registry.enabled:
                 metrics_registry.record_tool_call(agent_id=agent_id_for_metrics, tool_name=tool_name, status="error")
-
-            # Record in SQLite via SkillStore if available
-            try:
-                import time
-
-                from myrm_agent_harness.agent.skills.evolution.infra.integration import get_global_evolution_integration
-
-                # Compute elapsed time roughly for error cases
-                try:
-                    elapsed_time = time.perf_counter() - start_time
-                except NameError:
-                    elapsed_time = 0.0
-
-                evolution_integration = get_global_evolution_integration()
-                if evolution_integration and hasattr(evolution_integration, "store"):
-                    asyncio.create_task(
-                        evolution_integration.store.record_tool_execution(
-                            agent_id=agent_id_for_metrics,
-                            session_id=session_id_for_metrics,
-                            tool_name=tool_name,
-                            status="error",
-                            elapsed_time=elapsed_time,
-                            error_message=str(e),
-                        )
-                    )
-            except Exception as store_e:
-                logger.debug("Failed to record tool execution to SQLite: %s", store_e)
 
             _track_skill_execution(
                 tool_name,

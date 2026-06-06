@@ -243,7 +243,6 @@ agent/ (运行时核心层)
 - [MEMORY_SYSTEM.md](src/myrm_agent_harness/toolkits/memory/MEMORY_SYSTEM.md) - 可插拔记忆系统设计
 - [BROWSER_SYSTEM.md](src/myrm_agent_harness/toolkits/browser/BROWSER_SYSTEM.md) - 浏览器自动化系统设计
 - [DESKTOP_SYSTEM.md](src/myrm_agent_harness/toolkits/computer_use/DESKTOP_SYSTEM.md) - Semantic Desktop Control (SDC) 系统设计
-- [local_file_search/_ARCH.md](src/myrm_agent_harness/toolkits/local_file_search/_ARCH.md) - 本地文件语义搜索
 
 ### 模块架构文档
 
