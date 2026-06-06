@@ -152,7 +152,6 @@ async def tool_interceptor_middleware(
             )
 
             agent_id_for_metrics = get_agent_id() or "base_agent"
-            session_id_for_metrics = get_approval_session() or "unknown_session"
 
             if metrics_registry.enabled:
                 metrics_registry.record_tool_call(agent_id=agent_id_for_metrics, tool_name=tool_name, status=status)
@@ -178,7 +177,6 @@ async def tool_interceptor_middleware(
             )
 
             agent_id_for_metrics = get_agent_id() or "base_agent"
-            session_id_for_metrics = get_approval_session() or "unknown_session"
 
             if metrics_registry.enabled:
                 metrics_registry.record_tool_call(agent_id=agent_id_for_metrics, tool_name=tool_name, status="error")

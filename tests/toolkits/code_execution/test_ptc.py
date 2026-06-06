@@ -404,6 +404,112 @@ class TestPtcRpcServer:
             await server.stop()
 
 
+    @pytest.mark.asyncio
+    async def test_tcp_mode_lifecycle(self):
+        """Server can start/stop in TCP mode and provides correct env."""
+        dispatcher = PtcDispatcher([mock_file_read])
+        server = PtcRpcServer(PtcConfig(), dispatcher)
+        server._use_tcp = True
+        await server.start()
+        try:
+            assert server.tcp_port > 0
+            env = server.get_child_env()
+            assert "_MYRM_PTC_PORT" in env
+            assert int(env["_MYRM_PTC_PORT"]) == server.tcp_port
+        finally:
+            await server.stop()
+
+    @pytest.mark.asyncio
+    async def test_tcp_mode_roundtrip(self):
+        """Full RPC roundtrip over TCP."""
+        dispatcher = PtcDispatcher([mock_file_read])
+        server = PtcRpcServer(PtcConfig(timeout_seconds=10), dispatcher)
+        server._use_tcp = True
+        await server.start()
+        try:
+            req = PtcRpcRequest(tool="mock_file_read", args={"path": "/tcp"})
+            payload = req.model_dump_json().encode("utf-8")
+            header = struct.pack("!I", len(payload))
+
+            reader, writer = await asyncio.open_connection("127.0.0.1", server.tcp_port)
+            writer.write(header + payload)
+            await writer.drain()
+
+            resp_header = await asyncio.wait_for(reader.readexactly(4), timeout=5)
+            resp_len = struct.unpack("!I", resp_header)[0]
+            resp_data = await asyncio.wait_for(reader.readexactly(resp_len), timeout=5)
+            writer.close()
+            await writer.wait_closed()
+
+            resp = json.loads(resp_data)
+            assert resp.get("error") is None
+            assert "content_of_/tcp" in resp["result"]
+        finally:
+            await server.stop()
+
+    @pytest.mark.asyncio
+    async def test_oversized_request_rejected(self):
+        """Server rejects requests claiming > 10MB payload."""
+        dispatcher = PtcDispatcher([mock_file_read])
+        server = PtcRpcServer(PtcConfig(timeout_seconds=10), dispatcher)
+        await server.start()
+        try:
+            fake_header = struct.pack("!I", 11 * 1024 * 1024)
+            reader, writer = await asyncio.open_unix_connection(server.socket_path)
+            writer.write(fake_header)
+            await writer.drain()
+
+            resp_header = await asyncio.wait_for(reader.readexactly(4), timeout=5)
+            resp_len = struct.unpack("!I", resp_header)[0]
+            resp_data = await asyncio.wait_for(reader.readexactly(resp_len), timeout=5)
+            writer.close()
+            await writer.wait_closed()
+
+            resp = json.loads(resp_data)
+            assert "too large" in resp.get("error", "").lower()
+        finally:
+            await server.stop()
+
+    @pytest.mark.asyncio
+    async def test_malformed_json_request(self):
+        """Server returns error for invalid JSON payload."""
+        dispatcher = PtcDispatcher([mock_file_read])
+        server = PtcRpcServer(PtcConfig(timeout_seconds=10), dispatcher)
+        await server.start()
+        try:
+            bad_payload = b"not-valid-json!!!"
+            header = struct.pack("!I", len(bad_payload))
+
+            reader, writer = await asyncio.open_unix_connection(server.socket_path)
+            writer.write(header + bad_payload)
+            await writer.drain()
+
+            resp_header = await asyncio.wait_for(reader.readexactly(4), timeout=5)
+            resp_len = struct.unpack("!I", resp_header)[0]
+            resp_data = await asyncio.wait_for(reader.readexactly(resp_len), timeout=5)
+            writer.close()
+            await writer.wait_closed()
+
+            resp = json.loads(resp_data)
+            assert "Invalid request" in resp.get("error", "")
+        finally:
+            await server.stop()
+
+    @pytest.mark.asyncio
+    async def test_client_disconnect_handled(self):
+        """Server handles client disconnection without crashing."""
+        dispatcher = PtcDispatcher([mock_file_read])
+        server = PtcRpcServer(PtcConfig(timeout_seconds=10), dispatcher)
+        await server.start()
+        try:
+            reader, writer = await asyncio.open_unix_connection(server.socket_path)
+            writer.close()
+            await writer.wait_closed()
+            await asyncio.sleep(0.1)
+        finally:
+            await server.stop()
+
+
 # ---------------------------------------------------------------------------
 # ptc_injection.py E2E tests
 # ---------------------------------------------------------------------------

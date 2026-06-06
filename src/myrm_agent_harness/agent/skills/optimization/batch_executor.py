@@ -386,6 +386,18 @@ class BatchExecutor:
                 # Execute task
                 result = await self.executor_fn(task.skill_id)
 
+                if batch_id in self._cancellation_tokens and self._cancellation_tokens[batch_id].is_set():
+                    task.status = TaskStatus.CANCELLED
+                    task.completed_at = datetime.now()
+                    self._metrics.cancelled_tasks += 1
+                    logger.info(
+                        "Task %s result discarded after batch %s cancellation (skill %s)",
+                        task.task_id,
+                        batch_id,
+                        task.skill_id,
+                    )
+                    return
+
                 # Record performance metrics
                 execution_time = time.time() - start_time
                 task.execution_time = execution_time
