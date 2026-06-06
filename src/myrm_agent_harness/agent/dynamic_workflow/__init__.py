@@ -103,7 +103,18 @@ RULES:
 - If tasks failed, briefly note which ones and why.
 - Use headers, bullet points, and tables where appropriate.
 - Be concise but thorough. Do not omit important findings.
-- Write in the same language as the user's original request."""
+- Write in the same language as the user's original request.
+
+CONFIDENCE CLASSIFICATION:
+Prefix each major finding's header with a reliability indicator based on evidence \
+in the execution output:
+- ✅ **Verified** — backed by tool execution output, test results, \
+[Verification: PASS], or command stdout/stderr.
+- ⚠️ **Unverified** — based on LLM reasoning or file reading alone, \
+without independent execution evidence.
+- ❌ **Refuted** — contradicted by execution evidence or [Verification: FAIL].
+- 💥 **Failed** — the task itself errored or produced no usable output.
+Only apply these labels; do NOT explain the classification system to the user."""
 
 _MAX_STDOUT_FOR_SUMMARY = 32_000
 
@@ -188,7 +199,7 @@ async def run_dynamic_workflow_stream(
         "type": "status",
         "step_key": "workflow_init",
         "status": "success",
-        "data": {"message": "Engine initialized with Durable Execution (SQLite)."},
+        "data": {"message": "Engine initialized with Durable Execution (SQLite).", "workflow_id": workflow_id},
     }
 
     # --- Phase 2: Generate orchestration script ---

@@ -32,6 +32,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from langchain.agents.middleware import AgentMiddleware
 from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent.config import FileIOConfig
@@ -44,7 +45,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class FilesystemFileSearchMiddleware:
+class FilesystemFileSearchMiddleware(AgentMiddleware):
     """文件系统搜索中间件（兼容 LangChain）
 
     为 Agent 提供两个工具：
@@ -116,17 +117,18 @@ class FilesystemFileSearchMiddleware:
         # Store ripgrep preference (will be auto-detected by grep_tool)
         self._use_ripgrep = use_ripgrep
 
-        logger.warning(
-            f"FilesystemFileSearchMiddleware initialized: root={self.root_path}, "
-            f"ripgrep={use_ripgrep}, max_size={max_file_size_mb}MB"
+        self.tools: list[BaseTool] = self._build_tools()
+
+        logger.info(
+            "FilesystemFileSearchMiddleware initialized: root=%s, "
+            "ripgrep=%s, max_size=%sMB",
+            self.root_path,
+            use_ripgrep,
+            max_file_size_mb,
         )
 
-    def get_tools(self) -> list[BaseTool]:
-        """获取文件搜索工具
-
-        Returns:
-            工具列表: [glob_tool, grep_tool]
-        """
+    def _build_tools(self) -> list[BaseTool]:
+        """Build glob and grep tools bound to this middleware's config."""
         glob_tool = create_glob_tool(io_config=self.io_config)
         grep_tool = create_grep_tool(io_config=self.io_config)
 
@@ -143,6 +145,10 @@ class FilesystemFileSearchMiddleware:
         )
 
         return [glob_tool, grep_tool]
+
+    def get_tools(self) -> list[BaseTool]:
+        """获取文件搜索工具 (backward-compatible alias for self.tools)"""
+        return self.tools
 
 
 # Convenience function for creating middleware
