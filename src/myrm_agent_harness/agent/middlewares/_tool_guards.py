@@ -152,6 +152,13 @@ async def run_pre_call_guards(
             msg = f"EMERGENCY: {msg}"
         return make_error_msg(tool_name, tool_call_id, msg, error_category="estop")
 
+    from myrm_agent_harness.agent.security.guards.config_protection import check_config_protection
+
+    config_guard_msg = check_config_protection(tool_name, tool_args)
+    if config_guard_msg is not None:
+        record_decision(tool_name, "CONFIG_PROTECTION_BLOCKED", config_guard_msg)
+        return make_error_msg(tool_name, tool_call_id, config_guard_msg, error_category="config_protection")
+
     loop_guard = get_loop_guard_fn()
     tracker = get_token_tracker()
     if tracker and tracker.usage.last_call:
