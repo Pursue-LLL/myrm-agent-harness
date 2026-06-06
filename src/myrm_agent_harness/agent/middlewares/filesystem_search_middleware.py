@@ -128,6 +128,12 @@ class FilesystemFileSearchMiddleware(AgentMiddleware):
             max_file_size_mb,
         )
 
+    def wrap_tool_call(self, request, handler):
+        return handler(request)
+
+    def awrap_tool_call(self, request, handler):
+        return handler(request)
+
     def _build_tools(self) -> list[BaseTool]:
         """Build glob and grep tools bound to this middleware's config."""
         glob_tool = create_glob_tool(io_config=self.io_config)

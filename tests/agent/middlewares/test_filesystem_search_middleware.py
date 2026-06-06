@@ -44,10 +44,13 @@ class TestFilesystemFileSearchMiddleware:
         assert getattr(mw, "tools", []) == []
         assert len(mw._tools) == 2
 
-    def test_wrap_tool_call_inherited_from_base(self, tmp_workspace: Path) -> None:
-        """The wrap_tool_call check in LangChain factory must not raise."""
+    def test_wrap_tool_call_satisfies_langchain_contract(self, tmp_workspace: Path) -> None:
+        """LangChain factory calls hasattr(mw, 'wrap_tool_call') — must exist and be callable."""
         mw = FilesystemFileSearchMiddleware(root_path=str(tmp_workspace))
-        assert mw.__class__.wrap_tool_call is AgentMiddleware.wrap_tool_call
+        assert hasattr(mw, "wrap_tool_call")
+        assert callable(mw.wrap_tool_call)
+        sentinel = object()
+        assert mw.wrap_tool_call(sentinel, lambda r: r) is sentinel
 
     def test_invalid_root_path_raises(self) -> None:
         with pytest.raises(ValueError, match="does not exist"):
