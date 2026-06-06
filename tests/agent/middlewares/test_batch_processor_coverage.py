@@ -848,7 +848,7 @@ class TestApplyApprovalDecisions:
             ],
         )
 
-        decisions = [{"type": "edit", "args": {"command": "safe_cmd"}, "extensions": {"allowAlways": {"tool": True}}}]
+        decisions = [{"type": "edit", "args": {"command": "ls -l"}, "extensions": {"allowAlways": {"tool": True}}}]
         pending = [(0, ai_msg.tool_calls[0], "code_interpreter", "ASK", None)]
 
         revised, _messages = await apply_approval_decisions(

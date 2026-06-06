@@ -80,3 +80,70 @@ async def test_cancel_batch_optimization_returns_false_for_unknown_batch(
     scheduler: OptimizationScheduler,
 ) -> None:
     assert await scheduler.cancel_batch_optimization("batch_missing") is False
+
+
+@pytest.mark.asyncio
+async def test_cancel_batch_optimization_returns_false_when_token_missing(
+    scheduler: OptimizationScheduler,
+) -> None:
+    batch_id = await scheduler.trigger_batch_optimization(["skill-a"], max_concurrent=1)
+    scheduler._batch_cancel_tokens.pop(batch_id)
+    assert await scheduler.cancel_batch_optimization(batch_id) is False
+
+
+@pytest.mark.asyncio
+async def test_await_batch_optimization_returns_true_when_finished(
+    scheduler: OptimizationScheduler,
+) -> None:
+    scheduler.optimizer.optimize_skill = AsyncMock(
+        return_value=MagicMock(success=True, duration_seconds=0.1, version=2)
+    )
+    _setup_skill_mocks(scheduler)
+
+    batch_id = await scheduler.trigger_batch_optimization(["skill-a"], max_concurrent=1)
+    assert await scheduler.await_batch_optimization(batch_id, timeout=5.0) is True
+
+
+@pytest.mark.asyncio
+async def test_await_batch_optimization_returns_false_on_timeout(
+    scheduler: OptimizationScheduler,
+) -> None:
+    release_optimize = asyncio.Event()
+
+    async def slow_optimize(*_args: object, **_kwargs: object) -> MagicMock:
+        await release_optimize.wait()
+        return MagicMock(success=True, duration_seconds=1.0, version=2)
+
+    scheduler.optimizer.optimize_skill = AsyncMock(side_effect=slow_optimize)
+    _setup_skill_mocks(scheduler)
+
+    batch_id = await scheduler.trigger_batch_optimization(["skill-a"], max_concurrent=1)
+    assert await scheduler.await_batch_optimization(batch_id, timeout=0.05) is False
+    release_optimize.set()
+
+
+@pytest.mark.asyncio
+async def test_cancel_discards_in_flight_optimization_result(
+    scheduler: OptimizationScheduler,
+) -> None:
+    optimize_started = asyncio.Event()
+    release_optimize = asyncio.Event()
+
+    async def slow_optimize(*_args: object, **_kwargs: object) -> MagicMock:
+        optimize_started.set()
+        await release_optimize.wait()
+        return MagicMock(success=True, duration_seconds=1.0, version=2)
+
+    scheduler.optimizer.optimize_skill = AsyncMock(side_effect=slow_optimize)
+    _setup_skill_mocks(scheduler)
+
+    batch_id = await scheduler.trigger_batch_optimization(["skill-a", "skill-b"], max_concurrent=1)
+    await asyncio.wait_for(optimize_started.wait(), timeout=2.0)
+    assert await scheduler.cancel_batch_optimization(batch_id) is True
+    release_optimize.set()
+    await asyncio.sleep(0.3)
+
+    batch_info = scheduler.get_batch_status(batch_id)
+    assert batch_info is not None
+    assert batch_info["completed"] == 0
+    assert batch_info["failed"] >= 1

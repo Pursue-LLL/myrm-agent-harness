@@ -94,6 +94,7 @@ class OptimizationScheduler:
         # 批量任务追踪（F6简化版）
         self._batch_tasks: dict[str, dict[str, Any]] = {}
         self._batch_cancel_tokens: dict[str, asyncio.Event] = {}
+        self._batch_bg_tasks: dict[str, asyncio.Task[None]] = {}
         self._bg_tasks: set[asyncio.Task[None]] = set()
 
         # Metrics统计（F8）
@@ -430,6 +431,31 @@ class OptimizationScheduler:
         logger.info("Batch optimization cancellation requested: %s", batch_task_id)
         return True
 
+    async def await_batch_optimization(self, batch_task_id: str, timeout: float = 120.0) -> bool:
+        """Wait for batch background execution to finish (e.g. after cancel before rollback).
+
+        Args:
+            batch_task_id: Batch task ID
+            timeout: Max seconds to wait
+
+        Returns:
+            True if the batch task finished, False on timeout
+        """
+        task = self._batch_bg_tasks.get(batch_task_id)
+        if task is None:
+            return True
+
+        try:
+            await asyncio.wait_for(task, timeout=timeout)
+        except TimeoutError:
+            logger.warning(
+                "Batch %s did not finish within %.0fs after cancel",
+                batch_task_id,
+                timeout,
+            )
+            return False
+        return True
+
     async def trigger_batch_optimization(
         self,
         skill_ids: list[str],
@@ -469,8 +495,14 @@ class OptimizationScheduler:
         )
 
         batch_task = asyncio.create_task(self._execute_batch_optimization(batch_task_id, skill_ids, max_concurrent))
+        self._batch_bg_tasks[batch_task_id] = batch_task
         self._bg_tasks.add(batch_task)
-        batch_task.add_done_callback(self._bg_tasks.discard)
+
+        def _on_batch_done(done_task: asyncio.Task[None]) -> None:
+            self._bg_tasks.discard(done_task)
+            self._batch_bg_tasks.pop(batch_task_id, None)
+
+        batch_task.add_done_callback(_on_batch_done)
 
         return batch_task_id
 
