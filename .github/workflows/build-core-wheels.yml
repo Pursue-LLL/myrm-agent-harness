@@ -57,10 +57,10 @@ jobs:
         run: uv python install 3.13
 
       - name: Install build dependencies
-        run: uv sync --group build --no-install-project
+        run: uv sync --only-group build --no-install-project --frozen
 
       - name: Build platform wheel
-        run: uv run python scripts/build_core.py --platform ${{ matrix.platform }} --wheel
+        run: uv run --no-project python scripts/build_core.py --platform ${{ matrix.platform }} --wheel
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
