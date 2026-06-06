@@ -49,7 +49,7 @@ verify-harness-distribution
 
 ## Consumer Install (PyPI)
 
-`pyproject.toml` includes the `compiled-core` extra (platform markers). Server and OSS consumers install:
+`pyproject.toml` defines the `compiled-core` extra (platform markers). After a release wheel containing that extra is on PyPI, consumers install:
 
 ```bash
 pip install 'myrm-agent-harness[file-parsers,...,compiled-core]==0.1.0'
