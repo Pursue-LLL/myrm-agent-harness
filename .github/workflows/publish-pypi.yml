@@ -102,18 +102,14 @@ jobs:
           path: dist/myrm_agent_harness-*.whl
           if-no-files-found: error
 
-  publish-pypi:
-    name: Upload wheels to PyPI
+  validate-wheels:
+    name: Validate wheels before upload
     if: startsWith(github.ref, 'refs/tags/')
     needs:
       - build-core
       - release-wheel
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    environment: pypi
-    permissions:
-      id-token: write
-      contents: read
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -142,19 +138,22 @@ jobs:
       - name: Validate wheels before upload
         run: uv run --no-project python scripts/validate_pypi_wheels.py pypi-upload
 
-      - name: Stage release vs core upload dirs
-        run: |
-          mkdir -p pypi-upload-release pypi-upload-core
-          shopt -s nullglob
-          for wheel in pypi-upload/*.whl; do
-            case "$(basename "$wheel")" in
-              myrm_agent_harness-*) mv "$wheel" pypi-upload-release/ ;;
-              myrm_agent_harness_core_*) mv "$wheel" pypi-upload-core/ ;;
-              *) echo "::error::Unexpected wheel: $wheel" >&2; exit 1 ;;
-            esac
-          done
-          echo "release wheels: $(ls -1 pypi-upload-release | wc -l | tr -d ' ')"
-          echo "core wheels: $(ls -1 pypi-upload-core | wc -l | tr -d ' ')"
+  publish-release:
+    name: Publish release wheel
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: validate-wheels
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download release wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-wheel
+          path: pypi-upload-release
 
       - name: Publish release wheel (Trusted Publisher / OIDC)
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -162,11 +161,54 @@ jobs:
           packages-dir: pypi-upload-release
           skip-existing: true
 
-      - name: Publish core wheels (Trusted Publisher / OIDC)
+  publish-core:
+    name: "Publish core wheel (${{ matrix.platform }})"
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - prepare-matrix
+      - validate-wheels
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.prepare-matrix.outputs.include) }}
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download core wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: core-wheel-${{ matrix.platform }}
+          path: pypi-upload-core
+
+      - name: Publish core wheel (Trusted Publisher / OIDC)
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: pypi-upload-core
           skip-existing: true
+
+  publish-verify:
+    name: Verify PyPI index
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - publish-release
+      - publish-core
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install build dependencies
+        run: uv sync --only-group build --no-install-project --frozen
 
       - name: Verify all packages indexed on PyPI
         run: uv run --no-project python scripts/verify_pypi_publish.py
