@@ -914,3 +914,21 @@ class TestSystemManagementScenarios:
         """Windows WMI query is safe (read-only)."""
         threats = analyze_command("wmic startup list full")
         assert not any(t.level == ThreatLevel.BLOCK for t in threats)
+
+class TestConfigProtection:
+    """Validate configuration and lockfile protection scenarios."""
+
+    def test_eslint_sed_blocked(self):
+        assert has_block_threat("sed -i 's/\"no-console\": 1/\"no-console\": 0/' .eslintrc")
+
+    def test_package_lock_sed_blocked(self):
+        """String manipulation of lockfiles is dangerous and blocked."""
+        assert has_block_threat("sed -i 's/1.0.0/1.1.0/g' package-lock.json")
+        assert has_block_threat("awk '{print}' uv.lock > temp.lock")
+
+    def test_package_lock_rm_safe(self):
+        """Removing lockfiles is a legitimate way to reset dependencies and should not trigger the lockfile rule."""
+        threats = analyze_command("rm package-lock.json")
+        # Should not block due to config protection or lockfile protection.
+        # It might trigger some escalate if `rm` is broadly caught, but shouldn't trigger the specific block for lockfile manipulation
+        assert not any(t.detail == "Modifying lockfile via shell" for t in threats)
