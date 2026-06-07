@@ -396,6 +396,15 @@ def get_tool_layer(tool_name: str) -> ToolLayer:
 - 跨语言查询支持 ("火车票/railway ticket/train booking")
 - 自动区分 Native (自动挂载) vs External (需手动加载 SOP)
 
+### 11.4 动态 Schema 修正 (Dynamic Schema Modification) ✅ 已实现
+
+**实现**: `dynamic_schema_modifier` 钩子 (在 `ToolRegistry.resolve()` 中调用) + `with_dynamic_hints` 装饰器
+
+**效果**:
+- 工具可以在运行时根据当前会话中可用的其他工具动态调整自己的 `description`。
+- 避免模型因为工具描述中提及了当前不可用的工具而产生幻觉调用。
+- 保护 Prompt Cache：通过在解析阶段动态修正并生成不可变副本，确保工具描述与实际能力严格一致。
+
 ---
 
 ## 十二、参考文档

@@ -185,7 +185,7 @@ class ToolRegistry:
         set_allowed_domains_map(current_map)
 
         resolved_tools = [e.tool for e in entries if not e.deferred]
-        
+
         # Weave dynamic schemas (e.g. cross-tool hints)
         resolved_names = {t.name for t in resolved_tools}
         final_tools = []
