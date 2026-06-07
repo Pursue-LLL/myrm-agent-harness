@@ -124,7 +124,7 @@ BrowserSession (聚合根)
 
 **核心能力**：
 - 20+ 个公开方法覆盖导航、交互、提取、会话管理
-- Tab 管理：LRU 驱逐策略（上限 20 个 Tab）
+- Tab 管理：LRU 驱逐策略（上限 10 个 Tab）+ Origin-based 智能路由（同源 URL 自动复用已有 Tab，避免重复创建）
 - 会话管理：AES-256-GCM 加密，30 天 TTL 自动过期
 - **无感自动降级/升级**：在导航遇到无法解决的 CAPTCHA (如 Cloudflare) 时，自动从 Chromium 热切换至 Camoufox 并重试，对 Agent 完全透明。通过精细的 `restore_url=False` 控制，避免切换引擎时产生双重导航（Double Navigation）的性能损耗和二次封杀风险。同时支持**状态无缝迁移 (Stateful Seamless Hot-Switching)**，在引擎切换或代理轮换瞬间，自动提取并重新注入 Cookie 和 `localStorage`，确保登录态和会话上下文 100% 不丢失。
 - **代理智能轮换与防封自愈**：在底层集成 `is_proxy_error` 与 `is_blocked_response` 检测。遇阻瞬间触发：隔离坏代理至小黑屋 -> `restart()` 无损热替换上下文获取新 IP -> 重新导航。全程对 LLM 透明，0 额外 Token 成本。

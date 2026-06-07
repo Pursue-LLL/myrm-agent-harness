@@ -203,7 +203,20 @@ class BrowserSession(
             self._captcha_coordinator = None
 
     async def new_tab(self, url: str | None = None) -> str:
-        """Create new Tab, return Tab ID"""
+        """Create new Tab or reuse existing same-origin Tab, return Tab ID."""
+        if url:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(url)
+            origin = f"{parsed.scheme}://{parsed.netloc}"
+
+            existing = self._tab_controller.find_tab_by_origin(origin)
+            if existing is not None:
+                await self._tab_controller.switch_tab(existing.tab_id)
+                await self._initialize_components()
+                await self.navigate(url)
+                return existing.tab_id
+
         tab_id = await self._tab_controller.create_tab(self._context_key, engine_preference=self._engine_preference)
         await self._initialize_components()
 
@@ -638,6 +651,10 @@ class BrowserSession(
     def list_tabs(self) -> list[str]:
         """List all Tabs ID"""
         return self._tab_controller.list_tabs()
+
+    def list_tabs_with_info(self) -> list[dict[str, str]]:
+        """List all tabs with domain info for display."""
+        return self._tab_controller.list_tabs_with_info()
 
     def get_active_tab_id(self) -> str:
         """GetCurrent活跃 Tab ID"""

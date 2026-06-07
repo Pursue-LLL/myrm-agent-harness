@@ -177,6 +177,52 @@ class TabController:
             raise RuntimeError("No active tab")
         return self._active_tab_id
 
+    def find_tab_by_origin(self, origin: str) -> TabHandle | None:
+        """Find an existing tab whose current URL shares the same origin.
+
+        Args:
+            origin: Target origin (scheme + netloc, e.g. "https://google.com")
+
+        Returns:
+            TabHandle if a same-origin tab is found, None otherwise.
+        """
+        from urllib.parse import urlparse
+
+        for handle in self._tabs.values():
+            try:
+                tab_url = handle.page.url
+                if not tab_url or tab_url in ("about:blank", ""):
+                    continue
+                parsed = urlparse(tab_url)
+                tab_origin = f"{parsed.scheme}://{parsed.netloc}"
+                if tab_origin == origin:
+                    return handle
+            except Exception:
+                continue
+        return None
+
+    def list_tabs_with_info(self) -> list[dict[str, str]]:
+        """List all tabs with domain info for display.
+
+        Returns:
+            List of dicts with tab_id, domain, and active status.
+        """
+        from urllib.parse import urlparse
+
+        result = []
+        for tab_id, handle in self._tabs.items():
+            try:
+                url = handle.page.url
+                domain = urlparse(url).netloc if url and url != "about:blank" else "(blank)"
+            except Exception:
+                domain = "(unavailable)"
+            result.append({
+                "tab_id": tab_id,
+                "domain": domain,
+                "active": tab_id == self._active_tab_id,
+            })
+        return result
+
     def list_tabs(self) -> list[str]:
         """列出All Tab ID
 

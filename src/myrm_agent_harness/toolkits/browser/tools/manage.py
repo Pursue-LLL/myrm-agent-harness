@@ -74,13 +74,27 @@ def create_manage_tool(session: BrowserSession):
                     return "Error: 'value' is required for action='evaluate'"
                 return await session.evaluate(value)
             case "new_tab":
+                tabs_before = set(session.list_tabs())
                 tab_id = await session.new_tab(value or None)
+                reused = tab_id in tabs_before
+                if reused:
+                    tabs_info = session.list_tabs_with_info()
+                    domain = next(
+                        (i["domain"] for i in tabs_info if i["tab_id"] == tab_id), "unknown"
+                    )
+                    return f"Reused existing {tab_id} ({domain}) — same origin as requested URL"
                 return f"New tab created: {tab_id}"
             case "switch_tab":
                 return await session.switch_tab(value)
             case "list_tabs":
-                tabs = session.list_tabs()
-                return f"Open tabs: {', '.join(tabs)}" if tabs else "No open tabs"
+                tabs_info = session.list_tabs_with_info()
+                if not tabs_info:
+                    return "No open tabs"
+                parts = []
+                for info in tabs_info:
+                    marker = " [active]" if info["active"] else ""
+                    parts.append(f"{info['tab_id']}: {info['domain']}{marker}")
+                return "Open tabs:\n" + "\n".join(parts)
             case "close_tab":
                 return await session.close_tab(value)
             case "back":
