@@ -545,7 +545,7 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 | `browser_inspect_tool` | **轻量级页面结构分析** | _(单一职责，无 action)_ |
 | `browser_snapshot_tool` | ARIA 快照 + iframe + Token 优化 + cursor-interactive | `scope`, `compact`, `selector`, `max_tokens`, `diff`, `cursor_interactive` |
 | `browser_interact_tool` | 13 种交互 | click, dblclick, type, fill, press, hover, focus, select, scroll, upload_file, drag, check, uncheck |
-| `browser_extract_tool` | 文本 + 截图 + 标注 + diff | text / screenshot (+ annotate) / diff_fast / diff_accurate |
+| `browser_extract_tool` | 文本 + 截图 + 结构化提取 + diff | text / screenshot / diff_fast / diff_accurate + extraction_schema |
 | `browser_manage_tool` | Tab + JS + 历史 + 对话框 + Session + HITL | 19 种 action（含 save/restore/list/delete_session + wait_for_user） |
 | `browser_execute_script_tool` | **Code-as-Action 批量执行** | _(单一职责，执行 Python 脚本)_ |
 

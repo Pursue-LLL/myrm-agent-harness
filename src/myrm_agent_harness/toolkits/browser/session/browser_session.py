@@ -8,6 +8,8 @@
 - session.snapshot_manager::SnapshotManager (POS: snapshot generation)
 - session.interactor::Interactor (POS: element interaction + ref failure diagnosis and monitoring)
 - session.extractor::Extractor (POS: content extraction)
+- session.structured_extractor::StructuredExtractor (POS: LLM-based structured data extraction using JSON Schema)
+- session.vision_verifier::VisionVerifier (POS: 3-layer visual action verification)
 - session.network_logger::NetworkLogger (POS: network request log capture)
 - session_vault::SessionVault (POS: AES-256-GCM encrypted session storage)
 - snapshot::RefInfo (POS: element reference metadata)
@@ -21,6 +23,8 @@
 [OUTPUT]
 - BrowserSession: browser session manager (aggregate root)
   - snapshot(...) -> SnapshotResult: generate ARIA snapshot (frozen dataclass, immutable)
+  - extract_text(...) -> str: extract page text with pagination support
+  - extract_structured(...) -> str: extract structured JSON data via LLM + JSON Schema
   - get_ref_info(ref_id: str) -> RefInfo | None: get element reference info
   - get_all_refs() -> MappingProxyType[str, RefInfo]: get all element reference mappings (immutable view)
   - get_session_hash(domain: str) -> str | None: get cached session state hash (in-memory read)
@@ -32,11 +36,13 @@ Browser session manager. As the aggregate root, composes single-responsibility c
 2. Navigator (navigation with throttling)
 3. SnapshotManager (snapshots)
 4. Interactor (interaction + failure diagnosis and monitoring)
-5. Extractor (extraction)
-6. NetworkLogger (network request logging)
-7. SessionVault (encrypted session storage, optional)
-8. DownloadManager (file download management, optional)
-9. CaptchaCoordinator (CAPTCHA detection and solving coordination, optional)
+5. Extractor (raw content extraction)
+6. StructuredExtractor (LLM-based structured data extraction, optional)
+7. VisionVerifier (visual action verification, optional)
+8. NetworkLogger (network request logging)
+9. SessionVault (encrypted session storage, optional)
+10. DownloadManager (file download management, optional)
+11. CaptchaCoordinator (CAPTCHA detection and solving coordination, optional)
 
 The aggregate root class combines three Mixins (Persistence/Recording/Page) via multiple inheritance, coordinating with Tab/navigation/snapshot/interaction/extraction submodules.
 """
@@ -69,6 +75,7 @@ from .session_persistence import SessionPersistence
 from .snapshot_manager import SnapshotManager, SnapshotResult
 from .tab_controller import TabController
 from .vision_verifier import VisionVerifier
+from .structured_extractor import StructuredExtractor
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -180,6 +187,7 @@ class BrowserSession(
         self._session_hash_cache: dict[str, str] = {}
         self._content_vault = content_vault
         self._vision_verifier = VisionVerifier(vision_llm)
+        self._structured_extractor = StructuredExtractor(vision_llm)
 
         # CAPTCHA coordination (optional — only active when a solver is provided)
         if captcha_solver is not None:
@@ -484,6 +492,58 @@ class BrowserSession(
             chunk += f"\n\n[System Note: Text is extremely long and truncated at {next_cursor} chars. {total_len - next_cursor} chars remaining. Please call extract_text again with resume_cursor={next_cursor} to get the next page.]"
 
         return chunk
+
+    async def extract_structured(
+        self,
+        schema_json: str,
+        selector: str = "",
+        already_collected_json: str = "",
+    ) -> str:
+        """Extract structured data from page text using LLM + JSON Schema.
+
+        Args:
+            schema_json: JSON Schema string defining desired output structure.
+            selector: CSS selector to target specific page elements.
+            already_collected_json: JSON array of previously collected items to skip duplicates.
+
+        Returns:
+            JSON string conforming to schema, or error message.
+        """
+        import json as json_mod
+
+        if not self._structured_extractor.enabled:
+            return "[Error] Structured extraction unavailable: no vision_llm configured for this session."
+
+        await self._ensure_components()
+        extractor = self._require_extractor()
+
+        # Parse schema
+        try:
+            schema = json_mod.loads(schema_json)
+        except json_mod.JSONDecodeError as e:
+            return f"[Error] Invalid JSON Schema: {e}"
+
+        # Parse already_collected
+        already_collected: list[dict] | None = None
+        if already_collected_json:
+            try:
+                already_collected = json_mod.loads(already_collected_json)
+                if not isinstance(already_collected, list):
+                    already_collected = None
+            except json_mod.JSONDecodeError:
+                pass
+
+        # Extract raw text from page (full text, no truncation for structured extraction)
+        full_text = await extractor.extract_full_text(selector=selector)
+
+        if not full_text.strip():
+            return "[Error] No text content found on page (selector may be too restrictive)."
+
+        return await self._structured_extractor.extract(
+            text=full_text,
+            schema=schema,
+            already_collected=already_collected,
+        )
 
     async def extract_screenshot(self, scale: float = 1.0) -> str:
         """ExtractScreenshot(Base64 JPEG)"""

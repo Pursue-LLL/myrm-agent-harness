@@ -25,6 +25,7 @@ Browser session components.
 | snapshot_suggestion.py | Core | Heuristic token / scope suggestions for large ARIA snapshots. | ✅ |
 | tab_controller.py | Core | Tab lifecycle manager. Responsibilities: | ✅ |
 | vision_verifier.py | Core | 3-Layer Vision Verifier for Action-Verification Fusion. | ✅ |
+| structured_extractor.py | Core | LLM-based structured data extraction using JSON Schema → Pydantic validation. | ✅ |
 
 ## Key Dependencies
 

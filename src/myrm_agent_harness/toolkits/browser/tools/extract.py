@@ -82,6 +82,19 @@ def create_extract_tool(session: BrowserSession):
             description="CSS or XPath selector to precisely target elements (only for 'text' mode). "
             "Use this to strip out noise (like ads, headers) and extract only the relevant content. Example: '.article-content' or 'main'.",
         )
+        extraction_schema: str = Field(
+            default="",
+            description="JSON Schema string defining desired structured output (only for 'text' mode). "
+            "When provided, the tool uses an LLM to extract data matching this schema from the page text, "
+            "returning validated JSON instead of raw text. This keeps your context window clean. "
+            "Example: '{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\"},\"price\":{\"type\":\"string\"}}}'",
+        )
+        already_collected: str = Field(
+            default="",
+            description="JSON array of previously collected items to avoid duplicates (only with 'schema'). "
+            "When paginating/scrolling through results, pass prior items here so the extractor skips them. "
+            "Example: '[{\"title\":\"Item A\",\"price\":\"$10\"}]'",
+        )
 
     @tool("browser_extract_tool", args_schema=ExtractInput)
     async def browser_extract(
@@ -95,6 +108,8 @@ def create_extract_tool(session: BrowserSession):
         resume_cursor: int = 0,
         max_length: int = 20000,
         selector: str = "",
+        extraction_schema: str = "",
+        already_collected: str = "",
     ) -> str:
         """Extract content from the current page.
 
@@ -102,6 +117,8 @@ def create_extract_tool(session: BrowserSession):
         mode='screenshot': returns base64 JPEG (1280x720, q=50) — use only for visual verification.
         mode='diff_fast': quick visual change detection (~2ms, perceptual hash similarity).
         mode='diff_accurate': detailed visual analysis (~100ms, pixel-level mismatch + diff image).
+
+        When 'schema' is provided with mode='text', returns structured JSON instead of raw text.
         """
         if mode == "screenshot":
             return await session.extract_screenshot(scale=scale)
@@ -129,6 +146,17 @@ def create_extract_tool(session: BrowserSession):
                 include_aa=include_aa,
             )
             return result.to_llm_message()
+
+        # Text mode — with optional structured extraction
+        if extraction_schema:
+            return mark_untrusted(
+                await session.extract_structured(
+                    schema_json=extraction_schema,
+                    selector=selector,
+                    already_collected_json=already_collected,
+                )
+            )
+
         return mark_untrusted(
             await session.extract_text(resume_cursor=resume_cursor, max_length=max_length, selector=selector)
         )

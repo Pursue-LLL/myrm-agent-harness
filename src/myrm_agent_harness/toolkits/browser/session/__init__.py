@@ -11,6 +11,7 @@ from .download_manager import DownloadConfig, DownloadManager, DownloadResult
 from .extractor import Extractor
 from .interactor import Interactor
 from .snapshot_manager import SnapshotManager
+from .structured_extractor import StructuredExtractor
 from .tab_controller import TabController
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "Extractor",
     "Interactor",
     "SnapshotManager",
+    "StructuredExtractor",
     "TabController",
 ]

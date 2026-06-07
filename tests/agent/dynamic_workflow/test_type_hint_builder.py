@@ -104,10 +104,14 @@ async def test_catalog_path_cap_at_50():
 
 
 @pytest.mark.asyncio
-async def test_fallback_path_no_catalog():
-    """Without catalog (None), falls back to global SUBAGENT_CONFIGS."""
+async def test_fallback_path_no_catalog(monkeypatch):
+    """Without catalog (None), falls back to global SUBAGENT_CONFIGS.
+    When registry is empty, returns empty string."""
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.sub_agents.registry.SUBAGENT_CONFIGS",
+        {},
+    )
     result = await _build_available_types_hint(None)
-    # In bare test env, SUBAGENT_CONFIGS is empty
     assert result == ""
 
 
