@@ -22,7 +22,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | ephemeral.py             | Core     | Ephemeral and read-only memory managers for subagent isolation.                                               | ✅    |
 | health.py                | Core     | Memory system diagnostics — instance-level health and maintenance reports.                                    | ✅    |
 | intent_recognizers.py    | Core     | Query intent recognition for adaptive type weighting.                                                         | ✅    |
-| manager.py               | Core     | Unified memory manager and core facade of the Memory Toolkit. Orchestrates all memory operations, exposes the latest business-neutral retrieval trace, and provides generic metadata-scoped id/ref listing, exact-outcome type/id deletion, metadata deletion, profile revision snapshots, and profile restore primitives for app-layer audited rollback flows. | ✅    |
+| manager.py               | Core     | Public import path for ``MemoryManager`` and memory error types. | ✅    |
 | memory_agent_tools.py    | Core     | Agent memory tools: recall, save, manage. Includes write-quality guidance (when/what/how to save) in save description, recall context budget enforcement, and citation provenance with retrieval traces. | ✅    |
 | memory_citations.py      | Core     | Citation/source bridge that converts recalled memories, retrieval traces, and conversation sources into UI-safe SSE metadata. | ✅    |
 | memory_recall_budget.py      | Core     | Recall budget guardrails: limit normalization, output size accounting, and content truncation helpers.        | ✅    |
@@ -46,6 +46,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 
 | Submodule   | Description                                                                       |
 | ----------- | --------------------------------------------------------------------------------- |
+| \_manager/  | Composable ``MemoryManager`` implementation modules.                               |
 | \_internal/ | Internal implementation details — not part of the public API.                     |
 | cognitive/  | Cognitive memory consolidation layer.                                             |
 | conversation_search/ | Protocol-backed conversation recall tool, source refs, scope/lineage DTOs and MemoryManager provider. |

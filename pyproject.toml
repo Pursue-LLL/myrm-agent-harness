@@ -212,6 +212,12 @@ ignore = ["E501", "B008", "SIM108", "RUF001", "RUF002", "RUF003"]
   "SIM102",
   "SIM105",
 ] # Fire-and-forget tasks are intentional in command dispatch
+"src/myrm_agent_harness/toolkits/memory/_manager/shared.py" = [
+  "F401",
+] # Barrel re-exports consumed by mixin star imports
+"src/myrm_agent_harness/toolkits/memory/_manager/{core,governance_session,retrieval_write,convenience,deletion,listing_maintenance,mutations,storage,import_export}.py" = [
+  "F405",
+] # Mixin modules consume shared import barrel
 
 [tool.mypy]
 python_version = "3.13"
@@ -231,6 +237,7 @@ filterwarnings = [
     "ignore:The default value of `allowed_objects` will change:langchain_core._api.deprecation.LangChainPendingDeprecationWarning"
 ]
 markers = [
+  "api: Public API surface smoke tests (myrm_agent_harness.api)",
   "architecture: Architecture consistency tests (boundary checks, dependency rules)",
   "e2e: End-to-end tests (complete user workflows)",
   "integration: Integration tests (run with real browser)",

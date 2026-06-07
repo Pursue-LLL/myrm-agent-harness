@@ -13,6 +13,10 @@ Stable public import surface for external consumers (`myrm-agent-server`, third-
 | config.py | Core | LLM/Agent configuration types | ✅ |
 | protocols.py | Core | Extension-point Protocol definitions | ✅ |
 
+## Tests
+
+- `tests/api/test_public_surface.py` — public `__all__`, lazy exports, submodule smoke, distribution mode
+
 ## Key Dependencies
 
 - `agent.skill_agent_factory` (POS: Agent factory function)

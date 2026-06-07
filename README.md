@@ -314,6 +314,18 @@ myrm-agent-harness/          # 本仓库根（示意）
 
 详细架构说明请参考 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
+### Toolkits 模块分区
+
+`toolkits/` 按职责分为三区，安装时通过 `pyproject.toml` 的 optional extras 按需启用（`pip install "myrm-agent-harness[browser,retrieval,...]"`）。
+
+| 分区 | 模块 | 说明 | Optional extra |
+|------|------|------|----------------|
+| **Core** | `code_execution`, `storage`, `mcp`, `context`, `llms`, `memory`, `network`, `retriever`, `web_search`, `web_fetch`, `vector`, `file_parsers` | Agent 运行时基础能力；部分解析/抓取依赖已列入主依赖 | `file-parsers`, `retrieval`, `qdrant`, `web`, `memory-postgres` 增强子能力 |
+| **Integrations** | `browser`, `computer_use`, `acp`, `openapi_bridge`, `huggingface`, `local_browser_data`, `vision`, `tts` | 外部系统/协议集成，按需安装 | `browser`, `computer-use`, `image-processing`, `image-search`, `observability` |
+| **Product-adjacent** | `kanban`, `calendar`, `commitment`, `cron`, `notification`, `automation`, `wiki`, `tasks`, `workspace`, `interaction`, `element_ref`, `security` | 通用 Protocol 实现，零 `agent/` 依赖；Myrm 产品默认启用，第三方可按需选用 | 多数无额外 extra |
+
+框架层模块（非 toolkits）：`api/`（公开入口）、`agent/`、`runtime/`、`core/`、`infra/`、`backends/`、`eval/`、`utils/`。
+
 ### 架构原则
 
 1. **框架-业务分离**

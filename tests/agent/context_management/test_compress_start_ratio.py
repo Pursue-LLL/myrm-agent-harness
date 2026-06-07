@@ -203,6 +203,43 @@ class TestExtractContextFromRequest:
         assert max_tokens is None
         assert ratio is None
 
+    def test_extracts_ratio_from_object_context(self) -> None:
+        """Test extraction when context is an object (not a Mapping)."""
+
+        class MockContext:
+            chat_id = "obj-chat"
+            max_context_tokens = 100000
+            compress_start_ratio = 0.55
+
+        class MockRuntime:
+            context = MockContext()
+
+        class MockRequest:
+            runtime = MockRuntime()
+
+        chat_id, max_tokens, ratio = extract_context_from_request(MockRequest())
+        assert chat_id == "obj-chat"
+        assert max_tokens == 100000
+        assert ratio == 0.55
+
+    def test_coerces_string_ratio_from_mapping(self) -> None:
+        """String ratio from JSON gets coerced to float by _coerce_optional_float."""
+
+        class MockRuntime:
+            context: ClassVar[dict[str, object]] = {
+                "chat_id": "str-ratio",
+                "max_context_tokens": "128000",
+                "compress_start_ratio": "0.65",
+            }
+
+        class MockRequest:
+            runtime = MockRuntime()
+
+        chat_id, max_tokens, ratio = extract_context_from_request(MockRequest())
+        assert chat_id == "str-ratio"
+        assert max_tokens == 128000
+        assert ratio == 0.65
+
 
 class TestBuildDefaultProcessorsIntegration:
     """Test that compress_start_ratio flows through to build_default_processors."""
@@ -301,3 +338,78 @@ class TestCoercionDefensiveness:
 
     def test_int_float_string(self) -> None:
         assert _coerce_optional_int("3.14") is None
+
+    def test_int_non_scalar_list(self) -> None:
+        assert _coerce_optional_int([100, 200]) is None
+
+    def test_int_non_scalar_dict(self) -> None:
+        assert _coerce_optional_int({"tokens": 128000}) is None
+
+
+class TestAgentContextToDictFull:
+    """Test AgentContext.to_dict covers all optional fields."""
+
+    def test_to_dict_with_all_fields(self) -> None:
+        ctx = AgentContext(
+            user_id="u1",
+            chat_id="c1",
+            user_query="hello",
+            user_instructions="be concise",
+            max_context_tokens=200000,
+            compress_start_ratio=0.65,
+            last_message_db_id="msg-001",
+        )
+        d = ctx.to_dict()
+        assert d["user_id"] == "u1"
+        assert d["chat_id"] == "c1"
+        assert d["user_query"] == "hello"
+        assert d["user_instructions"] == "be concise"
+        assert d["max_context_tokens"] == 200000
+        assert d["compress_start_ratio"] == 0.65
+        assert d["last_message_db_id"] == "msg-001"
+
+    def test_to_dict_minimal(self) -> None:
+        ctx = AgentContext()
+        d = ctx.to_dict()
+        assert d == {}
+
+
+class TestExtractContextFromRunnableConfig:
+    """Test extract_context_from_runnable_config utility."""
+
+    def test_returns_empty_for_none(self) -> None:
+        from myrm_agent_harness.agent.context_management.context import (
+            extract_context_from_runnable_config,
+        )
+
+        assert extract_context_from_runnable_config(None) == {}
+
+    def test_returns_empty_for_no_configurable(self) -> None:
+        from myrm_agent_harness.agent.context_management.context import (
+            extract_context_from_runnable_config,
+        )
+
+        assert extract_context_from_runnable_config({"other": "val"}) == {}
+
+    def test_returns_empty_for_non_mapping_configurable(self) -> None:
+        from myrm_agent_harness.agent.context_management.context import (
+            extract_context_from_runnable_config,
+        )
+
+        assert extract_context_from_runnable_config({"configurable": "string"}) == {}
+
+    def test_returns_empty_for_non_mapping_context(self) -> None:
+        from myrm_agent_harness.agent.context_management.context import (
+            extract_context_from_runnable_config,
+        )
+
+        assert extract_context_from_runnable_config({"configurable": {"context": 123}}) == {}
+
+    def test_returns_context_dict(self) -> None:
+        from myrm_agent_harness.agent.context_management.context import (
+            extract_context_from_runnable_config,
+        )
+
+        config = {"configurable": {"context": {"chat_id": "c1", "max_context_tokens": 128000}}}
+        result = extract_context_from_runnable_config(config)
+        assert result == {"chat_id": "c1", "max_context_tokens": 128000}

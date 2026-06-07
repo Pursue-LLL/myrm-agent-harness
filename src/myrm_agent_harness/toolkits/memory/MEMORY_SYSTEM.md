@@ -86,7 +86,8 @@ myrm_agent_harness/
 ├── toolkits/memory/                    # 核心记忆能力
 │   ├── config.py                       # MemoryConfig + RetrievalConfig
 │   ├── types.py                        # 枚举 + Pydantic 数据模型（含 PendingRecord、MemoryMutationResult、ProfileAttributeSnapshot）
-│   ├── manager.py                      # MemoryManager（统一入口 + façade 编排 + 精确变更结果 + profile 修订快照）
+│   ├── manager.py                      # MemoryManager 公开 import 路径
+│   ├── _manager/                       # MemoryManager 组合实现（core / governance / deletion / maintenance 等 mixin）
 │   ├── session.py                      # MemorySession（对话级缓冲）
 │   ├── retriever.py                    # MemoryRetriever（RRF + 几何平均评分 + MMR 多样性重排 + source decay 会话源多样化）
 │   ├── signals.py                      # SignalCalculator（上下文信号计算）
