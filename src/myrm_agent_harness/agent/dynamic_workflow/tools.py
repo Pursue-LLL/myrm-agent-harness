@@ -84,12 +84,14 @@ class SpawnSubagentTool(BaseTool):
         if self.catalog:
             config = await self.catalog.resolve(agent_type)
         if not config:
+            parent_resolver = getattr(self.parent_agent, "model_resolver", None)
             config = SubagentConfig(
                 system_prompt="You are a sub-agent executing a specific task within a Dynamic Workflow.",
                 max_spawn_depth=0,
                 concurrency_limit=10,
                 max_cost_usd=2.0,
                 budget_tokens=200_000,
+                model_resolver=parent_resolver,
             )
 
         try:

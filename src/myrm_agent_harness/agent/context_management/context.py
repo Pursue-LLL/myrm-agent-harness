@@ -26,7 +26,10 @@ def _coerce_optional_int(value: object) -> int | None:
     if value is None:
         return None
     if isinstance(value, (int, float, str)):
-        return int(value)
+        try:
+            return int(value)
+        except (ValueError, OverflowError):
+            return None
     return None
 
 
@@ -35,7 +38,10 @@ def _coerce_optional_float(value: object) -> float | None:
     if value is None:
         return None
     if isinstance(value, (int, float, str)):
-        return float(value)
+        try:
+            return float(value)
+        except (ValueError, OverflowError):
+            return None
     return None
 
 

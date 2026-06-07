@@ -215,6 +215,38 @@ class TestResolveLlm:
         result = await resolve_llm(cfg, parent)
         assert result is parent_llm
 
+    @pytest.mark.asyncio
+    async def test_no_model_with_resolver_triggers_auto_routing(self):
+        """When config.model is None but model_resolver exists, resolver is called with 'default'."""
+        resolved_llm = MagicMock()
+        resolver = MagicMock()
+        resolver.resolve = AsyncMock(return_value=resolved_llm)
+        cfg = SubagentConfig(system_prompt="s", model_resolver=resolver)
+        parent = MagicMock()
+        result = await resolve_llm(cfg, parent, task_description="search for pricing info")
+        assert result is resolved_llm
+        resolver.resolve.assert_awaited_once_with(
+            "default",
+            complexity_tier=None,
+            task_description="search for pricing info",
+        )
+
+    @pytest.mark.asyncio
+    async def test_resolver_receives_complexity_tier(self):
+        """Verify complexity_tier is passed through to resolver."""
+        resolved_llm = MagicMock()
+        resolver = MagicMock()
+        resolver.resolve = AsyncMock(return_value=resolved_llm)
+        cfg = SubagentConfig(system_prompt="s", model="gpt-4", model_resolver=resolver)
+        parent = MagicMock()
+        result = await resolve_llm(cfg, parent, complexity_tier="simple")
+        assert result is resolved_llm
+        resolver.resolve.assert_awaited_once_with(
+            "gpt-4",
+            complexity_tier="simple",
+            task_description=None,
+        )
+
 
 # ---------------------------------------------------------------------------
 # build_child_agent / build_standalone_agent

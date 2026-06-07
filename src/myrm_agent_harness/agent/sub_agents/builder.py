@@ -103,31 +103,29 @@ async def resolve_llm(
     """Resolve LLM via 4-level chain: config.llm → model_resolver → config.model log → parent LLM.
 
     Level 1: config.llm — pre-built LLM instance (set by business layer)
-    Level 2: config.model + config.model_resolver — string name resolved to LLM via injected resolver
+    Level 2: model_resolver — resolves model name (or "default" for auto-routing) to LLM
     Level 3: config.model without resolver — logged, falls through to parent
     Level 4: parent LLM — inherited from parent agent (default)
     """
     if config.llm is not None:
         logger.info("[subagent] Using config.llm override (type=%s)", type(config.llm).__name__)
         return config.llm
-    if config.model:
+    if config.model or config.model_resolver is not None:
+        effective_model = config.model or "default"
         if config.model_resolver is not None:
             try:
-                # Pass complexity_tier and task_description to model_resolver if it supports it
-                import inspect
-
-                sig = inspect.signature(config.model_resolver.resolve)
-                kwargs = {}
-                if "complexity_tier" in sig.parameters:
-                    kwargs["complexity_tier"] = complexity_tier
-                if "task_description" in sig.parameters:
-                    kwargs["task_description"] = task_description
-                resolved = await config.model_resolver.resolve(config.model, **kwargs)
-                logger.info("[subagent] Resolved model '%s' via model_resolver", config.model)
+                resolved = await config.model_resolver.resolve(
+                    effective_model,
+                    complexity_tier=complexity_tier,
+                    task_description=task_description,
+                )
+                logger.info("[subagent] Resolved model '%s' via model_resolver", effective_model)
                 return resolved
             except Exception as e:
                 logger.warning(
-                    "[subagent] model_resolver failed for '%s', falling back to parent LLM: %s", config.model, e
+                    "[subagent] model_resolver failed for '%s', falling back to parent LLM: %s",
+                    effective_model,
+                    e,
                 )
         else:
             logger.info(
