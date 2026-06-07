@@ -30,6 +30,10 @@ def mock_session() -> Any:
     session.new_tab = AsyncMock(return_value="tab1")
     session.switch_tab = AsyncMock(return_value="Switched to tab1")
     session.list_tabs = MagicMock(return_value=["tab0", "tab1"])
+    session.list_tabs_with_info = MagicMock(return_value=[
+        {"tab_id": "tab0", "domain": "example.com", "active": True},
+        {"tab_id": "tab1", "domain": "other.com", "active": False},
+    ])
     session.close_tab = AsyncMock(return_value="Closed tab1")
     session.go_back = AsyncMock(return_value="Navigated back")
     session.go_forward = AsyncMock(return_value="Navigated forward")
@@ -410,20 +414,21 @@ async def test_browser_manage_list_tabs_with_tabs(mock_session: Any) -> None:
 
     assert "tab0" in result
     assert "tab1" in result
-    mock_session.list_tabs.assert_called_once()
+    mock_session.list_tabs_with_info.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_browser_manage_list_tabs_empty(mock_session: Any) -> None:
     """Test browser_manage list_tabs with no tabs."""
     mock_session.list_tabs = MagicMock(return_value=[])
+    mock_session.list_tabs_with_info = MagicMock(return_value=[])
     tools = create_browser_tools(mock_session)
     manage_tool = next(t for t in tools if t.name == "browser_manage_tool")
 
     result = await manage_tool.ainvoke({"action": "list_tabs"})
 
     assert "No open tabs" in result
-    mock_session.list_tabs.assert_called_once()
+    mock_session.list_tabs_with_info.assert_called_once()
 
 
 @pytest.mark.asyncio
