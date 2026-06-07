@@ -8,6 +8,7 @@ Provides MCP tool fetching capabilities:
 - Auto-truncates excessively long tool descriptions to prevent token waste
 - Preserves multimodal tool results (ImageContent, file blocks) for downstream rendering
 - Extracts MCP structuredContent from artifacts as supplementary text blocks
+- Detects ext-apps ``_meta.ui.resourceUri`` and emits MCP App view events via progress_sink
 
 
 [INPUT]
@@ -15,19 +16,21 @@ Provides MCP tool fetching capabilities:
 - config::sanitize_mcp_name_component, should_register_mcp_tool (POS: MCP configuration, name sanitization, and per-server tool filter function)
 - schema_utils::FlattenMeta, canonicalize_schema_for_cache, coerce_arguments_by_schema, flatten_deep_schema, flatten_json_schema, has_dot_keys, nest_flat_arguments (POS: MCP schema tolerance utilities)
 - core.security.tool_registry::MCPAnnotations, SafetyMetadata, register_ptc_safety_metadata (POS: Tool metadata and permission mapping)
+- agent.streaming.types::AgentEventType (POS: Framework-agnostic streaming event types)
+- utils.runtime.progress_sink::get_tool_progress_sink (POS: Runtime tool progress event sink)
 - langchain_mcp_adapters (POS: MCP adapter library)
 
 [OUTPUT]
-- MCPAgent: MCP tool fetching, server mapping, multimodal result normalization, and safety annotation registration
+- MCPAgent: MCP tool fetching, server mapping, multimodal result normalization, ext-apps metadata emission, and safety annotation registration
 
 [POS]
 MCP agent layer. Orchestrates multi-server tool discovery with parallel fetching,
 server-prefix isolation (mcp__{server}__{tool} naming), per-server tool filtering
 (include/exclude whitelist), description truncation, multimodal result
 normalization (ImageContent/file passthrough + structuredContent extraction),
-and safety metadata registration. `process_session_tools()` is the single
-post-processing chain shared by persistent-session actors and one-shot
-enumeration.
+ext-apps UI metadata detection and SSE event emission, and safety metadata
+registration. `process_session_tools()` is the single post-processing chain
+shared by persistent-session actors and one-shot enumeration.
 """
 
 from __future__ import annotations

@@ -37,13 +37,14 @@ prefix cache stability is never compromised.
 
 [OUTPUT]
 - MCPSessionActor: persistent, self-reconnecting per-server session with
-  serialised tool calls, transport-aware keepalive, and dynamic tool discovery.
+  serialised tool calls, resource reads (ext-apps UI), transport-aware keepalive,
+  and dynamic tool discovery.
 
 [POS]
 MCP persistent-session layer. Owns one warm ClientSession per server and routes
-all tool calls through a single task, enabling true process/connection reuse
-with transparent recovery from transport breaks and dynamic tool refresh on
-``notifications/tools/list_changed``.
+all tool calls and resource reads through a single task, enabling true
+process/connection reuse with transparent recovery from transport breaks and
+dynamic tool refresh on ``notifications/tools/list_changed``.
 """
 
 from __future__ import annotations
