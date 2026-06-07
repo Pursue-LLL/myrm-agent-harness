@@ -20,6 +20,7 @@ tool registry, catalog, and budget from the parent agent through the delegate pa
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 from collections.abc import AsyncIterable
@@ -28,7 +29,10 @@ from typing import TYPE_CHECKING
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
 from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
-from myrm_agent_harness.agent.dynamic_workflow.tools import SpawnSubagentTool
+from myrm_agent_harness.agent.dynamic_workflow.tools import (
+    NotifyProgressTool,
+    SpawnSubagentTool,
+)
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.base_agent import BaseAgent
@@ -42,11 +46,15 @@ You are a Dynamic Workflow Orchestrator. Your task is to solve the user's comple
 request by writing a Python script that orchestrates multiple sub-agents.
 
 You have access to a special Python module called `myrm_tools`.
-It contains a function: `myrm_tools.spawn_subagent(task_id: str, agent_type: str, task_description: str, readonly: bool = False) -> dict`
+It contains two functions:
 
-This function spawns a sub-agent that has access to tools (web search, file \
-operations, code execution, etc.). It blocks until the sub-agent completes and \
-returns a dict with keys: success, task_id, agent_type, result, error, status.
+1. `myrm_tools.spawn_subagent(task_id: str, agent_type: str, task_description: str, readonly: bool = False) -> dict`
+   Spawns a sub-agent that has access to tools (web search, file operations, code execution, etc.).
+   Blocks until the sub-agent completes. Returns dict with keys: success, task_id, agent_type, result, error, status.
+
+2. `myrm_tools.notify(message: str, progress: int = -1, step_index: int = 0, total_steps: int = 0, category: str = '', level: str = 'info') -> dict`
+   Reports workflow stage progress to the user interface in real-time.
+   Call at the start of each major phase so the user can track progress.
 
 IMPORTANT RULES:
 1. Use `concurrent.futures.ThreadPoolExecutor` with max_workers <= 8 for parallelism.
@@ -62,6 +70,9 @@ IMPORTANT RULES:
 5. Do NOT use Date.now(), random(), or any non-deterministic functions.
 6. For analysis-only tasks (code review, security audit, scanning, performance analysis), \
 pass readonly=True to prevent the sub-agent from modifying files.
+7. Call `myrm_tools.notify()` at the start of each major workflow phase. Example: \
+`myrm_tools.notify("Phase 1: Collecting data", step_index=1, total_steps=3, category="data")`. \
+This keeps the user informed of progress. Do NOT call it for every sub-agent — only for phase transitions.
 
 Example Script:
 ```python
@@ -86,9 +97,13 @@ tasks = [
     ("task_2", "Analyze the backend API endpoints and their patterns.", True),
 ]
 
+myrm_tools.notify("Analyzing codebase", step_index=1, total_steps=2, category="analysis")
+
 with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
     futures = [executor.submit(run_task, tid, desc, ro) for tid, desc, ro in tasks]
     results = [f.result() for f in concurrent.futures.as_completed(futures)]
+
+myrm_tools.notify("Generating summary", step_index=2, total_steps=2, category="summary")
 
 print(json.dumps(results, indent=2, ensure_ascii=False))
 ```
@@ -189,6 +204,8 @@ async def run_dynamic_workflow_stream(
     def _tool_registry_getter() -> list[object]:
         return list(parent_agent._cached_tools or parent_agent.user_tools) if parent_agent else []
 
+    notify_queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+
     spawn_tool = SpawnSubagentTool(
         parent_agent=parent_agent,
         tool_registry_getter=_tool_registry_getter,
@@ -196,6 +213,10 @@ async def run_dynamic_workflow_stream(
         catalog=catalog,
         store=store,
         cancel_token=cancel_token,
+    )
+    notify_tool = NotifyProgressTool(
+        event_queue=notify_queue,
+        message_id=message_id,
     )
 
     yield {
@@ -272,13 +293,27 @@ async def run_dynamic_workflow_stream(
     executor = create_executor()
 
     workflow_failed = False
+    pending_notify_events: list[dict[str, object]] = []
+
+    async def _drain_notify_queue() -> None:
+        """Drain queued notify events into pending list for later yielding."""
+        while True:
+            try:
+                event = notify_queue.get_nowait()
+                pending_notify_events.append(event)
+            except asyncio.QueueEmpty:
+                break
+
     try:
         result = await inject_ptc_for_python_execution(
             context=context,
             executor=executor,
-            ptc_tools=[spawn_tool],
-            override_allowed=frozenset({"spawn_subagent"}),
+            ptc_tools=[spawn_tool, notify_tool],
+            override_allowed=frozenset({"spawn_subagent", "notify"}),
         )
+        await _drain_notify_queue()
+        for notify_event in pending_notify_events:
+            yield notify_event
 
         yield {
             "type": "status",
@@ -332,6 +367,9 @@ async def run_dynamic_workflow_stream(
 
     except Exception as e:
         workflow_failed = True
+        await _drain_notify_queue()
+        for notify_event in pending_notify_events:
+            yield notify_event
         logger.error("Dynamic Workflow execution failed: %s", e, exc_info=True)
         yield {
             "type": "status",

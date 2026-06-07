@@ -184,7 +184,21 @@ class ToolRegistry:
                 current_map[e.tool.name] = e.allowed_domains
         set_allowed_domains_map(current_map)
 
-        return [e.tool for e in entries if not e.deferred]
+        resolved_tools = [e.tool for e in entries if not e.deferred]
+        
+        # Weave dynamic schemas (e.g. cross-tool hints)
+        resolved_names = {t.name for t in resolved_tools}
+        final_tools = []
+        for tool in resolved_tools:
+            modifier = getattr(tool, "dynamic_schema_modifier", None)
+            if modifier is not None and callable(modifier):
+                try:
+                    tool = modifier(resolved_names)
+                except Exception as ex:
+                    logger.warning("Tool %s dynamic_schema_modifier failed: %s", tool.name, ex)
+            final_tools.append(tool)
+
+        return final_tools
 
     def get_deferred_tools(self) -> list[BaseTool]:
         """Return all deferred tools."""

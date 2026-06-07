@@ -1,4 +1,4 @@
-"""SpawnSubagentTool — PTC bridge to the delegate path for Dynamic Workflows.
+"""DW PTC tools — SpawnSubagentTool and NotifyProgressTool for Dynamic Workflows.
 
 [INPUT]
 - base_agent::BaseAgent (POS: Parent agent with _spawn_child capability)
@@ -7,17 +7,20 @@
 - utils.runtime.cancellation::CancellationToken
 
 [OUTPUT]
-- SpawnSubagentTool: LangChain BaseTool exposed to PTC scripts as myrm_tools.spawn_subagent
+- SpawnSubagentTool: PTC tool exposed as myrm_tools.spawn_subagent
+- NotifyProgressTool: PTC tool exposed as myrm_tools.notify — emits workflow stage events to the frontend
 
 [POS]
 Bridges the PTC Python script to the Harness delegate path. Each spawn_subagent()
 call goes through parent_agent._spawn_child(), inheriting the full tool registry,
 catalog config, cancel_token, and budget from the parent agent.
 WorkflowEventStore provides L2 persistent caching beyond the delegate's 60s TTL.
+NotifyProgressTool provides real-time workflow stage notifications from PTC scripts.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Callable
 
@@ -157,3 +160,90 @@ class SpawnSubagentTool(BaseTool):
             )
 
         return final_result
+
+
+# ---------------------------------------------------------------------------
+# NotifyProgressTool — real-time workflow stage notifications from PTC scripts
+# ---------------------------------------------------------------------------
+
+_VALID_NOTIFY_LEVELS = frozenset({"info", "warn", "alert"})
+
+
+class NotifyProgressInput(BaseModel):
+    message: str = Field(..., description="Status message to display to the user.")
+    progress: int = Field(
+        default=-1,
+        description="Progress percentage (0-100). Use -1 for indeterminate.",
+    )
+    step_index: int = Field(
+        default=0,
+        description="Current step number (1-based). 0 if not applicable.",
+    )
+    total_steps: int = Field(
+        default=0,
+        description="Total number of steps. 0 if not applicable.",
+    )
+    category: str = Field(
+        default="",
+        description="Stage/phase label (e.g. 'data_collection', 'analysis'). Groups related notifications.",
+    )
+    level: str = Field(
+        default="info",
+        description="Notification level: 'info' (normal), 'warn' (attention), or 'alert' (critical).",
+    )
+
+
+class NotifyProgressTool(BaseTool):
+    """PTC tool that emits real-time workflow stage progress events to the frontend SSE stream."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    name: str = "notify"
+    description: str = (
+        "Report workflow stage progress to the user interface. "
+        "Call this at the start of each major phase to show real-time progress."
+    )
+    args_schema: type[BaseModel] = NotifyProgressInput
+
+    event_queue: asyncio.Queue[dict[str, object]]
+    message_id: str = ""
+
+    def _run(
+        self,
+        message: str,
+        progress: int = -1,
+        step_index: int = 0,
+        total_steps: int = 0,
+        category: str = "",
+        level: str = "info",
+    ) -> object:
+        raise NotImplementedError("NotifyProgressTool only supports async execution.")
+
+    async def _arun(
+        self,
+        message: str,
+        progress: int = -1,
+        step_index: int = 0,
+        total_steps: int = 0,
+        category: str = "",
+        level: str = "info",
+    ) -> object:
+        validated_level = level if level in _VALID_NOTIFY_LEVELS else "info"
+        clamped_progress = max(-1, min(100, progress))
+
+        event: dict[str, object] = {
+            "type": "status",
+            "step_key": "workflow_stage",
+            "messageId": self.message_id,
+            "status": "in_progress",
+            "data": {
+                "message": message[:500],
+                "notify_progress": clamped_progress,
+                "notify_step_index": max(0, step_index),
+                "notify_total_steps": max(0, total_steps),
+                "notify_category": category[:100],
+                "notify_level": validated_level,
+            },
+        }
+        await self.event_queue.put(event)
+        return {"success": True, "message": message[:500]}

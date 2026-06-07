@@ -1,5 +1,6 @@
-"""Unit tests for SpawnSubagentTool."""
+"""Unit tests for SpawnSubagentTool and NotifyProgressTool."""
 
+import asyncio
 import os
 import tempfile
 from unittest.mock import AsyncMock, MagicMock
@@ -7,7 +8,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
-from myrm_agent_harness.agent.dynamic_workflow.tools import SpawnSubagentTool
+from myrm_agent_harness.agent.dynamic_workflow.tools import (
+    NotifyProgressTool,
+    SpawnSubagentTool,
+)
 
 
 @pytest.fixture
@@ -461,3 +465,139 @@ async def test_spawn_tool_sync_run_readonly_raises(mock_parent_agent):
     )
     with pytest.raises(NotImplementedError):
         tool._run("t1", "generalPurpose", "desc", readonly=True)
+
+
+# ---------------------------------------------------------------------------
+# NotifyProgressTool tests
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def notify_queue():
+    return asyncio.Queue()
+
+
+@pytest.fixture
+def notify_tool(notify_queue):
+    return NotifyProgressTool(event_queue=notify_queue, message_id="msg_test_123")
+
+
+@pytest.mark.asyncio
+async def test_notify_basic(notify_tool, notify_queue):
+    """Basic notify emits correct event structure."""
+    result = await notify_tool._arun(message="Phase 1: Collecting data")
+    assert result["success"] is True
+    assert notify_queue.qsize() == 1
+
+    event = notify_queue.get_nowait()
+    assert event["type"] == "status"
+    assert event["step_key"] == "workflow_stage"
+    assert event["messageId"] == "msg_test_123"
+    assert event["status"] == "in_progress"
+    assert event["data"]["message"] == "Phase 1: Collecting data"
+
+
+@pytest.mark.asyncio
+async def test_notify_with_progress(notify_tool, notify_queue):
+    """Notify with progress fields populates data correctly."""
+    result = await notify_tool._arun(
+        message="Analyzing files",
+        progress=42,
+        step_index=2,
+        total_steps=5,
+        category="analysis",
+        level="info",
+    )
+    assert result["success"] is True
+    event = notify_queue.get_nowait()
+    data = event["data"]
+    assert data["notify_progress"] == 42
+    assert data["notify_step_index"] == 2
+    assert data["notify_total_steps"] == 5
+    assert data["notify_category"] == "analysis"
+    assert data["notify_level"] == "info"
+
+
+@pytest.mark.asyncio
+async def test_notify_progress_clamped(notify_tool, notify_queue):
+    """Progress is clamped to [-1, 100]."""
+    await notify_tool._arun(message="overflow", progress=200)
+    event = notify_queue.get_nowait()
+    assert event["data"]["notify_progress"] == 100
+
+    await notify_tool._arun(message="underflow", progress=-50)
+    event = notify_queue.get_nowait()
+    assert event["data"]["notify_progress"] == -1
+
+
+@pytest.mark.asyncio
+async def test_notify_message_truncated(notify_tool, notify_queue):
+    """Long messages are truncated to 500 chars."""
+    long_msg = "x" * 1000
+    result = await notify_tool._arun(message=long_msg)
+    assert len(result["message"]) == 500
+    event = notify_queue.get_nowait()
+    assert len(event["data"]["message"]) == 500
+
+
+@pytest.mark.asyncio
+async def test_notify_invalid_level_defaults_to_info(notify_tool, notify_queue):
+    """Invalid level falls back to 'info'."""
+    await notify_tool._arun(message="test", level="critical")
+    event = notify_queue.get_nowait()
+    assert event["data"]["notify_level"] == "info"
+
+
+@pytest.mark.asyncio
+async def test_notify_valid_levels(notify_tool, notify_queue):
+    """All valid levels are accepted."""
+    for level in ("info", "warn", "alert"):
+        await notify_tool._arun(message=f"test {level}", level=level)
+        event = notify_queue.get_nowait()
+        assert event["data"]["notify_level"] == level
+
+
+@pytest.mark.asyncio
+async def test_notify_category_truncated(notify_tool, notify_queue):
+    """Long category is truncated to 100 chars."""
+    long_cat = "c" * 200
+    await notify_tool._arun(message="test", category=long_cat)
+    event = notify_queue.get_nowait()
+    assert len(event["data"]["notify_category"]) == 100
+
+
+@pytest.mark.asyncio
+async def test_notify_sync_run_raises(notify_queue):
+    """Sync _run raises NotImplementedError."""
+    tool = NotifyProgressTool(event_queue=notify_queue, message_id="msg")
+    with pytest.raises(NotImplementedError):
+        tool._run("test message")
+
+
+@pytest.mark.asyncio
+async def test_notify_multiple_events(notify_tool, notify_queue):
+    """Multiple notify calls queue events in order."""
+    await notify_tool._arun(message="Phase 1", step_index=1, total_steps=3)
+    await notify_tool._arun(message="Phase 2", step_index=2, total_steps=3)
+    await notify_tool._arun(message="Phase 3", step_index=3, total_steps=3)
+
+    assert notify_queue.qsize() == 3
+    events = [notify_queue.get_nowait() for _ in range(3)]
+    assert [e["data"]["message"] for e in events] == ["Phase 1", "Phase 2", "Phase 3"]
+    assert [e["data"]["notify_step_index"] for e in events] == [1, 2, 3]
+
+
+@pytest.mark.asyncio
+async def test_notify_negative_step_index_clamped(notify_tool, notify_queue):
+    """Negative step_index and total_steps are clamped to 0."""
+    await notify_tool._arun(message="test", step_index=-5, total_steps=-3)
+    event = notify_queue.get_nowait()
+    assert event["data"]["notify_step_index"] == 0
+    assert event["data"]["notify_total_steps"] == 0
+
+
+@pytest.mark.asyncio
+async def test_notify_indeterminate_progress(notify_tool, notify_queue):
+    """Default progress=-1 represents indeterminate state."""
+    await notify_tool._arun(message="Working...")
+    event = notify_queue.get_nowait()
+    assert event["data"]["notify_progress"] == -1
