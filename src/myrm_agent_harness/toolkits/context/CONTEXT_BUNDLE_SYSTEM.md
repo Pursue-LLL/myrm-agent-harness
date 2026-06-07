@@ -17,7 +17,7 @@ Harness (ContextBundleFacade)
         ├── harness_path     → LocalStorageBackend / workspace scene
         ├── offload_root     → runtime/context/offload.py paths
         ├── archive_path     → future export/import (#8)
-        ├── index registry   → roadmap #2 context_search
+        ├── index registry   → ContextIndexRegistry (per-scene health probes)
         └── lifecycle hooks  → OpenClaw-style phases (registration only)
 ```
 
@@ -38,16 +38,26 @@ in `ResolvedContextBinding`, decoupled from long-lived memory paths.
 
 - `ResolvedContextBinding` extends memory scope fields with bundle metadata.
 - `GET /context-bundle` — health DTO for Settings and Doctor.
+- `POST /context-bundle/migrate/dry-run` — non-destructive migration preview.
 - `POST /context-bundle/migrate/apply` — non-destructive manifest + directory init.
-- `POST /context-search` — unified memory + authorized local file search (v0).
 
-## Agent Tool
+## Workspace Search
 
-- `context_search_tool` — deferred tool; parallel memory + local file recall with RRF merge.
+Workspace file discovery uses agentic search (`grep_tool` / `glob_tool`) via
+`FilesystemFileSearchMiddleware` on the Server agent factory. No vector index
+or `/context-search` HTTP endpoint.
 
-## Out of Scope (#1 epic)
+## Health Probes
 
-- Unified `context_search` API (#2) — **v0 shipped** with RRF merge; BM25/rerank in #3/#4
+| Scene | Probe |
+|-------|-------|
+| MEMORY | `MemorySceneHealthBackend` — memory path writability |
+| WORKSPACE | `WorkspaceSceneHealthBackend` — harness path + optional ripgrep availability |
+| OFFLOAD / ARCHIVE | `StaticSceneHealthBackend` — path writability |
+
+## Out of Scope
+
+- Unified `context_search` HTTP API — removed; use agentic grep/glob instead
 - BM25 tri-path workspace recall (#3)
 - Bundle tarball export/import (#8)
 - Remote sync (#9)

@@ -81,9 +81,9 @@
 | `audit.py` | 安全审计日志 | 横切关注点 |
 | `shell_command_analyzer.py` | 统一 Shell 命令安全分析（注入/危险/可疑） | Layer 2 |
 | `safe_exec.py` | 安全命令执行（直接执行优先，shell 回退） | Layer 2 增强 |
-| `sandbox/security/blacklist.py` | Python 模块/环境变量黑名单 | Layer 2 |
-| `sandbox/security/validator.py` | 统一安全验证器 | Layer 2 |
-| `sandbox/security/archive_sanitizer.py` | 压缩包解压安全增强 | Layer 2 |
+| `toolkits/code_execution/security/blacklist.py` | Python 模块/环境变量黑名单 | Layer 2 |
+| `toolkits/code_execution/security/validator.py` | 统一安全验证器 | Layer 2 |
+| `toolkits/code_execution/security/archive_sanitizer.py` | 压缩包解压安全增强 | Layer 2 |
 | `utils/url_utils.py` | SSRF 防护 + DNS Pinning | Layer 2 |
 | `middlewares/approval/middleware.py` | 工具审批中间件主入口 | Layer 1-4 集成 |
 | `middlewares/approval/batch_processor.py` | 批量审批处理器（评估/构建/应用） | Layer 1-4 实现 |
@@ -198,7 +198,7 @@ class SSRFResult:
 
 ### 3.2 命令/模块黑名单
 
-**位置**：`sandbox/security/blacklist.py`
+**位置**：`toolkits/code_execution/security/blacklist.py`
 
 **Python 危险模块黑名单**（分两级）：
 
@@ -270,7 +270,7 @@ BLOCK → DENY（硬拒绝），ESCALATE → ASK（提升审批）。保留 `|`,
 
 ### 3.3 统一安全验证器
 
-**位置**：`sandbox/security/validator.py`
+**位置**：`toolkits/code_execution/security/validator.py`
 
 提供统一的 `ValidationResult` 返回类型和三类验证 API：
 
@@ -290,7 +290,7 @@ BLOCK → DENY（硬拒绝），ESCALATE → ASK（提升审批）。保留 `|`,
 
 ### 3.4 压缩包解压安全
 
-**位置**：`sandbox/security/archive_sanitizer.py`
+**位置**：`toolkits/code_execution/security/archive_sanitizer.py`
 
 防御 Zip Slip / Tar 路径遍历攻击和 Zip Bomb DoS：
 

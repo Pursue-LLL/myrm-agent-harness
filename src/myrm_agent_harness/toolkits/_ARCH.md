@@ -59,6 +59,7 @@ Does your code need to import anything from agent/?
 | computer_use/ | System-wide desktop automation — screen capture + coordinate-based input (macOS/Linux). |
 | cron/ | Scheduled task framework — scheduling engine, CRUD manager, built-in strategies. |
 | context/ | Unified context bundle — volume layout, facade, index/lifecycle hook registration. |
+| element_ref/ | Shared @dref element reference types and session-scoped registry for desktop control. |
 | file_parsers/ | File format parsers — PDF, DOCX, Excel, text, and structured data extraction. |
 | huggingface/ | Hugging Face integration — model and dataset tools for agents. |
 | interaction/ | User interaction tools — AskQuestion dialog and clipboard operations. |
@@ -71,8 +72,10 @@ Does your code need to import anything from agent/?
 | network/ | Network security — SSRF protection and URL validation for outbound requests. |
 | openapi_bridge/ | OpenAPI Bridge — zero-code REST API integration via OpenAPI 3.x / Swagger 2.0 specs. |
 | retriever/ | Retrieval and reranking — multi-source document retrieval with scoring pipeline. |
+| security/ | Credential vault — in-memory password/TOTP resolution for tool execution. |
 | storage/ | Storage abstraction layer — Protocol + local filesystem implementation. |
 | tasks/ | Task management — task models, executor protocol, persistence layer. |
+| tts/ | Text-to-speech — OpenAI/ElevenLabs engine with gateway fallback. |
 | vector/ | Vector Store — unified async vector storage and retrieval. |
 | vision/ | Vision processing — image analysis fallback engine and video frame extraction. |
 | web_fetch/ | Web content crawling — layered engine with HTTP/Browser/Stealth fallback chain. |

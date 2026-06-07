@@ -103,7 +103,7 @@ choco install ripgrep
 ### 简单示例（开箱即用）
 
 ```python
-from myrm_agent_harness.agent import create_skill_agent, LLMConfig
+from myrm_agent_harness.api import create_skill_agent, LLMConfig
 
 # Just provide config - no need to know about ChatOpenAI or BaseChatModel!
 agent = await create_skill_agent(
@@ -259,7 +259,7 @@ agent = await create_skill_agent(
 ### 直接使用 SkillAgent（完全控制）
 
 ```python
-from myrm_agent_harness.agent import SkillAgent, AgentRuntimeConfig
+from myrm_agent_harness.api import SkillAgent, AgentRuntimeConfig
 from langchain_openai import ChatOpenAI
 
 # 创建 LLM

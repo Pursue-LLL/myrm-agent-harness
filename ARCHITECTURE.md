@@ -217,7 +217,7 @@ agent/ (运行时核心层)
   ↓ 依赖 core/ + 下列模块
 ├─ backends/ (抽象层)
 ├─ toolkits/ (工具层 — 仅依赖 core/，不依赖 agent/)
-│   ├─ sandbox/ (沙箱执行)
+│   ├─ code_execution/ (沙箱代码执行)
 │   ├─ storage/ (存储缓存)
 │   ├─ web_fetch/ (网页抓取)
 │   ├─ retriever/ (检索系统)

@@ -46,9 +46,6 @@
 │  config.py        → StorageConfig, StorageMode                   │
 │  types.py         → FilePurpose, SkillType                       │
 │  paths.py         → 路径生成/解析工具 (20+ 函数)                 │
-│                                                              │
-│ 兼容层 (myrm_agent_harness/backends/storage/)              │
-│  local.py       → 重导出 toolkits/storage/local 的实现       │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -106,7 +103,6 @@ await storage.write("file.txt", b"content")
 - **用途**: 本地模式（本地部署）、开发环境
 - **特有逻辑**: 路径解析（`_resolve_key_to_path`）、写入后设置 chmod 0o600、list 文件列表
 - **安全**: `_resolve_key_to_path()` 使用 `os.path.normpath` + `relative_to` 防止路径遍历
-- **兼容层**: `backends/storage/local.py` 重导出此实现，保持向后兼容
 
 ### 4.2 PersistentStorageBackend (框架层)
 
