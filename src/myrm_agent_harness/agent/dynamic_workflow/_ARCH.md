@@ -26,6 +26,7 @@ SpawnSubagentTool (tools.py)
   - Delegates to parent_agent._spawn_child()
   - Full tool registry inherited from parent
   - cancel_token checked before each spawn
+  - readonly=True → dual write protection (disallowed_tools + READ_ONLY_SANDBOX)
        ↓
 WorkflowEventStore (store.py) — L2 persistent cache
   - Cache hit → skip spawn
@@ -44,7 +45,7 @@ SSE events (message / message_end / status)
 |------|------|-------------|
 | `__init__.py` | Engine | Core entry point (`run_dynamic_workflow_stream`). Dynamically discovers available subagent types via `_build_available_types_hint(catalog)` using the SubagentCatalog protocol, prompts the LLM to generate the orchestration script, executes via PTC, then summarizes results. |
 | `store.py` | Persistence | `WorkflowEventStore` provides SQLite-based Event Sourcing for durable execution and crash recovery. Uses the Harness unified SQLite hardening profile (`CACHE`). |
-| `tools.py` | PTC Tool | `SpawnSubagentTool` bridges the PTC Python script to `parent_agent._spawn_child()` through the delegate path, inheriting full tool registry, catalog, and budget. |
+| `tools.py` | PTC Tool | `SpawnSubagentTool` bridges the PTC Python script to `parent_agent._spawn_child()` through the delegate path, inheriting full tool registry, catalog, and budget. Supports `readonly` mode for analysis-only tasks (dual protection: `disallowed_tools` + `ReadonlyExecutorProxy`). |
 | `_ARCH.md` | Doc | This architecture document. |
 
 ## Key Design Decisions
@@ -58,3 +59,4 @@ SSE events (message / message_end / status)
 7. **Cancel Propagation**: `cancel_token` is checked at every phase boundary and passed to every `spawn_child()` call, ensuring the "Stop" button works.
 8. **Budget & Cost Tracking**: Server brackets the DW execution with `should_block_execution()` (budget gate) and `init_token_tracker()` / `reset_token_tracker()` (cost tracking), matching the normal agent and consensus stream patterns.
 9. **SSE Compatibility**: Events use standard `AgentEventType` values (`message`, `message_end`, `status`) so the frontend handler chain processes them correctly. The `completion_status` field in `message_end` accurately reflects success or failure.
+10. **Readonly Mode**: `SpawnSubagentTool` supports a `readonly` parameter for analysis-only tasks (security audits, code reviews, scanning). When `readonly=True`, dual protection is applied: (1) soft enforcement via `disallowed_tools` blocking write/bash/git tools, and (2) hard enforcement via `WorkspacePolicy.READ_ONLY_SANDBOX` which triggers `ReadonlyExecutorProxy` at the OS level. This matches the readonly capability already present in `delegate_task_tool`.

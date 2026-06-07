@@ -3,7 +3,7 @@
 [INPUT]
 - base_agent::BaseAgent (POS: Parent agent with _spawn_child capability)
 - dynamic_workflow.store::WorkflowEventStore (POS: L2 persistent cache)
-- sub_agents.types::SubagentCatalog, SubagentConfig (POS: Agent configuration)
+- sub_agents.types::SubagentCatalog, SubagentConfig, WorkspacePolicy (POS: Agent configuration and workspace isolation)
 - utils.runtime.cancellation::CancellationToken
 
 [OUTPUT]
@@ -36,6 +36,10 @@ class SpawnSubagentInput(BaseModel):
         description="Type of agent to spawn (e.g., 'generalPurpose', 'shell').",
     )
     task_description: str = Field(..., description="The prompt/task for the sub-agent to execute.")
+    readonly: bool = Field(
+        default=False,
+        description="If true, sub-agent cannot write files or run bash commands. Use for analysis-only tasks.",
+    )
 
 
 class SpawnSubagentTool(BaseTool):
@@ -54,7 +58,7 @@ class SpawnSubagentTool(BaseTool):
     store: WorkflowEventStore | None = None
     cancel_token: object | None = None
 
-    def _run(self, task_id: str, agent_type: str, task_description: str) -> object:
+    def _run(self, task_id: str, agent_type: str, task_description: str, readonly: bool = False) -> object:
         raise NotImplementedError("SpawnSubagentTool only supports async execution.")
 
     async def _arun(
@@ -62,6 +66,7 @@ class SpawnSubagentTool(BaseTool):
         task_id: str,
         agent_type: str = "generalPurpose",
         task_description: str = "",
+        readonly: bool = False,
     ) -> object:
         if self.cancel_token and self.cancel_token.is_cancelled:
             return {
@@ -78,7 +83,9 @@ class SpawnSubagentTool(BaseTool):
                 logger.info("DW cache hit: workflow=%s task=%s", self.workflow_id, task_id)
                 return cached
 
-        from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
+        from dataclasses import replace
+
+        from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, WorkspacePolicy
 
         config = None
         if self.catalog:
@@ -92,6 +99,18 @@ class SpawnSubagentTool(BaseTool):
                 max_cost_usd=2.0,
                 budget_tokens=200_000,
                 model_resolver=parent_resolver,
+            )
+
+        if readonly:
+            _readonly_blocked = frozenset(
+                {"write_file", "execute_terminal_command", "bash_run_command", "git_commit"}
+            )
+            config = replace(
+                config,
+                workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX,
+                disallowed_tools=config.disallowed_tools | _readonly_blocked,
+                system_prompt=config.system_prompt
+                + "\n\n[READONLY MODE] You are in read-only mode. You can only read and analyze — do NOT attempt file writes, terminal commands, or git commits.",
             )
 
         try:

@@ -42,9 +42,9 @@ You are a Dynamic Workflow Orchestrator. Your task is to solve the user's comple
 request by writing a Python script that orchestrates multiple sub-agents.
 
 You have access to a special Python module called `myrm_tools`.
-It contains a function: `myrm_tools.spawn_subagent(task_id: str, agent_type: str, task_description: str) -> dict`
+It contains a function: `myrm_tools.spawn_subagent(task_id: str, agent_type: str, task_description: str, readonly: bool = False) -> dict`
 
-This function spawns a sub-agent that has FULL access to tools (web search, file \
+This function spawns a sub-agent that has access to tools (web search, file \
 operations, code execution, etc.). It blocks until the sub-agent completes and \
 returns a dict with keys: success, task_id, agent_type, result, error, status.
 
@@ -60,6 +60,8 @@ IMPORTANT RULES:
 3. For simple tasks (web search, data lookup), use agent_type="generalPurpose".
 4. Print a final JSON summary with ALL results using: print(json.dumps(results, indent=2, ensure_ascii=False))
 5. Do NOT use Date.now(), random(), or any non-deterministic functions.
+6. For analysis-only tasks (code review, security audit, scanning, performance analysis), \
+pass readonly=True to prevent the sub-agent from modifying files.
 
 Example Script:
 ```python
@@ -67,24 +69,25 @@ import concurrent.futures
 import myrm_tools
 import json
 
-def run_task(task_id, description):
+def run_task(task_id, description, readonly=False):
     try:
         result = myrm_tools.spawn_subagent(
             task_id=task_id,
             agent_type="generalPurpose",
-            task_description=description
+            task_description=description,
+            readonly=readonly,
         )
     except Exception as e:
         result = {"success": False, "error": str(e)}
     return {"task_id": task_id, **result}
 
 tasks = [
-    ("task_1", "Analyze the frontend architecture and list key components."),
-    ("task_2", "Analyze the backend API endpoints and their patterns.")
+    ("task_1", "Analyze the frontend architecture and list key components.", True),
+    ("task_2", "Analyze the backend API endpoints and their patterns.", True),
 ]
 
 with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-    futures = [executor.submit(run_task, tid, desc) for tid, desc in tasks]
+    futures = [executor.submit(run_task, tid, desc, ro) for tid, desc, ro in tasks]
     results = [f.result() for f in concurrent.futures.as_completed(futures)]
 
 print(json.dumps(results, indent=2, ensure_ascii=False))

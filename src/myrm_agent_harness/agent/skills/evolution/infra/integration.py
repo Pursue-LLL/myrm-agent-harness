@@ -283,8 +283,14 @@ class EvolutionIntegration:
         except Exception as e:
             logger.debug("Failed to register trap lookup (non-fatal): %s", e)
 
+    # --- Trace Slice Window State ---
+    # Per-session cursors for the 15-Call Sliding Window trigger.
+    # Key: session_id, Value: (tool_call_count_since_last_slice, collected_tool_call_ids)
+    _slice_cursors: dict[str, tuple[int, list[str]]] = {}
+    SLICE_WINDOW_THRESHOLD: int = 15
+
     def register_hooks(self, registry: Any) -> None:
-        """Register framework hooks (e.g. TRACE_SLICE_READY) to the given session registry."""
+        """Register framework hooks for evolution (TRACE_SLICE_READY + window trigger)."""
         from myrm_agent_harness.agent.hooks.types import CallableHookDefinition, HookEvent
 
         async def _handle_trace_slice(event: str, payload: dict[str, object]) -> Any:
@@ -299,7 +305,6 @@ class EvolutionIntegration:
             agent_id = payload.get("agent_id")
             agent_id = str(agent_id) if agent_id else None
 
-            # Enqueue the extraction task to the background worker
             if self.queue and session_id and tool_call_ids:
                 try:
                     await self.queue.enqueue(
@@ -317,10 +322,64 @@ class EvolutionIntegration:
                     logger.warning("Failed to enqueue trace slice: %s", e)
             return HookResult(hook_type="callable", success=True)
 
+        async def _window_counter(event: str, payload: dict[str, object]) -> Any:
+            """Count tool calls per session; emit TRACE_SLICE_READY at threshold."""
+            from myrm_agent_harness.agent.hooks.executor import fire_hook
+            from myrm_agent_harness.agent.hooks.types import HookResult
+
+            tool_call_id = payload.get("tool_call_id")
+            if not isinstance(tool_call_id, str) or not tool_call_id:
+                return HookResult(hook_type="callable", success=True)
+
+            from myrm_agent_harness.agent._skill_agent_context import (
+                get_session_id as _ctx_session_id,
+            )
+
+            session_id = _ctx_session_id() or ""
+            if not session_id:
+                return HookResult(hook_type="callable", success=True)
+
+            count, ids = self._slice_cursors.get(session_id, (0, []))
+            ids.append(tool_call_id)
+            count += 1
+
+            if count >= self.SLICE_WINDOW_THRESHOLD:
+                await fire_hook(
+                    HookEvent.TRACE_SLICE_READY,
+                    {"session_id": session_id, "tool_call_ids": ids},
+                )
+                self._slice_cursors[session_id] = (0, [])
+            else:
+                self._slice_cursors[session_id] = (count, ids)
+
+            return HookResult(hook_type="callable", success=True)
+
+        async def _session_end_cleanup(event: str, payload: dict[str, object]) -> Any:
+            """Clean up slice cursor on session end."""
+            from myrm_agent_harness.agent.hooks.types import HookResult
+
+            session_id = str(payload.get("session_id", ""))
+            self._slice_cursors.pop(session_id, None)
+            return HookResult(hook_type="callable", success=True)
+
         registry.register(
             HookEvent.TRACE_SLICE_READY,
             CallableHookDefinition(
                 fn=_handle_trace_slice,
+                block_on_failure=False,
+            ),
+        )
+        registry.register(
+            HookEvent.POST_TOOL_USE,
+            CallableHookDefinition(
+                fn=_window_counter,
+                block_on_failure=False,
+            ),
+        )
+        registry.register(
+            HookEvent.SESSION_END,
+            CallableHookDefinition(
+                fn=_session_end_cleanup,
                 block_on_failure=False,
             ),
         )
