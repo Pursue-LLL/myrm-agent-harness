@@ -56,11 +56,11 @@ _PEM_REASON = "Private Key"
 _PATH_REASON = "Absolute Path"
 
 # Absolute paths (macOS/Linux) — supports line-start via (?:^|...) with MULTILINE
-_MACOS_PATH_RE = re.compile(r"(?:(?<=[\s\"'=:])|(?<=^))/Users/[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_.\-]+)+", re.MULTILINE)
-_LINUX_PATH_RE = re.compile(r"(?:(?<=[\s\"'=:])|(?<=^))/home/[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_.\-]+)+", re.MULTILINE)
+_MACOS_PATH_RE = re.compile(r"(?:(?<=[\s\"'=:(])|(?<=^))/Users/[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_.\-]+)+", re.MULTILINE)
+_LINUX_PATH_RE = re.compile(r"(?:(?<=[\s\"'=:(])|(?<=^))/home/[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_.\-]+)+", re.MULTILINE)
 # Windows paths (for Tauri desktop users) — supports line-start
 _WINDOWS_PATH_RE = re.compile(
-    r"(?i)(?:(?<=[\s\"'=:])|(?<=^))[A-Z]:\\(?:Users|Documents and Settings)\\[^\s\"']+", re.MULTILINE
+    r"(?i)(?:(?<=[\s\"'=:(])|(?<=^))[A-Z]:\\(?:Users|Documents and Settings)\\[^\s\"']+", re.MULTILINE
 )
 
 
