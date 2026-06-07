@@ -8,6 +8,7 @@
 
 [OUTPUT]
 - AgentContext: Agent 运行时上下文数据类
+- extract_context_from_request: 从 ModelRequest 提取 (chat_id, max_context_tokens, compress_start_ratio) 三元组
 
 [POS]
 Agent runtime context definition. Provides a type-safe context container for passing user, session, and query information during Agent execution. Used by Agent, middlewares, and tools. Supports context isolation and workspace management.

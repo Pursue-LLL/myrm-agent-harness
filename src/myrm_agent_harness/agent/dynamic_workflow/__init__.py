@@ -46,7 +46,7 @@ It contains a function: `myrm_tools.spawn_subagent(task_id: str, agent_type: str
 
 This function spawns a sub-agent that has FULL access to tools (web search, file \
 operations, code execution, etc.). It blocks until the sub-agent completes and \
-returns a dict with keys: success, task_id, agent_type, result, error.
+returns a dict with keys: success, task_id, agent_type, result, error, status.
 
 IMPORTANT RULES:
 1. Use `concurrent.futures.ThreadPoolExecutor` with max_workers <= 8 for parallelism.

@@ -116,12 +116,14 @@ class SpawnSubagentTool(BaseTool):
         if isinstance(result, dict):
             final_result = result
         else:
+            status_val = getattr(result, "status", None)
             final_result = {
                 "success": getattr(result, "success", False),
                 "task_id": getattr(result, "task_id", task_id),
                 "agent_type": getattr(result, "agent_type", agent_type),
                 "result": getattr(result, "result", None),
                 "error": getattr(result, "error", None),
+                "status": status_val.value if hasattr(status_val, "value") else str(status_val or "unknown"),
             }
 
         if self.store:

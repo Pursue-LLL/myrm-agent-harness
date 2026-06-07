@@ -12,7 +12,7 @@
 - CompactToolCall: Compact tool call dataclass (compressed tool call format)
 - CompressionIntent: Structured compression focus (injected by server / plane)
 - StructuredSummary: Structured summary dataclass (deterministic output, not free-form)
-- ContextConfig: Context configuration (compress_threshold, summarize_threshold, keep_recent_calls)
+- ContextConfig: Context configuration (compress_threshold, summarize_threshold, keep_recent_calls, compress_start_ratio)
 - ToolProtectionConfig: Tool protection configuration (defines non-compressible tools)
 - EvictedToolCall: Evicted tool call dataclass (contains original uncompressed content)
 - SummaryPersistCallback: Summary persistence callback protocol (dependency inversion)

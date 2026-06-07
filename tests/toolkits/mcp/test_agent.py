@@ -806,3 +806,144 @@ class TestPrefixEdgeCases:
 
         assert sanitize_mcp_name_component(None) == "unnamed"  # type: ignore[arg-type]
 
+
+class TestExtractMcpAppMetadata:
+    """Tests for MCPAgent._extract_mcp_app_metadata — ext-apps UI detection."""
+
+    def test_valid_artifact_with_resource_uri(self) -> None:
+        artifact = {
+            "_meta": {"ui": {"resourceUri": "ui://weather/dashboard"}},
+            "structured_content": {"temp": 22},
+        }
+        result = MCPAgent._extract_mcp_app_metadata(artifact)
+        assert result == {
+            "resource_uri": "ui://weather/dashboard",
+            "structured_content": {"temp": 22},
+        }
+
+    def test_valid_artifact_without_structured_content(self) -> None:
+        artifact = {"_meta": {"ui": {"resourceUri": "ui://charts/pie"}}}
+        result = MCPAgent._extract_mcp_app_metadata(artifact)
+        assert result == {"resource_uri": "ui://charts/pie"}
+
+    def test_none_artifact(self) -> None:
+        assert MCPAgent._extract_mcp_app_metadata(None) is None
+
+    def test_no_meta_key(self) -> None:
+        assert MCPAgent._extract_mcp_app_metadata({"data": "hello"}) is None
+
+    def test_meta_without_ui(self) -> None:
+        assert MCPAgent._extract_mcp_app_metadata({"_meta": {"version": 1}}) is None
+
+    def test_ui_without_resource_uri(self) -> None:
+        assert MCPAgent._extract_mcp_app_metadata({"_meta": {"ui": {"height": 300}}}) is None
+
+    def test_empty_resource_uri(self) -> None:
+        assert MCPAgent._extract_mcp_app_metadata({"_meta": {"ui": {"resourceUri": ""}}}) is None
+
+    def test_non_string_resource_uri(self) -> None:
+        assert MCPAgent._extract_mcp_app_metadata({"_meta": {"ui": {"resourceUri": 123}}}) is None
+
+    def test_non_dict_meta(self) -> None:
+        assert MCPAgent._extract_mcp_app_metadata({"_meta": "not a dict"}) is None
+
+    def test_non_dict_ui(self) -> None:
+        assert MCPAgent._extract_mcp_app_metadata({"_meta": {"ui": "string"}}) is None
+
+
+class TestEmitMcpAppEvent:
+    """Tests for MCPAgent._emit_mcp_app_event — SSE event emission via progress_sink."""
+
+    @pytest.mark.asyncio
+    async def test_emits_event_for_valid_artifact(self) -> None:
+        mock_sink = AsyncMock()
+        artifact = {"_meta": {"ui": {"resourceUri": "ui://srv/view"}}}
+        raw_result = ("text content", artifact)
+
+        with patch(
+            "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
+            return_value=mock_sink,
+        ):
+            await MCPAgent._emit_mcp_app_event(raw_result, "mcp__weather__forecast")
+
+        mock_sink.emit.assert_called_once()
+        event = mock_sink.emit.call_args[0][0]
+        assert event["mcp_app"]["resource_uri"] == "ui://srv/view"
+        assert event["mcp_app"]["server_name"] == "weather"
+
+    @pytest.mark.asyncio
+    async def test_includes_structured_content(self) -> None:
+        mock_sink = AsyncMock()
+        artifact = {
+            "_meta": {"ui": {"resourceUri": "ui://a/b"}},
+            "structured_content": {"key": "val"},
+        }
+        raw_result = ("txt", artifact)
+
+        with patch(
+            "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
+            return_value=mock_sink,
+        ):
+            await MCPAgent._emit_mcp_app_event(raw_result, "mcp__srv__tool")
+
+        event = mock_sink.emit.call_args[0][0]
+        assert event["mcp_app"]["structured_content"] == {"key": "val"}
+
+    @pytest.mark.asyncio
+    async def test_skips_non_tuple_result(self) -> None:
+        mock_sink = AsyncMock()
+        with patch(
+            "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
+            return_value=mock_sink,
+        ):
+            await MCPAgent._emit_mcp_app_event("plain string", "mcp__s__t")
+        mock_sink.emit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_skips_tuple_without_ext_apps_meta(self) -> None:
+        mock_sink = AsyncMock()
+        raw_result = ("text", {"no_meta": True})
+        with patch(
+            "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
+            return_value=mock_sink,
+        ):
+            await MCPAgent._emit_mcp_app_event(raw_result, "mcp__s__t")
+        mock_sink.emit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_skips_when_no_progress_sink(self) -> None:
+        artifact = {"_meta": {"ui": {"resourceUri": "ui://x/y"}}}
+        raw_result = ("txt", artifact)
+        with patch(
+            "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
+            return_value=None,
+        ):
+            # Should not raise
+            await MCPAgent._emit_mcp_app_event(raw_result, "mcp__s__t")
+
+    @pytest.mark.asyncio
+    async def test_handles_emit_exception_gracefully(self) -> None:
+        mock_sink = AsyncMock()
+        mock_sink.emit.side_effect = RuntimeError("sink broken")
+        artifact = {"_meta": {"ui": {"resourceUri": "ui://x/y"}}}
+        raw_result = ("txt", artifact)
+        with patch(
+            "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
+            return_value=mock_sink,
+        ):
+            # Should not raise, just log
+            await MCPAgent._emit_mcp_app_event(raw_result, "mcp__s__t")
+
+    @pytest.mark.asyncio
+    async def test_non_mcp_tool_name_yields_empty_server(self) -> None:
+        mock_sink = AsyncMock()
+        artifact = {"_meta": {"ui": {"resourceUri": "ui://x/y"}}}
+        raw_result = ("txt", artifact)
+        with patch(
+            "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
+            return_value=mock_sink,
+        ):
+            await MCPAgent._emit_mcp_app_event(raw_result, "regular_tool")
+        event = mock_sink.emit.call_args[0][0]
+        assert event["mcp_app"]["server_name"] == ""
+

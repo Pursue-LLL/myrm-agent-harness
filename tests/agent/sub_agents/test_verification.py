@@ -259,6 +259,7 @@ class TestRunWithVerification:
             tool_registry_getter=lambda: [], max_rounds=2,
         )
         assert "FAIL after 2 round(s)" in result.result
+        assert result.success is False, "Verification failure must propagate success=False"
 
     @pytest.mark.asyncio
     async def test_worker_failure_aborts(self):
@@ -487,3 +488,4 @@ class TestRunWithVerification:
             tool_registry_getter=lambda: [], max_rounds=1,
         )
         assert "Verification: FAIL after 1 round(s)" in result.result
+        assert result.success is False, "Verification failure must set success=False"

@@ -412,6 +412,7 @@ async def run_with_verification(
             logger.info("[verification] Round %d — FAIL, retrying with feedback", round_num)
 
     evidence_str = f"\n<verification_evidence>\n{verdict.raw}\n</verification_evidence>" if verdict else ""
+    last_worker_result.success = False
     last_worker_result.result = (
         f"{last_worker_result.result}\n\n---\n[Verification: FAIL after {max_rounds} round(s)]{evidence_str}"
     )

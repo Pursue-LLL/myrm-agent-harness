@@ -518,7 +518,7 @@ META: tokens_saved=5000 time=2024-12-20T15:30:00
 摘要（Summarize）和 Session Notes 是改变消息结构的操作，作为**缓存重置事件**，本框架实现了创新的 **主动分段与上下文明确清零 (Proactive Stage Reset & Compaction)**，包含 U型记忆保护与显式界定。
 
 **触发机制**：
-- **主动拦截**：到达主动健康阈值 `proactive_reset_threshold`（Max 的 40%，最小 2万 Token）时触发。
+- **主动拦截**：到达主动健康阈值 `proactive_reset_threshold`（默认 Max 的 40%，最小 2万 Token；可通过 `ContextConfig.compress_start_ratio` 由 Agent 配置自定义，有效范围 [0.20, 0.85]）时触发。
 - **显式边界**：主 Agent 调用的动态 Subagent 执行完成（`delegate_task_tool` 返回）时，天然处于逻辑闭环，此时会注入 `force_proactive_reset=True` 信号，主动触发一次上下文重置，防止 Subagent 的“过程噪音”污染主 Agent 的“脑容量”。
 - **Session Notes 触发**：当后台异步生成的 Session Notes 达到阈值就绪时，零 API 触发压缩。
 

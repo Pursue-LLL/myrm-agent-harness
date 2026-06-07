@@ -15,7 +15,7 @@ Context management infrastructure: shared types, budget management, session lock
 | context_budget.py | Core | Provides ContextHealthStatus, ContextBudget, calculate_context_budget. | ✅ |
 | message_priority.py | Core | Message priority classification for intelligent compression. | ✅ |
 | resume_validator.py | Core | Resume-from-interrupt validator. Verifies that the current Agent config matches the config saved in  | — |
-| schemas.py | Config | Context management shared data structures. Defines CacheUsageFeedback, ContextOffloadResult, compact format types, summary schemas, cache-TTL emergency prune ratio, restore-cost backoff thresholds, large-payload fast guard threshold, PreCompactInjection/ContextPreCompactCallback, and config | ✅ |
+| schemas.py | Config | Context management shared data structures. Defines CacheUsageFeedback, ContextOffloadResult, compact format types, summary schemas, cache-TTL emergency prune ratio, restore-cost backoff thresholds, large-payload fast guard threshold, PreCompactInjection/ContextPreCompactCallback, ContextConfig (including user-configurable compress_start_ratio for per-agent threshold tuning), and config | ✅ |
 | session_lock.py | Core | Session-level lock manager. Provides reentrant per-session async locks for serialized context mutations while preserving cross-session parallelism. | ✅ |
 | tool_result_trimming.py | Core | Deterministic trimming for oversized tool outputs. Uses structure-aware JSON compaction under the fast-guard threshold and bounded head/tail text trim above it. | ✅ |
 | tool_output_persister.py | Core | Large tool output persister. | ✅ |
