@@ -16,6 +16,8 @@ Tab lifecycle manager. Responsibilities:
 3. LRU eviction (when exceeding MAX_TABS)
 4. Automatic popup capture
 5. Tab-level snapshot URL management (get/update_snapshot_url)
+6. Origin-based tab routing (find_tab_by_origin)
+7. Domain-aware tab listing (list_tabs_with_info)
 
 Single responsibility: only manages tab lifecycle and tab-level metadata; does not handle navigation, snapshot, interaction, or other business logic.
 """
