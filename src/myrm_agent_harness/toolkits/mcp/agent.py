@@ -128,6 +128,34 @@ class MCPAgent:
                 tool.description = desc[:limit] + "..."
 
     @staticmethod
+    def _extract_mcp_app_metadata(artifact: object) -> dict[str, object] | None:
+        """Extract MCP Apps (ext-apps) metadata from an MCP artifact.
+
+        Returns a dict with ``resource_uri`` and optionally ``structured_content``
+        when the artifact carries ``_meta.ui.resourceUri`` (ext-apps standard).
+        """
+        if artifact is None:
+            return None
+        meta = artifact.get("_meta") if isinstance(artifact, dict) else getattr(artifact, "_meta", None)
+        if not isinstance(meta, dict):
+            return None
+        ui = meta.get("ui")
+        if not isinstance(ui, dict):
+            return None
+        resource_uri = ui.get("resourceUri")
+        if not isinstance(resource_uri, str) or not resource_uri:
+            return None
+        structured = (
+            artifact.get("structured_content")
+            if isinstance(artifact, dict)
+            else getattr(artifact, "structured_content", None)
+        )
+        result: dict[str, object] = {"resource_uri": resource_uri}
+        if structured is not None:
+            result["structured_content"] = structured
+        return result
+
+    @staticmethod
     def _normalize_mcp_result(result: object) -> str | list[dict[str, object]]:
         """Normalize content_and_artifact tuple from langchain_mcp_adapters.
 
@@ -201,7 +229,9 @@ class MCPAgent:
                 try:
                     async with asyncio.timeout(_timeout):
                         raw = await _orig(*args, **kwargs)  # type: ignore[misc]
-                        return MCPAgent._normalize_mcp_result(raw)
+                        normalized = MCPAgent._normalize_mcp_result(raw)
+                        await MCPAgent._emit_mcp_app_event(raw, _name)
+                        return normalized
                 except TimeoutError:
                     error_msg = f"MCP tool '{_name}' timed out after {_timeout}s. Server may be slow or unresponsive."
                     logger.error(error_msg)
@@ -211,6 +241,41 @@ class MCPAgent:
             # Override response_format to prevent ToolNode from tuple-destructuring
             if hasattr(tool, "response_format"):
                 tool.response_format = "content"
+
+    @staticmethod
+    async def _emit_mcp_app_event(raw_result: object, tool_name: str) -> None:
+        """Emit an MCP_APP_VIEW event if the raw result carries ext-apps UI metadata."""
+        if not isinstance(raw_result, tuple) or len(raw_result) != 2:
+            return
+        _, artifact = raw_result
+        mcp_app_meta = MCPAgent._extract_mcp_app_metadata(artifact)
+        if mcp_app_meta is None:
+            return
+        from myrm_agent_harness.agent.streaming.types import AgentEventType
+        from myrm_agent_harness.utils.runtime.progress_sink import get_tool_progress_sink
+
+        sink = get_tool_progress_sink()
+        if sink is None:
+            return
+        server_name = ""
+        parts = tool_name.split("__")
+        if len(parts) >= 3 and parts[0] == "mcp":
+            server_name = parts[1]
+        event: dict[str, object] = {
+            "type": AgentEventType.TOOL_END.value,
+            "tool_name": tool_name,
+            "mcp_app": {
+                "resource_uri": mcp_app_meta["resource_uri"],
+                "server_name": server_name,
+            },
+        }
+        structured = mcp_app_meta.get("structured_content")
+        if structured is not None:
+            event["mcp_app"]["structured_content"] = structured  # type: ignore[index]
+        try:
+            await sink.emit(event)
+        except Exception as exc:
+            logger.debug("Failed to emit mcp_app event for tool '%s': %s", tool_name, exc)
 
     @staticmethod
     def _sanitize_tools(tools: list[BaseTool]) -> None:

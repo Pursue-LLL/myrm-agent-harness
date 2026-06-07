@@ -114,6 +114,14 @@ class _ToolCall:
     future: asyncio.Future[object]
 
 
+@dataclass(slots=True)
+class _ResourceRead:
+    """A queued resource read awaiting execution on the warm session."""
+
+    uri: str
+    future: asyncio.Future[object]
+
+
 _SHUTDOWN = object()
 _REFRESH_SIGNAL = object()
 
@@ -222,6 +230,19 @@ class MCPSessionActor:
         future: asyncio.Future[object] = asyncio.get_running_loop().create_future()
         await self._queue.put(_ToolCall(tool_name, params, future))
         return await future
+
+    async def read_resource(self, uri: str) -> bytes:
+        """Read a resource by URI from the warm session.
+
+        Used by the MCP Apps (ext-apps) host to fetch UI content declared via
+        ``_meta.ui.resourceUri`` in tool results.
+        """
+        if not self.is_healthy():
+            raise RuntimeError(f"MCP session for '{self.server_name}' is not healthy (closed or failed)")
+        self._last_activity = time.time()
+        future: asyncio.Future[object] = asyncio.get_running_loop().create_future()
+        await self._queue.put(_ResourceRead(uri, future))
+        return await future  # type: ignore[return-value]
 
     async def close(self) -> None:
         """Signal shutdown, await graceful teardown, fail any pending calls."""
@@ -352,6 +373,31 @@ class MCPSessionActor:
                     return _ServeOutcome.SHUTDOWN
                 if item is _REFRESH_SIGNAL:
                     await self._refresh_tools(session)
+                    continue
+                if isinstance(item, _ResourceRead):
+                    if item.future.cancelled():
+                        continue
+                    try:
+                        resource_bytes = await self._read_resource(session, item.uri)
+                        if not item.future.done():
+                            item.future.set_result(resource_bytes)
+                    except (
+                        ConnectionError,
+                        ProcessLookupError,
+                        EOFError,
+                        BrokenPipeError,
+                    ) as exc:
+                        if not item.future.done():
+                            item.future.set_exception(exc)
+                        logger.warning(
+                            "MCP session '%s' transport broke during resource read; reconnecting: %s",
+                            self.server_name,
+                            exc,
+                        )
+                        return _ServeOutcome.RECONNECT
+                    except Exception as exc:
+                        if not item.future.done():
+                            item.future.set_exception(exc)
                     continue
                 if not isinstance(item, _ToolCall):
                     continue
@@ -608,6 +654,30 @@ class MCPSessionActor:
         if tool is None:
             raise RuntimeError(f"MCP tool not found: {self.server_name}.{tool_name}. Available: {sorted(self._tools)}")
         return await tool.ainvoke(params)
+
+    async def _read_resource(self, session: object, uri: str) -> bytes:
+        """Read a resource from the MCP server via the active session.
+
+        Returns the raw content bytes. Raises if the server does not support
+        resources or the URI is not found.
+        """
+        try:
+            from mcp.types import ReadResourceResult
+        except ImportError:
+            raise RuntimeError("MCP SDK not available for resource reading")
+
+        async with asyncio.timeout(self._connect_timeout):
+            result: ReadResourceResult = await session.read_resource(uri)  # type: ignore[attr-defined]
+        if not result.contents:
+            raise RuntimeError(f"MCP resource '{uri}' returned empty content")
+        content = result.contents[0]
+        if hasattr(content, "blob") and content.blob:
+            import base64
+
+            return base64.b64decode(content.blob)
+        if hasattr(content, "text") and content.text:
+            return content.text.encode("utf-8")
+        raise RuntimeError(f"MCP resource '{uri}' has no text or blob content")
 
     def _resolve_tool(self, tool_name: str) -> BaseTool | None:
         tool = self._tools.get(tool_name)

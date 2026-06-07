@@ -6,6 +6,7 @@ validation, and the double-registration prevention design.
 
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 
 import pytest
@@ -50,6 +51,19 @@ class TestFilesystemFileSearchMiddleware:
         assert callable(mw.wrap_tool_call)
         sentinel = object()
         assert mw.wrap_tool_call(sentinel, lambda r: r) is sentinel
+
+    async def test_awrap_tool_call_is_async_and_awaits_handler(self, tmp_workspace: Path) -> None:
+        """awrap_tool_call must be async def and correctly await the async handler."""
+        mw = FilesystemFileSearchMiddleware(root_path=str(tmp_workspace))
+        assert inspect.iscoroutinefunction(mw.awrap_tool_call)
+
+        sentinel = object()
+
+        async def async_handler(request: object) -> object:
+            return request
+
+        result = await mw.awrap_tool_call(sentinel, async_handler)
+        assert result is sentinel
 
     def test_invalid_root_path_raises(self) -> None:
         with pytest.raises(ValueError, match="does not exist"):

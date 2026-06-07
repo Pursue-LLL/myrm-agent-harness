@@ -155,6 +155,18 @@ class MCPConnection:
             if self.status == ConnectionStatus.ACTIVE:
                 self.status = ConnectionStatus.IDLE
 
+    async def read_resource(self, server_name: str, uri: str) -> bytes:
+        """Read a resource from the given MCP server's warm session.
+
+        Used by MCP Apps (ext-apps) host to fetch UI content.
+        """
+        actor = self._resolve_actor(server_name)
+        if actor is None:
+            raise RuntimeError(f"MCP server not found: {server_name}. Available servers: {list(self._actors)}")
+
+        self.metrics.last_used = time.time()
+        return await actor.read_resource(uri)
+
     async def health_check(self) -> bool:
         """Return True only if every server's session is alive and usable."""
         if self.status == ConnectionStatus.CLOSED:
