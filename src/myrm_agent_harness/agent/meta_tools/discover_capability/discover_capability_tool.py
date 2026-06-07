@@ -103,6 +103,10 @@ Use this tool when you need a capability that is not currently in your tool list
 - If an **External Skill** is found, you MUST use `skill_select_tool` to load its SOP documentation before using it.
 """
 
+    if native_skills:
+        deferred_names = ", ".join(s.name for s in native_skills[:20])
+        tool_description += f"\n**Discoverable native tools**: {deferred_names}\n"
+
     class DiscoverCapabilityInput(BaseModel):
         query: str = Field(
             description=(
