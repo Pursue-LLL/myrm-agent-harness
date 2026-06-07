@@ -324,6 +324,15 @@ class EvolutionScreener:
                         reason[:100],
                     )
                     await self._log_rejection_event(skill.skill_id, "llm_confirmation", reason, confidence)
+
+                    # Persist rejection as evolution constraint (learning feedback loop)
+                    if confidence >= 0.7:
+                        constraint = f"LLM screener rejected FIX (conf={confidence:.2f}): {reason[:200]}"
+                        try:
+                            await self._store.add_evolution_constraint(skill.skill_id, constraint)
+                        except Exception as e:
+                            logger.debug("Failed to persist evolution constraint: %s", e)
+
                     # Metrics
                     SCREENING_TOTAL.labels(phase="llm_confirmation", result="blocked").inc()
                     SCREENING_DURATION.labels(phase="llm_confirmation").observe(time.time() - start_time)

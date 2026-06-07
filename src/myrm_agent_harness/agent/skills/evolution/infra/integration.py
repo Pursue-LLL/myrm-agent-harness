@@ -404,6 +404,22 @@ class EvolutionIntegration:
             )
             await self.store.deactivate_skill(skill_id)
 
+            # Persist trap from deterministic error (learning feedback loop)
+            if is_deterministic_error:
+                skill_record = self.store.get_skill(skill_id)
+                if skill_record:
+                    error_line = error_message.split("\n")[-1].strip() if "\n" in error_message else error_message.strip()
+                    trap = {
+                        "description": error_line[:200],
+                        "severity": "high",
+                        "mitigation": f"Quarantined by {quarantine_reason}. Fix the root cause before re-enabling.",
+                    }
+                    if skill_record.add_trap(trap):
+                        try:
+                            await self.store.save_skill(skill_record)
+                        except Exception as e:
+                            logger.debug("Failed to persist trap for %s: %s", skill_id, e)
+
         # Auto-trigger FIX if needed (business layer can override this)
         # CRITICAL: We MUST trigger FIX if the skill was quarantined (even if it's the 1st failure),
         # OR if the standard metrics say so.

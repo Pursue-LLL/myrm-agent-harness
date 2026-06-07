@@ -192,7 +192,7 @@ class SkillEvolutionEngine:
         )
 
         # 4. Build Proposal
-        return self._proposal_builder.build_proposal(
+        proposal = self._proposal_builder.build_proposal(
             skill=old_skill,
             evolution_type=EvolutionType.FIX,
             best_variant=best_variant,
@@ -202,6 +202,16 @@ class SkillEvolutionEngine:
             trajectory=trajectory,
             is_general=is_general,
         )
+
+        # 4.5 Persist learning: record successful fix as evolution constraint
+        if proposal and score >= 0.7:
+            constraint = f"FIX succeeded (score={score:.2f}): {error_message[:100]} → {reason[:100]}"
+            try:
+                await self._store.add_evolution_constraint(skill_id, constraint)
+            except Exception as e:
+                logger.debug("Failed to persist FIX constraint for %s: %s", skill_id, e)
+
+        return proposal
 
     async def derive_skill_simple(self, skill_id: str, user_feedback: str) -> EvolutionProposal | None:
         """DERIVED evolution: Optimize skill based on feedback."""
