@@ -98,7 +98,7 @@ class SubagentExecutor:
         context = await self._inherit_parent_context(context, task_id, parent_agent)
         context["trace_id"] = trace_id
 
-        # Workspace isolation: ISOLATED_COPY creates a hardlinked clone
+        # Workspace isolation: ISOLATED_COPY creates a COW clone via shutil.copytree
 
         isolation_ctx = None
         isolated_parent_ws: str | None = None

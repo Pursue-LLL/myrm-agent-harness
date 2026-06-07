@@ -1,7 +1,7 @@
-"""Tests for workspace isolation (hardlink tree + sync back).
+"""Tests for workspace isolation (COW clone + sync back).
 
 Validates:
-1. _hardlink_tree creates correct directory structure with hardlinks
+1. _clone_workspace creates correct directory structure via COW copy
 2. _sync_tree works correctly for syncing back changes
 3. isolated_workspace context manager lifecycle
 """
