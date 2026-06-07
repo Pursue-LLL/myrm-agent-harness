@@ -16,6 +16,7 @@ Browser session components.
 | extractor.py | Core | Content extraction manager. Responsibilities: | ✅ |
 | interactor.py | Core | Element interaction manager. Responsibilities: | ✅ |
 | network_logger.py | Core | Network request logging for the browser toolkit. Provides self-diagnosis capability for browser sess | ✅ |
+| network_intelligence.py | Core | CDP-based network intelligence for on-demand API response body retrieval and request replay. | ✅ |
 | console_logger.py | Core | Browser console log capture (JS errors/warnings/logs + page errors). Mirrors NetworkLogger lifecycle. | ✅ |
 | page_analyzer.py | Core | Lightweight page structure analyzer. Executes fast DOM analysis via page.evaluate(), | ✅ |
 | session_persistence.py | Core | Session persistence helper class. Single responsibility: handles session save/restore/list/delete op | ✅ |

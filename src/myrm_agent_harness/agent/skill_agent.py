@@ -9,6 +9,7 @@
 - types::AgentRuntimeConfig (POS: Agent runtime config)
 - event_log.protocols::EventLogBackend (POS: Event log backend protocol)
 - meta_tools.skills.select::get_skill_document (POS: Load skill SOP document for explicit injection)
+- skills.evolution.infra.integration::get_global_evolution_integration (POS: Integration helpers for skill evolution system.)
 
 [OUTPUT]
 - SkillAgent: Skill Agent — extends BaseAgent with skill system, hooks, and session lifecycle.
@@ -507,6 +508,15 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
         # Only register broadcaster if it's not already registered
         if not any(h.fn.__name__ == "on_pre_tool_use" for h in registry._hooks.get("pre_tool_use", [])):
             register_to_hook_registry(registry, get_event_logger())
+
+        # Register evolution sliding window hooks if integration is active
+        from myrm_agent_harness.agent.skills.evolution.infra.integration import (
+            get_global_evolution_integration,
+        )
+
+        evo = get_global_evolution_integration()
+        if evo is not None:
+            evo.register_hooks(registry)
 
         if skill and skill.hooks:
             logger.info("Hooks activated: %s (%d hooks)", skill.name, registry.total_count)

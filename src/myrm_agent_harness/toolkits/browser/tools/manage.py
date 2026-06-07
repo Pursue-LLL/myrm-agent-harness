@@ -29,7 +29,7 @@ def create_manage_tool(session: BrowserSession):
         action: str = Field(
             description="Action: close, evaluate, new_tab, switch_tab, list_tabs, close_tab, "
             "back, forward, save_pdf, resize, wait_for_load, console_log, "
-            "network_log, dialog_response, "
+            "network_log, network_detail, network_replay, dialog_response, "
             "save_session, restore_session, list_sessions, delete_session, "
             "wait_for_user, trace_start, trace_stop, har_start, har_stop, recording_status, "
             "save_site_experience, list_site_experience, delete_site_experience, "
@@ -42,6 +42,7 @@ def create_manage_tool(session: BrowserSession):
             "'accept'/'dismiss[:prompt]' (dialog_response), "
             "domain or 'domain:label' (save_session), domain (restore_session/delete_session), "
             "prompt text for user (wait_for_user), "
+            "request index number (network_detail/network_replay), "
             "JSON for save_site_experience (e.g. "
             '\'{"domain":"example.com","known_traps":["login wall"],"successful_flows":["direct URL"]}\'), '
             "domain for delete_site_experience. "
@@ -100,6 +101,22 @@ def create_manage_tool(session: BrowserSession):
                 return session.get_console_log()
             case "network_log":
                 return session.get_network_log()
+            case "network_detail":
+                if not value.strip():
+                    return "Error: 'value' must be the request index number (from network_log output)"
+                try:
+                    index = int(value.strip())
+                except ValueError:
+                    return "Error: 'value' must be an integer (request index from network_log)"
+                return await session.get_network_detail(index)
+            case "network_replay":
+                if not value.strip():
+                    return "Error: 'value' must be the request index number to replay"
+                try:
+                    index = int(value.strip())
+                except ValueError:
+                    return "Error: 'value' must be an integer (request index from network_log)"
+                return await session.replay_network_request(index)
             case "dialog_response":
                 parts = value.split(":", 1)
                 accept = parts[0].strip().lower() != "dismiss"
@@ -164,7 +181,7 @@ def create_manage_tool(session: BrowserSession):
                 return (
                     f"Unknown action '{action}'. Supported: close, evaluate, new_tab, switch_tab, "
                     "list_tabs, close_tab, back, forward, save_pdf, resize, wait_for_load, "
-                    "console_log, network_log, dialog_response, "
+                    "console_log, network_log, network_detail, network_replay, dialog_response, "
                     "save_session, restore_session, list_sessions, delete_session, "
                     "wait_for_user, trace_start, trace_stop, har_start, har_stop, recording_status, "
                     "save_site_experience, list_site_experience, delete_site_experience, "

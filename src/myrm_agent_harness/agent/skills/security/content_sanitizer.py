@@ -1,6 +1,24 @@
 """Content Sanitizer - 技能导出内容脱敏
-扫描并脱敏 SKILL.md 和 Python 脚本中的敏感信息（API Key、绝对路径等）。
-支持两段式：先扫描返回 Diff，确认后再应用替换。
+
+Scans and redacts sensitive information (API keys, tokens, absolute paths,
+credentials, PEM keys, DB connection strings) from skill files before export.
+Two-stage design: scan → return structured Diff → user confirms → apply.
+
+Reuses proven patterns from core/security/redact.py (runtime redactor) to
+ensure export-time detection parity with runtime masking.
+
+[INPUT]
+- core.security.redact (POS: Compiled regex patterns for token prefix and context-based detection)
+
+[OUTPUT]
+- Redaction: TypedDict — single redaction finding
+- SanitizationResult: dataclass — complete scan result
+- ContentSanitizer: class — stateless sanitizer
+- content_sanitizer: singleton instance
+
+[POS]
+Skill export content sanitizer. Detects secrets/paths/credentials in skill
+files and provides structured per-line Diff for the frontend preview UI.
 """
 
 import logging
@@ -8,21 +26,42 @@ import re
 from dataclasses import dataclass
 from typing import TypedDict
 
+from myrm_agent_harness.core.security.redact import (
+    _AUTH_HEADER_RE,
+    _CLI_FLAG_RE,
+    _DB_CONNSTR_RE,
+    _ENV_ASSIGN_RE,
+    _JSON_FIELD_RE,
+    _PREFIX_RE,
+    _PRIVATE_KEY_RE,
+    _TELEGRAM_BOT_RE,
+    _URL_QUERY_RE,
+)
+
 logger = logging.getLogger(__name__)
 
-# 常见 API Key 正则表达式
-SECRET_PATTERNS = [
-    # OpenAI
-    re.compile(r"sk-[a-zA-Z0-9]{48}"),
-    re.compile(r"sk-proj-[a-zA-Z0-9_-]{48,}"),
-    # Anthropic
-    re.compile(r"sk-ant-api[0-9a-zA-Z_-]{80,}"),
-    # Generic Bearer / Token
-    re.compile(r"(?i)(?:bearer|token|api[_-]?key|secret)[\s:=]+[\"']?([a-zA-Z0-9_\-]{32,})[\"']?"),
-    # Absolute paths (macOS/Linux)
-    re.compile(r"(?<=[\s\"'])/Users/[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_.-]+)+"),
-    re.compile(r"(?<=[\s\"'])/home/[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_.-]+)+"),
-]
+# ── Pattern categories for structured redaction ──────────────────────────────
+# Each entry: (compiled_pattern, reason_label, replacement_template)
+# For patterns with capture groups, group(0) is the full match unless noted.
+
+_TOKEN_PREFIX_REASON = "API Key / Token"
+_ENV_REASON = "Environment Variable"
+_JSON_REASON = "JSON Secret Field"
+_DB_REASON = "Database Credential"
+_URL_REASON = "URL Secret Parameter"
+_CLI_REASON = "CLI Secret Flag"
+_TELEGRAM_REASON = "Telegram Bot Token"
+_AUTH_REASON = "Authorization Header"
+_PEM_REASON = "Private Key"
+_PATH_REASON = "Absolute Path"
+
+# Absolute paths (macOS/Linux) — supports line-start via (?:^|...) with MULTILINE
+_MACOS_PATH_RE = re.compile(r"(?:(?<=[\s\"'=:])|(?<=^))/Users/[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_.\-]+)+", re.MULTILINE)
+_LINUX_PATH_RE = re.compile(r"(?:(?<=[\s\"'=:])|(?<=^))/home/[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_.\-]+)+", re.MULTILINE)
+# Windows paths (for Tauri desktop users) — supports line-start
+_WINDOWS_PATH_RE = re.compile(
+    r"(?i)(?:(?<=[\s\"'=:])|(?<=^))[A-Z]:\\(?:Users|Documents and Settings)\\[^\s\"']+", re.MULTILINE
+)
 
 
 class Redaction(TypedDict):
@@ -40,15 +79,129 @@ class SanitizationResult:
 
 
 class ContentSanitizer:
-    """内容脱敏器"""
+    """Skill content sanitizer for export-time privacy protection."""
+
+    def _scan_line(self, line: str) -> list[dict]:
+        """Scan a single line for all sensitive patterns. Returns match info list."""
+        matches: list[dict] = []
+
+        # 1. Token prefix patterns (28 formats: ghp_, AKIA, sk_live_, etc.)
+        for m in _PREFIX_RE.finditer(line):
+            matches.append(
+                {
+                    "start": m.start(1),
+                    "end": m.end(1),
+                    "replacement": "<REDACTED_TOKEN>",
+                    "reason": _TOKEN_PREFIX_REASON,
+                }
+            )
+
+        # 2. Environment variable assignments (API_KEY=xxx, SECRET=xxx)
+        for m in _ENV_ASSIGN_RE.finditer(line):
+            matches.append(
+                {
+                    "start": m.start(3),
+                    "end": m.end(3),
+                    "replacement": "<REDACTED_VALUE>",
+                    "reason": _ENV_REASON,
+                }
+            )
+
+        # 3. JSON secret fields ("token": "xxx")
+        for m in _JSON_FIELD_RE.finditer(line):
+            matches.append(
+                {
+                    "start": m.start(2),
+                    "end": m.end(2),
+                    "replacement": "<REDACTED_SECRET>",
+                    "reason": _JSON_REASON,
+                }
+            )
+
+        # 4. Database connection strings (postgres://user:PASS@host)
+        for m in _DB_CONNSTR_RE.finditer(line):
+            matches.append(
+                {
+                    "start": m.start(2),
+                    "end": m.end(2),
+                    "replacement": "***",
+                    "reason": _DB_REASON,
+                }
+            )
+
+        # 5. URL query parameters (?api_key=xxx)
+        for m in _URL_QUERY_RE.finditer(line):
+            matches.append(
+                {
+                    "start": m.start(1),
+                    "end": m.end(1),
+                    "replacement": "<REDACTED_PARAM>",
+                    "reason": _URL_REASON,
+                }
+            )
+
+        # 6. CLI flags (--api-key xxx, --token xxx)
+        for m in _CLI_FLAG_RE.finditer(line):
+            matches.append(
+                {
+                    "start": m.start(2),
+                    "end": m.end(2),
+                    "replacement": "<REDACTED_VALUE>",
+                    "reason": _CLI_REASON,
+                }
+            )
+
+        # 7. Telegram bot tokens (bot123456:ABC-xxx)
+        for m in _TELEGRAM_BOT_RE.finditer(line):
+            matches.append(
+                {
+                    "start": m.start(1),
+                    "end": m.end(1),
+                    "replacement": "<REDACTED_BOT_TOKEN>",
+                    "reason": _TELEGRAM_REASON,
+                }
+            )
+
+        # 8. Authorization headers (Bearer token)
+        for m in _AUTH_HEADER_RE.finditer(line):
+            matches.append(
+                {
+                    "start": m.start(2),
+                    "end": m.end(2),
+                    "replacement": "<REDACTED_TOKEN>",
+                    "reason": _AUTH_REASON,
+                }
+            )
+
+        # 9. Absolute paths (macOS, Linux, Windows)
+        for pattern in (_MACOS_PATH_RE, _LINUX_PATH_RE, _WINDOWS_PATH_RE):
+            for m in pattern.finditer(line):
+                matches.append(
+                    {
+                        "start": m.start(),
+                        "end": m.end(),
+                        "replacement": "<REDACTED_PATH>",
+                        "reason": _PATH_REASON,
+                    }
+                )
+
+        return matches
 
     def _sanitize_text(
         self, content: str, filename: str, ignored_indices: list[int] | None = None
     ) -> SanitizationResult:
-        """基于正则的通用文本脱敏"""
+        """Line-by-line scanning with structured Diff output."""
         redactions: list[Redaction] = []
         sanitized_lines = []
         ignored_indices = ignored_indices or []
+
+        # Pre-compute PEM block interior lines (body lines that need redaction)
+        pem_body_lines: set[int] = set()
+        for m in _PRIVATE_KEY_RE.finditer(content):
+            block_start = content[: m.start()].count("\n")
+            block_end = content[: m.end()].count("\n")
+            for ln in range(block_start + 1, block_end):
+                pem_body_lines.add(ln)
 
         lines = content.splitlines()
         redaction_index = 0
@@ -57,42 +210,46 @@ class ContentSanitizer:
             original_line = line
             modified_line = line
 
-            # 收集该行的所有匹配项
-            line_matches = []
-            for pattern in SECRET_PATTERNS:
-                for match in pattern.finditer(original_line):
-                    matched_str = match.group(0)
-
-                    if matched_str.startswith("/Users/") or matched_str.startswith("/home/"):
-                        reason = "Absolute Path"
-                        replacement = "<REDACTED_PATH>"
-                        start_idx = match.start()
-                        end_idx = match.end()
-                    else:
-                        reason = "API Key / Secret"
-                        replacement = "<REDACTED_SECRET>"
-                        if len(match.groups()) > 0 and match.start(1) != -1:
-                            start_idx = match.start(1)
-                            end_idx = match.end(1)
-                        else:
-                            start_idx = match.start()
-                            end_idx = match.end()
-
-                    line_matches.append(
-                        {"replacement": replacement, "reason": reason, "start": start_idx, "end": end_idx}
+            # PEM body lines: redact content between BEGIN/END markers
+            if i in pem_body_lines:
+                current_index = redaction_index
+                redaction_index += 1
+                if current_index not in ignored_indices:
+                    modified_line = "...redacted..."
+                    redactions.append(
+                        Redaction(
+                            line_number=i + 1,
+                            original=original_line,
+                            redacted=modified_line,
+                            reason=_PEM_REASON,
+                        )
                     )
+                sanitized_lines.append(modified_line)
+                continue
+
+            line_matches = self._scan_line(original_line)
 
             if line_matches:
-                # 当前行存在敏感信息，分配一个 redaction_index
                 current_index = redaction_index
                 redaction_index += 1
 
                 if current_index not in ignored_indices:
-                    # 按起始位置倒序排序，避免替换时索引偏移
+                    # Sort by start position descending to avoid index shift
                     line_matches.sort(key=lambda x: x["start"], reverse=True)
 
-                    reasons = []
+                    # Deduplicate overlapping matches (keep the longest)
+                    filtered: list[dict] = []
                     for match_info in line_matches:
+                        overlaps = False
+                        for existing in filtered:
+                            if match_info["start"] < existing["end"] and match_info["end"] > existing["start"]:
+                                overlaps = True
+                                break
+                        if not overlaps:
+                            filtered.append(match_info)
+
+                    reasons = []
+                    for match_info in filtered:
                         start = match_info["start"]
                         end = match_info["end"]
                         modified_line = modified_line[:start] + match_info["replacement"] + modified_line[end:]
@@ -111,19 +268,15 @@ class ContentSanitizer:
             sanitized_lines.append(modified_line)
 
         return SanitizationResult(
-            is_safe=len(redactions) == 0, redactions=redactions, sanitized_content="\n".join(sanitized_lines)
+            is_safe=len(redactions) == 0,
+            redactions=redactions,
+            sanitized_content="\n".join(sanitized_lines),
         )
-
-    def _sanitize_python_ast(
-        self, content: str, filename: str, ignored_indices: list[int] | None = None
-    ) -> SanitizationResult:
-        """基于 AST 的 Python 代码脱敏 (更精确)"""
-        return self._sanitize_text(content, filename, ignored_indices)
 
     def sanitize(
         self, content: str | bytes, filename: str, ignored_indices: list[int] | None = None
     ) -> SanitizationResult:
-        """扫描并脱敏文件内容"""
+        """Scan and sanitize file content for export."""
         if isinstance(content, bytes):
             try:
                 text_content = content.decode("utf-8")
@@ -131,17 +284,6 @@ class ContentSanitizer:
                 return SanitizationResult(is_safe=True, redactions=[], sanitized_content=content)
         else:
             text_content = content
-
-        if filename.endswith(".py"):
-            return self._sanitize_python_ast(text_content, filename, ignored_indices)
-        elif (
-            filename.endswith(".md")
-            or filename.endswith(".txt")
-            or filename.endswith(".json")
-            or filename.endswith(".yaml")
-            or filename.endswith(".yml")
-        ):
-            return self._sanitize_text(text_content, filename, ignored_indices)
 
         return self._sanitize_text(text_content, filename, ignored_indices)
 

@@ -44,6 +44,7 @@ class RequestInfo:
         status: HTTP status code (None if request failed)
         status_text: HTTP status text (e.g., "OK", "Not Found")
         duration_ms: Request duration in milliseconds
+        post_data_preview: First 200 chars of POST body (for GraphQL/API identification)
     """
 
     method: str
@@ -53,6 +54,7 @@ class RequestInfo:
     status: int | None = None
     status_text: str | None = None
     duration_ms: float | None = None
+    post_data_preview: str | None = None
 
     @property
     def is_api_request(self) -> bool:
@@ -163,6 +165,12 @@ class NetworkLogger:
             start_time = self._pending.pop(request)
             duration_ms = (time.time() - start_time) * 1000
 
+            post_data_preview: str | None = None
+            if request.method in ("POST", "PUT", "PATCH"):
+                raw = request.post_data
+                if raw:
+                    post_data_preview = raw[:200]
+
             info = RequestInfo(
                 method=request.method,
                 url=request.url,
@@ -171,6 +179,7 @@ class NetworkLogger:
                 status=response.status,
                 status_text=response.status_text,
                 duration_ms=duration_ms,
+                post_data_preview=post_data_preview,
             )
             self._requests.append(info)
 
@@ -245,6 +254,9 @@ class NetworkLogger:
 
         if req.duration_ms is not None:
             parts.append(f"   Duration: {req.duration_ms:.0f}ms")
+
+        if req.post_data_preview:
+            parts.append(f"   POST body: {req.post_data_preview}")
 
         return parts
 

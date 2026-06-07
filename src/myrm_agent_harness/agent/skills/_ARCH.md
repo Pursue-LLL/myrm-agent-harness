@@ -21,6 +21,7 @@ Detailed design: [SKILL_SYSTEM_DESIGN.md](SKILL_SYSTEM_DESIGN.md)
 | optimization/ | Skill Optimization Toolkit |
 | packaging/ | Skill packaging (ZIP export/import) and validation. |
 | runtime/ | Runtime — skill execution runtime. |
+| security/ | Export-time content sanitization for skill privacy protection. |
 
 ## Key Dependencies
 

@@ -11,6 +11,7 @@
 - session.structured_extractor::StructuredExtractor (POS: LLM-based structured data extraction using JSON Schema)
 - session.vision_verifier::VisionVerifier (POS: 3-layer visual action verification)
 - session.network_logger::NetworkLogger (POS: network request log capture)
+- session.network_intelligence::NetworkIntelligence (POS: CDP-based lazy API response body retrieval)
 - session_vault::SessionVault (POS: AES-256-GCM encrypted session storage)
 - snapshot::RefInfo (POS: element reference metadata)
 - domain_filter::DomainAllowlist (POS: domain filter allowlist)
@@ -40,9 +41,10 @@ Browser session manager. As the aggregate root, composes single-responsibility c
 6. StructuredExtractor (LLM-based structured data extraction, optional)
 7. VisionVerifier (visual action verification, optional)
 8. NetworkLogger (network request logging)
-9. SessionVault (encrypted session storage, optional)
-10. DownloadManager (file download management, optional)
-11. CaptchaCoordinator (CAPTCHA detection and solving coordination, optional)
+9. NetworkIntelligence (CDP-based lazy API response body retrieval)
+10. SessionVault (encrypted session storage, optional)
+11. DownloadManager (file download management, optional)
+12. CaptchaCoordinator (CAPTCHA detection and solving coordination, optional)
 
 The aggregate root class combines three Mixins (Persistence/Recording/Page) via multiple inheritance, coordinating with Tab/navigation/snapshot/interaction/extraction submodules.
 """
@@ -51,6 +53,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
 from pathlib import Path
 from types import MappingProxyType
@@ -70,6 +73,7 @@ from .download_manager import DownloadConfig, DownloadManager, DownloadResult
 from .extractor import Extractor
 from .interactor import Interactor
 from .network_logger import NetworkLogger
+from .network_intelligence import NetworkIntelligence
 from .page_analyzer import PageAnalyzer
 from .session_persistence import SessionPersistence
 from .snapshot_manager import SnapshotManager, SnapshotResult
@@ -178,6 +182,7 @@ class BrowserSession(
         self._interactor: Interactor | None = None
         self._extractor: Extractor | None = None
         self._network_logger = NetworkLogger()
+        self._network_intelligence = NetworkIntelligence()
         self._console_logger = ConsoleLogger()
         self._persistence: SessionPersistence | None = SessionPersistence(session_vault) if session_vault else None
         self._recording_manager: RecordingManager | None = None
@@ -656,6 +661,7 @@ class BrowserSession(
             self._extractor = None
             self._network_logger.stop_capture()
             self._console_logger.stop_capture()
+            await self._network_intelligence.detach()
         return f"Closed tab {tab_id}"
 
     async def switch_tab(self, tab_id: str) -> str:
@@ -669,8 +675,66 @@ class BrowserSession(
         return self._console_logger.get_summary()
 
     def get_network_log(self, filter_mode: str = "api") -> str:
-        """Get network request logs"""
-        return self._network_logger.get_summary(filter_mode)
+        """Get network request logs."""
+        api_summary = self._network_intelligence.get_summary()
+
+        if api_summary and filter_mode == "api":
+            parts = [
+                "API Requests (use network_detail with index to view response body):",
+                api_summary,
+            ]
+            failed_summary = self._network_logger.get_summary("failed")
+            if "No network requests" not in failed_summary:
+                parts.append(f"\n{failed_summary}")
+            return "\n".join(parts)
+
+        summary = self._network_logger.get_summary(filter_mode)
+        if api_summary:
+            summary += (
+                "\n\nAPI Requests (use network_detail with index to view response body):"
+                f"\n{api_summary}"
+            )
+        return summary
+
+    async def get_network_detail(self, index: int) -> str:
+        """Get response body for a tracked API request by index."""
+        return await self._network_intelligence.get_response_body(index)
+
+    async def replay_network_request(self, index: int) -> str:
+        """Replay a tracked API request using page.evaluate(fetch(...))."""
+        api_requests = self._network_intelligence.get_api_requests()
+        if index < 1 or index > len(api_requests):
+            return f"Error: Invalid index {index}. Valid range: 1-{len(api_requests)}"
+
+        record = api_requests[index - 1]
+
+        await self._ensure_components()
+        page = self._tab_controller.get_active_page()
+
+        url_js = json.dumps(record.url)
+        method_js = json.dumps(record.method)
+
+        fetch_opts_parts = [f'"method": {method_js}']
+        if record.post_data and record.method in ("POST", "PUT", "PATCH"):
+            body_js = json.dumps(record.post_data)
+            fetch_opts_parts.append(f'"body": {body_js}')
+            fetch_opts_parts.append('"headers": {"Content-Type": "application/json"}')
+
+        fetch_opts = "{" + ", ".join(fetch_opts_parts) + "}"
+
+        js_code = f"""
+            async () => {{
+                const resp = await fetch({url_js}, {fetch_opts});
+                const text = await resp.text();
+                return text.substring(0, 8000);
+            }}
+        """
+
+        try:
+            result = await page.evaluate(js_code)
+            return str(result) if result else "Empty response"
+        except Exception as exc:
+            return f"Error replaying request: {exc}"
 
     async def notify_progress(self, message: str) -> None:
         """Send进度通知"""
@@ -871,6 +935,7 @@ class BrowserSession(
 
         self._network_logger.detach_current()
         self._console_logger.detach_current()
+        await self._network_intelligence.detach()
 
         await self._tab_controller.close_all()
 
@@ -966,6 +1031,7 @@ class BrowserSession(
 
         self._network_logger.start_capture(page)
         self._console_logger.start_capture(page)
+        await self._network_intelligence.attach(page)
 
         if self._download_manager is not None:
             self._download_manager.attach(page)

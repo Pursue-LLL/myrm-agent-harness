@@ -546,7 +546,7 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 | `browser_snapshot_tool` | ARIA 快照 + iframe + Token 优化 + cursor-interactive | `scope`, `compact`, `selector`, `max_tokens`, `diff`, `cursor_interactive` |
 | `browser_interact_tool` | 13 种交互 | click, dblclick, type, fill, press, hover, focus, select, scroll, upload_file, drag, check, uncheck |
 | `browser_extract_tool` | 文本 + 截图 + 结构化提取 + diff | text / screenshot / diff_fast / diff_accurate + extraction_schema |
-| `browser_manage_tool` | Tab + JS + 历史 + 对话框 + Session + HITL | 19 种 action（含 save/restore/list/delete_session + wait_for_user） |
+| `browser_manage_tool` | Tab + JS + 历史 + 对话框 + Session + Network + HITL | 21 种 action（含 network_detail/network_replay + save/restore/list/delete_session + wait_for_user） |
 | `browser_execute_script_tool` | **Code-as-Action 批量执行** | _(单一职责，执行 Python 脚本)_ |
 
 **Token 成本**：~65 tokens（相比独立工具方案节省 86%）
@@ -566,6 +566,22 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 - 用途：基于 inspect 的建议，捕获目标区域
 
 **收益**：首次调用成本从 8000 tokens → 100 tokens（-99%），总成本从 9200 → 1300（-86%）
+
+#### API-First 网络智能（NetworkIntelligence）
+
+基于 CDP（Chrome DevTools Protocol）的懒加载网络响应体检索，赋予 Agent "API-First" 数据提取策略：
+
+**核心能力**：
+- **自动发现 API**：通过 `network_log` action 查看 XHR/Fetch 请求列表，含 POST body 预览（前 200 字符，便于区分 GraphQL operationName）
+- **懒加载响应体**：通过 `network_detail` action 按需获取指定请求的完整响应体（最大 8000 字符），无内存浪费
+- **请求重放**：通过 `network_replay` action 在页面上下文中重放 API 请求获取最新数据
+
+**典型场景**：
+- GraphQL 应用：通过 POST body 区分不同 operation，直接获取结构化 JSON
+- Canvas/图表渲染：底层数据通过 API 传输，无法从 DOM 提取
+- SPA 数据密集应用：API 响应包含完整数据，避免繁琐的 DOM 遍历
+
+**零开销设计**：CDP 事件监听只存储请求元数据（requestId），响应体仅在 Agent 主动请求时通过 `Network.getResponseBody` 延迟获取。
 
 ---
 
@@ -862,6 +878,7 @@ browser/
 │   ├── extractor.py (171 行) — Extractor
 │   ├── page_analyzer.py (202 行) — PageAnalyzer（两阶段快照架构）
 │   ├── session_persistence.py (232 行) — SessionPersistence（会话持久化）
+│   ├── network_intelligence.py (230 行) — NetworkIntelligence（CDP 懒加载 API 响应体检索）
 │   └── vision_verifier.py — VisionVerifier（三层极速视觉漏斗）
 ├── domain_filter.py (317 行) — 四层域名过滤（CSP + HTTP + 主线程硬化 + CDP）
 ├── session_vault.py (678 行) — 加密 Session 存储（O(1) LRU + 内存限制 + 并发锁 + Metrics + 批量 API）

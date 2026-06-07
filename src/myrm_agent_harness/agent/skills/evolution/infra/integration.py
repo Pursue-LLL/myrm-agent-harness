@@ -16,6 +16,8 @@ Framework provides the hooks, business layer decides when to use them.
 - toolkits.code_execution::CodeExecutor (POS: Code execution toolkit entry point. Aggregates execution configuration, executor implementations, workspace management, and factory functions for the Agent-in-Sandbox architecture.)
 - agent.skills.evolution::EvolutionIntegration (POS: Skill evolution engine - Core of self-evolution system.)
 - toolkits.web_search::SearchServiceConfig (POS: Web search toolkit entry point. Aggregates and re-exports search tools, result types, metrics, and error hierarchy for unified import.)
+- agent.middlewares._session_context::get_approval_session (POS: Middleware session context — shared ContextVars for the middleware chain.)
+- agent.hooks.executor::fire_hook (POS: Hook execution layer. Manages hook registration and execution with ContextVar-based session isolation.)
 
 [OUTPUT]
 - EvolutionIntegration: All-in-one integration helper for skill evolution.
@@ -24,7 +26,8 @@ Framework provides the hooks, business layer decides when to use them.
 - enable_skill_evolution: Enable skill evolution with one function call.
 
 [POS]
-Integration helpers for skill evolution system.
+Integration helpers for skill evolution system. Provides EvolutionIntegration singleton with
+15-Call Sliding Window trigger, Error-Aware Quarantine, and background queue orchestration.
 """
 
 import logging
@@ -263,6 +266,10 @@ class EvolutionIntegration:
             enable_background_queue,
         )
 
+        # Per-session sliding window state for trace slice trigger
+        # Key: session_id, Value: (call_count_since_last_slice, collected_tool_call_ids)
+        self._slice_cursors: dict[str, tuple[int, list[str]]] = {}
+
         # Register as global instance so middlewares can access it
         set_global_evolution_integration(self)
 
@@ -283,15 +290,18 @@ class EvolutionIntegration:
         except Exception as e:
             logger.debug("Failed to register trap lookup (non-fatal): %s", e)
 
-    # --- Trace Slice Window State ---
-    # Per-session cursors for the 15-Call Sliding Window trigger.
-    # Key: session_id, Value: (tool_call_count_since_last_slice, collected_tool_call_ids)
-    _slice_cursors: dict[str, tuple[int, list[str]]] = {}
     SLICE_WINDOW_THRESHOLD: int = 15
 
     def register_hooks(self, registry: Any) -> None:
-        """Register framework hooks for evolution (TRACE_SLICE_READY + window trigger)."""
+        """Register framework hooks for evolution (TRACE_SLICE_READY + window trigger).
+
+        Safe to call multiple times — skips if already registered.
+        """
         from myrm_agent_harness.agent.hooks.types import CallableHookDefinition, HookEvent
+
+        existing = registry._hooks.get(HookEvent.POST_TOOL_USE, [])
+        if any(getattr(h, "fn", None) and getattr(h.fn, "__name__", "") == "_window_counter" for h in existing):
+            return
 
         async def _handle_trace_slice(event: str, payload: dict[str, object]) -> Any:
             from myrm_agent_harness.agent.hooks.types import HookResult
@@ -326,16 +336,16 @@ class EvolutionIntegration:
             """Count tool calls per session; emit TRACE_SLICE_READY at threshold."""
             from myrm_agent_harness.agent.hooks.executor import fire_hook
             from myrm_agent_harness.agent.hooks.types import HookResult
+            from myrm_agent_harness.agent.middlewares._session_context import (
+                get_agent_id,
+                get_approval_session,
+            )
 
             tool_call_id = payload.get("tool_call_id")
             if not isinstance(tool_call_id, str) or not tool_call_id:
                 return HookResult(hook_type="callable", success=True)
 
-            from myrm_agent_harness.agent._skill_agent_context import (
-                get_session_id as _ctx_session_id,
-            )
-
-            session_id = _ctx_session_id() or ""
+            session_id = get_approval_session()
             if not session_id:
                 return HookResult(hook_type="callable", success=True)
 
@@ -344,13 +354,18 @@ class EvolutionIntegration:
             count += 1
 
             if count >= self.SLICE_WINDOW_THRESHOLD:
+                agent_id = get_agent_id() or None
                 await fire_hook(
                     HookEvent.TRACE_SLICE_READY,
-                    {"session_id": session_id, "tool_call_ids": ids},
+                    {"session_id": session_id, "tool_call_ids": ids, "agent_id": agent_id},
                 )
                 self._slice_cursors[session_id] = (0, [])
             else:
                 self._slice_cursors[session_id] = (count, ids)
+
+            if len(self._slice_cursors) > 1000:
+                oldest_key = next(iter(self._slice_cursors))
+                self._slice_cursors.pop(oldest_key, None)
 
             return HookResult(hook_type="callable", success=True)
 
