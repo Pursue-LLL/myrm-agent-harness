@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-
+import asyncio
+from collections.abc import Sequence
+from datetime import UTC, datetime
 
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     AnyMemory,
@@ -11,11 +13,9 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     MemoryType,
     ProceduralMemory,
     SemanticMemory,
-    Sequence,
-    UTC,
-    datetime,
     doc_to_semantic,
     load_context,
+    logger,
     update_vector_memory,
 )
 

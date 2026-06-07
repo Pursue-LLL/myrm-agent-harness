@@ -125,7 +125,9 @@ class TestResolveLlm:
 
         result = await resolve_llm(config, parent)
         assert result is resolved_llm
-        resolver.resolve.assert_awaited_once_with("gpt-4o-mini")
+        resolver.resolve.assert_awaited_once_with(
+            "gpt-4o-mini", complexity_tier=None, task_description=None
+        )
 
     @pytest.mark.asyncio
     async def test_level2_model_resolver_fails_falls_to_parent(self):

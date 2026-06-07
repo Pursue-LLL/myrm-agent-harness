@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-
-
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     EpisodicMemory,
     MemoryWriteTarget,

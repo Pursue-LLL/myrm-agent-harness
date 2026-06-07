@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from myrm_agent_harness.agent.skill_agent_factory import (
+from myrm_agent_harness.agent._factory.mcp_routing import (
     FALLBACK_PTC_BRIDGE_TOKENS,
     PTC_OVERHEAD_MULTIPLIER,
     _compute_direct_threshold,

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-
+import asyncio
 
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     AnyMemory,
@@ -18,6 +18,7 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     VectorStoreProtocol,
     apply_channel_affinity,
     bind_scope,
+    logger,
     store_episodic,
     store_episodics_batch,
     store_semantic,

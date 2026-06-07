@@ -109,6 +109,20 @@ async def check_workspace_storage_health() -> HealthReport:
             conn.execute("PRAGMA schema_version;").fetchall()
             conn.close()
 
+        from shutil import which
+
+        if which("rg") is None:
+            return HealthReport(
+                component_name="WorkspaceStorage",
+                status="warn",
+                message="Workspace storage is healthy but ripgrep (rg) is not installed.",
+                detail=(
+                    f"Workspace ({workspace_path}) is writable. "
+                    "File search will use a slower Python fallback without rg."
+                ),
+                fix_suggestion="Install ripgrep (rg) for faster workspace grep/glob search.",
+            )
+
         return HealthReport(
             component_name="WorkspaceStorage",
             status="pass",

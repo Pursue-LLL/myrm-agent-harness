@@ -448,7 +448,7 @@ class TestPreferenceStabilityStrategy:
 class TestInferPreferenceCategory:
     def test_veto_before_tooling(self) -> None:
         """'don't use tabs' should match VETO, not TOOLING."""
-        from myrm_agent_harness.toolkits.memory.manager import (
+        from myrm_agent_harness.toolkits.memory._manager.helpers import (
             _infer_preference_category,
         )
         from myrm_agent_harness.toolkits.memory.types import SemanticMemory
@@ -457,7 +457,7 @@ class TestInferPreferenceCategory:
         assert _infer_preference_category(mem) == PreferenceCategory.VETO
 
     def test_identity(self) -> None:
-        from myrm_agent_harness.toolkits.memory.manager import (
+        from myrm_agent_harness.toolkits.memory._manager.helpers import (
             _infer_preference_category,
         )
         from myrm_agent_harness.toolkits.memory.types import SemanticMemory
@@ -466,7 +466,7 @@ class TestInferPreferenceCategory:
         assert _infer_preference_category(mem) == PreferenceCategory.IDENTITY
 
     def test_tooling(self) -> None:
-        from myrm_agent_harness.toolkits.memory.manager import (
+        from myrm_agent_harness.toolkits.memory._manager.helpers import (
             _infer_preference_category,
         )
         from myrm_agent_harness.toolkits.memory.types import SemanticMemory
@@ -475,7 +475,7 @@ class TestInferPreferenceCategory:
         assert _infer_preference_category(mem) == PreferenceCategory.TOOLING
 
     def test_style_fallback(self) -> None:
-        from myrm_agent_harness.toolkits.memory.manager import (
+        from myrm_agent_harness.toolkits.memory._manager.helpers import (
             _infer_preference_category,
         )
         from myrm_agent_harness.toolkits.memory.types import SemanticMemory

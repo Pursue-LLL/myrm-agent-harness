@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-
-
+from myrm_agent_harness.toolkits.memory._manager.helpers import _memory_ref
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     EpisodicMemory,
     MemoryError,
@@ -17,8 +16,8 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     delete_from_vector,
     doc_to_episodic,
     doc_to_semantic,
+    logger,
 )
-from myrm_agent_harness.toolkits.memory._manager.helpers import _memory_ref
 
 
 class MemoryManagerDeletionMixin:

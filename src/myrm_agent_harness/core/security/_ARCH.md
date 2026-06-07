@@ -24,3 +24,7 @@ Foundational security primitives used across all layers. Zero dependency on agen
 ## Key Dependencies
 
 - No internal dependencies (foundation layer)
+
+## Consumer Note
+
+`agent/security/` contains thin shim modules that re-export several files from this package for stable `agent.security.*` import paths. Prefer `core.security` for new harness code outside agent middleware wiring.

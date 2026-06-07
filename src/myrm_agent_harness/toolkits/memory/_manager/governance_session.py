@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+from typing import TYPE_CHECKING
 
-
+from myrm_agent_harness.toolkits.memory._manager.helpers import _infer_preference_category
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     AnyMemory,
     ConsolidationConfig,
@@ -14,10 +16,14 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     PreferenceCandidate,
     SemanticMemory,
     _log_background_task_failure,
+    logger,
     run_forgetting,
 )
-from myrm_agent_harness.toolkits.memory._manager.helpers import _infer_preference_category
-from myrm_agent_harness.toolkits.memory._manager.shared import _log_background_task_failure
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from myrm_agent_harness.toolkits.memory.session import MemorySession
 
 
 class MemoryManagerGovernanceSessionMixin:

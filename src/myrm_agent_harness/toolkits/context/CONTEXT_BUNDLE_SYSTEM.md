@@ -37,7 +37,7 @@ in `ResolvedContextBinding`, decoupled from long-lived memory paths.
 ## Server Contract
 
 - `ResolvedContextBinding` extends memory scope fields with bundle metadata.
-- `GET /context-bundle` — health DTO for Settings and Doctor.
+- `GET /context-bundle` — health DTO for Settings → Developer → System Health (`SystemHealthPanel`).
 - `POST /context-bundle/migrate/dry-run` — non-destructive migration preview.
 - `POST /context-bundle/migrate/apply` — non-destructive manifest + directory init.
 

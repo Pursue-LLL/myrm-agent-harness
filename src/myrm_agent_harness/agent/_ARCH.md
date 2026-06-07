@@ -13,7 +13,8 @@ Agent core module — public API.
 | _skill_agent_context.py | Internal | ContextVar management and background task utilities for SkillAgent. | ✅ |
 | _skill_agent_review.py | Internal | SkillAgent session-end review mixin — skill review, wiki archive, recurrence detection. | ✅ |
 | _skill_agent_tools.py | Internal | SkillAgent tool building mixin — meta-tools, planner, wiki tools assembly. | ✅ |
-| skill_agent_factory.py | Core | Agent factory function. Provides create_skill_agent() to simplify Agent creation. | ✅ |
+| skill_agent_factory.py | Core | Agent factory facade — re-exports create_skill_agent() for stable imports. | ✅ |
+| _factory/ | Internal | SkillAgent assembly: `builder.py`, `mcp_routing.py`. See [_factory/_ARCH.md](_factory/_ARCH.md). | ✅ |
 | types.py | Config | Agent core runtime type definitions. AgentRuntimeSpec (incl. tool_groups for skill conditional activation), AgentRuntimeConfig, EngineParams, completion status, run statistics, etc. | ✅ |
 
 | Submodule | Description |

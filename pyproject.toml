@@ -212,12 +212,6 @@ ignore = ["E501", "B008", "SIM108", "RUF001", "RUF002", "RUF003"]
   "SIM102",
   "SIM105",
 ] # Fire-and-forget tasks are intentional in command dispatch
-"src/myrm_agent_harness/toolkits/memory/_manager/shared.py" = [
-  "F401",
-] # Barrel re-exports consumed by mixin star imports
-"src/myrm_agent_harness/toolkits/memory/_manager/{core,governance_session,retrieval_write,convenience,deletion,listing_maintenance,mutations,storage,import_export}.py" = [
-  "F405",
-] # Mixin modules consume shared import barrel
 
 [tool.mypy]
 python_version = "3.13"
@@ -302,6 +296,7 @@ include = [
   "*/myrm_agent_harness/agent/config/litellm_routing.py",
   "*/myrm_agent_harness/agent/config/parsers.py",
   "*/myrm_agent_harness/agent/tool_management/*",
+  "*/myrm_agent_harness/agent/_factory/*",
   "*/myrm_agent_harness/agent/hooks/*",
   "*/myrm_agent_harness/agent/sub_agents/*",
   "*/myrm_agent_harness/agent/middlewares/*",

@@ -86,6 +86,38 @@ async def test_no_matches(mock_registry, mock_skills):
 
 
 @pytest.mark.asyncio
+async def test_description_includes_deferred_tool_names():
+    """Verify dynamic description lists discoverable native tool names."""
+    registry = MagicMock(spec=ToolRegistry)
+    registry.get_deferred_tools.return_value = [DummyTool()]
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(
+            "myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool.SkillSearchEngine",
+            MagicMock,
+            raising=False,
+        )
+        # Patch the import path to avoid rank_bm25 dependency
+        import sys
+        mock_engine_mod = MagicMock()
+        mock_engine_mod.SkillSearchEngine = MagicMock()
+        sys.modules.setdefault(
+            "myrm_agent_harness.agent.meta_tools.skills.search.engine", mock_engine_mod
+        )
+        tool = create_discover_capability_tool(registry=registry)
+
+    assert "Discoverable native tools" in tool.description
+    assert "dummy_native_tool" in tool.description
+
+
+@pytest.mark.asyncio
+async def test_description_excludes_deferred_names_when_empty():
+    """When no registry/deferred tools, description omits the native tools list."""
+    tool = create_discover_capability_tool()
+    assert "Discoverable native tools" not in tool.description
+
+
+@pytest.mark.asyncio
 async def test_async_engine_isawaitable():
     """Verify discover_capability handles async engines (HybridSkillSearchEngine).
 

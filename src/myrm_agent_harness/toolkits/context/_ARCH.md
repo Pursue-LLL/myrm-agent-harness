@@ -12,7 +12,7 @@ Detailed design: [CONTEXT_BUNDLE_SYSTEM.md](CONTEXT_BUNDLE_SYSTEM.md)
 | `spec.py` | Core | `ContextBundleSpec`, `ContextScene`, `IncognitoPolicy`, `AgentContextOverlay` |
 | `volume.py` | Core | `VolumeLayout` — MYRM_DATA_DIR path mapping + manifest |
 | `facade.py` | Core | `ContextBundleFacade` — memory/storage/offload/index/hooks entry |
-| `index.py` | Protocol | `ContextIndexRegistry` mount point for roadmap #2 `context_search` |
+| `index.py` | Protocol | `ContextIndexRegistry` extension mount point (optional index backends) |
 | `hooks.py` | Protocol | `ContextLifecycleHooks` mount point for OpenClaw-style lifecycle |
 | `health.py` | Core | Scene health probe adapters (`MemorySceneHealthBackend`, `WorkspaceSceneHealthBackend`, `StaticSceneHealthBackend`) |
 | `migrate.py` | Core | Dry-run + non-destructive manifest/directory migration |
@@ -22,7 +22,7 @@ Detailed design: [CONTEXT_BUNDLE_SYSTEM.md](CONTEXT_BUNDLE_SYSTEM.md)
 
 - **Reuses**: `toolkits.storage.LocalStorageBackend`, existing memory/offload paths
 - **Does not import**: `agent/`, `runtime/` (toolkits gate)
-- **Does not implement**: RemoteSync (#8), BM25 recall (#3), unified search API (#2)
+- **Does not implement**: RemoteSync, BM25 recall, unified HTTP search API (workspace recall uses agentic grep/glob)
 
 ## Volume Layout (V1)
 

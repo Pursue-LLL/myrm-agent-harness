@@ -19,7 +19,8 @@ Stable public import surface for external consumers (`myrm-agent-server`, third-
 
 ## Key Dependencies
 
-- `agent.skill_agent_factory` (POS: Agent factory function)
+- `agent._factory.builder` (POS: SkillAgent assembly pipeline)
+- `agent.skill_agent_factory` (POS: Agent factory facade re-export)
 - `agent.types` (POS: Agent core runtime type definitions)
 - `core.events.types` (POS: Event type definitions)
 - `backends.skills.protocols` (POS: Skill backend protocol definition)

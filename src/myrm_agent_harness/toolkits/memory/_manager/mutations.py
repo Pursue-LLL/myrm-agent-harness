@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-
+import asyncio
 
 from myrm_agent_harness.toolkits.memory._manager.shared import (
+    UTC,
     AnyMemory,
     ConversationMemory,
     EpisodicMemory,
@@ -13,11 +14,11 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     MemoryStatus,
     ProceduralMemory,
     SemanticMemory,
-    UTC,
     datetime,
     doc_to_episodic,
     doc_to_semantic,
     get_from_vector,
+    logger,
     scan_and_clean_memory,
     timedelta,
     update_vector_memory,

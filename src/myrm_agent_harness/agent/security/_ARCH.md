@@ -3,6 +3,10 @@
 ## Overview
 Agent security subsystem — 6-layer onion defense architecture.
 
+Implementation split:
+- **Agent-local** (`engine.py`, `checks.py`, `config.py`, …): orchestration wired into agent middlewares.
+- **Core shims** (`audit.py`, `types.py`, `tool_registry.py`, `detection/*`, `guards/ssrf_guard.py`, …): thin re-exports from `core/security/` so legacy `agent.security.*` import paths stay stable. Canonical implementations live in [../../core/security/_ARCH.md](../../core/security/_ARCH.md). New code should import from `core.security` when outside agent middleware wiring.
+
 Detailed design: [HITL_SYSTEM.md](HITL_SYSTEM.md)
 Detailed design: [SECURITY_DESIGN.md](SECURITY_DESIGN.md)
 

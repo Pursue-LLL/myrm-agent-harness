@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-
-
+from myrm_agent_harness.toolkits.memory._internal.storage import delete_by_type as _delete_by_type
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     AnyMemory,
     ArchivalResult,
@@ -21,9 +20,9 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     count_by_type,
     datetime,
     list_by_type,
+    logger,
     suppress,
 )
-from myrm_agent_harness.toolkits.memory._internal.storage import delete_by_type as _delete_by_type
 
 
 class MemoryManagerListingMaintenanceMixin:

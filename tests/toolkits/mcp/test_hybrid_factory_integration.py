@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from myrm_agent_harness.agent.skill_agent_factory import (
+from myrm_agent_harness.agent._factory.mcp_routing import (
     _compute_direct_threshold,
     _estimate_schema_tokens,
 )

@@ -1,8 +1,7 @@
 """Security type definitions — re-exported from core.security.types.
 
-All types now live in ``myrm_agent_harness.core.security.types``.
-This module re-exports them for backward compatibility with internal
-agent/ imports.
+Canonical implementation: ``myrm_agent_harness.core.security.types``.
+This shim preserves the stable ``agent.security.types`` import path.
 """
 
 from myrm_agent_harness.core.security.types import *  # noqa: F403

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-
+import asyncio
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     AgentMemoryPolicy,
@@ -30,8 +31,16 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     build_scope,
     build_semantic_deduplicator,
     derive_namespaces,
+    logger,
 )
-from myrm_agent_harness.toolkits.memory._manager.shared import _log_background_task_failure
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from myrm_agent_harness.toolkits.memory.session import MemorySession
+    from myrm_agent_harness.toolkits.memory.strategies.preference_stability_store import PreferenceFacetStoreProtocol
+    from myrm_agent_harness.toolkits.memory.types import MemorySearchResult
+    FTS5SearcherFunc = Callable[[str, int], Awaitable[list[MemorySearchResult]]]
 
 
 class MemoryManagerCore:
