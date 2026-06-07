@@ -944,7 +944,7 @@ class TestVerification:
         )
 
         # Because it rejected the PASS twice, it should exhaust max_rounds and return the worker result with FAIL annotation
-        assert result.success is True  # The worker succeeded, but verification failed
+        assert result.success is False
         assert "Verification: FAIL" in result.result
         assert "System detected that you did not execute any code" in result.result
         assert mgr.spawn_child.call_count == 4
@@ -1096,7 +1096,7 @@ class TestVerification:
             max_rounds=1,
         )
 
-        assert result.success is True  # The worker succeeded, but verification failed
+        assert result.success is False
         assert "Verification: FAIL after 1 round" in result.result
         assert mgr.spawn_child.call_count == 2
 
@@ -1172,7 +1172,7 @@ class TestVerification:
             max_rounds=2,
         )
 
-        assert result.success is True  # Worker succeeded
+        assert result.success is False
         assert "Verification: FAIL" in result.result
         assert mgr.spawn_child.call_count == 2
 
@@ -1234,7 +1234,7 @@ class TestVerification:
             verifier_task_template="Verify: {worker_result}",
         )
 
-        assert result.success is True
+        assert result.success is False
         assert mock_get_executor.called
 
         # Verify proxy was used
