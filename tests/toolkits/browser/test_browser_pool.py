@@ -234,7 +234,7 @@ async def test_browser_scaling_on_high_load() -> None:
         browser_inst.load = 15
         pool._browsers.append(browser_inst)
 
-        await pool._get_least_loaded_browser()
+        await pool._get_least_loaded_browser(pool._config.engine)
 
         assert len(pool._browsers) >= 2
 
