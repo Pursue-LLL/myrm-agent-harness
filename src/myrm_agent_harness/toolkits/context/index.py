@@ -9,8 +9,8 @@
 - ContextIndexRegistry: scene-scoped backend registry
 
 [POS]
-Registration-only index protocol for unified context_search. Backends attach per scene without
-coupling memory or workspace search implementations inside the context bundle facade.
+Registration-only index protocol for per-scene health and future recall backends. Backends attach
+per scene without coupling memory or workspace search inside the context bundle facade.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from .spec import ContextScene
 
 
 class ContextIndexBackend(Protocol):
-    """Minimal index backend contract for future unified context_search."""
+    """Minimal index backend contract for per-scene health and recall hooks."""
 
     scene: ContextScene
 

@@ -57,7 +57,7 @@ or `/context-search` HTTP endpoint.
 
 ## Out of Scope
 
-- Unified `context_search` HTTP API — removed; use agentic grep/glob instead
+- Unified `context_search` HTTP API — workspace recall uses agentic grep/glob only
 - BM25 tri-path workspace recall (#3)
 - Bundle tarball export/import (#8)
 - Remote sync (#9)
