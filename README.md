@@ -168,7 +168,8 @@ agent = await create_skill_agent(
 ### 使用业务工具
 
 ```python
-from myrm_agent_harness.tools import create_web_search_tool, create_planner_tool
+from myrm_agent_harness.toolkits.web_search.web_search_agent_tools import create_web_search_tool
+from myrm_agent_harness.agent.sub_agents.planner.planner_agent_tools import create_planner_tool
 
 # 业务层创建工具
 tools = [
@@ -285,45 +286,30 @@ agent = SkillAgent(
 myrm-agent-harness/          # 本仓库根（示意）
 ├── src/
 │   └── myrm_agent_harness/
-│       ├── agent/                    # Agent 核心实现
-│       │   ├── base_agent.py        # 轻量级 Agent 基类（上下文、事件流、Token 追踪）
-│       │   ├── skill_agent.py       # 技能 Agent 实现（扩展技能系统、Hook 生命周期）
-│       │   ├── _runtime/            # 内部运行时（消息构建、流式执行、事件处理）
-│       │   ├── hooks/               # Hook 系统（SessionStart, PreToolUse, PostToolUse, Stop）
-│       │   ├── artifacts/           # Artifact 收集和管理
-│       │   ├── context_management/  # 上下文工程（过滤、压缩、摘要、Pipeline）
-│       │   ├── meta_tools/           # Agent 元工具集合（bash, file_ops, skills, http 等）
-│       │   ├── middlewares/         # 中间件（上下文管道、工具审批、安全护栏等）
-│       │   ├── skills/              # 技能加载和管理（MD 解析、MCP 集成）
-│       │   ├── security/            # 安全子系统（内容边界、泄露检测、注入防护）
-│       │   └── tool_management/     # 工具注册/去重/排序/循环检测
-│       │
-│       ├── backends/                # 后端抽象层
-│       │   ├── skills/              # 技能后端（Local/Storage/InMemory/Composite）
-│       │   └── storage/             # 存储后端适配器
-│       │
-│       ├── toolkits/                # 工具包集合
-│       │   ├── sandbox/             # 🔥 沙箱执行系统（Agent-in-Sandbox）
-│       │   ├── storage/             # 🔥 存储与缓存系统（含 SmartCachedStorage）
-│       │   ├── retriever/           # 检索系统（向量/BM25/混合搜索）
-│       │   ├── web_search/          # 网络搜索工具包
-│       │   ├── web_fetch/           # 网页抓取
-│       │   ├── browser/             # 浏览器自动化（多 Tab、iframe 穿透）
-│       │   ├── mcp/                 # MCP 协议集成
-│       │   ├── cron/                # 定时任务框架
-│       │   ├── channels/            # 多平台消息通道
+│       ├── api/                     # 对外公开 API（推荐 import 路径）
+│       ├── core/                    # 框架无关基础层（security, events, hooks, config）
+│       ├── agent/                   # Agent 核心（BaseAgent, SkillAgent, 技能, 中间件, 元工具）
+│       ├── runtime/                 # 单实例运行时（消息构建、流式执行、事件、checkpoint）
+│       ├── infra/                   # 基础设施（文件锁、消息投递、链路追踪）
+│       ├── observability/           # 全局监控与诊断（Prometheus, Diagnostic Protocol）
+│       ├── backends/                # 后端抽象（skills, storage, profiles, secrets）
+│       ├── toolkits/                # 通用工具包（不与 agent/ 耦合，可独立使用）
+│       │   ├── code_execution/      # 沙箱代码执行（Agent-in-Sandbox）
+│       │   ├── storage/             # 存储与缓存（含 SmartCachedStorage）
 │       │   ├── memory/              # 可插拔记忆系统
-│       │   ├── file_parsers/        # 文件解析（PDF/DOCX/Excel/Text）
-│       │   └── llms/                # LLM 管理（工厂、适配器、错误分类）
-│       │
-│       └── utils/                   # 工具函数库
-│           ├── error_handling.py    # 错误处理
-│           ├── logger.py            # 日志工具
-│           ├── text_utils.py        # 文本处理
-│           ├── token_tracker.py     # Token 追踪
-│           └── url_utils.py         # URL 工具
+│       │   ├── retriever/           # 检索（向量/BM25/混合搜索）
+│       │   ├── mcp/                 # MCP 协议集成
+│       │   ├── browser/             # 浏览器自动化
+│       │   ├── web_search/          # 网络搜索
+│       │   ├── web_fetch/           # 网页抓取
+│       │   ├── context/             # ContextBundle 统一上下文卷
+│       │   └── llms/                # LLM 管理（工厂、适配器）
+│       ├── eval/                    # Agent 行为评估框架
+│       └── utils/                   # 通用工具函数
 │
-└── tests/                           # 🧪 测试套件（单元 / 集成 / 沙箱 / 性能等，见目录内说明）
+├── tests/                           # 测试套件（单元 / 集成 / 架构门禁 / 性能）
+├── harness_packaging/               # 闭源分发构建（Nuitka core + release wheel）
+└── scripts/                         # 边界检测、构建与发布脚本
 ```
 
 详细架构说明请参考 [ARCHITECTURE.md](ARCHITECTURE.md)。

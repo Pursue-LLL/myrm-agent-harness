@@ -25,6 +25,7 @@ Agent core module — public API.
 | config/ | Agent configuration package — unified export of all config types and utilities. |
 | context_management/ | Context management module. |
 | coordination/ | Subagent P2P mailbox — session-scoped in-memory queues with optional JSONL persistence for sibling subagent direct messaging. |
+| dynamic_workflow/ | Dynamic workflow engine — LLM-generated orchestration scripts executed via PTC sandbox with concurrent sub-agent delegation. |
 | deep_research/ | Public API for the Deep Research system. |
 | errors/ | Agent execution errors with unified diagnostics. |
 | event_log/ | Complements Checkpointer with full event history. |
@@ -41,6 +42,7 @@ Agent core module — public API.
 | streaming/ | BaseAgent event processing pipeline. |
 | sub_agents/ | Sub-agent subsystem — lifecycle management and configuration loading. |
 | tool_management/ | Tool management subsystem — unified tool registration, dedup, ordering, and lifecycle. |
+| workspace_coordination/ | Workspace batch merge and coordination policy for multi-agent file operations. |
 | workspace_rules/ | Workspace rules — project-level context file discovery and injection. Two-layer: startup middleware injection + progressive subdirectory discovery via tool interception. |
 
 ## Key Dependencies

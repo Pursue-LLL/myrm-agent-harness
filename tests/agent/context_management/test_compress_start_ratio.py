@@ -6,14 +6,17 @@ Validates:
 3. Clamping at boundary values
 4. Context extraction from request objects
 5. Integration with build_default_processors
+6. Defensive coercion of invalid inputs
 """
 
 from __future__ import annotations
 
-import pytest
+from typing import ClassVar
 
 from myrm_agent_harness.agent.context_management.context import (
     AgentContext,
+    _coerce_optional_float,
+    _coerce_optional_int,
     extract_context_from_request,
 )
 from myrm_agent_harness.agent.context_management.infra.schemas import ContextConfig
@@ -169,7 +172,7 @@ class TestExtractContextFromRequest:
 
     def test_extracts_ratio_from_mapping_context(self) -> None:
         class MockRuntime:
-            context = {"chat_id": "abc", "max_context_tokens": 200000, "compress_start_ratio": 0.7}
+            context: ClassVar[dict[str, object]] = {"chat_id": "abc", "max_context_tokens": 200000, "compress_start_ratio": 0.7}
 
         class MockRequest:
             runtime = MockRuntime()
@@ -181,7 +184,7 @@ class TestExtractContextFromRequest:
 
     def test_returns_none_ratio_when_absent(self) -> None:
         class MockRuntime:
-            context = {"chat_id": "abc", "max_context_tokens": 128000}
+            context: ClassVar[dict[str, object]] = {"chat_id": "abc", "max_context_tokens": 128000}
 
         class MockRequest:
             runtime = MockRuntime()
@@ -258,3 +261,43 @@ class TestMinimumFloorGuarantees:
         assert config.compress_force_threshold == 35000
         # min(50000*0.9=45000, max(50000*0.5=25000, 50000-20000=30000)) = min(45000, 30000) = 30000
         assert config.summarize_trigger_threshold == 30000
+
+
+class TestCoercionDefensiveness:
+    """Test that _coerce_optional_float/int handle invalid inputs gracefully."""
+
+    def test_float_valid_string(self) -> None:
+        assert _coerce_optional_float("0.7") == 0.7
+
+    def test_float_valid_int(self) -> None:
+        assert _coerce_optional_float(1) == 1.0
+
+    def test_float_none(self) -> None:
+        assert _coerce_optional_float(None) is None
+
+    def test_float_invalid_string(self) -> None:
+        assert _coerce_optional_float("abc") is None
+
+    def test_float_empty_string(self) -> None:
+        assert _coerce_optional_float("") is None
+
+    def test_float_non_scalar(self) -> None:
+        assert _coerce_optional_float([1, 2, 3]) is None
+
+    def test_float_dict(self) -> None:
+        assert _coerce_optional_float({"value": 0.5}) is None
+
+    def test_int_valid_string(self) -> None:
+        assert _coerce_optional_int("200000") == 200000
+
+    def test_int_invalid_string(self) -> None:
+        assert _coerce_optional_int("abc") is None
+
+    def test_int_empty_string(self) -> None:
+        assert _coerce_optional_int("") is None
+
+    def test_int_none(self) -> None:
+        assert _coerce_optional_int(None) is None
+
+    def test_int_float_string(self) -> None:
+        assert _coerce_optional_int("3.14") is None

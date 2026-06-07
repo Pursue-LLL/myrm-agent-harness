@@ -65,7 +65,6 @@ Does your code need to import anything from agent/?
 | kanban/ | Durable multi-task scheduling — heartbeat, zombie detection, run/event audit trail. |
 | llms/ | LLM manager and adapters — 100+ provider support, citation extraction, image gen/edit. |
 | local_browser_data/ | Local browser data search — Chrome/Edge bookmarks and history indexing. |
-| local_file_search/ | Semantic search over local files — SHA256 incremental indexing, hybrid retrieval. |
 | mcp/ | MCP protocol support — client management, tool fetching, connection pooling. |
 | memory/ | Pluggable memory system — vector/relational/graph storage for AI agents. |
 | notification/ | Cross-channel notification delivery — Protocol-based sender with rate limiting and whitelist security. |

@@ -14,7 +14,7 @@ Detailed design: [CONTEXT_BUNDLE_SYSTEM.md](CONTEXT_BUNDLE_SYSTEM.md)
 | `facade.py` | Core | `ContextBundleFacade` — memory/storage/offload/index/hooks entry |
 | `index.py` | Protocol | `ContextIndexRegistry` mount point for roadmap #2 `context_search` |
 | `hooks.py` | Protocol | `ContextLifecycleHooks` mount point for OpenClaw-style lifecycle |
-| `health.py` | Core | Scene health probe adapters |
+| `health.py` | Core | Scene health probe adapters (`MemorySceneHealthBackend`, `WorkspaceSceneHealthBackend`, `StaticSceneHealthBackend`) |
 | `migrate.py` | Core | Dry-run + non-destructive manifest/directory migration |
 | `__init__.py` | Package | Public exports |
 

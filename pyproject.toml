@@ -314,7 +314,6 @@ include = [
   "*/myrm_agent_harness/toolkits/acp/*",
   "*/myrm_agent_harness/toolkits/cron/*",
   "*/myrm_agent_harness/observability/*",
-  "*/myrm_agent_harness/toolkits/local_file_search/*",
   "*/myrm_agent_harness/toolkits/file_parsers/*",
 ]
 exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "\\.\\.\\."]

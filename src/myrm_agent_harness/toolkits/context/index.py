@@ -10,7 +10,7 @@
 
 [POS]
 Registration-only index protocol for unified context_search. Backends attach per scene without
-coupling memory and local_file_search implementations inside #1.
+coupling memory or workspace search implementations inside the context bundle facade.
 """
 
 from __future__ import annotations

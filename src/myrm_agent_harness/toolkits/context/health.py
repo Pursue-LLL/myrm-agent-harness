@@ -8,10 +8,10 @@
 
 [OUTPUT]
 - MemorySceneHealthBackend: memory path writability probe
-- LocalFileSearchSceneHealthBackend: delegates to server-provided probe
+- WorkspaceSceneHealthBackend: delegates to server-provided workspace probe
 
 [POS]
-Lightweight health adapters without reading user content. Local file search probe
+Lightweight health adapters without reading user content. Workspace readiness probe
 is injected from Server because toolkit layer must not import business services.
 """
 
@@ -41,8 +41,8 @@ class MemorySceneHealthBackend:
         return "critical"
 
 
-class LocalFileSearchSceneHealthBackend:
-    """Probe workspace file search readiness via injected Server callback."""
+class WorkspaceSceneHealthBackend:
+    """Probe workspace scene readiness via injected Server callback."""
 
     scene = ContextScene.WORKSPACE
 
