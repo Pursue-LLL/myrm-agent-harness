@@ -137,11 +137,23 @@ class TestFindTabByOrigin:
         assert result is not None
         assert result.tab_id == "tab1"
 
-    def test_returns_first_match_when_multiple_tabs_share_origin(self):
+    def test_prefers_active_tab_when_multiple_share_origin(self):
         ctrl = self._create_controller_with_tabs({
             "tab0": "https://github.com/userA/repo1",
             "tab1": "https://github.com/userB/repo2",
         })
+        ctrl._active_tab_id = "tab1"
+
+        result = ctrl.find_tab_by_origin("https://github.com")
+        assert result is not None
+        assert result.tab_id == "tab1"
+
+    def test_returns_first_match_when_no_active_matches(self):
+        ctrl = self._create_controller_with_tabs({
+            "tab0": "https://github.com/userA/repo1",
+            "tab1": "https://github.com/userB/repo2",
+        })
+        ctrl._active_tab_id = "tab2"  # active is something else
 
         result = ctrl.find_tab_by_origin("https://github.com")
         assert result is not None

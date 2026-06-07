@@ -182,6 +182,8 @@ class TabController:
     def find_tab_by_origin(self, origin: str) -> TabHandle | None:
         """Find an existing tab whose current URL shares the same origin.
 
+        Prefers the active tab if it matches, to avoid unnecessary switching.
+
         Args:
             origin: Target origin (scheme + netloc, e.g. "https://google.com")
 
@@ -190,6 +192,7 @@ class TabController:
         """
         from urllib.parse import urlparse
 
+        fallback: TabHandle | None = None
         for handle in self._tabs.values():
             try:
                 tab_url = handle.page.url
@@ -198,10 +201,13 @@ class TabController:
                 parsed = urlparse(tab_url)
                 tab_origin = f"{parsed.scheme}://{parsed.netloc}"
                 if tab_origin == origin:
-                    return handle
+                    if handle.tab_id == self._active_tab_id:
+                        return handle
+                    if fallback is None:
+                        fallback = handle
             except Exception:
                 continue
-        return None
+        return fallback
 
     def list_tabs_with_info(self) -> list[dict[str, str]]:
         """List all tabs with domain info for display.
