@@ -67,11 +67,20 @@ def get_compress_min_save_for_model(model_name: str) -> int:
 class ContextConfig:
     """Context management configuration.
 
-    All thresholds scale dynamically from max_context_tokens (pure ratio, no hard caps):
+    All thresholds scale dynamically from max_context_tokens using proportional gaps.
+    When compress_start_ratio is None (default), the classic fixed ratios apply:
     - proactive_reset_threshold = max_context_tokens * 0.4 (min 20k) — early warning
     - compress_threshold = max_context_tokens * 0.5 (min 25k) — start compression
     - compress_force_threshold = max_context_tokens * 0.7 (min 35k) — force compression
     - summarize_trigger_threshold = max_context_tokens * 0.9 (max window - 20k) — last resort
+
+    When compress_start_ratio is set (range [0.20, 0.85]), thresholds are derived using
+    proportional gaps to avoid overflow at any valid ratio:
+        gap = (0.95 - compress_start_ratio) / 3
+        proactive_reset = compress_start_ratio
+        compress = compress_start_ratio + gap
+        compress_force = compress_start_ratio + 2 * gap
+        summarize_trigger = 0.95 (hard ceiling)
 
     Note: summarize_trigger_threshold is the hard ceiling; summarization failure raises and aborts.
 
@@ -84,9 +93,15 @@ class ContextConfig:
         config = ContextConfig(max_context_tokens=128000)   # GPT-4 (128k)
         config = ContextConfig(max_context_tokens=200000)   # Claude Sonnet 4.5 (200k)
         config = ContextConfig(max_context_tokens=1000000)  # DeepSeek V4 Pro (1M)
+        config = ContextConfig(max_context_tokens=200000, compress_start_ratio=0.6)  # delayed compression
     """
 
     max_context_tokens: int
+
+    # Optional user-configurable compression start ratio. When set, overrides the
+    # default fixed ratios with proportional gap scaling. Valid range: [0.20, 0.85].
+    # None means use default ratios (0.4/0.5/0.7/0.9).
+    compress_start_ratio: float | None = None
 
     # Layer 1: single tool result truncation threshold (model-independent)
     tool_result_evict_threshold: int = 5000
@@ -113,19 +128,29 @@ class ContextConfig:
     # Memory forgetting half-life in days. Frontend can tune the agent's forgetting curve.
     time_decay_half_life_days: float = 90.0
 
+    def _effective_ratio(self) -> float | None:
+        """Return clamped compress_start_ratio or None for default behavior."""
+        if self.compress_start_ratio is None:
+            return None
+        return max(0.20, min(0.85, self.compress_start_ratio))
+
     @property
     def compress_threshold(self) -> int:
-        """Compression trigger: 50% of model window, minimum 25K.
+        """Compression trigger: 50% of model window (default), or proportional gap from start ratio.
 
         Acts as the "start water level" for batch compression.
         Pure ratio scaling ensures large-window models (1M+) fully utilize capacity.
         """
         max_tokens = self.max_context_tokens if self.max_context_tokens is not None else 120000
+        ratio = self._effective_ratio()
+        if ratio is not None:
+            gap = (0.95 - ratio) / 3.0
+            return max(int(max_tokens * (ratio + gap)), 25000)
         return max(int(max_tokens * 0.5), 25000)
 
     @property
     def compress_force_threshold(self) -> int:
-        """Force compression trigger: 70% of model window, minimum 35K.
+        """Force compression trigger: 70% of model window (default), or proportional gap.
 
         Safety valve for batch compression:
         - Within [compress_threshold, compress_force_threshold]: accumulation mode
@@ -135,11 +160,15 @@ class ContextConfig:
         with safety protection in extreme cases.
         """
         max_tokens = self.max_context_tokens if self.max_context_tokens is not None else 150000
+        ratio = self._effective_ratio()
+        if ratio is not None:
+            gap = (0.95 - ratio) / 3.0
+            return max(int(max_tokens * (ratio + 2 * gap)), 35000)
         return max(int(max_tokens * 0.7), 35000)
 
     @property
     def proactive_reset_threshold(self) -> int:
-        """Proactive reset trigger: 40% of model window, minimum 20K.
+        """Proactive reset trigger: 40% of model window (default), or compress_start_ratio.
 
         Implements Proactive Stage Reset & Compaction. Instead of waiting until the 90%
         error threshold, triggers compression at this healthy watermark to keep the model
@@ -149,16 +178,22 @@ class ContextConfig:
         Fires before compress_threshold (50%) as an "early warning" layer.
         """
         max_tokens = self.max_context_tokens if self.max_context_tokens is not None else 120000
+        ratio = self._effective_ratio()
+        if ratio is not None:
+            return max(int(max_tokens * ratio), 20000)
         return max(int(max_tokens * 0.4), 20000)
 
     @property
     def summarize_trigger_threshold(self) -> int:
-        """Summarization trigger (last resort): effective window minus 20K token reserve.
+        """Summarization trigger (last resort): 95% of window when ratio set, else 90% with reserve.
 
-        Reserves 20,000 tokens for the compaction summary itself, ensuring the compaction
+        Reserves space for the compaction summary itself, ensuring the compaction
         mechanism can run even under maximum context pressure without running out of output space.
         """
         max_tokens = self.max_context_tokens if self.max_context_tokens is not None else 120000
+        ratio = self._effective_ratio()
+        if ratio is not None:
+            return max(int(max_tokens * 0.95), 50000)
         return min(int(max_tokens * 0.9), max(int(max_tokens * 0.5), max_tokens - 20000))
 
 

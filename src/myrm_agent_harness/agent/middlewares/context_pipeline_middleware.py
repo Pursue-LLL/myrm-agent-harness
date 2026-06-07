@@ -179,6 +179,7 @@ def create_context_pipeline_middleware(
     def _get_or_create_pipeline(
         max_context_tokens: int | None,
         model_name: str,
+        compress_start_ratio: float | None = None,
     ) -> ContextPipeline:
         if _custom_pipeline:
             return _custom_pipeline
@@ -200,6 +201,7 @@ def create_context_pipeline_middleware(
 
             processors = build_default_processors(
                 max_context_tokens=actual_max_tokens,
+                compress_start_ratio=compress_start_ratio,
                 tool_result_evict_threshold=tool_result_evict_threshold,
                 compress_min_save=compress_min_save,
                 compress_batch_rounds=compress_batch_rounds,
@@ -241,11 +243,11 @@ def create_context_pipeline_middleware(
 
             messages = cast(list[BaseMessage], list(request.messages))
 
-            chat_id, max_context_tokens = extract_context_from_request(request)
+            chat_id, max_context_tokens, compress_start_ratio = extract_context_from_request(request)
 
             model_name = getattr(llm, "model", None) or getattr(llm, "model_name", "")
             model_name_str = str(model_name)
-            current_pipeline = _get_or_create_pipeline(max_context_tokens, model_name_str)
+            current_pipeline = _get_or_create_pipeline(max_context_tokens, model_name_str, compress_start_ratio)
             turn_count = sum(1 for m in messages if m.type == "human")
             total_tokens = estimate_messages_tokens(messages)
             metrics = get_or_create_task_metrics(chat_id)

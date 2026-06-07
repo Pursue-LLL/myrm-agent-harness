@@ -143,6 +143,7 @@ def create_default_pipeline(max_context_tokens: int | None = None) -> ContextPip
 def build_default_processors(
     *,
     max_context_tokens: int | None = None,
+    compress_start_ratio: float | None = None,
     tool_result_evict_threshold: int = 5000,
     compress_min_save: int = 3000,
     compress_batch_rounds: int = 5,
@@ -178,15 +179,16 @@ def build_default_processors(
     )
 
     max_context = max_context_tokens or 128000
-    config = (
-        ContextConfig(
-            max_context_tokens=max_context,
-            time_decay_half_life_days=time_decay_half_life_days,
-            tail_budget_ratio=tail_budget_ratio,
-        )
-        if time_decay_half_life_days is not None
-        else ContextConfig(max_context_tokens=max_context, tail_budget_ratio=tail_budget_ratio)
-    )
+
+    config_kwargs: dict[str, object] = {
+        "max_context_tokens": max_context,
+        "tail_budget_ratio": tail_budget_ratio,
+    }
+    if time_decay_half_life_days is not None:
+        config_kwargs["time_decay_half_life_days"] = time_decay_half_life_days
+    if compress_start_ratio is not None:
+        config_kwargs["compress_start_ratio"] = compress_start_ratio
+    config = ContextConfig(**config_kwargs)  # type: ignore[arg-type]
 
     compress_processor = CompressProcessor(
         max_context_tokens=max_context,
