@@ -13,7 +13,7 @@ Provides MCP tool fetching capabilities:
 
 [INPUT]
 - client::MCPClientManager, MCPServerConfigProtocol (POS: MCP client management layer)
-- config::sanitize_mcp_name_component, should_register_mcp_tool (POS: MCP configuration, name sanitization, and per-server tool filter function)
+- config::parse_mcp_tool_name, sanitize_mcp_name_component, should_register_mcp_tool (POS: MCP configuration, name sanitization, tool name parsing, and per-server tool filter function)
 - schema_utils::FlattenMeta, canonicalize_schema_for_cache, coerce_arguments_by_schema, flatten_deep_schema, flatten_json_schema, has_dot_keys, nest_flat_arguments (POS: MCP schema tolerance utilities)
 - core.security.tool_registry::MCPAnnotations, SafetyMetadata, register_ptc_safety_metadata (POS: Tool metadata and permission mapping)
 - agent.streaming.types::AgentEventType (POS: Framework-agnostic streaming event types)
@@ -50,7 +50,7 @@ from myrm_agent_harness.core.security.tool_registry import (
 )
 
 from .client import MCPClientManager, MCPServerConfigProtocol
-from .config import sanitize_mcp_name_component, should_register_mcp_tool
+from .config import parse_mcp_tool_name, sanitize_mcp_name_component, should_register_mcp_tool
 from .schema_utils import (
     FlattenMeta,
     canonicalize_schema_for_cache,
@@ -261,9 +261,9 @@ class MCPAgent:
         if sink is None:
             return
         server_name = ""
-        parts = tool_name.split("__")
-        if len(parts) >= 3 and parts[0] == "mcp":
-            server_name = parts[1]
+        parsed = parse_mcp_tool_name(tool_name)
+        if parsed is not None:
+            server_name = parsed[0]
         event: dict[str, object] = {
             "type": AgentEventType.TOOL_END.value,
             "tool_name": tool_name,
