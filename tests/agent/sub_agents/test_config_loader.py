@@ -376,8 +376,10 @@ class TestCodingYamlIntegration:
     @pytest.fixture
     def coding_yaml_path(self):
         """Path to the real coding.yaml file in myrm-agent-server."""
+        monorepo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
         path = (
-            Path(__file__).parent.parent.parent.parent.parent
+            monorepo_root
+            / "myrm-agent"
             / "myrm-agent-server"
             / "app"
             / "config"

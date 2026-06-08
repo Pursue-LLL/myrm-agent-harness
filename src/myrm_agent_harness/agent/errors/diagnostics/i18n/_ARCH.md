@@ -1,16 +1,22 @@
 # i18n/
 
 ## Overview
-Framework-level i18n for LLM error diagnostics, supporting en/zh-CN/ja/ko/de
+Framework-level i18n for LLM error diagnostics. Bundled JSON locales (en/zh-CN/ja/ko/de); override via `MYRM_LOCALES_DIR`. Business layers may extend via `register_translations()`.
 
 ## File & Submodule Index
 
-| File | Role | Description | I/O/P |
-|------|------|-------------|-------|
-| __init__.py | Package | i18n — re-exports LocaleManager and get_locale_manager singleton. | ✅ |
-| manager.py | Core | LocaleManager — locale detection, translation loading, and message formatting. | ✅ |
-| de.py | Core | Deutsche Fehlerübersetzungen | ✅ |
-| en.py | Core | English translations for LLM error diagnostics. | ✅ |
-| ja.py | Core | Ja module. | ✅ |
-| ko.py | Core | 한국어 오류 번역 | ✅ |
-| zh_cn.py | Core | Zh Cn. | ✅ |
+| File / Dir | Role | Description | I/O/P |
+|------------|------|-------------|-------|
+| __init__.py | Package | Re-exports LocaleManager and get_locale_manager singleton | ✅ |
+| constants.py | Config | REQUIRED_ERROR_TYPES for completeness validation | ✅ |
+| manager.py | Core | LocaleManager — detection, bundled JSON load, formatting | ✅ |
+| locales/ | Data | Bundled flat JSON locale files shipped with the wheel | — |
+| locales/en.json | Data | English diagnostic strings | — |
+| locales/zh-CN.json | Data | Simplified Chinese diagnostic strings | — |
+| locales/ja.json | Data | Japanese diagnostic strings | — |
+| locales/ko.json | Data | Korean diagnostic strings | — |
+| locales/de.json | Data | German diagnostic strings | — |
+
+## Module Dependencies
+
+- No dependency on `myrm-agent-server`; locales are self-contained in `locales/`

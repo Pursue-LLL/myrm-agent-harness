@@ -232,3 +232,19 @@ class TestSubagentCheckpointStorage:
         loaded = await storage.load("task-1")
         assert loaded is not None
         assert loaded.progress == 0.9
+
+    @pytest.mark.asyncio
+    async def test_save_rejects_non_string_task_id(self, tmp_path) -> None:
+        from unittest.mock import MagicMock
+
+        storage = SubagentCheckpointStorage(storage_path=tmp_path / "ckpts")
+        cp = _make_checkpoint()
+        cp.task_id = MagicMock()  # type: ignore[assignment]
+
+        with pytest.raises(TypeError, match="task_id must be str"):
+            await storage.save(cp)
+
+    def test_default_storage_path_uses_myrm_data_dir(self, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+        monkeypatch.setenv("MYRM_DATA_DIR", str(tmp_path / "data"))
+        storage = SubagentCheckpointStorage()
+        assert storage._storage_path == tmp_path / "data" / "checkpoints"

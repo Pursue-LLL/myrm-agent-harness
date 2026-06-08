@@ -15,7 +15,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 HARNESS_ROOT = REPO_ROOT / "myrm-agent-harness"
 HARNESS_SRC = HARNESS_ROOT / "src" / "myrm_agent_harness"
-SERVER_ROOT = REPO_ROOT / "myrm-agent-server"
+SERVER_ROOT = REPO_ROOT / "myrm-agent" / "myrm-agent-server"
 SERVER_SRC = SERVER_ROOT / "app"
 
 SCAN_ROOTS: tuple[Path, ...] = (HARNESS_SRC, SERVER_SRC)
@@ -64,7 +64,7 @@ ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset({
 })
 
 BOOTSTRAP_FILES: frozenset[str] = frozenset({
-    "myrm-agent-server/app/ai_agents/general_agent/tools/_tool_layer_bootstrap.py",
+    "myrm-agent/myrm-agent-server/app/ai_agents/general_agent/tools/_tool_layer_bootstrap.py",
 })
 
 EXCLUDED_DIRS: frozenset[str] = frozenset({

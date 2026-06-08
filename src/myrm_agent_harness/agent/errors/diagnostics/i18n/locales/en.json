@@ -1,0 +1,113 @@
+{
+  "connection_user_message": "Unable to connect to LLM endpoint",
+  "connection_resolution_steps": [
+    "Check if the endpoint service is running (e.g., Ollama: ollama serve)",
+    "Verify base_url configuration in LLMConfig",
+    "Check network connectivity",
+    "Check firewall settings"
+  ],
+  "custom_endpoint_unreachable_user_message": "Unable to connect to {service_name} ({base_url_display})",
+  "custom_endpoint_unreachable_resolution_steps": [
+    "Confirm {service_name} service is running",
+    "Test in browser: {base_url_display}/v1/models",
+    "Check if port {port} is occupied",
+    "Verify base_url configuration: {base_url_display}"
+  ],
+  "billing_user_message": "Your API account balance is insufficient",
+  "billing_resolution_steps": [
+    "Top up your balance on the LLM provider's dashboard",
+    "Add a backup API key (Settings > Models > Multi-key rotation)",
+    "Switch to a different LLM provider"
+  ],
+  "api_key_user_message": "API key authentication failed",
+  "api_key_resolution_steps": [
+    "Check MYRM_API_KEY environment variable",
+    "Verify API key is valid and not expired",
+    "Check if API key has correct permissions",
+    "For Ollama/LM Studio: use 'dummy' or empty string as api_key"
+  ],
+  "model_user_message": "Model '{model_name}' not found",
+  "model_resolution_steps": [
+    "Install the model (e.g., Ollama: ollama pull {model_name})",
+    "Check if model name is correct in LLMConfig",
+    "List available models and verify",
+    "For OpenAI: check model name spelling"
+  ],
+  "custom_model_not_found_user_message": "Model '{model_name}' not found on {service_name}",
+  "custom_model_not_found_resolution_steps": [
+    "Confirm '{model_name}' is downloaded to {service_name}",
+    "Run 'ollama list' or check LM Studio models list",
+    "Check model name spelling (case-sensitive)",
+    "Download the model if not installed"
+  ],
+  "rate_limit_user_message": "API rate limit exceeded",
+  "rate_limit_resolution_steps": [
+    "Wait 60 seconds and retry",
+    "Upgrade API plan for higher rate limits",
+    "Check if other processes are using the same API key",
+    "Use fallback_llm to handle rate limits automatically"
+  ],
+  "context_overflow_user_message": "Context length exceeds model limit",
+  "context_overflow_resolution_steps": [
+    "Enable compression in AgentConfig (context_management_strategy)",
+    "Start a new conversation session",
+    "Use a model with larger context window",
+    "Reduce conversation history length"
+  ],
+  "response_format_error_user_message": "Model output validation failed, automatically switching to stronger model",
+  "response_format_error_resolution_steps": [
+    "System is automatically switching to fallback model",
+    "If issue persists, consider upgrading primary model",
+    "Check weak model configuration for JSON mode",
+    "Verify tool call argument schema is correct"
+  ],
+  "timeout_user_message": "LLM request timed out",
+  "timeout_resolution_steps": [
+    "Increase timeout_seconds in AgentConfig",
+    "Check network latency",
+    "Use a faster model or endpoint",
+    "Enable streaming mode for better responsiveness"
+  ],
+  "unknown_user_message": "LLM error: {error_message}",
+  "unknown_resolution_steps": [
+    "Check LiteLLM documentation for this error",
+    "Verify LLMConfig settings (model, api_key, base_url)",
+    "Enable debug logging for detailed error trace"
+  ],
+  "thinking_budget_exhausted_user_message": "The model used all output tokens for reasoning and produced no response",
+  "thinking_budget_exhausted_resolution_steps": [
+    "Switch to a model with larger output capacity",
+    "Simplify the question to reduce reasoning depth",
+    "Break complex questions into smaller sub-questions"
+  ],
+  "tool_call_truncated_user_message": "Tool arguments may be incomplete due to output length limit",
+  "tool_call_truncated_resolution_steps": [
+    "Use chunked writes for large files instead of writing all at once",
+    "Break the task into smaller steps",
+    "Check the output file for completeness"
+  ],
+  "text_continuation_user_message": "Response was truncated — automatically continuing",
+  "text_continuation_resolution_steps": [],
+  "text_continuation_exhausted_user_message": "Response remained truncated after 3 continuation attempts",
+  "text_continuation_exhausted_resolution_steps": [
+    "Increase max_tokens in model configuration",
+    "Ask the model to be more concise",
+    "Break the question into smaller parts"
+  ],
+  "thinking_signature_user_message": "Thinking block signature was invalidated — automatically retrying",
+  "thinking_signature_resolution_steps": [],
+  "image_too_large_user_message": "Image exceeds provider size limit — automatically compressing and retrying",
+  "image_too_large_resolution_steps": [],
+  "long_context_tier_user_message": "Conversation exceeds subscription context tier — automatically compressing",
+  "long_context_tier_resolution_steps": [
+    "Upgrade your API subscription for larger context access",
+    "Start a new conversation to reduce context length"
+  ],
+  "provider_policy_blocked_user_message": "Request blocked by provider data/privacy policy",
+  "provider_policy_blocked_resolution_steps": [
+    "Adjust your privacy settings on the provider dashboard (e.g., OpenRouter Settings > Privacy)",
+    "Try a different model or provider"
+  ],
+  "cooldown_hint_single": " Retry after {seconds} second.",
+  "cooldown_hint_plural": " Retry after {seconds} seconds."
+}

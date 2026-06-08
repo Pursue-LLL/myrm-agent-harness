@@ -14,7 +14,7 @@
 Provides map_to_claude_tool_name, map_from_claude_tool_name, should_trigger_hook.
 """
 
-# Claude Code → LangChain Agents Pro
+# Claude Code → Myrm Agent Harness (internal tool names)
 CLAUDE_TO_OUR_MAPPING: dict[str, str] = {
     "Read": "file_read_tool",
     "Write": "file_write_tool",
@@ -28,7 +28,7 @@ CLAUDE_TO_OUR_MAPPING: dict[str, str] = {
     "Planner": "planner_tool",
 }
 
-# LangChain Agents Pro → Claude Code（反向映射）
+# Myrm Agent Harness → Claude Code（反向映射）
 OUR_TO_CLAUDE_MAPPING: dict[str, str] = {v: k for k, v in CLAUDE_TO_OUR_MAPPING.items()}
 
 

@@ -1,0 +1,112 @@
+{
+  "connection_user_message": "LLMエンドポイントへの接続に失敗しました",
+  "connection_resolution_steps": [
+    "エンドポイントサービスが実行中か確認してください（例：Ollama: ollama serve）",
+    "LLMConfigのbase_url設定を確認してください",
+    "ネットワーク接続を確認してください",
+    "ファイアウォール設定を確認してください"
+  ],
+  "custom_endpoint_unreachable_user_message": "{service_name} ({base_url_display})に接続できません",
+  "custom_endpoint_unreachable_resolution_steps": [
+    "{service_name}サービスが実行中であることを確認してください",
+    "ブラウザでテスト: {base_url_display}/v1/models",
+    "ポート{port}が使用中でないか確認してください",
+    "base_url設定を確認: {base_url_display}"
+  ],
+  "billing_user_message": "APIアカウントの残高が不足しています",
+  "billing_resolution_steps": [
+    "LLMプロバイダーのコンソールでチャージしてください",
+    "バックアップAPIキーを追加してください",
+    "別のLLMプロバイダーに切り替えてください"
+  ],
+  "api_key_user_message": "APIキー認証に失敗しました",
+  "api_key_resolution_steps": [
+    "MYRM_API_KEY環境変数を確認してください",
+    "APIキーが有効で期限切れでないことを確認してください",
+    "APIキーに正しい権限があるか確認してください",
+    "Ollama/LM Studioの場合：api_keyに'dummy'または空文字列を使用してください"
+  ],
+  "model_user_message": "モデル '{model_name}' が見つかりません",
+  "model_resolution_steps": [
+    "モデル名のスペルを確認してください（{model_name}）",
+    "プロバイダーのドキュメントで利用可能なモデルを確認してください",
+    "一部のモデルは特定の地域またはAPIティアでのみ利用可能です",
+    "Ollamaの場合：ollama list でインストール済みモデルを確認してください"
+  ],
+  "custom_model_not_found_user_message": "{service_name}のモデル '{model_name}' が見つかりません",
+  "custom_model_not_found_resolution_steps": [
+    "{service_name}が実行中であることを確認してください",
+    "利用可能なモデルを確認: {list_models_url}",
+    "Ollamaの場合：ollama pull {model_name} でモデルをダウンロードしてください"
+  ],
+  "rate_limit_user_message": "APIレート制限に達しました",
+  "rate_limit_resolution_steps": [
+    "数分後に再試行してください",
+    "頻繁に発生する場合は、プロバイダーのプランをアップグレードしてください",
+    "バッチリクエストの場合は、遅延を追加することを検討してください",
+    "リクエストの頻度を減らしてください"
+  ],
+  "response_format_error_user_message": "モデル出力検証に失敗しました。より強力なモデルに自動切り替え中",
+  "response_format_error_resolution_steps": [
+    "システムはフォールバックモデルに自動的に切り替えています",
+    "問題が継続する場合は、プライマリモデルのアップグレードを検討してください",
+    "弱いモデルの設定でJSONモードが正しいことを確認してください",
+    "ツール呼び出し引数のスキーマが正しいことを確認してください"
+  ],
+  "context_overflow_user_message": "コンテキスト長の制限を超えました（約 {token_count} トークン）",
+  "context_overflow_resolution_steps": [
+    "入力を短くするか、ファイル添付を削減してください",
+    "会話履歴をクリアしてください（新しいチャットを開始）",
+    "より大きなコンテキストウィンドウを持つモデルを使用してください",
+    "システムプロンプトを短縮してください"
+  ],
+  "timeout_user_message": "LLMリクエストがタイムアウトしました",
+  "timeout_resolution_steps": [
+    "ネットワーク接続を確認してください",
+    "カスタムエンドポイントの場合：サーバーのパフォーマンスを確認してください",
+    "小さなモデルを使用するか、入力サイズを減らしてください",
+    "タイムアウト設定を延長してください"
+  ],
+  "unknown_user_message": "予期しないエラーが発生しました: {original_error}",
+  "unknown_resolution_steps": [
+    "もう一度お試しください",
+    "問題が解決しない場合は、管理者に連絡してください",
+    "詳細なエラーメッセージをご確認ください"
+  ],
+  "thinking_budget_exhausted_user_message": "モデルがすべての出力トークンを推論に使用し、実際の回答を生成できませんでした",
+  "thinking_budget_exhausted_resolution_steps": [
+    "出力容量の大きいモデルに切り替えてください",
+    "質問を簡略化して推論の深さを減らしてください",
+    "複雑な質問を複数の小さな質問に分割してください"
+  ],
+  "tool_call_truncated_user_message": "出力長制限により、ツールのパラメータが不完全な可能性があります",
+  "tool_call_truncated_resolution_steps": [
+    "大きなファイルは一度に書き込まず、分割して書き込んでください",
+    "タスクを小さなステップに分割してください",
+    "出力ファイルの完全性を確認してください"
+  ],
+  "text_continuation_user_message": "応答が途中で切断されました——自動的に続行中",
+  "text_continuation_resolution_steps": [],
+  "text_continuation_exhausted_user_message": "3回の続行試行後も応答が完了しませんでした",
+  "text_continuation_exhausted_resolution_steps": [
+    "モデル設定で max_tokens を増やしてください",
+    "より簡潔な回答を求めてください",
+    "質問をより小さな部分に分割してください"
+  ],
+  "thinking_signature_user_message": "思考チェーン署名が無効です——自動的にリトライ中",
+  "thinking_signature_resolution_steps": [],
+  "image_too_large_user_message": "画像がプロバイダーのサイズ制限を超えています——自動的に圧縮してリトライ中",
+  "image_too_large_resolution_steps": [],
+  "long_context_tier_user_message": "会話がサブスクリプションのコンテキスト制限を超えました——自動的に圧縮中",
+  "long_context_tier_resolution_steps": [
+    "APIサブスクリプションをアップグレードして大きなコンテキストにアクセスしてください",
+    "新しい会話を開始してコンテキスト長を減らしてください"
+  ],
+  "provider_policy_blocked_user_message": "リクエストがプロバイダーのデータ/プライバシーポリシーによりブロックされました",
+  "provider_policy_blocked_resolution_steps": [
+    "プロバイダーのコンソールでプライバシー設定を調整してください（例：OpenRouter 設定 > プライバシー）",
+    "別のモデルまたはプロバイダーをお試しください"
+  ],
+  "cooldown_hint_single": " {seconds}秒後に再試行してください。",
+  "cooldown_hint_plural": " {seconds}秒後に再試行してください。"
+}

@@ -12,4 +12,4 @@ Error diagnostics component. Provides LLM error classification, context extracti
 
 | Submodule | Description |
 |-----------|-------------|
-| i18n/ | Framework-level i18n for LLM error diagnostics, supporting en/zh-CN/ja/ko/de |
+| i18n/ | Framework-level i18n for LLM error diagnostics; bundled `locales/*.json` (en/zh-CN/ja/ko/de), override via `MYRM_LOCALES_DIR` |

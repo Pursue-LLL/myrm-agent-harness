@@ -1,0 +1,104 @@
+{
+  "connection_user_message": "Verbindung zum LLM-Endpunkt fehlgeschlagen",
+  "connection_resolution_steps": [
+    "Überprüfen Sie, ob der Endpunkt-Dienst läuft (z.B. Ollama: ollama serve)",
+    "Überprüfen Sie die base_url-Konfiguration in LLMConfig",
+    "Überprüfen Sie die Netzwerkverbindung",
+    "Überprüfen Sie die Firewall-Einstellungen"
+  ],
+  "custom_endpoint_unreachable_user_message": "Verbindung zu {service_name} ({base_url_display}) nicht möglich",
+  "custom_endpoint_unreachable_resolution_steps": [
+    "Bestätigen Sie, dass der {service_name}-Dienst läuft",
+    "Test im Browser: {base_url_display}/v1/models",
+    "Überprüfen Sie, ob Port {port} belegt ist",
+    "Überprüfen Sie die base_url-Konfiguration: {base_url_display}"
+  ],
+  "billing_user_message": "Das Guthaben Ihres API-Kontos ist nicht ausreichend",
+  "billing_resolution_steps": [
+    "Laden Sie Ihr Guthaben in der LLM-Anbieter-Konsole auf",
+    "Fügen Sie einen Backup-API-Schlüssel hinzu",
+    "Wechseln Sie zu einem anderen LLM-Anbieter"
+  ],
+  "api_key_user_message": "API-Schlüssel-Authentifizierung fehlgeschlagen",
+  "api_key_resolution_steps": [
+    "Überprüfen Sie die MYRM_API_KEY-Umgebungsvariable",
+    "Stellen Sie sicher, dass der API-Schlüssel gültig und nicht abgelaufen ist",
+    "Überprüfen Sie, ob der API-Schlüssel die richtigen Berechtigungen hat",
+    "Für Ollama/LM Studio: Verwenden Sie 'dummy' oder einen leeren String als api_key"
+  ],
+  "model_user_message": "Modell '{model_name}' nicht gefunden",
+  "model_resolution_steps": [
+    "Überprüfen Sie die Schreibweise des Modellnamens ({model_name})",
+    "Siehe Provider-Dokumentation für verfügbare Modelle",
+    "Einige Modelle sind nur in bestimmten Regionen oder API-Stufen verfügbar",
+    "Für Ollama: ollama list zeigt installierte Modelle"
+  ],
+  "custom_model_not_found_user_message": "Modell '{model_name}' in {service_name} nicht gefunden",
+  "custom_model_not_found_resolution_steps": [
+    "Bestätigen Sie, dass {service_name} läuft",
+    "Verfügbare Modelle prüfen: {list_models_url}",
+    "Für Ollama: ollama pull {model_name} zum Herunterladen des Modells"
+  ],
+  "rate_limit_user_message": "API-Ratenlimit erreicht",
+  "rate_limit_resolution_steps": [
+    "Bitte versuchen Sie es in einigen Minuten erneut",
+    "Wenn dies häufig auftritt, upgraden Sie Ihren Provider-Plan",
+    "Erwägen Sie das Hinzufügen von Verzögerungen bei Batch-Anfragen",
+    "Reduzieren Sie die Anfragehäufigkeit"
+  ],
+  "response_format_error_user_message": "Modellausgabevalidierung fehlgeschlagen, automatischer Wechsel zu stärkerem Modell",
+  "response_format_error_resolution_steps": [
+    "System wechselt automatisch zum Fallback-Modell",
+    "Falls Problem weiterhin besteht, erwägen Sie Upgrade des Primärmodells",
+    "Überprüfen Sie Schwachmodell-Konfiguration für JSON-Modus",
+    "Überprüfen Sie, ob Tool-Call-Argument-Schema korrekt ist"
+  ],
+  "context_overflow_user_message": "Kontextlängenlimit überschritten (~{token_count} Token)",
+  "context_overflow_resolution_steps": [
+    "Reduzieren Sie Ihre Eingabe oder Dateianhänge",
+    "Löschen Sie den Konversationsverlauf (neuen Chat starten)",
+    "Verwenden Sie ein Modell mit größerem Kontextfenster",
+    "Kürzen Sie den System-Prompt"
+  ],
+  "timeout_user_message": "LLM-Anfrage hat das Zeitlimit überschritten",
+  "timeout_resolution_steps": [
+    "Überprüfen Sie Ihre Netzwerkverbindung",
+    "Für benutzerdefinierte Endpunkte: Überprüfen Sie die Server-Performance",
+    "Verwenden Sie ein kleineres Modell oder reduzieren Sie die Eingabegröße",
+    "Erhöhen Sie die Timeout-Einstellung"
+  ],
+  "unknown_user_message": "Ein unerwarteter Fehler ist aufgetreten: {original_error}",
+  "unknown_resolution_steps": [
+    "Bitte versuchen Sie es erneut",
+    "Wenn das Problem weiterhin besteht, kontaktieren Sie den Administrator",
+    "Überprüfen Sie die detaillierte Fehlermeldung"
+  ],
+  "thinking_budget_exhausted_user_message": "Das Modell hat alle Ausgabetokens für die Schlussfolgerung verwendet und keine Antwort erzeugt",
+  "thinking_budget_exhausted_resolution_steps": [
+    "Wechseln Sie zu einem Modell mit größerer Ausgabekapazität",
+    "Vereinfachen Sie die Frage, um die Schlussfolgerungstiefe zu verringern",
+    "Teilen Sie komplexe Fragen in mehrere Teilfragen auf"
+  ],
+  "tool_call_truncated_user_message": "Werkzeugparameter sind möglicherweise aufgrund der Ausgabelängenbegrenzung unvollständig",
+  "tool_call_truncated_resolution_steps": [
+    "Verwenden Sie für große Dateien Chunk-Schreibvorgänge statt einmaliger Vollschreibung",
+    "Teilen Sie die Aufgabe in kleinere Schritte auf",
+    "Überprüfen Sie die Vollständigkeit der Ausgabedatei"
+  ],
+  "thinking_signature_user_message": "Denkblock-Signatur ungültig — automatischer Wiederholungsversuch",
+  "thinking_signature_resolution_steps": [],
+  "image_too_large_user_message": "Bild überschreitet das Größenlimit des Anbieters — automatische Komprimierung und Wiederholung",
+  "image_too_large_resolution_steps": [],
+  "long_context_tier_user_message": "Die Konversation überschreitet das Kontextlimit Ihres Abonnements — automatische Komprimierung",
+  "long_context_tier_resolution_steps": [
+    "Aktualisieren Sie Ihr API-Abonnement für größeren Kontextzugang",
+    "Starten Sie eine neue Konversation, um die Kontextlänge zu reduzieren"
+  ],
+  "provider_policy_blocked_user_message": "Die Anfrage wurde durch die Daten-/Datenschutzrichtlinie des Anbieters blockiert",
+  "provider_policy_blocked_resolution_steps": [
+    "Passen Sie die Datenschutzeinstellungen in der Anbieterkonsole an (z.B. OpenRouter Einstellungen > Datenschutz)",
+    "Versuchen Sie ein anderes Modell oder einen anderen Anbieter"
+  ],
+  "cooldown_hint_single": " Versuchen Sie es nach {seconds} Sekunde erneut.",
+  "cooldown_hint_plural": " Versuchen Sie es nach {seconds} Sekunden erneut."
+}

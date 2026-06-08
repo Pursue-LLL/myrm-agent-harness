@@ -41,7 +41,7 @@ class OrphanRecoveryManager:
 
     Lifecycle:
         1. Service startup calls ``get_instance().schedule_scan()``
-        2. After initial delay, scans ``.myrm/checkpoints/`` for resumable files
+        2. After initial delay, scans ``{MYRM_DATA_DIR}/checkpoints/`` (or ``.myrm/checkpoints/``) for resumable files
         3. For each interrupted checkpoint: publish ``SubagentLifecycleEvent``
         4. ``harness_bridge`` receives event and rebuilds subagent tree
         5. Frontend displays interrupted tasks with resume button

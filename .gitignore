@@ -57,7 +57,6 @@ myrm-agent-server/
 .benchmarks/
 scratch/
 .myrm/
-.myrm/
 node_modules/
 package-lock.json
 test_output.txt

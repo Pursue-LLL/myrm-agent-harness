@@ -178,7 +178,7 @@ Level 4: parent LLM (继承父 agent 的 LLM，兜底)
 
 **架构组件**：
 - `GracefulShutdownManager`：单例模式，自动注册SIGTERM/SIGINT信号处理器
-- `SubagentCheckpointStorage`：轻量级JSON文件后端（`.myrm/checkpoints/`）
+- `SubagentCheckpointStorage`：轻量级JSON文件后端（默认 `{MYRM_DATA_DIR}/checkpoints/`，未设置时回退 `.myrm/checkpoints/`）
 - `BaseAgent.get_checkpoint_state()`：✅ 统一API接口，异步提取完整状态（messages+context+stats）
 - `checkpoint/state_extractor.py`：状态提取工具（extract_subagent_state_sync/async，复用BaseAgent API）
 
@@ -221,7 +221,7 @@ result = SubAgentResult(checkpoint_data={...})
 **部署架构适配（Agent in Sandbox）**：
 - ✅ 每个用户一个独立沙箱容器（如Fly.io）
 - ✅ 容器挂载持久化Volume（EBS/Fly Volume）
-- ✅ 用户数据（`.myrm/checkpoints/`）存储在Volume中
+- ✅ 用户数据（`{MYRM_DATA_DIR}/checkpoints/`，生产由 server 注入 `MYRM_DATA_DIR`）存储在 Volume 中
 - ✅ 容器重启后数据保留
 - ✅ **JSON backend完全满足需求**（无需S3/Redis分布式存储）
 - ✅ SaaS多租户场景：每个用户独立Volume（天然隔离）

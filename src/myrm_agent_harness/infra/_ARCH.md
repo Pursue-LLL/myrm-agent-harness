@@ -21,6 +21,7 @@ Infrastructure layer.
 | locks/ | Unified locking mechanisms for concurrent operations. |
 | security/ | Infrastructure security module. |
 | tracing/ | Distributed tracing and metrics collection. Integrates OpenTelemetry for call chain tracing, perform |
+| events/ | Generic in-process asyncio EventBus (distinct from runtime/events and toolkits/acp event buses). |
 
 ## Key Dependencies
 

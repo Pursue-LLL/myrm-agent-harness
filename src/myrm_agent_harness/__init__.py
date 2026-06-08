@@ -1,4 +1,4 @@
-"""LangChain Agents Pro - Professional Agent framework with advanced skill system.
+"""Myrm Agent Harness - Professional Agent framework with advanced skill system.
 
 This library provides a production-ready Agent framework built on LangChain/LangGraph,
 featuring:
@@ -20,7 +20,7 @@ Quick Start:
 
 from importlib import import_module
 
-__version__ = "0.1.0"
+__version__ = "0.1.0rc2"
 
 _EXPORTS: dict[str, tuple[str, str]] = {
     "SkillAgent": ("myrm_agent_harness.api.factory", "SkillAgent"),

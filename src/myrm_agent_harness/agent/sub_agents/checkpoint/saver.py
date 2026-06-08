@@ -21,6 +21,7 @@ Subagent checkpoint persistence module. Saves and restores subagent execution st
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -33,6 +34,24 @@ if TYPE_CHECKING:
     pass
 
 logger = get_agent_logger(__name__)
+
+
+def _default_checkpoint_storage_path() -> Path:
+    """Resolve checkpoint directory from MYRM_DATA_DIR or cwd-relative default."""
+    data_dir = os.environ.get("MYRM_DATA_DIR", "").strip()
+    if data_dir:
+        return Path(data_dir) / "checkpoints"
+    return Path(".myrm/checkpoints")
+
+
+def _validate_checkpoint_task_id(task_id: object) -> str:
+    if not isinstance(task_id, str):
+        raise TypeError(f"checkpoint.task_id must be str, got {type(task_id).__name__}")
+    normalized = task_id.strip()
+    if not normalized or "/" in normalized or "\\" in normalized or normalized in {".", ".."}:
+        raise ValueError(f"invalid checkpoint task_id: {task_id!r}")
+    return normalized
+
 
 try:
     from .checkpoint.metrics import CheckpointMetrics
@@ -121,7 +140,7 @@ class SubagentCheckpointStorage:
     Each checkpoint is stored in a separate file named by task_id.
 
     Storage structure:
-        .myrm/checkpoints/{task_id}.json
+        {MYRM_DATA_DIR or .myrm}/checkpoints/{task_id}.json
 
     Thread-safety: Uses fcntl.lockf() for file-level locking to prevent
     concurrent write corruption when multiple subagents save simultaneously.
@@ -131,9 +150,9 @@ class SubagentCheckpointStorage:
         """Initialize checkpoint storage.
 
         Args:
-            storage_path: Storage directory path (default: .myrm/checkpoints)
+            storage_path: Storage directory path (default: MYRM_DATA_DIR/checkpoints or .myrm/checkpoints)
         """
-        self._storage_path = storage_path or Path(".myrm/checkpoints")
+        self._storage_path = storage_path or _default_checkpoint_storage_path()
         self._storage_path.mkdir(parents=True, exist_ok=True)
         logger.debug("Checkpoint storage initialized: %s", self._storage_path)
 
@@ -160,7 +179,8 @@ class SubagentCheckpointStorage:
         Args:
             checkpoint: Checkpoint to save
         """
-        file_path = self._storage_path / f"{checkpoint.task_id}.json"
+        task_id = _validate_checkpoint_task_id(checkpoint.task_id)
+        file_path = self._storage_path / f"{task_id}.json"
         checkpoint_dict = checkpoint.to_dict()
 
         start_time = time.perf_counter()
@@ -203,6 +223,7 @@ class SubagentCheckpointStorage:
         Returns:
             Checkpoint if exists, None otherwise
         """
+        task_id = _validate_checkpoint_task_id(task_id)
         start_time = time.perf_counter()
         file_path = self._storage_path / f"{task_id}.json"
         if not file_path.exists():
@@ -245,6 +266,7 @@ class SubagentCheckpointStorage:
         Args:
             task_id: Task ID to delete
         """
+        task_id = _validate_checkpoint_task_id(task_id)
         file_path = self._storage_path / f"{task_id}.json"
         try:
             file_path.unlink(missing_ok=True)

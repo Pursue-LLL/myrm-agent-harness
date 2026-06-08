@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import atexit
-import json
 import logging
 import os
 import shutil
@@ -37,66 +36,6 @@ def _cleanup_temp_workspace() -> None:
 
 
 atexit.register(_cleanup_temp_workspace)
-
-
-# i18n locale files live in the server project; load them at import time
-# so every xdist worker has translations available for diagnostics tests.
-_SERVER_LOCALES_DIR = (
-    Path(__file__).parent.parent.parent
-    / "myrm-agent-server"
-    / "app"
-    / "channels"
-    / "i18n"
-    / "locales"
-)
-
-
-def _load_server_locales_once() -> None:
-    if not _SERVER_LOCALES_DIR.is_dir():
-        return
-    try:
-        from myrm_agent_harness.agent.errors.diagnostics.i18n import (
-            get_locale_manager,
-        )
-    except Exception:
-        return
-
-    manager = get_locale_manager()
-    if manager.get_supported_locales():
-        return
-
-    for name in ["en", "zh-CN", "ja", "ko", "de"]:
-        json_path = _SERVER_LOCALES_DIR / f"{name}.json"
-        if not json_path.exists():
-            continue
-        try:
-            with open(json_path, encoding="utf-8") as f:
-                flat_data = json.load(f)
-
-            trans: dict[str, dict[str, str | list[str]]] = {}
-            for k, v in flat_data.items():
-                if k.startswith("cooldown_hint_"):
-                    trans.setdefault("_cooldown_hint", {})[
-                        k.replace("cooldown_hint_", "")
-                    ] = v
-                    continue
-                if k.endswith("_resolution_steps"):
-                    trans.setdefault(k.replace("_resolution_steps", ""), {})[
-                        "resolution_steps"
-                    ] = v
-                elif k.endswith("_user_message"):
-                    trans.setdefault(k.replace("_user_message", ""), {})[
-                        "user_message"
-                    ] = v
-
-            manager.register_translations(name, trans)
-            if name == "zh-CN":
-                manager.register_translations("zh_cn", trans)
-        except Exception as e:
-            logger.warning("Failed to load test locale %s: %s", json_path, e)
-
-
-_load_server_locales_once()
 
 
 # ---------------------------------------------------------------------------

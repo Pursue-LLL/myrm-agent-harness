@@ -21,7 +21,6 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | notifications.py | Core | Push-based notification formatting for subagent completion events and active subagent context injection. | ✅ |
 | orchestrator.py | Core | Subagent composition patterns — chain, batch, and DAG execution (with Declarative Dependency Context Filtering, Auto-Vaulting, and Swarm Fission yield-resume). Delegates verification to `_orchestrator_verification`. | ✅ |
 | _orchestrator_verification.py | Internal | Adversarial verification orchestration — Worker -> Verifier -> Retry loop with structured verdict parsing and ReadonlyExecutorProxy sandboxing. | ✅ |
-| progress_calculator_example.py | Core | Custom ProgressCalculator reference implementation for weighted-task and time-based progress calculation. | — |
 | prompts.py | Core | Default prompt templates for multi-agent coordination. | ✅ |
 | registry.py | Core | Subagent configuration registry and loader. Provides global config registration and lookup. | ✅ |
 | types.py | Config | Subagent subsystem core type definitions. Defines all subagent-related data types, enums, protocols, and the DelegationCapabilityManifest | ✅ |

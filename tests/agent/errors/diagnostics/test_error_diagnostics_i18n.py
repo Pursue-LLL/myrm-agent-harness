@@ -8,6 +8,8 @@ Tests cover:
 - All 9 error types (connection, api_key, model, rate_limit, context_overflow, timeout, custom_endpoint_unreachable, custom_model_not_found, unknown)
 """
 
+from pathlib import Path
+
 import pytest
 
 from myrm_agent_harness.agent.errors.diagnostics import ErrorContext, LLMErrorDiagnostic
@@ -391,3 +393,31 @@ class TestErrorDiagnosticsI18n:
         assert result.locale == "de"
         assert "Verbindung" in result.user_message or "fehlgeschlagen" in result.user_message.lower()
         assert len(result.resolution_steps) > 0
+
+    def test_bundled_locales_load_without_server(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """LocaleManager loads packaged JSON locales without depending on myrm-agent-server."""
+        from myrm_agent_harness.agent.errors.diagnostics.i18n import LocaleManager
+
+        monkeypatch.delenv("MYRM_LOCALES_DIR", raising=False)
+
+        manager = LocaleManager()
+        assert "en" in manager.get_supported_locales()
+        assert "zh-CN" in manager.get_supported_locales()
+
+        message = manager.translate("connection", "user_message", locale="en")
+        assert isinstance(message, str)
+        assert "connect" in message.lower()
+
+    def test_myrm_locales_dir_override(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        """MYRM_LOCALES_DIR overrides bundled locale directory."""
+        from myrm_agent_harness.agent.errors.diagnostics.i18n import LocaleManager
+
+        en_file = tmp_path / "en.json"
+        en_file.write_text(
+            '{"connection_user_message": "Custom connection message", "connection_resolution_steps": ["Step 1"]}',
+            encoding="utf-8",
+        )
+
+        monkeypatch.setenv("MYRM_LOCALES_DIR", str(tmp_path))
+        manager = LocaleManager()
+        assert manager.translate("connection", "user_message", locale="en") == "Custom connection message"
