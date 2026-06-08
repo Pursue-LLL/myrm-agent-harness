@@ -103,6 +103,7 @@ class AgentEventType(StrEnum):
     TOOL_END = "tool_end"
     TOOL_FAILURE = "tool_failure"
     TOOL_STDOUT_CHUNK = "tool_stdout_chunk"
+    TOOL_EVICTED_REF = "tool_evicted_ref"
     TOOL_CANCELLED = "tool_cancelled"
     TOOL_TIMEOUT = "tool_timeout"
     TOOL_RETRY = "tool_retry"

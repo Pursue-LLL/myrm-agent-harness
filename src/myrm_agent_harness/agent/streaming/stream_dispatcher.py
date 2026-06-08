@@ -254,6 +254,19 @@ class StreamDispatcherMixin:
                     ctx,
                 )
 
+        elif event_name == "tool_evicted_ref":
+            event_data = data.get("data", {})
+            evicted_ref = event_data.get("evicted_ref", "") if isinstance(event_data, dict) else ""
+            if evicted_ref:
+                await self._emit_event(
+                    {
+                        "type": AgentEventType.TOOL_EVICTED_REF.value,
+                        "data": evicted_ref,
+                        "messageId": ctx.message_id,
+                    },
+                    ctx,
+                )
+
         elif event_name == "tasks_steps":
             event_data = data.get("data", {})
             if isinstance(event_data, dict):
