@@ -197,6 +197,20 @@ class TestPingPong:
         assert verdict.action == LoopAction.WARN
         assert verdict.loop_kind == "ping_pong"
 
+    def test_escalates_to_break(self, strict_guard: LoopGuard) -> None:
+        """A→B→A→B for pp_cycles*2 cycles (4 cycles = 8 calls) → BREAK."""
+        for _ in range(4):
+            strict_guard.pre_check("tool_a", {"x": 1})
+            strict_guard.record_result("tool_a", {"x": 1}, "ok")
+            strict_guard.pre_check("tool_b", {"y": 2})
+            strict_guard.record_result("tool_b", {"y": 2}, "ok")
+
+        verdict = strict_guard.pre_check("tool_a", {"x": 1})
+        assert verdict.action == LoopAction.BREAK
+        assert verdict.loop_kind == "ping_pong"
+        assert "tool_a" in verdict.reason
+        assert "tool_b" in verdict.reason
+
     def test_no_detect_same_tool(self, strict_guard: LoopGuard) -> None:
         """Same tool alternating doesn't count as ping-pong."""
         for _ in range(3):
