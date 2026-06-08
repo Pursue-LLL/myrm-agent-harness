@@ -3,6 +3,7 @@
 
 [INPUT]
 - toolkits.web_search_tools::SearchServiceConfig (POS: search service configuration)
+- toolkits.retriever.sufficiency (POS: Retrieval Sufficiency Guard for quality evaluation)
 - langchain.tools::tool (POS: LangChain tool decorator)
 - pydantic::BaseModel, Field, field_validator (POS: parameter validation)
 
@@ -13,6 +14,9 @@
 Web search meta-tool. Integrates web search capability as a meta-tool (high frequency, 80%+ queries require search).
 Supports batch queries, query rewriting, and cost control. Provides real-time information retrieval via
 SearchServiceConfig-configured search engines.
+
+When sufficiency evaluation is enabled, post-search results are evaluated for completeness
+and negative constraint violations, with guidance appended for the agent to act upon.
 
 Contains:
 1. create_web_search_tool: web search tool
@@ -27,19 +31,25 @@ from langchain.tools import tool
 from pydantic import BaseModel, Field, field_validator
 
 if TYPE_CHECKING:
+    from myrm_agent_harness.core.config.llm import LLMConfig
     from myrm_agent_harness.toolkits.retriever.reranker.factory import RerankerConfig
+    from myrm_agent_harness.toolkits.retriever.sufficiency import SufficiencyConfig
     from myrm_agent_harness.toolkits.web_search.engine import SearchServiceConfig
 
 
 def create_web_search_tool(
     search_service_cfg: SearchServiceConfig,
     reranker_config: RerankerConfig | None = None,
+    sufficiency_config: SufficiencyConfig | None = None,
+    sufficiency_llm_config: LLMConfig | None = None,
 ):
     """Create a web search meta-tool.
 
     Args:
         search_service_cfg: Search service configuration
         reranker_config: Reranker model configuration (optional); when provided, precision mode is auto-enabled
+        sufficiency_config: RSG configuration (optional); enables retrieval quality evaluation
+        sufficiency_llm_config: LLM config for the sufficiency evaluator (required if sufficiency_config.enabled)
 
     Returns:
         web_search_tool tool function
@@ -169,12 +179,53 @@ Example:
         else:
             content = formatted_context
 
+        sufficiency_metadata: dict[str, object] = {}
+
+        if sufficiency_config and sufficiency_config.enabled and sufficiency_llm_config and content:
+            from myrm_agent_harness.toolkits.retriever.sufficiency import evaluate_sufficiency
+
+            original_query = " | ".join(questions)
+            verdict = await evaluate_sufficiency(
+                query=original_query,
+                snippets=content,
+                llm_config=sufficiency_llm_config,
+                config=sufficiency_config,
+            )
+
+            sufficiency_metadata = {
+                "is_sufficient": verdict.is_sufficient,
+                "confidence": verdict.confidence,
+                "missing_aspects": list(verdict.missing_aspects),
+                "suggested_queries": list(verdict.suggested_queries),
+                "negative_constraint_violations": list(verdict.negative_constraint_violations),
+            }
+
+            if not verdict.is_sufficient and verdict.confidence >= sufficiency_config.confidence_threshold:
+                guidance_parts: list[str] = []
+                if verdict.missing_aspects:
+                    guidance_parts.append(
+                        "**Missing information**: " + "; ".join(verdict.missing_aspects)
+                    )
+                if verdict.suggested_queries:
+                    guidance_parts.append(
+                        "**Suggested follow-up searches**: " + ", ".join(f'"{q}"' for q in verdict.suggested_queries)
+                    )
+                if verdict.negative_constraint_violations:
+                    guidance_parts.append(
+                        "**Exclusion violations** (user requested these be excluded): "
+                        + "; ".join(verdict.negative_constraint_violations)
+                    )
+                if guidance_parts:
+                    notice = "\n\n---\n⚠️ **Retrieval Sufficiency Notice**: The search results may be incomplete.\n"
+                    content += notice + "\n".join(guidance_parts)
+
         return {
             "content": content,
             "metadata": {
                 "sources": sources_metadata,
                 "search_queries": questions,
                 "total_results": len(sources_metadata),
+                **({"sufficiency": sufficiency_metadata} if sufficiency_metadata else {}),
             },
         }
 

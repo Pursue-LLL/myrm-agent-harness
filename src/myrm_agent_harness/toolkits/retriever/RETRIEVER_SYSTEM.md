@@ -53,6 +53,7 @@ hybrid_retriever (混合检索器)
 | **splitter/** | 文档分块（多种分块策略） |
 | **preprocessing/** | 文档预处理（过滤、清理、标准化） |
 | **hybrid_search/** | 混合搜索管道（检索 → 融合 → 重排序） |
+| **sufficiency/** | 检索充分性评估（LLM-based 后检索质量判断 + 负面约束检测） |
 | **vector_search/** | 向量搜索（Qdrant、Numpy 等后端） |
 
 ---

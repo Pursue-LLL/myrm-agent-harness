@@ -6,6 +6,7 @@ Contains:
 [INPUT]
 - toolkits.retriever.embedding.factory::EmbeddingConfig (POS: Embedding factory. Centralises embedding-service instantiation and ensures process-wide singleton semantics per configuration tuple.)
 - toolkits.retriever.reranker.factory::RerankerConfig (POS: Reranker factory. Centralises reranker-service instantiation and ensures process-wide singleton semantics per configuration tuple.)
+- toolkits.retriever.sufficiency (POS: Retrieval Sufficiency Guard for quality evaluation)
 - toolkits.web_fetch.task_store::CrawlTaskStore (POS: SQLite WAL-backed durable task store for deep_crawl operations.)
 - utils.errors::ToolError (POS: Storage quota related errors.)
 
@@ -13,7 +14,8 @@ Contains:
 - create_web_fetch_tool: Create web fetch meta-tool
 
 [POS]
-Web fetch meta-tool
+Web fetch meta-tool. Supports sufficiency evaluation on fetch_and_extract results
+when configured, appending guidance for insufficient retrieval.
 """
 
 from __future__ import annotations
@@ -24,8 +26,10 @@ from langchain.tools import tool
 from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
+    from myrm_agent_harness.core.config.llm import LLMConfig
     from myrm_agent_harness.toolkits.retriever.embedding.factory import EmbeddingConfig
     from myrm_agent_harness.toolkits.retriever.reranker.factory import RerankerConfig
+    from myrm_agent_harness.toolkits.retriever.sufficiency import SufficiencyConfig
 
 from myrm_agent_harness.utils.errors import ToolError
 
@@ -110,6 +114,8 @@ def create_web_fetch_tool(
     use_raw_markdown: bool = False,
     allow_private_networks: bool = False,
     data_dir: str | None = None,
+    sufficiency_config: SufficiencyConfig | None = None,
+    sufficiency_llm_config: LLMConfig | None = None,
 ):
     """Create web fetch meta-tool
 
@@ -119,9 +125,11 @@ def create_web_fetch_tool(
         use_raw_markdown: When True, retains raw webpage content (including ads/sidebars); when False, smart-cleaned.
         allow_private_networks: Skip SSRF private-IP blocking (local mode).
         data_dir: Sandbox data directory for deep_crawl result storage.
+        sufficiency_config: RSG configuration (optional); enables retrieval quality evaluation on extract results.
+        sufficiency_llm_config: LLM config for sufficiency evaluator (required if sufficiency_config.enabled).
 
-    When both are provided, enables fetch_and_extract smart extraction；
-    Otherwise only exposes fetch_full_content full crawl。
+    When both reranker and embedding are provided, enables fetch_and_extract smart extraction;
+    Otherwise only exposes fetch_full_content full crawl.
     """
     enable_extract = reranker_config is not None and embedding_config is not None
     if enable_extract:
@@ -244,13 +252,53 @@ def create_web_fetch_tool(
                 user_hint="Provide 1-5 search queries in the 'questions' parameter for fetch_and_extract.",
             )
         assert reranker_config is not None and embedding_config is not None
-        return await _fetch_and_extract(
+        result = await _fetch_and_extract(
             urls,
             questions,
             reranker_config,
             embedding_config,
             allow_private_networks=allow_private_networks,
         )
+
+        if sufficiency_config and sufficiency_config.enabled and sufficiency_llm_config and result.get("content"):
+            from myrm_agent_harness.toolkits.retriever.sufficiency import evaluate_sufficiency
+
+            original_query = " | ".join(questions)
+            verdict = await evaluate_sufficiency(
+                query=original_query,
+                snippets=result["content"],
+                llm_config=sufficiency_llm_config,
+                config=sufficiency_config,
+            )
+
+            if not verdict.is_sufficient and verdict.confidence >= sufficiency_config.confidence_threshold:
+                guidance_parts: list[str] = []
+                if verdict.missing_aspects:
+                    guidance_parts.append("**Missing information**: " + "; ".join(verdict.missing_aspects))
+                if verdict.suggested_queries:
+                    guidance_parts.append(
+                        "**Suggested follow-up searches**: " + ", ".join(f'"{q}"' for q in verdict.suggested_queries)
+                    )
+                if verdict.negative_constraint_violations:
+                    guidance_parts.append(
+                        "**Exclusion violations** (user requested these be excluded): "
+                        + "; ".join(verdict.negative_constraint_violations)
+                    )
+                if guidance_parts:
+                    notice = "\n\n---\n⚠️ **Retrieval Sufficiency Notice**: The extracted content may be incomplete.\n"
+                    result["content"] += notice + "\n".join(guidance_parts)
+
+                metadata = result.get("metadata", {})
+                if isinstance(metadata, dict):
+                    metadata["sufficiency"] = {
+                        "is_sufficient": verdict.is_sufficient,
+                        "confidence": verdict.confidence,
+                        "missing_aspects": list(verdict.missing_aspects),
+                        "suggested_queries": list(verdict.suggested_queries),
+                        "negative_constraint_violations": list(verdict.negative_constraint_violations),
+                    }
+
+        return result
 
     return web_fetch_func
 

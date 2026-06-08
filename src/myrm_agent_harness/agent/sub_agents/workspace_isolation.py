@@ -114,8 +114,9 @@ def _merge_tree_additive(src: Path, dst: Path) -> None:
     """Merge src into dst without deleting files that exist only in dst.
 
     Used when multiple isolated subagents merge back into the same parent workspace.
+    Skips the same directories excluded during clone (_CLONE_IGNORE_DIRS).
     """
-    ignore_dirs = {".git"}
+    ignore_dirs = _CLONE_IGNORE_DIRS
     for src_dir, dirs, files in os.walk(src):
         dirs[:] = [d for d in dirs if d not in ignore_dirs]
         rel_path = os.path.relpath(src_dir, src)
@@ -133,11 +134,10 @@ def _sync_tree(src: Path, dst: Path) -> None:
 
     Handles additions, modifications, and deletions.
     Optimized with shallow=True (stat-based compare) for performance.
-    Safeguards critical metadata directories (like .git) from being overwritten.
+    Safeguards directories that were excluded during clone (_CLONE_IGNORE_DIRS)
+    so that sync-back never deletes or overwrites them in the parent workspace.
     """
-    # Critical safeguards: Do not sync version control metadata from a speculative branch
-    # back to the main workspace, as it will corrupt the main repository's state.
-    ignore_dirs = {".git"}
+    ignore_dirs = _CLONE_IGNORE_DIRS
 
     # 1. Traverse src and copy/overwrite to dst (Additions & Modifications)
     for src_dir, dirs, files in os.walk(src):
@@ -158,8 +158,9 @@ def _sync_tree(src: Path, dst: Path) -> None:
                 shutil.copy2(src_file, dst_file)
 
     # 2. Traverse dst and delete things not in src (Deletions)
-    for dst_dir, dirs, files in os.walk(dst, topdown=False):
-        # Filter ignored directories in-place so we don't delete them from dst!
+    # Use topdown=True so dirs[:] filtering actually prevents descent into
+    # ignored directories (topdown=False would descend first, then yield).
+    for dst_dir, dirs, files in os.walk(dst):
         dirs[:] = [d for d in dirs if d not in ignore_dirs]
 
         rel_path = os.path.relpath(dst_dir, dst)
@@ -170,10 +171,11 @@ def _sync_tree(src: Path, dst: Path) -> None:
             if not src_file.exists():
                 (Path(dst_dir) / f).unlink(missing_ok=True)
 
-        for d in dirs:
+        for d in list(dirs):
             src_d = src_dir / d
             if not src_d.exists():
                 shutil.rmtree(Path(dst_dir) / d, ignore_errors=True)
+                dirs.remove(d)
 
 
 async def _sync_workspace_back(src_workspace: Path, dst_workspace: Path) -> None:
@@ -185,6 +187,8 @@ async def _sync_workspace_back(src_workspace: Path, dst_workspace: Path) -> None
 @asynccontextmanager
 async def isolated_workspace(
     parent_workspace: str | Path,
+    *,
+    max_bytes: int = _DEFAULT_MAX_CLONE_BYTES,
 ) -> AsyncGenerator[tuple[Path, Callable[[], Coroutine[None, None, None]]]]:
     """Context manager that creates an isolated workspace copy.
 
@@ -204,7 +208,9 @@ async def isolated_workspace(
 
     try:
         loop = asyncio.get_event_loop()
-        count = await loop.run_in_executor(None, _clone_workspace, parent_path, child_path)
+        count = await loop.run_in_executor(
+            None, lambda: _clone_workspace(parent_path, child_path, max_bytes=max_bytes),
+        )
         logger.info("Isolated workspace created: %s (%d files cloned)", child_path, count)
 
         async def _sync_back() -> None:

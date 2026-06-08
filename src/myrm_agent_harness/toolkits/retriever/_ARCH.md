@@ -25,6 +25,7 @@ Detailed design: [RETRIEVER_SYSTEM.md](RETRIEVER_SYSTEM.md)
 | preprocessing/ | documentpre-handlesmodule |
 | reranker/ | Reranker Service Toolkit. |
 | splitter/ | textsplittoolmodule |
+| sufficiency/ | Retrieval Sufficiency Guard (RSG) — LLM-based evaluation of retrieval completeness with negative constraint detection. Conditionally activated post-retrieval to assess result quality and guide re-search. |
 | vector_search/ | Pure in-memory vector retrieval module |
 
 ## Key Dependencies
