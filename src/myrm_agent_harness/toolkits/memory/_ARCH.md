@@ -10,8 +10,8 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 
 | File                     | Role     | Description                                                                                                   | I/O/P |
 | ------------------------ | -------- | ------------------------------------------------------------------------------------------------------------- | ----- |
-| **init**.py              | Package  | Pluggable memory system for AI agents.                                                                        | —     |
-| \_assistant_retrieval.py | Internal | Two-Pass Assistant Retrieval for assistant-reference queries (MemPalace enhancement).                         | ✅    |
+| __init__.py              | Package  | Pluggable memory system for AI agents.                                                                        | —     |
+| _assistant_retrieval.py  | Internal | Two-Pass Assistant Retrieval for assistant-reference queries (MemPalace enhancement).                         | ✅    |
 | adaptive.py              | Core     | Adaptive dual-channel selection logic. Analyzes query characteristics (token count,                           | ✅    |
 | archival.py              | Core     | Provides ArchivalCandidate, ArchivalStrategy, TimeBasedArchivalStrategy.                                      | ✅    |
 | backup.py                | Core     | Provides BackupMetadata, BackupResult, RestoreResult.                                                         | ✅    |
@@ -41,7 +41,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | signals.py               | Core     | Context signal calculator for memory retrieval scoring. Provides normalized [0,1] factors                     | ✅    |
 | text_utils.py            | Core     | Unified multi-language tokenization for memory retrieval. Uses re.UNICODE                                     | ✅    |
 | tool_capture.py          | Core     | Tool-scoped memory capture hook. Detects user edicts and repeated tool failures, auto-creates procedural rules. | ✅    |
-| pre_compact_service.py   | Core     | Default ContextPreCompactCallback. Semantic search + budget guardrails + timeout for pre-compaction recall HumanMessage injection. | ✅    |
 | types.py                 | Core     | Memory type system foundation. Provides MemoryType, MemoryStatus, exact mutation outcome DTOs, profile attribute snapshots, BaseMemory and all typed memory schemas. | ✅    |
 
 | Submodule   | Description                                                                       |

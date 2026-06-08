@@ -21,7 +21,7 @@
   ],
   "api_key_user_message": "APIキー認証に失敗しました",
   "api_key_resolution_steps": [
-    "MYRM_API_KEY環境変数を確認してください",
+    "設定 > モデル でAPIキーを更新してください",
     "APIキーが有効で期限切れでないことを確認してください",
     "APIキーに正しい権限があるか確認してください",
     "Ollama/LM Studioの場合：api_keyに'dummy'または空文字列を使用してください"

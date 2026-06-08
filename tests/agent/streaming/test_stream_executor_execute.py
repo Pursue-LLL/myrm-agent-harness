@@ -4,9 +4,9 @@
 - 正常执行流（无异常 → 正常结束）
 - Cancel token 触发取消
 - overflow 异常 → recovery + continue
-- failover 异常 → 切换模型 + continue
-- transient retry 异常 → backoff + continue
 - fatal error → _emit_fatal_error → MyrmLLMError
+- recovery_actions 注入（api_key / billing / model → 含 actions；unknown → 不含）
+- diagnostic 失败时不注入 recovery_actions
 - subagent notification → SSE 事件
 - steering 注入 → 新轮次
 """
@@ -305,3 +305,147 @@ async def test_execute_subagent_notification(fire_hook_mock, base_ctx):
     ]
     assert len(subagent_events) == 1
     assert "Subagent completed" in str(subagent_events[0].get("data", ""))
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_emit_fatal_error_includes_recovery_actions_for_api_key(fire_hook_mock, base_ctx):
+    """API key errors include recovery_actions in error event."""
+    from myrm_agent_harness.toolkits.llms.errors import MyrmLLMError
+
+    executor = _make_executor(base_ctx)
+
+    async def _astream_api_key_error(*args, **kwargs):
+        raise RuntimeError("Invalid API key: authentication failed (401)")
+        yield
+
+    base_ctx.agent.astream = _astream_api_key_error
+
+    with pytest.raises(MyrmLLMError):
+        await executor.execute()
+
+    error_events = [
+        e for e in executor._compactor.events
+        if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
+    ]
+    assert len(error_events) == 1
+    assert "diagnostic_result" in error_events[0]
+    assert error_events[0]["diagnostic_result"]["error_type"] == "api_key"
+    assert "recovery_actions" in error_events[0]
+    actions = error_events[0]["recovery_actions"]
+    assert len(actions) == 1
+    assert actions[0]["id"] == "update_key"
+    assert actions[0]["url"] == "/settings"
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_emit_fatal_error_includes_recovery_actions_for_billing(fire_hook_mock, base_ctx):
+    """Billing errors include recovery_actions with top_up action."""
+    from myrm_agent_harness.toolkits.llms.errors import MyrmLLMError
+
+    executor = _make_executor(base_ctx)
+
+    async def _astream_billing_error(*args, **kwargs):
+        raise RuntimeError("You exceeded your current quota (402)")
+        yield
+
+    base_ctx.agent.astream = _astream_billing_error
+
+    with pytest.raises(MyrmLLMError):
+        await executor.execute()
+
+    error_events = [
+        e for e in executor._compactor.events
+        if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
+    ]
+    assert len(error_events) == 1
+    assert error_events[0]["diagnostic_result"]["error_type"] == "billing"
+    assert "recovery_actions" in error_events[0]
+    assert error_events[0]["recovery_actions"][0]["id"] == "top_up"
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_emit_fatal_error_includes_recovery_actions_for_model(fire_hook_mock, base_ctx):
+    """Model-not-found errors include recovery_actions with change_model action."""
+    from myrm_agent_harness.toolkits.llms.errors import MyrmLLMError
+
+    executor = _make_executor(base_ctx)
+
+    async def _astream_model_error(*args, **kwargs):
+        raise RuntimeError("model not found: gpt-5-turbo does not exist")
+        yield
+
+    base_ctx.agent.astream = _astream_model_error
+
+    with pytest.raises(MyrmLLMError):
+        await executor.execute()
+
+    error_events = [
+        e for e in executor._compactor.events
+        if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
+    ]
+    assert len(error_events) == 1
+    assert error_events[0]["diagnostic_result"]["error_type"] == "model"
+    assert "recovery_actions" in error_events[0]
+    assert error_events[0]["recovery_actions"][0]["id"] == "change_model"
+    assert error_events[0]["recovery_actions"][0]["url"] == "/settings"
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_emit_fatal_error_no_recovery_actions_for_unknown(fire_hook_mock, base_ctx):
+    """Unknown errors do NOT include recovery_actions."""
+    from myrm_agent_harness.toolkits.llms.errors import MyrmLLMError
+
+    executor = _make_executor(base_ctx)
+
+    async def _astream_unknown(*args, **kwargs):
+        raise RuntimeError("unrecoverable internal error xyz")
+        yield
+
+    base_ctx.agent.astream = _astream_unknown
+
+    with pytest.raises(MyrmLLMError):
+        await executor.execute()
+
+    error_events = [
+        e for e in executor._compactor.events
+        if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
+    ]
+    assert len(error_events) == 1
+    assert "diagnostic_result" in error_events[0]
+    assert error_events[0]["diagnostic_result"]["error_type"] == "unknown"
+    assert "recovery_actions" not in error_events[0]
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+@patch("myrm_agent_harness.agent.errors.diagnostics.LLMErrorDiagnostic")
+async def test_emit_fatal_error_no_recovery_actions_on_diagnostic_failure(
+    diag_mock, fire_hook_mock, base_ctx
+):
+    """When diagnostics crash, no recovery_actions field is emitted."""
+    from myrm_agent_harness.toolkits.llms.errors import MyrmLLMError
+
+    diag_mock.diagnose.side_effect = Exception("diagnostic engine crash")
+    diag_mock.get_recovery_actions.side_effect = Exception("should not be called")
+    executor = _make_executor(base_ctx)
+
+    async def _astream_fatal(*args, **kwargs):
+        raise RuntimeError("api key invalid (401)")
+        yield
+
+    base_ctx.agent.astream = _astream_fatal
+
+    with pytest.raises(MyrmLLMError):
+        await executor.execute()
+
+    error_events = [
+        e for e in executor._compactor.events
+        if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
+    ]
+    assert len(error_events) == 1
+    assert "diagnostic_result" not in error_events[0]
+    assert "recovery_actions" not in error_events[0]

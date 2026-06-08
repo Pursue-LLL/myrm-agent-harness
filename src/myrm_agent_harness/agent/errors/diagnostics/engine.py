@@ -350,6 +350,54 @@ class LLMErrorDiagnostic:
             locale=locale,
         )
 
+    _RECOVERY_ACTION_DEFS: dict[str, list[tuple[str, str]]] = {
+        "api_key": [("update_key", "/settings")],
+        "billing": [("top_up", "/settings")],
+        "model": [("change_model", "/settings")],
+        "custom_model_not_found": [("change_model", "/settings")],
+    }
+
+    _RECOVERY_LABELS: dict[str, str] = {
+        "update_key": "Update API Key",
+        "top_up": "Top Up Balance",
+        "change_model": "Change Model",
+    }
+
+    _RECOVERY_LABELS_I18N: dict[str, dict[str, str]] = {
+        "zh-CN": {"update_key": "更新 API 密钥", "top_up": "充值余额", "change_model": "切换模型"},
+        "ja": {"update_key": "APIキーを更新", "top_up": "残高をチャージ", "change_model": "モデルを変更"},
+        "ko": {"update_key": "API 키 업데이트", "top_up": "잔액 충전", "change_model": "모델 변경"},
+        "de": {"update_key": "API-Schlüssel aktualisieren", "top_up": "Guthaben aufladen", "change_model": "Modell wechseln"},
+    }
+
+    @staticmethod
+    def get_recovery_actions(error_type: str, locale: str = "en") -> list[dict[str, str]]:
+        """Return localized actionable recovery buttons for the given error type.
+
+        Each action is a dict with {id, label, url} matching the frontend RecoveryAction type.
+        Only error types with clear, single-click resolutions produce actions.
+        """
+        defs = LLMErrorDiagnostic._RECOVERY_ACTION_DEFS.get(error_type)
+        if not defs:
+            return []
+
+        locale_labels = LLMErrorDiagnostic._RECOVERY_LABELS_I18N.get(locale, {})
+        if not locale_labels:
+            lang = locale.split("-")[0].split("_")[0]
+            for key in LLMErrorDiagnostic._RECOVERY_LABELS_I18N:
+                if key.split("-")[0] == lang:
+                    locale_labels = LLMErrorDiagnostic._RECOVERY_LABELS_I18N[key]
+                    break
+
+        return [
+            {
+                "id": action_id,
+                "label": locale_labels.get(action_id, LLMErrorDiagnostic._RECOVERY_LABELS[action_id]),
+                "url": url,
+            }
+            for action_id, url in defs
+        ]
+
     @staticmethod
     def _infer_service_name(base_url: str | None) -> str:
         """推断服务名称(Ollama/LM Studio/vLLM/自定义LLM服务)"""

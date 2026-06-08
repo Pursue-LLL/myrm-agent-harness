@@ -651,7 +651,7 @@ session = MemorySession(manager=mm, chat_id="...", tool_capture_hook=hook)
 # session.flush() 自动 drain pending rules
 ```
 
-### 7.5 Pre-Compaction Recall (`pre_compact_service.py`)
+### 7.5 Pre-Compaction Recall (`agent/context_management/pre_compact_service.py`)
 
 `MemoryPreCompactService` 是框架默认的 `ContextPreCompactCallback` 实现，在上下文 compaction 发生前从持久记忆库语义召回相关约束，并格式化为受保护的 `HumanMessage` 注入块（`wrap_untrusted(source="pre_compact_recall")` + `<pre_compact_recall_context>` marker）。
 

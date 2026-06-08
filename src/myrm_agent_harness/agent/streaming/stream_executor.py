@@ -457,6 +457,10 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                 "resolution_steps": diagnostic.resolution_steps,
                 "locale": diagnostic.locale,
             }
+
+            recovery_actions = LLMErrorDiagnostic.get_recovery_actions(diagnostic.error_type, locale=diagnostic.locale)
+            if recovery_actions:
+                error_event["recovery_actions"] = recovery_actions
         except Exception as diag_err:
             logger.error("Diagnostic generation failed: %s", diag_err)
 

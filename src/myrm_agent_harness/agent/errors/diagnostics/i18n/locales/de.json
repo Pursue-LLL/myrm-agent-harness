@@ -21,7 +21,7 @@
   ],
   "api_key_user_message": "API-Schlüssel-Authentifizierung fehlgeschlagen",
   "api_key_resolution_steps": [
-    "Überprüfen Sie die MYRM_API_KEY-Umgebungsvariable",
+    "Aktualisieren Sie Ihren API-Schlüssel unter Einstellungen > Modelle",
     "Stellen Sie sicher, dass der API-Schlüssel gültig und nicht abgelaufen ist",
     "Überprüfen Sie, ob der API-Schlüssel die richtigen Berechtigungen hat",
     "Für Ollama/LM Studio: Verwenden Sie 'dummy' oder einen leeren String als api_key"

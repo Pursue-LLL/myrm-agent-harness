@@ -12,18 +12,9 @@ Performs stateless sweeps: evaluates skills against CuratorConfig thresholds, ap
 | engine.py | Core | SkillCurator: stateless curator engine that orchestrates lifecycle sweeps + LRU eviction + consolidation. | ✅ |
 | types.py | Core | CuratorTransition, CuratorRunResult data types. | ✅ |
 
-### consolidation/ submodule
-
-Skill consolidation (umbrella merge) subsystem. Detects fragmented skill clusters and merges them into class-level umbrella skills.
-
-| File | Role | Description |
-|------|------|-------------|
-| __init__.py | Package | Re-exports orchestrator + all types. |
-| types.py | Data | SkillCluster, ConsolidationAction, ConsolidationPlan, ConsolidationReport, etc. |
-| cluster_detector.py | Detection | Hybrid prefix + embedding-based cluster detection. |
-| judge.py | Decision | LLM structured-output judge for merge strategy. |
-| executor.py | Execution | Applies MERGE/CREATE_UMBRELLA/DEMOTE actions, archives sources, inherits stats. |
-| orchestrator.py | Pipeline | SkillConsolidator: wires detect→judge→execute with dry-run support. |
+| Submodule | Description |
+|-----------|-------------|
+| consolidation/ | Skill consolidation (umbrella merge). See [consolidation/_ARCH.md](consolidation/_ARCH.md). |
 
 ## Key Dependencies
 

@@ -23,7 +23,7 @@ def test_diagnose_api_key_error():
     assert result.error_type == "api_key"
     assert "authentication failed" in result.user_message.lower()
     assert len(result.resolution_steps) > 0
-    assert any("MYRM_API_KEY" in step for step in result.resolution_steps)
+    assert any("API key" in step for step in result.resolution_steps)
     assert result.is_retryable is False
 
 
@@ -281,3 +281,67 @@ def test_billing_with_cooldown_hint():
 
     assert result.error_type == "billing"
     assert "5" in result.user_message
+
+
+class TestGetRecoveryActions:
+    """Tests for LLMErrorDiagnostic.get_recovery_actions()."""
+
+    def test_api_key_returns_update_action(self):
+        actions = LLMErrorDiagnostic.get_recovery_actions("api_key")
+        assert len(actions) == 1
+        assert actions[0]["id"] == "update_key"
+        assert actions[0]["url"] == "/settings"
+        assert actions[0]["label"] == "Update API Key"
+
+    def test_billing_returns_top_up_action(self):
+        actions = LLMErrorDiagnostic.get_recovery_actions("billing")
+        assert len(actions) == 1
+        assert actions[0]["id"] == "top_up"
+        assert actions[0]["url"] == "/settings"
+
+    def test_model_returns_change_model_action(self):
+        actions = LLMErrorDiagnostic.get_recovery_actions("model")
+        assert len(actions) == 1
+        assert actions[0]["id"] == "change_model"
+
+    def test_custom_model_not_found_returns_change_model(self):
+        actions = LLMErrorDiagnostic.get_recovery_actions("custom_model_not_found")
+        assert len(actions) == 1
+        assert actions[0]["id"] == "change_model"
+
+    def test_unknown_error_returns_empty(self):
+        assert LLMErrorDiagnostic.get_recovery_actions("unknown") == []
+
+    def test_connection_error_returns_empty(self):
+        assert LLMErrorDiagnostic.get_recovery_actions("connection") == []
+
+    def test_rate_limit_returns_empty(self):
+        assert LLMErrorDiagnostic.get_recovery_actions("rate_limit") == []
+
+    def test_chinese_locale(self):
+        actions = LLMErrorDiagnostic.get_recovery_actions("api_key", locale="zh-CN")
+        assert actions[0]["label"] == "更新 API 密钥"
+
+    def test_japanese_locale(self):
+        actions = LLMErrorDiagnostic.get_recovery_actions("billing", locale="ja")
+        assert actions[0]["label"] == "残高をチャージ"
+
+    def test_korean_locale(self):
+        actions = LLMErrorDiagnostic.get_recovery_actions("model", locale="ko")
+        assert actions[0]["label"] == "모델 변경"
+
+    def test_german_locale(self):
+        actions = LLMErrorDiagnostic.get_recovery_actions("api_key", locale="de")
+        assert actions[0]["label"] == "API-Schlüssel aktualisieren"
+
+    def test_unsupported_locale_falls_back_to_english(self):
+        actions = LLMErrorDiagnostic.get_recovery_actions("api_key", locale="fr")
+        assert actions[0]["label"] == "Update API Key"
+
+    def test_locale_prefix_fallback_zh_to_zh_cn(self):
+        actions = LLMErrorDiagnostic.get_recovery_actions("api_key", locale="zh")
+        assert actions[0]["label"] == "更新 API 密钥"
+
+    def test_locale_prefix_fallback_zh_tw_to_zh_cn(self):
+        actions = LLMErrorDiagnostic.get_recovery_actions("billing", locale="zh_TW")
+        assert actions[0]["label"] == "充值余额"

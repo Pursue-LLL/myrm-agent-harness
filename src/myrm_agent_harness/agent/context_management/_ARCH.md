@@ -10,6 +10,7 @@ Context management module. Prompt cache practice (break attribution, skill catal
 | __init__.py | Package | Context management module. | — |
 | context.py | Core | Agent runtime context definition. Provides a type-safe context container for passing user, session,  | ✅ |
 | preheat.py | Utility | Prefix cache preheat after idle compression. Sends max_tokens=1 probe to warm provider's prefix cache for explicit-cache providers (Anthropic, Qwen). | ✅ |
+| pre_compact_service.py | Core | MemoryPreCompactService — default ContextPreCompactCallback; semantic recall before compaction. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

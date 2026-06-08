@@ -13,7 +13,7 @@ Tools registered: **86** (CORE 2 + COMMON 6 + EXTENDED 78). Source of truth: `to
 |------|------|-------------|-------|
 | __init__.py | Package | Tool management subsystem — unified tool registration, dedup, ordering, and lifecycle. | — |
 | lifecycle_manager.py | Core | Orchestrates tool lifecycle: initialize_tools() -> cleanup_tools() | ✅ |
-| lifecycle_protocols.py | Core | Defines the protocol for tools that need lifecycle management (init/cleanup). | ✅ |
+| lifecycle_protocol.py | Core | LifecycleAwareTool protocol for tools needing init/cleanup. | ✅ |
 | registry.py | Core | Replaces the scattered ``_deduplicate_tools()`` + ``sort_tools()`` calls in BaseAgent. Supports deferred tools. | ✅ |
 | action_space.py | Core | ActionSpaceProfiler: 动作空间量化引擎，计算工具 Schema 复杂度 (ASCS)。 | ✅ |
 | tool_layers.py | Core | Tool layer priority registry. Defines CORE/COMMON/EXTENDED three-tier tool priorities. CORE: `request_answer_user_tool`, `web_fetch_tool`. COMMON: bash/file_edit/read/write/planner/web_search. EXTENDED: all others. `ToolRegistry.register()` emits WARNING for unregistered tools. | ✅ |

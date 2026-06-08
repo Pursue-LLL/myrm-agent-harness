@@ -21,7 +21,7 @@
   ],
   "api_key_user_message": "API 키 인증에 실패했습니다",
   "api_key_resolution_steps": [
-    "MYRM_API_KEY 환경 변수를 확인하세요",
+    "설정 > 모델 에서 API 키를 업데이트하세요",
     "API 키가 유효하고 만료되지 않았는지 확인하세요",
     "API 키에 올바른 권한이 있는지 확인하세요",
     "Ollama/LM Studio의 경우: api_key로 'dummy' 또는 빈 문자열을 사용하세요"

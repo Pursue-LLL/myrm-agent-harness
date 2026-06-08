@@ -21,7 +21,7 @@
   ],
   "api_key_user_message": "API key authentication failed",
   "api_key_resolution_steps": [
-    "Check MYRM_API_KEY environment variable",
+    "Update your API key in Settings > Models",
     "Verify API key is valid and not expired",
     "Check if API key has correct permissions",
     "For Ollama/LM Studio: use 'dummy' or empty string as api_key"

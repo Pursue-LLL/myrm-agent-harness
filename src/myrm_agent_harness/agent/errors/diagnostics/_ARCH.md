@@ -8,7 +8,7 @@ Error diagnostics component. Provides LLM error classification, context extracti
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Error diagnostics — data types (ErrorContext, DiagnosticResult) and re-exports. | ✅ |
-| engine.py | Core | LLMErrorDiagnostic — error classification engine with 9 diagnostic branches (connection, billing, api_key, model, rate_limit, response_format, context_overflow, timeout, unknown) + custom endpoint variants + truncation diagnostics + cooldown hints. | ✅ |
+| engine.py | Core | LLMErrorDiagnostic — error classification engine with 9 diagnostic branches (connection, billing, api_key, model, rate_limit, response_format, context_overflow, timeout, unknown) + custom endpoint variants + truncation diagnostics + cooldown hints + recovery action mapping. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

@@ -21,7 +21,7 @@
   ],
   "api_key_user_message": "API 密钥认证失败",
   "api_key_resolution_steps": [
-    "检查 MYRM_API_KEY 环境变量",
+    "在 设置 > 模型 中更新您的 API 密钥",
     "验证 API 密钥是否有效且未过期",
     "检查 API 密钥是否具有正确的权限",
     "对于 Ollama/LM Studio: 使用 'dummy' 或空字符串作为 api_key"

@@ -11,7 +11,7 @@ Detailed design: [CONVERSATION_FORK_DESIGN.md](CONVERSATION_FORK_DESIGN.md)
 |------|------|-------------|-------|
 | __init__.py | Package | Agent runtime infrastructure for single-instance execution. | — |
 | artifact_judge.py | Core | Artifact identification system. | ✅ |
-| checkpoint_protocols.py | Core | Protocol definition for checkpointer objects. | ✅ |
+| checkpoint_protocol.py | Core | CheckpointerProtocol for type-safe checkpointer thread store access. | ✅ |
 | compression.py | Core | Generic file compression utilities for storage optimization. | ✅ |
 | doctor.py | Core | Concurrent diagnostic engine. Async-parallel model with lightweight HTTP probe, deploy mode awareness, and structured diagnostics. | ✅ |
 | doctor_cli.py | Core | CLI Formatter for Myrm Doctor. | ✅ |
