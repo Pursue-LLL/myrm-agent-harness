@@ -27,7 +27,7 @@ Planner Agent - Independent Task Planning Sub-agent
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -161,11 +161,11 @@ class PlannerAgent:
 
                 logger.warning(f" Error escalated: {error.error_type} (retry {error.retry_count} times)")
 
-    async def create_plan(self, task_description: str) -> Plan:
-        """Create new plan
+    async def create_plan(self, task_description: str | list[dict[str, Any]]) -> Plan:
+        """Create new plan from text or multimodal content.
 
         Args:
-            task_description: Task description
+            task_description: Plain text or multimodal content parts (text + images).
 
         Returns:
             Structured plan object
@@ -173,14 +173,24 @@ class PlannerAgent:
         Raises:
             ValueError: If LLM returns unexpected type
         """
-        logger.warning(" PlannerAgent: Creating plan - %s...", task_description[:50])
+        log_preview = task_description[:50] if isinstance(task_description, str) else "[multimodal]"
+        logger.warning(" PlannerAgent: Creating plan - %s...", log_preview)
 
-        # Use structured output
         structured_llm = self.llm.with_structured_output(Plan)
+
+        if isinstance(task_description, str):
+            human_content: str | list[dict[str, Any]] = (
+                f"Please create a plan for the following task:\n\n{task_description}"
+            )
+        else:
+            human_content = [
+                {"type": "text", "text": "Please create a plan for the following task:\n\n"},
+                *task_description,
+            ]
 
         messages = [
             SystemMessage(content=self.system_prompt),
-            HumanMessage(content=f"Please create a plan for the following task:\n\n{task_description}"),
+            HumanMessage(content=human_content),
         ]
 
         plan = await structured_llm.ainvoke(messages)

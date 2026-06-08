@@ -64,6 +64,7 @@ def create_mock_skill(
     skill.storage_path = f"/tmp/skills/{name}"
     skill.trust = trust
     skill.usage_stats = stats
+    skill.evolution_locked = False
     return skill
 
 

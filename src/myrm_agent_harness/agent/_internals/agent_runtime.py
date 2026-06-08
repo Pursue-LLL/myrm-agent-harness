@@ -415,7 +415,7 @@ async def run_agent_loop(
                     await intercept_goal_and_plan(
                         goal_provider=goal_provider,
                         session_id=session_id,
-                        query=query_text,
+                        query=query,
                         llm=agent_state.llm,
                         storage_provider=storage_provider,
                     )

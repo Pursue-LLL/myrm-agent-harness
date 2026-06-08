@@ -155,6 +155,7 @@ class EvolutionIntegration:
         vector_store: Any | None = None,
         embedding: Any | None = None,
         event_log_backend: Any | None = None,
+        evolution_strategy: str = "balanced",
     ):
         """Initialize evolution integration.
 
@@ -180,6 +181,9 @@ class EvolutionIntegration:
             workspace_path: Workspace path for executor (defaults to db_path.parent)
             search_service_cfg: Web search config injected by business layer (required when auto-creating evolution tools)
             auto_apply_fs: Auto-apply evolved content to file system with .bak backup (default False)
+            evolution_strategy: Controls screener behavior: balanced (all types),
+                innovate (all + lower rejection threshold), harden (FIX + optimize only),
+                repair-only (FIX only). Business layer injects user preference.
         """
         self.db_path = Path(db_path)
 
@@ -193,6 +197,11 @@ class EvolutionIntegration:
         self.analyzer = SkillExecutionAnalyzer()
         self.test_executor: SubprocessCodeExecutor | None = test_executor
         self.screener: EvolutionScreener | None = screener
+        self._evolution_strategy = evolution_strategy
+
+        # Propagate strategy to screener if injected
+        if self.screener is not None:
+            self.screener.evolution_strategy = evolution_strategy
 
         # Evolution engine (requires LLM client from business layer)
         self.engine: SkillEvolutionEngine | None = None
@@ -275,6 +284,19 @@ class EvolutionIntegration:
 
         # Inject trap lookup into skill loader for Known Pitfalls injection
         self._register_trap_lookup()
+
+    @property
+    def evolution_strategy(self) -> str:
+        """Current evolution strategy."""
+        return self._evolution_strategy
+
+    @evolution_strategy.setter
+    def evolution_strategy(self, value: str) -> None:
+        """Hot-update evolution strategy (propagates to screener)."""
+        self._evolution_strategy = value
+        if self.screener is not None:
+            self.screener.evolution_strategy = value
+        logger.info("Evolution strategy updated to '%s'", value)
 
     def _register_trap_lookup(self) -> None:
         """Register trap lookup callback with SkillMdLoader for runtime injection."""
@@ -735,6 +757,7 @@ def enable_skill_evolution(
     context_pipeline: "ContextPipeline | None" = None,
     max_concurrent_evolutions: int = 5,
     event_log_backend: Any | None = None,
+    evolution_strategy: str = "balanced",
     **kwargs: Any,
 ) -> EvolutionIntegration:
     """Enable skill evolution with one function call.
@@ -747,6 +770,7 @@ def enable_skill_evolution(
         context_pipeline: Optional context management pipeline (auto-created if None)
         max_concurrent_evolutions: Max concurrent evolution tasks (default 5)
         event_log_backend: Optional backend for trace extraction.
+        evolution_strategy: Controls screener behavior (balanced/innovate/harden/repair-only).
         **kwargs: Additional options (enable_embedding_cache, screener, etc.)
 
     Returns:
@@ -761,7 +785,8 @@ def enable_skill_evolution(
             db_path=".myrm/skills.db",
             llm=llm,
             enable_background_queue=True,
-            max_concurrent_evolutions=3,  # Limit to 3 concurrent evolutions
+            max_concurrent_evolutions=3,
+            evolution_strategy="harden",
             event_log_backend=your_backend,
         )
         ```
@@ -772,5 +797,6 @@ def enable_skill_evolution(
         context_pipeline=context_pipeline,
         max_concurrent_evolutions=max_concurrent_evolutions,
         event_log_backend=event_log_backend,
+        evolution_strategy=evolution_strategy,
         **kwargs,
     )

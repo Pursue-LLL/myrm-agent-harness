@@ -172,3 +172,45 @@ async def test_plan_failure_preserves_exception_chain(
         )
 
     assert exc_info.value.__cause__ is original
+
+
+# --------------------------------------------------------------------- #
+# Multimodal query support
+# --------------------------------------------------------------------- #
+
+
+@pytest.mark.asyncio
+@patch(f"{_MODULE}.interrupt")
+@patch(f"{_MODULE}.PlannerAgent")
+@patch(f"{_MODULE}.PlannerStorage")
+async def test_multimodal_query_forwarded_to_planner(
+    mock_storage_cls,
+    mock_agent_cls,
+    mock_interrupt,
+    goal_provider,
+    llm,
+    storage_provider,
+):
+    """Multimodal queries (list of content parts) are passed through to PlannerAgent."""
+    mock_storage_cls.return_value.load_plan = AsyncMock(return_value=None)
+    mock_agent_cls.return_value.create_plan = AsyncMock()
+
+    multimodal_query = [
+        {"type": "text", "text": "Plan from this whiteboard"},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc123"}},
+    ]
+
+    await intercept_goal_and_plan(
+        goal_provider, "s1", multimodal_query, llm, storage_provider
+    )
+
+    mock_agent_cls.return_value.create_plan.assert_awaited_once()
+    task_content = mock_agent_cls.return_value.create_plan.call_args[0][0]
+    # Should be a list (multimodal), not a plain string
+    assert isinstance(task_content, list)
+    # First part is the preamble text
+    assert task_content[0]["type"] == "text"
+    assert "Goal Objective:" in task_content[0]["text"]
+    # Original content parts are preserved after preamble
+    assert task_content[1] == {"type": "text", "text": "Plan from this whiteboard"}
+    assert task_content[2]["type"] == "image_url"

@@ -95,6 +95,17 @@ class CaptchaCoordinator:
 
         await self._publish_event("captcha_detected", captcha_info)
 
+        try:
+            from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
+            await dispatch_custom_event("browser_takeover_requested", {
+                "reason": f"CAPTCHA detected: {captcha_info.reason}",
+                "captcha_type": captcha_info.captcha_type.value,
+                "auto_detect_completion": True,
+            })
+        except Exception:
+            pass
+
         self._status = CaptchaStatus.SOLVING
         start = time.monotonic()
 

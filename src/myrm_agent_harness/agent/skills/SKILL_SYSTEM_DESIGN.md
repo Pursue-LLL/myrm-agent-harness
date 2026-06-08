@@ -848,7 +848,7 @@ Scanner（编排器）
 - **按需显式装载 (Explicit On-Demand Loading)**：多智能体的能力差异和隔离完全由配置驱动。用户在前端 GUI 为不同的智能体显式分配所需的技能 ID。运行时 `SkillAgent` 仅精准加载被显式选中的技能，实现能力的逻辑隔离。
 
 **设计决策**：
-- 坚持“奥卡姆剃刀”原则。放弃在技能文档物理层面强制绑定拥有者（如 `scope_agent_id`）的繁杂设计。智能体实例的 `skill_ids` 列表是定义其能力边界的唯一事实来源 (Single Source of Truth)。
+- 坚持"奥卡姆剃刀"原则。智能体实例的 `skill_ids` 列表是定义其能力边界的唯一事实来源 (Single Source of Truth)。`scope_agent_id` 用于进化审核时标记技能的归属智能体（写入 frontmatter 和 SQL 查询过滤），但不影响技能的物理存储或全局池结构。
 - 彻底拥抱 GUI-First，跨越智能体的能力复用与组合完全通过前端界面直观配置，所见即所得。
 
 ---

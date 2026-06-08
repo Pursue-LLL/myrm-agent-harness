@@ -197,7 +197,7 @@ class DefaultForgettingStrategy:
     """Default skill forgetting strategy with curator-aware checks.
 
     Evaluation order:
-    1. Pinned check — pinned skills are never transitioned
+    1. Pinned / evolution-locked check — exempt from all automated transitions
     2. Source check — installed (hub/registry) skills optionally exempt
     3. Grace period — recently discovered skills are exempt (configurable days)
     4. Already archived — skip (terminal state for auto-transitions)
@@ -222,8 +222,8 @@ class DefaultForgettingStrategy:
         """Check if a skill should transition lifecycle state."""
         stats = skill.usage_stats
 
-        # 1. Pinned skills are exempt from all automated transitions
-        if stats.pinned:
+        # 1. Pinned or evolution-locked skills are exempt from all automated transitions
+        if stats.pinned or skill.evolution_locked:
             return None
 
         # 2. Installed (hub/registry) skills optionally exempt
@@ -311,13 +311,14 @@ class DefaultForgettingStrategy:
     ) -> list[ForgettingReason]:
         """Select LRU eviction candidates when skill count exceeds max.
 
-        Only considers active, non-pinned, non-grace-period skills.
+        Only considers active, non-pinned, non-locked, non-grace-period skills.
         """
         now = datetime.now(UTC)
         eligible = [
             s
             for s in skills
             if not s.usage_stats.pinned
+            and not s.evolution_locked
             and s.usage_stats.lifecycle_status == SkillLifecycleStatus.ACTIVE
             and not self._in_grace_period(s.usage_stats, now)
         ]

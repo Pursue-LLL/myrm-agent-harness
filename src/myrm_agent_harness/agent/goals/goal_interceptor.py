@@ -11,9 +11,14 @@
 [POS]
 Handles the pre-execution phase of a goal. If a goal is active but has no plan,
 it invokes the PlannerAgent to generate one before the main agent loop starts.
+Supports multimodal queries — images in the input are forwarded to PlannerAgent
+so it can reason over visual content (e.g. whiteboard photos, architecture diagrams).
 """
 
+from __future__ import annotations
+
 import logging
+from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langgraph.types import interrupt
@@ -29,17 +34,34 @@ from myrm_agent_harness.toolkits.storage.base import StorageProvider
 
 logger = logging.getLogger(__name__)
 
+MultimodalQuery = str | list[dict[str, Any]]
+
+
+def _build_task_content(
+    objective: str, query: MultimodalQuery
+) -> str | list[dict[str, Any]]:
+    """Build task content preserving multimodal parts when present."""
+    preamble = f"Goal Objective: {objective}\n\nCurrent Request: "
+
+    if isinstance(query, str):
+        return preamble + query
+
+    text_parts: list[dict[str, Any]] = [{"type": "text", "text": preamble}]
+    text_parts.extend(query)
+    return text_parts
+
 
 async def intercept_goal_and_plan(
     goal_provider: GoalProvider,
     session_id: str,
-    query: str,
+    query: MultimodalQuery,
     llm: BaseChatModel,
     storage_provider: StorageProvider,
 ) -> None:
     """Check if an active goal exists and needs a plan. If so, generate it.
 
     This should be called before the main agent loop starts.
+    Accepts multimodal queries — visual content is forwarded to PlannerAgent.
     """
     goal = await goal_provider.get_active_goal(session_id)
     if not goal:
@@ -59,9 +81,9 @@ async def intercept_goal_and_plan(
         config = PlannerConfig()
         planner = PlannerAgent(llm, planner_storage, config)
 
-        task_desc = f"Goal Objective: {goal.objective}\n\nCurrent Request: {query}"
+        task_content = _build_task_content(goal.objective, query)
 
-        await planner.create_plan(task_desc)
+        await planner.create_plan(task_content)
         logger.info(
             "Successfully generated plan for goal %s. Suspending for user approval.",
             goal.goal_id,

@@ -18,7 +18,7 @@ Skill backend implementations module. Provides multiple backend implementations 
 | env_example_generator.py | Core | Developer experience enhancement. Provides clear documentation of required | ✅ |
 | env_mapper.py | Core | Lightweight mapper for developer experience. Enables skills to work without | ✅ |
 | factory.py | Core | Skill backend factory. Provides convenient factory methods for creating various backends (local, sto | ✅ |
-| forgetting_strategy.py | Core | Skill forgetting / curator strategies. CuratorConfig, ForgettingReason (with target_status), DefaultForgettingStrategy (pinned/grace/source-aware). | ✅ |
+| forgetting_strategy.py | Core | Skill forgetting / curator strategies. CuratorConfig, ForgettingReason (with target_status), DefaultForgettingStrategy (pinned/evolution_locked/grace/source-aware). | ✅ |
 | instance_templates.py | Core | Skill instance templates for quick setup. | ✅ |
 | local.py | Core | Local skill backend. Loads skills from local paths. Filters archived skills via .stats.json lifecycle_status. | ✅ |
 | memory.py | Core | In-memory skill backend. Stores skill metadata in memory without persistence. | ✅ |

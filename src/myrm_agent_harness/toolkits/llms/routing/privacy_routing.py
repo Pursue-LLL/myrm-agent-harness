@@ -175,14 +175,10 @@ class PrivacyRoutingModel(BaseChatModel):
     def _get_target_and_kwargs(self, target: Any, kwargs: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
         target_kwargs = kwargs.copy()
         actual_target = target
-        logger.warning(f"DEBUG _get_target_and_kwargs: initial target type: {type(target)}")
         while hasattr(actual_target, "bound"):
             if hasattr(actual_target, "kwargs"):
                 target_kwargs.update(actual_target.kwargs)
             actual_target = actual_target.bound
-        logger.warning(
-            f"DEBUG _get_target_and_kwargs: final target type: {type(actual_target)}, target_kwargs keys: {list(target_kwargs.keys())}"
-        )
         return actual_target, target_kwargs
 
     def _generate(

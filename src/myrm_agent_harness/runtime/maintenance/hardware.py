@@ -104,6 +104,7 @@ def _detect_macos_hardware(profile: HardwareProfile) -> None:
                             if "GB" in vram_str:
                                 with contextlib.suppress(ValueError):
                                     profile.gpu_vram_gb = float(vram_str.replace("GB", "").strip())
+                                break
                             elif "MB" in vram_str:
                                 with contextlib.suppress(ValueError):
                                     profile.gpu_vram_gb = float(vram_str.replace("MB", "").strip()) / 1024.0

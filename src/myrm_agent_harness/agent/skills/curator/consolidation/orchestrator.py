@@ -143,6 +143,7 @@ class SkillConsolidator:
 
         Excludes:
         - Pinned skills
+        - Evolution-locked skills (user-created, protected from automation)
         - Archived skills
         - Skills without storage_path (MCP skills)
         """
@@ -150,6 +151,7 @@ class SkillConsolidator:
             s
             for s in skills
             if not s.usage_stats.pinned
+            and not s.evolution_locked
             and s.usage_stats.lifecycle_status != SkillLifecycleStatus.ARCHIVED
             and s.storage_path is not None
         ]

@@ -113,12 +113,24 @@ class EvolutionScreener:
     - Prevent "snowball effect" (fix correct code → new errors → infinite loop)
     """
 
+    # Strategy → allowed evolution types mapping.
+    # "balanced" allows everything (default). "innovate" allows all + lowers
+    # LLM confirmation threshold. "harden" only allows FIX + OPTIMIZE_DESCRIPTION.
+    # "repair-only" restricts to FIX only.
+    _STRATEGY_ALLOWED_TYPES: dict[str, frozenset[EvolutionType]] = {
+        "balanced": frozenset(EvolutionType),
+        "innovate": frozenset(EvolutionType),
+        "harden": frozenset({EvolutionType.FIX, EvolutionType.OPTIMIZE_DESCRIPTION}),
+        "repair-only": frozenset({EvolutionType.FIX}),
+    }
+
     def __init__(
         self,
         store: SkillStore,
         cheap_llm: BaseChatModel | None = None,
         cooldown_seconds: int = 3600,
         event_logger: EventLogger | None = None,
+        evolution_strategy: str = "balanced",
     ):
         """Initialize screener.
 
@@ -127,11 +139,29 @@ class EvolutionScreener:
             cheap_llm: Cheap LLM for Phase 2 (e.g., gpt-4o-mini, claude-haiku-3)
             cooldown_seconds: Cooldown period in seconds (default 1 hour)
             event_logger: Optional EventLogger to record EVOLUTION_REJECTED events
+            evolution_strategy: Controls which evolution types are allowed.
+                balanced (default) — all types; innovate — all + lower confirmation
+                threshold; harden — FIX + OPTIMIZE_DESCRIPTION only;
+                repair-only — FIX only.
         """
         self._store = store
         self._cheap_llm = cheap_llm
         self._cooldown_seconds = cooldown_seconds
         self._event_logger = event_logger
+        self._evolution_strategy = evolution_strategy
+
+    @property
+    def evolution_strategy(self) -> str:
+        """Current evolution strategy."""
+        return self._evolution_strategy
+
+    @evolution_strategy.setter
+    def evolution_strategy(self, value: str) -> None:
+        """Update strategy at runtime (hot-update without restart)."""
+        if value not in self._STRATEGY_ALLOWED_TYPES:
+            logger.warning("Unknown evolution strategy '%s', falling back to 'balanced'", value)
+            value = "balanced"
+        self._evolution_strategy = value
 
     async def screen_request(self, request: EvolutionRequest) -> ScreeningResult:
         """Screen evolution request.
@@ -154,6 +184,23 @@ class EvolutionScreener:
             SCREENING_TOTAL.labels(phase="none", result="allowed").inc()
             SCREENING_DURATION.labels(phase="total").observe(time.time() - start_time)
             return result
+
+        # Phase -1: Strategy-based type filtering (zero-cost, before any I/O)
+        allowed_types = self._STRATEGY_ALLOWED_TYPES.get(
+            self._evolution_strategy, frozenset(EvolutionType)
+        )
+        if request.evolution_type not in allowed_types:
+            reason = (
+                f"Evolution type '{request.evolution_type}' blocked by "
+                f"strategy '{self._evolution_strategy}' "
+                f"(allowed: {', '.join(sorted(t.value for t in allowed_types))})"
+            )
+            await self._log_rejection_event(request.skill_id, "strategy", reason)
+            SCREENING_TOTAL.labels(phase="strategy", result="blocked").inc()
+            SCREENING_DURATION.labels(phase="strategy").observe(time.time() - start_time)
+            SCREENING_DURATION.labels(phase="total").observe(time.time() - start_time)
+            SCREENING_CONFIDENCE.observe(1.0)
+            return ScreeningResult(allowed=False, reason=reason, phase="strategy", confidence=1.0)
 
         # Phase 0: Evolution lock check (highest priority, zero-cost)
         if self._store.is_evolution_locked(request.skill_id):
@@ -316,6 +363,25 @@ class EvolutionScreener:
                         confidence=confidence,
                     )
                 else:
+                    # "innovate" strategy: override low-confidence rejections
+                    if self._evolution_strategy == "innovate" and confidence < 0.7:
+                        logger.info(
+                            "Innovate strategy override: allowing evolution for '%s' "
+                            "(LLM rejected with low confidence=%.2f)",
+                            skill.name,
+                            confidence,
+                        )
+                        SCREENING_TOTAL.labels(phase="llm_confirmation", result="allowed").inc()
+                        SCREENING_DURATION.labels(phase="llm_confirmation").observe(time.time() - start_time)
+                        SCREENING_DURATION.labels(phase="total").observe(time.time() - start_time)
+                        SCREENING_CONFIDENCE.observe(confidence)
+                        return ScreeningResult(
+                            allowed=True,
+                            reason=f"Innovate override (conf={confidence:.2f}): {reason}",
+                            phase="llm_confirmation",
+                            confidence=confidence,
+                        )
+
                     # LLM rejected: block evolution
                     logger.info(
                         "LLM rejected evolution for skill '%s' (confidence=%.2f): %s",

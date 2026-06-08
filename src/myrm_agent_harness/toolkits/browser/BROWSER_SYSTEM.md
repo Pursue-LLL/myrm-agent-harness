@@ -539,9 +539,9 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 
 ## 工具设计
 
-### 7 工具 → 35 能力映射
+### 8 工具 → 35+ 能力映射
 
-压缩 Playwright MCP 的 24+ 个独立工具为 7 个语义分组工具，通过 `action` 参数扩展：
+压缩 Playwright MCP 的 24+ 个独立工具为 8 个语义分组工具，通过 `action` 参数扩展：
 
 | 工具 | 覆盖能力 | action 参数 |
 |------|---------|------------|
@@ -552,6 +552,7 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 | `browser_extract_tool` | 文本 + 截图 + 结构化提取 + diff | text / screenshot / diff_fast / diff_accurate + extraction_schema |
 | `browser_manage_tool` | Tab + JS + 历史 + 对话框 + Session + Network + HITL | 21 种 action（含 network_detail/network_replay + save/restore/list/delete_session + wait_for_user） |
 | `browser_execute_script_tool` | **Code-as-Action 批量执行** | _(单一职责，执行 Python 脚本)_ |
+| `browser_ask_human_tool` | **人类接管请求** | _(单一职责，Agent 触发 HITL interrupt + VNC 自动弹出)_ |
 
 **Token 成本**：~65 tokens（相比独立工具方案节省 86%）
 
@@ -800,6 +801,40 @@ class CaptchaSolver(Protocol):
 
 ---
 
+### 17. Human Takeover (人类接管工具)
+
+**设计目标**：当 Agent 遭遇无法自动化的场景（2FA、短信验证、支付网关、手写签名、企业 SSO MFA 推送等）时，主动暂停执行并请求用户通过 VNC/noVNC 直接操控浏览器完成操作。
+
+**架构设计**：
+
+```
+Agent 推理 → browser_ask_human_tool(reason="请输入短信验证码")
+  ↓ dispatch_custom_event("browser_takeover_requested", payload)
+  ↓ langgraph.types.interrupt(hitl_payload)  ← Agent 暂停
+  ...
+Frontend ← SSE: browser_takeover_requested
+  ↓ auto-open VNC/noVNC panel + 显示 reason 通知条
+  ↓ 用户直接操作浏览器（输入验证码/完成支付）
+  ↓ 用户点 "Done" 或通过 Approval Card 确认
+  ...
+Backend ← POST /api/v1/approvals/{id}/resolve { decision: "approve" }
+  ↓ AppEventBus → resume agent
+  ↓ interrupt() 返回 user_response
+  ↓ dispatch_custom_event("browser_takeover_completed")
+  ↓ Agent 恢复执行，截图观察当前页面状态
+```
+
+**核心特性**：
+- **Agent 主动触发**：不是被动等待超时，而是 Agent 智能判断何时需要人类介入
+- **统一 HITL 机制**：复用 LangGraph `interrupt()`/`resume()` + 现有 Approval 系统，零额外基础设施
+- **VNC 自动弹出**：前端收到 `browser_takeover_requested` SSE 事件后自动打开 VNC 面板（SaaS 通过 VncProxy，Local 连接 localhost:6080）
+- **CAPTCHA 统一体验**：`CaptchaCoordinator` 检测到 CAPTCHA 时同样触发 `browser_takeover_requested`，前端统一处理
+- **零 Prompt Cache 影响**：tool 返回纯文本摘要（用时、URL 变化、页面标题），不影响主模型缓存
+
+**实现位置**：`tools/takeover.py` → `create_takeover_tool(session)`
+
+---
+
 ## 竞品对比
 
 ### 功能覆盖
@@ -816,12 +851,13 @@ class CaptchaSolver(Protocol):
 | **零拷贝页面复用** | ✅ | ❌ | ❌ | ❌ |
 | **MutationObserver变化检测** | ✅ | ❌ | ❌ | ❌ |
 | **CAPTCHA 协调（可插拔）** | ✅ | ❌ | ⚠️ CDP 耦合 | ❌ |
+| **Agent 触发人类接管** | ✅ | ❌ | ❌ | ❌ |
 
 ### 架构对比
 
 | 维度 | 我们 | Playwright MCP | browser-use | agent-browser |
 |------|------|---------------|-------------|--------------|
-| **工具数量** | 5 | 24 | 8 | CLI |
+| **工具数量** | 8 | 24 | 8 | CLI |
 | **Token 成本** | ~60 | ~480 | ~200 | N/A |
 | **反检测** | ✅ Patchright / Camoufox | ❌ | ❌ | ❌（仅云端） |
 | **LangChain 原生** | ✅ | ❌ 需适配器 | ❌ | ❌ |
@@ -866,6 +902,18 @@ browser/
 │   ├── detector.py — 页面级 CAPTCHA 检测（HTML 正则，两层模式）
 │   ├── coordinator.py — CAPTCHA 协调状态机（asyncio.Event 暂停/恢复）
 │   └── manual_solver.py — 默认手动求解器（轮询检测 CAPTCHA 消失）
+├── tools/
+│   ├── __init__.py — 8 LangChain @tool 导出与 create_browser_tools 工厂
+│   ├── navigate.py — browser_navigate_tool
+│   ├── snapshot.py — browser_snapshot_tool
+│   ├── interact.py — browser_interact_tool（含 Semantic DOM Guard）
+│   ├── extract.py — browser_extract_tool
+│   ├── manage.py — browser_manage_tool
+│   ├── execute_script.py — browser_execute_script_tool
+│   ├── takeover.py — browser_ask_human_tool（人类接管，LangGraph interrupt + VNC 自动弹出）
+│   ├── inspect.py — browser_inspect_tool
+│   ├── _semantic_risk.py — 语义 DOM 风险分类（纯函数）
+│   └── common.py — 工具共享工具函数
 ├── pool/
 │   ├── browser_pool.py (525 行) — GlobalBrowserPool（全局调度中枢）
 │   ├── browser_launcher.py (135 行) — BrowserLauncher（Browser 启动器）
@@ -899,8 +947,7 @@ browser/
 ├── domain_filter.py (317 行) — 四层域名过滤（CSP + HTTP + 主线程硬化 + CDP）
 ├── session_vault.py (678 行) — 加密 Session 存储（O(1) LRU + 内存限制 + 并发锁 + Metrics + 批量 API）
 ├── exceptions.py (约 150 行) — 异常类型
-├── retry_policy.py (约 200 行) — 重试策略
-└── tools.py (约 400 行) — 5 LangChain 工具
+└── retry_policy.py (约 200 行) — 重试策略
 ```
 
 **总计**：约 4,100 行核心代码，SOLID 原则，单一职责，高度模块化。
