@@ -514,3 +514,183 @@ async def test_complex_realtime_updates(browser_session: BrowserSession) -> None
     await asyncio.sleep(0.5)
     counter4 = await page.evaluate("parseInt(document.getElementById('counter').innerText)")
     assert counter4 == counter3  # Should not increase
+
+
+# =============================================================================
+# Complex 10: Shadow DOM penetration in text extraction
+# =============================================================================
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_complex_shadow_dom_text_extraction(browser_session: BrowserSession) -> None:
+    """Test that extract_text correctly penetrates open Shadow DOM."""
+    tab_id = await browser_session.new_tab("about:blank")
+    page = browser_session._tab_controller._tabs[tab_id].page
+
+    await page.set_content("""
+        <!DOCTYPE html>
+        <html><body>
+            <h1>Shadow DOM Test</h1>
+            <p>Light DOM content</p>
+            <div id="shadow-host"></div>
+            <script>
+                const host = document.getElementById('shadow-host');
+                const shadow = host.attachShadow({mode: 'open'});
+                shadow.innerHTML = '<p>Shadow content visible only via penetration</p>';
+            </script>
+        </body></html>
+    """)
+    await asyncio.sleep(0.5)
+
+    text = await browser_session.extract_text()
+
+    assert "Light DOM content" in text
+    assert "Shadow content visible only via penetration" in text
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_complex_nested_shadow_dom_text_extraction(browser_session: BrowserSession) -> None:
+    """Test nested Shadow DOM (shadow root inside shadow root)."""
+    tab_id = await browser_session.new_tab("about:blank")
+    page = browser_session._tab_controller._tabs[tab_id].page
+
+    await page.set_content("""
+        <!DOCTYPE html>
+        <html><body>
+            <h1>Nested Shadow Test</h1>
+            <div id="outer-host"></div>
+            <script>
+                const outerHost = document.getElementById('outer-host');
+                const outerShadow = outerHost.attachShadow({mode: 'open'});
+                outerShadow.innerHTML = '<p>Outer shadow</p><div id="inner-host"></div>';
+                const innerHost = outerShadow.getElementById('inner-host');
+                const innerShadow = innerHost.attachShadow({mode: 'open'});
+                innerShadow.innerHTML = '<p>Inner shadow deeply nested</p>';
+            </script>
+        </body></html>
+    """)
+    await asyncio.sleep(0.5)
+
+    text = await browser_session.extract_text()
+
+    assert "Nested Shadow Test" in text
+    assert "Outer shadow" in text
+    assert "Inner shadow deeply nested" in text
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_complex_closed_shadow_dom_not_accessible(browser_session: BrowserSession) -> None:
+    """Test that closed Shadow DOM content is correctly skipped (browser security boundary)."""
+    tab_id = await browser_session.new_tab("about:blank")
+    page = browser_session._tab_controller._tabs[tab_id].page
+
+    await page.set_content("""
+        <!DOCTYPE html>
+        <html><body>
+            <h1>Closed Shadow Test</h1>
+            <p>Visible light content</p>
+            <div id="closed-host"></div>
+            <script>
+                const host = document.getElementById('closed-host');
+                const shadow = host.attachShadow({mode: 'closed'});
+                shadow.innerHTML = '<p>Closed shadow secret</p>';
+            </script>
+        </body></html>
+    """)
+    await asyncio.sleep(0.5)
+
+    text = await browser_session.extract_text()
+
+    assert "Visible light content" in text
+    assert "Closed shadow secret" not in text
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_complex_shadow_dom_with_slot_projection(browser_session: BrowserSession) -> None:
+    """Test Shadow DOM with <slot> projection extracts both shadow and light DOM content."""
+    tab_id = await browser_session.new_tab("about:blank")
+    page = browser_session._tab_controller._tabs[tab_id].page
+
+    await page.set_content("""
+        <!DOCTYPE html>
+        <html><body>
+            <h1>Slot Projection Test</h1>
+            <div id="slot-host">
+                <span>Projected light content</span>
+            </div>
+            <script>
+                const host = document.getElementById('slot-host');
+                const shadow = host.attachShadow({mode: 'open'});
+                shadow.innerHTML = '<div>Shadow wrapper</div><slot></slot>';
+            </script>
+        </body></html>
+    """)
+    await asyncio.sleep(0.5)
+
+    text = await browser_session.extract_text()
+
+    assert "Slot Projection Test" in text
+    assert "Shadow wrapper" in text
+    assert "Projected light content" in text
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_complex_page_without_shadow_dom_unaffected(browser_session: BrowserSession) -> None:
+    """Test that pages without Shadow DOM still work correctly (regression guard)."""
+    tab_id = await browser_session.new_tab("about:blank")
+    page = browser_session._tab_controller._tabs[tab_id].page
+
+    await page.set_content("""
+        <!DOCTYPE html>
+        <html><body>
+            <h1>No Shadow</h1>
+            <p>Regular paragraph</p>
+            <ul><li>List item 1</li><li>List item 2</li></ul>
+            <a href="https://example.com">Example Link</a>
+        </body></html>
+    """)
+    await asyncio.sleep(0.5)
+
+    text = await browser_session.extract_text()
+
+    assert "No Shadow" in text
+    assert "Regular paragraph" in text
+    assert "List item 1" in text
+    assert "List item 2" in text
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_complex_shadow_dom_hidden_elements_skipped(browser_session: BrowserSession) -> None:
+    """Test that hidden elements inside Shadow DOM are correctly skipped."""
+    tab_id = await browser_session.new_tab("about:blank")
+    page = browser_session._tab_controller._tabs[tab_id].page
+
+    await page.set_content("""
+        <!DOCTYPE html>
+        <html><body>
+            <h1>Hidden Shadow Test</h1>
+            <div id="shadow-host"></div>
+            <script>
+                const host = document.getElementById('shadow-host');
+                const shadow = host.attachShadow({mode: 'open'});
+                shadow.innerHTML = `
+                    <p>Visible shadow text</p>
+                    <p style="display:none">Hidden shadow text</p>
+                    <p style="visibility:hidden">Invisible shadow text</p>
+                `;
+            </script>
+        </body></html>
+    """)
+    await asyncio.sleep(0.5)
+
+    text = await browser_session.extract_text()
+
+    assert "Visible shadow text" in text
+    assert "Hidden shadow text" not in text
+    assert "Invisible shadow text" not in text

@@ -143,6 +143,50 @@ class TestExtractor:
         call_args = mock_frame.evaluate.call_args
         assert call_args[0][1] == ".main-content"
 
+    async def test_extract_full_text_js_contains_shadow_dom_penetration(
+        self, extractor: Extractor, mock_page: MagicMock
+    ) -> None:
+        """Verify the JS script used by extract_full_text includes Shadow DOM traversal."""
+        mock_frame = MagicMock()
+        mock_frame.evaluate = AsyncMock(return_value="")
+        mock_page.frames = [mock_frame]
+
+        await extractor.extract_full_text()
+
+        js_script = mock_frame.evaluate.call_args[0][0]
+        assert "node.shadowRoot" in js_script, "JS script must traverse node.shadowRoot for Shadow DOM penetration"
+        assert "node.shadowRoot.childNodes" in js_script or "node.shadowRoot)" in js_script
+
+    async def test_extract_full_text_multi_frame_with_shadow_dom(
+        self, extractor: Extractor, mock_page: MagicMock
+    ) -> None:
+        """Test that extract_full_text processes multiple frames, each potentially containing Shadow DOM."""
+        frame0 = MagicMock()
+        frame0.evaluate = AsyncMock(return_value="Main frame content with shadow")
+        frame1 = MagicMock()
+        frame1.evaluate = AsyncMock(return_value="Iframe content")
+        mock_page.frames = [frame0, frame1]
+
+        result = await extractor.extract_full_text()
+
+        assert "Main frame content with shadow" in result
+        assert "Iframe content" in result
+        assert "Frame 1" in result
+
+    async def test_extract_full_text_frame_error_resilience(
+        self, extractor: Extractor, mock_page: MagicMock
+    ) -> None:
+        """Test that a failing frame does not prevent extraction from other frames."""
+        frame0 = MagicMock()
+        frame0.evaluate = AsyncMock(return_value="Good frame")
+        frame1 = MagicMock()
+        frame1.evaluate = AsyncMock(side_effect=RuntimeError("Frame detached"))
+        mock_page.frames = [frame0, frame1]
+
+        result = await extractor.extract_full_text()
+
+        assert "Good frame" in result
+
     async def test_export_pdf(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Test export_pdf saves page as PDF."""
         pdf_path = "/tmp/test.pdf"

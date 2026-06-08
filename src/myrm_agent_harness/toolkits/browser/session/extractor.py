@@ -110,6 +110,11 @@ class Extractor:
                     else if (tag === 'TR') prefix = "| ";
 
                     md += prefix;
+                    if (node.shadowRoot) {{
+                        for (let child of node.shadowRoot.childNodes) {{
+                            md += nodeToMarkdown(child);
+                        }}
+                    }}
                     for (let child of node.childNodes) {{
                         md += nodeToMarkdown(child);
                     }}

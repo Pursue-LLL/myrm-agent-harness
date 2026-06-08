@@ -327,7 +327,7 @@ difflib.SequenceMatcher(prev_normalized, curr_normalized)
 **问题**：许多网页使用 `<div onclick>` / `cursor:pointer` 实现可交互元素，标准 ARIA 树无法捕获。同时，现代 Web Components 将真实 DOM 封装在 Shadow DOM 内，导致原生 `querySelectorAll` 彻底失效。
 
 **解决方案**：底层无盲区 JS 探针探测
-1. 我们手写了高度优化的 JS 收集脚本 (`observer_scripts.py`)，**原生实现了全量 `shadowRoot` 的递归穿透遍历**。无论是 `BBOX_COLLECTOR_SCRIPT` 还是 `MUTATION_OBSERVER_SCRIPT`，均保证 100% 不遗漏任何封装在 Web Components 内部的组件坐标与状态变动。
+1. 我们手写了高度优化的 JS 收集脚本 (`observer_scripts.py`)，**原生实现了全量 `shadowRoot` 的递归穿透遍历**。无论是 `BBOX_COLLECTOR_SCRIPT` 还是 `MUTATION_OBSERVER_SCRIPT`，均保证 100% 不遗漏任何封装在 Web Components 内部的组件坐标与状态变动。`Extractor.extract_full_text()` 的 `nodeToMarkdown` 同样实现了 `shadowRoot` 递归穿透，确保文本提取完整性。
 2. JS 引擎通过 `window.getComputedStyle(el).cursor === 'pointer'` 或检测 `onclick`/`tabIndex` 来兜底拾取那些不规范的交互元素，赋予其 `role="clickable"`。
 
 ```javascript

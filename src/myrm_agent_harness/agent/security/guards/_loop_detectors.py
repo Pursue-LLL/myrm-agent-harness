@@ -142,35 +142,67 @@ class LoopDetectorMixin:
         return VERDICT_ALLOW
 
     def _check_ping_pong(self, calls: list[CallRecord]) -> LoopVerdict:
-        """Two tools + same args alternating A->B->A->B for M cycles."""
-        needed = self._pp_cycles * 2
-        if len(calls) < needed:
+        """Two tools + same args alternating A->B->A->B for M cycles.
+
+        Graduated response:
+        - WARN at ``_pp_cycles`` cycles (default 3 cycles = 6 calls)
+        - BREAK at ``_pp_cycles * 2`` cycles (default 6 cycles = 12 calls)
+        """
+        warn_needed = self._pp_cycles * 2
+        break_needed = self._pp_cycles * 4
+
+        if len(calls) < warn_needed:
             return VERDICT_ALLOW
 
-        recent = calls[-needed:]
-        a_name, a_hash = recent[0].tool_name, recent[0].args_hash
-        b_name, b_hash = recent[1].tool_name, recent[1].args_hash
+        def _is_alternating(tail: list[CallRecord]) -> tuple[bool, str, str, str, str]:
+            """Check if tail exhibits strict A-B alternation. Returns match flag + names/hashes."""
+            a_n, a_h = tail[0].tool_name, tail[0].args_hash
+            b_n, b_h = tail[1].tool_name, tail[1].args_hash
+            if a_n == b_n:
+                return False, "", "", "", ""
+            for i in range(len(tail)):
+                exp_name = a_n if i % 2 == 0 else b_n
+                exp_hash = a_h if i % 2 == 0 else b_h
+                if tail[i].tool_name != exp_name or tail[i].args_hash != exp_hash:
+                    return False, "", "", "", ""
+            return True, a_n, b_n, a_h, b_h
 
-        if a_name == b_name:
-            return VERDICT_ALLOW
+        if len(calls) >= break_needed:
+            tail = calls[-break_needed:]
+            matched, a_name, b_name, _, _ = _is_alternating(tail)
+            if matched:
+                cycles = self._pp_cycles * 2
+                self._record_detection(a_name, LoopKind.PING_PONG, cycles)
+                return LoopVerdict(
+                    action=LoopAction.BREAK,
+                    reason=(
+                        f"Tools '{a_name}' and '{b_name}' have been alternating for "
+                        f"{cycles} cycles ({break_needed} calls) with identical arguments. "
+                        "This is a confirmed ping-pong loop — execution blocked."
+                    ),
+                    backoff_hint=(
+                        f"STOP using '{a_name}' and '{b_name}' in alternation. "
+                        "You must adopt a completely different strategy to make progress."
+                    ),
+                    loop_kind=LoopKind.PING_PONG.value,
+                )
 
-        for i in range(needed):
-            expected_name = a_name if i % 2 == 0 else b_name
-            expected_hash = a_hash if i % 2 == 0 else b_hash
-            if recent[i].tool_name != expected_name or recent[i].args_hash != expected_hash:
-                return VERDICT_ALLOW
+        tail = calls[-warn_needed:]
+        matched, a_name, b_name, _, _ = _is_alternating(tail)
+        if matched:
+            self._record_detection(a_name, LoopKind.PING_PONG, self._pp_cycles)
+            return LoopVerdict(
+                action=LoopAction.WARN,
+                reason=(
+                    f"Tools '{a_name}' and '{b_name}' are alternating back-and-forth for "
+                    f"{self._pp_cycles} cycles with identical arguments. "
+                    "This ping-pong pattern is usually unproductive — try a different strategy."
+                ),
+                backoff_hint="Break the cycle — try a completely different tool or approach",
+                loop_kind=LoopKind.PING_PONG.value,
+            )
 
-        self._record_detection(a_name, LoopKind.PING_PONG, self._pp_cycles)
-        return LoopVerdict(
-            action=LoopAction.WARN,
-            reason=(
-                f"Tools '{a_name}' and '{b_name}' are alternating back-and-forth for "
-                f"{self._pp_cycles} cycles with identical arguments. "
-                "This ping-pong pattern is usually unproductive — try a different strategy."
-            ),
-            backoff_hint="Break the cycle — try a completely different tool or approach",
-            loop_kind=LoopKind.PING_PONG.value,
-        )
+        return VERDICT_ALLOW
 
     def _check_no_progress(self, calls: list[CallRecord], tool_name: str) -> LoopVerdict:
         """Same tool called N times with identical result hashes -> WARN."""
