@@ -471,11 +471,13 @@ def test_cleanup_global_pool_no_running_loop() -> None:
     with patch("myrm_agent_harness.toolkits.browser.pool.singleton._global_pool") as mock_pool:
         mock_pool.shutdown = AsyncMock()
 
-        with patch("asyncio.get_running_loop", side_effect=RuntimeError("No loop")):
-            with patch("asyncio.run") as mock_run:
-                _cleanup_global_pool()
+        with (
+            patch("asyncio.get_running_loop", side_effect=RuntimeError("No loop")),
+            patch("asyncio.run") as mock_run,
+        ):
+            _cleanup_global_pool()
 
-                mock_run.assert_called_once()
+            mock_run.assert_called_once()
 
 
 def test_sigterm_handler_calls_cleanup() -> None:

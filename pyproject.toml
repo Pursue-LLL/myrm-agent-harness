@@ -244,7 +244,7 @@ markers = [
 # 覆盖率门禁：核心模块行覆盖率 ≥80%。
 # 依赖真实文件系统/数据库的基础设施模块由独立集成任务覆盖。
 # Default addopts already apply the memory-safe marker filter and -n0.
-# CI unit job: .github/workflows/test.yml (pytest -n 4). Browser: separate job.
+# CI unit job: .github/workflows/test.yml (pytest -n 2). Browser: separate job.
 #     coverage report
 [tool.coverage.run]
 source = ["myrm_agent_harness"]
