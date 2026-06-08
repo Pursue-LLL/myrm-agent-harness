@@ -426,7 +426,10 @@ async def run_post_call_guards(
         result_text = extract_text_content(result.content)
 
     post_verdict = loop_guard.record_result(tool_name, tool_args, result_text)
-    if post_verdict.action == LoopAction.WARN:
+    if post_verdict.action == LoopAction.BREAK:
+        record_decision(tool_name, "LOOP_BREAK", post_verdict.reason)
+        logger.warning("Loop output break: %s -- %s", tool_name, post_verdict.reason)
+    elif post_verdict.action == LoopAction.WARN:
         record_decision(tool_name, "LOOP_WARN", post_verdict.reason)
         logger.warning("Loop output warning: %s -- %s", tool_name, post_verdict.reason)
 

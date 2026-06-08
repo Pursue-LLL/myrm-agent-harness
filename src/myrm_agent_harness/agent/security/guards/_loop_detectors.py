@@ -204,6 +204,55 @@ class LoopDetectorMixin:
 
         return VERDICT_ALLOW
 
+    def _check_no_progress_break(self, calls: list[CallRecord], tool_name: str) -> LoopVerdict:
+        """Pre-check: BREAK if historical calls show sustained no-progress.
+
+        Graduated response (mirrors ping-pong pattern):
+        - WARN at ``_np_threshold`` (via record_result path)
+        - BREAK at ``_np_threshold * 2`` (this method, in pre_check)
+
+        Checks calls[:-1] (history only, excluding the current not-yet-executed
+        record) for consecutive identical result_hash on the same tool.
+        """
+        break_needed = self._np_threshold * 2
+        history = calls[:-1]
+        if len(history) < break_needed:
+            return VERDICT_ALLOW
+
+        streak = 0
+        for rec in reversed(history):
+            if rec.tool_name == tool_name and rec.result_hash:
+                if streak == 0:
+                    target_hash = rec.result_hash
+                    streak = 1
+                elif rec.result_hash == target_hash:
+                    streak += 1
+                else:
+                    break
+            else:
+                break
+
+        _, break_t = self._thresholds(tool_name, calls[-1].args if calls else None)
+        effective_break = max(break_needed, break_t)
+
+        if streak >= effective_break:
+            self._record_detection(tool_name, LoopKind.NO_PROGRESS, streak)
+            return LoopVerdict(
+                action=LoopAction.BREAK,
+                reason=(
+                    f"Tool '{tool_name}' has returned identical results for "
+                    f"{streak} consecutive calls. This is a confirmed no-progress "
+                    f"loop — execution blocked."
+                ),
+                backoff_hint=(
+                    f"STOP calling '{tool_name}' — it will not give a different result. "
+                    "You must try a completely different approach or tool."
+                ),
+                loop_kind=LoopKind.NO_PROGRESS.value,
+            )
+
+        return VERDICT_ALLOW
+
     def _check_no_progress(self, calls: list[CallRecord], tool_name: str) -> LoopVerdict:
         """Same tool called N times with identical result hashes -> WARN."""
         last = calls[-1]

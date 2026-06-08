@@ -274,6 +274,10 @@ class LoopGuard(LoopDetectorMixin):
         if verdict.action != LoopAction.ALLOW:
             return verdict
 
+        verdict = self._check_no_progress_break(calls, tool_name)
+        if verdict.action != LoopAction.ALLOW:
+            return verdict
+
         verdict = self._check_divergence(calls)
         if verdict.action != LoopAction.ALLOW:
             return verdict

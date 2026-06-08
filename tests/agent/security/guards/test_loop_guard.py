@@ -255,6 +255,23 @@ class TestNoProgress:
         assert v.action == LoopAction.WARN
         assert v.loop_kind == "no_progress"
 
+    def test_escalates_to_break(self, strict_guard: LoopGuard) -> None:
+        """Identical results with varying args → no_progress BREAK.
+
+        Uses different args each call to avoid triggering repetition detection,
+        while keeping identical result_hash to trigger no_progress_break.
+        With no_progress_threshold=2 (non-idempotent tool), break = max(4, 3) = 4.
+        """
+        for i in range(4):
+            strict_guard.pre_check("custom_tool", {"query": f"attempt_{i}"})
+            strict_guard.record_result(
+                "custom_tool", {"query": f"attempt_{i}"}, "No matches found"
+            )
+
+        verdict = strict_guard.pre_check("custom_tool", {"query": "attempt_4"})
+        assert verdict.action == LoopAction.BREAK
+        assert "no_progress" in (verdict.loop_kind or "")
+
     def test_no_detect_different_results(self, strict_guard: LoopGuard) -> None:
         """Different results → no detection."""
         strict_guard.pre_check("grep_tool", {"pattern": "foo"})
