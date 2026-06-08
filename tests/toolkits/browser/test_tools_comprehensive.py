@@ -74,10 +74,10 @@ def test_mark_untrusted() -> None:
 
 
 def test_create_browser_tools(mock_session: Any) -> None:
-    """Test create_browser_tools returns 6 tools."""
+    """Test create_browser_tools returns 8 tools."""
     tools = create_browser_tools(mock_session)
 
-    assert len(tools) == 7
+    assert len(tools) == 8
     tool_names = {tool.name for tool in tools}
     assert tool_names == {
         "browser_navigate_tool",
@@ -87,6 +87,7 @@ def test_create_browser_tools(mock_session: Any) -> None:
         "browser_extract_tool",
         "browser_manage_tool",
         "browser_execute_script_tool",
+        "browser_ask_human_tool",
     }
 
 
