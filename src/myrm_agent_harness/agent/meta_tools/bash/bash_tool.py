@@ -482,13 +482,8 @@ def create_bash_tool(
                 from myrm_agent_harness.utils.event_utils import dispatch_custom_event
 
                 await dispatch_custom_event(
-                    "tasks_steps",
-                    {
-                        "step_key": "bash_code_execute_tool_tool",
-                        "tool_name": "bash_code_execute_tool",
-                        "status": "success",
-                        "evicted_ref": evicted_ref,
-                    },
+                    "tool_evicted_ref",
+                    {"evicted_ref": evicted_ref},
                     config=config,
                 )
 
