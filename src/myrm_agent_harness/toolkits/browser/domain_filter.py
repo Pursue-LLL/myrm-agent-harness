@@ -29,16 +29,18 @@ Layer 3 — CDP Audit Monitor (``Network.webSocketCreated``)
 
 
 [INPUT]
-- pool.config::ResourceBlockConfig (POS: resource blocking config)
+- pool.config::ResourceBlockConfig (POS: resource blocking config, includes block_ad_domains flag)
+- ad_domains::AD_DOMAINS (POS: frozenset of ~3500 ad/tracker domains, lazy-loaded when block_ad_domains=True)
 
 [OUTPUT]
 - DomainAllowlist: immutable domain pattern matcher
 - install_domain_filter: async installer for all four layers with resource blocking
 
 [POS]
-Deep domain filtering and resource blocking module for the browser toolkit. Called by BrowserSession during context creation,
-covering HTTP + WebSocket + EventSource + sendBeacon + WebRTC + WebTransport across all channels,
-with resource type blocking support (image/stylesheet/script/font/media).
+Deep domain filtering, resource blocking, and ad/tracker domain blocking module for the browser toolkit.
+Called by ContextFactory during context creation. Covers HTTP + WebSocket + EventSource + sendBeacon +
+WebRTC + WebTransport across all channels, with resource type blocking (image/stylesheet/script/font/media)
+and ad/tracker domain blocklist (~3500 domains via ad_domains.py).
 """
 
 from __future__ import annotations
@@ -240,35 +242,44 @@ async def install_domain_filter(
 ) -> None:
     """Install four-layer domain filtering on a BrowserContext.
 
-    Does nothing if *allowlist* is empty (opt-in behavior).
+    Does nothing if *allowlist* is empty and no resource blocking is configured.
 
     Args:
         context: Patchright BrowserContext to protect.
         allowlist: Domains the page is allowed to connect to.
         enable_cdp_audit: Whether to install CDP WebSocket audit monitoring.
-        resource_block: Resource blocking configuration (images/css/js/fonts/media).
+        resource_block: Resource blocking configuration (images/css/js/fonts/media/ad-domains).
     """
     has_resource_block = False
     if resource_block:
-        has_resource_block = any(getattr(resource_block, k) for k in _RESOURCE_TYPE_MAP.values())
+        has_resource_block = any(
+            getattr(resource_block, k) for k in _RESOURCE_TYPE_MAP.values()
+        )
 
-    if allowlist.is_empty and not has_resource_block:
+    ad_blocklist: frozenset[str] | None = None
+    if resource_block and resource_block.block_ad_domains:
+        from myrm_agent_harness.toolkits.browser.ad_domains import AD_DOMAINS
+
+        ad_blocklist = AD_DOMAINS
+
+    if allowlist.is_empty and not has_resource_block and not ad_blocklist:
         return
 
     if not allowlist.is_empty:
         await _install_csp_policy(context, allowlist)
         await _install_main_thread_hardening(context)
 
-    await _install_http_filter(context, allowlist, resource_block)
+    await _install_http_filter(context, allowlist, resource_block, ad_blocklist)
 
     if enable_cdp_audit and not allowlist.is_empty:
         context.on("page", lambda page: _schedule_cdp_audit(page, allowlist))
 
     logger.warning(
-        "Domain filter / Resource block installed: %d patterns, CDP audit=%s, resource_block=%s",
+        "Domain filter / Resource block installed: %d patterns, CDP audit=%s, resource_block=%s, ad_blocklist=%d",
         len(allowlist.patterns) if allowlist else 0,
         enable_cdp_audit and not allowlist.is_empty,
         resource_block is not None,
+        len(ad_blocklist) if ad_blocklist else 0,
     )
 
 
@@ -296,16 +307,36 @@ _RESOURCE_TYPE_MAP: dict[str, str] = {
 }
 
 
+def _is_ad_domain(hostname: str, blocklist: frozenset[str]) -> bool:
+    """Check if hostname matches any blocked ad domain via suffix walking.
+
+    Walks up the hostname's suffix chain with O(1) frozenset lookups per level:
+    e.g. "tracker.ads.doubleclick.net" checks "tracker.ads.doubleclick.net",
+    then "ads.doubleclick.net", then "doubleclick.net".
+    """
+    if hostname in blocklist:
+        return True
+    idx = hostname.find(".")
+    while idx != -1:
+        suffix = hostname[idx + 1:]
+        if "." in suffix and suffix in blocklist:
+            return True
+        idx = hostname.find(".", idx + 1)
+    return False
+
+
 async def _install_http_filter(
     context: BrowserContext,
     allowlist: DomainAllowlist,
     resource_block: ResourceBlockConfig | None = None,
+    ad_blocklist: frozenset[str] | None = None,
 ) -> None:
-    """Block HTTP/HTTPS requests to non-allowed domains and unwanted resource types via context.route.
+    """Block HTTP/HTTPS requests to non-allowed domains, ad domains, and unwanted resource types via context.route.
 
     Filtering order (security-first):
-    1. Domain validation (security)
-    2. Resource type filtering (performance optimization)
+    1. Ad/tracker domain blocklist (performance + anti-fingerprinting)
+    2. Domain allowlist validation (security)
+    3. Resource type filtering (performance optimization)
     """
 
     async def _handler(route: Route) -> None:
@@ -320,6 +351,11 @@ async def _install_http_filter(
             return
 
         hostname = urlparse(url).hostname or ""
+
+        if ad_blocklist and _is_ad_domain(hostname, ad_blocklist):
+            await route.abort("blockedbyclient")
+            return
+
         if not allowlist.is_empty and not allowlist.is_allowed(hostname):
             await route.abort("blockedbyclient")
             return

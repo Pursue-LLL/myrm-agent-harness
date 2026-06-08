@@ -69,7 +69,7 @@
 | 文件 | 职责 | 安全层 |
 |------|------|--------|
 | `types.py` + `engine.py` | 安全类型定义 + Capability 围栏 + 权限规则引擎 | Layer 1 & 3 |
-| `transcript_classifier.py` | Reasoning-Blind Transcript Classifier（自动模式） | Layer 4 |
+| `transcript_classifier.py` | Reasoning-Blind Transcript Classifier（自动模式，强制 temperature=0 确定性输出） | Layer 4 |
 | `tool_registry.py` | 工具名 → 权限类型映射 | Layer 1-3 桥接 |
 | `channel_presets.py` | 渠道差异化安全配置 | Layer 1 增强 |
 | `taint_tracker.py` | 信息流污点追踪 | Layer 2 增强 |

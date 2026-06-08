@@ -142,6 +142,7 @@ class ResourceBlockConfig:
     block_scripts: bool = False
     block_fonts: bool = False
     block_media: bool = False
+    block_ad_domains: bool = False
 
 
 @dataclass(frozen=True)
@@ -209,6 +210,7 @@ def _resource_block_standard() -> ResourceBlockConfig:
         block_fonts=True,
         block_media=True,
         block_scripts=False,
+        block_ad_domains=True,
     )
 
 

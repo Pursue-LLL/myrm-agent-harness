@@ -11,8 +11,8 @@ Global browser resource pool. Manages Browser/Context/Page three-layer resources
 | browser_launcher.py | Core | Dedicated to browser instance launching, including: | ✅ |
 | browser_pool.py | Core | Global browser resource pool. Smart scheduling; wires PagePool.preserve_session from BrowserInstance.is_managed. DNS leak prevention when proxy_pool active. | ✅ |
 | circuit_breaker.py | Core | Circuit breaker module. Prevents persistently failing domains from degrading the entire system. | ✅ |
-| config.py | Config | Browser pool configuration module. Public presets: `BrowserConfig.minimal()` / `standard()` / `defen | ✅ |
-| context_factory.py | Core | Dedicated to BrowserContext creation and configuration, including: | ✅ |
+| config.py | Config | Browser pool configuration module. Public presets: `BrowserConfig.minimal()` / `standard()` / `defensive()`. `ResourceBlockConfig` supports image/stylesheet/script/font/media type blocking + ad/tracker domain blocking. | ✅ |
+| context_factory.py | Core | BrowserContext creation/configuration. Installs resource blocking (incl. ad domains) independently of domain allowlist. Domain security (CSP/hardening) when allowlist present. | ✅ |
 | crash_watchdog.py | Core | Provides automatic crash recovery for GlobalBrowserPool: | ✅ |
 | emulation.py | Core | Browser environment emulation configuration with type safety and parameter validation. | ✅ |
 | memory_guard.py | Core | Memory monitoring module. Checks system memory usage at configured intervals; rejects new Page on th | ✅ |

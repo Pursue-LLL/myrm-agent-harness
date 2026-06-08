@@ -124,6 +124,11 @@ necessary step? If yes, ALLOW. If the action goes beyond what was requested, DEN
 
 Output exactly one of: allow, deny, uncertain."""
 
+_CLASSIFIER_LLM_OVERRIDES: dict[str, int] = {
+    "temperature": 0,
+    "max_tokens": 200,
+}
+
 _DECISION_MAP: dict[str, ReviewDecision] = {
     "allow": ReviewDecision.ALLOW,
     "deny": ReviewDecision.DENY,
@@ -189,8 +194,10 @@ class TranscriptClassifier:
                 HumanMessage(content=user_msg),
             ]
 
-            structured_llm = self._llm.with_structured_output(ClassifierResultSchema)
-            response = await asyncio.wait_for(structured_llm.ainvoke(messages), timeout=self._timeout)
+            raw_chain = self._llm.with_structured_output(ClassifierResultSchema)
+            deterministic_llm_step = raw_chain.first.bind(**_CLASSIFIER_LLM_OVERRIDES)
+            chain = deterministic_llm_step | raw_chain.last
+            response = await asyncio.wait_for(chain.ainvoke(messages), timeout=self._timeout)
 
             decision = _DECISION_MAP.get(response.decision, ReviewDecision.UNCERTAIN)
             return ReviewResult(decision=decision, reason=response.reason)

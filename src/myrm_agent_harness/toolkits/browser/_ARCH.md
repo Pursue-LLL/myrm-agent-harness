@@ -15,7 +15,8 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 | _wait_impl.py | Internal | Concrete wait strategy implementations. Each strategy function receives a Page instance and paramete | ✅ |
 | _wait_types.py | Internal | Wait strategy type definitions and runtime statistics module. | ✅ |
 | doctor.py | Core | Browser toolkit diagnostics module. Validates dependencies, configuration, | ✅ |
-| domain_filter.py | Core | Deep domain filtering and resource blocking module for the browser toolkit. Called by BrowserSession | ✅ |
+| domain_filter.py | Core | Deep domain filtering, resource blocking, and ad/tracker domain blocking module. Four-layer defense: CSP + route interception + JS hardening + CDP audit. Route handler blocks ad domains (3500+ via ad_domains.py) and resource types. | ✅ |
+| ad_domains.py | Data | Built-in ad/tracker domain blocklist (~3500 domains from Peter Lowe's list). Loaded lazily by domain_filter when block_ad_domains enabled. | ✅ |
 | exceptions.py | Core | Exception hierarchy definition. RefNotFoundError provides structured diagnostic info, including URL  | ✅ |
 | navigation.py | Core | Page navigation utility module. Responsibilities: Hybrid Session routing (fast HTTP injection for static pages), Page navigation, history, smart wait, and timeout fallback rescue (window.stop). Integrates proxy error detection and state-preserving auto-retry. | ✅ |
 | observability.py | Core | Observability module for the browser toolkit. Provides video recording, progress notifications, and  | ✅ |

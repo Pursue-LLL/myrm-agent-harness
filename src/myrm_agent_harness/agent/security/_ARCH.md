@@ -22,7 +22,7 @@ Detailed design: [SECURITY_DESIGN.md](SECURITY_DESIGN.md)
 | config.py | Config | Called at application startup and on config updates. Pure functions. | ✅ |
 | engine.py | Core | Layers 1–5 of the security architecture. Pure deterministic evaluation — | ✅ |
 | execution_policy.py | Core | Execution policy and suspension abstraction. Defines low-level policy enums and interception contrac | ✅ |
-| transcript_classifier.py | Core | Layer 5.5 — Reasoning-Blind Transcript Classifier for auto-mode. Evaluates tool calls using user intent, tool call sequence, taint labels, and trust context (trusted domains). No assistant reasoning. | ✅ |
+| transcript_classifier.py | Core | Layer 5.5 — Reasoning-Blind Transcript Classifier for auto-mode. Evaluates tool calls using user intent, tool call sequence, taint labels, and trust context (trusted domains). No assistant reasoning. Forces deterministic output (temperature=0, max_tokens=200) regardless of upstream LLM config. | ✅ |
 | path_security.py | Core | Path security — single source of truth for dangerous paths, boundary checks, and safe path joining. | ✅ |
 | ptc_verifier.py | Core | AST-based static analysis for PTC (Programmatic Tool Calling) scripts. Extracts MCP intent and enables Fast-Path Auto-Approve for read-only tools. | ✅ |
 | rate_limiter.py | Core | Agent security rate limiter. Prevents brute-force attacks (e.g., WebUI login) with configurable rate | ✅ |

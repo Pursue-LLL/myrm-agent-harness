@@ -101,7 +101,7 @@ class OCRParser(FileParser):
 
         result = await asyncio.to_thread(self._parse_sync, file_path)
 
-        logger.warning(
+        logger.info(
             "OCR completed: %s, lines: %d, avg_confidence: %.2f, chars: %d",
             path.name,
             len(result.lines),
@@ -117,7 +117,7 @@ class OCRParser(FileParser):
             raise FileNotFoundError(f"File not found: {file_path}")
 
         result = await asyncio.to_thread(self._parse_sync, file_path)
-        logger.warning("OCR with details completed: %s", path.name)
+        logger.info("OCR with details completed: %s", path.name)
         return result
 
     def _parse_sync(self, file_path: str) -> OCRResult:

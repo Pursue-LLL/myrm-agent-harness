@@ -17,8 +17,9 @@ Dedicated to BrowserContext creation and configuration, including:
 1. Selecting launch parameters based on ContextType
 2. Setting global default timeout (_DEFAULT_TIMEOUT_MS, covers all page operations)
 3. Applying EmulationConfig (geolocation/timezone/locale/permissions etc.) with fallback to default_emulation
-4. Installing DomainAllowlist filter and resource blocking
-5. STEALTH mode injection of 13 anti-detection JS scripts (dual-layer defense: patchright CDP + JS init script)
+4. Installing resource blocking (image/font/media/ad-domains) independently of domain allowlist
+5. Installing DomainAllowlist security filter (CSP + JS hardening + CDP audit) when allowlist provided
+6. STEALTH mode injection of 13 anti-detection JS scripts (dual-layer defense: patchright CDP + JS init script)
 """
 
 from __future__ import annotations
@@ -167,6 +168,12 @@ class ContextFactory:
             except Exception:
                 await context.close()
                 raise
+        elif resource_block:
+            try:
+                await self._install_resource_blocking(context, resource_block)
+            except Exception:
+                await context.close()
+                raise
 
         return context
 
@@ -227,5 +234,22 @@ class ContextFactory:
         await install_domain_filter(
             context,
             domain_allowlist,  # type: ignore[arg-type]
+            resource_block=resource_block,  # type: ignore[arg-type]
+        )
+
+    @staticmethod
+    async def _install_resource_blocking(
+        context: BrowserContext,
+        resource_block: object,
+    ) -> None:
+        """Install resource type + ad domain blocking without domain allowlist."""
+        from myrm_agent_harness.toolkits.browser.domain_filter import (
+            DomainAllowlist,
+            install_domain_filter,
+        )
+
+        await install_domain_filter(
+            context,
+            DomainAllowlist(patterns=()),  # empty allowlist = no domain restriction
             resource_block=resource_block,  # type: ignore[arg-type]
         )

@@ -50,6 +50,7 @@ class StealthFetcher:
                     "block_webrtc": True,
                     "hide_canvas": True,
                     "disable_resources": True,
+                    "block_ads": True,
                     "solve_cloudflare": True,
                 }
                 if self._proxy_pool:
