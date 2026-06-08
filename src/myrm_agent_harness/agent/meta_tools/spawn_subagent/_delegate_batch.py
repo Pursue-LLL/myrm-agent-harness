@@ -1,7 +1,7 @@
 """Batch and parallel delegation tool factories.
 
 [INPUT]
-- _delegate_budget::_BatchBudgetAdmission, _admit_race_budget (POS: Budget admission for race mode)
+- _delegate_budget::_BatchBudgetAdmission, _admit_race_budget, _estimate_batch_cost (POS: Budget admission and cost estimation)
 - sub_agents.types::SubagentCatalog, DelegateRole
 - parallel.runner::run_parallel_task_requests (POS: Parallel task execution engine)
 
@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
     _admit_race_budget,
     _BatchBudgetAdmission,
+    _estimate_batch_cost,
 )
 from myrm_agent_harness.agent.sub_agents.types import (
     DelegateRole,
@@ -41,6 +42,7 @@ if TYPE_CHECKING:
 logger = get_agent_logger(__name__)
 
 _DEFAULT_MAX_BATCH_TASKS = 5
+_DEFAULT_COST_APPROVAL_THRESHOLD_USD = 0.50
 
 
 class TaskRequest(BaseModel):
@@ -251,6 +253,61 @@ def create_batch_delegate_tasks_tool(
                     status="unavailable",
                     reason="budget_admission_error",
                 )
+
+        if len(tasks) >= 2:
+            cost_estimate = budget_admission
+            if cost_estimate is None:
+                try:
+                    cost_estimate = await _estimate_batch_cost(
+                        parent_agent=parent_agent,
+                        catalog=catalog,
+                        tasks=tasks,
+                    )
+                except Exception as e:
+                    logger.debug("Pre-flight cost estimation failed: %s", e)
+
+            if (
+                cost_estimate is not None
+                and cost_estimate.status != "unavailable"
+                and cost_estimate.estimated_cost_usd is not None
+                and cost_estimate.estimated_cost_usd >= _DEFAULT_COST_APPROVAL_THRESHOLD_USD
+            ):
+                from langgraph.types import interrupt
+
+                task_summaries = [
+                    {"agent_type": t.agent_type, "objective": t.objective[:200]}
+                    for t in tasks
+                ]
+                interrupt_payload = {
+                    "action_type": "batch_cost_approval",
+                    "task_count": len(tasks),
+                    "estimated_cost_usd": round(cost_estimate.estimated_cost_usd, 4),
+                    "remaining_budget_usd": (
+                        round(cost_estimate.remaining_budget_usd, 4)
+                        if cost_estimate.remaining_budget_usd is not None
+                        else None
+                    ),
+                    "cost_status": cost_estimate.cost_status,
+                    "race": race,
+                    "tournament": tournament,
+                    "tasks": task_summaries,
+                }
+                decision = interrupt(interrupt_payload)
+
+                approved = True
+                if isinstance(decision, dict):
+                    approved = decision.get("approved", True)
+                elif isinstance(decision, list) and decision:
+                    first = decision[0]
+                    approved = first.get("approved", True) if isinstance(first, dict) else bool(first)
+
+                if not approved:
+                    return {
+                        "success": False,
+                        "status": "user_rejected",
+                        "reason": "batch_cost_rejected_by_user",
+                        "estimated_cost_usd": cost_estimate.estimated_cost_usd,
+                    }
 
         from myrm_agent_harness.agent.parallel.runner import run_parallel_task_requests
 

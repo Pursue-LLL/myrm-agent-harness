@@ -43,6 +43,7 @@ if TYPE_CHECKING:
 logger = get_agent_logger(__name__)
 
 _IMAGE_SHRINK_THRESHOLD = 4 * 1024 * 1024  # 4 MB — safe margin under Anthropic 5 MB
+_THINKING_BLOCK_TYPES = frozenset(("thinking", "redacted_thinking"))
 
 
 class OneshotRecoveryMixin:
@@ -60,12 +61,13 @@ class OneshotRecoveryMixin:
     streaming_final_answer: bool
 
     async def _handle_thinking_signature(self, exc: Exception, attempted: bool) -> bool:
-        """Strip thinking blocks from all messages and retry once.
+        """Strip all thinking-related content from messages and retry once.
 
         Anthropic signs thinking blocks against the full turn content.
         Context compression or message truncation invalidates the signature,
         causing HTTP 400.  Recovery: remove all thinking/reasoning content
-        from the conversation and retry.
+        (thinking, redacted_thinking blocks in content; reasoning_content
+        and thinking_blocks in additional_kwargs) and retry.
         """
         if attempted:
             return False
@@ -88,13 +90,16 @@ class OneshotRecoveryMixin:
                 continue
             content = msg.content
             if isinstance(content, list):
-                new_content = [b for b in content if not (isinstance(b, dict) and b.get("type") == "thinking")]
+                new_content = [b for b in content if not (isinstance(b, dict) and b.get("type") in _THINKING_BLOCK_TYPES)]
                 if len(new_content) != len(content):
                     msg.content = new_content  # type: ignore[assignment]
                     stripped += 1
             kwargs: dict[str, object] = msg.additional_kwargs or {}
             if "reasoning_content" in kwargs:
                 del kwargs["reasoning_content"]
+                stripped += 1
+            if "thinking_blocks" in kwargs:
+                del kwargs["thinking_blocks"]
                 stripped += 1
 
         if stripped == 0:

@@ -12,7 +12,8 @@
 - _BatchBudgetAdmission: Budget admission result
 - _emit_policy_denial_event, _policy_denied: Policy denial helpers
 - _resolve_model_name, _estimate_prompt_tokens, _get_budget_checker: Budget utilities
-- _admit_race_budget: Batch budget admission
+- _estimate_batch_cost: Generic batch cost estimation (shared by race + pre-flight)
+- _admit_race_budget: Batch budget admission (race-mode downgrade logic)
 - _build_dynamic_description: Dynamic tool description builder
 
 [POS]
@@ -274,12 +275,18 @@ def _get_budget_checker(parent_agent: BaseAgent) -> object | None:
     return None
 
 
-async def _admit_race_budget(
+async def _estimate_batch_cost(
     *,
     parent_agent: BaseAgent,
     catalog: SubagentCatalog,
     tasks: list[TaskRequest],
 ) -> _BatchBudgetAdmission:
+    """Estimate total USD cost for a batch of tasks without making policy decisions.
+
+    Returns a ``_BatchBudgetAdmission`` with ``status`` reflecting only whether
+    cost estimation succeeded (``admitted`` / ``unavailable``).  Callers layer
+    their own policy on top (race-mode downgrade, pre-flight approval, etc.).
+    """
     checker = _get_budget_checker(parent_agent)
     remaining_budget_usd = None
     if checker is not None and hasattr(checker, "get_remaining_budget"):
@@ -325,9 +332,33 @@ async def _admit_race_budget(
         cost_status = cost.status.value
 
     estimated_cost_usd = sum(estimated_costs)
+    return _BatchBudgetAdmission(
+        status="admitted",
+        reason="cost_estimated",
+        estimated_cost_usd=estimated_cost_usd,
+        remaining_budget_usd=remaining_budget_usd,
+        cost_status=cost_status,
+    )
 
-    if checker is not None and hasattr(checker, "check_budget"):
-        budget_status = checker.check_budget(estimated_cost_usd)
+
+async def _admit_race_budget(
+    *,
+    parent_agent: BaseAgent,
+    catalog: SubagentCatalog,
+    tasks: list[TaskRequest],
+) -> _BatchBudgetAdmission:
+    """Budget admission for race mode — downgrades to sequential when over budget."""
+    estimate = await _estimate_batch_cost(
+        parent_agent=parent_agent,
+        catalog=catalog,
+        tasks=tasks,
+    )
+    if estimate.status == "unavailable":
+        return estimate
+
+    checker = _get_budget_checker(parent_agent)
+    if checker is not None and hasattr(checker, "check_budget") and estimate.estimated_cost_usd is not None:
+        budget_status = checker.check_budget(estimate.estimated_cost_usd)
         if isinstance(budget_status, str):
             try:
                 budget_status = BudgetStatus(budget_status)
@@ -337,25 +368,23 @@ async def _admit_race_budget(
             return _BatchBudgetAdmission(
                 status="downgraded",
                 reason=f"budget_status_{budget_status.value}",
-                estimated_cost_usd=estimated_cost_usd,
-                remaining_budget_usd=remaining_budget_usd,
-                cost_status=cost_status,
+                estimated_cost_usd=estimate.estimated_cost_usd,
+                remaining_budget_usd=estimate.remaining_budget_usd,
+                cost_status=estimate.cost_status,
             )
-    if remaining_budget_usd is not None and remaining_budget_usd < estimated_cost_usd:
+    if (
+        estimate.remaining_budget_usd is not None
+        and estimate.estimated_cost_usd is not None
+        and estimate.remaining_budget_usd < estimate.estimated_cost_usd
+    ):
         return _BatchBudgetAdmission(
             status="downgraded",
             reason="remaining_budget_insufficient",
-            estimated_cost_usd=estimated_cost_usd,
-            remaining_budget_usd=remaining_budget_usd,
-            cost_status=cost_status,
+            estimated_cost_usd=estimate.estimated_cost_usd,
+            remaining_budget_usd=estimate.remaining_budget_usd,
+            cost_status=estimate.cost_status,
         )
-    return _BatchBudgetAdmission(
-        status="admitted",
-        reason="within_budget",
-        estimated_cost_usd=estimated_cost_usd,
-        remaining_budget_usd=remaining_budget_usd,
-        cost_status=cost_status,
-    )
+    return estimate
 
 
 # ---------------------------------------------------------------------------

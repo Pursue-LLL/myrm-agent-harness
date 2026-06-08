@@ -24,7 +24,13 @@ def _make_mock_parent():
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
 @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._run_tournament_bracket")
-async def test_batch_delegate_tournament(mock_run_tournament, mock_run_parallel):
+@patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+async def test_batch_delegate_tournament(mock_estimate_cost, mock_run_tournament, mock_run_parallel):
+    from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import _BatchBudgetAdmission
+
+    mock_estimate_cost.return_value = _BatchBudgetAdmission(
+        status="unavailable", reason="test_skip",
+    )
     parent = _make_mock_parent()
     catalog = AsyncMock()
 

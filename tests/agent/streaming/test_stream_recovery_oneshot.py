@@ -129,6 +129,83 @@ class TestHandleThinkingSignature:
         assert result is False
 
     @pytest.mark.asyncio
+    async def test_strips_redacted_thinking_blocks(self, ctx: StreamContext) -> None:
+        """redacted_thinking blocks must also be stripped to prevent retry failure."""
+        ctx.agent_input["messages"] = [
+            HumanMessage(content="hello"),
+            AIMessage(content=[
+                {"type": "thinking", "thinking": "visible reasoning"},
+                {"type": "redacted_thinking", "data": "encrypted_payload_base64"},
+                {"type": "text", "text": "answer"},
+            ]),
+        ]
+        exc = _FakeError("thinking block signature invalid", status_code=400)
+        executor = _make_executor(ctx)
+
+        result = await executor._handle_thinking_signature(exc, attempted=False)
+        assert result is True
+        ai_msg = ctx.agent_input["messages"][1]
+        assert len(ai_msg.content) == 1
+        assert ai_msg.content[0]["type"] == "text"
+
+    @pytest.mark.asyncio
+    async def test_strips_only_redacted_thinking(self, ctx: StreamContext) -> None:
+        """When only redacted_thinking blocks are present (no regular thinking)."""
+        ctx.agent_input["messages"] = [
+            HumanMessage(content="hello"),
+            AIMessage(content=[
+                {"type": "redacted_thinking", "data": "encrypted_data"},
+                {"type": "text", "text": "answer"},
+            ]),
+        ]
+        exc = _FakeError("thinking block signature invalid", status_code=400)
+        executor = _make_executor(ctx)
+
+        result = await executor._handle_thinking_signature(exc, attempted=False)
+        assert result is True
+        ai_msg = ctx.agent_input["messages"][1]
+        assert len(ai_msg.content) == 1
+        assert ai_msg.content[0]["type"] == "text"
+
+    @pytest.mark.asyncio
+    async def test_strips_thinking_blocks_from_kwargs(self, ctx: StreamContext) -> None:
+        """thinking_blocks in additional_kwargs must also be cleaned."""
+        ai_msg = AIMessage(content="answer")
+        ai_msg.additional_kwargs["thinking_blocks"] = [
+            {"type": "thinking", "thinking": "reasoning", "signature": "sig123"},
+        ]
+        ctx.agent_input["messages"] = [HumanMessage(content="q"), ai_msg]
+        exc = _FakeError("signature thinking invalid", status_code=400)
+        executor = _make_executor(ctx)
+
+        result = await executor._handle_thinking_signature(exc, attempted=False)
+        assert result is True
+        assert "thinking_blocks" not in ai_msg.additional_kwargs
+
+    @pytest.mark.asyncio
+    async def test_strips_all_thinking_artifacts(self, ctx: StreamContext) -> None:
+        """Combined: content blocks + reasoning_content + thinking_blocks all stripped."""
+        ai_msg = AIMessage(content=[
+            {"type": "thinking", "thinking": "visible"},
+            {"type": "redacted_thinking", "data": "encrypted"},
+            {"type": "text", "text": "answer"},
+        ])
+        ai_msg.additional_kwargs["reasoning_content"] = "deep thinking..."
+        ai_msg.additional_kwargs["thinking_blocks"] = [
+            {"type": "thinking", "thinking": "r", "signature": "s"},
+        ]
+        ctx.agent_input["messages"] = [HumanMessage(content="q"), ai_msg]
+        exc = _FakeError("thinking block signature invalid", status_code=400)
+        executor = _make_executor(ctx)
+
+        result = await executor._handle_thinking_signature(exc, attempted=False)
+        assert result is True
+        assert len(ai_msg.content) == 1
+        assert ai_msg.content[0]["type"] == "text"
+        assert "reasoning_content" not in ai_msg.additional_kwargs
+        assert "thinking_blocks" not in ai_msg.additional_kwargs
+
+    @pytest.mark.asyncio
     async def test_emits_recovery_event(self, ctx: StreamContext) -> None:
         ctx.agent_input["messages"] = [
             HumanMessage(content="q"),
