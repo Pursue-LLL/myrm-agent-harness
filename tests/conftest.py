@@ -81,6 +81,34 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
         item.add_marker(pytest.mark.xdist_group("browser_chromium"))
 
 
+_BROWSER_WARMUP_MARKERS = ("integration", "e2e", "performance")
+
+
+def pytest_collection_finish(session: pytest.Session) -> None:
+    """Fail fast when a browser test calls warmup() without heavy-test markers.
+
+    Real Chromium warmups must not enter the default memory-safe suite
+    (``-m "not integration and not e2e and not performance"``).
+    """
+    for item in session.items:
+        item_path = Path(item.path).resolve()
+        if not item_path.is_relative_to(_BROWSER_TEST_ROOT):
+            continue
+        if any(item.get_closest_marker(name) is not None for name in _BROWSER_WARMUP_MARKERS):
+            continue
+        try:
+            source = inspect.getsource(item.function)
+        except (OSError, TypeError):
+            continue
+        if "warmup(" not in source:
+            continue
+        pytest.fail(
+            f"{item.nodeid} calls warmup() but lacks @pytest.mark.integration, "
+            "e2e, or performance. Real browser tests must run outside the default suite.",
+            pytrace=False,
+        )
+
+
 @pytest.fixture(autouse=True)
 async def _reset_global_browser_pool_singleton(request: pytest.FixtureRequest) -> AsyncIterator[None]:
     """Shut down GlobalBrowserPool singleton after browser-related tests.
