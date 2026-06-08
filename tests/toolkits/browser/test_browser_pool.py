@@ -408,6 +408,20 @@ async def test_shutdown_with_playwright_stop_exception() -> None:
 # =============================================================================
 
 
+@pytest.mark.asyncio
+async def test_reset_global_browser_pool_for_tests_no_pool() -> None:
+    """reset_global_browser_pool_for_tests is a no-op when no pool exists."""
+    import myrm_agent_harness.toolkits.browser.pool.singleton as pool_module
+    from myrm_agent_harness.toolkits.browser.pool.singleton import reset_global_browser_pool_for_tests
+
+    original_pool = pool_module._global_pool
+    try:
+        pool_module._global_pool = None
+        await reset_global_browser_pool_for_tests()
+    finally:
+        pool_module._global_pool = original_pool
+
+
 def test_cleanup_global_pool_no_pool() -> None:
     """Test _cleanup_global_pool handles no global pool."""
     from myrm_agent_harness.toolkits.browser.pool.singleton import _cleanup_global_pool, _global_pool

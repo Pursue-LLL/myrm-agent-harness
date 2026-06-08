@@ -10,6 +10,10 @@ Run: uv run pytest tests/test_lazy_loading_comprehensive.py -v
 import subprocess
 import sys
 
+import pytest
+
+pytestmark = pytest.mark.performance
+
 
 def test_toolkits_no_heavy_imports():
     """Ensure importing toolkits does not load heavy dependencies."""

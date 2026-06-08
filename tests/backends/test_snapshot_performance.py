@@ -114,6 +114,7 @@ version: 2.0.0
     benchmark(snapshot.sync_all, skills_dir, max_depth=1)
 
 
+@pytest.mark.performance
 def test_snapshot_scaling_comparison(tmp_path):
     """Compare O(N) snapshot read vs O(N) file system scan with full parsing.
 

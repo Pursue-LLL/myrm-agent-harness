@@ -226,7 +226,7 @@ files = ["src/myrm_agent_harness"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = "-n auto --dist=loadscope --timeout=300"
+addopts = "-n0 --timeout=300 -m 'not integration and not e2e and not performance'"
 filterwarnings = [
     "ignore:The default value of `allowed_objects` will change:langchain_core._api.deprecation.LangChainPendingDeprecationWarning"
 ]
@@ -243,7 +243,8 @@ markers = [
 
 # 覆盖率门禁：核心模块行覆盖率 ≥80%。
 # 依赖真实文件系统/数据库的基础设施模块由独立集成任务覆盖。
-# CI: coverage run -m pytest tests/ -m "not integration and not e2e and not performance"
+# Default addopts already apply the memory-safe marker filter and -n0.
+# CI unit job: .github/workflows/test.yml (pytest -n 4). Browser: separate job.
 #     coverage report
 [tool.coverage.run]
 source = ["myrm_agent_harness"]

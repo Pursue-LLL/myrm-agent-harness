@@ -9,7 +9,7 @@ Global browser resource pool. Manages Browser/Context/Page three-layer resources
 |------|------|-------------|-------|
 | __init__.py | Package | Global browser resource pool. Manages Browser/Context/Page three-layer resources, implementing zero- | ✅ |
 | browser_launcher.py | Core | Dedicated to browser instance launching, including: | ✅ |
-| browser_pool.py | Core | Global browser resource pool. Manages Browser/Context/Page three-layer resources, implementing: | ✅ |
+| browser_pool.py | Core | Global browser resource pool. Manages Browser/Context/Page three-layer resources, implementing: DNS leak prevention (DoH flag injected when proxy_pool is active). | ✅ |
 | circuit_breaker.py | Core | Circuit breaker module. Prevents persistently failing domains from degrading the entire system. | ✅ |
 | config.py | Config | Browser pool configuration module. Public presets: `BrowserConfig.minimal()` / `standard()` / `defen | ✅ |
 | context_factory.py | Core | Dedicated to BrowserContext creation and configuration, including: | ✅ |

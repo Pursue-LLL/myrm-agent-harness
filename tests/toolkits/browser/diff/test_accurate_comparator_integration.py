@@ -50,7 +50,13 @@ def create_text_image(width: int, height: int, text: str) -> str:
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
-@pytest.mark.slow
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.slow,
+    pytest.mark.xdist_group("browser_chromium"),
+]
+
+
 @pytest.mark.asyncio
 class TestAccurateComparatorIntegration:
     """Integration tests with real browser execution."""

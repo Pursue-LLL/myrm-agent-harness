@@ -7,6 +7,7 @@
 
 [OUTPUT]
 - get_global_browser_pool: get global pool singleton
+- reset_global_browser_pool_for_tests: shut down and clear pool singleton (test teardown)
 
 [POS]
 Manages the GlobalBrowserPool singleton lifecycle, including atexit/SIGTERM cleanup hooks
@@ -98,6 +99,22 @@ def get_global_browser_pool(
         )
 
     return _global_pool
+
+
+async def reset_global_browser_pool_for_tests() -> None:
+    """Shut down and clear the global pool singleton.
+
+    Intended for pytest teardown between tests. Unlike ``get_global_browser_pool()``,
+    this never creates a pool when none exists.
+    """
+    global _global_pool
+
+    pool = _global_pool
+    if pool is None:
+        return
+
+    await pool.shutdown()
+    _global_pool = None
 
 
 def _cleanup_orphan_chromium() -> None:

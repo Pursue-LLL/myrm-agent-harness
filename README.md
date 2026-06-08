@@ -592,11 +592,18 @@ uv sync --all-extras
 pip install pre-commit
 pre-commit install
 
-# 运行测试
-pytest tests/ -v
+# 运行测试（默认串行 + 安全 marker 过滤，避免本机内存打满）
+pytest -v
+
+# 全量（含 integration / e2e / performance）
+pytest -m "" -v
+
+# 浏览器 / 性能用例单独跑
+pytest -m "integration or e2e" -v --timeout=600
+pytest -m performance -v
 
 # 运行架构检测
-pytest tests/test_harness_boundary.py -v
+pytest tests/architecture/ -m architecture -n0 -v
 
 # 检查代码质量
 ruff check .

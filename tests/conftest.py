@@ -5,7 +5,7 @@ import logging
 import os
 import shutil
 import tempfile
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager, suppress
 from pathlib import Path
 
@@ -36,6 +36,67 @@ def _cleanup_temp_workspace() -> None:
 
 
 atexit.register(_cleanup_temp_workspace)
+
+
+_BROWSER_TEST_ROOT = Path(__file__).resolve().parent / "toolkits" / "browser"
+_TESTS_ROOT = Path(__file__).resolve().parent
+_INTEGRATION_TEST_ROOT = _TESTS_ROOT / "integration"
+
+
+def _needs_browser_singleton_reset(request: pytest.FixtureRequest) -> bool:
+    """Return whether a test may touch the GlobalBrowserPool singleton."""
+    item_path = Path(request.fspath).resolve()
+    if item_path.is_relative_to(_BROWSER_TEST_ROOT):
+        return True
+    if item_path.is_relative_to(_INTEGRATION_TEST_ROOT):
+        return True
+    if request.node.get_closest_marker("integration") is not None:
+        return True
+    return request.node.get_closest_marker("e2e") is not None
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Align markers with CI/local memory-safe test selection.
+
+    ``@pytest.mark.benchmark`` tests spawn large corpora or heavy fixtures but were
+    not excluded by ``-m "not performance"``. Treat them as performance tests.
+
+    Real Chromium browser tests under ``tests/toolkits/browser`` are serialized
+    when pytest-xdist is enabled to avoid N workers each launching a browser.
+    """
+    for item in items:
+        if item.get_closest_marker("benchmark") is not None and item.get_closest_marker("performance") is None:
+            item.add_marker(pytest.mark.performance)
+
+        item_path = Path(item.path).resolve()
+        in_browser_tree = item_path.is_relative_to(_BROWSER_TEST_ROOT)
+        in_integration_tree = item_path.is_relative_to(_INTEGRATION_TEST_ROOT)
+        if not in_browser_tree and not in_integration_tree:
+            continue
+        if item.get_closest_marker("xdist_group") is not None:
+            continue
+        if item.get_closest_marker("integration") is None and item.get_closest_marker("e2e") is None:
+            continue
+        item.add_marker(pytest.mark.xdist_group("browser_chromium"))
+
+
+@pytest.fixture(autouse=True)
+async def _reset_global_browser_pool_singleton(request: pytest.FixtureRequest) -> AsyncIterator[None]:
+    """Shut down GlobalBrowserPool singleton after browser-related tests.
+
+    ``get_global_browser_pool()`` keeps a module-level instance with a lifecycle
+    background task; without teardown, Chromium workers can outlive the test.
+    Scoped to browser/integration/e2e paths to avoid async fixture overhead on
+    the full ~20k unit-test matrix.
+    """
+    yield
+    if not _needs_browser_singleton_reset(request):
+        return
+
+    from myrm_agent_harness.toolkits.browser.pool import reset_global_browser_pool_for_tests
+
+    with suppress(Exception):
+        await reset_global_browser_pool_for_tests()
 
 
 # ---------------------------------------------------------------------------

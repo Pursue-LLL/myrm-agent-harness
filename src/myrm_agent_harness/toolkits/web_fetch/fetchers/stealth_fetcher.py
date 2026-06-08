@@ -54,6 +54,7 @@ class StealthFetcher:
                 }
                 if self._proxy_pool:
                     kwargs["proxy"] = self._proxy_pool.get_next().to_url()
+                    kwargs["dns_over_https"] = True
                 async with asyncio.timeout(_STEALTH_TIMEOUT_S):
                     response = await StealthyFetcher.async_fetch(url, **kwargs)
                 html = response.body.decode(response.encoding or "utf-8", errors="replace")

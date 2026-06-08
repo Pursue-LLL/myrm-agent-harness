@@ -148,6 +148,11 @@ class GlobalBrowserPool(CrashWatchdogMixin):
         self._launchers: dict[BrowserEngine, BrowserLauncher] = {}
         self._launch_options = launch_options or dict(_DEFAULT_LAUNCH_OPTIONS)
 
+        if self._proxy_pool:
+            args = list(self._launch_options.get("args", []))
+            args.append("--dns-over-https-templates=https://cloudflare-dns.com/dns-query")
+            self._launch_options["args"] = args
+
         self._context_factory = ContextFactory(
             proxy_pool=self._proxy_pool,
             default_emulation=self._config.default_emulation,

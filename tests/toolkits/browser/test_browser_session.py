@@ -695,23 +695,26 @@ async def test_ensure_components_direct_call() -> None:
     from myrm_agent_harness.toolkits.browser.pool.config import BrowserPoolConfig
 
     pool = GlobalBrowserPool(config=BrowserPoolConfig())
-    browser_session = BrowserSession(browser_pool=pool, context_type=ContextType.AGENT)
+    try:
+        browser_session = BrowserSession(browser_pool=pool, context_type=ContextType.AGENT)
 
-    mock_page = AsyncMock()
-    mock_page.url = "https://test.com"
+        mock_page = AsyncMock()
+        mock_page.url = "https://test.com"
 
-    mock_tab_controller = MagicMock()
-    mock_tab_controller.get_active_page = MagicMock(return_value=mock_page)
+        mock_tab_controller = MagicMock()
+        mock_tab_controller.get_active_page = MagicMock(return_value=mock_page)
 
-    browser_session._tab_controller = mock_tab_controller
-    browser_session._navigator = None
+        browser_session._tab_controller = mock_tab_controller
+        browser_session._navigator = None
 
-    assert browser_session._navigator is None
+        assert browser_session._navigator is None
 
-    await browser_session._ensure_components()
+        await browser_session._ensure_components()
 
-    assert browser_session._navigator is not None
-    assert browser_session._snapshot_manager is not None
+        assert browser_session._navigator is not None
+        assert browser_session._snapshot_manager is not None
+    finally:
+        await pool.shutdown()
 
 @pytest.mark.asyncio
 async def test_restart_with_storage_state(browser_session: BrowserSession) -> None:

@@ -15,6 +15,7 @@
 - ProxyPool: proxy pool protocol (supports rotation and sticky sessions)
 - RoundRobinProxyPool: default round-robin proxy pool implementation
 - get_global_browser_pool: get global browser pool singleton
+- reset_global_browser_pool_for_tests: shut down and clear pool singleton (test teardown)
 
 [POS]
 Global browser resource pool. Manages Browser/Context/Page three-layer resources, implementing zero-copy page reuse,
@@ -44,7 +45,7 @@ from .context_factory import ContextFactory
 from .emulation import EmulationConfig
 from .page_pool import PagePool
 from .proxy import ProxyConfig, ProxyPool, RoundRobinProxyPool
-from .singleton import get_global_browser_pool
+from .singleton import get_global_browser_pool, reset_global_browser_pool_for_tests
 
 __all__ = [
     "BrowserConfig",
@@ -76,4 +77,5 @@ __all__ = [
     "RoundRobinProxyPool",
     "ThrottleMode",
     "get_global_browser_pool",
+    "reset_global_browser_pool_for_tests",
 ]
