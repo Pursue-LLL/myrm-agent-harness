@@ -80,6 +80,14 @@ class TestSanitizeLlmOutput:
         raw = "pre<|endoftext|>mid<|im_start|>post"
         assert sanitize_llm_output(raw) == "premidpost"
 
+    def test_removes_fullwidth_pipe_model_tokens(self) -> None:
+        raw = "pre<\uff5cassistant\uff5c>mid<\uff5cend\uff5c>post"
+        assert sanitize_llm_output(raw) == "premidpost"
+
+    def test_removes_deepseek_subscript_dot_tokens(self) -> None:
+        raw = "pre<\uff5cbegin\u2581of\u2581sentence\uff5c>mid<\uff5ctool\u2581calls\uff5c>post"
+        assert sanitize_llm_output(raw) == "premidpost"
+
     def test_removes_unicode_replacement_char(self) -> None:
         raw = "ok\ufffdtail"
         assert sanitize_llm_output(raw) == "oktail"

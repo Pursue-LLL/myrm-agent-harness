@@ -47,7 +47,7 @@ def _compiled_sanitizer() -> re.Pattern[str]:
     patterns = [
         r"[\x00-\x08\x0B\x0C\x0E-\x1F]",
         r"[\x7F-\x9F]",
-        r"<\|[a-zA-Z_]\w*\|>",
+        r"<[|\uFF5C][^|\uFF5C>]+[|\uFF5C]>",
         r"\uFFFD",
         r"[\uD800-\uDFFF]",
     ]
@@ -98,7 +98,8 @@ def sanitize_text(text: str) -> str:
     2. **Orphaned reasoning tags** — stray open/close tags left after
        step 1 (e.g. ``</think>`` without a matching ``<think>``).
     3. **Control characters** — C0/C1 control chars, model-specific
-       tokens ``<|…|>``, replacement char ``\\uFFFD``, unpaired surrogates.
+       tokens ``<|…|>`` and full-width ``<｜…｜>`` variants,
+       replacement char ``\\uFFFD``, unpaired surrogates.
 
     A fast-path check skips the reasoning-tag regex when no ``<`` is
     present in *text* (the common case for most text).

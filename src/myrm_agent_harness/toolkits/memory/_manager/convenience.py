@@ -19,6 +19,20 @@ class MemoryManagerConvenienceMixin:
         """Set a profile attribute. Returns pending_id if approval is required, else None."""
         return await self._governance.set_profile_attribute(key, value, approval_required=self.approval_required)
 
+    async def set_system_profile_attribute(self, key: str, value: str) -> None:
+        """Set a profile attribute from system-level automation (bypasses user approval).
+
+        Unlike ``set_profile_attribute``, this always writes immediately regardless
+        of the ``approval_required`` flag.  Intended for internal bridges (e.g. the
+        browser session–memory bridge) that produce trusted, system-generated data.
+        Security scanning is still applied.
+        """
+        await self._governance.set_profile_attribute(key, value, approval_required=False)
+
+    async def delete_system_profile_attribute(self, key: str) -> bool:
+        """Remove a system-managed profile key (bypasses approval)."""
+        return await self._rel().delete_profile(key, namespaces=self._namespaces)
+
     async def get_profile_attribute(self, key: str) -> str | None:
         return await self._governance.get_profile_attribute(key)
 

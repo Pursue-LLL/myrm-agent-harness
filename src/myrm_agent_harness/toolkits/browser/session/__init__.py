@@ -10,6 +10,8 @@ from .browser_session import BrowserSession
 from .download_manager import DownloadConfig, DownloadManager, DownloadResult
 from .extractor import Extractor
 from .interactor import Interactor
+from .session_lifecycle_hook import SessionLifecycleHookProtocol
+from .session_memory_bridge import SessionMemoryBridge
 from .snapshot_manager import SnapshotManager
 from .structured_extractor import StructuredExtractor
 from .tab_controller import TabController
@@ -21,6 +23,8 @@ __all__ = [
     "DownloadResult",
     "Extractor",
     "Interactor",
+    "SessionLifecycleHookProtocol",
+    "SessionMemoryBridge",
     "SnapshotManager",
     "StructuredExtractor",
     "TabController",

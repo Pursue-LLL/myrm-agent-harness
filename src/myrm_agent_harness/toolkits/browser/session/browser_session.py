@@ -194,6 +194,8 @@ class BrowserSession(
         self._vision_verifier = VisionVerifier(vision_llm)
         self._structured_extractor = StructuredExtractor(vision_llm)
 
+        self._session_lifecycle_hook = None
+
         # CAPTCHA coordination (optional — only active when a solver is provided)
         if captcha_solver is not None:
             from myrm_agent_harness.toolkits.browser.captcha import CaptchaCoordinator

@@ -1,8 +1,9 @@
 """Workspace rules injection middleware.
 
-Injects workspace-level rule files (AGENTS.md, CLAUDE.md, .cursorrules,
-.myrm.md, .hermes.md, HERMES.md, .windsurfrules, .myrm/rules/*.md,
-.cursor/rules/*.mdc, .claude/CLAUDE.md, .github/copilot-instructions.md)
+Injects workspace-level rule files (AGENTS.md, CLAUDE.md, SOUL.md,
+.cursorrules, .clinerules, .myrm.md, .hermes.md, HERMES.md,
+.windsurfrules, .myrm/rules/*.md, .cursor/rules/*.mdc,
+.claude/CLAUDE.md, .github/copilot-instructions.md)
 as a SystemMessage into the prompt on first LLM call.
 
 Injection position: after user_instructions, before memory_context.

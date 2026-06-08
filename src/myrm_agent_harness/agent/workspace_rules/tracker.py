@@ -2,7 +2,7 @@
 
 Monitors tool call arguments for file/directory paths. When a new
 directory is accessed, checks for rule files (AGENTS.md, CLAUDE.md,
-.cursorrules, .windsurfrules, .claude/CLAUDE.md,
+SOUL.md, .cursorrules, .clinerules, .windsurfrules, .claude/CLAUDE.md,
 .github/copilot-instructions.md, etc.) and appends their content
 to the tool result.
 

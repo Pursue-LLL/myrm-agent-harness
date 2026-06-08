@@ -20,6 +20,8 @@ Browser session components.
 | console_logger.py | Core | Browser console log capture (JS errors/warnings/logs + page errors). Mirrors NetworkLogger lifecycle. | ✅ |
 | page_analyzer.py | Core | Lightweight page structure analyzer. Executes fast DOM analysis via page.evaluate(), | ✅ |
 | session_persistence.py | Core | Session persistence helper class. Single responsibility: handles session save/restore/list/delete op | ✅ |
+| session_lifecycle_hook.py | Protocol | SessionLifecycleHookProtocol: optional observer for session save/delete/expire events. | ✅ |
+| session_memory_bridge.py | Core | SessionMemoryBridge: keeps active_browser_sessions profile attribute in sync with the vault via SessionLifecycleHookProtocol. | ✅ |
 | snapshot_diff.py | Core | ARIA snapshottext'ssemantic diff(ref prefixnormalizeafterlinelevelfor). | ✅ |
 | snapshot_manager.py | Core | Snapshot generation manager. Responsibilities: | ✅ |
 | snapshot_result.py | Core | Immutable snapshot result type for browser ARIA snapshots. | ✅ |

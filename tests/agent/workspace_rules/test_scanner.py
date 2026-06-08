@@ -178,6 +178,52 @@ class TestScanDirectory:
         assert any(r.source == ".windsurfrules" for r in results)
         assert any("Windsurf project rules" in r.content for r in results)
 
+    def test_discovers_soul_md(self, workspace_dir: Path) -> None:
+        (workspace_dir / "SOUL.md").write_text("# Agent persona definition")
+        results = _scan_directory(workspace_dir)
+        assert any(r.source == "SOUL.md" for r in results)
+        assert any("Agent persona definition" in r.content for r in results)
+
+    def test_discovers_soul_md_lowercase(self, workspace_dir: Path) -> None:
+        (workspace_dir / "soul.md").write_text("# lowercase soul rules")
+        results = _scan_directory(workspace_dir)
+        # On case-insensitive FS (macOS), SOUL.md matches first since it's higher priority
+        assert any(r.source in ("soul.md", "SOUL.md") for r in results)
+        assert any("lowercase soul rules" in r.content for r in results)
+
+    def test_soul_md_overridden_by_higher_priority(self, workspace_dir: Path) -> None:
+        """SOUL.md has lower priority than .myrm.md; First-Match-Wins blocks it."""
+        (workspace_dir / ".myrm.md").write_text("# Myrm rules")
+        (workspace_dir / "SOUL.md").write_text("# Soul rules")
+        results = _scan_directory(workspace_dir)
+        sources = {r.source for r in results}
+        assert ".myrm.md" in sources
+        assert "SOUL.md" not in sources
+
+    def test_soul_md_overrides_agents_md(self, workspace_dir: Path) -> None:
+        """SOUL.md has higher priority than AGENTS.md."""
+        (workspace_dir / "SOUL.md").write_text("# Soul persona")
+        (workspace_dir / "AGENTS.md").write_text("# Agent rules")
+        results = _scan_directory(workspace_dir)
+        sources = {r.source for r in results}
+        assert "SOUL.md" in sources
+        assert "AGENTS.md" not in sources
+
+    def test_discovers_clinerules(self, workspace_dir: Path) -> None:
+        (workspace_dir / ".clinerules").write_text("# Cline IDE rules")
+        results = _scan_directory(workspace_dir)
+        assert any(r.source == ".clinerules" for r in results)
+        assert any("Cline IDE rules" in r.content for r in results)
+
+    def test_clinerules_overridden_by_cursorrules(self, workspace_dir: Path) -> None:
+        """.cursorrules has higher priority than .clinerules; First-Match-Wins blocks it."""
+        (workspace_dir / ".cursorrules").write_text("# Cursor rules")
+        (workspace_dir / ".clinerules").write_text("# Cline rules")
+        results = _scan_directory(workspace_dir)
+        sources = {r.source for r in results}
+        assert ".cursorrules" in sources
+        assert ".clinerules" not in sources
+
     def test_discovers_copilot_instructions(self, workspace_dir: Path) -> None:
         github_dir = workspace_dir / ".github"
         github_dir.mkdir()

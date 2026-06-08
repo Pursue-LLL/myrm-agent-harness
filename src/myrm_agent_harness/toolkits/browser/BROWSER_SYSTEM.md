@@ -387,6 +387,21 @@ class SessionVaultBackend(Protocol):
 - **FileVaultBackend**：本地文件系统，使用 URL 编码文件名防止域名冲突
 - **DbVaultBackend**：数据库存储（预留接口，零代码改动即可切换）
 
+**Session–Memory Bridge（Agent 跨会话身份记忆）**：
+
+当 Agent 保存/删除浏览器登录态时，`SessionMemoryBridge` 自动维护一个 `active_browser_sessions` Profile 属性。该属性由 `memory_context_middleware` 自动注入到每轮 LLM 上下文的 `<user_memory_context> / Global User Profile` 区域，使 Agent **零额外工具调用**即可感知所有可用登录态。
+
+```
+用户："帮我发一条推文"
+Agent 上下文已包含: active_browser_sessions: twitter.com (Jun 08), github.com (Jun 05)
+Agent 直接调用: restore_session("twitter.com") → 节省 1 次 LLM 推理
+```
+
+- **Protocol 驱动**：`SessionLifecycleHookProtocol` → `on_session_saved / deleted / expired`
+- **Fire-and-forget**：异步触发，不阻塞 save/delete 操作本身
+- **容量控制**：最多追踪 10 个最近使用的 session，避免 Profile 膨胀
+- **Prompt Cache 安全**：Profile 属性仅在 session 增删时变更（极低频），不影响缓存命中率
+
 ---
 
 ### 9. URL Scheme 白名单验证
@@ -942,6 +957,8 @@ browser/
 │   ├── extractor.py (171 行) — Extractor
 │   ├── page_analyzer.py (202 行) — PageAnalyzer（两阶段快照架构）
 │   ├── session_persistence.py (232 行) — SessionPersistence（会话持久化）
+│   ├── session_lifecycle_hook.py — SessionLifecycleHookProtocol（会话生命周期钩子协议）
+│   ├── session_memory_bridge.py — SessionMemoryBridge（会话→记忆 Profile 自动同步）
 │   ├── network_intelligence.py (230 行) — NetworkIntelligence（CDP 懒加载 API 响应体检索）
 │   └── vision_verifier.py — VisionVerifier（三层极速视觉漏斗）
 ├── domain_filter.py (317 行) — 四层域名过滤（CSP + HTTP + 主线程硬化 + CDP）
