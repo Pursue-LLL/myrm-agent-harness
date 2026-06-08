@@ -13,6 +13,8 @@ from myrm_agent_harness.toolkits.browser import (
 )
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 async def browser_pool() -> GlobalBrowserPool:

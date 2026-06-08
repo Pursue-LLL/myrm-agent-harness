@@ -20,6 +20,8 @@ Harness test suite: unit, integration, architecture gates, and performance bench
 
 Duplicate basenames such as `test_engine.py` under different `tests/agent/**` subtrees can trigger pytest `import file mismatch` during collection. Use domain-specific names (e.g. `test_curator_engine.py`).
 
+Real Chromium tests under `tests/toolkits/browser/` must carry `integration` or `e2e` (or `performance`). `pytest_collection_finish` fails collection if a test function calls `.warmup(` or `.acquire_page(` without those markers.
+
 ## Test execution (memory-safe)
 
 | Profile | Command | Notes |

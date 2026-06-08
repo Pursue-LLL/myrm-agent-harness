@@ -82,7 +82,7 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
 
 
 _BROWSER_HEAVY_TEST_MARKERS = ("integration", "e2e", "performance")
-_BROWSER_REAL_CHROMIUM_CALLS = ("warmup(", "acquire_page(")
+_BROWSER_REAL_CHROMIUM_CALLS = (".warmup(", ".acquire_page(")
 
 
 def pytest_collection_finish(session: pytest.Session) -> None:
