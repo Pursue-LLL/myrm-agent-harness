@@ -1,7 +1,7 @@
 """Skill security scanner pattern definitions.
 
 Pure data module — all threat detection patterns used by scanner.py.
-26 threat categories, 108 patterns covering:
+26 threat categories, 113 patterns covering:
 
 prompt_injection, command_injection, credential_exposure, data_exfiltration,
 filesystem_access, process_operation, network_access, screen_input,
@@ -209,6 +209,16 @@ EXFILTRATION_PATTERNS: PatternList = [
         ScanSeverity.CRITICAL,
     ),
     (
+        re.compile(r"\bdict\s*\(\s*os\.environ\s*\)|os\.environ\.(?:items|values|copy)\s*\(", re.IGNORECASE),
+        "Data exfiltration: bulk environment variable access",
+        ScanSeverity.HIGH,
+    ),
+    (
+        re.compile(r"\{[^}]*os\.environ[^}]*\}", re.IGNORECASE),
+        "Data exfiltration: environment variable dict comprehension",
+        ScanSeverity.HIGH,
+    ),
+    (
         re.compile(r">\s*/tmp/[^\s]*\s*&&\s*(?:curl|wget|nc|python)", re.IGNORECASE),
         "Data exfiltration: /tmp staging followed by exfiltration",
         ScanSeverity.CRITICAL,
@@ -234,7 +244,7 @@ EXFILTRATION_PATTERNS: PatternList = [
 ]
 
 # ---------------------------------------------------------------------------
-# 5. Filesystem Access (2 patterns)
+# 5. Filesystem Access (5 patterns)
 # ---------------------------------------------------------------------------
 
 FILESYSTEM_PATTERNS: PatternList = [
@@ -246,6 +256,21 @@ FILESYSTEM_PATTERNS: PatternList = [
     (
         re.compile(r"(?:read|cat|head|tail)\s+.*(?:\.env|\.pem|\.key|credentials)", re.IGNORECASE),
         "File system: access to credential files",
+        ScanSeverity.HIGH,
+    ),
+    (
+        re.compile(r"Path[^\n]*[\"'](?:[^\"']*/)?\.(?:ssh|aws|kube|docker|gnupg)[/\"']", re.IGNORECASE),
+        "File system: pathlib access to sensitive credential directory",
+        ScanSeverity.HIGH,
+    ),
+    (
+        re.compile(r"/var/run/secrets/|/run/secrets/", re.IGNORECASE),
+        "File system: container-mounted secrets path (K8s/Docker)",
+        ScanSeverity.HIGH,
+    ),
+    (
+        re.compile(r"serviceaccount/token|kubernetes\.io/serviceaccount", re.IGNORECASE),
+        "File system: Kubernetes service account token path",
         ScanSeverity.HIGH,
     ),
 ]

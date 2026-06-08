@@ -30,7 +30,7 @@ Skill content security scanner. Part of the framework's defense-in-depth.
 Trust attenuation is the hard limit (restricts tools), scanner is the
 soft detection layer (warns users and recommends trust levels).
 
-Detects 26 threat categories (108 patterns): prompt injection, command injection,
+Detects 26 threat categories (113 patterns): prompt injection, command injection,
 credential exposure, data exfiltration, file system access,
 process operations, network access, screen/input capture,
 memory/config snooping, code injection, privilege escalation,
@@ -201,7 +201,7 @@ def scan_skill_content(
     The trust attenuation system provides the hard security boundary.
 
     Runs three analysis passes:
-    1. Regex pattern matching (26 categories, 108 patterns)
+    1. Regex pattern matching (26 categories, 113 patterns)
     2. Invisible Unicode detection
     3. Python AST analysis (for .py files)
 

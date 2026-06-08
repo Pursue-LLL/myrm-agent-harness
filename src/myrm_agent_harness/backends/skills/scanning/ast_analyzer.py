@@ -223,6 +223,21 @@ class _SecurityVisitor(ast.NodeVisitor):
                 node,
             )
 
+        elif func_name == "dict" and len(node.args) == 1:
+            arg = node.args[0]
+            if (
+                isinstance(arg, ast.Attribute)
+                and arg.attr == "environ"
+                and isinstance(arg.value, ast.Name)
+                and arg.value.id == "os"
+            ):
+                self._add(
+                    "data_exfiltration",
+                    "high",
+                    "Bulk environment variable access: dict(os.environ)",
+                    node,
+                )
+
         elif func_name == "open" and len(node.args) >= 2:
             mode = _extract_string_literal(node.args[1])
             if mode and any(c in mode for c in ("w", "a", "x", "+")):
@@ -246,6 +261,18 @@ class _SecurityVisitor(ast.NodeVisitor):
                 "Direct memory access via ctypes",
                 node,
             )
+
+        # Detect os.environ bulk access patterns
+        if node.attr in ("items", "values", "copy", "keys") and isinstance(node.value, ast.Attribute):
+            inner = node.value
+            if inner.attr == "environ" and isinstance(inner.value, ast.Name) and inner.value.id == "os":
+                self._add(
+                    "data_exfiltration",
+                    "high",
+                    f"Bulk environment variable access: os.environ.{node.attr}()",
+                    node,
+                )
+
         self.generic_visit(node)
 
     # -- Dangerous imports --
@@ -360,3 +387,5 @@ def _has_safe_loader(node: ast.Call) -> bool:
         if isinstance(arg, ast.Name):
             return arg.id == "SafeLoader"
     return False
+
+
