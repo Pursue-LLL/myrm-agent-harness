@@ -9,6 +9,7 @@
 - execution.healer::try_bbox_click (POS: BBox coordinate fallback when AX invoke fails)
 - session::ComputerSession, create_computer_session (POS: screenshot and coordinate I/O orchestrator)
 - types::ComputerUseConfig, ModifierKey, DesktopInteractAction, DesktopVisionAction, ScrollDirection, ActionResult (POS: shared computer_use types)
+- security.credential_vault::get_global_credential_vault (POS: in-memory credential vault for fill_credential resolution)
 
 [OUTPUT]
 - DesktopSession: semantic desktop orchestrator with @dref registry and DESKTOP_VIEW_UPDATE emission

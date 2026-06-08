@@ -4,14 +4,12 @@
 Semantic Desktop Control (SDC) toolkit. Enables AI agents to inspect, snapshot, and interact
 with native desktop applications via accessibility trees (@dref) with coordinate vision fallback.
 
-Detailed design: [DESKTOP_SYSTEM.md](DESKTOP_SYSTEM.md)
-
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Exports create_desktop_tools, create_desktop_session | ✅ |
-| types.py | Config | Shared types: ComputerAction, ScreenInfo, ActionResult, ComputerUseConfig | ✅ |
+| types.py | Config | Shared types: ComputerAction, DesktopInteractAction, ScreenInfo, ActionResult, ComputerUseConfig | ✅ |
 | safety.py | Core | Blocked key combos and dangerous type-text guardrails | ✅ |
 | screenshot_processor.py | Core | Binary-search downsampling pipeline | ✅ |
 | coordinate_scaler.py | Core | DPI-aware coordinate transformer | ✅ |
