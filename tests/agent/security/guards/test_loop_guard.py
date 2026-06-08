@@ -272,6 +272,47 @@ class TestNoProgress:
         assert verdict.action == LoopAction.BREAK
         assert "no_progress" in (verdict.loop_kind or "")
 
+    def test_break_not_triggered_below_threshold(self, strict_guard: LoopGuard) -> None:
+        """Fewer identical results than break threshold → no BREAK."""
+        for i in range(3):
+            strict_guard.pre_check("custom_tool", {"q": f"v{i}"})
+            strict_guard.record_result("custom_tool", {"q": f"v{i}"}, "same result")
+
+        verdict = strict_guard.pre_check("custom_tool", {"q": "v3"})
+        assert verdict.action != LoopAction.BREAK
+
+    def test_break_resets_on_different_result(self, strict_guard: LoopGuard) -> None:
+        """Streak resets when a different result appears mid-sequence."""
+        for i in range(2):
+            strict_guard.pre_check("custom_tool", {"q": f"a{i}"})
+            strict_guard.record_result("custom_tool", {"q": f"a{i}"}, "same")
+
+        strict_guard.pre_check("custom_tool", {"q": "break"})
+        strict_guard.record_result("custom_tool", {"q": "break"}, "DIFFERENT")
+
+        for i in range(2):
+            strict_guard.pre_check("custom_tool", {"q": f"b{i}"})
+            strict_guard.record_result("custom_tool", {"q": f"b{i}"}, "same")
+
+        verdict = strict_guard.pre_check("custom_tool", {"q": "final"})
+        assert verdict.action != LoopAction.BREAK
+
+    def test_break_resets_on_other_tool(self, strict_guard: LoopGuard) -> None:
+        """Streak resets when a different tool is called in between."""
+        for i in range(2):
+            strict_guard.pre_check("custom_tool", {"q": f"x{i}"})
+            strict_guard.record_result("custom_tool", {"q": f"x{i}"}, "same")
+
+        strict_guard.pre_check("other_tool", {"x": 1})
+        strict_guard.record_result("other_tool", {"x": 1}, "other result")
+
+        for i in range(2):
+            strict_guard.pre_check("custom_tool", {"q": f"y{i}"})
+            strict_guard.record_result("custom_tool", {"q": f"y{i}"}, "same")
+
+        verdict = strict_guard.pre_check("custom_tool", {"q": "z"})
+        assert verdict.action != LoopAction.BREAK
+
     def test_no_detect_different_results(self, strict_guard: LoopGuard) -> None:
         """Different results → no detection."""
         strict_guard.pre_check("grep_tool", {"pattern": "foo"})
