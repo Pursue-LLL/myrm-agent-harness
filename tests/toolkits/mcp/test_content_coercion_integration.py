@@ -16,9 +16,12 @@ import pytest
 from langchain_core.tools import StructuredTool
 from langchain_mcp_adapters.tools import _convert_mcp_content_to_lc_block
 from mcp.types import (
+    BlobResourceContents,
+    EmbeddedResource,
     ImageContent,
     ResourceLink,
     TextContent,
+    TextResourceContents,
 )
 
 from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
@@ -147,6 +150,94 @@ class TestRealMcpTypesThroughPipeline:
         assert "summary" in result
         assert '"key"' in result
         assert "42" in result
+
+    def test_embedded_resource_text_passthrough(self):
+        """EmbeddedResource with TextResourceContents passes through as text."""
+        lc_block = _convert_mcp_content_to_lc_block(
+            EmbeddedResource(
+                type="resource",
+                resource=TextResourceContents(
+                    uri="file:///tmp/log.txt", text="log data", mimeType="text/plain"
+                ),
+            )
+        )
+        assert lc_block["type"] == "text"
+        result = MCPAgent._normalize_mcp_result(([lc_block], None))
+        assert isinstance(result, str)
+        assert "log data" in result
+
+    def test_embedded_resource_blob_degraded(self):
+        """EmbeddedResource with non-image BlobResourceContents -> file -> degraded to text."""
+        lc_block = _convert_mcp_content_to_lc_block(
+            EmbeddedResource(
+                type="resource",
+                resource=BlobResourceContents(
+                    uri="file:///tmp/data.bin",
+                    blob="binary_base64",
+                    mimeType="application/octet-stream",
+                ),
+            )
+        )
+        assert lc_block["type"] == "file"
+        coerced = MCPAgent._coerce_content_block(lc_block)
+        assert coerced["type"] == "text"
+
+        result = MCPAgent._normalize_mcp_result(([lc_block], None))
+        assert isinstance(result, str)
+
+    def test_embedded_resource_image_blob_preserved(self):
+        """EmbeddedResource with image/png BlobResourceContents -> image (valid passthrough)."""
+        lc_block = _convert_mcp_content_to_lc_block(
+            EmbeddedResource(
+                type="resource",
+                resource=BlobResourceContents(
+                    uri="file:///tmp/photo.png",
+                    blob="img_base64_data",
+                    mimeType="image/png",
+                ),
+            )
+        )
+        assert lc_block["type"] == "image"
+        coerced = MCPAgent._coerce_content_block(lc_block)
+        assert coerced["type"] == "image"
+
+        result = MCPAgent._normalize_mcp_result(([lc_block], None))
+        assert isinstance(result, list)
+        assert any(b["type"] == "image" for b in result)
+
+    def test_empty_content_blocks(self):
+        """Empty content blocks list returns empty string."""
+        result = MCPAgent._normalize_mcp_result(([], None))
+        assert isinstance(result, str)
+        assert result == ""
+
+    def test_multiple_file_blocks_all_degraded(self):
+        """Multiple ResourceLink file blocks all degrade to text."""
+        blocks = [
+            _convert_mcp_content_to_lc_block(
+                ResourceLink(type="resource_link", uri=f"s3://bucket/file{i}.csv", name=f"file{i}", mimeType="text/csv")
+            )
+            for i in range(3)
+        ]
+        assert all(b["type"] == "file" for b in blocks)
+
+        result = MCPAgent._normalize_mcp_result((blocks, None))
+        assert isinstance(result, str)
+        assert "file" not in result or "[file:" in result
+        for i in range(3):
+            assert f"s3://bucket/file{i}.csv" in result
+
+    def test_multiple_text_blocks_joined(self):
+        """Multiple text blocks are joined with newline separator."""
+        blocks = [
+            _convert_mcp_content_to_lc_block(TextContent(type="text", text=f"line {i}"))
+            for i in range(3)
+        ]
+        result = MCPAgent._normalize_mcp_result((blocks, None))
+        assert isinstance(result, str)
+        assert "line 0" in result
+        assert "line 1" in result
+        assert "line 2" in result
 
 
 class TestAudioContentUpstreamFault:
