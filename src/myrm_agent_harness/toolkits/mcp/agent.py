@@ -6,7 +6,8 @@ Provides MCP tool fetching capabilities:
 - Maintains tool-to-server mapping
 - Supports parallel multi-server tool fetching
 - Auto-truncates excessively long tool descriptions to prevent token waste
-- Preserves multimodal tool results (ImageContent, file blocks) for downstream rendering
+- Content block coercion: ``_coerce_content_block`` ensures only LLM-safe types (text, image) reach the API — ``file``, ``audio``, and unknown blocks are gracefully degraded to text, preventing 400 errors and session history poisoning
+- Upstream fault tolerance: ``_timeout_wrapper`` catches adapter-layer exceptions (NotImplementedError for AudioContent, ValueError for unknown types) from langchain_mcp_adapters, returning readable error messages instead of crashing
 - Extracts MCP structuredContent from artifacts as supplementary text blocks
 - Detects ext-apps ``_meta.ui.resourceUri`` and emits MCP App view events via progress_sink
 
@@ -21,16 +22,18 @@ Provides MCP tool fetching capabilities:
 - langchain_mcp_adapters (POS: MCP adapter library)
 
 [OUTPUT]
-- MCPAgent: MCP tool fetching, server mapping, multimodal result normalization, ext-apps metadata emission, and safety annotation registration
+- MCPAgent: MCP tool fetching, server mapping, content block coercion (file/audio/unknown→text), multimodal result normalization, upstream fault tolerance, ext-apps metadata emission, and safety annotation registration
 
 [POS]
 MCP agent layer. Orchestrates multi-server tool discovery with parallel fetching,
 server-prefix isolation (mcp__{server}__{tool} naming), per-server tool filtering
-(include/exclude whitelist), description truncation, multimodal result
-normalization (ImageContent/file passthrough + structuredContent extraction),
-ext-apps UI metadata detection and SSE event emission, and safety metadata
-registration. `process_session_tools()` is the single post-processing chain
-shared by persistent-session actors and one-shot enumeration.
+(include/exclude whitelist), description truncation, content block coercion
+(file/audio/unknown types gracefully degraded to text for LLM API safety),
+upstream fault tolerance (catches adapter-layer NotImplementedError/ValueError),
+multimodal result normalization (ImageContent passthrough + structuredContent
+extraction), ext-apps UI metadata detection and SSE event emission, and safety
+metadata registration. `process_session_tools()` is the single post-processing
+chain shared by persistent-session actors and one-shot enumeration.
 """
 
 from __future__ import annotations
@@ -159,25 +162,68 @@ class MCPAgent:
         return result
 
     @staticmethod
+    def _coerce_content_block(block: dict[str, object]) -> dict[str, object]:
+        """Coerce a LangChain content block to an LLM-safe type.
+
+        ``langchain_mcp_adapters`` converts MCP ``ResourceLink`` to LangChain
+        ``{type: "file"}`` blocks and ``EmbeddedResource`` blobs to similar
+        non-standard types.  LLM APIs (Anthropic, OpenAI) only accept ``text``
+        and ``image`` in tool results — sending ``file`` or unknown types causes
+        400 errors and permanently poisons the session history (every subsequent
+        turn replays the invalid block).
+
+        This method acts as a safety boundary: ``text`` and well-formed ``image``
+        blocks pass through unchanged; everything else is gracefully degraded to
+        ``text`` so the LLM still receives the useful information (URLs, labels)
+        without crashing.
+        """
+        block_type = block.get("type")
+
+        if block_type == "text":
+            return block
+
+        if block_type == "image":
+            if block.get("base64") or block.get("data") or block.get("url"):
+                return block
+            logger.warning("Degrading malformed image block (missing source) to text")
+            return {"type": "text", "text": json.dumps(block, default=str)}
+
+        if block_type == "file":
+            url = block.get("url", "")
+            mime = block.get("mime_type", "")
+            label = f"[file: {url}]" if url else f"[file {mime}]"
+            logger.warning("Degrading file block to text: %s", label)
+            return {"type": "text", "text": label}
+
+        logger.warning("Degrading unknown content block type '%s' to text", block_type)
+        return {"type": "text", "text": json.dumps(block, default=str)}
+
+    @staticmethod
     def _normalize_mcp_result(result: object) -> str | list[dict[str, object]]:
         """Normalize content_and_artifact tuple from langchain_mcp_adapters.
 
         langchain_mcp_adapters returns ``(list[ContentBlock], artifact | None)``
         where ContentBlock is ``{"type": "text", "text": "..."}`` or image/file
-        blocks.  When the result contains **only** text blocks, returns a plain
-        ``str`` for backward compatibility.  When multimodal blocks (image, file)
-        are present, returns the full ``list[dict]`` so ToolNode can construct a
-        multimodal ``ToolMessage`` that flows through the existing streaming
-        pipeline (``event_handlers.TOOL_IMAGE_OUTPUT`` → frontend
-        ``ToolImageGallery``).  ``structuredContent`` from the MCP artifact is
-        appended as a supplementary text block when present.
+        blocks.  Every block is passed through ``_coerce_content_block`` to
+        guarantee only LLM-safe types (``text``, ``image``) reach the API —
+        preventing 400 errors and session history poisoning from ``file``,
+        ``audio``, or unknown block types.
+
+        When the coerced result contains **only** text blocks, returns a plain
+        ``str`` for backward compatibility.  When image blocks are present,
+        returns the full ``list[dict]`` so ToolNode can construct a multimodal
+        ``ToolMessage`` that flows through the existing streaming pipeline
+        (``event_handlers.TOOL_IMAGE_OUTPUT`` → frontend ``ToolImageGallery``).
+        ``structuredContent`` from the MCP artifact is appended as a
+        supplementary text block when present.
         """
         if isinstance(result, tuple) and len(result) == 2:
             content_blocks, artifact = result
             if isinstance(content_blocks, list):
-                has_multimodal = any(
-                    isinstance(b, dict) and b.get("type") not in ("text", None) for b in content_blocks
-                )
+                coerced: list[dict[str, object]] = [
+                    MCPAgent._coerce_content_block(b) if isinstance(b, dict) else {"type": "text", "text": str(b)}
+                    for b in content_blocks
+                ]
 
                 if artifact is not None:
                     structured = (
@@ -186,25 +232,20 @@ class MCPAgent:
                         else getattr(artifact, "structured_content", None)
                     )
                     if structured is not None:
-                        content_blocks = list(content_blocks)
-                        content_blocks.append(
+                        coerced.append(
                             {
                                 "type": "text",
                                 "text": json.dumps(structured, ensure_ascii=False),
                             }
                         )
 
-                if has_multimodal:
-                    return content_blocks  # type: ignore[return-value]
+                has_image = any(b.get("type") == "image" for b in coerced)
+                if has_image:
+                    return coerced
 
                 texts: list[str] = []
-                for block in content_blocks:
-                    if isinstance(block, dict):
-                        texts.append(block.get("text", "") or "")
-                    elif isinstance(block, str):
-                        texts.append(block)
-                    else:
-                        texts.append(str(block))
+                for block in coerced:
+                    texts.append(str(block.get("text", "") or ""))
                 return "\n".join(texts) if texts else ""
             if isinstance(content_blocks, str):
                 return content_blocks
@@ -238,6 +279,10 @@ class MCPAgent:
                 except TimeoutError:
                     error_msg = f"MCP tool '{_name}' timed out after {_timeout}s. Server may be slow or unresponsive."
                     logger.error(error_msg)
+                    return error_msg
+                except (NotImplementedError, ValueError, TypeError) as exc:
+                    error_msg = f"MCP tool '{_name}' returned unsupported content: {exc}"
+                    logger.warning(error_msg)
                     return error_msg
 
             tool.coroutine = _timeout_wrapper

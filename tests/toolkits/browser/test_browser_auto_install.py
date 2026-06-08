@@ -15,7 +15,7 @@ from myrm_agent_harness.toolkits.browser.pool.browser_launcher import (
     _build_install_failure_message,
     _is_executable_missing,
 )
-from myrm_agent_harness.toolkits.browser.pool.config import LaunchMode
+from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine, LaunchMode
 
 
 # ---------------------------------------------------------------------------
@@ -44,6 +44,36 @@ class TestIsExecutableMissing:
         exc = Exception("EXECUTABLE DOESN'T EXIST")
         assert _is_executable_missing(exc) is True
 
+    def test_empty_error_message(self) -> None:
+        assert _is_executable_missing(Exception("")) is False
+
+    def test_none_converted_to_str(self) -> None:
+        assert _is_executable_missing(Exception(None)) is False
+
+    def test_real_patchright_path_format(self) -> None:
+        exc = Exception(
+            "Executable doesn't exist at "
+            "/Users/test/.cache/patchright/chromium-1148/chrome-mac/Chromium.app"
+            "/Contents/MacOS/Chromium"
+        )
+        assert _is_executable_missing(exc) is True
+
+    def test_real_linux_path_format(self) -> None:
+        exc = Exception(
+            "browserType.launch: Executable doesn't exist at "
+            "/ms-playwright/chromium-1148/chrome-linux/chrome"
+        )
+        assert _is_executable_missing(exc) is True
+
+    def test_browser_closed_not_missing(self) -> None:
+        assert _is_executable_missing(Exception("Browser closed unexpectedly")) is False
+
+    def test_protocol_error_not_missing(self) -> None:
+        assert _is_executable_missing(Exception("Protocol error (Target.createTarget)")) is False
+
+    def test_net_err_not_missing(self) -> None:
+        assert _is_executable_missing(Exception("net::ERR_CONNECTION_REFUSED")) is False
+
 
 # ---------------------------------------------------------------------------
 # _build_install_failure_message
@@ -64,6 +94,16 @@ class TestBuildInstallFailureMessage:
     def test_contains_original_error(self) -> None:
         msg = _build_install_failure_message(Exception("specific error detail"))
         assert "specific error detail" in msg
+
+    def test_empty_error_message(self) -> None:
+        msg = _build_install_failure_message(Exception(""))
+        assert "patchright install chromium" in msg
+        assert "automatic installation failed" in msg.lower()
+
+    def test_multiline_error_preserved(self) -> None:
+        exc = Exception("line1\nline2\nline3")
+        msg = _build_install_failure_message(exc)
+        assert "line1" in msg
 
 
 # ---------------------------------------------------------------------------
@@ -145,6 +185,64 @@ class TestAutoInstallChromium:
         assert result is True
         assert mod._last_install_failure_at == 0.0
 
+    @pytest.mark.asyncio
+    async def test_generic_exception_sets_cooldown(self) -> None:
+        """Covers the catch-all Exception handler in _auto_install_chromium."""
+        import myrm_agent_harness.toolkits.browser.pool.browser_launcher as mod
+
+        with patch("asyncio.create_subprocess_exec", side_effect=PermissionError("denied")):
+            result = await _auto_install_chromium()
+
+        assert result is False
+        assert mod._last_install_failure_at > 0
+
+    @pytest.mark.asyncio
+    async def test_double_check_after_lock_with_concurrent_cooldown(self) -> None:
+        """Verify the double-check pattern: if cooldown is set while waiting for lock."""
+        import myrm_agent_harness.toolkits.browser.pool.browser_launcher as mod
+
+        mod._install_lock = asyncio.Lock()
+
+        async with mod._install_lock:
+            mod._last_install_failure_at = time.monotonic()
+
+            async def attempt_install() -> bool:
+                return await _auto_install_chromium()
+
+            task = asyncio.create_task(attempt_install())
+            await asyncio.sleep(0.01)
+
+        result = await task
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_lazy_lock_initialization(self) -> None:
+        """Verify lock is created on first call, not at import time."""
+        import myrm_agent_harness.toolkits.browser.pool.browser_launcher as mod
+
+        assert mod._install_lock is None
+
+        mock_proc = AsyncMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate = AsyncMock(return_value=(b"OK", b""))
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            await _auto_install_chromium()
+
+        assert mod._install_lock is not None
+        assert isinstance(mod._install_lock, asyncio.Lock)
+
+    @pytest.mark.asyncio
+    async def test_stderr_truncation_on_failure(self) -> None:
+        """Verify long stderr output doesn't cause issues."""
+        mock_proc = AsyncMock()
+        mock_proc.returncode = 1
+        mock_proc.communicate = AsyncMock(return_value=(b"", b"X" * 2000))
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            result = await _auto_install_chromium()
+        assert result is False
+
 
 # ---------------------------------------------------------------------------
 # BrowserLauncher._launch_new_browser auto-install integration
@@ -195,8 +293,6 @@ class TestLaunchNewBrowserAutoInstall:
 
     @pytest.mark.asyncio
     async def test_no_auto_install_for_camoufox(self) -> None:
-        from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine
-
         launcher = BrowserLauncher(
             launch_options={"headless": True},
             launch_mode=LaunchMode.LAUNCH,
@@ -228,6 +324,93 @@ class TestLaunchNewBrowserAutoInstall:
             patch("asyncio.create_subprocess_exec", return_value=mock_install_proc),
         ):
             with pytest.raises(BrowserLaunchError, match="automatic installation failed"):
+                await launcher._launch_new_browser()
+
+    @pytest.mark.asyncio
+    async def test_auto_install_only_attempted_once(self) -> None:
+        """Even if executable still missing after install, auto_installed guard prevents retry."""
+        launcher = BrowserLauncher(
+            launch_options={"headless": True},
+            launch_mode=LaunchMode.LAUNCH,
+        )
+
+        mock_pw = MagicMock()
+        mock_pw.chromium.launch = AsyncMock(
+            side_effect=Exception("Executable doesn't exist at /path/chromium")
+        )
+        mock_pw.stop = AsyncMock()
+
+        install_call_count = 0
+        mock_install_proc = AsyncMock()
+        mock_install_proc.returncode = 0
+        mock_install_proc.communicate = AsyncMock(return_value=(b"OK", b""))
+
+        original_create = asyncio.create_subprocess_exec
+
+        async def count_installs(*args: object, **kwargs: object) -> AsyncMock:
+            nonlocal install_call_count
+            install_call_count += 1
+            return mock_install_proc
+
+        with (
+            patch.object(launcher, "_ensure_playwright", return_value=mock_pw),
+            patch("asyncio.create_subprocess_exec", side_effect=count_installs),
+        ):
+            with pytest.raises(BrowserLaunchError):
+                await launcher._launch_new_browser()
+
+        assert install_call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_playwright_reset_after_install(self) -> None:
+        """Verify playwright is stopped and reset after successful install."""
+        launcher = BrowserLauncher(
+            launch_options={"headless": True},
+            launch_mode=LaunchMode.LAUNCH,
+        )
+
+        call_count = 0
+        mock_browser = MagicMock()
+        mock_browser._impl_obj = MagicMock(_process=MagicMock(pid=99))
+
+        async def mock_launch(**kwargs: object) -> MagicMock:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise Exception("Executable doesn't exist at /path")
+            return mock_browser
+
+        mock_pw = MagicMock()
+        mock_pw.chromium.launch = mock_launch
+        mock_pw.stop = AsyncMock()
+
+        launcher._playwright = mock_pw
+
+        mock_install_proc = AsyncMock()
+        mock_install_proc.returncode = 0
+        mock_install_proc.communicate = AsyncMock(return_value=(b"OK", b""))
+
+        with (
+            patch.object(launcher, "_ensure_playwright", return_value=mock_pw),
+            patch("asyncio.create_subprocess_exec", return_value=mock_install_proc),
+        ):
+            await launcher._launch_new_browser()
+
+        mock_pw.stop.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_non_missing_error_no_auto_install(self) -> None:
+        """Timeout/connection errors should NOT trigger auto-install."""
+        launcher = BrowserLauncher(
+            launch_options={"headless": True},
+            launch_mode=LaunchMode.LAUNCH,
+        )
+
+        mock_pw = MagicMock()
+        mock_pw.chromium.launch = AsyncMock(side_effect=TimeoutError("browser timeout"))
+
+        with patch.object(launcher, "_ensure_playwright", return_value=mock_pw):
+            with pytest.raises(BrowserLaunchError, match="Failed to create Browser"):
                 await launcher._launch_new_browser()
 
 
@@ -283,3 +466,168 @@ class TestDoctorAutoFix:
 
         assert "auto_install" in report.checks
         assert report.checks["auto_install"].status == CheckStatus.OK
+
+    @pytest.mark.asyncio
+    async def test_auto_fix_skipped_for_non_executable_error(self) -> None:
+        """auto_fix should NOT trigger if launch error is not about missing executable."""
+        from myrm_agent_harness.toolkits.browser.doctor import CheckStatus, run_doctor
+
+        with patch(
+            "myrm_agent_harness.toolkits.browser.doctor._check_browser_launch",
+            return_value=MagicMock(
+                name="browser_launch",
+                status=CheckStatus.ERROR,
+                message="Connection refused",
+                fix="Check if browser is running",
+                details=None,
+            ),
+        ):
+            report = await run_doctor(
+                include_launch_test=True,
+                include_orphan_check=False,
+                auto_fix=True,
+            )
+
+        assert "auto_install" not in report.checks
+        assert report.checks["browser_launch"].status == CheckStatus.ERROR
+
+    @pytest.mark.asyncio
+    async def test_auto_fix_install_fails(self) -> None:
+        """auto_fix triggers install but install fails — should report error."""
+        from myrm_agent_harness.toolkits.browser.doctor import CheckStatus, run_doctor
+
+        mock_install_proc = AsyncMock()
+        mock_install_proc.returncode = 1
+        mock_install_proc.communicate = AsyncMock(return_value=(b"", b"disk full"))
+
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.browser.doctor._check_browser_launch",
+                return_value=MagicMock(
+                    name="browser_launch",
+                    status=CheckStatus.ERROR,
+                    message="Browser executable not found",
+                    fix="Run 'patchright install chromium' or check BROWSER_EXECUTABLE_PATH",
+                    details=None,
+                ),
+            ),
+            patch("shutil.which", return_value="/usr/bin/patchright"),
+            patch("asyncio.create_subprocess_exec", return_value=mock_install_proc),
+        ):
+            report = await run_doctor(
+                include_launch_test=True,
+                include_orphan_check=False,
+                auto_fix=True,
+            )
+
+        assert "auto_install" in report.checks
+        assert report.checks["auto_install"].status == CheckStatus.ERROR
+
+    @pytest.mark.asyncio
+    async def test_auto_fix_patchright_cli_not_found(self) -> None:
+        """auto_fix when patchright CLI is not on PATH."""
+        from myrm_agent_harness.toolkits.browser.doctor import CheckStatus, run_doctor
+
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.browser.doctor._check_browser_launch",
+                return_value=MagicMock(
+                    name="browser_launch",
+                    status=CheckStatus.ERROR,
+                    message="Browser executable not found",
+                    fix="Run 'patchright install chromium' or check BROWSER_EXECUTABLE_PATH",
+                    details=None,
+                ),
+            ),
+            patch("shutil.which", return_value=None),
+        ):
+            report = await run_doctor(
+                include_launch_test=True,
+                include_orphan_check=False,
+                auto_fix=True,
+            )
+
+        assert "auto_install" in report.checks
+        assert report.checks["auto_install"].status == CheckStatus.ERROR
+        assert "not found" in report.checks["auto_install"].message.lower()
+
+    @pytest.mark.asyncio
+    async def test_auto_fix_install_timeout(self) -> None:
+        """auto_fix install times out."""
+        from myrm_agent_harness.toolkits.browser.doctor import CheckStatus, run_doctor
+
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.browser.doctor._check_browser_launch",
+                return_value=MagicMock(
+                    name="browser_launch",
+                    status=CheckStatus.ERROR,
+                    message="Browser executable not found",
+                    fix="Run 'patchright install chromium' or check BROWSER_EXECUTABLE_PATH",
+                    details=None,
+                ),
+            ),
+            patch("shutil.which", return_value="/usr/bin/patchright"),
+            patch("asyncio.create_subprocess_exec", side_effect=TimeoutError),
+        ):
+            report = await run_doctor(
+                include_launch_test=True,
+                include_orphan_check=False,
+                auto_fix=True,
+            )
+
+        assert "auto_install" in report.checks
+        assert report.checks["auto_install"].status == CheckStatus.ERROR
+        assert "timed out" in report.checks["auto_install"].message.lower()
+
+    @pytest.mark.asyncio
+    async def test_auto_fix_install_generic_exception(self) -> None:
+        """auto_fix catches unexpected exceptions gracefully."""
+        from myrm_agent_harness.toolkits.browser.doctor import CheckStatus, run_doctor
+
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.browser.doctor._check_browser_launch",
+                return_value=MagicMock(
+                    name="browser_launch",
+                    status=CheckStatus.ERROR,
+                    message="Browser executable not found",
+                    fix="Run 'patchright install chromium' or check BROWSER_EXECUTABLE_PATH",
+                    details=None,
+                ),
+            ),
+            patch("shutil.which", return_value="/usr/bin/patchright"),
+            patch("asyncio.create_subprocess_exec", side_effect=OSError("weird error")),
+        ):
+            report = await run_doctor(
+                include_launch_test=True,
+                include_orphan_check=False,
+                auto_fix=True,
+            )
+
+        assert "auto_install" in report.checks
+        assert report.checks["auto_install"].status == CheckStatus.ERROR
+
+    @pytest.mark.asyncio
+    async def test_auto_fix_false_does_not_trigger_install(self) -> None:
+        """Explicit auto_fix=False should never trigger install even if executable is missing."""
+        from myrm_agent_harness.toolkits.browser.doctor import CheckStatus, run_doctor
+
+        with patch(
+            "myrm_agent_harness.toolkits.browser.doctor._check_browser_launch",
+            return_value=MagicMock(
+                name="browser_launch",
+                status=CheckStatus.ERROR,
+                message="Browser executable not found",
+                fix="Run 'patchright install chromium' or check BROWSER_EXECUTABLE_PATH",
+                details=None,
+            ),
+        ):
+            report = await run_doctor(
+                include_launch_test=True,
+                include_orphan_check=False,
+                auto_fix=False,
+            )
+
+        assert "auto_install" not in report.checks
+        assert report.checks["browser_launch"].status == CheckStatus.ERROR

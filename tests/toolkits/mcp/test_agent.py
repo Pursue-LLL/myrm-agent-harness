@@ -807,6 +807,185 @@ class TestPrefixEdgeCases:
         assert sanitize_mcp_name_component(None) == "unnamed"  # type: ignore[arg-type]
 
 
+# ---------------------------------------------------------------------------
+# _coerce_content_block: LLM-safe content block coercion
+# ---------------------------------------------------------------------------
+class TestCoerceContentBlock:
+    """Tests for MCPAgent._coerce_content_block — ensures only LLM-safe block types."""
+
+    def test_text_passthrough(self) -> None:
+        block = {"type": "text", "text": "hello world"}
+        assert MCPAgent._coerce_content_block(block) is block
+
+    def test_image_with_base64_passthrough(self) -> None:
+        block = {"type": "image", "base64": "abc123", "mime_type": "image/png"}
+        assert MCPAgent._coerce_content_block(block) is block
+
+    def test_image_with_data_passthrough(self) -> None:
+        block = {"type": "image", "data": "abc123", "mime_type": "image/png"}
+        assert MCPAgent._coerce_content_block(block) is block
+
+    def test_image_with_url_passthrough(self) -> None:
+        block = {"type": "image", "url": "https://example.com/img.png", "mime_type": "image/png"}
+        assert MCPAgent._coerce_content_block(block) is block
+
+    def test_malformed_image_degraded(self) -> None:
+        block = {"type": "image", "mime_type": "image/png"}
+        result = MCPAgent._coerce_content_block(block)
+        assert result["type"] == "text"
+        assert "image" in str(result["text"])
+
+    def test_file_block_degraded_with_url(self) -> None:
+        block = {"type": "file", "url": "https://notion.so/page/xxx", "mime_type": "application/pdf"}
+        result = MCPAgent._coerce_content_block(block)
+        assert result["type"] == "text"
+        assert "https://notion.so/page/xxx" in str(result["text"])
+
+    def test_file_block_degraded_without_url(self) -> None:
+        block = {"type": "file", "mime_type": "audio/wav"}
+        result = MCPAgent._coerce_content_block(block)
+        assert result["type"] == "text"
+        assert "audio/wav" in str(result["text"])
+
+    def test_unknown_type_degraded(self) -> None:
+        block = {"type": "video", "data": "binary_data"}
+        result = MCPAgent._coerce_content_block(block)
+        assert result["type"] == "text"
+        assert "video" in str(result["text"])
+
+    def test_none_type_degraded(self) -> None:
+        block = {"text": "no type field"}
+        result = MCPAgent._coerce_content_block(block)
+        assert result["type"] == "text"
+
+
+# ---------------------------------------------------------------------------
+# _normalize_mcp_result with coercion: session poison prevention
+# ---------------------------------------------------------------------------
+class TestNormalizeMcpResultCoercion:
+    """Tests for _normalize_mcp_result with _coerce_content_block integration."""
+
+    def test_text_only_returns_string(self) -> None:
+        result = ([{"type": "text", "text": "hello"}], None)
+        assert MCPAgent._normalize_mcp_result(result) == "hello"
+
+    def test_image_returns_list(self) -> None:
+        blocks = [
+            {"type": "text", "text": "caption"},
+            {"type": "image", "base64": "abc", "mime_type": "image/png"},
+        ]
+        result = MCPAgent._normalize_mcp_result((blocks, None))
+        assert isinstance(result, list)
+        assert len(result) == 2
+
+    def test_file_block_degraded_to_text(self) -> None:
+        """file blocks (from ResourceLink) must be degraded — prevents Anthropic 400."""
+        blocks = [
+            {"type": "text", "text": "Sprint Board"},
+            {"type": "file", "url": "https://notion.so/page/xxx", "mime_type": "application/pdf"},
+        ]
+        result = MCPAgent._normalize_mcp_result((blocks, None))
+        assert isinstance(result, str)
+        assert "Sprint Board" in result
+        assert "https://notion.so/page/xxx" in result
+
+    def test_mixed_file_and_image_preserves_image(self) -> None:
+        """When both file and image are present, image passes through, file degrades."""
+        blocks = [
+            {"type": "image", "base64": "abc", "mime_type": "image/png"},
+            {"type": "file", "url": "https://example.com/doc.pdf", "mime_type": "application/pdf"},
+        ]
+        result = MCPAgent._normalize_mcp_result((blocks, None))
+        assert isinstance(result, list)
+        assert result[0]["type"] == "image"
+        assert result[1]["type"] == "text"
+        assert "https://example.com/doc.pdf" in str(result[1]["text"])
+
+    def test_structured_content_appended(self) -> None:
+        blocks = [{"type": "text", "text": "data"}]
+        artifact = {"structured_content": {"key": "val"}}
+        result = MCPAgent._normalize_mcp_result((blocks, artifact))
+        assert isinstance(result, str)
+        assert "key" in result
+        assert "val" in result
+
+    def test_plain_string_result(self) -> None:
+        assert MCPAgent._normalize_mcp_result("just text") == "just text"
+
+    def test_non_dict_block_coerced_to_text(self) -> None:
+        result = MCPAgent._normalize_mcp_result(([42, "raw_str"], None))
+        assert isinstance(result, str)
+        assert "42" in result
+        assert "raw_str" in result
+
+    def test_string_content_blocks_passthrough(self) -> None:
+        result = MCPAgent._normalize_mcp_result(("direct string", None))
+        assert result == "direct string"
+
+    def test_non_tuple_non_string_stringified(self) -> None:
+        result = MCPAgent._normalize_mcp_result(12345)
+        assert result == "12345"
+
+
+# ---------------------------------------------------------------------------
+# _timeout_wrapper: upstream fault tolerance
+# ---------------------------------------------------------------------------
+class TestTimeoutWrapperFaultTolerance:
+    """Tests for _timeout_wrapper catching adapter-layer exceptions."""
+
+    @pytest.mark.asyncio
+    async def test_not_implemented_error_caught(self) -> None:
+        """AudioContent raises NotImplementedError in langchain_mcp_adapters — must not crash."""
+        async def raise_not_impl(*_a, **_kw):
+            raise NotImplementedError("AudioContent not supported")
+
+        tool = _make_tool(coroutine=raise_not_impl)
+        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+
+        result = await tool.coroutine()
+        assert isinstance(result, str)
+        assert "unsupported content" in result
+        assert "AudioContent" in result
+
+    @pytest.mark.asyncio
+    async def test_value_error_caught(self) -> None:
+        """Unknown MCP content type raises ValueError — must not crash."""
+        async def raise_value_err(*_a, **_kw):
+            raise ValueError("Unknown MCP content type: FutureContent")
+
+        tool = _make_tool(coroutine=raise_value_err)
+        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+
+        result = await tool.coroutine()
+        assert isinstance(result, str)
+        assert "unsupported content" in result
+
+    @pytest.mark.asyncio
+    async def test_type_error_caught(self) -> None:
+        """Type mismatch in adapter layer — must not crash."""
+        async def raise_type_err(*_a, **_kw):
+            raise TypeError("expected str, got NoneType")
+
+        tool = _make_tool(coroutine=raise_type_err)
+        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+
+        result = await tool.coroutine()
+        assert isinstance(result, str)
+        assert "unsupported content" in result
+
+    @pytest.mark.asyncio
+    async def test_other_exceptions_still_propagate(self) -> None:
+        """Exceptions not in the catch list must still propagate."""
+        async def raise_runtime(*_a, **_kw):
+            raise RuntimeError("unexpected crash")
+
+        tool = _make_tool(coroutine=raise_runtime)
+        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+
+        with pytest.raises(RuntimeError, match="unexpected crash"):
+            await tool.coroutine()
+
+
 class TestExtractMcpAppMetadata:
     """Tests for MCPAgent._extract_mcp_app_metadata — ext-apps UI detection."""
 
