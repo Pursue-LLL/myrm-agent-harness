@@ -14,13 +14,11 @@ Eval Framework — Agent behavior quality evaluation. Supports multi-dimensional
 | protocols.py | Core | Defines the eval framework's type system (EvalCase, MultiTurnEvalCase, SemanticAssertion with judge_prompt/judge_model/threshold, AgentResponse with token_usage/cost) and the AgentExecutor protocol. | ✅ |
 | reporters.py | Core | Out-of-the-box JSONL (with time_secs, usage, avg aggregates) and Markdown reporting. | ✅ |
 | runner.py | Core | Orchestrates eval execution. Supports concurrent case execution via asyncio.Semaphore, progress callbacks, single/multi-turn scenarios. | ✅ |
-
 | metrics.py | Core | Pure IR metric functions: recall@k, precision@k, ndcg@k, mrr, hit_rate, latency_percentile. Reusable across eval submodules. | ✅ |
-| memory_retrieval/ | Submodule | Memory retrieval evaluation framework with pluggable adapter protocol, built-in datasets, and orchestration runner. | — |
-| memory_retrieval/__init__.py | Package | Public API: MemoryRetrievalEvalRunner, MemoryRetrievalAdapter, load_eval_cases, MemoryRetrievalEvalSummary. | — |
-| memory_retrieval/protocols.py | Core | DTOs (MemoryRetrievalEvalCase, CaseResult, CategorySummary, EvalSummary) and MemoryRetrievalAdapter protocol. | ✅ |
-| memory_retrieval/runner.py | Core | Orchestrates eval case execution via adapter, computes IR metrics per case and aggregate summary. | ✅ |
-| memory_retrieval/datasets/ | Data | Built-in evaluation datasets (coding_agent_life.json: 8 categories, bilingual). | — |
+
+| Submodule | Description |
+|-----------|-------------|
+| memory_retrieval/ | Memory retrieval quality eval. See [memory_retrieval/_ARCH.md](memory_retrieval/_ARCH.md). |
 
 ## Key Dependencies
 

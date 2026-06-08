@@ -623,13 +623,25 @@ Agent 根据元信息自主决定优化策略，无需隐式知识。
 ### 动态权限解析
 
 ```
-browser_interact_tool(action="click")          → browser_click     → ALLOW
+browser_interact_tool(action="click")          → browser_click     → ALLOW (+ Semantic DOM Guard)
 browser_interact_tool(action="fill")           → browser_fill      → ASK
 browser_interact_tool(action="upload_file")    → browser_upload    → ASK
 browser_manage_tool(action="evaluate")         → browser_evaluate  → DENY
 browser_manage_tool(action="save_session")     → browser_session   → ASK
 browser_manage_tool(action="wait_for_user")    → browser_human_handover → ASK (handover 模式)
 ```
+
+### 语义级 DOM 高危动作拦截 (Semantic DOM Guard)
+
+在 `browser_interact_tool` 的 click/dblclick 操作执行前，基于目标元素的 ARIA role 和 name 进行语义风险分类。匹配五大高危类别（destructive/financial/account/admin/publish）时，通过 LangGraph `interrupt()` 强制触发 HITL 审批，无论当前权限配置如何。
+
+```
+click(ref="e5", name="Delete Repository") → HIGH (destructive) → interrupt() → 用户审批
+click(ref="e3", name="Pay Now")           → HIGH (financial)   → interrupt() → 用户审批
+click(ref="e1", name="Search")            → SAFE               → 直接执行
+```
+
+实现：`tools/_semantic_risk.py`（纯函数，零 LLM 开销）
 
 ### URL 安全验证
 

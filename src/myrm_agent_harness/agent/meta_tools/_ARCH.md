@@ -20,7 +20,7 @@ Agent meta-tools module. Provides tools that depend on Agent framework infrastru
 | file_search/ | File search tool module (Claude Code compatible). |
 | goals/ | Goal interaction tools — LLM tools for querying/completing goals. |
 | http/ | HTTP request toolkit. Supports streaming upload, progress callbacks, streaming download, and concurr |
-| llm_map/ | Batch LLM-map tool — agent adapter over `toolkits.llms.batch` fan-out engine. Applies one instruction over many items in parallel with vault spillover, progress and cancellation. |
+| llm_map/ | Batch LLM-map agent tool adapter. See [llm_map/_ARCH.md](llm_map/_ARCH.md). |
 | skills/ | Skills submodule. |
 | spawn_subagent/ | Spawn subagent meta-tool module. |
 

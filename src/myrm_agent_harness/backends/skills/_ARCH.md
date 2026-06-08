@@ -37,7 +37,7 @@ Skill backend implementations module. Provides multiple backend implementations 
 
 | Submodule | Description |
 |-----------|-------------|
-| decorators/ | Skill backend decorators (quarantine-aware, version-aware). |
+| decorators/ | Skill backend decorators (quarantine-aware, version-aware). See [decorators/_ARCH.md](decorators/_ARCH.md). |
 | scanning/ | Skill content security scanning subsystem. |
 
 ## Key Dependencies

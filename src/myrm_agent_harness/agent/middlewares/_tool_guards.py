@@ -13,6 +13,7 @@ detection, steering, trust, PII).  Post-call guards process the result
 - agent.middlewares._tool_helpers (POS: Stateless helper functions)
 - agent.middlewares._session_context (POS: Middleware session context)
 - utils.runtime.steering (POS: Steering token management)
+- utils.event_utils (POS: Provides dispatch_custom_event)
 
 [OUTPUT]
 - PreCallResult: data holder for pre-call guard state
@@ -65,6 +66,29 @@ from myrm_agent_harness.utils.runtime.steering import (
 from myrm_agent_harness.utils.token_economics.tracker import get_token_tracker
 
 logger = get_agent_logger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Loop guard UI event helper
+# ---------------------------------------------------------------------------
+
+
+async def _emit_loop_guard_event(step_key: str, tool_name: str, reason: str, status: str) -> None:
+    """Emit a STATUS event to the frontend when LoopGuard triggers WARN/BREAK."""
+    try:
+        from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
+        await dispatch_custom_event(
+            "agent_status",
+            {
+                "step_key": step_key,
+                "tool_name": tool_name,
+                "status": status,
+                "items": [{"text": reason}],
+            },
+        )
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +232,7 @@ async def run_pre_call_guards(
         loop_kind = raw_loop_kind if isinstance(raw_loop_kind, str) else "loop_break"
         record_decision(tool_name, "LOOP_BREAK", loop_verdict.reason)
         logger.warning("Loop break: %s -- %s", tool_name, loop_verdict.reason)
+        await _emit_loop_guard_event("loop_guard_break", tool_name, loop_verdict.reason, "error")
         return make_error_msg(
             tool_name,
             tool_call_id,
@@ -218,6 +243,7 @@ async def run_pre_call_guards(
     if loop_verdict.action == LoopAction.WARN:
         record_decision(tool_name, "LOOP_WARN", loop_verdict.reason)
         logger.warning("Loop warning: %s -- %s", tool_name, loop_verdict.reason)
+        await _emit_loop_guard_event("loop_guard_warn", tool_name, loop_verdict.reason, "warning")
 
     freq_guard = get_frequency_guard()
     freq_verdict = freq_guard.check(tool_name)
@@ -429,9 +455,11 @@ async def run_post_call_guards(
     if post_verdict.action == LoopAction.BREAK:
         record_decision(tool_name, "LOOP_BREAK", post_verdict.reason)
         logger.warning("Loop output break: %s -- %s", tool_name, post_verdict.reason)
+        await _emit_loop_guard_event("loop_guard_break", tool_name, post_verdict.reason, "error")
     elif post_verdict.action == LoopAction.WARN:
         record_decision(tool_name, "LOOP_WARN", post_verdict.reason)
         logger.warning("Loop output warning: %s -- %s", tool_name, post_verdict.reason)
+        await _emit_loop_guard_event("loop_guard_warn", tool_name, post_verdict.reason, "warning")
 
     freq_guard.record(tool_name)
 

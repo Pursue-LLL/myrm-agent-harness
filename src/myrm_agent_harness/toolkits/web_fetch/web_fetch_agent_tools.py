@@ -6,6 +6,7 @@ Contains:
 [INPUT]
 - toolkits.retriever.embedding.factory::EmbeddingConfig (POS: Embedding factory. Centralises embedding-service instantiation and ensures process-wide singleton semantics per configuration tuple.)
 - toolkits.retriever.reranker.factory::RerankerConfig (POS: Reranker factory. Centralises reranker-service instantiation and ensures process-wide singleton semantics per configuration tuple.)
+- toolkits.web_fetch.task_store::CrawlTaskStore (POS: SQLite WAL-backed durable task store for deep_crawl operations.)
 - utils.errors::ToolError (POS: Storage quota related errors.)
 
 [OUTPUT]
@@ -60,6 +61,40 @@ Get the **full content** of known webpages. (Supports single or multiple URLs)
 - operation: "fetch_full_content"
 """
 
+_DEEP_CRAWL_SECTION = """
+### deep_crawl
+
+Recursively crawl an **entire website** starting from a seed URL. Pages are saved as Markdown files in sandbox storage.
+Returns immediately with a task_group_id; use check_crawl_status to monitor progress.
+
+**Use cases:**
+- User needs to analyze/process an entire website or documentation site
+- Collecting all pages from a site for offline analysis
+- Building a knowledge base from a website
+
+**Parameters:**
+- urls: Single seed URL to start crawling from (only first URL is used)
+- operation: "deep_crawl"
+- max_depth: Maximum link depth (default 3)
+- max_pages: Maximum pages to crawl (default 100)
+
+### check_crawl_status
+
+Check the progress of a running deep_crawl task.
+
+**Parameters:**
+- task_group_id: The group ID returned by deep_crawl
+- operation: "check_crawl_status"
+
+### cancel_crawl
+
+Cancel a running deep_crawl task. Already completed pages are preserved.
+
+**Parameters:**
+- task_group_id: The group ID returned by deep_crawl
+- operation: "cancel_crawl"
+"""
+
 _FULL_CONTENT_ONLY = """
 Get full content from known webpage URLs (Markdown format). Supports single or multiple URLs.
 
@@ -74,6 +109,7 @@ def create_web_fetch_tool(
     *,
     use_raw_markdown: bool = False,
     allow_private_networks: bool = False,
+    data_dir: str | None = None,
 ):
     """Create web fetch meta-tool
 
@@ -82,16 +118,17 @@ def create_web_fetch_tool(
         embedding_config: Embedding model configuration。
         use_raw_markdown: When True, retains raw webpage content (including ads/sidebars); when False, smart-cleaned.
         allow_private_networks: Skip SSRF private-IP blocking (local mode).
+        data_dir: Sandbox data directory for deep_crawl result storage.
 
     When both are provided, enables fetch_and_extract smart extraction；
     Otherwise only exposes fetch_full_content full crawl。
     """
     enable_extract = reranker_config is not None and embedding_config is not None
     if enable_extract:
-        sections = _EXTRACT_SECTION + _FULL_CONTENT_WITH_EXTRACT
+        sections = _EXTRACT_SECTION + _FULL_CONTENT_WITH_EXTRACT + _DEEP_CRAWL_SECTION
         default_op = "fetch_and_extract"
     else:
-        sections = _FULL_CONTENT_ONLY
+        sections = _FULL_CONTENT_ONLY + _DEEP_CRAWL_SECTION
         default_op = "fetch_full_content"
 
     tool_description = f"""web_fetch_tooltool is used to extract detailed content from specific webpage URLs。
@@ -107,6 +144,9 @@ def create_web_fetch_tool(
             max_length=5,
         )
         reason: str = Field(description="State your reasoning, express key info with minimal tokens, max 100 chars")
+        max_depth: int = Field(default=3, description="Max crawl depth for deep_crawl (default 3)", ge=1, le=5)
+        max_pages: int = Field(default=100, description="Max pages for deep_crawl (default 100)", ge=1, le=500)
+        task_group_id: str = Field(default="", description="Task group ID for check_crawl_status")
 
     @tool("web_fetch_tool", description=tool_description, args_schema=WebFetchInput)
     async def web_fetch_func(
@@ -114,11 +154,48 @@ def create_web_fetch_tool(
         operation: str = default_op,
         questions: list[str] | None = None,
         reason: str = "",
+        max_depth: int = 3,
+        max_pages: int = 100,
+        task_group_id: str = "",
     ) -> dict[str, str | dict[str, object]]:
         """Execute web fetch and return formatted results。"""
         from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
         logger = get_agent_logger(__name__)
+
+        if operation == "deep_crawl":
+            if not allow_private_networks:
+                from myrm_agent_harness.utils.url_utils import validate_url_for_ssrf
+
+                result = validate_url_for_ssrf(urls[0])
+                if not result.safe:
+                    raise ToolError(
+                        f"URL blocked (SSRF protection): {result.error} — {urls[0]}",
+                        user_hint="The URL is blocked for security reasons. Use a different, publicly accessible URL.",
+                    )
+            return await _deep_crawl(
+                urls[0],
+                max_depth=max_depth,
+                max_pages=max_pages,
+                allow_private_networks=allow_private_networks,
+                data_dir=data_dir,
+            )
+
+        if operation == "check_crawl_status":
+            if not task_group_id:
+                raise ToolError(
+                    "task_group_id is required for check_crawl_status",
+                    user_hint="Provide the task_group_id returned by deep_crawl.",
+                )
+            return await _check_crawl_status(task_group_id, data_dir=data_dir)
+
+        if operation == "cancel_crawl":
+            if not task_group_id:
+                raise ToolError(
+                    "task_group_id is required for cancel_crawl",
+                    user_hint="Provide the task_group_id returned by deep_crawl.",
+                )
+            return await _cancel_crawl(task_group_id, data_dir=data_dir)
 
         if not allow_private_networks:
             from myrm_agent_harness.utils.url_utils import check_url_exfiltration, validate_url_for_ssrf
@@ -273,4 +350,178 @@ async def _fetch_and_extract(
     return {
         "content": wrap_with_external_sources_tag(formatted_context, source="web_fetch"),
         "metadata": {"sources": url_metadata_list, "operation": "fetch_and_extract", "questions": questions},
+    }
+
+
+async def _deep_crawl(
+    seed_url: str,
+    *,
+    max_depth: int = 3,
+    max_pages: int = 100,
+    allow_private_networks: bool = False,
+    data_dir: str | None = None,
+) -> dict[str, str | dict[str, object]]:
+    """Initiate asynchronous deep crawl of a website."""
+    from pathlib import Path
+
+    from myrm_agent_harness.toolkits.web_fetch import CrawlEngine
+    from myrm_agent_harness.toolkits.web_fetch.deep_crawl import DeepCrawlPipeline
+    from myrm_agent_harness.toolkits.web_fetch.rate_limiter import DomainRateLimiter
+    from myrm_agent_harness.toolkits.web_fetch.robots_parser import RobotsParser
+    from myrm_agent_harness.toolkits.web_fetch.task_executor import CrawlTaskExecutor
+    from myrm_agent_harness.toolkits.web_fetch.task_store import CrawlTaskStore
+
+    if not data_dir:
+        data_dir = "/tmp/myrm_crawl_data"
+
+    base_path = Path(data_dir)
+    db_path = base_path / ".crawl_tasks.db"
+
+    store = CrawlTaskStore(db_path)
+    engine = CrawlEngine(allow_private_networks=allow_private_networks)
+    rate_limiter = DomainRateLimiter(default_interval=1.5, max_concurrent_per_domain=2)
+    robots_parser = RobotsParser()
+    executor = CrawlTaskExecutor(store, engine, rate_limiter, max_workers=5)
+
+    pipeline = DeepCrawlPipeline(
+        store=store,
+        executor=executor,
+        engine=engine,
+        robots_parser=robots_parser,
+        rate_limiter=rate_limiter,
+        data_dir=base_path,
+    )
+
+    result = await pipeline.start_deep_crawl(seed_url, max_depth=max_depth, max_pages=max_pages)
+
+    return {
+        "content": (
+            f"Deep crawl initiated for: {seed_url}\n"
+            f"Task Group ID: {result['task_group_id']}\n"
+            f"Total pages discovered: {result['total_pages']}\n"
+            f"Results will be saved to: {result['result_dir']}\n\n"
+            f"Use check_crawl_status with task_group_id='{result['task_group_id']}' to monitor progress.\n"
+            f"Once completed, use code_execution to read and process files from the result directory."
+        ),
+        "metadata": {
+            "operation": "deep_crawl",
+            **result,
+        },
+    }
+
+
+async def _check_crawl_status(
+    task_group_id: str,
+    *,
+    data_dir: str | None = None,
+) -> dict[str, str | dict[str, object]]:
+    """Check status of a deep_crawl task group."""
+    import json
+    from pathlib import Path
+
+    from myrm_agent_harness.toolkits.web_fetch.task_store import CrawlTaskStore
+
+    if not data_dir:
+        data_dir = "/tmp/myrm_crawl_data"
+
+    db_path = Path(data_dir) / ".crawl_tasks.db"
+    if not db_path.exists():
+        raise ToolError(
+            f"No crawl database found at {db_path}",
+            user_hint="No deep_crawl tasks have been started. Start one first with operation='deep_crawl'.",
+        )
+
+    store = CrawlTaskStore(db_path)
+    summary = store.get_group_summary(task_group_id)
+
+    if not summary:
+        raise ToolError(
+            f"Task group not found: {task_group_id}",
+            user_hint="The task_group_id is invalid. Check the ID returned by deep_crawl.",
+        )
+
+    is_done = not store.has_pending_or_running(task_group_id)
+    status = "completed" if is_done else "running"
+
+    index_path = Path(summary.result_dir) / "_index.json"
+    index_info = ""
+    if index_path.exists():
+        index_data = json.loads(index_path.read_text(encoding="utf-8"))
+        pages = index_data.get("pages", [])
+        if pages:
+            index_info = "\n\nCrawled pages:\n"
+            for page in pages[:20]:
+                index_info += f"  - {page['file']}: {page['title']} ({page['url']})\n"
+            if len(pages) > 20:
+                index_info += f"  ... and {len(pages) - 20} more\n"
+
+    return {
+        "content": (
+            f"Deep crawl status: {status}\n"
+            f"Progress: {summary.completed}/{summary.total} pages completed"
+            + (f" ({summary.failed} failed)" if summary.failed else "")
+            + (f" ({summary.cancelled} cancelled)" if summary.cancelled else "")
+            + f"\nPending: {summary.pending}, Running: {summary.running}\n"
+            f"Results directory: {summary.result_dir}"
+            + index_info
+        ),
+        "metadata": {
+            "operation": "check_crawl_status",
+            "group_id": task_group_id,
+            "status": status,
+            "total": summary.total,
+            "completed": summary.completed,
+            "failed": summary.failed,
+            "pending": summary.pending,
+            "running": summary.running,
+            "cancelled": summary.cancelled,
+            "result_dir": summary.result_dir,
+        },
+    }
+
+
+async def _cancel_crawl(
+    task_group_id: str,
+    *,
+    data_dir: str | None = None,
+) -> dict[str, str | dict[str, object]]:
+    """Cancel a running deep_crawl task group."""
+    from pathlib import Path
+
+    from myrm_agent_harness.toolkits.web_fetch.task_store import CrawlTaskStore
+
+    if not data_dir:
+        data_dir = "/tmp/myrm_crawl_data"
+
+    db_path = Path(data_dir) / ".crawl_tasks.db"
+    if not db_path.exists():
+        raise ToolError(
+            f"No crawl database found at {db_path}",
+            user_hint="No deep_crawl tasks have been started. Start one first with operation='deep_crawl'.",
+        )
+
+    store = CrawlTaskStore(db_path)
+    summary = store.get_group_summary(task_group_id)
+
+    if not summary:
+        raise ToolError(
+            f"Task group not found: {task_group_id}",
+            user_hint="The task_group_id is invalid. Check the ID returned by deep_crawl.",
+        )
+
+    cancelled_count = store.cancel_group(task_group_id)
+
+    return {
+        "content": (
+            f"Deep crawl cancelled: {task_group_id}\n"
+            f"Cancelled {cancelled_count} pending tasks.\n"
+            f"Completed pages ({summary.completed}) are preserved in: {summary.result_dir}"
+        ),
+        "metadata": {
+            "operation": "cancel_crawl",
+            "group_id": task_group_id,
+            "cancelled_count": cancelled_count,
+            "completed": summary.completed,
+            "result_dir": summary.result_dir,
+        },
     }

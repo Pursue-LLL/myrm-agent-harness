@@ -22,7 +22,7 @@ Detailed design: [ACP_DESIGN.md](ACP_DESIGN.md)
 |-----------|-------------|
 | runtime/ | ACP Runtime backends — unified interface for ACP, SDK, and CLI agents. |
 | server/ | ACP Server — bridges IDE clients to the agent system via ACP protocol. |
-| toolchains/ | Isolated toolchain manager for external CLI agents. |
+| toolchains/ | Isolated toolchain manager for external CLI agents. See [toolchains/_ARCH.md](toolchains/_ARCH.md). |
 
 ## Key Dependencies
 

@@ -1,29 +1,63 @@
 # web_fetch/
 
 ## Overview
-Web fetch toolkit entry point. Re-exports the core crawl engine and result types.
+Layered web crawl engine with L1 HTTP / L2 Browser / L3 Stealth fallback, adaptive routing, and deep_crawl async pipeline for full-site recursive crawling.
 
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Web fetch toolkit entry point. Re-exports the core crawl engine and result types. | ✅ |
-| antibot_detector.py | Core | Anti-bot and error page detection for crawl results. | ✅ |
-| http3_probe.py | Core | One-shot QUIC egress probe and L1 HTTP/3 retry metrics (`MYRM_HTTP3_RETRY`). | ✅ |
-| binary_router.py | Core | Binary content detection (3-layer: Content-Type → Content-Disposition → Magic Bytes) and routing to file parsers. | ✅ |
-| content_pruning.py | Core | Provides ContentPruningFilter. | ✅ |
-| engine.py | Core | Core crawl engine. Orchestrates L1/L2/L3 fetchers with adaptive routing, binary content routing, and UI FallbackEvent emission. | ✅ |
-| markdown_generator.py | Core | Markdown generator | ✅ |
-| pipeline.py | Core | Content processing pipeline. Sits between the fetcher layer and the consumer layer. | ✅ |
-| url_normalizer.py | Core | URL normalization: strips tracking params (HubSpot, Adobe, LinkedIn, Twitter, TikTok etc.). | ✅ |
-| web_fetch_agent_tools.py | Core | Web fetch meta-tool | ✅ |
+| __init__.py | Package | Entry point. Re-exports CrawlEngine, result types, and global instance. | ✅ |
+| engine.py | Core | CrawlEngine — tiered fetcher pool with AdaptiveRouter, caching, and concurrent crawl_many. | ✅ |
+| pipeline.py | Core | ContentPipeline — HTML to clean Markdown conversion. | ✅ |
+| web_fetch_agent_tools.py | Core | LangChain @tool factory. Routes fetch_full_content / fetch_and_extract / deep_crawl / check_crawl_status / cancel_crawl. | ✅ |
+| deep_crawl.py | Core | DeepCrawlPipeline — recursive site crawl via sitemap/link discovery, robots.txt compliance. | ✅ |
+| task_store.py | Core | CrawlTaskStore — SQLite WAL durable task queue for async crawl groups. | ✅ |
+| task_executor.py | Core | CrawlTaskExecutor — background asyncio worker pool consuming tasks from store. | ✅ |
+| rate_limiter.py | Core | DomainRateLimiter — per-domain request interval + concurrency control. | ✅ |
+| robots_parser.py | Core | RobotsParser — fetches and parses robots.txt for Allow/Disallow/Crawl-Delay/Sitemap. | ✅ |
+| url_normalizer.py | Util | URL normalization for de-duplication. | ✅ |
+| html_to_markdown.py | Util | HTML to Markdown conversion utilities. | ✅ |
+| markdown_generator.py | Util | Markdown document generation helpers. | ✅ |
+| content_pruning.py | Util | Content pruning and noise removal. | ✅ |
+| antibot_detector.py | Util | Anti-bot detection heuristics. | ✅ |
+| binary_router.py | Util | Binary content type routing. | ✅ |
+| http3_probe.py | Util | HTTP/3 protocol probe. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
-| fetchers/ | Fetchers submodule. HttpFetcher: L1-QUIC-Retry on 403/antibot/empty; skips HTTP/3 when proxy pool active. |
-| router/ | unified adaptive router |
+| fetchers/ | L1/L2/L3 fetcher implementations (HTTP, Browser, Stealth). |
+| router/ | AdaptiveRouter — self-learning fetcher selection with cost/latency optimization. |
+
+## Architecture: Deep Crawl Pipeline
+
+```
+Agent calls web_fetch(operation="deep_crawl", url=...)
+    │
+    ▼
+DeepCrawlPipeline
+    ├── RobotsParser → fetch robots.txt, extract rules + sitemaps
+    ├── DomainRateLimiter → apply Crawl-Delay
+    ├── Discover pages (sitemap.xml preferred, HTML link fallback)
+    ├── CrawlTaskStore → persist tasks to SQLite WAL (with URL normalization)
+    └── CrawlTaskExecutor → background async workers
+            ├── CrawlEngine.crawl() per URL
+            ├── Rate limiting via DomainRateLimiter
+            ├── Write Markdown files to sandbox volume
+            ├── Recursive link discovery (depth+1 tasks added on success)
+            ├── Emit progress via dispatch_custom_event
+            └── Generate _index.json on completion
+
+Cancellation: cancel_crawl sets pending tasks to 'cancelled' → Executor
+finds no pending tasks → naturally stops → generates _index.json with
+completed pages only. Running tasks complete but do not enqueue new links
+(is_group_cancelled guard in _discover_and_enqueue_links).
+
+Crash recovery: On init, stale 'running' tasks reset to 'pending'.
+```
 
 ## Key Dependencies
 
-- `utils`
-- Core wheels: `beautifulsoup4`, `lxml` (see `content_pruning.py`, `tree_truncator.py`)
+- `utils.event_utils` (dispatch_custom_event for progress)
+- `toolkits.retriever` (for fetch_and_extract mode)
+- `httpx` (robots.txt fetching, sitemap parsing)

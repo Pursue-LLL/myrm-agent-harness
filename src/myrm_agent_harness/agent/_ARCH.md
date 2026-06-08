@@ -43,7 +43,7 @@ Agent core module — public API.
 | streaming/ | BaseAgent event processing pipeline. |
 | sub_agents/ | Sub-agent subsystem — lifecycle management and configuration loading. |
 | tool_management/ | Tool management subsystem — unified tool registration, dedup, ordering, and lifecycle. |
-| workspace_coordination/ | Workspace batch merge and coordination policy for multi-agent file operations. |
+| workspace_coordination/ | Parallel workspace isolation and batch merge. See [workspace_coordination/_ARCH.md](workspace_coordination/_ARCH.md). |
 | workspace_rules/ | Workspace rules — project-level context file discovery and injection. Two-layer: startup middleware injection + progressive subdirectory discovery via tool interception. |
 
 ## Key Dependencies

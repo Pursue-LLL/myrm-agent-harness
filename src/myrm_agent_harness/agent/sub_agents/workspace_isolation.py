@@ -11,6 +11,7 @@ or binary files.
 
 [OUTPUT]
 - isolated_workspace: Context manager that creates an isolated workspace copy.
+- WorkspaceCloneTooLargeError: Raised when workspace exceeds max_bytes.
 
 [POS]
 Workspace isolation for subagent execution.
@@ -30,18 +31,83 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+_CLONE_IGNORE_DIRS: frozenset[str] = frozenset({
+    ".git",
+    "node_modules",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".tox",
+    "dist",
+    "build",
+    ".next",
+})
 
-def _clone_workspace(src: Path, dst: Path) -> int:
-    """Recursively clone src into dst. Returns count of files.
+_DEFAULT_MAX_CLONE_BYTES: int = 1024 * 1024 * 1024  # 1 GiB
+
+
+class WorkspaceCloneTooLargeError(RuntimeError):
+    """Raised when the source workspace exceeds the max clone size."""
+
+
+def _estimate_clone_size(src: Path, ignore_dirs: frozenset[str]) -> int:
+    """Estimate the byte size of ``src`` excluding ignored directories."""
+    total = 0
+    for dirpath, dirs, files in os.walk(src):
+        dirs[:] = [d for d in dirs if d not in ignore_dirs]
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(dirpath, f))
+            except OSError:
+                pass
+    return total
+
+
+def _clone_workspace(
+    src: Path,
+    dst: Path,
+    *,
+    max_bytes: int = _DEFAULT_MAX_CLONE_BYTES,
+) -> int:
+    """Recursively clone src into dst. Returns count of files copied.
 
     Uses shutil.copytree which automatically utilizes OS-level Copy-on-Write
     (like APFS clonefile on macOS or Btrfs reflinks on Linux) when available.
     This provides true isolation (unlike hardlinks which leak in-place edits)
     while maintaining near-instant creation speed on modern filesystems.
+
+    Skips heavyweight non-source directories (node_modules, .git, dist, etc.)
+    that subagents never need to modify, dramatically reducing clone time on
+    filesystems without COW support (e.g. Docker overlay2).
+
+    Raises :class:`WorkspaceCloneTooLargeError` if the filtered source
+    exceeds ``max_bytes`` (default 1 GiB).
     """
-    shutil.copytree(src, dst, dirs_exist_ok=True)
-    # Return approximate count for logging
-    return sum(1 for _ in dst.rglob("*") if _.is_file())
+    estimated = _estimate_clone_size(src, _CLONE_IGNORE_DIRS)
+    if estimated > max_bytes:
+        raise WorkspaceCloneTooLargeError(
+            f"Workspace {src} is ~{estimated / (1024 * 1024):.0f} MiB "
+            f"(limit {max_bytes / (1024 * 1024):.0f} MiB). "
+            f"Cannot create isolated copy."
+        )
+
+    file_count = 0
+
+    def _counting_copy2(src_file: str, dst_file: str) -> str:
+        nonlocal file_count
+        file_count += 1
+        return shutil.copy2(src_file, dst_file)
+
+    shutil.copytree(
+        src,
+        dst,
+        dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns(*_CLONE_IGNORE_DIRS),
+        copy_function=_counting_copy2,
+    )
+    return file_count
 
 
 def _merge_tree_additive(src: Path, dst: Path) -> None:

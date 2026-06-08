@@ -13,7 +13,7 @@ Toolkits Llms module.
 
 | Submodule | Description |
 |-----------|-------------|
-| batch/ | Lightweight `llm_map` fan-out engine — applies one instruction over N items with bounded concurrency, per-item failure isolation, cancellation, progress and optional structured output. Pure (no agent deps); the agent tool adapter lives in `agent/meta_tools/llm_map/`. |
+| batch/ | `llm_map` fan-out engine. See [batch/_ARCH.md](batch/_ARCH.md). |
 | consensus/ | Multi-model consensus (MoA) inference — parallel reference queries + aggregator synthesis (arXiv:2406.04692). |
 | _media_shared/ | Shared across video/ and image/ modules. Keeps media-specific logic |
 | adapters/ | LLM layer: LangChain , messageconverts, handles, toolcallsparse, Schema normalize |

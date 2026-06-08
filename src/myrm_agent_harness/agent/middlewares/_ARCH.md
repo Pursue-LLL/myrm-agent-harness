@@ -18,7 +18,6 @@ Agent middleware system exports. Provides the complete middleware stack (context
 | debug_logger_middleware.py | Core | Provides debug_logger_middleware. | ✅ |
 | filesystem_search_middleware.py | Core | Provides FilesystemFileSearchMiddleware, create_filesystem_search_middleware. | ✅ |
 | memory_context_middleware.py | Core | Memory context — Stable `<user_memory_context>` (System) + learned `<<<UNTRUSTED_DATA>>>` (Human via `wrap_untrusted`). Unified budget. | ✅ |
-| guardrails/middleware.py | Core | GuardrailMiddleware — parameter-aware tool authorization (replaces legacy permission middleware). | ✅ |
 | planner_middleware.py | Core | Middleware to inject plan blueprint, anti-drift reminder, and decision log into HumanMessage (via request.override, cache-safe). | ✅ |
 | rate_limit.py | Core | Proactive rate-limit throttling middleware. Detects provider from HTTP header signatures, sleeps only when all tracked providers are exhausted (shortest recovery, capped at 120s), and emits SSE events for frontend awareness. | ✅ |
 | replan_middleware.py | Core | Dynamic Replan Loop Middleware. Per-tool error counting prevents unrelated tool successes from resetting the counter for a persistently failing tool. | ✅ |
@@ -37,7 +36,7 @@ Agent middleware system exports. Provides the complete middleware stack (context
 |-----------|-------------|
 | approval/ | Tool approval subsystem — Human-in-the-Loop approval flow. |
 | approval_interception/ | Approval Interception Middleware. |
-| guardrails/ | Guardrail provider chain + GuardrailMiddleware (skill boundary, fail-closed). |
+| guardrails/ | Guardrail provider chain + GuardrailMiddleware. See [guardrails/_ARCH.md](guardrails/_ARCH.md). |
 
 ## Key Dependencies
 

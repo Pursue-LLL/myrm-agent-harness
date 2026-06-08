@@ -29,26 +29,26 @@ def test_table_placeholder_format():
     """Test that table_format='placeholder' correctly replaces table with ID."""
     parser = PDFPlumberParser(table_format="placeholder")
 
-    # Mock pdfplumber parts
+    mock_raw_table = MagicMock()
+    mock_raw_table.extract.return_value = [["Col1", "Col2"], ["Val1", "Val2"]]
+    mock_raw_table.bbox = (0, 0, 100, 50)
+
     mock_page = MagicMock()
     mock_page.extract_text.return_value = "Context text"
-    mock_page.extract_tables.return_value = [[["Col1", "Col2"], ["Val1", "Val2"]]]
+    mock_page.find_tables.return_value = [mock_raw_table]
+    mock_page.extract_words.return_value = []
 
     mock_pdf = MagicMock()
-    # Mock the context manager behavior properly
     mock_pdf.__enter__.return_value = mock_pdf
     mock_pdf.pages = [mock_page]
 
     with patch("pdfplumber.open", return_value=mock_pdf), patch("pathlib.Path.exists", return_value=True):
         result = parser.parse_sync("fake.pdf")
 
-        # Check text contains placeholder and L0 summary
         assert "[TABLE_CAPSULE: table_1_0]" in result.text
         assert "Structured Table on Page 1" in result.text
-        # Markdown table should NOT be in the main text
         assert "| Col1 | Col2 |" not in result.text
 
-        # But structured tables list should have it
         assert len(result.tables) == 1
         assert result.tables[0].id == "table_1_0"
         assert "| Col1 | Col2 |" in result.tables[0].markdown

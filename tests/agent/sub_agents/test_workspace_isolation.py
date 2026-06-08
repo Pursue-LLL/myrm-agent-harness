@@ -2,8 +2,10 @@
 
 Validates:
 1. _clone_workspace creates correct directory structure via COW copy
-2. _sync_tree works correctly for syncing back changes
-3. isolated_workspace context manager lifecycle
+2. _clone_workspace skips heavyweight directories (node_modules, .git, etc.)
+3. _clone_workspace rejects oversized workspaces (max_bytes guard)
+4. _sync_tree works correctly for syncing back changes
+5. isolated_workspace context manager lifecycle
 """
 
 from pathlib import Path
@@ -11,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from myrm_agent_harness.agent.sub_agents.workspace_isolation import (
+    WorkspaceCloneTooLargeError,
     _clone_workspace,
     _sync_tree,
     isolated_workspace,
@@ -71,6 +74,69 @@ class TestCloneWorkspace:
         dst.mkdir()
         count = _clone_workspace(src, dst)
         assert count == 0
+
+    def test_skips_node_modules(self, tmp_path: Path):
+        src = tmp_path / "src_ws"
+        src.mkdir()
+        (src / "index.js").write_text("console.log('hi')")
+        nm = src / "node_modules"
+        nm.mkdir()
+        (nm / "lodash.js").write_text("module.exports = {}")
+
+        dst = tmp_path / "dst_ws"
+        dst.mkdir()
+        count = _clone_workspace(src, dst)
+
+        assert count == 1
+        assert (dst / "index.js").exists()
+        assert not (dst / "node_modules").exists()
+
+    def test_skips_git_and_pycache(self, tmp_path: Path):
+        src = tmp_path / "src_ws"
+        src.mkdir()
+        (src / "main.py").write_text("print(1)")
+        (src / ".git").mkdir()
+        (src / ".git" / "HEAD").write_text("ref: refs/heads/main")
+        (src / "__pycache__").mkdir()
+        (src / "__pycache__" / "main.cpython-313.pyc").write_bytes(b"\x00")
+
+        dst = tmp_path / "dst_ws"
+        dst.mkdir()
+        count = _clone_workspace(src, dst)
+
+        assert count == 1
+        assert (dst / "main.py").exists()
+        assert not (dst / ".git").exists()
+        assert not (dst / "__pycache__").exists()
+
+    def test_skips_multiple_heavyweight_dirs(self, tmp_path: Path):
+        src = tmp_path / "src_ws"
+        src.mkdir()
+        (src / "app.ts").write_text("export default {}")
+        for dirname in ("dist", "build", ".next", ".venv", "venv", ".tox"):
+            d = src / dirname
+            d.mkdir()
+            (d / "artifact.bin").write_bytes(b"\xff" * 100)
+
+        dst = tmp_path / "dst_ws"
+        dst.mkdir()
+        count = _clone_workspace(src, dst)
+
+        assert count == 1
+        assert (dst / "app.ts").exists()
+        for dirname in ("dist", "build", ".next", ".venv", "venv", ".tox"):
+            assert not (dst / dirname).exists()
+
+    def test_rejects_oversized_workspace(self, tmp_path: Path):
+        src = tmp_path / "big_ws"
+        src.mkdir()
+        (src / "data.bin").write_bytes(b"\x00" * (2 * 1024 * 1024))
+
+        dst = tmp_path / "dst_ws"
+        dst.mkdir()
+
+        with pytest.raises(WorkspaceCloneTooLargeError, match="Cannot create isolated copy"):
+            _clone_workspace(src, dst, max_bytes=1024 * 1024)
 
 
 class TestSyncTree:

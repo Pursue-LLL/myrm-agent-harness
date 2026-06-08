@@ -24,7 +24,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | prompts.py | Core | Default prompt templates for multi-agent coordination. | ✅ |
 | registry.py | Core | Subagent configuration registry and loader. Provides global config registration and lookup. | ✅ |
 | types.py | Config | Subagent subsystem core type definitions. Defines all subagent-related data types, enums, protocols, and the DelegationCapabilityManifest | ✅ |
-| workspace_isolation.py | Core | Workspace isolation for subagent execution. | ✅ |
+| workspace_isolation.py | Core | Workspace isolation for subagent execution. COW clone with ignore-pattern filtering (node_modules, .git, dist, etc.), max_bytes safety guard, and efficient file counting. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
