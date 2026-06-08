@@ -1,7 +1,7 @@
 """Encrypted session save/restore API for BrowserSession.
 
 [INPUT]
-- session.session_lifecycle_hook::SessionLifecycleHookProtocol (POS: optional observer)
+- session.session_lifecycle_hook::SessionLifecycleHookProtocol (POS: optional observer for session events)
 
 [OUTPUT]
 - BrowserSessionPersistenceMixin: save_session / restore_session / list / delete when SessionVault is configured.
