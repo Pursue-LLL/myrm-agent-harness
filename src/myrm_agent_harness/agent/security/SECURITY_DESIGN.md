@@ -702,14 +702,17 @@ Layer 5 包含两个并列的防滥用机制：
 
 **位置**：`security/guards/loop_guard.py`
 
-### 四种检测模式
+### 七类检测器（渐进式 WARN→BREAK）
 
-| 模式 | 条件 | 默认阈值 | 说明 |
-|------|------|---------|------|
-| **Repetition** | 同一工具 + 同一参数连续 N 次 | 3 次 | LLM 陷入重复调用 |
-| **Ping-pong** | 两个工具 + 同一参数交替 A→B→A→B 持续 M 轮 | 3 轮（6 次调用） | LLM 在两个工具间来回切换 |
-| **No-progress** | 同一工具连续 N 次返回相同结果 | 4 次 | 工具调用无实际进展 |
-| **Adaptive Failure-Aware Divergence** | 跨 4+ 工具语义分组且失败率超过自适应阈值 | Exploration 60% / Execution 30% / Recovery 15% | 自适应失败率阈值，避免误报正常多工具协作 |
+| 检测器 | 条件 | 默认阈值 | 响应 |
+|--------|------|---------|------|
+| **Repetition** | 同一工具 + 同一参数连续 N 次 | WARN@3 → BREAK@5 | 渐进式 |
+| **Ping-pong** | A→B→A→B 交替 M 轮 | WARN@3轮 → BREAK@6轮 | 渐进式 |
+| **No-progress** | 同一工具连续 N 次返回相同 result_hash | WARN@4 → BREAK@8 | 渐进式 |
+| **Output-diminishing** | 连续低 token 输出 | WARN@2 → BREAK@3 | 渐进式 |
+| **Divergence** | 跨 4+ 工具失败率超阈值 | 阶段自适应(60%/30%/15%) | WARN |
+| **Consecutive-failures** | 连续失败 N 次 | 3次+重复失败 | Exception |
+| **Error-signature** | 跨工具相同错误签名 | 3次相同签名 | Exception |
 
 ### 核心能力
 
