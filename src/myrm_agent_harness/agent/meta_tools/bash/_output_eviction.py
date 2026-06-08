@@ -3,6 +3,7 @@
 在 bash 工具返回时即时处理大输出：
 1. 将完整输出保存到 .context/{session_id}/evicted/ （统一清理体系）
 2. 替换为智能预览 + 文件路径引用
+3. 返回结构化结果供 SSE 事件携带 evicted 文件引用
 
 与 FilterProcessor 的关系：
 - 本模块是第一道防线（即时，只处理 bash_tool 输出）
@@ -16,14 +17,17 @@
 
 [OUTPUT]
 - maybe_evict_large_output: Args:
+- EvictionResult: Structured result with preview text and optional evicted file reference.
 
 [POS]
-Provides maybe_evict_large_output.
+Provides maybe_evict_large_output and EvictionResult.
 """
 
 from __future__ import annotations
 
 import logging
+import os
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.context_management.strategies.filter import should_filter
@@ -45,7 +49,21 @@ _PREVIEW_MAX_CHARS = 3000
 _structural_filter = StructuralFilter()
 
 
-async def maybe_evict_large_output(stdout: str, executor: CodeExecutor | None = None) -> str:
+@dataclass(frozen=True, slots=True)
+class EvictionResult:
+    """Structured result from output eviction.
+
+    Attributes:
+        text: The preview text (or original stdout if no eviction occurred).
+        evicted_ref: Filename of the evicted output file (basename only, e.g. "output_a3f5c8d1.txt").
+                     None when output was not evicted.
+    """
+
+    text: str
+    evicted_ref: str | None = None
+
+
+async def maybe_evict_large_output(stdout: str, executor: CodeExecutor | None = None) -> EvictionResult:
     """大输出截断为智能预览，可选持久化到沙箱文件
 
     Args:
@@ -53,10 +71,10 @@ async def maybe_evict_large_output(stdout: str, executor: CodeExecutor | None = 
         executor: 沙箱执行器（提供时将大输出保存到文件）
 
     Returns:
-        原始 stdout（未超限）或替换后的预览文本（超限）
+        EvictionResult with preview text and optional evicted file reference.
     """
     if not should_filter(stdout):
-        return stdout
+        return EvictionResult(text=stdout)
 
     file_path: str | None = None
     try:
@@ -83,15 +101,17 @@ async def maybe_evict_large_output(stdout: str, executor: CodeExecutor | None = 
         if file_path:
             preview += f"\nFull output saved to: {file_path}\nUse file_read_tool to read specific sections (e.g. {file_path}:100-200 for line ranges)."
 
+        evicted_ref = os.path.basename(file_path) if file_path else None
         logger.warning(" [Eviction] Truncated to preview=%d chars, file=%s", len(preview), file_path)
-        return preview
+        return EvictionResult(text=preview, evicted_ref=evicted_ref)
 
     except Exception as e:
         logger.warning(" [Eviction] Failed: %s, falling back to smart_truncate", e)
         fallback = _create_smart_preview(stdout)
         if file_path:
             fallback += f"\nFull output saved to: {file_path}\nUse file_read_tool to read specific sections (e.g. {file_path}:100-200 for line ranges)."
-        return fallback
+        evicted_ref = os.path.basename(file_path) if file_path else None
+        return EvictionResult(text=fallback, evicted_ref=evicted_ref)
 
 
 async def _save_to_file(executor: CodeExecutor, content: str) -> str:

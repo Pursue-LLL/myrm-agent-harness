@@ -4,7 +4,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash._output_eviction import maybe_evict_large_output
+from myrm_agent_harness.agent.meta_tools.bash._output_eviction import (
+    EvictionResult,
+    maybe_evict_large_output,
+)
 
 
 @pytest.fixture
@@ -45,10 +48,12 @@ async def test_eviction_hint_references_file_read_tool(mock_executor):
     ):
         result = await maybe_evict_large_output("x" * 50000, mock_executor)
 
-    assert "file_read_tool" in result
-    assert "cat " not in result
-    assert "offset/limit" not in result
-    assert ":100-200" in result
+    assert isinstance(result, EvictionResult)
+    assert "file_read_tool" in result.text
+    assert "cat " not in result.text
+    assert "offset/limit" not in result.text
+    assert ":100-200" in result.text
+    assert result.evicted_ref == "output.txt"
 
 
 @pytest.mark.asyncio
@@ -67,9 +72,11 @@ async def test_eviction_fallback_hint_references_file_read_tool(mock_executor):
     ):
         result = await maybe_evict_large_output("x" * 50000, mock_executor)
 
-    assert "file_read_tool" in result
-    assert "cat " not in result
-    assert ":100-200" in result
+    assert isinstance(result, EvictionResult)
+    assert "file_read_tool" in result.text
+    assert "cat " not in result.text
+    assert ":100-200" in result.text
+    assert result.evicted_ref == "output.txt"
 
 
 @pytest.mark.asyncio
@@ -77,8 +84,10 @@ async def test_eviction_fallback_hint_references_file_read_tool(mock_executor):
 async def test_eviction_no_executor_no_file_hint():
     """Without executor, no file_path hint should appear."""
     result = await maybe_evict_large_output("x" * 50000)
-    assert "Full output saved to" not in result
-    assert "LARGE OUTPUT TRUNCATED" in result
+    assert isinstance(result, EvictionResult)
+    assert "Full output saved to" not in result.text
+    assert "LARGE OUTPUT TRUNCATED" in result.text
+    assert result.evicted_ref is None
 
 
 @pytest.mark.asyncio
@@ -90,8 +99,10 @@ async def test_eviction_file_save_failure_still_has_preview(mock_executor):
         side_effect=OSError("disk full"),
     ):
         result = await maybe_evict_large_output("x" * 50000, mock_executor)
-    assert "LARGE OUTPUT TRUNCATED" in result
-    assert "Full output saved to" not in result
+    assert isinstance(result, EvictionResult)
+    assert "LARGE OUTPUT TRUNCATED" in result.text
+    assert "Full output saved to" not in result.text
+    assert result.evicted_ref is None
 
 
 @pytest.mark.asyncio
@@ -109,11 +120,14 @@ async def test_eviction_hint_includes_actual_file_path(mock_executor):
         ),
     ):
         result = await maybe_evict_large_output("x" * 50000, mock_executor)
-    assert ".context/session123/evicted/output_abc.txt:100-200" in result
+    assert ".context/session123/evicted/output_abc.txt:100-200" in result.text
+    assert result.evicted_ref == "output_abc.txt"
 
 
 @pytest.mark.asyncio
 async def test_eviction_skips_small_output():
     """Small output should pass through unchanged."""
     result = await maybe_evict_large_output("small output")
-    assert result == "small output"
+    assert isinstance(result, EvictionResult)
+    assert result.text == "small output"
+    assert result.evicted_ref is None

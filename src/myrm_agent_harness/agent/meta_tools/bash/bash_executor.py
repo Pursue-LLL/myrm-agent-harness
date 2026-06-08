@@ -357,27 +357,28 @@ class BashExecutor:
 
         from myrm_agent_harness.agent.meta_tools.bash._output_eviction import maybe_evict_large_output
 
-        clean_stdout = await maybe_evict_large_output(clean_stdout, self._executor)
+        eviction_result = await maybe_evict_large_output(clean_stdout, self._executor)
 
         exit_code_val = result.result if isinstance(result.result, int) else 0
         await self._log_bash_command_execution(
             command=command,
             session_id=session_id,
             exit_code=exit_code_val,
-            stdout=clean_stdout,
+            stdout=eviction_result.text,
             stderr=result.stderr or "",
             duration_ms=getattr(result, "duration_ms", 0),
             success=True,
         )
 
         return {
-            "stdout": clean_stdout,
+            "stdout": eviction_result.text,
             "stderr": result.stderr,
             "exit_code": str(result.result) if result.result is not None else "0",
             "container_id": result.container_id or "",
             "mcp_metadata": mcp_metadata,
             "workspace_root": context.workspace_root or "",
             "generated_files": list(result.generated_files or []),
+            "evicted_ref": eviction_result.evicted_ref,
         }
 
     async def spawn_background(

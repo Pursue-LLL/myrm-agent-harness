@@ -34,11 +34,8 @@ jobs:
       - name: Run startup performance benchmarks
         run: uv run pytest benchmarks/bench_startup_performance.py -v --benchmark-only
 
-      - name: Run lazy loading tests
-        run: uv run pytest tests/test_lazy_loading_comprehensive.py tests/test_lazy_loading_consistency.py -v
-
-      - name: Run monitoring and preload tests
-        run: uv run pytest tests/test_monitoring.py tests/test_preload.py -v
+      - name: Run performance regression tests
+        run: uv run pytest tests/performance/ -m performance -n0 -q --tb=short
 
       - name: Run boundary detection benchmark
         run: uv run python benchmarks/bench_boundary_detection.py --check-regression benchmarks/baseline_boundary.json

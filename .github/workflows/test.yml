@@ -41,9 +41,7 @@ jobs:
         run: uv sync --dev
 
       - name: Run unit tests
-        run: >-
-          uv run pytest -n 4 --dist=loadscope -q --tb=short tests/
-          --ignore=tests/agent/skills/curator/test_engine.py
+        run: uv run pytest -n 2 --dist=loadscope -q --tb=short tests/
 
   browser-integration:
     name: Browser integration (serial Chromium)
@@ -72,4 +70,3 @@ jobs:
         run: >-
           uv run pytest -n0 -q --tb=short tests/
           -m "integration or e2e" --timeout=600
-          --ignore=tests/agent/skills/curator/test_engine.py

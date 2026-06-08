@@ -65,6 +65,8 @@ async def test_page_reuse(browser_pool: GlobalBrowserPool) -> None:
     await browser_pool.release_page(page2, ctx_key2)
 
 
+@requires_browser
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_warmup(browser_pool: GlobalBrowserPool) -> None:
     """测试预热机制"""
