@@ -53,7 +53,7 @@ from .proxy import ProxyPool
 from .throttle import ThrottleStrategy, create_throttle_strategy
 
 if TYPE_CHECKING:
-    from patchright.async_api import Page
+    from patchright.async_api import BrowserContext, Page
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +183,20 @@ class GlobalBrowserPool(CrashWatchdogMixin):
             )
         return self._launchers[engine]
 
+    def _make_page_pool(
+        self,
+        browser_inst: BrowserInstance,
+        context: BrowserContext,
+        *,
+        max_size: int = 10,
+    ) -> PagePool:
+        """Create a PagePool; external CDP browsers preserve profile session state."""
+        return PagePool(
+            context,
+            max_size=max_size,
+            preserve_session=not browser_inst.is_managed,
+        )
+
     async def warmup(self, browsers: int = 2, pages_per_context: int = 5) -> None:
         """Warm up pool (called at app startup).
 
@@ -205,7 +219,11 @@ class GlobalBrowserPool(CrashWatchdogMixin):
             for ctx_type in [ContextType.CRAWL, ContextType.AGENT]:
                 ctx_key = f"{ctx_type.value}_warmup"
                 inst.contexts[ctx_key] = await self._context_factory.create_context(inst.browser, ctx_type.value)
-                pool = PagePool(inst.contexts[ctx_key], max_size=pages_per_context * 2)
+                pool = self._make_page_pool(
+                    inst,
+                    inst.contexts[ctx_key],
+                    max_size=pages_per_context * 2,
+                )
                 inst.page_pools[ctx_key] = pool
 
                 for _ in range(pages_per_context):
@@ -262,7 +280,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
                     extra_kwargs=merged_kwargs,
                     context_key=ctx_key,
                 )
-                new_pool = PagePool(new_context)
+                new_pool = self._make_page_pool(browser_inst, new_context)
 
                 # Under lock: check and insert (prevent duplicate creation)
                 async with self._lock:

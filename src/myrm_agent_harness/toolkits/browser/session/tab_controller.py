@@ -41,10 +41,7 @@ _MAX_TABS = 10
 
 @dataclass
 class TabHandle:
-    """Tab 句柄 — 封装 Page  and 元Data
-
-    immutable(除了 last_used  and  last_snapshot_url),thread-safe。
-    """
+    """Tab handle wrapping a Page and tab-level metadata (thread-safe except last_used / snapshot fields)."""
 
     page: Page
     tab_id: str

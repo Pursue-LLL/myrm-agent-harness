@@ -68,6 +68,7 @@ class ToolCallEventData:
     tool_call_id: str | None = None
     cancel_reason: str | None = None  # "user_cancelled" | "timeout" | "session_ended"
     version: int | None = None
+    evicted_ref: str | None = None  # Evicted output filename (for GUI viewer)
 
     def to_dict(self) -> dict[str, object]:
         """Export to dict for business layer serialization."""
@@ -96,6 +97,8 @@ class ToolCallEventData:
             result["cancel_reason"] = self.cancel_reason
         if self.version is not None:
             result["version"] = self.version
+        if self.evicted_ref is not None:
+            result["evicted_ref"] = self.evicted_ref
         return result
 
     def to_json(self) -> str:

@@ -9,14 +9,14 @@ Global browser resource pool. Manages Browser/Context/Page three-layer resources
 |------|------|-------------|-------|
 | __init__.py | Package | Global browser resource pool. Manages Browser/Context/Page three-layer resources, implementing zero- | ✅ |
 | browser_launcher.py | Core | Dedicated to browser instance launching, including: | ✅ |
-| browser_pool.py | Core | Global browser resource pool. Manages Browser/Context/Page three-layer resources, implementing: DNS leak prevention (DoH flag injected when proxy_pool is active). | ✅ |
+| browser_pool.py | Core | Global browser resource pool. Smart scheduling; wires PagePool.preserve_session from BrowserInstance.is_managed. DNS leak prevention when proxy_pool active. | ✅ |
 | circuit_breaker.py | Core | Circuit breaker module. Prevents persistently failing domains from degrading the entire system. | ✅ |
 | config.py | Config | Browser pool configuration module. Public presets: `BrowserConfig.minimal()` / `standard()` / `defen | ✅ |
 | context_factory.py | Core | Dedicated to BrowserContext creation and configuration, including: | ✅ |
 | crash_watchdog.py | Core | Provides automatic crash recovery for GlobalBrowserPool: | ✅ |
 | emulation.py | Core | Browser environment emulation configuration with type safety and parameter validation. | ✅ |
 | memory_guard.py | Core | Memory monitoring module. Checks system memory usage at configured intervals; rejects new Page on th | ✅ |
-| page_pool.py | Core | Page object pool. Implements zero-copy reset via CDP commands (clears cookies, storage, network stat | ✅ |
+| page_pool.py | Core | Page object pool. Zero-copy reset for managed browsers; session-preserving reset for external CDP Chrome (no global cookie wipe). | ✅ |
 | proxy.py | Core | Manages proxy rotation across Browser Pool and CrawlEngine. Supports: | — |
 | singleton.py | Core | Manages the GlobalBrowserPool singleton lifecycle, including atexit/SIGTERM cleanup hooks | ✅ |
 | stealth.py | Core | Stealth anti-detection script loader. | ✅ |

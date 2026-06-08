@@ -8,7 +8,7 @@ Harness test suite: unit, integration, architecture gates, and performance bench
 
 | Path | Role | Description |
 |------|------|-------------|
-| `conftest.py` | 核心 | 全局 pytest 配置：隔离 `MYRM_DATA_DIR`、blocking_io gate、benchmark→performance 标记、浏览器 xdist 串行组、`pytest_collection_finish` warmup 漏标门禁、`reset_global_browser_pool_for_tests()` 清理 |
+| `conftest.py` | 核心 | 全局 pytest 配置：隔离 `MYRM_DATA_DIR`、blocking_io gate、benchmark→performance 标记、浏览器 xdist 串行组、`pytest_collection_finish` warmup/acquire_page 漏标门禁、`reset_global_browser_pool_for_tests()` 清理 |
 | `fixtures/` | 辅助 | 预留 harness-only 夹具目录 |
 | `performance/` | 性能 | 子进程 import 热点与 lazy-loading 回归（`performance` marker） |
 | `toolkits/browser/` | 集成 | 浏览器单元 + e2e/integration；真实 Chromium 用例带 `integration`/`e2e` |

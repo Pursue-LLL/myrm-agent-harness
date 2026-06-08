@@ -7,5 +7,5 @@ Configuration Architecture:
 Configuration Loading:
 - Business layer explicitly provides configuration directory path
 - Framework layer loads and validates YAML files
-- See business layer's configs/subagents/README.md for format details
+- See business layer configs/subagents/_ARCH.md for format details
 """

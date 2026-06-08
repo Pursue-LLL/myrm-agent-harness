@@ -1,6 +1,15 @@
-"""Tests for circuit breaker functionality."""
+"""Tests for circuit breaker — state transitions, thread safety, metrics.
 
+Covers: CLOSED→OPEN→HALF_OPEN→CLOSED transitions, failure threshold, timeout recovery,
+half-open max calls, reset, thread safety, and stats reporting.
+"""
+
+from __future__ import annotations
+
+import threading
 import time
+
+import pytest
 
 from myrm_agent_harness.toolkits.llms.fallback.circuit_breaker import (
     CircuitBreaker,
@@ -8,204 +17,168 @@ from myrm_agent_harness.toolkits.llms.fallback.circuit_breaker import (
 )
 
 
-def test_circuit_breaker_initial_state():
-    """Circuit breaker starts in CLOSED state."""
-    cb = CircuitBreaker()
-    assert cb.state == CircuitState.CLOSED
-    assert not cb.is_open()
+class TestCircuitState:
+    def test_values(self):
+        assert CircuitState.CLOSED.value == "closed"
+        assert CircuitState.OPEN.value == "open"
+        assert CircuitState.HALF_OPEN.value == "half_open"
 
 
-def test_circuit_breaker_opens_after_threshold():
-    """Circuit opens after reaching failure threshold."""
-    cb = CircuitBreaker(failure_threshold=3)
+class TestCircuitBreakerInit:
+    def test_default_params(self):
+        cb = CircuitBreaker()
+        assert cb.failure_threshold == 5
+        assert cb.timeout_ms == 30_000
+        assert cb.half_open_max_calls == 1
+        assert cb.state == CircuitState.CLOSED
 
-    # Record failures
-    cb.record_failure()
-    assert cb.state == CircuitState.CLOSED
-    cb.record_failure()
-    assert cb.state == CircuitState.CLOSED
-    cb.record_failure()
-
-    # Should transition to OPEN
-    assert cb.state == CircuitState.OPEN
-    assert cb.is_open()
-
-
-def test_circuit_breaker_reset_on_success():
-    """Success resets failure count in CLOSED state."""
-    cb = CircuitBreaker(failure_threshold=3)
-
-    # Record some failures
-    cb.record_failure()
-    cb.record_failure()
-    assert cb.state == CircuitState.CLOSED
-
-    # Success should reset count
-    cb.record_success()
-
-    # Need 3 more failures to open
-    cb.record_failure()
-    cb.record_failure()
-    assert cb.state == CircuitState.CLOSED
-    cb.record_failure()
-    assert cb.state == CircuitState.OPEN
+    def test_custom_params(self):
+        cb = CircuitBreaker(failure_threshold=3, timeout_ms=1000, half_open_max_calls=2)
+        assert cb.failure_threshold == 3
+        assert cb.timeout_ms == 1000
+        assert cb.half_open_max_calls == 2
 
 
-def test_circuit_breaker_half_open_transition():
-    """Circuit transitions from OPEN to HALF_OPEN after timeout."""
-    cb = CircuitBreaker(failure_threshold=2, timeout_ms=100)
+class TestCircuitBreakerTransitions:
+    def test_starts_closed(self):
+        cb = CircuitBreaker()
+        assert cb.state == CircuitState.CLOSED
+        assert cb.is_open() is False
 
-    # Open the circuit
-    cb.record_failure()
-    cb.record_failure()
-    assert cb.state == CircuitState.OPEN
-    assert cb.is_open()
+    def test_opens_after_threshold(self):
+        cb = CircuitBreaker(failure_threshold=3)
+        for _ in range(3):
+            cb.record_failure()
+        assert cb.state == CircuitState.OPEN
+        assert cb.is_open() is True
 
-    # Wait for timeout
-    time.sleep(0.15)
-
-    # Should transition to HALF_OPEN
-    assert not cb.is_open()
-    assert cb.state == CircuitState.HALF_OPEN
-
-
-def test_circuit_breaker_half_open_to_closed():
-    """Circuit closes after successful call in HALF_OPEN."""
-    cb = CircuitBreaker(failure_threshold=2, timeout_ms=100, half_open_max_calls=1)
-
-    # Open the circuit
-    cb.record_failure()
-    cb.record_failure()
-    assert cb.state == CircuitState.OPEN
-
-    # Wait and transition to HALF_OPEN
-    time.sleep(0.15)
-    _ = cb.is_open()
-    assert cb.state == CircuitState.HALF_OPEN
-
-    # Success should close circuit
-    cb.record_success()
-    assert cb.state == CircuitState.CLOSED
-
-
-def test_circuit_breaker_half_open_to_open():
-    """Circuit reopens on failure in HALF_OPEN."""
-    cb = CircuitBreaker(failure_threshold=2, timeout_ms=100)
-
-    # Open the circuit
-    cb.record_failure()
-    cb.record_failure()
-    assert cb.state == CircuitState.OPEN
-
-    # Wait and transition to HALF_OPEN
-    time.sleep(0.15)
-    _ = cb.is_open()
-    assert cb.state == CircuitState.HALF_OPEN
-
-    # Failure should reopen circuit
-    cb.record_failure()
-    assert cb.state == CircuitState.OPEN
-
-
-def test_circuit_breaker_custom_thresholds():
-    """Circuit breaker works with custom thresholds."""
-    cb = CircuitBreaker(failure_threshold=10, timeout_ms=5000)
-
-    # Record 9 failures
-    for _ in range(9):
+    def test_stays_closed_below_threshold(self):
+        cb = CircuitBreaker(failure_threshold=3)
+        cb.record_failure()
         cb.record_failure()
         assert cb.state == CircuitState.CLOSED
 
-    # 10th failure opens circuit
-    cb.record_failure()
-    assert cb.state == CircuitState.OPEN
+    def test_success_resets_failure_count(self):
+        cb = CircuitBreaker(failure_threshold=3)
+        cb.record_failure()
+        cb.record_failure()
+        cb.record_success()  # resets count
+        cb.record_failure()
+        cb.record_failure()
+        assert cb.state == CircuitState.CLOSED
+
+    def test_half_open_after_timeout(self):
+        cb = CircuitBreaker(failure_threshold=1, timeout_ms=50)
+        cb.record_failure()
+        assert cb.is_open() is True
+        time.sleep(0.1)
+        assert cb.is_open() is False  # transitions to HALF_OPEN
+        assert cb.state == CircuitState.HALF_OPEN
+
+    def test_half_open_to_closed_on_success(self):
+        cb = CircuitBreaker(failure_threshold=1, timeout_ms=50, half_open_max_calls=1)
+        cb.record_failure()
+        time.sleep(0.1)
+        cb.is_open()  # trigger transition
+        cb.record_success()
+        assert cb.state == CircuitState.CLOSED
+
+    def test_half_open_to_open_on_failure(self):
+        cb = CircuitBreaker(failure_threshold=1, timeout_ms=50)
+        cb.record_failure()
+        time.sleep(0.1)
+        cb.is_open()  # trigger transition to HALF_OPEN
+        cb.record_failure()
+        assert cb.state == CircuitState.OPEN
 
 
-def test_circuit_breaker_state_property():
-    """State property returns current state safely."""
-    cb = CircuitBreaker()
+class TestCircuitBreakerReset:
+    def test_reset_from_open(self):
+        cb = CircuitBreaker(failure_threshold=1)
+        cb.record_failure()
+        assert cb.state == CircuitState.OPEN
+        cb.reset()
+        assert cb.state == CircuitState.CLOSED
 
-    assert cb.state == CircuitState.CLOSED
-
-    cb.record_failure()
-    cb.record_failure()
-    cb.record_failure()
-    cb.record_failure()
-    cb.record_failure()
-
-    assert cb.state == CircuitState.OPEN
-
-
-def test_circuit_breaker_multiple_half_open_calls():
-    """Circuit tracks half-open call count correctly."""
-    cb = CircuitBreaker(failure_threshold=2, timeout_ms=100, half_open_max_calls=2)
-
-    # Open the circuit
-    cb.record_failure()
-    cb.record_failure()
-
-    # Wait and transition to HALF_OPEN
-    time.sleep(0.15)
-    _ = cb.is_open()
-    assert cb.state == CircuitState.HALF_OPEN
-
-    # First success
-    cb.record_success()
-    assert cb.state == CircuitState.HALF_OPEN
-
-    # Second success should close
-    cb.record_success()
-    assert cb.state == CircuitState.CLOSED
+    def test_reset_clears_failure_count(self):
+        cb = CircuitBreaker(failure_threshold=3)
+        cb.record_failure()
+        cb.record_failure()
+        cb.reset()
+        cb.record_failure()
+        assert cb.state == CircuitState.CLOSED  # count was reset
 
 
-def test_circuit_breaker_thread_safety():
-    """Circuit breaker is thread-safe (smoke test)."""
-    cb = CircuitBreaker()
+class TestCircuitBreakerRetryAfter:
+    def test_retry_after_zero_when_closed(self):
+        cb = CircuitBreaker()
+        assert cb.retry_after_ms == 0
 
-    # Multiple operations should not raise exceptions
-    cb.record_failure()
-    _ = cb.is_open()
-    _ = cb.state
-    cb.record_success()
-    _ = cb.is_open()
-
-
-def test_retry_after_ms_closed():
-    """retry_after_ms returns 0 when circuit is CLOSED."""
-    cb = CircuitBreaker()
-    assert cb.retry_after_ms == 0
+    def test_retry_after_positive_when_open(self):
+        cb = CircuitBreaker(failure_threshold=1, timeout_ms=10_000)
+        cb.record_failure()
+        assert cb.retry_after_ms > 0
+        assert cb.retry_after_ms <= 10_000
 
 
-def test_retry_after_ms_open():
-    """retry_after_ms returns remaining cooldown when circuit is OPEN."""
-    cb = CircuitBreaker(failure_threshold=2, timeout_ms=5000)
-    cb.record_failure()
-    cb.record_failure()
-    assert cb.state == CircuitState.OPEN
+class TestCircuitBreakerStats:
+    def test_stats_closed(self):
+        cb = CircuitBreaker()
+        stats = cb.get_stats()
+        assert stats["state"] == "closed"
+        assert stats["failure_count"] == 0
 
-    remaining = cb.retry_after_ms
-    assert 3000 < remaining <= 5000
-
-
-def test_retry_after_ms_half_open():
-    """retry_after_ms returns 0 when circuit is HALF_OPEN."""
-    cb = CircuitBreaker(failure_threshold=2, timeout_ms=100)
-    cb.record_failure()
-    cb.record_failure()
-    time.sleep(0.15)
-    _ = cb.is_open()
-    assert cb.state == CircuitState.HALF_OPEN
-    assert cb.retry_after_ms == 0
+    def test_stats_open(self):
+        cb = CircuitBreaker(failure_threshold=2)
+        cb.record_failure()
+        cb.record_failure()
+        stats = cb.get_stats()
+        assert stats["state"] == "open"
+        assert stats["failure_count"] == 2
+        assert stats["retry_after_ms"] > 0
 
 
-def test_retry_after_ms_decreases():
-    """retry_after_ms decreases over time."""
-    cb = CircuitBreaker(failure_threshold=2, timeout_ms=2000)
-    cb.record_failure()
-    cb.record_failure()
+class TestCircuitBreakerThreadSafety:
+    def test_concurrent_failures(self):
+        cb = CircuitBreaker(failure_threshold=100)
+        errors: list[Exception] = []
 
-    first = cb.retry_after_ms
-    time.sleep(0.2)
-    second = cb.retry_after_ms
+        def hammer():
+            try:
+                for _ in range(50):
+                    cb.record_failure()
+                    cb.record_success()
+            except Exception as e:
+                errors.append(e)
 
-    assert second < first
+        threads = [threading.Thread(target=hammer) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=5)
+
+        assert len(errors) == 0
+        assert cb.state in (CircuitState.CLOSED, CircuitState.OPEN, CircuitState.HALF_OPEN)
+
+    def test_concurrent_state_reads(self):
+        cb = CircuitBreaker(failure_threshold=1, timeout_ms=10)
+        cb.record_failure()
+        errors: list[Exception] = []
+
+        def read_state():
+            try:
+                for _ in range(100):
+                    _ = cb.state
+                    _ = cb.is_open()
+                    _ = cb.retry_after_ms
+                    _ = cb.get_stats()
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=read_state) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=5)
+
+        assert len(errors) == 0

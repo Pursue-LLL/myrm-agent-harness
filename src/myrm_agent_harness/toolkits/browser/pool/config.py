@@ -47,7 +47,7 @@ SCALE_OUT_LOAD_THRESHOLD = 10
 
 
 class BrowserMode(StrEnum):
-    """Browser运行Mode."""
+    """Browser runtime mode."""
 
     MINIMAL = "minimal"
     STANDARD = "standard"

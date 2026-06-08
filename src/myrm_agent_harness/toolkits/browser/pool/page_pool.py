@@ -6,11 +6,12 @@
 - patchright.async_api::Page (POS: Patchright page instance)
 
 [OUTPUT]
-- PagePool: per-context page object pool with zero-copy reuse
+- PagePool: per-context page pool with managed full-reset or external session-preserving reset
 
 [POS]
-Page object pool. Implements zero-copy reset via CDP commands (clears cookies, storage, network state),
-supports acquire/release lifecycle management with auto-scaling. Delegated by GlobalBrowserPool.
+Page object pool. Implements zero-copy reset via CDP commands for managed browsers, and
+session-preserving reset for CDP-attached external Chrome (no global cookie wipe).
+Supports acquire/release lifecycle management with auto-scaling. Delegated by GlobalBrowserPool.
 """
 
 from __future__ import annotations
@@ -30,21 +31,25 @@ _FALLBACK_RESET_TIMEOUT_MS = 5000
 
 
 class PagePool:
-    """Page Object池 — 零拷贝复用，CDP fastReset.
+    """Per-context page pool with CDP fast reset and optional session preservation."""
 
-    via  CDP 命令清EmptyPageState（清除 cookies、storage、网络State），
-    avoid Trigger导航事件。SupportAuto扩缩容，Maximum池Size限制 prevent 内存泄漏。
-    """
-
-    def __init__(self, context: BrowserContext, max_size: int = 10) -> None:
-        """InitializePage池.
+    def __init__(
+        self,
+        context: BrowserContext,
+        max_size: int = 10,
+        *,
+        preserve_session: bool = False,
+    ) -> None:
+        """Initialize the page pool.
 
         Args:
-            context: 所属  BrowserContext
-            max_size: Maximum池Size(超出后Close而非复用)
-
+            context: Owning browser context.
+            max_size: Max idle pages kept for reuse (overflow pages are closed).
+            preserve_session: When True, skip global cookie/storage wipe on reuse
+                (for CDP-attached user Chrome where login state must persist).
         """
         self._context = context
+        self._preserve_session = preserve_session
         self._idle: list[Page] = []
         self._busy: set[Page] = set()
         self._max_size = max_size
@@ -55,12 +60,7 @@ class PagePool:
         self._fast_reset_failures = 0
 
     async def acquire(self) -> Page:
-        """Get一个可用  Page(复用 or Createnew ).
-
-        Returns:
-             already Reset  Page Instance
-
-        """
+        """Return a ready page, reusing and resetting an idle page when possible."""
         async with self._lock:
             self._total_acquires += 1
 
@@ -75,12 +75,7 @@ class PagePool:
             return page
 
     async def release(self, page: Page) -> None:
-        """Release一个 Page 回池( or Close).
-
-        Args:
-            page: 要Release  Page Instance
-
-        """
+        """Return a page to the idle pool or close it when the pool is full."""
         async with self._lock:
             self._busy.discard(page)
 
@@ -91,10 +86,7 @@ class PagePool:
                     await page.close()
 
     async def _reset_page(self, page: Page) -> None:
-        """零拷贝ResetPageState.
-
-        优先 using  CDP 命令（fast），Failure时fallback to  goto('about:blank')
-        """
+        """Reset page state before reuse (full wipe or session-preserving)."""
         self._total_resets += 1
         success = await self._fast_reset(page)
 
@@ -106,12 +98,28 @@ class PagePool:
             self._fast_reset_success += 1
 
     async def _fast_reset(self, page: Page) -> bool:
-        """CDP 零拷贝Reset.
+        """CDP fast reset. Skips global cookie wipe when preserve_session is enabled."""
+        if self._preserve_session:
+            return await self._fast_reset_preserve_session(page)
+        return await self._fast_reset_managed(page)
 
-        Returns:
-            True if success, False if CDP failed
+    async def _fast_reset_preserve_session(self, page: Page) -> bool:
+        """Reset navigation state only — keep browser profile cookies intact."""
+        try:
+            cdp: CDPSession = await page.context.new_cdp_session(page)
+            await asyncio.wait_for(
+                cdp.send("Page.resetNavigationHistory"),
+                timeout=_RESET_TIMEOUT_MS / 1000,
+            )
+            await cdp.detach()
+            await self._fallback_reset(page)
+            return True
+        except Exception as exc:
+            logger.warning(f"Session-preserving CDP reset failed: {exc}")
+            return False
 
-        """
+    async def _fast_reset_managed(self, page: Page) -> bool:
+        """Full CDP reset for managed (launched) browser instances."""
         try:
             cdp: CDPSession = await page.context.new_cdp_session(page)
 
@@ -140,7 +148,7 @@ class PagePool:
             return False
 
     async def _fallback_reset(self, page: Page) -> None:
-        """fallbackResetStrategy — goto('about:blank')."""
+        """Fallback reset — navigate to about:blank."""
         try:
             await asyncio.wait_for(
                 page.goto("about:blank", wait_until="domcontentloaded"),
@@ -150,7 +158,7 @@ class PagePool:
             logger.warning(f"Fallback reset (goto) failed: {exc}")
 
     async def shutdown(self) -> None:
-        """CloseAll Page 并清Empty池."""
+        """Close all pages and clear the pool."""
         async with self._lock:
             all_pages = list(self._idle) + list(self._busy)
 
@@ -174,7 +182,7 @@ class PagePool:
 
     @property
     def stats(self) -> dict[str, int | float]:
-        """GetStatisticsinformation( for 监控)."""
+        """Return pool statistics for monitoring."""
         return {
             "idle": len(self._idle),
             "busy": len(self._busy),

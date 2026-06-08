@@ -116,17 +116,15 @@ class NetworkLogger:
             self._pending.clear()
 
     def detach_current(self) -> None:
-        """移除Current绑定 Page 上 监听（若 no 绑定则 no-op）。"""
+        """Remove listeners from the currently bound page (no-op if none)."""
         if self._bound_page is not None:
             self.detach_page(self._bound_page)
 
     def start_capture(self, page: Page) -> None:
-        """in  *page* 上Register网络监听； already 绑定Other Page 时会先 detach。
-
-        对同一 ``page`` 重复Call is 幂 etc.（ not 重复Register）。
+        """Register network listeners on page; idempotent for the same page instance.
 
         Args:
-            page: Patchright / Playwright Page Instance
+            page: Patchright page instance
         """
         if self._bound_page is page:
             return

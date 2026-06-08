@@ -81,30 +81,32 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
         item.add_marker(pytest.mark.xdist_group("browser_chromium"))
 
 
-_BROWSER_WARMUP_MARKERS = ("integration", "e2e", "performance")
+_BROWSER_HEAVY_TEST_MARKERS = ("integration", "e2e", "performance")
+_BROWSER_REAL_CHROMIUM_CALLS = ("warmup(", "acquire_page(")
 
 
 def pytest_collection_finish(session: pytest.Session) -> None:
-    """Fail fast when a browser test calls warmup() without heavy-test markers.
+    """Fail fast when a browser test touches Chromium without heavy-test markers.
 
-    Real Chromium warmups must not enter the default memory-safe suite
-    (``-m "not integration and not e2e and not performance"``).
+    Real ``warmup()`` / ``acquire_page()`` calls must not enter the default
+    memory-safe suite (``-m "not integration and not e2e and not performance"``).
     """
     for item in session.items:
         item_path = Path(item.path).resolve()
         if not item_path.is_relative_to(_BROWSER_TEST_ROOT):
             continue
-        if any(item.get_closest_marker(name) is not None for name in _BROWSER_WARMUP_MARKERS):
+        if any(item.get_closest_marker(name) is not None for name in _BROWSER_HEAVY_TEST_MARKERS):
             continue
         try:
             source = inspect.getsource(item.function)
         except (OSError, TypeError):
             continue
-        if "warmup(" not in source:
+        if not any(call in source for call in _BROWSER_REAL_CHROMIUM_CALLS):
             continue
         pytest.fail(
-            f"{item.nodeid} calls warmup() but lacks @pytest.mark.integration, "
-            "e2e, or performance. Real browser tests must run outside the default suite.",
+            f"{item.nodeid} calls warmup() or acquire_page() but lacks "
+            "@pytest.mark.integration, e2e, or performance. "
+            "Real browser tests must run outside the default suite.",
             pytrace=False,
         )
 

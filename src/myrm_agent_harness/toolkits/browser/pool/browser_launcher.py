@@ -44,13 +44,11 @@ _CDP_PROBE_TIMEOUT_S = 2.0
 
 @dataclass
 class BrowserInstance:
-    """BrowserInstance元Data.
+    """Browser instance metadata for pool scheduling and session preservation.
 
-    跟踪Browser下 AllContext、PagePool and Current负载。
-    last_active_at  in 每次 acquire/release page 时Update， for Empty闲回收判断。
-    _disconnected  in  browser disconnect 事件Trigger时设 is  True， prevent  semaphore 重复Release。
-    is_managed 标记Whether由 BrowserLauncher Start Browser（False= via CDPConnection ExternalChrome）。
-    _pid 记录底层浏览器进程的PID，用于强制兜底清理僵尸进程。
+    is_managed: True when launched by BrowserLauncher; False when attached via CDP.
+    _disconnected: Set on browser disconnect to avoid duplicate semaphore release.
+    _pid: Underlying browser process PID for orphan cleanup when managed.
     """
 
     browser: Browser

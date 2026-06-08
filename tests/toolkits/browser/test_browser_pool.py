@@ -30,6 +30,7 @@ async def browser_pool() -> GlobalBrowserPool:
 
 
 @requires_browser
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_acquire_and_release_page(browser_pool: GlobalBrowserPool) -> None:
     """测试 Page 的获取和释放"""
@@ -51,6 +52,8 @@ async def test_acquire_and_release_page(browser_pool: GlobalBrowserPool) -> None
     assert stats["total_releases"] == 2
 
 
+@requires_browser
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_page_reuse(browser_pool: GlobalBrowserPool) -> None:
     """测试 Page 复用机制"""
@@ -77,6 +80,8 @@ async def test_warmup(browser_pool: GlobalBrowserPool) -> None:
     assert stats["total_contexts"] >= 2
 
 
+@requires_browser
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_concurrent_acquires(browser_pool: GlobalBrowserPool) -> None:
     """测试并发获取 Page"""
@@ -93,6 +98,8 @@ async def test_concurrent_acquires(browser_pool: GlobalBrowserPool) -> None:
     assert stats["total_releases"] == 10
 
 
+@requires_browser
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_context_isolation(browser_pool: GlobalBrowserPool) -> None:
     """测试不同 ContextType 的隔离"""
@@ -248,6 +255,8 @@ async def test_browser_scaling_on_high_load() -> None:
 # =============================================================================
 
 
+@requires_browser
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_cleanup_closed_contexts() -> None:
     """Test cleanup of closed contexts."""
@@ -267,6 +276,8 @@ async def test_cleanup_closed_contexts() -> None:
 # =============================================================================
 
 
+@requires_browser
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_create_context_stealth() -> None:
     """Test creating STEALTH context with special options."""
@@ -281,6 +292,8 @@ async def test_create_context_stealth() -> None:
     await pool.shutdown()
 
 
+@requires_browser
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_pool_with_proxy_pool() -> None:
     """Test pool configured with proxy pool."""
@@ -297,6 +310,8 @@ async def test_pool_with_proxy_pool() -> None:
     await pool.shutdown()
 
 
+@requires_browser
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_create_context_with_emulation() -> None:
     """Test _create_context with EmulationConfig."""
@@ -326,6 +341,8 @@ async def test_create_context_with_emulation() -> None:
     await pool.shutdown()
 
 
+@requires_browser
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_create_context_emulation_and_extra_kwargs() -> None:
     """Test emulation + extra_kwargs priority (extra_kwargs overrides)."""
@@ -358,6 +375,8 @@ async def test_create_context_emulation_and_extra_kwargs() -> None:
 # =============================================================================
 
 
+@requires_browser
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_shutdown_with_context_close_exception() -> None:
     """Test shutdown handles context.close exception gracefully."""
@@ -374,6 +393,8 @@ async def test_shutdown_with_context_close_exception() -> None:
     assert len(pool._browsers) == 0
 
 
+@requires_browser
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_shutdown_with_browser_close_exception() -> None:
     """Test shutdown handles browser.close exception gracefully."""
@@ -389,6 +410,8 @@ async def test_shutdown_with_browser_close_exception() -> None:
     assert len(pool._browsers) == 0
 
 
+@requires_browser
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_shutdown_with_playwright_stop_exception() -> None:
     """Test shutdown handles playwright.stop exception gracefully."""

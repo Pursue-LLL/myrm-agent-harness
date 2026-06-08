@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import shutil
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -11,6 +12,13 @@ from myrm_agent_harness.toolkits.browser.pool.config import (
     BrowserPoolConfig,
     ThrottleMode,
 )
+
+_HAS_CHROMIUM = shutil.which("chromium") is not None or shutil.which("google-chrome") is not None
+requires_browser = pytest.mark.skipif(
+    not _HAS_CHROMIUM, reason="Chromium/Patchright not installed in this environment"
+)
+
+pytestmark = [pytest.mark.integration, requires_browser]
 
 
 class TestGlobalConcurrencyLimit:

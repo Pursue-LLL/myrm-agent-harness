@@ -127,6 +127,47 @@ async def test_release_page_close_exception(mock_context: MagicMock, mock_page: 
     await pool.release(page2)
 
 
+@pytest.mark.asyncio
+async def test_preserve_session_skips_global_cookie_clear(mock_context: MagicMock, mock_page: MagicMock) -> None:
+    """External CDP mode must not wipe browser-wide cookies on page reuse."""
+    mock_cdp = AsyncMock()
+    mock_cdp.send = AsyncMock()
+    mock_cdp.detach = AsyncMock()
+    mock_page.context.new_cdp_session = AsyncMock(return_value=mock_cdp)
+    mock_context.new_page = AsyncMock(return_value=mock_page)
+    mock_page.goto = AsyncMock()
+
+    pool = PagePool(mock_context, max_size=5, preserve_session=True)
+
+    page = await pool.acquire()
+    await pool.release(page)
+    await pool.acquire()
+
+    sent_methods = [call.args[0] for call in mock_cdp.send.call_args_list]
+    assert "Page.resetNavigationHistory" in sent_methods
+    assert "Network.clearBrowserCookies" not in sent_methods
+    assert "Storage.clearDataForOrigin" not in sent_methods
+
+
+@pytest.mark.asyncio
+async def test_managed_reset_clears_cookies(mock_context: MagicMock, mock_page: MagicMock) -> None:
+    """Managed browser reset still clears global cookies."""
+    mock_cdp = AsyncMock()
+    mock_cdp.send = AsyncMock()
+    mock_cdp.detach = AsyncMock()
+    mock_page.context.new_cdp_session = AsyncMock(return_value=mock_cdp)
+    mock_context.new_page = AsyncMock(return_value=mock_page)
+
+    pool = PagePool(mock_context, max_size=5, preserve_session=False)
+
+    page = await pool.acquire()
+    await pool.release(page)
+    await pool.acquire()
+
+    sent_methods = [call.args[0] for call in mock_cdp.send.call_args_list]
+    assert "Network.clearBrowserCookies" in sent_methods
+
+
 # =============================================================================
 # Fast reset failure and fallback
 # =============================================================================

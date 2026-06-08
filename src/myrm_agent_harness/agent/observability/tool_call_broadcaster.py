@@ -113,17 +113,25 @@ class ToolCallBroadcaster:
         start_time = self._pending_calls.pop(tool_call_id, end_time)
         duration_ms = int((end_time - start_time) * 1000)
 
+        tool_output = payload.get("tool_output")
+        evicted_ref: str | None = None
+        if isinstance(tool_output, dict):
+            ref = tool_output.get("evicted_ref")
+            if isinstance(ref, str) and ref:
+                evicted_ref = ref
+
         event_data = ToolCallEventData(
             tool_name=tool_name,
             status="completed",
             start_time=start_time,
             end_time=end_time,
             duration_ms=duration_ms,
-            result=_truncate_for_event(payload.get("tool_output")),
+            result=_truncate_for_event(tool_output),
             session_id=str(payload.get("session_id")) if payload.get("session_id") else None,
             message_id=str(payload.get("message_id")) if payload.get("message_id") else None,
             tool_call_id=tool_call_id if tool_call_id else None,
             version=(resolved_skill_versions_var.get() or {}).get(tool_name),
+            evicted_ref=evicted_ref,
         )
 
         bus = await self._ensure_event_bus()

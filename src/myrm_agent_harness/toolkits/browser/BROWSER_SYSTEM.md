@@ -84,6 +84,10 @@
 
 **关键技术**：
 - **零拷贝页面复用**：通过 CDP 命令快速重置页面（~50ms），避免关闭重建（~300ms）
+- **Managed vs External 重置策略**（`PagePool.preserve_session`，由 `BrowserInstance.is_managed` 驱动）：
+  - **Managed**（`LAUNCH` / AUTO fallback 新启 Chromium）：全量 CDP 清理（cookies、storage、cache）
+  - **External**（CDP 连接用户 Chrome，`is_managed=False`）：仅 `Page.resetNavigationHistory` + 标签页 `about:blank`，**不**调用 `Network.clearBrowserCookies` / `Storage.clearDataForOrigin`，保留登录态
+- **Local 可见 fallback**：server 层 `get_browser_launch_options()` 在 Local 模式设 `headless=False`（SaaS 仍默认 headless）
 - **多租户隔离**：不同 ContextType（CRAWL / AGENT / STEALTH）使用独立 BrowserContext
 - **智能负载调度**：自动选择负载最低的 Context
 - **智能重试**：3次指数退避重试（2s/4s/8s），处理启动失败和网络异常
