@@ -477,6 +477,21 @@ def create_bash_tool(
                     config=config,
                 )
 
+            evicted_ref = result.get("evicted_ref")
+            if evicted_ref and isinstance(evicted_ref, str):
+                from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
+                await dispatch_custom_event(
+                    "tasks_steps",
+                    {
+                        "step_key": "bash_code_execute_tool_tool",
+                        "tool_name": "bash_code_execute_tool",
+                        "status": "success",
+                        "evicted_ref": evicted_ref,
+                    },
+                    config=config,
+                )
+
             # Build metadata
             metadata: dict[str, object] = {}
             if result.get("mcp_metadata") and isinstance(result["mcp_metadata"], dict):
