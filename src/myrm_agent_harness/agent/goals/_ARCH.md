@@ -31,6 +31,6 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 | storage.py | 核心 | SQLite 持久化 — 序列化/反序列化含 turns_used / max_turns / priority / auto_approve / constraints / no_progress_streak / loop_restarts / convergence_window / loop_on_pause / max_loop_restarts + 队列索引 | ✅ |
 | continuation.py | 核心 | guard chain → 返回 ContinuationDecision（含 convergence/loop_restart verdict）。支持收敛检测（no_progress_streak ≥ convergence_window → COMPLETE）和循环重启（loop_on_pause → 触发 trigger_goal_stream） | ✅ |
 | audit.py | 核心 | 三段式 judge criteria + 行为引导 continuation prompt（含 Fidelity 防目标缩水、Evidence-based 防历史幻觉、Progress visibility 激活 planner_tool 进度推送、8 步 audit protocol、历史 learnings 注入、收敛引导指令） | ✅ |
-| goal_interceptor.py | 核心 | Goal 拦截器，负责在执行前调用 PlannerAgent 生成计划；auto_approve=True 时跳过 interrupt | ✅ |
+| goal_interceptor.py | 核心 | Goal 拦截器，负责在执行前调用 PlannerAgent 生成计划；支持多模态输入（图片直传 Planner）；auto_approve=True 时跳过 interrupt | ✅ |
 | verification/ | 核心 | 验收测试模块，提供准则解析(Gatekeeper)与运行时验证(Shell/Semantic)机制 | ✅ |
 | GOAL_SYSTEM_DESIGN.md | 文档 | Goal 系统的详细设计文档 | - |

@@ -87,6 +87,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "browser_manage_tool": ToolLayer.EXTENDED,
     "browser_navigate_tool": ToolLayer.EXTENDED,
     "browser_execute_script_tool": ToolLayer.EXTENDED,
+    "browser_ask_human_tool": ToolLayer.EXTENDED,
     "browser_snapshot_tool": ToolLayer.EXTENDED,
     # --- 日历工具 ---
     "calendar_manage_tool": ToolLayer.EXTENDED,

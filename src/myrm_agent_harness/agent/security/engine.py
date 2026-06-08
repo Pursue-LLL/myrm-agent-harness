@@ -84,12 +84,13 @@ def check_capability(permission: str, target: str, capabilities: CapabilitySet) 
 _TARGET_EXTRACTORS: dict[str, str] = {
     "browser_navigate": "url",
     "web_fetch": "url",
+    "net_fetch": "url",
     "shell_exec": "command",
     "file_read": "path",
     "file_write": "path",
 }
 
-_URL_BEARING_PERMISSIONS: frozenset[str] = frozenset({"web_fetch", "browser_navigate"})
+_URL_BEARING_PERMISSIONS: frozenset[str] = frozenset({"web_fetch", "net_fetch", "browser_navigate"})
 _PATH_CHECKED_PERMISSIONS: frozenset[str] = frozenset({"file_read", "file_write"})
 
 

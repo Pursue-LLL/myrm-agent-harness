@@ -384,6 +384,16 @@ class TestCheckDomainPolicy:
         action, _ = _check_domain_policy("web_fetch", {"url": "https://api.google.com/v1"}, (".google.com",))
         assert action is None
 
+    def test_net_fetch_triggers_domain_check(self) -> None:
+        """net_fetch (production permission for web_fetch_tool) must also trigger domain checks."""
+        action, reason = _check_domain_policy("net_fetch", {"url": "https://evil.com/page"}, ("example.com",))
+        assert action == PermissionAction.ASK
+        assert "evil.com" in reason
+
+    def test_net_fetch_allowlist_passes(self) -> None:
+        action, _ = _check_domain_policy("net_fetch", {"url": "https://example.com/page"}, ("example.com",))
+        assert action is None
+
 
 class TestExtractUrlDomains:
     """Tests for extract_url_domains() — public API for domain extraction."""
@@ -413,6 +423,11 @@ class TestExtractUrlDomains:
         domains = extract_url_domains("web_fetch", {"url": "http://192.168.1.1/api"})
         assert domains == ("192.168.1.1",)
 
+    def test_net_fetch_extracts_hostname(self) -> None:
+        """net_fetch (production permission) must also extract URL hostnames."""
+        domains = extract_url_domains("net_fetch", {"url": "https://api.example.com/v1"})
+        assert domains == ("api.example.com",)
+
 
 class TestEvaluateToolCallDomainHitl:
     """Tests for evaluate_tool_call() with domain_hitl_enabled."""
@@ -437,6 +452,18 @@ class TestEvaluateToolCallDomainHitl:
         config = SecurityConfig(domain_hitl_enabled=True, network_allowlist=())
         action, _ = evaluate_tool_call("file_read", {"path": "."}, config, workspace_root=os.getcwd())
         assert action == PermissionAction.ALLOW
+
+    def test_net_fetch_domain_hitl_blocks_unknown(self) -> None:
+        """Production path: web_fetch_tool resolves to net_fetch; domain HITL must still work."""
+        config = SecurityConfig(domain_hitl_enabled=True, network_allowlist=("example.com",))
+        action, reason = evaluate_tool_call("net_fetch", {"url": "https://evil.com/x"}, config)
+        assert action == PermissionAction.ASK
+        assert "evil.com" in reason
+
+    def test_net_fetch_domain_hitl_allows_known(self) -> None:
+        config = SecurityConfig(domain_hitl_enabled=True, network_allowlist=("example.com",))
+        action, _ = evaluate_tool_call("net_fetch", {"url": "https://example.com/x"}, config)
+        assert action != PermissionAction.DENY
 
 
 class TestParseSecurityConfigDomainHitl:
@@ -483,6 +510,11 @@ class TestResolveTargetWebFetch:
     def test_web_fetch_bare_host(self) -> None:
         target = _resolve_target("web_fetch", {"url": "localhost:3000"})
         assert target == "localhost"
+
+    def test_net_fetch_extracts_hostname(self) -> None:
+        """net_fetch (production permission) must also extract hostname as target."""
+        target = _resolve_target("net_fetch", {"url": "https://api.example.com/v1"})
+        assert target == "api.example.com"
 
 
 class TestRiskClassificationIntegration:

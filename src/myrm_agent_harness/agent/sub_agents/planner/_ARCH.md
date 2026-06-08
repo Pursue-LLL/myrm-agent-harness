@@ -1,14 +1,14 @@
 # planner/
 
 ## Overview
-Planner Sub-agent Module
+Planner Sub-agent Module — independent task planning sub-agent with multimodal input support.
 
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Planner Sub-agent Module | — |
-| agent.py | Core | Planner Agent — independent task planning sub-agent. | ✅ |
+| agent.py | Core | Planner Agent — independent task planning sub-agent. Accepts text or multimodal (text+image) task descriptions. | ✅ |
 | config.py | Config | Planner configuration and skill summary models. | ✅ |
 | planner_agent_tools.py | Core | LangChain Tool wrapper — exposes PlannerAgent to the main Agent. | ✅ |
 | prompts.py | Core | Planner system prompts. | ✅ |

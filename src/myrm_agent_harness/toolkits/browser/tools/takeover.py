@@ -23,6 +23,7 @@ that allows the user to directly operate the browser when automation is insuffic
 
 from __future__ import annotations
 
+import base64
 import logging
 import time
 from typing import TYPE_CHECKING
@@ -71,8 +72,6 @@ def create_takeover_tool(session: BrowserSession):
         screenshot_b64: str | None = None
         try:
             screenshot_bytes = await page.screenshot(type="jpeg", quality=60)
-            import base64
-
             screenshot_b64 = base64.b64encode(screenshot_bytes).decode("ascii")
         except Exception:
             logger.debug("Failed to capture screenshot for takeover request")
@@ -160,4 +159,4 @@ def create_takeover_tool(session: BrowserSession):
 
     from myrm_agent_harness.agent.tool_management.utils import with_dynamic_hints
 
-    return with_dynamic_hints(browser_ask_human)
+    return with_dynamic_hints(browser_ask_human, {})
