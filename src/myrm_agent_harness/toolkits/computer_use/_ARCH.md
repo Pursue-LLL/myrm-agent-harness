@@ -44,7 +44,7 @@ Agent → desktop_agent_tools (4 tools)
 |------|---------|
 | desktop_inspect_tool | Foreground app/window metadata + workflow hint |
 | desktop_snapshot_tool | AX tree with @dref IDs; optional screenshot |
-| desktop_interact_tool | Semantic action on @dref (click/fill/type/press/…) |
+| desktop_interact_tool | Semantic action on @dref (click/fill/type/fill_credential/press/…) |
 | desktop_vision_tool | Explicit screenshot/coordinate fallback |
 
 ## Key Design Decisions
@@ -55,9 +55,11 @@ Agent → desktop_agent_tools (4 tools)
 4. **Multimodal responses**: Vision capture/actions return text + JPEG image blocks
 5. **Platform auto-detection**: reuses `detect_platform()` from code_execution
 6. **Security & Re-validation**: `desktop_interact` implements a Time-of-Check to Time-of-Use (TOCTOU) defense by re-capturing and verifying the @dref state if the action was delayed (e.g. by Human-in-the-Loop approval interception). `desktop_vision_action` implements a "hard fuse" that blocks stale coordinate actions if delayed by more than 5 seconds.
+7. **Credential Vault integration**: `fill_credential` action resolves password/TOTP from the global CredentialVault by label, then delegates to the `fill` AX action. Secrets never appear in LLM context.
 
 ## Key Dependencies
 
 - `element_ref/` (shared @dref registry)
+- `security/credential_vault` (fill_credential vault resolution)
 - `code_execution` (platform detection)
 - `PIL`, `pyautogui`, platform AX libraries (see backends/)

@@ -179,9 +179,26 @@ class DesktopSession(ComputerSession):
         except DRefStaleError as exc:
             return str(exc)
 
-        ax_result = invoke_element(self._backend, element, action, text)
+        effective_action = action
+        effective_text = text
+
+        if action == "fill_credential":
+            from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
+
+            vault = get_global_credential_vault()
+            is_totp = text.endswith("-totp")
+            try:
+                if is_totp:
+                    effective_text = vault.get_totp_token(text)
+                else:
+                    effective_text = vault.get_password(text)
+            except Exception as e:
+                return f"Failed to retrieve credential for label '{text}': {e}"
+            effective_action = "fill"
+
+        ax_result = invoke_element(self._backend, element, effective_action, effective_text)
         if not ax_result.success:
-            bbox_result = await try_bbox_click(self, element, action, text, modifiers)
+            bbox_result = await try_bbox_click(self, element, effective_action, effective_text, modifiers)
             if not bbox_result.success:
                 return (
                     f"desktop_interact failed for @{element.ref_id}: "
@@ -192,13 +209,16 @@ class DesktopSession(ComputerSession):
 
         await asyncio.sleep(self._config.screenshot_delay)
         follow_up = await self.desktop_snapshot(scope="foreground", include_screenshot=False)
+        if action == "fill_credential":
+            result_prefix = f"Filled credential '{text}' into @{element.ref_id} [CREDENTIAL_FILLED]\n\n"
+        else:
+            result_prefix = f"Action '{action}' on @{element.ref_id} succeeded.\n\n"
         if isinstance(follow_up, list):
-            prefix = f"Action '{action}' on @{element.ref_id} succeeded.\n\n"
             first = follow_up[0]
             if hasattr(first, "text"):
-                first.text = prefix + getattr(first, "text", "")
+                first.text = result_prefix + getattr(first, "text", "")
             return follow_up
-        return f"Action '{action}' on @{element.ref_id} succeeded.\n\n{follow_up}"
+        return f"{result_prefix}{follow_up}"
 
     async def desktop_vision_capture(self) -> str | list[object]:
         result = await self.take_screenshot()

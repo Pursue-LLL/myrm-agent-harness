@@ -2142,6 +2142,557 @@ class TestBatchCostApproval:
 
 
 # ---------------------------------------------------------------------------
+# Batch cost approval edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestBatchCostApprovalEdgeCases:
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
+    @patch("langgraph.types.interrupt")
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    async def test_list_decision_approved(self, mock_estimate, mock_interrupt, mock_runner):
+        """Decision returned as list [{"approved": True}] should proceed."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _BatchBudgetAdmission,
+            create_batch_delegate_tasks_tool,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            TaskRequest,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="admitted", reason="cost_estimated",
+            estimated_cost_usd=1.00, cost_status="configured_max_cost",
+        )
+        mock_interrupt.return_value = [{"approved": True}]
+        mock_runner.return_value = {"success": True, "results": []}
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+        delegate = MagicMock()
+
+        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tasks = [
+            TaskRequest(agent_type="coder", objective="a"),
+            TaskRequest(agent_type="coder", objective="b"),
+        ]
+        result = await tool.coroutine(tasks=tasks, wait=True)
+
+        assert result["success"] is True
+        mock_interrupt.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("langgraph.types.interrupt")
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    async def test_list_decision_rejected(self, mock_estimate, mock_interrupt):
+        """Decision returned as list [{"approved": False}] should reject."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _BatchBudgetAdmission,
+            create_batch_delegate_tasks_tool,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            TaskRequest,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="admitted", reason="cost_estimated",
+            estimated_cost_usd=2.00,
+        )
+        mock_interrupt.return_value = [{"approved": False}]
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+        delegate = MagicMock()
+
+        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tasks = [
+            TaskRequest(agent_type="coder", objective="a"),
+            TaskRequest(agent_type="coder", objective="b"),
+        ]
+        result = await tool.coroutine(tasks=tasks, wait=True)
+
+        assert result["success"] is False
+        assert result["status"] == "user_rejected"
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    async def test_single_task_skips_cost_check(self, mock_estimate, mock_runner):
+        """A single task should skip cost approval entirely."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            create_batch_delegate_tasks_tool,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            TaskRequest,
+        )
+
+        mock_runner.return_value = {"success": True, "results": []}
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+        delegate = MagicMock()
+
+        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tasks = [TaskRequest(agent_type="coder", objective="solo")]
+        result = await tool.coroutine(tasks=tasks, wait=True)
+
+        assert result["success"] is True
+        mock_estimate.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    async def test_cost_estimation_exception_proceeds(self, mock_estimate, mock_runner):
+        """If _estimate_batch_cost throws, execution continues without approval."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            create_batch_delegate_tasks_tool,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            TaskRequest,
+        )
+
+        mock_estimate.side_effect = RuntimeError("network error")
+        mock_runner.return_value = {"success": True, "results": []}
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+        delegate = MagicMock()
+
+        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tasks = [
+            TaskRequest(agent_type="coder", objective="a"),
+            TaskRequest(agent_type="coder", objective="b"),
+        ]
+        result = await tool.coroutine(tasks=tasks, wait=True)
+
+        assert result["success"] is True
+        mock_runner.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
+    @patch("langgraph.types.interrupt")
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    async def test_remaining_budget_none_in_payload(self, mock_estimate, mock_interrupt, mock_runner):
+        """When remaining_budget_usd is None, payload should have null."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _BatchBudgetAdmission,
+            create_batch_delegate_tasks_tool,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            TaskRequest,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="admitted", reason="cost_estimated",
+            estimated_cost_usd=0.80, remaining_budget_usd=None,
+        )
+        mock_interrupt.return_value = {"approved": True}
+        mock_runner.return_value = {"success": True, "results": []}
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+        delegate = MagicMock()
+
+        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tasks = [
+            TaskRequest(agent_type="coder", objective="a"),
+            TaskRequest(agent_type="coder", objective="b"),
+        ]
+        await tool.coroutine(tasks=tasks, wait=True)
+
+        payload = mock_interrupt.call_args[0][0]
+        assert payload["remaining_budget_usd"] is None
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
+    @patch("langgraph.types.interrupt")
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    async def test_tournament_flag_in_interrupt_payload(self, mock_estimate, mock_interrupt, mock_runner):
+        """Tournament mode should be reflected in interrupt payload."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _BatchBudgetAdmission,
+            create_batch_delegate_tasks_tool,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            TaskRequest,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="admitted", reason="cost_estimated",
+            estimated_cost_usd=1.00,
+        )
+        mock_interrupt.return_value = {"approved": True}
+        mock_runner.return_value = {"success": True, "results": []}
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+        delegate = MagicMock()
+
+        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tasks = [
+            TaskRequest(agent_type="coder", objective="t1"),
+            TaskRequest(agent_type="coder", objective="t2"),
+        ]
+        await tool.coroutine(tasks=tasks, wait=True, tournament=True)
+
+        payload = mock_interrupt.call_args[0][0]
+        assert payload["tournament"] is True
+        assert payload["race"] is False
+
+
+# ---------------------------------------------------------------------------
+# Batch size exceeded
+# ---------------------------------------------------------------------------
+
+
+class TestBatchSizeExceeded:
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    async def test_exceeds_default_max_batch(self, mock_estimate):
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _DEFAULT_MAX_BATCH_TASKS,
+            create_batch_delegate_tasks_tool,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            TaskRequest,
+        )
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+        delegate = MagicMock()
+
+        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tasks = [
+            TaskRequest(agent_type="coder", objective=f"task {i}")
+            for i in range(_DEFAULT_MAX_BATCH_TASKS + 1)
+        ]
+        result = await tool.coroutine(tasks=tasks, wait=True)
+
+        assert result["success"] is False
+        assert result["status"] == "budget_exceeded"
+        assert result["reason"] == "batch_size_exceeded"
+        mock_estimate.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    async def test_custom_max_batch_from_parent_config(self, mock_estimate, mock_runner):
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _BatchBudgetAdmission,
+            create_batch_delegate_tasks_tool,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            TaskRequest,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="unavailable", reason="skip",
+        )
+        mock_runner.return_value = {"success": True, "results": []}
+
+        parent = _make_mock_parent()
+        parent_cfg = SubagentConfig(system_prompt="test", max_batch_size=10)
+        catalog = AsyncMock()
+        catalog.resolve = AsyncMock(return_value=parent_cfg)
+        delegate = MagicMock()
+
+        tool = create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, parent_type="orchestrator", delegate_tool=delegate,
+        )
+        tasks = [
+            TaskRequest(agent_type="coder", objective=f"task {i}") for i in range(8)
+        ]
+        result = await tool.coroutine(tasks=tasks, wait=True)
+
+        assert result["success"] is True
+
+
+# ---------------------------------------------------------------------------
+# _estimate_batch_cost edge cases (budget_tokens path)
+# ---------------------------------------------------------------------------
+
+
+class TestEstimateBatchCostBudgetTokensPath:
+    @pytest.mark.asyncio
+    async def test_budget_tokens_with_known_cost(self):
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _estimate_batch_cost,
+        )
+
+        parent = _make_mock_parent()
+        parent.token_tracker = None
+        parent.budget_checker = None
+        parent.llm = MagicMock()
+        parent.llm.model_name = "gpt-4"
+
+        config = SubagentConfig(system_prompt="test", budget_tokens=10000, max_cost_usd=None, model=None)
+        catalog = AsyncMock()
+        catalog.resolve = AsyncMock(return_value=config)
+
+        tasks = [MagicMock(agent_type="coder", objective="hello world", context_files=[], context=None)]
+
+        with patch(
+            "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget.compute_cost_by_tokens"
+        ) as mock_cost:
+            mock_result = MagicMock()
+            mock_result.is_known = True
+            mock_result.usd = 0.05
+            mock_result.status = MagicMock()
+            mock_result.status.value = "estimated"
+            mock_cost.return_value = mock_result
+
+            result = await _estimate_batch_cost(parent_agent=parent, catalog=catalog, tasks=tasks)
+
+        assert result.status == "admitted"
+        assert result.estimated_cost_usd == 0.05
+        assert result.cost_status == "estimated"
+
+    @pytest.mark.asyncio
+    async def test_budget_tokens_with_unknown_model_cost(self):
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _estimate_batch_cost,
+        )
+
+        parent = _make_mock_parent()
+        parent.token_tracker = None
+        parent.budget_checker = None
+        parent.llm = MagicMock()
+        parent.llm.model_name = "unknown-model-xyz"
+
+        config = SubagentConfig(system_prompt="test", budget_tokens=5000, max_cost_usd=None, model=None)
+        catalog = AsyncMock()
+        catalog.resolve = AsyncMock(return_value=config)
+
+        tasks = [MagicMock(agent_type="worker", objective="x", context_files=[], context=None)]
+
+        with patch(
+            "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget.compute_cost_by_tokens"
+        ) as mock_cost:
+            mock_result = MagicMock()
+            mock_result.is_known = False
+            mock_cost.return_value = mock_result
+
+            result = await _estimate_batch_cost(parent_agent=parent, catalog=catalog, tasks=tasks)
+
+        assert result.status == "unavailable"
+        assert result.reason == "model_cost_unavailable"
+
+    @pytest.mark.asyncio
+    async def test_mixed_agent_types_accumulates_costs(self):
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _estimate_batch_cost,
+        )
+
+        parent = _make_mock_parent()
+        parent.token_tracker = None
+        parent.budget_checker = None
+
+        config_a = SubagentConfig(system_prompt="test", max_cost_usd=0.10)
+        config_b = SubagentConfig(system_prompt="test", max_cost_usd=0.30)
+        catalog = AsyncMock()
+
+        async def resolve(agent_type):
+            return config_a if agent_type == "a" else config_b
+
+        catalog.resolve = AsyncMock(side_effect=resolve)
+
+        tasks = [MagicMock(agent_type="a"), MagicMock(agent_type="b"), MagicMock(agent_type="a")]
+
+        result = await _estimate_batch_cost(parent_agent=parent, catalog=catalog, tasks=tasks)
+
+        assert result.status == "admitted"
+        assert result.estimated_cost_usd == pytest.approx(0.50)
+
+
+# ---------------------------------------------------------------------------
+# Tournament bracket edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestTournamentBracketEdgeCases:
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    async def test_no_successful_candidates(self, mock_merge):
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _run_tournament_bracket,
+        )
+
+        parent = _make_mock_parent()
+        results = [
+            {"task_id": "1", "result": "fail", "success": False},
+            {"task_id": "2", "result": "fail", "success": False},
+        ]
+
+        result = await _run_tournament_bracket(parent, results, "criteria")
+
+        assert result["success"] is False
+        assert "No successful tasks" in result["error"]
+        mock_merge.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    async def test_single_successful_candidate_wins(self, mock_merge):
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _run_tournament_bracket,
+        )
+
+        mock_merge.return_value = {}
+        parent = _make_mock_parent()
+        results = [
+            {"task_id": "1", "result": "only winner", "success": True},
+            {"task_id": "2", "result": "fail", "success": False},
+        ]
+
+        result = await _run_tournament_bracket(parent, results, "criteria")
+
+        assert result["success"] is True
+        assert result["tournament_winner"] is True
+        assert result["result"]["result"] == "only winner"
+        parent.llm.ainvoke.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    async def test_judge_picks_candidate_b(self, mock_merge):
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _run_tournament_bracket,
+        )
+
+        mock_merge.return_value = {}
+        parent = _make_mock_parent()
+        mock_response = MagicMock()
+        mock_response.content = "B\nCandidate B is much better."
+        parent.llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        results = [
+            {"task_id": "1", "result": "Output A", "success": True},
+            {"task_id": "2", "result": "Output B", "success": True},
+        ]
+
+        result = await _run_tournament_bracket(parent, results, "Best output")
+
+        assert result["success"] is True
+        assert result["result"]["result"] == "Output B"
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    async def test_judge_error_falls_back_to_candidate_a(self, mock_merge):
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _run_tournament_bracket,
+        )
+
+        mock_merge.return_value = {}
+        parent = _make_mock_parent()
+        parent.llm.ainvoke = AsyncMock(side_effect=RuntimeError("LLM error"))
+
+        results = [
+            {"task_id": "1", "result": "Output A", "success": True},
+            {"task_id": "2", "result": "Output B", "success": True},
+        ]
+
+        result = await _run_tournament_bracket(parent, results, "Best output")
+
+        assert result["success"] is True
+        assert result["result"]["result"] == "Output A"
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    async def test_no_llm_on_parent_falls_back_to_first(self, mock_merge):
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _run_tournament_bracket,
+        )
+
+        mock_merge.return_value = {}
+        parent = MagicMock(spec=[])
+
+        results = [
+            {"task_id": "1", "result": "Output A", "success": True},
+            {"task_id": "2", "result": "Output B", "success": True},
+        ]
+
+        result = await _run_tournament_bracket(parent, results, "Best output")
+
+        assert result["success"] is True
+        assert result["result"]["result"] == "Output A"
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    async def test_three_candidates_bracket(self, mock_merge):
+        """Odd number of candidates: one gets a bye to next round."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _run_tournament_bracket,
+        )
+
+        mock_merge.return_value = {}
+        parent = _make_mock_parent()
+
+        call_count = 0
+
+        async def mock_ainvoke(messages):
+            nonlocal call_count
+            call_count += 1
+            mock_resp = MagicMock()
+            mock_resp.content = "B"
+            return mock_resp
+
+        parent.llm.ainvoke = mock_ainvoke
+
+        results = [
+            {"task_id": "1", "result": "A", "success": True},
+            {"task_id": "2", "result": "B", "success": True},
+            {"task_id": "3", "result": "C", "success": True},
+        ]
+
+        result = await _run_tournament_bracket(parent, results, "Best")
+
+        assert result["success"] is True
+        assert result["tournament_winner"] is True
+        assert call_count >= 2
+
+
+# ---------------------------------------------------------------------------
+# Race mode budget admission exception handling
+# ---------------------------------------------------------------------------
+
+
+class TestRaceModeBudgetException:
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._admit_race_budget")
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    async def test_budget_exception_creates_unavailable_admission(
+        self, mock_estimate, mock_admit, mock_runner
+    ):
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _BatchBudgetAdmission,
+            create_batch_delegate_tasks_tool,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            TaskRequest,
+        )
+
+        mock_admit.side_effect = RuntimeError("budget check crashed")
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="unavailable", reason="skip",
+        )
+        mock_runner.return_value = {"success": True, "results": []}
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+        delegate = MagicMock()
+
+        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tasks = [
+            TaskRequest(agent_type="coder", objective="a"),
+            TaskRequest(agent_type="coder", objective="b"),
+        ]
+        result = await tool.coroutine(tasks=tasks, wait=True, race=True)
+
+        assert result["success"] is True
+        mock_runner.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
 # _batch_summary
 # ---------------------------------------------------------------------------
 

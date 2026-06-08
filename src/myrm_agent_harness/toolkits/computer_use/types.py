@@ -20,6 +20,7 @@ DesktopInteractAction = Literal[
     "dblclick",
     "fill",
     "type",
+    "fill_credential",
     "press",
     "hover",
     "focus",
