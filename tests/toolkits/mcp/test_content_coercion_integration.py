@@ -421,3 +421,119 @@ class TestFullToolExecutionPipeline:
         assert isinstance(result, str)
         assert "timed out" in result
         assert "slow_tool" in result
+
+    @pytest.mark.asyncio
+    async def test_tool_returning_embedded_resource_blob(self):
+        """Tool returns EmbeddedResource non-image blob -> file -> degraded to text."""
+        blob_lc = _convert_mcp_content_to_lc_block(
+            EmbeddedResource(
+                type="resource",
+                resource=BlobResourceContents(
+                    uri="file:///tmp/archive.zip",
+                    blob="zip_base64",
+                    mimeType="application/zip",
+                ),
+            )
+        )
+        assert blob_lc["type"] == "file"
+
+        async def _mock_invoke(*a: object, **kw: object) -> tuple:
+            return ([blob_lc], None)
+
+        tool = _make_tool("archive_tool")
+        tool.coroutine = _mock_invoke
+        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+
+        result = await tool.coroutine()
+        assert isinstance(result, str)
+        assert "file" not in result.split(":")[0] or "[file" in result
+
+    @pytest.mark.asyncio
+    async def test_tool_returning_plain_string(self):
+        """Tool returns a plain string (not tuple) — passes through unchanged."""
+
+        async def _mock_invoke(*a: object, **kw: object) -> str:
+            return "simple response"
+
+        tool = _make_tool("simple_tool")
+        tool.coroutine = _mock_invoke
+        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+
+        result = await tool.coroutine()
+        assert isinstance(result, str)
+        assert result == "simple response"
+
+    @pytest.mark.asyncio
+    async def test_tool_returning_empty_list_tuple(self):
+        """Tool returns ([], None) — empty string output."""
+
+        async def _mock_invoke(*a: object, **kw: object) -> tuple:
+            return ([], None)
+
+        tool = _make_tool("empty_tool")
+        tool.coroutine = _mock_invoke
+        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+
+        result = await tool.coroutine()
+        assert isinstance(result, str)
+        assert result == ""
+
+
+class TestProcessSessionToolsChain:
+    """Verify the full process_session_tools pipeline applies coercion."""
+
+    @pytest.mark.asyncio
+    async def test_full_chain_applies_coercion(self):
+        """process_session_tools -> _wrap_tools_with_timeout -> coercion active."""
+        file_lc = _convert_mcp_content_to_lc_block(
+            ResourceLink(
+                type="resource_link",
+                uri="https://cdn.example.com/doc.pdf",
+                name="doc",
+                mimeType="application/pdf",
+            )
+        )
+
+        async def _mock_invoke(*a: object, **kw: object) -> tuple:
+            return ([file_lc], None)
+
+        tool = _make_tool("doc_tool")
+        tool.coroutine = _mock_invoke
+
+        processed = MCPAgent.process_session_tools(
+            [tool],
+            server_name="test_server",
+            tool_include=None,
+            tool_exclude=None,
+            execute_timeout=5.0,
+        )
+        assert len(processed) == 1
+        assert processed[0].name.startswith("mcp__")
+
+        result = await processed[0].coroutine()
+        assert isinstance(result, str)
+        assert "https://cdn.example.com/doc.pdf" in result
+
+    @pytest.mark.asyncio
+    async def test_full_chain_preserves_image(self):
+        """process_session_tools preserves image blocks in multimodal output."""
+        img_lc = _convert_mcp_content_to_lc_block(
+            ImageContent(type="image", data="screenshot_b64", mimeType="image/png")
+        )
+
+        async def _mock_invoke(*a: object, **kw: object) -> tuple:
+            return ([img_lc], None)
+
+        tool = _make_tool("screenshot_tool")
+        tool.coroutine = _mock_invoke
+
+        processed = MCPAgent.process_session_tools(
+            [tool],
+            server_name="browser",
+            tool_include=None,
+            tool_exclude=None,
+            execute_timeout=5.0,
+        )
+        result = await processed[0].coroutine()
+        assert isinstance(result, list)
+        assert result[0]["type"] == "image"
