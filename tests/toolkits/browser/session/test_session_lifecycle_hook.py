@@ -106,6 +106,22 @@ class TestFireAndForget:
 
         assert any("fire-and-forget failed" in r.message for r in caplog.records)
 
+    @pytest.mark.asyncio
+    async def test_cancelled_task_no_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+        async def slow_task() -> None:
+            await asyncio.sleep(10)
+
+        with caplog.at_level(logging.WARNING):
+            _fire_and_forget(slow_task())
+            await asyncio.sleep(0)
+            for task in asyncio.all_tasks():
+                if task.get_coro().__qualname__ == "TestFireAndForget.test_cancelled_task_no_warning.<locals>.slow_task":
+                    task.cancel()
+                    break
+            await asyncio.sleep(0.05)
+
+        assert not any("fire-and-forget failed" in r.message for r in caplog.records)
+
 
 # ===========================================================================
 # Mixin hook wiring
@@ -214,6 +230,71 @@ class TestMixinHookWiring:
         await asyncio.sleep(0.05)
 
         hook.on_session_deleted.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_save_invalid_domain_no_hook(self) -> None:
+        """Invalid domain name returns error, hook is NOT fired."""
+        from myrm_agent_harness.toolkits.browser.session.browser_session_persistence_mixin import (
+            BrowserSessionPersistenceMixin,
+        )
+
+        mixin = BrowserSessionPersistenceMixin()
+        mixin._persistence = MagicMock()
+        mixin._ensure_components = AsyncMock()
+
+        hook = AsyncMock(spec=SessionLifecycleHookProtocol)
+        mixin.set_session_lifecycle_hook(hook)
+
+        result = await mixin.save_session("../../../etc/passwd")
+        assert "Error" in result
+        hook.on_session_saved.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_delete_invalid_domain_no_hook(self) -> None:
+        """Invalid domain name returns error, hook is NOT fired."""
+        from myrm_agent_harness.toolkits.browser.session.browser_session_persistence_mixin import (
+            BrowserSessionPersistenceMixin,
+        )
+
+        mixin = BrowserSessionPersistenceMixin()
+        mixin._persistence = MagicMock()
+
+        hook = AsyncMock(spec=SessionLifecycleHookProtocol)
+        mixin.set_session_lifecycle_hook(hook)
+
+        result = await mixin.delete_session("../../etc/passwd")
+        assert "Error" in result
+        hook.on_session_deleted.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_save_hash_none_still_fires_hook(self) -> None:
+        """When compute_hash returns None, hook still fires."""
+        from myrm_agent_harness.toolkits.browser.session.browser_session_persistence_mixin import (
+            BrowserSessionPersistenceMixin,
+        )
+
+        mixin = BrowserSessionPersistenceMixin()
+        mixin._persistence = MagicMock()
+        mixin._persistence.save = AsyncMock(
+            return_value="Saved encrypted session for x.com (3 cookies, 1 localStorage items)"
+        )
+        mixin._persistence.compute_hash = AsyncMock(return_value=None)
+        mixin._session_hash_cache = {}
+        mixin._ensure_components = AsyncMock()
+
+        mock_page = MagicMock()
+        mock_tab_ctrl = MagicMock()
+        mock_tab_ctrl.get_active_page.return_value = mock_page
+        mixin._tab_controller = mock_tab_ctrl
+
+        hook = AsyncMock(spec=SessionLifecycleHookProtocol)
+        mixin.set_session_lifecycle_hook(hook)
+
+        await mixin.save_session("x.com")
+        await asyncio.sleep(0.05)
+
+        hook.on_session_saved.assert_awaited_once_with("x.com", 3, 1)
+        assert "x.com" not in mixin._session_hash_cache
 
     @pytest.mark.asyncio
     async def test_no_hook_no_error(self) -> None:

@@ -78,6 +78,21 @@ class TestParseEntries:
     def test_whitespace_only(self) -> None:
         assert _parse_entries("   ") == []
 
+    def test_domain_with_port(self) -> None:
+        entries = _parse_entries("localhost:3000 (Jun 08)")
+        assert len(entries) == 1
+        assert entries[0][0] == "localhost:3000"
+
+    def test_subdomain_with_hyphens(self) -> None:
+        entries = _parse_entries("my-app.us-east-1.example.com (Jun 08)")
+        assert len(entries) == 1
+        assert entries[0][0] == "my-app.us-east-1.example.com"
+
+    def test_roundtrip_parse_serialize(self) -> None:
+        original = "a.com (Jun 08), b.com (Jun 07), c.com (Jun 06)"
+        entries = _parse_entries(original)
+        assert _serialize(entries) == original
+
 
 class TestFormatEntry:
     def test_contains_domain_and_date(self) -> None:
@@ -178,6 +193,42 @@ class TestOnSessionSaved:
 
         await bridge.on_session_saved("fail.com", 0, 0)
 
+    @pytest.mark.asyncio
+    async def test_write_exception_does_not_propagate(
+        self, bridge: SessionMemoryBridge, mock_mm: MagicMock
+    ) -> None:
+        mock_mm.get_profile_attribute.return_value = None
+        mock_mm.set_system_profile_attribute.side_effect = IOError("disk full")
+
+        await bridge.on_session_saved("fail.com", 1, 0)
+
+    @pytest.mark.asyncio
+    async def test_exactly_at_limit_no_truncation(
+        self, bridge: SessionMemoryBridge, mock_mm: MagicMock
+    ) -> None:
+        existing = ", ".join(
+            f"d{i}.com (Jun 01)" for i in range(_MAX_TRACKED_SESSIONS - 1)
+        )
+        mock_mm.get_profile_attribute.return_value = existing
+
+        await bridge.on_session_saved("new.com", 1, 0)
+
+        _, value = mock_mm.set_system_profile_attribute.call_args[0]
+        count = len(value.split(", "))
+        assert count == _MAX_TRACKED_SESSIONS
+
+    @pytest.mark.asyncio
+    async def test_rapid_duplicate_saves_are_idempotent(
+        self, bridge: SessionMemoryBridge, mock_mm: MagicMock
+    ) -> None:
+        mock_mm.get_profile_attribute.return_value = "same.com (Jun 01)"
+
+        await bridge.on_session_saved("same.com", 5, 2)
+
+        _, value = mock_mm.set_system_profile_attribute.call_args[0]
+        domains = [p.strip().split(" ")[0] for p in value.split(",")]
+        assert domains.count("same.com") == 1
+
 
 # ===========================================================================
 # on_session_deleted
@@ -238,6 +289,24 @@ class TestOnSessionDeleted:
 
         await bridge.on_session_deleted("fail.com")
 
+    @pytest.mark.asyncio
+    async def test_delete_exception_on_write(
+        self, bridge: SessionMemoryBridge, mock_mm: MagicMock
+    ) -> None:
+        mock_mm.get_profile_attribute.return_value = "a.com (Jun 01), b.com (Jun 01)"
+        mock_mm.set_system_profile_attribute.side_effect = IOError("write fail")
+
+        await bridge.on_session_deleted("a.com")
+
+    @pytest.mark.asyncio
+    async def test_delete_exception_on_key_removal(
+        self, bridge: SessionMemoryBridge, mock_mm: MagicMock
+    ) -> None:
+        mock_mm.get_profile_attribute.return_value = "only.com (Jun 01)"
+        mock_mm.delete_system_profile_attribute.side_effect = IOError("delete fail")
+
+        await bridge.on_session_deleted("only.com")
+
 
 # ===========================================================================
 # on_sessions_expired
@@ -296,6 +365,38 @@ class TestOnSessionsExpired:
         mock_mm.get_profile_attribute.side_effect = ConnectionError("gone")
 
         await bridge.on_sessions_expired(["fail.com"])
+
+    @pytest.mark.asyncio
+    async def test_expire_empty_list_is_noop(
+        self, bridge: SessionMemoryBridge, mock_mm: MagicMock
+    ) -> None:
+        mock_mm.get_profile_attribute.return_value = "a.com (Jun 01)"
+
+        await bridge.on_sessions_expired([])
+
+        mock_mm.set_system_profile_attribute.assert_not_awaited()
+        mock_mm.delete_system_profile_attribute.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_expire_duplicate_domains_handled(
+        self, bridge: SessionMemoryBridge, mock_mm: MagicMock
+    ) -> None:
+        mock_mm.get_profile_attribute.return_value = "a.com (Jun 01), b.com (Jun 01)"
+
+        await bridge.on_sessions_expired(["a.com", "a.com"])
+
+        _, value = mock_mm.set_system_profile_attribute.call_args[0]
+        assert "a.com" not in value
+        assert "b.com" in value
+
+    @pytest.mark.asyncio
+    async def test_expire_write_exception_does_not_propagate(
+        self, bridge: SessionMemoryBridge, mock_mm: MagicMock
+    ) -> None:
+        mock_mm.get_profile_attribute.return_value = "a.com (Jun 01), b.com (Jun 01)"
+        mock_mm.set_system_profile_attribute.side_effect = IOError("disk full")
+
+        await bridge.on_sessions_expired(["a.com"])
 
 
 # ===========================================================================
