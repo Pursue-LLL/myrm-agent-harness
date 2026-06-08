@@ -14,7 +14,7 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 | _dom_stable_js.py | Internal | DOM stability detection JavaScript generator. | ✅ |
 | _wait_impl.py | Internal | Concrete wait strategy implementations. Each strategy function receives a Page instance and paramete | ✅ |
 | _wait_types.py | Internal | Wait strategy type definitions and runtime statistics module. | ✅ |
-| doctor.py | Core | Browser toolkit diagnostics module. Validates dependencies, configuration, | ✅ |
+| doctor.py | Core | Browser toolkit diagnostics module. Validates dependencies, configuration, environment, and browser launchability. Supports auto_fix mode to auto-install missing Chromium. | ✅ |
 | domain_filter.py | Core | Deep domain filtering, resource blocking, and ad/tracker domain blocking module. Four-layer defense: CSP + route interception + JS hardening + CDP audit. Route handler blocks ad domains (3500+ via ad_domains.py) and resource types. | ✅ |
 | ad_domains.py | Data | Built-in ad/tracker domain blocklist (~3500 domains from Peter Lowe's list). Loaded lazily by domain_filter when block_ad_domains enabled. | ✅ |
 | exceptions.py | Core | Exception hierarchy definition. RefNotFoundError provides structured diagnostic info, including URL  | ✅ |

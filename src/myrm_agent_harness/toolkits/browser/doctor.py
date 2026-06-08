@@ -337,6 +337,7 @@ async def _try_auto_install_chromium() -> DoctorCheckResult | None:
             fix="pip install patchright && patchright install chromium",
         )
 
+    install_timeout = 600  # 10 minutes
     logger.info("Doctor auto_fix: installing Chromium via 'patchright install chromium'...")
     try:
         proc = await asyncio.wait_for(
@@ -345,9 +346,9 @@ async def _try_auto_install_chromium() -> DoctorCheckResult | None:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             ),
-            timeout=600,
+            timeout=install_timeout,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=install_timeout)
 
         if proc.returncode == 0:
             return DoctorCheckResult(

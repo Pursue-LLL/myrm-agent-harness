@@ -44,7 +44,7 @@ _CDP_PROBE_TIMEOUT_S = 2.0
 _INSTALL_TIMEOUT_S = 600  # 10 minutes max for Chromium download
 _INSTALL_COOLDOWN_S = 1800  # 30 minutes cooldown after failed install
 
-_install_lock = asyncio.Lock()
+_install_lock: asyncio.Lock | None = None
 _last_install_failure_at: float = 0.0
 
 
@@ -60,12 +60,15 @@ async def _auto_install_chromium() -> bool:
     Returns True if installation succeeded, False otherwise.
     Prevents repeated attempts within _INSTALL_COOLDOWN_S after a failure.
     """
-    global _last_install_failure_at  # noqa: PLW0603
+    global _last_install_failure_at, _install_lock  # noqa: PLW0603
 
     if _last_install_failure_at and (time.monotonic() - _last_install_failure_at) < _INSTALL_COOLDOWN_S:
         remaining = int(_INSTALL_COOLDOWN_S - (time.monotonic() - _last_install_failure_at))
         logger.warning("Chromium auto-install skipped: previous failure cooldown (%ds remaining)", remaining)
         return False
+
+    if _install_lock is None:
+        _install_lock = asyncio.Lock()
 
     async with _install_lock:
         # Double-check after acquiring lock
