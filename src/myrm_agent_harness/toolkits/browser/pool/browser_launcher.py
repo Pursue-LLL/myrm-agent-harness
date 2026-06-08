@@ -18,6 +18,7 @@ Dedicated to browser instance launching, including:
 4. Automatic CDP port detection (HTTP GET /json/version)
 5. Auto mode: probe → connect → fallback to launch
 6. Smart retry strategy (3 retries + exponential backoff)
+7. Zero-config auto-install: detects missing Chromium and installs via patchright
 """
 
 from __future__ import annotations
@@ -40,6 +41,96 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _CDP_PROBE_TIMEOUT_S = 2.0
+_INSTALL_TIMEOUT_S = 600  # 10 minutes max for Chromium download
+_INSTALL_COOLDOWN_S = 1800  # 30 minutes cooldown after failed install
+
+_install_lock = asyncio.Lock()
+_last_install_failure_at: float = 0.0
+
+
+def _is_executable_missing(error: Exception) -> bool:
+    """Detect if a launch failure is caused by missing browser executable."""
+    msg = str(error).lower()
+    return "executable doesn't exist" in msg or "no such file or directory" in msg
+
+
+async def _auto_install_chromium() -> bool:
+    """Install Chromium via patchright with cooldown protection.
+
+    Returns True if installation succeeded, False otherwise.
+    Prevents repeated attempts within _INSTALL_COOLDOWN_S after a failure.
+    """
+    global _last_install_failure_at  # noqa: PLW0603
+
+    if _last_install_failure_at and (time.monotonic() - _last_install_failure_at) < _INSTALL_COOLDOWN_S:
+        remaining = int(_INSTALL_COOLDOWN_S - (time.monotonic() - _last_install_failure_at))
+        logger.warning("Chromium auto-install skipped: previous failure cooldown (%ds remaining)", remaining)
+        return False
+
+    async with _install_lock:
+        # Double-check after acquiring lock
+        if _last_install_failure_at and (time.monotonic() - _last_install_failure_at) < _INSTALL_COOLDOWN_S:
+            return False
+
+        logger.info("Auto-installing Chromium via patchright (this may take a few minutes)...")
+        try:
+            proc = await asyncio.wait_for(
+                asyncio.create_subprocess_exec(
+                    "patchright", "install", "chromium",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                ),
+                timeout=_INSTALL_TIMEOUT_S,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=_INSTALL_TIMEOUT_S)
+
+            if proc.returncode == 0:
+                logger.info("Chromium auto-install succeeded")
+                _last_install_failure_at = 0.0
+                return True
+
+            _last_install_failure_at = time.monotonic()
+            logger.error(
+                "Chromium auto-install failed (exit %d): %s",
+                proc.returncode,
+                (stderr or stdout or b"").decode(errors="replace")[:500],
+            )
+            return False
+
+        except TimeoutError:
+            _last_install_failure_at = time.monotonic()
+            logger.error("Chromium auto-install timed out after %ds", _INSTALL_TIMEOUT_S)
+            return False
+        except FileNotFoundError:
+            _last_install_failure_at = time.monotonic()
+            logger.error("'patchright' CLI not found — cannot auto-install Chromium")
+            return False
+        except Exception as exc:
+            _last_install_failure_at = time.monotonic()
+            logger.error("Chromium auto-install unexpected error: %s", exc)
+            return False
+
+
+def _build_install_failure_message(original_error: Exception) -> str:
+    """Build a user-friendly error message when auto-install fails.
+
+    Includes diagnostic hints (disk space, network, permissions) to help
+    GUI users who cannot easily run terminal commands.
+    """
+    lines = [
+        "Browser engine (Chromium) is not installed and automatic installation failed.",
+        "",
+        "To fix this manually, open a terminal and run:",
+        "  patchright install chromium",
+        "",
+        "Common causes:",
+        "  - Insufficient disk space (Chromium requires ~400 MB)",
+        "  - No internet connection (download required)",
+        "  - Permission issues (try running with elevated privileges)",
+        "",
+        f"Original error: {original_error}",
+    ]
+    return "\n".join(lines)
 
 
 @dataclass
@@ -198,8 +289,14 @@ class BrowserLauncher:
         raise BrowserLaunchError(error_msg) from last_exc
 
     async def _launch_new_browser(self) -> BrowserInstance:
-        """Launch new browser with intelligent retry (3 attempts + exponential backoff)."""
+        """Launch new browser with intelligent retry (3 attempts + exponential backoff).
+
+        When the Chromium executable is missing (common for first-time Tauri desktop
+        users), automatically installs it via ``patchright install chromium`` and retries.
+        A cooldown prevents repeated install attempts after failure.
+        """
         last_exc: Exception | None = None
+        auto_installed = False
 
         for attempt in range(3):
             try:
@@ -211,20 +308,15 @@ class BrowserLauncher:
                             "camoufox is not installed. Please install it with: pip install camoufox[async]"
                         ) from e
 
-                    # Camoufox has its own launch signature, we extract common options
                     camoufox_opts = {
                         "headless": self._launch_options.get("headless", True),
                         "proxy": self._launch_options.get("proxy"),
                     }
-                    # Filter out None values
                     camoufox_opts = {k: v for k, v in camoufox_opts.items() if v is not None}
 
-                    # AsyncCamoufox is an async context manager, but we need the browser instance
-                    # We use start() to get the browser instance without entering the context
                     camoufox_launcher = AsyncCamoufox(**camoufox_opts)
                     browser = await camoufox_launcher.start()
 
-                    # Try to get PID from Camoufox (it uses Playwright under the hood)
                     pid = None
                     with contextlib.suppress(Exception):
                         if hasattr(browser, "_impl_obj") and hasattr(browser._impl_obj, "_process"):
@@ -235,7 +327,6 @@ class BrowserLauncher:
                     pw = await self._ensure_playwright()
                     browser = await pw.chromium.launch(**self._launch_options)  # type: ignore[arg-type]
 
-                    # Try to get PID from Playwright Chromium
                     pid = None
                     with contextlib.suppress(Exception):
                         if hasattr(browser, "_impl_obj") and hasattr(browser._impl_obj, "_process"):
@@ -261,10 +352,28 @@ class BrowserLauncher:
             except Exception as exc:
                 last_exc = exc
                 logger.warning(f"Browser launch failed (attempt {attempt + 1}/3): {exc}")
+
+                if (
+                    not auto_installed
+                    and _is_executable_missing(exc)
+                    and self._engine != BrowserEngine.FIREFOX_CAMOUFOX
+                ):
+                    logger.info("Chromium executable not found — attempting auto-install")
+                    if await _auto_install_chromium():
+                        auto_installed = True
+                        # Reset playwright so the new executable is picked up
+                        if self._playwright:
+                            with contextlib.suppress(Exception):
+                                await self._playwright.stop()
+                            self._playwright = None
+                        continue  # retry immediately after install
+
                 if attempt < 2:
                     await asyncio.sleep(2**attempt)
 
         error_msg = f"Failed to create Browser after 3 attempts: {last_exc}"
+        if last_exc and _is_executable_missing(last_exc):
+            error_msg = _build_install_failure_message(last_exc)
         logger.error(error_msg)
         raise BrowserLaunchError(error_msg) from last_exc
 

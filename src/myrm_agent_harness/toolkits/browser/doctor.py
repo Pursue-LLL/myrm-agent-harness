@@ -320,10 +320,70 @@ def _check_proxy(proxy: str = "") -> DoctorCheckResult:
     )
 
 
+async def _try_auto_install_chromium() -> DoctorCheckResult | None:
+    """Attempt to auto-install Chromium via patchright CLI.
+
+    Returns a DoctorCheckResult on success/failure, or None if the patchright
+    CLI is not available.
+    """
+    import asyncio
+    import shutil
+
+    if not shutil.which("patchright"):
+        return DoctorCheckResult(
+            name="auto_install",
+            status=CheckStatus.ERROR,
+            message="'patchright' CLI not found — cannot auto-install Chromium",
+            fix="pip install patchright && patchright install chromium",
+        )
+
+    logger.info("Doctor auto_fix: installing Chromium via 'patchright install chromium'...")
+    try:
+        proc = await asyncio.wait_for(
+            asyncio.create_subprocess_exec(
+                "patchright", "install", "chromium",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            ),
+            timeout=600,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
+
+        if proc.returncode == 0:
+            return DoctorCheckResult(
+                name="auto_install",
+                status=CheckStatus.OK,
+                message="Chromium auto-installed successfully",
+                details={"output": (stdout or b"").decode(errors="replace")[:300]},
+            )
+        return DoctorCheckResult(
+            name="auto_install",
+            status=CheckStatus.ERROR,
+            message=f"Chromium auto-install failed (exit {proc.returncode})",
+            fix="Run 'patchright install chromium' manually",
+            details={"stderr": (stderr or b"").decode(errors="replace")[:300]},
+        )
+    except TimeoutError:
+        return DoctorCheckResult(
+            name="auto_install",
+            status=CheckStatus.ERROR,
+            message="Chromium auto-install timed out (10 minutes)",
+            fix="Check network connection and disk space, then run 'patchright install chromium' manually",
+        )
+    except Exception as exc:
+        return DoctorCheckResult(
+            name="auto_install",
+            status=CheckStatus.ERROR,
+            message=f"Chromium auto-install failed: {exc}",
+            fix="Run 'patchright install chromium' manually",
+        )
+
+
 async def run_doctor(
     *,
     include_launch_test: bool = True,
     include_orphan_check: bool = True,
+    auto_fix: bool = False,
     launch_options: dict[str, object] | None = None,
     browser_executable_path: str = "",
     browser_proxy: str = "",
@@ -333,6 +393,8 @@ async def run_doctor(
     Args:
         include_launch_test: Whether to test actual browser launch
         include_orphan_check: Whether to check for orphan processes
+        auto_fix: When True and browser launch fails due to missing executable,
+            automatically install Chromium via patchright and re-test.
         launch_options: Optional custom launch options for launch test
         browser_executable_path: Custom browser executable path to check
         browser_proxy: Proxy URL to validate
@@ -352,7 +414,20 @@ async def run_doctor(
         checks["orphan_processes"] = _check_orphan_processes()
 
     if include_launch_test:
-        checks["browser_launch"] = await _check_browser_launch(launch_options)
+        launch_result = await _check_browser_launch(launch_options)
+        checks["browser_launch"] = launch_result
+
+        if (
+            auto_fix
+            and launch_result.status == CheckStatus.ERROR
+            and launch_result.fix
+            and "patchright install chromium" in launch_result.fix
+        ):
+            install_result = await _try_auto_install_chromium()
+            if install_result:
+                checks["auto_install"] = install_result
+                if install_result.status == CheckStatus.OK:
+                    checks["browser_launch"] = await _check_browser_launch(launch_options)
 
     ok_count = sum(1 for c in checks.values() if c.status == CheckStatus.OK)
     warning_count = sum(1 for c in checks.values() if c.status == CheckStatus.WARNING)
