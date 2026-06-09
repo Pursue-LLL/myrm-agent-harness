@@ -21,6 +21,7 @@ class ArtifactType(StrEnum):
     SVG = "svg"
     MERMAID = "mermaid"
     PDF = "pdf"
+    SPREADSHEET = "spreadsheet"
     BINARY = "binary"
     REACT = "react"
 
@@ -165,15 +166,18 @@ EXTENSION_TO_ARTIFACT_TYPE: dict[str, ArtifactType] = {
     ".flac": ArtifactType.AUDIO,
     ".m4a": ArtifactType.AUDIO,
     ".pdf": ArtifactType.PDF,
+    ".csv": ArtifactType.SPREADSHEET,
+    ".tsv": ArtifactType.SPREADSHEET,
+    ".xlsx": ArtifactType.SPREADSHEET,
+    ".xls": ArtifactType.SPREADSHEET,
 }
 
-_EXTRA_DOCUMENT_EXTENSIONS: frozenset[str] = frozenset({".log", ".csv"})
+_EXTRA_DOCUMENT_EXTENSIONS: frozenset[str] = frozenset({".log"})
 
 _EXTRA_BINARY_EXTENSIONS: frozenset[str] = frozenset(
     {
         ".pptx",
         ".docx",
-        ".xlsx",
         ".zip",
         ".tar",
         ".gz",
@@ -229,6 +233,10 @@ MIME_TO_ARTIFACT_TYPE: dict[str, ArtifactType] = {
     "audio/flac": ArtifactType.AUDIO,
     "audio/mp4": ArtifactType.AUDIO,
     "application/pdf": ArtifactType.PDF,
+    "text/csv": ArtifactType.SPREADSHEET,
+    "text/tab-separated-values": ArtifactType.SPREADSHEET,
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ArtifactType.SPREADSHEET,
+    "application/vnd.ms-excel": ArtifactType.SPREADSHEET,
     "application/octet-stream": ArtifactType.BINARY,
 }
 

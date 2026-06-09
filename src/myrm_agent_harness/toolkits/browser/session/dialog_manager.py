@@ -87,6 +87,11 @@ class DialogManager:
     def policy(self) -> DialogPolicy:
         return self._policy
 
+    @policy.setter
+    def policy(self, value: DialogPolicy) -> None:
+        self._policy = value
+        logger.info("DialogManager: policy changed to %s", value.value)
+
     def attach(self, page: Page) -> None:
         """Register dialog handler on page. Idempotent per page instance."""
         page_id = id(page)
@@ -158,16 +163,20 @@ class DialogManager:
             message[:100],
         )
 
-        if self._policy == DialogPolicy.WAIT_FOR_AGENT:
-            await self._handle_wait_for_agent(dialog, dialog_type, message, default_value)
-        elif self._policy == DialogPolicy.AUTO_ACCEPT:
-            await dialog.accept(default_value)
-            self._record(dialog_type, message, default_value, "accepted", "auto_accept")
-        elif self._policy == DialogPolicy.AUTO_DISMISS:
-            await dialog.dismiss()
-            self._record(dialog_type, message, default_value, "dismissed", "auto_dismiss")
-        else:
-            await self._handle_smart(dialog, dialog_type, message, default_value)
+        try:
+            if self._policy == DialogPolicy.WAIT_FOR_AGENT:
+                await self._handle_wait_for_agent(dialog, dialog_type, message, default_value)
+            elif self._policy == DialogPolicy.AUTO_ACCEPT:
+                await dialog.accept(default_value)
+                self._record(dialog_type, message, default_value, "accepted", "auto_accept")
+            elif self._policy == DialogPolicy.AUTO_DISMISS:
+                await dialog.dismiss()
+                self._record(dialog_type, message, default_value, "dismissed", "auto_dismiss")
+            else:
+                await self._handle_smart(dialog, dialog_type, message, default_value)
+        except Exception as exc:
+            logger.warning("DialogManager: failed to handle %s dialog: %s", dialog_type, exc)
+            self._record(dialog_type, message, default_value, "error", "exception")
 
     async def _handle_smart(
         self, dialog: Dialog, dialog_type: str, message: str, default_value: str

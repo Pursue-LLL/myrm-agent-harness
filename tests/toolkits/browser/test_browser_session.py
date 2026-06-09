@@ -366,17 +366,19 @@ async def test_wait_for_load(browser_session: BrowserSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_set_dialog_response_accept(browser_session: BrowserSession) -> None:
+async def test_set_dialog_response_no_pending(browser_session: BrowserSession) -> None:
+    """In SMART mode, respond() reports no pending dialog."""
     await browser_session.new_tab()
     result = await browser_session.set_dialog_response(True, "test")
-    assert "accept" in result.lower()
+    assert "no pending" in result.lower()
 
 
 @pytest.mark.asyncio
-async def test_set_dialog_response_dismiss(browser_session: BrowserSession) -> None:
+async def test_dialog_manager_attached(browser_session: BrowserSession) -> None:
+    """DialogManager is attached to pages on new_tab."""
     await browser_session.new_tab()
-    result = await browser_session.set_dialog_response(False)
-    assert "dismiss" in result.lower()
+    page = browser_session._tab_controller.get_active_page()
+    assert id(page) in browser_session._dialog_manager._attached_pages
 
 
 # =============================================================================

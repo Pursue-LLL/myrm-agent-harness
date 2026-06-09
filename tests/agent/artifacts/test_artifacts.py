@@ -71,7 +71,7 @@ class TestArtifactTypes:
         """Test document artifact type inference."""
         assert infer_artifact_type("README.md") == ArtifactType.DOCUMENT
         assert infer_artifact_type("notes.txt") == ArtifactType.DOCUMENT
-        assert infer_artifact_type("data.csv") == ArtifactType.DOCUMENT
+        assert infer_artifact_type("data.csv") == ArtifactType.SPREADSHEET
 
     def test_infer_artifact_type_image(self):
         """Test image artifact type inference."""
@@ -123,9 +123,15 @@ class TestInferFunctions:
         assert infer_artifact_type_from_extension("flow.mermaid") == ArtifactType.MERMAID
 
     def test_infer_artifact_type_from_extension_extra_document(self):
-        """Fallback: extra document extensions (.log, .csv)."""
+        """Fallback: extra document extensions (.log)."""
         assert infer_artifact_type_from_extension("server.log") == ArtifactType.DOCUMENT
-        assert infer_artifact_type_from_extension("data.csv") == ArtifactType.DOCUMENT
+
+    def test_infer_artifact_type_from_extension_spreadsheet(self):
+        """Spreadsheet extensions (.csv, .tsv, .xlsx, .xls)."""
+        assert infer_artifact_type_from_extension("data.csv") == ArtifactType.SPREADSHEET
+        assert infer_artifact_type_from_extension("data.tsv") == ArtifactType.SPREADSHEET
+        assert infer_artifact_type_from_extension("data.xlsx") == ArtifactType.SPREADSHEET
+        assert infer_artifact_type_from_extension("data.xls") == ArtifactType.SPREADSHEET
 
     def test_infer_artifact_type_from_extension_extra_binary(self):
         """Fallback: extra binary extensions (archives, office, media)."""

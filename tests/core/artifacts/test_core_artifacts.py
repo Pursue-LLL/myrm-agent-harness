@@ -54,8 +54,12 @@ class TestInferFunctions:
         assert result in (ArtifactType.DOCUMENT, ArtifactType.BINARY, ArtifactType.CODE)
 
     def test_infer_type_from_extension_extra_document(self) -> None:
-        assert infer_artifact_type_from_extension("data.csv") == ArtifactType.DOCUMENT
         assert infer_artifact_type_from_extension("server.log") == ArtifactType.DOCUMENT
+
+    def test_infer_type_from_extension_spreadsheet(self) -> None:
+        assert infer_artifact_type_from_extension("data.csv") == ArtifactType.SPREADSHEET
+        assert infer_artifact_type_from_extension("data.tsv") == ArtifactType.SPREADSHEET
+        assert infer_artifact_type_from_extension("data.xlsx") == ArtifactType.SPREADSHEET
 
     def test_infer_type_from_extension_extra_binary(self) -> None:
         assert infer_artifact_type_from_extension("archive.zip") == ArtifactType.BINARY

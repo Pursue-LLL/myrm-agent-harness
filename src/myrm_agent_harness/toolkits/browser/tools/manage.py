@@ -148,7 +148,7 @@ def create_manage_tool(session: BrowserSession):
                         f"Invalid dialog policy '{policy_str}'. "
                         f"Valid: {', '.join(p.value for p in DialogPolicy)}"
                     )
-                session._dialog_manager._policy = new_policy
+                session._dialog_manager.policy = new_policy
                 return f"Dialog policy changed to: {new_policy.value}"
             case "save_session":
                 domain = value.strip()

@@ -20,6 +20,7 @@
 - session.browser_session_persistence_mixin::BrowserSessionPersistenceMixin (POS: SessionVault persistence API)
 - session.browser_session_recording_mixin::BrowserSessionRecordingMixin (POS: trace/HAR recording API)
 - session.download_manager::DownloadManager, DownloadConfig (POS: file download management)
+- session.dialog_manager::DialogManager, DialogPolicy (POS: JS dialog lifecycle management)
 
 [OUTPUT]
 - BrowserSession: browser session manager (aggregate root)
@@ -45,6 +46,7 @@ Browser session manager. As the aggregate root, composes single-responsibility c
 10. SessionVault (encrypted session storage, optional)
 11. DownloadManager (file download management, optional)
 12. CaptchaCoordinator (CAPTCHA detection and solving coordination, optional)
+13. DialogManager (JS dialog lifecycle handling with configurable policy)
 
 The aggregate root class combines three Mixins (Persistence/Recording/Page) via multiple inheritance, coordinating with Tab/navigation/snapshot/interaction/extraction submodules.
 """
@@ -686,8 +688,10 @@ class BrowserSession(
         """Close specified Tab; if still has Tab, bind Component to Current active page."""
         if self._tab_controller.list_tabs() and tab_id == self._tab_controller.get_active_tab_id():
             try:
-                self._network_logger.detach_page(self._tab_controller.get_active_page())
-                self._console_logger.detach_page(self._tab_controller.get_active_page())
+                page = self._tab_controller.get_active_page()
+                self._network_logger.detach_page(page)
+                self._console_logger.detach_page(page)
+                self._dialog_manager.detach(page)
             except RuntimeError:
                 pass
         await self._tab_controller.close_tab(tab_id)
