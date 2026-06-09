@@ -29,7 +29,7 @@ def create_manage_tool(session: BrowserSession):
         action: str = Field(
             description="Action: close, evaluate, new_tab, switch_tab, list_tabs, close_tab, "
             "back, forward, save_pdf, resize, wait_for_load, console_log, "
-            "network_log, network_detail, network_replay, dialog_response, "
+            "network_log, network_detail, network_replay, dialog_response, dialog_policy, "
             "save_session, restore_session, list_sessions, delete_session, "
             "wait_for_user, trace_start, trace_stop, har_start, har_stop, recording_status, "
             "save_site_experience, list_site_experience, delete_site_experience, "
@@ -40,6 +40,7 @@ def create_manage_tool(session: BrowserSession):
             description="Required for: JS expression (evaluate), tab_id (switch_tab/close_tab), "
             "URL (new_tab/download_url), 'WIDTHxHEIGHT' (resize), "
             "'accept'/'dismiss[:prompt]' (dialog_response), "
+            "'smart'/'auto_accept'/'auto_dismiss'/'wait_for_agent' (dialog_policy), "
             "domain or 'domain:label' (save_session), domain (restore_session/delete_session), "
             "prompt text for user (wait_for_user), "
             "request index number (network_detail/network_replay), "
@@ -136,6 +137,19 @@ def create_manage_tool(session: BrowserSession):
                 accept = parts[0].strip().lower() != "dismiss"
                 prompt_text = parts[1].strip() if len(parts) > 1 else ""
                 return await session.set_dialog_response(accept, prompt_text)
+            case "dialog_policy":
+                from ..session.dialog_manager import DialogPolicy
+
+                policy_str = value.strip().lower()
+                try:
+                    new_policy = DialogPolicy(policy_str)
+                except ValueError:
+                    return (
+                        f"Invalid dialog policy '{policy_str}'. "
+                        f"Valid: {', '.join(p.value for p in DialogPolicy)}"
+                    )
+                session._dialog_manager._policy = new_policy
+                return f"Dialog policy changed to: {new_policy.value}"
             case "save_session":
                 domain = value.strip()
                 if not domain:
@@ -195,7 +209,8 @@ def create_manage_tool(session: BrowserSession):
                 return (
                     f"Unknown action '{action}'. Supported: close, evaluate, new_tab, switch_tab, "
                     "list_tabs, close_tab, back, forward, save_pdf, resize, wait_for_load, "
-                    "console_log, network_log, network_detail, network_replay, dialog_response, "
+                    "console_log, network_log, network_detail, network_replay, "
+                    "dialog_response, dialog_policy, "
                     "save_session, restore_session, list_sessions, delete_session, "
                     "wait_for_user, trace_start, trace_stop, har_start, har_stop, recording_status, "
                     "save_site_experience, list_site_experience, delete_site_experience, "

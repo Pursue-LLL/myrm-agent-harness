@@ -69,6 +69,7 @@ from .browser_session_page_mixin import BrowserSessionPageMixin
 from .browser_session_persistence_mixin import BrowserSessionPersistenceMixin
 from .browser_session_recording_mixin import BrowserSessionRecordingMixin
 from .console_logger import ConsoleLogger
+from .dialog_manager import DialogManager, DialogPolicy
 from .download_manager import DownloadConfig, DownloadManager, DownloadResult
 from .extractor import Extractor
 from .interactor import Interactor
@@ -131,6 +132,7 @@ class BrowserSession(
         allow_private_networks: bool = False,
         engine_preference: str | None = None,
         launch_mode_preference: str | None = None,
+        dialog_policy: str | None = None,
     ):
         """Initialize BrowserSession.
 
@@ -150,6 +152,7 @@ class BrowserSession(
             allow_private_networks: Allow navigation to private networks
             engine_preference: Preferred browser engine (e.g. 'chromium_patchright', 'firefox_camoufox').
             launch_mode_preference: Per-agent launch mode override (e.g. 'extension' to use user's real browser).
+            dialog_policy: Dialog handling strategy ('smart', 'auto_accept', 'auto_dismiss', 'wait_for_agent').
         """
         from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine, LaunchMode
 
@@ -208,6 +211,14 @@ class BrowserSession(
             self._captcha_coordinator: CaptchaCoordinator | None = CaptchaCoordinator(captcha_solver)
         else:
             self._captcha_coordinator = None
+
+        # Dialog handling (always active — default SMART policy)
+        try:
+            policy = DialogPolicy(dialog_policy) if dialog_policy else DialogPolicy.SMART
+        except ValueError:
+            logger.warning(f"Invalid dialog_policy '{dialog_policy}', falling back to SMART.")
+            policy = DialogPolicy.SMART
+        self._dialog_manager = DialogManager(policy=policy)
 
     async def new_tab(self, url: str | None = None) -> str:
         """Create new Tab or reuse existing same-origin Tab, return Tab ID."""
@@ -1063,6 +1074,8 @@ class BrowserSession(
 
         if self._download_manager is not None:
             self._download_manager.attach(page)
+
+        self._dialog_manager.attach(page)
 
     async def _ensure_components(self) -> None:
         """ensure Component already Initialize"""

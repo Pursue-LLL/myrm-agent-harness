@@ -140,6 +140,15 @@ def create_snapshot_tool(session: BrowserSession):
             max_depth=max_depth,
         )
 
+        # Dialog awareness: prepend pending/recent dialog info
+        dialog_msg = ""
+        try:
+            dialog_info = session._dialog_manager.format_for_snapshot()
+            if dialog_info:
+                dialog_msg = dialog_info + "\n\n"
+        except Exception:
+            pass
+
         # Context-Aware Soft Routing: Check for blocking OS dialogs
         warning_msg = ""
         try:
@@ -167,14 +176,14 @@ def create_snapshot_tool(session: BrowserSession):
 
         # parsesnapshotresult
         if isinstance(result, str):
-            final_str = warning_msg + result
+            final_str = dialog_msg + warning_msg + result
             return mark_untrusted(final_str)
         if isinstance(result, tuple):
             aria_tree, _ = result
-            final_str = warning_msg + aria_tree
+            final_str = dialog_msg + warning_msg + aria_tree
             return mark_untrusted(final_str)
         else:
-            final_str = warning_msg + result.aria_tree
+            final_str = dialog_msg + warning_msg + result.aria_tree
             return mark_untrusted(final_str)
 
     return browser_snapshot

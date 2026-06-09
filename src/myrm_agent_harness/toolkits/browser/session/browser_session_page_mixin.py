@@ -76,17 +76,10 @@ class BrowserSessionPageMixin:
         return "Page load completed"
 
     async def set_dialog_response(self, accept: bool, prompt_text: str = "") -> str:
-        """Set dialog response strategy"""
+        """Respond to a pending dialog (WAIT_FOR_AGENT mode) or confirm action.
+
+        In WAIT_FOR_AGENT mode: responds to the currently pending dialog.
+        In other modes: logs intent (dialogs are already handled automatically).
+        """
         await self._ensure_components()
-        page = self._tab_controller.get_active_page()
-
-        if accept:
-            page.on("dialog", lambda dialog: dialog.accept(prompt_text))
-            text_part = f' with text "{prompt_text}"' if prompt_text else ""
-            msg = f"Dialog handler set: accept{text_part}"
-        else:
-            page.on("dialog", lambda dialog: dialog.dismiss())
-            msg = "Dialog handler set: dismiss"
-
-        logger.info("BrowserSession: %s", msg)
-        return msg
+        return await self._dialog_manager.respond(accept, prompt_text)
