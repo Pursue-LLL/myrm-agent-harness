@@ -20,7 +20,7 @@ Quick Start:
 
 from importlib import import_module
 
-__version__ = "0.1.0rc2"
+__version__ = "0.1.0rc15"
 
 _EXPORTS: dict[str, tuple[str, str]] = {
     "SkillAgent": ("myrm_agent_harness.api.factory", "SkillAgent"),

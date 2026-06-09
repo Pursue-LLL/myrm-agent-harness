@@ -1,6 +1,6 @@
 [project]
 name = "myrm-agent-harness"
-version = "0.1.0rc2"
+version = "0.1.0rc15"
 description = "Myrm Agent Harness: Professional Agent framework built on LangChain with advanced skill system and MCP integration"
 authors = [{ name = "Myrm Agent Harness Contributors" }]
 requires-python = ">=3.13"
