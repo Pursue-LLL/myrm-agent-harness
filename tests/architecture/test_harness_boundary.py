@@ -7,7 +7,7 @@ This test scans all Python files in the harness package and fails if any
 business layer import statement is found.
 
 Architecture Reference: ARCHITECTURE.md
-Usage Guide: scripts/README.md
+Usage Guide: scripts/_ARCH.md
 """
 
 from __future__ import annotations

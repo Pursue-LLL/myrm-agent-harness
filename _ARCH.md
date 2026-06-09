@@ -23,7 +23,7 @@
 | `harness_packaging/` | 核心 | 闭源分发：Nuitka 编译、wheel 组装 · [\_ARCH.md](harness_packaging/_ARCH.md) |
 | `tests/` | 辅助 | 单元 / 集成 / API 冒烟 · [\_ARCH.md](tests/_ARCH.md) |
 | `benchmarks/` | 辅助 | CI 性能回归；`archive/` 存历史脚本 · [\_ARCH.md](benchmarks/_ARCH.md) |
-| `scripts/` | 辅助 | 开发、CI、maintainer 工具链 |
+| `scripts/` | 辅助 | 边界检测、PyPI 发布、tool registry · [\_ARCH.md](scripts/_ARCH.md) |
 | `packages/` | 辅助 | 内部 vendored 子包（若有） |
 
 ## 模块依赖

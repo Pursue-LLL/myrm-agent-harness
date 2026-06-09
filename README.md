@@ -36,7 +36,7 @@
 - ✅ **独立工具设计**：专用工具（Read/Write/Edit/Glob/Grep）；若系统安装 `ripgrep`，文件搜索可走外部实现
 
 ### 架构亮点
-- ✅ **框架-业务分离**：纯框架层，零业务逻辑（[自动化检测与修复](scripts/README.md)）
+- ✅ **框架-业务分离**：纯框架层，零业务逻辑（[自动化检测与修复](scripts/_ARCH.md)）
 - ✅ **智能缓存系统**：文件缓存与 LRU 等策略（行为依赖负载与配置）
 - ✅ **多沙箱支持**：Local（开发）、Docker（生产）、E2B（云端）统一 API
 - ✅ **类型安全**：包内代码以严格类型约束为目标（见 `pyproject` / `mypy` 配置）
@@ -621,7 +621,7 @@ mypy src/myrm_agent_harness
 - 📊 **智能报告**：优先级分级（HIGH/MEDIUM/LOW）+ 统计信息
 - 📈 **性能保护**：CI 自动检测性能回归（30%容忍度）
 
-详见 [scripts/README.md](scripts/README.md) 了解完整使用方法。
+详见 [scripts/_ARCH.md](scripts/_ARCH.md) 了解完整使用方法。
 
 ### 文档更新规范
 
