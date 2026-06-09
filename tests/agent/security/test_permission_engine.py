@@ -29,6 +29,7 @@ from myrm_agent_harness.agent.security.types import (
     PathPolicy,
     PermissionAction,
     PermissionRule,
+    PermissionRuleset,
     SecurityConfig,
 )
 
@@ -269,6 +270,90 @@ class TestResolveTarget:
     def test_missing_key_returns_star(self) -> None:
         target = _resolve_target("browser_navigate", {})
         assert target == "*"
+
+    def test_mcp_invoke_uses_tool_name_as_target(self) -> None:
+        target = _resolve_target("mcp_invoke", {"query": "test"}, tool_name="mcp__gmail__send_email")
+        assert target == "mcp__gmail__send_email"
+
+    def test_mcp_invoke_without_tool_name_returns_star(self) -> None:
+        target = _resolve_target("mcp_invoke", {"query": "test"})
+        assert target == "*"
+
+    def test_mcp_invoke_empty_tool_name_returns_star(self) -> None:
+        target = _resolve_target("mcp_invoke", {}, tool_name="")
+        assert target == "*"
+
+
+class TestMCPPerToolApproval:
+    """Tests for per-MCP-tool approval via pattern matching in the ruleset."""
+
+    def test_mcp_default_ask(self) -> None:
+        """Default ruleset has mcp_invoke=ASK, so all MCP tools require approval."""
+        config = SecurityConfig()
+        action, _ = evaluate_tool_call("mcp_invoke", {}, config, tool_name="mcp__gmail__search_inbox")
+        assert action == PermissionAction.ASK
+
+    def test_mcp_per_tool_allow_with_wildcard_ask(self) -> None:
+        """User configures: search_inbox=ALLOW, everything else=ASK."""
+        user_rules: PermissionRuleset = (
+            PermissionRule("mcp_invoke", "*", PermissionAction.ASK),
+            PermissionRule("mcp_invoke", "mcp__gmail__search_inbox", PermissionAction.ALLOW),
+        )
+        config = SecurityConfig(ruleset=merge(DEFAULT_RULESET, user_rules))
+        action_search, _ = evaluate_tool_call("mcp_invoke", {}, config, tool_name="mcp__gmail__search_inbox")
+        assert action_search == PermissionAction.ALLOW
+
+        action_send, _ = evaluate_tool_call("mcp_invoke", {}, config, tool_name="mcp__gmail__send_email")
+        assert action_send == PermissionAction.ASK
+
+    def test_mcp_per_tool_deny(self) -> None:
+        """User denies a specific MCP tool."""
+        user_rules: PermissionRuleset = (
+            PermissionRule("mcp_invoke", "*", PermissionAction.ALLOW),
+            PermissionRule("mcp_invoke", "mcp__slack__delete_message", PermissionAction.DENY),
+        )
+        config = SecurityConfig(ruleset=user_rules)
+        action_delete, _ = evaluate_tool_call("mcp_invoke", {}, config, tool_name="mcp__slack__delete_message")
+        assert action_delete == PermissionAction.DENY
+
+        action_post, _ = evaluate_tool_call("mcp_invoke", {}, config, tool_name="mcp__slack__post_message")
+        assert action_post == PermissionAction.ALLOW
+
+    def test_mcp_wildcard_server_pattern(self) -> None:
+        """User allows all tools from a specific MCP server via wildcard."""
+        user_rules: PermissionRuleset = (
+            PermissionRule("mcp_invoke", "*", PermissionAction.ASK),
+            PermissionRule("mcp_invoke", "mcp__gmail__*", PermissionAction.ALLOW),
+        )
+        config = SecurityConfig(ruleset=user_rules)
+        action_gmail, _ = evaluate_tool_call("mcp_invoke", {}, config, tool_name="mcp__gmail__search_inbox")
+        assert action_gmail == PermissionAction.ALLOW
+
+        action_slack, _ = evaluate_tool_call("mcp_invoke", {}, config, tool_name="mcp__slack__post_message")
+        assert action_slack == PermissionAction.ASK
+
+    def test_mcp_backward_compatible_without_tool_name(self) -> None:
+        """Without tool_name, mcp_invoke still works with existing behavior (target='*')."""
+        config = SecurityConfig()
+        action, _ = evaluate_tool_call("mcp_invoke", {}, config)
+        assert action == PermissionAction.ASK
+
+    def test_mcp_last_match_wins(self) -> None:
+        """Last-match-wins: later rule overrides earlier."""
+        user_rules: PermissionRuleset = (
+            PermissionRule("mcp_invoke", "*", PermissionAction.ALLOW),
+            PermissionRule("mcp_invoke", "mcp__gmail__*", PermissionAction.DENY),
+            PermissionRule("mcp_invoke", "mcp__gmail__search_inbox", PermissionAction.ALLOW),
+        )
+        config = SecurityConfig(ruleset=user_rules)
+        action_search, _ = evaluate_tool_call("mcp_invoke", {}, config, tool_name="mcp__gmail__search_inbox")
+        assert action_search == PermissionAction.ALLOW
+
+        action_send, _ = evaluate_tool_call("mcp_invoke", {}, config, tool_name="mcp__gmail__send_email")
+        assert action_send == PermissionAction.DENY
+
+        action_slack, _ = evaluate_tool_call("mcp_invoke", {}, config, tool_name="mcp__slack__post")
+        assert action_slack == PermissionAction.ALLOW
 
 
 class TestEvaluateToolCall:

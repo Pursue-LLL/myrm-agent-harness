@@ -143,15 +143,20 @@ def _check_domain_policy(
     return PermissionAction.ASK, f"Domain '{hostname}' requires approval"
 
 
-def _resolve_target(permission: str, tool_input: dict[str, object]) -> str:
+def _resolve_target(permission: str, tool_input: dict[str, object], *, tool_name: str | None = None) -> str:
     """Extract the target resource from tool_input for pattern matching.
 
     For URL-bearing permissions (``browser_navigate``, ``web_fetch``),
     extracts the hostname so that rules like ``192.168.*`` or ``*.example.com``
     match regardless of scheme or path.
+    For ``mcp_invoke``, uses the full tool name (e.g. ``mcp__gmail__send_email``)
+    as the target, enabling per-tool rules like
+    ``{"mcp_invoke": {"mcp__gmail__send_email": "ask", "*": "allow"}}``.
     For other permissions, returns the raw field value.
     Returns ``"*"`` when no target extraction is needed.
     """
+    if permission == "mcp_invoke" and tool_name:
+        return tool_name
     key = _TARGET_EXTRACTORS.get(permission)
     if not key:
         return "*"
@@ -165,7 +170,12 @@ def _resolve_target(permission: str, tool_input: dict[str, object]) -> str:
 
 
 def evaluate_tool_call(
-    permission: str, tool_input: dict[str, object], config: SecurityConfig, *, workspace_root: str | None = None
+    permission: str,
+    tool_input: dict[str, object],
+    config: SecurityConfig,
+    *,
+    workspace_root: str | None = None,
+    tool_name: str | None = None,
 ) -> tuple[PermissionAction, str]:
     """Top-level entry point: evaluate a tool call against the full security config.
 
@@ -173,6 +183,11 @@ def evaluate_tool_call(
     not the concrete LangChain tool name. Callers must resolve the tool name
     to a permission type via ``tool_registry.resolve_permission_type()``
     before calling this function.
+
+    ``tool_name`` is the original LangChain tool name, passed through for
+    target resolution. For ``mcp_invoke`` permission, the tool name
+    (e.g. ``mcp__gmail__send_email``) is used as the pattern-matching target,
+    enabling per-MCP-tool rules in the permission ruleset.
 
     Evaluation order:
     1. Capability Fence → not granted → DENY
@@ -211,7 +226,7 @@ def evaluate_tool_call(
             if path_action in (PermissionAction.DENY, PermissionAction.ASK):
                 return path_action, path_reason
 
-    target = _resolve_target(permission, tool_input)
+    target = _resolve_target(permission, tool_input, tool_name=tool_name)
     result = evaluate(permission, target, config.ruleset)
 
     if result.action == PermissionAction.ASK and permission in ("shell_exec", "code_interpreter"):

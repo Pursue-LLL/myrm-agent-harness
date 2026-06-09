@@ -629,17 +629,19 @@ Explain to the user what you wanted to do and ask for permission or alternative 
 
 ```
 1. resolve_permission_type(tool_name) → 抽象权限类型
-2. evaluate_tool_call(permission, tool_input, config, workspace_root=...) → (action, reason)
+2. evaluate_tool_call(permission, tool_input, config, workspace_root=..., tool_name=...) → (action, reason)
+   - tool_name 用于 mcp_invoke 的 per-tool target resolution（如 mcp__gmail__send_email）
 3. if ALLOW:
      taint_check → 冲突? → 提升为 ASK
      无冲突 → 执行工具
 4. if DENY:
      记录审计 → 记录拒绝计数 → 返回错误 ToolMessage
 5. if ASK:
-     a. Cron 会话? → ASK 提升为 ALLOW（能力声明 = 预授权）
-     b. Allowlist 命中? → ALLOW
-     c. 创建 ApprovalRequest → 通过 callback 发送 SSE 事件 → 等待用户响应
-     d. match response.decision:
+     a. MCP Fast-Path: permission_type=="mcp_invoke" && is_read_only && !is_open_world && !is_destructive → ALLOW
+     b. Cron 会话? → ASK 提升为 ALLOW（能力声明 = 预授权）
+     c. Allowlist 命中? → ALLOW
+     d. 创建 ApprovalRequest → 通过 callback 发送 SSE 事件 → 等待用户响应
+     e. match response.decision:
           APPROVE → 执行（可选 allow_always 写入 Allowlist）
           EDIT    → 替换参数后执行（可选 allow_always）
           REJECT  → 返回用户反馈给 Agent（记录拒绝计数）
@@ -1154,6 +1156,15 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 3. **fail-closed 默认值**：未知工具获得保守默认（is_concurrent_safe=False）
 
 MCP annotations 映射规则：`readOnlyHint` → `is_read_only` + `is_concurrent_safe`，`idempotentHint` → `is_idempotent`，`destructiveHint` → `is_destructive`，`openWorldHint` → `is_open_world`。只有只读工具才被标记为并发安全，幂等但有副作用的工具仍串行执行。
+
+### MCP Read-Only Fast-Path Auto-Approve
+
+`batch_processor.evaluate_tool_batch` 对 `mcp_invoke` 类型的工具调用执行 Fast-Path 检查：
+
+1. PTC 路径（`bash_code_execute_tool` 包装的 MCP 调用）：通过 `get_ptc_safety_metadata` 查询
+2. 直接 MCP 路径（`mcp__server__tool` 格式的直接调用）：通过 `resolve_safety_metadata` 查询
+
+两条路径使用相同判断条件：`is_read_only=True && !is_open_world && !is_destructive` 时自动放行（ASK → ALLOW），跳过 HITL 弹窗。`!is_destructive` 防御矛盾标注（buggy MCP server 同时声明 readOnlyHint=True + destructiveHint=True），与 Claude Code 的 `permission_mode_for_mcp_tool` 逻辑对齐。未注册 annotations 的工具 fail-closed（is_read_only=False），行为不变。用户配置的 DENY 规则优先级高于 Fast-Path（evaluate_tool_call 先执行，DENY 不进入 Fast-Path 判断）。
 
 ### 权限分离的关键意义
 

@@ -6,6 +6,7 @@ allowlist checking, and generation of approval requests.
 [INPUT]
 - agent.security.approval_flow::DEFAULT_USER_ID, get_allowlist (POS: Core component for "Always Allow" feature in Human-in-the-Loop approval system.)
 - agent.security.guards.skill_approval_hook::HookAction, SkillApprovalHook, SkillHookVerdict (POS: Integrated into tool_interceptor_middleware between the onion policy engine (L1-L3) and HITL approval. When a skill returns require_approval, the request is forwarded to the existing HITL approval flow.)
+- agent.security.tool_registry::resolve_permission_type, resolve_safety_metadata (POS: Maps tool names to abstract permission types and provides safety metadata for MCP tools.)
 - agent.security.types::PermissionAction, RecentToolCall, ReviewResult, SecurityConfig (POS: Foundation layer of the security type hierarchy. All other security modules import from here; this module imports from none of them.)
 
 [OUTPUT]
@@ -40,7 +41,10 @@ from myrm_agent_harness.agent.security.engine import (
 from myrm_agent_harness.agent.security.guards.skill_approval_hook import (
     HookAction,
 )
-from myrm_agent_harness.agent.security.tool_registry import resolve_permission_type
+from myrm_agent_harness.agent.security.tool_registry import (
+    resolve_permission_type,
+    resolve_safety_metadata,
+)
 from myrm_agent_harness.agent.security.types import (
     PermissionAction,
     RecentToolCall,
@@ -128,7 +132,9 @@ async def evaluate_tool_batch(
         tool_input: dict[str, object] = tool_call.get("args", {})
 
         permission_type = resolve_permission_type(tool_name, tool_input)
-        action, reason = evaluate_tool_call(permission_type, tool_input, config, workspace_root=workspace_root)
+        action, reason = evaluate_tool_call(
+            permission_type, tool_input, config, workspace_root=workspace_root, tool_name=tool_name
+        )
 
         extra_ctx = None
         if tool_name == "bash_code_execute_tool":
@@ -171,9 +177,20 @@ async def evaluate_tool_batch(
                     and ptc_safety
                     and ptc_safety.is_read_only
                     and not ptc_safety.is_open_world
+                    and not ptc_safety.is_destructive
                 ):
                     action = PermissionAction.ALLOW
                     reason = f"Fast-Path Auto-Approve for read-only MCP tool: {ptc_tool_name_full}"
+
+        # Fast-Path Auto-Approve for read-only MCP tools (non-PTC path).
+        # MCP annotations (readOnlyHint etc.) are registered into
+        # _PTC_TOOL_FLAT_INDEX at session init; leverage them here so
+        # read-only MCP tools skip the HITL prompt without user config.
+        if action == PermissionAction.ASK and permission_type == "mcp_invoke":
+            mcp_safety = resolve_safety_metadata(tool_name)
+            if mcp_safety.is_read_only and not mcp_safety.is_open_world and not mcp_safety.is_destructive:
+                action = PermissionAction.ALLOW
+                reason = f"Fast-Path Auto-Approve for read-only MCP tool: {tool_name}"
 
         # Allowlist check: if still ASK, check if the tool is in user's allowlist
         if action == PermissionAction.ASK:

@@ -48,6 +48,10 @@ def mock_session() -> Any:
     session.list_sessions = AsyncMock(return_value="Sessions: example.com, github.com")
     session.delete_session = AsyncMock(return_value="Deleted session for example.com")
 
+    dialog_manager = MagicMock()
+    dialog_manager.format_for_snapshot = MagicMock(return_value="")
+    session._dialog_manager = dialog_manager
+
     return session
 
 

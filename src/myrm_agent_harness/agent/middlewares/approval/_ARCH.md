@@ -8,7 +8,7 @@ Tool approval subsystem — Human-in-the-Loop approval flow.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Tool approval subsystem — Human-in-the-Loop approval flow. | — |
-| batch_processor.py | Core | Batch security evaluation engine — `evaluate_tool_batch`. Delegates interrupt payloads to `_batch_decisions` and review helpers to `_batch_review`. | ✅ |
+| batch_processor.py | Core | Batch security evaluation engine — `evaluate_tool_batch`. Fast-Path auto-approve for read-only MCP tools (PTC and direct; condition: `is_read_only && !is_open_world && !is_destructive`). Delegates interrupt payloads to `_batch_decisions` and review helpers to `_batch_review`. | ✅ |
 | _batch_decisions.py | Internal | Interrupt payload and decision application (edit shell re-gate). | ✅ |
 | _batch_review.py | Internal | LLM-based security review, runtime domain tracking, and skill hook evaluation. | ✅ |
 | helpers.py | Core | Approval middleware helpers: dual-threshold denial tracking (consecutive + total) with proactive guidance and allowlist management. | ✅ |
