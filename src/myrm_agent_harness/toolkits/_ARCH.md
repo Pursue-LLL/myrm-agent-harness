@@ -58,6 +58,7 @@ Does your code need to import anything from agent/?
 | commitment/ | Commitment tracking — implicit promise detection and follow-up from conversations. |
 | computer_use/ | System-wide desktop automation — screen capture + coordinate-based input (macOS/Linux). |
 | cron/ | Scheduled task framework — scheduling engine, CRUD manager, built-in strategies. |
+| deploy/ | Artifact deployment — Protocol-based deploy tool with HITL approval via LangGraph interrupt. |
 | context/ | Unified context bundle — volume layout, facade, index/lifecycle hook registration. |
 | element_ref/ | Shared @dref element reference types and session-scoped registry for desktop control. |
 | file_parsers/ | File format parsers — PDF, DOCX, Excel, text, and structured data extraction. |

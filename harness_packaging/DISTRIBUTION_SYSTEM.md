@@ -67,15 +67,15 @@ Editable install ships all `.py` source. `_distribution.get_distribution_mode()`
 
 | File | Audience | Harness source |
 |------|----------|----------------|
-| `myrm-agent-server/docker/Dockerfile.official` | Source-built wheels | `assemble_production.py` in-image |
-| `myrm-agent-server/Dockerfile` | PyPI consumers | `read_harness_pypi_spec.py` + `uv pip install` |
+| `myrm-agent/myrm-agent-server/docker/Dockerfile.official` | Source-built wheels | `assemble_production.py` in-image |
+| `myrm-agent/myrm-agent-server/Dockerfile` | PyPI consumers | `uv.lock` + PyPI harness |
 
 ```bash
-# OSS (server repo root context)
-docker build -t myrm-server myrm-agent-server/
+# OSS public image (myrm-agent repo root context)
+docker build -f myrm-agent/myrm-agent-server/Dockerfile -t myrm-server .
 
-# Official (harness + server trees available; build context = agent repo root)
-docker build -f myrm-agent-server/docker/Dockerfile.official -t myrm/runtime:local .
+# Official (open-perplexity / vortexai root: harness + myrm-agent trees)
+docker build -f myrm-agent/myrm-agent-server/docker/Dockerfile.official -t myrm/runtime:local .
 ```
 
 ## PyPI Publish
