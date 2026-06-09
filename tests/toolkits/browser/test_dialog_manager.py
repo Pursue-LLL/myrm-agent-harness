@@ -500,3 +500,139 @@ async def test_policy_setter_validation():
     assert dm.policy == DialogPolicy.AUTO_DISMISS
     dm.policy = DialogPolicy.WAIT_FOR_AGENT
     assert dm.policy == DialogPolicy.WAIT_FOR_AGENT
+
+
+# =============================================================================
+# Manage tool: dialog_policy action
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_manage_dialog_policy_action():
+    """Manage tool dialog_policy action changes the policy on DialogManager."""
+    dm = DialogManager(policy=DialogPolicy.SMART)
+
+    policy_str = "wait_for_agent"
+    new_policy = DialogPolicy(policy_str)
+    dm.policy = new_policy
+    assert dm.policy == DialogPolicy.WAIT_FOR_AGENT
+
+
+@pytest.mark.asyncio
+async def test_manage_dialog_policy_invalid():
+    """Invalid policy string raises ValueError."""
+    with pytest.raises(ValueError):
+        DialogPolicy("invalid_policy")
+
+
+@pytest.mark.asyncio
+async def test_manage_dialog_response_accept():
+    """dialog_response action parsing: 'accept' → accept=True."""
+    value = "accept"
+    parts = value.split(":", 1)
+    accept = parts[0].strip().lower() != "dismiss"
+    prompt_text = parts[1].strip() if len(parts) > 1 else ""
+    assert accept is True
+    assert prompt_text == ""
+
+
+@pytest.mark.asyncio
+async def test_manage_dialog_response_dismiss():
+    """dialog_response action parsing: 'dismiss' → accept=False."""
+    value = "dismiss"
+    parts = value.split(":", 1)
+    accept = parts[0].strip().lower() != "dismiss"
+    prompt_text = parts[1].strip() if len(parts) > 1 else ""
+    assert accept is False
+    assert prompt_text == ""
+
+
+@pytest.mark.asyncio
+async def test_manage_dialog_response_dismiss_with_prompt():
+    """dialog_response action parsing: 'dismiss:reason' → accept=False, prompt='reason'."""
+    value = "dismiss:user cancelled"
+    parts = value.split(":", 1)
+    accept = parts[0].strip().lower() != "dismiss"
+    prompt_text = parts[1].strip() if len(parts) > 1 else ""
+    assert accept is False
+    assert prompt_text == "user cancelled"
+
+
+@pytest.mark.asyncio
+async def test_manage_dialog_response_accept_with_prompt():
+    """dialog_response: 'accept:my_input' → accept=True, prompt='my_input'."""
+    value = "accept:my_input"
+    parts = value.split(":", 1)
+    accept = parts[0].strip().lower() != "dismiss"
+    prompt_text = parts[1].strip() if len(parts) > 1 else ""
+    assert accept is True
+    assert prompt_text == "my_input"
+
+
+# =============================================================================
+# Snapshot: dialog info formatting
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_snapshot_format_pending_dialog():
+    """format_for_snapshot shows pending dialog info for WAIT_FOR_AGENT mode."""
+    dm = DialogManager(policy=DialogPolicy.WAIT_FOR_AGENT, timeout_s=60.0)
+    dialog = _make_dialog("confirm", "Delete everything?")
+
+    async def _hold():
+        await dm._handle_dialog(dialog)
+
+    task = asyncio.create_task(_hold())
+    await asyncio.sleep(0.05)
+
+    output = dm.format_for_snapshot()
+    assert output is not None
+    assert "PENDING DIALOG" in output
+    assert "confirm" in output
+    assert "Delete everything?" in output
+    assert "dialog_response" in output
+
+    await dm.respond(True)
+    await task
+
+
+@pytest.mark.asyncio
+async def test_snapshot_format_recent_auto_accepted():
+    """format_for_snapshot shows recently auto-accepted dialogs."""
+    dm = DialogManager(policy=DialogPolicy.AUTO_ACCEPT)
+    dialog = _make_dialog("alert", "Success!")
+    await dm._handle_dialog(dialog)
+
+    output = dm.format_for_snapshot()
+    assert output is not None
+    assert "auto-accepted" in output or "accepted" in output
+    assert "Success!" in output
+
+
+@pytest.mark.asyncio
+async def test_snapshot_format_recent_auto_dismissed():
+    """format_for_snapshot shows recently auto-dismissed dialogs."""
+    dm = DialogManager(policy=DialogPolicy.AUTO_DISMISS)
+    dialog = _make_dialog("confirm", "Are you sure?")
+    await dm._handle_dialog(dialog)
+
+    output = dm.format_for_snapshot()
+    assert output is not None
+    assert "dismissed" in output
+    assert "Are you sure?" in output
+
+
+@pytest.mark.asyncio
+async def test_snapshot_format_multiple_recent():
+    """format_for_snapshot handles multiple recent dialogs."""
+    dm = DialogManager(policy=DialogPolicy.SMART)
+    for i in range(3):
+        dialog = _make_dialog("alert", f"Alert {i}")
+        await dm._handle_dialog(dialog)
+
+    output = dm.format_for_snapshot()
+    assert output is not None
+    assert "Alert 0" in output
+    assert "Alert 1" in output
+    assert "Alert 2" in output
