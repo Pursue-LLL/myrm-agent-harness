@@ -124,6 +124,7 @@ class _FakePool:
         context_key: str | None = None,
         context_kwargs: dict[str, object] | None = None,
         engine_preference: str | None = None,
+        launch_mode_preference: str | None = None,
     ) -> tuple[_FakePage, str]:
         page = self._pages.pop()
         if not self._pages:
