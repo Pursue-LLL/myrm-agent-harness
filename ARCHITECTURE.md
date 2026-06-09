@@ -4,7 +4,8 @@
 
 > 📐 本项目采用分形自文档结构，通过 INPUT/OUTPUT/POS 三元组和文件夹架构文档形成自组织系统。
 
-> 📖 **框架设计原则**：请参考根目录的 [FRAMEWORK_DESIGN_PRINCIPLES.md](FRAMEWORK_DESIGN_PRINCIPLES.md)。
+> 📖 **框架设计原则**：请参考根目录的 [FRAMEWORK_DESIGN_PRINCIPLES.md](FRAMEWORK_DESIGN_PRINCIPLES.md)。  
+> 📁 **子目录职责表**：见 [_ARCH.md](_ARCH.md)。
 
 ---
 
