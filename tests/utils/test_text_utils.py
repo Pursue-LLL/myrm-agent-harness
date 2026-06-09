@@ -10,6 +10,7 @@ from myrm_agent_harness.utils.text_utils import (
     get_token_count,
     has_important_tail,
     is_cross_language,
+    preheat_tiktoken,
     sanitize_binary_output,
     smart_truncate,
     strip_ansi,
@@ -65,6 +66,38 @@ class TestDetectLanguage:
         """测试数字和符号"""
         text = "12345 @#$%^&*()"
         assert detect_language(text) == "english"
+
+
+class TestPreheatTiktoken:
+    """tiktoken startup preheat tests."""
+
+    def test_preheat_returns_true(self):
+        result = preheat_tiktoken()
+        assert result is True
+
+    def test_preheat_idempotent(self):
+        assert preheat_tiktoken() is True
+        assert preheat_tiktoken() is True
+
+    def test_preheat_custom_encoding(self):
+        assert preheat_tiktoken("cl100k_base") is True
+
+    def test_preheat_invalid_encoding(self):
+        assert preheat_tiktoken("nonexistent_encoding_xyz") is False
+
+    def test_preheat_then_get_token_count(self):
+        preheat_tiktoken()
+        count = get_token_count("Hello world")
+        assert count > 0
+
+    def test_preheat_failure_on_encoding_error(self, monkeypatch):
+        import tiktoken
+
+        def _raise(_name: str) -> None:
+            raise RuntimeError("mock BPE load failure")
+
+        monkeypatch.setattr(tiktoken, "get_encoding", _raise)
+        assert preheat_tiktoken() is False
 
 
 class TestGetTokenCount:

@@ -8,6 +8,7 @@
 [OUTPUT]
 - detect_language(): 检测文本的主要语言类型（chinese/english/mixed）
 - is_cross_language(): 检测查询和文档是否跨语言（用于 BM25 fallback 判断）
+- preheat_tiktoken(): 预热 tiktoken 编码器（消除冷启动风险）
 - get_token_count(): 使用 tiktoken 精确计算 token 数量
 - estimate_tokens_fast(): 快速估算 token 数量（无需 tiktoken）
 - truncate_text_to_tokens(): 将文本截断到指定 token 数量（简单截断，不考虑句子边界）
@@ -109,6 +110,32 @@ def is_cross_language(
     return query_lang != doc_lang and "mixed" not in (query_lang, doc_lang)
 
 
+def preheat_tiktoken(encoding_name: str = "o200k_base") -> bool:
+    """Pre-load tiktoken BPE encoding to eliminate cold-start event-loop blocking.
+
+    tiktoken lazily downloads BPE data (~1.6 MB) from Azure CDN on first use.
+    In environments with slow or no internet (China mainland, corporate VPN,
+    fresh Docker containers), this synchronous download blocks the async event
+    loop for seconds to minutes.  Calling this once at startup moves the cost
+    to the startup phase where blocking is acceptable.
+
+    Returns True if preheat succeeded, False if tiktoken is unavailable.
+    """
+    try:
+        import tiktoken
+
+        tiktoken.get_encoding(encoding_name)
+        logger.info("tiktoken preheat OK (encoding=%s)", encoding_name)
+        return True
+    except Exception:
+        logger.warning(
+            "tiktoken preheat failed (encoding=%s); fast character-ratio estimation will be used as fallback",
+            encoding_name,
+            exc_info=True,
+        )
+        return False
+
+
 def get_token_count(text: str, encoding_name: str = "o200k_base") -> int:
     """使用tiktoken计算文本的Token数量
 
@@ -128,7 +155,7 @@ def get_token_count(text: str, encoding_name: str = "o200k_base") -> int:
         encoding = tiktoken.get_encoding(encoding_name)
         return len(encoding.encode(text, disallowed_special=()))
     except Exception as e:
-        logger.warning(f"tiktoken计算失败，使用快速估算策略 (错误: {e})")
+        logger.warning("tiktoken failed, using fast estimation (error: %s)", e)
         return estimate_tokens_fast(text)
 
 

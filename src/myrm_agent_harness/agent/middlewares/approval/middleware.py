@@ -246,7 +246,7 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
 
         logger.info("[BATCH_APPROVAL] Batch interrupt resolved with %d decisions", len(decisions))
 
-        revised_tool_calls, artificial_tool_messages = await apply_approval_decisions(
+        revised_tool_calls, artificial_tool_messages, guidance_messages = await apply_approval_decisions(
             decisions,
             last_ai_msg,
             auto_denied,
@@ -257,7 +257,10 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
         )
 
         last_ai_msg.tool_calls = revised_tool_calls
-        return {"messages": [last_ai_msg, *artificial_tool_messages]}
+        result_messages: list = [last_ai_msg, *artificial_tool_messages]
+        if guidance_messages:
+            result_messages.extend(guidance_messages)
+        return {"messages": result_messages}
 
     def _fallback_auto_deny(
         self, last_ai_msg: AIMessage, pending_approval: list, auto_denied: list, session_key: str

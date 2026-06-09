@@ -44,6 +44,7 @@ from .config import (
     SCALE_OUT_LOAD_THRESHOLD,
     BrowserEngine,
     BrowserPoolConfig,
+    LaunchMode,
 )
 from .context_factory import ContextFactory
 from .crash_watchdog import CrashWatchdogMixin
@@ -105,6 +106,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
         launch_options: dict[str, object] | None = None,
         proxy_pool: ProxyPool | None = None,
         config: BrowserPoolConfig | None = None,
+        extension_bridge: object | None = None,
     ) -> None:
         """Initialize global browser pool.
 
@@ -113,6 +115,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
             launch_options: Patchright launch options (optional)
             proxy_pool: Proxy pool (supports rotation and sticky sessions)
             config: Browser pool configuration (concurrency/rate-limiting/circuit-breaker/resource interception)
+            extension_bridge: ExtensionBridge protocol implementation for EXTENSION launch mode (injected from business layer)
 
         """
         self._browsers: list[BrowserInstance] = []
@@ -144,9 +147,10 @@ class GlobalBrowserPool(CrashWatchdogMixin):
             else None
         )
 
-        # Dictionary of launchers keyed by BrowserEngine
-        self._launchers: dict[BrowserEngine, BrowserLauncher] = {}
+        # Dictionary of launchers keyed by (BrowserEngine, LaunchMode)
+        self._launchers: dict[tuple[BrowserEngine, LaunchMode], BrowserLauncher] = {}
         self._launch_options = launch_options or dict(_DEFAULT_LAUNCH_OPTIONS)
+        self._extension_bridge = extension_bridge
 
         if self._proxy_pool:
             args = list(self._launch_options.get("args", []))
@@ -170,18 +174,21 @@ class GlobalBrowserPool(CrashWatchdogMixin):
             f"proxy_pool={'enabled' if self._proxy_pool else 'disabled'}",
         )
 
-    def _get_launcher(self, engine: BrowserEngine) -> BrowserLauncher:
-        """Get or create a BrowserLauncher for the specified engine."""
-        if engine not in self._launchers:
-            self._launchers[engine] = BrowserLauncher(
+    def _get_launcher(self, engine: BrowserEngine, launch_mode: LaunchMode | None = None) -> BrowserLauncher:
+        """Get or create a BrowserLauncher for the specified engine and launch mode."""
+        effective_mode = launch_mode or self._config.launch_mode
+        key = (engine, effective_mode)
+        if key not in self._launchers:
+            self._launchers[key] = BrowserLauncher(
                 launch_options=self._launch_options,
-                launch_mode=self._config.launch_mode,
+                launch_mode=effective_mode,
                 engine=engine,
                 cdp_endpoint=self._config.cdp_endpoint,
                 remote_ws_endpoint=self._config.remote_ws_endpoint,
                 remote_ws_headers=self._config.remote_ws_headers,
+                extension_bridge=self._extension_bridge,
             )
-        return self._launchers[engine]
+        return self._launchers[key]
 
     def _make_page_pool(
         self,
@@ -238,6 +245,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
         context_key: str | None = None,
         context_kwargs: dict[str, object] | None = None,
         engine_preference: BrowserEngine | None = None,
+        launch_mode_preference: LaunchMode | None = None,
     ) -> tuple[Page, str]:
         """Smart page allocation (with global concurrency limit).
 
@@ -249,6 +257,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
             context_key: Context identifier (same key reuses Context, for session isolation)
             context_kwargs: Additional BrowserContext params (e.g. record_video_dir)
             engine_preference: Preferred browser engine. Falls back to config default if None.
+            launch_mode_preference: Per-request launch mode override (e.g. EXTENSION for agents that need real browser sessions).
 
         Returns:
             (page, context_key) — Page instance and actual context_key used
@@ -263,7 +272,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
             # 1. Under lock: read state, update counters
             async with self._lock:
                 self._total_acquires += 1
-                browser_inst = await self._get_least_loaded_browser(engine)
+                browser_inst = await self._get_least_loaded_browser(engine, launch_mode_preference)
                 ctx_key = context_key or f"{context_type.value}_{id(self)}"
                 needs_creation = ctx_key not in browser_inst.contexts
 
@@ -405,14 +414,14 @@ class GlobalBrowserPool(CrashWatchdogMixin):
             if not skip_semaphore:
                 self._global_semaphore.release()
 
-    async def _get_least_loaded_browser(self, engine: BrowserEngine) -> BrowserInstance:
+    async def _get_least_loaded_browser(self, engine: BrowserEngine, launch_mode: LaunchMode | None = None) -> BrowserInstance:
         """Load-aware scheduling — select the least-loaded Browser for the given engine.
 
         Prefers Browsers that have not reached max_contexts_per_browser.
         When all Browsers are heavily loaded, auto-scales by creating new Browsers (up to max_browsers).
         When max_browsers is reached, logs a warning and force-assigns to the least-loaded Browser.
         """
-        launcher = self._get_launcher(engine)
+        launcher = self._get_launcher(engine, launch_mode)
 
         if not self._browsers:
             inst = await launcher.create_browser()

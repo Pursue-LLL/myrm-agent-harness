@@ -72,16 +72,18 @@ def get_global_browser_pool(
     launch_options: dict[str, object] | None = None,
     proxy_pool: ProxyPool | None = None,
     config: BrowserPoolConfig | None = None,
+    extension_bridge: object | None = None,
 ) -> GlobalBrowserPool:
-    """GetGlobalBrowser池singleton.
+    """Get GlobalBrowserPool singleton.
 
-    首次Call时CreateInstance,后续CallReturn同一Instance。
+    First call creates the instance; subsequent calls return the same instance.
 
     Args:
-        max_browsers: Maximum Browser Instance数
-        launch_options: Patchright launch Parameter(optional)
-        proxy_pool: Proxy池（Support轮换 and 粘性Session）
-        config: Browser池Configure（ContainsConcurrent/限流/内存监控）
+        max_browsers: Maximum Browser instance count
+        launch_options: Patchright launch options (optional)
+        proxy_pool: Proxy pool (supports rotation and sticky sessions)
+        config: Browser pool config (concurrency/rate-limiting/memory-guard)
+        extension_bridge: ExtensionBridge protocol impl for EXTENSION launch mode (injected from business layer)
 
     Returns:
         GlobalBrowserPool singleton
@@ -96,6 +98,7 @@ def get_global_browser_pool(
             launch_options=launch_options,
             proxy_pool=proxy_pool,
             config=config,
+            extension_bridge=extension_bridge,
         )
 
     return _global_pool

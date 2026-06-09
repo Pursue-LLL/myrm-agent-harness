@@ -18,7 +18,7 @@ import time
 import uuid
 from typing import Any
 
-from langchain_core.messages import AIMessage, ToolCall, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolCall, ToolMessage
 
 from myrm_agent_harness.agent.security.approval_flow import DEFAULT_USER_ID
 from myrm_agent_harness.agent.security.audit import record_decision
@@ -176,19 +176,20 @@ async def apply_approval_decisions(
     interrupt_indices: list[int],
     args_hashes: dict[int, str | None],
     config: SecurityConfig | None = None,
-) -> tuple[list[ToolCall], list[ToolMessage]]:
+) -> tuple[list[ToolCall], list[ToolMessage], list[HumanMessage]]:
     """Apply user decisions to tool_calls and generate ToolMessages.
 
     When *config* is provided and ``domain_hitl_enabled`` is True, handles
     ``allowDomain`` extensions by adding approved domains to the session-scoped
     runtime allowlist.
 
-    Returns: (revised_tool_calls, artificial_tool_messages)
+    Returns: (revised_tool_calls, artificial_tool_messages, guidance_messages)
     """
     from ._batch_review import _get_runtime_domains
 
     revised_tool_calls: list[ToolCall] = []
     artificial_tool_messages: list[ToolMessage] = []
+    guidance_messages: list[HumanMessage] = []
     decision_idx = 0
 
     for idx, tool_call in enumerate(last_ai_msg.tool_calls):
@@ -218,6 +219,7 @@ async def apply_approval_decisions(
             extensions = decision.get("extensions", {})
             allow_always = extensions.get("allowAlways", False)
             allow_domain = extensions.get("allowDomain", False)
+            guidance_text = decision.get("guidance", "").strip() if isinstance(decision.get("guidance"), str) else ""
 
             logger.info(
                 "[APPROVAL] Tool %s decision: type=%s, allow_always=%s, allow_domain=%s",
@@ -332,7 +334,16 @@ async def apply_approval_decisions(
                         status="error",
                     )
                 )
+
+            if guidance_text:
+                logger.info("[APPROVAL] Tool %s: user provided guidance: %s", tool_name, guidance_text[:100])
+                guidance_messages.append(
+                    HumanMessage(
+                        content=f"[User Guidance during approval of {tool_name}]: {guidance_text}",
+                        additional_kwargs={"approval_guidance": True},
+                    )
+                )
         else:
             revised_tool_calls.append(tool_call)
 
-    return revised_tool_calls, artificial_tool_messages
+    return revised_tool_calls, artificial_tool_messages, guidance_messages

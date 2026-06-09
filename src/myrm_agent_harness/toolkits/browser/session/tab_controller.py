@@ -84,21 +84,31 @@ class TabController:
         self._active_tab_id: str | None = None
         self._tab_counter = 0
 
-    async def create_tab(self, context_key: str | None = None, engine_preference: str | None = None) -> str:
-        """Createnew  Tab
+    async def create_tab(
+        self,
+        context_key: str | None = None,
+        engine_preference: str | None = None,
+        launch_mode_preference: str | None = None,
+    ) -> str:
+        """Create new Tab.
 
         Args:
-            context_key: Context 标识符( for  session 隔离)
+            context_key: Context identifier (for session isolation)
             engine_preference: Preferred browser engine
+            launch_mode_preference: Per-agent launch mode override (e.g. 'extension')
 
         Returns:
-            Tab ID(tab0, tab1, ...)
+            Tab ID (tab0, tab1, ...)
         """
         if len(self._tabs) >= _MAX_TABS:
             await self._evict_lru()
 
         page, ctx_key = await self._pool.acquire_page(
-            self._context_type, context_key, self._context_kwargs, engine_preference=engine_preference
+            self._context_type,
+            context_key,
+            self._context_kwargs,
+            engine_preference=engine_preference,
+            launch_mode_preference=launch_mode_preference,
         )
 
         tab_id = f"tab{self._tab_counter}"
