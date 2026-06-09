@@ -864,7 +864,7 @@ class TestApplyApprovalDecisions:
         pending = [(0, tc, "shell_exec", "needs approval", None)]
         decisions = [{"type": "approve"}]
 
-        revised, messages = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
+        revised, messages, _guidance = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
         assert len(revised) == 1
         assert len(messages) == 0
 
@@ -879,7 +879,7 @@ class TestApplyApprovalDecisions:
         pending = [(0, tc, "shell_exec", "dangerous", None)]
         decisions = [{"type": "reject", "feedback": "Too dangerous"}]
 
-        revised, messages = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
+        revised, messages, _guidance = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
         assert len(revised) == 0
         assert len(messages) == 1
         assert "Too dangerous" in messages[0].content
@@ -895,7 +895,7 @@ class TestApplyApprovalDecisions:
         pending = [(0, tc, "shell_exec", "edit required", None)]
         decisions = [{"type": "edit", "args": {"command": "ls"}}]
 
-        revised, _messages = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
+        revised, _messages, _guidance = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
         assert len(revised) == 1
         assert revised[0]["args"]["command"] == "ls"
 
@@ -920,7 +920,7 @@ class TestApplyApprovalDecisions:
             }
         ]
 
-        revised, messages = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
+        revised, messages, _guidance = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
         assert len(revised) == 0
         assert len(messages) == 1
         assert "requires new approval" in messages[0].content
@@ -935,7 +935,7 @@ class TestApplyApprovalDecisions:
         ai_msg = AIMessage(content="", tool_calls=[tc])
         auto_denied = [(0, tc, " Denied by policy")]
 
-        revised, messages = await apply_approval_decisions([], ai_msg, auto_denied, [], [], {})
+        revised, messages, _guidance = await apply_approval_decisions([], ai_msg, auto_denied, [], [], {})
         assert len(revised) == 0
         assert len(messages) == 1
         assert "Denied" in messages[0].content
@@ -952,7 +952,7 @@ class TestApplyApprovalDecisions:
         pending = [(1, tc_ask, "shell_exec", "ask", None)]
         decisions = [{"type": "approve"}]
 
-        revised, _messages = await apply_approval_decisions(decisions, ai_msg, [], pending, [1], {})
+        revised, _messages, _guidance = await apply_approval_decisions(decisions, ai_msg, [], pending, [1], {})
         assert len(revised) == 2
 
     @pytest.mark.asyncio
@@ -967,7 +967,7 @@ class TestApplyApprovalDecisions:
         pending = [(0, tc, "net_fetch", "domain check", None)]
         decisions = [{"type": "approve", "extensions": {"allowDomain": True}}]
 
-        revised, _messages = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {}, config)
+        revised, _messages, _guidance = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {}, config)
         assert len(revised) == 1
 
 
@@ -1144,7 +1144,7 @@ class TestEvaluateToolBatchAdditionalPaths:
         pending = [(0, tc, "shell_exec", "edit required", None)]
         decisions = [{"type": "edit"}]
 
-        revised, _messages = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
+        revised, _messages, _guidance = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
         assert len(revised) == 1
         assert revised[0]["args"]["command"] == "ls"
 

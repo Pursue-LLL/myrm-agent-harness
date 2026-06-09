@@ -151,10 +151,6 @@ class BrowserSession(
             engine_preference: Preferred browser engine (e.g. 'chromium_patchright', 'firefox_camoufox').
             launch_mode_preference: Per-agent launch mode override (e.g. 'extension' to use user's real browser).
         """
-        self._browser_pool = browser_pool
-        self._context_type = context_type
-        self._context_key = context_key
-
         from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine, LaunchMode
 
         try:
@@ -168,6 +164,7 @@ class BrowserSession(
         except ValueError:
             logger.warning(f"Invalid launch_mode preference '{launch_mode_preference}', falling back to pool default.")
             self._launch_mode_preference = None
+
         self._browser_pool = browser_pool
         self._context_type = context_type
         self._context_key = context_key

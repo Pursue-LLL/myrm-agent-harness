@@ -727,7 +727,7 @@ class TestApplyApprovalDecisions:
         decisions = [{"type": "approve", "extensions": {"allowAlways": True}}]
         pending = [(0, ai_msg.tool_calls[0], "code_interpreter", "ASK", None)]
 
-        revised, messages = await apply_approval_decisions(
+        revised, messages, _guidance = await apply_approval_decisions(
             decisions,
             ai_msg,
             auto_denied=[],
@@ -766,7 +766,7 @@ class TestApplyApprovalDecisions:
         decisions = [{"type": "approve", "extensions": {"allowDomain": True}}]
         pending = [(0, ai_msg.tool_calls[0], "browser_navigate", "Unknown domain", None)]
 
-        revised, _messages = await apply_approval_decisions(
+        revised, _messages, _guidance = await apply_approval_decisions(
             decisions,
             ai_msg,
             auto_denied=[],
@@ -795,7 +795,7 @@ class TestApplyApprovalDecisions:
         decisions = [{"type": "edit", "args": {"command": "ls"}, "extensions": {}}]
         pending = [(0, ai_msg.tool_calls[0], "code_interpreter", "ASK", None)]
 
-        revised, _messages = await apply_approval_decisions(
+        revised, _messages, _guidance = await apply_approval_decisions(
             decisions,
             ai_msg,
             auto_denied=[],
@@ -822,7 +822,7 @@ class TestApplyApprovalDecisions:
         decisions = [{"type": "edit", "extensions": {}}]
         pending = [(0, ai_msg.tool_calls[0], "code_interpreter", "ASK", None)]
 
-        revised, _messages = await apply_approval_decisions(
+        revised, _messages, _guidance = await apply_approval_decisions(
             decisions,
             ai_msg,
             auto_denied=[],
@@ -851,7 +851,7 @@ class TestApplyApprovalDecisions:
         decisions = [{"type": "edit", "args": {"command": "ls -l"}, "extensions": {"allowAlways": {"tool": True}}}]
         pending = [(0, ai_msg.tool_calls[0], "code_interpreter", "ASK", None)]
 
-        revised, _messages = await apply_approval_decisions(
+        revised, _messages, _guidance = await apply_approval_decisions(
             decisions,
             ai_msg,
             auto_denied=[],
@@ -879,7 +879,7 @@ class TestApplyApprovalDecisions:
         decisions = [{"type": "reject", "feedback": "Not safe enough", "extensions": {}}]
         pending = [(0, ai_msg.tool_calls[0], "code_interpreter", "ASK", None)]
 
-        revised, messages = await apply_approval_decisions(
+        revised, messages, _guidance = await apply_approval_decisions(
             decisions,
             ai_msg,
             auto_denied=[],
@@ -908,7 +908,7 @@ class TestApplyApprovalDecisions:
 
         auto_denied = [(0, ai_msg.tool_calls[0], " Denied by policy")]
 
-        revised, messages = await apply_approval_decisions(
+        revised, messages, _guidance = await apply_approval_decisions(
             decisions=[],
             last_ai_msg=ai_msg,
             auto_denied=auto_denied,
@@ -947,7 +947,7 @@ class TestApplyApprovalDecisions:
             )
         ]
 
-        _revised, _messages = await apply_approval_decisions(
+        _revised, _messages, _guidance = await apply_approval_decisions(
             decisions,
             ai_msg,
             auto_denied=[],

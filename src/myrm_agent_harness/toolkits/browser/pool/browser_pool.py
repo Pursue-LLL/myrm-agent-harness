@@ -56,6 +56,8 @@ from .throttle import ThrottleStrategy, create_throttle_strategy
 if TYPE_CHECKING:
     from patchright.async_api import BrowserContext, Page
 
+    from .extension_bridge import ExtensionBridge
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_LAUNCH_OPTIONS: dict[str, object] = {
@@ -106,7 +108,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
         launch_options: dict[str, object] | None = None,
         proxy_pool: ProxyPool | None = None,
         config: BrowserPoolConfig | None = None,
-        extension_bridge: object | None = None,
+        extension_bridge: ExtensionBridge | None = None,
     ) -> None:
         """Initialize global browser pool.
 
@@ -422,6 +424,8 @@ class GlobalBrowserPool(CrashWatchdogMixin):
         When max_browsers is reached, logs a warning and force-assigns to the least-loaded Browser.
         """
         launcher = self._get_launcher(engine, launch_mode)
+        effective_mode = launch_mode or self._config.launch_mode
+        is_extension_request = effective_mode == LaunchMode.EXTENSION
 
         if not self._browsers:
             inst = await launcher.create_browser()
@@ -429,7 +433,10 @@ class GlobalBrowserPool(CrashWatchdogMixin):
             self._browsers.append(inst)
             return inst
 
-        engine_browsers = [b for b in self._browsers if b.engine == engine.value]
+        engine_browsers = [
+            b for b in self._browsers
+            if b.engine == engine.value and b.is_managed != is_extension_request
+        ]
 
         if not engine_browsers:
             inst = await launcher.create_browser()

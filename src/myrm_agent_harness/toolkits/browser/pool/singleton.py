@@ -26,6 +26,7 @@ from .browser_pool import GlobalBrowserPool
 
 if TYPE_CHECKING:
     from .config import BrowserPoolConfig
+    from .extension_bridge import ExtensionBridge
     from .proxy import ProxyPool
 
 logger = logging.getLogger(__name__)
@@ -72,7 +73,7 @@ def get_global_browser_pool(
     launch_options: dict[str, object] | None = None,
     proxy_pool: ProxyPool | None = None,
     config: BrowserPoolConfig | None = None,
-    extension_bridge: object | None = None,
+    extension_bridge: ExtensionBridge | None = None,
 ) -> GlobalBrowserPool:
     """Get GlobalBrowserPool singleton.
 
