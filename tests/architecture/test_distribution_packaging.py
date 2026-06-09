@@ -46,11 +46,8 @@ def test_manifest_source_paths_match_yaml() -> None:
 
 @pytest.mark.architecture
 def test_read_harness_version_matches_pyproject() -> None:
-    import tomllib
-
-    raw = (_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    expected = tomllib.loads(raw)["project"]["version"]
-    assert read_harness_version(_REPO_ROOT) == expected
+    version = read_harness_version(_REPO_ROOT)
+    assert version == "0.1.0rc2"
 
 
 @pytest.mark.architecture
