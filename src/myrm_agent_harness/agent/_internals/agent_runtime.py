@@ -442,7 +442,7 @@ async def run_agent_loop(
                 logger.info("Phoenix tracing instrumented successfully.")
             except (ImportError, TypeError):
                 logger.warning(
-                    "Phoenix is not installed or broken. Please install with `pip install myrm-agent-harness[ui]`"
+                    "Phoenix is not installed or broken. Please install with `pip install myrm-agent-harness[observability]`"
                 )
 
         assert agent_state._agent is not None

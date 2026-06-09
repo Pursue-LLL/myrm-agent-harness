@@ -17,3 +17,9 @@ Detailed design: [TRACE_STORAGE_SYSTEM.md](TRACE_STORAGE_SYSTEM.md)
 | Submodule | Description |
 |-----------|-------------|
 | metrics/ | Metrics export module. Supports Prometheus, OTLP, Console, and other exporters. |
+
+## Optional install
+
+- **`[observability]` extra**: `opentelemetry-sdk`, `opentelemetry-exporter-otlp-proto-grpc`, `openinference-instrumentation-langchain`
+- `opentelemetry-api` is a core dependency; SDK and exporters are optional
+- `opentelemetry-instrumentation` is installed transitively via `openinference-instrumentation-langchain`

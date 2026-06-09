@@ -18,8 +18,8 @@ Without explicit initialization, OpenTelemetry uses NoOp provider (zero overhead
 ### Step 1: Install Dependencies
 
 ```bash
-# Install OpenTelemetry SDK + OTLP exporter
-uv add opentelemetry-sdk opentelemetry-exporter-otlp-proto-grpc
+# Install observability extra (SDK + OTLP exporter + LangChain instrumentation)
+uv sync --extra observability
 ```
 
 ### Step 2: Start Jaeger (Docker)

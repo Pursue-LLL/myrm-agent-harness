@@ -464,6 +464,8 @@ class TestEdgeCases:
             "pass_rate",
             "all_passed",
             "total_ms",
+            "total_tokens",
+            "total_cost",
             "turns",
         }
         assert required_keys == set(d.keys())
@@ -479,6 +481,8 @@ class TestEdgeCases:
             "assertion_passed",
             "assertion_details",
             "total_ms",
+            "token_usage",
+            "cost",
             "error",
         }
         assert turn_keys == set(turn.keys())

@@ -1,10 +1,11 @@
 """File parsers toolkit.
 
 Provides parsers for various file formats:
-- PDF (pdfplumber): Text + table extraction with Markdown output
-- Word (python-docx): DOCX files with heading preservation
-- Excel (openpyxl): XLSX files with merged cells support
-- PowerPoint (python-pptx): PPTX files with slide text, tables, and notes
+- PDF (pdfplumber, core dep): Text + table extraction with Markdown output
+- Word (python-docx, `[file-parsers]`): DOCX files with heading preservation
+- Excel (openpyxl, `[file-parsers]`): XLSX files with merged cells support
+- PowerPoint (python-pptx, `[file-parsers]`): PPTX files with slide text, tables, and notes
+- PDF page render fallback (pypdfium2, `[file-parsers]`)
 - Text: Plain text and Markdown files
 
 

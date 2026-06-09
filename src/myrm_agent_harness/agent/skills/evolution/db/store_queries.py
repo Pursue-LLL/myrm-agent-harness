@@ -126,7 +126,7 @@ class SkillStoreQueries:
                     ORDER BY version DESC
                     LIMIT 1
                     """,
-                    (name),
+                    (name,),
                 ).fetchone()
             else:
                 row = conn.execute(

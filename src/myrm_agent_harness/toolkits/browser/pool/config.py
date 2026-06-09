@@ -72,12 +72,14 @@ class LaunchMode(StrEnum):
     - CONNECT:  via  CDP Connection用户 already 运行  Chrome
     - AUTO: 先探测 CDP → Success则 connect → Failure则 fallback  to  launch（Local/Tauri Default）
     - REMOTE: 连接到远程云端浏览器（如 Browserbase/Browser Use）通过 WebSocket
+    - EXTENSION: 通过官方浏览器扩展的 WebSocket CDP 代理获取用户日常浏览器控制权
     """
 
     LAUNCH = "launch"
     CONNECT = "connect"
     AUTO = "auto"
     REMOTE = "remote"
+    EXTENSION = "extension"
 
 
 _DEFAULT_CDP_ENDPOINT = "http://127.0.0.1:9222"
@@ -336,6 +338,8 @@ class BrowserConfig:
     cdp_endpoint: str | None = None
     remote_ws_endpoint: str | None = None
     remote_ws_headers: dict[str, str] | None = None
+    extension_ws_endpoint: str | None = None
+    extension_auth_token: str | None = None
     max_concurrent_pages: int = 30
     idle_timeout_seconds: int = 300
     resource_block: ResourceBlockConfig = field(default_factory=_resource_block_standard)

@@ -147,6 +147,7 @@ class TestNormalizeMcpResult:
         assert MCPAgent._normalize_mcp_result(12345) == "12345"
 
     def test_mixed_content_blocks(self) -> None:
+        """File blocks are degraded to text, so mixed text+file returns a plain string."""
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
 
         blocks = [
@@ -154,9 +155,9 @@ class TestNormalizeMcpResult:
             {"type": "file", "uri": "file:///tmp/x"},
         ]
         result = MCPAgent._normalize_mcp_result((blocks, None))
-        assert isinstance(result, list)
-        assert blocks[0] in result
-        assert blocks[1] in result
+        assert isinstance(result, str)
+        assert "ticket info" in result
+        assert "[file" in result
 
     def test_structured_content_appended(self) -> None:
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent

@@ -7,6 +7,7 @@ import pytest
 from myrm_agent_harness.toolkits.code_execution.security.command_explainer.extract import (
     build_shell_approval_fields,
     classify_span_risk_levels,
+    classify_span_risk_reasons,
     extract_command_spans,
     extract_shell_command_text,
     is_shell_approval_tool,
@@ -40,7 +41,16 @@ class TestBuildShellApprovalFields:
         )
         assert "command_spans" in fields
         assert "command_span_risks" in fields
+        assert "command_span_reasons" in fields
         assert len(fields["command_spans"]) == len(fields["command_span_risks"])
+        assert len(fields["command_spans"]) == len(fields["command_span_reasons"])
+
+    def test_span_risk_reasons_for_pipeline(self) -> None:
+        command = "ls | rm -rf /tmp/foo"
+        spans = extract_command_spans(command)
+        reasons = classify_span_risk_reasons(command, spans)
+        assert reasons[0] == "safe"
+        assert reasons[1] == "unknown_command"
 
     def test_whitespace_only_command_returns_empty(self) -> None:
         assert build_shell_approval_fields("bash_code_execute_tool", {"command": "   "}) == {}

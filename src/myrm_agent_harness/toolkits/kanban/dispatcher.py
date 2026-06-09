@@ -152,6 +152,21 @@ class KanbanDispatcher:
         """Signal the dispatcher to check for new tasks immediately."""
         self._wake_event.set()
 
+    async def cancel_execution(self, task_id: str) -> bool:
+        """Cancel the asyncio.Task executing a kanban task without modifying task state.
+
+        Returns True if a running execution was cancelled, False if the task
+        was not being executed by this dispatcher.
+        """
+        exec_task = self._task_id_to_exec.get(task_id)
+        if exec_task is None or exec_task.done():
+            return False
+
+        exec_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await exec_task
+        return True
+
     async def reclaim_task(self, task_id: str, reason: str | None = None) -> bool:
         """Manually reclaim a running task: cancel its worker, close the run,
         reset to READY so the dispatcher can re-schedule it.

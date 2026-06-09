@@ -149,6 +149,16 @@ class EvalResult:
     def all_passed(self) -> bool:
         return self.fail_count == 0 and self.error_count == 0
 
+    @property
+    def total_tokens(self) -> int:
+        """Sum of total_tokens across all turns."""
+        return sum(r.response.token_usage.get("total_tokens", 0) for r in self.turn_results)
+
+    @property
+    def total_cost(self) -> float:
+        """Sum of cost across all turns."""
+        return sum(r.response.cost for r in self.turn_results)
+
     def to_dict(self) -> dict[str, object]:
         """Export as JSON-serializable dict for business-layer consumption."""
         return {
@@ -160,6 +170,8 @@ class EvalResult:
             "pass_rate": round(self.pass_rate, 4),
             "all_passed": self.all_passed,
             "total_ms": round(self.total_ms, 2),
+            "total_tokens": self.total_tokens,
+            "total_cost": round(self.total_cost, 6),
             "turns": [
                 {
                     "message": r.case.message,
@@ -172,13 +184,21 @@ class EvalResult:
                         for a in r.case.state_assertions
                     ],
                     "semantic_assertions": [
-                        {"type": a.type, "expected": a.expected, "threshold": a.threshold}
+                        {
+                            "type": a.type,
+                            "expected": a.expected,
+                            "threshold": a.threshold,
+                            **({"judge_prompt": a.judge_prompt} if a.judge_prompt else {}),
+                            **({"judge_model": a.judge_model} if a.judge_model else {}),
+                        }
                         for a in r.case.semantic_assertions
                     ],
                     "tools_called": r.response.tools_called,
                     "assertion_passed": r.assertion_passed,
                     "assertion_details": r.assertion_details,
                     "total_ms": round(r.timings.total_ms, 2),
+                    "token_usage": r.response.token_usage,
+                    "cost": r.response.cost,
                     "error": r.error,
                 }
                 for r in self.turn_results

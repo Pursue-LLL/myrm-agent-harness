@@ -20,13 +20,13 @@ classifiers = [
 dependencies = [
   # --- LangChain 生态 (Agent 框架基础) ---
   "langchain>=1.3.4",                  # Agent 编排核心
-  "langchain-core>=1.4.0",              # LangChain 基础抽象
+  "langchain-core>=1.4.2",              # LangChain 基础抽象
   "langgraph>=1.2.4",                  # 图状态机 Agent 运行时
   "langgraph-checkpoint-sqlite>=3.1.0", # SQLite 状态持久化 (checkpoint factory)
   "aiosqlite>=0.22.1",                  # async SQLite (memory stores + checkpointer)
   "dill>=0.4.1",                        # checkpoint serde (ChatLiteLLM / complex objects)
   # --- LLM 多供应商适配 ---
-  "litellm>=1.87.0", # 统一 LLM API 代理 (100+ 供应商)
+  "litellm>=1.88.1", # 统一 LLM API 代理 (100+ 供应商)
   # --- MCP 协议支持 ---
   "langchain-mcp-adapters>=0.2.2", # MCP 工具/服务适配器
   # --- 数据验证与序列化 ---
@@ -50,7 +50,7 @@ dependencies = [
   # --- 检索器（基础） ---
   "langchain-text-splitters>=1.1.2", # 代码感知文本分块
   # --- 网页爬取与内容提取（基础） ---
-  "beautifulsoup4>=4.14.3", # HTML DOM 解析与清洗（ContentPruningFilter）
+  "beautifulsoup4>=4.15.0", # HTML DOM 解析与清洗（ContentPruningFilter）
   "lxml>=6.1.1",            # bs4 lxml parser (content_pruning + tree_truncator)
   # --- Agent 协议与基础设施 ---
   "agent-client-protocol>=0.10.1", # ACP 协议 SDK (Agent 间通信)
@@ -59,7 +59,7 @@ dependencies = [
   "watchdog>=6.0.0",              # 文件系统变更监控 (backends/skills/watcher.py)
   "prometheus-client>=0.25.0",    # Prometheus 指标采集 (observability/metrics + infra/tracing)
   "sqlalchemy>=2.0.50",
-  "pdfplumber>=0.11.9",
+  "pdfplumber>=0.11.9", # PDF 文本+表格提取 (file_parsers + file_read_tool; pypdfium2 在 [file-parsers])
 ]
 
 [project.urls]
@@ -81,7 +81,7 @@ qdrant = [
 # toolkits/retriever/ - 高级检索功能（中文分词、向量检索、稀疏检索）
 retrieval = [
   "numpy>=2.4.6",     # embedding 序列化 + BM25 数值计算
-  "tenacity>=9.1.4",  # cloud embedding / reranker retries
+  "tenacity>=9.1.4",  # cloud embedding retries
   "jieba>=0.42.1",    # 中文分词 (BM25 tokenizer)
   "nltk>=3.9.4",      # 英文分词/词干提取/停用词
   "rank-bm25>=0.2.2", # BM25 稀疏检索算法
@@ -100,7 +100,7 @@ computer-use = [
 ]
 # toolkits/web_fetch/ - 反检测网页爬取（重依赖，仅 stealth 抓取场景需要）
 web = [
-  "scrapling[fetchers]>=0.4.8", # L1: curl_cffi TLS 指纹 HTTP / L3: Patchright+BrowserForge 反检测
+  "scrapling[fetchers]>=0.4.9", # L1: curl_cffi TLS 指纹 HTTP / L3: Patchright+BrowserForge 反检测
 ]
 
 # toolkits/web_search/image_search - 图片搜索（DuckDuckGo，免费无 API Key）
@@ -108,9 +108,8 @@ image-search = [
   "ddgs>=9.14.4", # DuckDuckGo Search SDK (images/text/news)
 ]
 
-# toolkits/file_parsers/ - 文件解析（PDF/DOCX/Excel）
+# toolkits/file_parsers/ - Office/PDF 渲染扩展（pdfplumber 已在 core dependencies）
 file-parsers = [
-  "pdfplumber>=0.11.9", # PDF 文本+表格提取
   "pypdfium2>=5.9.0",   # PDF 页面渲染为图片 (图片回退)
   "python-docx>=1.2.0", # Word 文档解析
   "openpyxl>=3.1.5",    # Excel 文件读写
@@ -135,7 +134,6 @@ memory-postgres = [
 # 全链路追踪与指标 (SaaS 级监控)
 observability = [
   "opentelemetry-sdk>=1.42.1",
-  "opentelemetry-instrumentation>=0.40b0",
   "opentelemetry-exporter-otlp-proto-grpc>=1.42.1",
   "openinference-instrumentation-langchain>=0.1.66",
 ]
@@ -158,7 +156,7 @@ override-dependencies = [
   "click>=8.4.1",
   "patchright>=1.59.1",
   "openai>=2.41.0",
-  "aiohttp>=3.14.0",
+  "aiohttp>=3.14.1",
   "opentelemetry-semantic-conventions>=0.61b0"
 ]
 

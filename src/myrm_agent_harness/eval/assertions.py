@@ -365,8 +365,12 @@ async def evaluate_semantic_assertions(
                     model=model,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.0,
+                    num_retries=2,
                 )
-                result_text = response.choices[0].message.content.strip()
+                raw_content = response.choices[0].message.content
+                if not raw_content:
+                    return False, "Semantic assertion: judge returned empty response"
+                result_text = raw_content.strip()
 
                 if use_scoring:
                     try:

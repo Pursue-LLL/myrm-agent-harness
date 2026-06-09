@@ -68,7 +68,8 @@ interrupt({
             "args": {...},
             "description": "reason",
             "command_spans": [{"startIndex": 0, "endIndex": 3}],  # optional, shell tools
-            "command_span_risks": ["safe", "unknown"]  # parallel to command_spans
+            "command_span_risks": ["safe", "unknown"],  # parallel to command_spans
+            "command_span_reasons": ["safe", "unknown_command"]  # parallel i18n reason codes
         }
     ],
     "reviewConfigs": [

@@ -1471,3 +1471,167 @@ class TestTransientErrorSmartBackoff:
     def test_transient_backoff_seconds_value(self) -> None:
         """Verify backoff duration is 15 minutes (900 seconds)."""
         assert _TRANSIENT_BACKOFF_SECONDS == 900
+
+
+# ---------------------------------------------------------------------------
+# cancel_execution integration
+# ---------------------------------------------------------------------------
+
+
+class _SlowRunner:
+    """Runner that sleeps for a long duration, allowing cancellation testing."""
+
+    def __init__(self, started: asyncio.Event) -> None:
+        self.calls: list[str] = []
+        self._started = started
+        self.was_cancelled = False
+
+    async def run(self, task: KanbanTask) -> tuple[bool, str]:
+        self.calls.append(task.task_id)
+        self._started.set()
+        try:
+            await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            self.was_cancelled = True
+            raise
+        return (True, "done")
+
+
+class TestCancelExecution:
+    """Integration tests for KanbanDispatcher.cancel_execution."""
+
+    @pytest.mark.asyncio
+    async def test_cancel_execution_stops_running_task(self) -> None:
+        """cancel_execution terminates the asyncio.Task of a running task."""
+        store = InMemoryKanbanStore()
+        board = _make_board()
+        await store.save_board(board)
+        task = _make_task(status=TaskStatus.READY)
+        await store.save_task(task)
+
+        started = asyncio.Event()
+        runner = _SlowRunner(started)
+        d = KanbanDispatcher(store, runner, board)
+        await d.start()
+
+        await asyncio.wait_for(started.wait(), timeout=3.0)
+        assert "t1" in runner.calls
+
+        result = await d.cancel_execution("t1")
+        assert result is True
+        assert runner.was_cancelled is True
+
+        await d.stop()
+
+    @pytest.mark.asyncio
+    async def test_cancel_execution_nonexistent_task(self) -> None:
+        """cancel_execution returns False for a task not being executed."""
+        store = InMemoryKanbanStore()
+        board = _make_board()
+        await store.save_board(board)
+
+        d = KanbanDispatcher(store, _FakeRunner(), board)
+        await d.start()
+
+        result = await d.cancel_execution("nonexistent-task")
+        assert result is False
+
+        await d.stop()
+
+    @pytest.mark.asyncio
+    async def test_cancel_execution_already_completed(self) -> None:
+        """cancel_execution returns False for a task that already finished."""
+        store = InMemoryKanbanStore()
+        board = _make_board()
+        await store.save_board(board)
+        task = _make_task(status=TaskStatus.READY)
+        await store.save_task(task)
+
+        runner = _FakeRunner(succeed=True, delay=0.0)
+        d = KanbanDispatcher(store, runner, board)
+        await d.start()
+        await asyncio.sleep(0.3)
+
+        result = await d.cancel_execution("t1")
+        assert result is False
+
+        await d.stop()
+
+    @pytest.mark.asyncio
+    async def test_cancel_execution_does_not_change_task_status(self) -> None:
+        """cancel_execution only stops execution without modifying persisted task state."""
+        store = InMemoryKanbanStore()
+        board = _make_board()
+        await store.save_board(board)
+        task = _make_task(status=TaskStatus.READY)
+        await store.save_task(task)
+
+        started = asyncio.Event()
+        runner = _SlowRunner(started)
+        d = KanbanDispatcher(store, runner, board)
+        await d.start()
+
+        await asyncio.wait_for(started.wait(), timeout=3.0)
+
+        persisted_before = await store.get_task("t1")
+        assert persisted_before is not None
+        status_before = persisted_before.status
+
+        await d.cancel_execution("t1")
+
+        # Task state should remain as it was (RUNNING) since cancel_execution
+        # only kills the asyncio.Task, it doesn't touch the store status.
+        # The caller (background_task_handler) separately calls move_task(FAILED).
+        persisted_after = await store.get_task("t1")
+        assert persisted_after is not None
+        assert persisted_after.status == status_before
+
+        await d.stop()
+
+    @pytest.mark.asyncio
+    async def test_cancel_execution_concurrent_double_cancel(self) -> None:
+        """Calling cancel_execution twice on same task: first returns True, second False."""
+        store = InMemoryKanbanStore()
+        board = _make_board()
+        await store.save_board(board)
+        task = _make_task(status=TaskStatus.READY)
+        await store.save_task(task)
+
+        started = asyncio.Event()
+        runner = _SlowRunner(started)
+        d = KanbanDispatcher(store, runner, board)
+        await d.start()
+
+        await asyncio.wait_for(started.wait(), timeout=3.0)
+
+        first = await d.cancel_execution("t1")
+        second = await d.cancel_execution("t1")
+
+        assert first is True
+        assert second is False
+
+        await d.stop()
+
+    @pytest.mark.asyncio
+    async def test_cancel_execution_cleans_up_exec_tracking(self) -> None:
+        """After cancel_execution, the task is removed from internal tracking."""
+        store = InMemoryKanbanStore()
+        board = _make_board()
+        await store.save_board(board)
+        task = _make_task(status=TaskStatus.READY)
+        await store.save_task(task)
+
+        started = asyncio.Event()
+        runner = _SlowRunner(started)
+        d = KanbanDispatcher(store, runner, board)
+        await d.start()
+
+        await asyncio.wait_for(started.wait(), timeout=3.0)
+        assert "t1" in d._task_id_to_exec
+
+        await d.cancel_execution("t1")
+        # _on_exec_done callback removes from tracking when task finishes
+        await asyncio.sleep(0.05)
+        assert "t1" not in d._task_id_to_exec
+
+        await d.stop()

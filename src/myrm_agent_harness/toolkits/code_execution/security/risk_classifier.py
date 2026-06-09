@@ -20,7 +20,9 @@ Safety guarantees:
 
 [OUTPUT]
 - CommandRiskLevel: Risk classification for a shell command.
+- SpanRiskReason: Stable i18n reason code for a pipeline segment.
 - classify_command_risk: Classify a shell command's risk level.
+- classify_segment_risk_detail: Per-segment level + reason code.
 
 [POS]
 Command risk classifier for shell_exec auto-allow decisions.
@@ -30,6 +32,16 @@ from __future__ import annotations
 
 import re
 from enum import StrEnum
+from typing import Literal
+
+SpanRiskReason = Literal[
+    "safe",
+    "empty_segment",
+    "redirect",
+    "unknown_command",
+    "unknown_subcommand",
+    "invalid_flags",
+]
 
 from myrm_agent_harness.toolkits.code_execution.security.safe_command_configs import (
     SUBCOMMAND_CONFIGS,
@@ -351,14 +363,14 @@ def _validate_flag_value(value: str, arg_type: FlagArgType) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _classify_segment(segment: str) -> CommandRiskLevel:
-    """Classify a single pipeline segment."""
+def classify_segment_risk_detail(segment: str) -> tuple[CommandRiskLevel, SpanRiskReason]:
+    """Classify a single pipeline segment with a stable i18n reason code."""
     stripped = segment.strip()
     if not stripped:
-        return CommandRiskLevel.UNKNOWN
+        return CommandRiskLevel.UNKNOWN, "empty_segment"
 
     if _has_redirect(stripped):
-        return CommandRiskLevel.UNKNOWN
+        return CommandRiskLevel.UNKNOWN, "redirect"
 
     tokens = stripped.split()
     cmd_idx = 0
@@ -369,25 +381,31 @@ def _classify_segment(segment: str) -> CommandRiskLevel:
             break
 
     if cmd_idx >= len(tokens):
-        return CommandRiskLevel.UNKNOWN
+        return CommandRiskLevel.UNKNOWN, "unknown_command"
 
     base = tokens[cmd_idx].rsplit("/", 1)[-1]
     if not base:
-        return CommandRiskLevel.UNKNOWN
+        return CommandRiskLevel.UNKNOWN, "unknown_command"
 
     subcmd_configs = SUBCOMMAND_CONFIGS.get(base)
     if subcmd_configs is not None:
         config, args_start = _resolve_subcommand(base, tokens, cmd_idx + 1, subcmd_configs)
         if config is None:
-            return CommandRiskLevel.UNKNOWN
+            return CommandRiskLevel.UNKNOWN, "unknown_subcommand"
         if _validate_flags(tokens, args_start, config, base_cmd=base):
-            return CommandRiskLevel.SAFE
-        return CommandRiskLevel.UNKNOWN
+            return CommandRiskLevel.SAFE, "safe"
+        return CommandRiskLevel.UNKNOWN, "invalid_flags"
 
     if base in SAFE_COMMANDS:
-        return CommandRiskLevel.SAFE
+        return CommandRiskLevel.SAFE, "safe"
 
-    return CommandRiskLevel.UNKNOWN
+    return CommandRiskLevel.UNKNOWN, "unknown_command"
+
+
+def _classify_segment(segment: str) -> CommandRiskLevel:
+    """Classify a single pipeline segment."""
+    level, _ = classify_segment_risk_detail(segment)
+    return level
 
 
 def _split_shell_operators(command: str) -> list[str]:

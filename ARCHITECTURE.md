@@ -99,8 +99,8 @@ Myrm Agent Harness 是一个**生产级 Agent 框架**，基于 LangChain/LangGr
 ### 语言与框架
 
 - **Python**: >= 3.13（见 `pyproject.toml`）
-- **LangChain**: >= 1.3.2（Agent 框架）
-- **LangGraph**: >= 1.2.2（流程编排）
+- **LangChain**: >= 1.3.4（Agent 框架，见 `pyproject.toml`）
+- **LangGraph**: >= 1.2.4（流程编排，见 `pyproject.toml`）
 
 ### 核心库
 
@@ -114,12 +114,14 @@ Myrm Agent Harness 是一个**生产级 Agent 框架**，基于 LangChain/LangGr
 | **存储**     | aiofiles                          | 本地文件系统存储              |
 | **检索**     | rank-bm25, jieba, tenacity (`[retrieval]`) | BM25、分词与云 embedding 重试 |
 | **浏览器**   | patchright                        | Playwright 超集，浏览器自动化 |
-| **文件解析** | pdfplumber, python-docx, openpyxl | PDF/Word/Excel 解析           |
+| **文件解析** | pdfplumber（core）                | PDF 文本+表格提取（默认安装） |
 | **工具**     | nanoid                            | 唯一 ID 生成                  |
 
 ### 可选依赖（extras）
 
+- **`[file-parsers]`**: pypdfium2, python-docx, openpyxl, python-pptx（Office 与 PDF 页面渲染；pdfplumber 已在 core）
 - **`[retrieval]`**: numpy, jieba, rank-bm25, tenacity（云 embedding 重试）
+- **`[observability]`**: opentelemetry-sdk, opentelemetry-exporter-otlp-proto-grpc, openinference-instrumentation-langchain（Phoenix / OTLP 追踪；`opentelemetry-instrumentation` 由 openinference 传递依赖）
 - **`[memory-postgres]`**: langgraph-checkpoint-postgres, asyncpg
 - **`[compiled-core]`**: 平台 native 扩展 wheel（见 `harness_packaging/DISTRIBUTION_SYSTEM.md`）
 - **E2B / S3 / ripgrep**: 由业务层或运行时可选接入

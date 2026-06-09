@@ -59,7 +59,7 @@ class TracingConfig:
     注意：为了保证数据隐私，默认推荐使用本地 Phoenix。
     """
 
-    enable_local_ui: bool = False  # 是否启用本地 Phoenix UI (需安装 [ui] 依赖)
+    enable_local_ui: bool = False  # 是否启用本地 Phoenix UI (需安装 [observability] 依赖)
     enable_langsmith: bool = False  # 是否启用 LangSmith (需配置 LANGCHAIN_TRACING_V2 等环境变量)
     phoenix_project_name: str = "myrm-agent"  # Phoenix 项目名称
 

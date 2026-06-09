@@ -123,7 +123,11 @@ def _parse_case(item: dict[str, object]) -> EvalCase:
     for a in item.get("semantic_assertions", []):
         semantic_assertions.append(
             SemanticAssertion(
-                type=a.get("type", "llm_judge"), expected=a.get("expected"), threshold=a.get("threshold", 1.0)
+                type=a.get("type", "llm_judge"),
+                expected=a.get("expected"),
+                threshold=a.get("threshold", 1.0),
+                judge_prompt=a.get("judge_prompt"),
+                judge_model=a.get("judge_model"),
             )
         )
 

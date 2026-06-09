@@ -6,7 +6,8 @@
 [OUTPUT]
 - extract_command_spans: Pipeline/logical segment spans (128KB cap, tree-sitter + quote-aware fallback).
 - classify_span_risk_levels: Per-segment safe/unknown levels via risk_classifier.
-- build_shell_approval_fields: Spans + risks from redacted display args.
+- classify_span_risk_reasons: Per-segment stable i18n reason codes via risk_classifier.
+- build_shell_approval_fields: Spans, risks, and reasons from redacted display args.
 - extract_shell_command_text: Read command/code from tool args.
 - is_shell_approval_tool: Whether a tool name participates in shell span UX.
 
@@ -22,6 +23,7 @@ from typing import TYPE_CHECKING
 from myrm_agent_harness.toolkits.code_execution.security.command_explainer.types import (
     CommandSpan,
     SpanRiskLevel,
+    SpanRiskReason,
 )
 
 if TYPE_CHECKING:
@@ -62,22 +64,39 @@ def extract_command_spans(command: str) -> list[CommandSpan]:
     return _extract_spans_quote_aware(stripped)
 
 
-def classify_span_risk_levels(command: str, spans: list[CommandSpan]) -> list[SpanRiskLevel]:
-    """Classify each span segment using the existing shell risk classifier."""
+def _classify_span_risk_pairs(
+    command: str,
+    spans: list[CommandSpan],
+) -> tuple[list[SpanRiskLevel], list[SpanRiskReason]]:
     from myrm_agent_harness.toolkits.code_execution.security.risk_classifier import (
         CommandRiskLevel,
-        classify_command_risk,
+        classify_segment_risk_detail,
     )
 
     levels: list[SpanRiskLevel] = []
+    reasons: list[SpanRiskReason] = []
     for span in spans:
-        segment = command[span["startIndex"] : span["endIndex"]].strip()
-        if not segment:
+        segment = command[span["startIndex"] : span["endIndex"]]
+        level, reason = classify_segment_risk_detail(segment)
+        if level == CommandRiskLevel.SAFE:
+            levels.append("safe")
+            reasons.append("safe")
+        else:
             levels.append("unknown")
-            continue
-        level = classify_command_risk(segment)
-        levels.append("safe" if level == CommandRiskLevel.SAFE else "unknown")
+            reasons.append(reason)
+    return levels, reasons
+
+
+def classify_span_risk_levels(command: str, spans: list[CommandSpan]) -> list[SpanRiskLevel]:
+    """Classify each span segment using the existing shell risk classifier."""
+    levels, _ = _classify_span_risk_pairs(command, spans)
     return levels
+
+
+def classify_span_risk_reasons(command: str, spans: list[CommandSpan]) -> list[SpanRiskReason]:
+    """Classify each span segment and return stable i18n reason codes."""
+    _, reasons = _classify_span_risk_pairs(command, spans)
+    return reasons
 
 
 def build_shell_approval_fields(
@@ -96,9 +115,11 @@ def build_shell_approval_fields(
     if not spans:
         return {}
 
+    levels, reasons = _classify_span_risk_pairs(shell_text, spans)
     return {
         "command_spans": spans,
-        "command_span_risks": classify_span_risk_levels(shell_text, spans),
+        "command_span_risks": levels,
+        "command_span_reasons": reasons,
     }
 
 

@@ -397,6 +397,9 @@ def create_delegate_task_tool(
                                 command_span_risks = req.get("command_span_risks")
                                 if command_span_risks:
                                     args["command_span_risks"] = command_span_risks
+                                command_span_reasons = req.get("command_span_reasons")
+                                if command_span_reasons:
+                                    args["command_span_reasons"] = command_span_reasons
                                 tool_calls.append(
                                     {
                                         "name": req.get("action", "unknown"),

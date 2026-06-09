@@ -94,6 +94,9 @@ class MarkdownReporter:
         """Write the EvalResult to the output path."""
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
 
+        total_tokens = result.total_tokens
+        total_cost = result.total_cost
+
         lines = [
             "# Evaluation Report",
             "",
@@ -106,10 +109,21 @@ class MarkdownReporter:
             f"- **Skipped**: {result.skip_count}",
             f"- **Pass Rate**: {result.pass_rate * 100:.1f}%",
             f"- **Total Time**: {result.total_ms:.0f}ms",
-            "",
-            "## Details",
-            "",
         ]
+
+        if total_tokens > 0:
+            avg_tokens = total_tokens // result.total_cases if result.total_cases else 0
+            lines.append(f"- **Total Tokens**: {total_tokens:,} (avg {avg_tokens:,}/case)")
+        if total_cost > 0:
+            lines.append(f"- **Total Cost**: ${total_cost:.4f}")
+
+        lines.extend(
+            [
+                "",
+                "## Details",
+                "",
+            ]
+        )
 
         for i, turn in enumerate(result.turn_results, 1):
             status = " PASS" if turn.assertion_passed else (" FAIL" if turn.assertion_passed is False else " SKIP")

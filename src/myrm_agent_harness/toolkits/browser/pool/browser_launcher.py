@@ -179,7 +179,7 @@ class BrowserInstance:
 
 
 class BrowserLauncher:
-    """Browser instance launcher with launch/connect/auto modes."""
+    """Browser instance launcher with launch/connect/auto/remote/extension modes."""
 
     def __init__(
         self,
@@ -189,6 +189,7 @@ class BrowserLauncher:
         cdp_endpoint: str | None = None,
         remote_ws_endpoint: str | None = None,
         remote_ws_headers: dict[str, str] | None = None,
+        extension_bridge: object | None = None,
     ) -> None:
         self._launch_options = launch_options
         self._launch_mode = launch_mode
@@ -196,6 +197,7 @@ class BrowserLauncher:
         self._cdp_endpoint = cdp_endpoint or _DEFAULT_CDP_ENDPOINT
         self._remote_ws_endpoint = remote_ws_endpoint
         self._remote_ws_headers = remote_ws_headers
+        self._extension_bridge = extension_bridge
         self._playwright: Playwright | None = None
         self._total_browsers = 0
 
@@ -207,10 +209,11 @@ class BrowserLauncher:
         return self._playwright
 
     async def create_browser(self, headers: dict[str, str] | None = None) -> BrowserInstance:
-        """Create Browser via configured launch_mode (launch/connect/auto/remote).
+        """Create Browser via configured launch_mode (launch/connect/auto/remote/extension).
 
         AUTO mode: probe CDP → connect if available → fallback to launch.
         REMOTE mode: connect to remote WebSocket endpoint.
+        EXTENSION mode: connect through browser extension's CDP proxy.
 
         Returns:
             BrowserInstance with initialized browser
@@ -219,6 +222,9 @@ class BrowserLauncher:
             BrowserLaunchError: If all strategies fail
 
         """
+        if self._launch_mode == LaunchMode.EXTENSION:
+            return await self._connect_extension()
+
         if self._launch_mode == LaunchMode.REMOTE:
             if not self._remote_ws_endpoint:
                 raise BrowserLaunchError("remote_ws_endpoint is required for REMOTE launch mode")
@@ -379,6 +385,46 @@ class BrowserLauncher:
             error_msg = _build_install_failure_message(last_exc)
         logger.error(error_msg)
         raise BrowserLaunchError(error_msg) from last_exc
+
+    async def _connect_extension(self) -> BrowserInstance:
+        """Connect through browser extension's CDP proxy.
+
+        The extension_bridge (injected from business layer) handles:
+        - WebSocket connection management
+        - Tab selection and domain authorization
+        - chrome.debugger attachment and CDP message routing
+
+        Returns:
+            BrowserInstance with is_managed=False (extension owns the browser lifecycle).
+
+        Raises:
+            BrowserLaunchError: If extension bridge is not available or connection fails.
+        """
+        from .extension_bridge import ExtensionBridge, ExtensionBridgeNotAvailable
+
+        if self._extension_bridge is None:
+            raise BrowserLaunchError(
+                "extension_bridge is required for EXTENSION launch mode. "
+                "Ensure the browser extension is installed and connected."
+            )
+
+        if not isinstance(self._extension_bridge, ExtensionBridge):
+            raise BrowserLaunchError(
+                f"extension_bridge must implement ExtensionBridge Protocol, "
+                f"got {type(self._extension_bridge).__name__}"
+            )
+
+        try:
+            instance = await self._extension_bridge.connect(timeout=10.0)
+            self._total_browsers += 1
+            logger.info("EXTENSION mode: connected to user's browser via extension bridge")
+            return instance
+        except ExtensionBridgeNotAvailable as exc:
+            raise BrowserLaunchError(str(exc)) from exc
+        except Exception as exc:
+            raise BrowserLaunchError(
+                f"Extension bridge connection failed: {exc}"
+            ) from exc
 
     async def shutdown(self) -> None:
         """Shutdown Playwright."""

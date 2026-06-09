@@ -14,6 +14,10 @@
 - ProxyConfig: proxy server config
 - ProxyPool: proxy pool protocol (supports rotation and sticky sessions)
 - RoundRobinProxyPool: default round-robin proxy pool implementation
+- ExtensionBridge: Protocol for browser extension CDP proxy integration
+- ExtensionTab: data class for tabs exposed by extension
+- ExtensionStatus: real-time extension connection status
+- ExtensionBridgeNotAvailable: exception when extension is not connected
 - get_global_browser_pool: get global browser pool singleton
 - reset_global_browser_pool_for_tests: shut down and clear pool singleton (test teardown)
 
@@ -43,6 +47,7 @@ from .config import (
 )
 from .context_factory import ContextFactory
 from .emulation import EmulationConfig
+from .extension_bridge import ExtensionBridge, ExtensionBridgeNotAvailable, ExtensionStatus, ExtensionTab
 from .page_pool import PagePool
 from .proxy import ProxyConfig, ProxyPool, RoundRobinProxyPool
 from .singleton import get_global_browser_pool, reset_global_browser_pool_for_tests
@@ -64,6 +69,10 @@ __all__ = [
     "ContextFactory",
     "ContextType",
     "EmulationConfig",
+    "ExtensionBridge",
+    "ExtensionBridgeNotAvailable",
+    "ExtensionStatus",
+    "ExtensionTab",
     "GlobalBrowserPool",
     "LaunchMode",
     "LoggingCallback",
