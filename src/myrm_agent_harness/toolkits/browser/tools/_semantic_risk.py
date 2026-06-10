@@ -114,6 +114,7 @@ def classify_interaction_risk(action: str, ref_info: RefInfo) -> RiskVerdict:
     Only mutating actions (click, dblclick) on elements whose name or role
     signals a destructive/financial/admin operation are classified as HIGH.
     Read-only actions (hover, focus, scroll, scroll_to_bottom) are always SAFE.
+    browser_extract (all modes: text, screenshot, media, diff) is inherently read-only.
 
     Args:
         action: The interaction action (click, fill, hover, ...).

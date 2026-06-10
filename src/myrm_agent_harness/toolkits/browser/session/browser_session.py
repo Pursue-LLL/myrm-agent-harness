@@ -27,6 +27,7 @@
   - snapshot(...) -> SnapshotResult: generate ARIA snapshot (frozen dataclass, immutable)
   - extract_text(...) -> str: extract page text with pagination support
   - extract_structured(...) -> str: extract structured JSON data via LLM + JSON Schema
+  - extract_media(...) -> str: extract high-value media resource URLs (images/videos/audio)
   - get_ref_info(ref_id: str) -> RefInfo | None: get element reference info
   - get_all_refs() -> MappingProxyType[str, RefInfo]: get all element reference mappings (immutable view)
   - get_session_hash(domain: str) -> str | None: get cached session state hash (in-memory read)
@@ -676,6 +677,17 @@ class BrowserSession(
 
         retina = scale >= 2.0
         return await extractor.extract_screenshot(retina)
+
+    async def extract_media(self, selector: str = "", max_images: int = 50, max_videos: int = 20, max_audios: int = 10) -> str:
+        """Extract all high-value media resource URLs from the page."""
+        await self._ensure_components()
+        extractor = self._require_extractor()
+        return await extractor.extract_media(
+            selector=selector,
+            max_images=max_images,
+            max_videos=max_videos,
+            max_audios=max_audios,
+        )
 
     async def compare_screenshots(
         self,

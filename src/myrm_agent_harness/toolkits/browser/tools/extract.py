@@ -31,9 +31,11 @@ def create_extract_tool(session: BrowserSession):
             default="text",
             description="'text' for readable page text (precise, low-cost), "
             "'screenshot' for JPEG visual capture (layout verification only, ~850 tokens), "
+            "'media' for all high-value image/video/audio direct URLs (one call replaces complex JS), "
             "'diff_fast' for quick visual change detection (~2ms, perceptual hash similarity), "
             "'diff_accurate' for detailed visual analysis (~100ms, pixel-level mismatch + diff image). "
-            "Prefer 'text' for reading content; use 'screenshot' for visual layout; "
+            "Prefer 'text' for reading content; use 'media' for extracting image/video/audio links; "
+            "use 'screenshot' for visual layout; "
             "use 'diff_fast' after actions to verify visual changes; use 'diff_accurate' for debugging.",
         )
         scale: float = Field(
@@ -115,6 +117,7 @@ def create_extract_tool(session: BrowserSession):
 
         mode='text': returns all visible text — use for reading content, tables, data.
         mode='screenshot': returns base64 JPEG (1280x720, q=50) — use only for visual verification.
+        mode='media': returns all high-value image/video/audio URLs with metadata.
         mode='diff_fast': quick visual change detection (~2ms, perceptual hash similarity).
         mode='diff_accurate': detailed visual analysis (~100ms, pixel-level mismatch + diff image).
 
@@ -122,6 +125,8 @@ def create_extract_tool(session: BrowserSession):
         """
         if mode == "screenshot":
             return await session.extract_screenshot(scale=scale)
+        if mode == "media":
+            return mark_untrusted(await session.extract_media(selector=selector))
         if mode == "diff_fast":
             if not baseline:
                 return (

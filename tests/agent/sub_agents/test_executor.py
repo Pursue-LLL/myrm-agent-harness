@@ -146,6 +146,23 @@ class TestRetryLogic:
             assert mock_attempt.call_count == basic_config.max_retries
 
 
+    @pytest.mark.asyncio
+    async def test_zero_retries_returns_failed(self, executor):
+        """max_retries=0 should immediately return FAILED without any attempt."""
+        config = SubagentConfig(system_prompt="s", max_retries=0)
+        parent_agent = MagicMock()
+
+        result = await executor.run_with_retry(
+            task_id="t1", agent_type="sys", task_description="d",
+            config=config, context={}, tool_registry_getter=lambda: [],
+            start_time=0.0, parent_agent=parent_agent,
+            cancel_flags={}, children_agents={}, children_steering={},
+        )
+
+        assert result.success is False
+        assert result.error == "Max retries exceeded"
+
+
 class TestTimeoutHandling:
     """Test timeout retry and exhaustion."""
 
