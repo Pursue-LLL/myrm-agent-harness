@@ -17,6 +17,6 @@ Composable `MemoryManager` implementation. External code imports `MemoryManager`
 | `listing_maintenance.py` | Mixin | List, health, archive, backup, maintenance | ✅ |
 | `mutations.py` | Mixin | Rate, correct, pin, update | ✅ |
 | `storage.py` | Mixin | Backend accessors and private store paths | ✅ |
-| `import_export.py` | Mixin | Bulk export and import | ✅ |
+| `import_export.py` | Mixin | Bulk export (JSON + Markdown), import | ✅ |
 | `helpers.py` | Internal | `_memory_ref`, `_infer_preference_category` | — |
 | `__init__.py` | Facade | Composes `MemoryManager` | ✅ |

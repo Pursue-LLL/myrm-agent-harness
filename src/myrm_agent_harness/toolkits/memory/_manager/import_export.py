@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import re
+from datetime import datetime
+from pathlib import Path
+
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     EpisodicMemory,
     MemoryType,
@@ -11,8 +15,124 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
 )
 
 
+def _sanitize_filename(text: str, max_len: int = 60) -> str:
+    """Create a safe filename from memory content."""
+    clean = re.sub(r"[^\w\s\u4e00-\u9fff-]", "", text)
+    clean = re.sub(r"\s+", "_", clean.strip())
+    return clean[:max_len] if clean else "untitled"
+
+
+def _memory_to_markdown(memory_dict: dict[str, object], memory_type: str) -> str:
+    """Convert a single memory dict to Markdown with YAML frontmatter."""
+    mem_id = memory_dict.get("id", "")
+    content = str(memory_dict.get("content", ""))
+    created_at = memory_dict.get("created_at", "")
+    updated_at = memory_dict.get("updated_at", "")
+    metadata = memory_dict.get("metadata", {})
+    tags = []
+    if isinstance(metadata, dict):
+        for k, v in metadata.items():
+            if k == "tags" and isinstance(v, str):
+                tags.extend(t.strip() for t in v.split(",") if t.strip())
+            elif k == "category" and isinstance(v, str):
+                tags.append(v)
+
+    tags_line = f"\ntags: [{', '.join(tags)}]" if tags else ""
+
+    frontmatter = (
+        f"---\n"
+        f"id: {mem_id}\n"
+        f"type: {memory_type}\n"
+        f"created_at: {created_at}\n"
+        f"updated_at: {updated_at}{tags_line}\n"
+        f"---\n"
+    )
+    return f"{frontmatter}\n{content}\n"
+
+
 class MemoryManagerImportExportMixin:
     # ── Export / Import ──
+
+    async def export_markdown(
+        self,
+        target_dir: str | Path,
+        *,
+        since_ts: datetime | None = None,
+        agent_id: str | None = None,
+    ) -> dict[str, int]:
+        """Export memories as Markdown files organized by type.
+
+        Each memory becomes a `.md` file with YAML frontmatter (id, type,
+        created_at, tags) inside a subdirectory named after the memory type.
+
+        Args:
+            target_dir: Root directory for exported files.
+            since_ts: Only export memories created/updated after this timestamp.
+            agent_id: Only export memories belonging to this agent (via scope).
+
+        Returns:
+            Dict with export counts per memory type.
+        """
+        target = Path(target_dir)
+        counts: dict[str, int] = {}
+
+        data = await self.export_all()
+
+        for type_name, entries in data.items():
+            type_dir = target / type_name
+            type_dir.mkdir(parents=True, exist_ok=True)
+
+            exported = 0
+            id_to_path: dict[str, Path] = {}
+
+            for existing_file in type_dir.glob("*.md"):
+                try:
+                    text = existing_file.read_text(encoding="utf-8")
+                    id_match = re.search(r"^id:\s*(.+)$", text, re.MULTILINE)
+                    if id_match:
+                        id_to_path[id_match.group(1).strip()] = existing_file
+                except OSError:
+                    pass
+
+            for entry in entries:
+                mem_id = str(entry.get("id", ""))
+
+                if since_ts:
+                    updated = entry.get("updated_at") or entry.get("created_at")
+                    if updated and isinstance(updated, str):
+                        try:
+                            entry_ts = datetime.fromisoformat(updated)
+                            if entry_ts < since_ts:
+                                continue
+                        except (ValueError, TypeError):
+                            pass
+
+                if agent_id:
+                    scope = entry.get("scope")
+                    if isinstance(scope, dict):
+                        ns_list = scope.get("namespaces", [])
+                        if not any(agent_id in str(ns) for ns in ns_list):
+                            continue
+
+                content = str(entry.get("content", ""))
+                md_content = _memory_to_markdown(entry, type_name)
+
+                if mem_id in id_to_path:
+                    try:
+                        id_to_path[mem_id].write_text(md_content, encoding="utf-8")
+                        exported += 1
+                    except OSError:
+                        pass
+                else:
+                    filename = f"{_sanitize_filename(content)}_{mem_id[:8]}.md"
+                    file_path = type_dir / filename
+                    file_path.write_text(md_content, encoding="utf-8")
+                    id_to_path[mem_id] = file_path
+                    exported += 1
+
+            counts[type_name] = exported
+
+        return counts
 
     async def export_all(self) -> dict[str, list[dict[str, object]]]:
         """Export all memories as serializable dicts (excludes embeddings for portability).
