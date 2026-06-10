@@ -121,11 +121,6 @@ fastapi = [
   "fastapi>=0.136.3",
 ]
 
-# toolkits/memory/ - 记忆持久化 (PostgreSQL); SQLite checkpoint deps live in core dependencies
-memory-postgres = [
-  "langgraph-checkpoint-postgres>=3.1.0",
-  "asyncpg>=0.31.0",
-]
 # 全链路追踪与指标 (SaaS 级监控)
 observability = [
   "opentelemetry-sdk>=1.42.1",
@@ -141,7 +136,7 @@ compiled-core = [
   "myrm-agent-harness-core-win32-arm64==0.1.0rc2; platform_system == 'Windows' and platform_machine == 'ARM64'",
 ]
 all = [
-  "myrm-agent-harness[browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,memory-postgres,image-search]",
+  "myrm-agent-harness[browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,image-search]",
 ]
 
 [tool.uv]
@@ -329,7 +324,6 @@ dev = [
   "ruff>=0.15.15",                   # Linter + Formatter
   "mypy>=2.1.0",                    # 静态类型检查
   "aiosqlite>=0.22.1",               # SQLite async driver (for checkpoint tests)
-  "asyncpg>=0.31.0",                 # PostgreSQL async driver (for checkpoint tests)
   "respx>=0.23.1",                   # HTTPX mock
   "scikit-learn>=1.9.0",             # ML utilities (test)
   "types-aiofiles>=25.1.0.20251011", # Type stubs

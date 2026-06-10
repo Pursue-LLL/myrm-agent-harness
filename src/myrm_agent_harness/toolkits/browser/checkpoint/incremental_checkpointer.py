@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 class IncrementalSessionCheckpointer(BaseCheckpointSaver):
     """Decorator for LangGraph checkpointer with metadata tracking and fine-grained concurrency.
 
-    Wraps an existing checkpointer (AsyncSqliteSaver or AsyncPostgresSaver) and adds:
+    Wraps an existing checkpointer (AsyncSqliteSaver) and adds:
     1. Metadata tracking for Session Vault state (session_hash)
     2. Extended metadata (current_url, session_domain, counters)
     3. Performance metrics tracking

@@ -1,7 +1,7 @@
 # checkpointing/
 
 ## Overview
-Checkpointer factory — creation, configuration, and cleanup for SQLite/PostgreSQL/Memory backends.
+Checkpointer factory — creation, configuration, and cleanup for SQLite/Memory backends.
 
 ## File & Submodule Index
 

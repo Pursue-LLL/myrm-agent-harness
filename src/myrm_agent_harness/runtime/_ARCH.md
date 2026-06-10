@@ -24,7 +24,7 @@ Detailed design: [CONVERSATION_FORK_DESIGN.md](CONVERSATION_FORK_DESIGN.md)
 
 | Submodule | Description |
 |-----------|-------------|
-| checkpointing/ | Checkpointer factory — creation, configuration, and cleanup for SQLite/PostgreSQL/Memory backends. |
+| checkpointing/ | Checkpointer factory — creation, configuration, and cleanup for SQLite/Memory backends. |
 | context/ | Context lifecycle management — cleanup, config, metrics, access tracking, reading, scoped offload, atomic archive storage, and restore-map sidecars. |
 | events/ | Events submodule. |
 | maintenance/ | Global Adaptive Maintenance Scheduling. |

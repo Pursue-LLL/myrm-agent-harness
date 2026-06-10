@@ -319,7 +319,8 @@ class BrowserConfig:
     """Browser pool top-level configuration.
 
     Fields: mode, launch_mode, cdp_endpoint, max_concurrent_pages, resource_block,
-    default_emulation, navigation_wait, robustness (optional; filled from mode when None).
+    default_emulation, navigation_wait, robustness (optional; filled from mode when None),
+    auto_dismiss_popups (default True; auto-dismiss cookie consent banners after navigation).
 
     ``default_emulation`` provides fallback EmulationConfig (e.g. clipboard permissions)
     applied to every BrowserContext created by ContextFactory when the caller does not
@@ -346,6 +347,7 @@ class BrowserConfig:
     default_emulation: EmulationConfig | None = None
     navigation_wait: NavigationWaitConfig | None = None
     robustness: RobustnessPolicy | None = None
+    auto_dismiss_popups: bool = True
 
     def __post_init__(self) -> None:
         if not 1 <= self.max_concurrent_pages <= 100:

@@ -49,14 +49,17 @@ _SCREENSHOT_MAX_HEIGHT = 720
 
 
 class Extractor:
-    """ContentExtract管理器 — 单一职责
+    """Content extraction manager — single responsibility.
 
-    职责:
-    1. textExtract
-    2. ScreenshotExtract(JPEG Compress)
-    3. PDF 导出
+    Capabilities:
+    1. Text extraction (DOM→Markdown with SVG text/tspan support)
+    2. Screenshot capture (JPEG compression)
+    3. Screenshot comparison (fast dHash / accurate Canvas API)
+    4. PDF export
+    5. Visual content detection (Canvas/SVG significance check)
+    6. Media extraction (images/videos/audio direct URLs with intelligent filtering)
 
-     not 涉 and :导航、SnapshotGenerate、Element交互、Screenshot对比 etc.。
+    Does NOT handle: navigation, snapshot generation, element interaction.
     """
 
     def __init__(self, page: Page):
@@ -364,6 +367,16 @@ class Extractor:
                     return abs(best);
                 }}
 
+                function findLazySrc(el) {{
+                    for (const attr of el.attributes) {{
+                        if (attr.name !== 'src' && /^data-.*src/i.test(attr.name)) {{
+                            const resolved = abs(attr.value);
+                            if (resolved) return resolved;
+                        }}
+                    }}
+                    return null;
+                }}
+
                 // Collect images
                 const images = [];
                 for (const img of root.querySelectorAll('img')) {{
@@ -372,7 +385,9 @@ class Extractor:
                         || abs(img.getAttribute('data-src'))
                         || abs(img.getAttribute('data-lazy-src'))
                         || abs(img.getAttribute('data-original'))
-                        || parseSrcset(img.getAttribute('srcset'));
+                        || parseSrcset(img.getAttribute('srcset'))
+                        || parseSrcset(img.getAttribute('data-srcset'))
+                        || findLazySrc(img);
                     const url = dedup(src);
                     if (!url) continue;
                     const w = img.naturalWidth || img.width || parseInt(img.getAttribute('width')) || null;
@@ -448,7 +463,8 @@ class Extractor:
             }}
         """
 
-        all_media: dict = {"images": [], "videos": [], "audios": [], "metaImages": []}
+        all_media: dict[str, list[dict[str, str | int | None]]] = {"images": [], "videos": [], "audios": [], "metaImages": []}
+        seen_urls: set[str] = set()
 
         for i, frame in enumerate(self._page.frames):
             try:
@@ -457,7 +473,11 @@ class Extractor:
                     {"maxImages": max_images, "maxVideos": max_videos, "maxAudios": max_audios, "selector": selector},
                 )
                 for key in all_media:
-                    all_media[key].extend(frame_media.get(key, []))
+                    for item in frame_media.get(key, []):
+                        url = item.get("url", "")
+                        if url and url not in seen_urls:
+                            seen_urls.add(url)
+                            all_media[key].append(item)
             except Exception as exc:
                 logger.debug("Extractor: could not extract media from frame %d: %s", i, exc)
 

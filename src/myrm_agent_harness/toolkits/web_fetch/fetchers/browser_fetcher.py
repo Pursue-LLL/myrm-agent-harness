@@ -106,6 +106,7 @@ class BrowserFetcher:
                 circuit_breaker=self._pool.circuit_breaker,
                 domain_metrics_manager=get_global_domain_metrics_manager(),
                 allow_private_networks=self._allow_private_networks,
+                auto_dismiss_popups=self._pool.config.auto_dismiss_popups,
             )
             _title, final_url, status_code = await navigator.goto(url)
 

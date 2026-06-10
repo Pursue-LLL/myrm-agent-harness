@@ -29,8 +29,8 @@ async def test_env(tmp_path):
     conn = await aiosqlite.connect(str(db_path))
 
     # Create thread registry table
-    await create_thread_tables(conn, backend="sqlite")
-    thread_store = ThreadStore(conn, backend="sqlite")
+    await create_thread_tables(conn)
+    thread_store = ThreadStore(conn)
 
     # Create checkpointer
     base_saver = MemorySaver()

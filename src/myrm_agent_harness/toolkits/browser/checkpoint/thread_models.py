@@ -9,7 +9,6 @@
 - ThreadStatus: Type alias for thread status
 - ThreadRecord: Dataclass for thread metadata
 - SQLITE_THREAD_TABLE_SQL: SQLite table schema
-- POSTGRES_THREAD_TABLE_SQL: PostgreSQL table schema
 
 [POS]
 Thread Registry data models. Defines thread record structures and database table schema.
@@ -86,18 +85,6 @@ CREATE TABLE IF NOT EXISTS checkpoint_threads (
     status TEXT NOT NULL,
     created_at TEXT NOT NULL,
     last_active_at TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_threads_status ON checkpoint_threads(status);
-CREATE INDEX IF NOT EXISTS idx_threads_last_active ON checkpoint_threads(last_active_at);
-"""
-
-POSTGRES_THREAD_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS checkpoint_threads (
-    thread_id TEXT PRIMARY KEY,
-    status TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL,
-    last_active_at TIMESTAMPTZ NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_threads_status ON checkpoint_threads(status);

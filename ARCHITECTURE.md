@@ -123,7 +123,6 @@ Myrm Agent Harness 是一个**生产级 Agent 框架**，基于 LangChain/LangGr
 - **`[file-parsers]`**: pypdfium2, python-docx, openpyxl, python-pptx（Office 与 PDF 页面渲染；pdfplumber 已在 core）
 - **`[retrieval]`**: numpy, jieba, rank-bm25, tenacity（云 embedding 重试）
 - **`[observability]`**: opentelemetry-sdk, opentelemetry-exporter-otlp-proto-grpc, openinference-instrumentation-langchain（Phoenix / OTLP 追踪；`opentelemetry-instrumentation` 由 openinference 传递依赖）
-- **`[memory-postgres]`**: langgraph-checkpoint-postgres, asyncpg
 - **`[compiled-core]`**: 平台 native 扩展 wheel（见 `harness_packaging/DISTRIBUTION_SYSTEM.md`）
 - **E2B / S3 / ripgrep**: 由业务层或运行时可选接入
 

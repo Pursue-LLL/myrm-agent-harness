@@ -19,8 +19,8 @@ async def sqlite_store(tmp_path):
     db_path = tmp_path / "test_threads.db"
     conn = await aiosqlite.connect(str(db_path))
 
-    await create_thread_tables(conn, backend="sqlite")
-    store = ThreadStore(conn, backend="sqlite")
+    await create_thread_tables(conn)
+    store = ThreadStore(conn)
 
     yield store
 

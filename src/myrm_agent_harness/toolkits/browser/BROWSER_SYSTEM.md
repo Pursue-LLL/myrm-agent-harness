@@ -564,7 +564,7 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 | `browser_inspect_tool` | **轻量级页面结构分析** | _(单一职责，无 action)_ |
 | `browser_snapshot_tool` | ARIA 快照 + iframe + Token 优化 + cursor-interactive | `scope`, `compact`, `selector`, `max_tokens`, `diff`, `cursor_interactive` |
 | `browser_interact_tool` | 13 种交互 | click, dblclick, type, fill, press, hover, focus, select, scroll, upload_file, drag, check, uncheck |
-| `browser_extract_tool` | 文本 + 截图 + 结构化提取 + diff | text / screenshot / diff_fast / diff_accurate + extraction_schema |
+| `browser_extract_tool` | 文本 + 截图 + 媒体URL + 结构化提取 + diff | text / screenshot / media / diff_fast / diff_accurate + extraction_schema |
 | `browser_manage_tool` | Tab + JS + 历史 + 对话框 + Session + Network + HITL | 21 种 action（含 network_detail/network_replay + save/restore/list/delete_session + wait_for_user） |
 | `browser_execute_script_tool` | **Code-as-Action 批量执行** | _(单一职责，执行 Python 脚本)_ |
 | `browser_ask_human_tool` | **人类接管请求** | _(单一职责，Agent 触发 HITL interrupt + VNC 自动弹出)_ |
@@ -954,7 +954,7 @@ browser/
 │   ├── navigator.py (153 行) — Navigator（含 URL scheme 白名单验证与重试自愈）
 │   ├── snapshot_manager.py (281 行) — SnapshotManager（委托 FrameRegistry）
 │   ├── interactor.py (178 行) — Interactor
-│   ├── extractor.py (171 行) — Extractor
+│   ├── extractor.py (545 行) — Extractor
 │   ├── page_analyzer.py (202 行) — PageAnalyzer（两阶段快照架构）
 │   ├── session_persistence.py (232 行) — SessionPersistence（会话持久化）
 │   ├── session_lifecycle_hook.py — SessionLifecycleHookProtocol（会话生命周期钩子协议）

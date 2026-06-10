@@ -48,6 +48,7 @@ Browser session manager. As the aggregate root, composes single-responsibility c
 11. DownloadManager (file download management, optional)
 12. CaptchaCoordinator (CAPTCHA detection and solving coordination, optional)
 13. DialogManager (JS dialog lifecycle handling with configurable policy)
+14. ConsentDismisser (cookie consent auto-accept after navigation, zero LLM cost)
 
 The aggregate root class combines three Mixins (Persistence/Recording/Page) via multiple inheritance, coordinating with Tab/navigation/snapshot/interaction/extraction submodules.
 """
@@ -136,6 +137,7 @@ class BrowserSession(
         engine_preference: str | None = None,
         launch_mode_preference: str | None = None,
         dialog_policy: str | None = None,
+        auto_dismiss_consent: bool = True,
     ):
         """Initialize BrowserSession.
 
@@ -156,6 +158,7 @@ class BrowserSession(
             engine_preference: Preferred browser engine (e.g. 'chromium_patchright', 'firefox_camoufox').
             launch_mode_preference: Per-agent launch mode override (e.g. 'extension' to use user's real browser).
             dialog_policy: Dialog handling strategy ('smart', 'auto_accept', 'auto_dismiss', 'wait_for_agent').
+            auto_dismiss_consent: Auto-accept cookie consent banners after navigation (default True).
         """
         from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine, LaunchMode
 
@@ -223,6 +226,11 @@ class BrowserSession(
             logger.warning(f"Invalid dialog_policy '{dialog_policy}', falling back to SMART.")
             policy = DialogPolicy.SMART
         self._dialog_manager = DialogManager(policy=policy)
+
+        # Cookie consent auto-dismisser (active by default)
+        from myrm_agent_harness.toolkits.browser.session.consent_dismisser import ConsentDismisser
+
+        self._consent_dismisser = ConsentDismisser(enabled=auto_dismiss_consent)
 
     async def new_tab(self, url: str | None = None) -> str:
         """Create new Tab or reuse existing same-origin Tab, return Tab ID."""
@@ -339,12 +347,20 @@ class BrowserSession(
                     title = await self._tab_controller.get_active_page().title()
                     final_url = self._tab_controller.get_active_page().url
 
+        # Auto-dismiss cookie consent banners (post-CAPTCHA, before snapshot baseline)
+        consent_msg: str | None = None
+        if self._consent_dismisser.enabled:
+            page = self._tab_controller.get_active_page()
+            consent_msg = await self._consent_dismisser.dismiss(page)
+
         snapshot_manager.reset_diff_baseline()
         self._tab_controller.clear_text_snapshot()
 
         result = f"Navigated to {final_url} (status={status_code}, title={title})"
         if captcha_result_msg:
             result = f"{result}\n{captcha_result_msg}"
+        if consent_msg:
+            result = f"{result}\n{consent_msg}"
 
         experience_hint = self._get_site_experience_hint(final_url)
         if experience_hint:
@@ -1147,6 +1163,7 @@ class BrowserSession(
             wait_config=self._browser_pool.config.navigation_wait,
             domain_metrics_manager=get_global_domain_metrics_manager(),
             allow_private_networks=self._allow_private_networks,
+            auto_dismiss_popups=False,
         )
         self._snapshot_manager = SnapshotManager(page)
 

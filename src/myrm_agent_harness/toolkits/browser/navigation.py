@@ -10,9 +10,10 @@
 - .pool.config::BrowserMode, NavigationWaitConfig (POS: browser configuration)
 - .wait_strategies::wait_for_page_ready, WaitStrategy, WaitMetrics (POS: smart wait strategies)
 - agent.security.guards.ssrf_guard::check_url, resolve_and_check (POS: SSRF protection)
+- .session.consent_dismisser::ConsentDismisser (POS: cookie consent auto-dismiss)
 
 [OUTPUT]
-- Navigator: page navigation manager (with throttling and smart wait)
+- Navigator: page navigation manager (with throttling, smart wait, and consent dismissal)
 
 [POS]
 Page navigation utility module. Responsibilities:
@@ -20,6 +21,7 @@ Page navigation utility module. Responsibilities:
 2. History navigation (back/forward/reload)
 3. Smart wait (hybrid detection: DOM + network dual guarantee)
 4. Timeout control + full metrics exposure
+5. Cookie consent auto-dismiss (optional, for BrowserFetcher path)
 
 Design principles:
 - Independent utility module, reusable by BrowserSession and BrowserFetcher
@@ -73,6 +75,7 @@ class Navigator:
         domain_metrics_manager: DomainMetricsManager | None = None,
         *,
         allow_private_networks: bool = False,
+        auto_dismiss_popups: bool = True,
     ):
         """Initialize Navigator
 
@@ -85,6 +88,8 @@ class Navigator:
             domain_metrics_manager: DomainMetricsManager Instance（ for Domain级学习）
             allow_private_networks: True in local mode — skips SSRF private-IP
                 blocking while preserving URL scheme validation.
+            auto_dismiss_popups: auto-dismiss cookie consent banners and overlay
+                popups after navigation (default True).
         """
         self._page = page
         self._throttle = throttle
@@ -92,6 +97,12 @@ class Navigator:
         self._domain_metrics_manager = domain_metrics_manager
         self._current_domain: str | None = None
         self._allow_private_networks = allow_private_networks
+        if auto_dismiss_popups:
+            from .session.consent_dismisser import ConsentDismisser
+
+            self._consent_dismisser = ConsentDismisser(enabled=True)
+        else:
+            self._consent_dismisser = None
 
         if wait_config is None:
             from .pool.config import BrowserMode, _navigation_wait_for_mode
@@ -166,6 +177,9 @@ class Navigator:
 
             metrics = await self._wait_for_page_ready()
             self._log_wait_metrics(metrics)
+
+            if self._consent_dismisser:
+                await self._consent_dismisser.dismiss(self._page)
         except Exception as e:
             # Catch TimeoutError (Playwright throws playwright.async_api.TimeoutError, which inherits from Exception)
             from patchright.async_api import TimeoutError as PlaywrightTimeoutError

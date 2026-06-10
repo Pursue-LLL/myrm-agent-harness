@@ -272,8 +272,8 @@ class ConversationForkManager:
 ### Checkpoint Compatibility
 
 Works seamlessly with:
-- ✅ `AsyncSqliteSaver` (development)
-- ✅ `AsyncPostgresSaver` (production)
+- ✅ `AsyncSqliteSaver` (default, persistent on sandbox volume)
+- ✅ `MemorySaver` (ephemeral / tests)
 - ✅ Any LangGraph-compatible checkpointer
 
 ### Prompt Cache Interaction

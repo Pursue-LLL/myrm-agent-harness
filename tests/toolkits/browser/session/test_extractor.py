@@ -534,3 +534,62 @@ class TestExtractMedia:
         assert "iframe" in js_script
         assert "youtube" in js_script
         assert "vimeo" in js_script
+
+    async def test_cross_frame_deduplication(self, extractor: Extractor, mock_page: MagicMock) -> None:
+        """Test that duplicate URLs across frames are deduplicated."""
+        frame0 = MagicMock()
+        frame0.evaluate = AsyncMock(return_value={
+            "images": [{"url": "https://shared.com/hero.jpg", "w": 800, "h": 600, "alt": "Hero"}],
+            "videos": [],
+            "audios": [],
+            "metaImages": [],
+        })
+        frame1 = MagicMock()
+        frame1.evaluate = AsyncMock(return_value={
+            "images": [
+                {"url": "https://shared.com/hero.jpg", "w": 800, "h": 600, "alt": "Hero Dupe"},
+                {"url": "https://unique.com/frame1.jpg", "w": 200, "h": 200, "alt": ""},
+            ],
+            "videos": [],
+            "audios": [],
+            "metaImages": [],
+        })
+        mock_page.frames = [frame0, frame1]
+
+        result = await extractor.extract_media()
+
+        assert result.count("https://shared.com/hero.jpg") == 1
+        assert "https://unique.com/frame1.jpg" in result
+
+    async def test_js_script_handles_data_srcset(self, extractor: Extractor, mock_page: MagicMock) -> None:
+        """Verify JS script includes data-srcset for lazysizes library support."""
+        mock_frame = MagicMock()
+        mock_frame.evaluate = AsyncMock(return_value={
+            "images": [],
+            "videos": [],
+            "audios": [],
+            "metaImages": [],
+        })
+        mock_page.frames = [mock_frame]
+
+        await extractor.extract_media()
+
+        js_script = mock_frame.evaluate.call_args[0][0]
+        assert "data-srcset" in js_script
+
+    async def test_js_script_has_wildcard_lazy_scan(self, extractor: Extractor, mock_page: MagicMock) -> None:
+        """Verify JS script contains findLazySrc wildcard data-*src* fallback."""
+        mock_frame = MagicMock()
+        mock_frame.evaluate = AsyncMock(return_value={
+            "images": [],
+            "videos": [],
+            "audios": [],
+            "metaImages": [],
+        })
+        mock_page.frames = [mock_frame]
+
+        await extractor.extract_media()
+
+        js_script = mock_frame.evaluate.call_args[0][0]
+        assert "findLazySrc" in js_script
+        assert "data-.*src" in js_script
