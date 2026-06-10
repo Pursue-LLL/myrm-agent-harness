@@ -1,7 +1,7 @@
 # checkpointing/
 
 ## Overview
-Checkpointer factory — creation, configuration, and cleanup for SQLite/Memory backends.
+Checkpointer factory — creation, configuration, and cleanup for SQLite/Memory backends. SQLite mode fail-fast (no silent MemorySaver fallback).
 
 ## File & Submodule Index
 

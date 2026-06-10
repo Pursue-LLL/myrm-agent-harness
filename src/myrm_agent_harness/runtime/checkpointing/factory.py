@@ -79,18 +79,22 @@ async def create_checkpointer(
     """Create a checkpointer based on mode and deployment configuration.
 
     Decision logic:
-    1. mode=memory → MemorySaver (no persistence)
-    2. Default → AsyncSqliteSaver (all deploy modes use SQLite on persistent volume)
-    3. Fallback → MemorySaver
+    1. mode=memory → MemorySaver (no persistence, dev/test only)
+    2. Default (empty or sqlite) → AsyncSqliteSaver on persistent volume (fail-fast on error)
 
     Returns:
         (checkpointer, cleanup_callback) — cleanup closes underlying DB connections.
+
+    Raises:
+        ValueError: Unsupported checkpointer mode.
+        ImportError: langgraph-checkpoint-sqlite not installed (sqlite mode).
+        RuntimeError: SQLite initialization failed (permissions, disk, schema, etc.).
     """
     from langgraph.checkpoint.memory import MemorySaver
 
     forced_mode = mode.lower()
 
-    if forced_mode and forced_mode not in {"memory", "sqlite"}:
+    if forced_mode and forced_mode not in {"", "memory", "sqlite"}:
         msg = (
             f"Unsupported checkpointer mode {mode!r}; "
             "supported modes: memory, sqlite (default). "
@@ -102,28 +106,30 @@ async def create_checkpointer(
         logger.info("Checkpointer: MemorySaver (mode=memory)")
         return MemorySaver(), _noop_cleanup
 
-    if not forced_mode or forced_mode == "sqlite":
-        result = await _try_create_sqlite(sqlite_db_path)
-        if result is not None:
-            return result
-
-    logger.warning("Checkpointer: MemorySaver (fallback, deploy_mode=%s)", deploy_mode)
-    return MemorySaver(), _noop_cleanup
+    return await _create_sqlite_checkpointer(sqlite_db_path, deploy_mode=deploy_mode)
 
 
-async def _try_create_sqlite(
+async def _create_sqlite_checkpointer(
     db_path_str: str,
-) -> tuple[BaseCheckpointSaver[str], Callable[[], Awaitable[None]]] | None:
-    """Attempt to create SQLite-backed checkpointer. Returns None on failure."""
+    *,
+    deploy_mode: str,
+) -> tuple[BaseCheckpointSaver[str], Callable[[], Awaitable[None]]]:
+    """Create SQLite-backed checkpointer. Raises on any failure (no silent fallback)."""
+    from pathlib import Path
+
     try:
-        from pathlib import Path
-
         import aiosqlite
-        import langgraph.checkpoint.sqlite.aio  # noqa: F401  # availability probe: raises ImportError if optional dep missing
+        import langgraph.checkpoint.sqlite.aio  # noqa: F401  # availability probe
+    except ImportError as exc:
+        msg = (
+            "langgraph-checkpoint-sqlite is required for SQLite checkpoint mode. "
+            "Install: uv add langgraph-checkpoint-sqlite"
+        )
+        raise ImportError(msg) from exc
 
-        db_path = os.path.expanduser(db_path_str)
+    db_path = os.path.expanduser(db_path_str)
+    try:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-
         conn: aiosqlite.Connection = await aiosqlite.connect(db_path)
         from myrm_agent_harness.utils.db.sqlite import DEFAULT, harden_connection_async
 
@@ -137,19 +143,17 @@ async def _try_create_sqlite(
 
             logger.info(
                 "Checkpointer: IncrementalSessionCheckpointer[AsyncSqliteSaver] "
-                "(file=%s, serde=dill, persistent, thread_registry=enabled)",
+                "(file=%s, serde=dill, persistent, thread_registry=enabled, deploy_mode=%s)",
                 db_path,
+                deploy_mode,
             )
             return saver, cleanup
         except Exception:
             await conn.close()
             raise
-    except ImportError:
-        logger.warning("langgraph-checkpoint-sqlite not installed, falling back to MemorySaver")
-        logger.warning("   Install: uv add langgraph-checkpoint-sqlite")
-    except Exception as e:
-        logger.error("SqliteSaver init failed: %s, falling back to MemorySaver", e, exc_info=True)
-    return None
+    except Exception as exc:
+        msg = f"Failed to initialize SQLite checkpointer at {db_path!r} (deploy_mode={deploy_mode})"
+        raise RuntimeError(msg) from exc
 
 
 async def _build_incremental_saver(
