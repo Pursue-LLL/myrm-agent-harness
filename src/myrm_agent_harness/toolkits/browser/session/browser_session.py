@@ -203,6 +203,7 @@ class BrowserSession(
         self._content_vault = content_vault
         self._vision_verifier = VisionVerifier(vision_llm)
         self._structured_extractor = StructuredExtractor(vision_llm)
+        self._vision_llm = vision_llm
 
         self._session_lifecycle_hook = None
 
@@ -496,7 +497,7 @@ class BrowserSession(
         return result
 
     async def extract_text(self, resume_cursor: int = 0, max_length: int = 20000, selector: str = "") -> str:
-        """Extract page text."""
+        """Extract page text with automatic vision fallback for Canvas/SVG-heavy pages."""
         await self._ensure_components()
         extractor = self._require_extractor()
         tab_id = self._tab_controller.get_active_tab_id()
@@ -510,6 +511,14 @@ class BrowserSession(
             full_text = snapshot_data[0]
         else:
             full_text = await extractor.extract_full_text(selector=selector)
+
+            if len(full_text.strip()) < 50 and resume_cursor == 0 and self._vision_llm is not None:
+                has_visual = await extractor.detect_significant_visual_content()
+                if has_visual:
+                    vision_text = await self._vision_extract_text(extractor)
+                    if vision_text:
+                        full_text = vision_text
+
             self._tab_controller.set_text_snapshot(tab_id, full_text, current_hash)
 
         chunk = full_text[resume_cursor : resume_cursor + max_length]
@@ -579,6 +588,10 @@ class BrowserSession(
         full_text = await extractor.extract_full_text(selector=selector)
 
         if not full_text.strip():
+            if self._vision_llm is not None:
+                has_visual = await extractor.detect_significant_visual_content()
+                if has_visual:
+                    return await self._vision_extract_structured(extractor, schema_json, already_collected)
             return "[Error] No text content found on page (selector may be too restrictive)."
 
         return await self._structured_extractor.extract(
@@ -586,6 +599,75 @@ class BrowserSession(
             schema=schema,
             already_collected=already_collected,
         )
+
+    async def _vision_extract_text(self, extractor: Extractor) -> str:
+        """Extract page content via Vision LLM when DOM text is insufficient."""
+        try:
+            screenshot_b64 = await extractor.extract_screenshot()
+            from langchain_core.messages import HumanMessage
+
+            message = HumanMessage(
+                content=[
+                    {"type": "text", "text": (
+                        "Extract ALL visible text and data from this page screenshot. "
+                        "Include headings, labels, values, chart data, legends, and any readable information. "
+                        "Output as structured plain text. Be thorough."
+                    )},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{screenshot_b64}"}},
+                ]
+            )
+            response = await self._vision_llm.ainvoke([message])  # type: ignore[union-attr]
+            content = str(response.content).strip()
+            if content:
+                logger.info("BrowserSession: Vision fallback extracted %d chars", len(content))
+                return f"[Vision Extracted]\n{content}"
+        except Exception as e:
+            logger.warning("BrowserSession: Vision text fallback failed: %s", e)
+        return ""
+
+    async def _vision_extract_structured(
+        self,
+        extractor: Extractor,
+        schema_json: str,
+        already_collected: list[dict] | None,
+    ) -> str:
+        """Extract structured data via Vision LLM when DOM text is empty."""
+        import json as json_mod
+
+        try:
+            screenshot_b64 = await extractor.extract_screenshot()
+            from langchain_core.messages import HumanMessage
+
+            already_note = ""
+            if already_collected:
+                already_note = f"\n\nAlready collected (skip duplicates):\n{json_mod.dumps(already_collected, ensure_ascii=False)}"
+
+            message = HumanMessage(
+                content=[
+                    {"type": "text", "text": (
+                        f"Extract structured data from this page screenshot according to the JSON Schema below. "
+                        f"Output ONLY a valid JSON object/array conforming to the schema. "
+                        f"If a field cannot be determined from the image, use null.\n\n"
+                        f"JSON Schema:\n{schema_json}{already_note}"
+                    )},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{screenshot_b64}"}},
+                ]
+            )
+            response = await self._vision_llm.ainvoke([message])  # type: ignore[union-attr]
+            content = str(response.content).strip()
+
+            if content.startswith("```"):
+                lines = content.split("\n")
+                content = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+
+            json_mod.loads(content)
+            logger.info("BrowserSession: Vision structured extraction succeeded")
+            return content
+        except json_mod.JSONDecodeError:
+            return content if content else "[Error] Vision extraction returned invalid JSON."
+        except Exception as e:
+            logger.warning("BrowserSession: Vision structured fallback failed: %s", e)
+            return f"[Error] Vision structured extraction failed: {e}"
 
     async def extract_screenshot(self, scale: float = 1.0) -> str:
         """ExtractScreenshot(Base64 JPEG)"""

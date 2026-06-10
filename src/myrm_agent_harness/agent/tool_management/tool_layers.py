@@ -103,6 +103,8 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "cron_manage_tool": ToolLayer.EXTENDED,
     # --- Deploy ---
     "deploy_artifact": ToolLayer.EXTENDED,
+    # --- 代码搜索 ---
+    "code_search_tool": ToolLayer.EXTENDED,
     # --- 文件搜索 ---
     "glob_tool": ToolLayer.EXTENDED,
     "grep_tool": ToolLayer.EXTENDED,

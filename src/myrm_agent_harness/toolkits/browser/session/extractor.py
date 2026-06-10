@@ -13,10 +13,11 @@
 
 [POS]
 Content extraction manager. Responsibilities:
-1. Text extraction (innerText/textContent)
+1. Text extraction (DOM→Markdown with SVG text/tspan support)
 2. Screenshot capture (JPEG compression)
 3. Screenshot comparison (fast dHash / accurate Canvas API)
 4. PDF export
+5. Visual content detection (Canvas/SVG significance check for vision fallback)
 
 Single responsibility: only handles content extraction logic; does not handle navigation, snapshot, interaction, etc.
 """
@@ -87,8 +88,16 @@ class Extractor:
                     if (isHidden(node)) return "";
 
                     const tag = node.tagName.toUpperCase();
-                    if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG', 'CANVAS'].includes(tag)) {{
+                    if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'CANVAS'].includes(tag)) {{
                         return "";
+                    }}
+                    if (tag === 'SVG') {{
+                        let svgText = "";
+                        node.querySelectorAll('text, tspan').forEach(el => {{
+                            const t = el.textContent.trim();
+                            if (t) svgText += t + " ";
+                        }});
+                        return svgText ? "[SVG: " + svgText.trim() + "] " : "";
                     }}
 
                     if (node.matches(PASSWORD_SELECTOR)) {{
@@ -265,6 +274,33 @@ class Extractor:
         await self._page.pdf(path=path)
         logger.info("Extractor: exported PDF to %s", path)
         return f"Exported PDF to {path}"
+
+    async def detect_significant_visual_content(self) -> bool:
+        """Detect if the page contains significant visual content (large Canvas/SVG/img).
+
+        Returns True if visual elements with meaningful dimensions exist,
+        indicating the page likely renders content visually rather than via DOM text.
+        """
+        js = """
+            () => {
+                const canvases = document.querySelectorAll('canvas');
+                for (const c of canvases) {
+                    if (c.width > 200 && c.height > 100) return true;
+                    const rect = c.getBoundingClientRect();
+                    if (rect.width > 200 && rect.height > 100) return true;
+                }
+                const svgs = document.querySelectorAll('svg');
+                for (const s of svgs) {
+                    const rect = s.getBoundingClientRect();
+                    if (rect.width > 200 && rect.height > 100) return true;
+                }
+                return false;
+            }
+        """
+        try:
+            return await self._page.evaluate(js)
+        except Exception:
+            return False
 
     async def _set_device_scale_factor(self, scale: float) -> None:
         """Set设备缩放因子(CDP)

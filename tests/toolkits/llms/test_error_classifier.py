@@ -75,6 +75,9 @@ def test_classify_rate_limit(msg: str) -> None:
         "capacity full",
         "529 service overloaded",
         "503 service unavailable due to overload",
+        "503 Service Unavailable",
+        "504 Gateway Timeout",
+        "502 Bad Gateway",
     ],
 )
 def test_classify_overloaded(msg: str) -> None:
@@ -131,8 +134,6 @@ def test_classify_auth(msg: str) -> None:
     [
         "Request timeout",
         "Connection error",
-        "503 Service Unavailable",
-        "504 Gateway Timeout",
         "deadline exceeded",
         "socket hang up",
     ],

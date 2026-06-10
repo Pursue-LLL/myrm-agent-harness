@@ -227,9 +227,11 @@
 |---|--------|------------------:|----------|------|
 | 80 | huggingface_inference_tool | 55 | `harness/toolkits/huggingface/huggingface_agent_tools.py` | 调用 HuggingFace Serverless API（文生图/语音/分类） |
 
-### 4.20 本地文件搜索工具（已移除，未来重新实现时恢复）
+### 4.20 代码语义搜索工具
 
-> 工具 `search_local_files_tool` 和 `get_local_file_index_status_tool` 的源码已移除，待重新设计后恢复。
+| # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
+|---|--------|------------------:|----------|------|----------|
+| 81 | code_search_tool | ~200 | `harness/agent/meta_tools/code_search/tool.py` | FTS5+BM25+Vector 混合代码搜索 | 启用 CodeIndexer 时 |
 
 ### 4.21 Deep Research 编排器伪工具（仅深度搜索模式，JSON Schema 注入 LLM）
 

@@ -55,6 +55,7 @@ Does your code need to import anything from agent/?
 | browser/ | Browser automation — multi-tab control, iframe traversal, session vault, stealth mode. |
 | calendar/ | Calendar event management — CRUD operations via Protocol-based dependency injection. |
 | code_execution/ | Code execution system — Agent-in-Sandbox mode with multiple executor backends. |
+| code_index/ | Workspace code indexer — on-demand FTS5+Vector hybrid search over source code files. |
 | commitment/ | Commitment tracking — implicit promise detection and follow-up from conversations. |
 | computer_use/ | System-wide desktop automation — screen capture + coordinate-based input (macOS/Linux). |
 | cron/ | Scheduled task framework — scheduling engine, CRUD manager, built-in strategies. |

@@ -197,3 +197,33 @@ class TestExtractor:
         assert "Exported PDF to" in result
         assert pdf_path in result
         mock_page.pdf.assert_called_once_with(path=pdf_path)
+
+    async def test_detect_significant_visual_content_true(
+        self, extractor: Extractor, mock_page: MagicMock
+    ) -> None:
+        """Test detect_significant_visual_content returns True when large Canvas exists."""
+        mock_page.evaluate = AsyncMock(return_value=True)
+
+        result = await extractor.detect_significant_visual_content()
+
+        assert result is True
+
+    async def test_detect_significant_visual_content_false(
+        self, extractor: Extractor, mock_page: MagicMock
+    ) -> None:
+        """Test detect_significant_visual_content returns False when no large visual elements."""
+        mock_page.evaluate = AsyncMock(return_value=False)
+
+        result = await extractor.detect_significant_visual_content()
+
+        assert result is False
+
+    async def test_detect_significant_visual_content_error_resilience(
+        self, extractor: Extractor, mock_page: MagicMock
+    ) -> None:
+        """Test detect_significant_visual_content returns False on evaluation error."""
+        mock_page.evaluate = AsyncMock(side_effect=RuntimeError("Page crashed"))
+
+        result = await extractor.detect_significant_visual_content()
+
+        assert result is False

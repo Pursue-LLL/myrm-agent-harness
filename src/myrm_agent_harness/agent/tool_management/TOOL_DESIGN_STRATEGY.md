@@ -87,7 +87,7 @@ class ToolLayer(IntEnum):
 |------|---------|---------|----------:|
 | 始终加载的辅助工具 | 始终 | read_incremental_log_tool, http_request_tool, runtime_diagnostics_tool, discover_capability_tool | ~1,133 |
 | 文件搜索中间件 | 显式启用 FilesystemFileSearchMiddleware | glob_tool, grep_tool | - |
-| 本地文件索引工具 | 已移除（待重新设计） | - | - |
+| 代码语义搜索工具 | 启用 CodeIndexer | code_search_tool | ~200 |
 | 记忆工具 | 启用记忆系统 | memory_recall_tool, memory_save_tool, memory_manage_tool, conversation_search_tool | ~670 |
 | 技能工具 | 有技能后端 | skill_select, skill_manage, skill_discovery, skill_analyze, discover_capability_tool | ~612 |
 | 浏览器工具 | 启用浏览器 | browser_navigate_tool, browser_snapshot_tool, ... (7个) | ~535 |

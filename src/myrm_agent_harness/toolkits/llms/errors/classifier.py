@@ -123,7 +123,8 @@ _RATE_LIMIT_RE = re.compile(
 )
 
 _OVERLOADED_RE = re.compile(
-    r"overloaded(?:_error)?|high.?demand|capacity.?(?:exceeded|full)" r"|\b529\b",
+    r"overloaded(?:_error)?|high.?demand|capacity.?(?:exceeded|full)"
+    r"|\b529\b|service.?unavailable|\b502\b|\b503\b|\b504\b",
     re.IGNORECASE,
 )
 
@@ -150,7 +151,7 @@ _AUTH_RE = re.compile(
 _TIMEOUT_RE = re.compile(
     r"\btimeout\b|timed.?out|deadline.?exceeded|connection.?(?:error|reset|refused)"
     r"|network.?(?:error|request failed)|fetch.?failed|socket.?hang.?up"
-    r"|service.?unavailable|\b499\b|\b502\b|\b503\b|\b504\b"
+    r"|\b499\b"
     r"|server disconnected|unexpected eof|connection was closed",
     re.IGNORECASE,
 )
@@ -174,6 +175,7 @@ _OVERFLOW_EXACT_RE = re.compile(
             r"slot context",
             r"n_ctx_slot",
             r"exceeds the maximum number of input tokens",
+            r"token.?limit.?exceeded",
         ]
     ),
     re.IGNORECASE,

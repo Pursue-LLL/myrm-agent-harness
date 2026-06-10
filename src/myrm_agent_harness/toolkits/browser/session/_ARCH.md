@@ -13,7 +13,7 @@ Browser session components.
 | browser_session_persistence_mixin.py | Core | Encrypted session save/restore API for BrowserSession. | ✅ |
 | browser_session_recording_mixin.py | Core | Playwright trace and HAR recording controls for BrowserSession. | ✅ |
 | download_manager.py | Core | Browser file download manager. Single responsibility: listen for, process, and record file downloads | ✅ |
-| extractor.py | Core | Content extraction manager. Responsibilities: | ✅ |
+| extractor.py | Core | Content extraction manager. Text extraction (DOM→Markdown with SVG text/tspan support), screenshot capture, visual content detection, and automatic Vision LLM fallback for Canvas-heavy pages. | ✅ |
 | interactor.py | Core | Element interaction manager. Responsibilities: | ✅ |
 | network_logger.py | Core | Network request logging for the browser toolkit. Provides self-diagnosis capability for browser sess | ✅ |
 | network_intelligence.py | Core | CDP-based network intelligence for on-demand API response body retrieval and request replay. | ✅ |
