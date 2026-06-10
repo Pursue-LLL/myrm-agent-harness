@@ -90,6 +90,14 @@ async def create_checkpointer(
 
     forced_mode = mode.lower()
 
+    if forced_mode and forced_mode not in {"memory", "sqlite"}:
+        msg = (
+            f"Unsupported checkpointer mode {mode!r}; "
+            "supported modes: memory, sqlite (default). "
+            "PostgreSQL checkpoint is not supported."
+        )
+        raise ValueError(msg)
+
     if forced_mode == "memory":
         logger.info("Checkpointer: MemorySaver (mode=memory)")
         return MemorySaver(), _noop_cleanup
