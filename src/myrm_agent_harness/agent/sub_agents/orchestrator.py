@@ -416,23 +416,33 @@ async def wait_children(
         failures.append({"task_id": task_id, "error": "Task not found"})
 
     if running_tasks:
-        timed_out = False
-        try:
-            gather_coro = asyncio.gather(*running_tasks, return_exceptions=True)
-            results: list[SubAgentResult | BaseException] = (
-                await asyncio.wait_for(gather_coro, timeout=timeout) if timeout else await gather_coro
-            )
-        except TimeoutError:
-            timed_out = True
-            for task in running_tasks:
-                if not task.done():
-                    task.cancel()
-            results = []
-
-        if timed_out:
-            _collect_timed_out_results(running_tasks, running_ids, successes, failures, timeout)
+        if timeout:
+            done, pending = await asyncio.wait(running_tasks, timeout=timeout)
         else:
-            _collect_gather_results(results, running_ids, successes, failures)
+            done, pending = await asyncio.wait(running_tasks)
+
+        for idx, task in enumerate(running_tasks):
+            tid = running_ids[idx]
+            if task in done:
+                try:
+                    raw = task.result()
+                    if isinstance(raw, SubAgentResult):
+                        data = raw.to_dict()
+                        (successes if raw.success else failures).append(data)
+                    else:
+                        failures.append({"task_id": tid, "error": str(raw)})
+                except Exception as exc:
+                    failures.append({"task_id": tid, "error": f"{type(exc).__name__}: {exc}"})
+            else:
+                failures.append({
+                    "task_id": tid,
+                    "status": SubAgentStatus.TIMED_OUT.value,
+                    "still_running": True,
+                    "error": (
+                        f"Wait timeout after {timeout}s, agent still running in background. "
+                        "Use list_subagents to check progress."
+                    ),
+                })
 
     rate = len(successes) / len(task_ids) if task_ids else 0.0
     logger.info(
@@ -445,48 +455,6 @@ async def wait_children(
         "success_rate": rate,
         "failures": failures,
     }
-
-
-def _collect_timed_out_results(
-    running_tasks: list[SubagentTask],
-    running_ids: list[str],
-    successes: list[dict[str, object]],
-    failures: list[object],
-    timeout: float | None,
-) -> None:
-    """Collect results from tasks after a batch timeout."""
-    for idx, task in enumerate(running_tasks):
-        tid = running_ids[idx]
-        if task.done() and not task.cancelled():
-            try:
-                raw = task.result()
-                if isinstance(raw, SubAgentResult):
-                    data = raw.to_dict()
-                    (successes if raw.success else failures).append(data)
-                else:
-                    failures.append({"task_id": tid, "error": str(raw)})
-            except Exception as exc:
-                failures.append({"task_id": tid, "error": f"{type(exc).__name__}: {exc}"})
-        else:
-            failures.append({"task_id": tid, "error": f"Batch timeout after {timeout}s"})
-
-
-def _collect_gather_results(
-    results: list[SubAgentResult | BaseException],
-    running_ids: list[str],
-    successes: list[dict[str, object]],
-    failures: list[object],
-) -> None:
-    """Collect results from a successful asyncio.gather."""
-    for idx, raw in enumerate(results):
-        tid = running_ids[idx]
-        if isinstance(raw, BaseException):
-            failures.append({"task_id": tid, "error": f"{type(raw).__name__}: {raw}"})
-        elif isinstance(raw, SubAgentResult):
-            data = raw.to_dict()
-            (successes if raw.success else failures).append(data)
-        else:
-            failures.append({"task_id": tid, "error": str(raw)})
 
 
 # ---------------------------------------------------------------------------

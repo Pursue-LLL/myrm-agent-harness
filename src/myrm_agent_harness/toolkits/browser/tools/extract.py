@@ -81,7 +81,7 @@ def create_extract_tool(session: BrowserSession):
         )
         selector: str = Field(
             default="",
-            description="CSS or XPath selector to precisely target elements (for 'text' and 'media' modes). "
+            description="CSS selector to precisely target elements (for 'text' and 'media' modes). "
             "Use this to strip out noise (like ads, headers) and extract only the relevant content. Example: '.article-content' or 'main'.",
         )
         extraction_schema: str = Field(

@@ -22,6 +22,7 @@ import logging
 from myrm_agent_harness.toolkits.computer_use.types import (
     ActionResult,
     ModifierKey,
+    PermissionStatus,
     ScreenContext,
     ScreenInfo,
     WindowTextResult,
@@ -257,6 +258,14 @@ class WindowsBackend:
     async def is_browser_active(self) -> bool:
         """Check if the currently active (frontmost) window is a web browser."""
         return await asyncio.to_thread(_is_browser_active_win)
+
+    async def check_permissions(self) -> PermissionStatus:
+        """Windows has no TCC-like permission gates for screen capture / input."""
+        return PermissionStatus(
+            accessibility=True,
+            screen_recording=True,
+            platform="windows",
+        )
 
 
 def _detect_screen_info() -> tuple[int, int, float]:

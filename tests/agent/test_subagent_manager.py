@@ -286,8 +286,16 @@ async def test_spawn_child_times_out_when_execution_is_too_slow() -> None:
     assert isinstance(result, SubAgentResult)
     assert result.success is False
     assert "Timeout" in result.error
+    assert result.still_running is True
+    assert result.status == SubAgentStatus.TIMED_OUT
+    task = manager._children.get("timeout_child")
+    if task is not None:
+        task.cancel()
+        try:
+            await task
+        except (asyncio.CancelledError, Exception):
+            pass
     await asyncio.sleep(0.05)
-    assert "timeout_child" not in manager._children
 
 
 @pytest.mark.asyncio
@@ -1096,7 +1104,7 @@ class TestWaitChildrenTimeout:
 
     @pytest.mark.asyncio
     async def test_timeout_with_error_and_still_running(self) -> None:
-        """After timeout: one task done (exception) via _collect_timed_out_results except branch."""
+        """After timeout: one task done (exception), one still running."""
         from unittest.mock import MagicMock, PropertyMock
 
         from myrm_agent_harness.agent.sub_agents.orchestrator import wait_children
@@ -1134,7 +1142,7 @@ class TestWaitChildrenTimeout:
 
     @pytest.mark.asyncio
     async def test_timeout_with_success_and_still_running(self) -> None:
-        """After timeout: one task done (SubAgentResult) via _collect_timed_out_results main path."""
+        """After timeout: one task done (SubAgentResult), one still running."""
         from unittest.mock import MagicMock, PropertyMock
 
         from myrm_agent_harness.agent.sub_agents.orchestrator import wait_children

@@ -48,6 +48,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_HARD_TIMEOUT_MULTIPLIER = 3
+"""Hard execution timeout = config.timeout_seconds * this multiplier.
+
+The wait-level timeout (config.timeout_seconds) returns control to the parent
+non-fatally.  The hard timeout is a safety net that terminates truly runaway
+agents while still giving them enough headroom to finish after a wait timeout.
+"""
+
 
 class SubagentSpawnMixin:
     """Spawn, execution, and result handling for SubagentManager."""
@@ -80,6 +88,7 @@ class SubagentSpawnMixin:
         parent_progress_sink: ToolProgressSink | None = None,
         complexity_tier: str | None = None,
     ) -> SubAgentResult:
+        hard_timeout = config.timeout_seconds * _HARD_TIMEOUT_MULTIPLIER
         async with self._semaphore:
             try:
                 return await asyncio.wait_for(
@@ -97,15 +106,18 @@ class SubagentSpawnMixin:
                         parent_progress_sink=parent_progress_sink,
                         complexity_tier=complexity_tier,
                     ),
-                    timeout=config.timeout_seconds,
+                    timeout=hard_timeout,
                 )
             except TimeoutError:
-                logger.warning("[subagent:%s] Hard timeout after %ss", task_id, config.timeout_seconds)
+                logger.warning(
+                    "[subagent:%s] Hard timeout after %ss (config timeout=%ss)",
+                    task_id, hard_timeout, config.timeout_seconds,
+                )
                 return SubAgentResult(
                     success=False,
                     task_id=task_id,
                     agent_type=agent_type,
-                    error=f"Hard timeout after {config.timeout_seconds}s",
+                    error=f"Hard timeout after {hard_timeout}s",
                     completed_at=time.time(),
                     status=SubAgentStatus.TIMED_OUT,
                     trace_id=trace_id,
@@ -314,22 +326,11 @@ class SubagentSpawnMixin:
             )
 
         if wait:
-            start_time = time.time()
-            try:
-                result = await asyncio.wait_for(task, timeout=config.timeout_seconds)
-                elapsed = time.time() - start_time
-
-                if result.status == SubAgentStatus.CANCELLED and elapsed >= config.timeout_seconds:
-                    return SubAgentResult(
-                        success=False,
-                        task_id=task_id,
-                        agent_type=agent_type,
-                        error=f"Timeout after {config.timeout_seconds}s",
-                        completed_at=time.time(),
-                        status=SubAgentStatus.TIMED_OUT,
-                        trace_id=trace_id,
-                    )
-
+            done, _pending = await asyncio.wait(
+                {task}, timeout=config.timeout_seconds,
+            )
+            if done:
+                result = task.result()
                 if sink:
                     notif_text = self.drain_notifications()  # type: ignore[attr-defined]
                     if notif_text:
@@ -339,33 +340,25 @@ class SubagentSpawnMixin:
                                 "data": notif_text,
                             }
                         )
+                return result
 
-                return result
-            except TimeoutError:
-                task.cancel()
-                try:
-                    result = await task
-                except asyncio.CancelledError:
-                    result = SubAgentResult(
-                        success=False,
-                        task_id=task_id,
-                        agent_type=agent_type,
-                        error=f"Timeout after {config.timeout_seconds}s",
-                        completed_at=time.time(),
-                        status=SubAgentStatus.TIMED_OUT,
-                        trace_id=trace_id,
-                    )
-                if result.status == SubAgentStatus.CANCELLED:
-                    result = SubAgentResult(
-                        success=False,
-                        task_id=task_id,
-                        agent_type=agent_type,
-                        error=f"Timeout after {config.timeout_seconds}s",
-                        completed_at=time.time(),
-                        status=SubAgentStatus.TIMED_OUT,
-                        trace_id=trace_id,
-                    )
-                return result
+            logger.info(
+                "[subagent:%s] Wait timeout after %ss — agent continues in background",
+                task_id, config.timeout_seconds,
+            )
+            return SubAgentResult(
+                success=False,
+                task_id=task_id,
+                agent_type=agent_type,
+                error=(
+                    f"Timeout after {config.timeout_seconds}s, agent still running in background. "
+                    "Use list_subagents to check progress, or cancel_subagent to stop it."
+                ),
+                completed_at=0.0,
+                status=SubAgentStatus.TIMED_OUT,
+                still_running=True,
+                trace_id=trace_id,
+            )
 
         return {
             "task_id": task_id,

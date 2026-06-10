@@ -26,6 +26,7 @@ from pathlib import Path
 from myrm_agent_harness.toolkits.computer_use.types import (
     ActionResult,
     ModifierKey,
+    PermissionStatus,
     ScreenContext,
     ScreenInfo,
     WindowTextResult,
@@ -380,6 +381,14 @@ class LinuxBackend:
             return any(browser in wm_class for browser in KNOWN_BROWSER_NAMES)
         except Exception:
             return False
+
+    async def check_permissions(self) -> PermissionStatus:
+        """Linux (X11/Wayland) generally has no TCC-like permission gates."""
+        return PermissionStatus(
+            accessibility=True,
+            screen_recording=True,
+            platform="linux",
+        )
 
 
 def _detect_linux_resolution(display_prefix: str) -> tuple[int, int]:

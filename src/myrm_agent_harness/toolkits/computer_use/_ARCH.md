@@ -9,7 +9,7 @@ with native desktop applications via accessibility trees (@dref) with coordinate
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Exports create_desktop_tools, create_desktop_session | ✅ |
-| types.py | Config | Shared types: ComputerAction, DesktopInteractAction, ScreenInfo, ActionResult, ComputerUseConfig | ✅ |
+| types.py | Config | Shared types: ComputerAction, DesktopInteractAction, ScreenInfo, ActionResult, PermissionStatus, ComputerUseConfig | ✅ |
 | safety.py | Core | Blocked key combos and dangerous type-text guardrails | ✅ |
 | screenshot_processor.py | Core | Binary-search downsampling pipeline | ✅ |
 | coordinate_scaler.py | Core | DPI-aware coordinate transformer | ✅ |
@@ -54,6 +54,7 @@ Agent → desktop_agent_tools (4 tools)
 5. **Platform auto-detection**: reuses `detect_platform()` from code_execution
 6. **Security & Re-validation**: `desktop_interact` implements a Time-of-Check to Time-of-Use (TOCTOU) defense by re-capturing and verifying the @dref state if the action was delayed (e.g. by Human-in-the-Loop approval interception). `desktop_vision_action` implements a "hard fuse" that blocks stale coordinate actions if delayed by more than 5 seconds.
 7. **Credential Vault integration**: `fill_credential` action resolves password/TOTP from the global CredentialVault by label, then delegates to the `fill` AX action. Secrets never appear in LLM context.
+8. **Permission probing**: `DesktopSession.check_permissions()` delegates to backend `check_permissions()` to probe OS-level TCC permissions (macOS Accessibility + Screen Recording). Server exposes `GET /webui/desktop/permissions` for frontend proactive guidance.
 
 ## Key Dependencies
 

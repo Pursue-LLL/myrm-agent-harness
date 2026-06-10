@@ -7,7 +7,7 @@ single cohesive API surface. Agent tools interact exclusively with this class.
 - backends.protocol::ComputerBackend (POS: platform-specific I/O)
 - screenshot_processor::ScreenshotProcessor (POS: image preprocessing)
 - coordinate_scaler::CoordinateScaler (POS: coordinate transformation)
-- types::ComputerAction, ComputerUseConfig, ActionResult (POS: shared types)
+- types::ComputerAction, ComputerUseConfig, ActionResult, PermissionStatus (POS: shared types)
 
 [OUTPUT]
 - ComputerSession: high-level session manager
@@ -29,6 +29,7 @@ from myrm_agent_harness.toolkits.computer_use.types import (
     ActionResult,
     ComputerUseConfig,
     ModifierKey,
+    PermissionStatus,
     ScreenContext,
     ScreenInfo,
 )
@@ -251,6 +252,10 @@ class ComputerSession:
         result.screenshot_base64 = screenshot.screenshot_base64
         result.screenshot_size = screenshot.screenshot_size
         return result
+
+    async def check_permissions(self) -> PermissionStatus:
+        """Probe OS-level permissions required for desktop automation."""
+        return await self._backend.check_permissions()
 
 
 def create_computer_session(

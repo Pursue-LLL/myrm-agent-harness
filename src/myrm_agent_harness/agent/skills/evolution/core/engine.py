@@ -292,6 +292,16 @@ class SkillEvolutionEngine:
             )
             return None
 
+        # Skip LLM evaluation when evidence confidence is too low (scattered/transient errors)
+        if evidence.confidence < 0.4:
+            logger.info(
+                "Skipping evidence evolution for '%s': low confidence (%.2f < 0.4) — "
+                "errors are likely transient/environmental, not skill defects",
+                evidence.skill_name,
+                evidence.confidence,
+            )
+            return None
+
         old_skill = self._store.get_skill(evidence.skill_id)
         if not old_skill:
             logger.error(f"Evidence evolution: skill not found: {evidence.skill_id}")

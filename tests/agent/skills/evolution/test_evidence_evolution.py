@@ -137,6 +137,7 @@ class TestEvidenceAggregator:
                 },
             ],
         }
+        store.get_trend_failure_counts.return_value = {"sk1": 1}
         store.get_skill.return_value = self._make_skill_record("sk1")
 
         aggregator = EvidenceAggregator(store, lookback_days=7)
@@ -169,6 +170,7 @@ class TestEvidenceAggregator:
                 },
             ],
         }
+        store.get_trend_failure_counts.return_value = {}
         inactive_skill = self._make_skill_record("sk1")
         inactive_skill.is_active = False
         store.get_skill.return_value = inactive_skill
@@ -185,6 +187,7 @@ class TestEvidenceAggregator:
 
         store = MagicMock()
         store.get_recent_analyses_grouped.return_value = {}
+        store.get_trend_failure_counts.return_value = {}
 
         aggregator = EvidenceAggregator(store, lookback_days=7)
         groups = aggregator.aggregate()

@@ -24,6 +24,7 @@ from pathlib import Path
 from myrm_agent_harness.toolkits.computer_use.types import (
     ActionResult,
     ModifierKey,
+    PermissionStatus,
     ScreenContext,
     ScreenInfo,
     WindowTextResult,
@@ -272,6 +273,10 @@ class MacOSBackend:
         """Check if the currently active (frontmost) window is a web browser."""
         return await asyncio.to_thread(_is_browser_active)
 
+    async def check_permissions(self) -> PermissionStatus:
+        """Probe macOS Accessibility and Screen Recording TCC permissions."""
+        return await asyncio.to_thread(_check_macos_permissions)
+
 
 _AX_TEXT_SCRIPT = """
 tell application "System Events"
@@ -479,3 +484,54 @@ def _set_clipboard(text: str) -> None:
         proc.communicate(text.encode("utf-8"), timeout=2)
     except Exception:
         pass
+
+
+_MACOS_DEEPLINKS: dict[str, str] = {
+    "accessibility": "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+    "screen_recording": "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+}
+
+
+def _check_accessibility() -> bool:
+    """Check if Accessibility (AX) permission is granted via AppleScript."""
+    try:
+        result = subprocess.run(
+            [
+                "osascript",
+                "-e",
+                'tell application "System Events" to get name of first application process whose frontmost is true',
+            ],
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def _check_screen_recording() -> bool:
+    """Check if Screen Recording permission is granted via CGPreflightScreenCaptureAccess."""
+    import ctypes
+    import ctypes.util
+
+    cg_path = ctypes.util.find_library("CoreGraphics")
+    if not cg_path:
+        return False
+    try:
+        cg = ctypes.cdll.LoadLibrary(cg_path)
+        cg.CGPreflightScreenCaptureAccess.restype = ctypes.c_bool
+        return bool(cg.CGPreflightScreenCaptureAccess())
+    except (OSError, AttributeError):
+        return False
+
+
+def _check_macos_permissions() -> PermissionStatus:
+    accessibility = _check_accessibility()
+    screen_recording = _check_screen_recording()
+    return PermissionStatus(
+        accessibility=accessibility,
+        screen_recording=screen_recording,
+        platform="macos",
+        settings_deeplinks=_MACOS_DEEPLINKS,
+    )

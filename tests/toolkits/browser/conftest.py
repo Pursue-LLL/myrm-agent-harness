@@ -1,6 +1,7 @@
 """Shared fixtures for browser integration tests."""
 
 import asyncio
+import atexit
 
 import pytest
 from patchright.async_api import Browser, BrowserContext, async_playwright
@@ -37,3 +38,12 @@ def browser_context():
     asyncio.run(setup())
     yield _shared_context
     asyncio.run(teardown())
+
+
+def _cleanup_browser_child_processes() -> None:
+    from myrm_agent_harness.testing.browser_process_cleanup import terminate_browser_processes_in_tree
+
+    terminate_browser_processes_in_tree()
+
+
+atexit.register(_cleanup_browser_child_processes)

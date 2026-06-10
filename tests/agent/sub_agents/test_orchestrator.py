@@ -12,8 +12,6 @@ from myrm_agent_harness.agent.sub_agents._orchestrator_verification import (
     _parse_verdict,
 )
 from myrm_agent_harness.agent.sub_agents.orchestrator import (
-    _collect_gather_results,
-    _collect_timed_out_results,
     execute_dag_plan,
     run_chain,
     run_with_verification,
@@ -24,6 +22,7 @@ from myrm_agent_harness.agent.sub_agents.types import (
     SubAgentResult,
     SubAgentStatus,
 )
+from myrm_agent_harness.utils.token_economics.tracker import TokenUsage
 
 
 def _ok(
@@ -832,7 +831,8 @@ class TestWaitChildren:
         assert "RuntimeError" in str(result["failures"])
 
     @pytest.mark.asyncio
-    async def test_timeout_cancels_tasks(self):
+    async def test_timeout_nonfatal_still_running(self):
+        """Timeout returns still_running=True without cancelling the task."""
         mgr = MagicMock()
 
         async def _slow():
@@ -844,7 +844,13 @@ class TestWaitChildren:
         mgr.child_results = {}
         result = await wait_children(mgr, ["t1"], timeout=0.05)
         assert not result["success"]
-        assert "timeout" in str(result["failures"]).lower()
+        assert any("still_running" in str(f) for f in result["failures"])
+        assert not task.cancelled(), "task must NOT be cancelled after timeout"
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
     @pytest.mark.asyncio
     async def test_mixed_completed_and_running(self):
@@ -868,6 +874,110 @@ class TestWaitChildren:
         result = await wait_children(mgr, ["t1", "t2"], min_success_rate=0.8)
         assert not result["success"]
         assert result["success_rate"] == 0.5
+
+
+# ---------------------------------------------------------------------------
+# Non-fatal timeout — SubAgentResult.still_running
+# ---------------------------------------------------------------------------
+
+
+class TestSubAgentResultStillRunning:
+    def test_still_running_defaults_false(self):
+        r = SubAgentResult(success=True, task_id="t1", agent_type="w")
+        assert r.still_running is False
+
+    def test_still_running_in_to_dict_when_true(self):
+        r = SubAgentResult(
+            success=False, task_id="t1", agent_type="w",
+            status=SubAgentStatus.TIMED_OUT, still_running=True,
+        )
+        d = r.to_dict()
+        assert d["still_running"] is True
+        assert "completed_at" not in d
+
+    def test_still_running_absent_in_to_dict_when_false(self):
+        r = SubAgentResult(success=True, task_id="t1", agent_type="w", completed_at=100.0)
+        d = r.to_dict()
+        assert "still_running" not in d
+        assert d["completed_at"] == 100.0
+
+    def test_completed_at_zero_included_when_not_still_running(self):
+        """Edge: completed_at defaults to 0.0 but must still be present when still_running=False."""
+        r = SubAgentResult(success=True, task_id="t1", agent_type="w")
+        d = r.to_dict()
+        assert d["completed_at"] == 0.0
+        assert "still_running" not in d
+
+    def test_still_running_true_with_all_optional_fields(self):
+        """Edge: still_running=True with token_usage, error, trace_id, payload, handover."""
+        from myrm_agent_harness.agent.sub_agents.types import AgentHandoverState
+        r = SubAgentResult(
+            success=False,
+            task_id="t1",
+            agent_type="w",
+            result="partial",
+            error="timed out",
+            token_usage=TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
+            duration_seconds=59.9999,
+            completed_at=999.0,
+            status=SubAgentStatus.TIMED_OUT,
+            trace_id="trace-abc",
+            payload={"key": "val"},
+            handover_state=AgentHandoverState(task_completed=["x"]),
+            accumulated_duration_seconds=120.5,
+            still_running=True,
+        )
+        d = r.to_dict()
+        assert "completed_at" not in d, "completed_at must be omitted when still_running=True"
+        assert d["still_running"] is True
+        assert d["trace_id"] == "trace-abc"
+        assert d["error"] == "timed out"
+        tu = d["token_usage"]
+        assert tu["prompt_tokens"] == 10
+        assert tu["completion_tokens"] == 5
+        assert tu["total_tokens"] == 15
+        assert d["payload"] == {"key": "val"}
+        assert d["handover_state"]["task_completed"] == ["x"]
+        assert d["accumulated_duration_seconds"] == 120.5
+        assert d["duration_seconds"] == 60.0
+
+    def test_to_dict_status_values_preserved(self):
+        """Verify to_dict preserves status enum value for every SubAgentStatus."""
+        for status in SubAgentStatus:
+            r = SubAgentResult(
+                success=(status == SubAgentStatus.COMPLETED),
+                task_id="t", agent_type="w",
+                status=status,
+            )
+            d = r.to_dict()
+            assert d["status"] == status.value
+
+    def test_to_dict_keys_are_deterministic(self):
+        """Minimal result produces exactly the expected base keys + completed_at."""
+        r = SubAgentResult(success=True, task_id="t", agent_type="w")
+        d = r.to_dict()
+        expected_keys = {"success", "task_id", "agent_type", "result", "status", "duration_seconds", "completed_at"}
+        assert set(d.keys()) == expected_keys
+
+    def test_to_dict_still_running_keys_are_deterministic(self):
+        """still_running=True produces base keys + still_running, without completed_at."""
+        r = SubAgentResult(
+            success=False, task_id="t", agent_type="w",
+            status=SubAgentStatus.TIMED_OUT, still_running=True,
+        )
+        d = r.to_dict()
+        expected_keys = {"success", "task_id", "agent_type", "result", "status", "duration_seconds", "still_running"}
+        assert set(d.keys()) == expected_keys
+
+
+class TestNonfatalTimeoutSpawnChild:
+    """Verify _HARD_TIMEOUT_MULTIPLIER and non-fatal wait behavior in spawn."""
+
+    def test_hard_timeout_multiplier_value(self):
+        from myrm_agent_harness.agent.sub_agents._manager_spawn import (
+            _HARD_TIMEOUT_MULTIPLIER,
+        )
+        assert _HARD_TIMEOUT_MULTIPLIER == 3
 
 
 # ---------------------------------------------------------------------------
@@ -1242,79 +1352,3 @@ class TestVerification:
         proxy_arg = mock_ctx_mgr.call_args[0][0]
         assert isinstance(proxy_arg, ReadonlyExecutorProxy)
         assert proxy_arg.inner == mock_executor
-
-    def test_collect_gather_results_success(self):
-        successes: list[dict[str, object]] = []
-        failures: list[object] = []
-        _collect_gather_results([_ok("t1")], ["t1"], successes, failures)
-        assert len(successes) == 1
-        assert len(failures) == 0
-
-    def test_collect_gather_results_exception(self):
-        successes: list[dict[str, object]] = []
-        failures: list[object] = []
-        _collect_gather_results([RuntimeError("oops")], ["t1"], successes, failures)
-        assert len(failures) == 1
-        assert "RuntimeError" in str(failures[0])
-
-    def test_collect_gather_results_unknown_type(self):
-        successes: list[dict[str, object]] = []
-        failures: list[object] = []
-        _collect_gather_results(["unknown_type"], ["t1"], successes, failures)
-        assert len(failures) == 1
-
-    def _make_future(self) -> asyncio.AbstractEventLoop:
-        loop = asyncio.new_event_loop()
-        self._loop = loop
-        return loop
-
-    def test_collect_timed_out_done_success(self):
-        loop = self._make_future()
-        future: asyncio.Future[SubAgentResult] = loop.create_future()
-        future.set_result(_ok("t1"))
-        successes: list[dict[str, object]] = []
-        failures: list[object] = []
-        _collect_timed_out_results([future], ["t1"], successes, failures, 5.0)
-        assert len(successes) == 1
-        loop.close()
-
-    def test_collect_timed_out_done_failure(self):
-        loop = self._make_future()
-        future: asyncio.Future[SubAgentResult] = loop.create_future()
-        future.set_result(_fail("t1"))
-        successes: list[dict[str, object]] = []
-        failures: list[object] = []
-        _collect_timed_out_results([future], ["t1"], successes, failures, 5.0)
-        assert len(failures) == 1
-        loop.close()
-
-    def test_collect_timed_out_not_done(self):
-        loop = self._make_future()
-        future: asyncio.Future[SubAgentResult] = loop.create_future()
-        successes: list[dict[str, object]] = []
-        failures: list[object] = []
-        _collect_timed_out_results([future], ["t1"], successes, failures, 5.0)
-        assert len(failures) == 1
-        assert "timeout" in str(failures[0]).lower()
-        loop.close()
-
-    def test_collect_timed_out_exception(self):
-        loop = self._make_future()
-        future: asyncio.Future[SubAgentResult] = loop.create_future()
-        future.set_exception(ValueError("bad"))
-        successes: list[dict[str, object]] = []
-        failures: list[object] = []
-        _collect_timed_out_results([future], ["t1"], successes, failures, 5.0)
-        assert len(failures) == 1
-        assert "ValueError" in str(failures[0])
-        loop.close()
-
-    def test_collect_timed_out_non_result(self):
-        loop = self._make_future()
-        future: asyncio.Future[str] = loop.create_future()
-        future.set_result("not a SubAgentResult")
-        successes: list[dict[str, object]] = []
-        failures: list[object] = []
-        _collect_timed_out_results([future], ["t1"], successes, failures, 5.0)
-        assert len(failures) == 1
-        loop.close()

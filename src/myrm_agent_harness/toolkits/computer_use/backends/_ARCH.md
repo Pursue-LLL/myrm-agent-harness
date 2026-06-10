@@ -19,3 +19,17 @@ Platform-specific implementations of the ComputerBackend protocol. Provides macO
 - `pyautogui` (macOS/Windows input simulation)
 - `uiautomation` (Windows accessibility text extraction, optional)
 - `xdotool` (Linux input simulation)
+
+## check_permissions() Protocol
+
+All backends implement `check_permissions() -> PermissionStatus`. This probes OS-level
+permissions required for desktop automation:
+
+| Platform | Accessibility Check | Screen Recording Check |
+|----------|-------------------|----------------------|
+| **macOS** | AppleScript → `System Events` (detects TCC Accessibility denial) | `CGPreflightScreenCaptureAccess` via ctypes (detects TCC Screen Recording denial) |
+| **Windows** | Always granted (no TCC) | Always granted (no TCC) |
+| **Linux** | Always granted (X11/Wayland has no per-app permission gate) | Always granted |
+
+macOS returns `settings_deeplinks` with `x-apple.systempreferences:` URLs for one-click
+navigation to System Settings → Privacy & Security.

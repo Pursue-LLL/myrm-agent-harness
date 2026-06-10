@@ -354,3 +354,33 @@ class SkillStoreQueries:
             groups[row["skill_id"]].append(dict(row))
 
         return dict(groups)
+
+    def get_trend_failure_counts(self, days: int = 30) -> dict[str, int]:
+        """Get failure counts per skill over a longer trend window.
+
+        Used for slow-degradation detection: catches skills that fail
+        infrequently (e.g., 1/week) but consistently over a longer period.
+
+        Args:
+            days: Trend lookback window (default 30)
+
+        Returns:
+            Dict mapping skill_id -> failure count in the trend window
+        """
+        from datetime import datetime, timedelta
+
+        self._ensure_open()
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+
+        with self._reader() as conn:
+            rows = conn.execute(
+                """
+                SELECT skill_id, COUNT(*) as fail_count
+                FROM execution_analyses
+                WHERE analyzed_at >= ? AND success = 0
+                GROUP BY skill_id
+                """,
+                (cutoff,),
+            ).fetchall()
+
+        return {row["skill_id"]: row["fail_count"] for row in rows}

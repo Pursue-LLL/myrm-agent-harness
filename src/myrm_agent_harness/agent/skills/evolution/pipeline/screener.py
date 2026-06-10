@@ -220,6 +220,14 @@ class EvolutionScreener:
                 "Intent-aware cooldown override triggered by GUI force_retry flag for skill '%s'",
                 request.skill_id,
             )
+            # Increment user_correction_count as a dissatisfaction signal
+            skill_for_correction = self._store.get_skill(request.skill_id)
+            if skill_for_correction and skill_for_correction.metrics:
+                skill_for_correction.metrics.user_correction_count += 1
+                try:
+                    await self._store.update_metrics(request.skill_id, skill_for_correction.metrics)
+                except Exception as e:
+                    logger.debug("Failed to persist user_correction_count: %s", e)
 
         skill = self._store.get_skill(request.skill_id)
         if skill:

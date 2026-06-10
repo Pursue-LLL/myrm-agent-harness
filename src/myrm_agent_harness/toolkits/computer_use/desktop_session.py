@@ -8,7 +8,7 @@
 - perception.renderer::render_snapshot_tree (POS: AX tree text renderer)
 - execution.healer::try_bbox_click (POS: BBox coordinate fallback when AX invoke fails)
 - session::ComputerSession, create_computer_session (POS: screenshot and coordinate I/O orchestrator)
-- types::ComputerUseConfig, ModifierKey, DesktopInteractAction, DesktopVisionAction, ScrollDirection, ActionResult (POS: shared computer_use types)
+- types::ComputerUseConfig, ModifierKey, DesktopInteractAction, DesktopVisionAction, ScrollDirection, ActionResult, PermissionStatus (POS: shared computer_use types)
 - security.credential_vault::get_global_credential_vault (POS: in-memory credential vault for fill_credential resolution)
 
 [OUTPUT]
@@ -17,6 +17,7 @@
   - desktop_snapshot(...) -> str | list[ContentBlock]
   - desktop_interact(...) -> str | list[ContentBlock]
   - desktop_vision_capture/action(...) -> str | list[ContentBlock]
+  - check_permissions() -> PermissionStatus
   - export_inspector_snapshot() -> dict[str, object]
 - create_desktop_session(...) -> DesktopSession
 
@@ -46,6 +47,7 @@ from myrm_agent_harness.toolkits.computer_use.types import (
     DesktopInteractAction,
     DesktopVisionAction,
     ModifierKey,
+    PermissionStatus,
     ScrollDirection,
 )
 from myrm_agent_harness.toolkits.element_ref.errors import (
@@ -393,6 +395,10 @@ class DesktopSession(ComputerSession):
             refs={},
             meta=meta,
         )
+
+    async def check_permissions(self) -> PermissionStatus:
+        """Delegate to the platform backend to probe OS-level permissions."""
+        return await super().check_permissions()
 
     async def export_inspector_snapshot(self) -> dict[str, object]:
         """Capture foreground desktop state for WebUI inspector refresh."""

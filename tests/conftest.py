@@ -39,6 +39,20 @@ def _cleanup_temp_workspace() -> None:
 atexit.register(_cleanup_temp_workspace)
 
 
+def _cleanup_browser_child_processes() -> None:
+    from myrm_agent_harness.testing.browser_process_cleanup import terminate_browser_processes_in_tree
+
+    with suppress(Exception):
+        terminate_browser_processes_in_tree(os.getpid())
+
+
+atexit.register(_cleanup_browser_child_processes)
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    _cleanup_browser_child_processes()
+
+
 _BROWSER_TEST_ROOT = Path(__file__).resolve().parent / "toolkits" / "browser"
 _TESTS_ROOT = Path(__file__).resolve().parent
 _INTEGRATION_TEST_ROOT = _TESTS_ROOT / "integration"

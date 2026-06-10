@@ -1,7 +1,7 @@
 """ComputerBackend protocol — platform-agnostic contract for screen I/O.
 
 [INPUT]
-- types::ScreenInfo, ActionResult, WindowTextResult (POS: shared type definitions)
+- types::ScreenInfo, ActionResult, WindowTextResult, PermissionStatus (POS: shared type definitions)
 
 [OUTPUT]
 - ComputerBackend: Protocol that platform backends must implement
@@ -17,6 +17,7 @@ from typing import Protocol
 from myrm_agent_harness.toolkits.computer_use.types import (
     ActionResult,
     ModifierKey,
+    PermissionStatus,
     ScreenContext,
     ScreenInfo,
     WindowTextResult,
@@ -120,5 +121,14 @@ class ComputerBackend(Protocol):
 
         Returns:
             True if the frontmost window belongs to a known browser.
+        """
+        ...
+
+    async def check_permissions(self) -> PermissionStatus:
+        """Probe OS-level permissions required for desktop automation.
+
+        Returns:
+            PermissionStatus with per-capability booleans and deep-link URLs
+            to the OS settings page where the user can grant access.
         """
         ...

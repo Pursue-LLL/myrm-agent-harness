@@ -248,7 +248,7 @@ result = SubAgentResult(checkpoint_data={...})
 - `_cleanup_child` 回调在 `asyncio.Task` 完成时自动触发
 - `_children_types` 映射保证状态记录中 `agent_type` 准确
 - 超过 50 条完成记录时按 `completed_at` FIFO 清理最旧条目
-- `SubAgentResult.completed_at` 精确记录完成时间戳
+- `SubAgentResult.completed_at` 精确记录完成时间戳（`to_dict()` 在 `still_running=True` 时省略此字段）
 
 ### 9. 进度与日志事件（自动透明度）
 
@@ -295,10 +295,16 @@ result = SubAgentResult(checkpoint_data={...})
 
 `delegate_task_tool` 的结果缓存键包含 `session_id`，防止 Sandbox 模式下跨用户缓存污染。
 
-### 11. wait_children 总超时
+### 11. 非致命超时 (Non-fatal Timeout)
 
-`wait_children(timeout=...)` 支持总超时参数。超时后自动取消未完成的子 agent，
-防止某个子 agent hang 住导致调用方永久阻塞。
+`spawn_child(wait=True)` 和 `wait_children(timeout=...)` 均采用**非致命超时**：
+
+- **等待超时 (wait timeout)**：`config.timeout_seconds`，超时后返回 `SubAgentResult(status=TIMED_OUT, still_running=True)`，子 agent **继续后台运行**，不做 cancel。
+- **硬安全超时 (hard safety timeout)**：`config.timeout_seconds * 3`，作为最终安全网终止真正的 runaway agent。
+- **LLM 决策权**：超时后 Parent Agent 可选择等待（再次 list_subagents 查看状态）、做别的事、或主动 cancel_subagent。
+- **`still_running` 字段**：`SubAgentResult.still_running: bool` 为 True 表示 agent 仍在后台运行。
+
+现有安全保障：budget_tokens / max_cost_usd / max_turns / cancel_subagent_tool 均不受影响。
 
 ### 12. Chain 错误上下文
 
@@ -359,7 +365,7 @@ Hook 异常不影响主流程（catch + warning 日志）。
 | Fork 上下文过滤 | `context_mode="fork"` 结论性过滤（`_filter_fork_messages`）：保留 System/Human/AI 结论，剥离 ToolMessage 和 tool_calls，`max_fork_tokens` 预算截断 |
 | 模型解析 | 支持 config LLM、ModelResolver、父 agent LLM 的分层解析 |
 | 缓存隔离 | delegate 结果缓存键包含 `session_id`，避免跨会话污染 |
-| 批量超时 | `wait_children()` 支持总超时和自动取消 |
+| 非致命超时 | `spawn_child(wait=True)` / `wait_children()` 超时后不 cancel，子 agent 继续后台运行（`still_running=True`） |
 | Chain 可调试性 | 链式编排错误包含 step index/total |
 | 配置管理 | YAML 配置加载、Pydantic 校验和注册表优先级 |
 | 自动进度与日志 | 子 agent 事件转发为统一的进度和日志事件 |

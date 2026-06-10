@@ -4,7 +4,7 @@
 - (none)
 
 [OUTPUT]
-- ComputerAction, DesktopInteractAction, DesktopVisionAction, ScrollDirection, ModifierKey, ScreenInfo, ScreenContext, ActionResult, WindowTextResult, ImageConstraints, ComputerUseConfig
+- ComputerAction, DesktopInteractAction, DesktopVisionAction, ScrollDirection, ModifierKey, ScreenInfo, ScreenContext, ActionResult, WindowTextResult, ImageConstraints, PermissionStatus, ComputerUseConfig
 
 [POS]
 Shared type definitions consumed by all computer_use submodules.
@@ -163,6 +163,24 @@ KNOWN_BROWSER_NAMES = frozenset(
         "brave",
     }
 )
+
+
+@dataclass(frozen=True)
+class PermissionStatus:
+    """OS-level permission status for desktop automation.
+
+    Each field indicates whether the corresponding permission is granted.
+    ``settings_deeplinks`` maps permission names to OS Settings URLs.
+    """
+
+    accessibility: bool = True
+    screen_recording: bool = True
+    platform: str = ""
+    settings_deeplinks: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def all_granted(self) -> bool:
+        return self.accessibility and self.screen_recording
 
 
 @dataclass
