@@ -97,6 +97,7 @@ Injected via `DESKTOP_CONTROL_RULES` in `shared_rules.py` when `enable_computer_
 - Workflow order: inspect → snapshot → interact
 - Prefer @dref; use vision only when AX is empty or interact failed
 - macOS permission: ask user to grant Accessibility before retry
+- Native API routing: when inspect detects a scriptable app, prefer bash_tool with native commands for data-heavy tasks
 
 ---
 
@@ -104,10 +105,11 @@ Injected via `DESKTOP_CONTROL_RULES` in `shared_rules.py` when `enable_computer_
 
 | Item | Status | Roadmap |
 |------|--------|---------|
-| Linux AT-SPI invoke | stub | #2 / platform parity |
+| Linux AT-SPI invoke | stub | platform parity |
 | `verify_goal` post-condition | field only | #7 |
 | Stream E2E tests | not covered | future |
 | Onboarding hint when computer_use enabled | implemented (toggle + tooltip + empty state) |
+| Native API routing hints | implemented (macOS/Windows/Linux) | #2 done |
 
 ---
 
