@@ -4,7 +4,7 @@ Eight semantically grouped tools covering browser capabilities:
 - browser_navigate — open a URL
 - browser_inspect  — analyze page structure quickly (lightweight metadata, ~15ms, ~100 tokens)
 - browser_snapshot — perceive the page via ARIA accessibility tree (with diff, scope, compact)
-- browser_interact — act on elements by ref (13 actions: click, type, fill, press, hover, select, scroll, etc.)
+- browser_interact — act on elements by ref (14 actions: click, type, fill, press, hover, select, scroll, scroll_to_bottom, etc.)
 - browser_extract  — get page text, screenshot, or diff screenshot (with configurable parameters)
 - browser_manage   — tabs, JS eval, history, dialogs, PDF, resize, session vault, recording, site experience, downloads (29 actions)
 - browser_execute_script_tool — execute a Python script for batch browser actions using Code-as-Action paradigm

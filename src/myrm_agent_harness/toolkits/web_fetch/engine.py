@@ -21,6 +21,7 @@ web_fetch.fetchers.protocol::FetcherType, FetchResult (POS: Fetcher protocol typ
 web_fetch.antibot_detector::is_blocked (POS: Anti-bot detection)
 web_fetch.http3_probe::get_http3_retry_metrics (POS: QUIC egress probe and L1 retry metrics)
 web_fetch.router.adaptive_router::AdaptiveRouter (POS: Self-learning fetcher router)
+web_fetch.youtube_extractor::is_youtube_url, extract_youtube_transcript (POS: YouTube transcript extractor)
 browser.pool.proxy::ProxyPool (POS: Proxy pool for browser fetchers)
 browser.domain_filter::DomainAllowlist (POS: Domain allowlist filter)
 utils.lru_cache::LRUCache (POS: Generic TTL-based LRU cache)
@@ -62,6 +63,7 @@ from .fetchers.stealth_fetcher import StealthFetcher
 from .http3_probe import get_http3_retry_metrics
 from .pipeline import ContentPipeline
 from .router.adaptive_router import AdaptiveRouter, RouterStats
+from .youtube_extractor import extract_youtube_transcript, is_youtube_url
 
 logger = logging.getLogger(__name__)
 
@@ -144,9 +146,11 @@ class CrawlEngine:
         crawl_timeout: float = _DEFAULT_CRAWL_TIMEOUT,
         domain_allowlist: DomainAllowlist | None = None,
         allow_private_networks: bool = False,
+        youtube_languages: list[str] | None = None,
     ):
         self._domain_allowlist = domain_allowlist
         self._allow_private_networks = allow_private_networks
+        self._youtube_languages = youtube_languages
         self._http_fetcher = HttpFetcher(proxy_pool=proxy_pool, session_vault=session_vault)
         self._browser_fetcher = BrowserFetcher(
             allow_private_networks=allow_private_networks, session_vault=session_vault
@@ -564,10 +568,19 @@ class CrawlEngine:
         last_modified = cached_item.last_modified if cached_item and self._enable_http_validation else None
 
         try:
-            async with asyncio.timeout(self._crawl_timeout):
-                doc, fetch_result = await self._crawl_with_degradation(
-                    url, etag=etag, last_modified=last_modified, max_chars=max_chars
-                )
+            if is_youtube_url(url):
+                async with asyncio.timeout(self._crawl_timeout):
+                    doc = await extract_youtube_transcript(
+                        url,
+                        preferred_languages=self._youtube_languages,
+                        proxy_pool=self._http_fetcher._proxy_pool,
+                    )
+                fetch_result = None
+            else:
+                async with asyncio.timeout(self._crawl_timeout):
+                    doc, fetch_result = await self._crawl_with_degradation(
+                        url, etag=etag, last_modified=last_modified, max_chars=max_chars
+                    )
 
             if fetch_result and fetch_result.status_code == 304 and cached_item:
                 logger.info(f"HTTP 304: cache still valid: {url}")

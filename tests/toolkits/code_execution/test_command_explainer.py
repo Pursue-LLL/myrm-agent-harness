@@ -113,29 +113,9 @@ class TestExtractCommandSpans:
         spans = extract_command_spans(command)
         assert len(spans) == 1
 
-    def test_tree_sitter_path_when_available(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import myrm_agent_harness.toolkits.code_execution.security.command_explainer.extract as extract_mod
-
-        def fake_ast(_command: str) -> list[dict[str, int]]:
-            return [{"startIndex": 0, "endIndex": 2}, {"startIndex": 5, "endIndex": 9}]
-
-        monkeypatch.setattr(extract_mod, "_extract_spans_with_tree_sitter", fake_ast)
-        spans = extract_command_spans("ls | bash")
-        assert spans == fake_ast("ls | bash")
-
     def test_classify_empty_segment_as_unknown(self) -> None:
         command = "   "
         spans = [{"startIndex": 0, "endIndex": 3}]
         risks = classify_span_risk_levels(command, spans)
         assert risks == ["unknown"]
 
-    def test_tree_sitter_pipeline_when_installed(self) -> None:
-        try:
-            import tree_sitter_bash  # noqa: F401
-        except ImportError:
-            pytest.skip("shell-ast extra not installed")
-
-        command = "ls -la | grep foo"
-        spans = extract_command_spans(command)
-        assert len(spans) >= 2
-        assert all(0 <= span["startIndex"] < span["endIndex"] <= len(command) for span in spans)

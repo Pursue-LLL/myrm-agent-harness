@@ -14,7 +14,7 @@ Browser session components.
 | browser_session_recording_mixin.py | Core | Playwright trace and HAR recording controls for BrowserSession. | ✅ |
 | download_manager.py | Core | Browser file download manager. Single responsibility: listen for, process, and record file downloads | ✅ |
 | extractor.py | Core | Content extraction manager. Text extraction (DOM→Markdown with SVG text/tspan support), screenshot capture, visual content detection, and automatic Vision LLM fallback for Canvas-heavy pages. | ✅ |
-| interactor.py | Core | Element interaction manager. Responsibilities: | ✅ |
+| interactor.py | Core | Element interaction manager. 14 action types (click/dblclick/type/fill/press/hover/focus/select/scroll/scroll_to_bottom/upload_file/drag/check/uncheck). Includes ref resolution, self-healing, SPA wait, and ref-not-found diagnosis with context sampling. scroll_to_bottom provides smart infinite scroll with scrollHeight stabilization detection. | ✅ |
 | network_logger.py | Core | Network request logging for the browser toolkit. Provides self-diagnosis capability for browser sess | ✅ |
 | network_intelligence.py | Core | CDP-based network intelligence for on-demand API response body retrieval and request replay. | ✅ |
 | console_logger.py | Core | Browser console log capture (JS errors/warnings/logs + page errors). Mirrors NetworkLogger lifecycle. | ✅ |

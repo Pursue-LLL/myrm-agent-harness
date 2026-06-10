@@ -8,7 +8,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.browser.exceptions import RefNotFoundError
-from myrm_agent_harness.toolkits.browser.session.interactor import Interactor
+from myrm_agent_harness.toolkits.browser.session.interactor import (
+    Interactor,
+    _parse_scroll_params,
+)
 from myrm_agent_harness.toolkits.browser.snapshot import RefInfo
 
 
@@ -254,6 +257,254 @@ async def test_interact_scroll_invalid_text(interactor: Interactor) -> None:
     with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
         with pytest.raises(ValueError, match="Scroll requires numeric text"):
             await interactor.interact("scroll", "e0", "not_a_number")
+
+
+# =============================================================================
+# _parse_scroll_params
+# =============================================================================
+
+
+def test_parse_scroll_params_defaults() -> None:
+    """Empty/None text returns all defaults."""
+    result = _parse_scroll_params("")
+    assert result["max_steps"] == 15
+    assert result["delay_ms"] == 500
+    assert result["stable_count"] == 3
+
+    result_none = _parse_scroll_params(None)  # type: ignore[arg-type]
+    assert result_none == result
+
+
+def test_parse_scroll_params_custom_values() -> None:
+    """Custom key=value pairs override defaults."""
+    result = _parse_scroll_params("max_steps=30,delay_ms=200,stable_count=5")
+    assert result["max_steps"] == 30
+    assert result["delay_ms"] == 200
+    assert result["stable_count"] == 5
+
+
+def test_parse_scroll_params_partial() -> None:
+    """Only specified keys are overridden."""
+    result = _parse_scroll_params("delay_ms=100")
+    assert result["max_steps"] == 15
+    assert result["delay_ms"] == 100
+    assert result["stable_count"] == 3
+
+
+def test_parse_scroll_params_clamping() -> None:
+    """Values are clamped to safe ranges."""
+    result = _parse_scroll_params("max_steps=9999,delay_ms=10,stable_count=1")
+    assert result["max_steps"] == 1000  # CAP
+    assert result["delay_ms"] == 100  # min 100
+    assert result["stable_count"] == 2  # min 2
+
+
+def test_parse_scroll_params_invalid_values_ignored() -> None:
+    """Non-numeric values and unknown keys are silently ignored."""
+    result = _parse_scroll_params("max_steps=abc,unknown_key=42")
+    assert result["max_steps"] == 15  # unchanged
+    assert result["delay_ms"] == 500
+    assert result["stable_count"] == 3
+
+
+def test_parse_scroll_params_whitespace() -> None:
+    """Whitespace around keys and values is trimmed."""
+    result = _parse_scroll_params("  max_steps = 25 , delay_ms = 300 ")
+    assert result["max_steps"] == 25
+    assert result["delay_ms"] == 300
+
+
+def test_parse_scroll_params_no_equals() -> None:
+    """Plain text without = signs is ignored, returns defaults."""
+    result = _parse_scroll_params("hello world")
+    assert result["max_steps"] == 15
+    assert result["delay_ms"] == 500
+    assert result["stable_count"] == 3
+
+
+def test_parse_scroll_params_negative_values() -> None:
+    """Negative values are clamped to minimums."""
+    result = _parse_scroll_params("max_steps=-5,delay_ms=-100,stable_count=-1")
+    assert result["max_steps"] == 1  # min 1
+    assert result["delay_ms"] == 100  # min 100
+    assert result["stable_count"] == 2  # min 2
+
+
+def test_parse_scroll_params_zero_max_steps() -> None:
+    """max_steps=0 is clamped to 1."""
+    result = _parse_scroll_params("max_steps=0")
+    assert result["max_steps"] == 1
+
+
+# =============================================================================
+# Action: scroll_to_bottom
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_scroll_to_bottom_reaches_bottom(interactor: Interactor, mock_page: Any) -> None:
+    """scroll_to_bottom stops when scrollHeight stabilizes."""
+    mock_locator = AsyncMock()
+    mock_page.wait_for_timeout = AsyncMock()
+
+    heights = [1000, 1500, 2000, 2000, 2000, 2000]
+    call_idx = {"i": 0}
+
+    async def mock_evaluate(expr: str) -> int:
+        if "scrollHeight" in expr:
+            idx = min(call_idx["i"], len(heights) - 1)
+            call_idx["i"] += 1
+            return heights[idx]
+        if "innerHeight" in expr:
+            return 800
+        return 0
+
+    mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
+
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+        result = await interactor.interact("scroll_to_bottom", "e0", "")
+
+    assert "completed" in result
+    assert "steps" in result.lower() or "Scrolled" in result
+
+
+@pytest.mark.asyncio
+async def test_scroll_to_bottom_max_steps_reached(interactor: Interactor, mock_page: Any) -> None:
+    """scroll_to_bottom respects max_steps when page keeps growing."""
+    mock_locator = AsyncMock()
+    mock_page.wait_for_timeout = AsyncMock()
+
+    height_counter = {"h": 1000}
+
+    async def mock_evaluate(expr: str) -> int:
+        if "scrollHeight" in expr:
+            height_counter["h"] += 500
+            return height_counter["h"]
+        if "innerHeight" in expr:
+            return 800
+        return 0
+
+    mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
+
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+        result = await interactor.interact("scroll_to_bottom", "e0", "max_steps=3")
+
+    assert "max_reached" in result
+    assert "3 steps" in result
+
+
+@pytest.mark.asyncio
+async def test_scroll_to_bottom_with_custom_params(interactor: Interactor, mock_page: Any) -> None:
+    """scroll_to_bottom accepts custom delay_ms and stable_count."""
+    mock_locator = AsyncMock()
+    mock_page.wait_for_timeout = AsyncMock()
+
+    heights = [1000, 1000, 1000]
+    call_idx = {"i": 0}
+
+    async def mock_evaluate(expr: str) -> int:
+        if "scrollHeight" in expr:
+            idx = min(call_idx["i"], len(heights) - 1)
+            call_idx["i"] += 1
+            return heights[idx]
+        if "innerHeight" in expr:
+            return 800
+        return 0
+
+    mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
+
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+        result = await interactor.interact(
+            "scroll_to_bottom", "e0", "delay_ms=200,stable_count=2"
+        )
+
+    assert "completed" in result
+    mock_page.wait_for_timeout.assert_called_with(200)
+
+
+@pytest.mark.asyncio
+async def test_scroll_to_bottom_single_step_already_at_bottom(
+    interactor: Interactor, mock_page: Any
+) -> None:
+    """Page already at bottom returns completed after stable_count checks."""
+    mock_locator = AsyncMock()
+    mock_page.wait_for_timeout = AsyncMock()
+
+    async def mock_evaluate(expr: str) -> int:
+        if "scrollHeight" in expr:
+            return 500
+        if "innerHeight" in expr:
+            return 800
+        return 0
+
+    mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
+
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+        result = await interactor.interact("scroll_to_bottom", "e0", "")
+
+    assert "completed" in result
+
+
+@pytest.mark.asyncio
+async def test_scroll_to_bottom_viewport_zero_fallback(
+    interactor: Interactor, mock_page: Any
+) -> None:
+    """viewport_h <= 0 falls back to 800."""
+    mock_locator = AsyncMock()
+    mock_page.wait_for_timeout = AsyncMock()
+
+    heights = [1000, 1000, 1000, 1000]
+    call_idx = {"i": 0}
+
+    async def mock_evaluate(expr: str) -> int:
+        if "scrollHeight" in expr:
+            idx = min(call_idx["i"], len(heights) - 1)
+            call_idx["i"] += 1
+            return heights[idx]
+        if "innerHeight" in expr:
+            return 0  # viewport returns 0
+        if "scrollBy" in expr:
+            return 0
+        return 0
+
+    mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
+
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+        result = await interactor.interact("scroll_to_bottom", "e0", "stable_count=2")
+
+    assert "completed" in result
+
+
+@pytest.mark.asyncio
+async def test_scroll_to_bottom_height_output_format(
+    interactor: Interactor, mock_page: Any
+) -> None:
+    """Return string contains steps, elapsed, height range, and status."""
+    mock_locator = AsyncMock()
+    mock_page.wait_for_timeout = AsyncMock()
+
+    heights = [1000, 2000, 2000, 2000, 2000]
+    call_idx = {"i": 0}
+
+    async def mock_evaluate(expr: str) -> int:
+        if "scrollHeight" in expr:
+            idx = min(call_idx["i"], len(heights) - 1)
+            call_idx["i"] += 1
+            return heights[idx]
+        if "innerHeight" in expr:
+            return 800
+        return 0
+
+    mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
+
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+        result = await interactor.interact("scroll_to_bottom", "e0", "")
+
+    assert "Scrolled" in result
+    assert "steps" in result
+    assert "Height:" in result
+    assert "Status:" in result
+    assert "completed" in result
 
 
 # =============================================================================

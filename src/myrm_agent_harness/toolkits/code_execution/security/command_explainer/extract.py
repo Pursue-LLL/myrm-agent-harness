@@ -1,10 +1,10 @@
 """Extract pipeline command spans from shell strings for approval UI.
 
 [INPUT]
-- tree_sitter + tree_sitter_bash (optional, via pyproject `[shell-ast]` extra)
+- None (quote-aware string splitter; no optional deps)
 
 [OUTPUT]
-- extract_command_spans: Pipeline/logical segment spans (128KB cap, tree-sitter + quote-aware fallback).
+- extract_command_spans: Pipeline/logical segment spans (128KB cap, quote-aware split).
 - classify_span_risk_levels: Per-segment safe/unknown levels via risk_classifier.
 - classify_span_risk_reasons: Per-segment stable i18n reason codes via risk_classifier.
 - build_shell_approval_fields: Spans, risks, and reasons from redacted display args.
@@ -17,19 +17,11 @@ Shell command span extractor for HITL approval UI. Does not affect security deci
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
-
 from myrm_agent_harness.toolkits.code_execution.security.command_explainer.types import (
     CommandSpan,
     SpanRiskLevel,
     SpanRiskReason,
 )
-
-if TYPE_CHECKING:
-    from tree_sitter import Node as TreeSitterNode
-
-logger = logging.getLogger(__name__)
 
 MAX_COMMAND_SPAN_SOURCE_CHARS = 128 * 1024
 
@@ -56,10 +48,6 @@ def extract_command_spans(command: str) -> list[CommandSpan]:
 
     if len(stripped) > MAX_COMMAND_SPAN_SOURCE_CHARS:
         return [{"startIndex": 0, "endIndex": len(stripped)}]
-
-    ast_spans = _extract_spans_with_tree_sitter(stripped)
-    if ast_spans:
-        return ast_spans
 
     return _extract_spans_quote_aware(stripped)
 
@@ -123,46 +111,8 @@ def build_shell_approval_fields(
     }
 
 
-def _extract_spans_with_tree_sitter(command: str) -> list[CommandSpan]:
-    try:
-        import tree_sitter_bash as tsb
-        from tree_sitter import Language, Parser
-    except ImportError:
-        return []
-
-    try:
-        parser = Parser(Language(tsb.language()))
-        source = command.encode("utf-8")
-        tree = parser.parse(source)
-        root = tree.root_node
-        if root.has_error:
-            return []
-
-        spans: list[CommandSpan] = []
-        _collect_command_spans(root, spans)
-        return _dedupe_spans(_byte_spans_to_char_spans(command, spans))
-    except Exception:
-        logger.warning("command_explainer: tree-sitter parse failed", exc_info=True)
-        return []
-
-
-def _collect_command_spans(node: TreeSitterNode, spans: list[CommandSpan]) -> None:
-    if node.type == "pipeline":
-        for child in node.named_children:
-            if child.type == "command":
-                spans.append({"startIndex": child.start_byte, "endIndex": child.end_byte})
-        return
-
-    if node.type == "command" and node.parent is not None and node.parent.type != "pipeline":
-        spans.append({"startIndex": node.start_byte, "endIndex": node.end_byte})
-        return
-
-    for child in node.named_children:
-        _collect_command_spans(child, spans)
-
-
 def _extract_spans_quote_aware(command: str) -> list[CommandSpan]:
-    """Fallback: split on |, &&, || outside quotes and return segment spans."""
+    """Split on |, &&, || outside quotes and return segment spans."""
     segments: list[tuple[int, int]] = []
     cursor = 0
     i = 0
@@ -218,28 +168,3 @@ def _extract_spans_quote_aware(command: str) -> list[CommandSpan]:
         return [{"startIndex": 0, "endIndex": len(command)}]
 
     return [{"startIndex": start, "endIndex": end} for start, end in segments]
-
-
-def _dedupe_spans(spans: list[CommandSpan]) -> list[CommandSpan]:
-    seen: set[tuple[int, int]] = set()
-    unique: list[CommandSpan] = []
-    for span in sorted(spans, key=lambda s: s["startIndex"]):
-        key = (span["startIndex"], span["endIndex"])
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(span)
-    return unique
-
-
-def _byte_spans_to_char_spans(source: str, spans: list[CommandSpan]) -> list[CommandSpan]:
-    encoded = source.encode("utf-8")
-    converted: list[CommandSpan] = []
-    for span in spans:
-        start_byte = span["startIndex"]
-        end_byte = span["endIndex"]
-        start_char = len(encoded[:start_byte].decode("utf-8"))
-        end_char = len(encoded[:end_byte].decode("utf-8"))
-        if end_char > start_char:
-            converted.append({"startIndex": start_char, "endIndex": end_char})
-    return converted

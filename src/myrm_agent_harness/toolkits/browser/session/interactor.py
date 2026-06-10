@@ -13,7 +13,7 @@
 
 [POS]
 Element interaction manager. Responsibilities:
-1. Element operations (13 actions: click/dblclick/type/fill/press/hover/focus/select/scroll/upload_file/drag/check/uncheck)
+1. Element operations (14 actions: click/dblclick/type/fill/press/hover/focus/select/scroll/scroll_to_bottom/upload_file/drag/check/uncheck)
 2. Ref resolution (from ref ID to Locator, supports iframe refs)
 3. Interaction timeout control (10s)
 4. Ref failure diagnosis (URL change detection + smart suggestion generation + context refs sampling)
@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import logging
 import random
+import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from types import MappingProxyType
@@ -145,6 +146,7 @@ _VALID_ACTIONS = frozenset(
         "focus",
         "select",
         "scroll",
+        "scroll_to_bottom",
         "upload_file",
         "drag",
         "check",
@@ -154,11 +156,50 @@ _VALID_ACTIONS = frozenset(
 )
 
 
+_SCROLL_TO_BOTTOM_MAX_STEPS_CAP = 1000
+_SCROLL_TO_BOTTOM_DEFAULT_MAX_STEPS = 15
+_SCROLL_TO_BOTTOM_DEFAULT_DELAY_MS = 500
+_SCROLL_TO_BOTTOM_DEFAULT_STABLE_COUNT = 3
+
+
+def _parse_scroll_params(text: str) -> dict[str, int]:
+    """Parse key=value parameters from scroll_to_bottom text field.
+
+    Accepts format: "max_steps=20,delay_ms=300,stable_count=3" (all optional).
+    Returns dict with guaranteed keys: max_steps, delay_ms, stable_count.
+    """
+    params: dict[str, int] = {
+        "max_steps": _SCROLL_TO_BOTTOM_DEFAULT_MAX_STEPS,
+        "delay_ms": _SCROLL_TO_BOTTOM_DEFAULT_DELAY_MS,
+        "stable_count": _SCROLL_TO_BOTTOM_DEFAULT_STABLE_COUNT,
+    }
+    if not text or not text.strip():
+        return params
+
+    for part in text.split(","):
+        part = part.strip()
+        if "=" not in part:
+            continue
+        key, _, val = part.partition("=")
+        key = key.strip()
+        val = val.strip()
+        if key in params:
+            try:
+                params[key] = int(val)
+            except ValueError:
+                pass
+
+    params["max_steps"] = max(1, min(params["max_steps"], _SCROLL_TO_BOTTOM_MAX_STEPS_CAP))
+    params["delay_ms"] = max(100, params["delay_ms"])
+    params["stable_count"] = max(2, params["stable_count"])
+    return params
+
+
 class Interactor:
     """Element interaction manager — single responsibility.
 
     Responsibilities:
-    1. Element actions (13 types: click/dblclick/type/fill/press/hover/focus/select/scroll/upload_file/drag/check/uncheck)
+    1. Element actions (14 types: click/dblclick/type/fill/press/hover/focus/select/scroll/scroll_to_bottom/upload_file/drag/check/uncheck)
     2. Ref resolution (ref ID -> Locator, including iframe refs)
     3. Interaction timeout control (10 s)
     4. Ref-not-found diagnosis (URL change detection + smart suggestion generation + context ref sampling)
@@ -462,6 +503,49 @@ class Interactor:
                 await locator.scroll_into_view_if_needed(timeout=_INTERACTION_TIMEOUT_MS)
                 await self._page.evaluate(f"window.scrollBy(0, {delta})")
                 return f"Scrolled {delta}px{healed_msg}"
+
+            elif action == "scroll_to_bottom":
+                params = _parse_scroll_params(text)
+                max_steps = params["max_steps"]
+                delay_ms = params["delay_ms"]
+                stable_count = params["stable_count"]
+
+                start_time = time.monotonic()
+                start_height = await self._page.evaluate(
+                    "document.documentElement.scrollHeight"
+                )
+                viewport_h = await self._page.evaluate("window.innerHeight")
+                if viewport_h <= 0:
+                    viewport_h = 800
+                prev_height = start_height
+                stable = 0
+                steps = 0
+
+                for _ in range(max_steps):
+                    await self._page.evaluate(f"window.scrollBy(0, {viewport_h})")
+                    await self._page.wait_for_timeout(delay_ms)
+                    new_height = await self._page.evaluate(
+                        "document.documentElement.scrollHeight"
+                    )
+                    steps += 1
+                    if new_height == prev_height:
+                        stable += 1
+                        if stable >= stable_count:
+                            break
+                    else:
+                        stable = 0
+                        prev_height = new_height
+
+                elapsed = round(time.monotonic() - start_time, 1)
+                status = "completed" if stable >= stable_count else "max_reached"
+                final_height = await self._page.evaluate(
+                    "document.documentElement.scrollHeight"
+                )
+                return (
+                    f"Scrolled {steps} steps ({elapsed}s). "
+                    f"Height: {start_height}\u2192{final_height}px. "
+                    f"Status: {status}{healed_msg}"
+                )
 
             elif action == "upload_file":
                 await locator.set_input_files(text, timeout=_INTERACTION_TIMEOUT_MS)

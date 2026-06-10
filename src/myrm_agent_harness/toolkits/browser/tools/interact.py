@@ -41,7 +41,8 @@ def create_interact_tool(session: BrowserSession):
         action: str = Field(
             description="One of: click, dblclick, type (append keystrokes), fill (clear then set value), "
             "fill_credential (securely fill password/totp), "
-            "press, hover, focus, select, scroll, upload_file, drag, "
+            "press, hover, focus, select, scroll, scroll_to_bottom (smart infinite scroll with auto-detection), "
+            "upload_file, drag, "
             "check (idempotent checkbox on), uncheck (idempotent checkbox off)",
         )
         ref: str = Field(
@@ -52,6 +53,7 @@ def create_interact_tool(session: BrowserSession):
             description="Text for type/fill, key combo for press (e.g. 'Enter', 'Control+a'), "
             f"credential label for fill_credential (available labels: {labels_str}), "
             "option value for select, signed scroll delta in pixels (positive=down, negative=up), "
+            "optional params for scroll_to_bottom (e.g. 'max_steps=20,delay_ms=300'), "
             "file path for upload_file, target ref for drag. Omit for click/dblclick/hover/focus/check/uncheck.",
         )
         verify_goal: str | None = Field(

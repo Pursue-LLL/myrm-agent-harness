@@ -52,6 +52,7 @@ dependencies = [
   # --- 网页爬取与内容提取（基础） ---
   "beautifulsoup4>=4.15.0", # HTML DOM 解析与清洗（ContentPruningFilter）
   "lxml>=6.1.1",            # bs4 lxml parser (content_pruning + tree_truncator)
+  "youtube-transcript-api>=1.0.0", # YouTube 字幕提取 (youtube_extractor)
   # --- Agent 协议与基础设施 ---
   "agent-client-protocol>=0.10.1", # ACP 协议 SDK (Agent 间通信)
   "filelock>=3.29.1",             # 跨进程文件锁 (Skill 并发控制)
@@ -120,12 +121,6 @@ fastapi = [
   "fastapi>=0.136.3",
 ]
 
-# toolkits/code_execution/security/command_explainer - shell AST spans for approval UI
-shell-ast = [
-  "tree-sitter>=0.25.2",
-  "tree-sitter-bash>=0.25.1",
-]
-
 # toolkits/memory/ - 记忆持久化 (PostgreSQL); SQLite checkpoint deps live in core dependencies
 memory-postgres = [
   "langgraph-checkpoint-postgres>=3.1.0",
@@ -146,7 +141,7 @@ compiled-core = [
   "myrm-agent-harness-core-win32-arm64==0.1.0rc2; platform_system == 'Windows' and platform_machine == 'ARM64'",
 ]
 all = [
-  "myrm-agent-harness[browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,memory-postgres,image-search,shell-ast]",
+  "myrm-agent-harness[browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,memory-postgres,image-search]",
 ]
 
 [tool.uv]

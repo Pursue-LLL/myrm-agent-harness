@@ -22,6 +22,7 @@ Layered web crawl engine with L1 HTTP / L2 Browser / L3 Stealth fallback, adapti
 | content_pruning.py | Util | Content pruning and noise removal. | ✅ |
 | antibot_detector.py | Util | Anti-bot detection heuristics. | ✅ |
 | binary_router.py | Util | Binary content type routing. | ✅ |
+| youtube_extractor.py | Util | YouTube transcript extraction via youtube-transcript-api. Fast-path bypass for YouTube URLs. | ✅ |
 | http3_probe.py | Util | HTTP/3 protocol probe. | ✅ |
 
 | Submodule | Description |
@@ -61,3 +62,4 @@ Crash recovery: On init, stale 'running' tasks reset to 'pending'.
 - `utils.event_utils` (dispatch_custom_event for progress)
 - `toolkits.retriever` (for fetch_and_extract mode)
 - `httpx` (robots.txt fetching, sitemap parsing)
+- `youtube-transcript-api` (YouTube subtitle extraction)
