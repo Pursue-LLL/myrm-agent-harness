@@ -98,3 +98,29 @@ def test_cancel_with_custom_reason():
     CancellationRegistry.cancel("test-request-4", "Custom cancellation reason")
     assert token.is_cancelled
     assert token.cancel_reason == "Custom cancellation reason"
+
+
+def test_cancel_all_active_streams():
+    """Test global cancel_all for E-Stop."""
+    tokens = [CancellationToken(request_id=f"stream-{i}") for i in range(3)]
+    for token in tokens:
+        CancellationRegistry.register(token)
+
+    cancelled = CancellationRegistry.cancel_all(CancelReason.ESTOP)
+    assert cancelled == 3
+    for token in tokens:
+        assert token.is_cancelled
+        assert token.cancel_reason == CancelReason.ESTOP
+
+
+def test_cancel_all_skips_already_cancelled():
+    """cancel_all should not count already-cancelled tokens."""
+    active = CancellationToken(request_id="active")
+    done = CancellationToken(request_id="done")
+    CancellationRegistry.register(active)
+    CancellationRegistry.register(done)
+    done.cancel(CancelReason.DISCONNECT)
+
+    cancelled = CancellationRegistry.cancel_all(CancelReason.ESTOP)
+    assert cancelled == 1
+    assert active.is_cancelled

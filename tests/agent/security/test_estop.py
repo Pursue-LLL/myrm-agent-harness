@@ -202,6 +202,7 @@ class TestLegacyStateMigration:
         assert guard.state.level == EStopLevel.TOOL_FREEZE
         assert guard.state.reason == "legacy"
         assert (data_root / ".estop_state.json").is_file()
+        assert not legacy.exists()
 
     def test_skips_inactive_legacy_state(
         self,

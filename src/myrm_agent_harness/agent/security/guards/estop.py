@@ -1,14 +1,14 @@
 """Emergency Stop (E-Stop) — global kill switch for all tool execution.
 
-Provides a fail-closed emergency brake that can freeze all tool calls
-or terminate all running agents. State is persisted to a JSON file so
-it survives process restarts.
+Provides a fail-closed emergency brake that freezes all tool calls until
+explicitly resumed. State is persisted to a JSON file so it survives
+process restarts. Active streams are cancelled by the server layer on activate.
 
 [INPUT]
 - MYRM_DATA_DIR (optional infra env): persistent data root; default ~/.myrm
 
 [OUTPUT]
-- EStopLevel: ToolFreeze / KillAll
+- EStopLevel: None / ToolFreeze / KillAll (KillAll reserved for fail-closed reads)
 - EStopState: current state snapshot (frozen dataclass)
 - EStopGuard: global singleton managing the stop state
 - check_estop(): fast-path check for middleware integration
@@ -99,6 +99,7 @@ class EStopGuard:
             from myrm_agent_harness.infra.atomic_write import atomic_write
 
             atomic_write(self._state_path, json.dumps(raw, ensure_ascii=False))
+            legacy.unlink(missing_ok=True)
             logger.warning("Migrated active E-Stop state from %s to %s", legacy, self._state_path)
         except Exception:
             logger.warning("Failed to migrate legacy E-Stop state from %s", legacy, exc_info=True)

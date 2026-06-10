@@ -12,10 +12,10 @@
 - .cancellation_metrics::CancellationMetrics (POS: ./cancellation_metrics.py，监控数据结构)
 
 [OUTPUT]
-- CancelReason: 取消原因枚举（DISCONNECT/USER_CANCELLED/TIMEOUT/ERROR）
+- CancelReason: 取消原因枚举（DISCONNECT/USER_CANCELLED/TIMEOUT/ERROR/ESTOP）
 - CancellationToken: 取消令牌类，用于在异步操作中传递取消状态
 - CancellationMonitor: 取消监控器，定期检查客户端连接状态 + 监控指标
-- CancellationRegistry: 全局取消令牌注册表，支持主动取消 + TTL清理
+- CancellationRegistry: 全局取消令牌注册表，支持单条 cancel、cancel_all（E-Stop）+ TTL清理
 - CancellationMetrics: 监控数据结构（re-export）
 - create_cancellation_context(): 创建取消上下文（令牌 + 监控器工厂）
 - get_cancel_token() / set_cancel_token(): ContextVar 访问器，供工具层隐式获取/注入取消令牌
@@ -54,6 +54,9 @@ class CancelReason(StrEnum):
 
     ERROR = "error"
     """Internal error triggered cancellation"""
+
+    ESTOP = "estop"
+    """Global E-Stop (/freeze) cancelled all active agent streams"""
 
 
 class CancellationToken:
@@ -235,6 +238,24 @@ class CancellationRegistry:
                 logger.info(f"Manually cancelled request: {request_id}, reason={reason}")
                 return True
             return False
+
+    @classmethod
+    def cancel_all(cls, reason: CancelReason | str = CancelReason.ESTOP) -> int:
+        """Cancel every active registered stream.
+
+        Returns:
+            Number of streams that were cancelled.
+        """
+        cancelled = 0
+        with cls._lock:
+            for token in cls._tokens.values():
+                if not token.is_cancelled:
+                    token.cancel(reason)
+                    cancelled += 1
+        if cancelled:
+            reason_str = reason.value if isinstance(reason, CancelReason) else reason
+            logger.info("Cancelled %d active agent streams, reason=%s", cancelled, reason_str)
+        return cancelled
 
     @classmethod
     def get_active_count(cls) -> int:
