@@ -2,9 +2,10 @@
 
 [INPUT]
 - ps subprocess (POS: process listing)
+- myrm_agent_harness.utils.os_compat::terminate_process_graceful (POS: Cross-platform process group control.)
 
 [OUTPUT]
-- terminate_browser_processes_in_tree: SIGTERM automation descendants of a root PID
+- terminate_browser_processes_in_tree: Gracefully terminate automation descendants of a root PID
 
 [POS]
 Lightweight pytest teardown helper. Complements `toolkits.browser.doctor` global orphan
@@ -15,9 +16,10 @@ from __future__ import annotations
 
 import logging
 import os
-import signal
 import subprocess
 from collections.abc import Sequence
+
+from myrm_agent_harness.utils.os_compat import terminate_process_graceful
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +76,7 @@ def _is_automation_command(command: str) -> bool:
 
 
 def terminate_browser_processes_in_tree(root_pid: int | None = None) -> int:
-    """Send SIGTERM to automation processes in the tree rooted at ``root_pid``."""
+    """Gracefully terminate automation processes in the tree rooted at ``root_pid``."""
     root = os.getpid() if root_pid is None else root_pid
     rows = _list_process_rows()
     targets = _descendant_pids(root, rows)
@@ -84,10 +86,8 @@ def terminate_browser_processes_in_tree(root_pid: int | None = None) -> int:
         if pid not in targets or not _is_automation_command(command):
             continue
         try:
-            os.kill(pid, signal.SIGTERM)
+            terminate_process_graceful(pid)
             signaled += 1
-        except ProcessLookupError:
-            continue
         except PermissionError:
             logger.warning("Permission denied terminating automation pid=%s", pid)
     return signaled

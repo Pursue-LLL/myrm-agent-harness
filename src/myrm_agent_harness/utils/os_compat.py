@@ -9,6 +9,7 @@
 [OUTPUT]
 - get_process_group_kwargs: Subprocess kwargs for creating process groups.
 - kill_process_group: Safely kill a process group tree.
+- terminate_process_graceful: SIGTERM then wait then SIGKILL for a process tree.
 - LOCK_EX, LOCK_SH, LOCK_NB, LOCK_UN: Cross-platform lock flags.
 - flock: Cross-platform fcntl.flock wrapper.
 - lockf: Cross-platform fcntl.lockf wrapper.
@@ -24,6 +25,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from typing import Any
 
 IS_WIN = sys.platform == "win32"
@@ -107,3 +109,24 @@ def kill_process_group(pid: int, sig: int = signal.SIGKILL) -> None:
                 os.killpg(pgid, sig)
         except (ProcessLookupError, OSError):
             pass
+
+
+def _is_process_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return False
+    return True
+
+
+def terminate_process_graceful(pid: int, *, grace_seconds: float = 2.0) -> None:
+    """Send SIGTERM to a process tree, wait, then SIGKILL survivors."""
+    kill_process_group(pid, signal.SIGTERM)
+    deadline = time.monotonic() + grace_seconds
+    while time.monotonic() < deadline:
+        if not _is_process_alive(pid):
+            return
+        time.sleep(0.05)
+    kill_process_group(pid, signal.SIGKILL)

@@ -101,6 +101,35 @@ def test_win_lock_emulation(win32_env):
             os_compat.flock(1, os_compat.LOCK_EX)
 
 
+def test_terminate_process_graceful_escalates_to_sigkill(posix_env):
+    alive = {"value": True}
+
+    def mock_getpgid(pid: int) -> int:
+        if pid == 12345:
+            return 54321
+        return 11111
+
+    def mock_killpg(_pgid: int, sig: int) -> None:
+        if sig == signal.SIGKILL:
+            alive["value"] = False
+
+    def mock_kill(pid: int, sig: int) -> None:
+        if pid == 12345 and sig == 0 and not alive["value"]:
+            raise ProcessLookupError
+
+    with (
+        patch("os.getpgid", side_effect=mock_getpgid),
+        patch("os.getpid", return_value=11111),
+        patch("os.killpg", side_effect=mock_killpg),
+        patch("os.kill", side_effect=mock_kill),
+        patch("time.sleep"),
+        patch("time.monotonic", side_effect=[0.0, 3.0]),
+    ):
+        os_compat.terminate_process_graceful(12345, grace_seconds=2.0)
+
+    assert alive["value"] is False
+
+
 def test_posix_lock(posix_env):
     if sys.platform == "win32":
         pytest.skip("Cannot reliably mock fcntl on Windows host")
