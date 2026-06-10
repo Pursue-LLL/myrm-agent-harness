@@ -124,14 +124,14 @@ async def reset_global_browser_pool_for_tests() -> None:
 def _cleanup_orphan_chromium() -> None:
     """Auto-cleanup orphan Chrome processes left by a previous abnormal exit."""
     try:
-        from ..doctor import cleanup_orphan_processes, find_orphan_chromium_processes
+        from ..doctor import cleanup_orphan_processes, find_orphan_automation_processes
 
-        orphans = find_orphan_chromium_processes()
+        orphans = find_orphan_automation_processes()
         if not orphans:
             return
 
         result = cleanup_orphan_processes([o["pid"] for o in orphans], force=True)
         killed = result.get("killed", 0)
-        logger.warning("Cleaned up %d orphan Chrome process(es) from previous session", killed)
+        logger.warning("Cleaned up %d orphan automation process(es) from previous session", killed)
     except Exception:
         logger.debug("Orphan cleanup skipped (psutil unavailable or scan failed)", exc_info=True)

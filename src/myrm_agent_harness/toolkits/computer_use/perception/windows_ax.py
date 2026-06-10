@@ -144,6 +144,25 @@ def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionRe
     return ActionResult(success=True, output=f"UIA {normalized} succeeded")
 
 
+_COM_AUTOMATABLE_APPS: frozenset[str] = frozenset({
+    "Microsoft Excel", "Microsoft Word", "Microsoft PowerPoint",
+    "Microsoft Outlook", "Microsoft Access", "Microsoft Visio",
+    "File Explorer", "Windows Terminal", "Command Prompt", "PowerShell",
+    "Notepad", "WordPad", "Calculator",
+})
+
+
+def _native_api_hint(app_name: str) -> str:
+    """Return a routing hint if the app supports COM/PowerShell automation."""
+    for known in _COM_AUTOMATABLE_APPS:
+        if known.lower() in app_name.lower():
+            return (
+                f" This app ('{app_name}') supports COM/PowerShell automation. "
+                "For data retrieval or bulk actions, bash_tool with PowerShell is faster and more reliable than GUI interaction."
+            )
+    return ""
+
+
 def inspect_foreground() -> dict[str, str | int | bool]:
     try:
         snapshot = capture_ax_snapshot("foreground")
@@ -164,10 +183,12 @@ def inspect_foreground() -> dict[str, str | int | bool]:
             "recommendation": "Grant accessibility permissions, then call desktop_snapshot_tool.",
         }
 
+    base_rec = "Call desktop_snapshot_tool(scope='foreground') before desktop_interact_tool."
+    native_hint = _native_api_hint(snapshot.meta.app_name)
     return {
         "app_name": snapshot.meta.app_name,
         "window_title": snapshot.meta.window_title,
         "interactive_estimate": snapshot.meta.ref_count,
         "needs_permission": False,
-        "recommendation": "Call desktop_snapshot_tool(scope='foreground') before desktop_interact_tool.",
+        "recommendation": base_rec + native_hint,
     }

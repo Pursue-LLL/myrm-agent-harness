@@ -262,6 +262,26 @@ def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionRe
     return ActionResult(success=True, output=f"AX {ax_action} succeeded")
 
 
+_SCRIPTABLE_APPS: frozenset[str] = frozenset({
+    "Finder", "Mail", "Safari", "Notes", "Reminders", "Calendar", "Messages",
+    "Preview", "Music", "TV", "Podcasts", "Photos", "Keynote", "Pages",
+    "Numbers", "TextEdit", "Terminal", "Script Editor", "System Settings",
+    "System Preferences", "Automator", "Shortcuts", "Microsoft Excel",
+    "Microsoft Word", "Microsoft PowerPoint", "Microsoft Outlook",
+    "Google Chrome", "Slack", "Spotify", "iTerm2", "iTerm",
+})
+
+
+def _native_api_hint(app_name: str) -> str:
+    """Return a routing hint if the app supports AppleScript automation."""
+    if app_name in _SCRIPTABLE_APPS:
+        return (
+            f" This app ('{app_name}') supports native AppleScript automation. "
+            "For data retrieval or bulk actions, bash_tool with osascript is faster and more reliable than GUI interaction."
+        )
+    return ""
+
+
 def inspect_foreground() -> dict[str, str | int | bool]:
     try:
         snapshot = capture_ax_snapshot("foreground")
@@ -282,12 +302,14 @@ def inspect_foreground() -> dict[str, str | int | bool]:
             "recommendation": f"AX tree unavailable ({exc}). Use desktop_vision_tool fallback.",
         }
 
+    base_rec = "Call desktop_snapshot_tool(scope='foreground') before desktop_interact_tool."
+    native_hint = _native_api_hint(snapshot.meta.app_name)
     return {
         "app_name": snapshot.meta.app_name,
         "window_title": snapshot.meta.window_title,
         "interactive_estimate": snapshot.meta.ref_count,
         "needs_permission": False,
-        "recommendation": "Call desktop_snapshot_tool(scope='foreground') before desktop_interact_tool.",
+        "recommendation": base_rec + native_hint,
     }
 
 

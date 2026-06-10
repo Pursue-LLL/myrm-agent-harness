@@ -11,7 +11,9 @@
 - DoctorReport: Complete diagnostic report with all checks
 - run_doctor: Main diagnostic function
 - format_report: Render report as colored CLI output
-- find_orphan_chromium_processes: Precisely detect orphan automation processes
+- find_orphan_chromium_processes: Detect orphan Chromium processes (patchright/playwright/puppeteer caches)
+- find_orphan_driver_processes: Detect orphan patchright/playwright driver node processes
+- find_orphan_automation_processes: Combined orphan browser + driver scan
 - cleanup_orphan_processes: Safe cleanup with force flag
 
 [POS]
@@ -596,6 +598,62 @@ def find_orphan_chromium_processes() -> list[dict[str, object]]:
     return orphans
 
 
+def find_orphan_driver_processes() -> list[dict[str, object]]:
+    """Find orphan patchright/playwright driver node processes."""
+    try:
+        import psutil
+    except (ImportError, TypeError):
+        logger.warning("psutil not available, cannot detect orphan driver processes")
+        return []
+
+    orphans: list[dict[str, object]] = []
+    current_pid = os.getpid()
+
+    try:
+        for proc in psutil.process_iter(["pid", "name", "ppid", "cmdline"]):
+            try:
+                cmdline = proc.info.get("cmdline") or []
+                if not cmdline:
+                    continue
+
+                full_cmd = " ".join(cmdline)
+                if not _is_automation_driver_cmdline(full_cmd):
+                    continue
+
+                if _has_python_ancestor(proc, current_pid):
+                    continue
+
+                orphans.append(
+                    {
+                        "pid": proc.info["pid"],
+                        "name": proc.info.get("name") or "node",
+                        "ppid": proc.info["ppid"],
+                        "user_data_dir": "",
+                    }
+                )
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+    except Exception as exc:
+        logger.warning(f"Failed to scan for orphan driver processes: {exc}")
+
+    return orphans
+
+
+def find_orphan_automation_processes() -> list[dict[str, object]]:
+    """Find orphan browser and driver processes from automation frameworks."""
+    seen_pids: set[int] = set()
+    combined: list[dict[str, object]] = []
+
+    for orphan in [*find_orphan_chromium_processes(), *find_orphan_driver_processes()]:
+        pid = int(orphan["pid"])
+        if pid in seen_pids:
+            continue
+        seen_pids.add(pid)
+        combined.append(orphan)
+
+    return combined
+
+
 def _extract_user_data_dir(cmdline: str) -> str:
     """Extract user-data-dir path from command line."""
     if "--user-data-dir=" in cmdline:
@@ -617,10 +675,22 @@ def _is_automation_cache_path(path: str) -> bool:
     automation_markers = [
         ".cache/patchright",
         ".cache/ms-playwright",
+        ".cache/puppeteer",
         "playwright_chromium",
     ]
     path_lower = path.lower()
     return any(marker in path_lower for marker in automation_markers)
+
+
+def _is_automation_driver_cmdline(full_cmd: str) -> bool:
+    """Check if command line is a patchright/playwright driver helper."""
+    driver_markers = (
+        "patchright/driver/node",
+        "playwright/driver/node",
+        "run-driver",
+    )
+    cmd_lower = full_cmd.lower()
+    return any(marker in cmd_lower for marker in driver_markers)
 
 
 def _has_python_ancestor(proc: object, current_pid: int) -> bool:
@@ -683,8 +753,8 @@ def cleanup_orphan_processes(orphan_pids: list[int] | None = None, *, force: boo
         }
 
     if orphan_pids is None:
-        orphans = find_orphan_chromium_processes()
-        orphan_pids = [o["pid"] for o in orphans]
+        orphans = find_orphan_automation_processes()
+        orphan_pids = [int(o["pid"]) for o in orphans]
 
     if not force:
         return {

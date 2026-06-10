@@ -12,8 +12,11 @@ import pytest
 from myrm_agent_harness.toolkits.browser.doctor import (
     _extract_user_data_dir,
     _is_automation_cache_path,
+    _is_automation_driver_cmdline,
     cleanup_orphan_processes,
+    find_orphan_automation_processes,
     find_orphan_chromium_processes,
+    find_orphan_driver_processes,
 )
 
 _PSUTIL_INSTALLED = importlib.util.find_spec("psutil") is not None
@@ -47,6 +50,7 @@ def test_extract_user_data_dir_missing():
     [
         ("/home/user/.cache/patchright/chromium-123", True),
         ("/home/user/.cache/ms-playwright/chromium-456", True),
+        ("/home/user/.cache/puppeteer/chrome/mac_arm-147", True),
         ("/var/folders/tmp/playwright_chromiumdev_profile-abc", True),
         ("/home/user/.config/google-chrome", False),
         ("/tmp/selenium_chrome", False),
@@ -56,6 +60,18 @@ def test_extract_user_data_dir_missing():
 def test_is_automation_cache_path(path: str, expected: bool):
     """Should correctly identify automation framework cache paths."""
     assert _is_automation_cache_path(path) is expected
+
+
+@pytest.mark.parametrize(
+    ("cmdline", "expected"),
+    [
+        ("/path/patchright/driver/node cli.js run-driver", True),
+        ("/path/playwright/driver/node cli.js run-driver", True),
+        ("/usr/bin/node server.js", False),
+    ],
+)
+def test_is_automation_driver_cmdline(cmdline: str, expected: bool):
+    assert _is_automation_driver_cmdline(cmdline) is expected
 
 
 def test_find_orphan_chromium_processes_psutil_missing():
@@ -93,6 +109,68 @@ def test_find_orphan_chromium_processes_identifies_orphan():
         assert len(orphans) == 1
         assert orphans[0]["pid"] == 12345
         assert "ms-playwright" in orphans[0]["user_data_dir"]
+
+
+@psutil_required
+def test_find_orphan_driver_processes_identifies_orphan():
+    mock_proc = MagicMock()
+    mock_proc.info = {
+        "pid": 22222,
+        "name": "node",
+        "ppid": 1,
+        "cmdline": [
+            "/venv/lib/patchright/driver/node",
+            "/venv/lib/patchright/driver/package/cli.js",
+            "run-driver",
+        ],
+    }
+
+    mock_parent = MagicMock()
+    mock_parent.name.return_value = "init"
+    mock_parent.pid = 1
+    mock_parent.parent.return_value = None
+
+    with (
+        patch("psutil.process_iter", return_value=[mock_proc]),
+        patch.object(mock_proc, "parent", return_value=mock_parent),
+    ):
+        orphans = find_orphan_driver_processes()
+        assert len(orphans) == 1
+        assert orphans[0]["pid"] == 22222
+
+
+@psutil_required
+def test_find_orphan_automation_processes_merges_chromium_and_driver():
+    chromium_proc = MagicMock()
+    chromium_proc.info = {
+        "pid": 11111,
+        "name": "chrome-headless-shell",
+        "ppid": 1,
+        "cmdline": [
+            "/path/chrome",
+            "--user-data-dir=/tmp/.cache/ms-playwright/chromium-1208",
+        ],
+    }
+    driver_proc = MagicMock()
+    driver_proc.info = {
+        "pid": 22222,
+        "name": "node",
+        "ppid": 1,
+        "cmdline": ["/venv/patchright/driver/node", "run-driver"],
+    }
+
+    mock_parent = MagicMock()
+    mock_parent.name.return_value = "init"
+    mock_parent.pid = 1
+    mock_parent.parent.return_value = None
+
+    with (
+        patch("psutil.process_iter", return_value=[chromium_proc, driver_proc]),
+        patch.object(chromium_proc, "parent", return_value=mock_parent),
+        patch.object(driver_proc, "parent", return_value=mock_parent),
+    ):
+        orphans = find_orphan_automation_processes()
+        assert {int(o["pid"]) for o in orphans} == {11111, 22222}
 
 
 @psutil_required

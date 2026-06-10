@@ -22,7 +22,12 @@ import asyncio
 import json
 import sys
 
-from .doctor import cleanup_orphan_processes, find_orphan_chromium_processes, format_report, run_doctor
+from .doctor import (
+    cleanup_orphan_processes,
+    find_orphan_automation_processes,
+    format_report,
+    run_doctor,
+)
 
 
 async def main() -> int:
@@ -60,7 +65,7 @@ async def main() -> int:
     args = parser.parse_args()
 
     if args.check_orphans or args.cleanup_orphans:
-        orphans = find_orphan_chromium_processes()
+        orphans = find_orphan_automation_processes()
 
         if not orphans:
             print("No orphan automation processes found")

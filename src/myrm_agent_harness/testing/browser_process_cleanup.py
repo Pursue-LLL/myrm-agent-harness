@@ -1,4 +1,15 @@
-"""Terminate headless browser child processes owned by a pytest process tree."""
+"""Terminate automation child processes owned by a pytest process tree.
+
+[INPUT]
+- ps subprocess (POS: process listing)
+
+[OUTPUT]
+- terminate_browser_processes_in_tree: SIGTERM automation descendants of a root PID
+
+[POS]
+Lightweight pytest teardown helper. Complements `toolkits.browser.doctor` global orphan
+cleanup (`scripts/dev/cleanup-zombie-tests.sh`) which runs on a schedule.
+"""
 
 from __future__ import annotations
 
@@ -10,10 +21,13 @@ from collections.abc import Sequence
 
 logger = logging.getLogger(__name__)
 
-_BROWSER_CMD_MARKERS: tuple[str, ...] = (
+_AUTOMATION_CMD_MARKERS: tuple[str, ...] = (
     "chrome-headless-shell",
     "Google Chrome for Testing",
     "puppeteer/chrome",
+    "patchright/driver/node",
+    "playwright/driver/node",
+    "run-driver",
 )
 
 
@@ -55,23 +69,19 @@ def _descendant_pids(root_pid: int, rows: Sequence[tuple[int, int, str]]) -> set
     return descendants
 
 
-def _is_browser_command(command: str) -> bool:
-    return any(marker in command for marker in _BROWSER_CMD_MARKERS)
+def _is_automation_command(command: str) -> bool:
+    return any(marker in command for marker in _AUTOMATION_CMD_MARKERS)
 
 
 def terminate_browser_processes_in_tree(root_pid: int | None = None) -> int:
-    """Send SIGTERM to browser processes in the tree rooted at ``root_pid``.
-
-    Returns the number of processes signaled.
-    """
+    """Send SIGTERM to automation processes in the tree rooted at ``root_pid``."""
     root = os.getpid() if root_pid is None else root_pid
     rows = _list_process_rows()
     targets = _descendant_pids(root, rows)
-    targets.add(root)
 
     signaled = 0
     for pid, _ppid, command in rows:
-        if pid not in targets or not _is_browser_command(command):
+        if pid not in targets or not _is_automation_command(command):
             continue
         try:
             os.kill(pid, signal.SIGTERM)
@@ -79,5 +89,5 @@ def terminate_browser_processes_in_tree(root_pid: int | None = None) -> int:
         except ProcessLookupError:
             continue
         except PermissionError:
-            logger.warning("Permission denied terminating browser pid=%s", pid)
+            logger.warning("Permission denied terminating automation pid=%s", pid)
     return signaled
