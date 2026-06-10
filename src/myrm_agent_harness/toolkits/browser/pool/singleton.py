@@ -93,7 +93,7 @@ def get_global_browser_pool(
     global _global_pool
 
     if _global_pool is None:
-        _cleanup_orphan_chromium()
+        _cleanup_orphan_automation()
         _global_pool = GlobalBrowserPool(
             max_browsers=max_browsers,
             launch_options=launch_options,
@@ -121,8 +121,8 @@ async def reset_global_browser_pool_for_tests() -> None:
     _global_pool = None
 
 
-def _cleanup_orphan_chromium() -> None:
-    """Auto-cleanup orphan Chrome processes left by a previous abnormal exit."""
+def _cleanup_orphan_automation() -> None:
+    """Auto-cleanup orphan automation processes left by a previous abnormal exit."""
     try:
         from ..doctor import cleanup_orphan_processes, find_orphan_automation_processes
 

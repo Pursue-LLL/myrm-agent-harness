@@ -19,6 +19,6 @@ Global browser resource pool. Manages Browser/Context/Page three-layer resources
 | memory_guard.py | Core | Memory monitoring module. Checks system memory usage at configured intervals; rejects new Page on th | ✅ |
 | page_pool.py | Core | Page object pool. Zero-copy reset for managed browsers; session-preserving reset for external CDP Chrome (no global cookie wipe). | ✅ |
 | proxy.py | Core | Manages proxy rotation across Browser Pool and CrawlEngine. Supports: | — |
-| singleton.py | Core | Manages the GlobalBrowserPool singleton lifecycle, including atexit/SIGTERM cleanup hooks | ✅ |
+| singleton.py | Core | GlobalBrowserPool singleton lifecycle (atexit/SIGTERM hooks); pool startup sweeps orphan automation via `find_orphan_automation_processes` | ✅ |
 | stealth.py | Core | Stealth anti-detection script loader. | ✅ |
 | throttle.py | Core | Throttle strategy module. Defines the throttle protocol and two implementations, supports domain-lev | ✅ |

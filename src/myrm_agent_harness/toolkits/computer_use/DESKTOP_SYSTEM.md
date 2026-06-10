@@ -43,9 +43,9 @@
 
 ```
 desktop_inspect_tool
-    ↓ foreground app/window metadata + permission hint
+    ↓ foreground app/window metadata + permission hint + native API routing hint
 desktop_snapshot_tool
-    ↓ AX tree with @dref IDs (+ optional screenshot)
+    ↓ AX tree with @dref IDs (+ optional screenshot) + browser soft-routing hint
 desktop_interact_tool(ref=@dref, action=...)
     ↓ AX invoke → bbox healer fallback → text-only follow-up snapshot
 desktop_vision_tool (only when AX empty or interact failed)
