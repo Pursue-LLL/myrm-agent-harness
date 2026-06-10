@@ -117,7 +117,7 @@ class ContentPruningFilter:
     # ------------------------------------------------------------------
 
     def _remove_comments(self, soup: BeautifulSoup) -> None:
-        for element in soup(text=lambda text: isinstance(text, Comment)):
+        for element in soup(string=lambda text: isinstance(text, Comment)):
             element.extract()
 
     def _remove_unwanted_tags(self, soup: BeautifulSoup) -> None:

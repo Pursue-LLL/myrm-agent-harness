@@ -401,11 +401,12 @@ class SubagentExecutor:
                     if parent_state and hasattr(parent_state, "values"):
                         raw_msgs = parent_state.values.get("messages", [])
                         if raw_msgs:
-                            from langchain_core.messages import AIMessage
-
-                            # 10/10 Scheme: Slice off the final AIMessage to prevent 'orphaned tool' 400 errors,
-                            # while preserving all earlier messages identically to guarantee 100% Prefix Cache Hit.
-                            chat_history = raw_msgs[:-1] if isinstance(raw_msgs[-1], AIMessage) else raw_msgs[:]
+                            raw_count = len(raw_msgs)
+                            chat_history = _filter_fork_messages(raw_msgs, config.max_fork_tokens)
+                            logger.info(
+                                "[subagent:%s] Fork context filtered: %d → %d messages",
+                                task_id, raw_count, len(chat_history),
+                            )
             except Exception as e:
                 logger.warning("[subagent:%s] Failed to fork parent context: %s", task_id, e)
 
@@ -660,6 +661,69 @@ class SubagentExecutor:
         child_agent.add_tools(
             [child_tool_by_name[tool_name] for tool_name in DELEGATION_CAPABILITY_MANIFEST.orchestrator_child_tools]
         )
+
+
+# ---------------------------------------------------------------------------
+# Fork context filtering
+# ---------------------------------------------------------------------------
+
+
+def _filter_fork_messages(
+    raw_msgs: list[object],
+    max_fork_tokens: int | None = None,
+) -> list[object]:
+    """Apply conclusion-oriented filtering for fork mode context inheritance.
+
+    Keeps SystemMessage and HumanMessage verbatim.  For AIMessage, strips
+    ``tool_calls`` / ``additional_kwargs["tool_calls"]`` so the child never
+    sees orphaned function-call metadata; messages that become empty after
+    stripping are dropped entirely.  All ToolMessage instances are removed
+    because the child has its own tool set and doesn't need the parent's
+    tool results.
+
+    When *max_fork_tokens* is set, the filtered list is truncated from the
+    oldest messages (preserving the leading SystemMessage) so the total
+    estimated token count stays within budget.
+    """
+    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+
+    filtered: list[object] = []
+    for msg in raw_msgs:
+        if isinstance(msg, (SystemMessage, HumanMessage)):
+            filtered.append(msg)
+        elif isinstance(msg, AIMessage):
+            content = msg.content
+            if not content or (isinstance(content, str) and not content.strip()):
+                continue
+            cleaned = AIMessage(content=content)
+            filtered.append(cleaned)
+        elif isinstance(msg, ToolMessage):
+            continue
+        else:
+            filtered.append(msg)
+
+    if max_fork_tokens is not None and max_fork_tokens > 0 and len(filtered) > 1:
+        total = sum(_estimate_msg_tokens(m) for m in filtered)
+        while total > max_fork_tokens and len(filtered) > 1:
+            if isinstance(filtered[0], SystemMessage):
+                if len(filtered) < 2:
+                    break
+                removed = filtered.pop(1)
+            else:
+                removed = filtered.pop(0)
+            total -= _estimate_msg_tokens(removed)
+
+    return filtered
+
+
+def _estimate_msg_tokens(msg: object) -> int:
+    """Rough token estimate: ~4 chars per token."""
+    content = getattr(msg, "content", "")
+    if isinstance(content, str):
+        return max(len(content) // 4, 1)
+    if isinstance(content, list):
+        return max(sum(len(str(c)) for c in content) // 4, 1)
+    return 1
 
 
 # ---------------------------------------------------------------------------

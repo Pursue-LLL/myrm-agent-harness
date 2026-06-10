@@ -347,13 +347,18 @@ class TestCacheHitPivot:
     """Test Cache-Hit Pivot architecture for fork mode."""
 
     @pytest.mark.asyncio
-    async def test_cache_hit_pivot_fork_mode_history_slicing(self, executor):
-        """Test that in fork mode, the trailing AIMessage (tool call) is sliced off."""
-        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+    async def test_cache_hit_pivot_fork_mode_conclusion_filtering(self, executor):
+        """Test that fork mode applies conclusion-oriented filtering:
+        - Keeps SystemMessage, HumanMessage, AIMessage with content
+        - Strips AIMessage.tool_calls
+        - Drops ToolMessage entirely
+        - Drops AIMessage with only tool_calls and no content
+        """
+        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
         from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
 
-        config = SubagentConfig(system_prompt="sys", context_mode="fork", max_fork_tokens=1000)
+        config = SubagentConfig(system_prompt="sys", context_mode="fork", max_fork_tokens=50000)
         parent_agent = MagicMock()
         parent_agent.config.system_prompt = "parent system"
         parent_agent.session_id = "test-session"
@@ -362,7 +367,12 @@ class TestCacheHitPivot:
         parent_state.values = {"messages": [
             SystemMessage(content="parent system"),
             HumanMessage(content="user query"),
-            AIMessage(content="tool call")
+            AIMessage(content="", tool_calls=[{"name": "bash", "args": {"cmd": "ls"}, "id": "tc1"}]),
+            ToolMessage(content="file1.py\nfile2.py", tool_call_id="tc1"),
+            AIMessage(content="I found the files. Let me analyze them."),
+            AIMessage(content="", tool_calls=[{"name": "read_file", "args": {"path": "file1.py"}, "id": "tc2"}]),
+            ToolMessage(content="def main():\n    pass", tool_call_id="tc2"),
+            AIMessage(content="Here is my analysis of the code."),
         ]}
         parent_agent.checkpointer.aget = AsyncMock(return_value=parent_state)
 
@@ -382,11 +392,16 @@ class TestCacheHitPivot:
             )
 
         kwargs = child_agent.run_kwargs
-
         history = kwargs["chat_history"]
-        assert len(history) == 2
+
+        assert len(history) == 4
         assert isinstance(history[0], SystemMessage)
         assert isinstance(history[1], HumanMessage)
+        assert isinstance(history[2], AIMessage)
+        assert history[2].content == "I found the files. Let me analyze them."
+        assert not getattr(history[2], "tool_calls", None)
+        assert isinstance(history[3], AIMessage)
+        assert history[3].content == "Here is my analysis of the code."
 
         query = kwargs["query"]
         assert "[System Override]" in query
@@ -431,6 +446,124 @@ class TestCacheHitPivot:
         assert len(history) == 2
         assert isinstance(history[0], SystemMessage)
         assert isinstance(history[1], HumanMessage)
+
+
+class TestFilterForkMessages:
+    """Unit tests for _filter_fork_messages conclusion-oriented filtering."""
+
+    def test_strips_tool_messages(self):
+        """ToolMessages are completely removed."""
+        from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+
+        from myrm_agent_harness.agent.sub_agents.executor import _filter_fork_messages
+
+        msgs = [
+            SystemMessage(content="sys"),
+            HumanMessage(content="hi"),
+            ToolMessage(content="bash output", tool_call_id="tc1"),
+        ]
+        result = _filter_fork_messages(msgs)
+        assert len(result) == 2
+        assert not any(isinstance(m, ToolMessage) for m in result)
+
+    def test_strips_ai_tool_calls_keeps_content(self):
+        """AIMessage with content and tool_calls keeps content, loses tool_calls."""
+        from langchain_core.messages import AIMessage, SystemMessage
+
+        from myrm_agent_harness.agent.sub_agents.executor import _filter_fork_messages
+
+        ai = AIMessage(content="analysis result", tool_calls=[{"name": "bash", "args": {}, "id": "tc1"}])
+        result = _filter_fork_messages([SystemMessage(content="sys"), ai])
+        assert len(result) == 2
+        assert result[1].content == "analysis result"
+        assert not getattr(result[1], "tool_calls", None)
+
+    def test_drops_empty_ai_messages(self):
+        """AIMessage with only tool_calls and no content is dropped."""
+        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+        from myrm_agent_harness.agent.sub_agents.executor import _filter_fork_messages
+
+        msgs = [
+            SystemMessage(content="sys"),
+            HumanMessage(content="hi"),
+            AIMessage(content="", tool_calls=[{"name": "bash", "args": {}, "id": "tc1"}]),
+        ]
+        result = _filter_fork_messages(msgs)
+        assert len(result) == 2
+
+    def test_max_fork_tokens_truncation(self):
+        """When max_fork_tokens is set, older messages are dropped (keeping SystemMessage)."""
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        from myrm_agent_harness.agent.sub_agents.executor import _filter_fork_messages
+
+        msgs = [
+            SystemMessage(content="s"),
+            HumanMessage(content="a" * 400),
+            HumanMessage(content="b" * 400),
+            HumanMessage(content="c" * 400),
+        ]
+        result = _filter_fork_messages(msgs, max_fork_tokens=250)
+        assert isinstance(result[0], SystemMessage)
+        assert result[-1].content == "c" * 400
+
+    def test_max_fork_tokens_preserves_system(self):
+        """SystemMessage is never removed by truncation."""
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        from myrm_agent_harness.agent.sub_agents.executor import _filter_fork_messages
+
+        msgs = [
+            SystemMessage(content="important system prompt " * 100),
+            HumanMessage(content="user msg"),
+        ]
+        result = _filter_fork_messages(msgs, max_fork_tokens=10)
+        assert len(result) >= 1
+        assert isinstance(result[0], SystemMessage)
+
+    def test_no_max_fork_tokens_keeps_all(self):
+        """When max_fork_tokens is None, all filtered messages are kept."""
+        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+        from myrm_agent_harness.agent.sub_agents.executor import _filter_fork_messages
+
+        msgs = [
+            SystemMessage(content="sys"),
+            HumanMessage(content="q1"),
+            AIMessage(content="a1"),
+            HumanMessage(content="q2"),
+            AIMessage(content="a2"),
+        ]
+        result = _filter_fork_messages(msgs)
+        assert len(result) == 5
+
+    def test_realistic_coding_session(self):
+        """Simulate a realistic coding session with many tool calls."""
+        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+
+        from myrm_agent_harness.agent.sub_agents.executor import _filter_fork_messages
+
+        msgs = [
+            SystemMessage(content="You are a coding assistant."),
+            HumanMessage(content="Build a login page"),
+            AIMessage(content="", tool_calls=[{"name": "bash", "args": {"cmd": "ls"}, "id": "tc1"}]),
+            ToolMessage(content="src/\npackage.json", tool_call_id="tc1"),
+            AIMessage(content="I see the project structure. Let me create the login component."),
+            AIMessage(content="", tool_calls=[{"name": "write_file", "args": {"path": "login.tsx", "content": "..."}, "id": "tc2"}]),
+            ToolMessage(content="File written successfully", tool_call_id="tc2"),
+            AIMessage(content="", tool_calls=[{"name": "bash", "args": {"cmd": "npm test"}, "id": "tc3"}]),
+            ToolMessage(content="PASS all tests", tool_call_id="tc3"),
+            AIMessage(content="Login page is complete. All tests pass."),
+        ]
+        result = _filter_fork_messages(msgs)
+
+        assert len(result) == 4
+        assert isinstance(result[0], SystemMessage)
+        assert isinstance(result[1], HumanMessage)
+        assert result[2].content == "I see the project structure. Let me create the login component."
+        assert result[3].content == "Login page is complete. All tests pass."
+        assert not any(isinstance(m, ToolMessage) for m in result)
 
 
 class TestTaintInboundWarning:

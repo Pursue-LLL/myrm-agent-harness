@@ -20,6 +20,7 @@ returning timestamped Markdown Documents with video metadata.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from typing import TYPE_CHECKING
@@ -102,7 +103,7 @@ async def extract_youtube_transcript(
 
     try:
         api = YouTubeTranscriptApi(proxy_config=yt_proxy_config)
-        segments = api.fetch(video_id, languages=languages)
+        segments = await asyncio.to_thread(api.fetch, video_id, languages=languages)
     except Exception as e:
         error_msg = str(e).lower()
         if "disabled" in error_msg or "no transcript" in error_msg:
