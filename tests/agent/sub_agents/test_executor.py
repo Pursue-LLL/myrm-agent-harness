@@ -293,6 +293,30 @@ class TestCancellation:
 
         assert result.status == SubAgentStatus.CANCELLED
 
+    @pytest.mark.asyncio
+    async def test_cascade_cancel_exception_handled(self, executor):
+        """Cascade cancel should handle exception from cancel_all_children gracefully."""
+        import asyncio
+
+        config = SubagentConfig(system_prompt="s", max_retries=2, retry_backoff_seconds=0)
+        parent_agent = MagicMock()
+        child_agent = MagicMock()
+        child_agent.cancel_all_children = MagicMock(side_effect=RuntimeError("cancel failed"))
+
+        children_agents: dict[str, object] = {"t1": child_agent}
+
+        with patch.object(executor, "_run_single_attempt", new_callable=AsyncMock) as mock:
+            mock.side_effect = asyncio.CancelledError()
+
+            result = await executor.run_with_retry(
+                task_id="t1", agent_type="sys", task_description="d",
+                config=config, context={}, tool_registry_getter=lambda: [],
+                start_time=0.0, parent_agent=parent_agent,
+                cancel_flags={}, children_agents=children_agents, children_steering={},
+            )
+
+        assert result.status == SubAgentStatus.CANCELLED
+
 
 class TestContextInheritance:
     """Test context inheritance logic."""
@@ -564,6 +588,80 @@ class TestFilterForkMessages:
         assert result[2].content == "I see the project structure. Let me create the login component."
         assert result[3].content == "Login page is complete. All tests pass."
         assert not any(isinstance(m, ToolMessage) for m in result)
+
+    def test_unknown_message_type_passthrough(self):
+        """Unknown message types are kept (fallback branch)."""
+        from langchain_core.messages import BaseMessage, HumanMessage
+
+        from myrm_agent_harness.agent.sub_agents.executor import _filter_fork_messages
+
+        class CustomMessage(BaseMessage):
+            type: str = "custom"
+
+        msgs = [HumanMessage(content="hi"), CustomMessage(content="custom data")]
+        result = _filter_fork_messages(msgs)
+        assert len(result) == 2
+        assert isinstance(result[1], CustomMessage)
+
+    def test_truncation_without_system_message(self):
+        """Truncation when no SystemMessage is present pops from index 0."""
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        from myrm_agent_harness.agent.sub_agents.executor import _filter_fork_messages
+
+        msgs = [
+            HumanMessage(content="a" * 400),
+            AIMessage(content="b" * 400),
+            AIMessage(content="c" * 400),
+        ]
+        result = _filter_fork_messages(msgs, max_fork_tokens=250)
+        assert len(result) < 3
+        assert result[-1].content == "c" * 400
+
+    def test_truncation_to_system_only(self):
+        """When budget is extremely tight, only SystemMessage survives (exercises break at len<2)."""
+        from langchain_core.messages import SystemMessage
+
+        from myrm_agent_harness.agent.sub_agents.executor import _filter_fork_messages
+
+        msgs = [SystemMessage(content="sys")]
+        result = _filter_fork_messages(msgs, max_fork_tokens=1)
+        assert len(result) == 1
+        assert result[0].content == "sys"
+
+    def test_truncation_system_plus_one(self):
+        """When budget is tight with System+AI, AI gets removed and System survives."""
+        from langchain_core.messages import AIMessage, SystemMessage
+
+        from myrm_agent_harness.agent.sub_agents.executor import _filter_fork_messages
+
+        msgs = [
+            SystemMessage(content="sys"),
+            AIMessage(content="a" * 400),
+        ]
+        result = _filter_fork_messages(msgs, max_fork_tokens=5)
+        assert len(result) == 1
+        assert result[0].content == "sys"
+
+    def test_multimodal_content_token_estimation(self):
+        """List content (multimodal) is handled by _estimate_msg_tokens."""
+        from myrm_agent_harness.agent.sub_agents.executor import _estimate_msg_tokens
+
+        class FakeMsg:
+            content = [{"type": "text", "text": "hello world"}]
+
+        tokens = _estimate_msg_tokens(FakeMsg())
+        assert tokens >= 1
+
+    def test_bare_object_token_estimation(self):
+        """Objects with non-str non-list content return 1 token."""
+        from myrm_agent_harness.agent.sub_agents.executor import _estimate_msg_tokens
+
+        class FakeMsg:
+            content = 12345
+
+        tokens = _estimate_msg_tokens(FakeMsg())
+        assert tokens == 1
 
 
 class TestTaintInboundWarning:

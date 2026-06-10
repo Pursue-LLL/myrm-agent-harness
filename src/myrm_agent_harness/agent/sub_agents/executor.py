@@ -12,6 +12,8 @@
 
 [OUTPUT]
 - SubagentExecutor: Executes child agents with role-scoped delegation tools, retry logic, workspace isolation, event handling, cascade cancellation, and approval deadlock protection.
+- _filter_fork_messages: Conclusion-oriented filtering for fork mode — strips ToolMessage/tool_calls, keeps conclusions, respects max_fork_tokens budget.
+- _estimate_msg_tokens: Rough token estimation (~4 chars per token) for fork truncation.
 - _cascade_cancel_descendants: Recursively cancels all descendant subagents when a child is cancelled
 - _auto_vault_or_truncate: Stores oversized results in ArtifactVault and returns summary plus vault:// pointer
 - _parse_handover_state: Parses the <handover> JSON block.
@@ -706,8 +708,6 @@ def _filter_fork_messages(
         total = sum(_estimate_msg_tokens(m) for m in filtered)
         while total > max_fork_tokens and len(filtered) > 1:
             if isinstance(filtered[0], SystemMessage):
-                if len(filtered) < 2:
-                    break
                 removed = filtered.pop(1)
             else:
                 removed = filtered.pop(0)

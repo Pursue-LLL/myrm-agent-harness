@@ -575,7 +575,13 @@ class CrawlEngine:
                         preferred_languages=self._youtube_languages,
                         proxy_pool=self._http_fetcher._proxy_pool,
                     )
-                fetch_result = None
+                if doc is not None:
+                    fetch_result = None
+                else:
+                    async with asyncio.timeout(self._crawl_timeout):
+                        doc, fetch_result = await self._crawl_with_degradation(
+                            url, etag=etag, last_modified=last_modified, max_chars=max_chars
+                        )
             else:
                 async with asyncio.timeout(self._crawl_timeout):
                     doc, fetch_result = await self._crawl_with_degradation(

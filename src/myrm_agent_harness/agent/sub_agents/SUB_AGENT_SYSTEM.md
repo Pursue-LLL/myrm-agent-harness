@@ -140,6 +140,15 @@ Layer 4: Fine-grained Sandboxing (readonly)
 - `WorkspaceBinding` — 沙箱文件系统隔离的核心，子 agent 从 parent context 精准继承，确保二者操作同一个物理工作空间（但独立运行）。
 - `approval_session_key` — HITL 审批必需
 
+**Fork 模式上下文过滤**（`context_mode="fork"`）：
+
+通过 `_filter_fork_messages()` 实现结论性过滤，子 agent 仅继承父 agent 的结论性上下文：
+- **保留**：SystemMessage、HumanMessage、有 content 的 AIMessage（剥离 tool_calls 元数据）
+- **丢弃**：ToolMessage、纯 tool_calls 无 content 的 AIMessage
+- **截断**：`max_fork_tokens` 超预算时从最旧消息开始裁剪（保留 SystemMessage）
+
+配合 builder.py 的 `system_prompt = ""` 设计，子 agent 复用父 SystemMessage 实现 100% Prefix Cache Hit。
+
 ### 4. 模型解析链（4 级）
 
 ```
@@ -347,6 +356,7 @@ Hook 异常不影响主流程（catch + warning 日志）。
 | 取消机制 | 支持 immediate、graceful、checkpoint 三种取消策略和父级传播 |
 | 结果压缩 | `max_result_tokens` 限制子任务返回给父任务的上下文体积 |
 | Context 继承 | 自动继承 `session_id`、`WorkspaceBinding`、审批会话等运行上下文 |
+| Fork 上下文过滤 | `context_mode="fork"` 结论性过滤（`_filter_fork_messages`）：保留 System/Human/AI 结论，剥离 ToolMessage 和 tool_calls，`max_fork_tokens` 预算截断 |
 | 模型解析 | 支持 config LLM、ModelResolver、父 agent LLM 的分层解析 |
 | 缓存隔离 | delegate 结果缓存键包含 `session_id`，避免跨会话污染 |
 | 批量超时 | `wait_children()` 支持总超时和自动取消 |

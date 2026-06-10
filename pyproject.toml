@@ -269,6 +269,7 @@ include = [
   "*/myrm_agent_harness/eval/memory_retrieval/*",
   "*/myrm_agent_harness/toolkits/memory/*",
   "*/myrm_agent_harness/toolkits/web_fetch/fetchers/*",
+  "*/myrm_agent_harness/toolkits/web_fetch/youtube_extractor.py",
   "*/myrm_agent_harness/toolkits/kanban/*",
   "*/myrm_agent_harness/toolkits/tasks/*",
   "*/myrm_agent_harness/toolkits/web_search/*",

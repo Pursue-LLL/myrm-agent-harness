@@ -33,10 +33,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _YOUTUBE_URL_RE = re.compile(
-    r"(?:https?://)?(?:www\.)?(?:"
-    r"youtube\.com/(?:watch\?.*v=|shorts/|embed/|live/)"
-    r"|youtu\.be/"
-    r")([a-zA-Z0-9_-]{11})",
+    r"(?:https?://)"
+    r"(?:[\w-]+\.)*"
+    r"(?:youtube\.com/(?:watch\?.*v=|shorts/|embed/|live/)"
+    r"|youtu\.be/)"
+    r"([a-zA-Z0-9_-]{11})",
 )
 
 _DEFAULT_LANGUAGES = ["en", "zh-Hans", "zh-Hant", "ja", "ko", "de", "fr", "es", "pt", "ru"]
