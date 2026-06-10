@@ -14,8 +14,9 @@ Design principles (based on Manus):
 Key components:
 - PlannerAgent: Core agent implementation
 - Plan/PlanStep/ErrorRecord: Data schemas
-- PlannerStorage: Storage adapter
+- PlannerStorage: Storage adapter (current plan persistence)
 - PlannerConfig: Configuration options
+- PlanArchiveStore/PlanRecaller: Historical plan archive and recall (Workflow RAG)
 
 Example:
     >>> from myrm_agent_harness.agent.sub_agents.planner import (
@@ -37,6 +38,7 @@ Example:
 """
 
 from myrm_agent_harness.agent.sub_agents.planner.agent import PlannerAgent
+from myrm_agent_harness.agent.sub_agents.planner.archive import PlanArchiveStore, PlanRecaller
 from myrm_agent_harness.agent.sub_agents.planner.config import PlannerConfig, SkillSummary
 from myrm_agent_harness.agent.sub_agents.planner.schemas import ErrorRecord, Plan, PlannerInput, PlanStep
 from myrm_agent_harness.agent.sub_agents.planner.storage import PlannerStorage
@@ -44,6 +46,8 @@ from myrm_agent_harness.agent.sub_agents.planner.storage import PlannerStorage
 __all__ = [
     "ErrorRecord",
     "Plan",
+    "PlanArchiveStore",
+    "PlanRecaller",
     "PlanStep",
     "PlannerAgent",
     "PlannerConfig",

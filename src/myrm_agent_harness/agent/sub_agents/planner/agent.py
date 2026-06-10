@@ -161,11 +161,17 @@ class PlannerAgent:
 
                 logger.warning(f" Error escalated: {error.error_type} (retry {error.retry_count} times)")
 
-    async def create_plan(self, task_description: str | list[dict[str, Any]]) -> Plan:
+    async def create_plan(
+        self,
+        task_description: str | list[dict[str, Any]],
+        reference_plans: str = "",
+    ) -> Plan:
         """Create new plan from text or multimodal content.
 
         Args:
             task_description: Plain text or multimodal content parts (text + images).
+            reference_plans: Optional few-shot reference from historical successful plans.
+                Injected into HumanMessage to preserve SystemMessage prompt cache.
 
         Returns:
             Structured plan object
@@ -178,13 +184,15 @@ class PlannerAgent:
 
         structured_llm = self.llm.with_structured_output(Plan)
 
+        prefix = "Please create a plan for the following task:\n\n"
+        if reference_plans:
+            prefix = f"{reference_plans}\n\n---\n\n{prefix}"
+
         if isinstance(task_description, str):
-            human_content: str | list[dict[str, Any]] = (
-                f"Please create a plan for the following task:\n\n{task_description}"
-            )
+            human_content: str | list[dict[str, Any]] = f"{prefix}{task_description}"
         else:
             human_content = [
-                {"type": "text", "text": "Please create a plan for the following task:\n\n"},
+                {"type": "text", "text": prefix},
                 *task_description,
             ]
 

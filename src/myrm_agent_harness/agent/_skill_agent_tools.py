@@ -187,6 +187,7 @@ class SkillAgentToolsMixin:
             return None
 
         try:
+            from myrm_agent_harness.agent.sub_agents.planner.archive import PlanArchiveStore, PlanRecaller
             from myrm_agent_harness.agent.sub_agents.planner.planner_agent_tools import create_planner_tool
 
             planner_config = getattr(self.config, "planner_config", None)  # type: ignore[attr-defined]
@@ -217,11 +218,26 @@ class SkillAgentToolsMixin:
                 logger.info("planner_tool: skipped (0 model-invocable skills)")
                 return None
 
+            # Initialize Plan Archive & Recall (Workflow RAG)
+            archive_store = None
+            recaller = None
+            try:
+                db_path = storage_config.get_local_base_path() / "plan_archive.db"
+                mm = getattr(self, "memory_manager", None)
+                vector = getattr(mm, "_vector", None) if mm else None
+                embedding = getattr(mm, "_embedding", None) if mm else None
+                archive_store = PlanArchiveStore(db_path, vector_store=vector, embedding=embedding)
+                recaller = PlanRecaller(archive_store)
+            except Exception as e:
+                logger.warning("Plan archive initialization failed (proceeding without): %s", e)
+
             tool = create_planner_tool(
                 self.llm,  # type: ignore[attr-defined]
                 self.storage_backend,  # type: ignore[attr-defined]
                 planner_config=planner_config,
                 available_skills=available_skills or None,
+                plan_archive_store=archive_store,
+                plan_recaller=recaller,
             )
             logger.warning(
                 " planner_tool auto-created (skills=%d, truncated=%s)",

@@ -49,7 +49,7 @@ async def test_planner_tool_create_action(mock_llm, mock_storage):
         # Test success markdown
         result = await tool.ainvoke({"action": "create", "task_description": "do something"})
         assert result == "markdown plan"
-        mock_create.assert_called_once_with("do something")
+        mock_create.assert_called_once_with("do something", reference_plans="")
 
         # Test success json
         config_json = PlannerConfig(output_format="json")

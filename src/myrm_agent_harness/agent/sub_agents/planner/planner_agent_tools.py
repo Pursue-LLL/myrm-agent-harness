@@ -21,6 +21,7 @@ Example:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Literal
 
@@ -43,6 +44,8 @@ def create_planner_tool(
     planner_llm: BaseChatModel | None = None,
     planner_config: PlannerConfig | None = None,
     available_skills: list[tuple[str, str]] | None = None,
+    plan_archive_store: object | None = None,
+    plan_recaller: object | None = None,
 ) -> BaseTool:
     """Create planner tool (wraps PlannerAgent)
 
@@ -55,6 +58,8 @@ def create_planner_tool(
         planner_config: Planner configuration (optional)
         available_skills: List of (name, description) tuples for skill awareness.
             When provided, the Planner can reference these skills in plan steps.
+        plan_archive_store: PlanArchiveStore instance for archiving completed plans.
+        plan_recaller: PlanRecaller instance for retrieving similar historical plans.
 
     Returns:
         Planner tool (LangChain BaseTool)
@@ -86,6 +91,20 @@ def create_planner_tool(
 
     _storage = PlannerStorage(storage_backend, prefix=_config.storage_prefix)
     _planner = PlannerAgent(_planner_llm, _storage, _config)
+    _archive_store = plan_archive_store
+    _recaller = plan_recaller
+
+    def _is_plan_completed(plan: object) -> bool:
+        """Check if all plan steps are completed or skipped."""
+        steps = getattr(plan, "steps", [])
+        if not steps:
+            return False
+        return all(getattr(s, "status", "") in ("completed", "skipped") for s in steps)
+
+    def _log_archive_exception(t: asyncio.Task) -> None:  # type: ignore[type-arg]
+        """Log unhandled exceptions from fire-and-forget archive tasks."""
+        if not t.cancelled() and t.exception():
+            logger.warning("Plan archive task failed: %s", t.exception())
 
     def _emit_plan_events(plan: object) -> None:
         """Emit TASKS_STEPS events for the plan to render as a tree in the UI."""
@@ -224,7 +243,18 @@ def create_planner_tool(
             if not task_description:
                 return "Error: task_description is required for creating a plan"
 
-            plan = await _planner.create_plan(task_description)
+            reference_plans = ""
+            if _recaller and task_description:
+                try:
+                    from myrm_agent_harness.agent.sub_agents.planner.archive import PlanRecaller
+
+                    if isinstance(_recaller, PlanRecaller):
+                        desc_text = task_description if isinstance(task_description, str) else str(task_description)
+                        reference_plans = await _recaller.recall(desc_text)
+                except Exception as e:
+                    logger.warning("Plan recall failed (proceeding without): %s", e)
+
+            plan = await _planner.create_plan(task_description, reference_plans=reference_plans)
             _emit_plan_events(plan)
 
             # Return in configured format
@@ -253,6 +283,14 @@ def create_planner_tool(
                 feedback,
             )
             _emit_plan_events(updated_plan)
+
+            # Archive completed plans asynchronously (fire-and-forget)
+            if _archive_store and _is_plan_completed(updated_plan):
+                from myrm_agent_harness.agent.sub_agents.planner.archive import PlanArchiveStore
+
+                if isinstance(_archive_store, PlanArchiveStore):
+                    task = asyncio.create_task(_archive_store.archive_plan(updated_plan))
+                    task.add_done_callback(_log_archive_exception)
 
             # Return ONLY a short summary to preserve prompt cache
             return updated_plan.to_summary()

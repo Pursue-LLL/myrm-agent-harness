@@ -383,6 +383,8 @@ class EvolutionProposal:
     environment: EnvironmentFingerprint | None = None
     agent_id: str | None = None
     edit_summary: dict[str, Any] | None = None  # {preserved_sections, changed_sections, notes}
+    recommended_form: str = "skill"  # "skill" | "cron_job" | "skip"
+    form_metadata: dict[str, Any] | None = None  # {schedule_hint, form_reasoning}
     created_at: datetime = field(default_factory=datetime.now)
 
     def to_dict(self) -> dict[str, Any]:
@@ -400,6 +402,8 @@ class EvolutionProposal:
             "environment": self.environment.to_dict() if self.environment else None,
             "agent_id": self.agent_id,
             "edit_summary": self.edit_summary,
+            "recommended_form": self.recommended_form,
+            "form_metadata": self.form_metadata,
             "created_at": self.created_at.isoformat(),
         }
 

@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.language_models import BaseChatModel
 
@@ -548,6 +548,10 @@ class SkillEvolutionEngine:
             logger.debug(f"No valid skill extracted from trajectory of session {session_id}")
             return None
 
+        if result.recommended_form == "skip":
+            logger.debug(f"Skill {result.name} skipped by form routing (reason: {result.form_reasoning})")
+            return None
+
         if not result.is_general:
             logger.debug(f"Skill {result.name} rejected: not generalizable.")
             return None
@@ -616,8 +620,17 @@ class SkillEvolutionEngine:
             logger.warning(f"Skill {result.name} rejected: Sandbox dry-run failed: {error_msg}")
             return None
 
-        # Build proposal
+        # Build proposal with form routing metadata
         from datetime import datetime
+
+        form_metadata: dict[str, Any] | None = None
+        if result.recommended_form == "cron_job" and result.schedule_hint:
+            form_metadata = {
+                "schedule_hint": result.schedule_hint,
+                "form_reasoning": result.form_reasoning,
+            }
+        elif result.form_reasoning:
+            form_metadata = {"form_reasoning": result.form_reasoning}
 
         proposal = EvolutionProposal(
             skill_id=result.name,
@@ -630,6 +643,8 @@ class SkillEvolutionEngine:
             task_context=f"Session {session_id}",
             is_general=result.is_general,
             environment=env_fingerprint,
+            recommended_form=result.recommended_form,
+            form_metadata=form_metadata,
             created_at=datetime.now(),
         )
 

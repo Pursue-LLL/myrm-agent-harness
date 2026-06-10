@@ -2,7 +2,7 @@
 - (none)
 
 [OUTPUT]
-- SkillCaptureResult: Structured output for skill extraction.
+- SkillCaptureResult: Structured output for skill extraction with form routing.
 - StructuredExtractor: Extracts skills using structured LLM output.
 
 [POS]
@@ -10,6 +10,7 @@ Provides SkillCaptureResult, StructuredExtractor.
 """
 
 import logging
+from typing import Literal
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class SkillCaptureResult(BaseModel):
-    """Structured output for skill extraction."""
+    """Structured output for skill extraction with form routing."""
 
     is_general: bool = Field(
         ...,
@@ -55,6 +56,23 @@ class SkillCaptureResult(BaseModel):
         ...,
         description="The complete, valid SKILL.md file content including YAML frontmatter and Markdown instructions.",
     )
+    recommended_form: Literal["skill", "cron_job", "skip"] = Field(
+        default="skill",
+        description=(
+            "The smallest appropriate form for this pattern. "
+            "'skill' = reusable instructions invoked on demand; "
+            "'cron_job' = a recurring/scheduled task that should run automatically on a time schedule; "
+            "'skip' = not worth capturing (too trivial or one-off)."
+        ),
+    )
+    schedule_hint: str | None = Field(
+        default=None,
+        description="When recommended_form is 'cron_job', a natural-language schedule suggestion (e.g., 'every weekday at 9am', 'every Monday'). Null otherwise.",
+    )
+    form_reasoning: str = Field(
+        default="",
+        description="Brief explanation of why this form was chosen over alternatives.",
+    )
 
 
 _EXTRACTION_PROMPT = """You are an expert AI Architect and Skill Extraction Engine.
@@ -68,7 +86,12 @@ CRITERIA FOR A GOOD SKILL:
 2. Generalizable (not tied to a single, highly specific instance or absolute path).
 3. Safe (does not contain `rm -rf /` or credential exposure).
 
-If the conversation meets the criteria, you must output the structured data containing `is_general`, `confidence`, `safety_analysis`, `name`, and the full `content`.
+FORM ROUTING — Choose the smallest appropriate form:
+- "skill": The pattern is best captured as reusable instructions invoked on demand by the user.
+- "cron_job": The pattern involves a task the user performs on a regular schedule (daily, weekly, etc.) and would benefit from automatic execution. Look for temporal cues like "every day", "every week", "check regularly", or repeated identical requests across sessions.
+- "skip": The conversation is too trivial, too specific, or a one-off to be worth capturing.
+
+If the conversation meets the criteria, you must output the structured data containing `is_general`, `confidence`, `safety_analysis`, `name`, `content`, `recommended_form`, `schedule_hint`, and `form_reasoning`.
 
 The SKILL.md `content` MUST strictly follow this structure:
 ---

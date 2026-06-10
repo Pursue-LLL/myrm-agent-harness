@@ -396,6 +396,7 @@ class TaskEventKind(StrEnum):
     SPECIFIED = "specified"
     DECOMPOSED = "decomposed"
     TIMED_OUT = "timed_out"
+    EDITED = "edited"
 
 
 @dataclass(frozen=True)

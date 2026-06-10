@@ -276,11 +276,59 @@ class TestDomainSerialization:
         assert TaskEventKind.RECLAIMED.value == "reclaimed"
         assert TaskEventKind.USER_COMMENT.value == "user_comment"
         assert TaskEventKind.UNBLOCKED.value == "unblocked"
+        assert TaskEventKind.EDITED.value == "edited"
 
 
 # ---------------------------------------------------------------------------
 # Agent tools — unblock event
 # ---------------------------------------------------------------------------
+
+
+class TestEditedEventStore:
+    """EDITED event creation and retrieval via InMemoryKanbanStore."""
+
+    @pytest.mark.asyncio
+    async def test_edited_event_with_payload(self) -> None:
+        store = InMemoryKanbanStore()
+        ev = await store.append_event(
+            "t1", TaskEventKind.EDITED,
+            payload={"fields": ["result"]},
+        )
+        assert ev.kind == TaskEventKind.EDITED
+        assert ev.payload == {"fields": ["result"]}
+
+    @pytest.mark.asyncio
+    async def test_edited_event_multiple_fields(self) -> None:
+        store = InMemoryKanbanStore()
+        ev = await store.append_event(
+            "t1", TaskEventKind.EDITED,
+            payload={"fields": ["result", "metadata"]},
+        )
+        assert ev.payload is not None
+        assert "result" in ev.payload["fields"]
+        assert "metadata" in ev.payload["fields"]
+
+    @pytest.mark.asyncio
+    async def test_edited_event_coexists_with_other_events(self) -> None:
+        store = InMemoryKanbanStore()
+        await store.append_event("t1", TaskEventKind.CREATED)
+        await store.append_event("t1", TaskEventKind.EDITED, payload={"fields": ["result"]})
+        await store.append_event("t1", TaskEventKind.COMPLETED)
+
+        events = await store.list_events("t1")
+        kinds = [e.kind for e in events]
+        assert kinds == [TaskEventKind.CREATED, TaskEventKind.EDITED, TaskEventKind.COMPLETED]
+
+    @pytest.mark.asyncio
+    async def test_edited_event_to_dict(self) -> None:
+        store = InMemoryKanbanStore()
+        ev = await store.append_event(
+            "t1", TaskEventKind.EDITED,
+            payload={"fields": ["metadata"]},
+        )
+        d = ev.to_dict()
+        assert d["kind"] == "edited"
+        assert d["payload"] == {"fields": ["metadata"]}
 
 
 class TestAgentToolsUnblockEvent:
