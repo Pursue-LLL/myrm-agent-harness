@@ -221,11 +221,12 @@ class SubagentExecutor:
                         backoff_seconds *= 2
                         continue
                     now = time.time()
+                    raw_error = f"{type(error).__name__}: {error}"
                     err_result = SubAgentResult(
                         success=False,
                         task_id=task_id,
                         agent_type=agent_type,
-                        error=f"{type(error).__name__}: {error}",
+                        error=_compact_error_message(raw_error, config.max_error_chars),
                         duration_seconds=now - start_time,
                         completed_at=now,
                         status=SubAgentStatus.FAILED,
@@ -758,6 +759,27 @@ def _cascade_cancel_descendants(child_agent: BaseAgent | None) -> None:
 
 _SUMMARY_HEAD_CHARS = 2000
 _SUMMARY_TAIL_CHARS = 1000
+
+_ERROR_HEAD_RATIO = 0.6
+
+
+def _compact_error_message(error_str: str, max_chars: int) -> str:
+    """Compact an oversized error string to head + truncation marker + tail.
+
+    Preserves the error type and core message at the head, and the most
+    relevant stack frames at the tail, preventing long tracebacks from
+    polluting the parent agent's context window.
+    """
+    if max_chars <= 0 or len(error_str) <= max_chars:
+        return error_str
+    head_len = int(max_chars * _ERROR_HEAD_RATIO)
+    tail_len = max_chars - head_len
+    skipped = len(error_str) - head_len - tail_len
+    marker = f"\n... [{skipped} chars truncated] ...\n"
+    head_budget = max_chars - tail_len - len(marker)
+    if head_budget <= 0:
+        return error_str[:max_chars]
+    return f"{error_str[:head_budget]}{marker}{error_str[-tail_len:]}"
 
 
 def _auto_vault_or_truncate(

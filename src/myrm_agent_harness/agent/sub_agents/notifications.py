@@ -49,7 +49,9 @@ def format_notification(result: SubAgentResult) -> str:
     if result.success and result.result:
         parts.append(f"Result:\n{result.result}")
     elif result.error:
-        parts.append(f"Error: {result.error}")
+        from myrm_agent_harness.agent.sub_agents.executor import _compact_error_message
+
+        parts.append(f"Error: {_compact_error_message(result.error, 2000)}")
     if result.handover_state:
         ho = result.handover_state
         ho_lines: list[str] = []

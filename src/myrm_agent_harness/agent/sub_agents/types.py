@@ -382,6 +382,10 @@ class SubagentConfig:
     """Auto-vault threshold in characters. When subagent output exceeds this,
     the result is stored in ArtifactVault and a summary + vault:// pointer
     is returned instead of truncating. Set to None to disable. Default 8000 chars ≈ 2000 tokens."""
+    max_error_chars: int = 2000
+    """Maximum characters for error messages returned to the parent agent.
+    Longer errors are compacted to head + truncation marker + tail to prevent
+    context pollution. Set to 0 to disable compaction."""
     progress_calculator: ProgressCalculator | None = None
     cancellation_strategy: CancellationStrategy = CancellationStrategy.GRACEFUL
     graceful_cancel_timeout_seconds: float = 5.0
