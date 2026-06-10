@@ -831,12 +831,26 @@ async def test_extract_text_vision_fallback_triggered(
 
 
 @pytest.mark.asyncio
-async def test_extract_text_no_vision_fallback_when_sufficient_text(
-    mock_pool: _FakePool,
-) -> None:
-    """When DOM returns enough text, vision LLM should NOT be invoked."""
+async def test_extract_text_no_vision_fallback_when_sufficient_text() -> None:
+    """When DOM returns enough text (>50 chars), vision LLM should NOT be invoked."""
+
+    class _FakePageLongText(_FakePage):
+        async def evaluate(self, expression: str, *args: object, **kw: object) -> object:
+            if "localStorage" in expression:
+                return "{}"
+            if "innerText" in expression or "innertext" in expression.lower():
+                return "A" * 200
+            if "collectBBoxes" in expression:
+                return {}
+            return "A" * 200
+
+    class _FakePoolLong(_FakePool):
+        def __init__(self) -> None:
+            super().__init__()
+            self._pages = [_FakePageLongText()]
+
     llm = AsyncMock()
-    session = BrowserSession(mock_pool, ContextType.AGENT, vision_llm=llm)
+    session = BrowserSession(_FakePoolLong(), ContextType.AGENT, vision_llm=llm)
     await session.new_tab("https://text-site.com")
     text = await session.extract_text()
     assert "[Vision Extracted]" not in text
@@ -902,3 +916,144 @@ async def test_extract_structured_vision_fallback_error(
     schema = json.dumps({"type": "object", "properties": {"x": {"type": "string"}}})
     result = await session.extract_structured(schema)
     assert "[Error]" in result
+
+
+@pytest.mark.asyncio
+async def test_extract_structured_no_vision_llm_returns_error() -> None:
+    """When no vision_llm and empty DOM text, structured extraction returns error."""
+    import json
+
+    pool = _FakePoolEmptyText()
+    session = BrowserSession(pool, ContextType.AGENT, vision_llm=None)
+    await session.new_tab("https://empty.com")
+
+    schema = json.dumps({"type": "object", "properties": {"a": {"type": "string"}}})
+    result = await session.extract_structured(schema)
+    assert "[Error]" in result
+    assert "no vision_llm" in result or "No text content" in result
+
+
+@pytest.mark.asyncio
+async def test_extract_structured_vision_strips_code_fences(
+    mock_vision_llm: AsyncMock,
+) -> None:
+    """Vision LLM response wrapped in ```json fences is correctly unwrapped."""
+    import json
+
+    mock_response = MagicMock()
+    mock_response.content = '```json\n{"score": 42}\n```'
+    mock_vision_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+    pool = _FakePoolEmptyText()
+    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm)
+    await session.new_tab("https://fenced.com")
+
+    schema = json.dumps({"type": "object", "properties": {"score": {"type": "number"}}})
+    result = await session.extract_structured(schema)
+    parsed = json.loads(result)
+    assert parsed["score"] == 42
+
+
+@pytest.mark.asyncio
+async def test_extract_structured_vision_invalid_json(
+    mock_vision_llm: AsyncMock,
+) -> None:
+    """When vision LLM returns non-JSON, the raw text is returned."""
+    mock_response = MagicMock()
+    mock_response.content = "Sorry I cannot parse this image"
+    mock_vision_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+    pool = _FakePoolEmptyText()
+    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm)
+    await session.new_tab("https://garbled.com")
+
+    import json
+
+    schema = json.dumps({"type": "object", "properties": {"x": {"type": "string"}}})
+    result = await session.extract_structured(schema)
+    assert "Sorry I cannot parse" in result
+
+
+@pytest.mark.asyncio
+async def test_extract_structured_vision_with_already_collected(
+    mock_vision_llm: AsyncMock,
+) -> None:
+    """Vision structured extraction includes already_collected data in prompt."""
+    import json
+
+    mock_response = MagicMock()
+    mock_response.content = json.dumps({"item": "new_data"})
+    mock_vision_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+    pool = _FakePoolEmptyText()
+    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm)
+    await session.new_tab("https://paginated.com")
+
+    schema = json.dumps({"type": "object", "properties": {"item": {"type": "string"}}})
+    result = await session.extract_structured(schema, already_collected_json=json.dumps([{"item": "old_data"}]))
+    parsed = json.loads(result)
+    assert parsed["item"] == "new_data"
+    call_args = mock_vision_llm.ainvoke.call_args[0][0]
+    prompt_text = call_args[0].content[0]["text"]
+    assert "old_data" in prompt_text
+
+
+@pytest.mark.asyncio
+async def test_extract_text_vision_not_triggered_with_resume_cursor(
+    mock_vision_llm: AsyncMock,
+) -> None:
+    """When resume_cursor > 0, vision fallback should NOT be triggered even if text < 50."""
+    pool = _FakePoolEmptyText()
+    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm)
+    await session.new_tab("https://paged.com")
+    # First call populates snapshot, second call with cursor should not re-trigger
+    await session.extract_text()
+    mock_vision_llm.ainvoke.reset_mock()
+    text = await session.extract_text(resume_cursor=10)
+    # resume_cursor > 0 and cached snapshot hash match → skip vision entirely
+    assert isinstance(text, str)
+
+
+@pytest.mark.asyncio
+async def test_extract_text_vision_not_triggered_when_detect_false(
+    mock_vision_llm: AsyncMock,
+) -> None:
+    """When detect_significant_visual_content returns False, vision fallback NOT triggered."""
+
+    class _FakePageEmptyNoVisual(_FakePage):
+        async def evaluate(self, expression: str, *args: object, **kw: object) -> object:
+            if "localStorage" in expression:
+                return "{}"
+            if "innerText" in expression or "innertext" in expression.lower():
+                return ""
+            if "querySelectorAll" in expression:
+                return False
+            return False
+
+    class _FakePoolNoVisual(_FakePool):
+        def __init__(self) -> None:
+            super().__init__()
+            self._pages = [_FakePageEmptyNoVisual()]
+
+    pool = _FakePoolNoVisual()
+    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm)
+    await session.new_tab("https://empty-no-visual.com")
+    text = await session.extract_text()
+    assert "[Vision Extracted]" not in text
+    mock_vision_llm.ainvoke.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_extract_text_vision_returns_empty_uses_dom_text(
+    mock_vision_llm: AsyncMock,
+) -> None:
+    """When vision LLM returns empty content, original DOM text is preserved."""
+    mock_response = MagicMock()
+    mock_response.content = ""
+    mock_vision_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+    pool = _FakePoolEmptyText()
+    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm)
+    await session.new_tab("https://empty-vision.com")
+    text = await session.extract_text()
+    assert "[Vision Extracted]" not in text

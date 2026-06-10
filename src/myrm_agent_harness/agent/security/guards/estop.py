@@ -5,13 +5,14 @@ or terminate all running agents. State is persisted to a JSON file so
 it survives process restarts.
 
 [INPUT]
-- (none — self-contained, pure standard library + json)
+- MYRM_DATA_DIR (optional infra env): persistent data root; default ~/.myrm
 
 [OUTPUT]
 - EStopLevel: ToolFreeze / KillAll
 - EStopState: current state snapshot (frozen dataclass)
 - EStopGuard: global singleton managing the stop state
 - check_estop(): fast-path check for middleware integration
+- Default state file: `{MYRM_DATA_DIR or ~/.myrm}/.estop_state.json`
 
 [POS]
 Global guard. Checked as the very first step in tool_interceptor_middleware.
@@ -22,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from dataclasses import asdict, dataclass
 from enum import StrEnum
@@ -53,6 +55,14 @@ class EStopState:
 
 
 _INACTIVE = EStopState(level=EStopLevel.NONE, reason="", activated_at=0.0, activated_by="")
+_LEGACY_CWD_STATE_FILE = Path(".estop_state.json")
+
+
+def _resolve_myrm_data_root() -> Path:
+    data_dir = os.environ.get("MYRM_DATA_DIR", "").strip()
+    if data_dir:
+        return Path(data_dir).expanduser().resolve()
+    return Path.home() / ".myrm"
 
 
 class EStopGuard:
@@ -71,10 +81,31 @@ class EStopGuard:
 
     @staticmethod
     def _default_path() -> Path:
-        return Path(".") / ".estop_state.json"
+        return _resolve_myrm_data_root() / ".estop_state.json"
+
+    def _migrate_legacy_cwd_state(self) -> None:
+        """Copy active legacy CWD state into the canonical data-dir path."""
+        if self._state_path.exists():
+            return
+        legacy = Path.cwd() / _LEGACY_CWD_STATE_FILE
+        if not legacy.is_file():
+            return
+        try:
+            if legacy.resolve() == self._state_path.resolve():
+                return
+            raw = json.loads(legacy.read_text(encoding="utf-8"))
+            if EStopLevel(raw["level"]) == EStopLevel.NONE:
+                return
+            from myrm_agent_harness.infra.atomic_write import atomic_write
+
+            atomic_write(self._state_path, json.dumps(raw, ensure_ascii=False))
+            logger.warning("Migrated active E-Stop state from %s to %s", legacy, self._state_path)
+        except Exception:
+            logger.warning("Failed to migrate legacy E-Stop state from %s", legacy, exc_info=True)
 
     def _load(self) -> None:
         """Load persisted state. Fail-closed on any error."""
+        self._migrate_legacy_cwd_state()
         try:
             if self._state_path.exists():
                 raw = json.loads(self._state_path.read_text(encoding="utf-8"))

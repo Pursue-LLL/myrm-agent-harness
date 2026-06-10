@@ -163,3 +163,60 @@ class TestGetEstopGuard:
             assert guard is guard2
         finally:
             mod._global_guard = None
+
+
+class TestDefaultStatePath:
+    def test_uses_myrm_data_dir_when_set(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        data_root = tmp_path / "sandbox-volume"
+        monkeypatch.setenv("MYRM_DATA_DIR", str(data_root))
+        assert EStopGuard._default_path() == data_root / ".estop_state.json"
+
+    def test_falls_back_to_home_myrm(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("MYRM_DATA_DIR", raising=False)
+        assert EStopGuard._default_path() == Path.home() / ".myrm" / ".estop_state.json"
+
+
+class TestLegacyStateMigration:
+    def test_migrates_active_legacy_cwd_state(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        data_root = tmp_path / "data"
+        legacy = tmp_path / ".estop_state.json"
+        legacy.write_text(
+            json.dumps(
+                {
+                    "level": "tool_freeze",
+                    "reason": "legacy",
+                    "activated_at": 42.0,
+                    "activated_by": "op",
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("MYRM_DATA_DIR", str(data_root))
+        monkeypatch.chdir(tmp_path)
+
+        guard = EStopGuard()
+        assert guard.state.level == EStopLevel.TOOL_FREEZE
+        assert guard.state.reason == "legacy"
+        assert (data_root / ".estop_state.json").is_file()
+
+    def test_skips_inactive_legacy_state(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        data_root = tmp_path / "data"
+        legacy = tmp_path / ".estop_state.json"
+        legacy.write_text(
+            json.dumps({"level": "none", "reason": "", "activated_at": 0.0, "activated_by": ""}),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("MYRM_DATA_DIR", str(data_root))
+        monkeypatch.chdir(tmp_path)
+
+        guard = EStopGuard()
+        assert guard.state.is_active() is False
+        assert not (data_root / ".estop_state.json").exists()

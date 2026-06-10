@@ -227,3 +227,19 @@ class TestExtractor:
         result = await extractor.detect_significant_visual_content()
 
         assert result is False
+
+    async def test_extract_full_text_js_contains_svg_text_extraction(
+        self, extractor: Extractor, mock_page: MagicMock
+    ) -> None:
+        """Verify JS script extracts text/tspan elements from SVG instead of skipping."""
+        mock_frame = MagicMock()
+        mock_frame.evaluate = AsyncMock(return_value="")
+        mock_page.frames = [mock_frame]
+
+        await extractor.extract_full_text()
+
+        js_script = mock_frame.evaluate.call_args[0][0]
+        assert "SVG" in js_script
+        assert "text" in js_script and "tspan" in js_script
+        assert "querySelectorAll" in js_script
+        assert "[SVG:" in js_script or "SVG:" in js_script
