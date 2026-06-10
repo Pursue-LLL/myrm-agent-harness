@@ -7,7 +7,7 @@
 - extract_command_spans: Pipeline/logical segment spans (128KB cap, quote-aware split).
 - classify_span_risk_levels: Per-segment safe/unknown levels via risk_classifier.
 - classify_span_risk_reasons: Per-segment stable i18n reason codes via risk_classifier.
-- build_shell_approval_fields: Spans, risks, and reasons from redacted display args.
+- build_shell_approval_fields: Spans, risks, reasons, and plain_explanation from redacted display args.
 - extract_shell_command_text: Read command/code from tool args.
 - is_shell_approval_tool: Whether a tool name participates in shell span UX.
 
@@ -104,11 +104,20 @@ def build_shell_approval_fields(
         return {}
 
     levels, reasons = _classify_span_risk_pairs(shell_text, spans)
-    return {
+
+    from myrm_agent_harness.toolkits.code_execution.security.command_explainer.humanize import (
+        humanize_command,
+    )
+
+    result: dict[str, object] = {
         "command_spans": spans,
         "command_span_risks": levels,
         "command_span_reasons": reasons,
     }
+    explanation = humanize_command(shell_text, spans, levels)
+    if explanation:
+        result["plain_explanation"] = explanation
+    return result
 
 
 def _extract_spans_quote_aware(command: str) -> list[CommandSpan]:
