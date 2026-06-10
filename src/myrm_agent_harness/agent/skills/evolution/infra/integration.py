@@ -392,11 +392,40 @@ class EvolutionIntegration:
             return HookResult(hook_type="callable", success=True)
 
         async def _session_end_cleanup(event: str, payload: dict[str, object]) -> Any:
-            """Clean up slice cursor on session end."""
+            """Clean up slice cursor on session end + frustration-driven evolution."""
             from myrm_agent_harness.agent.hooks.types import HookResult
 
             session_id = str(payload.get("session_id", ""))
             self._slice_cursors.pop(session_id, None)
+
+            # Frustration detection: scan conversation for style/behavior frustration
+            messages = payload.get("messages")
+            if messages and isinstance(messages, (list, tuple)) and len(messages) >= 2:
+                from myrm_agent_harness.agent.skills.evolution.pipeline.frustration_detector import (
+                    detect_frustration,
+                )
+
+                signal = detect_frustration(messages)  # type: ignore[arg-type]
+                if signal and self.queue:
+                    logger.info(
+                        "Frustration detected [%s]: '%s' — triggering DERIVED evolution",
+                        signal.category,
+                        signal.matched_text,
+                    )
+                    try:
+                        await self.queue.enqueue(
+                            EvolutionRequest(
+                                evolution_type=EvolutionType.DERIVED,
+                                skill_id=f"frustration_{signal.category}_{session_id[:8]}",
+                                reason=f"User frustration [{signal.category}]: {signal.matched_text}",
+                                user_feedback=signal.user_message[:500],
+                                session_id=session_id,
+                            ),
+                            priority=QueuePriority.NORMAL,
+                        )
+                    except Exception as e:
+                        logger.warning("Failed to enqueue frustration-driven evolution: %s", e)
+
             return HookResult(hook_type="callable", success=True)
 
         registry.register(

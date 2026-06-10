@@ -96,6 +96,9 @@ class SkillMetrics:
     last_failure_at: datetime | None = None
     consecutive_failures: int = 0  # For quick FIX triggering
 
+    # User dissatisfaction signal (incremented on force_retry / manual correction)
+    user_correction_count: int = 0
+
     # Derived rates (properties)
     @property
     def fallback_rate(self) -> float:
@@ -449,6 +452,12 @@ class SkillEvidenceGroup:
     metrics_snapshot: SkillMetrics | None = None
     common_error_patterns: list[str] = field(default_factory=list)
 
+    # Dual-window trend data (30-day lookback for slow-degradation detection)
+    trend_failure_count: int = 0
+
+    # Evidence quality signal (0.0-1.0, higher = more consistent error pattern)
+    confidence: float = 1.0
+
     @property
     def total_evidence(self) -> int:
         return len(self.success_cases) + len(self.failure_cases)
@@ -460,5 +469,14 @@ class SkillEvidenceGroup:
         return len(self.success_cases) / self.total_evidence
 
     def has_sufficient_evidence(self, min_total: int = 3, min_failures: int = 1) -> bool:
-        """Check if there is enough evidence to justify evolution."""
-        return self.total_evidence >= min_total and len(self.failure_cases) >= min_failures
+        """Check if there is enough evidence to justify evolution.
+
+        Also considers 30-day trend: if trend shows persistent failures
+        even when the 7-day window is sparse, evidence is sufficient.
+        """
+        if self.total_evidence >= min_total and len(self.failure_cases) >= min_failures:
+            return True
+        # Trend fallback: slow-degrading skills (e.g. 1 fail/week)
+        if self.trend_failure_count >= min_total and self.trend_failure_count >= min_failures:
+            return True
+        return False
