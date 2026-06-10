@@ -25,6 +25,7 @@ from myrm_agent_harness.agent.sub_agents.types import SubAgentResult
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 _NOTIFICATION_TTL_SECONDS = 300.0
+_FALLBACK_MAX_ERROR_CHARS = 2000
 logger = get_agent_logger(__name__)
 
 
@@ -51,7 +52,7 @@ def format_notification(result: SubAgentResult) -> str:
     elif result.error:
         from myrm_agent_harness.agent.sub_agents.executor import _compact_error_message
 
-        parts.append(f"Error: {_compact_error_message(result.error, 2000)}")
+        parts.append(f"Error: {_compact_error_message(result.error, _FALLBACK_MAX_ERROR_CHARS)}")
     if result.handover_state:
         ho = result.handover_state
         ho_lines: list[str] = []
