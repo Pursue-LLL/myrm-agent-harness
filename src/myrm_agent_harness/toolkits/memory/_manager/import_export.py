@@ -22,22 +22,33 @@ def _sanitize_filename(text: str, max_len: int = 60) -> str:
     return clean[:max_len] if clean else "untitled"
 
 
-def _memory_to_markdown(memory_dict: dict[str, object], memory_type: str) -> str:
-    """Convert a single memory dict to Markdown with YAML frontmatter."""
-    mem_id = memory_dict.get("id", "")
-    content = str(memory_dict.get("content", ""))
-    created_at = memory_dict.get("created_at", "")
-    updated_at = memory_dict.get("updated_at", "")
-    metadata = memory_dict.get("metadata", {})
-    tags = []
+def _extract_tags(metadata: object) -> list[str]:
+    """Extract tags from memory metadata dict."""
+    tags: list[str] = []
     if isinstance(metadata, dict):
         for k, v in metadata.items():
             if k == "tags" and isinstance(v, str):
                 tags.extend(t.strip() for t in v.split(",") if t.strip())
             elif k == "category" and isinstance(v, str):
                 tags.append(v)
+    return tags
 
+
+def _memory_to_markdown(memory_dict: dict[str, object], memory_type: str) -> str:
+    """Convert a single memory dict to Markdown with YAML frontmatter.
+
+    ProceduralMemory gets enriched output with trigger/action structure
+    and rule metadata in frontmatter. Other types use content-only body.
+    """
+    mem_id = memory_dict.get("id", "")
+    content = str(memory_dict.get("content", ""))
+    created_at = memory_dict.get("created_at", "")
+    updated_at = memory_dict.get("updated_at", "")
+    tags = _extract_tags(memory_dict.get("metadata", {}))
     tags_line = f"\ntags: [{', '.join(tags)}]" if tags else ""
+
+    if memory_type == "procedural":
+        return _procedural_to_markdown(memory_dict, mem_id, content, created_at, updated_at, tags_line)
 
     frontmatter = (
         f"---\n"
@@ -48,6 +59,51 @@ def _memory_to_markdown(memory_dict: dict[str, object], memory_type: str) -> str
         f"---\n"
     )
     return f"{frontmatter}\n{content}\n"
+
+
+def _procedural_to_markdown(
+    d: dict[str, object],
+    mem_id: object,
+    content: str,
+    created_at: object,
+    updated_at: object,
+    tags_line: str,
+) -> str:
+    """Render ProceduralMemory with full rule structure in frontmatter and body."""
+    trigger = d.get("trigger", "")
+    action = d.get("action", "")
+    lines = [
+        "---",
+        f"id: {mem_id}",
+        "type: procedural",
+        f"trigger: {trigger}",
+        f"action: {action}",
+        f"priority: {d.get('priority', 0)}",
+        f"source: {d.get('source', '')}",
+        f"status: {d.get('status', '')}",
+    ]
+    tool_name = d.get("tool_name")
+    if tool_name:
+        lines.append(f"tool_name: {tool_name}")
+        lines.append(f"tool_rule_priority: {d.get('tool_rule_priority', 'normal')}")
+    if d.get("pinned"):
+        lines.append("pinned: true")
+    lines.append(f"access_count: {d.get('access_count', 0)}")
+    lines.append(f"user_rating: {d.get('user_rating', 0.5)}")
+    lines.append(f"created_at: {created_at}")
+    lines.append(f"updated_at: {updated_at}{tags_line}")
+    lines.append("---")
+
+    body_parts: list[str] = []
+    reasoning = d.get("reasoning")
+    if reasoning:
+        body_parts.append(f"## Reasoning\n\n{reasoning}")
+    application = d.get("application")
+    if application:
+        body_parts.append(f"## Application\n\n{application}")
+    body_parts.append(content)
+
+    return "\n".join(lines) + "\n\n" + "\n\n".join(body_parts) + "\n"
 
 
 class MemoryManagerImportExportMixin:
