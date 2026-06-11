@@ -275,6 +275,28 @@ class TestFormatConverter:
                 parsed = json.loads(args_str)
                 assert isinstance(parsed, dict)
 
+    def test_openai_empty_input_data_arguments(self) -> None:
+        """Verify arguments is '{}' when tool has no input_data."""
+        trace = _make_trace(
+            tool_calls=[
+                ToolCallRecord(
+                    sequence=1,
+                    tool_name="noop",
+                    start_time=1700000001.0,
+                    input_data={},
+                    output_summary="done",
+                ),
+            ]
+        )
+        result = convert_trace(trace, ExportFormat.OPENAI)
+        messages = result["messages"]
+        assistant_tool_msgs = [
+            m for m in messages if m.get("role") == "assistant" and m.get("tool_calls")
+        ]
+        assert len(assistant_tool_msgs) == 1
+        args_str = assistant_tool_msgs[0]["tool_calls"][0]["function"]["arguments"]
+        assert args_str == "{}"
+
     def test_metadata_included(self) -> None:
         trace = _make_trace()
         for fmt in ExportFormat:
