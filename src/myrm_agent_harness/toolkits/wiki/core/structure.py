@@ -143,6 +143,47 @@ class WikiStructure:
 
         return deleted_count
 
+    _IGNORED_DIRS: set[str] = {
+        ".git", ".svn", ".hg", "node_modules", "__pycache__",
+        ".venv", ".env", "__MACOSX", ".obsidian", ".idea", ".vscode",
+    }
+
+    def scan_folder(
+        self,
+        folder_path: Path | str,
+        extensions: list[str] | None = None,
+    ) -> list[Path]:
+        """
+        Recursively scan an external folder for importable text documents.
+        Automatically skips hidden directories and common non-content directories.
+
+        Args:
+            folder_path: Absolute path to the folder to scan.
+            extensions: File extensions to include (e.g. ['.md', '.txt', '.org']).
+                        Defaults to ['.md', '.txt', '.org'].
+
+        Returns:
+            Sorted list of matching file paths.
+        """
+        target = Path(folder_path)
+        if not target.is_dir():
+            raise FileNotFoundError(f"Directory not found: {folder_path}")
+
+        if extensions is None:
+            extensions = [".md", ".txt", ".org"]
+
+        ext_set = {e.lower() if e.startswith(".") else f".{e.lower()}" for e in extensions}
+
+        files: list[Path] = []
+        for f in target.rglob("*"):
+            if not f.is_file() or f.suffix.lower() not in ext_set:
+                continue
+            parts = f.relative_to(target).parts
+            if any(p.startswith(".") or p in self._IGNORED_DIRS for p in parts[:-1]):
+                continue
+            files.append(f)
+        return sorted(files)
+
     def get_wiki_metadata_path(self) -> Path:
         """Get path for wiki metadata (last compile time, stats, etc)."""
         return self.wiki_dir / ".metadata.json"

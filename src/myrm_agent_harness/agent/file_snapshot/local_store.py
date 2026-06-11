@@ -1,7 +1,7 @@
 """Local file snapshot store implementation.
 
 Provides workspace file versioning using file-copy snapshots with a JSON manifest.
-Snapshots are stored in .myrm/snapshots/{workspace_hash}/{snapshot_id}/.
+Snapshots are stored in {MYRM_DATA_DIR}/file_snapshots/local/{workspace_hash}/{snapshot_id}/.
 
 [POS]
 Local filesystem-based file snapshot store.
@@ -29,6 +29,14 @@ from .types import (
 )
 
 logger = get_agent_logger(__name__)
+
+
+def _default_local_snapshot_path() -> Path:
+    """Resolve storage path from MYRM_DATA_DIR or home fallback."""
+    data_dir = os.environ.get("MYRM_DATA_DIR", "").strip()
+    if data_dir:
+        return Path(data_dir) / "file_snapshots" / "local"
+    return Path.home() / ".myrm" / "file_snapshots" / "local"
 
 # Default patterns to exclude from snapshots
 DEFAULT_EXCLUDES: set[str] = {
@@ -83,9 +91,8 @@ class LocalFileSnapshotStore:
     """
 
     def __init__(self, storage_path: Path | None = None) -> None:
-        self._storage_path = storage_path or Path(".myrm/snapshots")
+        self._storage_path = storage_path or _default_local_snapshot_path()
         self._storage_path.mkdir(parents=True, exist_ok=True)
-        self._snapshot_cache: dict[str, set[str]] = {}  # turn_id -> snapshot dirs
 
     def _workspace_dir(self, working_dir: str) -> Path:
         return self._storage_path / _workspace_hash(working_dir)

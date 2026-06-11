@@ -2,7 +2,7 @@
 
 [INPUT]
 - .protocols::GoalProvider (POS: Goal provider protocol)
-- .audit::build_continuation_prompt, build_judge_criteria (POS: Prompt/criteria builders)
+- .audit::build_continuation_prompt, build_judge_criteria, build_wrapup_prompt (POS: Prompt/criteria builders)
 - .types::ContinuationDecision, GoalStatus (POS: Guard chain result)
 - langchain_core.messages::HumanMessage, AIMessage (POS: Message types)
 - utils.runtime.cancellation::CancellationToken (POS: Cancellation state)
@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from .audit import build_continuation_prompt, build_judge_criteria
+from .audit import build_continuation_prompt, build_judge_criteria, build_wrapup_prompt
 from .types import ContinuationDecision, GoalStatus
 
 if TYPE_CHECKING:
@@ -42,6 +42,8 @@ logger = logging.getLogger(__name__)
 _JUDGE_SKIP_INITIAL_TURNS = 2
 
 _JUDGE_RESPONSE_MAX_CHARS = 4000
+
+_WRAPUP_SENTINEL = "[Budget reached — wrap-up turn]"
 
 
 def _extract_last_ai_response(messages: list[BaseMessage]) -> str:
@@ -63,6 +65,15 @@ def _extract_last_ai_response(messages: list[BaseMessage]) -> str:
                             parts.append(str(text))
                 return "\n".join(parts)
     return ""
+
+
+def _wrapup_already_injected(messages: list[BaseMessage]) -> bool:
+    """Check if the wrap-up prompt was already injected in a previous turn."""
+    for msg in reversed(messages):
+        if isinstance(msg, HumanMessage):
+            content = msg.content if isinstance(msg.content, str) else ""
+            return content.startswith(_WRAPUP_SENTINEL)
+    return False
 
 
 async def _judge_completion(
@@ -192,8 +203,16 @@ async def check_continuation(
 
     # 5. Budget exhausted? (account_usage already transitions to BUDGET_LIMITED)
     if goal.status == GoalStatus.BUDGET_LIMITED:
-        logger.warning("Goal %s stopped: budget limited", goal.goal_id)
-        return _make_decision("budget", "Budget exhausted", goal)
+        if _wrapup_already_injected(collected_messages):
+            logger.warning("Goal %s stopped: budget limited (wrap-up complete)", goal.goal_id)
+            return _make_decision("budget", "Budget exhausted", goal)
+
+        # Grant one wrap-up turn: inject a summary prompt so the LLM
+        # can produce a graceful conclusion instead of stopping mid-sentence.
+        wrapup_text = build_wrapup_prompt(goal)
+        collected_messages.append(HumanMessage(content=wrapup_text, name="developer"))
+        logger.info("Goal %s: injecting wrap-up prompt for graceful budget conclusion", goal.goal_id)
+        return _make_decision("continue", "Budget exhausted — wrap-up turn granted", goal, message=wrapup_text)
 
     # 6. Convergence detection + suppression (zero tool calls)
     is_suppressed = await goal_provider.is_continuation_suppressed(session_id)
@@ -249,6 +268,14 @@ async def check_continuation(
             logger.info("Goal %s completed by semantic judge", goal.goal_id)
             await goal_provider.update_status(goal.goal_id, GoalStatus.COMPLETE)
             return _make_decision("done", "Semantic judge determined goal is complete", goal)
+
+    # Refresh Goal-scoped protected_paths ContextVar so InvariantValidator
+    # blocks writes to protected files during this turn.
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        set_protected_paths,
+    )
+
+    set_protected_paths(tuple(goal.protected_paths))
 
     # All guards passed — inject continuation prompt
     prompt_text = build_continuation_prompt(goal)

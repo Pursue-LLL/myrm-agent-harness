@@ -22,3 +22,4 @@ Global browser resource pool. Manages Browser/Context/Page three-layer resources
 | singleton.py | Core | GlobalBrowserPool singleton lifecycle (atexit/SIGTERM hooks); pool startup sweeps orphan automation via `find_orphan_automation_processes` | ✅ |
 | stealth.py | Core | Stealth anti-detection script loader. | ✅ |
 | throttle.py | Core | Throttle strategy module. Defines the throttle protocol and two implementations, supports domain-lev | ✅ |
+| engine_affinity.py | Core | Domain-level engine affinity memory. Remembers which BrowserEngine succeeded for a domain (e.g. after Chromium→CAMOUFOX upgrade) so subsequent sessions skip the probe-and-upgrade cycle. Module-level singleton via `get_engine_affinity_store()`. In-memory LRU + JSON file persistence with TTL. | ✅ |

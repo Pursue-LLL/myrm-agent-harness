@@ -85,6 +85,11 @@ class Goal:
     # Hard constraints the Agent MUST NOT violate during execution.
     constraints: list[str] = field(default_factory=list)
 
+    # Glob patterns for files the Agent MUST NOT modify during this Goal.
+    # Enforced physically by InvariantValidator (pre-write block)
+    # and CompletionGuard (post-hoc hash integrity check).
+    protected_paths: list[str] = field(default_factory=list)
+
     # Budget configuration
     budget: GoalBudget | None = None
 
@@ -126,6 +131,7 @@ class Goal:
             "priority": self.priority,
             "auto_approve": self.auto_approve,
             "constraints": self.constraints,
+            "protected_paths": self.protected_paths,
             "status": self.status.value,
             "budget": (
                 {

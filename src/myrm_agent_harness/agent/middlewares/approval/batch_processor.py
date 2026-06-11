@@ -116,15 +116,29 @@ async def evaluate_tool_batch(
         if yolo_active:
             suffix = "" if not config.yolo_mode_timeout else f" (expires in {config.yolo_mode_timeout}s)"
             logger.info(
-                "[YOLO] Auto-approving all %d tool calls%s (session: %s)",
-                len(tool_calls),
+                "[YOLO] Auto-approving tool calls%s (session: %s)",
                 suffix,
                 session_key,
             )
             for idx, tool_call in enumerate(tool_calls):
                 tool_name = tool_call.get("name", "unknown")
-                record_decision(tool_name, "YOLO_AUTO_APPROVE", "YOLO mode enabled")
-                auto_approved.append((idx, tool_call))
+                tool_input: dict[str, object] = tool_call.get("args", {})
+                permission_type = resolve_permission_type(tool_name, tool_input)
+                action, reason = evaluate_tool_call(
+                    permission_type, tool_input, config, workspace_root=workspace_root, tool_name=tool_name
+                )
+                if action == PermissionAction.DENY:
+                    logger.warning(
+                        "[YOLO] Tool %s DENIED despite YOLO mode: %s (session: %s)",
+                        tool_name,
+                        reason,
+                        session_key,
+                    )
+                    record_decision(tool_name, "YOLO_DENY_OVERRIDE", reason)
+                    auto_denied.append((idx, tool_call, f"Tool execution denied by security policy: {reason}"))
+                else:
+                    record_decision(tool_name, "YOLO_AUTO_APPROVE", "YOLO mode enabled")
+                    auto_approved.append((idx, tool_call))
             return auto_approved, auto_denied, pending_approval
 
     for idx, tool_call in enumerate(tool_calls):

@@ -126,6 +126,53 @@ class TestYOLOMode:
         assert len(approved) == 0, "Expired YOLO should not auto-approve file_write"
         assert len(pending) == 1, "Should fall through to pending approval"
 
+    @pytest.mark.asyncio
+    async def test_yolo_mode_respects_deny_rules(self):
+        """YOLO mode must NOT bypass DENY rules — 'deny always wins'."""
+        config = SecurityConfig(
+            ruleset=(
+                PermissionRule("shell_exec", "*", PermissionAction.DENY),
+                PermissionRule("file_write", "*", PermissionAction.ASK),
+            ),
+            yolo_mode_enabled=True,
+        )
+
+        tool_calls = [
+            ToolCall(type="tool_call", name="bash_tool", args={"command": "rm -rf /"}, id="c1"),
+            ToolCall(type="tool_call", name="file_write_tool", args={"path": "/tmp/x", "content": "y"}, id="c2"),
+        ]
+
+        approved, denied, pending = await evaluate_tool_batch(
+            tool_calls, config, is_cron=False, workspace_root="/tmp", session_key="s", args_hashes={}
+        )
+
+        assert len(denied) == 1, "DENY rule must block even under YOLO"
+        assert denied[0][0] == 0, "First tool (shell_exec) should be denied"
+        assert len(approved) == 1, "Non-DENY tool should still be auto-approved under YOLO"
+        assert approved[0][0] == 1, "Second tool (file_write) should be approved"
+        assert len(pending) == 0, "No tools should be pending under active YOLO"
+
+    @pytest.mark.asyncio
+    async def test_yolo_mode_denies_all_when_all_denied(self):
+        """When all tools are DENY, YOLO mode should deny all matching tools."""
+        config = SecurityConfig(
+            ruleset=(PermissionRule("shell_exec", "*", PermissionAction.DENY),),
+            yolo_mode_enabled=True,
+        )
+
+        tool_calls = [
+            ToolCall(type="tool_call", name="bash_tool", args={"command": "ls"}, id="c1"),
+            ToolCall(type="tool_call", name="bash_tool", args={"command": "cat /etc/passwd"}, id="c2"),
+        ]
+
+        approved, denied, pending = await evaluate_tool_batch(
+            tool_calls, config, is_cron=False, workspace_root="/tmp", session_key="s", args_hashes={}
+        )
+
+        assert len(approved) == 0, "No shell tools should be approved when shell_exec is DENY"
+        assert len(denied) == 2, "All shell tools should be denied"
+        assert len(pending) == 0
+
 
 # --- PTC Path Policy tests ---
 

@@ -265,6 +265,20 @@ class BrowserSession(
 
         from myrm_agent_harness.toolkits.browser.utils.proxy_error import is_blocked_response, is_proxy_error
 
+        # Engine affinity: use remembered engine for this domain if available
+        if self._engine_preference is None:
+            from urllib.parse import urlparse
+
+            from myrm_agent_harness.toolkits.browser.pool.engine_affinity import get_engine_affinity_store
+
+            domain = urlparse(url).netloc
+            if domain:
+                remembered = get_engine_affinity_store().get(domain)
+                if remembered is not None:
+                    logger.info("Engine affinity hit for %s → %s", domain, remembered.value)
+                    self._engine_preference = remembered
+                    await self.restart(engine=remembered.value, restore_url=False)
+
         max_attempts = 3
         attempt = 0
 
@@ -343,6 +357,15 @@ class BrowserSession(
                         if captcha_result_msg:
                             title = await self._tab_controller.get_active_page().title()
                             final_url = self._tab_controller.get_active_page().url
+                        else:
+                            # CAMOUFOX succeeded — record affinity for this domain
+                            from urllib.parse import urlparse
+
+                            from myrm_agent_harness.toolkits.browser.pool.engine_affinity import get_engine_affinity_store
+
+                            upgrade_domain = urlparse(url).netloc
+                            if upgrade_domain:
+                                get_engine_affinity_store().record(upgrade_domain, BrowserEngine.FIREFOX_CAMOUFOX)
                 else:
                     title = await self._tab_controller.get_active_page().title()
                     final_url = self._tab_controller.get_active_page().url

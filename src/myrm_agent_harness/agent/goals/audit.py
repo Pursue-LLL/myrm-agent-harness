@@ -6,10 +6,12 @@
 [OUTPUT]
 - get_audit_protocol: Returns the completion audit protocol text.
 - build_continuation_prompt: Build the continuation prompt injected each turn.
+- build_wrapup_prompt: Build the budget-exhaustion wrap-up prompt for graceful conclusion.
 - build_judge_criteria: Build criteria string for semantic goal completion judge.
 
 [POS]
 Provides the strict verification checklist injected during goal continuation,
+the wrap-up prompt for budget-exhaustion graceful conclusion,
 and the judge criteria for autonomous completion detection.
 """
 
@@ -124,6 +126,41 @@ def build_continuation_prompt(goal: Goal) -> str:
         "- If you believe the goal is FULLY complete, state so explicitly and stop.\n"
         "- If you are blocked and need user input, say so clearly and stop.\n"
         f"{audit_text}"
+    )
+
+
+def build_wrapup_prompt(goal: Goal) -> str:
+    """Build the budget-exhaustion wrap-up prompt for graceful conclusion.
+
+    Injected when the goal reaches BUDGET_LIMITED so the LLM can produce
+    a meaningful summary instead of stopping mid-sentence. The prompt
+    instructs the LLM to stop new work, summarize progress, and leave
+    the user with clear next steps.
+    """
+    budget_lines: list[str] = []
+    budget_lines.append(f"- Time spent: {goal.time_used_seconds}s")
+
+    if goal.budget and goal.budget.max_tokens is not None:
+        budget_lines.append(f"- Tokens used: {goal.tokens_used} / {goal.budget.max_tokens}")
+    if goal.budget and goal.budget.max_usd is not None:
+        budget_lines.append(f"- Cost: ${goal.cost_usd:.4f} / ${goal.budget.max_usd:.4f}")
+    if goal.budget and goal.budget.max_turns is not None:
+        budget_lines.append(f"- Turns: {goal.turns_used} / {goal.budget.max_turns}")
+
+    budget_text = "\n".join(budget_lines)
+
+    return (
+        "[Budget reached — wrap-up turn]\n\n"
+        f"<untrusted_objective>\n{goal.objective}\n</untrusted_objective>\n\n"
+        f"Budget:\n{budget_text}\n\n"
+        "The system has marked this goal as budget_limited. "
+        "Do NOT start any new substantive work. "
+        "Wrap up this turn by providing:\n"
+        "1. A concise summary of useful progress made so far.\n"
+        "2. Specific files or artifacts that were modified or created.\n"
+        "3. Remaining work or blockers that were not addressed.\n"
+        "4. A clear next step the user should take when resuming.\n\n"
+        "Do NOT call any tools. Respond with text only."
     )
 
 

@@ -49,6 +49,7 @@ class GoalProvider(Protocol):
         metadata: dict[str, object] | None = None,
         acceptance_criteria: list[dict[str, object]] | None = None,
         constraints: list[str] | None = None,
+        protected_paths: list[str] | None = None,
         ui_summary: str = "",
     ) -> Goal:
         """Create a new goal. If an active goal exists, queues the new goal instead."""
@@ -177,6 +178,10 @@ class GoalProvider(Protocol):
 
     async def update_constraints(self, goal_id: str, constraints: list[str]) -> Goal:
         """Set or replace the constraints list for a goal."""
+        ...
+
+    async def update_protected_paths(self, goal_id: str, protected_paths: list[str]) -> Goal:
+        """Set or replace the protected_paths (glob patterns) for a goal."""
         ...
 
     async def update_objective(self, goal_id: str, new_objective: str) -> Goal:

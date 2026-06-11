@@ -67,6 +67,23 @@ async def intercept_goal_and_plan(
     if not goal:
         return
 
+    # Publish Goal-scoped protected_paths so InvariantValidator can enforce them.
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_workspace_root,
+        set_protected_paths,
+    )
+
+    set_protected_paths(tuple(goal.protected_paths))
+
+    # Capture baseline hashes for post-hoc tamper detection (CompletionGuard).
+    if goal.protected_paths:
+        from myrm_agent_harness.agent.goals.invariant_snapshot import (
+            capture_protected_snapshot,
+        )
+
+        ws_root = get_workspace_root() or "."
+        capture_protected_snapshot(goal.goal_id, goal.protected_paths, ws_root)
+
     # Check if a plan already exists for this session
     planner_storage = PlannerStorage(storage_provider, prefix="planner_")
     existing_plan = await planner_storage.load_plan()

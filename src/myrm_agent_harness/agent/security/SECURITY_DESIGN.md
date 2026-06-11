@@ -533,14 +533,16 @@ Step 6:  Transcript Classifier → 当 auto_mode_enabled 时，对所有 engine 
 
 ### 5.0 YOLO Mode — 全自动审批快速路径
 
-当 `SecurityConfig.yolo_mode_enabled=True` 时，`batch_processor.evaluate_tool_batch()` 在评估任何规则前直接自动审批所有工具调用。支持可选超时（`yolo_mode_timeout` 秒），过期后自动恢复正常审批流。
+当 `SecurityConfig.yolo_mode_enabled=True` 时，`batch_processor.evaluate_tool_batch()` 自动审批所有非 DENY 的工具调用。对每个 tool_call 仍执行 `evaluate_tool_call()` 检查：若结果为 `DENY` 则强制拒绝（记录 `YOLO_DENY_OVERRIDE` 决策），否则自动批准（记录 `YOLO_AUTO_APPROVE`）。支持可选超时（`yolo_mode_timeout` 秒），过期后自动恢复正常审批流。
+
+核心安全原则：**deny always wins** — DENY 规则在任何模式下都不可被绕过。
 
 触发方式：
 - 前端 Settings UI 中的 YOLO 开关（写入 UserConfig → `parse_security_config()` 解析）
 - 渠道 `/yolo` 命令（Router 内存态，通过 `InboundMessage.metadata["yolo_state"]` 注入）
 - 定时任务自动启用（`agent_runner.py` 自动注入，确保无人值守执行不被阻塞）
 
-安全保证：YOLO 模式仅影响 Layer 4 审批决策，不影响 Layer 1-3 的权限检查和能力围栏。
+安全保证：YOLO 模式仅跳过 ASK 审批弹窗，不影响 DENY 规则、Layer 1-3 的权限检查和能力围栏。
 
 ### 5.1 Allowlist — 持久化白名单（细粒度匹配）
 
@@ -1381,7 +1383,7 @@ MemoryConfig(
 - **UNCERTAIN** → 升级到 HITL 人工审批
 - **ALLOW** → 正常放行
 
-此检查仅在 Auto Mode 下激活。HITL 模式不受影响（用户手动审批），YOLO 模式不受影响（已接受所有风险）。阈值已突破时跳过检查（由 denial tracking 管理）。
+此检查仅在 Auto Mode 下激活。HITL 模式不受影响（用户手动审批），YOLO 模式下 DENY 规则仍强制执行（仅跳过 ASK 审批）。阈值已突破时跳过检查（由 denial tracking 管理）。
 
 ### 检查点 2 — 运行中检查（In-Run）
 

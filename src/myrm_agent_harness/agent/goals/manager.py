@@ -89,6 +89,7 @@ class GoalManager(GoalProvider):
         metadata: dict[str, object] | None = None,
         acceptance_criteria: list[dict[str, object]] | None = None,
         constraints: list[str] | None = None,
+        protected_paths: list[str] | None = None,
         ui_summary: str = "",
     ) -> Goal:
         """Create a new goal. If an active goal exists, queues the new goal instead."""
@@ -109,6 +110,7 @@ class GoalManager(GoalProvider):
             budget=budget,
             auto_approve=auto_approve,
             constraints=constraints or [],
+            protected_paths=protected_paths or [],
             metadata=metadata or {},
             acceptance_criteria=acceptance_criteria or [],
         )
@@ -472,6 +474,18 @@ class GoalManager(GoalProvider):
         goal.updated_at = datetime.now(UTC)
         await self._storage.save_goal(goal)
         logger.info("Updated constraints for goal %s (%d items)", goal_id, len(constraints))
+        return goal
+
+    async def update_protected_paths(self, goal_id: str, protected_paths: list[str]) -> Goal:
+        """Set or replace the protected_paths (glob patterns) for a goal."""
+        goal = await self._storage.get_goal(goal_id)
+        if not goal:
+            raise ValueError(f"Goal {goal_id} not found")
+
+        goal.protected_paths = protected_paths
+        goal.updated_at = datetime.now(UTC)
+        await self._storage.save_goal(goal)
+        logger.info("Updated protected_paths for goal %s (%d patterns)", goal_id, len(protected_paths))
         return goal
 
     async def update_objective(self, goal_id: str, new_objective: str) -> Goal:

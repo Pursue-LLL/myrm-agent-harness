@@ -156,18 +156,35 @@ async def test_check_continuation_budget_limited(mock_goal_provider):
     mock_goal_provider.get_goal.return_value = goal
     mock_goal_provider.record_progress.return_value = goal
 
+    # First call: wrap-up turn granted (collected_messages is empty, no prior wrap-up)
+    collected_messages: list = []
     decision = await check_continuation(
         goal_provider=mock_goal_provider,
         session_id="s1",
         cancel_token=None,
         steering_token=None,
-        collected_messages=[],
+        collected_messages=collected_messages,
         tools_called_this_turn=True,
         net_tokens_this_turn=10,
         time_this_turn_seconds=1,
     )
-    assert decision.should_continue is False
-    assert decision.verdict == "budget"
+    assert decision.should_continue is True
+    assert decision.verdict == "continue"
+    assert "wrap-up" in decision.reason.lower()
+
+    # Second call: wrap-up already injected → truly stop
+    decision2 = await check_continuation(
+        goal_provider=mock_goal_provider,
+        session_id="s1",
+        cancel_token=None,
+        steering_token=None,
+        collected_messages=collected_messages,
+        tools_called_this_turn=True,
+        net_tokens_this_turn=10,
+        time_this_turn_seconds=1,
+    )
+    assert decision2.should_continue is False
+    assert decision2.verdict == "budget"
 
 
 @pytest.mark.asyncio

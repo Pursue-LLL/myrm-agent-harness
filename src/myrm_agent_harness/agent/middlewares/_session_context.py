@@ -262,3 +262,19 @@ def get_canary_token() -> str:
     Returns empty string if no canary has been set.
     """
     return _canary_token_var.get()
+
+
+_protected_paths_var: ContextVar[tuple[str, ...]] = ContextVar("protected_paths", default=())
+
+
+def set_protected_paths(patterns: tuple[str, ...]) -> None:
+    """Set the Goal-scoped protected file path patterns for the current context."""
+    _protected_paths_var.set(patterns)
+
+
+def get_protected_paths() -> tuple[str, ...]:
+    """Get the Goal-scoped protected file path patterns.
+
+    Returns an empty tuple when no Goal is active or no protection configured.
+    """
+    return _protected_paths_var.get()

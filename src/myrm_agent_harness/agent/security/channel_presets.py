@@ -5,16 +5,17 @@ Each channel type (web_chat, IM, cron) has a preset that defines:
 - Which permission rules override the user's config
 
 [INPUT]
-- .types::Capability, (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
-  SecurityConfig, DEFAULT_CAPABILITIES, DEFAULT_RULESET
-- .engine::merge (POS: Supports query expansion for handling synonyms and typos when enabled.)
-- .config::parse_security_config (POS: Configuration and type definitions for the Deep Research system. Pure data structures with no business logic dependencies.)
+- .types::Capability, SecurityConfig, DEFAULT_CAPABILITIES, DEFAULT_RULESET
+  (POS: Foundation layer of the security type hierarchy.)
+- .engine::merge (POS: Layers 1-5 of the security architecture. Pure deterministic evaluation.)
+- .config::parse_security_config (POS: Called at application startup and on config updates. Pure functions.)
 
 [OUTPUT]
 - ChannelType: web_chat / im / cron
 - ChannelSecurityPreset: (capabilities, ruleset) pair
 - CHANNEL_PRESETS: registry of presets per channel type
 - resolve_channel_type(): channel name → ChannelType
+- get_local_browser_relaxation(): rules relaxing browser restrictions for local mode
 - build_channel_security_config(): channel + user config + declared_capabilities → SecurityConfig
 
 [POS]
@@ -133,29 +134,20 @@ def get_local_browser_relaxation() -> PermissionRuleset:
     return _LOCAL_BROWSER_RELAXATION
 
 
-_IM_CHANNEL_NAMES: frozenset[str] = frozenset(
-    {
-        "telegram",
-        "feishu",
-        "dingtalk",
-        "discord",
-        "slack",
-        "wecom",
-        "teams",
-        "matrix",
-        "googlechat",
-        "whatsapp",
-    }
-)
+_WEB_CHAT_CHANNEL_NAMES: frozenset[str] = frozenset({"web_chat"})
 
 
 def resolve_channel_type(channel_name: str) -> ChannelType:
-    """Map a channel name to its ChannelType for security preset lookup."""
-    if channel_name in _IM_CHANNEL_NAMES:
-        return ChannelType.IM
+    """Map a channel name to its ChannelType for security preset lookup.
+
+    Default-safe: unknown channels are classified as IM (least privilege).
+    Only explicitly listed web_chat and cron get elevated permissions.
+    """
+    if channel_name in _WEB_CHAT_CHANNEL_NAMES:
+        return ChannelType.WEB_CHAT
     if channel_name == "cron":
         return ChannelType.CRON
-    return ChannelType.WEB_CHAT
+    return ChannelType.IM
 
 
 def build_channel_security_config(
