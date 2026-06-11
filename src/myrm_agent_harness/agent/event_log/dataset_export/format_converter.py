@@ -191,7 +191,7 @@ def _to_openai(trace: ExecutionTrace) -> dict[str, object]:
                     "type": "function",
                     "function": {
                         "name": tc.tool_name,
-                        "arguments": str(tc.input_data) if tc.input_data else "{}",
+                        "arguments": json.dumps(tc.input_data, ensure_ascii=False) if tc.input_data else "{}",
                     },
                 }
             ],

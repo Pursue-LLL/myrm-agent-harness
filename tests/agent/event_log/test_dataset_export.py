@@ -259,6 +259,22 @@ class TestFormatConverter:
         assert len(tool_msgs) == 1
         assert tool_msgs[0]["name"] == "code_runner"
 
+    def test_openai_arguments_is_valid_json(self) -> None:
+        """Verify tool_calls.function.arguments is a valid JSON string, not Python repr."""
+        trace = _make_trace()
+        result = convert_trace(trace, ExportFormat.OPENAI)
+        messages = result["messages"]
+        assistant_tool_msgs = [
+            m for m in messages if m.get("role") == "assistant" and m.get("tool_calls")
+        ]
+        assert len(assistant_tool_msgs) >= 1
+        for msg in assistant_tool_msgs:
+            for tc in msg["tool_calls"]:
+                args_str = tc["function"]["arguments"]
+                assert isinstance(args_str, str)
+                parsed = json.loads(args_str)
+                assert isinstance(parsed, dict)
+
     def test_metadata_included(self) -> None:
         trace = _make_trace()
         for fmt in ExportFormat:
