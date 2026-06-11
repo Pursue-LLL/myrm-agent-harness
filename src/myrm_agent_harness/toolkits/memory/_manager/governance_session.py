@@ -168,7 +168,13 @@ class MemoryManagerGovernanceSessionMixin:
         async with self._maintenance_lock:
             if self._vector is None:
                 return
-            await run_forgetting(self._vector, self._config, self._graph)
+            await run_forgetting(
+                self._vector,
+                self._config,
+                self._graph,
+                relational=self._relational,
+                namespaces=self._namespaces,
+            )
 
     async def _submit_preference_candidate(self, memory: AnyMemory) -> None:
         """Submit a SemanticMemory with preference_type as a PreferenceCandidate."""

@@ -348,9 +348,24 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
             diff_output = await self._run_cmd(
                 "git", "diff-tree", "-r", "--name-status", snapshot_id, current_tree, env=env,
             )
+            numstat_output = await self._run_cmd(
+                "git", "diff-tree", "-r", "--numstat", snapshot_id, current_tree, env=env,
+            )
         except RuntimeError as e:
             logger.warning("Diff failed: %s", e)
             return FileDiff(snapshot_id=snapshot_id)
+
+        line_stats: dict[str, tuple[int | None, int | None]] = {}
+        for line in numstat_output.splitlines():
+            if not line.strip():
+                continue
+            parts = line.split("\t")
+            if len(parts) != 3:
+                continue
+            added_str, deleted_str, filepath = parts
+            added = int(added_str) if added_str != "-" else None
+            deleted = int(deleted_str) if deleted_str != "-" else None
+            line_stats[filepath] = (added, deleted)
 
         changes: list[FileChange] = []
         wp = Path(working_dir)
@@ -368,7 +383,14 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
                     new_size = (wp / filepath).stat().st_size
                 except OSError:
                     pass
-            changes.append(FileChange(path=filepath, change_type=change_type, new_size=new_size))
+            lines_added, lines_deleted = line_stats.get(filepath, (None, None))
+            changes.append(FileChange(
+                path=filepath,
+                change_type=change_type,
+                new_size=new_size,
+                lines_added=lines_added,
+                lines_deleted=lines_deleted,
+            ))
 
         return FileDiff(snapshot_id=snapshot_id, changes=changes, total_changes=len(changes))
 

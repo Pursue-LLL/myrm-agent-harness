@@ -269,6 +269,10 @@ _SCRIPTABLE_APPS: frozenset[str] = frozenset({
     "System Preferences", "Automator", "Shortcuts", "Microsoft Excel",
     "Microsoft Word", "Microsoft PowerPoint", "Microsoft Outlook",
     "Google Chrome", "Slack", "Spotify", "iTerm2", "iTerm",
+    "Adobe Photoshop", "Adobe Illustrator", "Adobe Acrobat", "Adobe InDesign",
+    "Sketch", "Final Cut Pro", "Logic Pro", "GarageBand", "Xcode",
+    "WPS Office", "Firefox", "Arc", "Obsidian", "Discord",
+    "Visual Studio Code", "Cursor", "OmniGraffle", "DEVONthink", "Affinity Designer",
 })
 
 

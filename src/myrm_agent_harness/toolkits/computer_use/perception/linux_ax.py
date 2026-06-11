@@ -141,6 +141,8 @@ _DBUS_AUTOMATABLE_APPS: frozenset[str] = frozenset({
     "nautilus", "Files", "Thunderbird", "LibreOffice",
     "gedit", "GNOME Terminal", "Rhythmbox", "Totem",
     "Evince", "Eye of GNOME",
+    "Firefox", "GIMP", "Inkscape", "VLC", "Kate", "Konsole",
+    "WPS Office", "Okular", "Dolphin", "KCalc",
 })
 
 

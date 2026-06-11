@@ -149,6 +149,9 @@ _COM_AUTOMATABLE_APPS: frozenset[str] = frozenset({
     "Microsoft Outlook", "Microsoft Access", "Microsoft Visio",
     "File Explorer", "Windows Terminal", "Command Prompt", "PowerShell",
     "Notepad", "WordPad", "Calculator",
+    "Adobe Photoshop", "Adobe Illustrator", "Adobe Acrobat", "Adobe InDesign",
+    "AutoCAD", "WPS", "WPS Office", "Firefox", "Arc",
+    "Obsidian", "Discord", "Visual Studio Code", "Cursor", "Total Commander",
 })
 
 

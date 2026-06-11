@@ -7,13 +7,14 @@ Workspace file versioning and rollback subsystem. Provides transparent file-leve
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Exports FileSnapshotProtocol, stores, factory, types. | — |
+| __init__.py | Package | Exports FileSnapshotProtocol, stores, factory, types, restore_inbox. | — |
 | types.py | Types | SnapshotTrigger enum, FileSnapshotInfo, FileChange, FileDiff, RestoreResult dataclasses. | ✅ |
 | protocols.py | Protocol | FileSnapshotProtocol — runtime_checkable Protocol for snapshot operations. | ✅ |
 | shadow_git_store.py | Implementation | ShadowGitSnapshotStore — shared bare repo with env-variable isolation (GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE). Preferred. | ✅ |
 | shadow_git_maintenance.py | Mixin | ShadowGitMaintenance — auto-pruning, orphan detection, repair, oversized workspace validation, project-commit lookup. | ✅ |
 | local_store.py | Implementation | LocalFileSnapshotStore — file copy + JSON manifest. Fallback when git is absent. | ✅ |
 | factory.py | Factory | create_file_snapshot_store() — auto-selects Shadow Git or Local File based on git availability. | ✅ |
+| restore_inbox.py | Notification | In-process deque inbox. Server pushes restore events; agent_runtime drains them as HumanMessage on next turn. | ✅ |
 
 ## Key Dependencies
 
@@ -37,3 +38,4 @@ Workspace file versioning and rollback subsystem. Provides transparent file-leve
 - **Maintenance mixin separation**: Pruning, repair, and validation logic in ShadowGitMaintenance mixin keeps ShadowGitSnapshotStore under 500 lines.
 - **No-change skip**: `git diff-index --cached --quiet` avoids creating redundant commits when no files changed.
 - **CAS concurrency safety**: `git update-ref ref new old` prevents concurrent snapshot overwrites.
+- **Restore context injection**: `restore_inbox.py` bridges the server restore API and agent_runtime. After GUI rollback, a notification is pushed to the in-process deque; agent_runtime drains it as a HumanMessage at the end of the messages list (preserving prompt cache prefix). 600s TTL auto-expires stale notifications.

@@ -54,6 +54,8 @@ class FileChange:
     change_type: str  # "added", "modified", "deleted"
     old_size: int | None = None
     new_size: int | None = None
+    lines_added: int | None = None
+    lines_deleted: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

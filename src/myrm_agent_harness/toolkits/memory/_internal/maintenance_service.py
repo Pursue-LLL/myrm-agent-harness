@@ -37,6 +37,9 @@ from myrm_agent_harness.toolkits.memory.health import (
     detect_neglected,
 )
 from myrm_agent_harness.toolkits.memory.protocols.graph import GraphStoreProtocol
+from myrm_agent_harness.toolkits.memory.protocols.relational import (
+    RelationalStoreProtocol,
+)
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
 from myrm_agent_harness.toolkits.memory.types import AnyMemory, MemoryType
 
@@ -75,7 +78,7 @@ class MaintenanceConsolidationResult(tuple[int, int, int, int, tuple[str, ...]])
 class MaintenanceService:
     """Owns maintenance orchestration that should not stay in MemoryManager."""
 
-    __slots__ = ("_config", "_graph", "_vector")
+    __slots__ = ("_config", "_graph", "_namespaces", "_relational", "_vector")
 
     def __init__(
         self,
@@ -83,10 +86,14 @@ class MaintenanceService:
         config: MemoryConfig,
         vector: VectorStoreProtocol | None,
         graph: GraphStoreProtocol | None,
+        relational: RelationalStoreProtocol | None = None,
+        namespaces: list[str] | None = None,
     ) -> None:
         self._config = config
         self._vector = vector
         self._graph = graph
+        self._relational = relational
+        self._namespaces = namespaces
 
     async def collect_snapshot(self, *, count_memories_func: CountMemoriesFunc) -> MemorySnapshot | None:
         try:
@@ -227,7 +234,10 @@ class MaintenanceService:
                         logger.warning("Maintenance claim graph compilation failed: %s", exc)
 
                 try:
-                    forgetting = await run_forgetting(self._vector, self._config, self._graph)
+                    forgetting = await run_forgetting(
+                        self._vector, self._config, self._graph,
+                        relational=self._relational, namespaces=self._namespaces,
+                    )
                     forgotten_count = forgetting.forgotten_count
                     archived_count = forgetting.archived_count
                 except Exception as exc:

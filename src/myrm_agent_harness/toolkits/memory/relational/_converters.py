@@ -34,7 +34,7 @@ PROCEDURAL_COLUMNS = (
     "id, user_id, content, trigger_text, action_text, "
     "priority, is_active, trigger_keywords, source, metadata, "
     "primary_namespace, namespaces, agent_id, channel_id, conversation_id, task_id, "
-    "tool_name, tool_rule_priority, created_at, updated_at"
+    "tool_name, tool_rule_priority, access_count, last_accessed_at, created_at, updated_at"
 )
 
 
@@ -73,7 +73,8 @@ def row_to_procedural(row: tuple[object, ...]) -> ProceduralMemory:
     """Column order: id, user_id, content, trigger_text, action_text,
     priority, is_active, trigger_keywords, source, metadata, primary_namespace,
     namespaces, agent_id, channel_id, conversation_id, task_id,
-    tool_name, tool_rule_priority, created_at, updated_at.
+    tool_name, tool_rule_priority, access_count, last_accessed_at,
+    created_at, updated_at.
     """
     keywords = json.loads(row[7]) if row[7] else []  # type: ignore[arg-type]
     metadata = json.loads(row[9]) if row[9] else {}  # type: ignore[arg-type]
@@ -107,8 +108,10 @@ def row_to_procedural(row: tuple[object, ...]) -> ProceduralMemory:
         ),
         tool_name=tool_name_val,
         tool_rule_priority=tool_priority,
-        created_at=parse_dt(str(row[18])),
-        updated_at=parse_dt(str(row[19])),
+        access_count=int(row[18]) if row[18] else 0,
+        last_accessed_at=parse_dt(str(row[19])) if row[19] else None,
+        created_at=parse_dt(str(row[20])),
+        updated_at=parse_dt(str(row[21])),
     )
 
 

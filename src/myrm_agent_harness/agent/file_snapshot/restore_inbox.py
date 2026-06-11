@@ -63,15 +63,14 @@ def drain_restore_notifications() -> str | None:
         notif = _pending.popleft()
         if (now - notif.timestamp) > _NOTIFICATION_TTL_SECONDS:
             continue
-        msg = (
-            f"[System: File rollback detected] "
-            f"{notif.files_restored} file(s) were restored to snapshot {notif.snapshot_id[:8]}."
-        )
+        msg = f"[System: File rollback detected] "
         if notif.restored_files:
             file_list = ", ".join(notif.restored_files[:10])
-            msg += f" Affected: {file_list}"
+            msg += f"{notif.files_restored} file(s) restored to snapshot {notif.snapshot_id[:8]}. Affected: {file_list}"
             if len(notif.restored_files) > 10:
                 msg += f" (+{len(notif.restored_files) - 10} more)"
+        else:
+            msg += f"Entire workspace ({notif.files_restored} files) restored to snapshot {notif.snapshot_id[:8]}."
         msg += (
             " The workspace files have changed externally. "
             "Re-read any files you previously modified before making further changes."

@@ -106,7 +106,12 @@ class TestGoalTerminalCallbackTrigger:
 
     @pytest.mark.asyncio
     async def test_callback_fires_on_budget_verdict(self):
-        """Callback should fire when verdict is 'budget' (budget exhausted)."""
+        """Callback should fire when verdict is 'budget' (budget exhausted).
+
+        Budget-limited goals first get a wrap-up turn (should_continue=True).
+        Only after the wrap-up prompt has been injected does the next call
+        stop and fire the terminal callback.
+        """
         callback = AsyncMock()
         goal = _make_goal(status=GoalStatus.BUDGET_LIMITED)
         goal_provider = AsyncMock()
@@ -129,9 +134,15 @@ class TestGoalTerminalCallbackTrigger:
         mixin._compactor = AsyncMock()
         mixin.streaming_final_answer = False
 
+        # Include the wrap-up sentinel so check_continuation recognises
+        # that the wrap-up turn already happened and emits "budget" verdict.
+        from myrm_agent_harness.agent.goals.continuation import _WRAPUP_SENTINEL
+
         messages: list[BaseMessage] = [
             HumanMessage(content="Continue working"),
             AIMessage(content="Working on it..."),
+            HumanMessage(content=f"{_WRAPUP_SENTINEL}\nPlease wrap up.", name="developer"),
+            AIMessage(content="Here is the summary..."),
         ]
 
         result = await mixin._handle_goal_continuation(

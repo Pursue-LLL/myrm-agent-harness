@@ -181,7 +181,10 @@ class MemoryManagerCore:
             namespaces=self._namespaces,
             scope=self._scope,
         )
-        self._maintenance_service = MaintenanceService(config=config, vector=vector, graph=graph)
+        self._maintenance_service = MaintenanceService(
+            config=config, vector=vector, graph=graph,
+            relational=relational, namespaces=self._namespaces,
+        )
         self._consolidation_llm: BaseChatModel | None = consolidation_llm
         self._fts5_searcher: FTS5SearcherFunc | None = fts5_searcher
         self._maintenance_lock = asyncio.Lock()

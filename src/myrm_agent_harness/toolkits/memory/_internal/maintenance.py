@@ -64,9 +64,14 @@ if TYPE_CHECKING:
         GraphNode,
         GraphStoreProtocol,
     )
+    from myrm_agent_harness.toolkits.memory.protocols.relational import (
+        RelationalStoreProtocol,
+    )
     from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
     from myrm_agent_harness.toolkits.memory.strategies.forgetting import (
+        ForgettingConfig,
         ForgettingResult,
+        ForgettingStrategy,
     )
 
 logger = logging.getLogger(__name__)
@@ -169,6 +174,8 @@ async def run_forgetting(
     vector: VectorStoreProtocol,
     config: MemoryConfig,
     graph: GraphStoreProtocol | None = None,
+    relational: RelationalStoreProtocol | None = None,
+    namespaces: list[str] | None = None,
 ) -> ForgettingResult:
     """Scan and process low-retention memories based on ForgettingConfig.mode.
 
@@ -177,8 +184,9 @@ async def run_forgetting(
         ARCHIVE — mark as archived (metadata update), preserve graph relations
         MARK    — log candidates only, no mutation
 
-    For semantic memories, relation_count is approximated by counting
-    vector neighbors (sim > 0.8) to reward well-connected knowledge.
+    Covers all ForgettableMemory types: Semantic/Episodic (vector store) and
+    Procedural (relational store). Pinned and CRITICAL-priority rules are
+    protected by ForgettingStrategy.
     """
     from myrm_agent_harness.toolkits.memory.strategies.forgetting import (
         ForgettingConfig,
@@ -252,6 +260,9 @@ async def run_forgetting(
                     ids[:5],
                 )
 
+        if relational is not None:
+            await _forget_procedural_rules(relational, strategy, fg_cfg, result, namespaces)
+
         if result.forgotten_count:
             logger.warning("Forgetting DELETE: removed %d memories", result.forgotten_count)
         if result.archived_count:
@@ -261,6 +272,55 @@ async def run_forgetting(
         logger.warning("Forgetting scan failed (non-fatal): %s", e)
 
     return result
+
+
+async def _forget_procedural_rules(
+    relational: RelationalStoreProtocol,
+    strategy: ForgettingStrategy,
+    fg_cfg: ForgettingConfig,
+    result: ForgettingResult,
+    namespaces: list[str] | None,
+) -> None:
+    """Apply forgetting strategy to ProceduralMemory stored in relational DB."""
+    from myrm_agent_harness.toolkits.memory.strategies.forgetting import ForgettingMode
+    from myrm_agent_harness.toolkits.memory.types import ToolRulePriority
+
+    try:
+        rules = await relational.list_rules(
+            active_only=True,
+            limit=fg_cfg.max_forget_per_run * 2,
+            namespaces=namespaces,
+        )
+    except Exception as e:
+        logger.warning("Forgetting: failed to fetch procedural rules: %s", e)
+        return
+
+    for rule in rules:
+        if rule.tool_rule_priority == ToolRulePriority.CRITICAL:
+            rule.importance = max(rule.importance, 0.95)
+
+    candidates = strategy.select_candidates(rules, {})
+    if not candidates:
+        return
+
+    for rule, score in candidates:
+        try:
+            if fg_cfg.mode == ForgettingMode.DELETE:
+                if await relational.delete_rule(rule.id):
+                    result.forgotten_count += 1
+                    result.forgotten_ids.append(rule.id)
+            elif fg_cfg.mode == ForgettingMode.ARCHIVE:
+                rule.is_active = False
+                rule.metadata["archived_at"] = datetime.now(UTC).isoformat()
+                rule.metadata["archive_reason"] = f"retention={score.total_score:.3f}"
+                await relational.update_rule(rule.id, rule)
+                result.archived_count += 1
+                result.archived_ids.append(rule.id)
+            else:
+                logger.info("Forgetting MARK mode: procedural rule %s (score=%.3f)", rule.id, score.total_score)
+        except Exception as e:
+            logger.warning("Forgetting procedural rule %s failed: %s", rule.id, e)
+            result.errors.append((rule.id, str(e)))
 
 
 async def evaporate_task_digests(
