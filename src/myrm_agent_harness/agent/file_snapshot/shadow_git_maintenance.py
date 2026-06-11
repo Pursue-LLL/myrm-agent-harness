@@ -15,6 +15,7 @@ workspace size validation.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import shutil
@@ -106,10 +107,8 @@ class ShadowGitMaintenance:
                 continue
 
         for f in to_remove:
-            try:
+            with contextlib.suppress(RuntimeError):
                 await self._run_cmd("git", "rm", "--cached", "--quiet", f, env=env)
-            except RuntimeError:
-                pass
 
     async def find_project_for_commit(self, commit_hash: str) -> tuple[str | None, str | None]:
         """Find which project a commit belongs to by checking all refs."""
@@ -118,7 +117,7 @@ class ShadowGitMaintenance:
             return None, None
 
         for meta_file in projects_dir.iterdir():
-            if not meta_file.suffix == ".json":
+            if meta_file.suffix != ".json":
                 continue
             proj_hash = meta_file.stem
             ref = self._project_ref(proj_hash)
@@ -166,7 +165,7 @@ class ShadowGitMaintenance:
             return
 
         for meta_file in projects_dir.iterdir():
-            if not meta_file.suffix == ".json":
+            if meta_file.suffix != ".json":
                 continue
             try:
                 meta = json.loads(meta_file.read_text())

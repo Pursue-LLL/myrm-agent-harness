@@ -7,8 +7,8 @@ Data types for file snapshot operations.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 from enum import StrEnum
+from typing import Any
 
 
 class SnapshotTrigger(StrEnum):

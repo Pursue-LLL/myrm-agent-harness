@@ -28,6 +28,7 @@ isolation (GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, GIT_CONFIG_GLOBAL).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import os
@@ -220,7 +221,7 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
             raise ValueError(f"Refusing to snapshot root or home directory: {wp}")
 
         if await self.is_oversized_workspace(str(wp)):
-            raise ValueError(f"Workspace exceeds file count limit")
+            raise ValueError("Workspace exceeds file count limit")
 
         proj_hash = _project_hash(str(wp))
         env = self._git_env(str(wp), proj_hash)
@@ -229,12 +230,9 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
         await self._run_cmd("git", "add", "--all", env=env)
         await self.drop_oversized_from_index(env, wp)
 
-        # Resolve parent commit for skip-detection and CAS
         parent: str | None = None
-        try:
+        with contextlib.suppress(RuntimeError):
             parent = await self._run_cmd("git", "rev-parse", "--verify", ref, env=env)
-        except RuntimeError:
-            pass
 
         # Skip if no files changed since last snapshot (avoids redundant commits)
         if parent:
@@ -383,10 +381,8 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
             change_type = {"A": "added", "D": "deleted", "M": "modified"}.get(status, "modified")
             new_size: int | None = None
             if change_type != "deleted":
-                try:
+                with contextlib.suppress(OSError):
                     new_size = (wp / filepath).stat().st_size
-                except OSError:
-                    pass
             lines_added, lines_deleted = line_stats.get(filepath, (None, None))
             changes.append(FileChange(
                 path=filepath,
@@ -439,23 +435,17 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
 
             for line in lines[2:]:
                 if line.startswith("trigger="):
-                    try:
+                    with contextlib.suppress(ValueError):
                         trigger = SnapshotTrigger(line.split("=", 1)[1])
-                    except ValueError:
-                        pass
                 elif line.startswith("metadata="):
-                    try:
+                    with contextlib.suppress(json.JSONDecodeError, IndexError):
                         meta = json.loads(line.split("=", 1)[1])
-                    except (json.JSONDecodeError, IndexError):
-                        pass
                 elif line.startswith("snapshot "):
                     description = line
 
-            try:
+            with contextlib.suppress(RuntimeError):
                 tree_output = await self._run_cmd("git", "ls-tree", "-r", "--name-only", commit_hash, env=env)
                 file_count = len(tree_output.splitlines())
-            except RuntimeError:
-                pass
 
             snapshots.append(FileSnapshotInfo(
                 snapshot_id=commit_hash,
@@ -507,15 +497,11 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
 
         for line in lines[2:]:
             if line.startswith("trigger="):
-                try:
+                with contextlib.suppress(ValueError):
                     trigger = SnapshotTrigger(line.split("=", 1)[1])
-                except ValueError:
-                    pass
             elif line.startswith("metadata="):
-                try:
+                with contextlib.suppress(json.JSONDecodeError, IndexError):
                     meta = json.loads(line.split("=", 1)[1])
-                except (json.JSONDecodeError, IndexError):
-                    pass
             elif line.startswith("snapshot "):
                 description = line
 

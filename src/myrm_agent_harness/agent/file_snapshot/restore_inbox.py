@@ -66,7 +66,7 @@ def drain_restore_notifications() -> str | None:
         notif = _pending.popleft()
         if (now - notif.timestamp) > _NOTIFICATION_TTL_SECONDS:
             continue
-        msg = f"[System: File rollback detected] "
+        msg = "[System: File rollback detected] "
         if notif.restored_files:
             file_list = ", ".join(notif.restored_files[:10])
             msg += f"{notif.files_restored} file(s) restored to snapshot {notif.snapshot_id[:8]}. Affected: {file_list}"
