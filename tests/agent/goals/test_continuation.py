@@ -3,9 +3,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
+from myrm_agent_harness.agent.goals.audit import build_wrapup_prompt
 from myrm_agent_harness.agent.goals.continuation import (
+    _WRAPUP_SENTINEL,
     _extract_last_ai_response,
     _judge_completion,
+    _wrapup_already_injected,
     check_continuation,
 )
 from myrm_agent_harness.agent.goals.types import ContinuationDecision, Goal, GoalBudget, GoalStatus
@@ -609,3 +612,228 @@ async def test_convergence_takes_priority_over_loop_restart():
 
     assert decision.verdict == "convergence"
     provider.update_status.assert_called_once_with("both-goal", GoalStatus.COMPLETE)
+
+
+# --- _wrapup_already_injected tests ---
+
+def test_wrapup_already_injected_empty_messages():
+    assert _wrapup_already_injected([]) is False
+
+
+def test_wrapup_already_injected_no_human_messages():
+    messages = [AIMessage(content="Hello")]
+    assert _wrapup_already_injected(messages) is False
+
+
+def test_wrapup_already_injected_with_sentinel():
+    messages = [
+        HumanMessage(content="user msg"),
+        AIMessage(content="response"),
+        HumanMessage(content=f"{_WRAPUP_SENTINEL}\n\nobjective..."),
+    ]
+    assert _wrapup_already_injected(messages) is True
+
+
+def test_wrapup_already_injected_without_sentinel():
+    messages = [
+        HumanMessage(content="user msg"),
+        AIMessage(content="response"),
+        HumanMessage(content="[Continuing toward your standing goal]"),
+    ]
+    assert _wrapup_already_injected(messages) is False
+
+
+def test_wrapup_already_injected_sentinel_only_checks_last_human():
+    messages = [
+        HumanMessage(content=f"{_WRAPUP_SENTINEL}\n\nobjective..."),
+        AIMessage(content="wrap-up response"),
+        HumanMessage(content="user follow-up"),
+    ]
+    # Last HumanMessage is "user follow-up", not the sentinel
+    assert _wrapup_already_injected(messages) is False
+
+
+# --- build_wrapup_prompt tests ---
+
+def test_build_wrapup_prompt_basic():
+    goal = Goal(
+        goal_id="g1",
+        session_id="s1",
+        objective="Refactor the auth module",
+        status=GoalStatus.BUDGET_LIMITED,
+        time_used_seconds=120,
+    )
+    prompt = build_wrapup_prompt(goal)
+    assert prompt.startswith(_WRAPUP_SENTINEL)
+    assert "<untrusted_objective>" in prompt
+    assert "Refactor the auth module" in prompt
+    assert "120s" in prompt
+    assert "Do NOT call any tools" in prompt
+    assert "Do NOT start any new substantive work" in prompt
+
+
+def test_build_wrapup_prompt_with_all_budget_dimensions():
+    goal = Goal(
+        goal_id="g2",
+        session_id="s1",
+        objective="Write tests",
+        status=GoalStatus.BUDGET_LIMITED,
+        budget=GoalBudget(max_tokens=50000, max_usd=1.5, max_turns=10),
+        tokens_used=48000,
+        cost_usd=1.42,
+        turns_used=10,
+        time_used_seconds=300,
+    )
+    prompt = build_wrapup_prompt(goal)
+    assert "48000 / 50000" in prompt
+    assert "$1.4200 / $1.5000" in prompt
+    assert "10 / 10" in prompt
+    assert "300s" in prompt
+
+
+def test_build_wrapup_prompt_with_partial_budget():
+    goal = Goal(
+        goal_id="g3",
+        session_id="s1",
+        objective="Deploy app",
+        status=GoalStatus.BUDGET_LIMITED,
+        budget=GoalBudget(max_turns=5),
+        turns_used=5,
+        time_used_seconds=60,
+    )
+    prompt = build_wrapup_prompt(goal)
+    assert "5 / 5" in prompt
+    assert "60s" in prompt
+    # No tokens or usd lines since not set in budget
+    assert "Tokens used:" not in prompt
+    assert "Cost:" not in prompt
+
+
+# --- Budget limited wrap-up with budget details ---
+
+@pytest.mark.asyncio
+async def test_budget_limited_wrapup_injects_budget_info():
+    """Verify the wrap-up message contains budget details from the goal."""
+    provider = AsyncMock()
+    goal = Goal(
+        goal_id="budget-goal",
+        session_id="s1",
+        objective="Long running task",
+        status=GoalStatus.BUDGET_LIMITED,
+        budget=GoalBudget(max_tokens=10000, max_turns=5),
+        tokens_used=9500,
+        turns_used=5,
+        time_used_seconds=180,
+    )
+    provider.get_active_goal.return_value = goal
+    provider.get_goal.return_value = goal
+    provider.record_progress.return_value = goal
+
+    collected: list = []
+    decision = await check_continuation(
+        goal_provider=provider,
+        session_id="s1",
+        cancel_token=None,
+        steering_token=None,
+        collected_messages=collected,
+        tools_called_this_turn=True,
+        net_tokens_this_turn=10,
+        time_this_turn_seconds=1,
+    )
+
+    assert decision.should_continue is True
+    assert decision.message is not None
+    assert "9500 / 10000" in decision.message
+    assert "5 / 5" in decision.message
+    assert "180s" in decision.message
+    assert len(collected) == 1
+    assert isinstance(collected[0], HumanMessage)
+    assert collected[0].name == "developer"
+
+
+# --- Edge cases ---
+
+def test_wrapup_already_injected_non_string_content():
+    """HumanMessage with list content (multimodal) should not crash."""
+    messages = [
+        HumanMessage(content=[{"type": "text", "text": "image description"}]),
+    ]
+    assert _wrapup_already_injected(messages) is False
+
+
+def test_build_wrapup_prompt_no_budget():
+    """Goal with no budget set should still produce a valid prompt."""
+    goal = Goal(
+        goal_id="g-no-budget",
+        session_id="s1",
+        objective="Quick task",
+        status=GoalStatus.BUDGET_LIMITED,
+        time_used_seconds=30,
+    )
+    prompt = build_wrapup_prompt(goal)
+    assert _WRAPUP_SENTINEL in prompt
+    assert "Quick task" in prompt
+    assert "30s" in prompt
+    assert "Do NOT call any tools" in prompt
+
+
+@pytest.mark.asyncio
+async def test_budget_limited_cancelled_takes_priority():
+    """Cancellation (step 3) fires before budget-limited (step 5)."""
+    provider = AsyncMock()
+    goal = Goal(
+        goal_id="cancel-budget",
+        session_id="s1",
+        objective="Test",
+        status=GoalStatus.BUDGET_LIMITED,
+    )
+    provider.get_active_goal.return_value = goal
+    provider.get_goal.return_value = goal
+    provider.record_progress.return_value = goal
+
+    cancel_token = MagicMock()
+    cancel_token.is_cancelled = True
+
+    decision = await check_continuation(
+        goal_provider=provider,
+        session_id="s1",
+        cancel_token=cancel_token,
+        steering_token=None,
+        collected_messages=[],
+        tools_called_this_turn=True,
+        net_tokens_this_turn=10,
+        time_this_turn_seconds=1,
+    )
+    assert decision.verdict == "cancelled"
+    assert decision.should_continue is False
+
+
+@pytest.mark.asyncio
+async def test_budget_limited_steering_takes_priority():
+    """Steering (step 4) fires before budget-limited (step 5)."""
+    provider = AsyncMock()
+    goal = Goal(
+        goal_id="steer-budget",
+        session_id="s1",
+        objective="Test",
+        status=GoalStatus.BUDGET_LIMITED,
+    )
+    provider.get_active_goal.return_value = goal
+    provider.get_goal.return_value = goal
+    provider.record_progress.return_value = goal
+
+    steering_token = MagicMock()
+    steering_token.has_pending = True
+
+    decision = await check_continuation(
+        goal_provider=provider,
+        session_id="s1",
+        cancel_token=None,
+        steering_token=steering_token,
+        collected_messages=[],
+        tools_called_this_turn=True,
+        net_tokens_this_turn=10,
+        time_this_turn_seconds=1,
+    )
+    assert decision.verdict == "steering"
+    assert decision.should_continue is False

@@ -173,6 +173,53 @@ class TestYOLOMode:
         assert len(denied) == 2, "All shell tools should be denied"
         assert len(pending) == 0
 
+    @pytest.mark.asyncio
+    async def test_yolo_deny_reason_format_consistency(self):
+        """YOLO DENY should produce the same reason format as normal DENY path."""
+        config = SecurityConfig(
+            ruleset=(PermissionRule("shell_exec", "*", PermissionAction.DENY),),
+            yolo_mode_enabled=True,
+        )
+
+        tool_calls = [
+            ToolCall(type="tool_call", name="bash_tool", args={"command": "ls"}, id="c1"),
+        ]
+
+        _approved, denied, _pending = await evaluate_tool_batch(
+            tool_calls, config, is_cron=False, workspace_root="/tmp", session_key="s", args_hashes={}
+        )
+
+        assert len(denied) == 1
+        reason_str = denied[0][2]
+        assert reason_str.startswith("Tool execution denied by security policy:"), (
+            f"YOLO DENY reason should have consistent prefix, got: {reason_str}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_yolo_capability_fence_deny(self):
+        """YOLO mode cannot bypass capability fence (tool not in granted capabilities)."""
+        from myrm_agent_harness.agent.security.types import Capability
+
+        config = SecurityConfig(
+            capabilities=(Capability("file_read", "*"), Capability("file_write", "*")),
+            ruleset=(PermissionRule("*", "*", PermissionAction.ALLOW),),
+            yolo_mode_enabled=True,
+        )
+
+        tool_calls = [
+            ToolCall(type="tool_call", name="bash_tool", args={"command": "ls"}, id="c1"),
+            ToolCall(type="tool_call", name="file_read_tool", args={"path": "/tmp/x"}, id="c2"),
+        ]
+
+        approved, denied, _pending = await evaluate_tool_batch(
+            tool_calls, config, is_cron=False, workspace_root="/tmp", session_key="s", args_hashes={}
+        )
+
+        assert len(denied) == 1, "shell_exec not in capabilities should be denied"
+        assert denied[0][0] == 0, "First tool (bash_tool/shell_exec) should be denied by capability fence"
+        assert len(approved) == 1, "file_read in capabilities should be approved"
+        assert approved[0][0] == 1
+
 
 # --- PTC Path Policy tests ---
 
