@@ -7,10 +7,10 @@
 - utils.logger_utils (POS: 日志工具)
 
 [OUTPUT]
-- SubagentEventForwarder: 子agent事件转发器(13种事件类型自动转发及预算拦截)
+- SubagentEventForwarder: 子agent事件转发器(14种事件类型自动转发及预算拦截)
 
 [POS]
-Subagent event forwarder. Translates 13 subagent event types into SUBAGENT_PROGRESS and SUBAGENT_LOG events.
+Subagent event forwarder. Translates 14 subagent event types into SUBAGENT_PROGRESS, SUBAGENT_LOG, UI_UPDATE, and ARTIFACT_CONTENT events.
 
 """
 
@@ -88,6 +88,8 @@ class SubagentEventForwarder:
             await self._handle_tasks_steps(event)
         elif event_type == AgentEventType.UI_UPDATE.value:
             await self._handle_ui_update(event)
+        elif event_type == AgentEventType.ARTIFACT_CONTENT.value:
+            await self._handle_artifact_content(event)
         elif event_type == AgentEventType.STATUS.value:
             await self._handle_status(event)
 
@@ -427,15 +429,37 @@ class SubagentEventForwarder:
             logger.warning("Failed to emit TASKS_STEPS log for %s: %s", self.task_id, exc)
 
     async def _handle_ui_update(self, event: dict[str, object]) -> None:
-        """Handle UI_UPDATE event."""
+        """Handle UI_UPDATE event.
+
+        Strips child-agent messageId so the parent sink injects the correct
+        parent messageId via ``setdefault``, ensuring the frontend can locate
+        the owning assistant message.
+        """
         sink = self._active_sink()
         if not sink:
             return
 
         try:
+            event.pop("messageId", None)
             await sink.emit(event)
         except Exception as exc:
             logger.warning("Failed to emit UI_UPDATE for %s: %s", self.task_id, exc)
+
+    async def _handle_artifact_content(self, event: dict[str, object]) -> None:
+        """Handle ARTIFACT_CONTENT event (live file preview from child agent).
+
+        Strips child-agent messageId so the parent sink injects the correct
+        parent messageId, enabling real-time streaming preview on the frontend.
+        """
+        sink = self._active_sink()
+        if not sink:
+            return
+
+        try:
+            event.pop("messageId", None)
+            await sink.emit(event)
+        except Exception as exc:
+            logger.warning("Failed to emit ARTIFACT_CONTENT for %s: %s", self.task_id, exc)
 
     async def _handle_status(self, event: dict[str, object]) -> None:
         """Handle STATUS event."""

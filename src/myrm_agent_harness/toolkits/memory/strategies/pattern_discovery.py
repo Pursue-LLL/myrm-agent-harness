@@ -16,6 +16,10 @@ Cross-cycle pattern discovery strategy. Runs weekly (server-layer scheduling),
 analyzes accumulated memories, consolidation insights, and claim graph to find
 behavioral patterns the user may not be aware of. Framework-layer pure strategy;
 scheduling and persistence are server-layer responsibilities.
+
+Closed-loop pipeline: high-confidence ESTABLISHED patterns are also promoted to
+ProceduralRule (pending user approval) so the agent can apply learned behavioral
+preferences automatically in future conversations.
 """
 
 from __future__ import annotations
@@ -43,6 +47,10 @@ _PROFILE_KEY_CONSOLIDATION_COUNT = "_system.consolidation_count"
 _PROFILE_KEY_MEMORY_SET_HASH = "_system.pattern_discovery_memory_hash"
 _MIN_MEMORY_COUNT = 50
 _MIN_CONSOLIDATION_COUNT = 3
+
+# Gate thresholds for promoting a pattern to a ProceduralRule.
+# Only "established" patterns with high confidence become actionable rules.
+_RULE_PROMOTION_MIN_CONFIDENCE = 0.8
 
 
 class PatternDurability(StrEnum):
@@ -323,12 +331,84 @@ async def run_pattern_discovery(
     return report
 
 
+def _is_promotable_to_rule(pattern: DiscoveredPattern) -> bool:
+    """Return True if a pattern meets the threshold for ProceduralRule promotion.
+
+    Promotion criteria (all must be satisfied):
+    - durability == ESTABLISHED: pattern has been observed across 3+ cycles
+    - confidence >= 0.8: LLM is highly confident in the pattern
+    - actionable_suggestion is non-empty: there is a concrete action to encode
+    - pattern type is habit/preference (description + actionable_suggestion are action-oriented)
+
+    Patterns about "knowledge evolution", "unresolved threads", or "blind spots"
+    typically lack a concrete trigger→action mapping and are excluded via the
+    actionable_suggestion gate.
+    """
+    return (
+        pattern.durability == PatternDurability.ESTABLISHED
+        and pattern.confidence >= _RULE_PROMOTION_MIN_CONFIDENCE
+        and bool(pattern.actionable_suggestion.strip())
+    )
+
+
+async def _promote_patterns_to_rules(
+    manager: MemoryManager,
+    patterns: list[DiscoveredPattern],
+) -> int:
+    """Promote qualifying patterns to ProceduralRule (pending approval).
+
+    Uses manager.store() without _bypass_approval so the write_service routes
+    the rule through the standard Pending review queue when approval_required=True.
+    Returns the count of rules successfully queued for promotion.
+    """
+    if not manager.has_relational:
+        return 0
+
+    from myrm_agent_harness.toolkits.memory.types import ProceduralMemory, RuleSource
+
+    promotable = [p for p in patterns if _is_promotable_to_rule(p)]
+    if not promotable:
+        return 0
+
+    promoted = 0
+    for pattern in promotable:
+        try:
+            rule = ProceduralMemory(
+                content=pattern.title,
+                trigger=pattern.description,
+                action=pattern.actionable_suggestion,
+                reasoning=pattern.evidence_summary,
+                source=RuleSource.AGENT_SELF,
+                priority=10,
+            )
+            await manager.store(rule)
+            promoted += 1
+            logger.info(
+                "Pattern promoted to ProceduralRule (pending approval): %r (confidence=%.2f)",
+                pattern.title,
+                pattern.confidence,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to promote pattern %r to ProceduralRule: %s",
+                pattern.title,
+                exc,
+            )
+
+    return promoted
+
+
 async def _persist_patterns(
     manager: MemoryManager,
     patterns: list[DiscoveredPattern],
     meta_observation: str,
 ) -> None:
-    """Store discovered patterns as episodic memory events for auditability and Heartbeat injection."""
+    """Store discovered patterns as episodic memory events for auditability and Heartbeat injection.
+
+    Also promotes high-confidence ESTABLISHED patterns to ProceduralRule via the
+    standard Pending approval queue, closing the loop between pattern discovery and
+    actionable agent behavior.
+    """
     if not manager.has_vector:
         return
 
@@ -349,6 +429,10 @@ async def _persist_patterns(
         )
     except Exception as exc:
         logger.warning("Failed to persist pattern discovery event: %s", exc)
+
+    promoted = await _promote_patterns_to_rules(manager, patterns)
+    if promoted:
+        logger.info("Pattern discovery: %d pattern(s) queued for ProceduralRule promotion", promoted)
 
 
 async def _update_discovery_timestamp(manager: MemoryManager, ts: datetime) -> None:

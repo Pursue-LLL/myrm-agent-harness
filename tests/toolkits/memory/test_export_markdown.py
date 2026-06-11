@@ -253,26 +253,172 @@ class TestProceduralExportIntegration:
     def test_real_episodic_memory_roundtrip(self) -> None:
         from myrm_agent_harness.toolkits.memory.types import EpisodicMemory
 
-        mem = EpisodicMemory(content="Had a meeting about project Alpha")
+        mem = EpisodicMemory(
+            content="Had a meeting about project Alpha",
+            related_entities=["Alice", "ProjectAlpha"],
+            importance=0.8,
+        )
         dumped = mem.model_dump(mode="json", exclude={"embedding"})
         md = _memory_to_markdown(dumped, "episodic")
 
         assert "type: episodic" in md
         assert "Had a meeting about project Alpha" in md
+        assert "event_type: conversation" in md
+        assert "importance: 0.8" in md
+        assert "related_entities: [Alice, ProjectAlpha]" in md
         assert "trigger" not in md
         assert "## Reasoning" not in md
 
-    def test_semantic_memory_not_affected(self) -> None:
+    def test_semantic_memory_with_full_metadata(self) -> None:
         from myrm_agent_harness.toolkits.memory.types import SemanticMemory
 
-        mem = SemanticMemory(content="User prefers dark mode")
+        mem = SemanticMemory(
+            content="User prefers dark mode",
+            importance=0.9,
+            confidence=0.95,
+            language="zh",
+            preference_type="explicit",
+            tags=["ui", "theme"],
+        )
         dumped = mem.model_dump(mode="json", exclude={"embedding"})
         md = _memory_to_markdown(dumped, "semantic")
 
         assert "type: semantic" in md
         assert "User prefers dark mode" in md
+        assert "importance: 0.9" in md
+        assert "confidence: 0.95" in md
+        assert "language: zh" in md
+        assert "preference_type: explicit" in md
+        assert "tags: [ui, theme]" in md
         assert "trigger" not in md
         assert "## Reasoning" not in md
+
+    def test_conversation_memory_preserves_raw_exchange(self) -> None:
+        from myrm_agent_harness.toolkits.memory.types import ConversationMemory
+
+        mem = ConversationMemory(
+            content="User asked about dark mode",
+            raw_exchange="User: How do I enable dark mode?\nAI: Go to Settings > Theme > Dark.",
+            importance=0.7,
+            project_id="proj-abc",
+            topic_id="topic-ui",
+            related_entities=["dark_mode", "settings"],
+        )
+        dumped = mem.model_dump(mode="json", exclude={"embedding", "raw_embedding", "summary_embedding"})
+        md = _memory_to_markdown(dumped, "conversation")
+
+        assert "type: conversation" in md
+        assert "importance: 0.7" in md
+        assert "project_id: proj-abc" in md
+        assert "topic_id: topic-ui" in md
+        assert "related_entities: [dark_mode, settings]" in md
+        assert "## Summary" in md
+        assert "User asked about dark mode" in md
+        assert "## Original Exchange" in md
+        assert "How do I enable dark mode?" in md
+
+    def test_claim_memory_roundtrip(self) -> None:
+        from myrm_agent_harness.toolkits.memory.types import ClaimMemory
+
+        mem = ClaimMemory(
+            content="Python is preferred",
+            claim_key="lang-pref",
+            title="Language Preference",
+            claim_text="User consistently uses Python",
+            evidence_count=5,
+            confidence=0.9,
+            freshness="fresh",
+        )
+        dumped = mem.model_dump(mode="json")
+        md = _memory_to_markdown(dumped, "claim")
+
+        assert "type: claim" in md
+        assert "claim_key: lang-pref" in md
+        assert "title: Language Preference" in md
+        assert "evidence_count: 5" in md
+        assert "confidence: 0.9" in md
+        assert "freshness: fresh" in md
+        assert "## Claim" in md
+        assert "User consistently uses Python" in md
+
+    def test_integration_memory_roundtrip(self) -> None:
+        from myrm_agent_harness.toolkits.memory.types import IntegrationMemory
+
+        mem = IntegrationMemory(
+            content="PR #42: Fix login bug",
+            provider="github",
+            title="Fix login bug",
+            summary="Resolved authentication timeout",
+            importance=0.8,
+            tags=["bugfix", "auth"],
+        )
+        dumped = mem.model_dump(mode="json", exclude={"embedding"})
+        md = _memory_to_markdown(dumped, "integration")
+
+        assert "type: integration" in md
+        assert "provider: github" in md
+        assert "title: Fix login bug" in md
+        assert "importance: 0.8" in md
+        assert "tags: [bugfix, auth]" in md
+        assert "## Summary" in md
+        assert "Resolved authentication timeout" in md
+
+
+class TestYamlSafeValue:
+    """Verify that newlines in field values don't break YAML frontmatter."""
+
+    def test_procedural_trigger_with_newline(self) -> None:
+        d = {
+            "id": "safe-001",
+            "content": "rule content",
+            "trigger": "When user asks\nabout Python version",
+            "action": "Recommend 3.12",
+            "created_at": "2024-01-01T00:00:00+00:00",
+            "updated_at": "2024-01-01T00:00:00+00:00",
+        }
+        md = _memory_to_markdown(d, "procedural")
+        lines = md.split("\n")
+        first_end = lines.index("---", 1)
+        frontmatter_block = lines[1:first_end]
+        trigger_lines = [l for l in frontmatter_block if l.startswith("trigger:")]
+        assert len(trigger_lines) == 1, "trigger should be a single frontmatter line"
+        assert "\\n" in trigger_lines[0], "newline should be escaped"
+        orphan = [l for l in frontmatter_block if l.strip() == "about Python version"]
+        assert not orphan, "newline content must not become orphan line"
+
+    def test_claim_title_with_newline(self) -> None:
+        d = {
+            "id": "safe-002",
+            "content": "pref",
+            "claim_key": "k",
+            "title": "UI Preference:\nDark Mode",
+            "evidence_count": 1,
+            "confidence": 0.8,
+            "freshness": "fresh",
+            "created_at": "2024-01-01T00:00:00+00:00",
+            "updated_at": "2024-01-01T00:00:00+00:00",
+        }
+        md = _memory_to_markdown(d, "claim")
+        lines = md.split("\n")
+        first_end = lines.index("---", 1)
+        frontmatter_block = lines[1:first_end]
+        title_lines = [l for l in frontmatter_block if l.startswith("title:")]
+        assert len(title_lines) == 1
+        orphan = [l for l in frontmatter_block if l.strip() == "Dark Mode"]
+        assert not orphan
+
+    def test_normal_values_unaffected(self) -> None:
+        d = {
+            "id": "safe-003",
+            "content": "normal",
+            "trigger": "simple trigger",
+            "action": "simple action",
+            "created_at": "2024-01-01T00:00:00+00:00",
+            "updated_at": "2024-01-01T00:00:00+00:00",
+        }
+        md = _memory_to_markdown(d, "procedural")
+        assert "trigger: simple trigger" in md
+        assert '"' not in md.split("trigger:")[1].split("\n")[0]
 
 
 class TestExportMarkdownIntegration:

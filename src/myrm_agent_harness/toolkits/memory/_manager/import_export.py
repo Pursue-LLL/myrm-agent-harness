@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -34,21 +35,49 @@ def _extract_tags(metadata: object) -> list[str]:
     return tags
 
 
+_RendererFn = Callable[
+    [dict[str, object], str, str, str, str, str],
+    str,
+]
+
+
+def _list_to_yaml_inline(items: list[object]) -> str:
+    """Format a list as YAML inline sequence: [a, b, c]."""
+    return f"[{', '.join(str(i) for i in items)}]"
+
+
+def _yaml_safe_value(value: object) -> str:
+    """Ensure a scalar value is safe for YAML frontmatter (no broken lines)."""
+    s = str(value)
+    if "\n" in s or "\r" in s:
+        escaped = s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r")
+        return f'"{escaped}"'
+    return s
+
+
+def _common_fields(memory_dict: dict[str, object]) -> tuple[str, str, str, str, str]:
+    """Extract fields shared by all memory types."""
+    mem_id = str(memory_dict.get("id", ""))
+    content = str(memory_dict.get("content", ""))
+    created_at = str(memory_dict.get("created_at", ""))
+    updated_at = str(memory_dict.get("updated_at", ""))
+    tags = _extract_tags(memory_dict.get("metadata", {}))
+    tags_line = f"\ntags: [{', '.join(tags)}]" if tags else ""
+    return mem_id, content, created_at, updated_at, tags_line
+
+
 def _memory_to_markdown(memory_dict: dict[str, object], memory_type: str) -> str:
     """Convert a single memory dict to Markdown with YAML frontmatter.
 
-    ProceduralMemory gets enriched output with trigger/action structure
-    and rule metadata in frontmatter. Other types use content-only body.
+    Each memory type has a dedicated renderer that includes its unique
+    metadata fields in the frontmatter.  Unknown types fall back to a
+    generic id/type/created_at/updated_at template.
     """
-    mem_id = memory_dict.get("id", "")
-    content = str(memory_dict.get("content", ""))
-    created_at = memory_dict.get("created_at", "")
-    updated_at = memory_dict.get("updated_at", "")
-    tags = _extract_tags(memory_dict.get("metadata", {}))
-    tags_line = f"\ntags: [{', '.join(tags)}]" if tags else ""
+    mem_id, content, created_at, updated_at, tags_line = _common_fields(memory_dict)
 
-    if memory_type == "procedural":
-        return _procedural_to_markdown(memory_dict, mem_id, content, created_at, updated_at, tags_line)
+    renderer = _TYPE_RENDERERS.get(memory_type)
+    if renderer:
+        return renderer(memory_dict, mem_id, content, created_at, updated_at, tags_line)
 
     frontmatter = (
         f"---\n"
@@ -63,10 +92,10 @@ def _memory_to_markdown(memory_dict: dict[str, object], memory_type: str) -> str
 
 def _procedural_to_markdown(
     d: dict[str, object],
-    mem_id: object,
+    mem_id: str,
     content: str,
-    created_at: object,
-    updated_at: object,
+    created_at: str,
+    updated_at: str,
     tags_line: str,
 ) -> str:
     """Render ProceduralMemory with full rule structure in frontmatter and body."""
@@ -76,8 +105,8 @@ def _procedural_to_markdown(
         "---",
         f"id: {mem_id}",
         "type: procedural",
-        f"trigger: {trigger}",
-        f"action: {action}",
+        f"trigger: {_yaml_safe_value(trigger)}",
+        f"action: {_yaml_safe_value(action)}",
         f"priority: {d.get('priority', 0)}",
         f"source: {d.get('source', '')}",
         f"status: {d.get('status', '')}",
@@ -109,6 +138,178 @@ def _procedural_to_markdown(
     return "\n".join(lines) + "\n\n" + "\n\n".join(body_parts) + "\n"
 
 
+def _semantic_to_markdown(
+    d: dict[str, object],
+    mem_id: str,
+    content: str,
+    created_at: str,
+    updated_at: str,
+    tags_line: str,
+) -> str:
+    """Render SemanticMemory with importance/confidence/preference metadata."""
+    lines = [
+        "---",
+        f"id: {mem_id}",
+        "type: semantic",
+        f"importance: {d.get('importance', 0.5)}",
+        f"confidence: {d.get('confidence', 1.0)}",
+        f"language: {d.get('language', 'en')}",
+    ]
+    pref = d.get("preference_type")
+    if pref:
+        lines.append(f"preference_type: {pref}")
+    src = d.get("source_chat_id")
+    if src:
+        lines.append(f"source_chat_id: {src}")
+    sem_tags = d.get("tags")
+    if isinstance(sem_tags, list) and sem_tags:
+        lines.append(f"tags: {_list_to_yaml_inline(sem_tags)}")
+    lines.append(f"created_at: {created_at}")
+    lines.append(f"updated_at: {updated_at}{tags_line}")
+    lines.append("---")
+    return "\n".join(lines) + f"\n\n{content}\n"
+
+
+def _episodic_to_markdown(
+    d: dict[str, object],
+    mem_id: str,
+    content: str,
+    created_at: str,
+    updated_at: str,
+    tags_line: str,
+) -> str:
+    """Render EpisodicMemory with event_type/importance/entities metadata."""
+    lines = [
+        "---",
+        f"id: {mem_id}",
+        "type: episodic",
+        f"event_type: {d.get('event_type', 'conversation')}",
+        f"importance: {d.get('importance', 0.5)}",
+        f"language: {d.get('language', 'en')}",
+    ]
+    entities = d.get("related_entities")
+    if isinstance(entities, list) and entities:
+        lines.append(f"related_entities: {_list_to_yaml_inline(entities)}")
+    lines.append(f"created_at: {created_at}")
+    lines.append(f"updated_at: {updated_at}{tags_line}")
+    lines.append("---")
+    return "\n".join(lines) + f"\n\n{content}\n"
+
+
+def _conversation_to_markdown(
+    d: dict[str, object],
+    mem_id: str,
+    content: str,
+    created_at: str,
+    updated_at: str,
+    tags_line: str,
+) -> str:
+    """Render ConversationMemory preserving raw_exchange in body."""
+    lines = [
+        "---",
+        f"id: {mem_id}",
+        "type: conversation",
+        f"importance: {d.get('importance', 0.5)}",
+        f"language: {d.get('language', 'en')}",
+    ]
+    for opt_key in ("project_id", "topic_id", "source_chat_id"):
+        val = d.get(opt_key)
+        if val:
+            lines.append(f"{opt_key}: {val}")
+    entities = d.get("related_entities")
+    if isinstance(entities, list) and entities:
+        lines.append(f"related_entities: {_list_to_yaml_inline(entities)}")
+    lines.append(f"created_at: {created_at}")
+    lines.append(f"updated_at: {updated_at}{tags_line}")
+    lines.append("---")
+
+    body_parts: list[str] = [f"## Summary\n\n{content}"]
+    raw = d.get("raw_exchange")
+    if raw:
+        body_parts.append(f"## Original Exchange\n\n{raw}")
+    return "\n".join(lines) + "\n\n" + "\n\n".join(body_parts) + "\n"
+
+
+def _claim_to_markdown(
+    d: dict[str, object],
+    mem_id: str,
+    content: str,
+    created_at: str,
+    updated_at: str,
+    tags_line: str,
+) -> str:
+    """Render ClaimMemory with evidence/confidence metadata."""
+    lines = [
+        "---",
+        f"id: {mem_id}",
+        "type: claim",
+        f"claim_key: {_yaml_safe_value(d.get('claim_key', ''))}",
+        f"title: {_yaml_safe_value(d.get('title', ''))}",
+        f"evidence_count: {d.get('evidence_count', 0)}",
+        f"confidence: {d.get('confidence', 0.75)}",
+        f"freshness: {d.get('freshness', 'stale')}",
+        f"created_at: {created_at}",
+        f"updated_at: {updated_at}{tags_line}",
+        "---",
+    ]
+    body_parts: list[str] = []
+    claim_text = d.get("claim_text")
+    if claim_text:
+        body_parts.append(f"## Claim\n\n{claim_text}")
+    summary = d.get("model_summary")
+    if summary:
+        body_parts.append(f"## Summary\n\n{summary}")
+    if content and content not in (claim_text, summary):
+        body_parts.append(content)
+    return "\n".join(lines) + "\n\n" + ("\n\n".join(body_parts) if body_parts else content) + "\n"
+
+
+def _integration_to_markdown(
+    d: dict[str, object],
+    mem_id: str,
+    content: str,
+    created_at: str,
+    updated_at: str,
+    tags_line: str,
+) -> str:
+    """Render IntegrationMemory with provider/source metadata."""
+    lines = [
+        "---",
+        f"id: {mem_id}",
+        "type: integration",
+        f"provider: {_yaml_safe_value(d.get('provider', ''))}",
+        f"title: {_yaml_safe_value(d.get('title', ''))}",
+        f"importance: {d.get('importance', 0.5)}",
+    ]
+    observed = d.get("observed_at")
+    if observed:
+        lines.append(f"observed_at: {observed}")
+    int_tags = d.get("tags")
+    if isinstance(int_tags, list) and int_tags:
+        lines.append(f"tags: {_list_to_yaml_inline(int_tags)}")
+    lines.append(f"created_at: {created_at}")
+    lines.append(f"updated_at: {updated_at}{tags_line}")
+    lines.append("---")
+
+    body_parts: list[str] = []
+    summary = d.get("summary")
+    if summary:
+        body_parts.append(f"## Summary\n\n{summary}")
+    if content and content != summary:
+        body_parts.append(content)
+    return "\n".join(lines) + "\n\n" + ("\n\n".join(body_parts) if body_parts else content) + "\n"
+
+
+_TYPE_RENDERERS: dict[str, _RendererFn] = {
+    "procedural": _procedural_to_markdown,
+    "semantic": _semantic_to_markdown,
+    "episodic": _episodic_to_markdown,
+    "conversation": _conversation_to_markdown,
+    "claim": _claim_to_markdown,
+    "integration": _integration_to_markdown,
+}
+
+
 class MemoryManagerImportExportMixin:
     # ── Export / Import ──
 
@@ -121,8 +322,8 @@ class MemoryManagerImportExportMixin:
     ) -> dict[str, int]:
         """Export memories as Markdown files organized by type.
 
-        Each memory becomes a `.md` file with YAML frontmatter (id, type,
-        created_at, tags) inside a subdirectory named after the memory type.
+        Each memory becomes a `.md` file with type-specific YAML frontmatter
+        inside a subdirectory named after the memory type.
 
         Args:
             target_dir: Root directory for exported files.
