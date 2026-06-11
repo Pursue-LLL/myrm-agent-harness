@@ -99,8 +99,8 @@ class TestMemoryToMarkdown:
             "application": "Multi-level paths only",
             "priority": 5,
             "tool_name": "file_write",
-            "tool_rule_priority": "CRITICAL",
-            "source": "pattern_discovered",
+            "tool_rule_priority": "critical",
+            "source": "user_extracted",
             "status": "active",
             "pinned": True,
             "access_count": 7,
@@ -112,8 +112,8 @@ class TestMemoryToMarkdown:
         assert "action: Verify target directory exists" in result
         assert "priority: 5" in result
         assert "tool_name: file_write" in result
-        assert "tool_rule_priority: CRITICAL" in result
-        assert "source: pattern_discovered" in result
+        assert "tool_rule_priority: critical" in result
+        assert "source: user_extracted" in result
         assert "status: active" in result
         assert "pinned: true" in result
         assert "access_count: 7" in result
@@ -157,6 +157,91 @@ class TestMemoryToMarkdown:
         assert "## Reasoning" not in result
         assert "## Application" not in result
         assert "Simple rule" in result
+
+
+class TestProceduralExportIntegration:
+    """Integration: real ProceduralMemory → model_dump → _memory_to_markdown (no mocks)."""
+
+    def test_real_procedural_model_dump_roundtrip(self) -> None:
+        from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
+
+        rule = ProceduralMemory(
+            content="Always verify directory exists before writing files",
+            trigger="User asks to create a file in a nested path",
+            action="Check each parent directory; create missing ones with mkdir -p semantics",
+            reasoning="Prevents FileNotFoundError on deeply nested writes",
+            application="Only for paths with depth > 1; skip for root-level writes",
+            priority=5,
+            tool_name="file_write",
+            tool_rule_priority="critical",
+            source="user_extracted",
+            pinned=True,
+        )
+        dumped = rule.model_dump(mode="json", exclude={"embedding"})
+        md = _memory_to_markdown(dumped, "procedural")
+
+        assert "type: procedural" in md
+        assert f"id: {rule.id}" in md
+        assert "trigger: User asks to create a file in a nested path" in md
+        assert "action: Check each parent directory" in md
+        assert "priority: 5" in md
+        assert "tool_name: file_write" in md
+        assert "tool_rule_priority: critical" in md
+        assert "source: user_extracted" in md
+        assert "status: active" in md
+        assert "pinned: true" in md
+        assert f"access_count: {rule.access_count}" in md
+        assert "## Reasoning" in md
+        assert "Prevents FileNotFoundError" in md
+        assert "## Application" in md
+        assert "Only for paths with depth > 1" in md
+        assert "Always verify directory exists" in md
+
+    def test_real_procedural_global_rule_no_tool(self) -> None:
+        from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
+
+        rule = ProceduralMemory(
+            content="Use Chinese when user writes in Chinese",
+            trigger="User message language is Chinese",
+            action="Respond in Chinese",
+            priority=0,
+            source="user_extracted",
+        )
+        dumped = rule.model_dump(mode="json", exclude={"embedding"})
+        md = _memory_to_markdown(dumped, "procedural")
+
+        assert "tool_name" not in md
+        assert "tool_rule_priority" not in md
+        assert "trigger: User message language is Chinese" in md
+        assert "action: Respond in Chinese" in md
+        assert "source: user_extracted" in md
+
+    def test_real_procedural_no_reasoning_application(self) -> None:
+        from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
+
+        rule = ProceduralMemory(
+            content="Simple rule",
+            trigger="trigger",
+            action="action",
+        )
+        dumped = rule.model_dump(mode="json", exclude={"embedding"})
+        md = _memory_to_markdown(dumped, "procedural")
+
+        assert "## Reasoning" not in md
+        assert "## Application" not in md
+        assert "Simple rule" in md
+
+    def test_semantic_memory_not_affected(self) -> None:
+        from myrm_agent_harness.toolkits.memory.types import SemanticMemory
+
+        mem = SemanticMemory(content="User prefers dark mode")
+        dumped = mem.model_dump(mode="json", exclude={"embedding"})
+        md = _memory_to_markdown(dumped, "semantic")
+
+        assert "type: semantic" in md
+        assert "User prefers dark mode" in md
+        assert "trigger" not in md
+        assert "## Reasoning" not in md
 
 
 class TestExportMarkdownIntegration:
