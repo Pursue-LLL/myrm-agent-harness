@@ -367,9 +367,20 @@ async def run_agent_loop(
 
             from langchain_core.messages import HumanMessage
 
+            from myrm_agent_harness.agent.file_snapshot.restore_inbox import (
+                drain_restore_notifications,
+            )
             from myrm_agent_harness.agent.sub_agents.notifications import (
                 format_active_subagent_context,
             )
+
+            restore_notice = drain_restore_notifications()
+            if restore_notice:
+                messages.append(HumanMessage(content=restore_notice))
+                logger.info(
+                    " Injected file-restore notification (%d chars)",
+                    len(restore_notice),
+                )
 
             stale_notifications = agent_state._subagent_manager.drain_notifications()
             if stale_notifications:
