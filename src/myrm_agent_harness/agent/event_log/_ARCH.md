@@ -22,6 +22,7 @@ Complements Checkpointer with full event history. Optional — omitting
 | Submodule | Description |
 |-----------|-------------|
 | backends/ | Event log backends — built-in storage implementations. |
+| dataset_export/ | Export pipeline — convert traces to ShareGPT/Alpaca/OpenAI JSONL with PII redaction, quality filtering, and dedup. |
 
 ## Key Dependencies
 
