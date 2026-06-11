@@ -26,6 +26,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import mimetypes
+import re
 from pathlib import Path
 from typing import Protocol
 
@@ -43,6 +44,7 @@ logger = get_agent_logger(__name__)
 
 _RESOLVE_TIMEOUT = 10.0
 _MAX_CONCURRENT_RESOLVES = 8
+_API_FILE_PATTERN = re.compile(r"/api/media/files/([^/]+)/content")
 
 
 class FileContentReader(Protocol):
@@ -133,22 +135,17 @@ class MediaResolverProcessor(BaseProcessor):
         if url.startswith("file://"):
             return _resolve_local_file(url[7:])
 
-        if url.startswith("/api/media/files/"):
-            return await self._resolve_api_file(url)
-
-        if url.startswith("/"):
-            return await _resolve_http(f"http://127.0.0.1:8000{url}")
-
         if url.startswith(("http://", "https://")):
             return await _resolve_http(url)
+
+        if url.startswith("/api/"):
+            return await self._resolve_api_file(url)
 
         return _resolve_local_file(url)
 
     async def _resolve_api_file(self, path: str) -> str | None:
         """Resolve /api/media/files/{file_id}/content via injected reader or HTTP."""
-        import re
-
-        match = re.match(r"/api/media/files/([^/]+)/content", path)
+        match = _API_FILE_PATTERN.match(path)
         if not match:
             return await _resolve_http(f"http://127.0.0.1:8000{path}")
 

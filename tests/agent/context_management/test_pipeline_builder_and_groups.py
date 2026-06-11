@@ -36,6 +36,7 @@ def test_build_default_processors_without_session_notes() -> None:
         "compress",
         "summarize",
         "normalize",
+        "media_resolver",
         "explicit_cache",
     ]
 
@@ -113,6 +114,7 @@ def test_build_default_processors_with_session_notes() -> None:
         "session_notes",
         "summarize",
         "normalize",
+        "media_resolver",
         "explicit_cache",
     ]
 

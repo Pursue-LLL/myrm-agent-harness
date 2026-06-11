@@ -141,6 +141,10 @@ print(result or "NONE")
         detector = BackendDetector()
         with (
             patch("shutil.which", side_effect=lambda n: "/usr/bin/npm" if n == "npm" else None),
+            patch(
+                "myrm_agent_harness.toolkits.acp.backend_detector._COMMON_PATHS",
+                (),
+            ),
             patch.object(detector, "_find_npm_global", return_value="/usr/lib/node/claude"),
         ):
             result = detector._find_executable("claude")
