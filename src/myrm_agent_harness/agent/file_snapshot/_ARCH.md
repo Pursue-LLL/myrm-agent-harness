@@ -15,6 +15,7 @@ Workspace file versioning and rollback subsystem. Provides transparent file-leve
 | local_store.py | Implementation | LocalFileSnapshotStore — file copy + JSON manifest. Fallback when git is absent. | ✅ |
 | factory.py | Factory | create_file_snapshot_store() — auto-selects Shadow Git or Local File based on git availability. | ✅ |
 | restore_inbox.py | Notification | In-process deque inbox. Server pushes restore events; agent_runtime drains them as HumanMessage on next turn. | ✅ |
+| external_effect_detector.py | Detector | Pure-function regex detector for irreversible external effects (database/container/network mutations). | ✅ |
 
 ## Key Dependencies
 
@@ -39,3 +40,4 @@ Workspace file versioning and rollback subsystem. Provides transparent file-leve
 - **No-change skip**: `git diff-index --cached --quiet` avoids creating redundant commits when no files changed.
 - **CAS concurrency safety**: `git update-ref ref new old` prevents concurrent snapshot overwrites.
 - **Restore context injection**: `restore_inbox.py` bridges the server restore API and agent_runtime. After GUI rollback, a notification is pushed to the in-process deque; agent_runtime drains it as a HumanMessage at the end of the messages list (preserving prompt cache prefix). 600s TTL auto-expires stale notifications.
+- **External effect detection**: `external_effect_detector.py` detects bash commands that produce state changes file-rollback cannot undo (DB mutations, container/cloud ops, HTTP writes). Stored as `metadata.external_effects` in commit trailers. Frontend shows ⚠️ badge; Agent receives warning in restore notification.

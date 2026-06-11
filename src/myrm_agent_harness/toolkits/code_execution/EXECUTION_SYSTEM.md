@@ -173,7 +173,7 @@ Python wrapper 在用户代码运行前注入一个 import 钩子，惰性拦截
 
 | 字段 | 默认值 | 说明 |
 |------|--------|------|
-| `allow_network` | `false` | 是否允许网络访问 |
+| `allow_network` | `true` | 是否允许网络访问 |
 | `allowed_hosts` | `None`（使用默认白名单） | 域名白名单 |
 
 配置参数：`ExecutionConfig.network.allow_network`、`ExecutionConfig.network.allowed_hosts`

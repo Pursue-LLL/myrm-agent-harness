@@ -7,6 +7,7 @@ Data types for file snapshot operations.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 from enum import StrEnum
 
 
@@ -34,9 +35,10 @@ class FileSnapshotInfo:
     created_at: float
     file_count: int
     description: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        result: dict[str, object] = {
             "snapshot_id": self.snapshot_id,
             "working_dir": self.working_dir,
             "trigger": self.trigger.value,
@@ -44,6 +46,9 @@ class FileSnapshotInfo:
             "file_count": self.file_count,
             "description": self.description,
         }
+        if self.metadata:
+            result["metadata"] = self.metadata
+        return result
 
 
 @dataclass(frozen=True, slots=True)

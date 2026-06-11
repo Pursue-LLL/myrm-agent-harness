@@ -34,6 +34,7 @@ import os
 import re
 import time
 from pathlib import Path
+from typing import Any
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -206,6 +207,7 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
         working_dir: str,
         trigger: SnapshotTrigger,
         description: str = "",
+        metadata: dict[str, Any] | None = None,
     ) -> SnapshotId:
         """Take a snapshot of the current workspace state."""
         await self._ensure_initialized()
@@ -252,6 +254,8 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
             f"timestamp={time.time()}",
             f"working_dir={wp}",
         ]
+        if metadata:
+            msg_lines.append(f"metadata={json.dumps(metadata, separators=(',', ':'))}")
         commit_msg = "\n".join(msg_lines)
 
         parent_args = ["-p", parent] if parent else []
@@ -431,12 +435,18 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
             trigger = SnapshotTrigger.MANUAL
             description = ""
             file_count = 0
+            meta: dict[str, Any] = {}
 
             for line in lines[2:]:
                 if line.startswith("trigger="):
                     try:
                         trigger = SnapshotTrigger(line.split("=", 1)[1])
                     except ValueError:
+                        pass
+                elif line.startswith("metadata="):
+                    try:
+                        meta = json.loads(line.split("=", 1)[1])
+                    except (json.JSONDecodeError, IndexError):
                         pass
                 elif line.startswith("snapshot "):
                     description = line
@@ -454,9 +464,70 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
                 created_at=created_at,
                 file_count=file_count,
                 description=description,
+                metadata=meta,
             ))
 
         return snapshots
+
+    async def get_snapshot_info(self, snapshot_id: SnapshotId) -> FileSnapshotInfo | None:
+        """Get metadata for a specific snapshot by commit hash."""
+        await self._ensure_initialized()
+
+        if not _validate_commit_hash(snapshot_id):
+            return None
+
+        proj_hash, working_dir = await self.find_project_for_commit(snapshot_id)
+        if not proj_hash or not working_dir:
+            return None
+
+        env = self._git_env(working_dir, proj_hash)
+
+        try:
+            log_output = await self._run_cmd(
+                "git", "log", snapshot_id, "--max-count=1",
+                "--format=%H%n%ct%n%B",
+                env=env,
+            )
+        except RuntimeError:
+            return None
+
+        lines = log_output.strip().splitlines()
+        if len(lines) < 3:
+            return None
+
+        commit_hash = lines[0].strip()
+        try:
+            created_at = float(lines[1].strip())
+        except ValueError:
+            created_at = 0.0
+
+        trigger = SnapshotTrigger.MANUAL
+        description = ""
+        meta: dict[str, Any] = {}
+
+        for line in lines[2:]:
+            if line.startswith("trigger="):
+                try:
+                    trigger = SnapshotTrigger(line.split("=", 1)[1])
+                except ValueError:
+                    pass
+            elif line.startswith("metadata="):
+                try:
+                    meta = json.loads(line.split("=", 1)[1])
+                except (json.JSONDecodeError, IndexError):
+                    pass
+            elif line.startswith("snapshot "):
+                description = line
+
+        return FileSnapshotInfo(
+            snapshot_id=commit_hash,
+            working_dir=working_dir,
+            trigger=trigger,
+            created_at=created_at,
+            file_count=0,
+            description=description,
+            metadata=meta,
+        )
 
     async def delete_snapshot(self, snapshot_id: SnapshotId) -> bool:
         """Snapshots are cleaned up via the pruning mechanism. Returns True for protocol compatibility."""

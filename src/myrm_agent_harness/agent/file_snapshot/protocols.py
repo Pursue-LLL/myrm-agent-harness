@@ -7,7 +7,7 @@ workspace file versioning and rollback capabilities.
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from .types import FileDiff, FileSnapshotInfo, RestoreResult, SnapshotId, SnapshotTrigger
 
@@ -31,6 +31,7 @@ class FileSnapshotProtocol(Protocol):
         working_dir: str,
         trigger: SnapshotTrigger,
         description: str = "",
+        metadata: dict[str, Any] | None = None,
     ) -> SnapshotId:
         """Take a snapshot of the current workspace state.
 
@@ -38,6 +39,7 @@ class FileSnapshotProtocol(Protocol):
             working_dir: Directory to snapshot
             trigger: What triggered the snapshot
             description: Optional human-readable description
+            metadata: Optional key-value metadata stored in commit trailer
 
         Returns:
             Snapshot ID for later reference

@@ -16,6 +16,7 @@ import shutil
 import time
 import uuid
 from pathlib import Path
+from typing import Any
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -105,6 +106,7 @@ class LocalFileSnapshotStore:
         working_dir: str,
         trigger: SnapshotTrigger,
         description: str = "",
+        metadata: dict[str, Any] | None = None,
     ) -> SnapshotId:
         """Take a snapshot of the current workspace state."""
         snapshot_id = f"fs_{uuid.uuid4().hex[:12]}_{int(time.time())}"
@@ -125,6 +127,8 @@ class LocalFileSnapshotStore:
             "description": description,
             "files": {},
         }
+        if metadata:
+            manifest["metadata"] = metadata
 
         file_count = 0
         try:
@@ -352,6 +356,7 @@ class LocalFileSnapshotStore:
                         created_at=manifest["created_at"],
                         file_count=manifest.get("file_count", 0),
                         description=manifest.get("description", ""),
+                        metadata=manifest.get("metadata", {}),
                     )
                 )
             except Exception as e:

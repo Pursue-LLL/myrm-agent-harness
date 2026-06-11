@@ -28,6 +28,7 @@ class RestoreNotification:
     files_restored: int
     restored_files: list[str] | None
     timestamp: float
+    external_effects: tuple[str, ...] = ()
 
 
 _pending: deque[RestoreNotification] = deque()
@@ -37,6 +38,7 @@ def push_restore_notification(
     snapshot_id: str,
     files_restored: int,
     restored_files: list[str] | None = None,
+    external_effects: tuple[str, ...] | None = None,
 ) -> None:
     """Called by the server restore API after a successful rollback."""
     _pending.append(
@@ -45,6 +47,7 @@ def push_restore_notification(
             files_restored=files_restored,
             restored_files=restored_files,
             timestamp=time.time(),
+            external_effects=external_effects or (),
         )
     )
 
@@ -75,6 +78,12 @@ def drain_restore_notifications() -> str | None:
             " The workspace files have changed externally. "
             "Re-read any files you previously modified before making further changes."
         )
+        if notif.external_effects:
+            effects_str = ", ".join(notif.external_effects)
+            msg += (
+                f" WARNING: This snapshot involved external operations ({effects_str}) "
+                "that file-rollback cannot undo. The user may need to manually revert those changes."
+            )
         parts.append(msg)
 
     return "\n".join(parts) if parts else None
