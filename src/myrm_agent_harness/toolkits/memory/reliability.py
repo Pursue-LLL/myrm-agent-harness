@@ -49,6 +49,8 @@ MemoryImportSource = Literal[
     "cursor_rules",
     "codex",
     "claude",
+    "windsurf",
+    "trae",
     "unknown",
 ]
 MemoryImportMappingStatus = Literal["mapped", "partially_mapped", "unsupported", "dropped"]

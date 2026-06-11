@@ -44,6 +44,18 @@ class TestMacOSNativeApiHint:
         for app in ["Finder", "Mail", "Safari", "Calendar", "Notes", "Terminal"]:
             assert app in _SCRIPTABLE_APPS
 
+    def test_adobe_apps_in_list(self):
+        from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import _SCRIPTABLE_APPS
+
+        for app in ["Adobe Photoshop", "Adobe Illustrator", "Adobe Acrobat", "Adobe InDesign"]:
+            assert app in _SCRIPTABLE_APPS
+
+    def test_creative_dev_apps_in_list(self):
+        from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import _SCRIPTABLE_APPS
+
+        for app in ["Sketch", "Final Cut Pro", "WPS Office", "Firefox", "Visual Studio Code", "Cursor"]:
+            assert app in _SCRIPTABLE_APPS
+
     def test_case_sensitive_matching(self):
         from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import _native_api_hint
 
