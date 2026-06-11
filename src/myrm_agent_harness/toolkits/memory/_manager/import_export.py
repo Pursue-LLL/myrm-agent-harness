@@ -82,6 +82,9 @@ def _procedural_to_markdown(
         f"source: {d.get('source', '')}",
         f"status: {d.get('status', '')}",
     ]
+    language = d.get("language")
+    if language:
+        lines.append(f"language: {language}")
     tool_name = d.get("tool_name")
     if tool_name:
         lines.append(f"tool_name: {tool_name}")

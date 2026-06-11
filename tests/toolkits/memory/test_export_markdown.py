@@ -105,6 +105,7 @@ class TestMemoryToMarkdown:
             "pinned": True,
             "access_count": 7,
             "user_rating": 0.9,
+            "language": "en",
         }
         result = _memory_to_markdown(entry, "procedural")
         assert "type: procedural" in result
@@ -117,6 +118,7 @@ class TestMemoryToMarkdown:
         assert "status: active" in result
         assert "pinned: true" in result
         assert "access_count: 7" in result
+        assert "language: en" in result
         assert "user_rating: 0.9" in result
         assert "## Reasoning" in result
         assert "Prevents write errors" in result
@@ -191,6 +193,7 @@ class TestProceduralExportIntegration:
         assert "status: active" in md
         assert "pinned: true" in md
         assert f"access_count: {rule.access_count}" in md
+        assert "language: en" in md
         assert "## Reasoning" in md
         assert "Prevents FileNotFoundError" in md
         assert "## Application" in md
@@ -230,6 +233,34 @@ class TestProceduralExportIntegration:
         assert "## Reasoning" not in md
         assert "## Application" not in md
         assert "Simple rule" in md
+
+    def test_real_procedural_chinese_language(self) -> None:
+        from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
+
+        rule = ProceduralMemory(
+            content="使用中文回复用户",
+            trigger="用户使用中文提问",
+            action="以中文回复",
+            language="zh",
+        )
+        dumped = rule.model_dump(mode="json", exclude={"embedding"})
+        md = _memory_to_markdown(dumped, "procedural")
+
+        assert "language: zh" in md
+        assert "trigger: 用户使用中文提问" in md
+        assert "使用中文回复用户" in md
+
+    def test_real_episodic_memory_roundtrip(self) -> None:
+        from myrm_agent_harness.toolkits.memory.types import EpisodicMemory
+
+        mem = EpisodicMemory(content="Had a meeting about project Alpha")
+        dumped = mem.model_dump(mode="json", exclude={"embedding"})
+        md = _memory_to_markdown(dumped, "episodic")
+
+        assert "type: episodic" in md
+        assert "Had a meeting about project Alpha" in md
+        assert "trigger" not in md
+        assert "## Reasoning" not in md
 
     def test_semantic_memory_not_affected(self) -> None:
         from myrm_agent_harness.toolkits.memory.types import SemanticMemory

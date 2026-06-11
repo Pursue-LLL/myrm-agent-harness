@@ -103,6 +103,46 @@ class TestMacOSNativeApiHint:
         assert "desktop_snapshot_tool" in rec
         assert "AppleScript" not in rec
 
+    def test_empty_string_returns_empty(self):
+        from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import _native_api_hint
+
+        assert _native_api_hint("") == ""
+
+    def test_substring_not_matched_macos(self):
+        """macOS uses exact match, not substring."""
+        from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import _native_api_hint
+
+        assert _native_api_hint("Finder - Documents") == ""
+        assert _native_api_hint("My Finder App") == ""
+
+    def test_all_scriptable_apps_produce_hint(self):
+        """Every app in the frozenset must produce a non-empty hint."""
+        from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import (
+            _SCRIPTABLE_APPS,
+            _native_api_hint,
+        )
+
+        for app in _SCRIPTABLE_APPS:
+            result = _native_api_hint(app)
+            assert result != "", f"Expected hint for '{app}' but got empty"
+            assert "AppleScript" in result
+
+    @patch("myrm_agent_harness.toolkits.computer_use.perception.macos_ax.capture_ax_snapshot")
+    def test_inspect_foreground_adobe_photoshop(self, mock_snapshot):
+        """New app Adobe Photoshop should trigger hint in inspect flow."""
+        from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import (
+            MacAxSnapshot,
+            inspect_foreground,
+        )
+        from myrm_agent_harness.toolkits.element_ref.types import SnapshotMeta
+
+        meta = SnapshotMeta(ref_count=10, app_name="Adobe Photoshop", window_title="Untitled-1", scope="foreground")
+        mock_snapshot.return_value = MacAxSnapshot(meta=meta, refs={})
+
+        result = inspect_foreground()
+        assert "AppleScript" in result["recommendation"]
+        assert "'Adobe Photoshop'" in result["recommendation"]
+
 
 class TestWindowsNativeApiHint:
     """Tests for Windows _native_api_hint and _COM_AUTOMATABLE_APPS."""
@@ -150,6 +190,36 @@ class TestWindowsNativeApiHint:
         for app in ["Visual Studio Code", "Cursor", "Firefox"]:
             assert app in _COM_AUTOMATABLE_APPS
 
+    def test_empty_string_returns_empty(self):
+        from myrm_agent_harness.toolkits.computer_use.perception.windows_ax import _native_api_hint
+
+        assert _native_api_hint("") == ""
+
+    def test_all_com_apps_produce_hint(self):
+        """Every app in the frozenset must produce a non-empty hint via exact name."""
+        from myrm_agent_harness.toolkits.computer_use.perception.windows_ax import (
+            _COM_AUTOMATABLE_APPS,
+            _native_api_hint,
+        )
+
+        for app in _COM_AUTOMATABLE_APPS:
+            result = _native_api_hint(app)
+            assert result != "", f"Expected hint for '{app}' but got empty"
+            assert "COM/PowerShell" in result
+
+    def test_window_title_with_new_app(self):
+        """New apps should match when embedded in window title."""
+        from myrm_agent_harness.toolkits.computer_use.perception.windows_ax import _native_api_hint
+
+        assert "COM/PowerShell" in _native_api_hint("drawing.dwg - AutoCAD 2024")
+        assert "COM/PowerShell" in _native_api_hint("Document1.docx - WPS Office")
+
+    def test_hint_includes_full_app_name_context(self):
+        from myrm_agent_harness.toolkits.computer_use.perception.windows_ax import _native_api_hint
+
+        result = _native_api_hint("Adobe Photoshop")
+        assert "'Adobe Photoshop'" in result
+
 
 class TestLinuxNativeApiHint:
     """Tests for Linux _native_api_hint and _DBUS_AUTOMATABLE_APPS."""
@@ -196,3 +266,88 @@ class TestLinuxNativeApiHint:
 
         result = _native_api_hint("Firefox Web Browser")
         assert "D-Bus" in result
+
+    def test_empty_string_returns_empty(self):
+        from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import _native_api_hint
+
+        assert _native_api_hint("") == ""
+
+    def test_all_dbus_apps_produce_hint(self):
+        """Every app in the frozenset must produce a non-empty hint via exact name."""
+        from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import (
+            _DBUS_AUTOMATABLE_APPS,
+            _native_api_hint,
+        )
+
+        for app in _DBUS_AUTOMATABLE_APPS:
+            result = _native_api_hint(app)
+            assert result != "", f"Expected hint for '{app}' but got empty"
+            assert "D-Bus" in result
+
+    def test_gimp_with_window_title(self):
+        from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import _native_api_hint
+
+        result = _native_api_hint("GNU Image Manipulation Program - GIMP 2.10")
+        assert "D-Bus" in result
+
+    def test_vlc_media_player_substring(self):
+        from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import _native_api_hint
+
+        result = _native_api_hint("My Video.mp4 - VLC media player")
+        assert "D-Bus" in result
+
+
+class TestCrossPlatformConsistency:
+    """Verify cross-platform coverage for apps available on multiple platforms."""
+
+    def test_firefox_on_all_platforms(self):
+        from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import (
+            _DBUS_AUTOMATABLE_APPS as linux_apps,
+        )
+        from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import (
+            _SCRIPTABLE_APPS as mac_apps,
+        )
+        from myrm_agent_harness.toolkits.computer_use.perception.windows_ax import (
+            _COM_AUTOMATABLE_APPS as win_apps,
+        )
+
+        assert "Firefox" in mac_apps
+        assert "Firefox" in win_apps
+        assert "Firefox" in linux_apps
+
+    def test_vscode_on_mac_and_windows(self):
+        from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import (
+            _SCRIPTABLE_APPS as mac_apps,
+        )
+        from myrm_agent_harness.toolkits.computer_use.perception.windows_ax import (
+            _COM_AUTOMATABLE_APPS as win_apps,
+        )
+
+        assert "Visual Studio Code" in mac_apps
+        assert "Visual Studio Code" in win_apps
+
+    def test_wps_office_on_all_platforms(self):
+        from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import (
+            _DBUS_AUTOMATABLE_APPS as linux_apps,
+        )
+        from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import (
+            _SCRIPTABLE_APPS as mac_apps,
+        )
+        from myrm_agent_harness.toolkits.computer_use.perception.windows_ax import (
+            _COM_AUTOMATABLE_APPS as win_apps,
+        )
+
+        assert "WPS Office" in mac_apps
+        assert "WPS Office" in win_apps
+        assert "WPS Office" in linux_apps
+
+    def test_adobe_photoshop_on_mac_and_windows(self):
+        from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import (
+            _SCRIPTABLE_APPS as mac_apps,
+        )
+        from myrm_agent_harness.toolkits.computer_use.perception.windows_ax import (
+            _COM_AUTOMATABLE_APPS as win_apps,
+        )
+
+        assert "Adobe Photoshop" in mac_apps
+        assert "Adobe Photoshop" in win_apps
