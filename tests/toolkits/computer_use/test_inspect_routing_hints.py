@@ -138,6 +138,18 @@ class TestWindowsNativeApiHint:
         for app in ["Microsoft Excel", "Microsoft Word", "Microsoft PowerPoint", "Microsoft Outlook"]:
             assert app in _COM_AUTOMATABLE_APPS
 
+    def test_adobe_and_wps_in_windows_list(self):
+        from myrm_agent_harness.toolkits.computer_use.perception.windows_ax import _COM_AUTOMATABLE_APPS
+
+        for app in ["Adobe Photoshop", "Adobe Illustrator", "WPS", "WPS Office", "AutoCAD"]:
+            assert app in _COM_AUTOMATABLE_APPS
+
+    def test_dev_tools_in_windows_list(self):
+        from myrm_agent_harness.toolkits.computer_use.perception.windows_ax import _COM_AUTOMATABLE_APPS
+
+        for app in ["Visual Studio Code", "Cursor", "Firefox"]:
+            assert app in _COM_AUTOMATABLE_APPS
+
 
 class TestLinuxNativeApiHint:
     """Tests for Linux _native_api_hint and _DBUS_AUTOMATABLE_APPS."""
@@ -172,3 +184,15 @@ class TestLinuxNativeApiHint:
 
         for app in ["nautilus", "Files", "Thunderbird", "LibreOffice", "GNOME Terminal"]:
             assert app in _DBUS_AUTOMATABLE_APPS
+
+    def test_new_linux_apps_in_list(self):
+        from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import _DBUS_AUTOMATABLE_APPS
+
+        for app in ["Firefox", "GIMP", "Inkscape", "VLC", "WPS Office", "Okular"]:
+            assert app in _DBUS_AUTOMATABLE_APPS
+
+    def test_firefox_detected_via_subprocess_name(self):
+        from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import _native_api_hint
+
+        result = _native_api_hint("Firefox Web Browser")
+        assert "D-Bus" in result
