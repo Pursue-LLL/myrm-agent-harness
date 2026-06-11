@@ -1,24 +1,46 @@
 # backends/
 
 ## Overview
-Platform-specific implementations of the ComputerBackend protocol. Provides macOS, Windows, and Linux desktop automation backends.
+Platform-specific implementations of the ComputerBackend protocol. Provides macOS, Windows, and Linux desktop automation backends, with optional background-input support via `cua-driver`.
 
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Computer use backends — re-exports ComputerBackend protocol. | — |
-| linux.py | Core | Linux backend — scrot/gnome-screenshot + xdotool + DISPLAY auto-detection. | ✅ |
+| protocols.py | Core | ComputerBackend protocol — abstract interface for platform backends. | ✅ |
 | macos.py | Core | macOS backend — screencapture + pyautogui + NSScreen DPI + AX text. | ✅ |
 | windows.py | Core | Windows backend — mss + pyautogui + ctypes/user32 + uiautomation. | ✅ |
-| protocols.py | Core | ComputerBackend protocol — abstract interface for platform backends. | ✅ |
+| linux.py | Core | Linux backend — scrot/gnome-screenshot + xdotool + DISPLAY auto-detection. | ✅ |
+| cua_driver.py | Enhancement | Background-input backend via cua-driver MCP. Wraps a native backend. | ✅ |
+
+## Backend Selection (session.py → create_computer_session)
+
+```
+macOS / Windows:
+  cua-driver installed? ─── YES ──→ CuaDriverBackend(fallback=NativeBackend)
+                        └── NO  ──→ NativeBackend (pyautogui)
+
+Linux:
+  Always LinuxBackend (xdotool, already non-intrusive in headless/sandbox)
+```
+
+## cua-driver Integration
+
+`CuaDriverBackend` uses the **proxy pattern**: input operations (click, type, key, scroll, drag, mouse_move) are routed to `cua-driver` via MCP stdio for background (focus-free) execution. Non-input operations (screenshot, screen_info, window_text, etc.) are delegated to the platform-native fallback backend.
+
+If cua-driver fails for any individual action, it transparently falls back to the native backend for that operation. If cua-driver is not installed, it is never loaded.
+
+**Install cua-driver**: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/install.sh)"`
 
 ## Key Dependencies
 
 - `mss` (Windows screenshot capture)
-- `pyautogui` (macOS/Windows input simulation)
+- `pyautogui` (macOS/Windows input simulation — native fallback)
 - `uiautomation` (Windows accessibility text extraction, optional)
 - `xdotool` (Linux input simulation)
+- `cua-driver` (macOS/Windows background input, optional, MIT license)
+- `mcp` (Python MCP SDK, required only when cua-driver is used)
 
 ## check_permissions() Protocol
 

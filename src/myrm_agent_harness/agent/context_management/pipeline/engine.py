@@ -132,7 +132,8 @@ def create_default_pipeline(max_context_tokens: int | None = None) -> ContextPip
     7. SessionNotesProcessor — zero-API compression (conditionally enabled)
     8. SummarizeProcessor — summarize history (last resort)
     9. NormalizeProcessor — content normalization (clean empty lines, newlines)
-    10. ExplicitCacheProcessor — explicit cache (Claude/Qwen only, auto-detected)
+    10. MediaResolverProcessor — resolve URL references to base64 (just before LLM call)
+    11. ExplicitCacheProcessor — explicit cache (Claude/Qwen only, auto-detected)
 
     External data security isolation is handled by the tool layer (content_boundary module),
     not duplicated in the pipeline layer.
@@ -171,6 +172,7 @@ def build_default_processors(
         ExplicitCacheProcessor,
         FilterProcessor,
         MediaFilterProcessor,
+        MediaResolverProcessor,
         NormalizeProcessor,
         PreCompactProcessor,
         SessionNotesProcessor,
@@ -241,6 +243,7 @@ def build_default_processors(
         [
             summarize_processor,
             NormalizeProcessor(),
+            MediaResolverProcessor(),
             ExplicitCacheProcessor(),
         ]
     )

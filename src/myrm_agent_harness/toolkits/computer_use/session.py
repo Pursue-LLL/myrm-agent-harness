@@ -261,7 +261,12 @@ class ComputerSession:
 def create_computer_session(
     config: ComputerUseConfig | None = None,
 ) -> ComputerSession:
-    """Factory: auto-detect platform and create appropriate ComputerSession."""
+    """Factory: auto-detect platform and create appropriate ComputerSession.
+
+    On macOS/Windows, if ``cua-driver`` is installed, wraps the native backend
+    with CuaDriverBackend for background (focus-free) input simulation.
+    Otherwise falls back to pyautogui-based backends transparently.
+    """
     from myrm_agent_harness.toolkits.code_execution.platform import detect_platform
 
     platform_info = detect_platform()
@@ -269,14 +274,32 @@ def create_computer_session(
     if platform_info.os_type == "macos":
         from myrm_agent_harness.toolkits.computer_use.backends.macos import MacOSBackend
 
-        backend: ComputerBackend = MacOSBackend()
+        native_backend: ComputerBackend = MacOSBackend()
     elif platform_info.os_type == "windows":
         from myrm_agent_harness.toolkits.computer_use.backends.windows import WindowsBackend
 
-        backend = WindowsBackend()
+        native_backend = WindowsBackend()
     else:
         from myrm_agent_harness.toolkits.computer_use.backends.linux import LinuxBackend
 
-        backend = LinuxBackend()
+        return ComputerSession(backend=LinuxBackend(), config=config)
 
+    backend = _try_wrap_with_cua_driver(native_backend)
     return ComputerSession(backend=backend, config=config)
+
+
+def _try_wrap_with_cua_driver(native_backend: ComputerBackend) -> ComputerBackend:
+    """Wrap *native_backend* with CuaDriverBackend if cua-driver is available."""
+    try:
+        from myrm_agent_harness.toolkits.computer_use.backends.cua_driver import (
+            CuaDriverBackend,
+            is_cua_driver_available,
+        )
+
+        if is_cua_driver_available():
+            logger.info("cua-driver detected — enabling background input mode")
+            return CuaDriverBackend(fallback=native_backend)
+        logger.debug("cua-driver not found — using native input (pyautogui)")
+    except ImportError:
+        logger.debug("mcp SDK not installed — cua-driver backend unavailable")
+    return native_backend
