@@ -26,17 +26,10 @@ Stateless format conversion. Each function is a pure transform
 from __future__ import annotations
 
 import hashlib
-from typing import TypedDict
+import json
 
 from ..trace_types import ExecutionTrace
 from .protocols import ExportFormat
-
-
-class ShareGPTMessage(TypedDict):
-    """Single message in ShareGPT format."""
-
-    from_: str  # "human" | "gpt" | "tool"
-    value: str
 
 
 def convert_trace(trace: ExecutionTrace, fmt: ExportFormat) -> dict[str, object]:
@@ -58,8 +51,6 @@ def convert_trace(trace: ExecutionTrace, fmt: ExportFormat) -> dict[str, object]
 
 def content_hash(sample: dict[str, object]) -> str:
     """Compute SHA-256 hash of a sample's textual content for deduplication."""
-    import json
-
     raw = json.dumps(sample, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
@@ -96,13 +87,6 @@ def redact_trace_pii(trace: ExecutionTrace) -> tuple[ExecutionTrace, int]:
         redacted, count = redact_pii(trace.output)
         trace.output = redacted
         total_redactions += count
-
-    for tc in trace.tool_calls:
-        if tc.output_summary:
-            redacted, count = redact_pii(tc.output_summary)
-            # ToolCallRecord is frozen, so we skip summary redaction for frozen fields
-            # PII in tool output_summary is already sanitized at write time by EventLogger._sanitize
-            total_redactions += count
 
     return trace, total_redactions
 
