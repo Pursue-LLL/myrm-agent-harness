@@ -68,14 +68,6 @@ def is_cua_driver_available() -> bool:
     return bool(shutil.which(_CUA_DRIVER_CMD))
 
 
-def cua_driver_install_hint() -> str:
-    return (
-        "cua-driver is not installed. Install:\n"
-        '  /bin/bash -c "$(curl -fsSL '
-        'https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/install.sh)"'
-    )
-
-
 class _McpSession:
     """Manages a persistent MCP stdio session to cua-driver."""
 
@@ -218,11 +210,6 @@ class CuaDriverBackend:
         self._active_pid = int(target["pid"])
         self._active_window_id = int(target.get("window_id", 0))
         return self._active_pid
-
-    def _invalidate_target(self) -> None:
-        """Reset cached PID so the next action re-resolves the frontmost window."""
-        self._active_pid = None
-        self._active_window_id = None
 
     # ── Delegated to fallback (non-input, no focus concern) ──────
 
