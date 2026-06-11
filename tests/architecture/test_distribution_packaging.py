@@ -27,6 +27,11 @@ _SKIP_UNDER_XDIST = pytest.mark.skipif(
     reason="Wheel build tests invoke Nuitka/subprocess and require pytest -n0",
 )
 
+_SKIP_WITHOUT_NUITKA = pytest.mark.skipif(
+    not __import__("importlib").util.find_spec("nuitka"),
+    reason="Nuitka is not installed (install with: uv sync --group build)",
+)
+
 
 @pytest.mark.architecture
 def test_platform_detection_returns_known_key() -> None:
@@ -93,6 +98,7 @@ def test_strip_manifest_in_place_preserves_pep427_name(tmp_path: Path) -> None:
 
 @pytest.mark.architecture
 @_SKIP_UNDER_XDIST
+@_SKIP_WITHOUT_NUITKA
 def test_core_wheel_contains_compiled_artifacts() -> None:
     """Platform core wheel must ship Nuitka .so/.pyd for manifest modules."""
     subprocess.run(
