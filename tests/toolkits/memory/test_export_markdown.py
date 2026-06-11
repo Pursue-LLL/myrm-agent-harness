@@ -86,6 +86,78 @@ class TestMemoryToMarkdown:
         content_start = close_idx + 1
         assert "Test content" in "\n".join(lines[content_start:])
 
+    def test_procedural_includes_rule_structure(self) -> None:
+        entry = {
+            "id": "rule-001",
+            "content": "Check dir before file creation",
+            "created_at": "2024-03-01T00:00:00+00:00",
+            "updated_at": "2024-03-01T00:00:00+00:00",
+            "metadata": {},
+            "trigger": "User requests file creation",
+            "action": "Verify target directory exists",
+            "reasoning": "Prevents write errors",
+            "application": "Multi-level paths only",
+            "priority": 5,
+            "tool_name": "file_write",
+            "tool_rule_priority": "CRITICAL",
+            "source": "pattern_discovered",
+            "status": "active",
+            "pinned": True,
+            "access_count": 7,
+            "user_rating": 0.9,
+        }
+        result = _memory_to_markdown(entry, "procedural")
+        assert "type: procedural" in result
+        assert "trigger: User requests file creation" in result
+        assert "action: Verify target directory exists" in result
+        assert "priority: 5" in result
+        assert "tool_name: file_write" in result
+        assert "tool_rule_priority: CRITICAL" in result
+        assert "source: pattern_discovered" in result
+        assert "status: active" in result
+        assert "pinned: true" in result
+        assert "access_count: 7" in result
+        assert "user_rating: 0.9" in result
+        assert "## Reasoning" in result
+        assert "Prevents write errors" in result
+        assert "## Application" in result
+        assert "Multi-level paths only" in result
+        assert "Check dir before file creation" in result
+
+    def test_procedural_without_tool_name(self) -> None:
+        entry = {
+            "id": "rule-002",
+            "content": "Global rule content",
+            "created_at": "2024-03-01",
+            "updated_at": "2024-03-01",
+            "metadata": {},
+            "trigger": "Any request",
+            "action": "Be polite",
+            "priority": 0,
+            "source": "user_extracted",
+            "status": "active",
+        }
+        result = _memory_to_markdown(entry, "procedural")
+        assert "trigger: Any request" in result
+        assert "action: Be polite" in result
+        assert "tool_name" not in result
+        assert "tool_rule_priority" not in result
+
+    def test_procedural_without_reasoning_application(self) -> None:
+        entry = {
+            "id": "rule-003",
+            "content": "Simple rule",
+            "created_at": "2024-03-01",
+            "updated_at": "2024-03-01",
+            "metadata": {},
+            "trigger": "trigger text",
+            "action": "action text",
+        }
+        result = _memory_to_markdown(entry, "procedural")
+        assert "## Reasoning" not in result
+        assert "## Application" not in result
+        assert "Simple rule" in result
+
 
 class TestExportMarkdownIntegration:
     @pytest.fixture
