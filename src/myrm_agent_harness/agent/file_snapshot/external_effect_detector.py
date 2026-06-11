@@ -19,7 +19,7 @@ _DATABASE_COMMANDS: set[str] = {
 }
 
 _CONTAINER_CLOUD_COMMANDS: set[str] = {
-    "docker", "podman", "kubectl", "helm", "terraform",
+    "docker", "docker-compose", "podman", "kubectl", "helm", "terraform",
     "aws", "gcloud", "az", "flyctl", "heroku",
 }
 
@@ -35,6 +35,11 @@ _CURL_DATA_RE = re.compile(
 
 _WGET_POST_RE = re.compile(
     r"wget\s+.*--post",
+    re.IGNORECASE,
+)
+
+_HTTPIE_MUTATION_RE = re.compile(
+    r"\bhttps?\s+(POST|PUT|DELETE|PATCH)\s",
     re.IGNORECASE,
 )
 
@@ -59,7 +64,12 @@ def detect_external_effects(command: str) -> list[str]:
     if base_commands & _CONTAINER_CLOUD_COMMANDS:
         effects.append("container_cloud")
 
-    if _HTTP_MUTATION_RE.search(command) or _CURL_DATA_RE.search(command) or _WGET_POST_RE.search(command):
+    if (
+        _HTTP_MUTATION_RE.search(command)
+        or _CURL_DATA_RE.search(command)
+        or _WGET_POST_RE.search(command)
+        or _HTTPIE_MUTATION_RE.search(command)
+    ):
         effects.append("network_mutation")
 
     return effects

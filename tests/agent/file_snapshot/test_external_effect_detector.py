@@ -94,6 +94,30 @@ class TestDetectExternalEffects:
         result = detect_external_effects(cmd)
         assert "network_mutation" in result
 
+    # ---- httpie ----
+
+    @pytest.mark.parametrize("cmd", [
+        "http POST https://api.example.com/data name=test",
+        "http PUT https://api.example.com/users/1 name=updated",
+        "http DELETE https://api.example.com/users/1",
+        "http PATCH https://api.example.com/users/1 name=patched",
+        "https POST https://api.example.com data=test",
+    ])
+    def test_httpie_mutation(self, cmd: str) -> None:
+        result = detect_external_effects(cmd)
+        assert "network_mutation" in result
+
+    # ---- docker-compose (legacy syntax) ----
+
+    @pytest.mark.parametrize("cmd", [
+        "docker-compose up -d",
+        "docker-compose down",
+        "docker-compose rm -f",
+    ])
+    def test_docker_compose_legacy(self, cmd: str) -> None:
+        result = detect_external_effects(cmd)
+        assert "container_cloud" in result
+
     # ---- Safe commands: should NOT trigger ----
 
     @pytest.mark.parametrize("cmd", [
@@ -101,6 +125,9 @@ class TestDetectExternalEffects:
         "curl -H 'Authorization: Bearer tok' https://api.example.com/data",
         "curl -o output.json https://api.example.com/data",
         "wget https://example.com/file.tar.gz",
+        "http GET https://api.example.com/data",
+        "http https://api.example.com/status",
+        "python -m http.server",
         "ls -la",
         "cat file.txt",
         "echo hello world",
@@ -108,6 +135,7 @@ class TestDetectExternalEffects:
         "npm install",
         "pip install requests",
         "git commit -m 'message'",
+        "git clone https://github.com/user/repo",
     ])
     def test_safe_commands_no_effects(self, cmd: str) -> None:
         result = detect_external_effects(cmd)
@@ -143,3 +171,25 @@ class TestDetectExternalEffects:
     def test_curl_download_no_false_positive(self) -> None:
         cmd = "curl -L -O https://github.com/user/repo/releases/download/v1.0/binary"
         assert detect_external_effects(cmd) == []
+
+    def test_httpie_get_no_false_positive(self) -> None:
+        assert detect_external_effects("http GET https://api.com/data") == []
+
+    def test_httpd_no_false_positive(self) -> None:
+        assert detect_external_effects("httpd -k restart") == []
+
+    def test_curl_many_options_before_data(self) -> None:
+        cmd = "curl -s -S -L --retry 3 --max-time 30 -d '{\"json\":true}' https://api.com"
+        assert "network_mutation" in detect_external_effects(cmd)
+
+    def test_curl_data_flag_at_end(self) -> None:
+        cmd = "curl https://api.com -d '{\"data\":1}'"
+        assert "network_mutation" in detect_external_effects(cmd)
+
+    def test_env_prefix_database(self) -> None:
+        cmd = "PGPASSWORD=secret psql -c 'DROP TABLE users'"
+        assert "database" in detect_external_effects(cmd)
+
+    def test_sudo_container(self) -> None:
+        cmd = "sudo docker rm -f container_name"
+        assert "container_cloud" in detect_external_effects(cmd)

@@ -323,7 +323,8 @@ def create_memory_tools(manager: MemoryManager, recall_mode: RecallMode = Recall
             content: Memory content text — declarative, concise, standalone.
             category: knowledge | event | preference | rule | instruction.
             importance: 0–1 importance score (see scoring guide above).
-            tags: Optional tags (knowledge/event only).
+            tags: Classify this memory with descriptive labels for later filtering
+                (e.g. ["python", "auth"], ["cooking", "italian"]). Knowledge/event only.
             write_target: "bound" for current agent; "shared" for cross-agent knowledge.
             preference_key: Required for preference category (e.g. "response_style").
             rule_trigger: Required for rule category (context that triggers the rule).
