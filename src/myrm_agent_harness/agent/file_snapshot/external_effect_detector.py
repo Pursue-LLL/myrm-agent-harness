@@ -28,6 +28,11 @@ _HTTP_MUTATION_RE = re.compile(
     re.IGNORECASE,
 )
 
+_CURL_DATA_RE = re.compile(
+    r"curl\s+.*(-d\s|--data\b|--data-raw\b|--data-binary\b|--data-urlencode\b|-F\s|--form\b)",
+    re.IGNORECASE,
+)
+
 _WGET_POST_RE = re.compile(
     r"wget\s+.*--post",
     re.IGNORECASE,
@@ -54,7 +59,7 @@ def detect_external_effects(command: str) -> list[str]:
     if base_commands & _CONTAINER_CLOUD_COMMANDS:
         effects.append("container_cloud")
 
-    if _HTTP_MUTATION_RE.search(command) or _WGET_POST_RE.search(command):
+    if _HTTP_MUTATION_RE.search(command) or _CURL_DATA_RE.search(command) or _WGET_POST_RE.search(command):
         effects.append("network_mutation")
 
     return effects
