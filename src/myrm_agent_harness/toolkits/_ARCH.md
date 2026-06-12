@@ -5,6 +5,20 @@ Generic, framework-agnostic toolkit collection — analogous to lodash for Node.
 Each toolkit is a **self-contained, absolutely independent** module usable via
 `myrm_agent_harness.toolkits.xxx` by any consumer, without requiring the Agent runtime.
 
+**Architecture gate**: `tests/architecture/test_toolkits_agent_boundary.py` fails if any
+`toolkits/**/*.py` imports `myrm_agent_harness.agent.*`.
+
+## Category Index
+
+| Category | Toolkits | Role |
+|----------|----------|------|
+| **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `network/`, `security/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP, SSRF guard |
+| **Workspace** | `browser/`, `computer_use/`, `code_index/`, `workspace/`, `context/`, `file_parsers/`, `wiki/`, `element_ref/` | Files, browser, desktop, code search, context bundles |
+| **Integration** | `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/`, `huggingface/`, `deploy/`, `local_browser_data/`, `notification/` | External APIs, channels, deployment bridges |
+| **Collaboration & Media** | `calendar/`, `kanban/`, `tasks/`, `commitment/`, `automation/`, `cron/`, `interaction/`, `tts/`, `vision/` | Scheduling, tasks, user interaction primitives, media |
+
+Agent-specific tool wrappers (e.g. `render_ui_tool`) live in `agent/meta_tools/`, not here.
+
 ## Allowed Dependencies
 
 - `core/` — framework-agnostic foundations (security, config, events, hooks, artifacts, features)
@@ -64,7 +78,7 @@ Does your code need to import anything from agent/?
 | element_ref/ | Shared @dref element reference types and session-scoped registry for desktop control. |
 | file_parsers/ | File format parsers — PDF, DOCX, Excel, text, and structured data extraction. |
 | huggingface/ | Hugging Face integration — model and dataset tools for agents. |
-| interaction/ | User interaction tools — AskQuestion dialog and clipboard operations. |
+| interaction/ | User interaction primitives — AskQuestion dialog and clipboard operations (UI rendering: `agent/meta_tools/interaction/`) |
 | kanban/ | Durable multi-task scheduling — heartbeat, zombie detection, run/event audit trail. |
 | llms/ | LLM manager and adapters — 100+ provider support, citation extraction, image gen/edit. |
 | local_browser_data/ | Local browser data search — Chrome/Edge bookmarks and history indexing. |

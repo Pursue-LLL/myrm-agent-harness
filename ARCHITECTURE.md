@@ -23,7 +23,7 @@
 
 ## 🏗️ 架构概览
 
-Myrm Agent Harness 是一个**生产级 Agent 框架**，基于 LangChain/LangGraph 构建，提供：
+Myrm Agent Harness 是一个**GUI-first 通用 AI 工作助手运行时框架**（WebUI / Tauri / 云沙箱嵌入），基于 LangChain/LangGraph 构建，提供：
 
 - 完整的技能系统（Skill System），支持**自动技能提炼与补丁进化引擎 (Auto-Skill Extraction & Patching)**，并通过 `SkillFailureEvent` 将运行时技能失败以框架 DTO 非阻塞抛给业务层
 - Agent-in-Sandbox 沙箱执行（LocalExecutor，业务层可扩展云端沙箱）
@@ -42,7 +42,7 @@ Myrm Agent Harness 是一个**生产级 Agent 框架**，基于 LangChain/LangGr
 
 **核心特性**：
 
-- **框架-业务分离**：框架层不依赖业务层，通过 [自动化检测与修复](scripts/_ARCH.md) 保护架构完整性
+- **框架-业务分离**：框架层不依赖业务层，通过 [自动化检测与修复](scripts/_ARCH.md) 保护架构完整性；`toolkits/` 禁止 import `agent/`（`tests/architecture/test_toolkits_agent_boundary.py`）
 - **子智能体预算硬终止 (Subagent Budget Hard-Stop)**：基于 `TokenTracker` 和底层事件转发器实施严格预算审查拦截，杜绝无限自愈或死循环导致用户余额击穿。
 - **子智能体跨层异步审批 (Asynchronous Escalation)**：基于 LangGraph 原生 `NodeInterrupt` 的穿透式中断架构，实现自主体级高危操作前端 GUI 拦截。父子双图协同挂起，完全释放服务器并发资源，避免网关强制超时，并 100% 保护大模型前缀缓存。
 - **防宕机全双工终端流 (Safe Full-Duplex Terminal)**：从底层 PTY 拦截并流式下发数据，内置 10FPS 节流与 500KB 流量熔断阀门，物理阻绝 SSE 瀑布流 DDOS 攻击导致的浏览器白屏

@@ -5,7 +5,7 @@
 - .dispatcher::PtcDispatcher (POS: Tool execution delegate)
 - .stub_generator::generate_stubs (POS: myrm_tools.py codegen)
 - .models::PtcConfig (POS: PTC configuration)
-- agent.meta_tools.bash.bash_executor::_in_ptc_context (POS: Nesting guard)
+- toolkits.code_execution.ptc.context::ptc_nesting_guard (POS: PTC nesting guard ContextVar)
 - toolkits.code_execution.executors.base::CodeExecutor, ExecutionContext (POS: Executor protocol)
 
 [OUTPUT]
@@ -57,12 +57,12 @@ async def inject_ptc_for_python_execution(
     1. Start ephemeral PtcRpcServer + PtcDispatcher with provided tools
     2. Generate myrm_tools.py stubs to a temp directory
     3. Inject _MYRM_PTC_SOCKET and PYTHONPATH into context.env
-    4. Set _in_ptc_context=True to prevent nesting
+    4. Set ptc_nesting_guard=True to prevent nesting
     5. Execute via CodeExecutor (which handles sandbox, wrapper, timeout)
     6. Stop server and clean up
     """
-    from myrm_agent_harness.agent.meta_tools.bash.bash_executor import (
-        _in_ptc_context,
+    from myrm_agent_harness.toolkits.code_execution.ptc.context import (
+        ptc_nesting_guard,
     )
     from myrm_agent_harness.toolkits.code_execution.ptc.dispatcher import (
         PtcDispatcher,
@@ -89,7 +89,7 @@ async def inject_ptc_for_python_execution(
         return await executor.execute(context)
 
     stub_dir: str | None = None
-    token = _in_ptc_context.set(True)
+    token = ptc_nesting_guard.set(True)
     try:
         use_tcp = sys.platform == "win32"
         stub_source = generate_stubs(ptc_tools, use_tcp_fallback=use_tcp)
@@ -117,7 +117,7 @@ async def inject_ptc_for_python_execution(
 
         return result
     finally:
-        _in_ptc_context.reset(token)
+        ptc_nesting_guard.reset(token)
         await server.stop()
         if stub_dir:
             import shutil

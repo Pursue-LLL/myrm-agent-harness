@@ -3,7 +3,7 @@
 **生产级 Agent 框架** - 基于 LangChain 构建，提供高级技能系统、MCP 集成和生产就绪的沙箱执行。
 
 > **许可**: Proprietary（见 [LICENSE](LICENSE) 与 `pyproject.toml`）。框架层不与业务逻辑耦合，类似 LangChain 定位，供 `myrm-agent-server` 等业务项目引用。  
-> **定位**: 可嵌入的 Agent 框架（LangChain / LangGraph），技能系统、MCP、沙箱与存储等能力按模块可选启用。  
+> **定位**: GUI-first 通用 AI 工作助手运行时框架（对标 LangChain / LangGraph），面向 WebUI / 桌面端 / 云沙箱嵌入；**不是** CLI 产品或专业编码 IDE。技能系统、MCP、沙箱、记忆与工件等能力按模块可选启用。  
 > **版本**: 以 `pyproject.toml` 中 `version` 为准。  
 > **验证**: 运行 `pytest tests/` 查看当前测试状态；性能结论以可复现实验（如 `tests/performance`）为准，本文档不承诺固定加速比。
 

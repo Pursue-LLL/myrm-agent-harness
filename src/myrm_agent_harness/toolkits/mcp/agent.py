@@ -299,7 +299,7 @@ class MCPAgent:
         mcp_app_meta = MCPAgent._extract_mcp_app_metadata(artifact)
         if mcp_app_meta is None:
             return
-        from myrm_agent_harness.agent.streaming.types import AgentEventType
+        from myrm_agent_harness.core.events import AgentEventType
         from myrm_agent_harness.utils.runtime.progress_sink import get_tool_progress_sink
 
         sink = get_tool_progress_sink()

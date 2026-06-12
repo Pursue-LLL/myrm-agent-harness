@@ -16,7 +16,8 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 | _wait_types.py | Internal | Wait strategy type definitions and runtime statistics module. | ✅ |
 | doctor.py | Core | Browser diagnostics: dependency checks, launchability probes, orphan automation process detection (Chromium + driver node; patchright/playwright/puppeteer caches), and safe cleanup (`cleanup_orphan_processes`). | ✅ |
 | domain_filter.py | Core | Deep domain filtering, resource blocking, and ad/tracker domain blocking module. Four-layer defense: CSP + route interception + JS hardening + CDP audit. Route handler blocks ad domains (3500+ via ad_domains.py) and resource types. | ✅ |
-| ad_domains.py | Data | Built-in ad/tracker domain blocklist (~3500 domains from Peter Lowe's list). Loaded lazily by domain_filter when block_ad_domains enabled. | ✅ |
+| assets/ | Data | Bundled static files (`ad_domains.txt`). Shipped in wheel via `pyproject.toml` force-include. See [assets/_ARCH.md](assets/_ARCH.md). |
+| ad_domains.py | Data | Lazy loader for bundled `assets/ad_domains.txt` (~3500 Peter Lowe ad/tracker domains). | ✅ |
 | exceptions.py | Core | Exception hierarchy definition. RefNotFoundError provides structured diagnostic info, including URL  | ✅ |
 | navigation.py | Core | Page navigation utility module. Responsibilities: Hybrid Session routing (fast HTTP injection for static pages), Page navigation, history, smart wait, and timeout fallback rescue (window.stop). Integrates proxy error detection and state-preserving auto-retry. | ✅ |
 | observability.py | Core | Observability module for the browser toolkit. Provides video recording, progress notifications, and  | ✅ |

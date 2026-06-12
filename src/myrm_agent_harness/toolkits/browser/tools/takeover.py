@@ -157,6 +157,6 @@ def create_takeover_tool(session: BrowserSession):
 
         return "\n".join(result_parts)
 
-    from myrm_agent_harness.agent.tool_management.utils import with_dynamic_hints
+    from myrm_agent_harness.utils.tool_dynamic_hints import with_dynamic_hints
 
     return with_dynamic_hints(browser_ask_human, {})

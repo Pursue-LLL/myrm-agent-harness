@@ -2,7 +2,7 @@
 
 ## 架构概述
 
-闭源 Agent 执行引擎（PyPI 包 `myrm-agent-harness`）。框架层与业务解耦，供 `myrm-agent-server` 通过 `uv.lock` 消费。整体架构、模块导航与依赖关系见 **[ARCHITECTURE.md](ARCHITECTURE.md)**；框架设计原则见 **[FRAMEWORK_DESIGN_PRINCIPLES.md](FRAMEWORK_DESIGN_PRINCIPLES.md)**。
+闭源 Agent 执行引擎（PyPI 包 `myrm-agent-harness`）。**GUI-first 通用 AI 工作助手 harness**（WebUI / Tauri / 云沙箱），框架层与业务解耦，供 `myrm-agent-server` 通过 `uv.lock` 消费。整体架构、模块导航与依赖关系见 **[ARCHITECTURE.md](ARCHITECTURE.md)**；框架设计原则见 **[FRAMEWORK_DESIGN_PRINCIPLES.md](FRAMEWORK_DESIGN_PRINCIPLES.md)**。
 
 ## 根目录文件
 

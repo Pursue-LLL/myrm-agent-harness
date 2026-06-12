@@ -131,13 +131,22 @@ class TestLLMConnectivity:
     async def test_successful_connectivity(self):
         from unittest.mock import AsyncMock
 
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.head = AsyncMock(return_value=mock_response)
+        mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
+        mock_client_instance.__aexit__ = AsyncMock(return_value=False)
+
         mock_litellm = MagicMock()
-        mock_litellm.acompletion = AsyncMock(return_value=MagicMock())
+        mock_litellm.get_llm_provider = MagicMock(return_value=(None, None, "https://api.openai.com/v1", None))
 
         with patch.dict("os.environ", {"MYRM_MODEL_NAME": "gpt-4o", "MYRM_API_KEY": "sk-123"}):
             with patch.dict("sys.modules", {"litellm": mock_litellm}):
-                result = await Doctor()._check_llm_connectivity()
-                assert result.status == CheckStatus.OK
+                with patch("httpx.AsyncClient", return_value=mock_client_instance):
+                    result = await Doctor()._check_llm_connectivity()
+                    assert result.status == CheckStatus.OK
 
 
 class TestGetModuleVersion:

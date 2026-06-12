@@ -605,10 +605,12 @@ class TestPtcInjection:
 
     @pytest.mark.asyncio
     async def test_nesting_guard_skips_ptc(self):
-        """When _in_ptc_context is True, BashExecutor skips PTC injection."""
+        """When ptc_nesting_guard is True, BashExecutor skips PTC injection."""
+        from myrm_agent_harness.toolkits.code_execution.ptc.context import (
+            ptc_nesting_guard,
+        )
         from myrm_agent_harness.agent.meta_tools.bash.bash_executor import (
             BashExecutor,
-            _in_ptc_context,
         )
         from myrm_agent_harness.toolkits.code_execution.executors.models import (
             ExecutionContext,
@@ -618,7 +620,7 @@ class TestPtcInjection:
         inner_executor = InProcessExecutor()
         bash_exec = BashExecutor(executor=inner_executor, ptc_tools=[mock_file_read])
 
-        token = _in_ptc_context.set(True)
+        token = ptc_nesting_guard.set(True)
         try:
             context = ExecutionContext(
                 code="import os; print(os.environ.get('_MYRM_PTC_SOCKET', 'NONE'))",
@@ -630,7 +632,7 @@ class TestPtcInjection:
             assert result.success
             assert "NONE" in (result.stdout or "")
         finally:
-            _in_ptc_context.reset(token)
+            ptc_nesting_guard.reset(token)
 
     @pytest.mark.asyncio
     async def test_helpers_available_in_script(self):

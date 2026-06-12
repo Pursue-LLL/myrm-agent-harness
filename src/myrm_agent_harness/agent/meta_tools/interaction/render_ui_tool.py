@@ -9,9 +9,7 @@
 - render_ui_tool: LangChain tool that creates a UIArtifact from declarative JSON.
 
 [POS]
-Framework-level tool that lets any Agent emit rich interactive UI (forms,
-cards, charts, tables, etc.) via the UIArtifact system.  Zero business
-dependencies — all types come from harness artifacts.
+Agent meta-tool emitting interactive UI via UIArtifact. Requires agent artifact context.
 """
 
 import logging
@@ -86,25 +84,6 @@ def render_ui(
     条件渲染（在组件的 bindings 或 props 中添加）：
     - visible: "path.to.value" - 根据数据路径的值决定是否显示
     - visible: "path == 'value'" - 条件表达式
-
-    示例：创建一个带验证的预订表单
-    ```
-    {
-        "title": "预订信息",
-        "components": [
-            {"id": "card", "type": "card", "props": {"title": "填写预订信息"}, "children": ["grid", "submit"]},
-            {"id": "grid", "type": "grid", "props": {"columns": 2, "gap": 4}, "children": ["name", "email", "date", "time"]},
-            {"id": "name", "type": "text_field", "props": {"label": "姓名", "placeholder": "请输入姓名", "required": true, "minLength": 2}, "bindings": {"value": "$.form.name"}},
-            {"id": "email", "type": "text_field", "props": {"label": "邮箱", "type": "email", "required": true}, "bindings": {"value": "$.form.email"}},
-            {"id": "date", "type": "date_picker", "props": {"label": "日期", "required": true}, "bindings": {"value": "$.form.date"}},
-            {"id": "time", "type": "time_picker", "props": {"label": "时间"}, "bindings": {"value": "$.form.time"}},
-            {"id": "submit", "type": "button", "props": {"label": "提交", "variant": "primary"}, "events": {"onClick": "submit"}}
-        ],
-        "root_ids": ["card"],
-        "data": {"form": {"name": "", "email": "", "date": null, "time": null}},
-        "actions": [{"id": "submit", "type": "submit", "label": "提交"}]
-    }
-    ```
 
     Args:
         title: UI 标题

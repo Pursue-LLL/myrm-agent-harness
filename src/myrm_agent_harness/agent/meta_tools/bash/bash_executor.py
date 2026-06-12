@@ -8,7 +8,7 @@ workspace_manager::WorkspaceManager (POS: Workspace manager)
 toolkits.code_execution::CodeExecutor, ExecutionContext (POS: Code executor protocol and context)
 artifacts.file_id_registry::resolve_file_ids_in_text (POS: File ID resolution)
 _event_logging::log_bash_command_execution (POS: Event logging with redaction)
-_background_registry::get_background_registry, BackgroundQuotaError (POS: Background process registry)
+toolkits.code_execution.ptc.context::ptc_nesting_guard (POS: PTC nesting guard)
 
 [OUTPUT]
 BashExecutor: Code execution orchestrator. Synchronous ``execute()`` for Bash/Python/Skill
@@ -23,7 +23,6 @@ and skill invocations via CodeExecutor protocol for environment decoupling.
 import logging
 import os
 from contextlib import suppress
-from contextvars import ContextVar
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -46,13 +45,10 @@ from myrm_agent_harness.agent.meta_tools.bash.workspace_manager import Workspace
 from myrm_agent_harness.agent.skills.runtime.env import rewrite_skill_paths
 from myrm_agent_harness.toolkits.code_execution import ExecutionConfig, ExecutionContext
 from myrm_agent_harness.toolkits.code_execution.executors.models import MCPConfigItem
+from myrm_agent_harness.toolkits.code_execution.ptc.context import ptc_nesting_guard
 from myrm_agent_harness.toolkits.code_execution.utils import WorkspacePathResolver
 
 logger = logging.getLogger(__name__)
-
-# Prevents nested PTC injection when a PTC script calls myrm_tools.bash()
-# with Python code — the inner execution skips PTC server startup.
-_in_ptc_context: ContextVar[bool] = ContextVar("_in_ptc_context", default=False)
 
 # MCP tool calls involve IPC + network round-trips; bash must not kill the
 # process before the IPC client (TOTAL_TIMEOUT=90s) has a chance to finish.
@@ -595,7 +591,7 @@ class BashExecutor:
         stubs, and injects the socket path + PYTHONPATH into the subprocess env.
         The child process can then ``import myrm_tools`` to call any tool.
         """
-        if is_skill_execution or _in_ptc_context.get() or not self._ptc_tools:
+        if is_skill_execution or ptc_nesting_guard.get() or not self._ptc_tools:
             return await executor.execute(context)
 
         from myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection import (

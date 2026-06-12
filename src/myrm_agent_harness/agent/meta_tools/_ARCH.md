@@ -20,6 +20,7 @@ Agent meta-tools module. Provides tools that depend on Agent framework infrastru
 | file_ops/ | File operations tool module (Claude Code compatible). |
 | file_search/ | File search tool module (Claude Code compatible). |
 | goals/ | Goal interaction tools — LLM tools for querying/completing goals. |
+| interaction/ | UI rendering (`render_ui_tool`) — depends on agent artifact context. |
 | http/ | HTTP request toolkit. Supports streaming upload, progress callbacks, streaming download, and concurr |
 | llm_map/ | Batch LLM-map agent tool adapter. See [llm_map/_ARCH.md](llm_map/_ARCH.md). |
 | skills/ | Skills submodule. |

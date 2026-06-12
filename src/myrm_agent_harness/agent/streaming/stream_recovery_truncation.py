@@ -1,7 +1,7 @@
 """Streaming length truncation recovery mixin.
 
 [INPUT]
-- contextvars::ContextVar (POS: Python stdlib coroutine-safe context variable)
+- toolkits.llms.ephemeral_output_tokens (POS: ephemeral max-output-tokens ContextVar)
 - agent.streaming.types::AgentEventType (POS: streaming event type constants)
 - agent.errors.diagnostics::LLMErrorDiagnostic (POS: LLM truncation diagnostic builder)
 - toolkits.llms.token_economics.tracker::get_token_tracker (POS: token finish-reason tracker)
@@ -19,13 +19,19 @@ tool calls, and emits structured truncation warnings.
 
 from __future__ import annotations
 
-from contextvars import ContextVar
 from typing import TYPE_CHECKING, cast
 
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 
 from myrm_agent_harness.agent.streaming.types import AgentEventType
+from myrm_agent_harness.toolkits.llms.ephemeral_output_tokens import (
+    MAX_EPHEMERAL_OUTPUT_TOKENS,
+    ephemeral_max_output_tokens,
+    get_ephemeral_max_output_tokens,
+    reset_ephemeral_max_output_tokens,
+    set_ephemeral_max_output_tokens,
+)
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -36,34 +42,10 @@ if TYPE_CHECKING:
 
 logger = get_agent_logger(__name__)
 
-# ---------------------------------------------------------------------------
-# Ephemeral max-output-tokens ContextVar
-# ---------------------------------------------------------------------------
-# Set by truncation recovery to temporarily boost the output budget for the
-# next LLM call.  ChatLiteLLM reads this to override its configured max_tokens.
-# The token resets after a single use (the adapter clears it after reading).
-ephemeral_max_output_tokens: ContextVar[int | None] = ContextVar("ephemeral_max_output_tokens", default=None)
-
-_MAX_EPHEMERAL_OUTPUT_TOKENS = 32768
-
-
-def get_ephemeral_max_output_tokens() -> int | None:
-    """Read the ephemeral override (returns None when unset)."""
-    return ephemeral_max_output_tokens.get()
-
-
-def set_ephemeral_max_output_tokens(value: int) -> None:
-    """Set the ephemeral override (capped at _MAX_EPHEMERAL_OUTPUT_TOKENS)."""
-    ephemeral_max_output_tokens.set(min(value, _MAX_EPHEMERAL_OUTPUT_TOKENS))
-
-
-def reset_ephemeral_max_output_tokens() -> None:
-    """Clear the ephemeral override so subsequent calls use the default."""
-    ephemeral_max_output_tokens.set(None)
+_MAX_EPHEMERAL_OUTPUT_TOKENS = MAX_EPHEMERAL_OUTPUT_TOKENS
 
 
 class StreamTruncationRecoveryMixin:
-    """Length truncation handling shared by stream executors."""
 
     _ctx: StreamContext
     _compactor: StreamCompactor
@@ -238,7 +220,7 @@ class StreamTruncationRecoveryMixin:
         """Set ephemeral output token override with progressive scaling.
 
         retries=0 → 2x base, retries=1 → 3x base, retries>=2 → 4x base.
-        Capped at _MAX_EPHEMERAL_OUTPUT_TOKENS (32768).
+        Capped at MAX_EPHEMERAL_OUTPUT_TOKENS (32768).
         """
         base = self._get_configured_max_tokens()
         if base is None:
@@ -250,9 +232,9 @@ class StreamTruncationRecoveryMixin:
         logger.info(
             " Output token boost: %d → %d (×%d, cap %d)",
             base,
-            min(boosted, _MAX_EPHEMERAL_OUTPUT_TOKENS),
+            min(boosted, MAX_EPHEMERAL_OUTPUT_TOKENS),
             multiplier,
-            _MAX_EPHEMERAL_OUTPUT_TOKENS,
+            MAX_EPHEMERAL_OUTPUT_TOKENS,
         )
 
     def _get_configured_max_tokens(self) -> int | None:
@@ -328,6 +310,8 @@ class StreamTruncationRecoveryMixin:
 
 
 __all__ = [
+    "MAX_EPHEMERAL_OUTPUT_TOKENS",
+    "_MAX_EPHEMERAL_OUTPUT_TOKENS",
     "StreamTruncationRecoveryMixin",
     "ephemeral_max_output_tokens",
     "get_ephemeral_max_output_tokens",

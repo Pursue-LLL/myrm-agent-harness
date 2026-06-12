@@ -10,6 +10,7 @@ Toolkits Llms module.
 | __init__.py | Package |   Init   | — |
 | config.py | Config | LiteLLM default configuration (privacy, caching, `drop_params` safety-net). Works with `ChatLiteLLM._inject_allowed_params()` to protect explicit params from provider whitelist gaps | ✅ |
 | capability_learner.py | Core | In-process model capability cache — records runtime-discovered capabilities (e.g. rejects_media) with TTL. | ✅ |
+| ephemeral_output_tokens.py | Core | ContextVar override for truncation-recovery output budget; read by `ChatLiteLLM`. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

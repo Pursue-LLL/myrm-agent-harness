@@ -11,7 +11,7 @@
 - adapters.stream_aggregator (POS: stream data aggregation module)
 - adapters.tool_recovery (POS: tool call recovery module)
 - adapters.safety_termination_detector (POS: Safety termination detector for truncated tool call suppression)
-- agent.streaming.stream_recovery_truncation (POS: ephemeral max-output-tokens ContextVar for truncation recovery)
+- toolkits.llms.ephemeral_output_tokens (POS: ephemeral max-output-tokens ContextVar for truncation recovery)
 - utils.cost_engine::compute_cost_by_tokens (POS: token-count-based cost calculation for streaming mode)
 - utils.token_tracker (POS: Token tracking API — record_token_usage, append_to_ledger, record_finish_reason)
 
@@ -286,7 +286,7 @@ class ChatLiteLLM(BaseChatModel):
         The override is consumed (reset to None) after a single read so that
         subsequent normal calls use the configured default.
         """
-        from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+        from myrm_agent_harness.toolkits.llms.ephemeral_output_tokens import (
             get_ephemeral_max_output_tokens,
             reset_ephemeral_max_output_tokens,
         )

@@ -33,6 +33,7 @@ LLM → bash_code_execute_tool(Python code)
 | stub_generator.py | Codegen | Generates myrm_tools.py from enabled tool list |
 | rpc_server.py | Server | Asyncio UDS/TCP server (one per execution) |
 | dispatcher.py | Dispatch | Routes RPC requests to tool.ainvoke(), records trace |
+| context.py | Context | PTC nesting guard ContextVar (`ptc_nesting_guard`). | ✅ |
 | ptc_injection.py | Orchestrator | Bridges PTC into bash Python path (server lifecycle + env injection) |
 
 ## Key Design Decisions

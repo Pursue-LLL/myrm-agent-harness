@@ -12,4 +12,3 @@
 | `__init__.py` | 核心 | 模块导出 | ✅ |
 | `ask_question.py` | 核心 | 定义交互式多题表单工具（`AskQuestionTool`）及其 Schema。支持多题、单选/多选、富文本选项及自由文本输入。 | ✅ |
 | `clipboard_tools.py` | 核心 | 定义剪贴板工具（`write_to_clipboard`），通过客户端事件（Client Action）机制让智能体请求用户设备进行剪贴板写入。 | ✅ |
-| `render_ui_tool.py` | 核心 | 声明式 UI 渲染工具（A2UI），通过 UIArtifact 系统向用户呈现交互式界面（表单、卡片、表格、图表等）。 | ✅ |

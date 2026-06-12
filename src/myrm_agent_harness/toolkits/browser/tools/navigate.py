@@ -31,7 +31,7 @@ def create_navigate_tool(session: BrowserSession):
             description="Optional. A natural language description of what you expect to see after navigation completes (e.g., 'Google homepage is fully loaded', 'Login form is visible'). If provided, the tool will take screenshots before and after, and use a Vision LLM to verify if the goal was met, returning the visual feedback directly to you.",
         )
 
-    from myrm_agent_harness.agent.tool_management.utils import with_dynamic_hints
+    from myrm_agent_harness.utils.tool_dynamic_hints import with_dynamic_hints
 
     @tool("browser_navigate_tool", args_schema=NavigateInput)
     async def browser_navigate(url: str, verify_goal: str | None = None) -> str:

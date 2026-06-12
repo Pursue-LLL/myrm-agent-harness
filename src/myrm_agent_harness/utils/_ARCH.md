@@ -30,6 +30,7 @@ Utility library exports. Public interface for the utils module providing commonl
 | text_cleaner.py | Core | Text cleaning utilities. Removes noise and irrelevant information from content to improve quality. | ✅ |
 | text_sanitizer.py | Core | LLM streaming output sanitizer. Three-layer filtering ensures clean, garble-free text for user displ | ✅ |
 | text_utils.py | Core | Text processing utilities. Provides token counting, language detection, smart truncation, and output | ✅ |
+| tool_dynamic_hints.py | Core | LangChain tool `with_dynamic_hints` decorator — shared by agent and toolkits without cross-layer imports. | ✅ |
 | token_estimation.py | Core | Message-level token estimation. Estimates tokens for content (text/image), tool_calls, and framing overhead. Used by context management pipeline and LLM failover. | ✅ |
 | tree_truncator.py | Core | Tree Truncator (Smart Budget-Aware Truncation). Intelligently truncates tree structures (HTML/ARIA) to fit within token budgets while preserving structure. | ✅ |
 | os_compat.py | Core | Cross-platform process groups (`get_process_group_kwargs`, `kill_process_group`, `terminate_process_graceful`) and file locks. | ✅ |
