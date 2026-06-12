@@ -7,12 +7,12 @@ Listens for APPROVAL_CORRECTION hook events and persists high-value signals as:
 Zero LLM cost: classification uses deterministic dict-diff and pattern matching.
 
 [INPUT]
-- core.hooks.types::HookResult, ApprovalCorrectionPayload, HookEvent
-- toolkits.memory.types::SemanticMemory, ProceduralMemory, ToolRulePriority, RuleSource, PreferenceType
+- core.hooks.types::HookResult (POS: Hook result container for returning structured data from hook handlers)
+- toolkits.memory.types::SemanticMemory, ProceduralMemory, ToolRulePriority, RuleSource (POS: Memory type definitions for persistent agent learning)
 
 [OUTPUT]
 - CorrectionLearningHook: Async hook handler for APPROVAL_CORRECTION events
-- register_correction_learning: Convenience registration function
+- CorrectionSignal: Frozen dataclass representing a classified correction signal
 
 [POS]
 Bridges the HITL approval flow with the memory system. Converts user

@@ -257,7 +257,7 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
         )
 
         # Fire APPROVAL_CORRECTION hook for edit/reject decisions so memory system can learn
-        await self._fire_correction_hook(decisions, pending_approval, last_ai_msg, session_key)
+        await self._fire_correction_hook(decisions, pending_approval, session_key)
 
         last_ai_msg.tool_calls = revised_tool_calls
         result_messages: list = [last_ai_msg, *artificial_tool_messages]
@@ -269,7 +269,6 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
     async def _fire_correction_hook(
         decisions: list[dict[str, Any]],
         pending_approval: list,
-        last_ai_msg: AIMessage,
         session_key: str,
     ) -> None:
         """Fire APPROVAL_CORRECTION hook for edit/reject decisions.
