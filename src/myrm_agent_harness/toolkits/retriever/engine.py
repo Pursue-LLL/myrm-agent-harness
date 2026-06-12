@@ -2,6 +2,7 @@
 
 
 [INPUT]
+- retriever.autocut::AutocutConfig (POS: score-discontinuity autocut configuration)
 - retriever.bm25_retrieval::BM25Retriever (POS: BM25 retriever class, build index once query many times)
 - retriever.preprocessing::create_document_chunks_from_crawl_results (POS: document preprocessing, convert crawl results to document chunks)
 - retriever.fusion_strategies::rrf_fusion (POS: RRF fusion strategy, merge multiple retrieval results)

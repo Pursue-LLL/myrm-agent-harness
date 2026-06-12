@@ -2,6 +2,7 @@
 
 
 [INPUT]
+- retriever.autocut::AutocutConfig (POS: score-discontinuity autocut configuration)
 - retriever_tools::RetrieverManager, RetrieverConfig (POS: retrieval tools providing BM25 / Reranker with index cache)
 - web_search.common::SearchResult (POS: search result type)
 - web_search.search_results_processor::combine_search_results_unified (POS: search result merger)

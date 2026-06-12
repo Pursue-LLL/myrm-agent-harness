@@ -10,7 +10,7 @@ and the intent-aware search parameter optimizer.
 |------|------|-------------|-------|
 | __init__.py | Package | Web search toolkit entry point. Aggregates and re-exports search tools, result types. | ✅ |
 | common.py | Core | Provides SearchResult. | ✅ |
-| engine.py | Core | Web search tools wrapper. Two modes: basic (BM25) and precision (BM25+Reranker). Integrates intent detection. | ✅ |
+| engine.py | Core | Web search tools wrapper. Two modes: basic (BM25) and precision (BM25+Reranker+Autocut). Integrates intent detection. | ✅ |
 | error_handling.py | Core | Search failure classification and ErrorContext construction. | ✅ |
 | exceptions.py | Core | Web Search exception hierarchy. All exceptions implement format_for_llm(). | ✅ |
 | intent_optimizer.py | Core | Search intent detection and parameter optimization. Zero-LLM-cost keyword-based intent classifier that dynamically adjusts SearxNG/Tavily/Exa search parameters per query. | ✅ |
