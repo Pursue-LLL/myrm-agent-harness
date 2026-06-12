@@ -479,7 +479,11 @@ class MemoryManagerImportExportMixin:
             else:
                 rendered = _memory_to_markdown(sanitized, "procedural")
 
-            results.append({"id": mem_id, "content": str(sanitized.get("content", "")), "rendered": rendered})
+            results.append({
+                "id": mem_id,
+                "content": str(sanitized.get("content", "")),
+                "rendered": rendered,
+            })
 
         return results
 
