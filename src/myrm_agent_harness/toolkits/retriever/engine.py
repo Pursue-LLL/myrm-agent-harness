@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from langchain_core.documents import Document
 from pydantic import BaseModel, ConfigDict, Field
 
+from myrm_agent_harness.toolkits.retriever.autocut import AutocutConfig
 from myrm_agent_harness.toolkits.retriever.bm25_retrieval import BM25Retriever
 from myrm_agent_harness.toolkits.retriever.embedding import EmbeddingService
 from myrm_agent_harness.toolkits.retriever.fusion_strategies import rrf_fusion
@@ -226,8 +227,9 @@ class RetrieverManager:
         fusion_weights: tuple[float, float, float, float] | None = None,
         rerank_score_threshold: float = 0.0,
         fusion_score_threshold: float = 0.0,
+        autocut_config: AutocutConfig | None = None,
     ) -> tuple[list[dict[str, object]], str]:
-        """Retrieve relevant docs from crawl results and return formatted text (auto-selects optimal strategy)
+        """Retrieve relevant docs from crawl results and return formatted text (auto-selects optimal strategy).
 
         Strategy selection:
         - Chunks ≤ hybrid_top_k_per_query: direct reranking
@@ -268,6 +270,7 @@ class RetrieverManager:
                 fusion_weights=fusion_weights,
                 rerank_score_threshold=rerank_score_threshold,
                 fusion_score_threshold=fusion_score_threshold,
+                autocut_config=autocut_config,
             )
         else:
             logger.info(
@@ -284,6 +287,7 @@ class RetrieverManager:
                 fusion_weights=fusion_weights,
                 rerank_score_threshold=rerank_score_threshold,
                 fusion_score_threshold=fusion_score_threshold,
+                autocut_config=autocut_config,
             )
 
         sources_metadata, formatted_context, _ = format_documents_with_metadata(
@@ -303,6 +307,7 @@ class RetrieverManager:
         fusion_weights: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
         rerank_score_threshold: float = 0.6,
         fusion_score_threshold: float = 0.6,
+        autocut_config: AutocutConfig | None = None,
     ) -> list[Document]:
         """Direct reranking entry point, skipping hybrid retrieval (for small document sets)."""
         return await hybrid_retriever.direct_reranking_only(
@@ -314,6 +319,7 @@ class RetrieverManager:
             fusion_weights=fusion_weights,
             rerank_score_threshold=rerank_score_threshold,
             fusion_score_threshold=fusion_score_threshold,
+            autocut_config=autocut_config,
         )
 
     async def hybrid_retrieval_with_reranking(
@@ -329,6 +335,7 @@ class RetrieverManager:
         fusion_weights: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
         rerank_score_threshold: float = 0.0,
         fusion_score_threshold: float = 0.0,
+        autocut_config: AutocutConfig | None = None,
     ) -> list[Document]:
         """Hybrid retrieval + reranking entry point."""
         return await hybrid_retriever.hybrid_retrieval_with_reranking(
@@ -342,6 +349,7 @@ class RetrieverManager:
             fusion_weights=fusion_weights,
             rerank_score_threshold=rerank_score_threshold,
             fusion_score_threshold=fusion_score_threshold,
+            autocut_config=autocut_config,
         )
 
     async def bm25_retrieval_only(
@@ -448,6 +456,7 @@ class RetrieverManager:
         fusion_weights: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
         rerank_score_threshold: float = 0.0,
         fusion_score_threshold: float = 0.0,
+        autocut_config: AutocutConfig | None = None,
     ) -> list[Document]:
         """Rerank existing query-doc mappings (uses provided mappings directly, avoids redundant pairs)."""
         return await hybrid_retriever.rerank_with_mapping(
@@ -458,6 +467,7 @@ class RetrieverManager:
             fusion_weights=fusion_weights,
             rerank_score_threshold=rerank_score_threshold,
             fusion_score_threshold=fusion_score_threshold,
+            autocut_config=autocut_config,
         )
 
     async def retrieve_from_urls(

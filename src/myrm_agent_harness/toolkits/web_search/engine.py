@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING
 
 from langchain_core.documents import Document
 
+from myrm_agent_harness.toolkits.retriever.autocut import AutocutConfig
 from myrm_agent_harness.toolkits.retriever.splitter.splitter import TextChunker
 from myrm_agent_harness.toolkits.web_search.common import SearchResult
 from myrm_agent_harness.toolkits.web_search.metrics import web_search_metrics
@@ -76,6 +77,7 @@ class WebSearchTools:
     _ENABLE_CHUNK_MERGE: bool = True
     _FUSION_WEIGHTS: tuple[float, float, float, float] = (0.6, 0.1, 0.2, 0.1)
     _FUSION_SCORE_THRESHOLD: float = 0.6
+    _AUTOCUT_CONFIG: AutocutConfig = AutocutConfig(enabled=True, jump_ratio=0.2, min_keep=1)
 
     def __init__(
         self,
@@ -409,6 +411,7 @@ async def _precision_mode_search(
             fusion_weights=tools._FUSION_WEIGHTS,
             rerank_score_threshold=tools._RERANK_SCORE_THRESHOLD,
             fusion_score_threshold=tools._FUSION_SCORE_THRESHOLD,
+            autocut_config=tools._AUTOCUT_CONFIG,
         )
     except Exception as e:
         logger.error(
