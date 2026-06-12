@@ -26,6 +26,7 @@ class TestMemoryImportSourceLiteral:
             "cursor_rules",
             "codex",
             "claude",
+            "mem0",
             "unknown",
         ],
     )
