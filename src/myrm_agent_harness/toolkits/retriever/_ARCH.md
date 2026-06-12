@@ -10,6 +10,7 @@ Detailed design: [RETRIEVER_SYSTEM.md](RETRIEVER_SYSTEM.md)
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | retrievalhandlestool | — |
+| autocut.py | Core | Score-discontinuity autocut. Detects largest gap in rerank scores for dynamic truncation. | ✅ |
 | bm25_retrieval.py | Core | BM25 sparse retrieval engine. Builds an in-memory inverted index from document chunks and | ✅ |
 | engine.py | Core | Retrieval tools wrapper. Provides hybrid retrieval and reranking, integrating BM25, vector search, | ✅ |
 | fusion_strategies.py | Core | Score-fusion utilities for hybrid retrieval. Merges multiple ranked lists into a single | ✅ |
