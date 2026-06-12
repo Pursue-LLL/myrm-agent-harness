@@ -11,6 +11,7 @@ import pytest
 from myrm_agent_harness.toolkits.memory._manager.import_export import (
     _memory_to_markdown,
     _sanitize_filename,
+    sanitize_paths_for_sharing,
 )
 
 
@@ -578,3 +579,156 @@ class TestExportMarkdownIntegration:
         assert len(files) == 1
         content = files[0].read_text(encoding="utf-8")
         assert "Agent A knows this" in content
+
+
+class TestSanitizePathsForSharing:
+    def test_unix_home_replaced(self) -> None:
+        text = "Edit /Users/bob/project/src/main.py"
+        result = sanitize_paths_for_sharing(text)
+        assert "/Users/bob/" not in result
+        assert "<USER>/" in result
+        assert "src/main.py" in result
+
+    def test_linux_home_replaced(self) -> None:
+        text = "File at /home/alice/work/config.yaml"
+        result = sanitize_paths_for_sharing(text)
+        assert "/home/alice/" not in result
+        assert "<USER>/" in result
+
+    def test_root_home_replaced(self) -> None:
+        text = "Path /root/scripts/deploy.sh"
+        result = sanitize_paths_for_sharing(text)
+        assert "/root/" not in result
+        assert "<USER>/" in result
+
+    def test_system_paths_preserved(self) -> None:
+        text = "Install to /usr/local/bin and /etc/nginx/conf.d"
+        result = sanitize_paths_for_sharing(text)
+        assert "/usr/local/bin" in result
+        assert "/etc/nginx/conf.d" in result
+
+    def test_windows_path_replaced(self) -> None:
+        text = r"File at C:\Users\john\Documents\file.txt"
+        result = sanitize_paths_for_sharing(text)
+        assert "john" not in result
+
+    def test_empty_input(self) -> None:
+        assert sanitize_paths_for_sharing("") == ""
+        assert sanitize_paths_for_sharing("no paths here") == "no paths here"
+
+    def test_multiple_paths(self) -> None:
+        text = "/Users/alice/a.py and /home/bob/b.py"
+        result = sanitize_paths_for_sharing(text)
+        assert "alice" not in result
+        assert "bob" not in result
+        assert result.count("<USER>/") == 2
+
+
+class TestExportRulesSafe:
+    @pytest.fixture
+    def mock_manager(self) -> AsyncMock:
+        manager = AsyncMock()
+        manager.export_all = AsyncMock(return_value={
+            "procedural": [
+                {
+                    "id": "rule_001",
+                    "content": "Use TypeScript strict mode",
+                    "trigger": "user writes JS in /Users/bob/project/",
+                    "action": "Suggest TypeScript",
+                    "scope": {"namespaces": ["agent_work"]},
+                    "access_count": 5,
+                    "user_rating": 4,
+                    "source_chat_id": "chat_abc",
+                },
+                {
+                    "id": "rule_002",
+                    "content": "Avoid peanuts",
+                    "trigger": "restaurant recommendation",
+                    "action": "Filter peanut dishes",
+                    "scope": {"namespaces": ["agent_life"]},
+                },
+                {
+                    "id": "rule_003",
+                    "content": "Old rule without scope",
+                    "trigger": "any",
+                    "action": "do something",
+                },
+            ],
+        })
+        return manager
+
+    @pytest.mark.asyncio
+    async def test_basic_export_all_rules(self, mock_manager: AsyncMock) -> None:
+        from myrm_agent_harness.toolkits.memory._manager.import_export import (
+            MemoryManagerImportExportMixin,
+        )
+        mixin = MemoryManagerImportExportMixin()
+        mixin.export_all = mock_manager.export_all  # type: ignore[assignment]
+
+        results = await mixin.export_rules_safe()
+        assert len(results) == 3
+        assert all("rendered" in r for r in results)
+
+    @pytest.mark.asyncio
+    async def test_agent_id_filter_excludes_no_scope(self, mock_manager: AsyncMock) -> None:
+        from myrm_agent_harness.toolkits.memory._manager.import_export import (
+            MemoryManagerImportExportMixin,
+        )
+        mixin = MemoryManagerImportExportMixin()
+        mixin.export_all = mock_manager.export_all  # type: ignore[assignment]
+
+        results = await mixin.export_rules_safe(agent_id="agent_work")
+        assert len(results) == 1
+        assert results[0]["id"] == "rule_001"
+
+    @pytest.mark.asyncio
+    async def test_rule_ids_filter(self, mock_manager: AsyncMock) -> None:
+        from myrm_agent_harness.toolkits.memory._manager.import_export import (
+            MemoryManagerImportExportMixin,
+        )
+        mixin = MemoryManagerImportExportMixin()
+        mixin.export_all = mock_manager.export_all  # type: ignore[assignment]
+
+        results = await mixin.export_rules_safe(rule_ids=["rule_002"])
+        assert len(results) == 1
+        assert results[0]["id"] == "rule_002"
+
+    @pytest.mark.asyncio
+    async def test_path_sanitization_applied(self, mock_manager: AsyncMock) -> None:
+        from myrm_agent_harness.toolkits.memory._manager.import_export import (
+            MemoryManagerImportExportMixin,
+        )
+        mixin = MemoryManagerImportExportMixin()
+        mixin.export_all = mock_manager.export_all  # type: ignore[assignment]
+
+        results = await mixin.export_rules_safe()
+        rule_001 = next(r for r in results if r["id"] == "rule_001")
+        assert "/Users/bob/" not in str(rule_001["rendered"])
+        assert "<USER>/" in str(rule_001["rendered"])
+
+    @pytest.mark.asyncio
+    async def test_personal_fields_stripped(self, mock_manager: AsyncMock) -> None:
+        from myrm_agent_harness.toolkits.memory._manager.import_export import (
+            MemoryManagerImportExportMixin,
+        )
+        mixin = MemoryManagerImportExportMixin()
+        mixin.export_all = mock_manager.export_all  # type: ignore[assignment]
+
+        results = await mixin.export_rules_safe(output_format="json")
+        rule_001_rendered = str(results[0]["rendered"])
+        assert "access_count" not in rule_001_rendered
+        assert "user_rating" not in rule_001_rendered
+        assert "source_chat_id" not in rule_001_rendered
+
+    @pytest.mark.asyncio
+    async def test_json_format(self, mock_manager: AsyncMock) -> None:
+        from myrm_agent_harness.toolkits.memory._manager.import_export import (
+            MemoryManagerImportExportMixin,
+        )
+        mixin = MemoryManagerImportExportMixin()
+        mixin.export_all = mock_manager.export_all  # type: ignore[assignment]
+
+        results = await mixin.export_rules_safe(output_format="json")
+        import json
+        parsed = json.loads(str(results[0]["rendered"]))
+        assert "content" in parsed
