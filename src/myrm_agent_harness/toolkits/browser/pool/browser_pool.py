@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
 import logging
 import os
 import sys
@@ -556,6 +557,20 @@ class GlobalBrowserPool(CrashWatchdogMixin):
     def config(self) -> BrowserPoolConfig:
         """Get browser pool configuration."""
         return self._config
+
+    async def update_remote_endpoint(self, ws_url: str | None, headers: dict[str, str] | None = None) -> None:
+        """Hot-reload remote WebSocket endpoint without restarting the pool.
+
+        Replaces the frozen config with a new instance and evicts any cached REMOTE launcher
+        so the next acquire_page(..., launch_mode_preference=REMOTE) picks up the new endpoint.
+        """
+        async with self._lock:
+            self._config = dataclasses.replace(self._config, remote_ws_endpoint=ws_url, remote_ws_headers=headers)
+            stale_keys = [k for k in self._launchers if k[1] == LaunchMode.REMOTE]
+            for key in stale_keys:
+                launcher = self._launchers.pop(key)
+                await launcher.shutdown()
+        logger.info("Remote endpoint updated: %s", "configured" if ws_url else "cleared")
 
     @property
     def throttle_strategy(self) -> ThrottleStrategy:
