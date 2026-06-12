@@ -40,6 +40,7 @@ class HookEvent(StrEnum):
     USER_TURN = "user_turn"
     TRACE_SLICE_READY = "trace_slice_ready"
     SKILL_LEARNED = "skill_learned"
+    APPROVAL_CORRECTION = "approval_correction"
 
 
 # ---------------------------------------------------------------------------
@@ -257,6 +258,19 @@ class SkillLearnedPayload:
     skill_description: str
     agent_id: str | None = None
     is_global: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ApprovalCorrectionPayload:
+    """Payload emitted when user edits/rejects tool calls in the approval flow.
+
+    Each correction carries the tool name, decision type, original args,
+    and revised args (for edits) so downstream hooks can learn from the signal.
+    """
+
+    session_id: str
+    corrections: tuple[dict[str, object], ...]
+    agent_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

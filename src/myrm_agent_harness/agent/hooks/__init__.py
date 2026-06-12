@@ -31,6 +31,7 @@ from myrm_agent_harness.agent.hooks.skill_parser import parse_hooks_from_skill_m
 from myrm_agent_harness.agent.hooks.types import (
     EMPTY_RESULT,
     AggregatedHookResult,
+    ApprovalCorrectionPayload,
     CallableHookDefinition,
     CommandHookDefinition,
     HookCallable,
@@ -55,6 +56,7 @@ __all__ = [
     "EMPTY_RESULT",
     "HOOK_OUTPUT_TOKEN_LIMIT",
     "AggregatedHookResult",
+    "ApprovalCorrectionPayload",
     "CallableHookDefinition",
     "CommandHookDefinition",
     "HookCallable",

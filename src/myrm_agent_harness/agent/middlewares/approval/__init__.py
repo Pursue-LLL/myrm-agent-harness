@@ -21,6 +21,7 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     set_workspace_root,
 )
 from myrm_agent_harness.agent.middlewares.approval.batch_processor import register_security_reviewer
+from myrm_agent_harness.agent.middlewares.approval.correction_learning import CorrectionLearningHook
 from myrm_agent_harness.agent.middlewares.approval.helpers import (
     ThresholdBreach,
     add_to_allowlist_if_needed,
@@ -34,6 +35,7 @@ from myrm_agent_harness.agent.middlewares.approval.rate_limiter import ApprovalR
 
 __all__ = [
     "ApprovalRateLimiter",
+    "CorrectionLearningHook",
     "ThresholdBreach",
     "ToolApprovalMiddleware",
     "add_to_allowlist_if_needed",

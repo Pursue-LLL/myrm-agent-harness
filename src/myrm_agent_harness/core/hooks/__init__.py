@@ -7,6 +7,7 @@ The hook *executor* (runtime) remains in ``agent.hooks``.
 from myrm_agent_harness.core.hooks.types import (
     EMPTY_RESULT,
     AggregatedHookResult,
+    ApprovalCorrectionPayload,
     CallableHookDefinition,
     CommandHookDefinition,
     HookCallable,
@@ -32,6 +33,7 @@ from myrm_agent_harness.core.hooks.types import (
 __all__ = [
     "EMPTY_RESULT",
     "AggregatedHookResult",
+    "ApprovalCorrectionPayload",
     "CallableHookDefinition",
     "CommandHookDefinition",
     "HookCallable",

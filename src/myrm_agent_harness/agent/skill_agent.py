@@ -518,6 +518,20 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
         if evo is not None:
             evo.register_hooks(registry)
 
+        # Register HITL correction learning hook (converts approval edits/rejects into memory)
+        from myrm_agent_harness.agent.hooks.types import CallableHookDefinition, HookEvent
+        from myrm_agent_harness.agent.middlewares.approval.correction_learning import CorrectionLearningHook
+
+        if not any(
+            getattr(h, "fn", None) and getattr(h.fn, "__name__", "") == "on_approval_correction"
+            for h in registry._hooks.get(HookEvent.APPROVAL_CORRECTION, [])
+        ):
+            correction_hook = CorrectionLearningHook()
+            registry.register(
+                HookEvent.APPROVAL_CORRECTION,
+                CallableHookDefinition(fn=correction_hook.on_approval_correction),
+            )
+
         if skill and skill.hooks:
             logger.info("Hooks activated: %s (%d hooks)", skill.name, registry.total_count)
         else:

@@ -256,11 +256,81 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
             config=config,
         )
 
+        # Fire APPROVAL_CORRECTION hook for edit/reject decisions so memory system can learn
+        await self._fire_correction_hook(decisions, pending_approval, last_ai_msg, session_key)
+
         last_ai_msg.tool_calls = revised_tool_calls
         result_messages: list = [last_ai_msg, *artificial_tool_messages]
         if guidance_messages:
             result_messages.extend(guidance_messages)
         return {"messages": result_messages}
+
+    @staticmethod
+    async def _fire_correction_hook(
+        decisions: list[dict[str, Any]],
+        pending_approval: list,
+        last_ai_msg: AIMessage,
+        session_key: str,
+    ) -> None:
+        """Fire APPROVAL_CORRECTION hook for edit/reject decisions.
+
+        Also emits a CORRECTION_LEARNED SSE event so the frontend can show feedback.
+        """
+        corrections: list[dict[str, object]] = []
+
+        for i, decision in enumerate(decisions):
+            if i >= len(pending_approval):
+                break
+            decision_type = decision.get("type", "")
+            if decision_type not in ("edit", "reject"):
+                continue
+
+            idx, tool_call, _perm_type, _reason, _ = pending_approval[i]
+            tool_name = tool_call.get("name", "unknown")
+            original_args = dict(tool_call.get("args", {})) if isinstance(tool_call.get("args"), dict) else {}
+
+            correction: dict[str, object] = {
+                "tool_name": tool_name,
+                "decision_type": decision_type,
+                "feedback": decision.get("feedback", ""),
+            }
+
+            if decision_type == "edit":
+                edited_args = decision.get("args")
+                correction["original_args"] = original_args
+                correction["edited_args"] = dict(edited_args) if isinstance(edited_args, dict) else original_args
+            else:
+                correction["original_args"] = original_args
+                correction["edited_args"] = None
+
+            corrections.append(correction)
+
+        if not corrections:
+            return
+
+        try:
+            from myrm_agent_harness.agent.hooks import fire_hook
+            from myrm_agent_harness.core.hooks.types import HookEvent
+
+            result = await fire_hook(
+                HookEvent.APPROVAL_CORRECTION,
+                {"session_id": session_key, "corrections": tuple(corrections)},
+            )
+
+            # Emit SSE event with learning summaries for frontend toast
+            summaries = [r.output for r in result.results if r.output] if result.results else []
+            if summaries:
+                try:
+                    from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
+                    await dispatch_custom_event(
+                        "correction_learned",
+                        {"summaries": summaries, "session_id": session_key},
+                    )
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning("[APPROVAL] Failed to fire correction hook: %s", e)
 
     def _fallback_auto_deny(
         self, last_ai_msg: AIMessage, pending_approval: list, auto_denied: list, session_key: str
