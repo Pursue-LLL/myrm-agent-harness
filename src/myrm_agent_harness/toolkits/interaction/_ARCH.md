@@ -3,7 +3,7 @@
 
 ## 架构概述
 
-`Interaction Toolkit` 提供 Agent 与人类用户进行结构化交互（表单澄清、UI 渲染、剪贴板等）的基础工具。该模块与具体的业务逻辑解耦，通过回调机制（Callback）或 UIArtifact 系统允许上层调用者注入自定义逻辑。
+`Interaction Toolkit` 提供 Agent 与人类用户进行结构化交互（表单澄清、剪贴板等）的基础工具。声明式 UI 渲染（`render_ui_tool`）在 harness `agent/meta_tools/interaction/`（依赖 artifact 上下文）。
 
 ## 文件清单
 
