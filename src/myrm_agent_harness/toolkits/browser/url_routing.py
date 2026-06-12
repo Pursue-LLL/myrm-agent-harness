@@ -91,9 +91,13 @@ def _is_private_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     Explicitly enumerates target ranges instead of relying on `ip.is_private`
     which includes benchmark (198.18/15) and documentation (192.0.2/24) ranges
     that may appear as valid DNS results in VPN/proxy environments.
+    Also handles IPv4-mapped IPv6 addresses (::ffff:x.x.x.x).
     """
     if isinstance(ip, ipaddress.IPv4Address):
         return any(ip in net for net in _PRIVATE_IPV4_NETWORKS)
+    mapped = ip.ipv4_mapped
+    if mapped is not None:
+        return any(mapped in net for net in _PRIVATE_IPV4_NETWORKS)
     return any(ip in net for net in _PRIVATE_IPV6_NETWORKS)
 
 

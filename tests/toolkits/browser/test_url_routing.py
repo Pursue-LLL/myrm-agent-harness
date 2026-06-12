@@ -150,6 +150,39 @@ class TestIsPrivateUrl:
         ):
             assert is_private_url("http://any.url") is False
 
+    def test_case_insensitive(self) -> None:
+        assert is_private_url("http://LOCALHOST:3000") is True
+        assert is_private_url("http://Service.Internal:5000") is True
+
+    def test_trailing_dot_fqdn(self) -> None:
+        assert is_private_url("http://localhost.") is True
+
+    def test_url_with_auth(self) -> None:
+        assert is_private_url("http://user:pass@localhost:3000/api") is True
+        assert is_private_url("http://user:pass@google.com/api") is False
+
+    def test_url_with_path_query_fragment(self) -> None:
+        assert is_private_url("http://192.168.1.1/admin?page=1#section") is True
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://[::ffff:127.0.0.1]:8080",
+            "http://[::ffff:192.168.1.1]:8080",
+            "http://[::ffff:10.0.0.1]:9090",
+        ],
+    )
+    def test_ipv4_mapped_ipv6(self, url: str) -> None:
+        """IPv4-mapped IPv6 addresses should be detected as private."""
+        assert is_private_url(url) is True
+
+    def test_non_http_scheme_still_detects(self) -> None:
+        assert is_private_url("ftp://localhost") is True
+        assert is_private_url("ws://192.168.1.1:8080") is True
+
+    def test_invalid_ip_like_hostname(self) -> None:
+        assert is_private_url("http://999.999.999.999") is False
+
 
 class TestIsPrivateIp:
     """Test _is_private_ip() helper directly."""
@@ -187,6 +220,19 @@ class TestIsPrivateIp:
         import ipaddress
 
         assert _is_private_ip(ipaddress.ip_address("2001:4860:4860::8888")) is False
+
+    def test_ipv4_mapped_private(self) -> None:
+        import ipaddress
+
+        assert _is_private_ip(ipaddress.ip_address("::ffff:127.0.0.1")) is True
+        assert _is_private_ip(ipaddress.ip_address("::ffff:192.168.1.1")) is True
+        assert _is_private_ip(ipaddress.ip_address("::ffff:10.0.0.1")) is True
+
+    def test_ipv4_mapped_public(self) -> None:
+        import ipaddress
+
+        assert _is_private_ip(ipaddress.ip_address("::ffff:8.8.8.8")) is False
+        assert _is_private_ip(ipaddress.ip_address("::ffff:198.18.1.1")) is False
 
 
 class TestResolveIsPrivate:
