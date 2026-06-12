@@ -461,6 +461,8 @@ class MemoryManagerImportExportMixin:
                     ns_list = scope.get("namespaces", [])
                     if not any(agent_id in str(ns) for ns in ns_list):
                         continue
+                else:
+                    continue
 
             sanitized = {
                 k: v for k, v in entry.items()
