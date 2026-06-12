@@ -92,6 +92,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.browser.captcha.protocols import CaptchaSolver
     from myrm_agent_harness.toolkits.browser.domain_filter import DomainAllowlist
     from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
+    from myrm_agent_harness.toolkits.browser.pool.extension_bridge import ExtensionBridge
     from myrm_agent_harness.toolkits.browser.session_vault import SessionVault
     from myrm_agent_harness.toolkits.browser.snapshot import RefInfo
 
@@ -132,6 +133,7 @@ class BrowserSession(
         captcha_solver: CaptchaSolver | None = None,
         content_vault: ContentVault | None = None,
         vision_llm: BaseChatModel | None = None,
+        extension_bridge: ExtensionBridge | None = None,
         *,
         allow_private_networks: bool = False,
         engine_preference: str | None = None,
@@ -154,6 +156,7 @@ class BrowserSession(
             captcha_solver: CAPTCHA solver
             content_vault: Content vault for storing downloads/screenshots
             vision_llm: Vision LLM for visual tasks
+            extension_bridge: Extension bridge for private URL fallback in sandbox mode
             allow_private_networks: Allow navigation to private networks
             engine_preference: Preferred browser engine (e.g. 'chromium_patchright', 'firefox_camoufox').
             launch_mode_preference: Per-agent launch mode override (e.g. 'extension' to use user's real browser).
@@ -180,6 +183,7 @@ class BrowserSession(
         self._observability = observability
         self._debug_mode = debug_mode
         self._allow_private_networks = allow_private_networks
+        self._extension_bridge = extension_bridge
         self._auto_restore_domains = auto_restore_domains or []
         self._auto_restored = False
 
@@ -264,6 +268,13 @@ class BrowserSession(
         await self._ensure_components()
 
         from myrm_agent_harness.toolkits.browser.utils.proxy_error import is_blocked_response, is_proxy_error
+
+        if not self._allow_private_networks and self._extension_bridge is not None:
+            from myrm_agent_harness.toolkits.browser.url_routing import is_private_url
+
+            is_private = await asyncio.to_thread(is_private_url, url)
+            if is_private:
+                return await self._navigate_via_extension(url, verify_goal=verify_goal)
 
         # Engine affinity: use remembered engine for this domain if available
         if self._engine_preference is None:
@@ -399,6 +410,69 @@ class BrowserSession(
             result = f"{result}\n\n{verify_msg}"
 
         return result
+
+    async def _navigate_via_extension(self, url: str, *, verify_goal: str | None = None) -> str:
+        """Navigate to a private URL via the Extension Bridge (user's local browser).
+
+        Called when a private URL is detected and extension_bridge is available.
+        Falls back to a descriptive ToolError if the bridge is disconnected.
+        """
+        from urllib.parse import urlparse
+
+        from myrm_agent_harness.toolkits.browser.pool.extension_bridge import ExtensionBridgeNotAvailable
+        from myrm_agent_harness.utils.errors import ToolError
+
+        assert self._extension_bridge is not None  # noqa: S101 — guaranteed by caller
+
+        if not self._extension_bridge.is_connected():
+            raise ToolError(
+                message=f"Cannot navigate to private URL '{url}': browser extension is not connected.",
+                user_hint=(
+                    "This URL points to a private/local network address that is unreachable from "
+                    "the cloud sandbox. Install and connect the browser extension to access local services."
+                ),
+                error_code="PRIVATE_URL_NO_EXTENSION",
+                recovery_suggestions=[
+                    "Ask the user to install the browser extension and connect it",
+                    "Alternatively, use a publicly accessible URL",
+                ],
+            )
+
+        domain = urlparse(url).hostname or ""
+        try:
+            instance = await self._extension_bridge.connect_to_domain(domain, timeout=15.0)
+        except ExtensionBridgeNotAvailable:
+            raise ToolError(
+                message=f"Extension bridge lost connection while navigating to '{url}'.",
+                user_hint="The browser extension disconnected. Please reconnect it and retry.",
+                error_code="PRIVATE_URL_EXTENSION_LOST",
+                recovery_suggestions=["Retry navigation after extension reconnects"],
+            )
+
+        browser = instance.browser
+        contexts = browser.contexts
+        if not contexts:
+            raise ToolError(
+                message=f"Extension bridge returned browser with no contexts for '{url}'.",
+                user_hint="The extension-connected browser has no usable context. Reconnect and retry.",
+                error_code="PRIVATE_URL_NO_CONTEXT",
+            )
+        pages = contexts[0].pages
+        page = pages[0] if pages else await contexts[0].new_page()
+
+        try:
+            response = await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+            title = await page.title()
+            final_url = page.url
+            status_code = response.status if response else 0
+        except Exception as exc:
+            raise ToolError(
+                message=f"Navigation to private URL '{url}' via extension failed: {exc}",
+                user_hint="The private URL may be unreachable from the user's browser as well.",
+                error_code="PRIVATE_URL_NAV_FAILED",
+            ) from exc
+
+        return f"Navigated to {final_url} (status={status_code}, title={title}) [via extension bridge — private network]"
 
     async def _handle_captcha_if_detected(self) -> str | None:
         """Detect and handle blocking CAPTCHAs on the current page.

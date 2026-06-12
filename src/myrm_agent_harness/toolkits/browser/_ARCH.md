@@ -26,6 +26,7 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 | session_vault.py | Core | Encrypted session storage module for the browser toolkit. Called by BrowserSession's | ✅ |
 | session_vault_exceptions.py | Core | Exception type definitions for SessionVault. Provides fine-grained error classification | ✅ |
 | session_vault_types.py | Config | Data types for SessionVault module. | ✅ |
+| url_routing.py | Core | URL routing for hybrid private/public network navigation. Detects private URLs for Extension Bridge fallback in sandbox mode. | ✅ |
 | wait_strategies.py | Core | Page wait strategy module. Provides 5 wait strategies (including SPA_STABLE): | ✅ |
 
 | Submodule | Description |

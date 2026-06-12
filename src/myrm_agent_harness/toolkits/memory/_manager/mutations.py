@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
+from myrm_agent_harness.toolkits.memory._internal.scope import validate_namespaces
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     UTC,
     AnyMemory,
@@ -11,6 +12,7 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     EpisodicMemory,
     MemoryError,
     MemoryNotFoundError,
+    MemoryScope,
     MemoryStatus,
     ProceduralMemory,
     SemanticMemory,
@@ -177,12 +179,29 @@ class MemoryManagerMutationsMixin:
         status: MemoryStatus | None = None,
         reasoning: str | None = None,
         application: str | None = None,
+        namespaces: list[str] | None = None,
     ) -> AnyMemory:
         existing = await self.get_memory(memory_id)
         if existing is None:
             raise MemoryNotFoundError(f"Memory {memory_id} not found")
 
         updated = existing.model_copy(deep=True)
+
+        if namespaces is not None:
+            validated = validate_namespaces(namespaces)
+            primary = next(
+                (ns for ns in reversed(validated) if not ns.startswith("shared:")),
+                validated[0],
+            )
+            updated.scope = MemoryScope(
+                primary_namespace=primary,
+                namespaces=validated,
+                agent_id=updated.scope.agent_id,
+                channel_id=updated.scope.channel_id,
+                conversation_id=updated.scope.conversation_id,
+                task_id=updated.scope.task_id,
+            )
+
         content_changed = content is not None
         if content_changed:
             updated.metadata = {
