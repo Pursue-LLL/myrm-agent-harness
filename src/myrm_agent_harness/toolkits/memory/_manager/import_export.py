@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Callable
 from datetime import datetime
@@ -14,6 +15,28 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     SemanticMemory,
     logger,
 )
+
+# ── Path sanitization for safe sharing ─────────────────────────────
+
+_HOME_DIR_UNIX_RE = re.compile(r"(?:/Users/|/home/|/root/)[^\s/\"']+/")
+_HOME_DIR_WIN_RE = re.compile(r"[A-Z]:\\Users\\[^\s\\\"']+\\")
+
+_PERSONAL_FIELDS_TO_STRIP = frozenset({
+    "access_count", "user_rating", "source_chat_id",
+})
+
+
+def sanitize_paths_for_sharing(text: str) -> str:
+    """Replace home directory paths with generic <USER>/ placeholder.
+
+    Only targets user home directories (/Users/xxx/, /home/xxx/, C:\\Users\\xxx\\).
+    System paths (/usr/, /etc/, /opt/) are intentionally preserved.
+    """
+    if not text:
+        return text
+    text = _HOME_DIR_UNIX_RE.sub("<USER>/", text)
+    text = _HOME_DIR_WIN_RE.sub("<USER>\\\\", text)
+    return text
 
 
 def _sanitize_filename(text: str, max_len: int = 60) -> str:
@@ -319,6 +342,7 @@ class MemoryManagerImportExportMixin:
         *,
         since_ts: datetime | None = None,
         agent_id: str | None = None,
+        memory_types: list[MemoryType] | None = None,
     ) -> dict[str, int]:
         """Export memories as Markdown files organized by type.
 
@@ -329,6 +353,7 @@ class MemoryManagerImportExportMixin:
             target_dir: Root directory for exported files.
             since_ts: Only export memories created/updated after this timestamp.
             agent_id: Only export memories belonging to this agent (via scope).
+            memory_types: Only export these memory types. None = all types.
 
         Returns:
             Dict with export counts per memory type.
@@ -337,8 +362,11 @@ class MemoryManagerImportExportMixin:
         counts: dict[str, int] = {}
 
         data = await self.export_all()
+        allowed_types = {t.value for t in memory_types} if memory_types else None
 
         for type_name, entries in data.items():
+            if allowed_types and type_name not in allowed_types:
+                continue
             type_dir = target / type_name
             type_dir.mkdir(parents=True, exist_ok=True)
 
@@ -393,6 +421,67 @@ class MemoryManagerImportExportMixin:
             counts[type_name] = exported
 
         return counts
+
+    async def export_rules_safe(
+        self,
+        *,
+        agent_id: str | None = None,
+        rule_ids: list[str] | None = None,
+        output_format: str = "markdown",
+    ) -> list[dict[str, object]]:
+        """Export ProceduralMemory rules with privacy sanitization for safe sharing.
+
+        Applies path anonymization and credential redaction, strips personal
+        metadata fields (access_count, user_rating, source_chat_id).
+
+        Args:
+            agent_id: Only export rules belonging to this agent.
+            rule_ids: Only export these specific rule IDs. None = all rules.
+            output_format: "markdown" or "json".
+
+        Returns:
+            List of sanitized rule dicts (each with "id", "content", and
+            "rendered" key containing the final markdown/json string).
+        """
+        from myrm_agent_harness.core.security.redact import redact_sensitive_text
+
+        data = await self.export_all()
+        procedural_entries = data.get(MemoryType.PROCEDURAL.value, [])
+
+        results: list[dict[str, object]] = []
+        for entry in procedural_entries:
+            mem_id = str(entry.get("id", ""))
+
+            if rule_ids and mem_id not in rule_ids:
+                continue
+
+            if agent_id:
+                scope = entry.get("scope")
+                if isinstance(scope, dict):
+                    ns_list = scope.get("namespaces", [])
+                    if not any(agent_id in str(ns) for ns in ns_list):
+                        continue
+
+            sanitized = {
+                k: v for k, v in entry.items()
+                if k not in _PERSONAL_FIELDS_TO_STRIP and k != "embedding"
+            }
+
+            for field in ("content", "trigger", "action", "reasoning", "application"):
+                val = sanitized.get(field)
+                if isinstance(val, str) and val:
+                    sanitized[field] = sanitize_paths_for_sharing(
+                        redact_sensitive_text(val)
+                    )
+
+            if output_format == "json":
+                rendered = json.dumps(sanitized, ensure_ascii=False, indent=2)
+            else:
+                rendered = _memory_to_markdown(sanitized, "procedural")
+
+            results.append({"id": mem_id, "content": str(sanitized.get("content", "")), "rendered": rendered})
+
+        return results
 
     async def export_all(self) -> dict[str, list[dict[str, object]]]:
         """Export all memories as serializable dicts (excludes embeddings for portability).
