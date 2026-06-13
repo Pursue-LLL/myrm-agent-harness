@@ -184,11 +184,12 @@ class SubagentControlMixin:
         configs: list[tuple[str, SubagentConfig, str]],
         context: dict[str, object],
         tool_registry_getter: Callable[[], list[BaseTool]],
+        cancel_token: object | None = None,
     ) -> SubAgentResult:
         """Execute subagents in chain: A -> B -> C, each receiving previous result."""
         from .orchestrator import run_chain
 
-        return await run_chain(self, configs, context, tool_registry_getter)
+        return await run_chain(self, configs, context, tool_registry_getter, cancel_token=cancel_token)
 
     async def run_with_verification(
         self,

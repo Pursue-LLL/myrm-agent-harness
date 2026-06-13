@@ -36,6 +36,8 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from ._orchestrator_verification import VerificationVerdict, run_with_verification
 
 if TYPE_CHECKING:
+    from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
+
     from .manager import SubagentManager, SubagentTask
 
 logger = get_agent_logger(__name__)
@@ -47,6 +49,8 @@ async def execute_dag_plan(
     context: dict[str, object],
     tool_registry_getter: Callable[[], list[BaseTool]],
     max_concurrent: int = 3,
+    cancel_token: CancellationToken | None = None,
+    progress_sink: Callable[[str, str, str], None] | None = None,
 ) -> dict[str, object]:
     """Execute a Plan using DAG concurrency.
 
@@ -56,6 +60,9 @@ async def execute_dag_plan(
         context: Shared execution context.
         tool_registry_getter: Tool provider callable.
         max_concurrent: Maximum number of concurrent subagents.
+        cancel_token: Propagated to each spawned child for user-initiated cancellation.
+        progress_sink: Optional callback(step_id, status, message) for real-time
+            progress reporting (e.g. SSE events). Called on step start/complete/fail.
 
     Returns:
         Dict with success, results, and the updated plan.
@@ -89,6 +96,14 @@ async def execute_dag_plan(
             step_id = getattr(step, "step_id", "")
             desc = getattr(step, "description", "")
             expected = getattr(step, "expected_output", "")
+
+            if cancel_token and cancel_token.is_cancelled:
+                logger.info("[DAG] Step %s skipped (cancelled)", step_id)
+                running_tasks.discard(step_id)
+                return
+
+            if progress_sink:
+                progress_sink(step_id, "in_progress", f"Starting: {desc}")
             logger.info(f"[DAG] Starting step {step_id}: {desc}")
 
             # Prepare context with previous results based on dependencies
@@ -127,15 +142,17 @@ async def execute_dag_plan(
             for attempt in range(max_node_retries):
                 try:
                     # Add timeout protection for each step
+                    step_agent_type = getattr(step, "agent_type", None) or "general"
                     async with asyncio.timeout(300):
                         result = await manager.spawn_child(
                             task_id=f"dag-{step_id}",
-                            agent_type="general",
+                            agent_type=step_agent_type,
                             task_description=f"Execute step: {desc}\nExpected output: {expected}",
                             config=config,
                             context=step_context,
                             tool_registry_getter=tool_registry_getter,
                             wait=True,
+                            cancel_token=cancel_token,
                             resume_command=resume_cmd,
                         )
 
@@ -220,12 +237,15 @@ async def execute_dag_plan(
                 elif result.success:
                     if hasattr(plan, "mark_step_completed"):
                         plan.mark_step_completed(step_id)
-                    # Clean up checkpoint if it was successfully resumed
                     yielded_checkpoints.pop(step_id, None)
+                    if progress_sink:
+                        progress_sink(step_id, "success", f"Completed: {desc}")
                     logger.info(f"[DAG] Completed step {step_id}")
                 else:
                     if hasattr(plan, "add_error"):
                         plan.add_error("DAGExecutionError", result.error, step_id=step_id)
+                    if progress_sink:
+                        progress_sink(step_id, "error", f"Failed: {result.error}")
                     logger.error(f"[DAG] Failed step {step_id}: {result.error}")
 
             running_tasks.remove(step_id)
@@ -234,6 +254,10 @@ async def execute_dag_plan(
     try:
         async with asyncio.TaskGroup() as tg:
             while True:
+                if cancel_token and cancel_token.is_cancelled:
+                    logger.info("[DAG] Cancelled by user, stopping new steps")
+                    break
+
                 ready_steps = []
                 if hasattr(plan, "get_ready_steps"):
                     ready_steps = plan.get_ready_steps()
@@ -298,6 +322,7 @@ async def run_chain(
     configs: list[tuple[str, SubagentConfig, str]],
     context: dict[str, object],
     tool_registry_getter: Callable[[], list[BaseTool]],
+    cancel_token: CancellationToken | None = None,
 ) -> SubAgentResult:
     """Execute subagents in chain: A -> B -> C, each receiving previous result.
 
@@ -307,6 +332,7 @@ async def run_chain(
                  task_template may contain {previous} placeholder.
         context: Shared context.
         tool_registry_getter: Tool provider.
+        cancel_token: Propagated to each spawned child for user-initiated cancellation.
 
     Returns:
         Final SubAgentResult from the last step.
@@ -322,6 +348,17 @@ async def run_chain(
     )
 
     for idx, (agent_type, config, task_template) in enumerate(configs):
+        if cancel_token and cancel_token.is_cancelled:
+            last_result = SubAgentResult(
+                success=False,
+                task_id=f"chain-{idx}-{agent_type}",
+                agent_type=agent_type,
+                error="Chain cancelled by user",
+                completed_at=time.time(),
+                status=SubAgentStatus.CANCELLED,
+            )
+            return last_result
+
         task_id = f"chain-{idx}-{agent_type}"
         task_desc = task_template.replace("{previous}", previous_result)
 
@@ -333,6 +370,7 @@ async def run_chain(
             context=context,
             tool_registry_getter=tool_registry_getter,
             wait=True,
+            cancel_token=cancel_token,
         )
         if isinstance(last_result, dict):
             last_result = SubAgentResult(
