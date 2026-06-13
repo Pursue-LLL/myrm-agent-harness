@@ -42,6 +42,15 @@ _CODE_BLOCK_RE = re.compile(r"```[\s\S]*?```")
 _INLINE_CODE_RE = re.compile(r"`[^`]+`")
 _MATH_RE = re.compile(r"\\(?:frac|sum|int|sqrt|lim|infty|partial|nabla|theta|alpha|beta|gamma)")
 _LATEX_BLOCK_RE = re.compile(r"\$\$.+?\$\$|\\\[.+?\\\]", re.DOTALL)
+_TRACEBACK_RE = re.compile(
+    r"Traceback \(most recent call last\)|"
+    r"(?:File\s+\".+?\",\s+line\s+\d+)|"
+    r"(?:(?:TypeError|ValueError|KeyError|AttributeError|ImportError|RuntimeError"
+    r"|IndexError|NameError|FileNotFoundError|PermissionError|OSError"
+    r"|ConnectionError|TimeoutError|ModuleNotFoundError|ZeroDivisionError"
+    r"|StopIteration|AssertionError|NotImplementedError|RecursionError"
+    r"|SyntaxError|IndentationError):\s+.+)"
+)
 
 DEFAULT_STANDARD_KEYWORDS: frozenset[str] = frozenset(
     {
@@ -76,6 +85,17 @@ DEFAULT_STANDARD_KEYWORDS: frozenset[str] = frozenset(
         "中间件",
         "authentication",
         "authorization",
+        "error",
+        "bug",
+        "exception",
+        "traceback",
+        "报错",
+        "failed",
+        "失败",
+        "production",
+        "生产",
+        "rollback",
+        "回滚",
     }
 )
 
@@ -94,7 +114,7 @@ DEFAULT_REASONING_KEYWORDS: frozenset[str] = frozenset(
         "corollary",
         "推论",
         "calculate",
-        "Compute",
+        "compute",
         "equation",
         "方程",
         "step by step",
@@ -111,6 +131,10 @@ DEFAULT_REASONING_KEYWORDS: frozenset[str] = frozenset(
         "复杂度分析",
         "formal verification",
         "形式化验证",
+        "root cause",
+        "根因",
+        "architecture design",
+        "架构设计",
     }
 )
 
@@ -276,7 +300,6 @@ def _build_weighted_keywords(
 
 _URL_RE = re.compile(r"https?://\S+")
 _FILE_PATH_RE = re.compile(r"(?:/[\w.-]+){2,}|[\w.-]+\.(?:py|js|ts|java|go|rs|cpp|c|h)")
-_EMAIL_RE = re.compile(r"[\w.-]+@[\w.-]+\.\w+")
 
 
 def _score_structural_signals(text: str) -> dict[str, float]:
@@ -416,6 +439,10 @@ def _compute_unified_score(
     # --- Code signal ---
     if _has_code_content(text):
         scores[RoutingTier.STANDARD] += 2.0
+
+    # --- Traceback / stack-trace pattern signal ---
+    if _TRACEBACK_RE.search(text):
+        scores[RoutingTier.STANDARD] += 3.0
 
     # --- Structural signals (MR-16) ---
     structural = _score_structural_signals(text)

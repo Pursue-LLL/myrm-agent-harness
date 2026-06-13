@@ -19,6 +19,7 @@ from myrm_agent_harness.toolkits.llms.routing.complexity_router import (
     DEFAULT_REASONING_KEYWORDS,
     DEFAULT_SIMPLE_INDICATORS,
     DEFAULT_STANDARD_KEYWORDS,
+    _TRACEBACK_RE,
     PenaltyTracker,
     RoutingResult,
     RoutingTier,
@@ -162,6 +163,40 @@ class TestHasKeywords:
     def test_no_match(self):
         assert _has_keywords("hello world", DEFAULT_STANDARD_KEYWORDS) is False
 
+    def test_new_standard_keywords(self):
+        for kw in ("error", "bug", "exception", "traceback", "报错", "failed", "失败", "production", "生产", "rollback", "回滚"):
+            assert _has_keywords(f"this has {kw} inside", DEFAULT_STANDARD_KEYWORDS) is True, f"missed: {kw}"
+
+    def test_new_reasoning_keywords(self):
+        assert _has_keywords("do a root cause analysis", DEFAULT_REASONING_KEYWORDS) is True
+        assert _has_keywords("找到根因", DEFAULT_REASONING_KEYWORDS) is True
+        assert _has_keywords("architecture design review", DEFAULT_REASONING_KEYWORDS) is True
+        assert _has_keywords("做架构设计", DEFAULT_REASONING_KEYWORDS) is True
+
+
+class TestTracebackPattern:
+    def test_python_traceback_header(self):
+        text = 'Traceback (most recent call last):\n  File "main.py", line 42'
+        assert _TRACEBACK_RE.search(text) is not None
+
+    def test_file_line_pattern(self):
+        text = '  File "/app/server.py", line 123, in process'
+        assert _TRACEBACK_RE.search(text) is not None
+
+    def test_typed_exception(self):
+        for exc in ("TypeError", "ValueError", "KeyError", "AttributeError", "ImportError", "RuntimeError"):
+            text = f"{exc}: some error message here"
+            assert _TRACEBACK_RE.search(text) is not None, f"missed: {exc}"
+
+    def test_syntax_and_indentation_error(self):
+        assert _TRACEBACK_RE.search("SyntaxError: invalid syntax") is not None
+        assert _TRACEBACK_RE.search("SyntaxError: unexpected EOF while parsing") is not None
+        assert _TRACEBACK_RE.search("IndentationError: unexpected indent") is not None
+        assert _TRACEBACK_RE.search("IndentationError: expected an indented block after") is not None
+
+    def test_no_traceback(self):
+        assert _TRACEBACK_RE.search("just a normal message") is None
+
 
 # ────────────────────── Structural signals ──────────────────────
 
@@ -206,6 +241,10 @@ class TestContextualSignals:
     def test_large_repetition(self):
         scores = _score_contextual_signals("give me 20 examples", has_image=False, word_count=5)
         assert scores["repetition_request"] == 0.9
+
+    def test_small_repetition(self):
+        scores = _score_contextual_signals("give me 2 variations", has_image=False, word_count=5)
+        assert scores["repetition_request"] == 0.3
 
     def test_no_signals(self):
         scores = _score_contextual_signals("short text", has_image=False, word_count=2)
@@ -297,6 +336,73 @@ class TestUnifiedScoring:
         )
         assert scores[RoutingTier.REASONING] > 0
 
+    def test_traceback_boosts_standard(self):
+        text = (
+            'Traceback (most recent call last):\n'
+            '  File "main.py", line 42, in <module>\n'
+            '    result = process(data)\n'
+            'ValueError: Invalid input'
+        )
+        scores = _compute_unified_score(
+            text,
+            has_image=False,
+            standard_keywords=DEFAULT_STANDARD_KEYWORDS,
+            reasoning_keywords=DEFAULT_REASONING_KEYWORDS,
+            simple_indicators=DEFAULT_SIMPLE_INDICATORS,
+        )
+        assert scores[RoutingTier.STANDARD] >= 3.0
+
+    def test_error_keyword_scores_standard(self):
+        scores = _compute_unified_score(
+            "生产环境有个bug，用户登录后报500错误",
+            has_image=False,
+            standard_keywords=DEFAULT_STANDARD_KEYWORDS,
+            reasoning_keywords=DEFAULT_REASONING_KEYWORDS,
+            simple_indicators=DEFAULT_SIMPLE_INDICATORS,
+        )
+        assert scores[RoutingTier.STANDARD] >= 1.5
+
+    def test_root_cause_scores_reasoning(self):
+        scores = _compute_unified_score(
+            "帮我做个root cause分析",
+            has_image=False,
+            standard_keywords=DEFAULT_STANDARD_KEYWORDS,
+            reasoning_keywords=DEFAULT_REASONING_KEYWORDS,
+            simple_indicators=DEFAULT_SIMPLE_INDICATORS,
+        )
+        assert scores[RoutingTier.REASONING] > 0
+
+    def test_url_boosts_standard_in_unified(self):
+        scores = _compute_unified_score(
+            "check https://example.com/api for errors",
+            has_image=False,
+            standard_keywords=DEFAULT_STANDARD_KEYWORDS,
+            reasoning_keywords=DEFAULT_REASONING_KEYWORDS,
+            simple_indicators=DEFAULT_SIMPLE_INDICATORS,
+        )
+        assert scores[RoutingTier.STANDARD] > 0
+
+    def test_long_input_without_keywords(self):
+        long_text = " ".join(["word"] * 80)
+        scores = _compute_unified_score(
+            long_text,
+            has_image=False,
+            standard_keywords=DEFAULT_STANDARD_KEYWORDS,
+            reasoning_keywords=DEFAULT_REASONING_KEYWORDS,
+            simple_indicators=DEFAULT_SIMPLE_INDICATORS,
+        )
+        assert scores[RoutingTier.STANDARD] >= 1.5
+
+    def test_repetition_in_unified(self):
+        scores = _compute_unified_score(
+            "give me 5 variations of this sentence",
+            has_image=False,
+            standard_keywords=DEFAULT_STANDARD_KEYWORDS,
+            reasoning_keywords=DEFAULT_REASONING_KEYWORDS,
+            simple_indicators=DEFAULT_SIMPLE_INDICATORS,
+        )
+        assert scores[RoutingTier.STANDARD] > 0
+
 
 # ────────────────────── Rule-based classification ──────────────────────
 
@@ -321,6 +427,42 @@ class TestRuleBasedClassify:
     def test_reasoning_keyword(self):
         result = _rule_based_classify(
             "prove this theorem step by step",
+            False,
+            DEFAULT_STANDARD_KEYWORDS,
+            DEFAULT_REASONING_KEYWORDS,
+            DEFAULT_SIMPLE_INDICATORS,
+        )
+        assert result == RoutingTier.REASONING
+
+    def test_error_debug_routes_standard(self):
+        result = _rule_based_classify(
+            "生产环境有个bug，用户登录后报500错误",
+            False,
+            DEFAULT_STANDARD_KEYWORDS,
+            DEFAULT_REASONING_KEYWORDS,
+            DEFAULT_SIMPLE_INDICATORS,
+        )
+        assert result == RoutingTier.STANDARD
+
+    def test_traceback_routes_standard(self):
+        text = (
+            'Traceback (most recent call last):\n'
+            '  File "main.py", line 42\n'
+            'ValueError: bad value\n'
+            '帮我看看怎么修'
+        )
+        result = _rule_based_classify(
+            text,
+            False,
+            DEFAULT_STANDARD_KEYWORDS,
+            DEFAULT_REASONING_KEYWORDS,
+            DEFAULT_SIMPLE_INDICATORS,
+        )
+        assert result == RoutingTier.STANDARD
+
+    def test_root_cause_routes_reasoning(self):
+        result = _rule_based_classify(
+            "帮我做个root cause analysis，排查这个问题的根因",
             False,
             DEFAULT_STANDARD_KEYWORDS,
             DEFAULT_REASONING_KEYWORDS,
@@ -394,6 +536,13 @@ class TestPenaltyTracker:
         assert removed >= 1
         assert tracker.get_penalty(RoutingTier.SIMPLE) == 0.0
 
+    def test_get_penalty_all_expired(self):
+        tracker = PenaltyTracker(DECAY_HALF_LIFE_S=0.001)
+        tracker.record_misroute(RoutingTier.STANDARD)
+        time.sleep(0.01)
+        p = tracker.get_penalty(RoutingTier.STANDARD)
+        assert p == 0.0
+
     def test_different_tiers_independent(self):
         tracker = PenaltyTracker()
         tracker.record_misroute(RoutingTier.SIMPLE)
@@ -449,8 +598,19 @@ class TestMomentum:
         recent = [RoutingTier.REASONING] * 5
         medium_text = "a" * 50
         tier, _ = _apply_momentum(RoutingTier.SIMPLE, medium_text, recent)
-        # Medium text gets partial momentum
         assert isinstance(tier, RoutingTier)
+
+    def test_downgrade_momentum_to_simple(self):
+        recent = [RoutingTier.SIMPLE] * 5
+        tier, overridden = _apply_momentum(RoutingTier.STANDARD, "ok", recent)
+        assert tier == RoutingTier.SIMPLE
+        assert overridden is True
+
+    def test_same_tier_no_override(self):
+        recent = [RoutingTier.STANDARD] * 3
+        tier, overridden = _apply_momentum(RoutingTier.STANDARD, "ok", recent)
+        assert tier == RoutingTier.STANDARD
+        assert overridden is False
 
 
 # ────────────────────── Judge cache ──────────────────────
@@ -473,6 +633,11 @@ class TestJudgeCache:
             _cache_put(f"key_{i}", RoutingTier.SIMPLE)
         assert len(_judge_cache) <= 256
 
+    def test_cache_invalid_tier_value(self):
+        _judge_cache["bad_tier"] = ("invalid_tier", time.monotonic())
+        assert _cache_get("bad_tier") is None
+        assert "bad_tier" not in _judge_cache
+
 
 # ────────────────────── Content dedup ──────────────────────
 
@@ -488,6 +653,11 @@ class TestContentDedup:
     def test_dedup_different_text(self):
         _dedup_store("query A", RoutingTier.SIMPLE)
         assert _dedup_check("query B") is None
+
+    def test_dedup_eviction(self):
+        for i in range(140):
+            _dedup_store(f"eviction_query_{i}", RoutingTier.SIMPLE)
+        assert len(_dedup_cache) <= 128
 
 
 # ────────────────────── Hash function ──────────────────────
@@ -629,12 +799,108 @@ class TestRouteTask:
         assert result.tier == RoutingTier.STANDARD
 
     @pytest.mark.asyncio
+    async def test_error_bug_routing(self, std_cfg, light_cfg, reasoning_cfg):
+        result = await route_task(
+            "生产环境有个bug，用户登录后报500错误",
+            std_cfg,
+            light_model_cfg=light_cfg,
+            reasoning_model_cfg=reasoning_cfg,
+        )
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason == "rule_based"
+
+    @pytest.mark.asyncio
+    async def test_traceback_routing(self, std_cfg, light_cfg):
+        text = (
+            'Traceback (most recent call last):\n'
+            '  File "main.py", line 42, in <module>\n'
+            '    result = process(data)\n'
+            'ValueError: Invalid input\n'
+            '帮我看看怎么修复'
+        )
+        result = await route_task(text, std_cfg, light_model_cfg=light_cfg)
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason == "rule_based"
+
+    @pytest.mark.asyncio
+    async def test_root_cause_routing(self, std_cfg, reasoning_cfg):
+        result = await route_task(
+            "帮我做个root cause analysis，排查这个问题的根因",
+            std_cfg,
+            reasoning_model_cfg=reasoning_cfg,
+        )
+        assert result.tier == RoutingTier.REASONING
+        assert result.model_cfg.model == "o1"
+
+    @pytest.mark.asyncio
     async def test_result_has_all_fields(self, std_cfg):
         result = await route_task("hello", std_cfg)
         assert hasattr(result, "tier")
         assert hasattr(result, "model_cfg")
         assert hasattr(result, "fallback_model_cfg")
         assert hasattr(result, "reason")
+
+    @pytest.mark.asyncio
+    async def test_default_standard_when_ambiguous_no_judge(self, std_cfg):
+        ambiguous_text = (
+            "I have been contemplating various approaches to understanding "
+            "the nuanced interplay between different methodological frameworks "
+            "and their practical implications in real-world scenarios that "
+            "involve complex multi-factor decision processes requiring careful "
+            "consideration of trade-offs and stakeholder perspectives"
+        )
+        result = await route_task(ambiguous_text, std_cfg)
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason == "default_standard"
+
+    @pytest.mark.asyncio
+    async def test_llm_judge_cached_second_call(self, std_cfg):
+        mock_llm = AsyncMock()
+        mock_response = MagicMock()
+        mock_response.content = '{"tier":"REASONING"}'
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        ambiguous_text = (
+            "Please help me understand the deep philosophical implications of "
+            "consciousness and its relationship to quantum mechanics and how "
+            "that connects to the broader metaphysical questions humanity faces"
+        )
+        r1 = await route_task(ambiguous_text, std_cfg, judge_llm=mock_llm)
+        assert r1.reason == "llm_judge"
+        assert r1.tier == RoutingTier.REASONING
+
+        _dedup_cache.clear()
+
+        r2 = await route_task(ambiguous_text, std_cfg, judge_llm=mock_llm)
+        assert r2.reason == "llm_judge_cached"
+
+    @pytest.mark.asyncio
+    async def test_llm_judge_error_fallback(self, std_cfg):
+        mock_llm = AsyncMock()
+        mock_llm.ainvoke = AsyncMock(side_effect=RuntimeError("LLM unavailable"))
+
+        ambiguous_text = (
+            "I want to deeply explore the philosophical underpinnings of "
+            "various epistemological traditions and their relevance to modern "
+            "artificial intelligence research methodologies across multiple "
+            "disciplines and interdisciplinary collaborative frameworks"
+        )
+        result = await route_task(ambiguous_text, std_cfg, judge_llm=mock_llm)
+        assert result.tier == RoutingTier.STANDARD
+
+    @pytest.mark.asyncio
+    async def test_llm_judge_no_match_fallback(self, std_cfg):
+        mock_llm = AsyncMock()
+        mock_response = MagicMock()
+        mock_response.content = "I cannot classify this"
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        result = await route_task(
+            "a deeply existential question about meaning and purpose of AI",
+            std_cfg,
+            judge_llm=mock_llm,
+        )
+        assert result.tier == RoutingTier.STANDARD
 
 
 # ────────────────────── record_misroute (module-level) ──────────────────────
