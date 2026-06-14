@@ -54,7 +54,7 @@ def search_results_to_documents(results: list[SearchResult]) -> list[Document]:
         metadata: dict[str, object] = {
             "title": result.title,
             "url": result.url,
-            "description": cleaned_snippet[:100],  #  using Clean up后 Content作 is Description
+            "description": cleaned_snippet,
         }
 
         # Include citations in metadata when present
