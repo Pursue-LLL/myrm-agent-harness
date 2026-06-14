@@ -165,3 +165,49 @@ class TestBuildSkillMetadata:
         assert meta.unavailable_reason is not None
         assert "CLI: missing-tool" in meta.unavailable_reason
 
+    def test_token_cost_calculated_for_nonempty_content(self) -> None:
+        fm = _make_frontmatter()
+        meta = build_skill_metadata(
+            skill_name="tok-test",
+            frontmatter=fm,
+            storage_path="skills/prebuilt/tok-test",
+            content=MINIMAL_SKILL_CONTENT,
+            trust=SkillTrust.INSTALLED,
+        )
+        assert meta.token_cost is not None
+        assert isinstance(meta.token_cost, int)
+        assert meta.token_cost > 0
+
+    def test_token_cost_none_for_empty_content(self) -> None:
+        fm = _make_frontmatter()
+        meta = build_skill_metadata(
+            skill_name="empty-test",
+            frontmatter=fm,
+            storage_path="skills/prebuilt/empty-test",
+            content="",
+            trust=SkillTrust.INSTALLED,
+        )
+        assert meta.token_cost is None
+
+    def test_token_cost_proportional_to_content_length(self) -> None:
+        short_content = "Short skill."
+        long_content = "Long skill content. " * 100
+        fm = _make_frontmatter()
+        short_meta = build_skill_metadata(
+            skill_name="short",
+            frontmatter=fm,
+            storage_path="skills/prebuilt/short",
+            content=short_content,
+            trust=SkillTrust.INSTALLED,
+        )
+        long_meta = build_skill_metadata(
+            skill_name="long",
+            frontmatter=fm,
+            storage_path="skills/prebuilt/long",
+            content=long_content,
+            trust=SkillTrust.INSTALLED,
+        )
+        assert short_meta.token_cost is not None
+        assert long_meta.token_cost is not None
+        assert long_meta.token_cost > short_meta.token_cost
+
