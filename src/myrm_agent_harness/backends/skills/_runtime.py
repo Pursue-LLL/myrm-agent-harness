@@ -32,6 +32,7 @@ from myrm_agent_harness.backends.skills.types import (
     SkillMetadata,
     SkillTrust,
 )
+from myrm_agent_harness.utils.text_utils import get_token_count
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +157,7 @@ def build_skill_metadata(
         contract=frontmatter.contract,
         scope_agent_id=frontmatter.scope_agent_id,
         trust=trust,
+        token_cost=get_token_count(content) if content else None,
         content_hash=compute_content_hash(content),
         available=available,
         unavailable_reason=unavailable_reason,
