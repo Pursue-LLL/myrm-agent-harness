@@ -180,7 +180,7 @@ def _sync_tree(src: Path, dst: Path) -> None:
 
 async def _sync_workspace_back(src_workspace: Path, dst_workspace: Path) -> None:
     """Async wrapper for syncing workspace back."""
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, _sync_tree, src_workspace, dst_workspace)
 
 
@@ -207,7 +207,7 @@ async def isolated_workspace(
     child_path = Path(tmp_dir)
 
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         count = await loop.run_in_executor(
             None, lambda: _clone_workspace(parent_path, child_path, max_bytes=max_bytes),
         )

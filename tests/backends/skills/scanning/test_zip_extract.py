@@ -105,6 +105,54 @@ class TestSafeExtractZip:
         result = safe_extract_zip(buf.getvalue())
         assert result == {}
 
+    def test_skips_absolute_path_via_double_slash(self):
+        """CVE-style: entry 'top//etc/passwd' yields '/etc/passwd' after strip."""
+        zip_bytes = _make_zip(
+            {
+                "top/safe.txt": b"safe",
+                "top//etc/passwd": b"root:x:0:0",
+            }
+        )
+        result = safe_extract_zip(zip_bytes)
+        assert "safe.txt" in result
+        assert not any(k.startswith("/") for k in result)
+
+    def test_skips_absolute_path_direct(self):
+        """Entry starting with / is blocked even without strip_top_dir."""
+        zip_bytes = _make_zip(
+            {
+                "safe.txt": b"safe",
+                "/etc/shadow": b"evil",
+            }
+        )
+        result = safe_extract_zip(zip_bytes, strip_top_dir=False)
+        assert "safe.txt" in result
+        assert "/etc/shadow" not in result
+
+    def test_skips_backslash_absolute_path(self):
+        """Windows-style absolute path is blocked."""
+        zip_bytes = _make_zip(
+            {
+                "top/safe.txt": b"safe",
+                "top/\\\\server\\share": b"evil",
+            }
+        )
+        result = safe_extract_zip(zip_bytes)
+        assert "safe.txt" in result
+        assert not any(k.startswith("\\") for k in result)
+
+    def test_skips_windows_drive_prefix(self):
+        """Windows drive prefix (C:, D:) is blocked to prevent pathlib join escape."""
+        zip_bytes = _make_zip(
+            {
+                "top/safe.txt": b"safe",
+                "top/C:\\Windows\\evil.dll": b"evil",
+            }
+        )
+        result = safe_extract_zip(zip_bytes)
+        assert "safe.txt" in result
+        assert not any(len(k) >= 2 and k[1] == ":" for k in result)
+
     def test_default_limits_accept_normal_zip(self):
         content = b"normal content " * 100
         zip_bytes = _make_zip({"top/file.txt": content})

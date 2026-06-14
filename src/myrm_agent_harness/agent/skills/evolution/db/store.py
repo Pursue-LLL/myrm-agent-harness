@@ -507,12 +507,22 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
         for record in records:
             await self._sync_skill_to_vector(record)
 
+    MAX_SKILL_CONTENT_CHARS = 65_536
+
     async def save_skill(self, record: SkillRecord) -> None:
         """Save or update skill record.
 
         Args:
             record: SkillRecord to persist
+
+        Raises:
+            ValueError: If content exceeds MAX_SKILL_CONTENT_CHARS.
         """
+        if record.content and len(record.content) > self.MAX_SKILL_CONTENT_CHARS:
+            raise ValueError(
+                f"Skill content too large ({len(record.content)} chars, max {self.MAX_SKILL_CONTENT_CHARS}). "
+                f"Reduce the skill size before saving."
+            )
         self._ensure_open()
         await asyncio.to_thread(self._save_skill_sync, record)
         await self._sync_skill_to_vector(record)

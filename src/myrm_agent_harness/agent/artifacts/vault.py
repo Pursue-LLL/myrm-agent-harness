@@ -210,7 +210,7 @@ class ArtifactVault:
                 data = json.loads(meta_file.read_text(encoding="utf-8"))
                 objects.append(VaultObject(**data))
             except Exception as e:
-                logger.warning(f"Failed to read vault meta {meta_file}: {e}")
+                logger.warning("Failed to read vault meta %s: %s", meta_file, e)
 
         # 按创建时间降序
         objects.sort(key=lambda x: x.created_at, reverse=True)

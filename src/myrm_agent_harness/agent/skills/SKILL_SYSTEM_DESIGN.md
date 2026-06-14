@@ -1109,6 +1109,6 @@ STATIC_SKILL_SLUGS: list[str] = [
 - **质量门控**: 只有满足最低执行次数和成功率的技能才会被推送到共享仓库
 - **部署模式**:
   - Local/Tauri: `LocalFSSyncBackend` 基于 `StorageProvider`，通过共享目录同步
-  - SaaS: `HTTPSyncBackend` 通过控制平面 API 同步
+  - SaaS: `HTTPSyncBackend`（规划中，尚未实现）通过控制平面 API 同步
 - **后台执行**: 通过 `IdleTaskRegistry` 注册 `skill_sync` 任务类型，闲时自动触发
 - **详细架构**: 参见 `agent/skills/sync/_ARCH.md`

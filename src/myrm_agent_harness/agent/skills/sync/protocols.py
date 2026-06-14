@@ -32,7 +32,7 @@ class SkillSyncProtocol(Protocol):
 
     Implementations:
     - LocalFSSyncBackend: file-system-based (Local/Tauri multi-device)
-    - HTTPSyncBackend: HTTP-based (SaaS via control-plane)
+    - HTTPSyncBackend: planned for SaaS via control-plane (not yet implemented)
 
     The protocol intentionally works with skill *bundles* (ZIP bytes)
     so that the sync layer is decoupled from SkillStore internals.

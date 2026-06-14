@@ -128,7 +128,10 @@ class LocalFSSyncBackend:
                 existed = (skill_dir / "SKILL.md").exists()
 
                 for rel_path, content in result.files.items():
-                    file_path = skill_dir / rel_path
+                    file_path = (skill_dir / rel_path).resolve()
+                    if not str(file_path).startswith(str(skill_dir.resolve())):
+                        logger.warning("Blocked path escape attempt: %s", rel_path)
+                        continue
                     file_path.parent.mkdir(parents=True, exist_ok=True)
                     file_path.write_bytes(content)
 
@@ -184,7 +187,9 @@ class LocalFSSyncBackend:
     ) -> ConflictResolution:
         """Resolve version conflict using the specified strategy.
 
-        For local FS sync, NEWER_WINS uses file modification timestamps.
+        NEWER_WINS falls back to SKIP (reserved for future use when
+        SkillSyncManager integrates conflict detection into the pull flow).
+        Currently the manager uses a pull-first strategy that avoids conflicts.
         """
         if strategy == ConflictStrategy.REMOTE_WINS:
             return ConflictResolution(

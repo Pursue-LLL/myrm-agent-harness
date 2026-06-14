@@ -9,11 +9,14 @@
 Pure logic-based hard constraints to prevent destructive AI modifications:
 1. AST Signature Check: Ensures function signatures (args, returns) remain intact.
 2. Length Penalty: Rejects code that balloons beyond 120% of original size.
+3. Absolute Size Limit: Rejects content exceeding MAX_SKILL_CONTENT_CHARS (defense-in-depth).
 """
 
 import ast
 from dataclasses import dataclass
 from typing import Any
+
+MAX_SKILL_CONTENT_CHARS = 65_536
 
 
 @dataclass
@@ -59,11 +62,17 @@ class EvolutionGuard:
 
     def _check_length(self, original: str, evolved: str) -> GuardResult:
         """Check if evolved code exceeds growth limits."""
-        orig_len = len(original)
         evolved_len = len(evolved)
 
+        if evolved_len > MAX_SKILL_CONTENT_CHARS:
+            return GuardResult(
+                passed=False,
+                reason=f"Content exceeds absolute size limit: {evolved_len} chars > {MAX_SKILL_CONTENT_CHARS}",
+            )
+
+        orig_len = len(original)
         if orig_len == 0:
-            return GuardResult(passed=True, reason="Original is empty")
+            return GuardResult(passed=True, reason="Original is empty, within absolute limit")
 
         ratio = evolved_len / orig_len
         if ratio > self.max_growth_ratio:

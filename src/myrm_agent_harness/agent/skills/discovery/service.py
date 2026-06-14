@@ -335,8 +335,12 @@ class BaseSkillDiscoveryService:
 
         try:
             _emit("quarantine", "Writing to quarantine...")
+            quarantine_resolved = quarantine_dir.resolve()
             for rel_path, content in files.items():
-                file_path = quarantine_dir / rel_path
+                file_path = (quarantine_dir / rel_path).resolve()
+                if not str(file_path).startswith(str(quarantine_resolved)):
+                    logger.warning("Blocked path escape in skill '%s': %s", name, rel_path)
+                    continue
                 file_path.parent.mkdir(parents=True, exist_ok=True)
                 file_path.write_bytes(content)
 

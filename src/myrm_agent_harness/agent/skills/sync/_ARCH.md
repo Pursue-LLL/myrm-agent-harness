@@ -55,16 +55,23 @@ IdleWorker ─── skill_sync task ──▶ SkillSyncManager.full_sync()
 | Mode | SyncBackend | Shared Medium | Quality Gate |
 |------|-------------|---------------|--------------|
 | Local/Tauri | `LocalFSSyncBackend` | iCloud Drive / Dropbox / NAS | `ThresholdQualityGate` |
-| SaaS | `HTTPSyncBackend` (server layer) | Control-plane shared repo | Business-defined LLM gate |
-| Community | `HTTPSyncBackend` | Community marketplace API | LLM + admin review |
+| SaaS | `HTTPSyncBackend` (planned, not yet implemented) | Control-plane shared repo | Business-defined LLM gate |
+| Community | `HTTPSyncBackend` (planned) | Community marketplace API | LLM + admin review |
 
 ## Conflict Resolution
 
-Conflicts occur when both local and remote versions changed since last sync. Strategies:
+The current implementation uses a **pull-first** strategy (`full_sync()` pulls before pushing),
+which effectively avoids conflicts by ensuring remote changes are applied before local pushes.
+
+The `SkillSyncProtocol.resolve_conflict()` interface is defined and implemented but not yet
+called by `SkillSyncManager` — it is a reserved extension point for future use if explicit
+conflict detection is needed (e.g., in multi-user SaaS scenarios).
+
+Defined strategies:
 - `REMOTE_WINS`: Accept remote (safe for pull-from-marketplace)
 - `LOCAL_WINS`: Keep local (safe for push-back)
-- `NEWER_WINS`: Timestamp comparison
-- `SKIP`: Leave unresolved, manual intervention
+- `NEWER_WINS`: Reserved, currently falls back to `SKIP`
+- `SKIP`: Leave unresolved, local version kept
 
 ## Integration Points
 

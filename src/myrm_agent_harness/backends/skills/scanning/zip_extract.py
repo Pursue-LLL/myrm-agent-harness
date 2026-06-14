@@ -13,7 +13,9 @@ Defenses:
 1. Zip Bomb: reject when compression ratio exceeds threshold
 2. Total size limit: prevent disk exhaustion
 3. Symlink detection: skip symlink entries to block directory escape
-4. Path traversal: reject entries containing ..
+4. Path traversal: reject entries containing .. components
+5. Absolute path: reject entries starting with / or \\ (blocks pathlib join escape)
+6. Windows drive prefix: reject entries like C:\\ or D:\\ (blocks PureWindowsPath join escape)
 """
 
 from __future__ import annotations
@@ -72,13 +74,13 @@ def safe_extract_zip(
                 continue
 
             if _is_symlink(entry):
-                logger.warning(f"Skipping symlink entry: {entry.filename}")
+                logger.warning("Skipping symlink entry: %s", entry.filename)
                 continue
 
             relative_path = _resolve_path(entry.filename, strip_top_dir)
 
             if _has_path_traversal(relative_path):
-                logger.warning(f"Skipping path traversal entry: {entry.filename}")
+                logger.warning("Skipping path traversal entry: %s", entry.filename)
                 continue
 
             if forbidden_check is not None and forbidden_check(relative_path):
@@ -115,4 +117,8 @@ def _resolve_path(filename: str, strip_top_dir: bool) -> str:
 
 
 def _has_path_traversal(path: str) -> bool:
+    if path.startswith(("/", "\\")):
+        return True
+    if len(path) >= 2 and path[1] == ":" and path[0].isalpha():
+        return True
     return ".." in path.split("/")
