@@ -91,7 +91,7 @@ def create_discover_capability_tool(
         engine = None
 
     tool_description = """Search for missing capabilities (both internal native tools and external skills/plugins).
-Use this tool when you need a capability that is not currently in your tool list (e.g., drawing, video generation, cron jobs, Github, Jira, etc.).
+IMPORTANT: You MUST search here BEFORE declining any user request due to missing capability. Never tell the user you cannot do something without first checking if a skill or tool exists (e.g., drawing, video generation, cron jobs, Github, Jira, etc.).
 
 **How to query**:
 - Query naturally in any language.

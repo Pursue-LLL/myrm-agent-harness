@@ -118,6 +118,84 @@ async def test_description_excludes_deferred_names_when_empty():
 
 
 @pytest.mark.asyncio
+async def test_description_contains_must_search_before_declining():
+    """Verify tool description enforces proactive search before declining."""
+    tool = create_discover_capability_tool()
+    assert "MUST search here BEFORE declining" in tool.description
+    assert "IMPORTANT" in tool.description
+
+
+@pytest.mark.asyncio
+async def test_external_skill_output_format(mock_skills):
+    """Verify external skill results use only name and description (no source/version)."""
+    tool = create_discover_capability_tool(skills=mock_skills)
+    result = await tool.ainvoke({"query": ".*", "mode": "regex"})
+    assert "external_skill_1" in result
+    assert "An external skill" in result
+    assert "source:" not in result
+    assert "version:" not in result
+
+
+@pytest.mark.asyncio
+async def test_bm25_mode_default(mock_skills):
+    """Verify default mode is bm25 (not regex)."""
+    tool = create_discover_capability_tool(skills=mock_skills)
+    result = await tool.ainvoke({"query": "external"})
+    assert "external_skill" in result or "No capabilities" in result
+
+
+@pytest.mark.asyncio
+async def test_native_tool_schema_in_output(mock_registry):
+    """Verify native tool output includes schema."""
+    tool = create_discover_capability_tool(registry=mock_registry)
+    result = await tool.ainvoke({"query": ".*", "mode": "regex"})
+    assert '"schema"' in result
+    assert '"arg1"' in result
+
+
+@pytest.mark.asyncio
+async def test_description_contains_skill_select_instruction():
+    """Verify description mentions skill_select_tool for external skills."""
+    tool = create_discover_capability_tool()
+    assert "skill_select_tool" in tool.description
+
+
+@pytest.mark.asyncio
+async def test_wildcard_query(mock_skills):
+    """Verify query='*' lists all skills."""
+    tool = create_discover_capability_tool(skills=mock_skills)
+    result = await tool.ainvoke({"query": "*"})
+    assert "external_skill_1" in result or "No capabilities" in result
+
+
+@pytest.mark.asyncio
+async def test_hybrid_engine_path(mock_skills):
+    """Cover HybridSkillSearchEngine initialization path (lines 79-83) and await path (line 141)."""
+    from unittest.mock import patch, AsyncMock
+    from myrm_agent_harness.agent.meta_tools.skills.search.types import SkillSearchResult
+
+    mock_engine_instance = MagicMock()
+    mock_engine_instance.search_bm25 = AsyncMock(
+        return_value=[SkillSearchResult(name="external_skill_1", description="An external skill", score=1.0)]
+    )
+    mock_hybrid_cls = MagicMock(return_value=mock_engine_instance)
+
+    mock_embedding_config = MagicMock()
+
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.skills.search.hybrid_engine.HybridSkillSearchEngine",
+        mock_hybrid_cls,
+    ):
+        tool = create_discover_capability_tool(
+            skills=mock_skills,
+            embedding_config=mock_embedding_config,
+        )
+
+    result = await tool.ainvoke({"query": "external"})
+    assert "external_skill_1" in result
+
+
+@pytest.mark.asyncio
 async def test_async_engine_isawaitable():
     """Verify discover_capability handles async engines (HybridSkillSearchEngine).
 

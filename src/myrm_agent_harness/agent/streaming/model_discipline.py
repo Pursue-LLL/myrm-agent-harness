@@ -6,7 +6,7 @@ toward better tool usage, reduce hallucination, and correct known failure modes.
 Architecture:
     Layer 1: AGENT_CORE_RULES — anti-narration + tool honesty + anti-negative-claim
              + proactive grounding search + XML tool-call defense
-             + context-first check (all models)
+             + context-first check + proactive capability discovery (all models)
     Layer 2: TOOL_ENFORCEMENT — "must act, not describe" (models with tools)
     Layer 3: MODEL_FAMILY_DISCIPLINE — per-family corrections
              GPT/Codex/Grok  → tool persistence, mandatory tool use, act-don't-ask
@@ -25,7 +25,7 @@ See: agent/context_management/PROMPT_CACHE_PRACTICE.md §2.2
 - langchain_core.language_models::BaseChatModel (POS: LangChain chat model base class)
 
 [OUTPUT]
-- AGENT_CORE_RULES: base behavior rules constant (anti-narration + tool honesty + anti-negative-claim + proactive grounding search + XML defense + context-first)
+- AGENT_CORE_RULES: base behavior rules constant (anti-narration + tool honesty + anti-negative-claim + proactive grounding search + XML defense + context-first + proactive capability discovery)
 - resolve_execution_discipline(): model-aware discipline resolver (Layer 1-3)
 - resolve_escalation_contract(): conditional escalation contract resolver (Layer 4)
 
@@ -66,6 +66,8 @@ AGENT_CORE_RULES = (
     "NEVER output <tool_call> or similar XML tags in response text."
     " Before calling any tool, check if the answer is already in the "
     "conversation context. Avoid redundant tool calls for information already present."
+    " Before declining a user request due to missing capability, check if any "
+    "discovery or search tool is available to find matching skills or tools."
     "</agent_behavior_rules>"
 )
 

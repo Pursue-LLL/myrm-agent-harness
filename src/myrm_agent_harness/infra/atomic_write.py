@@ -63,7 +63,15 @@ def atomic_write(
         if mode is not None:
             os.chmod(tmp_path, mode)
 
-        os.replace(tmp_path, target)
+        try:
+            os.replace(tmp_path, target)
+        except OSError as e:
+            import errno
+            if e.errno == errno.EXDEV:
+                import shutil
+                shutil.move(tmp_path, target)
+            else:
+                raise
         tmp_path = None  # replaced successfully, no cleanup needed
 
         # fsync parent directory to ensure rename is durable on ext4/XFS

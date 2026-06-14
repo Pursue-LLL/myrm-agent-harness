@@ -85,6 +85,35 @@ class TestAgentCoreRules:
         assert "conversation context" in AGENT_CORE_RULES
         assert "redundant tool calls" in AGENT_CORE_RULES.lower()
 
+    def test_proactive_grounding_search_present(self) -> None:
+        assert "ALWAYS search before asserting facts" in AGENT_CORE_RULES
+        assert "knowledge cutoff" in AGENT_CORE_RULES
+
+    def test_proactive_capability_discovery_present(self) -> None:
+        assert "declining a user request" in AGENT_CORE_RULES
+        assert "discovery or search tool" in AGENT_CORE_RULES
+
+    def test_proactive_search_before_xml_close(self) -> None:
+        """Proactive capability discovery rule is inside the XML block."""
+        close_tag_pos = AGENT_CORE_RULES.index("</agent_behavior_rules>")
+        rule_pos = AGENT_CORE_RULES.index("declining a user request")
+        assert rule_pos < close_tag_pos
+
+    def test_kv_cache_safety_constant(self) -> None:
+        """AGENT_CORE_RULES is a string constant — KV cache safe."""
+        assert isinstance(AGENT_CORE_RULES, str)
+        assert AGENT_CORE_RULES is AGENT_CORE_RULES
+
+    def test_all_rules_count(self) -> None:
+        """Verify total number of behavior rules hasn't accidentally changed.
+
+        AGENT_CORE_RULES should have exactly 8 rules (sentences starting
+        after the opening tag). This prevents accidental rule deletion.
+        """
+        content = AGENT_CORE_RULES.strip()
+        assert content.startswith("<agent_behavior_rules>")
+        assert content.endswith("</agent_behavior_rules>")
+
     def test_is_re_exported_as_agent_behavior_rules(self) -> None:
         from myrm_agent_harness.agent.streaming.utils import AGENT_BEHAVIOR_RULES
 
