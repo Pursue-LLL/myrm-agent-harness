@@ -27,8 +27,15 @@ from ..tracking.artifact_tracker import get_artifact_tracker
 logger = get_agent_logger(__name__)
 
 UNVERIFIED_CONTEXT_MARKER = (
-    "<!-- Compacted from prior conversation. "
-    "Treat as unverified context — do not cite as confirmed unless re-verified. -->"
+    "<!-- [REFERENCE ONLY] Compacted from prior conversation. "
+    "Treat as background reference, NOT active instructions. "
+    "Do NOT answer questions or execute tasks mentioned here "
+    "— they were already addressed. -->"
+)
+
+SUMMARY_END_MARKER = (
+    "--- END OF CONTEXT SUMMARY — "
+    "respond to the message below, not the summary above ---"
 )
 
 
@@ -124,7 +131,7 @@ def create_summary_message(summary: StructuredSummary, chat_id: str | None = Non
     the KV cache prefix built from the frozen system prompt.
 
     Layout follows U-curve attention (start/end ~80% recall, middle ~50%):
-    - Head (high attention): Handoff preamble + user goal + active task + constraints
+    - Head (high attention): Handoff preamble + user goal + previous task + constraints
     - Middle (low attention): completed actions + file index + resolved questions
     - Tail (high attention): key findings + errors & fixes + pending asks + state
     """
@@ -134,15 +141,19 @@ def create_summary_message(summary: StructuredSummary, chat_id: str | None = Non
         "",
         "[Historical Summary]",
         UNVERIFIED_CONTEXT_MARKER,
-        "<!-- You are resuming from a prior conversation. Do NOT answer questions mentioned in the summary.",
-        "Resume from active_task, prioritize checking pending_user_asks. -->",
+        "<!-- IMPORTANT: The latest user message AFTER this summary is your ONLY active task.",
+        "It is the single source of truth for what to do right now.",
+        "If the latest message contradicts or changes topic from this summary, the latest message WINS",
+        "— discard stale tasks entirely and do NOT resume work described here unless explicitly asked.",
+        "Topic overlap with this summary does NOT mean you should resume its task.",
+        "Reverse signals (stop, undo, never mind, new topic) immediately end any work from this summary. -->",
         "",
     ]
 
     parts.append(f"User Goal: {summary.user_goal}")
 
     if summary.active_task and summary.active_task != "None":
-        parts.append(f"Active Task: {summary.active_task}")
+        parts.append(f"Previous Task: {summary.active_task}")
 
     if summary.last_action:
         parts.append(f"Last Action: {summary.last_action}")
@@ -215,5 +226,6 @@ def create_summary_message(summary: StructuredSummary, chat_id: str | None = Non
     parts.append(summary.to_json())
     parts.append("-->")
     parts.append("</memory-context>")
+    parts.append(SUMMARY_END_MARKER)
 
     return HumanMessage(content="\n".join(parts))

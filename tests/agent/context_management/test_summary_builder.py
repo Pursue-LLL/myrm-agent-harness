@@ -8,6 +8,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 
 from myrm_agent_harness.agent.context_management.infra.schemas import StructuredSummary
 from myrm_agent_harness.agent.context_management.strategies.summary_builder import (
+    SUMMARY_END_MARKER,
     UNVERIFIED_CONTEXT_MARKER,
     create_summary_message,
     extract_recent_messages,
@@ -192,18 +193,28 @@ class TestCreateSummaryMessage:
     def test_handoff_preamble_present(self) -> None:
         summary = StructuredSummary(user_goal="test goal")
         msg = create_summary_message(summary)
-        assert "Do NOT answer questions mentioned in the summary" in msg.content
-        assert "active_task" in msg.content
+        assert "single source of truth" in msg.content
+        assert "latest message WINS" in msg.content
+        assert "Topic overlap" in msg.content
+        assert "Reverse signals" in msg.content
 
     def test_active_task_rendered(self) -> None:
         summary = StructuredSummary(user_goal="test", active_task="重构 auth 模块")
         msg = create_summary_message(summary)
-        assert "Active Task: 重构 auth 模块" in msg.content
+        assert "Previous Task: 重构 auth 模块" in msg.content
 
     def test_active_task_none_not_rendered(self) -> None:
         summary = StructuredSummary(user_goal="test", active_task="None")
         msg = create_summary_message(summary)
-        assert "Active Task" not in msg.content
+        assert "Previous Task" not in msg.content
+
+    def test_summary_end_marker_present(self) -> None:
+        summary = StructuredSummary(user_goal="test")
+        msg = create_summary_message(summary)
+        assert SUMMARY_END_MARKER in msg.content
+        end_marker_pos = msg.content.index(SUMMARY_END_MARKER)
+        memory_context_end_pos = msg.content.index("</memory-context>")
+        assert end_marker_pos > memory_context_end_pos
 
     def test_constraints_rendered(self) -> None:
         summary = StructuredSummary(user_goal="test", constraints_and_preferences=["使用TypeScript", "不要创建新文件"])

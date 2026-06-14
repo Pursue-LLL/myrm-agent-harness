@@ -38,10 +38,12 @@ from myrm_agent_harness.backends.skills.versioning import compare_versions
 from .helpers import deduplicate, fetch_lobehub_as_skill, rank_results, scan_all_text_files, write_origin
 from .installers.git_installer import GitInstaller
 from .installers.zip_installer import ZipInstaller
+from .sources.aliyun import AliyunSource
 from .sources.base import SkillSource
 from .sources.clawhub import ClawHubSource
 from .sources.github import GitHubSkillSource
 from .sources.lobehub import LobeHubSource
+from .sources.modelscope import ModelScopeSource
 from .sources.prebuilt import PrebuiltSkillSource
 from .sources.skills_sh import SkillsShSource
 
@@ -86,6 +88,8 @@ class BaseSkillDiscoveryService:
             GitHubSkillSource(token=github_token),
             SkillsShSource(),
             LobeHubSource(),
+            ModelScopeSource(),
+            AliyunSource(),
         ]
         if skill_store:
             sources.insert(0, PrebuiltSkillSource(skill_store))
