@@ -29,7 +29,7 @@ Idempotent sync via `(provider, external_object_id)` pair. Re-syncing the same d
 
 ### Framework Boundary
 - **Framework (harness)**: Protocol, types, fetcher, tree manager, summariser. No Agent tools — integration management is a product-level REST/GUI concern, not a per-turn Agent action.
-- **Business (server)**: Concrete `IntegrationProvider` implementations (Gmail, GitHub, etc.), credential storage, scheduling policies, REST endpoints exposed via `app.api.integrations`.
+- **Business (server)**: `MCPBridgeProvider` (bridges any MCP Server as IntegrationProvider), `IntegrationSyncDaemon` (scheduled background sync), `IntegrationMemoryService` (facade), credential storage, REST endpoints via `app.api.integrations`, frontend UI in `IntegrationMemorySection`.
 - **Control plane**: Not involved (single-tenant scope).
 
 ## File & Submodule Index

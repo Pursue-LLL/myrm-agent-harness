@@ -5,7 +5,8 @@ toward better tool usage, reduce hallucination, and correct known failure modes.
 
 Architecture:
     Layer 1: AGENT_CORE_RULES — anti-narration + tool honesty + anti-negative-claim
-             + XML tool-call defense + context-first check (all models)
+             + proactive grounding search + XML tool-call defense
+             + context-first check (all models)
     Layer 2: TOOL_ENFORCEMENT — "must act, not describe" (models with tools)
     Layer 3: MODEL_FAMILY_DISCIPLINE — per-family corrections
              GPT/Codex/Grok  → tool persistence, mandatory tool use, act-don't-ask
@@ -24,7 +25,7 @@ See: agent/context_management/PROMPT_CACHE_PRACTICE.md §2.2
 - langchain_core.language_models::BaseChatModel (POS: LangChain chat model base class)
 
 [OUTPUT]
-- AGENT_CORE_RULES: base behavior rules constant (anti-narration + tool honesty + anti-negative-claim + XML defense + context-first)
+- AGENT_CORE_RULES: base behavior rules constant (anti-narration + tool honesty + anti-negative-claim + proactive grounding search + XML defense + context-first)
 - resolve_execution_discipline(): model-aware discipline resolver (Layer 1-3)
 - resolve_escalation_contract(): conditional escalation contract resolver (Layer 4)
 
@@ -57,6 +58,10 @@ AGENT_CORE_RULES = (
     "query as evidence (e.g. \"No callers of foo() found (grep 'foo')\"). "
     "If no verification tool is available, qualify: "
     '"I have not verified this — it may be inaccurate."'
+    " ALWAYS search before asserting facts about: (1) entities released or updated "
+    "after your knowledge cutoff, (2) unfamiliar proper nouns or product names, "
+    "(3) current prices, versions, or live events, (4) any claim you cannot verify "
+    "from memory with certainty. Prefer one fast search over a confident but wrong answer."
     " Use ONLY the native Function Calling API. "
     "NEVER output <tool_call> or similar XML tags in response text."
     " Before calling any tool, check if the answer is already in the "
