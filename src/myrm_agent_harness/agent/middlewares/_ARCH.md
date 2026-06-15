@@ -13,7 +13,7 @@ Agent middleware system exports. Provides the complete middleware stack (context
 | concurrency_limiter.py | Core | Subagent concurrency limiter middleware. Limits concurrent execution count by agent_type to prevent  | ✅ |
 | context_pipeline_helpers.py | Internal | Helper layer for context pipeline middleware. Parses compression intent, resolves provider cache usage feedback, and fingerprints active tool schemas with stable JSON canonicalization for cache break attribution. | ✅ |
 | context_pipeline_middleware.py | Core | Provides create_context_pipeline_middleware. | ✅ |
-| dangling_tool_call_middleware.py | Core | Dangling tool call repair middleware. | ✅ |
+| dangling_tool_call_middleware.py | Core | Dangling tool call repair middleware. Covers all three serialization sources (tool_calls, invalid_tool_calls, additional_kwargs raw payloads) to prevent HTTP 400 from strict LLM providers. | ✅ |
 | deferred_tool_middleware.py | Core | Parses `<AutoMountTools>` from discover_capability_tool; augments model tools and supplies deferred `BaseTool` at ToolNode via `awrap_tool_call`. | ✅ |
 | debug_logger_middleware.py | Core | Provides debug_logger_middleware. | ✅ |
 | filesystem_search_middleware.py | Core | Provides FilesystemFileSearchMiddleware, create_filesystem_search_middleware. | ✅ |

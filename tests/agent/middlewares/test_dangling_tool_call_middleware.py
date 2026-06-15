@@ -6,7 +6,10 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.middlewares.dangling_tool_call_middleware import (
     _INTERRUPTED_CONTENT,
+    _INVALID_ARGS_CONTENT,
+    _MAX_ERROR_DETAIL_LEN,
     _build_patched_messages,
+    _extract_tool_calls,
     dangling_tool_call_middleware,
 )
 
@@ -170,6 +173,192 @@ class TestBuildPatchedMessages:
         assert patched[2].tool_call_id == "tc_1"
         assert patched[3] == messages[2]
         assert patched[4] == messages[3]
+
+
+class TestInvalidToolCalls:
+    """Tests for invalid_tool_calls and additional_kwargs.tool_calls handling."""
+
+    def test_invalid_tool_calls_detected_as_dangling(self):
+        """AIMessage with invalid_tool_calls (malformed JSON) → synthetic ToolMessage."""
+        messages = [
+            HumanMessage(content="write a file"),
+            AIMessage(
+                content="Let me write that.",
+                tool_calls=[],
+                invalid_tool_calls=[{
+                    "name": "write_file",
+                    "args": "broken json",
+                    "id": "call_invalid_1",
+                    "error": "JSON parse failed",
+                }],
+            ),
+            HumanMessage(content="try again"),
+        ]
+        patched = _build_patched_messages(messages)
+        assert patched is not None
+        assert len(patched) == 4
+
+        synthetic = patched[2]
+        assert isinstance(synthetic, ToolMessage)
+        assert synthetic.tool_call_id == "call_invalid_1"
+        assert synthetic.name == "write_file"
+        assert synthetic.status == "error"
+        assert "invalid" in synthetic.content.lower()
+
+    def test_invalid_tool_calls_with_error_detail(self):
+        """Error detail from invalid_tool_calls is included in synthetic content."""
+        error_msg = "Expected comma in JSON at position 42"
+        messages = [
+            HumanMessage(content="go"),
+            AIMessage(
+                content="",
+                tool_calls=[],
+                invalid_tool_calls=[{
+                    "name": "bash",
+                    "args": "{broken",
+                    "id": "call_err_1",
+                    "error": error_msg,
+                }],
+            ),
+        ]
+        patched = _build_patched_messages(messages)
+        assert patched is not None
+        synthetic = patched[2]
+        assert error_msg in synthetic.content
+
+    def test_invalid_tool_calls_error_truncation(self):
+        """Huge error details are truncated to _MAX_ERROR_DETAIL_LEN."""
+        huge_error = "x" * 2000
+        messages = [
+            HumanMessage(content="go"),
+            AIMessage(
+                content="",
+                tool_calls=[],
+                invalid_tool_calls=[{
+                    "name": "write_file",
+                    "args": "broken",
+                    "id": "call_big_1",
+                    "error": huge_error,
+                }],
+            ),
+        ]
+        patched = _build_patched_messages(messages)
+        assert patched is not None
+        synthetic = patched[2]
+        assert len(synthetic.content) < _MAX_ERROR_DETAIL_LEN + 100
+
+    def test_mixed_valid_and_invalid_tool_calls(self):
+        """Both tool_calls and invalid_tool_calls present → both handled."""
+        messages = [
+            HumanMessage(content="do stuff"),
+            AIMessage(
+                content="",
+                tool_calls=[{"id": "tc_valid", "name": "search", "args": {"q": "test"}}],
+                invalid_tool_calls=[{
+                    "name": "write_file",
+                    "args": "bad",
+                    "id": "tc_invalid",
+                    "error": "parse error",
+                }],
+            ),
+        ]
+        patched = _build_patched_messages(messages)
+        assert patched is not None
+
+        tool_msgs = [m for m in patched if isinstance(m, ToolMessage)]
+        assert len(tool_msgs) == 2
+        ids = {m.tool_call_id for m in tool_msgs}
+        assert ids == {"tc_valid", "tc_invalid"}
+
+    def test_additional_kwargs_tool_calls_fallback(self):
+        """Raw provider tool_calls in additional_kwargs detected when standard fields empty."""
+        messages = [
+            HumanMessage(content="go"),
+            AIMessage(
+                content="Processing...",
+                tool_calls=[],
+                additional_kwargs={
+                    "tool_calls": [
+                        {
+                            "id": "raw_call_1",
+                            "type": "function",
+                            "function": {"name": "terminal", "arguments": "{}"},
+                        }
+                    ]
+                },
+            ),
+        ]
+        patched = _build_patched_messages(messages)
+        assert patched is not None
+
+        synthetic = patched[2]
+        assert isinstance(synthetic, ToolMessage)
+        assert synthetic.tool_call_id == "raw_call_1"
+        assert synthetic.name == "terminal"
+        assert synthetic.content == _INTERRUPTED_CONTENT
+
+    def test_additional_kwargs_not_used_when_standard_fields_populated(self):
+        """additional_kwargs.tool_calls is NOT used when msg.tool_calls is populated."""
+        messages = [
+            HumanMessage(content="go"),
+            AIMessage(
+                content="",
+                tool_calls=[{"id": "tc_standard", "name": "search", "args": {}}],
+                additional_kwargs={
+                    "tool_calls": [{"id": "raw_ignored", "type": "function", "function": {"name": "x", "arguments": "{}"}}]
+                },
+            ),
+            ToolMessage(content="ok", tool_call_id="tc_standard", name="search"),
+        ]
+        patched = _build_patched_messages(messages)
+        assert patched is None
+
+    def test_invalid_tool_calls_already_answered(self):
+        """invalid_tool_calls with existing ToolMessage → no patching needed."""
+        messages = [
+            HumanMessage(content="go"),
+            AIMessage(
+                content="",
+                tool_calls=[],
+                invalid_tool_calls=[{"name": "fn", "args": "bad", "id": "tc_answered", "error": "err"}],
+            ),
+            ToolMessage(content="handled", tool_call_id="tc_answered", name="fn"),
+        ]
+        patched = _build_patched_messages(messages)
+        assert patched is None
+
+
+class TestExtractToolCalls:
+    """Tests for the _extract_tool_calls helper."""
+
+    def test_standard_tool_calls(self):
+        msg = AIMessage(content="", tool_calls=[{"id": "a", "name": "fn", "args": {}}])
+        result = _extract_tool_calls(msg)
+        assert result == [("a", "fn", False)]
+
+    def test_invalid_tool_calls(self):
+        msg = AIMessage(content="", invalid_tool_calls=[{"id": "b", "name": "bad_fn", "args": "x", "error": "e"}])
+        result = _extract_tool_calls(msg)
+        assert result == [("b", "bad_fn", True)]
+
+    def test_additional_kwargs_fallback(self):
+        msg = AIMessage(
+            content="",
+            additional_kwargs={"tool_calls": [{"id": "c", "function": {"name": "raw_fn", "arguments": "{}"}}]},
+        )
+        result = _extract_tool_calls(msg)
+        assert result == [("c", "raw_fn", False)]
+
+    def test_deduplication(self):
+        """Same ID in both tool_calls and invalid_tool_calls → only counted once."""
+        msg = AIMessage(
+            content="",
+            tool_calls=[{"id": "dup", "name": "fn", "args": {}}],
+            invalid_tool_calls=[{"id": "dup", "name": "fn", "args": "x", "error": "e"}],
+        )
+        result = _extract_tool_calls(msg)
+        assert len(result) == 1
+        assert result[0][0] == "dup"
 
 
 class TestDanglingToolCallMiddlewareAsync:
