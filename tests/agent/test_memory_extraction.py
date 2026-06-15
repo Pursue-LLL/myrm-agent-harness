@@ -462,3 +462,35 @@ class TestDefaultEnabledBehavior:
         # Test default (should be True)
         agent_default = SkillAgent(llm=mock_llm)
         assert agent_default._enable_memory_auto_extraction is True
+
+
+class TestSessionDateInExtractionPipeline:
+    """Integration: verify session_date flows through extract_memories_from_conversation."""
+
+    @pytest.mark.asyncio
+    async def test_full_pipeline_injects_session_date(self) -> None:
+        """extract_memories_from_conversation → MemoryExtractor.extract → user prompt has date."""
+        import re
+
+        from myrm_agent_harness.toolkits.memory.strategies.extractor import (
+            ExtractionConfig,
+            extract_memories_from_conversation,
+        )
+
+        captured_prompts: list[str] = []
+
+        async def spy_llm(_system: str, user: str) -> str:
+            captured_prompts.append(user)
+            return "[]"
+
+        messages = [
+            {"role": "user", "content": "I met with the team yesterday to discuss the Q3 roadmap"},
+            {"role": "assistant", "content": "That sounds productive! What were the key decisions?"},
+        ]
+        config = ExtractionConfig()
+        await extract_memories_from_conversation(messages, llm_func=spy_llm, config=config)
+
+        assert len(captured_prompts) == 1
+        prompt = captured_prompts[0]
+        assert prompt.startswith("Session date: ")
+        assert re.search(r"Session date: \d{4}-\d{2}-\d{2} \(\w+\)", prompt)

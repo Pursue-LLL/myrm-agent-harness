@@ -1625,6 +1625,127 @@ class TestExtractTruncation:
 
 
 # ============================================================================
+# Session date injection in user prompt (Temporal Grounding)
+# ============================================================================
+
+
+class TestSessionDateInjection:
+    """Verify extract() injects Session date into the LLM user prompt."""
+
+    @pytest.mark.asyncio
+    async def test_user_prompt_contains_session_date(self):
+        captured_prompt: list[str] = []
+
+        async def capture_llm(_system: str, user: str) -> str:
+            captured_prompt.append(user)
+            return "[]"
+
+        config = ExtractionConfig()
+        extractor = MemoryExtractor(config=config, llm_func=capture_llm)
+        msgs = [{"role": "user", "content": "I had a meeting yesterday"}]
+        await extractor.extract(msgs)
+
+        assert len(captured_prompt) == 1
+        prompt = captured_prompt[0]
+        assert prompt.startswith("Session date: ")
+        import re
+
+        match = re.search(r"Session date: (\d{4}-\d{2}-\d{2}) \((\w+)\)", prompt)
+        assert match, f"Expected YYYY-MM-DD (Weekday) format, got: {prompt[:80]}"
+
+    @pytest.mark.asyncio
+    async def test_system_prompt_does_not_contain_dynamic_date(self):
+        captured_system: list[str] = []
+
+        async def capture_llm(system: str, _user: str) -> str:
+            captured_system.append(system)
+            return "[]"
+
+        config = ExtractionConfig()
+        extractor = MemoryExtractor(config=config, llm_func=capture_llm)
+        msgs = [{"role": "user", "content": "hello"}]
+        await extractor.extract(msgs)
+
+        assert len(captured_system) == 1
+        import re
+
+        assert not re.search(
+            r"\d{4}-\d{2}-\d{2}", captured_system[0]
+        ), "System prompt must NOT contain dynamic dates (cache-breaking)"
+
+    @pytest.mark.asyncio
+    async def test_weekday_is_english(self):
+        """Weekday in Session date must be English regardless of system locale."""
+        captured_prompt: list[str] = []
+
+        async def capture_llm(_system: str, user: str) -> str:
+            captured_prompt.append(user)
+            return "[]"
+
+        extractor = MemoryExtractor(config=ExtractionConfig(), llm_func=capture_llm)
+        await extractor.extract([{"role": "user", "content": "test"}])
+
+        import re
+
+        match = re.search(r"Session date: \d{4}-\d{2}-\d{2} \((\w+)\)", captured_prompt[0])
+        assert match
+        weekday = match.group(1)
+        valid_weekdays = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
+        assert weekday in valid_weekdays, f"Expected English weekday, got: {weekday}"
+
+    @pytest.mark.asyncio
+    async def test_date_present_with_correction_detected(self):
+        """Session date injected even when correction_detected=True."""
+        captured_prompt: list[str] = []
+
+        async def capture_llm(_system: str, user: str) -> str:
+            captured_prompt.append(user)
+            return "[]"
+
+        extractor = MemoryExtractor(config=ExtractionConfig(), llm_func=capture_llm)
+        msgs = [
+            {"role": "user", "content": "No, I said Python not Java"},
+            {"role": "assistant", "content": "Sorry, Python it is"},
+        ]
+        await extractor.extract(msgs, correction_detected=True)
+
+        assert captured_prompt[0].startswith("Session date: ")
+
+    @pytest.mark.asyncio
+    async def test_date_present_with_context(self):
+        """Session date injected when additional context is provided."""
+        captured_prompt: list[str] = []
+
+        async def capture_llm(_system: str, user: str) -> str:
+            captured_prompt.append(user)
+            return "[]"
+
+        extractor = MemoryExtractor(config=ExtractionConfig(), llm_func=capture_llm)
+        msgs = [{"role": "user", "content": "I use VS Code"}]
+        await extractor.extract(msgs, context={"project": "myrm"})
+
+        prompt = captured_prompt[0]
+        assert prompt.startswith("Session date: ")
+        assert "Additional Context" in prompt
+
+    @pytest.mark.asyncio
+    async def test_date_present_after_truncation(self):
+        """Session date survives message truncation (injected after truncation)."""
+        captured_prompt: list[str] = []
+
+        async def capture_llm(_system: str, user: str) -> str:
+            captured_prompt.append(user)
+            return "[]"
+
+        config = ExtractionConfig(max_input_chars=100)
+        extractor = MemoryExtractor(config=config, llm_func=capture_llm)
+        msgs = [{"role": "user", "content": "X" * 50} for _ in range(10)]
+        await extractor.extract(msgs)
+
+        assert captured_prompt[0].startswith("Session date: ")
+
+
+# ============================================================================
 # auto_extract_memories — auto-feedback integration
 # ============================================================================
 

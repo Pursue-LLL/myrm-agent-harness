@@ -245,6 +245,75 @@ class CronManager:
         logger.warning("Cron job created: %s (%s)", name, job.id)
         return job
 
+    async def duplicate_job(self, job_id: str, user_id: str) -> CronJob | None:
+        """Duplicate an existing job with all configuration fields.
+
+        Copies every config field from the source job while resetting all
+        runtime state (fire_count, failures, run history, etc.).
+        The new job starts in PAUSED status to prevent accidental triggering.
+        Webhook triggers get fresh path/secret to avoid conflicts.
+        """
+        source = await self.get_job(job_id, user_id)
+        if source is None:
+            return None
+
+        triggers = source.triggers
+        if triggers and triggers.webhooks:
+            triggers = self._ensure_webhook_credentials(
+                TriggerConfig(
+                    webhooks=tuple(WebhookTrigger() for _ in triggers.webhooks),
+                    events=triggers.events,
+                    system_events=triggers.system_events,
+                ),
+            )
+
+        copy_name = f"{source.name} (Copy)"
+        final_name = await self._resolve_name_conflict(user_id, copy_name)
+
+        new_id = nanoid(size=16)
+        now = datetime.now(UTC)
+        cloned = CronJob(
+            id=new_id,
+            user_id=user_id,
+            name=final_name,
+            job_type=source.job_type,
+            schedule=source.schedule,
+            status=JobStatus.PAUSED,
+            prompt=source.prompt,
+            model=source.model,
+            chat_id=source.chat_id,
+            agent_id=source.agent_id,
+            command=source.command,
+            required_capabilities=source.required_capabilities,
+            allowed_roots=source.allowed_roots,
+            delivery=source.delivery,
+            failure_delivery=source.failure_delivery,
+            failure_alert=source.failure_alert,
+            active_hours=source.active_hours,
+            max_retries=source.max_retries,
+            retry_backoff_ms=source.retry_backoff_ms,
+            timeout_seconds=source.timeout_seconds,
+            misfire_grace_seconds=source.misfire_grace_seconds,
+            cooldown_seconds=source.cooldown_seconds,
+            max_fires=source.max_fires,
+            expires_at=source.expires_at,
+            session_target=source.session_target,
+            delete_after_run=source.delete_after_run,
+            run_retention_days=source.run_retention_days,
+            deduplicate=source.deduplicate,
+            monitor_config=source.monitor_config,
+            triggers=triggers,
+            context_from=source.context_from,
+            pre_condition_script=source.pre_condition_script,
+            next_run_at=None,
+            created_at=now,
+            updated_at=now,
+        )
+        cloned = await self._store.save_job(cloned)
+        self._scheduler.notify_change()
+        logger.warning("Cron job duplicated: %s -> %s (%s)", source.name, final_name, new_id)
+        return cloned
+
     async def _reset_baseline_on_change(self, job_id: str, reset_reason: ResetReason) -> None:
         """Reset monitor baseline and record reason.
 

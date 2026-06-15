@@ -457,7 +457,8 @@ class MemoryExtractor:
         self._last_detected_language = detected_language
 
         formatted = "\n".join(f"[{m.get('role', 'user').upper()}]: {m.get('content', '')}" for m in effective_messages)
-        prompt = f"## Conversation to Analyze\n\n{formatted}\n\n"
+        session_date = start.strftime("%Y-%m-%d (%A)")
+        prompt = f"Session date: {session_date}\n\n## Conversation to Analyze\n\n{formatted}\n\n"
         prompt += "## Instructions\n\nAnalyze the conversation. If and ONLY if it contains critical constraints, high-leverage knowledge, or valuable personal facts, output them. Otherwise, output [].\n"
         prompt += "Return ONLY a valid JSON array, no other text.\n"
         if context:
