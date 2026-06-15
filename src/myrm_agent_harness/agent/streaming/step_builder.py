@@ -14,6 +14,8 @@ Agent step data builder. Constructs frontend display data from tool names and ar
 """
 
 import json
+import os
+from difflib import unified_diff
 from typing import TypedDict
 
 
@@ -21,7 +23,7 @@ class StepBuildResult(TypedDict, total=False):
     """步骤构建结果"""
 
     step_key: str | None  # 自定义 step_key（覆盖默认的 tool_name_tool）
-    data: list[dict[str, str]]  # 展示数据
+    data: list[dict[str, str | bool]]  # 展示数据
 
 
 _STEP_KEY_OVERRIDES: dict[str, str] = {
@@ -85,8 +87,6 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
                 # 如果解析失败，可能是单个路径
                 paths = [paths] if paths else []
         if paths and isinstance(paths, list):
-            import os
-
             items = []
             for p in paths[:10]:
                 item = {"file_path": str(p), "action_type": "read"}
@@ -102,14 +102,17 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
     if tool_name == "file_write_tool":
         path = tool_args.get("path", "")
         if path:
-            import os
-
-            item = {"file_path": str(path), "action_type": "write"}
+            item: dict[str, str | bool] = {"file_path": str(path), "action_type": "write"}
             try:
                 if os.path.exists(str(path)) and os.path.isfile(str(path)):
                     item["size_bytes"] = str(os.path.getsize(str(path)))
             except Exception:
                 pass
+
+            content = tool_args.get("content", "")
+            if content:
+                _inject_diff(item, str(path), "", str(content))
+
             return {"step_key": "file_write_tool", "data": [item]}
         return {"data": []}
 
@@ -117,14 +120,18 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
     if tool_name == "file_edit_tool":
         path = tool_args.get("path", "")
         if path:
-            import os
-
             item = {"file_path": str(path), "action_type": "write"}
             try:
                 if os.path.exists(str(path)) and os.path.isfile(str(path)):
                     item["size_bytes"] = str(os.path.getsize(str(path)))
             except Exception:
                 pass
+
+            old_str = tool_args.get("old_str", "")
+            new_str = tool_args.get("new_str", "")
+            if old_str or new_str:
+                _inject_diff(item, str(path), str(old_str), str(new_str))
+
             return {"step_key": "file_edit_tool", "data": [item]}
         return {"data": []}
 
@@ -142,8 +149,6 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
         start_line = tool_args.get("start_line")
         end_line = tool_args.get("end_line")
         if path:
-            import os
-
             item = {"file_path": str(path)}
 
             # 注入 action_type
@@ -183,3 +188,32 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
             return {"data": [{"text": " | ".join(summary_parts)}]}
 
     return {"data": []}
+
+
+_DIFF_MAX_LINES = 50
+
+
+def _inject_diff(item: dict[str, str | bool], file_path: str, old_str: str, new_str: str) -> None:
+    """Generate unified diff and inject into item dict (mutates in-place)."""
+    if not old_str and not new_str:
+        return
+
+    filename = os.path.basename(file_path)
+    old_lines = old_str.splitlines(keepends=True)
+    new_lines = new_str.splitlines(keepends=True)
+
+    diff_lines = list(unified_diff(
+        old_lines,
+        new_lines,
+        fromfile=f"a/{filename}",
+        tofile=f"b/{filename}",
+        lineterm="",
+    ))
+    if not diff_lines:
+        return
+
+    if len(diff_lines) > _DIFF_MAX_LINES:
+        item["diff"] = "\n".join(diff_lines[:_DIFF_MAX_LINES])
+        item["diff_truncated"] = True
+    else:
+        item["diff"] = "\n".join(diff_lines)
