@@ -144,6 +144,54 @@ class TestLLMConfig:
         assert c in s
 
 
+class TestLLMConfigValidators:
+    """Tests for field validators: _strip_whitespace and _normalize_base_url."""
+
+    def test_model_strip_whitespace(self) -> None:
+        c = LLMConfig(model="  gpt-4  ", api_key="key")
+        assert c.model == "gpt-4"
+
+    def test_api_key_strip_whitespace(self) -> None:
+        c = LLMConfig(model="gpt-4", api_key="  sk-abc123  ")
+        assert c.api_key == "sk-abc123"
+
+    def test_base_url_strip_trailing_slash(self) -> None:
+        c = LLMConfig(model="m", api_key="k", base_url="https://api.openai.com/v1/")
+        assert c.base_url == "https://api.openai.com/v1"
+
+    def test_base_url_strip_multiple_trailing_slashes(self) -> None:
+        c = LLMConfig(model="m", api_key="k", base_url="https://api.example.com///")
+        assert c.base_url == "https://api.example.com"
+
+    def test_base_url_strip_whitespace_and_slash(self) -> None:
+        c = LLMConfig(model="m", api_key="k", base_url="  https://api.example.com/  ")
+        assert c.base_url == "https://api.example.com"
+
+    def test_base_url_empty_string_becomes_none(self) -> None:
+        c = LLMConfig(model="m", api_key="k", base_url="")
+        assert c.base_url is None
+
+    def test_base_url_whitespace_only_becomes_none(self) -> None:
+        c = LLMConfig(model="m", api_key="k", base_url="   ")
+        assert c.base_url is None
+
+    def test_base_url_single_slash_becomes_none(self) -> None:
+        c = LLMConfig(model="m", api_key="k", base_url="/")
+        assert c.base_url is None
+
+    def test_base_url_none_stays_none(self) -> None:
+        c = LLMConfig(model="m", api_key="k", base_url=None)
+        assert c.base_url is None
+
+    def test_model_whitespace_only_fails_min_length(self) -> None:
+        with pytest.raises(ValidationError):
+            LLMConfig(model="   ", api_key="key")
+
+    def test_api_key_whitespace_only_fails_min_length(self) -> None:
+        with pytest.raises(ValidationError):
+            LLMConfig(model="gpt-4", api_key="   ")
+
+
 class TestReExportTypeIdentity:
     """Verify that core.config types and agent.config re-exports are identical objects."""
 

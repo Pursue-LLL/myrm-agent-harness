@@ -7,7 +7,7 @@ without any coupling to the agent runtime.
 import os
 from dataclasses import dataclass
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 @dataclass(frozen=True)
@@ -74,6 +74,19 @@ class LLMConfig(BaseModel):
     model_config = {
         "frozen": True,
     }
+
+    @field_validator("model", "api_key", mode="before")
+    @classmethod
+    def _strip_whitespace(cls, v: str) -> str:
+        return v.strip() if isinstance(v, str) else v
+
+    @field_validator("base_url", mode="before")
+    @classmethod
+    def _normalize_base_url(cls, v: str | None) -> str | None:
+        if not isinstance(v, str):
+            return v
+        normalized = v.strip().rstrip("/")
+        return normalized or None
 
     @classmethod
     def from_env(cls) -> "LLMConfig":
