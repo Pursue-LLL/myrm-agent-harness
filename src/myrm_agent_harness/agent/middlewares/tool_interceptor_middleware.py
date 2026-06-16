@@ -84,11 +84,14 @@ _loop_guard_var: ContextVar[LoopGuard] = ContextVar("loop_guard")
 def get_loop_guard() -> LoopGuard:
     """Get or create the session-scoped LoopGuard."""
     try:
-        return _loop_guard_var.get()
+        guard = _loop_guard_var.get()
+        if guard is not None:
+            return guard
     except LookupError:
-        guard = LoopGuard()
-        _loop_guard_var.set(guard)
-        return guard
+        pass
+    guard = LoopGuard()
+    _loop_guard_var.set(guard)
+    return guard
 
 
 def reset_loop_guard(*, is_resume: bool = False, graph_recursion_limit: int = 100) -> None:
