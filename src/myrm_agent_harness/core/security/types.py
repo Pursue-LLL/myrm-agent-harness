@@ -444,6 +444,26 @@ class SecurityConfig:
             yolo_mode_enabled=True,
         )
 
+    @classmethod
+    def remote_exposed(cls) -> SecurityConfig:
+        """Remote-exposed admission overlay: deny destructive and computer-use tools."""
+        remote_rules: PermissionRuleset = (
+            PermissionRule("shell_exec", "*", PermissionAction.DENY),
+            PermissionRule("code_interpreter", "*", PermissionAction.DENY),
+            PermissionRule("desktop_control", "*", PermissionAction.DENY),
+            PermissionRule("browser_upload", "*", PermissionAction.DENY),
+            PermissionRule("browser_download", "*", PermissionAction.DENY),
+            PermissionRule("browser_fill", "*", PermissionAction.DENY),
+            PermissionRule("browser_evaluate", "*", PermissionAction.DENY),
+            PermissionRule("mcp_invoke", "*", PermissionAction.ASK),
+            PermissionRule("delegate_agent", "*", PermissionAction.DENY),
+        )
+        return cls(
+            capabilities=frozenset({Capability("*", "*")}),
+            ruleset=remote_rules,
+            yolo_mode_enabled=False,
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class EphemeralUserCredential:

@@ -22,6 +22,7 @@ Agent-callable tools are exported via dedicated xx_agent_tools.py files.
 [POS]
 Generic, framework-agnostic toolkit collection. No agent coupling — each toolkit is independently usable via `myrm_agent_harness.toolkits.xxx`.
 - acp: ACP protocol integration (Server + Runtime)
+- a2a: A2A protocol support (AgentCard discovery, Resolver, Provider Protocol)
 - browser: browser automation (multi-tab, iframe traversal)
 - cron: scheduled task framework (scheduling, CRUD management, incremental monitoring)
 - code_execution: code execution system (Agent-in-Sandbox mode)

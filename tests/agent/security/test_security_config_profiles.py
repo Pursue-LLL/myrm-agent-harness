@@ -207,6 +207,38 @@ class TestSecurityConfigFullAccess:
         assert config.capabilities == frozenset({Capability("*", "*")})
 
 
+class TestSecurityConfigRemoteExposed:
+    """Tests for SecurityConfig.remote_exposed() factory method."""
+
+    def test_remote_exposed_denies_shell_exec(self) -> None:
+        config = SecurityConfig.remote_exposed()
+        shell_rules = [r for r in config.ruleset if r.permission == "shell_exec"]
+        assert len(shell_rules) == 1
+        assert shell_rules[0].action == PermissionAction.DENY
+
+    def test_remote_exposed_denies_desktop_control(self) -> None:
+        config = SecurityConfig.remote_exposed()
+        rules = [r for r in config.ruleset if r.permission == "desktop_control"]
+        assert len(rules) == 1
+        assert rules[0].action == PermissionAction.DENY
+
+    def test_remote_exposed_yolo_disabled(self) -> None:
+        config = SecurityConfig.remote_exposed()
+        assert config.yolo_mode_enabled is False
+
+    def test_remote_exposed_asks_mcp_invoke(self) -> None:
+        config = SecurityConfig.remote_exposed()
+        rules = [r for r in config.ruleset if r.permission == "mcp_invoke"]
+        assert len(rules) == 1
+        assert rules[0].action == PermissionAction.ASK
+
+    def test_remote_exposed_denies_delegate_agent(self) -> None:
+        config = SecurityConfig.remote_exposed()
+        rules = [r for r in config.ruleset if r.permission == "delegate_agent"]
+        assert len(rules) == 1
+        assert rules[0].action == PermissionAction.DENY
+
+
 class TestPathPolicyWorkspaceLabel:
     """Tests for PathPolicy.workspace_label field."""
 

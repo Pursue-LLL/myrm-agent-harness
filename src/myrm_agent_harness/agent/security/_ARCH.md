@@ -19,10 +19,11 @@ Detailed design: [SECURITY_DESIGN.md](SECURITY_DESIGN.md)
 | audit.py | Core | Cross-cutting concern. Called from tool_interceptor_middleware and all | ✅ |
 | channel_presets.py | Core | Decouples channel-specific security policy from the generic Permission Engine. | ✅ |
 | checks.py | Core | Built-in security checks — Layer 2 & 2.5. Path policy, URL scheme validation, shell threat analysis. Pure functions returning (action, reason) tuples. | ✅ |
-| config.py | Config | Called at application startup and on config updates. Pure functions. | ✅ |
+| config.py | Config | Deserialise SecurityConfig; `apply_remote_exposed_overlay`, `remote_exposed_permissions`. | ✅ |
 | engine.py | Core | Layers 1–5 of the security architecture. Pure deterministic evaluation — | ✅ |
 | execution_policy.py | Core | Execution policy and suspension abstraction. Defines low-level policy enums and interception contrac | ✅ |
 | transcript_classifier.py | Core | Layer 5.5 — Reasoning-Blind Transcript Classifier for auto-mode. Evaluates tool calls using user intent, tool call sequence, taint labels, and trust context (trusted domains). No assistant reasoning. Forces deterministic output (temperature=0, max_tokens=200) regardless of upstream LLM config. | ✅ |
+| trust_context.py | Core | RequestTrustContext protocol for remote admission path → tool restriction flags (consumed by agent-server overlay). | ✅ |
 | path_security.py | Core | Path security — single source of truth for dangerous paths, boundary checks, and safe path joining. | ✅ |
 | ptc_verifier.py | Core | AST-based static analysis for PTC (Programmatic Tool Calling) scripts. Extracts MCP intent and enables Fast-Path Auto-Approve for read-only tools. | ✅ |
 | rate_limiter.py | Core | Agent security rate limiter. Prevents brute-force attacks (e.g., WebUI login) with configurable rate | ✅ |
@@ -30,7 +31,7 @@ Detailed design: [SECURITY_DESIGN.md](SECURITY_DESIGN.md)
 | safe_exec.py | Core | Layer 2 enhancement. Called from: | ✅ |
 | terminal_error_registry.py | Core | Turn-scoped terminal error storage with persistence. | ✅ |
 | tool_registry.py | Core | Tool metadata registry: permission mapping, canonical params, safety metadata (6-dim), MCP annotation ingestion. resolve_safety_metadata uses 3-level fallback: built-in → MCP dynamic → fail-closed. | ✅ |
-| types.py | Core | Foundation layer of the security type hierarchy. All other security modules import from here. Includes SecurityConfig factory methods (readonly/workspace/full_access) and PathPolicy with workspace_label. | ✅ |
+| types.py | Core | Foundation layer of the security type hierarchy. All other security modules import from here. Includes SecurityConfig factory methods (readonly/workspace/full_access/remote_exposed) and PathPolicy with workspace_label. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

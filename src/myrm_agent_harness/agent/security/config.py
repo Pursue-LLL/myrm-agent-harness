@@ -185,3 +185,47 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
         yolo_mode_enabled_at=yolo_mode_enabled_at,
         yolo_mode_timeout=yolo_mode_timeout,
     )
+
+
+def _ruleset_to_permissions(ruleset: PermissionRuleset) -> dict[str, str]:
+    permissions: dict[str, str] = {}
+    for rule in ruleset:
+        if rule.pattern == "*":
+            permissions[rule.permission] = rule.action.value
+    return permissions
+
+
+def apply_remote_exposed_overlay(base: SecurityConfig) -> SecurityConfig:
+    """Merge remote-exposed deny rules onto an existing session SecurityConfig."""
+    remote = SecurityConfig.remote_exposed()
+    return SecurityConfig(
+        capabilities=base.capabilities,
+        ruleset=merge(base.ruleset, remote.ruleset),
+        approval_timeout_seconds=base.approval_timeout_seconds,
+        approval_timeout_behavior=base.approval_timeout_behavior,
+        path_policy=base.path_policy,
+        network_allowlist=base.network_allowlist,
+        domain_hitl_enabled=base.domain_hitl_enabled,
+        privacy_policy=base.privacy_policy,
+        auto_mode_enabled=base.auto_mode_enabled,
+        auto_review_model=base.auto_review_model,
+        auto_review_timeout_seconds=base.auto_review_timeout_seconds,
+        transcript_window_size=base.transcript_window_size,
+        yolo_mode_enabled=False,
+        yolo_mode_enabled_at=None,
+        yolo_mode_timeout=None,
+    )
+
+
+def remote_exposed_permissions() -> dict[str, str]:
+    """Deny-only permission keys for remote-exposed HTTP admission."""
+    return _ruleset_to_permissions(SecurityConfig.remote_exposed().ruleset)
+
+
+def security_config_to_dict(config: SecurityConfig) -> dict[str, object]:
+    """Serialize SecurityConfig fields consumed by agent-server security_config_raw."""
+    return {
+        "permissions": _ruleset_to_permissions(config.ruleset),
+        "yoloModeEnabled": config.yolo_mode_enabled,
+        "yolo_mode_enabled": config.yolo_mode_enabled,
+    }

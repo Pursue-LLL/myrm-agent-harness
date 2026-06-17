@@ -14,6 +14,7 @@ for enriching heartbeat prompts with dynamic context from registered data source
 | __init__.py | Package | Cron toolkit entry point. Aggregates scheduling engine, CRUD manager, protocols, built-in | ✅ |
 | cron_agent_tools.py | Core | Agent tool for scheduled task management. | ✅ |
 | delivery.py | Core | Built-in webhook ResultDelivery for cron job results. | ✅ |
+| delivery_guard.py | Core | Exact-token `[SILENT]` detection for delivery filtering (`is_silent_output`). | ✅ |
 | heartbeat.py | Core | Heartbeat — convenience layer over CronManager for periodic agent self-checks. Supports both INTERVAL and CRON scheduling (time-of-day triggers). | ✅ |
 | manager.py | Core | Cron CRUD orchestration layer. Validates job configurations, persists changes via CronStore, | ✅ |
 | protocols.py | Core | Protocols for the cron toolkit. | ✅ |

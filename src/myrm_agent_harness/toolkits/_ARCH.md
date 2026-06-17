@@ -14,7 +14,7 @@ Each toolkit is a **self-contained, absolutely independent** module usable via
 |----------|----------|------|
 | **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `network/`, `security/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP, SSRF guard |
 | **Workspace** | `browser/`, `computer_use/`, `code_index/`, `workspace/`, `context/`, `file_parsers/`, `wiki/`, `element_ref/` | Files, browser, desktop, code search, context bundles |
-| **Integration** | `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/`, `huggingface/`, `deploy/`, `local_browser_data/`, `notification/` | External APIs, channels, deployment bridges |
+| **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/`, `huggingface/`, `deploy/`, `local_browser_data/`, `notification/` | External APIs, agent protocols, channels, deployment bridges |
 | **Collaboration & Media** | `calendar/`, `kanban/`, `tasks/`, `commitment/`, `automation/`, `cron/`, `interaction/`, `tts/`, `vision/` | Scheduling, tasks, user interaction primitives, media |
 
 Agent-specific tool wrappers (e.g. `render_ui_tool`) live in `agent/meta_tools/`, not here.
@@ -64,6 +64,7 @@ Does your code need to import anything from agent/?
 
 | Submodule | Description |
 |-----------|-------------|
+| a2a/ | A2A (Agent-to-Agent) protocol support — AgentCard data models, client Resolver with SSRF protection, Provider Protocol contract. |
 | acp/ | ACP protocol integration — server and runtime components for Agent Communication Protocol. |
 | automation/ | Rule-based agent task automation — CRUD for automation rules (event/schedule/manual triggers). |
 | browser/ | Browser automation — multi-tab control, iframe traversal, session vault, stealth mode. |

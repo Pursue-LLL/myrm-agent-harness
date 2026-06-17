@@ -9,6 +9,7 @@ but owns no scheduling state — that remains in ``CronScheduler``.
 [INPUT]
 - toolkits.cron.types::CronConfig, (POS: Cron job domain types.)
 - toolkits.cron.protocols::CronStore, (POS: Protocols for the cron toolkit.)
+- toolkits.cron.delivery_guard::is_silent_output, (POS: Cron delivery guard.)
 - infra.incremental.manager::IncrementalMonitorManager (POS: Incremental monitor lifecycle manager.)
 
 [OUTPUT]
@@ -43,6 +44,7 @@ from myrm_agent_harness.toolkits.cron.engine.integrity import (
     GENESIS_HASH,
     compute_integrity_hash,
 )
+from myrm_agent_harness.toolkits.cron.delivery_guard import is_silent_output
 from myrm_agent_harness.toolkits.cron.engine.parser import compute_next_run
 from myrm_agent_harness.toolkits.cron.types import (
     CronConfig,
@@ -69,7 +71,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_SILENT_MARKER = "[SILENT]"
 _SCHEDULE_ERROR_THRESHOLD = 3
 _MAX_OUTPUT_CHARS = 8000
 _MAX_CONTEXT_FROM_CHARS = 8000
@@ -320,7 +321,7 @@ class JobExecutor:
                     return DeliveryStatus.SKIPPED, "no_new_content"
 
             output_text = (result.output or "").strip()
-            if output_text == _SILENT_MARKER or output_text.startswith(_SILENT_MARKER):
+            if is_silent_output(output_text):
                 logger.warning("Job %s: [SILENT] response — skipping delivery", job.id)
                 return DeliveryStatus.SKIPPED, "silent_response"
 
