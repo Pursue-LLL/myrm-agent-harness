@@ -580,6 +580,20 @@ class MemoryExtractor:
                         lifecycle=MemoryLifecycle.new_task_digest(),
                     )
                 )
+                # Cross-session working state fallback: persist digest as ProfileEntry
+                from myrm_agent_harness.toolkits.memory._internal.storage import (
+                    WORKING_STATE_PROFILE_KEY,
+                    WORKING_STATE_UPDATED_AT_KEY,
+                )
+
+                result.append(ProfileEntry(key=WORKING_STATE_PROFILE_KEY, value=m.content, language=language))
+                result.append(
+                    ProfileEntry(
+                        key=WORKING_STATE_UPDATED_AT_KEY,
+                        value=datetime.now(UTC).isoformat(),
+                        language=language,
+                    )
+                )
         return result
 
 

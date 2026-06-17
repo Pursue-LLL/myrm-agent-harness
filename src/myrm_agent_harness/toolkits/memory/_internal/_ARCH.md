@@ -17,7 +17,7 @@ Internal implementation details — not part of the public API.
 | memory_scanner.py | Core | Memory write-path security scanner. Scans content, raw_exchange, trigger/action fields for prompt injection (7+2 patterns), credential leaks (25+ patterns), and invisible Unicode. Three-tier verdict: BLOCKED/REDACTED/WARN/CLEAN. | ✅ |
 | scope.py | Core | Scope helper functions. Handles namespace derivation, MemoryScope binding, write target trimming, namespace validation, and channel affinity. | ✅ |
 | search_service.py | Core | Search-side orchestration for memory retrieval. Handles query cleanup, type routing, hybrid candidate collection, ranking, graph enrichment, compact output budgeting, access-count background updates, and business-neutral retrieval trace emission. | ✅ |
-| storage.py | Core | Internal storage operations. Handles vector ↔ schema conversion, embedding generation, inline compression, and external BLOB storage. | ✅ |
+| storage.py | Core | Internal storage operations. Handles vector ↔ schema conversion, embedding generation, inline compression, and external BLOB storage. Exports WORKING_STATE constants and TTL parsing in load_context. | ✅ |
 | write_service.py | Core | Write-side orchestration for memory persistence. Handles memory scanning, approval routing, | ✅ |
 
 ## Key Dependencies

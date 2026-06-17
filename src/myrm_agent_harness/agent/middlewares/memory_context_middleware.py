@@ -151,6 +151,11 @@ def _format_memory_context(
     stable_sections: list[BudgetedSection] = []
     untrusted_sections: list[BudgetedSection] = []
 
+    # ── Active Working Context (Highest Priority): cross-session task continuity ──
+    working_state = ctx.get("working_state")
+    if working_state and isinstance(working_state, str):
+        stable_sections.append(BudgetedSection("Active Working Context", [working_state], priority=0))
+
     # ── Stable Layer (High Privilege): user-configured, rarely changes ──
     global_profile = dict(ctx.get("global_profile", {}))
     if global_profile:

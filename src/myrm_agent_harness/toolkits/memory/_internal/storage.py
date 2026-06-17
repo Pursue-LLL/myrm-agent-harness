@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.memory.protocols.vector import (
@@ -770,6 +770,11 @@ async def delete_from_vector(collection: str, ids: list[str], vector: VectorStor
 # ======================================================================
 
 
+WORKING_STATE_PROFILE_KEY = "__working_state"
+WORKING_STATE_UPDATED_AT_KEY = "__working_state_updated_at"
+WORKING_STATE_TTL_DAYS = 7
+
+
 async def load_context(
     relational: RelationalStoreProtocol,
     *,
@@ -799,8 +804,16 @@ async def load_context(
         if isinstance(entries, list):
             global_profile = {}
             peer_profile = {}
+            working_state: str | None = None
+            working_state_updated_at: str | None = None
             for e in entries:
                 if not isinstance(e, ProfileEntry):
+                    continue
+                if e.key == WORKING_STATE_PROFILE_KEY:
+                    working_state = e.value
+                    continue
+                if e.key == WORKING_STATE_UPDATED_AT_KEY:
+                    working_state_updated_at = e.value
                     continue
                 if e.scope.primary_namespace == "global":
                     global_profile[e.key] = e.value
@@ -808,6 +821,18 @@ async def load_context(
                     peer_profile[e.key] = e.value
             ctx["global_profile"] = global_profile
             ctx["peer_profile"] = peer_profile
+
+            if working_state and working_state_updated_at:
+                try:
+                    updated_at = datetime.fromisoformat(working_state_updated_at)
+                    if updated_at.tzinfo is None:
+                        updated_at = updated_at.replace(tzinfo=UTC)
+                    if (datetime.now(UTC) - updated_at).days < WORKING_STATE_TTL_DAYS:
+                        ctx["working_state"] = working_state
+                except (ValueError, TypeError):
+                    ctx["working_state"] = working_state
+            elif working_state:
+                ctx["working_state"] = working_state
 
     if "rules" in results and not isinstance(results["rules"], Exception):
         rules_raw = results["rules"]

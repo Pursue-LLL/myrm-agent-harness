@@ -2,6 +2,7 @@
 
 Gives the Agent the ability to proactively truncate context and generate a phase summary.
 Built-in throttle mechanism prevents cache thrashing from frequent LLM calls.
+Also persists cross-session working state to Profile Memory for task continuity.
 
 [INPUT]
 - (none)
@@ -14,6 +15,7 @@ Built-in throttle mechanism prevents cache thrashing from frequent LLM calls.
 Commit Stage Tool - Agent-Driven Context Consolidation.
 """
 
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from langchain_core.tools import BaseTool, tool
@@ -57,7 +59,7 @@ def create_commit_stage_tool(agent_instance: Any = None) -> BaseTool:
     """
 
     @tool("commit_stage_tool", args_schema=CommitStageSchema)
-    def commit_stage_tool(
+    async def commit_stage_tool(
         stage_summary: str, next_stage_plan: str, active_task: str, unresolved_issues: list[str]
     ) -> str:
         """Use this tool when you have completed a significant, distinct phase of a complex, multi-step task and want to proactively consolidate your memory to stay focused and avoid context overload.
@@ -66,8 +68,6 @@ def create_commit_stage_tool(agent_instance: Any = None) -> BaseTool:
         When called successfully, the system will archive the raw history and replace it with your provided summary, allowing you to start the next phase with a clean slate.
         """
         if agent_instance is None:
-            # If no agent instance is bound, we can't enforce throttling or set the flag.
-            # Fail gracefully.
             return "Error: This tool is not properly bound to the agent instance. Cannot commit stage."
 
         # Check throttle based on agent statistics
@@ -76,17 +76,14 @@ def create_commit_stage_tool(agent_instance: Any = None) -> BaseTool:
 
         current_tokens = 0
         if parent_c and isinstance(parent_c, dict):
-            # Try to get total session tokens from context if available
             current_tokens = parent_c.get("session_total_tokens", 0)
 
         if current_tokens == 0 and stats is not None and stats.token_usage:
-            # Fallback to run stats if session tokens not tracked
             current_tokens = stats.token_usage.total_tokens
 
         last_commit_tokens = getattr(agent_instance, "_last_stage_commit_tokens", 0)
         tokens_since_commit = current_tokens - last_commit_tokens
 
-        # If current_tokens is 0, we don't have token tracking, so we skip throttle
         if tokens_since_commit < COMMIT_STAGE_MIN_TOKENS_THROTTLE and current_tokens > 0:
             logger.warning(
                 " [commit_stage] Throttled: Agent attempted to commit stage too early (%d / %d tokens).",
@@ -99,17 +96,11 @@ def create_commit_stage_tool(agent_instance: Any = None) -> BaseTool:
                 "Focus on making progress on the actual task instead."
             )
 
-        # Update the baseline to the current token count to reset the throttle
         agent_instance._last_stage_commit_tokens = current_tokens
 
-        # Inject the explicit semantic boundary signal into the agent's context
-        # This will be picked up by ContextPipelineMiddleware to set force_proactive_reset=True
         parent_c = getattr(agent_instance, "_last_context", None)
         if isinstance(parent_c, dict):
             parent_c["active_stage_commit_flag"] = True
-
-            # Optionally pass the generated summary hints into the context so the pipeline can use them
-            # (If the SummarizeProcessor wants to incorporate the agent's self-reflection)
             parent_c["active_stage_summary_hint"] = {
                 "stage_summary": stage_summary,
                 "next_stage_plan": next_stage_plan,
@@ -117,6 +108,10 @@ def create_commit_stage_tool(agent_instance: Any = None) -> BaseTool:
                 "unresolved_issues": unresolved_issues,
             }
             logger.info(" [commit_stage] Tool execution accepted. Semantic boundary flag injected.")
+
+            # Persist working state to Profile for cross-session task continuity
+            await _persist_working_state(active_task, stage_summary, next_stage_plan, unresolved_issues)
+
             return (
                 "Success: Your context has been flagged for consolidation. "
                 "The system will archive the raw history before your next LLM call and preserve your summary. "
@@ -127,3 +122,33 @@ def create_commit_stage_tool(agent_instance: Any = None) -> BaseTool:
             return "Error: System failure. Could not inject consolidation flag."
 
     return cast(BaseTool, commit_stage_tool)
+
+
+async def _persist_working_state(
+    active_task: str, stage_summary: str, next_stage_plan: str, unresolved_issues: list[str]
+) -> None:
+    """Write cross-session working state to Profile Memory (fire-and-forget, non-blocking)."""
+    try:
+        from myrm_agent_harness.agent._skill_agent_context import get_memory_manager
+        from myrm_agent_harness.toolkits.memory._internal.storage import (
+            WORKING_STATE_PROFILE_KEY,
+            WORKING_STATE_UPDATED_AT_KEY,
+        )
+
+        manager = get_memory_manager()
+        if not manager:
+            return
+
+        issues_str = "; ".join(unresolved_issues) if unresolved_issues else ""
+        state_parts = [f"Task: {active_task}", f"Done: {stage_summary}", f"Next: {next_stage_plan}"]
+        if issues_str:
+            state_parts.append(f"Blocked: {issues_str}")
+        working_state = " | ".join(state_parts)
+
+        await manager.set_system_profile_attribute(WORKING_STATE_PROFILE_KEY, working_state)
+        await manager.set_system_profile_attribute(
+            WORKING_STATE_UPDATED_AT_KEY, datetime.now(UTC).isoformat()
+        )
+        logger.info(" [commit_stage] Working state persisted to Profile.")
+    except Exception as exc:
+        logger.debug(" [commit_stage] Working state persistence failed (non-fatal): %s", exc)
