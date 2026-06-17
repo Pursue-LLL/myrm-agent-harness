@@ -407,7 +407,7 @@ class TestDeliveryEdgeCases:
             prompt="check something quietly",
         )
 
-        silent_runner = FakeAgentRunner(output="[SILENT] no changes detected")
+        silent_runner = FakeAgentRunner(output="[SILENT]")
         await executor.run_and_record(job, silent_runner)
 
         assert len(delivery.deliveries) == 0
