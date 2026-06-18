@@ -87,6 +87,7 @@
 - **Managed vs External 重置策略**（`PagePool.preserve_session`，由 `BrowserInstance.is_managed` 驱动）：
   - **Managed**（`LAUNCH` / AUTO fallback 新启 Chromium）：全量 CDP 清理（cookies、storage、cache）
   - **External**（CDP 连接用户 Chrome，`is_managed=False`）：仅 `Page.resetNavigationHistory` + 标签页 `about:blank`，**不**调用 `Network.clearBrowserCookies` / `Storage.clearDataForOrigin`，保留登录态
+- **DevToolsActivePort 自动发现**：AUTO 模式通过 `chrome_discovery.py` 扫描 Chrome/Edge/Chromium/Brave/Canary 的 DevToolsActivePort 文件，自动发现用户本地浏览器的动态 CDP 端口。4 阶段策略：文件扫描 → HTTP probe → TCP fallback → 固定端口 9222 兜底。
 - **Local 可见 fallback**：server 层 `get_browser_launch_options()` 在 Local 模式设 `headless=False`（SaaS 仍默认 headless）
 - **多租户隔离**：不同 ContextType（CRAWL / AGENT / STEALTH）使用独立 BrowserContext
 - **智能负载调度**：自动选择负载最低的 Context

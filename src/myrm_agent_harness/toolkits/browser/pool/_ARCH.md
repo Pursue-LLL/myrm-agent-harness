@@ -8,7 +8,8 @@ Global browser resource pool. Manages Browser/Context/Page three-layer resources
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Global browser resource pool. Manages Browser/Context/Page three-layer resources, implementing zero- | ✅ |
-| browser_launcher.py | Core | Browser instance launching with CDP connect, intelligent retry, and zero-config Chromium auto-install for desktop users. | ✅ |
+| browser_launcher.py | Core | Browser instance launching with CDP connect, intelligent retry, DevToolsActivePort discovery, and zero-config Chromium auto-install for desktop users. AUTO mode: discover local Chrome → probe → connect → fallback to launch. | ✅ |
+| chrome_discovery.py | Core | Local Chromium-based browser discovery via DevToolsActivePort files. Scans Chrome/Edge/Chromium/Brave/Canary data dirs across macOS/Linux/Windows. 4-phase: file scan → HTTP probe → TCP fallback → fixed port 9222. | ✅ |
 | browser_pool.py | Core | Global browser resource pool. Smart scheduling; wires PagePool.preserve_session from BrowserInstance.is_managed. DNS leak prevention when proxy_pool active. Anti-throttling/anti-focus Chrome args for headful mode. | ✅ |
 | circuit_breaker.py | Core | Circuit breaker module. Prevents persistently failing domains from degrading the entire system. | ✅ |
 | config.py | Config | Browser pool configuration module. Public presets: `BrowserConfig.minimal()` / `standard()` / `defensive()`. `ResourceBlockConfig` supports image/stylesheet/script/font/media type blocking + ad/tracker domain blocking. LaunchMode: LAUNCH/CONNECT/AUTO/REMOTE/EXTENSION. | ✅ |

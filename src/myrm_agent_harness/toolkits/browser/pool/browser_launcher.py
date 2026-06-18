@@ -5,6 +5,7 @@
 - patchright.async_api::Playwright (POS: Patchright launcher)
 - patchright.async_api::Browser (POS: Patchright browser instance)
 - .config::LaunchMode, _DEFAULT_CDP_ENDPOINT (POS: launch method enum and default CDP endpoint)
+- .chrome_discovery::discover_chrome_cdp_endpoint (POS: DevToolsActivePort-based browser discovery)
 
 [OUTPUT]
 - BrowserLauncher: browser instance launcher (supports launch/connect/auto modes)
@@ -16,7 +17,7 @@ Dedicated to browser instance launching, including:
 2. New browser launch (chromium.launch)
 3. CDP connection to existing Chrome (chromium.connect_over_cdp)
 4. Automatic CDP port detection (HTTP GET /json/version)
-5. Auto mode: probe → connect → fallback to launch
+5. Auto mode: DevToolsActivePort discovery → probe → connect → fallback to launch
 6. Smart retry strategy (3 retries + exponential backoff)
 7. Zero-config auto-install: detects missing Chromium and installs via patchright
 """
@@ -236,15 +237,34 @@ class BrowserLauncher:
         if self._launch_mode == LaunchMode.CONNECT:
             return await self._connect_existing(self._cdp_endpoint, headers=headers)
 
-        if self._launch_mode == LaunchMode.AUTO and await self._probe_cdp(self._cdp_endpoint):
-            try:
-                inst = await self._connect_existing(self._cdp_endpoint, headers=headers)
-                logger.info("AUTO mode: connected to existing Chrome via CDP")
-                return inst
-            except Exception as exc:
-                logger.warning(f"AUTO mode: CDP connect failed, falling back to launch: {exc}")
+        if self._launch_mode == LaunchMode.AUTO:
+            discovered = await self._discover_local_chrome()
+            endpoint_to_try = discovered or self._cdp_endpoint
+
+            if await self._probe_cdp(endpoint_to_try):
+                try:
+                    inst = await self._connect_existing(endpoint_to_try, headers=headers)
+                    logger.info(
+                        "AUTO mode: connected to existing Chrome via CDP at %s%s",
+                        endpoint_to_try,
+                        " (discovered)" if discovered else "",
+                    )
+                    return inst
+                except Exception as exc:
+                    logger.warning("AUTO mode: CDP connect failed, falling back to launch: %s", exc)
 
         return await self._launch_new_browser()
+
+    async def _discover_local_chrome(self) -> str | None:
+        """Discover a locally running Chrome via DevToolsActivePort file scan.
+
+        Runs the synchronous discovery in a thread executor to avoid blocking
+        the event loop (filesystem I/O + TCP/HTTP probes).
+        """
+        from .chrome_discovery import discover_chrome_cdp_endpoint
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, discover_chrome_cdp_endpoint)
 
     async def _probe_cdp(self, endpoint: str) -> bool:
         """Probe CDP endpoint availability via HTTP GET /json/version."""
