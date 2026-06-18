@@ -932,7 +932,7 @@ browser/
 │   └── common.py — 工具共享工具函数
 ├── pool/
 │   ├── browser_pool.py (716 行) — GlobalBrowserPool（全局调度中枢）
-│   ├── browser_launcher.py (487 行) — BrowserLauncher（Browser 启动器 + Zero-config Chromium 自动安装 + Camoufox 指纹持久化 + 损坏自愈）
+│   ├── browser_launcher.py (490 行) — BrowserLauncher（Browser 启动器 + Zero-config Chromium 自动安装 + Camoufox 指纹持久化 + 损坏自愈）
 │   ├── context_factory.py (156 行) — ContextFactory（Context 工厂）
 │   └── page_pool.py (195 行) — PagePool
 ├── diff/

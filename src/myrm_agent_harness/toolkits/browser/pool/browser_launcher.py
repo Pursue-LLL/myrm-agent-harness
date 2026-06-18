@@ -348,12 +348,15 @@ class BrowserLauncher:
                     if fp_file and fp_file.is_file():
                         try:
                             camoufox_config = json.loads(fp_file.read_text(encoding="utf-8"))
+                            if not isinstance(camoufox_config, dict):
+                                raise ValueError("expected dict, got " + type(camoufox_config).__name__)
                             logger.debug("Loaded Camoufox fingerprint from %s", fp_file)
                         except (json.JSONDecodeError, ValueError):
                             logger.warning(
                                 "Corrupted Camoufox fingerprint at %s — deleting and regenerating", fp_file,
                             )
                             fp_file.unlink(missing_ok=True)
+                            camoufox_config = None
 
                     if camoufox_config is None:
                         build_kwargs: dict[str, object] = {
