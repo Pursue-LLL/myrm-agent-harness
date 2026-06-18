@@ -272,9 +272,9 @@ def create_computer_session(
 ) -> ComputerSession:
     """Factory: auto-detect platform and create appropriate ComputerSession.
 
-    On macOS/Windows, if ``cua-driver`` is installed, wraps the native backend
+    On all platforms, if ``cua-driver`` is installed, wraps the native backend
     with CuaDriverBackend for background (focus-free) input simulation.
-    Otherwise falls back to pyautogui-based backends transparently.
+    Otherwise falls back to platform-native backends transparently.
     """
     from myrm_agent_harness.toolkits.code_execution.platform import detect_platform
 
@@ -291,7 +291,7 @@ def create_computer_session(
     else:
         from myrm_agent_harness.toolkits.computer_use.backends.linux import LinuxBackend
 
-        return ComputerSession(backend=LinuxBackend(), config=config)
+        native_backend = LinuxBackend()
 
     backend = _try_wrap_with_cua_driver(native_backend)
     return ComputerSession(backend=backend, config=config)
