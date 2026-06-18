@@ -58,14 +58,14 @@ class PageAnalyzer:
         self._page = page
 
     async def analyze(self) -> PageStructure:
-        """fast分析Page结构
+        """Fast page structure analysis.
 
         Returns:
-            PageStructure: Contains检测 to  区域、推荐 selector  etc.
+            PageStructure with detected regions, recommended selectors, etc.
 
         Note:
-             using  page.evaluate()  in Browser端Execute, avoid 多次 IPC。
-            只检测 DOM 结构, not Getcomplete ARIA 树, guarantee 性能。
+            Runs a single page.evaluate() to minimize IPC round-trips.
+            Only inspects DOM structure (not the full ARIA tree) for speed.
         """
         try:
             result = await self._page.evaluate(

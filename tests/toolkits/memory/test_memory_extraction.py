@@ -1416,6 +1416,10 @@ class TestTaskDigest:
         assert "Task Digest" not in prompt
 
     def test_digest_converts_to_episodic_memory(self, digest_config):
+        from myrm_agent_harness.toolkits.memory._internal.storage import (
+            WORKING_STATE_PROFILE_KEY,
+            WORKING_STATE_UPDATED_AT_KEY,
+        )
         from myrm_agent_harness.toolkits.memory.strategies.extractor import (
             ExtractedMemory,
         )
@@ -1430,7 +1434,8 @@ class TestTaskDigest:
         ]
         extractor = MemoryExtractor(config=digest_config)
         concrete = extractor.to_concrete_memories(extracted, source_chat_id="chat_1")
-        assert len(concrete) == 1
+        # 1 EpisodicMemory + 2 ProfileEntry (working_state + updated_at)
+        assert len(concrete) == 3
         mem = concrete[0]
         assert isinstance(mem, EpisodicMemory)
         assert mem.event_type == "task_digest"
@@ -1442,6 +1447,12 @@ class TestTaskDigest:
         assert mem.lifecycle.evaporation_state == EvaporationState.PENDING
         assert mem.lifecycle.claim_graph_state == ClaimGraphState.PENDING
         assert mem.lifecycle.claim_graph_conflict == ClaimConflictState.NONE
+        ws_entry = concrete[1]
+        assert isinstance(ws_entry, ProfileEntry)
+        assert ws_entry.key == WORKING_STATE_PROFILE_KEY
+        ws_ts_entry = concrete[2]
+        assert isinstance(ws_ts_entry, ProfileEntry)
+        assert ws_ts_entry.key == WORKING_STATE_UPDATED_AT_KEY
 
     @pytest.mark.asyncio
     async def test_empty_content_digest_discarded(self, digest_config):

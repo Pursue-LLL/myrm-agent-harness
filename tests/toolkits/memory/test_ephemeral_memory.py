@@ -1,7 +1,8 @@
 """Tests for ephemeral.py: ReadOnlyMemoryView and EphemeralMemoryManager.
 
 Covers:
-- ReadOnlyMemoryView: all 28 write/mutate methods raise PermissionError
+- ReadOnlyMemoryView: all write/mutate methods raise PermissionError
+- ReadOnlyMemoryView: set_last_cited_memory_ids is allowed (internal state, not persistence)
 - ReadOnlyMemoryView: all read methods delegate to parent
 - ReadOnlyMemoryView: property delegation
 - EphemeralMemoryManager: ephemeral store + parent read delegation
@@ -227,10 +228,10 @@ class TestReadOnlyMemoryViewWriteDenied:
         with pytest.raises(PermissionError, match="READ_ONLY_GLOBAL"):
             await view.unarchive_memories(["id-1"], MemoryType.SEMANTIC)
 
-    def test_set_last_cited_memory_ids_denied(self):
+    def test_set_last_cited_memory_ids_allowed(self):
         view = self._make_view()
-        with pytest.raises(PermissionError, match="READ_ONLY_GLOBAL"):
-            view.set_last_cited_memory_ids(["id-1"])
+        view.set_last_cited_memory_ids(["id-1", "id-2"])
+        assert view.last_cited_memory_ids == ["id-1", "id-2"]
 
 
 class TestReadOnlyMemoryViewReadDelegation:

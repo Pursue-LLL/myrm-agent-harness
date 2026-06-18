@@ -257,6 +257,15 @@ class ComputerSession:
         """Probe OS-level permissions required for desktop automation."""
         return await self._backend.check_permissions()
 
+    async def close(self) -> None:
+        """Release backend resources (e.g. cua-driver MCP subprocess)."""
+        close_fn = getattr(self._backend, "close", None)
+        if close_fn is not None:
+            try:
+                await close_fn()
+            except Exception as exc:
+                logger.warning("Backend close error (non-fatal): %s", exc)
+
 
 def create_computer_session(
     config: ComputerUseConfig | None = None,

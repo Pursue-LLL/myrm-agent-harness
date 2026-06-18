@@ -404,3 +404,33 @@ async def test_click_falls_back_on_cua_error_result(backend: CuaDriverBackend, m
     result = await backend.click(100, 200)
     assert result.success is True
     mock_fallback.click.assert_awaited_once()
+
+
+# ── ComputerSession.close() lifecycle ─────────────────────────────
+
+@pytest.mark.asyncio
+async def test_computer_session_close_calls_backend_close():
+    """ComputerSession.close() should call backend.close() when available."""
+    from myrm_agent_harness.toolkits.computer_use.session import ComputerSession
+
+    fb = MagicMock()
+    fb.screen_info = MagicMock(return_value=ScreenInfo(width=1920, height=1080, dpi_scale=1.0))
+    backend = CuaDriverBackend(fallback=fb)
+    backend.close = AsyncMock()  # type: ignore[method-assign]
+
+    session = ComputerSession(backend=backend)
+    await session.close()
+    backend.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_computer_session_close_noop_for_native_backend():
+    """ComputerSession.close() should be a no-op for backends without close()."""
+    from myrm_agent_harness.toolkits.computer_use.backends.protocols import ComputerBackend
+    from myrm_agent_harness.toolkits.computer_use.session import ComputerSession
+
+    native = MagicMock(spec=ComputerBackend)
+    native.screen_info = MagicMock(return_value=ScreenInfo(width=1920, height=1080, dpi_scale=1.0))
+
+    session = ComputerSession(backend=native)
+    await session.close()  # should not raise, no close() on spec'd mock

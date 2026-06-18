@@ -34,36 +34,37 @@ logger = logging.getLogger(__name__)
 
 
 class SessionPersistence:
-    """Session持久化操作辅助类
+    """Encrypted session persistence helper.
 
-    职责:
-    1. SaveSessionState(cookies + localStorage)
-    2. RestoreSessionState(Auto过期Check)
-    3. 列出/DeleteSession
-    4. Cookie DomainFilter
-    5. 过期SessionClean up
+    Responsibilities:
+    1. Save session state (cookies + localStorage) with AES-256-GCM encryption
+    2. Restore session state with automatic expiration check
+    3. List / delete saved sessions
+    4. Cookie domain filtering (keep only target domain cookies)
+    5. Expired session cleanup
     """
 
     def __init__(self, vault: SessionVault):
-        """InitializeSession持久化操作
+        """Initialize session persistence operations.
 
         Args:
-            vault: SessionVault Instance
+            vault: SessionVault instance for encrypted storage.
         """
         self._vault = vault
 
     async def save(self, context: BrowserContext, domain: str) -> str:
-        """SaveSessionState to EncryptStorage
+        """Save session state to encrypted storage.
 
-         using  AES-256-GCM Encrypt,Default 30 天 TTL。
-        AutoFilter Cookie:只保留目标Domainrelated  Cookie(Support子DomainMatch)。
+        Uses AES-256-GCM encryption with a default 30-day TTL.
+        Auto-filters cookies to keep only those matching the target domain
+        (including subdomain matching).
 
         Args:
-            context: BrowserContext Instance
-            domain: Domain
+            context: Browser context to extract state from.
+            domain: Target domain for cookie filtering.
 
         Returns:
-            操作ResultDescription
+            Operation result description.
         """
         import time
 

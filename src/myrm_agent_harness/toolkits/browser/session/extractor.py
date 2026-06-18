@@ -267,13 +267,13 @@ class Extractor:
         return result.to_llm_message()
 
     async def export_pdf(self, path: str) -> str:
-        """导出Page is  PDF
+        """Export the current page as a PDF file.
 
         Args:
-            path: PDF FilePath
+            path: Destination file path for the exported PDF.
 
         Returns:
-            Success消息
+            Confirmation message with the output path.
         """
         await self._page.pdf(path=path)
         logger.info("Extractor: exported PDF to %s", path)
