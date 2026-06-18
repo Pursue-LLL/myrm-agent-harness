@@ -32,6 +32,12 @@
 └──────────────────────────┬──────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
+│          CuaDriverBackend (optional, macOS / Windows)        │
+│  Background input via cua-driver MCP (focus-free)           │
+│  PID re-resolved per operation; fallback on any error       │
+└──────────────────────────┬──────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
 │              ComputerBackend (macOS / Windows / Linux)        │
 │  Screenshot + coordinate I/O via pyautogui / xdotool        │
 └─────────────────────────────────────────────────────────────┘

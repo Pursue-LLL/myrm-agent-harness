@@ -270,7 +270,7 @@ class ReadOnlyMemoryView(MemoryManager):
         return 0
 
     def set_last_cited_memory_ids(self, ids: list[str]) -> None:
-        self._deny()
+        self._last_cited_memory_ids = ids
 
     async def close(self) -> None:
         pass

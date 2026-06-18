@@ -33,7 +33,9 @@ Agent → desktop_agent_tools (4 tools)
               → perception/ (AX snapshot + invoke)
               → execution/healer (bbox fallback)
               → ComputerSession (screenshot + coordinate I/O)
-                  → ComputerBackend (Protocol)
+                  → CuaDriverBackend (background input proxy, optional)
+                      → cua-driver MCP (SkyLight SPIs / Touch Injection)
+                  → ComputerBackend (Protocol: macOS / Windows / Linux)
 ```
 
 ## Tool Surface
@@ -57,9 +59,12 @@ Agent → desktop_agent_tools (4 tools)
 8. **Permission probing**: `DesktopSession.check_permissions()` delegates to backend `check_permissions()` to probe OS-level TCC permissions (macOS Accessibility + Screen Recording). Server exposes `GET /webui/desktop/permissions` for frontend proactive guidance.
 9. **Native API routing hints**: `inspect_foreground()` detects whether the frontmost app supports native scripting (AppleScript/COM/D-Bus) and appends a routing hint to `recommendation`. This guides the Agent to prefer `bash_tool` with native commands for data-heavy or bulk tasks — no new tools needed, no prompt cache impact.
 
+10. **Background input (cua-driver)**: `CuaDriverBackend` wraps the native backend as a proxy. Input operations route to `cua-driver` MCP for focus-free execution; non-input operations delegate to the native backend. PID is re-resolved on every input operation to ensure cross-application correctness. Falls back transparently to native backend per-operation on any cua-driver error.
+
 ## Key Dependencies
 
 - `element_ref/` (shared @dref registry)
 - `security/credential_vault` (fill_credential vault resolution)
 - `code_execution` (platform detection)
 - `PIL`, `pyautogui`, platform AX libraries (see backends/)
+- `cua-driver` (optional, background input on macOS/Windows)
