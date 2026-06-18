@@ -36,6 +36,7 @@ import os
 import sys
 import time
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .browser_launcher import BrowserInstance, BrowserLauncher
@@ -187,6 +188,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
         effective_mode = launch_mode or self._config.launch_mode
         key = (engine, effective_mode)
         if key not in self._launchers:
+            fp_dir = self._resolve_fingerprint_dir() if engine == BrowserEngine.FIREFOX_CAMOUFOX else None
             self._launchers[key] = BrowserLauncher(
                 launch_options=self._launch_options,
                 launch_mode=effective_mode,
@@ -195,8 +197,19 @@ class GlobalBrowserPool(CrashWatchdogMixin):
                 remote_ws_endpoint=self._config.remote_ws_endpoint,
                 remote_ws_headers=self._config.remote_ws_headers,
                 extension_bridge=self._extension_bridge,
+                fingerprint_dir=fp_dir,
             )
         return self._launchers[key]
+
+    @staticmethod
+    def _resolve_fingerprint_dir() -> Path:
+        """Resolve the directory for persisting Camoufox fingerprints.
+
+        Uses ``$MYRM_DATA_DIR/browser_fingerprints`` when the env var is set,
+        otherwise falls back to ``$CWD/.myrm/browser_fingerprints``.
+        """
+        base = os.environ.get("MYRM_DATA_DIR") or os.path.join(os.getcwd(), ".myrm")
+        return Path(base) / "browser_fingerprints"
 
     def _make_page_pool(
         self,

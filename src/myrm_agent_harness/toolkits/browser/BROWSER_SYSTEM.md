@@ -69,7 +69,7 @@
 | 指标 | 状态 |
 |------|------|
 | SOLID 原则 | ✅ 100% 遵循 |
-| 最大文件行数 | 525 行（GlobalBrowserPool） |
+| 最大文件行数 | 716 行（GlobalBrowserPool） |
 | 精细化错误处理 | ✅ 13 种异常类型 |
 | 智能重试 | ✅ 3 种重试策略 |
 | 生产就绪 | ✅ |
@@ -95,6 +95,7 @@
 - **并发安全销毁**：支持 `destroy_context` 显式回收资源，并具备严格的并发安全断言，防止销毁正在使用的页面。
 - **僵尸进程清理**：在底层浏览器卡死时，通过 `force_kill` (SIGKILL) 强制回收操作系统级别的进程资源。
 - **双引擎热切换**：支持在 Chromium (Patchright) 和 Firefox (Camoufox) 之间无缝热切换，用于突破高强度反爬。
+- **Camoufox 指纹持久化**：通过 `camoufox.utils.launch_options()` 生成完整指纹配置（含 `executable_path`、环境变量中的指纹种子、WebGL 参数等），首次启动时保存到 `_fingerprint_dir/camoufox_fingerprint.json`，后续启动通过 `from_options` 加载，确保同一 Agent 在多次会话中保持一致的设备身份。内置自愈机制：损坏的 JSON 配置文件（如断电导致写入中断）会被自动检测、删除并重新生成，避免永久启动失败。
 
 **核心 API**：
 ```python
@@ -930,8 +931,8 @@ browser/
 │   ├── _semantic_risk.py — 语义 DOM 风险分类（纯函数）
 │   └── common.py — 工具共享工具函数
 ├── pool/
-│   ├── browser_pool.py (525 行) — GlobalBrowserPool（全局调度中枢）
-│   ├── browser_launcher.py (388 行) — BrowserLauncher（Browser 启动器 + Zero-config Chromium 自动安装）
+│   ├── browser_pool.py (716 行) — GlobalBrowserPool（全局调度中枢）
+│   ├── browser_launcher.py (487 行) — BrowserLauncher（Browser 启动器 + Zero-config Chromium 自动安装 + Camoufox 指纹持久化 + 损坏自愈）
 │   ├── context_factory.py (156 行) — ContextFactory（Context 工厂）
 │   └── page_pool.py (195 行) — PagePool
 ├── diff/

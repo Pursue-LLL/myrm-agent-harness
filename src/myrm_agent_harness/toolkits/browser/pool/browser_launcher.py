@@ -20,15 +20,18 @@ Dedicated to browser instance launching, including:
 5. Auto mode: DevToolsActivePort discovery → probe → connect → fallback to launch
 6. Smart retry strategy (3 retries + exponential backoff)
 7. Zero-config auto-install: detects missing Chromium and installs via patchright
+8. Camoufox fingerprint persistence: generates full config via launch_options(), saves/reloads via from_options, self-heals corrupted JSON
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ..exceptions import BrowserLaunchError
@@ -191,6 +194,7 @@ class BrowserLauncher:
         remote_ws_endpoint: str | None = None,
         remote_ws_headers: dict[str, str] | None = None,
         extension_bridge: object | None = None,
+        fingerprint_dir: Path | None = None,
     ) -> None:
         self._launch_options = launch_options
         self._launch_mode = launch_mode
@@ -199,6 +203,7 @@ class BrowserLauncher:
         self._remote_ws_endpoint = remote_ws_endpoint
         self._remote_ws_headers = remote_ws_headers
         self._extension_bridge = extension_bridge
+        self._fingerprint_dir = fingerprint_dir
         self._playwright: Playwright | None = None
         self._total_browsers = 0
 
@@ -332,19 +337,47 @@ class BrowserLauncher:
                 if self._engine == BrowserEngine.FIREFOX_CAMOUFOX:
                     try:
                         from camoufox.async_api import AsyncCamoufox
+                        from camoufox.utils import launch_options as build_camoufox_options
                     except ImportError as e:
                         raise BrowserLaunchError(
                             "camoufox is not installed. Please install it with: pip install camoufox[async]"
                         ) from e
 
-                    camoufox_opts = {
-                        "headless": self._launch_options.get("headless", True),
-                        "proxy": self._launch_options.get("proxy"),
-                    }
-                    camoufox_opts = {k: v for k, v in camoufox_opts.items() if v is not None}
+                    fp_file = self._fingerprint_dir / "camoufox_fingerprint.json" if self._fingerprint_dir else None
+                    camoufox_config: dict[str, object] | None = None
+                    if fp_file and fp_file.is_file():
+                        try:
+                            camoufox_config = json.loads(fp_file.read_text(encoding="utf-8"))
+                            logger.debug("Loaded Camoufox fingerprint from %s", fp_file)
+                        except (json.JSONDecodeError, ValueError):
+                            logger.warning(
+                                "Corrupted Camoufox fingerprint at %s — deleting and regenerating", fp_file,
+                            )
+                            fp_file.unlink(missing_ok=True)
 
-                    camoufox_launcher = AsyncCamoufox(**camoufox_opts)
-                    browser = await camoufox_launcher.start()
+                    if camoufox_config is None:
+                        build_kwargs: dict[str, object] = {
+                            "headless": self._launch_options.get("headless", True),
+                            "fingerprint_preset": True,
+                        }
+                        proxy = self._launch_options.get("proxy")
+                        if proxy is not None:
+                            build_kwargs["proxy"] = proxy
+
+                        loop = asyncio.get_running_loop()
+                        camoufox_config = await loop.run_in_executor(
+                            None, lambda: build_camoufox_options(**build_kwargs),
+                        )
+
+                        if fp_file:
+                            fp_file.parent.mkdir(parents=True, exist_ok=True)
+                            fp_file.write_text(
+                                json.dumps(camoufox_config, default=str, ensure_ascii=False),
+                                encoding="utf-8",
+                            )
+                            logger.info("Camoufox fingerprint saved to %s", fp_file)
+
+                    browser = await AsyncCamoufox(from_options=camoufox_config).start()
 
                     pid = None
                     with contextlib.suppress(Exception):

@@ -286,7 +286,7 @@ class StreamTruncationRecoveryMixin:
         if isinstance(content, list):
             for block in content:
                 if isinstance(block, dict):
-                    if block.get("type") not in ("thinking",):
+                    if block.get("type") not in ("thinking", "redacted_thinking"):
                         return True
                 elif isinstance(block, str) and block.strip():
                     return True
