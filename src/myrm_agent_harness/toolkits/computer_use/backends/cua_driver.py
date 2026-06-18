@@ -1,6 +1,6 @@
 """cua-driver backend — background input via MCP stdio.
 
-Wraps a platform fallback backend (MacOS/Windows) and delegates **input**
+Wraps a platform fallback backend (macOS/Windows/Linux) and delegates **input**
 operations (click, type, key, scroll, drag, mouse_move) to `cua-driver`
 via its MCP stdio transport.  Non-input operations (screenshot, screen_info,
 window_text, etc.) are forwarded to the platform-native backend unchanged.

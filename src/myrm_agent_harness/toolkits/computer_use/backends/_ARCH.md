@@ -17,12 +17,9 @@ Platform-specific implementations of the ComputerBackend protocol. Provides macO
 ## Backend Selection (session.py → create_computer_session)
 
 ```
-macOS / Windows:
+All platforms (macOS / Windows / Linux):
   cua-driver installed? ─── YES ──→ CuaDriverBackend(fallback=NativeBackend)
-                        └── NO  ──→ NativeBackend (pyautogui)
-
-Linux:
-  Always LinuxBackend (xdotool, already non-intrusive in headless/sandbox)
+                        └── NO  ──→ NativeBackend (pyautogui / xdotool)
 ```
 
 ## cua-driver Integration
@@ -39,7 +36,7 @@ If cua-driver fails for any individual action, it transparently falls back to th
 - `pyautogui` (macOS/Windows input simulation — native fallback)
 - `uiautomation` (Windows accessibility text extraction, optional)
 - `xdotool` (Linux input simulation)
-- `cua-driver` (macOS/Windows background input, optional, MIT license)
+- `cua-driver` (macOS/Windows/Linux background input, optional, MIT license)
 - `mcp` (Python MCP SDK, required only when cua-driver is used)
 
 ## check_permissions() Protocol

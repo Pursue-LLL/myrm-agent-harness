@@ -434,3 +434,116 @@ async def test_computer_session_close_noop_for_native_backend():
 
     session = ComputerSession(backend=native)
     await session.close()  # should not raise, no close() on spec'd mock
+
+
+# ── create_computer_session Linux path guard tests ────────────────
+
+def _mock_linux_platform():
+    """Create a mock PlatformInfo that reports Linux."""
+    info = MagicMock()
+    info.os_type = "linux"
+    return info
+
+
+def test_create_computer_session_linux_with_cua_driver():
+    """Linux + cua-driver available → CuaDriverBackend wrapping LinuxBackend."""
+    from myrm_agent_harness.toolkits.computer_use.session import create_computer_session
+
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.platform.detect_platform",
+            return_value=_mock_linux_platform(),
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.computer_use.backends.cua_driver.is_cua_driver_available",
+            return_value=True,
+        ),
+    ):
+        session = create_computer_session()
+    assert isinstance(session._backend, CuaDriverBackend)
+
+
+def test_create_computer_session_linux_without_cua_driver():
+    """Linux + cua-driver absent → plain LinuxBackend (not CuaDriverBackend)."""
+    from myrm_agent_harness.toolkits.computer_use.backends.linux import LinuxBackend
+    from myrm_agent_harness.toolkits.computer_use.session import create_computer_session
+
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.platform.detect_platform",
+            return_value=_mock_linux_platform(),
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.computer_use.backends.cua_driver.is_cua_driver_available",
+            return_value=False,
+        ),
+    ):
+        session = create_computer_session()
+    assert isinstance(session._backend, LinuxBackend)
+
+
+# ── _try_wrap_with_cua_driver ImportError branch ──────────────────
+
+def test_try_wrap_returns_native_on_import_error():
+    """When mcp SDK is missing (ImportError), _try_wrap returns native backend."""
+    import importlib
+
+    from myrm_agent_harness.toolkits.computer_use.session import _try_wrap_with_cua_driver
+
+    native = MagicMock()
+    orig_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
+
+    def _block_cua_import(name: str, *args, **kwargs):
+        if "cua_driver" in name:
+            raise ImportError("simulated: mcp SDK not installed")
+        return orig_import(name, *args, **kwargs)
+
+    with patch("builtins.__import__", side_effect=_block_cua_import):
+        importlib.invalidate_caches()
+        result = _try_wrap_with_cua_driver(native)
+    assert result is native
+
+
+# ── create_computer_session config passthrough ────────────────────
+
+def test_create_computer_session_passes_config():
+    """Config parameter must propagate to ComputerSession."""
+    from myrm_agent_harness.toolkits.computer_use.session import create_computer_session
+    from myrm_agent_harness.toolkits.computer_use.types import ComputerUseConfig
+
+    config = ComputerUseConfig()
+
+    with patch(
+        "myrm_agent_harness.toolkits.computer_use.backends.cua_driver.is_cua_driver_available",
+        return_value=False,
+    ):
+        session = create_computer_session(config=config)
+    assert session._config is config
+
+
+# ── Linux + mcp SDK missing (ImportError) ─────────────────────────
+
+def test_create_computer_session_linux_mcp_sdk_missing():
+    """Linux + mcp SDK not installed → graceful fallback to LinuxBackend."""
+    import importlib
+
+    from myrm_agent_harness.toolkits.computer_use.backends.linux import LinuxBackend
+    from myrm_agent_harness.toolkits.computer_use.session import create_computer_session
+
+    orig_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
+
+    def _block_cua_import(name: str, *args, **kwargs):
+        if "cua_driver" in name:
+            raise ImportError("simulated: mcp SDK not installed")
+        return orig_import(name, *args, **kwargs)
+
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.platform.detect_platform",
+            return_value=_mock_linux_platform(),
+        ),
+        patch("builtins.__import__", side_effect=_block_cua_import),
+    ):
+        importlib.invalidate_caches()
+        session = create_computer_session()
+    assert isinstance(session._backend, LinuxBackend)
