@@ -53,6 +53,11 @@ def _make_mcp_result(data: str = "", is_error: bool = False) -> dict:
     return {"data": data, "images": [], "structuredContent": None, "isError": is_error}
 
 
+def _stub_resolve(backend: CuaDriverBackend, pid: int = 12345) -> None:
+    """Patch _resolve_target to return a fixed PID without MCP call."""
+    backend._resolve_target = AsyncMock(return_value=pid)  # type: ignore[method-assign]
+
+
 # ── Delegation tests: non-input ops always go to fallback ─────────
 
 @pytest.mark.asyncio
@@ -102,7 +107,7 @@ async def test_click_falls_back_on_mcp_failure(backend: CuaDriverBackend, mock_f
     """When cua-driver session fails, click should fall back to pyautogui."""
     backend._mcp._started = True
     backend._mcp.call_tool = AsyncMock(side_effect=RuntimeError("connection failed"))
-    backend._active_pid = 12345
+    _stub_resolve(backend)
 
     result = await backend.click(100, 200)
     assert result.success is True
@@ -113,7 +118,7 @@ async def test_click_falls_back_on_mcp_failure(backend: CuaDriverBackend, mock_f
 async def test_type_text_falls_back_on_mcp_failure(backend: CuaDriverBackend, mock_fallback: MagicMock):
     backend._mcp._started = True
     backend._mcp.call_tool = AsyncMock(side_effect=RuntimeError("connection failed"))
-    backend._active_pid = 12345
+    _stub_resolve(backend)
 
     result = await backend.type_text("hello")
     assert result.success is True
@@ -124,7 +129,7 @@ async def test_type_text_falls_back_on_mcp_failure(backend: CuaDriverBackend, mo
 async def test_key_falls_back_on_mcp_failure(backend: CuaDriverBackend, mock_fallback: MagicMock):
     backend._mcp._started = True
     backend._mcp.call_tool = AsyncMock(side_effect=RuntimeError("connection failed"))
-    backend._active_pid = 12345
+    _stub_resolve(backend)
 
     result = await backend.key("Return")
     assert result.success is True
@@ -135,7 +140,7 @@ async def test_key_falls_back_on_mcp_failure(backend: CuaDriverBackend, mock_fal
 async def test_scroll_falls_back_on_mcp_failure(backend: CuaDriverBackend, mock_fallback: MagicMock):
     backend._mcp._started = True
     backend._mcp.call_tool = AsyncMock(side_effect=RuntimeError("connection failed"))
-    backend._active_pid = 12345
+    _stub_resolve(backend)
 
     result = await backend.scroll(100, 200, "down", 3)
     assert result.success is True
@@ -146,7 +151,7 @@ async def test_scroll_falls_back_on_mcp_failure(backend: CuaDriverBackend, mock_
 async def test_drag_falls_back_on_mcp_failure(backend: CuaDriverBackend, mock_fallback: MagicMock):
     backend._mcp._started = True
     backend._mcp.call_tool = AsyncMock(side_effect=RuntimeError("connection failed"))
-    backend._active_pid = 12345
+    _stub_resolve(backend)
 
     result = await backend.drag(0, 0, 100, 100)
     assert result.success is True
@@ -157,7 +162,7 @@ async def test_drag_falls_back_on_mcp_failure(backend: CuaDriverBackend, mock_fa
 async def test_mouse_move_falls_back_on_mcp_failure(backend: CuaDriverBackend, mock_fallback: MagicMock):
     backend._mcp._started = True
     backend._mcp.call_tool = AsyncMock(side_effect=RuntimeError("connection failed"))
-    backend._active_pid = 12345
+    _stub_resolve(backend)
 
     result = await backend.mouse_move(50, 50)
     assert result.success is True
@@ -170,7 +175,7 @@ async def test_mouse_move_falls_back_on_mcp_failure(backend: CuaDriverBackend, m
 async def test_click_via_cua_driver_success(backend: CuaDriverBackend):
     backend._mcp._started = True
     backend._mcp.call_tool = AsyncMock(return_value=_make_mcp_result("ok"))
-    backend._active_pid = 12345
+    _stub_resolve(backend)
 
     result = await backend.click(100, 200)
     assert result.success is True
@@ -181,7 +186,7 @@ async def test_click_via_cua_driver_success(backend: CuaDriverBackend):
 async def test_right_click_routes_correctly(backend: CuaDriverBackend):
     backend._mcp._started = True
     backend._mcp.call_tool = AsyncMock(return_value=_make_mcp_result("ok"))
-    backend._active_pid = 12345
+    _stub_resolve(backend)
 
     result = await backend.click(100, 200, button="right")
     assert result.success is True
@@ -192,7 +197,7 @@ async def test_right_click_routes_correctly(backend: CuaDriverBackend):
 async def test_double_click_routes_correctly(backend: CuaDriverBackend):
     backend._mcp._started = True
     backend._mcp.call_tool = AsyncMock(return_value=_make_mcp_result("ok"))
-    backend._active_pid = 12345
+    _stub_resolve(backend)
 
     result = await backend.click(100, 200, clicks=2)
     assert result.success is True
@@ -203,7 +208,7 @@ async def test_double_click_routes_correctly(backend: CuaDriverBackend):
 async def test_click_with_modifiers(backend: CuaDriverBackend):
     backend._mcp._started = True
     backend._mcp.call_tool = AsyncMock(return_value=_make_mcp_result("ok"))
-    backend._active_pid = 12345
+    _stub_resolve(backend)
 
     result = await backend.click(100, 200, modifiers=["meta", "shift"])
     assert result.success is True
@@ -215,7 +220,7 @@ async def test_click_with_modifiers(backend: CuaDriverBackend):
 async def test_type_text_via_cua_driver(backend: CuaDriverBackend):
     backend._mcp._started = True
     backend._mcp.call_tool = AsyncMock(return_value=_make_mcp_result("ok"))
-    backend._active_pid = 12345
+    _stub_resolve(backend)
 
     result = await backend.type_text("hello world")
     assert result.success is True
@@ -227,7 +232,7 @@ async def test_key_hotkey(backend: CuaDriverBackend):
     """cmd+s should route to hotkey tool."""
     backend._mcp._started = True
     backend._mcp.call_tool = AsyncMock(return_value=_make_mcp_result("ok"))
-    backend._active_pid = 12345
+    _stub_resolve(backend)
 
     result = await backend.key("command+s")
     assert result.success is True
@@ -239,7 +244,7 @@ async def test_key_single(backend: CuaDriverBackend):
     """Single key press should route to press_key tool."""
     backend._mcp._started = True
     backend._mcp.call_tool = AsyncMock(return_value=_make_mcp_result("ok"))
-    backend._active_pid = 12345
+    _stub_resolve(backend)
 
     result = await backend.key("Return")
     assert result.success is True
@@ -250,7 +255,7 @@ async def test_key_single(backend: CuaDriverBackend):
 async def test_scroll_via_cua_driver(backend: CuaDriverBackend):
     backend._mcp._started = True
     backend._mcp.call_tool = AsyncMock(return_value=_make_mcp_result("ok"))
-    backend._active_pid = 12345
+    _stub_resolve(backend)
 
     result = await backend.scroll(100, 200, "down", 5)
     assert result.success is True
@@ -263,7 +268,7 @@ async def test_scroll_via_cua_driver(backend: CuaDriverBackend):
 async def test_drag_via_cua_driver(backend: CuaDriverBackend):
     backend._mcp._started = True
     backend._mcp.call_tool = AsyncMock(return_value=_make_mcp_result("ok"))
-    backend._active_pid = 12345
+    _stub_resolve(backend)
 
     result = await backend.drag(10, 20, 100, 200)
     assert result.success is True
@@ -275,7 +280,7 @@ async def test_drag_via_cua_driver(backend: CuaDriverBackend):
 
 @pytest.mark.asyncio
 async def test_resolve_target_from_list_windows(backend: CuaDriverBackend):
-    """First call should resolve PID via list_windows, then cache it."""
+    """_resolve_target should pick the frontmost on-screen window's PID."""
     structured = {
         "windows": [
             {"app_name": "Safari", "pid": 123, "window_id": 456, "z_index": 0, "is_on_screen": True}
@@ -289,8 +294,33 @@ async def test_resolve_target_from_list_windows(backend: CuaDriverBackend):
 
     result = await backend.click(100, 200)
     assert result.success is True
-    assert backend._active_pid == 123
-    assert backend._active_window_id == 456
+    backend._mcp.call_tool.assert_any_await("list_windows", {"on_screen_only": True})
+
+
+@pytest.mark.asyncio
+async def test_resolve_target_no_caching(backend: CuaDriverBackend):
+    """_resolve_target must re-query every call — no PID caching."""
+    windows_safari = {
+        "windows": [{"app_name": "Safari", "pid": 100, "window_id": 1, "z_index": 0, "is_on_screen": True}]
+    }
+    windows_notes = {
+        "windows": [{"app_name": "Notes", "pid": 200, "window_id": 2, "z_index": 0, "is_on_screen": True}]
+    }
+    backend._mcp._started = True
+    backend._mcp.call_tool = AsyncMock(side_effect=[
+        {"data": None, "images": [], "structuredContent": windows_safari, "isError": False},
+        _make_mcp_result("ok"),
+        {"data": None, "images": [], "structuredContent": windows_notes, "isError": False},
+        _make_mcp_result("ok"),
+    ])
+
+    await backend.click(10, 20)
+    first_click_args = backend._mcp.call_tool.call_args_list[1]
+    assert first_click_args[0][1]["pid"] == 100
+
+    await backend.click(30, 40)
+    second_click_args = backend._mcp.call_tool.call_args_list[3]
+    assert second_click_args[0][1]["pid"] == 200
 
 
 # ── _extract_result ───────────────────────────────────────────────
@@ -369,7 +399,7 @@ async def test_click_falls_back_on_cua_error_result(backend: CuaDriverBackend, m
     """When cua-driver returns isError=True, click should fall back."""
     backend._mcp._started = True
     backend._mcp.call_tool = AsyncMock(return_value=_make_mcp_result("error detail", is_error=True))
-    backend._active_pid = 12345
+    _stub_resolve(backend)
 
     result = await backend.click(100, 200)
     assert result.success is True

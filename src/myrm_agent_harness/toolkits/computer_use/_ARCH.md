@@ -10,7 +10,7 @@ with native desktop applications via accessibility trees (@dref) with coordinate
 |------|------|-------------|-------|
 | __init__.py | Package | Exports create_desktop_tools, create_desktop_session | ✅ |
 | types.py | Config | Shared types: ComputerAction, DesktopInteractAction, ScreenInfo, ActionResult, PermissionStatus, ComputerUseConfig | ✅ |
-| safety.py | Core | Blocked key combos and dangerous type-text guardrails | ✅ |
+| safety.py | Core | Blocked key combos, dangerous type-text guardrails, and sensitive app guard | ✅ |
 | screenshot_processor.py | Core | Binary-search downsampling pipeline | ✅ |
 | coordinate_scaler.py | Core | DPI-aware coordinate transformer | ✅ |
 | session.py | Core | ComputerSession orchestrator (coordinate I/O) | ✅ |
@@ -49,7 +49,7 @@ Agent → desktop_agent_tools (4 tools)
     
 1. **Semantic-first**: AX/UIA/AT-SPI tree → @dref interact; vision only when AX is empty
 2. **View updates**: `desktop_snapshot` emits `DESKTOP_VIEW_UPDATE` via ToolProgressSink for frontend Desktop Inspector
-3. **Safety in session**: `desktop_vision_action` enforces blocked keys and dangerous type patterns
+3. **Safety in session**: Three guardrail types — blocked key combos, dangerous type-text patterns, and sensitive application guard (`is_sensitive_app`). All three check points in `desktop_snapshot`, `desktop_interact`, and `desktop_vision_action` enforce the sensitive app blocklist against the foreground `app_name`
 4. **Multimodal responses**: Vision capture/actions return text + JPEG image blocks
 5. **Platform auto-detection**: reuses `detect_platform()` from code_execution
 6. **Security & Re-validation**: `desktop_interact` implements a Time-of-Check to Time-of-Use (TOCTOU) defense by re-capturing and verifying the @dref state if the action was delayed (e.g. by Human-in-the-Loop approval interception). `desktop_vision_action` implements a "hard fuse" that blocks stale coordinate actions if delayed by more than 5 seconds.

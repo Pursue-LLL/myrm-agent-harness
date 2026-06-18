@@ -110,6 +110,8 @@ class DesktopSession(ComputerSession):
         window_title: str | None = None,
         include_screenshot: bool = False,
     ) -> str | list[object]:
+        from myrm_agent_harness.toolkits.computer_use import safety
+
         try:
             meta, refs = capture_snapshot(self._backend, scope, window_title)
         except AXPermissionRequiredError as exc:
@@ -117,6 +119,11 @@ class DesktopSession(ComputerSession):
             return str(exc)
         except AXTreeEmptyError as exc:
             return str(exc)
+
+        blocked = safety.is_sensitive_app(meta.app_name, meta.window_title)
+        if blocked:
+            logger.warning("[SECURITY] Sensitive app guard: %s (app=%s)", blocked, meta.app_name)
+            return f"Safety: {blocked}"
 
         self._refs.replace(refs, meta)
         tree_text, enriched_meta = render_snapshot_tree(meta, refs)
@@ -156,6 +163,8 @@ class DesktopSession(ComputerSession):
         verify_goal: str | None = None,
         modifiers: list[ModifierKey] | None = None,
     ) -> str | list[object]:
+        from myrm_agent_harness.toolkits.computer_use import safety
+
         del verify_goal  # reserved for roadmap #7
 
         # [SECURITY] Re-validation: If it's been > 5 seconds since the last snapshot,
@@ -169,9 +178,12 @@ class DesktopSession(ComputerSession):
             )
             try:
                 meta, refs = capture_snapshot(self._backend, "foreground", None)
+                blocked = safety.is_sensitive_app(meta.app_name, meta.window_title)
+                if blocked:
+                    logger.warning("[SECURITY] Sensitive app guard (interact): %s", blocked)
+                    return f"Safety: {blocked}"
                 if ref not in refs:
                     return f"Safety Re-validation failed: The screen has changed significantly during approval. The target element '@{ref}' is no longer found. Please take a new snapshot to refresh the view and try again."
-                # Update registry quietly so the click uses the latest fresh coordinates
                 self._refs.replace(refs, meta)
                 self._last_snapshot_time = time.time()
             except Exception as e:
@@ -242,6 +254,15 @@ class DesktopSession(ComputerSession):
     ) -> str | list[object]:
         from myrm_agent_harness.toolkits.computer_use import safety
 
+        # [SECURITY] Sensitive app guard — lightweight foreground app check.
+        fg_info = inspect_backend(self._backend)
+        blocked = safety.is_sensitive_app(
+            fg_info.get("app_name", ""), fg_info.get("window_title", ""),  # type: ignore[arg-type]
+        )
+        if blocked:
+            logger.warning("[SECURITY] Sensitive app guard (vision): %s", blocked)
+            return f"Safety: {blocked}"
+
         # [SECURITY] Hard fuse for coordinate-based actions
         revalidation_threshold = 5.0
         if time.time() - self._last_snapshot_time > revalidation_threshold:
@@ -266,16 +287,16 @@ class DesktopSession(ComputerSession):
         elif action == "type":
             if not text:
                 return "Error: text is required for type action"
-            blocked = safety.is_dangerous_type_text(text)
-            if blocked:
-                return f"Safety: {blocked}"
+            text_blocked = safety.is_dangerous_type_text(text)
+            if text_blocked:
+                return f"Safety: {text_blocked}"
             result = await self.type_text(text)
         elif action == "key":
             if not text:
                 return "Error: text (key combo) is required for key action"
-            blocked = safety.is_blocked_key_combo(text)
-            if blocked:
-                return f"Safety: {blocked}"
+            key_blocked = safety.is_blocked_key_combo(text)
+            if key_blocked:
+                return f"Safety: {key_blocked}"
             result = await self.key_press(text)
         elif action == "scroll":
             if coordinate is None or len(coordinate) != 2 or not scroll_direction:

@@ -177,18 +177,17 @@ class CuaDriverBackend:
     def __init__(self, fallback: ComputerBackend) -> None:
         self._fallback = fallback
         self._mcp = _McpSession()
-        self._active_pid: int | None = None
-        self._active_window_id: int | None = None
 
     async def _ensure_session(self) -> None:
         if not self._mcp._started:
             await self._mcp.start()
 
     async def _resolve_target(self) -> int:
-        """Ensure we have a valid target PID (frontmost on-screen window)."""
-        if self._active_pid is not None:
-            return self._active_pid
+        """Return the PID of the frontmost on-screen window.
 
+        Re-queries every call so cross-application workflows always target the
+        correct foreground app (cua-driver dispatches input by PID).
+        """
         out = await self._mcp.call_tool("list_windows", {"on_screen_only": True})
         sc = out.get("structuredContent") or {}
         raw_windows = sc.get("windows") if sc else None
@@ -207,9 +206,7 @@ class CuaDriverBackend:
         if not target:
             raise RuntimeError("cua-driver: no on-screen window found")
 
-        self._active_pid = int(target["pid"])
-        self._active_window_id = int(target.get("window_id", 0))
-        return self._active_pid
+        return int(target["pid"])
 
     # ── Delegated to fallback (non-input, no focus concern) ──────
 

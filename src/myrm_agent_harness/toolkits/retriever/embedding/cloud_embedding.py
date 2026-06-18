@@ -45,6 +45,9 @@ DEFAULT_MAX_RETRIES = 2
 DEFAULT_RETRY_WAIT_MIN = 1.0
 DEFAULT_RETRY_WAIT_MAX = 4.0
 
+_MAX_TEXTS_PER_BATCH = 32
+_MAX_CHARS_PER_BATCH = 100_000
+
 KNOWN_MODEL_DIMENSIONS: dict[str, int] = {
     # OpenAI
     "text-embedding-3-small": 1536,
@@ -68,39 +71,28 @@ KNOWN_MODEL_DIMENSIONS: dict[str, int] = {
 
 
 class CloudEmbedding(EmbeddingService):
-    """Cloud端 API Embeddingimplements
+    """Cloud embedding service via LiteLLM unified API.
 
-     via  LiteLLM 统一Call各种Cloud端Embedding API。
-
-    特性：
-    - custom api_base 时Auto添加 "openai/" provider Prefix（若模型名 not 含 already 知Prefix）
-    - 添加 encoding_format="float" Parameter（OpenAI compatible API 所需）
-    - Auto检测 embedding Dimension（首次Call时）
-    - optionalCacheSupport（三层Cache：L1 LRU + L2 Redis + L3 API）
-    - AutoRetrytemporaryError（网络抖动、Timeout、ConnectionError）
+    Supports multiple providers (OpenAI, Voyage AI, Jina AI, SiliconFlow, etc.)
+    with automatic batch splitting, retry on transient errors, and optional caching.
 
     Args:
-        model: 模型名称（LiteLLM Format）
-        api_key: API Key（optional）
-        api_base: API basic URL（optional）
-        cache: Embedding CacheInstance（optional）
-        max_retries: MaximumRetry次数（Only对temporaryError）
-        retry_wait_min: RetryMinimumWait时间（秒）
-        retry_wait_max: RetryMaximumWait时间（秒）
+        model: Model name in LiteLLM format (e.g. "text-embedding-3-small", "BAAI/bge-m3").
+        api_key: Provider API key (optional if set via env).
+        api_base: Custom API base URL (optional).
+        cache: Embedding cache instance for hit-rate optimization (optional).
+        max_retries: Max retry attempts for transient errors (TimeoutError, ConnectionError).
+        retry_wait_min: Minimum wait between retries in seconds.
+        retry_wait_max: Maximum wait between retries in seconds.
 
     Example:
         ```python
-        from myrm_agent_harness.toolkits.memory._internal.embedding_cache import EmbeddingCache
-
-        cache = EmbeddingCache(...)
         service = CloudEmbedding(
             model="BAAI/bge-m3",
             api_key="sk-xxx",
             api_base="https://api.siliconflow.cn/v1",
-            cache=cache,
-            max_retries=2
         )
-        vectors = await service.embed_batch(["Hello world"])
+        vectors = await service.embed_batch(["Hello world", "Another text"])
         single = await service.embed("Hello")
         ```
     """
@@ -156,14 +148,7 @@ class CloudEmbedding(EmbeddingService):
         return self._dimension
 
     async def embed(self, text: str) -> list[float]:
-        """Embeddingsingletext（带Cache and Retry）
-
-        Args:
-            text: inputtext
-
-        Returns:
-            EmbeddingVector
-        """
+        """Embed a single text with cache lookup and transient-error retry."""
         if self._cache is not None:
             cached = await self._cache.get(text)
             if cached is not None:
@@ -185,15 +170,9 @@ class CloudEmbedding(EmbeddingService):
         return vec
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        """批量Embeddingtext（带Cache and Retry）
+        """Embed multiple texts with cache integration and transient-error retry.
 
-        对于 not yet 知模型，首次Call时会Auto检测Dimension。
-
-        Args:
-            texts: textList
-
-        Returns:
-            EmbeddingVectorList
+        Auto-detects embedding dimension on first call for unknown models.
         """
         if not texts:
             return []
@@ -232,17 +211,63 @@ class CloudEmbedding(EmbeddingService):
         return [v for v in result if v is not None]
 
     async def _embed_batch_impl(self, texts: list[str]) -> list[list[float]]:
-        """实际 批量Embeddingimplements（ not 带Cache and Retry）
+        """Batch embedding with automatic splitting for API limit protection.
 
-        Args:
-            texts: textList
-
-        Returns:
-            EmbeddingVectorList
+        Splits large batches using dual protection (count + character volume)
+        to avoid HTTP 413/timeout errors across different providers.
         """
         if not texts:
             return []
 
+        batches = self._split_into_batches(texts)
+        if len(batches) == 1:
+            return await self._call_embedding_api(batches[0])
+
+        logger.debug(
+            "Batch split: %d texts -> %d batches | Model: %s",
+            len(texts),
+            len(batches),
+            self._model,
+        )
+
+        all_vectors: list[list[float]] = []
+        for batch in batches:
+            vectors = await self._call_embedding_api(batch)
+            all_vectors.extend(vectors)
+        return all_vectors
+
+    @staticmethod
+    def _split_into_batches(texts: list[str]) -> list[list[str]]:
+        """Greedy packing: split texts by count and character volume limits."""
+        if len(texts) <= _MAX_TEXTS_PER_BATCH:
+            total_chars = sum(len(t) for t in texts)
+            if total_chars <= _MAX_CHARS_PER_BATCH:
+                return [texts]
+
+        batches: list[list[str]] = []
+        current_batch: list[str] = []
+        current_chars = 0
+
+        for text in texts:
+            text_len = len(text)
+            would_exceed_count = len(current_batch) >= _MAX_TEXTS_PER_BATCH
+            would_exceed_chars = current_batch and (current_chars + text_len) > _MAX_CHARS_PER_BATCH
+
+            if would_exceed_count or would_exceed_chars:
+                batches.append(current_batch)
+                current_batch = []
+                current_chars = 0
+
+            current_batch.append(text)
+            current_chars += text_len
+
+        if current_batch:
+            batches.append(current_batch)
+
+        return batches
+
+    async def _call_embedding_api(self, texts: list[str]) -> list[list[float]]:
+        """Single API call to the embedding provider."""
         import time
 
         try:

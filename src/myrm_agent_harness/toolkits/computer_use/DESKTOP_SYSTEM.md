@@ -10,7 +10,7 @@
 2. **Semantic-first**: Prefer `desktop_interact_tool(ref=@dref)` over coordinate guessing
 3. **Explicit fallback**: `desktop_vision_tool` for canvas-only UIs, empty AX trees, or failed semantic invoke
 4. **WebUI parity**: Mirror browser inspector via `DESKTOP_VIEW_UPDATE` SSE + `/webui/desktop/snapshot` REST refresh
-5. **Safety**: Blocked key combos and dangerous type patterns enforced in `desktop_vision_action`
+5. **Safety**: Three guardrail types in `safety.py` — blocked key combos, dangerous type-text patterns, and sensitive application guard (`is_sensitive_app`). Enforced in `desktop_snapshot`, `desktop_interact`, and `desktop_vision_action`
 
 ---
 
