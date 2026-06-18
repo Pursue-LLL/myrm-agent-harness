@@ -35,6 +35,7 @@
 │          CuaDriverBackend (optional, macOS / Windows)        │
 │  Background input via cua-driver MCP (focus-free)           │
 │  PID re-resolved per operation; fallback on any error       │
+│  ComputerSession.close() releases MCP subprocess on exit   │
 └──────────────────────────┬──────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
