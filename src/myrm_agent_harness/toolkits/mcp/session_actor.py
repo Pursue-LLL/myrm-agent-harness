@@ -273,10 +273,14 @@ class MCPSessionActor:
         """
         from langchain_mcp_adapters.sessions import create_session
         from langchain_mcp_adapters.tools import load_mcp_tools
+        from mcp.types import Implementation
+
+        from myrm_agent_harness import __version__
 
         conn = dict(self._connection)
         sk = dict(conn.get("session_kwargs") or {})  # type: ignore[arg-type]
         sk["message_handler"] = self._make_notification_handler()
+        sk.setdefault("client_info", Implementation(name="myrm-agent", version=__version__))
         conn["session_kwargs"] = sk
 
         start_attempts = 0
