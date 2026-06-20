@@ -202,23 +202,6 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
                 generated_files=generated_files,
             )
 
-            if not final_result.success and final_result.stderr:
-                import re
-
-                match = re.search(
-                    r"ModuleNotFoundError: No module named '([a-zA-Z0-9_-]+)'",
-                    final_result.stderr,
-                )
-                if match:
-                    pkg = match.group(1)
-                    hint = (
-                        f"\n\n[ Diagnostic Hint] Missing third-party library '{pkg}'. "
-                        f"Please use the bash tool to run 'python -m pip install {pkg}' "
-                        f"to install this dependency before running the code again."
-                    )
-                    final_result.stderr += hint
-                    final_result.error = (final_result.error or "") + hint
-
             self.metrics.record(final_result, "python")
             return final_result
         finally:
