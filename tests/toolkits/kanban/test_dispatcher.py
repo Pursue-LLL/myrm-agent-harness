@@ -288,6 +288,70 @@ class TestZombieDetection:
         assert updated is not None
         assert updated.retry_count >= 1
 
+    @pytest.mark.asyncio
+    async def test_heartbeat_loop_survives_store_error(self) -> None:
+        """Bug 1 fix: _heartbeat_loop must survive transient store errors."""
+
+        class _FlakeyStore(InMemoryKanbanStore):
+            _hb_call_count: int = 0
+
+            async def update_heartbeat(
+                self,
+                task_id: str,
+                note: str | None = None,
+            ) -> None:
+                self._hb_call_count += 1
+                if self._hb_call_count == 2:
+                    raise ConnectionError("DB gone")
+                await super().update_heartbeat(task_id, note)
+
+        store = _FlakeyStore()
+        board = _make_board(heartbeat_interval=1, zombie_timeout=30)
+        await store.save_board(board)
+        task = _make_task(status=TaskStatus.READY)
+        await store.save_task(task)
+
+        runner = _FakeRunner(succeed=True, delay=4.0)
+        d = KanbanDispatcher(store, runner, board)
+        await d.start()
+        await asyncio.sleep(4.5)
+        await d.stop()
+
+        assert store._hb_call_count >= 3, (
+            "Heartbeat loop should have continued past the error"
+        )
+        updated = await store.get_task("t1")
+        assert updated is not None
+        assert updated.status == TaskStatus.COMPLETED
+
+    @pytest.mark.asyncio
+    async def test_reclaim_cancels_active_worker(self) -> None:
+        """Bug 2 fix: _reclaim_task must cancel the active asyncio.Task."""
+        store = InMemoryKanbanStore()
+        board = _make_board(zombie_timeout=60, auto_block_failures=10)
+        await store.save_board(board)
+        task = _make_task(status=TaskStatus.READY)
+        task.max_retries = 5
+        await store.save_task(task)
+
+        runner = _FakeRunner(succeed=True, delay=10.0)
+        d = KanbanDispatcher(store, runner, board)
+        await d.start()
+        await asyncio.sleep(0.5)
+
+        exec_task = d._task_id_to_exec.get("t1")
+        assert exec_task is not None, "Worker should be registered"
+        assert not exec_task.done(), "Worker should still be running"
+
+        fresh = await store.get_task("t1")
+        assert fresh is not None
+        await d._reclaim_task(fresh)
+
+        assert exec_task.done(), (
+            "Worker asyncio.Task should have been cancelled by _reclaim_task"
+        )
+        await d.stop()
+
 
 # ---------------------------------------------------------------------------
 # Dependency promotion

@@ -37,7 +37,9 @@ Protocol-first architecture with strict framework-business separation.
    immediately when added, not on the next poll cycle.
 
 3. **Heartbeat + Zombie detection + Progress notes**: Running tasks send periodic
-   heartbeats. The zombie loop reclaims tasks whose heartbeat exceeds `zombie_timeout_seconds`.
+   heartbeats with exception-tolerant retry (store transient errors log a warning
+   but do not crash the heartbeat loop). The zombie loop reclaims tasks whose
+   heartbeat exceeds `zombie_timeout_seconds`.
    Agents can also send manual heartbeats with a `note` parameter to report granular
    progress (e.g. "Step 2/5: Parsing data…"). Notes are stored on `KanbanTask.progress_note`
    for instant UI display and appended to the event log as `HEARTBEAT` events for audit.
@@ -163,9 +165,10 @@ Protocol-first architecture with strict framework-business separation.
     asyncio worker, close the active run as RECLAIMED, reset the task to READY with
     cleared failure counters, and emit a RECLAIMED event with `{manual: true}`. Uses
     `_task_id_to_exec` dict for O(1) task→worker lookup and `asyncio.Task.cancel()` for
-    graceful in-process interruption (no SIGTERM/SIGKILL needed). The zombie detector's
-    `_reclaim_task` handles automatic heartbeat-timeout reclaims; manual reclaim handles
-    operator-initiated aborts.
+    graceful in-process interruption (no SIGTERM/SIGKILL needed). Both `_reclaim_task`
+    (automatic zombie reclaim) and `reclaim_task` (manual operator reclaim) cancel the
+    active worker before resetting task status, preventing duplicate execution when a
+    task is reclaimed while its worker is still alive.
 
 19. **Worker Lifecycle Guidance Injection**: `get_worker_lifecycle_guidance()` is a pure
     function that generates concise operational instructions for kanban worker agents.

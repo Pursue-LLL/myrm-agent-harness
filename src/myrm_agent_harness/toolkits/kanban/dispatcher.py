@@ -630,7 +630,12 @@ class KanbanDispatcher:
         interval = self._board.settings.heartbeat_interval_seconds
         while True:
             await asyncio.sleep(interval)
-            await self._store.update_heartbeat(task_id)
+            try:
+                await self._store.update_heartbeat(task_id)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.warning("Heartbeat update failed for task %s, will retry next interval", task_id[:8], exc_info=True)
 
     # -- Zombie detection --
 
@@ -686,6 +691,12 @@ class KanbanDispatcher:
 
     async def _reclaim_task(self, task: KanbanTask) -> None:
         """Reclaim a zombie task: retry or fail based on budget."""
+        exec_task = self._task_id_to_exec.get(task.task_id)
+        if exec_task and not exec_task.done():
+            exec_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await exec_task
+
         task.retry_count += 1
         task.consecutive_failures += 1
         task.error = "Reclaimed from zombie state (heartbeat timeout)"
