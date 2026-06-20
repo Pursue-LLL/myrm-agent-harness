@@ -61,6 +61,7 @@ Does your code need to import anything from agent/?
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
+| SECURITY_WRAPPER_GUIDE.md | L2 | Tool output security wrapping guide (`wrap_with_external_sources_tag` / `wrap_with_tool_output_tag`) | — |
 | __init__.py | Package | Toolkits module export file. Provides various toolkits and services for Agent use: | ✅ |
 
 | Submodule | Description |

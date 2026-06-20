@@ -451,6 +451,7 @@ class UserService:
 
 - **Semantic network**: INPUT references POS, forming a self-healing dependency graph.
 - **Module docs**: `_ARCH.md` replaces README.md at module level. No module-level README files.
+- **CI gate**: `scripts/check_fractal_docs.py` — every directory under `src/myrm_agent_harness/` that contains `*.py` must have `_ARCH.md` (pre-commit + `boundary-check.yml`). Pure data/config directories (JSON/YAML/SQL only) are excluded.
 
 ---
 
@@ -479,6 +480,7 @@ class UserService:
 3. **接口契约**：OUTPUT 声明对外能力，形成清晰的接口契约
 4. **影响分析**：通过 INPUT/POS 链接快速定位变更影响范围
 5. **变更影响分析**：借助 INPUT/POS 链接定位依赖面，配合评审与测试降低回归风险
+6. **自动化门禁**：`check_fractal_docs.py` + `boundary_check.py` 在 pre-commit 与 CI 阻断文档/层边界回归
 
 **实践约定**：
 

@@ -16,6 +16,7 @@ wiki tools, and handles deferred tool registration via ToolRegistry.
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool
@@ -283,6 +284,9 @@ class SkillAgentToolsMixin:
             self._wiki_compiler = compiler  # type: ignore[attr-defined]
 
             tools = create_wiki_tools(compiler, query_engine, linter, structure)
+
+            self._register_large_doc_ingest(structure, compiler)
+
             logger.info(
                 " wiki tools auto-created (4 tools, base_dir=%s)",
                 self._wiki_base_dir,  # type: ignore[attr-defined]
@@ -291,6 +295,57 @@ class SkillAgentToolsMixin:
         except Exception as e:
             logger.warning("wiki tools creation failed: %s", e)
             return []
+
+    @staticmethod
+    def _register_large_doc_ingest(
+        structure: "WikiStructure",  # noqa: F821
+        compiler: "WikiCompiler",  # noqa: F821
+    ) -> None:
+        """Register the PDF large-doc auto-ingest callback into wiki knowledge base.
+
+        When pdf_reader detects a document exceeding RAG_PAGE_THRESHOLD pages,
+        it calls this callback to asynchronously ingest the full text into the
+        wiki for subsequent RAG retrieval via wiki_query.
+        """
+        from myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader import (
+            register_large_doc_ingest_callback,
+        )
+
+        async def _ingest_large_doc(filename: str, full_text: str, doc_hash: str) -> None:
+            raw_path = structure.get_raw_file_path(f"auto_rag_{doc_hash}_{filename}.md")
+            raw_path.parent.mkdir(parents=True, exist_ok=True)
+            content = f"# {filename}\n\n{full_text}"
+            try:
+                fd = os.open(str(raw_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.write(fd, content.encode("utf-8"))
+                os.close(fd)
+            except FileExistsError:
+                logger.debug("Large doc already ingested: %s", filename)
+                return
+
+            compiler.enqueue_file(raw_path)
+            logger.info("Large doc auto-ingested into wiki for RAG: %s (%s)", filename, doc_hash)
+
+            try:
+                import time as _time
+
+                from myrm_agent_harness.agent.observability.event_bus import EventBus
+                from myrm_agent_harness.agent.observability.types import ToolCallEventData
+
+                bus = await EventBus.get_instance()
+                now = _time.time()
+                await bus.publish(ToolCallEventData(
+                    tool_name="wiki_auto_ingest",
+                    status="completed",
+                    start_time=now,
+                    end_time=now,
+                    duration_ms=0,
+                    result=f"Auto-indexed '{filename}' into knowledge base for RAG retrieval",
+                ))
+            except Exception:
+                logger.debug("EventBus notification skipped (non-critical)", exc_info=True)
+
+        register_large_doc_ingest_callback(_ingest_large_doc)
 
     def _create_llm_map_tool(self) -> BaseTool | None:
         """Auto-create ``llm_map_tool`` (bulk per-item LLM fan-out) when enabled.

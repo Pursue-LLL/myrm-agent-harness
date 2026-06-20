@@ -23,6 +23,7 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `tool_registry_engine.py` | 辅助 | Tool registry 扫描引擎 | ✅ |
 | `tool_registry_models.py` | 辅助 | Tool registry 数据模型 | ✅ |
 | `validate_tool_registry.py` | 辅助 | Tool registry CI 校验 | ✅ |
+| `check_fractal_docs.py` | 辅助 | 分形 `_ARCH.md` 目录覆盖 + 可选 IOP 头门禁 | ✅ |
 | `detect_blocking_io.py` | 辅助 | 阻塞 I/O 检测 | ✅ |
 
 ## 边界 enforcement 用法
@@ -31,6 +32,7 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 python scripts/boundary_check.py              # CI 全量
 python scripts/boundary_check.py --incremental  # pre-commit 增量
 python scripts/boundary_check.py --fix          # 自动注释违规 import
+python scripts/check_fractal_docs.py            # 分形 _ARCH 目录覆盖
 ```
 
 性能基线见 `benchmarks/bench_boundary_detection.py`。
@@ -39,4 +41,4 @@ python scripts/boundary_check.py --fix          # 自动注释违规 import
 
 - **扫描目标**：`src/myrm_agent_harness/`
 - **配置**：`boundary_config.py`（`ALLOWED_FRAMEWORK_PREFIXES`、`BANNED_PREFIXES`、`ALLOWED_PATHS`）
-- **CI / pre-commit**：与 `tests/` 边界测试套件联动
+- **CI / pre-commit**：与 `tests/` 边界测试套件联动；`check_fractal_docs.py` 与 `tests/architecture/test_check_fractal_docs.py`

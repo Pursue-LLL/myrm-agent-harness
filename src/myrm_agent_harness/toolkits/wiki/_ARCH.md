@@ -11,14 +11,14 @@ LLM-driven wikilink enrichment.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Wiki toolkit entry point | ✅ |
-| wiki_agent_tools.py | Core | LangChain tool integration layer (auto-compile on ingest, knowledge compounding on query, HTML→Markdown URL fetching) | ✅ |
+| wiki_agent_tools.py | Core | LangChain tool integration layer (auto-compile on ingest, knowledge compounding on query, HTML→Markdown URL fetching). Supports binary document ingestion (PDF/DOCX/XLSX/PPTX) via file_parsers, auto-chunking for large documents, and FTS5 raw indexing for immediate searchability. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
 | core/ | Config (purpose, compile strategy), types, file structure (incl. scan_folder with auto-ignore for .git/node_modules/etc) |
 | maintenance/ | Linter: health checks, drift/stale detection, LLM link enrichment |
-| pipeline/ | Compiler (SHA256 cache, auto-retry queue), pending edits (HITL) |
-| retrieval/ | Indexer (FTS5+CJK, edges with weight, LPA, graph insights), query engine (graph expansion) |
+| pipeline/ | Compiler (SHA256 cache, auto-retry queue, raw text FTS5 pre-indexing on enqueue), pending edits (HITL) |
+| retrieval/ | Indexer (FTS5+CJK with raw text interim indexing, edges with weight, LPA, graph insights), query engine (graph expansion) |
 
 ## Key Dependencies
 

@@ -35,6 +35,9 @@ from .retrieval.query import WikiQueryEngine
 
 logger = get_agent_logger(__name__)
 
+_BINARY_DOC_EXTENSIONS = frozenset({".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt"})
+_LARGE_DOC_CHUNK_THRESHOLD = 80_000
+
 
 def create_wiki_tools(
     compiler: WikiCompiler,
@@ -81,28 +84,38 @@ def create_wiki_tools(
                 content = await _fetch_url_as_markdown(source)
                 filename = filename or f"web_{hashlib.sha256(source.encode()).hexdigest()[:12]}.md"
             elif len(source) < 260 and "\n" not in source and Path(source).exists():
-                content = Path(source).read_text(encoding="utf-8")
-                filename = filename or Path(source).name
+                src_path = Path(source)
+                ext = src_path.suffix.lower()
+                if ext in _BINARY_DOC_EXTENSIONS:
+                    content = await _parse_binary_document(str(src_path))
+                else:
+                    content = src_path.read_text(encoding="utf-8")
+                filename = filename or src_path.name
+                if not filename.endswith(".md"):
+                    filename = Path(filename).stem + ".md"
             else:
                 content = source
                 filename = filename or f"text_{hashlib.sha256(source.encode()).hexdigest()[:12]}.md"
 
-            # Combine folder_path and filename
             if folder_path:
-                # Sanitize folder path
                 safe_folder = structure._sanitize_path(folder_path)
                 full_path = f"{safe_folder}/{filename}"
             else:
                 full_path = filename
 
-            raw_path = structure.get_raw_file_path(full_path)
-            raw_path.parent.mkdir(parents=True, exist_ok=True)
-            raw_path.write_text(content, encoding="utf-8")
-            logger.info(f"Ingested to: {raw_path}")
+            chunks = _split_if_large(content, full_path)
+            ingested_count = 0
 
-            compiler.enqueue_file(raw_path)
+            for chunk_path, chunk_content in chunks:
+                raw_path = structure.get_raw_file_path(chunk_path)
+                raw_path.parent.mkdir(parents=True, exist_ok=True)
+                raw_path.write_text(chunk_content, encoding="utf-8")
+                compiler.enqueue_file(raw_path)
+                ingested_count += 1
 
-            return f"Successfully ingested document: {raw_path.name}. Compilation queued."
+            logger.info(f"Ingested {ingested_count} chunk(s) for: {full_path}")
+            suffix = f" ({ingested_count} chunks)" if ingested_count > 1 else ""
+            return f"Successfully ingested document: {full_path}{suffix}. Compilation queued."
 
         except Exception as e:
             logger.error(f"Failed to ingest {source}: {e}")
@@ -234,6 +247,52 @@ def _archive_query_result(
     raw_path.write_text(content, encoding="utf-8")
     compiler.enqueue_file(raw_path)
     logger.info(f"Archived query result for knowledge compounding: {filename}")
+
+
+async def _parse_binary_document(file_path: str) -> str:
+    """Parse binary document (PDF/DOCX/XLSX/PPTX) into Markdown text via file_parsers."""
+    from myrm_agent_harness.toolkits.file_parsers import get_parser, is_supported
+
+    if not is_supported(file_path):
+        raise ValueError(f"Unsupported file type: {Path(file_path).suffix}")
+
+    parser = get_parser(file_path)
+    text = await parser.parse(file_path)
+    if not text or not text.strip():
+        raise ValueError(f"Parser returned empty content for: {file_path}")
+    return text
+
+
+def _split_if_large(
+    content: str, base_path: str
+) -> list[tuple[str, str]]:
+    """Split large content into chunks for better wiki compilation.
+
+    Returns list of (relative_path, content) tuples. For small documents,
+    returns a single entry with the original path.
+    """
+    if len(content) <= _LARGE_DOC_CHUNK_THRESHOLD:
+        return [(base_path, content)]
+
+    from myrm_agent_harness.toolkits.retriever.splitter import TextChunker
+
+    chunker = TextChunker(min_chunk_tokens=200)
+    docs = chunker.chunk_text(content, document_metadata={"title": Path(base_path).stem})
+
+    if len(docs) <= 1:
+        return [(base_path, content)]
+
+    stem = Path(base_path).stem
+    parent = str(Path(base_path).parent) if Path(base_path).parent != Path(".") else ""
+    results: list[tuple[str, str]] = []
+
+    for i, doc in enumerate(docs, 1):
+        chunk_name = f"{stem}_chunk{i:03d}.md"
+        chunk_path = f"{parent}/{chunk_name}" if parent else chunk_name
+        results.append((chunk_path, doc.page_content))
+
+    logger.info(f"Split large document into {len(results)} chunks: {stem}")
+    return results
 
 
 async def _fetch_url_as_markdown(url: str) -> str:

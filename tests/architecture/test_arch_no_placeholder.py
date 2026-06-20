@@ -7,7 +7,12 @@ from pathlib import Path
 import pytest
 
 _SRC_ROOT = Path(__file__).resolve().parent.parent.parent / "src"
-_BANNED = ("见源码",)
+_BANNED = (
+    "见源码",
+    "retrievalhandlestool",
+    "documentpre-handlesmodule",
+    "textsplittoolmodule",
+)
 
 
 def _arch_files() -> list[Path]:

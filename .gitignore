@@ -73,7 +73,6 @@ test_output.txt
 local_storage/
 tests/local_storage/
 embeddings.db
-.coverage
 
 # Build / bootstrap artifacts
 .pypi-bootstrap/

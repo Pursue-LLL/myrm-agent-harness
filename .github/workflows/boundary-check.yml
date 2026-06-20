@@ -8,6 +8,7 @@ on:
       - 'harness_packaging/**'
       - 'scripts/boundary_check.py'
       - 'scripts/boundary_config.py'
+      - 'scripts/check_fractal_docs.py'
       - 'scripts/build_core.py'
       - 'scripts/build_release_wheel.py'
       - 'scripts/assemble_production.py'
@@ -38,6 +39,9 @@ jobs:
 
       - name: Run boundary check (full scan)
         run: uv run python scripts/boundary_check.py
+
+      - name: Run fractal docs check
+        run: uv run python scripts/check_fractal_docs.py
 
       - name: Install dependencies
         run: uv sync --dev --group build

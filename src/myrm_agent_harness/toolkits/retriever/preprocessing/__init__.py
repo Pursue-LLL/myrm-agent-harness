@@ -1,7 +1,4 @@
-"""documentpre-handlesmodule
-
-providesdocumentchunk, filterandpre-handlesfeature.
-"""
+"""Document preprocessing — chunk filtering and normalization for retrieval."""
 
 from myrm_agent_harness.toolkits.retriever.preprocessing.chunk_filter import (
     ChunkFilter,

@@ -16,3 +16,11 @@ repos:
         pass_filenames: false
         always_run: true
         description: "Enforce that every @tool is registered in _TOOL_LAYERS and docs counts stay in sync"
+
+      - id: harness-fractal-docs-check
+        name: Harness Fractal Docs Coverage
+        entry: python scripts/check_fractal_docs.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: "Ensure every Python module directory under src/myrm_agent_harness has _ARCH.md"

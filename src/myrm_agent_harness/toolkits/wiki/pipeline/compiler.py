@@ -78,8 +78,21 @@ class WikiCompiler:
         self._structure.ensure_structure()
 
     def enqueue_file(self, file_path: Path) -> None:
-        """Enqueue a raw file for compilation and ensure the background worker is running."""
+        """Enqueue a raw file for compilation and ensure the background worker is running.
+
+        Also indexes the raw text into FTS5 for immediate searchability
+        before compilation completes.
+        """
         self._queue.add_item(file_path)
+
+        if self._indexer and file_path.exists() and file_path.suffix == ".md":
+            try:
+                raw_text = file_path.read_text(encoding="utf-8")
+                if raw_text.strip():
+                    self._indexer.index_raw_text(file_path.stem, raw_text)
+            except Exception as e:
+                logger.warning(f"Failed to index raw text for {file_path.name}: {e}")
+
         self.start_background_worker()
 
     def start_background_worker(self) -> None:

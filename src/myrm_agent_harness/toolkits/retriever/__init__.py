@@ -1,7 +1,4 @@
-"""retrievalhandlestool
-
-providesvectorembedding, storageandretrieval'srelatedfeature.
-"""
+"""Hybrid retrieval toolkit — embedding, BM25, fusion, rerank, and RSG hooks."""
 
 from typing import TYPE_CHECKING
 

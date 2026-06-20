@@ -227,3 +227,101 @@ class TestMaybeArchiveToWiki:
         agent._create_wiki_tools()
 
         agent._maybe_archive_to_wiki("test", ["x" * 499])
+
+
+class TestRegisterLargeDocIngest:
+    """Tests for _register_large_doc_ingest and the _ingest_large_doc closure."""
+
+    def teardown_method(self) -> None:
+        from myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader import (
+            unregister_large_doc_ingest_callback,
+        )
+        unregister_large_doc_ingest_callback()
+
+    def test_registers_callback(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
+        """After _create_wiki_tools, the pdf_reader callback should be registered."""
+        from myrm_agent_harness.agent.meta_tools.file_ops.utils import pdf_reader
+
+        agent = _make_agent(mock_llm, wiki_base_dir=wiki_dir)
+        agent._create_wiki_tools()
+
+        assert pdf_reader._ingest_callback is not None
+
+    @pytest.mark.asyncio
+    async def test_atomic_file_creation_dedup(self, wiki_dir: Path) -> None:
+        """_ingest_large_doc uses atomic O_CREAT|O_EXCL — duplicate is a no-op."""
+        from myrm_agent_harness.agent._skill_agent_tools import SkillAgentToolsMixin
+        from myrm_agent_harness.agent.meta_tools.file_ops.utils import pdf_reader
+
+        mock_structure = MagicMock()
+        mock_path = MagicMock()
+        mock_path.parent.mkdir = MagicMock()
+        mock_structure.get_raw_file_path.return_value = mock_path
+        mock_compiler = MagicMock()
+
+        SkillAgentToolsMixin._register_large_doc_ingest(mock_structure, mock_compiler)
+        cb = pdf_reader._ingest_callback
+        assert cb is not None
+
+        with patch("myrm_agent_harness.agent._skill_agent_tools.os.open", side_effect=FileExistsError):
+            await cb("test.pdf", "full text", "hash123")
+
+        mock_compiler.enqueue_file.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_successful_ingest_enqueues_file(self, wiki_dir: Path) -> None:
+        """Successful ingest writes file and enqueues for compilation."""
+        from myrm_agent_harness.agent._skill_agent_tools import SkillAgentToolsMixin
+        from myrm_agent_harness.agent.meta_tools.file_ops.utils import pdf_reader
+
+        mock_structure = MagicMock()
+        mock_path = MagicMock()
+        mock_path.parent.mkdir = MagicMock()
+        mock_path.__str__ = MagicMock(return_value="/tmp/fake_raw_path.md")
+        mock_structure.get_raw_file_path.return_value = mock_path
+        mock_compiler = MagicMock()
+
+        SkillAgentToolsMixin._register_large_doc_ingest(mock_structure, mock_compiler)
+        cb = pdf_reader._ingest_callback
+        assert cb is not None
+
+        fake_fd = 42
+        with patch("myrm_agent_harness.agent._skill_agent_tools.os.open", return_value=fake_fd) as mock_open, \
+             patch("myrm_agent_harness.agent._skill_agent_tools.os.write") as mock_write, \
+             patch("myrm_agent_harness.agent._skill_agent_tools.os.close") as mock_close, \
+             patch("myrm_agent_harness.agent.observability.event_bus.EventBus.get_instance", new_callable=AsyncMock) as mock_bus:
+            mock_bus_inst = AsyncMock()
+            mock_bus.return_value = mock_bus_inst
+
+            await cb("report.pdf", "full content", "abc123")
+
+        mock_open.assert_called_once()
+        mock_write.assert_called_once_with(fake_fd, b"# report.pdf\n\nfull content")
+        mock_close.assert_called_once_with(fake_fd)
+        mock_compiler.enqueue_file.assert_called_once_with(mock_path)
+
+    @pytest.mark.asyncio
+    async def test_eventbus_failure_does_not_crash(self, wiki_dir: Path) -> None:
+        """EventBus failure is non-critical and should not propagate."""
+        from myrm_agent_harness.agent._skill_agent_tools import SkillAgentToolsMixin
+        from myrm_agent_harness.agent.meta_tools.file_ops.utils import pdf_reader
+
+        mock_structure = MagicMock()
+        mock_path = MagicMock()
+        mock_path.parent.mkdir = MagicMock()
+        mock_path.__str__ = MagicMock(return_value="/tmp/fake_raw_path.md")
+        mock_structure.get_raw_file_path.return_value = mock_path
+        mock_compiler = MagicMock()
+
+        SkillAgentToolsMixin._register_large_doc_ingest(mock_structure, mock_compiler)
+        cb = pdf_reader._ingest_callback
+        assert cb is not None
+
+        fake_fd = 42
+        with patch("myrm_agent_harness.agent._skill_agent_tools.os.open", return_value=fake_fd), \
+             patch("myrm_agent_harness.agent._skill_agent_tools.os.write"), \
+             patch("myrm_agent_harness.agent._skill_agent_tools.os.close"), \
+             patch("myrm_agent_harness.agent.observability.event_bus.EventBus.get_instance", side_effect=RuntimeError("bus down")):
+            await cb("test.pdf", "text", "hash456")
+
+        mock_compiler.enqueue_file.assert_called_once()

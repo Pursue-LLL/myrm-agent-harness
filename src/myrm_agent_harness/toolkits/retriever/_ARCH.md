@@ -1,7 +1,8 @@
 # retriever/
 
 ## Overview
-retrievalhandlestool
+
+Hybrid RAG retrieval toolkit: preprocessing → split → embed → parallel vector + BM25 → fusion → rerank. Framework-agnostic; no business-layer imports.
 
 Detailed design: [RETRIEVER_SYSTEM.md](RETRIEVER_SYSTEM.md)
 
@@ -9,25 +10,25 @@ Detailed design: [RETRIEVER_SYSTEM.md](RETRIEVER_SYSTEM.md)
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | retrievalhandlestool | — |
-| autocut.py | Core | Score-discontinuity autocut. Detects largest gap in rerank scores for dynamic truncation. | ✅ |
-| bm25_retrieval.py | Core | BM25 sparse retrieval engine. Builds an in-memory inverted index from document chunks and | ✅ |
-| engine.py | Core | Retrieval tools wrapper. Provides hybrid retrieval and reranking, integrating BM25, vector search, | ✅ |
-| fusion_strategies.py | Core | Score-fusion utilities for hybrid retrieval. Merges multiple ranked lists into a single | ✅ |
-| hybrid_retriever.py | Core | Stable public facade for hybrid retrieval. Re-exports the coordinator so callers need not | ✅ |
-| performance_monitor.py | Core | Provides PerformanceMonitor, get_performance_monitor. | ✅ |
-| qdrant_retrieval.py | Core | Qdrant persistent vector retriever. Wraps vector store search capability, providing automatic text-t | ✅ |
+| `__init__.py` | Package | Public exports for hybrid retrieval entrypoints | — |
+| `autocut.py` | Core | Score-discontinuity autocut for dynamic truncation after rerank | ✅ |
+| `bm25_retrieval.py` | Core | BM25 sparse retrieval; in-memory inverted index over document chunks | ✅ |
+| `engine.py` | Core | Retrieval tools wrapper: hybrid retrieval + reranking orchestration | ✅ |
+| `fusion_strategies.py` | Core | Score fusion utilities (RRF, weighted merge) for hybrid lists | ✅ |
+| `hybrid_retriever.py` | Core | Stable public facade re-exporting the hybrid coordinator | ✅ |
+| `performance_monitor.py` | Core | `PerformanceMonitor` and `get_performance_monitor` hooks | ✅ |
+| `qdrant_retrieval.py` | Core | Qdrant-backed vector retriever with automatic text handling | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
-| bm25/ | BM25 retrieval module. |
-| embedding/ | Embedding Service Toolkit. |
-| hybrid_search/ | Hybrid retrieval module. |
-| preprocessing/ | documentpre-handlesmodule |
-| reranker/ | Reranker Service Toolkit. |
-| splitter/ | textsplittoolmodule |
-| sufficiency/ | Retrieval Sufficiency Guard (RSG) — LLM-based evaluation of retrieval completeness with negative constraint detection. Conditionally activated post-retrieval to assess result quality and guide re-search. |
-| vector_search/ | Pure in-memory vector retrieval module |
+| `bm25/` | BM25 algorithm and tokenization |
+| `embedding/` | Local/cloud embedding services |
+| `hybrid_search/` | Hybrid search pipeline coordinator |
+| `preprocessing/` | Document filtering, cleanup, normalization |
+| `reranker/` | Post-retrieval reranking |
+| `splitter/` | Document chunking strategies |
+| `sufficiency/` | RSG post-retrieval sufficiency guard — [sufficiency/_ARCH.md](sufficiency/_ARCH.md) |
+| `vector_search/` | In-memory / backend vector search helpers |
 
 ## Key Dependencies
 

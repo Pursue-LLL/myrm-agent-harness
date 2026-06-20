@@ -19,6 +19,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | _manager_spawn.py | Internal | Spawn and execution mixin for SubagentManager (`_run_subagent*`, `spawn_child`). | ✅ |
 | _manager_control.py | Internal | Control plane mixin for SubagentManager (`cancel_child`, `steer_child`, `list_children`, `wait_children`, `drain_notifications`, `run_chain`, `run_with_verification`). | ✅ |
 | notifications.py | Core | Push-based notification formatting for subagent completion events and active subagent context injection. | ✅ |
+| SUBAGENT_NOTIFICATION_STRATEGY.md | L2 | Subagent push notification strategy and context injection design | — |
 | orchestrator.py | Core | Subagent composition patterns — chain, batch, and DAG execution (with Declarative Dependency Context Filtering, Auto-Vaulting, and Swarm Fission yield-resume). Delegates verification to `_orchestrator_verification`. | ✅ |
 | _orchestrator_verification.py | Internal | Adversarial verification orchestration — Worker -> Verifier -> Retry loop with structured verdict parsing and ReadonlyExecutorProxy sandboxing. | ✅ |
 | prompts.py | Core | Default prompt templates for multi-agent coordination. | ✅ |

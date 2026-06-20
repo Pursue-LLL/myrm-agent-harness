@@ -1,4 +1,4 @@
-"""textsplittoolmodule"""
+"""Document chunking strategies for the retrieval pipeline."""
 
 from myrm_agent_harness.toolkits.retriever.splitter.chunk_processor import (
     detect_content_type,

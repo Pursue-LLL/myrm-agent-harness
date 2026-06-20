@@ -1,12 +1,14 @@
 # context_management/
 
 ## Overview
-Context management module. Prompt cache practice (break attribution, skill catalog vs SystemMessage) documented in [PROMPT_CACHE_PRACTICE.md](PROMPT_CACHE_PRACTICE.md).
+Context management module. Industry theory: [CONTEXT_ENGINEERING.md](CONTEXT_ENGINEERING.md). Prompt cache practice: [PROMPT_CACHE_PRACTICE.md](PROMPT_CACHE_PRACTICE.md).
 
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
+| CONTEXT_ENGINEERING.md | L2 | Industry context-engineering theory (Manus, Anthropic, Factory Research) | — |
+| PROMPT_CACHE_PRACTICE.md | L2 | Framework prompt-cache implementation practices | — |
 | __init__.py | Package | Context management module. | — |
 | context.py | Core | Agent runtime context definition. Provides a type-safe context container for passing user, session,  | ✅ |
 | preheat.py | Utility | Prefix cache preheat after idle compression. Sends max_tokens=1 probe to warm provider's prefix cache for explicit-cache providers (Anthropic, Qwen). | ✅ |

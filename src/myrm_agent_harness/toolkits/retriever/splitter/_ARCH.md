@@ -1,22 +1,25 @@
 # splitter/
 
 ## Overview
-textsplittoolmodule
+
+Document chunking for RAG: code-aware splits, markdown headers, special blocks, and overlap handling.
+
+Detailed design: [RETRIEVER_SYSTEM.md](../RETRIEVER_SYSTEM.md)
 
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | textsplittoolmodule | — |
-| chunk_processor.py | Core | Chunk processing utilities. | ✅ |
-| code_utils.py | Core | Provides detect_code_language, split_large_code_block, protect_code_blocks. | ✅ |
-| markdown_link_handler.py | Core | Markdown link handler module. | ✅ |
-| overlap_processor.py | Core | Overlap processing module. | ✅ |
-| recursive_character_protect_special_splitter.py | Core | Unified recursive character splitter | ✅ |
-| smart_markdown_header_text_splitter.py | Core | Markdown-aware splitter. Splits documents along header boundaries while enforcing a | ✅ |
-| special_block_detector.py | Core | Provides SpecialBlockDetector, hello. | ✅ |
-| special_block_splitter.py | Core | Special-block splitter. Handles oversized code / table / list blocks that exceed the normal | ✅ |
-| splitter.py | Core | High-level text splitter. Selects the appropriate splitting strategy based on content type | ✅ |
+| `__init__.py` | Package | Public splitter exports | — |
+| `chunk_processor.py` | Core | Chunk processing utilities | ✅ |
+| `code_utils.py` | Core | Code language detection and large-block splitting | ✅ |
+| `markdown_link_handler.py` | Core | Markdown link handling during split | ✅ |
+| `overlap_processor.py` | Core | Chunk overlap processing | ✅ |
+| `recursive_character_protect_special_splitter.py` | Core | Recursive character splitter with special-block protection | ✅ |
+| `smart_markdown_header_text_splitter.py` | Core | Markdown header-aware text splitter | ✅ |
+| `special_block_detector.py` | Core | Detects code/table/list blocks needing special handling | ✅ |
+| `special_block_splitter.py` | Core | Splits oversized special blocks | ✅ |
+| `splitter.py` | Core | High-level splitter strategy selector | ✅ |
 
 ## Key Dependencies
 

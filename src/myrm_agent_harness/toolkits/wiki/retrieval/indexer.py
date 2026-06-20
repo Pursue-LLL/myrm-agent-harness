@@ -403,18 +403,33 @@ class WikiIndexer:
         """Convert concept name to a deterministic UUID for Qdrant."""
         return str(uuid.uuid5(uuid.NAMESPACE_OID, concept_name))
 
+    def index_raw_text(self, name: str, text: str) -> None:
+        """Index raw text into FTS5 for immediate searchability before compilation.
+
+        Uses a ``raw:`` prefix to distinguish from compiled entries. When the
+        compiled version is later upserted via :meth:`upsert`, it replaces
+        this interim entry.
+        """
+        raw_key = f"raw:{name}"
+        preview = text[:5000] if len(text) > 5000 else text
+
+        with self._get_conn() as conn:
+            conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (raw_key,))
+            conn.execute(
+                "INSERT INTO wiki_fts (concept_name, truth_content) VALUES (?, ?)",
+                (raw_key, preview),
+            )
+
     async def upsert(self, concept_name: str, full_markdown: str) -> None:
         """
         Extract Compiled Truth and upsert into FTS5 index and Vector Store.
         """
         truth_content = self._extract_truth(full_markdown)
 
-        # 1. Upsert to SQLite FTS5 (Sync wrapped in async thread)
         def sync_upsert():
             with self._get_conn() as conn:
-                # Delete existing
                 conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (concept_name,))
-                # Insert new
+                conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (f"raw:{concept_name}",))
                 conn.execute(
                     "INSERT INTO wiki_fts (concept_name, truth_content) VALUES (?, ?)", (concept_name, truth_content)
                 )
