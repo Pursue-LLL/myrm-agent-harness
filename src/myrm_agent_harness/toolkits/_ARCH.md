@@ -16,6 +16,7 @@ Each toolkit is a **self-contained, absolutely independent** module usable via
 | **Workspace** | `browser/`, `computer_use/`, `code_index/`, `workspace/`, `context/`, `file_parsers/`, `wiki/`, `element_ref/` | Files, browser, desktop, code search, context bundles |
 | **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/`, `huggingface/`, `deploy/`, `local_browser_data/`, `notification/` | External APIs, agent protocols, channels, deployment bridges |
 | **Collaboration & Media** | `calendar/`, `kanban/`, `tasks/`, `commitment/`, `automation/`, `cron/`, `interaction/`, `tts/`, `vision/` | Scheduling, tasks, user interaction primitives, media |
+| **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |
 
 Agent-specific tool wrappers (e.g. `render_ui_tool`) live in `agent/meta_tools/`, not here.
 
@@ -95,6 +96,7 @@ Does your code need to import anything from agent/?
 | tts/ | Text-to-speech — OpenAI/ElevenLabs engine with gateway fallback. |
 | vector/ | Vector Store — unified async vector storage and retrieval. |
 | vision/ | Vision processing — image analysis fallback engine and video frame extraction. |
+| vnc/ | VNC visual desktop streaming — x11vnc + websockify + human takeover coordination. |
 | web_fetch/ | Web content crawling — layered engine with HTTP/Browser/Stealth fallback chain. |
 | web_search/ | Web search — multi-engine search tools with result aggregation. |
 | wiki/ | Self-evolving knowledge base — LLM-powered wiki article generation and management. |

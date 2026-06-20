@@ -1,0 +1,34 @@
+# vnc/
+
+## Overview
+VNC visual desktop streaming for sandbox environments. Captures the existing Xvfb virtual display via x11vnc and exposes it as a WebSocket stream via websockify for noVNC frontend consumption. Includes human takeover coordination to prevent human-machine conflicts.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Package | VNC visual desktop streaming — re-exports VncServer, TakeoverCoordinator, TakeoverState. | — |
+| server.py | Core | VNC server lifecycle manager — lazy-start x11vnc + websockify on existing Xvfb display. | ✅ |
+| takeover.py | Core | Takeover coordinator — state machine for human-agent browser control handoff. | ✅ |
+
+## Architecture
+
+```
+Xvfb (already running for browser/computer_use toolkits)
+  └─ x11vnc captures DISPLAY → RFB protocol on port 5900
+      └─ websockify proxies RFB → WebSocket on port 6080
+          └─ noVNC (frontend) connects via WebSocket
+
+TakeoverCoordinator:
+  AGENT_ACTIVE ──(user requests)──→ USER_TAKEOVER
+       ↑                                  │
+       └──(user resumes / timeout)────────┘
+```
+
+## Key Design Decisions
+
+1. **Lazy loading**: VNC processes only start when frontend requests a connection. Zero cost when idle.
+2. **Linux-only**: Requires X11 DISPLAY (Xvfb). macOS/Windows fall back to existing screenshot mode.
+3. **Reuse existing Xvfb**: No new display server — captures the same DISPLAY used by browser and computer_use toolkits.
+4. **Random one-time password**: x11vnc uses a fresh password per session, passed securely to the business layer.
+5. **Auto-revert timeout**: Takeover automatically returns control to Agent after 5 minutes (configurable).

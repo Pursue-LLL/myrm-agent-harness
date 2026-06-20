@@ -14,6 +14,7 @@ Generated files scanner.
 """
 
 import logging
+import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -23,6 +24,18 @@ from myrm_agent_harness.toolkits.code_execution.executors.common.executor_utils 
 )
 
 logger = logging.getLogger(__name__)
+
+_SCAN_SKIP_DIRS: frozenset[str] = frozenset({
+    ".git", ".svn", ".hg",
+    "node_modules", "__pycache__",
+    ".venv", "venv", ".env", "env",
+    ".tox", ".nox",
+    ".mypy_cache", ".pytest_cache", ".ruff_cache",
+    "dist", "build", ".next", ".nuxt",
+    "target", "out",
+    ".idea", ".vscode",
+    ".eggs", "site-packages",
+})
 
 
 class GeneratedFilesScanner(ABC):
@@ -84,27 +97,32 @@ class LocalFilesScanner(GeneratedFilesScanner):
         threshold = start_time - 0.01
 
         if workspace and workspace.exists():
-            for file_path in workspace.rglob("*"):
-                if not file_path.is_file() or file_path.name.startswith("."):
-                    continue
+            for dirpath, dirnames, filenames in os.walk(workspace):
+                dirnames[:] = [d for d in dirnames if d not in _SCAN_SKIP_DIRS and not d.startswith(".")]
 
-                if should_ignore_artifact(file_path.name):
-                    continue
-
-                try:
-                    relative_path = file_path.relative_to(workspace)
-                    if should_filter_skill_resource(relative_path):
-                        logger.debug(f" Skipping skill resource: {relative_path}")
+                for fname in filenames:
+                    if fname.startswith("."):
                         continue
-                except ValueError:
-                    pass
 
-                try:
-                    mtime = file_path.stat().st_mtime
-                    if mtime >= threshold:
-                        generated.append(str(file_path.absolute()))
-                except Exception:
-                    pass
+                    if should_ignore_artifact(fname):
+                        continue
+
+                    file_path = Path(dirpath) / fname
+
+                    try:
+                        relative_path = file_path.relative_to(workspace)
+                        if should_filter_skill_resource(relative_path):
+                            logger.debug(f" Skipping skill resource: {relative_path}")
+                            continue
+                    except ValueError:
+                        pass
+
+                    try:
+                        mtime = file_path.stat().st_mtime
+                        if mtime >= threshold:
+                            generated.append(str(file_path.absolute()))
+                    except Exception:
+                        pass
 
         # Fallback: check /tmp for user-generated files
         tmp_extensions = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".xlsx", ".docx", ".html"}
