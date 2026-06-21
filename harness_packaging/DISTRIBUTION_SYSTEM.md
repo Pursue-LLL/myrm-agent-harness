@@ -53,7 +53,7 @@ verify-harness-distribution
 `pyproject.toml` defines the `compiled-core` extra (platform markers). After a release wheel containing that extra is on PyPI, consumers install:
 
 ```bash
-pip install 'myrm-agent-harness[file-parsers,...,compiled-core]==0.1.0'
+pip install 'myrm-agent-harness[file-parsers,web,...,compiled-core]==0.1.0'
 ```
 
 Or in `myrm-agent-server` after `uv sync` (PyPI, default for this repo).

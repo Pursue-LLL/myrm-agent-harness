@@ -1,21 +1,23 @@
 """YouTube transcript extractor.
 
-Extracts subtitles/transcripts from YouTube videos via the youtube-transcript-api
-library. Used as a fast-path shortcut in CrawlEngine when a YouTube URL is detected,
-bypassing the three-tier HTML fetcher pipeline (which cannot access subtitle data).
+Extracts subtitles/transcripts from YouTube videos when ``youtube-transcript-api``
+(``[web]`` optional extra) is installed. Used as a fast-path shortcut in CrawlEngine
+when a YouTube URL is detected, bypassing the three-tier HTML fetcher pipeline.
+When the optional dependency is missing or fetch fails, CrawlEngine falls back to
+standard HTML crawl.
 
 Design pattern: analogous to binary_router.py — special content source routing.
 
 [INPUT]
-- (none — standalone module)
+- (none — standalone module; optional ``youtube-transcript-api`` via ``[web]`` extra)
 
 [OUTPUT]
 - is_youtube_url: Check if a URL is a YouTube video URL
-- extract_youtube_transcript: Extract transcript and return as Document
+- extract_youtube_transcript: Extract transcript and return as Document, or None
 
 [POS]
-YouTube transcript extractor. Fast-path content extraction for YouTube URLs,
-returning timestamped Markdown Documents with video metadata.
+YouTube transcript fast-path extractor. Returns timestamped Markdown Documents with
+video metadata when ``[web]`` is installed; otherwise returns None for HTML fallback.
 """
 
 from __future__ import annotations
@@ -89,7 +91,7 @@ async def extract_youtube_transcript(
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
     except ImportError:
-        logger.error("youtube-transcript-api not installed. Run: pip install youtube-transcript-api")
+        logger.error("youtube-transcript-api not installed. Install: uv sync --extra web (or myrm-agent-harness[web])")
         return None
 
     languages = preferred_languages or _DEFAULT_LANGUAGES

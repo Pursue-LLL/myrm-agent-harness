@@ -98,7 +98,7 @@ Does your code need to import anything from agent/?
 | vector/ | Vector Store — unified async vector storage and retrieval. |
 | vision/ | Vision processing — image analysis fallback engine and video frame extraction. |
 | vnc/ | VNC visual desktop streaming — x11vnc + websockify + human takeover coordination. |
-| web_fetch/ | Web content crawling — layered engine with HTTP/Browser/Stealth fallback chain. |
+| web_fetch/ | Web content crawling — layered engine with HTTP/Browser/Stealth fallback; `[web]` extra for scrapling + YouTube transcripts. |
 | web_search/ | Web search — multi-engine search tools with result aggregation. |
 | wiki/ | Self-evolving knowledge base — LLM-powered wiki article generation and management. |
 | workspace/ | Workspace path suggestion — bounded file enumeration and GUI-friendly fuzzy ranking. |

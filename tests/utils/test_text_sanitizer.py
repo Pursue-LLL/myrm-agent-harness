@@ -44,7 +44,6 @@ class TestExtractAndStripThinkBlocks:
         assert clean == "clean"
         assert reasoning == "reason"
 
-
     @pytest.mark.parametrize("tag_name", THINKING_TAG_NAMES)
     def test_all_tag_names_extracted(self, tag_name: str) -> None:
         text = f"before<{tag_name}>inner</{tag_name}>after"
@@ -67,12 +66,10 @@ class TestSanitizeLlmOutput:
         assert sanitize_llm_output(s) == s
 
     def test_removes_c0_except_tab_lf_cr(self) -> None:
-        # BEL \x07 removed; tab \x09, LF \x0a, CR \x0d kept
         raw = "a\x07b\tc\nd\re"
         assert sanitize_llm_output(raw) == "ab\tc\nd\re"
 
     def test_removes_c1_control_chars(self) -> None:
-        # C1 range includes \x80-\x9F per sanitizer (and DEL \x7f)
         raw = "x\x80\x9fy"
         assert sanitize_llm_output(raw) == "xy"
 
@@ -131,5 +128,16 @@ class TestToolProtocolTagStripping:
     def test_tool_use_tag(self) -> None:
         assert sanitize_llm_output("start</tool_use>end") == "startend"
 
+
     def test_antml_namespaced_parameter(self) -> None:
-        raw = "done
+        tag = chr(60) + "antml:parameter" + chr(62)
+        close_tag = chr(60) + "/antml:parameter" + chr(62)
+        raw = "done" + tag + "val" + close_tag + "end"
+        assert sanitize_llm_output(raw) == "donevalend"
+
+    def test_mixed_protocol_and_think_tags(self) -> None:
+        tag = chr(60) + "parameter" + chr(62)
+        close_tag = chr(60) + "/parameter" + chr(62)
+        raw = "A" + chr(60) + "think" + chr(62) + "hidden" + chr(60) + "/think" + chr(62) + "B" + tag + "x" + close_tag + "C"
+        assert sanitize_llm_output(raw) == "ABxC"
+

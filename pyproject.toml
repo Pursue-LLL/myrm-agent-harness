@@ -19,16 +19,16 @@ classifiers = [
 
 dependencies = [
   # --- LangChain 生态 (Agent 框架基础) ---
-  "langchain>=1.3.4",                  # Agent 编排核心
-  "langchain-core>=1.4.2",              # LangChain 基础抽象
-  "langgraph>=1.2.4",                  # 图状态机 Agent 运行时
+  "langchain>=1.3.10",                  # Agent 编排核心
+  "langchain-core>=1.4.8",              # LangChain 基础抽象
+  "langgraph>=1.2.6",                  # 图状态机 Agent 运行时
   "langgraph-checkpoint-sqlite>=3.1.0", # SQLite 状态持久化 (checkpoint factory)
   "aiosqlite>=0.22.1",                  # async SQLite (memory stores + checkpointer)
   "dill>=0.4.1",                        # checkpoint serde (ChatLiteLLM / complex objects)
   # --- LLM 多供应商适配 ---
-  "litellm>=1.88.1", # 统一 LLM API 代理 (100+ 供应商)
+  "litellm>=1.89.3", # 统一 LLM API 代理 (100+ 供应商)
   # --- MCP 协议支持 ---
-  "langchain-mcp-adapters>=0.2.2", # MCP 工具/服务适配器
+  "langchain-mcp-adapters>=0.3.0", # MCP 工具/服务适配器
   # --- 数据验证与序列化 ---
   "pydantic>=2.13.4", # 数据模型验证
   "PyYAML>=6.0.3",    # YAML 配置解析
@@ -52,15 +52,14 @@ dependencies = [
   # --- 网页爬取与内容提取（基础） ---
   "beautifulsoup4>=4.15.0", # HTML DOM 解析与清洗（ContentPruningFilter）
   "lxml>=6.1.1",            # bs4 lxml parser (content_pruning + tree_truncator)
-  "youtube-transcript-api>=1.0.0", # YouTube 字幕提取 (youtube_extractor)
   # --- Agent 协议与基础设施 ---
   "agent-client-protocol>=0.10.1", # ACP 协议 SDK (Agent 间通信)
-  "filelock>=3.29.1",             # 跨进程文件锁 (Skill 并发控制)
-  "mcp>=1.27.2",                  # MCP 协议 SDK (Server transport)
+  "filelock>=3.29.4",             # 跨进程文件锁 (Skill 并发控制)
+  "mcp>=1.28.0",                  # MCP 协议 SDK (Server transport)
   "watchdog>=6.0.0",              # 文件系统变更监控 (backends/skills/watcher.py)
   "prometheus-client>=0.25.0",    # Prometheus 指标采集 (observability/metrics + infra/tracing)
-  "sqlalchemy>=2.0.50",
-  "pdfplumber>=0.11.9", # PDF 文本+表格提取 (file_parsers + file_read_tool; pypdfium2 在 [file-parsers])
+  "sqlalchemy>=2.0.51",
+  "pdfplumber>=0.11.10", # PDF 文本+表格提取 (file_parsers + file_read_tool; pypdfium2 在 [file-parsers])
 ]
 
 [project.urls]
@@ -99,9 +98,10 @@ image-processing = [
 computer-use = [
   "pyautogui>=0.9.54",  # macOS/Linux 键鼠输入模拟 (Pillow 已在主依赖)
 ]
-# toolkits/web_fetch/ - 反检测网页爬取（重依赖，仅 stealth 抓取场景需要）
+# toolkits/web_fetch/ - L1 HTTP / L3 stealth 爬取 + YouTube 字幕快路径
 web = [
-  "scrapling[fetchers]>=0.4.9", # L1: curl_cffi TLS 指纹 HTTP / L3: Patchright+BrowserForge 反检测
+  "scrapling[fetchers]>=0.4.9",      # L1: curl_cffi TLS 指纹 HTTP / L3: Patchright+BrowserForge 反检测
+  "youtube-transcript-api>=1.2.4",   # YouTube 字幕提取 (youtube_extractor; HTML fallback when missing)
 ]
 
 # toolkits/web_search/image_search - 图片搜索（DuckDuckGo，免费无 API Key）
@@ -111,14 +111,14 @@ image-search = [
 
 # toolkits/file_parsers/ - Office/PDF 渲染扩展（pdfplumber 已在 core dependencies）
 file-parsers = [
-  "pypdfium2>=5.9.0",   # PDF 页面渲染为图片 (图片回退)
+  "pypdfium2>=5.10.1",   # PDF 页面渲染为图片 (图片回退)
   "python-docx>=1.2.0", # Word 文档解析
   "openpyxl>=3.1.5",    # Excel 文件读写
   "python-pptx>=1.0.2", # PowerPoint 文档解析
 ]
 # infra/security/signature.py - FastAPI webhook signature verification
 fastapi = [
-  "fastapi>=0.136.3",
+  "fastapi>=0.138.0",
 ]
 
 # 全链路追踪与指标 (SaaS 级监控)
@@ -136,7 +136,7 @@ compiled-core = [
   "myrm-agent-harness-core-win32-arm64==0.1.0rc2; platform_system == 'Windows' and platform_machine == 'ARM64'",
 ]
 all = [
-  "myrm-agent-harness[browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,image-search]",
+  "myrm-agent-harness[browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,image-search,web]",
 ]
 
 [tool.uv]
@@ -145,7 +145,7 @@ environments = ["python_full_version >= '3.13' and python_full_version < '3.14'"
 override-dependencies = [
   "click>=8.4.1",
   "patchright>=1.59.1",
-  "openai>=2.41.0",
+  "openai>=2.43.0",
   "aiohttp>=3.14.1",
   "opentelemetry-semantic-conventions>=0.61b0"
 ]
@@ -318,13 +318,13 @@ build = [
   "pyyaml>=6.0.3",
 ]
 dev = [
-  "pytest>=9.0.3",                   # 测试框架
+  "pytest>=9.1.1",                   # 测试框架
   "pytest-asyncio>=1.4.0",           # 异步测试支持
   "pytest-cov>=7.1.0",               # 覆盖率报告
   "pytest-benchmark>=5.2.3",         # 性能基准测试
   "pytest-xdist>=3.8.0",             # 并行测试执行
   "pytest-timeout>=2.4.0",           # 测试超时保护
-  "ruff>=0.15.15",                   # Linter + Formatter
+  "ruff>=0.15.18",                   # Linter + Formatter
   "mypy>=2.1.0",                    # 静态类型检查
   "aiosqlite>=0.22.1",               # SQLite async driver (for checkpoint tests)
   "respx>=0.23.1",                   # HTTPX mock
