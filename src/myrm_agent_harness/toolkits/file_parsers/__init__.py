@@ -50,8 +50,8 @@ from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
     PDFImageContent,
     extract_pdf_content,
 )
-from myrm_agent_harness.toolkits.file_parsers.pptx import PptxParser
 from myrm_agent_harness.toolkits.file_parsers.ipynb import IpynbParser
+from myrm_agent_harness.toolkits.file_parsers.pptx import PptxParser
 from myrm_agent_harness.toolkits.file_parsers.text import TextParser
 
 __all__ = [

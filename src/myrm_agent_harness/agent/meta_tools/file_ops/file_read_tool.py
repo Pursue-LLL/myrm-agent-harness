@@ -10,15 +10,15 @@
 - utils.image_reader::is_image_path, read_image_as_content_blocks (POS: 图片文件多模态读取)
 - utils.video_reader::is_video_path, read_video_as_content_blocks (POS: 视频文件多模态读取，支持直传/帧提取降级)
 - utils.pdf_reader::is_pdf_path, read_pdf_as_content_blocks (POS: PDF 文件智能读取，文本优先 + 图片回退)
-- utils.document_reader::is_document_path, read_document_as_text (POS: Office 文档读取，docx/xlsx/xls 转 Markdown)
+- utils.document_reader::is_document_path, read_document_as_text (POS: 结构化文档读取，docx/xlsx/xls/ipynb 转 Markdown)
 - utils.errors::ToolError (POS: 工具错误类型)
 
 [OUTPUT]
 - create_file_read_tool(): 工厂函数，创建 file_read_tool
-- file_read_tool: LangChain Tool（读取文件内容，支持 MCP 路径、File ID、批量读取、行号范围、目录列表、图片/PDF 多模态、Office 文档解析）
+- file_read_tool: LangChain Tool（读取文件内容，支持 MCP 路径、File ID、批量读取、行号范围、目录列表、图片/PDF 多模态、Office 文档/Jupyter Notebook 解析）
 
 [POS]
-File read tool (Claude Code compatible). Supports multiple path formats (local, MCP, File ID), batch concurrent reads, line ranges, multimodal image reading for vision models, and Office document parsing (docx/xlsx/xls → Markdown).
+File read tool (Claude Code compatible). Supports multiple path formats (local, MCP, File ID), batch concurrent reads, line ranges, multimodal image reading for vision models, and structured document parsing (docx/xlsx/xls/ipynb → Markdown).
 
 """
 
@@ -258,7 +258,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
 
     @tool(
         "file_read_tool",
-        description="""读取文件内容或目录列表。支持图片（png/jpg/gif/webp）、PDF 和 Office 文档（docx/xlsx/xls）。
+        description="""读取文件内容或目录列表。支持图片（png/jpg/gif/webp）、PDF、Office 文档（docx/xlsx/xls）和 Jupyter Notebook（ipynb）。
 参数：
 - paths: 文件路径数组。支持行号范围语法：
   - `["file.py"]` - 读取整个文件
@@ -269,6 +269,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
   - `["report.pdf"]` - 读取 PDF（返回文档内容，支持图表/表格识别）
   - `["contract.docx"]` - 读取 Word 文档（自动转为 Markdown）
   - `["data.xlsx"]` - 读取 Excel 文件（自动转为 Markdown 表格）
+  - `["analysis.ipynb"]` - 读取 Jupyter Notebook（自动提取 Markdown/Code cells）
 - mode: 读取模式（'all'默认 | 'preview'快速预览 | 'stream'大文件防OOM）
   - **大文件建议**：>100MB文件使用mode='preview'快速查看，或使用行号范围读取指定部分
 - chunk_size_mb: streaming块大小（默认10MB）
