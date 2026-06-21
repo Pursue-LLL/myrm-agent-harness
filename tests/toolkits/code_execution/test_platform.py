@@ -206,6 +206,32 @@ class TestEnvironmentPromptLine:
             line = macos_info.environment_prompt_line
             assert probe_line in line
 
+    def test_vnc_probe_failure_does_not_crash(self, macos_info: PlatformInfo):
+        with patch(
+            "myrm_agent_harness.toolkits.vnc.server.get_environment_hint",
+            side_effect=RuntimeError("boom"),
+        ):
+            line = macos_info.environment_prompt_line
+            assert "<environment>" in line
+            assert "OS:" in line
+
+    def test_vnc_probe_empty_omits_visual_desktop(self, macos_info: PlatformInfo):
+        with patch(
+            "myrm_agent_harness.toolkits.vnc.server.get_environment_hint",
+            return_value="",
+        ):
+            line = macos_info.environment_prompt_line
+            assert "Visual Desktop" not in line
+
+    def test_vnc_probe_nonempty_includes_visual_desktop(self, macos_info: PlatformInfo):
+        vnc_hint = "Visual Desktop: Xvfb virtual display (1280x720) with VNC streaming is available."
+        with patch(
+            "myrm_agent_harness.toolkits.vnc.server.get_environment_hint",
+            return_value=vnc_hint,
+        ):
+            line = macos_info.environment_prompt_line
+            assert vnc_hint in line
+
 
 class TestDetectWSL:
     """WSL detection edge cases."""

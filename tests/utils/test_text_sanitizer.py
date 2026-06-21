@@ -100,3 +100,36 @@ class TestSanitizeLlmOutput:
         assert "\ufffd" not in out
         assert "\n" in out
         assert "ok" in out
+
+
+class TestToolProtocolTagStripping:
+    """Leaked tool-call protocol tags must be stripped from LLM output.
+
+    LLMs (especially Claude Opus, GLM-4, Qwen) occasionally emit internal
+    XML protocol fragments in their text responses. These must never reach
+    the user.
+    """
+
+    def test_orphan_closing_parameter(self) -> None:
+        assert sanitize_llm_output("Done.</parameter>") == "Done."
+
+    def test_dangling_invoke(self) -> None:
+        assert sanitize_llm_output('Let me help.<invoke name="tool">') == "Let me help."
+
+    def test_function_calls_pair(self) -> None:
+        assert sanitize_llm_output("Result<function_calls>call</function_calls>done") == "Resultcalldone"
+
+    def test_tool_call_closing(self) -> None:
+        assert sanitize_llm_output("text</tool_call>more") == "textmore"
+
+    def test_tool_result_pair(self) -> None:
+        assert sanitize_llm_output("answer<tool_result>data</tool_result>") == "answerdata"
+
+    def test_tool_response_tag(self) -> None:
+        assert sanitize_llm_output("ok<tool_response>resp</tool_response>end") == "okrespend"
+
+    def test_tool_use_tag(self) -> None:
+        assert sanitize_llm_output("start</tool_use>end") == "startend"
+
+    def test_antml_namespaced_parameter(self) -> None:
+        raw = "done

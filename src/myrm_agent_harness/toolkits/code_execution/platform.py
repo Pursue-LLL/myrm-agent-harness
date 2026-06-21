@@ -135,13 +135,13 @@ class PlatformInfo:
     def environment_prompt_line(self) -> str:
         """Unified environment tag for system prompt injection.
 
-        Combines OS, shell, and Python toolchain information into a single
-        ``<environment>`` XML tag.  The Python section is omitted when the
-        environment is clean (zero token cost for normal setups).
+        Combines OS, shell, Python toolchain, and VNC visual desktop information
+        into a single ``<environment>`` XML tag.  Sections are omitted when
+        unavailable (zero token cost for non-applicable environments).
 
         Output is deterministic for the process lifetime — safe for
-        KV-cache prefix caching.  Delegates Python toolchain detection to
-        ``env_probe.get_environment_probe_line()`` (single source of truth).
+        KV-cache prefix caching.  Delegates probes to their respective modules
+        (single source of truth per capability).
         """
         parts: list[str] = [f"OS: {self.prompt_label}. Shell: {self.shell_hint}."]
         try:
@@ -154,6 +154,14 @@ class PlatformInfo:
                 parts.append(py_line)
         except Exception:
             _logger.debug("Python toolchain probe unavailable", exc_info=True)
+        try:
+            from myrm_agent_harness.toolkits.vnc.server import get_environment_hint
+
+            vnc_line = get_environment_hint()
+            if vnc_line:
+                parts.append(vnc_line)
+        except Exception:
+            _logger.debug("VNC environment probe unavailable", exc_info=True)
         return "\n<environment>" + " ".join(parts) + "</environment>"
 
 

@@ -8,6 +8,7 @@
 
 [OUTPUT]
 - VncServer: lifecycle manager for x11vnc + websockify pair
+- get_environment_hint: VNC awareness line for system prompt injection
 
 [POS]
 Lazy-started VNC infrastructure that captures the existing Xvfb virtual display
@@ -20,8 +21,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import secrets
 import shutil
+import subprocess
+import threading
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -32,6 +36,58 @@ logger = logging.getLogger(__name__)
 _VNC_PORT = 5900
 _WEBSOCKIFY_PORT = 6080
 _HEALTH_CHECK_INTERVAL_S = 30
+
+_ENV_HINT_LOCK = threading.Lock()
+_ENV_HINT_CACHE: str | None = None
+
+
+def _probe_xvfb_resolution() -> str:
+    """Detect Xvfb screen resolution via xdpyinfo. Returns e.g. '1280x720' or ''."""
+    if not shutil.which("xdpyinfo"):
+        return ""
+    try:
+        result = subprocess.run(
+            ["xdpyinfo"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+        if result.returncode != 0:
+            return ""
+        match = re.search(r"dimensions:\s+(\d+x\d+)\s+pixels", result.stdout)
+        return match.group(1) if match else ""
+    except (subprocess.TimeoutExpired, OSError):
+        return ""
+
+
+def get_environment_hint() -> str:
+    """Return a VNC environment awareness line for system prompt injection.
+
+    Process-level cache — deterministic output safe for KV-cache prefix caching.
+    Returns '' when VNC is unavailable (macOS, Windows, no Xvfb), meaning zero
+    token cost for non-sandbox environments.
+    """
+    global _ENV_HINT_CACHE  # noqa: PLW0603
+    if _ENV_HINT_CACHE is not None:
+        return _ENV_HINT_CACHE
+
+    with _ENV_HINT_LOCK:
+        if _ENV_HINT_CACHE is not None:
+            return _ENV_HINT_CACHE
+
+        if not VncServer.is_available():
+            _ENV_HINT_CACHE = ""
+            return ""
+
+        resolution = _probe_xvfb_resolution()
+        res_part = f" ({resolution})" if resolution else ""
+        _ENV_HINT_CACHE = (
+            f"Visual Desktop: Xvfb virtual display{res_part} with VNC streaming is available. "
+            "You can safely generate and run GUI applications (Pygame, Tkinter, Qt, etc.) "
+            "— the user sees the output in real-time via the Visual Desktop panel."
+        )
+        return _ENV_HINT_CACHE
 
 
 class VncStatus(StrEnum):

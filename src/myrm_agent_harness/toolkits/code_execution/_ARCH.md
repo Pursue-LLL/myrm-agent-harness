@@ -13,7 +13,7 @@ Detailed design: [EXECUTION_SYSTEM.md](EXECUTION_SYSTEM.md)
 | config.py | Config | Code execution configuration layer. Defines execution modes, network policies, and runtime settings | ✅ |
 | env_probe.py | Core | Python toolchain probe. Detects python3/pip/PEP-668/uv status; consumed by bash_tool.py (tool description) and platform.py (`<environment>` system prompt tag). | ✅ |
 | factory.py | Core | Code executor factory. Creates LocalExecutor for in-container code execution based on configuration. | ✅ |
-| platform.py | Core | Cross-platform runtime detection, shell configuration, and unified `<environment>` system prompt tag (OS + Shell + Python toolchain). | ✅ |
+| platform.py | Core | Cross-platform runtime detection, shell configuration, and unified `<environment>` system prompt tag (OS + Shell + Python toolchain + VNC visual desktop). | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

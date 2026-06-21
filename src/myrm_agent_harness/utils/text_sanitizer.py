@@ -5,11 +5,11 @@
 - agent.streaming.reasoning_scrubber::THINKING_TAG_NAMES (POS: canonical thinking tag name set)
 
 [OUTPUT]
-- sanitize_llm_output(): 移除 LLM 推理标签、控制 token 和无效 Unicode
+- sanitize_llm_output(): 移除 LLM 推理标签、工具协议标签、控制 token 和无效 Unicode
 - extract_and_strip_think_blocks(): 静态提取 reasoning 内容并剥离原文本标签，用于历史记录提纯
 
 [POS]
-LLM streaming output sanitizer. Three-layer filtering ensures clean, garble-free text for user display.
+LLM streaming output sanitizer. Four-layer filtering ensures clean, garble-free text for user display.
 
 """
 
@@ -37,6 +37,23 @@ def _think_orphan_re() -> re.Pattern[str]:
     """Matches orphaned (unpaired) reasoning open/close tags."""
     return re.compile(
         rf"</?(?:{_REASONING_TAG_NAMES})\b[^>]*>",
+        re.IGNORECASE,
+    )
+
+
+@lru_cache(maxsize=1)
+def _tool_protocol_tag_re() -> re.Pattern[str]:
+    """Matches leaked tool-call protocol tags (open, close, self-closing).
+
+    LLMs occasionally emit internal XML protocol fragments (e.g. a trailing
+    ``</parameter>`` after a tool dispatch, or a dangling ``<invoke>`` when
+    the structured tool_use API path fails). These tags are never legitimate
+    prose and must be stripped before user display.
+
+    Covers Anthropic ``antml:``-namespaced variants observed in production.
+    """
+    return re.compile(
+        r"</?(?:antml:)?(?:parameter|invoke|function_calls|tool_call|tool_result|tool_response|tool_use)\b[^>]*>",
         re.IGNORECASE,
     )
 
@@ -72,13 +89,12 @@ def extract_and_strip_think_blocks(text: str) -> tuple[str, str]:
 
     reasoning_parts = []
     if "<" in text:
-        # Find and extract all thinking blocks
         for match in _think_block_re().finditer(text):
             reasoning_parts.append(match.group(1).strip())
 
-        # Strip the tags from the text
         text = _think_block_re().sub("", text)
         text = _think_orphan_re().sub("", text)
+        text = _tool_protocol_tag_re().sub("", text)
 
     clean_text = _compiled_sanitizer().sub("", text).strip()
     reasoning_text = _compiled_sanitizer().sub("", "\n\n".join(reasoning_parts)).strip()
@@ -87,22 +103,25 @@ def extract_and_strip_think_blocks(text: str) -> tuple[str, str]:
 
 
 def sanitize_text(text: str) -> str:
-    """Remove reasoning tags, control tokens and invalid Unicode from text.
+    """Remove reasoning tags, tool protocol tags, control tokens and invalid Unicode.
 
     Generic text sanitizer that can be used for any text source (LLM output,
-    user input, database content, etc.). Performs three-layer filtering:
+    user input, database content, etc.). Performs four-layer filtering:
 
     1. **Paired reasoning blocks** — ``<think>…</think>`` and variants
        (thinking, thought, antthinking, reasoning, REASONING_SCRATCHPAD)
        with their enclosed content.
     2. **Orphaned reasoning tags** — stray open/close tags left after
        step 1 (e.g. ``</think>`` without a matching ``<think>``).
-    3. **Control characters** — C0/C1 control chars, model-specific
+    3. **Tool protocol tags** — leaked XML fragments from tool-call
+       protocols (``<parameter>``, ``<invoke>``, ``<function_calls>``,
+       ``<tool_call>``, ``<tool_result>``, ``antml:`` variants).
+    4. **Control characters** — C0/C1 control chars, model-specific
        tokens ``<|…|>`` and full-width ``<｜…｜>`` variants,
        replacement char ``\\uFFFD``, unpaired surrogates.
 
-    A fast-path check skips the reasoning-tag regex when no ``<`` is
-    present in *text* (the common case for most text).
+    A fast-path check skips the tag regex when no ``<`` is present
+    in *text* (the common case for most text).
 
     Args:
         text: Raw text to sanitize.
@@ -115,14 +134,15 @@ def sanitize_text(text: str) -> str:
     if "<" in text:
         text = _think_block_re().sub("", text)
         text = _think_orphan_re().sub("", text)
+        text = _tool_protocol_tag_re().sub("", text)
     return _compiled_sanitizer().sub("", text)
 
 
 def sanitize_llm_output(text: str) -> str:
-    """Remove reasoning tags, control tokens and invalid Unicode from LLM output.
+    """Remove reasoning tags, tool protocol tags, control tokens and invalid Unicode from LLM output.
 
     Specialized alias for ``sanitize_text`` with semantic naming for
-    LLM output context. Performs the same sanitization as ``sanitize_text``.
+    LLM output context. Performs the same four-layer sanitization.
 
     This function is called automatically by the event pipeline on every
     streaming MESSAGE chunk before it reaches the user.
