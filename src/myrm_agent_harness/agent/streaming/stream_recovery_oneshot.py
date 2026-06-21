@@ -116,9 +116,13 @@ class OneshotRecoveryMixin:
     async def _handle_image_shrink(self, exc: Exception, attempted: bool) -> bool:
         """Shrink oversized base64 images in-place and retry once.
 
-        Triggered by provider per-image size limits (e.g. Anthropic 5 MB).
-        Only processes data: URLs; http URLs are fetched server-side and
-        are not subject to this limit.
+        Triggered by provider per-image byte/dimension limits
+        (e.g. Anthropic 5 MB / 8000px per side, 2000px in multi-image).
+        Only processes data: URLs; http URLs are fetched server-side.
+
+        Parses provider-reported max_dimension from the error message so
+        pixel-only oversized images (e.g. Retina screenshots tiny in bytes
+        but exceeding the dimension cap) are also recovered.
         """
         if attempted:
             return False
@@ -133,13 +137,15 @@ class OneshotRecoveryMixin:
         messages_dict = ctx.agent_input
         messages = cast(list["BaseMessage"], messages_dict.get("messages", []))
 
-        shrunk = _shrink_oversized_images(messages)
+        max_dim = _parse_image_max_dimension(exc)
+        shrunk = _shrink_oversized_images(messages, max_dimension=max_dim)
         if shrunk == 0:
             return False
 
         logger.warning(
-            " Image(s) exceeded provider size limit — shrank %d image(s), retrying",
+            " Image(s) exceeded provider limit — shrank %d image(s) (max_dimension=%s), retrying",
             shrunk,
+            max_dim,
         )
         await self._emit_recovery_event("image_shrink_recovery")
         self.streaming_final_answer = False
@@ -283,11 +289,56 @@ def _strip_all_media_from_messages(messages: list[BaseMessage]) -> int:
     return stripped_count
 
 
-def _shrink_oversized_images(messages: list[BaseMessage]) -> int:
-    """Walk messages and shrink base64 images exceeding threshold.
+import re as _re
 
-    Returns the number of images actually replaced.
+_IMAGE_MAX_DIM_RE = _re.compile(
+    r"(?:maximum|max).*?(?:allowed\s+)?size.*?(\d{3,5})"
+    r"|(\d{3,5})\s*(?:px|pixels?)?\s*(?:per[- ]?side|limit|maximum|cap)",
+    _re.IGNORECASE,
+)
+
+_DEFAULT_MAX_DIMENSION = 8000
+
+
+def _parse_image_max_dimension(exc: Exception) -> int:
+    """Extract provider-reported dimension ceiling from error message.
+
+    Anthropic reports e.g. "maximum allowed size of 2000" or
+    "exceeds the maximum of 8000px per side".  Returns the parsed
+    integer or ``_DEFAULT_MAX_DIMENSION`` when not parseable.
     """
+    from myrm_agent_harness.toolkits.llms.errors.classifier import (
+        normalize_provider_error,
+    )
+
+    msg = normalize_provider_error(exc).message
+    match = _IMAGE_MAX_DIM_RE.search(msg)
+    if match:
+        value = int(match.group(1) or match.group(2))
+        if 64 <= value <= 32768:
+            return value
+    return _DEFAULT_MAX_DIMENSION
+
+
+def _shrink_oversized_images(
+    messages: list[BaseMessage],
+    *,
+    max_dimension: int = _DEFAULT_MAX_DIMENSION,
+) -> int:
+    """Walk messages and shrink base64 images exceeding byte/dimension limits.
+
+    Checks **both** byte size (against ``_IMAGE_SHRINK_THRESHOLD``) and pixel
+    dimensions (against ``max_dimension``).  Uses a ``triggered_by`` mechanism
+    to validate the correct constraint after resize — a pixel-correct downscale
+    is accepted even if its bytes grew (PNG re-encode can increase bytes).
+
+    Returns the number of images actually replaced.  Returns 0 if any image
+    was oversized but could not be shrunk (unshrinkable), because retrying
+    would re-send the same rejected payload.
+    """
+    import base64
+    import io
+
     from myrm_agent_harness.utils.image_utils import (
         estimate_base64_byte_size,
         is_base64_data_url,
@@ -295,6 +346,8 @@ def _shrink_oversized_images(messages: list[BaseMessage]) -> int:
     from myrm_agent_harness.utils.media.image_compressor import ImageCompressor
 
     shrunk_count = 0
+    unshrinkable_count = 0
+    compressor = ImageCompressor()
 
     for msg in messages:
         content = getattr(msg, "content", None)
@@ -311,18 +364,35 @@ def _shrink_oversized_images(messages: list[BaseMessage]) -> int:
                 continue
 
             original_size = estimate_base64_byte_size(url)
-            if original_size <= _IMAGE_SHRINK_THRESHOLD:
+            over_bytes = original_size > _IMAGE_SHRINK_THRESHOLD
+
+            dims = _decode_image_dimensions(url)
+            over_pixels = dims is not None and max(dims) > max_dimension
+
+            if not over_bytes and not over_pixels:
                 continue
 
-            try:
-                import base64
+            triggered_by = "bytes" if over_bytes else "dimension"
 
+            try:
                 header, b64_data = url.split(";base64,", 1)
                 raw_bytes = base64.b64decode(b64_data)
-                compressor = ImageCompressor()
-                compressed = compressor.compress(raw_bytes, max_bytes=_IMAGE_SHRINK_THRESHOLD)
+                compressed = compressor.compress(
+                    io.BytesIO(raw_bytes),
+                    quality=0.5,
+                    max_dimension=max_dimension,
+                )
+                if compressed is None:
+                    unshrinkable_count += 1
+                    continue
 
-                if len(compressed) >= original_size:
+                if triggered_by == "bytes" and len(compressed) >= original_size:
+                    unshrinkable_count += 1
+                    continue
+
+                new_dims = _decode_bytes_dimensions(compressed)
+                if new_dims is not None and max(new_dims) > max_dimension:
+                    unshrinkable_count += 1
                     continue
 
                 new_b64 = base64.b64encode(compressed).decode("ascii")
@@ -331,5 +401,41 @@ def _shrink_oversized_images(messages: list[BaseMessage]) -> int:
                 shrunk_count += 1
             except Exception as shrink_err:
                 logger.warning("Image shrink failed for part %d: %s", idx, shrink_err)
+                unshrinkable_count += 1
+
+    if unshrinkable_count > 0:
+        logger.warning(
+            "Image shrink: %d part(s) could not be shrunk — not retrying",
+            unshrinkable_count,
+        )
+        return 0
 
     return shrunk_count
+
+
+def _decode_image_dimensions(data_url: str) -> tuple[int, int] | None:
+    """Decode pixel dimensions (width, height) from a base64 data URL."""
+    import base64
+    import io
+
+    try:
+        from PIL import Image
+
+        _, b64_data = data_url.split(";base64,", 1)
+        with Image.open(io.BytesIO(base64.b64decode(b64_data))) as img:
+            return img.size
+    except Exception:
+        return None
+
+
+def _decode_bytes_dimensions(raw_bytes: bytes) -> tuple[int, int] | None:
+    """Decode pixel dimensions (width, height) from raw image bytes."""
+    import io
+
+    try:
+        from PIL import Image
+
+        with Image.open(io.BytesIO(raw_bytes)) as img:
+            return img.size
+    except Exception:
+        return None

@@ -35,7 +35,7 @@ class ImageCompressor:
 
     def compress(
         self,
-        input_path: str | Path | BinaryIO,
+        input_path: str | Path | BinaryIO | bytes,
         output_path: str | Path | None = None,
         quality: float = 0.8,
         max_dimension: int | None = 2048,
@@ -43,7 +43,7 @@ class ImageCompressor:
         """Compress image.
 
         Args:
-            input_path: Input image path or file object
+            input_path: Input image path, file object, or raw bytes
             output_path: Output image path, if None returns bytes
             quality: Compression quality (0.0-1.0), 0=lowest, 1=highest
             max_dimension: Maximum dimension (width or height). If exceeded, image is downsampled.
@@ -57,6 +57,9 @@ class ImageCompressor:
         """
         if quality < 0 or quality > 1:
             raise ValueError("quality must be between 0 and 1")
+
+        if isinstance(input_path, bytes):
+            input_path = io.BytesIO(input_path)
 
         # Handle input
         if isinstance(input_path, (str, Path)):

@@ -245,8 +245,10 @@ _THINKING_SIGNATURE_RE = re.compile(
 )
 
 _IMAGE_TOO_LARGE_RE = re.compile(
-    r"image exceeds|image.?too.?large|image_too_large|image size exceeds"
-    r"|exceeds.+per.?image.+limit",
+    r"image exceeds|image.{0,6}too.{0,3}large|image_too_large|image size exceeds"
+    r"|exceeds.+per.?image.+limit"
+    r"|image.?dimensions?.+exceed|dimensions?.+exceed.+(?:maximum|max|limit|allowed)"
+    r"|exceeds.+(?:maximum|max).+(?:allowed )?size.+\d+",
     re.IGNORECASE,
 )
 
