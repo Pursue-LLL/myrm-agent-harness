@@ -88,15 +88,28 @@ def _make_sparse_pdf() -> Path:
 # ---------------------------------------------------------------------------
 
 
+class TestPDFExtractConfig:
+    """Tests for PDFExtractConfig default values."""
+
+    def test_default_max_pages(self):
+        config = PDFExtractConfig()
+        assert config.max_pages == 500
+
+    def test_default_result_has_parsed_pages(self):
+        result = PDFExtractResult()
+        assert result.parsed_pages == 0
+
+
 class TestExtractTextSync:
     """Tests for the synchronous text extraction helper."""
 
     def test_extracts_text_from_valid_pdf(self):
         pdf_path = _make_text_pdf()
         try:
-            text, page_count, tables = _extract_text_sync(str(pdf_path), max_pages=20)
+            text, page_count, parsed_pages, tables = _extract_text_sync(str(pdf_path), max_pages=500)
             assert len(text.strip()) > 0
             assert page_count >= 1
+            assert parsed_pages == page_count
             assert isinstance(tables, list)
         finally:
             pdf_path.unlink(missing_ok=True)
@@ -125,6 +138,8 @@ class TestExtractPdfContent:
             assert isinstance(result, PDFExtractResult)
             assert result.strategy == "hybrid"
             assert result.page_count >= 1
+            assert result.parsed_pages >= 1
+            assert result.parsed_pages <= result.page_count
             assert len(result.text.strip()) > 0
         finally:
             pdf_path.unlink(missing_ok=True)
@@ -247,7 +262,6 @@ class TestBranchCoverage:
             _extract_text_sync,
         )
 
-        # Simulate a 3-page PDF text output with page markers
         fake_text = "[Page 1]\nContent of page 1\n\n[Page 2]\nContent of page 2\n\n[Page 3]\nContent of page 3\n"
         fake_result = PDFParseResult(
             text=fake_text,
@@ -255,17 +269,70 @@ class TestBranchCoverage:
             metadata={"page_count": 3},
         )
 
-        # PDFPlumberParser is lazily imported inside _extract_text_sync,
-        # so we patch at the source module where it's defined
         with patch("myrm_agent_harness.toolkits.file_parsers.pdf.PDFPlumberParser") as mock_parser:
             mock_parser.return_value.parse_sync.return_value = fake_result
-            text, page_count, tables = _extract_text_sync("/fake.pdf", max_pages=2)
+            text, page_count, parsed_pages, tables = _extract_text_sync("/fake.pdf", max_pages=2)
 
         assert page_count == 3
+        assert parsed_pages == 2
         assert "[Page 1]" in text
         assert "[Page 2]" in text
         assert "[Page 3]" not in text
         assert len(tables) == 0
+
+    def test_max_pages_truncation_filters_tables(self):
+        """Tables beyond max_pages should be filtered out when truncation occurs."""
+        from myrm_agent_harness.toolkits.file_parsers.base import PDFParseResult, PDFTable
+        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+            _extract_text_sync,
+        )
+
+        fake_text = "[Page 1]\nPage 1\n\n[Page 2]\nPage 2\n\n[Page 3]\nPage 3\n"
+        fake_tables = [
+            PDFTable(page_number=1, table_index=0, data=[["a"]], id="t_1_0", markdown="|a|", summary_l0="table1"),
+            PDFTable(page_number=2, table_index=0, data=[["b"]], id="t_2_0", markdown="|b|", summary_l0="table2"),
+            PDFTable(page_number=3, table_index=0, data=[["c"]], id="t_3_0", markdown="|c|", summary_l0="table3"),
+        ]
+        fake_result = PDFParseResult(
+            text=fake_text,
+            tables=fake_tables,
+            metadata={"page_count": 3},
+        )
+
+        with patch("myrm_agent_harness.toolkits.file_parsers.pdf.PDFPlumberParser") as mock_parser:
+            mock_parser.return_value.parse_sync.return_value = fake_result
+            text, page_count, parsed_pages, tables = _extract_text_sync("/fake.pdf", max_pages=2)
+
+        assert page_count == 3
+        assert parsed_pages == 2
+        assert len(tables) == 2
+        assert all(t.page_number <= 2 for t in tables)
+
+    def test_no_truncation_returns_all(self):
+        """When page_count <= max_pages, parsed_pages equals page_count and all tables returned."""
+        from myrm_agent_harness.toolkits.file_parsers.base import PDFParseResult, PDFTable
+        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+            _extract_text_sync,
+        )
+
+        fake_text = "[Page 1]\nPage 1\n\n[Page 2]\nPage 2\n"
+        fake_tables = [
+            PDFTable(page_number=1, table_index=0, data=[["a"]], id="t_1_0", markdown="|a|", summary_l0="table1"),
+            PDFTable(page_number=2, table_index=0, data=[["b"]], id="t_2_0", markdown="|b|", summary_l0="table2"),
+        ]
+        fake_result = PDFParseResult(
+            text=fake_text,
+            tables=fake_tables,
+            metadata={"page_count": 2},
+        )
+
+        with patch("myrm_agent_harness.toolkits.file_parsers.pdf.PDFPlumberParser") as mock_parser:
+            mock_parser.return_value.parse_sync.return_value = fake_result
+            text, page_count, parsed_pages, tables = _extract_text_sync("/fake.pdf", max_pages=500)
+
+        assert page_count == 2
+        assert parsed_pages == 2
+        assert len(tables) == 2
 
     def test_embedded_images_pdfplumber_import_error(self):
         """When pdfplumber is unavailable, embedded extraction returns empty list."""

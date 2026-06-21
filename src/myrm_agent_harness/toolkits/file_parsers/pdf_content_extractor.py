@@ -43,7 +43,7 @@ class PDFImageContent:
 class PDFExtractConfig:
     """Tunable limits for PDF extraction."""
 
-    max_pages: int = 20
+    max_pages: int = 500
     max_pixels: int = 4_000_000
     min_text_chars: int = 200
     extract_embedded_images: bool = True  # Enable structural embedded extraction
@@ -57,16 +57,22 @@ class PDFExtractResult:
     text: str = ""
     images: list[PDFImageContent] = field(default_factory=list)
     page_count: int = 0
+    parsed_pages: int = 0
     strategy: Literal["text", "image", "hybrid", ""] = ""
-    tables: list[PDFTable] = field(default_factory=list)  # Added capsules field
+    tables: list[PDFTable] = field(default_factory=list)
     image_trace: dict[str, Any] = field(default_factory=dict)
 
 
-def _extract_text_sync(file_path: str, max_pages: int, table_format: str = "inline") -> tuple[str, int, list[PDFTable]]:
-    """Extract text from PDF using PDFPlumberParser (includes table extraction)."""
+def _extract_text_sync(
+    file_path: str, max_pages: int, table_format: str = "inline"
+) -> tuple[str, int, int, list[PDFTable]]:
+    """Extract text from PDF using PDFPlumberParser (includes table extraction).
+
+    Returns: (text, page_count, parsed_pages, tables)
+    """
     from myrm_agent_harness.toolkits.file_parsers.pdf import PDFPlumberParser
 
-    parser = PDFPlumberParser(extract_tables=True, parallel=False, table_format=table_format)
+    parser = PDFPlumberParser(extract_tables=True, parallel=True, table_format=table_format)
     result = parser.parse_sync(file_path)
     page_count: int = int(result.metadata.get("page_count", 0))
 
@@ -78,9 +84,10 @@ def _extract_text_sync(file_path: str, max_pages: int, table_format: str = "inli
             if line.strip().startswith(page_marker):
                 break
             trimmed.append(line)
-        return "\n".join(trimmed), page_count, result.tables
+        trimmed_tables = [t for t in result.tables if t.page_number <= max_pages]
+        return "\n".join(trimmed), page_count, max_pages, trimmed_tables
 
-    return result.text, page_count, result.tables
+    return result.text, page_count, page_count, result.tables
 
 
 def _extract_embedded_images_sync(file_path: str, max_pages: int) -> list[PDFImageContent]:
@@ -121,9 +128,9 @@ def _extract_embedded_images_sync(file_path: str, max_pages: int) -> list[PDFIma
                         b64_data = base64.b64encode(buf.getvalue()).decode("ascii")
                         images.append(PDFImageContent(data=b64_data))
                     except Exception as e:
-                        logger.debug(f"Failed to crop embedded image on page {page_num}: {e}")
+                        logger.debug("Failed to crop embedded image on page %d: %s", page_num, e)
     except Exception as e:
-        logger.warning(f"Error extracting embedded images from PDF: {e}")
+        logger.warning("Error extracting embedded images from PDF: %s", e)
 
     return images
 
@@ -183,7 +190,7 @@ async def extract_pdf_content(
         raise FileNotFoundError(f"PDF file not found: {file_path}")
 
     # Phase 1: Text & Tables
-    text, page_count, all_tables = await asyncio.to_thread(
+    text, page_count, parsed_pages, all_tables = await asyncio.to_thread(
         _extract_text_sync, file_path, cfg.max_pages, cfg.table_format
     )
 
@@ -239,6 +246,7 @@ async def extract_pdf_content(
         text=text,
         images=filtered_images,
         page_count=page_count,
+        parsed_pages=parsed_pages,
         strategy=strategy,
         tables=all_tables,
         image_trace=trace_dict,
