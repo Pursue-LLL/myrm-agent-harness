@@ -7,6 +7,7 @@ Provides parsers for various file formats:
 - PowerPoint (python-pptx, `[file-parsers]`): PPTX files with slide text, tables, and notes
 - PDF page render fallback (pypdfium2, `[file-parsers]`)
 - Text: Plain text and Markdown files
+- Jupyter Notebook (stdlib json): IPYNB cell extraction (Markdown/code/raw)
 
 
 [INPUT]
@@ -17,9 +18,10 @@ Provides parsers for various file formats:
 - pdf::PDFPlumberParser (POS: PDF parser using pdfplumber)
 - pdf_content_extractor::PDFExtractConfig, PDFExtractResult, PDFImageContent, extract_pdf_content (POS: PDF content extraction)
 - text::TextParser (POS: plain text and Markdown parser)
+- ipynb::IpynbParser (POS: Jupyter Notebook parser)
 
 [OUTPUT]
-- FileParser, PDFPlumberParser, DocxParser, ExcelParser, PptxParser, TextParser: parser classes
+- FileParser, PDFPlumberParser, DocxParser, ExcelParser, PptxParser, TextParser, IpynbParser: parser classes
 - PDFParseResult, PDFTable: PDF-specific result models
 - PDFExtractConfig, PDFExtractResult, PDFImageContent, extract_pdf_content: PDF extraction utilities
 - parse_file(): auto-detect file type and parse
@@ -49,12 +51,14 @@ from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
     extract_pdf_content,
 )
 from myrm_agent_harness.toolkits.file_parsers.pptx import PptxParser
+from myrm_agent_harness.toolkits.file_parsers.ipynb import IpynbParser
 from myrm_agent_harness.toolkits.file_parsers.text import TextParser
 
 __all__ = [
     "DocxParser",
     "ExcelParser",
     "FileParser",
+    "IpynbParser",
     "OCRLine",
     "OCRParser",
     "OCRResult",
@@ -102,6 +106,7 @@ _PARSERS: dict[str, FileParser] = {
     ".xls": ExcelParser(),
     ".pptx": PptxParser(),
     ".ppt": PptxParser(),
+    ".ipynb": IpynbParser(),
     # Image files via OCR (PaddleOCR, optional dependency)
     ".png": _OCR_PARSER,
     ".jpg": _OCR_PARSER,

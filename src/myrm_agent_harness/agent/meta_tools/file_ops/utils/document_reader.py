@@ -1,21 +1,22 @@
 """Document file reader for file_read_tool
 
-Reads Office documents (.docx, .xlsx, .xls, .pptx, .ppt) via Harness file_parsers,
-returning AI-friendly Markdown text.
+Reads structured documents (.docx, .xlsx, .xls, .pptx, .ppt, .ipynb) via Harness
+file_parsers, returning AI-friendly Markdown text.
 
 [INPUT]
 - toolkits.file_parsers::DocxParser (POS: Word document parser)
 - toolkits.file_parsers::ExcelParser (POS: Excel file parser)
 - toolkits.file_parsers::PptxParser (POS: PowerPoint document parser)
+- toolkits.file_parsers::IpynbParser (POS: Jupyter Notebook parser)
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
 
 [OUTPUT]
-- is_document_path: Detect if path is an Office document file
+- is_document_path: Detect if path is a structured document file
 - read_document_as_text: Read document and return parsed Markdown text
 
 [POS]
-Document file reader for file_read_tool. Converts .docx/.xlsx/.xls/.pptx/.ppt to Markdown
-via existing file_parsers.
+Document file reader for file_read_tool. Converts .docx/.xlsx/.xls/.pptx/.ppt/.ipynb
+to Markdown via existing file_parsers.
 """
 
 from __future__ import annotations
@@ -33,13 +34,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-DOCUMENT_EXTENSIONS: frozenset[str] = frozenset({".docx", ".xlsx", ".xls", ".pptx", ".ppt"})
+DOCUMENT_EXTENSIONS: frozenset[str] = frozenset({".docx", ".xlsx", ".xls", ".pptx", ".ppt", ".ipynb"})
 
 _FALLBACK_MAX_CHARS = 200_000
 
 
 def is_document_path(path: str) -> bool:
-    """Detect if path is an Office document file (.docx/.xlsx/.xls/.pptx/.ppt)"""
+    """Detect if path is a structured document file (.docx/.xlsx/.xls/.pptx/.ppt/.ipynb)"""
     suffix = PurePosixPath(path).suffix.lower()
     return suffix in DOCUMENT_EXTENSIONS
 
@@ -57,10 +58,10 @@ async def _write_to_temp(raw_bytes: bytes, suffix: str) -> str:
 
 
 async def read_document_as_text(path: str, executor: CodeExecutor) -> str:
-    """Read an Office document and return parsed Markdown text.
+    """Read a structured document and return parsed Markdown text.
 
-    Uses DocxParser for .docx, ExcelParser for .xlsx/.xls, PptxParser for .pptx/.ppt.
-    Falls back to a descriptive error message on failure.
+    Uses DocxParser for .docx, ExcelParser for .xlsx/.xls, PptxParser for .pptx/.ppt,
+    IpynbParser for .ipynb. Falls back to a descriptive error message on failure.
     """
     suffix = PurePosixPath(path).suffix.lower()
 
@@ -76,7 +77,11 @@ async def read_document_as_text(path: str, executor: CodeExecutor) -> str:
     try:
         tmp_path = await _write_to_temp(raw_bytes, suffix)
 
-        if suffix == ".docx":
+        if suffix == ".ipynb":
+            from myrm_agent_harness.toolkits.file_parsers.ipynb import IpynbParser
+
+            parser = IpynbParser()
+        elif suffix == ".docx":
             from myrm_agent_harness.toolkits.file_parsers.docx import DocxParser
 
             parser = DocxParser()

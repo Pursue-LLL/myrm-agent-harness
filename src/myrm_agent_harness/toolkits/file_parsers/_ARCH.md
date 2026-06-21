@@ -19,8 +19,10 @@ File parsers toolkit entry point. Aggregates all file format parsers and provide
 | pdf_heuristic_table.py | Core | Heuristic table extractor for borderless forms: spatial clustering, dynamic line-height gap merging, CJK-aware same-row and cross-row cell concatenation. | ✅ |
 | pptx.py | Core | PowerPoint document parser (slide text, tables, speaker notes) | ✅ |
 | text.py | Core | Text file parser | ✅ |
+| ipynb.py | Core | Jupyter Notebook parser. Extracts Markdown/code/raw cells, strips metadata/outputs. | ✅ |
 
 ## Dependencies
 
 - **Core**: `pdfplumber`（`pyproject.toml` 主依赖；`pdf.py`, `pdf_content_extractor.py`）
 - **Optional `[file-parsers]`**: `pypdfium2`, `python-docx`, `openpyxl`, `python-pptx`
+- **Stdlib**: `json`（`ipynb.py`，无额外依赖）
