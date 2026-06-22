@@ -5,7 +5,7 @@
 
 [OUTPUT]
 - AgentProfile: Agent 配置数据结构
-- CommandBinding: Slash command to Skill binding
+- CommandBinding: Slash command to Skill(s) binding (single or multi-skill bundle)
 - BuiltInAgent: 内置 Agent 模板数据结构
 
 [POS]
@@ -23,23 +23,28 @@ from myrm_agent_harness.toolkits.memory.config import AgentMemoryPolicy
 
 @dataclass(frozen=True, slots=True)
 class CommandBinding:
-    """Mapping from a user-defined slash command to a Skill.
+    """Mapping from a user-defined slash command to one or more Skills.
 
     Stored in AgentProfile.command_bindings so each agent can have its own
-    set of shortcut commands.
+    set of shortcut commands. When ``skill_ids`` contains multiple entries,
+    the command triggers a *skill bundle* — all SOPs are merged and injected
+    into a single LLM turn.
     """
 
     command_name: str
     """Canonical name without slash (e.g. "daily-report")."""
 
-    skill_id: str
-    """Target Skill identifier to invoke."""
+    skill_ids: tuple[str, ...]
+    """Target Skill identifiers to invoke (single or bundle)."""
 
     description: str = ""
     """User-facing description shown in /help and input hints."""
 
     aliases: tuple[str, ...] = ()
     """Alternative names for this command."""
+
+    instruction: str = ""
+    """Ephemeral guidance injected alongside the SOP(s) for this bundle."""
 
 
 @dataclass

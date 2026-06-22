@@ -132,6 +132,30 @@ class TestUseSkillPattern:
         m = SkillAgent._USE_SKILL_PATTERN.match("[use ] something")
         assert m is None
 
+    def test_multi_skill_comma_separated(self) -> None:
+        m = SkillAgent._USE_SKILL_PATTERN.match("[use skill_a,skill_b,skill_c] do it")
+        assert m is not None
+        assert m.group(1) == "skill_a,skill_b,skill_c"
+        assert m.group(2) == "do it"
+
+    def test_multi_skill_with_spaces(self) -> None:
+        m = SkillAgent._USE_SKILL_PATTERN.match("[use skill_a, skill_b] args")
+        assert m is not None
+        names = [n.strip() for n in m.group(1).split(",") if n.strip()]
+        assert names == ["skill_a", "skill_b"]
+
+    def test_multi_skill_no_args(self) -> None:
+        m = SkillAgent._USE_SKILL_PATTERN.match("[use a,b]")
+        assert m is not None
+        assert m.group(1) == "a,b"
+        assert m.group(2) == ""
+
+    def test_trailing_comma(self) -> None:
+        m = SkillAgent._USE_SKILL_PATTERN.match("[use a,b,] args")
+        assert m is not None
+        names = [n.strip() for n in m.group(1).split(",") if n.strip()]
+        assert names == ["a", "b"]
+
 
 # ---------------------------------------------------------------------------
 # Preload integration tests
@@ -342,6 +366,96 @@ class TestPreloadExplicitSkill:
         query, matched = await agent._preload_explicit_skill("[use err_skill] test")
         assert matched is None
         assert query == "[use err_skill] test"
+
+    # -- Multi-skill bundle tests --
+
+    @pytest.mark.asyncio
+    async def test_bundle_two_skills(self) -> None:
+        """Comma-separated skills should merge SOPs with bundle header."""
+        s1 = _make_skill(name="skill_a", storage_skill_id="skill_a")
+        s2 = _make_skill(name="skill_b", storage_skill_id="skill_b")
+        backend = _StubSkillBackend(
+            content_map={"skill_a": "# Skill A\n\nDo A.", "skill_b": "# Skill B\n\nDo B."}
+        )
+        agent = _make_agent(skills=[s1, s2], backend=backend)
+
+        query, matched = await agent._preload_explicit_skill("[use skill_a,skill_b] run both")
+        assert matched is not None
+        assert matched.name == "skill_a"
+        assert "skills have been preloaded as a bundle" in query
+        assert "--- Skill: skill_a ---" in query
+        assert "--- Skill: skill_b ---" in query
+        assert "# Skill A" in query
+        assert "# Skill B" in query
+        assert query.rstrip().endswith("run both")
+
+    @pytest.mark.asyncio
+    async def test_bundle_partial_skill_not_found(self) -> None:
+        """If one skill in bundle is missing, load only the found ones."""
+        s1 = _make_skill(name="found_skill", storage_skill_id="found_skill")
+        backend = _StubSkillBackend(content_map={"found_skill": "# Found\n\nContent."})
+        agent = _make_agent(skills=[s1], backend=backend)
+
+        query, matched = await agent._preload_explicit_skill(
+            "[use found_skill,missing_skill] args"
+        )
+        assert matched is not None
+        assert matched.name == "found_skill"
+        assert "# Found" in query
+        assert "missing_skill" not in query.split("---")[-1]
+        assert "preloaded" in query.lower()
+
+    @pytest.mark.asyncio
+    async def test_bundle_all_skills_missing(self) -> None:
+        """If all skills in bundle are missing, query passes through unchanged."""
+        backend = _StubSkillBackend()
+        agent = _make_agent(skills=[], backend=backend)
+
+        query, matched = await agent._preload_explicit_skill("[use x,y,z] args")
+        assert matched is None
+        assert query == "[use x,y,z] args"
+
+    @pytest.mark.asyncio
+    async def test_bundle_token_budget_enforcement(self) -> None:
+        """When combined SOPs exceed _TOKEN_BUDGET_MAX, later skills are skipped."""
+        big_sop = "# Big Skill\n\n" + ("x" * 12000)
+        small_sop = "# Small Skill\n\nTiny."
+        s1 = _make_skill(name="big", storage_skill_id="big")
+        s2 = _make_skill(name="small", storage_skill_id="small")
+        backend = _StubSkillBackend(content_map={"big": big_sop, "small": small_sop})
+        agent = _make_agent(skills=[s1, s2], backend=backend)
+
+        query, matched = await agent._preload_explicit_skill("[use big,small] test")
+        assert matched is not None
+        assert "# Big Skill" in query
+        assert "# Small Skill" not in query
+
+    @pytest.mark.asyncio
+    async def test_single_skill_uses_single_header(self) -> None:
+        """Single skill should use 'has been preloaded', not 'bundle' header."""
+        skill = _make_skill(name="solo", storage_skill_id="solo")
+        backend = _StubSkillBackend(content_map={"solo": "# Solo\n\nContent."})
+        agent = _make_agent(skills=[skill], backend=backend)
+
+        query, _ = await agent._preload_explicit_skill("[use solo] go")
+        assert "bundle" not in query.lower()
+        assert '"solo" has been preloaded' in query
+
+    @pytest.mark.asyncio
+    async def test_bundle_with_instruction_in_user_args(self) -> None:
+        """[instruction: ...] in user_args should be forwarded as-is."""
+        s1 = _make_skill(name="a", storage_skill_id="a")
+        s2 = _make_skill(name="b", storage_skill_id="b")
+        backend = _StubSkillBackend(
+            content_map={"a": "# A\n\nDo A.", "b": "# B\n\nDo B."}
+        )
+        agent = _make_agent(skills=[s1, s2], backend=backend)
+
+        query, matched = await agent._preload_explicit_skill(
+            "[use a,b] [instruction: be concise] do it"
+        )
+        assert matched is not None
+        assert "[instruction: be concise] do it" in query
 
 
 # ---------------------------------------------------------------------------
