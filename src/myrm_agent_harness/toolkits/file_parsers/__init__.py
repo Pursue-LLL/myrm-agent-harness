@@ -42,6 +42,7 @@ from myrm_agent_harness.toolkits.file_parsers.base import (
 )
 from myrm_agent_harness.toolkits.file_parsers.docx import DocxParser
 from myrm_agent_harness.toolkits.file_parsers.excel import ExcelParser
+from myrm_agent_harness.toolkits.file_parsers.ipynb import IpynbParser
 from myrm_agent_harness.toolkits.file_parsers.ocr import OCRLine, OCRParser, OCRResult
 from myrm_agent_harness.toolkits.file_parsers.pdf import PDFPlumberParser
 from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
@@ -50,7 +51,6 @@ from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
     PDFImageContent,
     extract_pdf_content,
 )
-from myrm_agent_harness.toolkits.file_parsers.ipynb import IpynbParser
 from myrm_agent_harness.toolkits.file_parsers.pptx import PptxParser
 from myrm_agent_harness.toolkits.file_parsers.text import TextParser
 

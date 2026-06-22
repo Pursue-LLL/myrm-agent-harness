@@ -80,15 +80,11 @@ qdrant = [
 ]
 # toolkits/retriever/ - 高级检索功能（中文分词、向量检索、稀疏检索）
 retrieval = [
-  "numpy>=2.4.6",     # embedding 序列化 + BM25 数值计算
+  "numpy>=2.5.0",     # embedding 序列化 + BM25 数值计算
   "tenacity>=9.1.4",  # cloud embedding retries
   "jieba>=0.42.1",    # 中文分词 (BM25 tokenizer)
   "nltk>=3.9.4",      # 英文分词/词干提取/停用词
   "rank-bm25>=0.2.2", # BM25 稀疏检索算法
-]
-# toolkits/retriever/embedding/ - 本地离线 embedding（fastembed ONNX，无需 API Key）
-local-embedding = [
-  "fastembed>=0.8.0", # ONNX Runtime 本地 embedding 推理 (bge-small-zh, MiniLM 等)
 ]
 # utils/media/image_compressor - PNG 量化压缩（延迟导入，失败回退 Pillow）
 image-processing = [
@@ -102,11 +98,6 @@ computer-use = [
 web = [
   "scrapling[fetchers]>=0.4.9",      # L1: curl_cffi TLS 指纹 HTTP / L3: Patchright+BrowserForge 反检测
   "youtube-transcript-api>=1.2.4",   # YouTube 字幕提取 (youtube_extractor; HTML fallback when missing)
-]
-
-# toolkits/web_search/image_search - 图片搜索（DuckDuckGo，免费无 API Key）
-image-search = [
-  "ddgs>=9.14.4", # DuckDuckGo Search SDK (images/text/news)
 ]
 
 # toolkits/file_parsers/ - Office/PDF 渲染扩展（pdfplumber 已在 core dependencies）
@@ -136,7 +127,7 @@ compiled-core = [
   "myrm-agent-harness-core-win32-arm64==0.1.0rc2; platform_system == 'Windows' and platform_machine == 'ARM64'",
 ]
 all = [
-  "myrm-agent-harness[browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,image-search,web]",
+  "myrm-agent-harness[browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,web]",
 ]
 
 [tool.uv]

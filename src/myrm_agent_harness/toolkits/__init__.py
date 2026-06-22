@@ -56,7 +56,6 @@ __all__ = [
     "create_deploy_tool",
     "create_delegate_to_agent_tool",
     "create_huggingface_inference_tool",
-    "create_image_search_tool",
     "create_litellm_model",
     "create_local_browser_data_tool",
     "create_memory_tools",
@@ -90,10 +89,6 @@ _LAZY_IMPORTS = {
     "create_huggingface_inference_tool": (
         "myrm_agent_harness.toolkits.huggingface",
         "create_huggingface_inference_tool",
-    ),
-    "create_image_search_tool": (
-        "myrm_agent_harness.toolkits.web_search.image_search_tool",
-        "create_image_search_tool",
     ),
     "create_delegate_to_agent_tool": (
         "myrm_agent_harness.toolkits.acp.acp_agent_tools",

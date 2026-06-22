@@ -123,7 +123,7 @@ async def benchmark_embedding_latency() -> HealthReport:
             message=f"Embedding Latency: {latency:.2f}s",
             detail=f"Latency for standard chunk: {latency:.2f}s",
             metrics={"latency_s": latency},
-            fix_suggestion="Consider using a cloud embedding provider if local embeddings are too slow."
+            fix_suggestion="Check embedding provider latency or switch to a faster model/API endpoint."
             if status != "pass"
             else None,
         )

@@ -39,8 +39,8 @@ class EmbeddingConfig:
 
     Attributes:
         model: Model name in LiteLLM format (e.g. "text-embedding-3-small")
-        api_key: API key. If None, factory falls back to local embedding.
-        api_base: API base URL for self-hosted endpoints.
+        api_key: Provider API key (required). For Ollama, use any non-empty placeholder.
+        api_base: API base URL for self-hosted endpoints (e.g. http://localhost:11434/v1).
         max_retries: Maximum retry count for transient errors.
         retry_wait_min: Minimum retry wait time in seconds.
         retry_wait_max: Maximum retry wait time in seconds.
@@ -72,12 +72,10 @@ def get_embedding_service(
     config: EmbeddingConfig | None = None,
     cache: EmbeddingCacheProtocol | None = None,
 ) -> EmbeddingService:
-    """Get embedding service instance with intelligent fallback.
+    """Get embedding service instance (CloudEmbedding via LiteLLM).
 
-    Resolution order:
-    1. If API key is available → CloudEmbedding (highest quality, requires network)
-    2. If fastembed is installed → LocalEmbedding (offline, zero-cost)
-    3. Raise RuntimeError (no embedding backend available)
+    Requires ``api_key`` in config. Local embedding uses Ollama or another OpenAI-compatible
+    endpoint via ``api_base`` (e.g. http://localhost:11434/v1).
 
     Args:
         config: Embedding configuration. Defaults to environment-based config.
@@ -90,41 +88,25 @@ def get_embedding_service(
     if cache_key in _cache:
         return _cache[cache_key]
 
-    service: EmbeddingService
-
-    if config.api_key:
-        from myrm_agent_harness.toolkits.retriever.embedding.cloud_embedding import CloudEmbedding
-
-        service = CloudEmbedding(
-            model=config.model,
-            api_key=config.api_key,
-            api_base=config.api_base,
-            cache=cache,
-            max_retries=config.max_retries,
-            retry_wait_min=config.retry_wait_min,
-            retry_wait_max=config.retry_wait_max,
+    if not config.api_key:
+        raise RuntimeError(
+            "No embedding backend available. Configure embedding in WebUI Settings "
+            "(cloud API or Ollama via api_base), or set EMBEDDING_API_KEY for tests."
         )
-    else:
-        service = _create_local_embedding_fallback()
 
+    from myrm_agent_harness.toolkits.retriever.embedding.cloud_embedding import CloudEmbedding
+
+    service = CloudEmbedding(
+        model=config.model,
+        api_key=config.api_key,
+        api_base=config.api_base,
+        cache=cache,
+        max_retries=config.max_retries,
+        retry_wait_min=config.retry_wait_min,
+        retry_wait_max=config.retry_wait_max,
+    )
     _cache[cache_key] = service
     return service
-
-
-def _create_local_embedding_fallback() -> EmbeddingService:
-    """Attempt to create a local embedding service as fallback."""
-    try:
-        from myrm_agent_harness.toolkits.retriever.embedding.local_embedding import LocalEmbedding
-
-        logger.info("No embedding API key found, using local embedding (fastembed)")
-        return LocalEmbedding()
-    except ImportError:
-        raise RuntimeError(
-            "No embedding backend available. Set EMBEDDING_API_KEY for cloud embeddings "
-            "([T] test layer), inject EmbeddingConfig from WebUI in production, "
-            "or install fastembed for local embeddings: "
-            "uv add 'myrm-agent-harness[local-embedding]'"
-        ) from None
 
 
 __all__ = [

@@ -109,7 +109,6 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
     {
         *TOOL_PERMISSION_MAP,
         "web_search_tool",
-        "image_search_tool",
         "conversation_search_tool",
         "memory_recall_tool",
         "memory_save_tool",
@@ -145,7 +144,6 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
         {
             "web_search_tool",
             "web_fetch_tool",
-            "image_search_tool",
         }
     ),
     "browser": frozenset(
@@ -263,7 +261,6 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
     "web_fetch_tool": ["url"],
     "huggingface_inference_tool": ["model_id", "task", "inputs", "parameters"],
     "web_search_tool": ["query"],
-    "image_search_tool": ["query"],
     "memory_save_tool": ["content", "tags"],
     "memory_recall_tool": ["query"],
     "memory_manage_tool": ["action"],
@@ -456,13 +453,6 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         is_idempotent=True,
         taint_label="external_network",
         taint_extractor=lambda args: f"search_query: {args.get('query', '')}" if args.get("query") else None,
-    ),
-    "image_search_tool": SafetyMetadata(
-        is_read_only=True,
-        is_concurrent_safe=True,
-        is_idempotent=True,
-        taint_label="external_network",
-        taint_extractor=lambda args: f"image_query: {args.get('query', '')}" if args.get("query") else None,
     ),
     "web_fetch_tool": SafetyMetadata(
         is_read_only=True,

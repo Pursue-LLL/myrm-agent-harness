@@ -215,13 +215,7 @@
 | 79 | desktop_interact_tool | ~50 | `harness/toolkits/computer_use/desktop_agent_tools.py` | @dref 语义交互 |
 | 80 | desktop_vision_tool | ~60 | `harness/toolkits/computer_use/desktop_agent_tools.py` | 显式截图/坐标回退 |
 
-### 4.18 图片搜索工具
-
-| # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
-|---|--------|------------------:|----------|------|
-| 79 | image_search_tool | 58 | `harness/toolkits/web_search/image_search_tool.py` | 网络图片搜索（尺寸/类型/布局过滤） |
-
-### 4.19 HuggingFace 推理工具
+### 4.18 HuggingFace 推理工具
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|

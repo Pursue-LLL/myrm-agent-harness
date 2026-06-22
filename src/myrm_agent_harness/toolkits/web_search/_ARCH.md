@@ -21,7 +21,6 @@ and the intent-aware search parameter optimizer.
 | web_searcher.py | Core | Web search orchestrator. Unified interface for querying multiple search providers with caching, retry, per-query parameter override, and Try-Catch Flexible Fallback. | ✅ |
 | constants.py | Core | Canonical SearXNG URLs and region presets for self-hosted search. | ✅ |
 | local_probe.py | Core | HTTP probes for SearXNG endpoints (ping + HTML search verify). | ✅ |
-| image_search_tool.py | Core | Image search tool factory. DuckDuckGo-powered image retrieval with async execution, caching, timeout. | ✅ |
 
 ## Key Dependencies
 

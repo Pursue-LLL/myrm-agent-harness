@@ -110,13 +110,12 @@ class IpynbParser(FileParser):
             if cell_type not in _CELL_LABELS:
                 continue
 
-            counts[cell_type] += 1
-            label = _CELL_LABELS[cell_type]
             source = _source_text(cell.get("source")).rstrip("\n")
-
             if not source:
                 continue
 
+            counts[cell_type] += 1
+            label = _CELL_LABELS[cell_type]
             header = f"## {label} Cell {counts[cell_type]}"
 
             if cell_type == "code":

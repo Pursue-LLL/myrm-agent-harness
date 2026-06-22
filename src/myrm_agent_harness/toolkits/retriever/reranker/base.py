@@ -1,7 +1,7 @@
 """Reranker Service Base Interface.
 
 Abstract interface for reranking services, defining a unified reranking API.
-All implementations (FastEmbed, Cloud API, etc.) must implement this interface.
+All implementations (Cloud API, etc.) must implement this interface.
 
 [INPUT]
 (no external module dependencies — pure ABC + dataclass)
