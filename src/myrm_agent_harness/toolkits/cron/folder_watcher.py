@@ -23,9 +23,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from dataclasses import dataclass, field
+import time
+from dataclasses import dataclass
+from fnmatch import fnmatch
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Coroutine
+from typing import Callable, Coroutine
 
 from watchdog.events import (
     FileCreatedEvent,
@@ -35,9 +37,6 @@ from watchdog.events import (
     FileSystemEventHandler,
 )
 from watchdog.observers import Observer
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +82,6 @@ class _FolderEventHandler(FileSystemEventHandler):
     def _matches_patterns(self, path: str) -> bool:
         if not self._config.patterns:
             return True
-        from fnmatch import fnmatch
-
         name = Path(path).name
         return any(fnmatch(name, pat) for pat in self._config.patterns)
 
@@ -98,8 +95,6 @@ class _FolderEventHandler(FileSystemEventHandler):
         return False
 
     def _should_dispatch(self, path: str) -> bool:
-        import time
-
         now = time.time()
         last = self._last_dispatch.get(path, 0.0)
         if now - last < self._config.debounce_seconds:
@@ -156,6 +151,7 @@ class FolderWatchService:
     def __init__(self, dispatch_fn: EventDispatcher) -> None:
         self._dispatch_fn = dispatch_fn
         self._observer: Observer | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._configs: list[FolderWatchConfig] = []
         self._started = False
 
@@ -198,13 +194,14 @@ class FolderWatchService:
     def _schedule_watch(self, config: FolderWatchConfig) -> None:
         if not self._observer:
             return
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            threading.Thread(target=loop.run_forever, daemon=True).start()
+        if self._loop is None:
+            try:
+                self._loop = asyncio.get_running_loop()
+            except RuntimeError:
+                self._loop = asyncio.new_event_loop()
+                threading.Thread(target=self._loop.run_forever, daemon=True).start()
 
-        handler = _FolderEventHandler(config, self._dispatch_fn, loop)
+        handler = _FolderEventHandler(config, self._dispatch_fn, self._loop)
         self._observer.schedule(handler, config.path, recursive=config.recursive)
 
     def stop(self) -> None:

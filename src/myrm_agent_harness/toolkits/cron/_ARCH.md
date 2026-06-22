@@ -13,6 +13,7 @@ for enriching heartbeat prompts with dynamic context from registered data source
 |------|------|-------------|-------|
 | __init__.py | Package | Cron toolkit entry point. Aggregates scheduling engine, CRUD manager, protocols, built-in | ✅ |
 | cron_agent_tools.py | Core | Agent tool for scheduled task management. | ✅ |
+| folder_watcher.py | Core | Local folder watcher trigger — `FolderWatchService` monitors directories for file changes (create/modify/move) and dispatches system events to cron scheduler. Cross-platform via watchdog; glob pattern matching, debounce, recursive watching. Local/desktop mode only. | ✅ |
 | delivery.py | Core | Built-in webhook ResultDelivery for cron job results. | ✅ |
 | delivery_guard.py | Core | Exact-token `[SILENT]` detection for delivery filtering (`is_silent_output`). | ✅ |
 | heartbeat.py | Core | Heartbeat — convenience layer over CronManager for periodic agent self-checks. Supports both INTERVAL and CRON scheduling (time-of-day triggers). | ✅ |
