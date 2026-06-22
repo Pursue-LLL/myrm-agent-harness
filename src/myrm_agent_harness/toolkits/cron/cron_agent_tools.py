@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from contextvars import ContextVar, Token
 from datetime import UTC, timedelta
 from datetime import datetime as dt
@@ -42,6 +43,9 @@ from myrm_agent_harness.toolkits.cron.types import (
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.cron.manager import CronManager
+
+# Blueprint filler: (blueprint_id, values_dict, tz) -> (schedule_dict, prompt, name) | None
+BlueprintFiller = Callable[[str, dict[str, str], str | None], tuple[dict[str, str | int | None], str, str] | None]
 
 logger = logging.getLogger(__name__)
 
@@ -70,12 +74,21 @@ def create_cron_tools(
     current_model: str = "",
     chat_id: str | None = None,
     agent_id: str | None = None,
+    blueprint_catalog: str = "",
+    blueprint_filler: BlueprintFiller | None = None,
 ) -> list[BaseTool]:
     """Create a single cron management tool bound to a user.
 
     ``current_model`` is the LiteLLM model name of the calling Agent session,
     used as default when the user doesn't specify a model for a new cron job.
+
+    ``blueprint_catalog`` is a pre-rendered text snippet describing available
+    blueprints, appended to the tool description for LLM awareness.
+
+    ``blueprint_filler`` is a callable that fills a blueprint by ID and slot
+    values, returning (schedule_dict, prompt, name) or None if unknown.
     """
+    _blueprint_suffix = f"\n\n{blueprint_catalog}" if blueprint_catalog else ""
 
     @tool("cron_manage_tool")
     async def cron_manage(
@@ -99,6 +112,8 @@ def create_cron_tools(
         max_fires: int = 0,
         expires_after: str = "",
         context_from: str = "",
+        blueprint: str = "",
+        blueprint_values: str = "",
     ) -> str:
         """Manage scheduled tasks (create, list, update, delete, trigger, pause, resume).
 
@@ -108,6 +123,8 @@ def create_cron_tools(
                    Recurring schedules (cron_expr or every_minutes) require
                    recurring_confirmed=true. For one-time reminders use "at".
                    Minimum interval for every_minutes is 5 minutes.
+                   OR use blueprint + blueprint_values for template-based creation
+                   (automatically fills prompt, schedule, and name).
           list   - Show all tasks. Use name_filter for fuzzy search (e.g. "backup").
           update - Modify a task. Requires job_id.
           remove - Delete a task. Requires job_id.
@@ -115,7 +132,7 @@ def create_cron_tools(
           pause  - Pause a task (preserves history). Requires job_id.
           resume - Resume a paused task. Requires job_id.
 
-        Schedule (for add/update — fill exactly ONE):
+        Schedule (for add/update — fill exactly ONE, unless using blueprint):
           cron_expr     - Cron expression, e.g. "0 9 * * *" (daily 9am),
                           "*/30 * * * *" (every 30min), "0 9 * * 1-5" (weekdays).
           every_minutes - Recurring interval in minutes (minimum 5).
@@ -156,6 +173,13 @@ def create_cron_tools(
                 will be injected into this task's prompt at execution time.
                 Use to chain tasks: task A collects data, task B analyzes it.
                 E.g. "abc123,def456". For add/update.
+            blueprint: Blueprint ID for template-based task creation (for add).
+                When set, the blueprint's tuned prompt template and schedule
+                logic are used. Slot values are provided via blueprint_values.
+                This ensures consistent quality between GUI and Agent creation.
+            blueprint_values: JSON object of slot values for the blueprint.
+                E.g. '{"time": "08:00", "weekdays": "weekdays"}'.
+                Only used when blueprint is set.
         """
         effective_model = model.strip() or current_model
 
@@ -165,18 +189,49 @@ def create_cron_tools(
                 "a cron job execution. This prevents infinite task chains."
             )
 
+        # Blueprint-based creation: fill prompt/schedule from blueprint template
+        bp_prompt = prompt
+        bp_cron_expr = cron_expr
+        bp_every_minutes = every_minutes
+        bp_at = at
+        bp_tz = tz
+        bp_name = name
+
+        if action == "add" and blueprint.strip() and blueprint_filler:
+            bp_values: dict[str, str] = {}
+            if blueprint_values.strip():
+                try:
+                    bp_values = json.loads(blueprint_values)
+                except (json.JSONDecodeError, TypeError):
+                    return "Error: blueprint_values must be valid JSON object, e.g. '{\"time\": \"08:00\"}'."
+
+            fill_result = blueprint_filler(blueprint.strip(), bp_values, tz.strip() or None)
+            if fill_result is None:
+                return f"Error: unknown blueprint '{blueprint.strip()}'. Use list action or check available blueprints."
+
+            sched_dict, filled_prompt, filled_name = fill_result
+            bp_prompt = filled_prompt
+            bp_name = bp_name or filled_name
+
+            sched_kind = sched_dict.get("kind", "")
+            if sched_kind == "cron" and sched_dict.get("expr"):
+                bp_cron_expr = str(sched_dict["expr"])
+                bp_tz = str(sched_dict.get("tz") or tz or "")
+            elif sched_kind == "interval" and sched_dict.get("interval_ms"):
+                bp_every_minutes = int(sched_dict["interval_ms"]) // 60_000
+
         dispatch = {
             "add": lambda: _do_add(
                 manager,
                 user_id,
-                prompt,
+                bp_prompt,
                 command,
                 effective_model,
-                cron_expr,
-                every_minutes,
-                at,
-                tz,
-                name,
+                bp_cron_expr,
+                bp_every_minutes,
+                bp_at,
+                bp_tz,
+                bp_name,
                 webhook_url,
                 failure_webhook_url,
                 recurring_confirmed,
@@ -215,6 +270,9 @@ def create_cron_tools(
         if not handler:
             return f"Unknown action: {action}"
         return await handler()
+
+    if _blueprint_suffix:
+        cron_manage.description = (cron_manage.description or "") + _blueprint_suffix
 
     return [cron_manage]
 
