@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
@@ -8,6 +8,7 @@ from myrm_agent_harness.agent.goals.continuation import (
     _WRAPUP_SENTINEL,
     _extract_last_ai_response,
     _judge_completion,
+    _run_acceptance_verification,
     _wrapup_already_injected,
     check_continuation,
 )
@@ -1086,3 +1087,135 @@ async def test_judge_api_error_does_not_count_as_parse_failure():
     # Since goal had consecutive_judge_parse_failures=2 > 0, the counter is RESET
     # (not incremented). This prevents flaky networks from tripping the auto-pause.
     provider.record_judge_parse_result.assert_called_once_with("api-err-goal", parse_failed=False)
+
+
+# ---------------------------------------------------------------------------
+# _run_acceptance_verification tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_acceptance_verification_no_criteria():
+    """No acceptance_criteria → skip verification, return True."""
+    provider = AsyncMock()
+    goal = Goal(goal_id="g1", session_id="s1", objective="o", status=GoalStatus.ACTIVE)
+    assert await _run_acceptance_verification(provider, goal) is True
+    provider.increment_verification_retries.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_acceptance_verification_pass():
+    """All criteria pass → return True without incrementing retries."""
+    provider = AsyncMock()
+    goal = Goal(
+        goal_id="g1", session_id="s1", objective="o",
+        status=GoalStatus.ACTIVE,
+        acceptance_criteria=[{"type": "shell", "command": "echo ok"}],
+    )
+    mock_gk = MagicMock()
+    mock_gk.verify_all = AsyncMock(return_value=VerificationResult(passed=True))
+    with patch(
+        "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
+        return_value=mock_gk,
+    ):
+        assert await _run_acceptance_verification(provider, goal) is True
+    provider.increment_verification_retries.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_acceptance_verification_fail_increments_retries():
+    """Verification failure → increment retries, return False."""
+    provider = AsyncMock()
+    updated_goal = Goal(
+        goal_id="g1", session_id="s1", objective="o",
+        status=GoalStatus.ACTIVE, verification_retries=1,
+    )
+    provider.increment_verification_retries.return_value = updated_goal
+
+    goal = Goal(
+        goal_id="g1", session_id="s1", objective="o",
+        status=GoalStatus.ACTIVE,
+        acceptance_criteria=[{"type": "shell", "command": "false"}],
+    )
+    mock_gk = MagicMock()
+    mock_gk.verify_all = AsyncMock(return_value=VerificationResult(passed=False, reason="cmd failed"))
+    with patch(
+        "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
+        return_value=mock_gk,
+    ):
+        assert await _run_acceptance_verification(provider, goal) is False
+    provider.increment_verification_retries.assert_called_once_with("g1")
+    provider.update_status.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_acceptance_verification_fail_fuse_pauses():
+    """Verification failure exceeding threshold → PAUSE the goal."""
+    provider = AsyncMock()
+    updated_goal = Goal(
+        goal_id="g1", session_id="s1", objective="o",
+        status=GoalStatus.ACTIVE, verification_retries=3,
+    )
+    provider.increment_verification_retries.return_value = updated_goal
+
+    goal = Goal(
+        goal_id="g1", session_id="s1", objective="o",
+        status=GoalStatus.ACTIVE,
+        acceptance_criteria=[{"type": "shell", "command": "false"}],
+    )
+    mock_gk = MagicMock()
+    mock_gk.verify_all = AsyncMock(return_value=VerificationResult(passed=False, reason="still failing"))
+    with patch(
+        "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
+        return_value=mock_gk,
+    ):
+        assert await _run_acceptance_verification(provider, goal) is False
+    provider.update_status.assert_called_once_with("g1", GoalStatus.PAUSED)
+
+
+@pytest.mark.asyncio
+async def test_acceptance_verification_crash_increments_retries():
+    """Gatekeeper construction crash → increment retries (not silently ignore)."""
+    provider = AsyncMock()
+    updated_goal = Goal(
+        goal_id="g1", session_id="s1", objective="o",
+        status=GoalStatus.ACTIVE, verification_retries=1,
+    )
+    provider.increment_verification_retries.return_value = updated_goal
+
+    goal = Goal(
+        goal_id="g1", session_id="s1", objective="o",
+        status=GoalStatus.ACTIVE,
+        acceptance_criteria=[{"type": "shell"}],
+    )
+    with patch(
+        "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
+        side_effect=KeyError("command"),
+    ):
+        assert await _run_acceptance_verification(provider, goal) is False
+    provider.increment_verification_retries.assert_called_once_with("g1")
+    provider.update_status.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_acceptance_verification_crash_fuse_pauses():
+    """Gatekeeper crash exceeding threshold → PAUSE the goal (fuse protection)."""
+    provider = AsyncMock()
+    updated_goal = Goal(
+        goal_id="g1", session_id="s1", objective="o",
+        status=GoalStatus.ACTIVE, verification_retries=3,
+    )
+    provider.increment_verification_retries.return_value = updated_goal
+
+    goal = Goal(
+        goal_id="g1", session_id="s1", objective="o",
+        status=GoalStatus.ACTIVE,
+        acceptance_criteria=[{"type": "shell"}],
+    )
+    with patch(
+        "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
+        side_effect=TypeError("bad config"),
+    ):
+        assert await _run_acceptance_verification(provider, goal) is False
+    provider.increment_verification_retries.assert_called_once_with("g1")
+    provider.update_status.assert_called_once_with("g1", GoalStatus.PAUSED)
