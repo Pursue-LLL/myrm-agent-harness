@@ -275,7 +275,8 @@ class GoalManager(GoalProvider):
         """Resume a paused/budget-limited goal.
 
         Transitions status back to ACTIVE, resets convergence counters
-        (no_progress_streak, loop_restarts), and optionally resets turns_used.
+        (no_progress_streak, loop_restarts, verification_retries),
+        and optionally resets turns_used.
         """
         goal = await self._storage.get_goal(goal_id)
         if not goal:
@@ -290,6 +291,7 @@ class GoalManager(GoalProvider):
         goal.no_progress_streak = 0
         goal.loop_restarts = 0
         goal.consecutive_judge_parse_failures = 0
+        goal.verification_retries = 0
         goal.metadata.pop("pause_reason", None)
         goal.updated_at = datetime.now(UTC)
         await self._storage.save_goal(goal)

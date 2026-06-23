@@ -12,7 +12,7 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 - **Convergence Mode**: 当 convergence_window 已设置且 no_progress_streak ≥ K 时，标记 Goal 为 COMPLETE(convergence) 而非 BUDGET_LIMITED，节省 token 并改善 UX
 - **Loop-on-Pause**: 当 loop_on_pause=True 且未超过 max_loop_restarts 时，PAUSED 后立即以新 context 重启，而非等待 Cron 分钟级延迟
 - **Semantic Judge**: 使用廉价 LLM 判断目标是否语义完成，三段式 prompt (角色 + DONE 条件 + JSON 输出格式)
-- **resume_goal**: 恢复暂停/预算受限的 goal，可选重置 turns_used，同时重置 no_progress_streak 和 loop_restarts 以防止立即再次收敛
+- **resume_goal**: 恢复暂停/预算受限的 goal，可选重置 turns_used，同时重置 no_progress_streak、loop_restarts、consecutive_judge_parse_failures 和 verification_retries 以防止立即再次收敛或验证熔断
 - **Dynamic Subgoals**: 运行时动态追加的子目标，注入 Agent 的 Prompt 和 Semantic Judge 判断标准中，并享有最高优先级。
 - **Constraints**: 硬约束列表 `constraints: list[str]`，每轮 continuation prompt 中以 "CONSTRAINTS (MUST NOT VIOLATE)" 区块醒目注入，judge criteria 中同步注入用于完成判定。
 - **Acceptance Criteria**: 验收条件列表 `acceptance_criteria: list[dict]`，支持 shell（命令执行验证）和 semantic（LLM 语义判断）两种类型。每轮 continuation prompt 以 "ACCEPTANCE CRITERIA (MUST be verified)" 区块注入，judge criteria 中同步注入。Judge 判 DONE 后触发 VerificationGatekeeper 程序化验证（ShellCriterion + SemanticCriterion），失败则继续工作。`verification_retries` 熔断保护防止无限循环（3 次失败后 PAUSE）。

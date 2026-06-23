@@ -65,8 +65,12 @@ async def _run_acceptance_verification(
 
     from .verification.gatekeeper import VerificationGatekeeper
 
-    gatekeeper = VerificationGatekeeper(goal.acceptance_criteria)
-    result = await gatekeeper.verify_all(goal_provider)
+    try:
+        gatekeeper = VerificationGatekeeper(goal.acceptance_criteria)
+        result = await gatekeeper.verify_all(goal_provider)
+    except Exception:
+        logger.exception("Goal %s: acceptance criteria verification crashed", goal.goal_id)
+        return False
 
     if result.passed:
         logger.info("Goal %s: acceptance criteria verification passed", goal.goal_id)
