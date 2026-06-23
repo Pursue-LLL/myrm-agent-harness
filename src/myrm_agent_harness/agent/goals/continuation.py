@@ -47,6 +47,52 @@ _MAX_CONSECUTIVE_JUDGE_PARSE_FAILURES = 3
 
 _WRAPUP_SENTINEL = "[Budget reached — wrap-up turn]"
 
+_MAX_VERIFICATION_RETRIES = 3
+
+
+async def _run_acceptance_verification(
+    goal_provider: GoalProvider,
+    goal: Goal,
+) -> bool:
+    """Run VerificationGatekeeper if acceptance_criteria are configured.
+
+    Returns True if no criteria or all passed, False if any failed.
+    When verification fails, increments verification_retries on the goal.
+    When retries exceed the threshold, pauses the goal to prevent infinite loops.
+    """
+    if not goal.acceptance_criteria:
+        return True
+
+    from .verification.gatekeeper import VerificationGatekeeper
+
+    gatekeeper = VerificationGatekeeper(goal.acceptance_criteria)
+    result = await gatekeeper.verify_all(goal_provider)
+
+    if result.passed:
+        logger.info("Goal %s: acceptance criteria verification passed", goal.goal_id)
+        return True
+
+    updated_goal = await goal_provider.increment_verification_retries(goal.goal_id)
+    new_retries = updated_goal.verification_retries
+
+    if new_retries >= _MAX_VERIFICATION_RETRIES:
+        logger.warning(
+            "Goal %s: verification failed %d times — pausing to prevent infinite loop",
+            goal.goal_id,
+            new_retries,
+        )
+        await goal_provider.update_status(goal.goal_id, GoalStatus.PAUSED)
+        return False
+
+    logger.info(
+        "Goal %s: verification failed (retry %d/%d): %s",
+        goal.goal_id,
+        new_retries,
+        _MAX_VERIFICATION_RETRIES,
+        result.reason,
+    )
+    return False
+
 
 def _extract_last_ai_response(messages: list[BaseMessage]) -> str:
     """Extract the last AI response text from collected messages."""
@@ -274,9 +320,13 @@ async def check_continuation(
         last_response = _extract_last_ai_response(collected_messages)
         judge_reason, parse_failed = await _judge_completion(goal_provider, goal, last_response, collected_messages)
         if judge_reason is None:
-            logger.info("Goal %s completed by semantic judge", goal.goal_id)
-            await goal_provider.update_status(goal.goal_id, GoalStatus.COMPLETE)
-            return _make_decision("done", "Semantic judge determined goal is complete", goal)
+            # Judge says DONE — run programmatic verification if criteria exist
+            verification_passed = await _run_acceptance_verification(goal_provider, goal)
+            if verification_passed:
+                logger.info("Goal %s completed by semantic judge (verification passed)", goal.goal_id)
+                await goal_provider.update_status(goal.goal_id, GoalStatus.COMPLETE)
+                return _make_decision("done", "Semantic judge determined goal is complete", goal)
+            # Verification failed — continue working (handled inside _run_acceptance_verification)
 
         # Track consecutive judge parse failures (circuit breaker)
         if parse_failed:

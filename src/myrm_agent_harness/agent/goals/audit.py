@@ -89,6 +89,16 @@ def build_continuation_prompt(goal: Goal, *, last_judge_reason: str | None = Non
         for i, c in enumerate(goal.constraints):
             constraints_block += f"  {i + 1}. {c}\n"
 
+    criteria_block = ""
+    if goal.acceptance_criteria:
+        criteria_block = "\n\nACCEPTANCE CRITERIA (MUST be verified before declaring done):\n"
+        for i, ac in enumerate(goal.acceptance_criteria):
+            ctype = ac.get("type", "semantic")
+            if ctype == "shell":
+                criteria_block += f"  {i + 1}. [shell] Command must succeed: `{ac.get('command', '')}`\n"
+            else:
+                criteria_block += f"  {i + 1}. [semantic] {ac.get('criteria', '')}\n"
+
     convergence_block = ""
     if (
         goal.budget
@@ -119,7 +129,8 @@ def build_continuation_prompt(goal: Goal, *, last_judge_reason: str | None = Non
         f"<untrusted_objective>\n{goal.objective}\n</untrusted_objective>\n"
         f"{learnings_block}"
         f"{subgoals_block}"
-        f"{constraints_block}\n\n"
+        f"{constraints_block}"
+        f"{criteria_block}\n\n"
         f"Budget:\n{budget_text}\n"
         f"{convergence_block}"
         f"{judge_feedback_block}\n"
@@ -203,13 +214,29 @@ def build_judge_criteria(goal: Goal) -> str:
         items = "\n".join(f"- {c}" for c in goal.constraints)
         constraints_section = f"\n\nConstraints (goal is NOT done if any constraint was violated):\n{items}\n"
 
+    criteria_section = ""
+    if goal.acceptance_criteria:
+        lines: list[str] = []
+        for ac in goal.acceptance_criteria:
+            ctype = ac.get("type", "semantic")
+            if ctype == "shell":
+                lines.append(f"- [shell] `{ac.get('command', '')}` must return exit code 0")
+            else:
+                lines.append(f"- [semantic] {ac.get('criteria', '')}")
+        criteria_section = (
+            "\n\nAcceptance Criteria (goal is NOT done unless ALL criteria are met):\n"
+            + "\n".join(lines)
+            + "\n"
+        )
+
     return (
         "You are a strict judge evaluating whether an autonomous agent has "
         "achieved the user's stated goal. You receive the goal text and the "
         "agent's most recent response. Your only job is to decide whether "
         "the goal is fully satisfied based on that response.\n\n"
         f"Goal:\n{objective}\n"
-        f"{constraints_section}\n"
+        f"{constraints_section}"
+        f"{criteria_section}\n"
         "A goal is DONE (PASS) only when:\n"
         "- The response explicitly confirms the goal was completed, OR\n"
         "- The response clearly shows the final deliverable was produced, OR\n"

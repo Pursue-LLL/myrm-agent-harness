@@ -15,6 +15,7 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 - **resume_goal**: 恢复暂停/预算受限的 goal，可选重置 turns_used，同时重置 no_progress_streak 和 loop_restarts 以防止立即再次收敛
 - **Dynamic Subgoals**: 运行时动态追加的子目标，注入 Agent 的 Prompt 和 Semantic Judge 判断标准中，并享有最高优先级。
 - **Constraints**: 硬约束列表 `constraints: list[str]`，每轮 continuation prompt 中以 "CONSTRAINTS (MUST NOT VIOLATE)" 区块醒目注入，judge criteria 中同步注入用于完成判定。
+- **Acceptance Criteria**: 验收条件列表 `acceptance_criteria: list[dict]`，支持 shell（命令执行验证）和 semantic（LLM 语义判断）两种类型。每轮 continuation prompt 以 "ACCEPTANCE CRITERIA (MUST be verified)" 区块注入，judge criteria 中同步注入。Judge 判 DONE 后触发 VerificationGatekeeper 程序化验证（ShellCriterion + SemanticCriterion），失败则继续工作。`verification_retries` 熔断保护防止无限循环（3 次失败后 PAUSE）。
 - **Priority Queue**: 当已有 ACTIVE goal 时，新 goal 自动进入 QUEUED 状态。当前 goal 终止后自动 dequeue 并启动下一个。支持拖拽排序和取消。
 - **auto_approve**: 从队列 dequeue 出的 goal 跳过 PENDING_APPROVAL 人工审批阶段，实现无人值守串行执行。
 - **Objective Hot-Edit**: 运行时修改 goal objective 文本，通过 SteeringToken 注入 `<untrusted_objective>` 标记的 steering 消息，agent 实时调整方向而不丢失进度。
