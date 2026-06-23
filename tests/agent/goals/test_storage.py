@@ -194,3 +194,20 @@ async def test_constraints_empty_default(goal_storage: GoalStorage) -> None:
     retrieved = await goal_storage.get_goal("no-constraints")
     assert retrieved is not None
     assert retrieved.constraints == []
+
+
+@pytest.mark.asyncio
+async def test_consecutive_judge_parse_failures_roundtrip(goal_storage: GoalStorage) -> None:
+    """consecutive_judge_parse_failures should survive serialization roundtrip."""
+    goal = Goal(
+        goal_id="parse-failures-goal",
+        session_id="s-parse-failures",
+        objective="Test parse failure persistence",
+        status=GoalStatus.ACTIVE,
+        consecutive_judge_parse_failures=2,
+    )
+    await goal_storage.save_goal(goal)
+
+    retrieved = await goal_storage.get_goal("parse-failures-goal")
+    assert retrieved is not None
+    assert retrieved.consecutive_judge_parse_failures == 2

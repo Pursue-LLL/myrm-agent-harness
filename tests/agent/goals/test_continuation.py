@@ -1003,6 +1003,43 @@ async def test_judge_parse_success_resets_counter():
 
 
 @pytest.mark.asyncio
+async def test_judge_parse_success_skips_db_when_counter_zero():
+    """When counter is already 0, successful parse skips the DB call."""
+    provider = AsyncMock()
+    goal = Goal(
+        goal_id="zero-counter-goal",
+        session_id="s1",
+        objective="Test zero counter optimization",
+        status=GoalStatus.ACTIVE,
+        turns_used=4,
+        consecutive_judge_parse_failures=0,
+    )
+    provider.get_active_goal.return_value = goal
+    provider.get_goal.return_value = goal
+    provider.is_continuation_suppressed.return_value = False
+    provider.record_progress.return_value = goal
+    provider.evaluate_semantic.return_value = VerificationResult(
+        passed=False, reason="not done yet", parse_failed=False
+    )
+
+    messages = [AIMessage(content="Working on it.")]
+    decision = await check_continuation(
+        goal_provider=provider,
+        session_id="s1",
+        cancel_token=None,
+        steering_token=None,
+        collected_messages=messages,
+        tools_called_this_turn=True,
+        net_tokens_this_turn=100,
+        time_this_turn_seconds=5,
+    )
+
+    assert decision.should_continue is True
+    assert decision.verdict == "continue"
+    provider.record_judge_parse_result.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_judge_api_error_does_not_count_as_parse_failure():
     """API/transport errors should not increment parse failures; they reset the counter."""
     provider = AsyncMock()

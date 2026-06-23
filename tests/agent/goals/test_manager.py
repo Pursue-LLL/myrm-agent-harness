@@ -291,6 +291,49 @@ async def test_resume_goal_resets_convergence_counters(goal_manager):
 
 
 @pytest.mark.asyncio
+async def test_resume_goal_resets_parse_failure_counter(goal_manager):
+    """resume_goal must reset consecutive_judge_parse_failures to 0."""
+    session_id = "session-resume-parse"
+    goal = await goal_manager.create_goal(
+        session_id, "Test parse counter reset", budget=GoalBudget(max_turns=10)
+    )
+
+    await goal_manager.record_judge_parse_result(goal.goal_id, parse_failed=True)
+    await goal_manager.record_judge_parse_result(goal.goal_id, parse_failed=True)
+
+    pre = await goal_manager.get_goal(goal.goal_id)
+    assert pre.consecutive_judge_parse_failures == 2
+
+    await goal_manager.update_status(goal.goal_id, GoalStatus.PAUSED)
+    resumed = await goal_manager.resume_goal(goal.goal_id)
+
+    assert resumed.consecutive_judge_parse_failures == 0
+
+
+@pytest.mark.asyncio
+async def test_record_judge_parse_result_increment_and_reset(goal_manager):
+    """record_judge_parse_result increments on failure and resets on success."""
+    session_id = "session-parse-record"
+    goal = await goal_manager.create_goal(session_id, "Test record parse result")
+
+    g1 = await goal_manager.record_judge_parse_result(goal.goal_id, parse_failed=True)
+    assert g1.consecutive_judge_parse_failures == 1
+
+    g2 = await goal_manager.record_judge_parse_result(goal.goal_id, parse_failed=True)
+    assert g2.consecutive_judge_parse_failures == 2
+
+    g3 = await goal_manager.record_judge_parse_result(goal.goal_id, parse_failed=False)
+    assert g3.consecutive_judge_parse_failures == 0
+
+
+@pytest.mark.asyncio
+async def test_record_judge_parse_result_not_found(goal_manager):
+    """record_judge_parse_result raises ValueError for nonexistent goal."""
+    with pytest.raises(ValueError, match="not found"):
+        await goal_manager.record_judge_parse_result("nonexistent", parse_failed=True)
+
+
+@pytest.mark.asyncio
 async def test_resume_goal_errors(goal_manager):
     with pytest.raises(ValueError, match="not found"):
         await goal_manager.resume_goal("nonexistent")
