@@ -70,6 +70,14 @@ async def _run_acceptance_verification(
         result = await gatekeeper.verify_all(goal_provider)
     except Exception:
         logger.exception("Goal %s: acceptance criteria verification crashed", goal.goal_id)
+        updated = await goal_provider.increment_verification_retries(goal.goal_id)
+        if updated.verification_retries >= _MAX_VERIFICATION_RETRIES:
+            logger.warning(
+                "Goal %s: verification crashed %d times — pausing to prevent infinite loop",
+                goal.goal_id,
+                updated.verification_retries,
+            )
+            await goal_provider.update_status(goal.goal_id, GoalStatus.PAUSED)
         return False
 
     if result.passed:
