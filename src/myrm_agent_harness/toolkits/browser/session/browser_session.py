@@ -86,6 +86,8 @@ from .tab_controller import TabController
 from .vision_verifier import VisionVerifier
 from .structured_extractor import StructuredExtractor
 
+from myrm_agent_harness.toolkits.browser.captcha.protocols import CaptchaHandleResult
+
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
 
@@ -118,6 +120,8 @@ class BrowserSession(
     组合 TabController、Navigator、SnapshotManager、Interactor、Extractor、NetworkLogger、SessionPersistence,
     Provides a unified browser automation API. Follows SOLID, each component has a single responsibility。
     """
+
+    _TERMINAL_CHALLENGE_TTL_S = 600.0
 
     def __init__(
         self,
@@ -223,6 +227,12 @@ class BrowserSession(
         else:
             self._captcha_coordinator = None
 
+        # Terminal challenge memory: domain → monotonic timestamp.
+        # After CAPTCHA+CAMOUFOX both fail, the domain is recorded here.
+        # Subsequent navigations to the same domain skip the 240s timeout
+        # and return ToolError immediately (fast-fail). TTL: 10 minutes.
+        self._terminal_challenges: dict[str, float] = {}
+
         # Dialog handling (always active — default SMART policy)
         try:
             policy = DialogPolicy(dialog_policy) if dialog_policy else DialogPolicy.SMART
@@ -266,6 +276,30 @@ class BrowserSession(
     async def navigate(self, url: str, verify_goal: str | None = None) -> str:
         """Navigate to URL (auto-injects site experience, auto-detects CAPTCHA)."""
         await self._ensure_components()
+
+        # Fast-fail: skip 240s timeout if domain is already known as terminal challenge
+        from urllib.parse import urlparse
+
+        _nav_domain = urlparse(url).netloc
+        if _nav_domain and _nav_domain in self._terminal_challenges:
+            import time as _time
+
+            elapsed = _time.monotonic() - self._terminal_challenges[_nav_domain]
+            if elapsed < self._TERMINAL_CHALLENGE_TTL_S:
+                from myrm_agent_harness.utils.errors import ToolError
+
+                raise ToolError(
+                    f"[TERMINAL_CHALLENGE] Navigation to {_nav_domain} skipped — "
+                    f"this domain was blocked by an unsolvable verification challenge "
+                    f"{elapsed:.0f}s ago (TTL {self._TERMINAL_CHALLENGE_TTL_S:.0f}s).",
+                    user_hint=(
+                        "This domain is protected by anti-bot verification that cannot be bypassed. "
+                        "Do NOT retry. Report this to the user and suggest alternative sources."
+                    ),
+                    error_code="BROWSER_TERMINAL_CHALLENGE_CACHED",
+                )
+            else:
+                del self._terminal_challenges[_nav_domain]
 
         from myrm_agent_harness.toolkits.browser.utils.proxy_error import is_blocked_response, is_proxy_error
 
@@ -340,12 +374,12 @@ class BrowserSession(
                 raise
 
         # CAPTCHA detection: inspect the loaded page for blocking CAPTCHAs
-        captcha_result_msg: str | None = None
+        captcha_result: CaptchaHandleResult | None = None
         if self._captcha_coordinator is not None:
-            captcha_result_msg = await self._handle_captcha_if_detected()
-            if captcha_result_msg:
-                # Auto-fallback to CAMOUFOX if Chromium is blocked and CAPTCHA is not resolved
-                if "not resolved" in captcha_result_msg:
+            captcha_result = await self._handle_captcha_if_detected()
+            if captcha_result is not None:
+                if not captcha_result.success:
+                    # Auto-fallback to CAMOUFOX if Chromium is blocked
                     from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine
 
                     current_engine = self._engine_preference or BrowserEngine.CHROMIUM_PATCHRIGHT
@@ -357,18 +391,12 @@ class BrowserSession(
                             "Detected advanced anti-bot protection. Upgrading browser engine to stealth mode..."
                         )
                         await self.restart(engine=BrowserEngine.FIREFOX_CAMOUFOX.value, restore_url=False)
-                        # Re-acquire components after restart
                         navigator = self._require_navigator()
                         snapshot_manager = self._require_snapshot_manager()
                         page = self._tab_controller.get_active_page()
-                        # Retry navigation
                         title, final_url, status_code = await navigator.goto(url)
-                        # Check CAPTCHA again after retry
-                        captcha_result_msg = await self._handle_captcha_if_detected()
-                        if captcha_result_msg:
-                            title = await self._tab_controller.get_active_page().title()
-                            final_url = self._tab_controller.get_active_page().url
-                        else:
+                        captcha_result = await self._handle_captcha_if_detected()
+                        if captcha_result is None or captcha_result.success:
                             # CAMOUFOX succeeded — record affinity for this domain
                             from urllib.parse import urlparse
 
@@ -377,6 +405,34 @@ class BrowserSession(
                             upgrade_domain = urlparse(url).netloc
                             if upgrade_domain:
                                 get_engine_affinity_store().record(upgrade_domain, BrowserEngine.FIREFOX_CAMOUFOX)
+                        else:
+                            title = await self._tab_controller.get_active_page().title()
+                            final_url = self._tab_controller.get_active_page().url
+
+                    # After all attempts, if CAPTCHA still unresolved → terminal challenge
+                    if captcha_result is not None and not captcha_result.success:
+                        import time as _time
+                        from urllib.parse import urlparse
+
+                        domain = urlparse(url).netloc
+                        self._terminal_challenges[domain] = _time.monotonic()
+                        logger.warning(
+                            "Terminal challenge recorded for domain %s (%s)",
+                            domain,
+                            captcha_result.challenge_type,
+                        )
+                        from myrm_agent_harness.utils.errors import ToolError
+
+                        raise ToolError(
+                            f"[TERMINAL_CHALLENGE] Navigation to {domain} blocked by unsolvable "
+                            f"{captcha_result.challenge_type} verification challenge. "
+                            f"The page shows a bot-detection challenge instead of real content.",
+                            user_hint=(
+                                "Do NOT retry navigation to this domain — it will fail again. "
+                                "Report this access issue to the user and suggest alternatives."
+                            ),
+                            error_code="BROWSER_TERMINAL_CHALLENGE",
+                        )
                 else:
                     title = await self._tab_controller.get_active_page().title()
                     final_url = self._tab_controller.get_active_page().url
@@ -390,9 +446,10 @@ class BrowserSession(
         snapshot_manager.reset_diff_baseline()
         self._tab_controller.clear_text_snapshot()
 
+        captcha_msg = captcha_result.message if captcha_result is not None else None
         result = f"Navigated to {final_url} (status={status_code}, title={title})"
-        if captcha_result_msg:
-            result = f"{result}\n{captcha_result_msg}"
+        if captcha_msg:
+            result = f"{result}\n{captcha_msg}"
         if consent_msg:
             result = f"{result}\n{consent_msg}"
 
@@ -474,13 +531,13 @@ class BrowserSession(
 
         return f"Navigated to {final_url} (status={status_code}, title={title}) [via extension bridge — private network]"
 
-    async def _handle_captcha_if_detected(self) -> str | None:
+    async def _handle_captcha_if_detected(self) -> CaptchaHandleResult | None:
         """Detect and handle blocking CAPTCHAs on the current page.
 
         Called after navigate() and after click/dblclick interactions.
 
         Returns:
-            A status message if a CAPTCHA was detected and handled, otherwise None.
+            Structured result if a CAPTCHA was detected, otherwise ``None``.
         """
         if self._captcha_coordinator is None:
             return None
@@ -497,8 +554,16 @@ class BrowserSession(
         self._captcha_coordinator.reset()
 
         if solve_result.success:
-            return f"CAPTCHA resolved ({captcha_info.captcha_type.value}) via {solve_result.method}"
-        return f"CAPTCHA not resolved ({captcha_info.reason}): {solve_result.message}"
+            return CaptchaHandleResult(
+                success=True,
+                challenge_type=captcha_info.captcha_type.value,
+                message=f"CAPTCHA resolved ({captcha_info.captcha_type.value}) via {solve_result.method}",
+            )
+        return CaptchaHandleResult(
+            success=False,
+            challenge_type=captcha_info.captcha_type.value,
+            message=f"CAPTCHA not resolved ({captcha_info.reason}): {solve_result.message}",
+        )
 
     async def snapshot(
         self,
@@ -593,9 +658,9 @@ class BrowserSession(
         self._tab_controller.clear_text_snapshot()
 
         if action in ("click", "dblclick") and self._captcha_coordinator is not None:
-            captcha_msg = await self._handle_captcha_if_detected()
-            if captcha_msg:
-                result = f"{result}\n{captcha_msg}"
+            captcha_result = await self._handle_captcha_if_detected()
+            if captcha_result is not None:
+                result = f"{result}\n{captcha_result.message}"
 
         if verify_goal and baseline_screenshot:
             await self.notify_progress(f"Verifying action goal: '{verify_goal}'...")

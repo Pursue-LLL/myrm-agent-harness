@@ -296,3 +296,59 @@ def test_continuation_prompt_full_combination():
     assert objective_pos < learnings_pos < subgoals_pos < constraints_pos
     assert constraints_pos < budget_pos < fidelity_pos < evidence_pos
     assert evidence_pos < instructions_pos < progress_pos < audit_pos
+
+
+def test_build_continuation_prompt_with_judge_reason():
+    """Judge reason is injected between budget and fidelity sections."""
+    goal = Goal(
+        goal_id="g1",
+        session_id="s1",
+        objective="Generate 5 charts",
+        status=GoalStatus.ACTIVE,
+        turns_used=3,
+    )
+    prompt = build_continuation_prompt(goal, last_judge_reason="Only 3/5 charts produced")
+
+    assert "Previous evaluation feedback:" in prompt
+    assert "Only 3/5 charts produced" in prompt
+    assert "Address this specific gap" in prompt
+
+    budget_pos = prompt.index("Budget:")
+    feedback_pos = prompt.index("Previous evaluation feedback:")
+    fidelity_pos = prompt.index("Fidelity:")
+    assert budget_pos < feedback_pos < fidelity_pos
+
+
+def test_build_continuation_prompt_no_judge_reason():
+    """No feedback block when reason is None or empty."""
+    goal = Goal(
+        goal_id="g1",
+        session_id="s1",
+        objective="Task",
+        status=GoalStatus.ACTIVE,
+        turns_used=3,
+    )
+    prompt_none = build_continuation_prompt(goal, last_judge_reason=None)
+    prompt_empty = build_continuation_prompt(goal, last_judge_reason="")
+    prompt_generic = build_continuation_prompt(goal, last_judge_reason="not complete")
+
+    assert "Previous evaluation feedback:" not in prompt_none
+    assert "Previous evaluation feedback:" not in prompt_empty
+    assert "Previous evaluation feedback:" not in prompt_generic
+
+
+def test_build_continuation_prompt_judge_reason_truncation():
+    """Long judge reasons are truncated to 200 characters."""
+    goal = Goal(
+        goal_id="g1",
+        session_id="s1",
+        objective="Task",
+        status=GoalStatus.ACTIVE,
+        turns_used=3,
+    )
+    long_reason = "x" * 300
+    prompt = build_continuation_prompt(goal, last_judge_reason=long_reason)
+
+    assert "Previous evaluation feedback:" in prompt
+    assert "x" * 200 in prompt
+    assert "x" * 201 not in prompt

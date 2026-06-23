@@ -81,13 +81,18 @@ async def _judge_completion(
     goal: Goal,
     last_response: str,
     collected_messages: list[BaseMessage] | None = None,
-) -> bool:
-    """Run the semantic completion judge. Returns True if the goal is complete.
+) -> str | None:
+    """Run the semantic completion judge.
 
-    Fail-open: any error defaults to 'not complete' (continue working).
+    Returns:
+        None — goal is complete (DONE).
+        str  — goal is NOT complete; the string is the judge's reason
+               (may be empty when no specific reason is available).
+
+    Fail-open: any error defaults to 'not complete' (empty reason).
     """
     if not last_response.strip():
-        return False
+        return ""
 
     criteria = build_judge_criteria(goal)
     if goal.subgoals:
@@ -95,32 +100,30 @@ async def _judge_completion(
         for i, sg in enumerate(goal.subgoals):
             criteria += f"{i + 1}. {sg.get('text')} (Added at: {sg.get('created_at')})\n"
 
-    # Truncate response to avoid sending too much to the judge
     content = last_response[:_JUDGE_RESPONSE_MAX_CHARS]
 
     try:
         result = await goal_provider.evaluate_semantic(criteria, content, context_messages=collected_messages)
         if result.passed:
             logger.info("Judge verdict: DONE for goal %s", goal.goal_id)
-            return True
+            return None
+        reason = result.reason or ""
         logger.info(
             "Judge verdict: CONTINUE for goal %s (reason: %s)",
             goal.goal_id,
-            result.reason or "not complete",
+            reason or "not complete",
         )
-        return False
+        return reason
     except NotImplementedError:
-        # Server layer hasn't implemented evaluate_semantic — skip judge
         logger.debug("Judge skipped: evaluate_semantic not implemented")
-        return False
+        return ""
     except Exception:
-        # Fail-open: judge error → continue working
         logger.warning(
             "Judge error for goal %s — defaulting to continue (fail-open)",
             goal.goal_id,
             exc_info=True,
         )
-        return False
+        return ""
 
 
 def _make_decision(
@@ -261,13 +264,15 @@ async def check_continuation(
         return _make_decision("suppressed", "No tool calls — paused to prevent spinning", goal)
 
     # 7. Semantic completion judge (skip first N turns)
+    last_judge_reason: str | None = None
     if goal.turns_used >= _JUDGE_SKIP_INITIAL_TURNS and tools_called_this_turn:
         last_response = _extract_last_ai_response(collected_messages)
-        is_complete = await _judge_completion(goal_provider, goal, last_response, collected_messages)
-        if is_complete:
+        judge_result = await _judge_completion(goal_provider, goal, last_response, collected_messages)
+        if judge_result is None:
             logger.info("Goal %s completed by semantic judge", goal.goal_id)
             await goal_provider.update_status(goal.goal_id, GoalStatus.COMPLETE)
             return _make_decision("done", "Semantic judge determined goal is complete", goal)
+        last_judge_reason = judge_result
 
     # Refresh Goal-scoped protected_paths ContextVar so InvariantValidator
     # blocks writes to protected files during this turn.
@@ -278,7 +283,7 @@ async def check_continuation(
     set_protected_paths(tuple(goal.protected_paths))
 
     # All guards passed — inject continuation prompt
-    prompt_text = build_continuation_prompt(goal)
+    prompt_text = build_continuation_prompt(goal, last_judge_reason=last_judge_reason)
     msg = HumanMessage(content=prompt_text, name="developer")
     collected_messages.append(msg)
 

@@ -769,6 +769,28 @@ class CaptchaSolver(Protocol):
 **无感自动降级/升级**：
 如果检测到高强度拦截（如 Cloudflare）且 `CaptchaCoordinator` 返回 `TIMEOUT` 或无法解决，且当前引擎为 `Chromium`，`BrowserSession.navigate` 会自动在底层触发 `restart(engine=CAMOUFOX, restore_url=False)`，热切换至深度隐身引擎并重新发起单次导航，成功后将结果返回给 Agent。这一过程对大模型完全透明，节省了大量推理 Token，且彻底规避了引擎切换过程中的双重导航（Double Navigation）死角。
 
+**终端挑战硬停机 (Terminal Challenge Hard-Halt)**：
+
+当 CAPTCHA 检测 + CAMOUFOX 自动升级 + 人类接管（HITL）均失败后，`navigate()` 通过 `ToolError` 结构化异常明确通知 Agent：
+
+```
+ToolError(
+  error_code="BROWSER_TERMINAL_CHALLENGE",
+  message="[TERMINAL_CHALLENGE] Navigation to example.com blocked by unsolvable cloudflare verification challenge.",
+  user_hint="Do NOT retry navigation to this domain — it will fail again. Report this to the user and suggest alternatives."
+)
+```
+
+**终端挑战记忆 (Terminal Challenge Memory)**：
+- 首次失败后，域名被记录到 `BrowserSession._terminal_challenges` 内存字典。
+- 后续导航同一域名时，0ms 快速失败（跳过 240s 的检测+求解+升级超时），返回 `BROWSER_TERMINAL_CHALLENGE_CACHED` ToolError。
+- TTL 10 分钟，过期后自动清除，允许 re-attempt（网站可能已移除验证）。
+- 轻量实现：无 LRU 库依赖，纯 `dict[str, float]`，单 session 生命周期内域名数有限，无内存泄漏风险。
+
+**设计优势**：
+- 与 `LoopGuard`（agent/security/guards/loop_guard.py）协同：LoopGuard 限制总重试次数，Terminal Challenge Memory 将每次重试的时间成本从 240s 降至 0ms。
+- `CaptchaHandleResult` 结构化返回（protocols.py）提供类型安全的 CAPTCHA 处理结果判断。
+
 **前端集成**：通过 `CAPTCHA_DETECTED / CAPTCHA_RESOLVED / CAPTCHA_TIMEOUT` 三种 SSE 事件，前端渲染为 ProgressItem 状态卡片。
 
 ---
@@ -914,7 +936,7 @@ await session.close()
 ```
 browser/
 ├── captcha/
-│   ├── protocols.py — CaptchaType, CaptchaStatus, CaptchaInfo, CaptchaSolveResult, CaptchaSolver Protocol
+│   ├── protocols.py — CaptchaType, CaptchaStatus, CaptchaInfo, CaptchaSolveResult, CaptchaSolver Protocol, CaptchaHandleResult
 │   ├── detector.py — 页面级 CAPTCHA 检测（HTML 正则，两层模式）
 │   ├── coordinator.py — CAPTCHA 协调状态机（asyncio.Event 暂停/恢复）
 │   └── manual_solver.py — 默认手动求解器（轮询检测 CAPTCHA 消失）

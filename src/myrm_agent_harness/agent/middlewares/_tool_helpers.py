@@ -45,6 +45,7 @@ from myrm_agent_harness.agent.security.detection.tool_result_validator import (
 from myrm_agent_harness.agent.security.redact import redact_sensitive_text
 from myrm_agent_harness.agent.security.types import PIIAction, SensitivityLevel
 from myrm_agent_harness.core.security.guards.privacy_tracker import get_privacy_policy
+from langchain_core.tools import ToolException
 from myrm_agent_harness.toolkits.browser.exceptions import BrowserError
 from myrm_agent_harness.toolkits.web_search.exceptions import WebSearchError
 from myrm_agent_harness.utils.errors import ToolError
@@ -57,7 +58,7 @@ if TYPE_CHECKING:
 
 logger = get_agent_logger(__name__)
 
-NON_RETRYABLE_ERRORS = (ToolError, BrowserError, WebSearchError, asyncio.CancelledError)
+NON_RETRYABLE_ERRORS = (ToolError, BrowserError, WebSearchError, asyncio.CancelledError, ToolException)
 
 
 def smart_truncate_output(text: str, max_lines: int = 20) -> str:

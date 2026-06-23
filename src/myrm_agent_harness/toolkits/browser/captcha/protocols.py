@@ -8,6 +8,7 @@
 - CaptchaStatus: CAPTCHA coordination state machine enum
 - CaptchaInfo: detected CAPTCHA metadata (frozen dataclass)
 - CaptchaSolveResult: solver outcome (frozen dataclass)
+- CaptchaHandleResult: structured CAPTCHA detection+solving outcome (frozen dataclass)
 - CaptchaSolver: pluggable solver protocol (async)
 
 [POS]
@@ -88,6 +89,21 @@ class CaptchaSolveResult:
     success: bool
     method: str
     elapsed_ms: float
+    message: str = ""
+
+
+@dataclass(frozen=True)
+class CaptchaHandleResult:
+    """Structured result from CAPTCHA detection + solving attempt.
+
+    Attributes:
+        success: Whether the CAPTCHA was solved (or no CAPTCHA detected).
+        challenge_type: CAPTCHA provider type (only set when detected).
+        message: Human-readable status message for Agent consumption.
+    """
+
+    success: bool
+    challenge_type: str = ""
     message: str = ""
 
 

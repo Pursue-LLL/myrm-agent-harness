@@ -4,13 +4,14 @@ Components:
 - ``detect_captcha``: Page-level blocking CAPTCHA detection.
 - ``CaptchaCoordinator``: Pause/resume coordination with state machine.
 - ``ManualSolver``: Default human-in-the-loop solver.
-- Protocol types: ``CaptchaSolver``, ``CaptchaInfo``, ``CaptchaSolveResult``, etc.
+- Protocol types: ``CaptchaSolver``, ``CaptchaInfo``, ``CaptchaSolveResult``, ``CaptchaHandleResult``, etc.
 """
 
 from .coordinator import CaptchaCoordinator
 from .detector import detect_captcha
 from .manual_solver import ManualSolver
 from .protocols import (
+    CaptchaHandleResult,
     CaptchaInfo,
     CaptchaSolver,
     CaptchaSolveResult,
@@ -20,6 +21,7 @@ from .protocols import (
 
 __all__ = [
     "CaptchaCoordinator",
+    "CaptchaHandleResult",
     "CaptchaInfo",
     "CaptchaSolveResult",
     "CaptchaSolver",

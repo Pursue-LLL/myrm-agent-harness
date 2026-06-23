@@ -40,10 +40,14 @@ If any requirement is missing, incomplete, or unverified, keep working instead o
 """
 
 
-def build_continuation_prompt(goal: Goal) -> str:
+_JUDGE_REASON_MAX_CHARS = 200
+
+
+def build_continuation_prompt(goal: Goal, *, last_judge_reason: str | None = None) -> str:
     """Build the continuation prompt injected at the start of each turn.
 
-    Structure: Objective -> Learnings (first turn only) -> Budget awareness -> Behavioral guidance (Fidelity, Evidence-based, Progress visibility) -> Audit protocol.
+    Structure: Objective -> Learnings (first turn only) -> Judge feedback (if any) ->
+    Budget awareness -> Behavioral guidance (Fidelity, Evidence-based, Progress visibility) -> Audit protocol.
     """
     budget_lines: list[str] = []
     budget_lines.append(f"- Time spent: {goal.time_used_seconds}s")
@@ -101,6 +105,15 @@ def build_continuation_prompt(goal: Goal) -> str:
             "- Do NOT keep searching indefinitely when diminishing returns are evident.\n"
         )
 
+    judge_feedback_block = ""
+    if last_judge_reason and last_judge_reason.strip() not in ("", "not complete"):
+        truncated = last_judge_reason[:_JUDGE_REASON_MAX_CHARS]
+        judge_feedback_block = (
+            "\n\nPrevious evaluation feedback:\n"
+            f"The judge indicated: \"{truncated}\"\n"
+            "Address this specific gap before declaring the goal complete.\n"
+        )
+
     return (
         "[Continuing toward your standing goal]\n\n"
         f"<untrusted_objective>\n{goal.objective}\n</untrusted_objective>\n"
@@ -108,7 +121,8 @@ def build_continuation_prompt(goal: Goal) -> str:
         f"{subgoals_block}"
         f"{constraints_block}\n\n"
         f"Budget:\n{budget_text}\n"
-        f"{convergence_block}\n"
+        f"{convergence_block}"
+        f"{judge_feedback_block}\n"
         "Fidelity:\n"
         "- This goal persists across turns. Ending this turn does not require shrinking the objective to what fits now.\n"
         "- Keep the full objective intact. Do not redefine success around a smaller, easier, or narrower task.\n"
