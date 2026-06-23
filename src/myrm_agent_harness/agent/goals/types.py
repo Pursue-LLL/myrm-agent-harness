@@ -108,6 +108,9 @@ class Goal:
     no_progress_streak: int = 0
     loop_restarts: int = 0
 
+    # Judge parse failure tracking: consecutive turns where judge output was unparseable.
+    consecutive_judge_parse_failures: int = 0
+
     # Metadata
     created_at: datetime = field(default_factory=_utc_now)
     updated_at: datetime = field(default_factory=_utc_now)
@@ -155,6 +158,7 @@ class Goal:
             "turns_used": self.turns_used,
             "no_progress_streak": self.no_progress_streak,
             "loop_restarts": self.loop_restarts,
+            "consecutive_judge_parse_failures": self.consecutive_judge_parse_failures,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "metadata": self.metadata,

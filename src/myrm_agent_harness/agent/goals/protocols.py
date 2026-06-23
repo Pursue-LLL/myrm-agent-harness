@@ -172,6 +172,13 @@ class GoalProvider(Protocol):
         """
         ...
 
+    async def record_judge_parse_result(self, goal_id: str, *, parse_failed: bool) -> Goal:
+        """Update the consecutive judge parse failure counter.
+
+        If parse_failed=True, increments the counter. Otherwise resets to 0.
+        """
+        ...
+
     async def record_loop_restart(self, goal_id: str) -> Goal:
         """Increment the loop_restarts counter."""
         ...

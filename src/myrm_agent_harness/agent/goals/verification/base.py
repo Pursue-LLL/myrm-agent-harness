@@ -27,6 +27,7 @@ class VerificationResult:
     passed: bool
     reason: str | None = None
     error_logs: str | None = None
+    parse_failed: bool = False
 
 
 class BaseCriterion(ABC):

@@ -43,6 +43,8 @@ _JUDGE_SKIP_INITIAL_TURNS = 2
 
 _JUDGE_RESPONSE_MAX_CHARS = 4000
 
+_MAX_CONSECUTIVE_JUDGE_PARSE_FAILURES = 3
+
 _WRAPUP_SENTINEL = "[Budget reached — wrap-up turn]"
 
 
@@ -81,18 +83,19 @@ async def _judge_completion(
     goal: Goal,
     last_response: str,
     collected_messages: list[BaseMessage] | None = None,
-) -> str | None:
+) -> tuple[str | None, bool]:
     """Run the semantic completion judge.
 
     Returns:
-        None — goal is complete (DONE).
-        str  — goal is NOT complete; the string is the judge's reason
-               (may be empty when no specific reason is available).
+        (None, False)  — goal is complete (DONE).
+        (str, False)   — goal is NOT complete; the string is the judge's reason.
+        (str, True)    — goal is NOT complete AND judge output was unparseable.
 
-    Fail-open: any error defaults to 'not complete' (empty reason).
+    Fail-open: API/transport errors default to 'not complete' with parse_failed=False
+    (network issues should not trigger the auto-pause circuit breaker).
     """
     if not last_response.strip():
-        return ""
+        return "", False
 
     criteria = build_judge_criteria(goal)
     if goal.subgoals:
@@ -106,24 +109,26 @@ async def _judge_completion(
         result = await goal_provider.evaluate_semantic(criteria, content, context_messages=collected_messages)
         if result.passed:
             logger.info("Judge verdict: DONE for goal %s", goal.goal_id)
-            return None
+            return None, False
         reason = result.reason or ""
+        parse_failed = result.parse_failed
         logger.info(
-            "Judge verdict: CONTINUE for goal %s (reason: %s)",
+            "Judge verdict: CONTINUE for goal %s (reason: %s, parse_failed: %s)",
             goal.goal_id,
             reason or "not complete",
+            parse_failed,
         )
-        return reason
+        return reason, parse_failed
     except NotImplementedError:
         logger.debug("Judge skipped: evaluate_semantic not implemented")
-        return ""
+        return "", False
     except Exception:
         logger.warning(
             "Judge error for goal %s — defaulting to continue (fail-open)",
             goal.goal_id,
             exc_info=True,
         )
-        return ""
+        return "", False
 
 
 def _make_decision(
@@ -267,12 +272,34 @@ async def check_continuation(
     last_judge_reason: str | None = None
     if goal.turns_used >= _JUDGE_SKIP_INITIAL_TURNS and tools_called_this_turn:
         last_response = _extract_last_ai_response(collected_messages)
-        judge_result = await _judge_completion(goal_provider, goal, last_response, collected_messages)
-        if judge_result is None:
+        judge_reason, parse_failed = await _judge_completion(goal_provider, goal, last_response, collected_messages)
+        if judge_reason is None:
             logger.info("Goal %s completed by semantic judge", goal.goal_id)
             await goal_provider.update_status(goal.goal_id, GoalStatus.COMPLETE)
             return _make_decision("done", "Semantic judge determined goal is complete", goal)
-        last_judge_reason = judge_result
+
+        # Track consecutive judge parse failures (circuit breaker)
+        if parse_failed:
+            goal = await goal_provider.record_judge_parse_result(goal.goal_id, parse_failed=True)
+            if goal.consecutive_judge_parse_failures >= _MAX_CONSECUTIVE_JUDGE_PARSE_FAILURES:
+                logger.warning(
+                    "Goal %s auto-paused: judge returned unparseable output %d turns in a row",
+                    goal.goal_id,
+                    goal.consecutive_judge_parse_failures,
+                )
+                await goal_provider.update_status(goal.goal_id, GoalStatus.PAUSED)
+                return _make_decision(
+                    "suppressed",
+                    f"Judge model returned unparseable output {goal.consecutive_judge_parse_failures} "
+                    "turns in a row — paused to prevent token waste",
+                    goal,
+                )
+            # Don't inject garbage reason into continuation prompt
+            last_judge_reason = None
+        else:
+            if goal.consecutive_judge_parse_failures > 0:
+                goal = await goal_provider.record_judge_parse_result(goal.goal_id, parse_failed=False)
+            last_judge_reason = judge_reason
 
     # Refresh Goal-scoped protected_paths ContextVar so InvariantValidator
     # blocks writes to protected files during this turn.

@@ -255,8 +255,9 @@ def test_extract_last_ai_response_no_messages():
 async def test_judge_completion_empty_response():
     provider = AsyncMock()
     goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
-    result = await _judge_completion(provider, goal, "   ")
-    assert result == ""
+    reason, parse_failed = await _judge_completion(provider, goal, "   ")
+    assert reason == ""
+    assert parse_failed is False
     provider.evaluate_semantic.assert_not_called()
 
 
@@ -265,8 +266,9 @@ async def test_judge_completion_passed():
     provider = AsyncMock()
     provider.evaluate_semantic.return_value = VerificationResult(passed=True, reason="done")
     goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
-    result = await _judge_completion(provider, goal, "Task is complete.")
-    assert result is None
+    reason, parse_failed = await _judge_completion(provider, goal, "Task is complete.")
+    assert reason is None
+    assert parse_failed is False
 
 
 @pytest.mark.asyncio
@@ -274,8 +276,21 @@ async def test_judge_completion_not_passed():
     provider = AsyncMock()
     provider.evaluate_semantic.return_value = VerificationResult(passed=False, reason="still working")
     goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
-    result = await _judge_completion(provider, goal, "Still working on it.")
-    assert result == "still working"
+    reason, parse_failed = await _judge_completion(provider, goal, "Still working on it.")
+    assert reason == "still working"
+    assert parse_failed is False
+
+
+@pytest.mark.asyncio
+async def test_judge_completion_parse_failed():
+    provider = AsyncMock()
+    provider.evaluate_semantic.return_value = VerificationResult(
+        passed=False, reason="garbage text", parse_failed=True
+    )
+    goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
+    reason, parse_failed = await _judge_completion(provider, goal, "Still working on it.")
+    assert reason == "garbage text"
+    assert parse_failed is True
 
 
 @pytest.mark.asyncio
@@ -283,8 +298,9 @@ async def test_judge_completion_not_implemented():
     provider = AsyncMock()
     provider.evaluate_semantic.side_effect = NotImplementedError
     goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
-    result = await _judge_completion(provider, goal, "Some response")
-    assert result == ""
+    reason, parse_failed = await _judge_completion(provider, goal, "Some response")
+    assert reason == ""
+    assert parse_failed is False
 
 
 @pytest.mark.asyncio
@@ -292,8 +308,9 @@ async def test_judge_completion_error_failopen():
     provider = AsyncMock()
     provider.evaluate_semantic.side_effect = RuntimeError("API down")
     goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
-    result = await _judge_completion(provider, goal, "Some response")
-    assert result == ""
+    reason, parse_failed = await _judge_completion(provider, goal, "Some response")
+    assert reason == ""
+    assert parse_failed is False
 
 
 # --- Semantic judge integration in check_continuation ---
@@ -837,3 +854,198 @@ async def test_budget_limited_steering_takes_priority():
     )
     assert decision.verdict == "steering"
     assert decision.should_continue is False
+
+
+# --- Judge parse failure auto-pause tests ---
+
+@pytest.mark.asyncio
+async def test_judge_parse_failure_increments_counter():
+    """Parse failure increments consecutive_judge_parse_failures but continues."""
+    from myrm_agent_harness.agent.goals.continuation import _MAX_CONSECUTIVE_JUDGE_PARSE_FAILURES
+
+    provider = AsyncMock()
+    goal = Goal(
+        goal_id="parse-goal",
+        session_id="s1",
+        objective="Test parse failure",
+        status=GoalStatus.ACTIVE,
+        turns_used=3,
+        consecutive_judge_parse_failures=0,
+    )
+    goal_after_record = Goal(
+        goal_id="parse-goal",
+        session_id="s1",
+        objective="Test parse failure",
+        status=GoalStatus.ACTIVE,
+        turns_used=3,
+        consecutive_judge_parse_failures=1,
+    )
+    provider.get_active_goal.return_value = goal
+    provider.get_goal.return_value = goal
+    provider.is_continuation_suppressed.return_value = False
+    provider.record_progress.return_value = goal
+    provider.evaluate_semantic.return_value = VerificationResult(
+        passed=False, reason="unparseable garbage", parse_failed=True
+    )
+    provider.record_judge_parse_result.return_value = goal_after_record
+
+    messages = [AIMessage(content="I did some work with tools.")]
+    decision = await check_continuation(
+        goal_provider=provider,
+        session_id="s1",
+        cancel_token=None,
+        steering_token=None,
+        collected_messages=messages,
+        tools_called_this_turn=True,
+        net_tokens_this_turn=100,
+        time_this_turn_seconds=5,
+    )
+
+    assert decision.should_continue is True
+    assert decision.verdict == "continue"
+    provider.record_judge_parse_result.assert_called_once_with("parse-goal", parse_failed=True)
+
+
+@pytest.mark.asyncio
+async def test_judge_parse_failure_auto_pause_at_threshold():
+    """Three consecutive parse failures triggers auto-pause."""
+    from myrm_agent_harness.agent.goals.continuation import _MAX_CONSECUTIVE_JUDGE_PARSE_FAILURES
+
+    provider = AsyncMock()
+    goal = Goal(
+        goal_id="parse-goal",
+        session_id="s1",
+        objective="Test parse failure",
+        status=GoalStatus.ACTIVE,
+        turns_used=5,
+        consecutive_judge_parse_failures=2,
+    )
+    goal_at_threshold = Goal(
+        goal_id="parse-goal",
+        session_id="s1",
+        objective="Test parse failure",
+        status=GoalStatus.ACTIVE,
+        turns_used=5,
+        consecutive_judge_parse_failures=3,
+    )
+    provider.get_active_goal.return_value = goal
+    provider.get_goal.return_value = goal
+    provider.is_continuation_suppressed.return_value = False
+    provider.record_progress.return_value = goal
+    provider.evaluate_semantic.return_value = VerificationResult(
+        passed=False, reason="still garbage", parse_failed=True
+    )
+    provider.record_judge_parse_result.return_value = goal_at_threshold
+
+    messages = [AIMessage(content="I did some work.")]
+    decision = await check_continuation(
+        goal_provider=provider,
+        session_id="s1",
+        cancel_token=None,
+        steering_token=None,
+        collected_messages=messages,
+        tools_called_this_turn=True,
+        net_tokens_this_turn=100,
+        time_this_turn_seconds=5,
+    )
+
+    assert decision.should_continue is False
+    assert decision.verdict == "suppressed"
+    assert "unparseable output" in decision.reason
+    assert str(_MAX_CONSECUTIVE_JUDGE_PARSE_FAILURES) in decision.reason
+    provider.update_status.assert_called_once_with("parse-goal", GoalStatus.PAUSED)
+
+
+@pytest.mark.asyncio
+async def test_judge_parse_success_resets_counter():
+    """Successful parse resets consecutive_judge_parse_failures to 0."""
+    provider = AsyncMock()
+    goal = Goal(
+        goal_id="parse-goal",
+        session_id="s1",
+        objective="Test parse reset",
+        status=GoalStatus.ACTIVE,
+        turns_used=4,
+        consecutive_judge_parse_failures=2,
+    )
+    goal_after_reset = Goal(
+        goal_id="parse-goal",
+        session_id="s1",
+        objective="Test parse reset",
+        status=GoalStatus.ACTIVE,
+        turns_used=4,
+        consecutive_judge_parse_failures=0,
+    )
+    provider.get_active_goal.return_value = goal
+    provider.get_goal.return_value = goal
+    provider.is_continuation_suppressed.return_value = False
+    provider.record_progress.return_value = goal
+    provider.evaluate_semantic.return_value = VerificationResult(
+        passed=False, reason="not done yet", parse_failed=False
+    )
+    provider.record_judge_parse_result.return_value = goal_after_reset
+
+    messages = [AIMessage(content="Working on it.")]
+    decision = await check_continuation(
+        goal_provider=provider,
+        session_id="s1",
+        cancel_token=None,
+        steering_token=None,
+        collected_messages=messages,
+        tools_called_this_turn=True,
+        net_tokens_this_turn=100,
+        time_this_turn_seconds=5,
+    )
+
+    assert decision.should_continue is True
+    assert decision.verdict == "continue"
+    provider.record_judge_parse_result.assert_called_once_with("parse-goal", parse_failed=False)
+
+
+@pytest.mark.asyncio
+async def test_judge_api_error_does_not_count_as_parse_failure():
+    """API/transport errors should not increment parse failures; they reset the counter."""
+    provider = AsyncMock()
+    goal = Goal(
+        goal_id="api-err-goal",
+        session_id="s1",
+        objective="Test API error",
+        status=GoalStatus.ACTIVE,
+        budget=GoalBudget(max_turns=20),
+        turns_used=3,
+        consecutive_judge_parse_failures=2,
+    )
+    goal_after_reset = Goal(
+        goal_id="api-err-goal",
+        session_id="s1",
+        objective="Test API error",
+        status=GoalStatus.ACTIVE,
+        budget=GoalBudget(max_turns=20),
+        turns_used=3,
+        consecutive_judge_parse_failures=0,
+    )
+    provider.get_active_goal.return_value = goal
+    provider.get_goal.return_value = goal
+    provider.is_continuation_suppressed.return_value = False
+    provider.record_progress.return_value = goal
+    provider.evaluate_semantic.side_effect = RuntimeError("Connection timeout")
+    provider.record_judge_parse_result.return_value = goal_after_reset
+
+    messages = [AIMessage(content="Some work done.")]
+    decision = await check_continuation(
+        goal_provider=provider,
+        session_id="s1",
+        cancel_token=None,
+        steering_token=None,
+        collected_messages=messages,
+        tools_called_this_turn=True,
+        net_tokens_this_turn=100,
+        time_this_turn_seconds=5,
+    )
+
+    assert decision.should_continue is True
+    assert decision.verdict == "continue"
+    # API error → _judge_completion returns ("", False) → parse_failed=False
+    # Since goal had consecutive_judge_parse_failures=2 > 0, the counter is RESET
+    # (not incremented). This prevents flaky networks from tripping the auto-pause.
+    provider.record_judge_parse_result.assert_called_once_with("api-err-goal", parse_failed=False)

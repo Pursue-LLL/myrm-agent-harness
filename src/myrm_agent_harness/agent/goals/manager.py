@@ -244,6 +244,21 @@ class GoalManager(GoalProvider):
         await self._storage.save_goal(goal)
         return goal
 
+    async def record_judge_parse_result(self, goal_id: str, *, parse_failed: bool) -> Goal:
+        """Update the consecutive judge parse failure counter."""
+        goal = await self._storage.get_goal(goal_id)
+        if not goal:
+            raise ValueError(f"Goal {goal_id} not found")
+
+        if parse_failed:
+            goal.consecutive_judge_parse_failures += 1
+        else:
+            goal.consecutive_judge_parse_failures = 0
+
+        goal.updated_at = datetime.now(UTC)
+        await self._storage.save_goal(goal)
+        return goal
+
     async def record_loop_restart(self, goal_id: str) -> Goal:
         """Increment the loop_restarts counter."""
         goal = await self._storage.get_goal(goal_id)
@@ -274,6 +289,7 @@ class GoalManager(GoalProvider):
             goal.turns_used = 0
         goal.no_progress_streak = 0
         goal.loop_restarts = 0
+        goal.consecutive_judge_parse_failures = 0
         goal.updated_at = datetime.now(UTC)
         await self._storage.save_goal(goal)
         record_goal_resumed()
