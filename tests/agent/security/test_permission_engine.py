@@ -602,6 +602,71 @@ class TestResolveTargetWebFetch:
         assert target == "api.example.com"
 
 
+class TestSkillManageAndCronManagePermissions:
+    """Tests for skill_manage and cron_manage permission rules across security profiles."""
+
+    def test_default_ruleset_skill_manage_asks(self) -> None:
+        """DEFAULT_RULESET: skill_manage should require human approval (ASK)."""
+        config = SecurityConfig()
+        action, _ = evaluate_tool_call("skill_manage", {}, config)
+        assert action == PermissionAction.ASK
+
+    def test_default_ruleset_cron_manage_asks(self) -> None:
+        """DEFAULT_RULESET: cron_manage should require human approval (ASK)."""
+        config = SecurityConfig()
+        action, _ = evaluate_tool_call("cron_manage", {}, config)
+        assert action == PermissionAction.ASK
+
+    def test_readonly_profile_denies_skill_manage(self) -> None:
+        """readonly() profile: skill_manage must be DENY (no side effects allowed)."""
+        config = SecurityConfig.readonly()
+        action, _ = evaluate_tool_call("skill_manage", {}, config)
+        assert action == PermissionAction.DENY
+
+    def test_readonly_profile_denies_cron_manage(self) -> None:
+        """readonly() profile: cron_manage must be DENY (no side effects allowed)."""
+        config = SecurityConfig.readonly()
+        action, _ = evaluate_tool_call("cron_manage", {}, config)
+        assert action == PermissionAction.DENY
+
+    def test_workspace_profile_asks_skill_manage(self) -> None:
+        """workspace() profile: skill_manage should require human approval (ASK)."""
+        config = SecurityConfig.workspace(allowed_roots=("/home/user",))
+        action, _ = evaluate_tool_call("skill_manage", {}, config)
+        assert action == PermissionAction.ASK
+
+    def test_workspace_profile_asks_cron_manage(self) -> None:
+        """workspace() profile: cron_manage should require human approval (ASK)."""
+        config = SecurityConfig.workspace(allowed_roots=("/home/user",))
+        action, _ = evaluate_tool_call("cron_manage", {}, config)
+        assert action == PermissionAction.ASK
+
+    def test_remote_exposed_denies_skill_manage(self) -> None:
+        """remote_exposed() profile: skill_manage must be DENY (untrusted environment)."""
+        config = SecurityConfig.remote_exposed()
+        action, _ = evaluate_tool_call("skill_manage", {}, config)
+        assert action == PermissionAction.DENY
+
+    def test_remote_exposed_denies_cron_manage(self) -> None:
+        """remote_exposed() profile: cron_manage must be DENY (untrusted environment)."""
+        config = SecurityConfig.remote_exposed()
+        action, _ = evaluate_tool_call("cron_manage", {}, config)
+        assert action == PermissionAction.DENY
+
+    def test_full_access_allows_skill_manage(self) -> None:
+        """full_access() profile: all operations allowed including skill_manage."""
+        config = SecurityConfig.full_access()
+        action, _ = evaluate_tool_call("skill_manage", {}, config)
+        assert action == PermissionAction.ALLOW
+
+    def test_user_override_allow_skill_manage(self) -> None:
+        """User can explicitly ALLOW skill_manage via custom ruleset (last-match-wins)."""
+        user_rules: PermissionRuleset = (PermissionRule("skill_manage", "*", PermissionAction.ALLOW),)
+        config = SecurityConfig(ruleset=merge(DEFAULT_RULESET, user_rules))
+        action, _ = evaluate_tool_call("skill_manage", {}, config)
+        assert action == PermissionAction.ALLOW
+
+
 class TestRiskClassificationIntegration:
     """Tests for risk-based auto-allow in evaluate_tool_call (fallback layer)."""
 

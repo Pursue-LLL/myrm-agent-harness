@@ -1112,8 +1112,19 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 | `browser_navigate_tool` | `browser_navigate_tool` |
 | `browser_snapshot_tool` / `browser_extract_tool` | `browser_read` |
 | `delegate_to_agent_tool` | `delegate_agent` |
-| `cron_manage_tool` | `cron_manage_tool` |
+| `cron_manage_tool` | `cron_manage` |
 | `skill_manage_tool` | `skill_manage` |
+
+### 破坏性操作的 HITL 保护
+
+以下权限类型在 `DEFAULT_RULESET` 中被设为 `ASK`（需人工审批），因为它们可修改 Agent 行为或系统调度：
+
+| 权限类型 | 默认动作 | readonly() | workspace() | remote_exposed() | 说明 |
+|---------|---------|-----------|------------|-----------------|------|
+| `skill_manage` | ASK | DENY | ASK | DENY | 技能创建/删除/修改 |
+| `cron_manage` | ASK | DENY | ASK | DENY | 定时任务管理 |
+
+用户可通过 Allowlist 或 YOLO 模式跳过 ASK 审批。自动进化通道（`SkillEvolutionEngine` → server API）不经过 `skill_manage_tool`，不受此规则约束。
 
 ### 自动批准的内置工具
 

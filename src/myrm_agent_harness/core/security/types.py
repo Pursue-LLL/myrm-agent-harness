@@ -138,6 +138,8 @@ DEFAULT_RULESET: PermissionRuleset = (
     PermissionRule("browser_navigate", "192.168.*", PermissionAction.DENY),
     PermissionRule("browser_navigate", "169.254.*", PermissionAction.DENY),
     PermissionRule("desktop_control", "*", PermissionAction.ASK),
+    PermissionRule("skill_manage", "*", PermissionAction.ASK),
+    PermissionRule("cron_manage", "*", PermissionAction.ASK),
     PermissionRule("delegate_agent", "*", PermissionAction.ALLOW),
 )
 
@@ -391,6 +393,8 @@ class SecurityConfig:
             PermissionRule("browser_fill", "*", PermissionAction.DENY),
             PermissionRule("browser_upload", "*", PermissionAction.DENY),
             PermissionRule("browser_download", "*", PermissionAction.DENY),
+            PermissionRule("skill_manage", "*", PermissionAction.DENY),
+            PermissionRule("cron_manage", "*", PermissionAction.DENY),
             PermissionRule("mcp_invoke", "*", PermissionAction.ASK),
             PermissionRule("delegate_agent", "*", PermissionAction.ALLOW),
         )
@@ -421,6 +425,8 @@ class SecurityConfig:
             PermissionRule("browser_upload", "*", PermissionAction.ASK),
             PermissionRule("browser_download", "*", PermissionAction.ASK),
             PermissionRule("browser_fill", "*", PermissionAction.ASK),
+            PermissionRule("skill_manage", "*", PermissionAction.ASK),
+            PermissionRule("cron_manage", "*", PermissionAction.ASK),
             PermissionRule("mcp_invoke", "*", PermissionAction.ASK),
             PermissionRule("delegate_agent", "*", PermissionAction.ALLOW),
         )
@@ -455,6 +461,8 @@ class SecurityConfig:
             PermissionRule("browser_download", "*", PermissionAction.DENY),
             PermissionRule("browser_fill", "*", PermissionAction.DENY),
             PermissionRule("browser_evaluate", "*", PermissionAction.DENY),
+            PermissionRule("skill_manage", "*", PermissionAction.DENY),
+            PermissionRule("cron_manage", "*", PermissionAction.DENY),
             PermissionRule("mcp_invoke", "*", PermissionAction.ASK),
             PermissionRule("delegate_agent", "*", PermissionAction.DENY),
         )
