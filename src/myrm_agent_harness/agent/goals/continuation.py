@@ -320,13 +320,19 @@ async def check_continuation(
         last_response = _extract_last_ai_response(collected_messages)
         judge_reason, parse_failed = await _judge_completion(goal_provider, goal, last_response, collected_messages)
         if judge_reason is None:
-            # Judge says DONE — run programmatic verification if criteria exist
             verification_passed = await _run_acceptance_verification(goal_provider, goal)
             if verification_passed:
                 logger.info("Goal %s completed by semantic judge (verification passed)", goal.goal_id)
                 await goal_provider.update_status(goal.goal_id, GoalStatus.COMPLETE)
                 return _make_decision("done", "Semantic judge determined goal is complete", goal)
-            # Verification failed — continue working (handled inside _run_acceptance_verification)
+            # Verification failed — check if retries exhausted (goal already PAUSED inside helper)
+            refreshed = await goal_provider.get_goal(goal.goal_id)
+            if refreshed and refreshed.status == GoalStatus.PAUSED:
+                return _make_decision(
+                    "suppressed",
+                    f"Acceptance criteria verification failed {refreshed.verification_retries} times — paused",
+                    refreshed,
+                )
 
         # Track consecutive judge parse failures (circuit breaker)
         if parse_failed:
