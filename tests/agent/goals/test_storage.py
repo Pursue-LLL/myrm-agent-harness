@@ -211,3 +211,72 @@ async def test_consecutive_judge_parse_failures_roundtrip(goal_storage: GoalStor
     retrieved = await goal_storage.get_goal("parse-failures-goal")
     assert retrieved is not None
     assert retrieved.consecutive_judge_parse_failures == 2
+
+
+@pytest.mark.asyncio
+async def test_list_active_sessions_empty(goal_storage: GoalStorage) -> None:
+    """No active sessions should return empty list."""
+    sessions = await goal_storage.list_active_sessions()
+    assert sessions == []
+
+
+@pytest.mark.asyncio
+async def test_list_active_sessions_multiple(goal_storage: GoalStorage) -> None:
+    """Should enumerate all sessions with ACTIVE goals."""
+    for i in range(3):
+        goal = Goal(
+            goal_id=f"goal-{i}",
+            session_id=f"session-{i}",
+            objective=f"Objective {i}",
+            status=GoalStatus.ACTIVE,
+        )
+        await goal_storage.save_goal(goal)
+
+    sessions = await goal_storage.list_active_sessions()
+    assert sorted(sessions) == ["session-0", "session-1", "session-2"]
+
+
+@pytest.mark.asyncio
+async def test_list_active_sessions_excludes_non_active(goal_storage: GoalStorage) -> None:
+    """Sessions with non-ACTIVE goals should not appear."""
+    active = Goal(
+        goal_id="active-1",
+        session_id="s-active",
+        objective="Active",
+        status=GoalStatus.ACTIVE,
+    )
+    await goal_storage.save_goal(active)
+
+    paused = Goal(
+        goal_id="paused-1",
+        session_id="s-paused",
+        objective="Paused",
+        status=GoalStatus.ACTIVE,
+    )
+    await goal_storage.save_goal(paused)
+    paused.status = GoalStatus.PAUSED
+    await goal_storage.save_goal(paused)
+
+    sessions = await goal_storage.list_active_sessions()
+    assert sessions == ["s-active"]
+
+
+@pytest.mark.asyncio
+async def test_list_active_sessions_idempotent_after_pause(goal_storage: GoalStorage) -> None:
+    """After pausing all goals, list should be empty (idempotent)."""
+    goal = Goal(
+        goal_id="g-idem",
+        session_id="s-idem",
+        objective="Idempotent test",
+        status=GoalStatus.ACTIVE,
+    )
+    await goal_storage.save_goal(goal)
+    assert await goal_storage.list_active_sessions() == ["s-idem"]
+
+    goal.status = GoalStatus.PAUSED
+    goal.metadata["pause_reason"] = "Server restarted"
+    await goal_storage.save_goal(goal)
+    assert await goal_storage.list_active_sessions() == []
+
+    # Running again should still be empty
+    assert await goal_storage.list_active_sessions() == []

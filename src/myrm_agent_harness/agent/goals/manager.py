@@ -290,6 +290,7 @@ class GoalManager(GoalProvider):
         goal.no_progress_streak = 0
         goal.loop_restarts = 0
         goal.consecutive_judge_parse_failures = 0
+        goal.metadata.pop("pause_reason", None)
         goal.updated_at = datetime.now(UTC)
         await self._storage.save_goal(goal)
         record_goal_resumed()
