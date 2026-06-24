@@ -6,6 +6,7 @@
 - summary_parser (POS: summary parsing utilities)
 - summary_builder (POS: summary message reconstruction)
 - security.detection.leak_detector::redact_leaks (POS: credential leak redaction, output-side + history-side defense)
+- security.detection.pii_redactor::redact_pii (POS: PII redaction for phone/email/SSN/ID/address in summary fields)
 - toolkits.llms.utils.model_utils::get_model_context_limit (POS: best-effort model context window extraction)
 - langchain_core.messages::BaseMessage (POS: LangChain message base class)
 - langchain_core.language_models::BaseChatModel (POS: LangChain LLM base class)
@@ -27,6 +28,7 @@ from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 
 from myrm_agent_harness.agent.security.detection.leak_detector import redact_leaks
+from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii
 from myrm_agent_harness.toolkits.llms.utils.model_utils import get_model_context_limit
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
@@ -90,22 +92,28 @@ _REDACT_SKIP_FIELDS = frozenset({"context_dump_path", "files_modified"})
 
 
 def _redact_summary_fields(summary: StructuredSummary) -> StructuredSummary:
-    """Apply credential redaction to all text fields of a StructuredSummary.
+    """Apply credential and PII redaction to all text fields of a StructuredSummary.
 
     Skips context_dump_path (filesystem path) and files_modified (filenames)
-    which cannot contain credentials. Safe no-op when nothing matches.
+    which cannot contain credentials or PII. Safe no-op when nothing matches.
     """
+
+    def _redact_text(text: str) -> str:
+        result = redact_leaks(text)
+        result, _ = redact_pii(result)
+        return result
+
     for field_name in summary.__dataclass_fields__:
         if field_name in _REDACT_SKIP_FIELDS:
             continue
         value = getattr(summary, field_name)
         if isinstance(value, str) and value:
-            setattr(summary, field_name, redact_leaks(value))
+            setattr(summary, field_name, _redact_text(value))
         elif isinstance(value, list):
             setattr(
                 summary,
                 field_name,
-                [redact_leaks(item) if isinstance(item, str) else item for item in value],
+                [_redact_text(item) if isinstance(item, str) else item for item in value],
             )
     return summary
 

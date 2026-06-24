@@ -17,9 +17,10 @@ Dedicated to BrowserContext creation and configuration, including:
 1. Selecting launch parameters based on ContextType
 2. Setting global default timeout (_DEFAULT_TIMEOUT_MS, covers all page operations)
 3. Applying EmulationConfig (geolocation/timezone/locale/permissions etc.) with fallback to default_emulation
-4. Installing resource blocking (image/font/media/ad-domains) independently of domain allowlist
-5. Installing DomainAllowlist security filter (CSP + JS hardening + CDP audit) when allowlist provided
-6. STEALTH mode injection of 13 anti-detection JS scripts (dual-layer defense: patchright CDP + JS init script)
+4. Syncing Accept-Language header with EmulationConfig.locale to prevent fingerprint mismatch
+5. Installing resource blocking (image/font/media/ad-domains) independently of domain allowlist
+6. Installing DomainAllowlist security filter (CSP + JS hardening + CDP audit) when allowlist provided
+7. STEALTH mode injection of 13 anti-detection JS scripts (dual-layer defense: patchright CDP + JS init script)
 """
 
 from __future__ import annotations
@@ -66,6 +67,30 @@ _STEALTH_CONTEXT_OPTIONS: dict[str, object] = {
     **_DEFAULT_CONTEXT_OPTIONS,
     "user_agent": _PLATFORM_UA.get(platform.system(), _PLATFORM_UA["Linux"]),
 }
+
+
+def _sync_accept_language(ctx_opts: dict[str, object], locale: str) -> None:
+    """Align Accept-Language header with the configured locale.
+
+    Playwright natively maps ``locale`` to ``Accept-Language``, but our
+    explicit ``extra_http_headers`` overrides that mapping.  When a locale
+    is set (e.g. ``ja-JP``), derive an Accept-Language value that matches
+    so anti-fraud systems see consistent fingerprints.
+
+    Creates a shallow copy of the headers dict to avoid mutating the
+    module-level ``_DEFAULT_CONTEXT_OPTIONS`` (shallow dict copy shares
+    nested objects by reference).
+    """
+    headers = ctx_opts.get("extra_http_headers")
+    if not isinstance(headers, dict):
+        return
+    lang = locale.split("-")[0]
+    if lang == locale:
+        accept = f"{locale};q=1"
+    else:
+        accept = f"{locale},{lang};q=0.9"
+    headers = {**headers, "Accept-Language": accept}
+    ctx_opts["extra_http_headers"] = headers
 
 
 class ContextFactory:
@@ -198,6 +223,8 @@ class ContextFactory:
         effective_emulation = emulation or self._default_emulation
         if effective_emulation:
             ctx_opts.update(effective_emulation.to_playwright_kwargs())
+            if effective_emulation.locale:
+                _sync_accept_language(ctx_opts, effective_emulation.locale)
 
         if extra_kwargs:
             playwright_kwargs = {

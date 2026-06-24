@@ -172,6 +172,8 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "vault_extract_tool": ToolLayer.EXTENDED,
     "vault_get_tool": ToolLayer.EXTENDED,
     "vault_put_tool": ToolLayer.EXTENDED,
+    # --- RSS ---
+    "rss_fetch": ToolLayer.EXTENDED,
     # --- Wiki 知识库 ---
     "wiki_compile_tool": ToolLayer.EXTENDED,
     "wiki_ingest_tool": ToolLayer.EXTENDED,
