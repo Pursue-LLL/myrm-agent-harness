@@ -44,11 +44,11 @@ def platform_spec_for_key(key: str) -> PlatformSpec:
         return PlatformSpec(key=key, package_suffix=key, nuitka_target=f"macos-{machine}", pep508_marker=marker)
     if os_name == "linux":
         nuitka = f"linux-{machine}{'-musl' if is_musl else ''}"
-        marker = (
-            "platform_system == 'Linux' and platform_machine == 'x86_64'"
-            if machine == "x64"
-            else "platform_system == 'Linux' and platform_machine == 'aarch64'"
+        machine_marker = (
+            "platform_machine == 'x86_64'" if machine == "x64" else "platform_machine == 'aarch64'"
         )
+        libc_marker = "platform.libc == 'musl'" if is_musl else "platform.libc == 'gnu'"
+        marker = f"platform_system == 'Linux' and {machine_marker} and {libc_marker}"
         return PlatformSpec(
             key=key,
             package_suffix=key,

@@ -92,7 +92,7 @@ Tag `v*` (e.g. `v0.1.0rc1`, aligned with `project.version`) in **myrm-agent-harn
 4. `publish-core` matrix (one job per platform) uploads each core wheel — OIDC tokens are project-scoped; batch upload fails with 403
 5. `publish-verify` runs `scripts/verify_pypi_publish.py` (release must expose `[compiled-core]` extra; `skip-existing` on re-runs)
 
-Alpine/musl deployments: `install.sh` reinstalls `myrm-agent-harness-core-{platform}-musl` after `uv sync`, or use `assemble_production.py`.
+Alpine/musl deployments: install `compiled-core-musl` extra (PEP 508 `platform.libc == 'musl'` markers) alongside `compiled-core`. `install.sh` still reinstalls musl core as a safety net on musl hosts.
 
 CI build jobs use `uv sync --only-group build --frozen` and `uv run --no-project` so the editable project is not installed before wheels exist on PyPI.
 
