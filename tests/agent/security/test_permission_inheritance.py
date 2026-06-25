@@ -11,7 +11,7 @@ from myrm_agent_harness.agent.security import (
     EphemeralUserCredential,
     user_credentials_ctx,
 )
-from myrm_agent_harness.agent.security.safe_exec import safe_exec
+from myrm_agent_harness.agent.security.safe_exec import credential_env_overrides, safe_exec
 from myrm_agent_harness.agent.security.types import (
     propagate_user_credentials,
     with_user_credentials,
@@ -63,6 +63,12 @@ async def test_safe_exec_credentials_injection() -> None:
         assert passed_env["GITHUB_TOKEN"] == "gh_test_token"
         # Custom service fallback uppercase mapping
         assert passed_env["CUSTOM_SERVICE_TOKEN"] == "cs_test_token"
+
+
+def test_credential_env_overrides_google_workspace() -> None:
+    cred = EphemeralUserCredential(issuer="google_workspace", token="gw-access-token")
+    env = credential_env_overrides((cred,))
+    assert env == {"GOOGLE_WORKSPACE_TOKEN": "gw-access-token"}
 
 
 @pytest.mark.asyncio

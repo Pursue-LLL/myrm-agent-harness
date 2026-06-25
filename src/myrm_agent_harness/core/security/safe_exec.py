@@ -37,7 +37,10 @@ import shlex
 import signal
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.core.security.types import EphemeralUserCredential
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +67,33 @@ class ExecResult:
     stderr: str
     returncode: int
     mode: Literal["direct", "shell"]
+
+
+def credential_env_overrides(
+    credentials: tuple[EphemeralUserCredential, ...],
+    *,
+    allowed_issuers: list[str] | None = None,
+) -> dict[str, str]:
+    """Map EphemeralUserCredential issuers to process env vars (post-sanitize injection)."""
+    overrides: dict[str, str] = {}
+    normalized_allowed: set[str] | None = None
+    if allowed_issuers is not None:
+        normalized_allowed = {issuer.lower() for issuer in allowed_issuers}
+
+    for cred in credentials:
+        if normalized_allowed is not None and cred.issuer.lower() not in normalized_allowed:
+            continue
+        if cred.issuer == "feishu":
+            overrides["FEISHU_USER_ACCESS_TOKEN"] = cred.token
+        elif cred.issuer == "dingtalk":
+            overrides["DINGTALK_USER_ACCESS_TOKEN"] = cred.token
+        elif cred.issuer == "github":
+            overrides["GITHUB_TOKEN"] = cred.token
+        elif cred.issuer == "google_workspace":
+            overrides["GOOGLE_WORKSPACE_TOKEN"] = cred.token
+        else:
+            overrides[f"{cred.issuer.upper()}_TOKEN"] = cred.token
+    return overrides
 
 
 def _kill_process_tree(proc: asyncio.subprocess.Process) -> None:
@@ -123,21 +153,7 @@ async def safe_exec(
 
     try:
         credentials = user_credentials_ctx.get()
-        for cred in credentials:
-            if allowed_issuers is not None:
-                normalized_allowed = {i.lower() for i in allowed_issuers}
-                if cred.issuer.lower() not in normalized_allowed:
-                    continue
-            if cred.issuer == "feishu":
-                active_env["FEISHU_USER_ACCESS_TOKEN"] = cred.token
-            elif cred.issuer == "dingtalk":
-                active_env["DINGTALK_USER_ACCESS_TOKEN"] = cred.token
-            elif cred.issuer == "github":
-                active_env["GITHUB_TOKEN"] = cred.token
-            elif cred.issuer == "google_workspace":
-                active_env["GOOGLE_WORKSPACE_TOKEN"] = cred.token
-            else:
-                active_env[f"{cred.issuer.upper()}_TOKEN"] = cred.token
+        active_env.update(credential_env_overrides(credentials, allowed_issuers=allowed_issuers))
     except LookupError:
         pass
 

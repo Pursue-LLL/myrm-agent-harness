@@ -489,6 +489,25 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             env.update(sanitize_env(user_env))
             logger.debug(f" User env vars: {list(user_env.keys())}")
 
+        from myrm_agent_harness.core.security.safe_exec import credential_env_overrides
+        from myrm_agent_harness.core.security.types import user_credentials_ctx
+
+        try:
+            credentials = user_credentials_ctx.get()
+            if credentials:
+                env.update(credential_env_overrides(credentials))
+        except LookupError:
+            pass
+
+        try:
+            from myrm_agent_harness.agent.streaming.utils import user_timezone_var
+
+            user_tz = user_timezone_var.get()
+            if user_tz:
+                env["MYRM_USER_TIMEZONE"] = user_tz
+        except Exception:
+            pass
+
         return env
 
     def _get_venv_additional_paths(self) -> list[Path] | None:
