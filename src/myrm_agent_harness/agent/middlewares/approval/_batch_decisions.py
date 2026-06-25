@@ -30,6 +30,20 @@ from .helpers import add_to_allowlist_if_needed, record_denial
 
 logger = logging.getLogger(__name__)
 
+
+def _integration_mutation_blocks_allow_always(tool_call: dict[str, object]) -> bool:
+    raw_args = tool_call.get("args", {})
+    if not isinstance(raw_args, dict):
+        return False
+    shell_cmd = str(raw_args.get("command", "") or raw_args.get("code", "")).strip()
+    if not shell_cmd:
+        return False
+    from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer import (
+        is_integration_mutation_command,
+    )
+
+    return is_integration_mutation_command(shell_cmd)
+
 __all__ = ["apply_approval_decisions", "build_interrupt_payload"]
 
 _DEFAULT_APPROVAL_TIMEOUT_SECONDS = 600
@@ -246,18 +260,24 @@ async def apply_approval_decisions(
                         record_decision(tool_name, "DOMAIN_APPROVED", f"domains: {domains}")
 
                 if allow_always:
-                    from myrm_agent_harness.agent.middlewares._session_context import (
-                        get_approval_user_id,
-                    )
+                    if _integration_mutation_blocks_allow_always(tool_call):
+                        logger.warning(
+                            "[APPROVAL] Ignoring allow_always for integration mutation on %s",
+                            tool_name,
+                        )
+                    else:
+                        from myrm_agent_harness.agent.middlewares._session_context import (
+                            get_approval_user_id,
+                        )
 
-                    user_id = get_approval_user_id() or DEFAULT_USER_ID
-                    await add_to_allowlist_if_needed(
-                        allow_always,
-                        user_id,
-                        permission_type,
-                        allowlist_tool_name,
-                        args_hashes.get(idx),
-                    )
+                        user_id = get_approval_user_id() or DEFAULT_USER_ID
+                        await add_to_allowlist_if_needed(
+                            allow_always,
+                            user_id,
+                            permission_type,
+                            allowlist_tool_name,
+                            args_hashes.get(idx),
+                        )
 
                 revised_tool_calls.append(tool_call)
 
@@ -308,18 +328,24 @@ async def apply_approval_decisions(
                     edit_applied = True
 
                 if edit_applied and allow_always:
-                    from myrm_agent_harness.agent.middlewares._session_context import (
-                        get_approval_user_id,
-                    )
+                    if _integration_mutation_blocks_allow_always(tool_call):
+                        logger.warning(
+                            "[APPROVAL] Ignoring allow_always for edited integration mutation on %s",
+                            tool_name,
+                        )
+                    else:
+                        from myrm_agent_harness.agent.middlewares._session_context import (
+                            get_approval_user_id,
+                        )
 
-                    user_id = get_approval_user_id() or DEFAULT_USER_ID
-                    await add_to_allowlist_if_needed(
-                        allow_always,
-                        user_id,
-                        permission_type,
-                        allowlist_tool_name,
-                        args_hashes.get(idx),
-                    )
+                        user_id = get_approval_user_id() or DEFAULT_USER_ID
+                        await add_to_allowlist_if_needed(
+                            allow_always,
+                            user_id,
+                            permission_type,
+                            allowlist_tool_name,
+                            args_hashes.get(idx),
+                        )
 
             else:
                 feedback = decision.get("feedback", "User rejected this action.")

@@ -41,6 +41,8 @@ from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer 
     analyze_command,
     has_block_threat,
     has_escalate_threat,
+    is_integration_mutation_command,
+    register_integration_write_patterns,
 )
 from myrm_agent_harness.toolkits.code_execution.security.validator import (
     EnvInheritPolicy,
@@ -88,6 +90,7 @@ __all__ = [
     "get_dangerous_modules",
     "has_block_threat",
     "has_escalate_threat",
+    "is_integration_mutation_command",
     "is_command_allowed",
     # Simplified interfaces
     "is_module_allowed",

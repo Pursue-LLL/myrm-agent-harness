@@ -57,7 +57,6 @@ ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset({
     "create_cron_tools",
     "create_delegate_to_agent_tool",
     "create_goal_tools",
-    "create_local_browser_data_tool",
     "create_memory_tools",
 })
 

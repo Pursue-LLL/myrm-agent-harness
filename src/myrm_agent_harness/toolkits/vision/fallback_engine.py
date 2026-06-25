@@ -1,7 +1,7 @@
 """Vision Fallback Engine
 
 [INPUT]
-myrm_agent_harness.agent.config.llm::LLMConfig (POS: 框架层大模型配置定义)
+myrm_agent_harness.core.config.llm::LLMConfig (POS: 框架层大模型配置定义)
 myrm_agent_harness.toolkits.llms.core.llm::create_litellm_model (POS: 框架层大模型创建器)
 myrm_agent_harness.utils.media.image_compressor::image_compressor (POS: 图像压缩工具)
 

@@ -75,7 +75,7 @@ ERROR_PATTERNS: tuple[str, ...] = (
 )
 
 # Search-related tools
-SEARCH_TOOLS: frozenset[str] = frozenset({"web_search_tool", "researcher_tool", "google_search"})
+SEARCH_TOOLS: frozenset[str] = frozenset({"web_search_tool", "researcher_tool"})
 
 # Prompt Injection patterns
 INJECTION_PATTERNS: tuple[str, ...] = (

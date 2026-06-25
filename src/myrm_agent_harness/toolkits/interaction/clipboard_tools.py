@@ -1,7 +1,6 @@
 """Clipboard interaction tools.
 
 [INPUT]
-- agent.streaming.types::AgentEventType (POS: Agent stream event types)
 - utils.runtime.progress_sink::get_tool_progress_sink (POS: Sink for emitting real-time tool progress)
 
 [OUTPUT]

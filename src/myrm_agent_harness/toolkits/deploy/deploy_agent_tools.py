@@ -4,8 +4,8 @@ Single ``deploy_artifact`` tool that handles preflight checks,
 HITL approval via LangGraph interrupt, and deployment execution.
 
 The harness defines a ``DeployBackend`` Protocol that the business layer
-must implement, keeping the framework decoupled from Vercel or any
-specific hosting provider.
+must implement, keeping the framework decoupled from any specific hosting
+provider.
 
 [INPUT]
 - (none)
@@ -48,8 +48,8 @@ class DeployBackend(Protocol):
     """Protocol that the business layer implements to handle actual deployment.
 
     The harness only defines the contract; ``myrm-agent-server`` provides
-    the concrete implementation that calls VercelClient, resolves tokens,
-    runs preflight, etc.
+    the concrete implementation that calls the hosting platform API,
+    resolves tokens, runs preflight, etc.
     """
 
     async def preflight(self, artifact_id: str) -> tuple[bool, str]:
@@ -65,9 +65,9 @@ class DeployBackend(Protocol):
         """Execute the deployment for the given artifact.
 
         The implementation is responsible for:
-        - Resolving the Vercel token (stored/platform)
+        - Resolving platform credentials
         - Collecting artifact files
-        - Calling the Vercel API
+        - Calling the hosting platform API
         - Persisting deployment state on the Artifact model
 
         Raises:
@@ -93,7 +93,7 @@ def create_deploy_tool(backend: DeployBackend) -> list[BaseTool]:
 
     @tool("deploy_artifact")
     async def deploy_artifact(artifact_id: str) -> str:
-        """Deploy an artifact to a hosting platform (currently Vercel).
+        """Deploy an artifact to a hosting platform.
 
         Use this tool ONLY when the user explicitly asks to deploy, publish,
         or put an artifact online. Do NOT call this for previewing artifacts.
@@ -124,7 +124,7 @@ def create_deploy_tool(backend: DeployBackend) -> list[BaseTool]:
             "type": "deploy_approval",
             "artifact_id": artifact_id,
             "artifact_name": display_name,
-            "message": f"Deploy \"{display_name}\" to Vercel?",
+            "message": f"Deploy \"{display_name}\"?",
         }
         response = interrupt(approval_payload)
 

@@ -6,6 +6,7 @@
 [INPUT]
 - langchain_core.tools::BaseTool (POS: LangChain 工具基类)
 - streaming.model_discipline::AGENT_CORE_RULES (POS: 反叙述 + 工具诚实规则，re-exported as AGENT_BEHAVIOR_RULES)
+- core.context_vars::{user_timezone_var, datetime_injection_enabled_var} (POS: 跨层 ContextVar)
 
 [OUTPUT]
 - DATETIME_TAG, DATETIME_TAG_END, DATETIME_SYSTEM_RULES: 标记常量与系统规则
@@ -25,7 +26,6 @@ agent behavior rules (anti-narration + tool honesty), and tool name normalizatio
 
 from __future__ import annotations
 
-from contextvars import ContextVar
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -33,6 +33,10 @@ from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent.streaming.model_discipline import (
     AGENT_CORE_RULES as AGENT_BEHAVIOR_RULES,
+)
+from myrm_agent_harness.core.context_vars import (
+    datetime_injection_enabled_var,
+    user_timezone_var,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -62,15 +66,6 @@ DATETIME_SYSTEM_RULES = (
     'Always use the latest `<current_datetime>` as your only "now" reference for all time-related reasoning.'
     "</datetime_rules>"
 )
-
-# ============================================================================
-# Agent 行为规则 — canonical source is model_discipline.AGENT_CORE_RULES
-# Re-exported here for backward-compatible imports.
-# ============================================================================
-
-
-user_timezone_var: ContextVar[str | None] = ContextVar("user_timezone", default=None)
-datetime_injection_enabled_var: ContextVar[bool] = ContextVar("datetime_injection_enabled", default=True)
 
 
 def set_user_timezone(timezone: str | None) -> None:

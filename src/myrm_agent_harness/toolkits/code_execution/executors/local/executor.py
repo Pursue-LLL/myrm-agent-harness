@@ -8,6 +8,7 @@ executors.common::CommandRewriter, VenvManager, ExecutionHelper (POS: Shared exe
 executors.base::CodeExecutor (POS: Code executor abstract base)
 code_execution.config::ExecutionConfig (POS: Execution configuration layer)
 code_execution.session::LocalPersistentSession (POS: Concrete persistent shell session)
+myrm_agent_harness.core.context_vars::user_timezone_var (POS: Cross-layer ContextVar registry)
 
 [OUTPUT]
 LocalExecutor: Unified local executor for Python code and Bash commands.
@@ -509,7 +510,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             pass
 
         try:
-            from myrm_agent_harness.agent.streaming.utils import user_timezone_var
+            from myrm_agent_harness.core.context_vars import user_timezone_var
 
             user_tz = user_timezone_var.get()
             if user_tz:

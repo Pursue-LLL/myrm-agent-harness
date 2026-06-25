@@ -21,7 +21,7 @@ web_fetch.fetchers.protocol::FetcherType, FetchResult (POS: Fetcher protocol typ
 web_fetch.antibot_detector::is_blocked (POS: Anti-bot detection)
 web_fetch.http3_probe::get_http3_retry_metrics (POS: QUIC egress probe and L1 retry metrics)
 web_fetch.router.adaptive_router::AdaptiveRouter (POS: Self-learning fetcher router)
-web_fetch.youtube_extractor::is_youtube_url, extract_youtube_transcript (POS: YouTube transcript extractor)
+web_fetch.youtube_extractor::is_youtube_url, extract_youtube_transcript (POS: YouTube transcript fast-path extractor with oEmbed metadata)
 browser.pool.proxy::ProxyPool (POS: Proxy pool for browser fetchers)
 browser.domain_filter::DomainAllowlist (POS: Domain allowlist filter)
 utils.lru_cache::LRUCache (POS: Generic TTL-based LRU cache)

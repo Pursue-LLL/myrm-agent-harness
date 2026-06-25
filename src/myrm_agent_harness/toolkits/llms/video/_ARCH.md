@@ -12,7 +12,8 @@ Video generation module — multi-provider video generation with failover.
 | generator.py | Core | Video generation orchestrator. | ✅ |
 | models.py | Core | Pure data types with no business logic. Mirrors the image module's | — |
 | task_store.py | Core | Framework provides Protocol + two implementations (in-memory default, file-based). | — |
-| video_engine.py | Core | Video generation tools for the agent. | ✅ |
+| video_engine.py | Core | Video generation engine class for Agent integration. | ✅ |
+| video_langchain_tool.py | Core | LangChain `video_tool` BaseTool wrapper (`generate` / `status` / `list`). | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

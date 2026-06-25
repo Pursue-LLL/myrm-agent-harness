@@ -33,7 +33,6 @@ Generic, framework-agnostic toolkit collection. No agent coupling — each toolk
 - retriever: retrieval and reranking tools
 - storage: storage service
 - web_fetch: layered crawl engine
-- local_browser_data: local browser data search (Chrome/Edge bookmarks and history)
 - deploy: artifact deployment to hosting platforms
 - web_search: web search tools
 """
@@ -56,7 +55,6 @@ __all__ = [
     "create_deploy_tool",
     "create_delegate_to_agent_tool",
     "create_litellm_model",
-    "create_local_browser_data_tool",
     "create_memory_tools",
     "create_web_fetch_tool",
     "create_web_search_tool",
@@ -88,10 +86,6 @@ _LAZY_IMPORTS = {
     "create_delegate_to_agent_tool": (
         "myrm_agent_harness.toolkits.acp.acp_agent_tools",
         "create_delegate_to_agent_tool",
-    ),
-    "create_local_browser_data_tool": (
-        "myrm_agent_harness.toolkits.local_browser_data",
-        "create_local_browser_data_tool",
     ),
 }
 

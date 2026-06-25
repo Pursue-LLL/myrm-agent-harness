@@ -46,6 +46,7 @@ if TYPE_CHECKING:
 
 # Blueprint filler: (blueprint_id, values_dict, tz) -> (schedule_dict, prompt, name) | None
 BlueprintFiller = Callable[[str, dict[str, str], str | None], tuple[dict[str, str | int | None], str, str] | None]
+DeliveryResolver = Callable[[str], DeliveryConfig]
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,7 @@ def create_cron_tools(
     agent_id: str | None = None,
     blueprint_catalog: str = "",
     blueprint_filler: BlueprintFiller | None = None,
+    delivery_resolver: DeliveryResolver | None = None,
 ) -> list[BaseTool]:
     """Create a single cron management tool bound to a user.
 
@@ -87,8 +89,18 @@ def create_cron_tools(
 
     ``blueprint_filler`` is a callable that fills a blueprint by ID and slot
     values, returning (schedule_dict, prompt, name) or None if unknown.
+
+    ``delivery_resolver`` maps webhook URLs to ``DeliveryConfig``. When omitted,
+    non-empty URLs use generic ``webhook`` delivery (no channel-specific heuristics).
     """
     _blueprint_suffix = f"\n\n{blueprint_catalog}" if blueprint_catalog else ""
+
+    def _resolve_delivery(webhook_url: str) -> DeliveryConfig:
+        if delivery_resolver is not None:
+            return delivery_resolver(webhook_url)
+        if not webhook_url.strip():
+            return DeliveryConfig(channel="chat")
+        return DeliveryConfig(channel="webhook", target=webhook_url)
 
     @tool("cron_manage_tool")
     async def cron_manage(
@@ -243,6 +255,7 @@ def create_cron_tools(
                 expires_after,
                 agent_id=agent_id,
                 context_from=context_from,
+                resolve_delivery=_resolve_delivery,
             ),
             "list": lambda: _do_list(manager, user_id, name_filter),
             "update": lambda: _do_update(
@@ -311,18 +324,6 @@ def _build_schedule(
         return None, Schedule(kind=ScheduleKind.ONCE, run_at=run_at)
 
     return "Could not determine schedule type.", None
-
-
-def _resolve_delivery(webhook_url: str) -> DeliveryConfig:
-    """Map a webhook URL to a DeliveryConfig."""
-    if not webhook_url:
-        return DeliveryConfig(channel="chat")
-
-    url_lower = webhook_url.lower()
-    if "open.feishu.cn" in url_lower or "open.larksuite.com" in url_lower:
-        return DeliveryConfig(channel="feishu", target=webhook_url)
-
-    return DeliveryConfig(channel="webhook", target=webhook_url)
 
 
 # ---------------------------------------------------------------------------
@@ -394,6 +395,8 @@ async def _do_add(
     expires_after: str = "",
     agent_id: str | None = None,
     context_from: str = "",
+    *,
+    resolve_delivery: DeliveryResolver,
 ) -> str:
     has_prompt = bool(prompt.strip())
     has_command = bool(command.strip())
@@ -422,8 +425,8 @@ async def _do_add(
         job_type = JobType.AGENT
         task_name = name.strip() or generate_job_name(prompt.strip())
 
-    delivery = _resolve_delivery(webhook_url)
-    failure_delivery = _resolve_delivery(failure_webhook_url) if failure_webhook_url.strip() else None
+    delivery = resolve_delivery(webhook_url)
+    failure_delivery = resolve_delivery(failure_webhook_url) if failure_webhook_url.strip() else None
     active_hours = _build_active_hours(active_start, active_end, active_tz)
 
     effective_max_fires: int | None = max_fires if max_fires > 0 else None

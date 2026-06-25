@@ -53,8 +53,9 @@ class ImageValidator:
     per request.  Pass ``ssrf_protection=True`` to enable L4 checks.
     """
 
-    def __init__(self, *, ssrf_protection: bool = False) -> None:
+    def __init__(self, *, ssrf_protection: bool = False, allow_private_networks: bool = False) -> None:
         self._ssrf = ssrf_protection
+        self._allow_private_networks = allow_private_networks
 
     # ------------------------------------------------------------------
     # Public API
@@ -170,7 +171,7 @@ class ImageValidator:
         self._l4_ssrf(url)
 
     def _l4_ssrf(self, url: str) -> None:
-        if not self._ssrf:
+        if not self._ssrf or self._allow_private_networks:
             return
 
         try:

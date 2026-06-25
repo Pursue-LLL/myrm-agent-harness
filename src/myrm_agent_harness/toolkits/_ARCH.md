@@ -36,15 +36,16 @@ Is this a specific vendor/product integration (Google Calendar, HF Hub, RSS feed
 ```
 
 `tests/architecture/test_toolkits_agent_boundary.py` fails if any
-`toolkits/**/*.py` imports `myrm_agent_harness.agent.*`.
+`toolkits/**/*.py` imports `myrm_agent_harness.agent.*`, `myrm_agent_harness.runtime.*`,
+or `myrm_agent_harness.backends.*`.
 
 ## Category Index
 
 | Category | Toolkits | Role |
 |----------|----------|------|
 | **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `network/`, `security/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP, SSRF guard |
-| **Workspace** | `browser/`, `computer_use/`, `code_index/`, `workspace/`, `context/`, `file_parsers/`, `wiki/`, `element_ref/` | Files, browser, desktop, code search, context bundles |
-| **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/`, `deploy/`, `local_browser_data/`, `notification/` | External APIs, agent protocols, channels, deployment bridges |
+| **Workspace** | `browser/`, `computer_use/`, `workspace/`, `context/`, `file_parsers/`, `wiki/`, `element_ref/` | Files, browser, desktop, context bundles |
+| **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/`, `deploy/`, `notification/` | External APIs, agent protocols, channels, deployment bridges |
 | **Collaboration & Media** | `kanban/`, `tasks/`, `commitment/`, `automation/`, `cron/`, `interaction/`, `tts/`, `vision/` | Scheduling, tasks, user interaction primitives, media |
 | **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |
 
@@ -101,7 +102,6 @@ Does your code need to import anything from agent/?
 | automation/ | Rule-based agent task automation — CRUD for automation rules (event/schedule/manual triggers). |
 | browser/ | Browser automation — multi-tab control, iframe traversal, session vault, stealth mode. |
 | code_execution/ | Code execution system — Agent-in-Sandbox mode with multiple executor backends. |
-| code_index/ | Workspace code indexer — on-demand FTS5+Vector hybrid search over source code files. |
 | commitment/ | Commitment tracking — implicit promise detection and follow-up from conversations. |
 | computer_use/ | System-wide desktop automation — screen capture + coordinate-based input (macOS/Linux). |
 | cron/ | Scheduled task framework — scheduling engine, CRUD manager, built-in strategies. |
@@ -111,8 +111,7 @@ Does your code need to import anything from agent/?
 | file_parsers/ | File format parsers — PDF, DOCX, Excel, text, and structured data extraction. |
 | interaction/ | User interaction primitives — AskQuestion dialog and clipboard operations (UI rendering: `agent/meta_tools/interaction/`) |
 | kanban/ | Durable multi-task scheduling — heartbeat, zombie detection, run/event audit trail. |
-| llms/ | LLM manager and adapters — 100+ provider support, citation extraction, image gen/edit. |
-| local_browser_data/ | Local browser data search — Chrome/Edge bookmarks and history indexing. |
+| llms/ | LLM manager and adapters — 100+ provider support, citation extraction, image gen/edit (via `image_langchain_tool` / `video_langchain_tool` BaseTool wrappers). |
 | mcp/ | MCP protocol support — client management, tool fetching, connection pooling. |
 | memory/ | Pluggable memory system — vector/relational/graph storage for AI agents. |
 | notification/ | Cross-channel notification delivery — Protocol-based sender with rate limiting and whitelist security. |

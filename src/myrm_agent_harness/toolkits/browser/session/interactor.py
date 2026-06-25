@@ -369,23 +369,6 @@ class Interactor:
                 healed_msg = f" [Auto-Healed to '{new_name or ref_info.name}']"
                 logger.info(f"Interactor: locator for {ref} self-healed.{healed_msg}")
 
-                try:
-                    from myrm_agent_harness.runtime.events.bus import get_event_bus
-                    from myrm_agent_harness.runtime.events.system_events import LocatorSelfHealedEvent
-
-                    get_event_bus().publish(
-                        LocatorSelfHealedEvent(
-                            ref=ref,
-                            old_name=ref_info.name,
-                            new_name=new_name or ref_info.name,
-                            url=self._page.url,
-                            role=ref_info.role,
-                            distance=distance,
-                        )
-                    )
-                except Exception as e:
-                    logger.debug(f"Failed to publish LocatorSelfHealedEvent: {e}")
-
         from myrm_agent_harness.toolkits.browser.wait_strategies import (
             WaitStrategy,
             wait_for_page_ready,

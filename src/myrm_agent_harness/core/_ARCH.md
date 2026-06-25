@@ -8,6 +8,7 @@ Framework-agnostic foundation layer. Provides security, config, events, hooks, a
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Core layer entry — module docstring only, no re-exports at this level. | — |
+| context_vars.py | Core | Cross-layer ContextVar registry shared by agent/ and toolkits/ without coupling. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

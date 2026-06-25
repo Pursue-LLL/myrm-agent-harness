@@ -48,9 +48,8 @@ class ToolLayer(IntEnum):
 #
 # 工具名称必须与 @tool() 装饰器中声明的名称完全一致
 #
-# 架构边界:此处登记 harness 框架自有工具。业务层(myrm-agent-server)中依赖
-# 特定第三方 SDK 的工具(x_search_tool / IM 群组管理 3 个)由 server 启动时
-# 通过 `register_tool_layer()` 动态注册,以维持框架-业务层分离原则。
+# 架构边界:此处登记 harness 框架自有工具。业务层 vendor 集成 tool（如 x_search_tool）
+# 在 myrm-agent-server 通过 skill-gated deferred 注册,以维持框架-业务层分离原则。
 _TOOL_LAYERS: dict[str, ToolLayer] = {
     # ============================================================
     # CORE - 始终加载且不可关闭(放最前面,永远缓存)
@@ -83,7 +82,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "browser_extract_tool": ToolLayer.EXTENDED,
     "browser_inspect_tool": ToolLayer.EXTENDED,
     "browser_interact_tool": ToolLayer.EXTENDED,
-    "browser_local_search_tool": ToolLayer.EXTENDED,
     "browser_manage_tool": ToolLayer.EXTENDED,
     "browser_navigate_tool": ToolLayer.EXTENDED,
     "browser_execute_script_tool": ToolLayer.EXTENDED,
@@ -117,6 +115,8 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # --- 交互工具 ---
     "ask_question_tool": ToolLayer.EXTENDED,
     "tts_generate": ToolLayer.EXTENDED,
+    "image_tool": ToolLayer.EXTENDED,
+    "video_tool": ToolLayer.EXTENDED,
     "render_ui_tool": ToolLayer.EXTENDED,
     "write_to_clipboard_tool": ToolLayer.EXTENDED,
     # --- 看板 (Worker tools) ---

@@ -1,6 +1,6 @@
 """
 [INPUT]
-myrm_agent_harness.agent.security.path_security::safe_join_path (POS: Workspace path boundary guard)
+myrm_agent_harness.core.security.path_security::safe_join_path (POS: Workspace path boundary guard)
 myrm_agent_harness.toolkits.workspace.indexer::WorkspacePathIndexer (POS: Local workspace file enumerator)
 
 [OUTPUT]

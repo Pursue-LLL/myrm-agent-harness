@@ -14,9 +14,9 @@ from .types import ModelProfile, get_profile, list_profiles, register_profile
 from .validator import ValidationError
 
 if TYPE_CHECKING:
-    from .async_image_generation_tools import AsyncImageGenerationTools
+    from .async_image_engine import AsyncImageGenerationTools
     from .generator import ImageGenerator
-    from .image_generation_tools import ImageGenerationTools
+    from .image_engine import ImageGenerationTools
     from .validator import ImageValidator
 
 __all__ = [
@@ -48,7 +48,7 @@ if __debug__:
 def __getattr__(name: str) -> type:
     """Lazy load heavy classes on first access."""
     if name == "AsyncImageGenerationTools":
-        from .async_image_generation_tools import AsyncImageGenerationTools
+        from .async_image_engine import AsyncImageGenerationTools
 
         globals()[name] = AsyncImageGenerationTools
         return AsyncImageGenerationTools
@@ -58,7 +58,7 @@ def __getattr__(name: str) -> type:
         globals()[name] = ImageGenerator
         return ImageGenerator
     if name == "ImageGenerationTools":
-        from .image_generation_tools import ImageGenerationTools
+        from .image_engine import ImageGenerationTools
 
         globals()[name] = ImageGenerationTools
         return ImageGenerationTools

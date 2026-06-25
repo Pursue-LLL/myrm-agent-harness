@@ -2,7 +2,7 @@
 
 
 [INPUT]
-- myrm_agent_harness.agent.security.path_security::safe_join_path (POS: Path security checks)
+- myrm_agent_harness.core.security.path_security::safe_join_path (POS: Path security checks)
 - _fs_backend::BaseFileSystemBackend (POS: file system storage backend base class)
 - base::StorageError (POS: storage exception types)
 - pathlib::Path (POS: Python path library)

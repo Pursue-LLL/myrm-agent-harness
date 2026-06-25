@@ -114,7 +114,7 @@
 | 40 | browser_extract_tool | 95 | `harness/toolkits/browser/tools/extract.py` | 内容提取 |
 | 41 | browser_inspect_tool | 82 | `harness/toolkits/browser/tools/inspect.py` | 元素检查 |
 | 42 | browser_manage_tool | 159 | `harness/toolkits/browser/tools/manage.py` | 浏览器管理 |
-| 43 | browser_local_search_tool | 113 | `harness/toolkits/local_browser_data/local_browser_data_agent_tools.py` | 本地浏览器书签/历史搜索 |
+| 43 | browser_local_search_tool | 113 | `myrm-agent-server/app/services/local_browser/local_browser_data_agent_tools.py` | 本地浏览器书签/历史搜索（server 层，local mode） |
 
 ### 4.8 Bash 后台进程工具（启用 Bash 时加载）
 
@@ -238,7 +238,7 @@
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
-| 88 | x_search_tool | 77 | `server/ai_agents/general_agent/tools/x_search_provider.py` | X/Twitter 实时搜索（xAI Live Search API） | 配置 xAI provider 时 |
+| 88 | x_search_tool | 77 | `server/integrations/tools/x_live_search.py` | X/Twitter 实时搜索（xAI Live Search API） | Agent 启用 `x-live-search` prebuilt skill 时 [Deferred] |
 
 ---
 

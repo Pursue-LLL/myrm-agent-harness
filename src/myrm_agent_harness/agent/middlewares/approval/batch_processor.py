@@ -491,6 +491,37 @@ async def evaluate_tool_batch(
                     )
                 )
                 continue
+            shell_cmd = str(tool_input.get("command", "") or tool_input.get("code", "")).strip()
+            if (
+                permission_type in ("shell_exec", "code_interpreter")
+                and shell_cmd
+            ):
+                from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer import (
+                    is_integration_mutation_command,
+                )
+
+                if is_integration_mutation_command(shell_cmd):
+                    logger.warning(
+                        "[CRON_POLICY] Tool %s DENIED in cron session %s: "
+                        "integration write mutations are never pre-approved",
+                        tool_name,
+                        session_key,
+                    )
+                    record_decision(
+                        tool_name,
+                        "CRON_DENY",
+                        "cron fail-closed: integration write mutation",
+                    )
+                    hint = record_denial(tool_name)
+                    auto_denied.append(
+                        (
+                            idx,
+                            tool_call,
+                            "Tool denied: cron jobs cannot auto-approve Google/integration write "
+                            f"operations.{hint}",
+                        )
+                    )
+                    continue
             logger.warning(
                 "[CRON_POLICY] Tool %s ASK promoted to ALLOW in cron session %s: "
                 "Capability Fence declaration acts as pre-approval",

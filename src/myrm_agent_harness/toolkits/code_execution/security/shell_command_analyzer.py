@@ -228,6 +228,33 @@ _SUSPICIOUS_PATTERNS_COMPILED: tuple[tuple[re.Pattern[str], str], ...] = tuple(
 
 
 # ---------------------------------------------------------------------------
+# Layer 3b: ESCALATE — third-party integration write mutations (quote-stripped)
+# Registered at runtime by the business layer via register_integration_write_patterns().
+# ---------------------------------------------------------------------------
+
+_EXTRA_INTEGRATION_WRITE_PATTERNS: list[tuple[re.Pattern[str], str]] = []
+
+
+def register_integration_write_patterns(patterns: tuple[tuple[str, str], ...]) -> None:
+    """Register business-layer integration write-detection regex patterns.
+
+    Harness ships with zero vendor-specific rules; myrm-agent-server registers
+    patterns (e.g. Google Workspace) at startup. Duplicate pattern strings are ignored.
+    """
+    existing = {compiled.pattern for compiled, _ in _EXTRA_INTEGRATION_WRITE_PATTERNS}
+    for pattern, desc in patterns:
+        compiled = re.compile(pattern, re.IGNORECASE)
+        if compiled.pattern in existing:
+            continue
+        _EXTRA_INTEGRATION_WRITE_PATTERNS.append((compiled, desc))
+        existing.add(compiled.pattern)
+
+
+def _integration_write_patterns_compiled() -> tuple[tuple[re.Pattern[str], str], ...]:
+    return tuple(_EXTRA_INTEGRATION_WRITE_PATTERNS)
+
+
+# ---------------------------------------------------------------------------
 # Quote-aware preprocessing — character-level state machine
 # ---------------------------------------------------------------------------
 
@@ -449,8 +476,30 @@ def analyze_command(command: str) -> tuple[CommandThreat, ...]:
                 )
             )
 
+    for pattern, desc in _integration_write_patterns_compiled():
+        match = pattern.search(normalized)
+        if match:
+            threats.append(
+                CommandThreat(
+                    level=ThreatLevel.ESCALATE,
+                    category="integration_mutation",
+                    detail=desc,
+                    evidence=match.group(0),
+                )
+            )
+
     threats.sort(key=lambda t: 0 if t.level == ThreatLevel.BLOCK else 1)
     return tuple(threats)
+
+
+def is_integration_mutation_command(command: str) -> bool:
+    """Return True when a shell command performs a third-party integration write."""
+    stripped = _strip_quoted_content(command)
+    normalized = " ".join(stripped.split())
+    for pattern, _desc in _integration_write_patterns_compiled():
+        if pattern.search(normalized):
+            return True
+    return False
 
 
 def has_block_threat(command: str) -> CommandThreat | None:
