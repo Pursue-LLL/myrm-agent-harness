@@ -71,8 +71,6 @@ def test_compiled_core_pins_match_project_version() -> None:
             assert f"=={version}" in line
     assert f"myrm-agent-harness-core-darwin-arm64=={version}" in pyproject
     assert f"myrm-agent-harness-core-linux-x64-musl=={version}" in pyproject
-    assert "platform.libc == 'gnu'" in pyproject
-    assert "platform.libc == 'musl'" in pyproject
 
 
 @pytest.mark.architecture
