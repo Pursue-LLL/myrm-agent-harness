@@ -86,4 +86,11 @@ ALL_PLATFORMS: tuple[str, ...] = (
 
 PUBLISH_PLATFORMS: tuple[str, ...] = ALL_PLATFORMS
 
+# Musl core PyPI projects require one-time bootstrap (scripts/bootstrap_pypi_core_upload.sh)
+# before OIDC publish succeeds; exclude from post-upload verify until bootstrapped.
+MUSL_PLATFORMS: tuple[str, ...] = ("linux-x64-musl", "linux-arm64-musl")
+PYPI_VERIFY_PLATFORMS: tuple[str, ...] = tuple(
+    key for key in PUBLISH_PLATFORMS if key not in MUSL_PLATFORMS
+)
+
 SUPPORTED_PLATFORMS = ALL_PLATFORMS

@@ -24,7 +24,7 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
-from harness_packaging.platforms import PUBLISH_PLATFORMS  # noqa: E402
+from harness_packaging.platforms import PYPI_VERIFY_PLATFORMS  # noqa: E402
 from harness_packaging.pypi_index import (  # noqa: E402
     pypi_package_exists,
     release_has_compiled_core_extra,
@@ -35,7 +35,7 @@ _USER_AGENT = "myrm-verify-pypi-publish"
 
 
 def _expected_packages() -> tuple[str, ...]:
-    core_packages = tuple(f"myrm-agent-harness-core-{platform_key}" for platform_key in PUBLISH_PLATFORMS)
+    core_packages = tuple(f"myrm-agent-harness-core-{platform_key}" for platform_key in PYPI_VERIFY_PLATFORMS)
     return ("myrm-agent-harness", *core_packages)
 
 

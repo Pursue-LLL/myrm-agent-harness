@@ -90,7 +90,7 @@ Tag `v*` (e.g. `v0.1.0rc1`, aligned with `project.version`) in **myrm-agent-harn
 2. Build stripped release wheel
 3. `publish-release` job uploads the release wheel (OIDC, `environment: pypi`)
 4. `publish-core` matrix (one job per platform) uploads each core wheel — OIDC tokens are project-scoped; batch upload fails with 403
-5. `publish-verify` runs `scripts/verify_pypi_publish.py` (release must expose `[compiled-core]` extra; `skip-existing` on re-runs)
+5. `publish-verify` runs `scripts/verify_pypi_publish.py` (release + 6 bootstrapped core wheels; musl optional until `bootstrap_pypi_core_upload.sh`)
 
 Alpine/musl deployments: use `compiled-core-musl` extra (or `install.sh` `reinstall_harness_musl_core()` after `uv sync`). PEP 508 cannot distinguish glibc vs musl on Linux; do not install both linux extras on the same host.
 
