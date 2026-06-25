@@ -618,15 +618,17 @@ class BashExecutor:
         """Detect skill name from Python import patterns or .claude/skills paths."""
         import re
 
-        match = re.search(r"from\s+skills\.([a-zA-Z0-9_]+)\s+import", code)
+        from myrm_agent_harness.agent.skills.runtime.env import detect_skill_script_command
+
+        detected, skill_name = detect_skill_script_command(code)
+        if detected and skill_name:
+            return skill_name
+
+        match = re.search(r"from\s+skills\.([a-zA-Z0-9_-]+)\s+import", code)
         if match:
             return match.group(1)
 
-        match = re.search(r"import\s+skills\.([a-zA-Z0-9_]+)", code)
-        if match:
-            return match.group(1)
-
-        match = re.search(r"\.claude/skills/([a-zA-Z0-9_]+)/", code)
+        match = re.search(r"import\s+skills\.([a-zA-Z0-9_-]+)", code)
         if match:
             return match.group(1)
 

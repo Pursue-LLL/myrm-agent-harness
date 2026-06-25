@@ -6,8 +6,6 @@ dependency pattern adapted for Python / PEP 425 platform tags.
 
 from __future__ import annotations
 
-import platform
-import sys
 from dataclasses import dataclass
 
 
@@ -18,48 +16,15 @@ class PlatformSpec:
     key: str
     package_suffix: str
     nuitka_target: str | None
-
-
-def _is_musl_linux() -> bool:
-    if sys.platform != "linux":
-        return False
-    report_getter = getattr(getattr(sys, "report", None), "getReport", None)
-    if report_getter is None:
-        return False
-    report = report_getter()
-    header = report.get("header") if isinstance(report, dict) else None
-    if not isinstance(header, dict):
-        return False
-    return header.get("glibcVersionRuntime") is None
-
-
-def _normalize_machine(raw: str) -> str:
-    machine = raw.lower()
-    if machine in {"amd64", "x86_64"}:
-        return "x64"
-    if machine in {"aarch64", "arm64"}:
-        return "arm64"
-    return machine
+    pep508_marker: str
+    is_musl: bool = False
 
 
 def get_current_platform() -> PlatformSpec:
     """Detect the current platform for core wheel selection."""
-    machine = _normalize_machine(platform.machine())
-    if sys.platform == "darwin":
-        key = f"darwin-{machine}"
-        return PlatformSpec(key=key, package_suffix=key, nuitka_target=f"macos-{machine}")
-    if sys.platform == "linux":
-        libc = "musl" if _is_musl_linux() else ""
-        key = f"linux-{machine}{'-musl' if libc else ''}"
-        nuitka = f"linux-{machine}"
-        if libc:
-            nuitka = f"{nuitka}-musl"
-        return PlatformSpec(key=key, package_suffix=key, nuitka_target=nuitka)
-    if sys.platform == "win32":
-        key = f"win32-{machine}"
-        return PlatformSpec(key=key, package_suffix=key, nuitka_target=f"windows-{machine}-msvc")
-    msg = f"Unsupported platform for compiled core wheels: {sys.platform} {platform.machine()}"
-    raise RuntimeError(msg)
+    from myrm_agent_harness._runtime_platform import get_runtime_platform_key
+
+    return platform_spec_for_key(get_runtime_platform_key())
 
 
 def platform_spec_for_key(key: str) -> PlatformSpec:
@@ -67,13 +32,37 @@ def platform_spec_for_key(key: str) -> PlatformSpec:
     if key not in ALL_PLATFORMS:
         msg = f"Unknown platform key: {key!r}. Expected one of {ALL_PLATFORMS}"
         raise ValueError(msg)
-    os_name, machine = key.split("-", 1)
+    os_name, remainder = key.split("-", 1)
+    is_musl = remainder.endswith("-musl")
+    machine = remainder.removesuffix("-musl")
     if os_name == "darwin":
-        return PlatformSpec(key=key, package_suffix=key, nuitka_target=f"macos-{machine}")
+        marker = (
+            "platform_system == 'Darwin' and platform_machine == 'arm64'"
+            if machine == "arm64"
+            else "platform_system == 'Darwin' and platform_machine == 'x86_64'"
+        )
+        return PlatformSpec(key=key, package_suffix=key, nuitka_target=f"macos-{machine}", pep508_marker=marker)
     if os_name == "linux":
-        return PlatformSpec(key=key, package_suffix=key, nuitka_target=f"linux-{machine}")
+        nuitka = f"linux-{machine}{'-musl' if is_musl else ''}"
+        marker = (
+            "platform_system == 'Linux' and platform_machine == 'x86_64'"
+            if machine == "x64"
+            else "platform_system == 'Linux' and platform_machine == 'aarch64'"
+        )
+        return PlatformSpec(
+            key=key,
+            package_suffix=key,
+            nuitka_target=nuitka,
+            pep508_marker=marker,
+            is_musl=is_musl,
+        )
     if os_name == "win32":
-        return PlatformSpec(key=key, package_suffix=key, nuitka_target=f"windows-{machine}-msvc")
+        marker = (
+            "platform_system == 'Windows' and platform_machine == 'AMD64'"
+            if machine == "x64"
+            else "platform_system == 'Windows' and platform_machine == 'ARM64'"
+        )
+        return PlatformSpec(key=key, package_suffix=key, nuitka_target=f"windows-{machine}-msvc", pep508_marker=marker)
     msg = f"Unsupported platform key: {key!r}"
     raise ValueError(msg)
 
@@ -89,18 +78,12 @@ ALL_PLATFORMS: tuple[str, ...] = (
     "darwin-x64",
     "linux-x64",
     "linux-arm64",
+    "linux-x64-musl",
+    "linux-arm64-musl",
     "win32-x64",
     "win32-arm64",
 )
 
-# PyPI publish scope: align with server Windows/Linux/macOS deployment targets.
-PUBLISH_PLATFORMS: tuple[str, ...] = (
-    "darwin-arm64",
-    "darwin-x64",
-    "linux-x64",
-    "linux-arm64",
-    "win32-x64",
-    "win32-arm64",
-)
+PUBLISH_PLATFORMS: tuple[str, ...] = ALL_PLATFORMS
 
 SUPPORTED_PLATFORMS = ALL_PLATFORMS

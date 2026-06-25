@@ -11,18 +11,18 @@ _TEST_FILE = Path(__file__).resolve()
 
 
 def _resolve_harness_root() -> Path:
-    """Resolve harness repo root from tests/ regardless of monorepo layout."""
-    direct_root = _TEST_FILE.parents[1]
+    """Resolve harness repo root from tests/architecture/ regardless of monorepo layout."""
+    direct_root = _TEST_FILE.parents[2]
     if (direct_root / "src" / "myrm_agent_harness").is_dir():
         return direct_root
 
-    monorepo_root = _TEST_FILE.parents[2]
+    monorepo_root = _TEST_FILE.parents[3]
     nested_root = monorepo_root / "myrm-agent-harness"
     if (nested_root / "src" / "myrm_agent_harness").is_dir():
         return nested_root
 
     raise RuntimeError(
-        "Could not locate myrm-agent-harness root from tests/test_readme_claims.py"
+        "Could not locate myrm-agent-harness root from tests/architecture/test_readme_claims.py"
     )
 
 
@@ -90,7 +90,7 @@ def test_readme_does_not_overstate_test_count() -> None:
         (
             "Docker",
             None,
-            Path("src") / "myrm_control_plane" / "infra" / "compute" / "docker_operations.py",
+            Path("src") / "myrm_control_plane" / "infra" / "compute" / "docker_operations" / "__init__.py",
             "DockerOperations",
         ),
         (

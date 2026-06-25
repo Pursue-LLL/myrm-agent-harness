@@ -7,9 +7,10 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 
 | File | Role | Description |
 |------|------|-------------|
-| core_manifest.yaml | Core | List of core IP modules compiled to `.so` |
-| manifest.py | Core | Manifest loader and path validation |
-| platforms.py | Core | Platform key detection (six platforms) |
+| core_manifest.yaml | Core | Core IP directories + explicit modules (SSOT) |
+| manifest.py | Core | Manifest loader: explicit modules + directory expansion |
+| codegen.py | Core | Codegen `_core_ip_manifest.py` + compiled-core version pins |
+| platforms.py | Core | Platform keys + PEP508 markers; runtime detection via `_runtime_platform` |
 | pypi_index.py | Core | PyPI JSON probes (package exists, compiled-core extra) |
 | release.py | Core | Strip manifest `.py` in-place (PEP 427 compliant) |
 | assemble.py | Core | Unified production wheel assembly + venv install + post-install verify |
@@ -19,11 +20,12 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 
 | Script | Role |
 |--------|------|
+| `scripts/sync_distribution_metadata.py` | Regenerate `_core_ip_manifest.py` + pyproject compiled-core pins |
 | `scripts/build_core.py` | Nuitka compile + platform core wheel (static force-include) |
 | `scripts/build_release_wheel.py` | Release wheel via `uv build` + strip manifest `.py` |
 | `scripts/assemble_production.py` | Full production pipeline + optional `--install` |
 | `scripts/verify_release_tag.py` | Assert `refs/tags/v*` matches `project.version` before wheel builds |
-| `scripts/verify_pypi_publish.py` | Post-upload PyPI index gate (7 packages + compiled-core extra) |
+| `scripts/verify_pypi_publish.py` | Post-upload PyPI index gate (release + 8 core wheels + compiled-core extra) |
 
 ## Key Dependencies
 
@@ -32,7 +34,7 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 
 ## PyPI
 
-Tag `v*` → `.github/workflows/publish-pypi.yml` uploads release + six platform core wheels.
+Tag `v*` → `.github/workflows/publish-pypi.yml` uploads release + eight platform core wheels.
 
 ## System Design
 

@@ -30,13 +30,15 @@ Ship `myrm-agent-harness` as a **closed-source Python package** that third-party
 |-----------|------|------|
 | Public API | `src/myrm_agent_harness/api/` | Stable import surface (factory, Protocol, DTO) |
 | Core manifest | `harness_packaging/core_manifest.yaml` | Modules compiled to native extensions |
-| Platform detection | `harness_packaging/platforms.py` | Six supported platform keys |
+| Platform detection | `harness_packaging/platforms.py` | Eight supported platform keys (incl. linux-*-musl) |
+| Metadata codegen | `scripts/sync_distribution_metadata.py` | Generate `_core_ip_manifest.py` + sync compiled-core pins |
 | Core build | `scripts/build_core.py` | Nuitka `--module` + static hatch `force-include` wheel |
 | Release build | `scripts/build_release_wheel.py` | `uv build --wheel` + strip manifest `.py` |
 | Browser data assets | `pyproject.toml` `[tool.hatch.build.targets.wheel.force-include]` | Ships `toolkits/browser/assets/ad_domains.txt` in release wheel (guard: `tests/architecture/test_wheel_browser_assets.py`) |
 | Production assemble | `scripts/assemble_production.py` | Core + release + optional `--install` |
 | Post-install verify | `src/myrm_agent_harness/_verify_distribution.py` | Console script `verify-harness-distribution` |
-| Distribution probe | `src/myrm_agent_harness/_distribution.py` | `source` vs `compiled` + fail-closed + core/release version match |
+| Distribution probe | `src/myrm_agent_harness/_distribution.py` | `source` vs `compiled` + fail-closed + version + platform key match |
+| Runtime platform | `src/myrm_agent_harness/_runtime_platform.py` | Platform key SSOT for install validation and build tooling |
 
 ## Build Pipeline
 
@@ -89,6 +91,8 @@ Tag `v*` (e.g. `v0.1.0rc1`, aligned with `project.version`) in **myrm-agent-harn
 3. `publish-release` job uploads the release wheel (OIDC, `environment: pypi`)
 4. `publish-core` matrix (one job per platform) uploads each core wheel — OIDC tokens are project-scoped; batch upload fails with 403
 5. `publish-verify` runs `scripts/verify_pypi_publish.py` (release must expose `[compiled-core]` extra; `skip-existing` on re-runs)
+
+Alpine/musl deployments: `install.sh` reinstalls `myrm-agent-harness-core-{platform}-musl` after `uv sync`, or use `assemble_production.py`.
 
 CI build jobs use `uv sync --only-group build --frozen` and `uv run --no-project` so the editable project is not installed before wheels exist on PyPI.
 

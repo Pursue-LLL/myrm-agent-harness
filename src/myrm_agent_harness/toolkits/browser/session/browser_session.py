@@ -1252,6 +1252,9 @@ class BrowserSession(
         self._console_logger.detach_current()
         await self._network_intelligence.detach()
 
+        if self._auto_restore_domains and self._persistence:
+            await self._auto_save_sessions_before_close()
+
         await self._tab_controller.close_all()
 
         # Explicitly destroy the underlying BrowserContext to prevent memory leaks
@@ -1284,6 +1287,50 @@ class BrowserSession(
             self._observability.cleanup_recording(video_path)
 
         logger.info("BrowserSession: closed session")
+
+    async def _auto_save_sessions_before_close(self) -> None:
+        """Auto-save sessions for configured auto_restore_domains before closing.
+
+        Only saves domains that have relevant cookies in the current context
+        and haven't been saved with identical state already (hash diff).
+        """
+        try:
+            page = self._tab_controller.get_active_page()
+            context = page.context
+            storage_state = await context.storage_state()
+        except Exception as exc:
+            logger.warning("Auto-save skipped (cannot access browser context): %s", exc)
+            return
+
+        cookies = storage_state.get("cookies", [])
+        hook = getattr(self, "_session_lifecycle_hook", None)
+        if hook is not None:
+            from .browser_session_persistence_mixin import _fire_and_forget, _parse_counts
+        for domain in self._auto_restore_domains:
+            try:
+                has_cookies = any(
+                    SessionPersistence._is_cookie_for_domain(c.get("domain", ""), domain) for c in cookies
+                )
+                if not has_cookies:
+                    continue
+
+                cached_hash = self._session_hash_cache.get(domain)
+                if cached_hash:
+                    new_hash = await self._persistence.compute_hash(domain)
+                    if new_hash == cached_hash:
+                        continue
+
+                save_result = await self._persistence.save(context, domain)
+                new_hash = await self._persistence.compute_hash(domain)
+                if new_hash:
+                    self._session_hash_cache[domain] = new_hash
+                logger.info("Auto-saved session for domain: %s", domain)
+
+                if hook is not None:
+                    cookie_count, ls_count = _parse_counts(save_result)
+                    _fire_and_forget(hook.on_session_saved(domain, cookie_count, ls_count))
+            except Exception as exc:
+                logger.warning("Auto-save failed for %s: %s", domain, exc)
 
     @staticmethod
     def _get_site_experience_hint(url: str) -> str:

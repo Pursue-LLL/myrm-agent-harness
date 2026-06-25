@@ -11,7 +11,7 @@
 - main(): exit 0 when release + core packages are indexed and release exposes compiled-core extra
 
 [POS]
-Post-upload gate in publish-pypi.yml; prevents partial publishes from going green.
+Post-upload gate in publish-pypi.yml; prevents partial publishes from going green (release + 8 core wheels).
 """
 
 from __future__ import annotations

@@ -174,7 +174,7 @@ class TestGoalTerminalCallbackTrigger:
         goal_provider.account_usage.return_value = MagicMock(
             goal=goal, status_changed=False, budget_exhausted=False
         )
-        goal_provider.evaluate_semantic.return_value = MagicMock(passed=False, reason="not done")
+        goal_provider.evaluate_semantic.return_value = MagicMock(passed=False, reason="not done", parse_failed=False)
         goal_provider.record_progress.return_value = goal
 
         ctx = _make_ctx(on_goal_terminal=callback, goal_provider=goal_provider)

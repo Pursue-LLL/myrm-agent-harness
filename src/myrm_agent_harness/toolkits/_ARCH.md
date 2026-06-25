@@ -5,7 +5,37 @@ Generic, framework-agnostic toolkit collection — analogous to lodash for Node.
 Each toolkit is a **self-contained, absolutely independent** module usable via
 `myrm_agent_harness.toolkits.xxx` by any consumer, without requiring the Agent runtime.
 
-**Architecture gate**: `tests/architecture/test_toolkits_agent_boundary.py` fails if any
+## Architecture gate
+
+**Framework vs business extension — do not confuse layers.** This is the primary cause of harness bloat.
+
+| Layer | Location | What belongs | Examples |
+|-------|----------|--------------|----------|
+| **Framework primitives** | `toolkits/` + `agent/meta_tools/` | Generic, reusable capabilities any agent framework could ship; no vendor OAuth product flows | `web_fetch`, `web_search`, `browser`, `mcp`, `kanban`, `cron`, `bash_code_execute_tool` |
+| **Agent runtime binding** | `agent/meta_tools/`, `agent/sub_agents/` | Wrappers that need session/planner/HITL context | `planner_tool`, `render_ui_tool`, file ops meta-tools |
+| **Business workflows** | `myrm-agent-server/assets/prebuilt_skills/` | Prompt + contract + `allowed-tools`; orchestrates framework tools | `daily-briefing`, `blog-monitoring`, `github-workflow` |
+| **Third-party integrations (product)** | `myrm-agent-server/app/api/integrations/`, MCP servers, channel providers | OAuth CRUD, channel SDKs, user-configured MCP | Feishu channel, `integrations/oauth.py`, user MCP |
+| **Server REST domain** | `myrm-agent-server/app/api/` + `services/` | Product HTTP, not harness tools | kanban API, skills API |
+
+### Hard rules (contributors)
+
+1. **Never** add a third-party SaaS wrapper as a harness `toolkits/*` module (calendar, huggingface, rss-class integrations belong in skill/MCP).
+2. **Never** ship a prebuilt skill that promises OAuth/API access without a working product integration path (GUI OAuth or documented MCP).
+3. **Single-vendor narrow tools** → skill script + `bash_code_execute_tool` / `web_fetch_tool`, or user MCP — not a new harness toolkit.
+4. **`allowed-tools` in SKILL.md** must use **registered tool names** (e.g. `bash_code_execute_tool`, not legacy alias `bash_tool`).
+5. **Adding a harness tool** requires: generic reuse across projects, zero `agent/` imports, entry in `tool_layers.py` + `validate_tool_registry.py` PASS.
+
+### Decision flow (framework vs business)
+
+```
+Is this a specific vendor/product integration (Google Calendar, HF Hub, RSS feed for one blog)?
+├─ YES → Skill and/or MCP and/or server integrations/ — NOT toolkits/
+└─ NO  → Is it generic infrastructure (fetch, search, sandbox, MCP client, kanban engine)?
+         ├─ YES → toolkits/ (if agent-agnostic) or agent/meta_tools/ (if needs runtime)
+         └─ NO  → Reconsider — likely belongs in server services/ or a skill only
+```
+
+`tests/architecture/test_toolkits_agent_boundary.py` fails if any
 `toolkits/**/*.py` imports `myrm_agent_harness.agent.*`.
 
 ## Category Index
@@ -14,8 +44,8 @@ Each toolkit is a **self-contained, absolutely independent** module usable via
 |----------|----------|------|
 | **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `network/`, `security/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP, SSRF guard |
 | **Workspace** | `browser/`, `computer_use/`, `code_index/`, `workspace/`, `context/`, `file_parsers/`, `wiki/`, `element_ref/` | Files, browser, desktop, code search, context bundles |
-| **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/`, `huggingface/`, `deploy/`, `local_browser_data/`, `notification/` | External APIs, agent protocols, channels, deployment bridges |
-| **Collaboration & Media** | `calendar/`, `kanban/`, `tasks/`, `commitment/`, `automation/`, `cron/`, `interaction/`, `tts/`, `vision/` | Scheduling, tasks, user interaction primitives, media |
+| **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/`, `deploy/`, `local_browser_data/`, `notification/` | External APIs, agent protocols, channels, deployment bridges |
+| **Collaboration & Media** | `kanban/`, `tasks/`, `commitment/`, `automation/`, `cron/`, `interaction/`, `tts/`, `vision/` | Scheduling, tasks, user interaction primitives, media |
 | **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |
 
 Agent-specific tool wrappers (e.g. `render_ui_tool`) live in `agent/meta_tools/`, not here.
@@ -70,7 +100,6 @@ Does your code need to import anything from agent/?
 | acp/ | ACP protocol integration — server and runtime components for Agent Communication Protocol. |
 | automation/ | Rule-based agent task automation — CRUD for automation rules (event/schedule/manual triggers). |
 | browser/ | Browser automation — multi-tab control, iframe traversal, session vault, stealth mode. |
-| calendar/ | Calendar event management — CRUD operations via Protocol-based dependency injection. |
 | code_execution/ | Code execution system — Agent-in-Sandbox mode with multiple executor backends. |
 | code_index/ | Workspace code indexer — on-demand FTS5+Vector hybrid search over source code files. |
 | commitment/ | Commitment tracking — implicit promise detection and follow-up from conversations. |
@@ -80,7 +109,6 @@ Does your code need to import anything from agent/?
 | context/ | Unified context bundle — volume layout, facade, index/lifecycle hook registration. |
 | element_ref/ | Shared @dref element reference types and session-scoped registry for desktop control. |
 | file_parsers/ | File format parsers — PDF, DOCX, Excel, text, and structured data extraction. |
-| huggingface/ | Hugging Face integration — model and dataset tools for agents. |
 | interaction/ | User interaction primitives — AskQuestion dialog and clipboard operations (UI rendering: `agent/meta_tools/interaction/`) |
 | kanban/ | Durable multi-task scheduling — heartbeat, zombie detection, run/event audit trail. |
 | llms/ | LLM manager and adapters — 100+ provider support, citation extraction, image gen/edit. |

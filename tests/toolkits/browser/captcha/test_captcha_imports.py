@@ -32,6 +32,7 @@ def test_all_exports_match() -> None:
 
     expected = {
         "CaptchaCoordinator",
+        "CaptchaHandleResult",
         "CaptchaInfo",
         "CaptchaSolveResult",
         "CaptchaSolver",

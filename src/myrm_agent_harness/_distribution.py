@@ -15,7 +15,7 @@ from importlib.metadata import version as pkg_version
 from importlib.util import find_spec
 from pathlib import Path
 
-from myrm_agent_harness._core_ip_manifest import CORE_IP_IMPORTS
+from myrm_agent_harness._core_ip_manifest import CORE_IP_IMPORTS, CORE_IP_SOURCE_RELPATHS
 
 
 class DistributionNotReadyError(RuntimeError):
@@ -34,11 +34,7 @@ def _manifest_py_paths() -> tuple[Path, ...]:
     import myrm_agent_harness
 
     pkg_root = Path(myrm_agent_harness.__file__).resolve().parent
-    paths: list[Path] = []
-    for import_name in CORE_IP_IMPORTS:
-        rel = import_name.removeprefix("myrm_agent_harness.").replace(".", "/") + ".py"
-        paths.append(pkg_root / rel)
-    return tuple(paths)
+    return tuple(pkg_root / rel for rel in CORE_IP_SOURCE_RELPATHS)
 
 
 def _manifest_py_present() -> bool:
@@ -92,6 +88,32 @@ def assert_distribution_ready() -> None:
         raise DistributionNotReadyError(msg)
 
     _assert_core_release_version_match()
+    _assert_core_platform_key_match()
+
+
+def _assert_core_platform_key_match() -> None:
+    """Fail closed when the installed core wheel targets a different platform key."""
+    if _manifest_py_present():
+        return
+    if find_spec("myrm_agent_harness_core") is None:
+        return
+
+    import myrm_agent_harness_core
+    from myrm_agent_harness._runtime_platform import get_runtime_platform_key
+
+    installed_key = myrm_agent_harness_core.get_platform_key()
+    if installed_key == "unknown":
+        return
+
+    expected_key = get_runtime_platform_key()
+    if installed_key != expected_key:
+        msg = (
+            "Harness platform core wheel mismatch: "
+            f"expected myrm-agent-harness-core-{expected_key} but "
+            f"installed core wheel reports platform key {installed_key!r}. "
+            "Reinstall the matching platform core wheel for this machine."
+        )
+        raise DistributionNotReadyError(msg)
 
 
 @lru_cache(maxsize=1)

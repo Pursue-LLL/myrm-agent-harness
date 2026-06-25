@@ -9,7 +9,9 @@ Myrm Agent Harness — a production-grade framework for building, deploying, and
 |------|------|-------------|-------|
 | __init__.py | Core | Package entry — lazy re-exports via api/ | — |
 | api/ | Core | Public API surface for external consumers (factory, Protocol, DTO) |
-| _distribution.py | Core | Source vs compiled distribution mode detection |
+| _distribution.py | Core | Source vs compiled mode; version + platform key validation |
+| _runtime_platform.py | Core | Runtime platform key detection (shared with build tooling) |
+| _core_ip_manifest.py | Core | Generated core IP import paths (from core_manifest.yaml) |
 | _verify_distribution.py | Core | Post-install verify CLI (`verify-harness-distribution`) |
 
 | Submodule | Description |

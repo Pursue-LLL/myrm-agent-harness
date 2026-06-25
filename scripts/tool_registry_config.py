@@ -49,9 +49,7 @@ ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset({
     "create_desktop_tools",     # Desktop / computer-use opt-in toolkit
     "create_browser_tools",          # Browser automation opt-in toolkit
     "create_skill_select_tool",      # Built dynamically by SkillAgent depending on skill count
-    "create_huggingface_inference_tool",  # Lazy-loaded via toolkits/__init__::_LAZY_IMPORTS
     "create_automation_tools",       # Optional automation toolkit
-    "create_calendar_tools",         # Optional calendar toolkit
     "create_kanban_tools",           # Optional kanban toolkit
     "create_channel_notify_tool",
     "create_code_search_tool",       # Semantic code search opt-in toolkit (requires CodeIndexer)

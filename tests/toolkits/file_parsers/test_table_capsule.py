@@ -64,7 +64,7 @@ async def test_extract_pdf_content_with_tables():
         from myrm_agent_harness.toolkits.file_parsers.base import PDFTable
 
         mock_table = PDFTable(page_number=1, table_index=0, data=[["X"]], id="t1", markdown="MD", summary_l0="L0")
-        mock_text.return_value = ("[TABLE_CAPSULE: t1]", 1, [mock_table])
+        mock_text.return_value = ("[TABLE_CAPSULE: t1]", 1, 1, [mock_table])
 
         # Mock other phases
         with (

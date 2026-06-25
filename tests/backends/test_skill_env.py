@@ -119,6 +119,13 @@ class TestDetectSkillScriptCommand:
         assert detected is False
         assert name is None
 
+    def test_hyphenated_skill_name(self) -> None:
+        detected, name = detect_skill_script_command(
+            "python3 .claude/skills/google-workspace/scripts/google_api.py calendar-today"
+        )
+        assert detected is True
+        assert name == "google-workspace"
+
 
 # ── prepare_skill_env() ──────────────────────────────────────────────────
 

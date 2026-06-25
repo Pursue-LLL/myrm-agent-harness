@@ -12,6 +12,7 @@ on:
       - 'scripts/build_core.py'
       - 'scripts/build_release_wheel.py'
       - 'scripts/assemble_production.py'
+      - 'scripts/sync_distribution_metadata.py'
       - 'src/myrm_agent_harness/_verify_distribution.py'
       - 'packages/myrm-agent-harness-core/**'
       - '.pre-commit-config.yaml'

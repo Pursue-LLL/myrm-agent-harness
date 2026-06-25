@@ -4,17 +4,13 @@
 # Development installs keep these as readable .py source.
 # Release CI replaces them with Nuitka-compiled .so via build_core.py.
 #
-# Incrementally expand this list as Nuitka compatibility is verified per module.
+# Use `directories` for algorithm-heavy subtrees; add explicit `modules` only
+# when a file sits outside those trees.
 
-modules:
-  # Skill evolution engine (core IP)
-  - agent/skills/evolution/core/engine
-  - agent/skills/evolution/pipeline/trace_analyzer
-  - agent/skills/evolution/core/proposal_builder
+directories:
+  - agent/skills/evolution
+  - agent/context_management/pipeline
+  - toolkits/memory/strategies
+  - toolkits/memory/cognitive
 
-  # Context management pipeline (core IP)
-  - agent/context_management/pipeline/engine
-
-  # Memory extraction strategies (core IP)
-  - toolkits/memory/strategies/extractor
-  - toolkits/memory/cognitive/deriver
+modules: []

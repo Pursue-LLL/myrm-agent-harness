@@ -89,9 +89,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "browser_execute_script_tool": ToolLayer.EXTENDED,
     "browser_ask_human_tool": ToolLayer.EXTENDED,
     "browser_snapshot_tool": ToolLayer.EXTENDED,
-    # --- 日历工具 ---
-    "calendar_manage_tool": ToolLayer.EXTENDED,
-    "find_optimal_meeting_slots_tool": ToolLayer.EXTENDED,
     # --- 计算机操作工具 ---
     "desktop_inspect_tool": ToolLayer.EXTENDED,
     "desktop_snapshot_tool": ToolLayer.EXTENDED,
@@ -115,7 +112,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "update_goal_status_tool": ToolLayer.EXTENDED,
     # --- HTTP / 推理 ---
     "http_request_tool": ToolLayer.EXTENDED,
-    "huggingface_inference_tool": ToolLayer.EXTENDED,
     # --- 批量 LLM (fan-out) ---
     "llm_map_tool": ToolLayer.EXTENDED,
     # --- 交互工具 ---
@@ -172,8 +168,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "vault_extract_tool": ToolLayer.EXTENDED,
     "vault_get_tool": ToolLayer.EXTENDED,
     "vault_put_tool": ToolLayer.EXTENDED,
-    # --- RSS ---
-    "rss_fetch": ToolLayer.EXTENDED,
     # --- Wiki 知识库 ---
     "wiki_compile_tool": ToolLayer.EXTENDED,
     "wiki_ingest_tool": ToolLayer.EXTENDED,

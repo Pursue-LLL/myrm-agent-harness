@@ -134,6 +134,8 @@ async def safe_exec(
                 active_env["DINGTALK_USER_ACCESS_TOKEN"] = cred.token
             elif cred.issuer == "github":
                 active_env["GITHUB_TOKEN"] = cred.token
+            elif cred.issuer == "google_workspace":
+                active_env["GOOGLE_WORKSPACE_TOKEN"] = cred.token
             else:
                 active_env[f"{cred.issuer.upper()}_TOKEN"] = cred.token
     except LookupError:

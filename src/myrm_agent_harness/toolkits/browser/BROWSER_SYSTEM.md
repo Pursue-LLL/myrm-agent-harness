@@ -114,7 +114,7 @@ await pool.release_page(page, ContextType.AGENT)
 **SOLID 设计**：
 - **单一职责**：每个组件仅关注一个职责（Tab / 导航 / 快照 / 交互 / 提取）
 - **组合优于继承**：BrowserSession 作为聚合根，薄层委托各组件
-- **依赖注入**：可选注入 SessionVault 实现加密会话存储，用于在 BrowserFetcher 和 HttpFetcher 之间无缝共享登录态 (Cross-Engine Global Cookie Jar)。
+- **依赖注入**：可选注入 SessionVault 实现加密会话存储，用于在 BrowserFetcher 和 HttpFetcher 之间无缝共享登录态 (Cross-Engine Global Cookie Jar)。close() 时自动保存 auto_restore_domains 中有变化的域名会话（hash-diff 避免无效 I/O），并触发 SessionLifecycleHook 同步 agent 记忆。
 
 **组件架构**：
 ```python
