@@ -256,13 +256,13 @@ BLOCK → DENY（硬拒绝），ESCALATE → ASK（提升审批）。保留 `|`,
 
 ### 3.2.3 用户会话亲和性凭证继承与传递机制
 
-**位置**：`security/types.py` (`EphemeralUserCredential`, `user_credentials_ctx`) + `security/safe_exec.py` (环境变量自动映射注入)
+**位置**：`security/types.py` (`EphemeralUserCredential`, `user_credentials_ctx`) + `security/safe_exec.py` (`credential_env_overrides`) + `toolkits/code_execution/executors/local/executor.py` (`LocalExecutor._build_bash_env`)
 
-为了实现类似阿里悟空“紧箍咒”系统的平台级用户安全权限继承，避免 Agent 使用全局默认权限对外部系统（如 Feishu, GitHub, DingTalk）进行未授权的提权或越权访问，本系统实现了基于异步上下文变量的临时凭证继承传递链。
+为了实现类似阿里悟空“紧箍咒”系统的平台级用户安全权限继承，避免 Agent 使用全局默认权限对外部系统（如 Feishu, GitHub, DingTalk, Google Workspace）进行未授权的提权或越权访问，本系统实现了基于异步上下文变量的临时凭证继承传递链。
 
 **核心机制**：
 1. **ContextVar 物理隔离**：通过 `user_credentials_ctx = ContextVar[tuple[EphemeralUserCredential, ...]]` 在线程与协程层面物理隔离当前会话所关联的具体用户凭证。不同用户的并发任务绝对无法越权读取或篡改其他会话的临时凭证。
-2. **零磁盘残留安全注入**：在 `safe_exec.py` 启动外部进程（如 Git、CLI 脚本）时，动态从 `user_credentials_ctx` 提取有效的临时 token，并自动完成特定平台的安全环境变量注入（如将 Feishu token 注入为 `FEISHU_USER_ACCESS_TOKEN`，GitHub token 注入为 `GITHUB_TOKEN`，DingTalk token 注入为 `DINGTALK_USER_ACCESS_TOKEN`，其他未知服务采用大写 fallback `[ISSUER]_TOKEN`）。所有注入均在进程内存空间完成，子进程结束后瞬间销毁，**决不在磁盘配置文件或持久化全局环境变量中留存任何明文**。
+2. **零磁盘残留安全注入**：`credential_env_overrides()` 将 `user_credentials_ctx` 中的 token 映射为进程环境变量（如 `FEISHU_USER_ACCESS_TOKEN`、`GITHUB_TOKEN`、`GOOGLE_WORKSPACE_TOKEN`）。注入发生在 **env 消毒之后**，避免 `sanitize_env` 的 `*TOKEN*` 通配符剥离合法凭证。消费路径：`safe_exec.py`（cron/CLI）与 `LocalExecutor._build_bash_env`（`bash_code_execute_tool` 主路径）。同一映射还注入 `MYRM_USER_TIMEZONE`（来自 `user_timezone_var`）供 vendor skill 脚本计算本地日历日界。所有注入均在进程内存空间完成，子进程结束后瞬间销毁，**决不在磁盘配置文件或持久化全局环境变量中留存任何明文**。
 3. **主动与被动双向 Token 热刷新**：
    * **主动式提前续期**：`OpenAPIExecutor` 在执行 HTTP 外部请求前，检测到凭证 expiring（距离失效小于 5 分钟），自动触发协程刷新回调 `refresh_callback` 进行主动续期。
    * **被动式 401 挑战**：若遇到服务响应 `401 Unauthorized` 挑战，客户端自动拦截并执行 `refresh_callback`。获取到新凭证后重新签署 headers `Authorization: Bearer <new_token>` 并在内存中静默发起第二次重试，实现长链条复杂任务的零感静默续期。
