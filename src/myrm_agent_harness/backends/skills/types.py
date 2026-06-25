@@ -569,6 +569,9 @@ class SkillMetadata:
     """Primary environment variable name for apiKey auto-mapping (e.g. "BRAVE_API_KEY").
     When set, the system maps a user-configured apiKey to this env var at execution time."""
 
+    oauth_issuer: str | None = None
+    """OAuth issuer key used to scope runtime credential injection for this skill."""
+
     contract: SkillContract | None = None
     """Structured contract parsed from frontmatter for cache-safe routing and fallback docs."""
 

@@ -109,6 +109,13 @@ class ExecutionContext:
     work_dir: str = "/workspace"
     workspace_root: str | None = None
     active_skills: list[str] | None = None
+    allowed_credential_issuers: list[str] | None = None
+    """OAuth issuer keys to inject from user_credentials_ctx.
+
+    None = inject all session credentials (generic bash).
+    [] = inject none.
+    Non-empty = inject only listed issuers (skill-scoped bash).
+    """
     allow_network: bool = False
     allowed_hosts: frozenset[str] | None = None
     timeout: int = 60

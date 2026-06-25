@@ -152,6 +152,7 @@ def build_skill_metadata(
         user_invocable=frontmatter.user_invocable,
         version=frontmatter.version,
         primary_env=frontmatter.primary_env,
+        oauth_issuer=frontmatter.oauth_issuer,
         evolution_locked=frontmatter.evolution_locked,
         config_schema=frontmatter.config_schema,
         contract=frontmatter.contract,

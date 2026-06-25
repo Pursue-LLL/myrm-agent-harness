@@ -141,6 +141,7 @@ class BashExecutor:
         self._metadata_extractor = MCPMetadataExtractor()
 
         self._skill_env_map: dict[str, dict[str, str]] | None = None
+        self._skill_oauth_issuers: dict[str, str] | None = None
         self._global_env: dict[str, str] | None = None
 
         # Lazy-init skill executor
@@ -164,6 +165,10 @@ class BashExecutor:
                      Produced by resolve_skill_env() per skill.
         """
         self._skill_env_map = env_map
+
+    def set_skill_oauth_issuers(self, issuers: dict[str, str]) -> None:
+        """Map skill directory name -> oauth issuer for scoped credential injection."""
+        self._skill_oauth_issuers = issuers
 
     def set_global_env(self, global_env: dict[str, str]) -> None:
         """Set global env vars for injection during execution."""
@@ -654,6 +659,21 @@ class BashExecutor:
         # Unified path conversion via WorkspacePathResolver
         return WorkspacePathResolver.to_container_paths(workspace_skill_paths, workspace_root_str)
 
+    def _resolve_allowed_credential_issuers(self, skill_names: list[str] | None) -> list[str] | None:
+        """Scope OAuth injection: all issuers for generic bash; filtered when a skill is active."""
+        if not skill_names:
+            return None
+
+        if not self._skill_oauth_issuers:
+            return []
+
+        issuers: list[str] = []
+        for skill_name in skill_names:
+            issuer = self._skill_oauth_issuers.get(skill_name)
+            if issuer:
+                issuers.append(issuer)
+        return issuers
+
     def _build_execution_context(
         self,
         prepared_code: str,
@@ -701,6 +721,7 @@ class BashExecutor:
             work_dir=work_dir,
             workspace_root=workspace_root,
             active_skills=skill_names,
+            allowed_credential_issuers=self._resolve_allowed_credential_issuers(skill_names),
             timeout=timeout if timeout is not None else self._get_timeout(),
             env=env,
             allow_network=network_config.allow_network,

@@ -304,6 +304,11 @@ def create_bash_tool(
     from langchain_core.runnables import RunnableConfig
 
     skill_paths = [s.storage_path for s in (skills or []) if s.storage_path]
+    skill_oauth_issuers = {
+        s.name: s.oauth_issuer
+        for s in (skills or [])
+        if s.oauth_issuer and s.name
+    }
 
     from myrm_agent_harness.agent.skills.mcp.builtin_registry import (
         get_builtin_tool_registry,
@@ -384,6 +389,8 @@ def create_bash_tool(
                     "executor to the current async context first."
                 )
             bash_executor = BashExecutor(executor=executor, ptc_tools=ptc_tools)
+            if skill_oauth_issuers:
+                bash_executor.set_skill_oauth_issuers(skill_oauth_issuers)
             if skill_env_map:
                 bash_executor.set_skill_env_map(skill_env_map)
             if global_env:

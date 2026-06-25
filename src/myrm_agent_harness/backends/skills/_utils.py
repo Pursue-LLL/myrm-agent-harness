@@ -110,6 +110,13 @@ class SkillFrontmatter:
     """Primary environment variable name for apiKey auto-mapping (e.g. "BRAVE_API_KEY").
     When set, users can configure a single apiKey that auto-maps to this env var."""
 
+    oauth_issuer: str | None = None
+    """OAuth issuer key for runtime credential injection (e.g. google_workspace).
+
+    Declarative skill contract — business OAuth flows live in the product layer;
+    harness uses this only to scope user_credentials_ctx injection during bash.
+    """
+
     allowed_domains: list[str] | None = None
     """Allowed domains for outbound network requests (DLP protection)."""
 
@@ -199,6 +206,8 @@ _KNOWN_FRONTMATTER_FIELDS = frozenset(
         "tags",
         "primaryEnv",
         "primary_env",
+        "oauth-issuer",
+        "oauth_issuer",
         "required-credential-files",
         "required_credential_files",
         "credential-env-mapping",
@@ -604,6 +613,13 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
         if pe:
             primary_env = pe
 
+    oauth_issuer: str | None = None
+    raw_oauth_issuer = parsed.get("oauth-issuer") or parsed.get("oauth_issuer")
+    if raw_oauth_issuer:
+        oi = str(raw_oauth_issuer).strip()
+        if oi:
+            oauth_issuer = oi
+
     # required-credential-files: optional, list of credential file paths
     required_credential_files: list[str] = []
     raw_cred_files = parsed.get("required-credential-files") or parsed.get("required_credential_files")
@@ -661,6 +677,7 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
         version=version,
         category=category,
         primary_env=primary_env,
+        oauth_issuer=oauth_issuer,
         required_credential_files=required_credential_files,
         credential_env_mapping=credential_env_mapping,
         evolution_locked=evolution_locked,

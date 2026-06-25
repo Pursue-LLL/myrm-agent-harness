@@ -288,7 +288,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         command = await self._prepare_bash_command(command)
 
         # Build environment
-        env = self._build_bash_env(context.env)
+        env = self._build_bash_env(context.env, context.allowed_credential_issuers)
 
         session_key = context.session_id or "default"
         session = await self._get_or_create_bash_session(
@@ -366,7 +366,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
 
         self._setup_workspace(str(effective_cwd) if effective_cwd else None)
         command = await self._prepare_bash_command(command)
-        env = self._build_bash_env(context.env)
+        env = self._build_bash_env(context.env, context.allowed_credential_issuers)
 
         session_key = context.session_id or "default"
         session = await self._get_or_create_bash_session(
@@ -471,7 +471,11 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         )
         return await self._venv_manager.rewrite_pip_command(command)
 
-    def _build_bash_env(self, user_env: dict[str, str] | None) -> dict[str, str]:
+    def _build_bash_env(
+        self,
+        user_env: dict[str, str] | None,
+        allowed_credential_issuers: list[str] | None = None,
+    ) -> dict[str, str]:
         """Build sanitized environment with venv and user overrides."""
         from myrm_agent_harness.toolkits.code_execution.security.validator import (
             sanitize_env,
@@ -495,7 +499,12 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         try:
             credentials = user_credentials_ctx.get()
             if credentials:
-                env.update(credential_env_overrides(credentials))
+                env.update(
+                    credential_env_overrides(
+                        credentials,
+                        allowed_issuers=allowed_credential_issuers,
+                    )
+                )
         except LookupError:
             pass
 
@@ -505,7 +514,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             user_tz = user_timezone_var.get()
             if user_tz:
                 env["MYRM_USER_TIMEZONE"] = user_tz
-        except Exception:
+        except LookupError:
             pass
 
         return env
