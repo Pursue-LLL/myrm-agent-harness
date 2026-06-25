@@ -146,7 +146,8 @@ override-dependencies = [
   "patchright>=1.59.1",
   "openai>=2.43.0",
   "aiohttp>=3.14.1",
-  "opentelemetry-semantic-conventions>=0.61b0"
+  "opentelemetry-semantic-conventions>=0.61b0",
+  "mcp>=1.28.0,<2",               # langchain-mcp-adapters needs RequestContext (removed in mcp 2.0 alpha)
 ]
 
 [build-system]
