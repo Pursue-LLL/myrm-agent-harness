@@ -12,6 +12,7 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 | codegen.py | Core | Codegen `_core_ip_manifest.py` + compiled-core version pins |
 | platforms.py | Core | Platform keys + PEP508 markers; build-time detection via `runtime_platform` |
 | runtime_platform.py | Core | Build-time platform key (no installed package required) |
+| nuitka_compile.py | Core | Map manifest ``.py`` paths to Nuitka ``--module`` inputs |
 | pypi_index.py | Core | PyPI JSON probes (package exists, compiled-core extra) |
 | release.py | Core | Strip manifest `.py` in-place (PEP 427 compliant) |
 | assemble.py | Core | Unified production wheel assembly + venv install + post-install verify |

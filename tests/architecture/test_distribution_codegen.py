@@ -80,6 +80,23 @@ def test_core_ip_import_names_never_use_init_suffix() -> None:
 
 
 @pytest.mark.architecture
+def test_nuitka_compile_input_uses_package_dir_for_init() -> None:
+    """Package __init__.py must compile its directory, not the file path."""
+    from harness_packaging.nuitka_compile import nuitka_artifact_stem, nuitka_compile_input
+
+    init_file = (
+        _REPO_ROOT
+        / "src/myrm_agent_harness/agent/context_management/pipeline/__init__.py"
+    )
+    assert nuitka_compile_input(init_file) == init_file.parent
+    assert nuitka_artifact_stem(init_file) == "pipeline"
+
+    module_file = init_file.parent / "engine.py"
+    assert nuitka_compile_input(module_file) == module_file
+    assert nuitka_artifact_stem(module_file) == "engine"
+
+
+@pytest.mark.architecture
 def test_runtime_platform_key_is_supported() -> None:
     """Runtime platform detection must resolve to a published core wheel key."""
     from harness_packaging.runtime_platform import get_runtime_platform_key

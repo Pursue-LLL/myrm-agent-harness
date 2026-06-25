@@ -86,7 +86,7 @@ docker build -f myrm-agent/myrm-agent-server/docker/Dockerfile.official -t myrm/
 Tag `v*` (e.g. `v0.1.0rc1`, aligned with `project.version`) in **myrm-agent-harness** triggers `.github/workflows/publish-pypi.yml`:
 
 0. `scripts/verify_release_tag.py` asserts `refs/tags/v{version}` matches `project.version` before any wheel build
-1. Matrix build six `myrm-agent-harness-core-*` wheels
+1. Matrix build eight `myrm-agent-harness-core-*` wheels
 2. Build stripped release wheel
 3. `publish-release` job uploads the release wheel (OIDC, `environment: pypi`)
 4. `publish-core` matrix (one job per platform) uploads each core wheel — OIDC tokens are project-scoped; batch upload fails with 403
@@ -104,7 +104,7 @@ One-time bootstrap for new core project names (OIDC cannot create projects): `sc
 
 | Workflow | Role |
 |----------|------|
-| `publish-pypi.yml` | Tag release → PyPI (OIDC upload for release + 6 core wheels); matrix from `.github/core-platform-matrix.json` |
+| `publish-pypi.yml` | Tag release → PyPI (OIDC upload for release + 8 core wheels); matrix from `.github/core-platform-matrix.json` |
 | `build-core-wheels.yml` | Dev/matrix core wheel artifacts (same shared matrix; optional `platform` input) |
 | `boundary-check.yml` | Architecture + distribution tests |
 

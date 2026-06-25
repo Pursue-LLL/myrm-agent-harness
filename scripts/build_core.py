@@ -26,6 +26,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
 from harness_packaging.manifest import load_core_manifest  # noqa: E402
+from harness_packaging.nuitka_compile import nuitka_artifact_stem, nuitka_compile_input  # noqa: E402
 from harness_packaging.platforms import (  # noqa: E402
     PlatformSpec,
     core_package_name,
@@ -63,7 +64,7 @@ def _compile_module(
 ) -> Path:
     import_name = _module_import_name(module_file)
     rel = module_file.relative_to(_REPO_ROOT / "src" / "myrm_agent_harness")
-    # Isolated output dir per module path — avoids stem collisions (e.g. two engine.py).
+    nuitka_input = nuitka_compile_input(module_file)
     output_dir = compile_root / rel.parent
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -72,7 +73,7 @@ def _compile_module(
         "-m",
         "nuitka",
         "--module",
-        str(module_file),
+        str(nuitka_input),
         f"--output-dir={output_dir}",
         "--assume-yes-for-downloads",
         "--remove-output",
@@ -84,7 +85,7 @@ def _compile_module(
     print(f"Compiling {import_name} ...")
     subprocess.run(cmd, check=True, cwd=_REPO_ROOT)
 
-    stem = module_file.stem
+    stem = nuitka_artifact_stem(module_file)
     candidates = sorted(output_dir.glob(f"{stem}*.so")) + sorted(output_dir.glob(f"{stem}*.pyd"))
     if not candidates:
         msg = f"No compiled artifact produced for {module_file}"

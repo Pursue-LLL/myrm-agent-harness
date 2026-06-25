@@ -7,8 +7,8 @@
 - get_runtime_platform_key(): Normalized platform key (e.g. ``linux-x64-musl``)
 
 [POS]
-Shipped in release wheels. Shared by ``_distribution`` (install validation) and
-``harness_packaging.platforms`` (build-time wheel naming).
+Shipped in release wheels. Runtime SSOT for install validation; logic must match
+``harness_packaging.runtime_platform`` (guarded by architecture tests).
 """
 
 from __future__ import annotations

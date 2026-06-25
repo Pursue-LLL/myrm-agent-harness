@@ -2,7 +2,7 @@
 
 [INPUT]
 - harness_packaging.manifest::repo_root (POS: Harness repo path resolver)
-- harness_packaging.platforms::{PlatformSpec, get_current_platform} (POS: Six-platform key detection)
+- harness_packaging.platforms::{PlatformSpec, get_current_platform} (POS: Eight-platform key detection)
 - harness_packaging.release::strip_manifest_sources_from_wheel (POS: Release wheel IP source stripping)
 
 [OUTPUT]

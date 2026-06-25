@@ -1,6 +1,13 @@
 """Build-time platform key detection (no installed myrm_agent_harness required).
 
-Keep logic aligned with ``myrm_agent_harness._runtime_platform`` (runtime wheel SSOT).
+[INPUT]
+- stdlib ``platform`` / ``sys`` (OS and CPU)
+
+[OUTPUT]
+- get_runtime_platform_key(): Normalized platform key (e.g. ``linux-x64-musl``)
+
+[POS]
+Build-time platform key SSOT. Logic must match ``myrm_agent_harness._runtime_platform``.
 """
 
 from __future__ import annotations
