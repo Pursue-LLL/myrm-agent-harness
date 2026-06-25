@@ -22,7 +22,7 @@ class PlatformSpec:
 
 def get_current_platform() -> PlatformSpec:
     """Detect the current platform for core wheel selection."""
-    from myrm_agent_harness._runtime_platform import get_runtime_platform_key
+    from harness_packaging.runtime_platform import get_runtime_platform_key
 
     return platform_spec_for_key(get_runtime_platform_key())
 

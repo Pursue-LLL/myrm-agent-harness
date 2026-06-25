@@ -82,10 +82,13 @@ def test_core_ip_import_names_never_use_init_suffix() -> None:
 @pytest.mark.architecture
 def test_runtime_platform_key_is_supported() -> None:
     """Runtime platform detection must resolve to a published core wheel key."""
-    from myrm_agent_harness._runtime_platform import get_runtime_platform_key
+    from harness_packaging.runtime_platform import get_runtime_platform_key
     from harness_packaging.platforms import SUPPORTED_PLATFORMS
+    from myrm_agent_harness._runtime_platform import get_runtime_platform_key as shipped_key
 
-    assert get_runtime_platform_key() in SUPPORTED_PLATFORMS
+    key = get_runtime_platform_key()
+    assert key in SUPPORTED_PLATFORMS
+    assert key == shipped_key()
 
 
 @pytest.mark.architecture

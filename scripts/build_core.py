@@ -256,9 +256,10 @@ def main() -> None:
             print(path.relative_to(_REPO_ROOT))
         return
 
-    platform = get_current_platform()
     if args.platform is not None:
         platform = platform_spec_for_key(args.platform)
+    else:
+        platform = get_current_platform()
 
     if args.wheel:
         build_platform_wheel(platform)
