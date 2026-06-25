@@ -90,7 +90,7 @@ Tag `v*` (e.g. `v0.1.0rc1`, aligned with `project.version`) in **myrm-agent-harn
 2. Build stripped release wheel
 3. `publish-release` job uploads the release wheel (OIDC, `environment: pypi`)
 4. `publish-core` matrix (one job per platform) uploads each core wheel — OIDC tokens are project-scoped; batch upload fails with 403
-5. `publish-verify` runs `scripts/verify_pypi_publish.py` (release + 6 bootstrapped core wheels; musl optional until `bootstrap_pypi_core_upload.sh`)
+5. `publish-verify` runs `scripts/verify_pypi_publish.py` (release + 6 bootstrapped core wheels mandatory; musl mandatory once indexed; see `bootstrap_pypi_core_upload.sh`)
 
 Alpine/musl deployments: use `compiled-core-musl` extra (or `install.sh` `reinstall_harness_musl_core()` after `uv sync`). PEP 508 cannot distinguish glibc vs musl on Linux; do not install both linux extras on the same host.
 
@@ -98,13 +98,13 @@ CI build jobs use `uv sync --only-group build --frozen` and `uv run --no-project
 
 Each PyPI project needs a GitHub publisher: Owner `Pursue-LLL`, repository `myrm-agent-harness`, workflow `publish-pypi.yml`, environment `pypi`.
 
-One-time bootstrap for new core project names (OIDC cannot create projects): `scripts/bootstrap_pypi_core_upload.sh` with `PYPI_API_TOKEN`, then add Trusted Publisher on PyPI.
+One-time bootstrap for new core project names (OIDC cannot create projects): `scripts/bootstrap_pypi_core_upload.sh` with `PYPI_API_TOKEN`, then add Trusted Publisher on PyPI. After musl projects exist, `verify_pypi_publish.py` automatically requires musl wheels for that version.
 
 ## CI
 
 | Workflow | Role |
 |----------|------|
-| `publish-pypi.yml` | Tag release → PyPI (OIDC upload for release + 8 core wheels); matrix from `.github/core-platform-matrix.json` |
+| `publish-pypi.yml` | Tag release → PyPI (OIDC upload for release + 8 core wheels; verify 6 + indexed musl); matrix from `.github/core-platform-matrix.json` |
 | `build-core-wheels.yml` | Dev/matrix core wheel artifacts (same shared matrix; optional `platform` input) |
 | `boundary-check.yml` | Architecture + distribution tests |
 

@@ -15,7 +15,7 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `build_release_wheel.py` | 核心 | 发布 wheel 组装 | ✅ |
 | `assemble_production.py` | 辅助 | 生产包组装 | ✅ |
 | `verify_release_tag.py` | 辅助 | tag 与 `project.version` 一致性校验 | ✅ |
-| `verify_pypi_publish.py` | 辅助 | PyPI 发布后校验 | ✅ |
+| `verify_pypi_publish.py` | 辅助 | PyPI 发布后索引校验（6 core 必选；musl 已索引则必选） | ✅ |
 | `validate_pypi_wheels.py` | 辅助 | wheel 产物校验 | ✅ |
 | `publish_pypi_rc1.py` | 辅助 | RC 发布脚本 | ✅ |
 | `bootstrap_pypi_core_upload.sh` | 辅助 | core extra 首次上传引导 | ✅ |

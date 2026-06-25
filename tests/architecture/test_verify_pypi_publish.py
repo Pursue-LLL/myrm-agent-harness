@@ -9,15 +9,53 @@ from unittest.mock import patch
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.verify_pypi_publish import (
+from harness_packaging.platforms import (  # noqa: E402
+    ALL_PLATFORMS,
+    MUSL_PLATFORMS,
+    PUBLISH_PLATFORMS,
+    PYPI_VERIFY_PLATFORMS,
+)
+from scripts.verify_pypi_publish import (  # noqa: E402
     _expected_packages,
     missing_packages,
+    verify_platform_keys,
     verify_published,
 )
 
 
-def test_expected_packages_count() -> None:
-    assert len(_expected_packages()) == 7
+def test_platform_publish_verify_semantics() -> None:
+    assert len(PUBLISH_PLATFORMS) == len(ALL_PLATFORMS) == 8
+    assert len(PYPI_VERIFY_PLATFORMS) == 6
+    assert len(MUSL_PLATFORMS) == 2
+    assert all(key.endswith("-musl") for key in MUSL_PLATFORMS)
+    assert set(PYPI_VERIFY_PLATFORMS) | set(MUSL_PLATFORMS) == set(ALL_PLATFORMS)
+
+
+def test_verify_platform_keys_excludes_unindexed_musl() -> None:
+    with patch("scripts.verify_pypi_publish.pypi_package_exists", return_value=False):
+        assert verify_platform_keys("0.1.0rc4") == PYPI_VERIFY_PLATFORMS
+
+
+def test_verify_platform_keys_includes_indexed_musl() -> None:
+    def fake_exists(package: str, version: str, *, user_agent: str) -> bool:
+        return package.startswith("myrm-agent-harness-core-linux-") and "musl" in package
+
+    with patch("scripts.verify_pypi_publish.pypi_package_exists", side_effect=fake_exists):
+        keys = verify_platform_keys("0.1.0rc4")
+    assert keys == PYPI_VERIFY_PLATFORMS + MUSL_PLATFORMS
+
+
+def test_expected_packages_count_without_musl() -> None:
+    with patch("scripts.verify_pypi_publish.pypi_package_exists", return_value=False):
+        assert len(_expected_packages("0.1.0rc2")) == 7
+
+
+def test_expected_packages_count_with_musl() -> None:
+    def fake_exists(package: str, version: str, *, user_agent: str) -> bool:
+        return "musl" in package
+
+    with patch("scripts.verify_pypi_publish.pypi_package_exists", side_effect=fake_exists):
+        assert len(_expected_packages("0.1.0rc2")) == 9
 
 
 def test_missing_packages_reports_all_absent() -> None:

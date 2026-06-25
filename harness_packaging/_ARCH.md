@@ -27,7 +27,7 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 | `scripts/build_release_wheel.py` | Release wheel via `uv build` + strip manifest `.py` |
 | `scripts/assemble_production.py` | Full production pipeline + optional `--install` |
 | `scripts/verify_release_tag.py` | Assert `refs/tags/v*` matches `project.version` before wheel builds |
-| `scripts/verify_pypi_publish.py` | Post-upload PyPI index gate (release + 8 core wheels + compiled-core extra) |
+| `scripts/verify_pypi_publish.py` | Post-upload PyPI index gate (release + 6 core wheels mandatory; musl when indexed) |
 
 ## Key Dependencies
 
@@ -36,7 +36,7 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 
 ## PyPI
 
-Tag `v*` → `.github/workflows/publish-pypi.yml` uploads release + eight platform core wheels.
+Tag `v*` → `.github/workflows/publish-pypi.yml` uploads release + eight platform core wheels; post-upload verify requires six bootstrapped cores plus musl when indexed on PyPI.
 
 ## System Design
 

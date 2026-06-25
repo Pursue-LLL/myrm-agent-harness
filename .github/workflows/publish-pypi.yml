@@ -179,7 +179,6 @@ jobs:
       - validate-wheels
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    continue-on-error: ${{ contains(matrix.platform, 'musl') }}
     strategy:
       fail-fast: false
       matrix:
@@ -196,6 +195,7 @@ jobs:
           path: pypi-upload-core
 
       - name: Publish core wheel (Trusted Publisher / OIDC)
+        continue-on-error: ${{ endsWith(matrix.platform, '-musl') }}
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: pypi-upload-core
