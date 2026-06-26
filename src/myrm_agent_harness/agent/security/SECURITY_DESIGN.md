@@ -49,7 +49,7 @@
 └──────────────────┘
   │
   ▼
-┌────────────────────┐   bash_tool._format_result / file_read_tool / grep_tool
+┌────────────────────┐   bash_code_execute_tool output / file_read_tool / grep_tool
 │ Tool Output Redact │ ← 工具输出脱敏：30+模式（API key/token/PEM/DB连接串）→ redact_sensitive_text
 └────────────────────┘
   │
@@ -88,7 +88,7 @@
 | `middlewares/approval/middleware.py` | 工具审批中间件主入口 | Layer 1-4 集成 |
 | `middlewares/approval/batch_processor.py` | 批量审批处理器（评估/构建/应用） | Layer 1-4 实现 |
 | `middlewares/approval/helpers.py` | 审批辅助函数（拒绝计数/allowlist） | Layer 4 |
-| `redact.py` | 工具输出脱敏（bash_tool / file_read_tool / grep_tool，API key/token/PEM/DB 连接串） | Layer 2 输出脱敏 |
+| `redact.py` | 工具输出脱敏（`bash_code_execute_tool` / `file_read_tool` / `grep_tool`，API key/token/PEM/DB 连接串） | Layer 2 输出脱敏 |
 | `middlewares/security_guardrail_middleware.py` | 安全护栏中间件 | 输入/输出侧集成 |
 | `security/guards/loop_guard.py` | 统一循环检测（LoopGuard） | Layer 5 |
 | `security/guards/loop_guard_types.py` | 循环检测类型定义 | Layer 5 |
@@ -564,7 +564,7 @@ class AllowlistEntry:
 
 **三级匹配粒度**：
 1. **权限级别**（`tool_name=None`）：匹配所有此权限类型的工具（如 `code_interpreter`）
-2. **工具级别**（`tool_name!=None, tool_args_hash=None`）：匹配特定工具名（如 `code_interpreter + bash_tool`）
+2. **工具级别**（`tool_name!=None, tool_args_hash=None`）：匹配特定工具名（如 `code_interpreter + bash_code_execute_tool`）
 3. **精确匹配**（`tool_name!=None, tool_args_hash!=None`）：匹配工具+参数哈希（最安全）
 
 **NULL 标准化机制**：
@@ -576,7 +576,7 @@ class AllowlistEntry:
 **参数标准化机制**：
 - 哈希计算基于"核心参数"而非全部参数，排除LLM生成的辅助字段（如 `reason`、`description`）
 - `TOOL_CANONICAL_PARAMS`（`tool_registry.py`）定义每个工具的核心参数映射：
-  - `bash_tool`: `["command"]` — 仅命令内容影响哈希，`reason` 字段被忽略
+  - `bash_code_execute_tool`: `["command"]` — 仅命令内容影响哈希，`reason` 字段被忽略
   - `file_write_tool`: `["path", "content"]` — 仅路径和内容影响哈希
   - `browser_navigate_tool`: `["url"]` — 仅 URL 影响哈希
 - `compute_canonical_args_hash(tool_name, tool_args)` 根据映射表提取核心参数后计算 SHA256[:16] 哈希
@@ -741,7 +741,7 @@ Layer 5 包含两个并列的防滥用机制：
 检测到循环时，中间件将警告追加到 `ToolMessage` 内容中，LLM 可据此自我纠正：
 
 ```
-⚠️ WARNING: Tool 'bash_tool' called 3 times consecutively with the same arguments.
+⚠️ WARNING: Tool 'bash_code_execute_tool' called 3 times consecutively with the same arguments.
 Try: (1) different command syntax, (2) check file permissions, (3) verify current directory.
 ```
 
@@ -828,7 +828,7 @@ Tool: 15/30 calls, 15 remaining.
 **警告消息示例**：
 
 ```
-⚠️ Frequency warning: Tool 'bash_tool' approaching frequency limit: 24/30 calls in 60.0s window (6 remaining).
+⚠️ Frequency warning: Tool 'bash_code_execute_tool' approaching frequency limit: 24/30 calls in 60.0s window (6 remaining).
 Consider reducing call frequency to avoid hitting the limit.
    Global: 85/100 calls, 15 remaining.
    Tool: 24/30 calls, 6 remaining.

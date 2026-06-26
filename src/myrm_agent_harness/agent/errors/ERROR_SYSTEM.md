@@ -154,7 +154,7 @@ WebSearchError
 | file_read_tool | 硬错误 | ToolError | ✅ |
 | file_write_tool | 硬错误 | ToolError | ✅ |
 | file_edit_tool | 硬错误 | ToolError | ✅ |
-| bash_tool | 硬错误 | ToolError | ✅（含动态 error_hint） |
+| `bash_code_execute_tool` | 硬错误 | ToolError | ✅（含动态 error_hint） |
 | grep_tool | 硬错误 | ToolError | ✅ |
 | glob_tool | 硬错误 | ToolError | ✅ |
 | web_fetch_tool | 硬错误 | ToolError | ✅ |

@@ -98,8 +98,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "cron_manage_tool": ToolLayer.EXTENDED,
     # --- Deploy ---
     "deploy_artifact": ToolLayer.EXTENDED,
-    # --- 代码搜索 ---
-    "code_search_tool": ToolLayer.EXTENDED,
     # --- 文件搜索 ---
     "glob_tool": ToolLayer.EXTENDED,
     "grep_tool": ToolLayer.EXTENDED,
@@ -108,8 +106,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # --- Goal 工具 ---
     "get_goal_status_tool": ToolLayer.EXTENDED,
     "update_goal_status_tool": ToolLayer.EXTENDED,
-    # --- HTTP / 推理 ---
-    "http_request_tool": ToolLayer.EXTENDED,
     # --- 批量 LLM (fan-out) ---
     "llm_map_tool": ToolLayer.EXTENDED,
     # --- 交互工具 ---
@@ -146,7 +142,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # --- 自动化工具 ---
     "automation_manage_tool": ToolLayer.EXTENDED,
     # --- 运行时诊断 ---
-    "read_incremental_log_tool": ToolLayer.EXTENDED,
     "runtime_diagnostics_tool": ToolLayer.EXTENDED,
     # --- 技能工具 ---
     "discover_capability_tool": ToolLayer.EXTENDED,

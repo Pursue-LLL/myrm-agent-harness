@@ -16,7 +16,7 @@ import asyncio
 import logging
 from pathlib import Path
 
-from myrm_agent_harness.agent.meta_tools.http.http_request_tool import HttpConfig, http_request
+from myrm_agent_harness.agent.meta_tools.http.http_client import HttpConfig, http_request
 
 logger = logging.getLogger(__name__)
 

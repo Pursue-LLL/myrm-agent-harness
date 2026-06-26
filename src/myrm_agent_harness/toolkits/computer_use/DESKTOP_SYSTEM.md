@@ -104,7 +104,7 @@ Injected via `DESKTOP_CONTROL_RULES` in `shared_rules.py` when `enable_computer_
 - Workflow order: inspect → snapshot → interact
 - Prefer @dref; use vision only when AX is empty or interact failed
 - macOS permission: ask user to grant Accessibility before retry
-- Native API routing: when inspect detects a scriptable app, prefer bash_tool with native commands for data-heavy tasks
+- Native API routing: when inspect detects a scriptable app, prefer `bash_code_execute_tool` with native commands for data-heavy tasks
 
 ---
 

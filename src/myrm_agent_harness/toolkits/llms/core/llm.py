@@ -25,6 +25,7 @@ from typing import Any
 
 # 导入即注册自定义 Provider 到 litellm.custom_provider_map（副作用导入）
 from myrm_agent_harness.toolkits.llms import providers  # noqa: F401
+from myrm_agent_harness.infra.tls_compat import build_httpx_verify, tls_strict_disabled
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM, clean_model_kwargs
 
 logger = logging.getLogger(__name__)
@@ -155,7 +156,11 @@ def create_litellm_model(
     if resolved_wso is not None:
         llm_kwargs["web_search_options"] = resolved_wso
 
-    #  based on 模型TypeClean up not Support Parameter
+    if tls_strict_disabled() and "ssl_verify" not in llm_kwargs:
+        verify = build_httpx_verify()
+        if verify is not True:
+            llm_kwargs["ssl_verify"] = verify
+
     llm_kwargs = clean_model_kwargs(llm_kwargs, model)
 
     return ChatLiteLLM(**llm_kwargs)

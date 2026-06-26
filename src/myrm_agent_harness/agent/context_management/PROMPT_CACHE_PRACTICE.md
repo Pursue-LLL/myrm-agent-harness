@@ -79,9 +79,9 @@ class ToolLayer(IntEnum):
 
 | 层级 | 工具 | 常驻理由 |
 |------|------|---------|
-| **CORE** | `request_answer_user_tool`, `web_fetch_tool` | 始终加载，不受用户设置影响 |
-| **COMMON** | `bash_code_execute_tool`, `file_edit_tool`, `file_read_tool`, `file_write_tool`, `planner_tool`, `web_search_tool` | 默认开启但用户可通过 GUI 关闭 |
-| **EXTENDED** | 66 个工具（浏览器/记忆/技能/Code Brain/Wiki/Sub-Agent/...） | 按需加载或始终加载的辅助工具 |
+| **CORE** | `web_fetch_tool` | 始终加载，不受用户设置影响 |
+| **COMMON** | `request_answer_user_tool`, `bash_code_execute_tool`, `file_edit_tool`, `file_read_tool`, `file_write_tool`, `planner_tool`, `web_search_tool` | 默认开启，前端可关闭 |
+| **EXTENDED** | 83 个注册工具（浏览器/记忆/技能/Sub-Agent/…）+ 动态 MCP | 按需加载或始终加载的辅助工具 |
 
 `ToolRegistry.resolve()` 执行去重 + 排序：
 
@@ -97,8 +97,8 @@ sorted_entries = sorted(
 **缓存效果**：
 
 ```
-第 1 轮: [CORE: request_answer_user,web_fetch][COMMON: bash,file_edit,file_read,file_write,planner,web_search][EXTENDED: skill_select][Messages...]
-第 2 轮: [CORE: request_answer_user,web_fetch][COMMON: bash,file_edit,file_read,file_write,planner,web_search][EXTENDED: memory_recall_tool][Messages...]
+第 1 轮: [CORE: web_fetch][COMMON: request_answer_user,bash,file_edit,file_read,file_write,planner,web_search][EXTENDED: skill_select][Messages...]
+第 2 轮: [CORE: web_fetch][COMMON: request_answer_user,bash,file_edit,file_read,file_write,planner,web_search][EXTENDED: memory_recall_tool][Messages...]
          |<────────────────────────────────── 这部分始终缓存命中 ──────────────────────────────────>|
 ```
 
@@ -180,13 +180,13 @@ def _build_effective_prompt(job: CronJob) -> str:
 
 ```
 第 1 次执行（10:00）：
-[Tools: bash_tool, file_read_tool, ...]                       ← 缓存命中 ✅
+[Tools: bash_code_execute_tool, file_read_tool, ...]                       ← 缓存命中 ✅
 [System Prompt: 你是一个专业的 AI 助手...]                      ← 缓存命中 ✅
 [HumanMessage: 检查服务器状态\n---\n[Scheduler]...[SILENT]
   <current_datetime>2026-03-09 10:00</current_datetime>]
 
 第 2 次执行（11:00）：
-[Tools: bash_tool, file_read_tool, ...]                       ← 缓存命中 ✅
+[Tools: bash_code_execute_tool, file_read_tool, ...]                       ← 缓存命中 ✅
 [System Prompt: 你是一个专业的 AI 助手...]                      ← 缓存命中 ✅
 [HumanMessage: 检查服务器状态\n---\n[Scheduler]...[SILENT]
   <current_datetime>2026-03-09 11:00</current_datetime>]      ← 只有时间变了
@@ -975,11 +975,11 @@ Turn 12 (会话结束):
 | Planner 可用技能列表 | ``planner_tool.description`` | 同上 |
 | MCP 函数文档 | skill workspace ``/mcp/.../*.md``；经 ``skill_select_tool`` 返回 ToolMessage | 对话消息，非 system/tool schema |
 | Goal Blueprint | ``planner_middleware`` **追加到第一个 SystemMessage** | **`system prompt changed`** |
-| Session Notes 摘要 | ``SessionNotesProcessor`` 注入 **HumanMessage** | 不破坏 cache（已迁移） |
-| Summarize 摘要 | ``SummarizeProcessor`` 注入 **HumanMessage** | 不破坏 cache（已迁移） |
+| Session Notes 摘要 | ``SessionNotesProcessor`` 注入 **HumanMessage** | 不破坏 cache |
+| Summarize 摘要 | ``SummarizeProcessor`` 注入 **HumanMessage** | 不破坏 cache |
 | 记忆上下文 | ``memory_context_middleware`` **SystemMessage** (one-shot) | 仅首轮 baseline 建立 |
 
-``SkillMetadata.always=True`` 表示 **始终出现在 skill_select XML**（``always="true"`` 属性），**不是**写入 SystemMessage（历史 docstring 已更正）。
+``SkillMetadata.always=True`` 表示 **始终出现在 skill_select XML**（``always="true"`` 属性），**不是**写入 SystemMessage。
 
 MCP 本身不直接改 SystemMessage；常见 ``system prompt changed`` 来自 planner / memory 等 middleware 的首轮 one-shot 注入，而非 MCP 协议或 skill_select 目录变更。
 

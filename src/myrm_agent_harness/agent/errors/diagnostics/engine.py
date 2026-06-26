@@ -1,6 +1,16 @@
 """LLM error diagnostic engine.
 
-Classifies LLM errors and produces localized DiagnosticResult with resolution steps.
+[INPUT]
+- diagnostics.i18n::get_locale_manager (POS: Framework-level i18n for LLM error diagnostics)
+- diagnostics.types::DiagnosticResult, ErrorContext (POS: Error diagnostic data structures)
+- infra.tls_compat::is_tls_strict_error, get_tls_remediation_hint (POS: Enterprise TLS compatibility)
+
+[OUTPUT]
+- LLMErrorDiagnostic: Static classifier that maps LLM exceptions to localized DiagnosticResult
+
+[POS]
+LLM error diagnostic engine. Classifies exceptions from LLM calls into actionable categories
+with localized user messages and resolution steps.
 """
 
 import re
@@ -10,6 +20,7 @@ from myrm_agent_harness.agent.errors.diagnostics.types import (
     DiagnosticResult,
     ErrorContext,
 )
+from myrm_agent_harness.infra.tls_compat import get_tls_remediation_hint, is_tls_strict_error
 
 
 class LLMErrorDiagnostic:
@@ -64,6 +75,22 @@ class LLMErrorDiagnostic:
         error_str = str(exc).lower()
         error_repr = repr(exc).lower()
         full_text = f"{error_str} {error_repr}"
+
+        # 0. TLS/SSL certificate errors (enterprise TLS inspection)
+        if is_tls_strict_error(full_text):
+            hint = get_tls_remediation_hint()
+            raw_msg = locale_manager.translate("tls_certificate", "user_message", locale)
+            raw_steps = locale_manager.translate("tls_certificate", "resolution_steps", locale)
+            user_message = raw_msg if isinstance(raw_msg, str) and not raw_msg.startswith("[Missing") else f"TLS certificate verification failed. {hint}"
+            steps: list[str] = raw_steps if isinstance(raw_steps, list) and raw_steps else [hint]
+
+            return DiagnosticResult(
+                error_type="tls_certificate",
+                user_message=user_message,
+                resolution_steps=steps,
+                is_retryable=False,
+                locale=locale,
+            )
 
         # 1. Connection errors (精准自定义端点诊断)
         if any(

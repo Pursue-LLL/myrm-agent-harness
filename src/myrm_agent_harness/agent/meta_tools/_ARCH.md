@@ -15,7 +15,6 @@ Agent meta-tools module. Provides tools that depend on Agent framework infrastru
 | Submodule | Description |
 |-----------|-------------|
 | bash/ | Bash tool module (includes PTC — Python scripts invoke all Agent tools via `import myrm_tools`). |
-| code_search/ | Semantic code search tool. FTS5+Vector hybrid search via CodeIndexer. |
 | discover_capability/ | Unified Capability Discovery gateway. |
 | file_ops/ | File operations tool module (Claude Code compatible). |
 | file_search/ | File search tool module (Claude Code compatible). |

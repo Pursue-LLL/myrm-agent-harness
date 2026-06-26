@@ -18,23 +18,21 @@
 
 ---
 
-## 二、CORE 工具层（~1,279 tokens，始终加载，排最前面 → 永远被缓存）
+## 二、CORE 工具层（~255 tokens，始终加载，排最前面 → 永远被缓存）
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
-| 4 | **request_answer_user_tool** | **1,024** | `harness/agent/meta_tools/answer_user_tool.py` | 回复自审工具，包含完整的自审流程和回复质量检查逻辑 | 始终 |
-| 5 | web_fetch_tool | 255 | `harness/toolkits/web_fetch/web_fetch_agent_tools.py` | HTTP 请求/网页抓取（含 fetch_and_extract + fetch_full_content 两种操作说明） | 始终 |
+| 4 | web_fetch_tool | 255 | `harness/toolkits/web_fetch/web_fetch_agent_tools.py` | HTTP 请求/网页抓取（含 fetch_and_extract + fetch_full_content 两种操作说明） | 始终 |
 
-**注意**：
-- `web_fetch_tool` 的 token 取决于是否启用 advanced_retrieval：启用时 255 tokens（含 extract），未启用时 ~51 tokens
-- `request_answer_user_tool` 由 harness 层 `get_meta_tools()` 提供，在 `tool_layers.py` 中注册为 CORE 层，保证缓存位置稳定
+**注意**：`web_fetch_tool` 的 token 取决于是否启用 advanced_retrieval：启用时 255 tokens（含 extract），未启用时 ~51 tokens。
 
 ---
 
-## 三、COMMON 工具层（~3,433 tokens，默认开启可关）
+## 三、COMMON 工具层（~4,457 tokens，默认开启可关）
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
+| 5 | **request_answer_user_tool** | **1,024** | `harness/agent/meta_tools/answer_user_tool.py` | 回复自审工具，包含完整的自审流程和回复质量检查逻辑 | 默认开启（`enable_answer_tool=True`） |
 | 6 | **bash_code_execute_tool** | **1,207** | `harness/agent/meta_tools/bash/bash_tool.py` | Shell/Python 代码执行，包含执行规则、依赖分析、优化策略、严格禁止项。另有 OS_HINT (~50 tokens) 动态追加 | 默认开启 |
 | 7 | file_edit_tool | 155 | `harness/agent/meta_tools/file_ops/file_edit_tool.py` | 精确编辑 (str_replace) | 默认开启 |
 | 8 | file_read_tool | 390 | `harness/agent/meta_tools/file_ops/file_read_tool.py` | 读取文件内容 | 默认开启 |
@@ -49,15 +47,18 @@
 
 ## 四、EXTENDED 工具层（按需加载，放最后 → 变化不影响前面的缓存）
 
-### 4.1 始终加载的辅助工具
+### 4.1 默认加载的 EXTENDED 辅助工具（enable_file_tools 时）
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|
-| 12 | read_incremental_log_tool | 278 | `harness/agent/meta_tools/file_ops/incremental_read_tool.py` | 大文件分段读取（文件名仍为 incremental_read_tool.py，注册工具名为 read_incremental_log_tool） |
-| 13 | glob_tool | 234 | `harness/agent/meta_tools/file_search/glob_tool.py` | 通配符文件搜索 |
-| 14 | grep_tool | 349 | `harness/agent/meta_tools/file_search/grep_tool.py` | 正则内容搜索 |
-| 15 | http_request_tool | 214 | `harness/agent/meta_tools/http/http_request_tool.py` | HTTP API 请求工具 |
-| 16 | runtime_diagnostics_tool | 58 | `harness/agent/meta_tools/diagnostics_tool.py` | 运行时诊断 |
+| 12 | glob_tool | 234 | `harness/agent/meta_tools/file_search/glob_tool.py` | 通配符文件搜索 |
+| 13 | grep_tool | 349 | `harness/agent/meta_tools/file_search/grep_tool.py` | 正则内容搜索 |
+
+### 4.1.1 Deferred 工具（不占默认 prompt，discover_capability 按需挂载）
+
+| # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
+|---|--------|------------------:|----------|------|
+| — | runtime_diagnostics_tool | 58 | `harness/agent/meta_tools/diagnostics_tool.py` | 运行时诊断 |
 
 ### 4.2 记忆工具（启用记忆系统时加载）
 
@@ -147,11 +148,11 @@
 | 53 | vault_put_tool | 96 | `harness/agent/meta_tools/file_ops/vault_tools.py` | 放入文件到保险柜 |
 | 54 | vault_extract_tool | 66 | `harness/agent/meta_tools/file_ops/vault_tools.py` | 从保险柜提取文件 |
 
-### 4.12 Git 工具
+### 4.12 上下文阶段工具
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|
-| 55 | commit_stage_tool | 109 | `harness/agent/meta_tools/commit_stage_tool.py` | Git 提交暂存 |
+| 55 | commit_stage_tool | 109 | `harness/agent/meta_tools/commit_stage_tool.py` | Agent 主动阶段总结 / 上下文 consolidation（非 Git） |
 
 ### 4.13 Goal 目标工具
 
@@ -208,13 +209,7 @@
 | 79 | desktop_interact_tool | ~50 | `harness/toolkits/computer_use/desktop_agent_tools.py` | @dref 语义交互 |
 | 80 | desktop_vision_tool | ~60 | `harness/toolkits/computer_use/desktop_agent_tools.py` | 显式截图/坐标回退 |
 
-### 4.20 代码语义搜索工具
-
-| # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
-|---|--------|------------------:|----------|------|----------|
-| 81 | code_search_tool | ~200 | `harness/agent/meta_tools/code_search/tool.py` | FTS5+BM25+Vector 混合代码搜索 | 启用 CodeIndexer 时 |
-
-### 4.21 Deep Research 编排器伪工具（仅深度搜索模式，JSON Schema 注入 LLM）
+### 4.20 Deep Research 编排器伪工具（仅深度搜索模式，JSON Schema 注入 LLM）
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
@@ -283,14 +278,14 @@
 | 分类 | Token (tiktoken) | 明细 |
 |------|------------------:|------|
 | System Prompt 层 | ~2,607 | 固定，跨用户缓存 |
-| CORE 工具层 | ~1,279 | 2 工具，固定，始终缓存 |
-| COMMON 工具层 | ~3,433 | 6 工具，默认存在 |
-| EXTENDED 工具层 | ~2,483 | read_incremental_log(278) + glob(234) + grep(349) + memory×3(670) + skill_select(125) + skill_manage(251) + discover_capability_tool(236) + conversation_search_tool(237) + runtime_diagnostics(58) + commit_stage_tool(109) |
+| CORE 工具层 | ~255 | 1 工具，固定，始终缓存 |
+| COMMON 工具层 | ~4,457 | 7 工具，默认存在 |
+| EXTENDED 工具层 | ~2,205 | glob(234) + grep(349) + memory×3(670) + skill_select(125) + skill_manage(251) + discover_capability_tool(236) + conversation_search_tool(237) + commit_stage_tool(109) + …（deferred: runtime_diagnostics 不占默认 prompt） |
 | 工具 JSON schema | ~1,170 | ~18 工具 × ~65 tokens |
 | 动态注入 | ~1,200 | user_instructions + memory_context + inline_skills |
 | 消息格式 | ~500 | role tags, boundaries 等 |
 | 用户消息 | ~32 | 短消息 + datetime 标签 |
-| **tiktoken 小计** | **~12,704** | |
+| **tiktoken 小计** | **~12,426** | |
 | Qwen tokenizer 差异 | +~200~900 | 取决于中文内容比例 |
 | **Qwen 实测估计** | **~12,900~13,600** | |
 
@@ -299,37 +294,37 @@
 | 分类 | Token (tiktoken) |
 |------|------------------:|
 | System Prompt 层 | ~2,607 |
-| CORE 工具层 | ~1,279 |
-| 工具 JSON schema | ~130 (~2 工具) |
+| CORE 工具层 | ~255 |
+| 工具 JSON schema | ~65 (~1 工具) |
 | 用户消息 | ~32 |
 | 消息格式 | ~300 |
-| **tiktoken 小计** | **~4,348** |
+| **tiktoken 小计** | **~3,259** |
 
 ### 满载场景（所有可选功能全开：浏览器+Cron+Wiki+子Agent+渲染UI+看板+日历+计算机+IM）
 
 | 分类 | Token (tiktoken) |
 |------|------------------:|
 | System Prompt 层 | ~2,607 |
-| CORE 工具层 | ~1,279 |
-| COMMON 工具层 | ~3,433 |
-| EXTENDED 全部（80 工具，harness 76 + server 4） | ~7,542+ |
-| 工具 JSON schema | ~5,590 (~86 工具 × ~65) |
+| CORE 工具层 | ~255 |
+| COMMON 工具层 | ~4,457 |
+| EXTENDED 全部（83 工具，harness 81 + server 2） | ~7,542+ |
+| 工具 JSON schema | ~5,785 (~89 工具 × ~65) |
 | 动态注入 | ~1,200 |
 | 消息格式 | ~500 |
-| **tiktoken 小计** | **~22,086+** |
+| **tiktoken 小计** | **~22,411+** |
 
 ---
 
 ## 缓存分层效果
 
 ```
-[CORE: request_answer_user(1024) web_fetch(255)]
-  ↑ 始终缓存命中（~1,279 tokens）
+[CORE: web_fetch(255)]
+  ↑ 始终缓存命中（~255 tokens）
 
-[COMMON: bash(1207) file_edit(155) file_read(390) file_write(131) planner(373) web_search(1177)]
-  ↑ 默认缓存命中，用户可通过前端开关控制
+[COMMON: request_answer_user(1024) bash(1207) file_edit(155) file_read(390) file_write(131) planner(373) web_search(1177)]
+  ↑ 默认缓存命中，用户可通过前端开关控制（~4,457 tokens）
 
-[EXTENDED: incremental_read(278) memory_*(670) skill_*(~600) ...]
+[EXTENDED: glob(234) grep(349) memory_*(670) skill_*(~600) ...]
   ↑ 按需变化，不影响 CORE/COMMON 缓存
 
 [System Prompt: core(2188) + datetime_rules(91) + security_boundary(328)]
@@ -346,7 +341,7 @@
 ## 工具层级注册表 (tool_layers.py)
 
 <!-- TOOL_COUNT_BEGIN -->
-Tools registered: **90** (CORE 1 + COMMON 7 + EXTENDED 82). Source of truth: `tool_layers.py` (harness) + `_tool_layer_bootstrap.py` (server). Auto-generated by `scripts/validate_tool_registry.py --generate-docs`.
+Tools registered: **89** (CORE 1 + COMMON 7 + EXTENDED 81). Source of truth: `tool_layers.py` (harness) + `_tool_layer_bootstrap.py` (server). Auto-generated by `scripts/validate_tool_registry.py --generate-docs`.
 <!-- TOOL_COUNT_END -->
 未注册的工具（如 MCP 动态工具）自动归入 EXTENDED，并在运行时打印 WARNING 日志。
 完整列表请直接查看 `tool_layers.py`。

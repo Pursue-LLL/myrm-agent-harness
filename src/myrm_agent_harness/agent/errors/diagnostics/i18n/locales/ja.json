@@ -107,6 +107,12 @@
     "プロバイダーのコンソールでプライバシー設定を調整してください（例：OpenRouter 設定 > プライバシー）",
     "別のモデルまたはプロバイダーをお試しください"
   ],
+  "tls_certificate_user_message": "TLS証明書の検証に失敗しました — 企業のTLS検査プロキシが原因の可能性があります",
+  "tls_certificate_resolution_steps": [
+    "設定 → システム → 詳細設定 で「企業ネットワーク互換モード」を有効にしてください",
+    "または環境変数 MYRM_TLS_STRICT=0 を設定してください",
+    "カスタムCA証明書バンドルを使用する場合は、SSL_CERT_FILE にパスを設定してください"
+  ],
   "cooldown_hint_single": " {seconds}秒後に再試行してください。",
   "cooldown_hint_plural": " {seconds}秒後に再試行してください。"
 }

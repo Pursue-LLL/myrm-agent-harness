@@ -52,7 +52,6 @@ ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset({
     "create_automation_tools",       # Optional automation toolkit
     "create_kanban_tools",           # Optional kanban toolkit
     "create_channel_notify_tool",
-    "create_code_search_tool",       # Semantic code search opt-in toolkit (requires CodeIndexer)
     "create_conversation_search_tool",
     "create_cron_tools",
     "create_delegate_to_agent_tool",

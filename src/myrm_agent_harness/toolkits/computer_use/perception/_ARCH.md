@@ -21,7 +21,7 @@ Platform AX/UIA/AT-SPI snapshot capture, tree rendering, element invoke dispatch
 
 ## Key Design: Native API Routing Hints
 
-Each platform's `inspect_foreground()` identifies whether the frontmost app supports native automation (AppleScript/COM/D-Bus) and appends a routing hint to the `recommendation` field. This guides the Agent to prefer `bash_tool` with native scripts for data retrieval or bulk actions — faster and more reliable than GUI interaction — without adding new tools or breaking prompt cache.
+Each platform's `inspect_foreground()` identifies whether the frontmost app supports native automation (AppleScript/COM/D-Bus) and appends a routing hint to the `recommendation` field. This guides the Agent to prefer `bash_code_execute_tool` with native scripts for data retrieval or bulk actions — faster and more reliable than GUI interaction — without adding new tools or breaking prompt cache.
 
 ## Architecture Overview
 

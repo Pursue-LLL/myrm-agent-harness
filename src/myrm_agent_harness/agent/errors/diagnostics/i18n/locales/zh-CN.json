@@ -108,6 +108,12 @@
     "前往服务商控制台调整隐私设置（如 OpenRouter 设置 > 隐私）",
     "尝试使用其他模型或服务商"
   ],
+  "tls_certificate_user_message": "TLS 证书验证失败 — 可能由企业 TLS 检测代理导致",
+  "tls_certificate_resolution_steps": [
+    "在 设置 → 系统 → 高级 中启用「企业网络兼容模式」",
+    "或设置环境变量 MYRM_TLS_STRICT=0",
+    "如使用自定义 CA 证书包，请设置 SSL_CERT_FILE 为其路径"
+  ],
   "cooldown_hint_single": " 请等待{seconds}秒后重试。",
   "cooldown_hint_plural": " 请等待{seconds}秒后重试。"
 }

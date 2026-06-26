@@ -46,7 +46,7 @@ def mock_agent():
 async def test_add_tools_sorting_when_cached_is_none(mock_agent):
     """Test that add_tools sorts tools correctly when _cached_tools is None."""
     t1 = DummyTool(name="skill_manage_tool")  # EXTENDED
-    t2 = DummyTool(name="bash_code_execute_tool")  # CORE
+    t2 = DummyTool(name="bash_code_execute_tool")  # COMMON
     t3 = DummyTool(name="web_search_tool")  # COMMON
 
     # Mock create_agent to prevent errors from LangGraph compilation
@@ -54,7 +54,7 @@ async def test_add_tools_sorting_when_cached_is_none(mock_agent):
         mock_agent.add_tools([t1, t2, t3])
 
     assert len(mock_agent.user_tools) == 3
-    # Expect order: CORE, COMMON, EXTENDED
+    # Expect order: COMMON, COMMON, EXTENDED (alphabetical within COMMON)
     assert mock_agent.user_tools[0].name == "bash_code_execute_tool"
     assert mock_agent.user_tools[1].name == "web_search_tool"
     assert mock_agent.user_tools[2].name == "skill_manage_tool"
@@ -63,19 +63,19 @@ async def test_add_tools_sorting_when_cached_is_none(mock_agent):
 @pytest.mark.asyncio
 async def test_add_tools_sorting_when_cached_exists(mock_agent):
     """Test that add_tools sorts tools correctly when _cached_tools already exists."""
-    t1 = DummyTool(name="bash_code_execute_tool")  # CORE
+    t1 = DummyTool(name="bash_code_execute_tool")  # COMMON
     mock_agent._cached_tools = [t1]
 
     t2 = DummyTool(name="skill_select_tool")  # EXTENDED
     t3 = DummyTool(name="web_search_tool")  # COMMON
-    t4 = DummyTool(name="file_read_tool")  # CORE
+    t4 = DummyTool(name="file_read_tool")  # COMMON
 
     with patch("myrm_agent_harness.agent.base_agent.create_agent"):
         mock_agent.add_tools([t2, t3, t4])
 
     assert len(mock_agent._cached_tools) == 4
-    # Expect order: CORE, CORE, COMMON, EXTENDED
-    # Also alphabetized within layers: bash_code_execute_tool, file_read_tool
+    # Expect order: COMMON, COMMON, COMMON, EXTENDED
+    # Alphabetical within COMMON: bash_code_execute_tool, file_read_tool, web_search_tool
     assert mock_agent._cached_tools[0].name == "bash_code_execute_tool"
     assert mock_agent._cached_tools[1].name == "file_read_tool"
     assert mock_agent._cached_tools[2].name == "web_search_tool"

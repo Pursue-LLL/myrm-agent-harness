@@ -61,7 +61,6 @@ from .file_ops import (
     create_file_edit_tool,
     create_file_read_tool,
     create_file_write_tool,
-    create_incremental_read_tool,
 )
 from .file_search import create_glob_tool, create_grep_tool
 from .skills.analyze import create_skill_analyze_tool
@@ -261,14 +260,12 @@ def get_meta_tools(
         file_read_tool = create_file_read_tool(skills=skills)
         file_write_tool = create_file_write_tool(skills=skills)
         file_edit_tool = create_file_edit_tool(skills=skills)
-        incremental_read_tool = create_incremental_read_tool(skills=skills)
         glob_tool = create_glob_tool()
         grep_tool = create_grep_tool()
         tools.extend([
             file_read_tool,
             file_write_tool,
             file_edit_tool,
-            incremental_read_tool,
             glob_tool,
             grep_tool
         ])
@@ -277,9 +274,7 @@ def get_meta_tools(
 
     # Low-frequency utility tools → deferred via registry (discoverable
     # through discover_capability_tool, auto-mounted on first use).
-    from .http.http_request_tool import http_request_tool
-
-    _deferred_tools = [http_request_tool, runtime_diagnostics_tool]
+    _deferred_tools: list = [runtime_diagnostics_tool]
 
     # Mutable container: filled after all tools are built so that
     # bash Python PTC can access the full tool list via closure.
@@ -383,8 +378,6 @@ __all__ = [
     "create_file_write_tool",
     "create_glob_tool",
     "create_grep_tool",
-    "create_incremental_read_tool",
-    "create_list_subagents_tool",
     "create_select_skill_tool",
     "create_skill_analyze_tool",
     "create_skill_discovery_tool",

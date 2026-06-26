@@ -108,6 +108,12 @@
     "Adjust your privacy settings on the provider dashboard (e.g., OpenRouter Settings > Privacy)",
     "Try a different model or provider"
   ],
+  "tls_certificate_user_message": "TLS certificate verification failed — likely caused by enterprise TLS inspection proxy",
+  "tls_certificate_resolution_steps": [
+    "Enable 'Enterprise Network Compatibility' in Settings → System → Advanced",
+    "Or set environment variable MYRM_TLS_STRICT=0",
+    "If using a custom CA bundle, set SSL_CERT_FILE to its path"
+  ],
   "cooldown_hint_single": " Retry after {seconds} second.",
   "cooldown_hint_plural": " Retry after {seconds} seconds."
 }

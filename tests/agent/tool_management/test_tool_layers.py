@@ -47,6 +47,10 @@ class TestGetToolLayer:
     def test_knowledge_tool_not_registered(self):
         assert "knowledge_tool" not in _TOOL_LAYERS
 
+    def test_code_search_tool_not_registered(self):
+        """Semantic code_search was removed; workspace exploration uses grep/glob."""
+        assert "code_search_tool" not in _TOOL_LAYERS
+
 
 class TestRegisterToolLayer:
     def test_register_new_tool(self):

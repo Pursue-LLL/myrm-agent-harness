@@ -1,6 +1,7 @@
 """Required error types for translation completeness validation."""
 
 REQUIRED_ERROR_TYPES = [
+    "tls_certificate",
     "connection",
     "custom_endpoint_unreachable",
     "billing",

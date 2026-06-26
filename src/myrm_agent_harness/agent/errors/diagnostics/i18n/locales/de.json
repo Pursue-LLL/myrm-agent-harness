@@ -99,6 +99,12 @@
     "Passen Sie die Datenschutzeinstellungen in der Anbieterkonsole an (z.B. OpenRouter Einstellungen > Datenschutz)",
     "Versuchen Sie ein anderes Modell oder einen anderen Anbieter"
   ],
+  "tls_certificate_user_message": "TLS-Zertifikatsüberprüfung fehlgeschlagen — möglicherweise verursacht durch einen Enterprise-TLS-Inspektionsproxy",
+  "tls_certificate_resolution_steps": [
+    "Aktivieren Sie den 'Enterprise-Netzwerk-Kompatibilitätsmodus' unter Einstellungen → System → Erweitert",
+    "Oder setzen Sie die Umgebungsvariable MYRM_TLS_STRICT=0",
+    "Bei Verwendung eines benutzerdefinierten CA-Zertifikatbündels setzen Sie SSL_CERT_FILE auf den Pfad"
+  ],
   "cooldown_hint_single": " Versuchen Sie es nach {seconds} Sekunde erneut.",
   "cooldown_hint_plural": " Versuchen Sie es nach {seconds} Sekunden erneut."
 }
