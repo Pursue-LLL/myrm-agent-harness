@@ -209,21 +209,30 @@ def truncate_aria_tree(nodes: list["EnhancedNode"], max_tokens: int) -> tuple[li
 
         return replace(node, node=new_aria, children=tuple(new_children_list))
 
-    total_mass = sum(sizes[id(n)] * _get_aria_weight(n.node.role) for n in nodes)
-    new_nodes = []
+    # Greedy-keep strategy: sort by weight (desc), keep nodes until budget exhausted.
+    # This avoids the "spread too thin" problem where many same-weight nodes each
+    # get budget < threshold and all get dropped.
+    indexed_nodes = [(i, n, sizes[id(n)], _get_aria_weight(n.node.role)) for i, n in enumerate(nodes)]
+    indexed_nodes.sort(key=lambda x: x[3], reverse=True)
 
-    for n in nodes:
-        n_size = sizes[id(n)]
-        mass = n_size * _get_aria_weight(n.node.role)
-        n_budget = int(max_chars * (mass / total_mass)) if total_mass > 0 else int(max_chars / len(nodes))
+    remaining_budget = max_chars
+    kept: list[tuple[int, "EnhancedNode"]] = []
 
-        if n_budget < 20:
-            continue
-        if n_budget < n_size:
-            tn = _truncate_node(n, n_budget)
-            if tn:
-                new_nodes.append(tn)
+    for orig_idx, n, n_size, _weight in indexed_nodes:
+        if remaining_budget <= 0:
+            break
+
+        if n_size <= remaining_budget:
+            kept.append((orig_idx, n))
+            remaining_budget -= n_size
         else:
-            new_nodes.append(n)
+            tn = _truncate_node(n, remaining_budget)
+            if tn:
+                kept.append((orig_idx, tn))
+            remaining_budget = 0
+
+    # Restore original order
+    kept.sort(key=lambda x: x[0])
+    new_nodes = [n for _, n in kept]
 
     return new_nodes, True
