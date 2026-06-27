@@ -75,7 +75,7 @@ def create_file_edit_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
 
     @tool(
         "file_edit_tool",
-        description="""精确编辑文件内容（字符串替换）。
+        description="""精确编辑文件内容（字符串替换）。当需要修改文件时，必须使用本工具而非 bash sed/awk/perl。
 
 参数：
 - path: 文件路径 (支持普通路径或 "@file_id")

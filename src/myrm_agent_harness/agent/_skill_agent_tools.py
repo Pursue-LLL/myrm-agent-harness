@@ -86,7 +86,6 @@ class SkillAgentToolsMixin:
             enable_file_tools=self._enable_file_tools,  # type: ignore[attr-defined]
             enable_bash=self._enable_bash,  # type: ignore[attr-defined]
             enable_answer_tool=self._enable_answer_tool,  # type: ignore[attr-defined]
-            agent_instance=self,  # type: ignore[arg-type]  # SkillAgent supplies _last_context/_last_run_stats at runtime.
             available_tool_names=self._available_tool_names,  # type: ignore[attr-defined]
             available_tool_groups=self._available_tool_groups,  # type: ignore[attr-defined]
         )

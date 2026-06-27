@@ -281,14 +281,6 @@ def create_context_pipeline_middleware(
                 merged_ctx = runtime_context if isinstance(runtime_context, dict) else {}
                 is_resume = merged_ctx.get("is_resume", False)
 
-                force_proactive_reset = merged_ctx.get("subagent_finished_flag", False)
-                if force_proactive_reset:
-                    merged_ctx["subagent_finished_flag"] = False
-
-                if not force_proactive_reset and merged_ctx.get("active_stage_commit_flag", False):
-                    force_proactive_reset = True
-                    merged_ctx["active_stage_commit_flag"] = False
-
             # Context overflow check for Resume (prevent cache-breaking retry)
             if is_resume and max_context_tokens is not None and total_tokens > max_context_tokens:
                 logger.error(
@@ -326,7 +318,6 @@ def create_context_pipeline_middleware(
                     "turn_count": turn_count,
                     "last_message_db_id": last_message_db_id,
                     "compression_intent": extract_compression_intent(merged_ctx),
-                    "force_proactive_reset": force_proactive_reset,
                     "eco_mode": eco_mode,
                     "supports_vision": merged_ctx.get("supports_vision", True),
                     "last_activity_time": _last_successful_call_time or None,

@@ -355,16 +355,6 @@ class TestShouldProcessBranches:
     """Cover should_process branches beyond existing tests."""
 
     @pytest.mark.asyncio
-    async def test_force_proactive_reset_triggers(self) -> None:
-        processor = SummarizeProcessor()
-        context = ProcessorContext(
-            messages=[HumanMessage(content="test")],
-            user_query="test",
-            metadata={"force_proactive_reset": True},
-        )
-        assert await processor.should_process(context) is True
-
-    @pytest.mark.asyncio
     @patch(
         "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.should_summarize",
         return_value=False,

@@ -1377,7 +1377,7 @@ class BrowserSession(
         self._snapshot_manager = SnapshotManager(page)
 
         last_snapshot_url = self._tab_controller.get_snapshot_url(tab_id)
-        self._interactor = Interactor(page, {}, last_snapshot_url=last_snapshot_url)
+        self._interactor = Interactor(page, {}, last_snapshot_url=last_snapshot_url, humanize=self._browser_pool.config.humanize)
         self._extractor = Extractor(page)
 
         if not self._auto_restored and self._auto_restore_domains and self._persistence:

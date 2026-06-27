@@ -32,39 +32,40 @@ from ..infra.schemas import StructuredSummary
 logger = get_agent_logger(__name__)
 
 
-_SUMMARY_MARKERS = ("[历史摘要]", "[Previous conversation summary]")
+_SUMMARY_JSON_MARKER = "<!-- SUMMARY_JSON"
+_LEGACY_TEXT_MARKERS = ("[历史摘要]", "[Previous conversation summary]")
+
+
+def _is_summary_message(content: str) -> bool:
+    """Check whether a message contains a summary (JSON block or legacy text prefix)."""
+    if _SUMMARY_JSON_MARKER in content:
+        return True
+    return any(content.startswith(marker) for marker in _LEGACY_TEXT_MARKERS)
 
 
 def extract_existing_summary(messages: list[BaseMessage]) -> StructuredSummary | None:
-    """从消息列表中提取已有摘要
+    """从消息列表中提取已有摘要（不依赖消息类型）。
 
-    检测任意消息中以摘要标记开头的内容（不依赖消息类型）。
-    Pipeline 产生的摘要以 [历史摘要] 开头（HumanMessage），
-    /compact 或持久化回写的摘要以 [Previous conversation summary] 开头（assistant 角色）。
+    优先检测 ``<!-- SUMMARY_JSON`` 嵌入块（Pipeline 产生的摘要以 ``<memory-context>``
+    开头，内含此 JSON 块）。回退到 legacy 文本前缀检测（``[历史摘要]`` /
+    ``[Previous conversation summary]``）以兼容持久化回写的旧格式摘要。
     """
     for msg in messages:
         content = msg.content if isinstance(msg.content, str) else str(msg.content)
-        if any(content.startswith(marker) for marker in _SUMMARY_MARKERS):
+        if _is_summary_message(content):
             return _parse_summary_from_message(content)
     return None
 
 
 def extract_messages_after_summary(messages: list[BaseMessage]) -> list[BaseMessage]:
-    """提取摘要消息之后的新消息
+    """提取摘要消息之后的新消息（用于增量合并模式）。
 
-    用于增量合并模式，只处理摘要之后的新内容。
-    兼容两种标记：[历史摘要]（Pipeline 产生）和 [Previous conversation summary]（持久化回写）。
+    使用与 ``extract_existing_summary`` 相同的检测逻辑（JSON 块 + legacy 文本前缀）。
     """
-    summary_index = -1
-
     for i, msg in enumerate(messages):
         content = msg.content if isinstance(msg.content, str) else str(msg.content)
-        if any(content.startswith(marker) for marker in _SUMMARY_MARKERS):
-            summary_index = i
-            break
-
-    if summary_index >= 0:
-        return messages[summary_index + 1 :]
+        if _is_summary_message(content):
+            return messages[i + 1 :]
     return messages
 
 
@@ -187,13 +188,19 @@ def _as_str_list(val: object) -> list[str]:
 
 
 def _parse_summary_from_message(content: str) -> StructuredSummary | None:
-    """从摘要消息内容中解析 StructuredSummary
+    """从摘要消息内容中解析 StructuredSummary。
 
-    优先使用嵌入的 JSON 块（更可靠），如果没有则回退到文本解析。
+    三级回退：
+    1. ``<!-- SUMMARY_JSON`` 嵌入块（Pipeline 产生，最可靠）
+    2. 内嵌 JSON dict 扫描（覆盖 server 注入的 ``[Previous conversation summary]\\n{JSON}`` 格式）
+    3. 中文行标签文本解析（最后回退）
     """
     json_summary = _parse_summary_from_json_block(content)
     if json_summary:
         return json_summary
+    raw_dict = _scan_json_objects_for_dict(content)
+    if raw_dict and "user_goal" in raw_dict:
+        return _build_summary_from_dict(raw_dict)
     return _parse_summary_from_text(content)
 
 

@@ -11,6 +11,7 @@ Verifies that:
 
 from __future__ import annotations
 
+import importlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -18,6 +19,8 @@ import pytest
 from myrm_agent_harness.toolkits.browser.pool import GlobalBrowserPool
 from myrm_agent_harness.toolkits.browser.pool.proxy import ProxyConfig, RoundRobinProxyPool
 from myrm_agent_harness.toolkits.web_fetch.fetchers.stealth_fetcher import StealthFetcher
+
+_scrapling_available = importlib.util.find_spec("scrapling") is not None
 
 _DOH_FLAG = "--dns-over-https-templates=https://cloudflare-dns.com/dns-query"
 
@@ -32,6 +35,7 @@ def _make_mock_response(url: str = "https://example.com") -> MagicMock:
     return resp
 
 
+@pytest.mark.skipif(not _scrapling_available, reason="scrapling not installed")
 class TestStealthFetcherDnsProtection:
     """L3 StealthFetcher DNS leak prevention."""
 

@@ -146,33 +146,30 @@ class TestExtractYoutubeTranscript:
         mock_segment2.duration = 3.0
         mock_segment2.text = "Second line"
 
-        mock_api_instance = MagicMock()
-        mock_api_instance.fetch = MagicMock(return_value=[mock_segment, mock_segment2])
+        with patch.dict("sys.modules", {"youtube_transcript_api": MagicMock()}):
+            import importlib
 
-        mock_api_class = MagicMock(return_value=mock_api_instance)
+            import myrm_agent_harness.toolkits.web_fetch.youtube_extractor as yt_mod
 
-        with patch("myrm_agent_harness.toolkits.web_fetch.youtube_extractor.asyncio") as mock_asyncio:
-            mock_asyncio.to_thread = AsyncMock(return_value=[mock_segment, mock_segment2])
+            importlib.reload(yt_mod)
 
-            with patch.dict("sys.modules", {"youtube_transcript_api": MagicMock()}):
-                import importlib
+            with (
+                patch("asyncio.to_thread", new_callable=AsyncMock, return_value=[mock_segment, mock_segment2]),
+                patch.object(yt_mod, "_fetch_oembed_metadata", new_callable=AsyncMock, return_value={}),
+            ):
+                result = await yt_mod.extract_youtube_transcript(
+                    "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+                )
 
-                import myrm_agent_harness.toolkits.web_fetch.youtube_extractor as yt_mod
-
-                with patch.object(yt_mod, "asyncio", mock_asyncio):
-                    result = await extract_youtube_transcript(
-                        "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-                    )
-
-        if result is not None:
-            assert "Hello world" in result.page_content
-            assert "00:00 Hello world" in result.page_content
-            assert "00:05 Second line" in result.page_content
-            assert result.metadata["video_id"] == "dQw4w9WgXcQ"
-            assert result.metadata["source_type"] == "youtube_transcript"
-            assert result.metadata["segment_count"] == 2
-            assert result.metadata["url"] == "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-            assert result.metadata["duration"] == "00:08"
+        assert result is not None
+        assert "Hello world" in result.page_content
+        assert "00:00 Hello world" in result.page_content
+        assert "00:05 Second line" in result.page_content
+        assert result.metadata["video_id"] == "dQw4w9WgXcQ"
+        assert result.metadata["source_type"] == "youtube_transcript"
+        assert result.metadata["segment_count"] == 2
+        assert result.metadata["url"] == "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        assert result.metadata["duration"] == "00:08"
 
     @pytest.mark.asyncio
     async def test_custom_languages_passed(self) -> None:
@@ -196,13 +193,15 @@ class TestExtractYoutubeTranscript:
 
             importlib.reload(yt_mod)
 
-            with patch("asyncio.to_thread", new_callable=AsyncMock, return_value=[mock_segment]) as mock_thread:
+            with (
+                patch("asyncio.to_thread", new_callable=AsyncMock, return_value=[mock_segment]) as mock_thread,
+                patch.object(yt_mod, "_fetch_oembed_metadata", new_callable=AsyncMock, return_value={}),
+            ):
                 result = await yt_mod.extract_youtube_transcript(
                     "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
                     preferred_languages=["zh-Hans", "en"],
                 )
 
-                # Verify languages were passed to api.fetch
                 call_args = mock_thread.call_args
                 assert call_args[1]["languages"] == ["zh-Hans", "en"]
 
@@ -291,7 +290,10 @@ class TestExtractYoutubeTranscript:
 
             importlib.reload(yt_mod)
 
-            with patch("asyncio.to_thread", new_callable=AsyncMock, return_value=[mock_segment]):
+            with (
+                patch("asyncio.to_thread", new_callable=AsyncMock, return_value=[mock_segment]),
+                patch.object(yt_mod, "_fetch_oembed_metadata", new_callable=AsyncMock, return_value={}),
+            ):
                 result = await yt_mod.extract_youtube_transcript(
                     "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
                     proxy_pool=mock_pool,

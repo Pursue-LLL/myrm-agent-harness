@@ -184,6 +184,47 @@ async def test_interact_hover(interactor: Interactor) -> None:
         mock_locator.hover.assert_called_once_with(timeout=10_000)
 
 
+@pytest.mark.asyncio
+async def test_interact_hover_bezier_success(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
+    """Test hover in CAREFUL mode uses Bézier trajectory when bounding_box succeeds."""
+    from myrm_agent_harness.toolkits.browser.pool.config import HumanizeConfig, HumanizeMode
+
+    cfg = HumanizeConfig.from_mode(HumanizeMode.CAREFUL)
+    interactor = Interactor(mock_page, refs_map, humanize=cfg)
+
+    mock_locator = AsyncMock()
+    mock_locator.bounding_box = AsyncMock(return_value={"x": 100, "y": 50, "width": 80, "height": 30})
+    mock_page.mouse = MagicMock()
+    mock_page.mouse.move = AsyncMock()
+    mock_page.wait_for_timeout = AsyncMock()
+    mock_page.viewport_size = {"width": 800, "height": 600}
+
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+        result = await interactor.interact("hover", "e0")
+
+    assert result == "Hovered over e0"
+    mock_locator.hover.assert_not_called()
+    assert mock_page.mouse.move.call_count >= 1
+
+
+@pytest.mark.asyncio
+async def test_interact_hover_bezier_fallback(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
+    """Test hover in CAREFUL mode falls back to locator.hover() when bounding_box returns None."""
+    from myrm_agent_harness.toolkits.browser.pool.config import HumanizeConfig, HumanizeMode
+
+    cfg = HumanizeConfig.from_mode(HumanizeMode.CAREFUL)
+    interactor = Interactor(mock_page, refs_map, humanize=cfg)
+
+    mock_locator = AsyncMock()
+    mock_locator.bounding_box = AsyncMock(return_value=None)
+
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+        result = await interactor.interact("hover", "e0")
+
+    assert result == "Hovered over e0"
+    mock_locator.hover.assert_called_once_with(timeout=10_000)
+
+
 # =============================================================================
 # Action: focus
 # =============================================================================

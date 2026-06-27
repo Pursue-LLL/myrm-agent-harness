@@ -7,6 +7,7 @@ import json
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from myrm_agent_harness.agent.context_management.infra.schemas import StructuredSummary
+from myrm_agent_harness.agent.context_management.strategies.summary_builder import create_summary_message
 from myrm_agent_harness.agent.context_management.strategies.summary_parser import (
     extract_existing_summary,
     extract_messages_after_summary,
@@ -327,3 +328,92 @@ class TestParseSummaryResponse:
         msgs = [SystemMessage(content=content)]
         result = extract_existing_summary(msgs)
         assert result is None
+
+
+class TestServerInjectedSummary:
+    """Verify ``[Previous conversation summary]\n{JSON}`` format is correctly parsed."""
+
+    def test_server_injected_json_parsed(self) -> None:
+        data = {
+            "user_goal": "重构认证模块",
+            "completed_actions": ["实现JWT"],
+            "key_findings": ["发现漏洞"],
+            "files_modified": ["auth.py"],
+            "last_action": "提交",
+        }
+        content = f"[Previous conversation summary]\n{json.dumps(data)}"
+        msgs = [AIMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.user_goal == "重构认证模块"
+        assert result.completed_actions == ["实现JWT"]
+        assert result.files_modified == ["auth.py"]
+
+    def test_server_injected_extract_after(self) -> None:
+        content = '[Previous conversation summary]\n{"user_goal": "test"}'
+        msgs = [AIMessage(content=content), HumanMessage(content="follow up")]
+        result = extract_messages_after_summary(msgs)
+        assert len(result) == 1
+        assert result[0].content == "follow up"
+
+    def test_server_injected_zh_prefix(self) -> None:
+        content = '[历史摘要]\n{"user_goal": "测试", "completed_actions": []}'
+        msgs = [SystemMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.user_goal == "测试"
+
+    def test_rejects_json_without_user_goal(self) -> None:
+        content = '[Previous conversation summary]\n{"junk": true}'
+        msgs = [AIMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is None
+
+
+class TestBuilderParserRoundtrip:
+    """Verify create_summary_message output is recognized by extract_existing_summary."""
+
+    def test_pipeline_summary_roundtrip(self) -> None:
+        original = StructuredSummary(
+            user_goal="重构认证模块",
+            completed_actions=["实现JWT", "添加测试"],
+            key_findings=["发现安全漏洞"],
+            errors_and_fixes=["ImportError -> 添加缺失导入"],
+            files_modified=["auth.py"],
+            last_action="提交代码",
+            active_task="优化性能",
+            constraints_and_preferences=["使用TypeScript"],
+            resolved_questions=["Q1 -> A1"],
+            pending_user_asks=["添加文档"],
+            active_state="dev分支",
+        )
+        msg = create_summary_message(original, chat_id="test-roundtrip")
+        parsed = extract_existing_summary([msg])
+        assert parsed is not None
+        assert parsed.user_goal == original.user_goal
+        assert parsed.completed_actions == original.completed_actions
+        assert parsed.key_findings == original.key_findings
+        assert parsed.errors_and_fixes == original.errors_and_fixes
+        assert parsed.active_task == original.active_task
+        assert parsed.pending_user_asks == original.pending_user_asks
+
+    def test_pipeline_summary_extract_after(self) -> None:
+        msg = create_summary_message(StructuredSummary(user_goal="test"))
+        follow_up = HumanMessage(content="new question")
+        result = extract_messages_after_summary([msg, follow_up])
+        assert len(result) == 1
+        assert result[0] is follow_up
+
+    def test_pipeline_summary_among_other_messages(self) -> None:
+        summary_msg = create_summary_message(StructuredSummary(user_goal="目标"))
+        msgs = [
+            SystemMessage(content="system prompt"),
+            summary_msg,
+            HumanMessage(content="new input"),
+            AIMessage(content="response"),
+        ]
+        parsed = extract_existing_summary(msgs)
+        assert parsed is not None
+        assert parsed.user_goal == "目标"
+        after = extract_messages_after_summary(msgs)
+        assert len(after) == 2

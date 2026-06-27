@@ -24,7 +24,7 @@ Bash, File Ops, File Search, and Skill system.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
@@ -52,7 +52,6 @@ from .bash import (
     create_bash_process_output_tool,
     create_bash_tool,
 )
-from .commit_stage_tool import create_commit_stage_tool
 from .diagnostics_tool import runtime_diagnostics_tool
 from .discover_capability.discover_capability_tool import (
     create_discover_capability_tool,
@@ -76,19 +75,6 @@ from .spawn_subagent import (
 )
 
 
-class _AgentRuntimeProtocol(Protocol):
-    """Minimal runtime surface required by `commit_stage_tool`.
-
-    The Protocol prevents `Any` while leaving real agent classes decoupled.
-    `_last_run_stats` is intentionally typed as object because the concrete
-    type lives in `agent.statistics` and importing it here would create a cycle.
-    """
-
-    _last_run_stats: object | None
-    _last_context: dict[str, object]
-    _last_stage_commit_tokens: int
-
-
 SKILL_INLINE_THRESHOLD = 15
 SKILL_CORE_MAX = 10
 
@@ -108,7 +94,6 @@ def get_meta_tools(
     enable_file_tools: bool = True,
     enable_bash: bool = True,
     enable_answer_tool: bool = True,
-    agent_instance: _AgentRuntimeProtocol | None = None,
     available_tool_names: frozenset[str] | None = None,
     available_tool_groups: frozenset[str] | None = None,
 ) -> list[BaseTool]:
@@ -339,12 +324,6 @@ def get_meta_tools(
     else:
         logger.info(" discover_capability_tool 未加载(无可搜索技能且无deferred工具)")
 
-    # commit_stage_tool needs the live agent reference for throttling and
-    # context-consolidation flagging. Skipped when caller did not bind one.
-    if agent_instance is not None:
-        tools.append(create_commit_stage_tool(agent_instance=agent_instance))
-        logger.info(" commit_stage_tool 已加载")
-
     # skill_analyze_tool surfaces forgetting candidates and snowball-effect
     # diagnostics; only meaningful when at least one skill is registered.
     if skills:
@@ -371,7 +350,6 @@ __all__ = [
     "create_bash_tool",
     "create_batch_delegate_tasks_tool",
     "create_cancel_subagent_tool",
-    "create_commit_stage_tool",
     "create_delegate_task_tool",
     "create_file_edit_tool",
     "create_file_read_tool",

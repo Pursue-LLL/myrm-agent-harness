@@ -1,14 +1,15 @@
-"""Fetcher Protocol and Data模型
+"""Fetcher protocol and data models.
 
-定义统一 抓取Interface and  in 间产物，使 not 同抓取Strategy可插拔。
+Defines a unified fetch interface and intermediate result types,
+allowing different fetch strategies to be plugged in interchangeably.
 
 [INPUT]
 - (none)
 
 [OUTPUT]
-- FetcherType: class — Fetcher Type
-- FetchResult: class — Fetch Result
-- Fetcher: class — Fetcher
+- FetcherType: class — Fetcher type enum
+- FetchResult: class — Unified fetch result
+- Fetcher: class — Pluggable fetcher protocol
 
 [POS]
 Provides FetcherType, FetchResult, Fetcher.
@@ -29,7 +30,7 @@ class FetcherType(Enum):
 
 @dataclass(slots=True)
 class FetchResult:
-    """Fetcher 层 统一output， and Concrete抓取方式解耦"""
+    """Unified fetcher output, decoupled from concrete fetch strategy."""
 
     html: str
     url: str
@@ -40,7 +41,7 @@ class FetchResult:
 
     @property
     def has_content(self) -> bool:
-        """HTML WhetherContains实质Content（非 JS Empty壳）"""
+        """Whether HTML contains substantial content (not an empty JS shell)."""
         if not self.html or len(self.html.strip()) < 200:
             return False
         body_markers = ("<p", "<article", "<main", "<section", "<div class")
@@ -48,18 +49,18 @@ class FetchResult:
 
     @property
     def etag(self) -> str | None:
-        """from  headers  in Extract ETag（ for  HTTP 条件Request）"""
+        """Extract ETag from headers for HTTP conditional requests."""
         return self.headers.get("etag") or self.headers.get("ETag")
 
     @property
     def last_modified(self) -> str | None:
-        """from  headers  in Extract Last-Modified（ for  HTTP 条件Request）"""
+        """Extract Last-Modified from headers for HTTP conditional requests."""
         return self.headers.get("last-modified") or self.headers.get("Last-Modified")
 
 
 @runtime_checkable
 class Fetcher(Protocol):
-    """可插拔 抓取StrategyInterface"""
+    """Pluggable fetcher strategy interface."""
 
     fetcher_type: FetcherType
 

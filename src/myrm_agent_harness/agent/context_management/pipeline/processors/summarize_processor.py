@@ -221,10 +221,6 @@ class SummarizeProcessor(BaseProcessor):
         if context.structured_summary is not None:
             return False
 
-        if context.metadata.get("force_proactive_reset"):
-            logger.info("Explicit boundary reset: subtask ended, triggering proactive context compaction")
-            return True
-
         ignore_api = _skip_next_api_token_check
         if _skip_next_api_token_check:
             _skip_next_api_token_check = False

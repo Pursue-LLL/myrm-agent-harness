@@ -118,8 +118,6 @@ class BaseAgent:
         self._failover_used = False
         self._last_run_stats: AgentRunStatistics | None = None
         self._last_context: dict[str, object] = {}
-        # Baseline token count for `commit_stage_tool` throttling.
-        self._last_stage_commit_tokens: int = 0
         self._subagent_manager = SubagentManager(self)
         self._is_running = False
         self._extensions: list[AgentExtension] = []

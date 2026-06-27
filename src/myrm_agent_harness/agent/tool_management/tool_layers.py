@@ -101,8 +101,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # --- 文件搜索 ---
     "glob_tool": ToolLayer.EXTENDED,
     "grep_tool": ToolLayer.EXTENDED,
-    # --- Git 相关 ---
-    "commit_stage_tool": ToolLayer.EXTENDED,
     # --- Goal 工具 ---
     "get_goal_status_tool": ToolLayer.EXTENDED,
     "update_goal_status_tool": ToolLayer.EXTENDED,

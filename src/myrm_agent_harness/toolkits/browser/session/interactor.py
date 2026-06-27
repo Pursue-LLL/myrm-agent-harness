@@ -6,9 +6,11 @@
 - snapshot::RefInfo (POS: element ref metadata)
 - snapshot::resolve_locator (POS: rebuild Locator from RefInfo)
 - exceptions::RefNotFoundError (POS: structured ref-not-found exception)
+- pool.config::HumanizeConfig (POS: interaction humanization config)
+- session.humanize::click_delay, type_delay, bezier_move (POS: humanized delay and Bézier mouse helpers)
 
 [OUTPUT]
-- Interactor: element interaction manager
+- Interactor: element interaction manager (supports humanized delays + Bézier mouse via HumanizeConfig)
 - RefNotFoundMetrics: ref failure statistics (global + sliding window failure rate, top refs/actions with cache optimization)
 
 [POS]
@@ -33,10 +35,12 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.browser.exceptions import RefNotFoundError
+from myrm_agent_harness.toolkits.browser.pool.config import HumanizeConfig
+from myrm_agent_harness.toolkits.browser.session.humanize import bezier_move, click_delay, type_delay
 from myrm_agent_harness.toolkits.browser.snapshot import resolve_locator
 
 if TYPE_CHECKING:
-    from patchright.async_api import Frame, Page
+    from patchright.async_api import Frame, Locator, Page
 
     from myrm_agent_harness.toolkits.browser.snapshot import RefInfo
 
@@ -208,18 +212,28 @@ class Interactor:
     Not responsible for: navigation, snapshot generation, content extraction, etc.
     """
 
-    def __init__(self, page: Page, refs: dict[str, RefInfo], last_snapshot_url: str | None = None):
+    def __init__(
+        self,
+        page: Page,
+        refs: dict[str, RefInfo],
+        last_snapshot_url: str | None = None,
+        humanize: HumanizeConfig | None = None,
+    ):
         """Initialize Interactor
 
         Args:
             page: Patchright Page Instance
             refs: Ref ID -> RefInfo mapping.
             last_snapshot_url: URL from the last snapshot (used for smart diagnosis on ref failure).
+            humanize: Interaction humanization config. None defaults to FAST (no humanization).
         """
         self._page = page
         self._refs = refs
         self._metrics = RefNotFoundMetrics()
         self._last_snapshot_url = last_snapshot_url
+        self._humanize = humanize or HumanizeConfig()
+        self._mouse_x: float = 0.0
+        self._mouse_y: float = 0.0
 
     def update_refs(
         self,
@@ -383,14 +397,18 @@ class Interactor:
 
         try:
             if action == "click":
-                click_delay = random.randint(50, 150)
-                await locator.click(delay=click_delay, timeout=_INTERACTION_TIMEOUT_MS)
+                if self._humanize.enable_bezier_mouse:
+                    result_msg = await self._bezier_click(locator, ref, healed_msg)
+                else:
+                    delay = click_delay(self._humanize)
+                    await locator.click(delay=delay, timeout=_INTERACTION_TIMEOUT_MS)
+                    result_msg = f"Clicked {ref}{healed_msg}"
                 await _wait_after_action()
-                return f"Clicked {ref}{healed_msg}"
+                return result_msg
 
             elif action == "dblclick":
-                click_delay = random.randint(50, 150)
-                await locator.dblclick(delay=click_delay, timeout=_INTERACTION_TIMEOUT_MS)
+                delay = click_delay(self._humanize)
+                await locator.dblclick(delay=delay, timeout=_INTERACTION_TIMEOUT_MS)
                 await _wait_after_action()
                 return f"Double-clicked {ref}{healed_msg}"
 
@@ -412,7 +430,7 @@ class Interactor:
 
                 display_text = text
 
-                delay_per_char = random.randint(30, 100)
+                delay_per_char = type_delay(self._humanize)
                 typing_timeout = max(_INTERACTION_TIMEOUT_MS, len(text) * delay_per_char + 5000)
                 await locator.type(text, delay=delay_per_char, timeout=typing_timeout)
                 await _wait_after_action()
@@ -466,7 +484,11 @@ class Interactor:
                 return f"Pressed '{text}' on {ref}{healed_msg}"
 
             elif action == "hover":
-                await locator.hover(timeout=_INTERACTION_TIMEOUT_MS)
+                if self._humanize.enable_bezier_mouse:
+                    if not await self._bezier_move_to(locator):
+                        await locator.hover(timeout=_INTERACTION_TIMEOUT_MS)
+                else:
+                    await locator.hover(timeout=_INTERACTION_TIMEOUT_MS)
                 return f"Hovered over {ref}{healed_msg}"
 
             elif action == "focus":
@@ -556,6 +578,7 @@ class Interactor:
                 return f"Unchecked {ref}{healed_msg}"
 
             return f"Unknown action: {action}"
+
         except Exception as e:
             error_msg = str(e)
             if "TargetClosedError" in error_msg or "Target closed" in error_msg or "Timeout" in error_msg:
@@ -586,3 +609,40 @@ class Interactor:
                     # Don't inject the hint to avoid confusing the agent.
                     logger.warning(f"Browser interaction failed (no OS dialog detected): {e}")
             raise
+
+    async def _bezier_move_to(self, locator: Locator) -> bool:
+        """Move mouse to the locator via Bézier curve. Returns True if move succeeded."""
+        await locator.wait_for(state="visible", timeout=_INTERACTION_TIMEOUT_MS)
+        box = await locator.bounding_box(timeout=_INTERACTION_TIMEOUT_MS)
+        if box is None:
+            return False
+
+        target_x = box["x"] + box["width"] * random.uniform(0.35, 0.65)
+        target_y = box["y"] + box["height"] * random.uniform(0.35, 0.65)
+
+        if self._mouse_x == 0.0 and self._mouse_y == 0.0:
+            viewport = self._page.viewport_size
+            self._mouse_x = float((viewport or {}).get("width", 800)) / 2
+            self._mouse_y = float((viewport or {}).get("height", 600)) / 2
+
+        await bezier_move(self._page, self._mouse_x, self._mouse_y, target_x, target_y, self._humanize)
+        self._mouse_x, self._mouse_y = target_x, target_y
+        return True
+
+    async def _bezier_click(self, locator: Locator, ref: str, healed_msg: str) -> str:
+        """Click with Bézier mouse trajectory (CAREFUL mode only).
+
+        Uses low-level mouse API to preserve the Bézier path that locator.click()
+        would overwrite with an instantaneous move.
+        """
+        if not await self._bezier_move_to(locator):
+            delay = click_delay(self._humanize)
+            await locator.click(delay=delay, timeout=_INTERACTION_TIMEOUT_MS)
+            return f"Clicked {ref}{healed_msg}"
+
+        delay_ms = click_delay(self._humanize)
+        await self._page.mouse.down()
+        await self._page.wait_for_timeout(delay_ms)
+        await self._page.mouse.up()
+
+        return f"Clicked {ref}{healed_msg}"
