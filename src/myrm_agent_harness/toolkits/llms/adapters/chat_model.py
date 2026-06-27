@@ -725,6 +725,7 @@ class ChatLiteLLM(BaseChatModel):
         model_name: str = "",
         duration_ms: float | None = None,
         ttft_ms: float | None = None,
+        finish_reason: str = "",
     ) -> None:
         """Record token usage, cost, and latency for streaming responses.
 
@@ -736,6 +737,7 @@ class ChatLiteLLM(BaseChatModel):
             model_name: Model identifier for per-model attribution
             duration_ms: Total stream duration (first request to last chunk)
             ttft_ms: Time to first token (first request to first content chunk)
+            finish_reason: Model's finish reason (stop, tool_calls, max_tokens, etc.)
         """
         from myrm_agent_harness.utils.token_economics.cost_engine import (
             compute_cost_by_tokens,
@@ -763,7 +765,10 @@ class ChatLiteLLM(BaseChatModel):
             cost_usd=cost_result.usd,
             cost_status=cost_result.status,
         )
-        append_to_ledger(usage_dict, resolved_model, duration_ms, cost_result.usd)
+        append_to_ledger(
+            usage_dict, resolved_model, duration_ms, cost_result.usd,
+            ttft_ms=ttft_ms, finish_reason=finish_reason,
+        )
 
     def _stream(
         self,

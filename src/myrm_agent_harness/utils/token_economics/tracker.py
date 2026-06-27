@@ -555,6 +555,8 @@ def append_to_ledger(
     duration_ms: float | None,
     cost_usd: float,
     cache_savings_usd: float = 0.0,
+    ttft_ms: float | None = None,
+    finish_reason: str = "",
 ) -> None:
     """Append a record to the request-scoped UsageLedger (if attached)."""
     ledger = _current_ledger.get()
@@ -581,6 +583,8 @@ def append_to_ledger(
             cost_usd=cost_usd,
             cache_savings_usd=cache_savings_usd,
             latency_ms=duration_ms or 0.0,
+            ttft_ms=ttft_ms or 0.0,
+            finish_reason=finish_reason,
             call_index=call_index,
         )
         ledger.append(record)  # type: ignore[union-attr]
@@ -646,6 +650,11 @@ def _get_token_tracking_callback_class() -> type[object]:
             cost_result = compute_cost(response_obj, model_name)
             cache_savings_usd = calculate_cache_savings_usd(usage, model_name)
 
+            finish_reason = ""
+            choices = getattr(response_obj, "choices", None)
+            if choices and len(choices) > 0:
+                finish_reason = getattr(choices[0], "finish_reason", "") or ""
+
             record_token_usage(
                 usage,
                 model_name=model_name,
@@ -655,7 +664,10 @@ def _get_token_tracking_callback_class() -> type[object]:
                 cache_savings_usd=cache_savings_usd,
             )
 
-            append_to_ledger(usage, model_name, duration_ms, cost_result.usd, cache_savings_usd)
+            append_to_ledger(
+                usage, model_name, duration_ms, cost_result.usd, cache_savings_usd,
+                finish_reason=finish_reason,
+            )
 
         async def async_log_success_event(
             self,

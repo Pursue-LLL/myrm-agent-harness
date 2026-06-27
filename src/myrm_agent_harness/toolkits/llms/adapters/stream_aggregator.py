@@ -282,6 +282,7 @@ def finalize_stream(
         model_name=resolved_model,
         duration_ms=agg.duration_ms,
         ttft_ms=agg.ttft_ms,
+        finish_reason=agg.finish_reason or "",
     )
 
     if agg.reasoning:
