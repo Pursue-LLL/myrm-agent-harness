@@ -168,7 +168,9 @@ async def read_pdf_as_content_blocks(
 
         tmp_path = await _write_to_temp(raw_bytes)
         try:
-            result = await extract_pdf_content(tmp_path, PDFExtractConfig())
+            result = await extract_pdf_content(
+                tmp_path, PDFExtractConfig(max_pages=RAG_PAGE_THRESHOLD)
+            )
         finally:
             os.unlink(tmp_path)
 
