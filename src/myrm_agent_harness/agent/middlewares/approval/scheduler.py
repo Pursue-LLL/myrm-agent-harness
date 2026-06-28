@@ -15,7 +15,7 @@ run agent stream, persist results).
 
 [OUTPUT]
 - Auto-resume callback execution on timeout
-- Cancellation when manual resume arrives first
+- Idempotent resolution via `resolve_if_first` (prevents race between timeout and manual resume)
 
 [POS]
 Stateless in-memory scheduler. Timeouts are lost on process restart,
@@ -37,6 +37,10 @@ ResumeCallback = Callable[[dict[str, object]], Awaitable[None]]
 class ApprovalTimeoutScheduler:
     """Schedules auto-resume when approval requests timeout.
 
+    Uses ``resolve_if_first`` for idempotent resolution: whichever side
+    (timeout or manual resume) calls it first wins; the loser is a no-op.
+    This eliminates the race condition where both could fire concurrently.
+
     Usage::
 
         scheduler = ApprovalTimeoutScheduler.get()
@@ -48,8 +52,8 @@ class ApprovalTimeoutScheduler:
             behavior="deny",
             resume_callback=my_callback)
 
-        # Cancel when manual resume arrives
-        scheduler.cancel("chat-123")
+        # Resolve when manual resume arrives (returns False if timeout already won)
+        scheduler.resolve_if_first("chat-123")
     """
 
     _instance: ApprovalTimeoutScheduler | None = None
@@ -63,6 +67,7 @@ class ApprovalTimeoutScheduler:
 
     def __init__(self) -> None:
         self._tasks: dict[str, asyncio.Task[None]] = {}
+        self._resolved_keys: set[str] = set()
 
     def schedule(self, key: str, timeout_seconds: float, behavior: str, resume_callback: ResumeCallback) -> None:
         """Register a timeout guard for a pending approval.
@@ -75,20 +80,39 @@ class ApprovalTimeoutScheduler:
                              Responsible for executing the full Agent resume flow.
         """
         self.cancel(key)
+        self._resolved_keys.discard(key)
         task = asyncio.create_task(
             self._run(key, timeout_seconds, behavior, resume_callback), name=f"approval-timeout:{key}"
         )
         self._tasks[key] = task
         logger.info("Approval timeout scheduled: key=%s, timeout=%ss, behavior=%s", key, timeout_seconds, behavior)
 
+    def resolve_if_first(self, key: str) -> bool:
+        """Atomically resolve a pending approval key. Returns True only for the first caller.
+
+        Both the timeout callback and the manual resume path must call this
+        before proceeding. The loser (second caller) gets False and must abort.
+        """
+        if key in self._resolved_keys:
+            logger.debug("Approval already resolved (duplicate): key=%s", key)
+            return False
+        self._resolved_keys.add(key)
+        task = self._tasks.pop(key, None)
+        if task and not task.done():
+            task.cancel()
+        return True
+
     async def _run(self, key: str, timeout: float, behavior: str, callback: ResumeCallback) -> None:
         try:
             await asyncio.sleep(timeout)
-            decision = "approve" if behavior == "allow" else "reject"
-            feedback = f"Auto-{'approved' if decision == 'approve' else 'rejected'}: approval timeout ({timeout:.0f}s)"
+            if not self.resolve_if_first(key):
+                logger.info("Approval timeout lost race (already resolved): key=%s", key)
+                return
+            approved = behavior == "allow"
+            decision = "approve" if approved else "reject"
             resume_value: dict[str, object] = {
                 "decision": decision,
-                "feedback": feedback,
+                "feedback": f"Auto-{'approved' if approved else 'rejected'}: approval timeout ({timeout:.0f}s)",
             }
             logger.warning("Approval timeout fired: key=%s, auto-%s after %ss", key, decision, timeout)
             _record_timeout_audit(key, decision, timeout)
@@ -117,6 +141,7 @@ class ApprovalTimeoutScheduler:
                 task.cancel()
                 count += 1
         self._tasks.clear()
+        self._resolved_keys.clear()
         return count
 
     @property
@@ -129,11 +154,11 @@ def _record_timeout_audit(key: str, decision: str, timeout: float) -> None:
     try:
         from myrm_agent_harness.agent.security.audit import record_decision
 
-        kind = "TIMEOUT_APPROVED" if decision == "approve" else "TIMEOUT_DENIED"
+        approved = decision == "approve"
         record_decision(
             tool_name="approval_timeout",
-            decision=kind,
-            reason=f"Auto-{'approved' if decision == 'approve' else 'rejected'} after {timeout:.0f}s timeout (key={key})",
+            decision="TIMEOUT_APPROVED" if approved else "TIMEOUT_DENIED",
+            reason=f"Auto-{'approved' if approved else 'rejected'} after {timeout:.0f}s timeout (key={key})",
         )
     except Exception:
         logger.debug("Could not record timeout audit for key=%s", key)

@@ -12,6 +12,7 @@
 - adapters.tool_recovery (POS: tool call recovery module)
 - adapters.safety_termination_detector (POS: Safety termination detector for truncated tool call suppression)
 - toolkits.llms.ephemeral_output_tokens (POS: ephemeral max-output-tokens ContextVar for truncation recovery)
+- core.context_vars::prompt_routing_key_var (POS: Session-scoped routing key for OpenAI prompt cache affinity)
 - utils.cost_engine::compute_cost_by_tokens (POS: token-count-based cost calculation for streaming mode)
 - utils.token_tracker (POS: Token tracking API — record_token_usage, append_to_ledger, record_finish_reason)
 
@@ -296,6 +297,38 @@ class ChatLiteLLM(BaseChatModel):
             params["max_tokens"] = override
             reset_ephemeral_max_output_tokens()
             logger.info(" Ephemeral max_tokens override applied: %d", override)
+
+    def _inject_prompt_routing_key(self, params: dict[str, object]) -> None:
+        """Inject OpenAI prompt_cache_key for KV cache routing affinity.
+
+        Only activates for native OpenAI endpoints (api.openai.com).
+        Uses the session-scoped routing key from ContextVar to ensure requests
+        within a conversation route to the same inference node, maximizing
+        prefix cache hit rate.
+        """
+        from myrm_agent_harness.core.context_vars import prompt_routing_key_var
+
+        routing_key = prompt_routing_key_var.get()
+        if not routing_key:
+            return
+
+        if not self._is_openai_native_endpoint():
+            return
+
+        params["prompt_cache_key"] = routing_key
+
+    def _is_openai_native_endpoint(self) -> bool:
+        """Detect whether this instance targets a native OpenAI API endpoint."""
+        api_base = (self.api_base or "").lower()
+        provider = (self.custom_llm_provider or "").lower()
+
+        if provider and provider != "openai":
+            return False
+
+        if not api_base or "api.openai.com" in api_base:
+            return True
+
+        return False
 
     def _convert_response_to_dict(self, response: Any) -> dict[str, Any]:
         if isinstance(response, dict):
@@ -944,6 +977,7 @@ class ChatLiteLLM(BaseChatModel):
         params = {**params, **filtered_kwargs}
         self._inject_allowed_params(params)
         self._apply_ephemeral_output_override(params)
+        self._inject_prompt_routing_key(params)
 
         from myrm_agent_harness.infra.tracing import get_tracer
         from myrm_agent_harness.toolkits.llms.utils.logger import (
@@ -1086,6 +1120,7 @@ class ChatLiteLLM(BaseChatModel):
         }
         self._inject_allowed_params(params)
         self._apply_ephemeral_output_override(params)
+        self._inject_prompt_routing_key(params)
 
         max_attempts = self.empty_retry_max_attempts if self.empty_retry_enabled else 1
         last_error: Exception | None = None

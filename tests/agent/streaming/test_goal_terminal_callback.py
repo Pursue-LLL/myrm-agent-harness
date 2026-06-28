@@ -90,6 +90,7 @@ class TestGoalTerminalCallbackTrigger:
             collected_messages=messages,
             tools_called_this_turn=True,
             net_tokens_this_turn=1000,
+            cost_this_turn=0.05,
             time_this_turn_seconds=10,
         )
 
@@ -149,6 +150,7 @@ class TestGoalTerminalCallbackTrigger:
             collected_messages=messages,
             tools_called_this_turn=True,
             net_tokens_this_turn=1000,
+            cost_this_turn=0.05,
             time_this_turn_seconds=10,
         )
 
@@ -197,6 +199,7 @@ class TestGoalTerminalCallbackTrigger:
             collected_messages=messages,
             tools_called_this_turn=True,
             net_tokens_this_turn=1000,
+            cost_this_turn=0.05,
             time_this_turn_seconds=10,
         )
 
@@ -237,6 +240,7 @@ class TestGoalTerminalCallbackTrigger:
             collected_messages=messages,
             tools_called_this_turn=True,
             net_tokens_this_turn=1000,
+            cost_this_turn=0.05,
             time_this_turn_seconds=10,
         )
 
@@ -277,6 +281,7 @@ class TestGoalTerminalCallbackTrigger:
             collected_messages=messages,
             tools_called_this_turn=True,
             net_tokens_this_turn=1000,
+            cost_this_turn=0.05,
             time_this_turn_seconds=10,
         )
 

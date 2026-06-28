@@ -214,6 +214,7 @@ async def check_continuation(
     collected_messages: list[BaseMessage],
     tools_called_this_turn: bool,
     net_tokens_this_turn: int,
+    cost_this_turn: float,
     time_this_turn_seconds: int,
 ) -> ContinuationDecision:
     """Evaluate the 7-step guard chain for goal continuation.
@@ -230,11 +231,10 @@ async def check_continuation(
     if not goal:
         return _make_decision("no_goal", "No active goal for session")
 
-    # Record usage for this turn (including turn count)
     await goal_provider.account_usage(
         goal.goal_id,
         token_delta=max(0, net_tokens_this_turn),
-        cost_delta=0.0,
+        cost_delta=max(0.0, cost_this_turn),
         time_delta_seconds=max(0, time_this_turn_seconds),
         turn_delta=1,
     )

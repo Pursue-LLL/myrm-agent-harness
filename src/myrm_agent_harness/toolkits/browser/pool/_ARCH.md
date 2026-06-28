@@ -19,7 +19,7 @@ Global browser resource pool. Manages Browser/Context/Page three-layer resources
 | emulation.py | Core | Browser environment emulation configuration with type safety and parameter validation. | ✅ |
 | memory_guard.py | Core | Memory monitoring module. Checks system memory usage at configured intervals; rejects new Page on th | ✅ |
 | page_pool.py | Core | Page object pool. Zero-copy reset for managed browsers; session-preserving reset for external CDP Chrome (no global cookie wipe). | ✅ |
-| proxy.py | Core | Manages proxy rotation across Browser Pool and CrawlEngine. Supports: | — |
+| proxy.py | Core | Manages proxy rotation across Browser Pool and CrawlEngine. Supports: round-robin rotation, sticky sessions (TTL), exponential backoff quarantine, ProxyConfig.from_url()/from_csv() factories. Server layer injects via `MYRM_PROXIES` env or GUI config. | ✅ |
 | singleton.py | Core | GlobalBrowserPool singleton lifecycle (atexit/SIGTERM hooks); pool startup sweeps orphan automation via `find_orphan_automation_processes` | ✅ |
 | stealth.py | Core | Stealth anti-detection script loader. | ✅ |
 | throttle.py | Core | Throttle strategy module. Defines the throttle protocol and two implementations, supports domain-lev | ✅ |

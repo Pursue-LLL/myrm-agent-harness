@@ -10,7 +10,7 @@ Manages proxy rotation across Browser Pool and CrawlEngine. Supports:
 1. Round-robin rotation across multiple proxies
 2. Sticky sessions (same proxy for a given session_id with TTL)
 3. Concurrency-safe in asyncio single-threaded event loop
-4. Environment variable loading (MYRM_PROXIES)
+4. Exponential backoff quarantine (60s → 300s → 3600s) on proxy failures
 5. Automatic expired session cleanup (via lifecycle tick)
 """
 

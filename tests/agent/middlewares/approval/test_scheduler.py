@@ -139,3 +139,82 @@ async def test_callback_exception_does_not_crash() -> None:
     scheduler.schedule("err", timeout_seconds=0.05, behavior="deny", resume_callback=bad_callback)
     await asyncio.sleep(0.15)
     assert scheduler.pending_count == 0
+
+
+# --- Race condition protection (resolve_if_first) ---
+
+
+@pytest.mark.asyncio
+async def test_resolve_if_first_returns_true_once() -> None:
+    scheduler = ApprovalTimeoutScheduler.get()
+
+    async def noop(rv: dict[str, object]) -> None:
+        pass
+
+    scheduler.schedule("race-1", timeout_seconds=10, behavior="deny", resume_callback=noop)
+    assert scheduler.resolve_if_first("race-1") is True
+    assert scheduler.resolve_if_first("race-1") is False
+
+
+@pytest.mark.asyncio
+async def test_resolve_if_first_prevents_timeout_callback() -> None:
+    """Manual resume wins the race — timeout callback must not fire."""
+    scheduler = ApprovalTimeoutScheduler.get()
+    fired = False
+
+    async def callback(rv: dict[str, object]) -> None:
+        nonlocal fired
+        fired = True
+
+    scheduler.schedule("race-2", timeout_seconds=0.05, behavior="deny", resume_callback=callback)
+    assert scheduler.resolve_if_first("race-2") is True
+    await asyncio.sleep(0.15)
+    assert not fired
+
+
+@pytest.mark.asyncio
+async def test_timeout_wins_race_blocks_manual_resume() -> None:
+    """Timeout fires first — subsequent manual resolve_if_first returns False."""
+    scheduler = ApprovalTimeoutScheduler.get()
+    received: list[dict[str, object]] = []
+
+    async def callback(rv: dict[str, object]) -> None:
+        received.append(rv)
+
+    scheduler.schedule("race-3", timeout_seconds=0.05, behavior="deny", resume_callback=callback)
+    await asyncio.sleep(0.15)
+    assert len(received) == 1
+    assert scheduler.resolve_if_first("race-3") is False
+
+
+@pytest.mark.asyncio
+async def test_schedule_resets_resolved_state() -> None:
+    """Re-scheduling the same key clears the resolved state."""
+    scheduler = ApprovalTimeoutScheduler.get()
+    received: list[str] = []
+
+    async def cb1(rv: dict[str, object]) -> None:
+        received.append("first")
+
+    async def cb2(rv: dict[str, object]) -> None:
+        received.append("second")
+
+    scheduler.schedule("reset-1", timeout_seconds=10, behavior="deny", resume_callback=cb1)
+    assert scheduler.resolve_if_first("reset-1") is True
+
+    scheduler.schedule("reset-1", timeout_seconds=0.05, behavior="deny", resume_callback=cb2)
+    await asyncio.sleep(0.15)
+    assert received == ["second"]
+
+
+@pytest.mark.asyncio
+async def test_cancel_all_clears_resolved_keys() -> None:
+    scheduler = ApprovalTimeoutScheduler.get()
+
+    async def noop(rv: dict[str, object]) -> None:
+        pass
+
+    scheduler.schedule("all-1", timeout_seconds=10, behavior="deny", resume_callback=noop)
+    scheduler.resolve_if_first("all-1")
+    scheduler.cancel_all()
+    assert scheduler.resolve_if_first("all-1") is True

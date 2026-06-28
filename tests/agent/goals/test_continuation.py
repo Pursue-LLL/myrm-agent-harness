@@ -44,6 +44,7 @@ async def test_check_continuation_no_provider():
         collected_messages=[],
         tools_called_this_turn=True,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
     assert isinstance(decision, ContinuationDecision)
@@ -63,6 +64,7 @@ async def test_check_continuation_no_active_goal(mock_goal_provider):
         collected_messages=[],
         tools_called_this_turn=True,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
     assert decision.should_continue is False
@@ -82,6 +84,7 @@ async def test_check_continuation_cancelled(mock_goal_provider):
         collected_messages=[],
         tools_called_this_turn=True,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
     assert decision.should_continue is False
@@ -102,6 +105,7 @@ async def test_check_continuation_steering_pending(mock_goal_provider):
         collected_messages=[],
         tools_called_this_turn=True,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
     assert decision.should_continue is False
@@ -121,6 +125,7 @@ async def test_check_continuation_suppressed(mock_goal_provider):
         collected_messages=[],
         tools_called_this_turn=True,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
     assert decision.should_continue is False
@@ -141,6 +146,7 @@ async def test_check_continuation_zero_tools_suppresses(mock_goal_provider):
         collected_messages=[],
         tools_called_this_turn=False,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
 
@@ -170,6 +176,7 @@ async def test_check_continuation_budget_limited(mock_goal_provider):
         collected_messages=collected_messages,
         tools_called_this_turn=True,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
     assert decision.should_continue is True
@@ -185,6 +192,7 @@ async def test_check_continuation_budget_limited(mock_goal_provider):
         collected_messages=collected_messages,
         tools_called_this_turn=True,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
     assert decision2.should_continue is False
@@ -205,6 +213,7 @@ async def test_check_continuation_success(mock_goal_provider):
         collected_messages=collected_messages,
         tools_called_this_turn=True,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
 
@@ -212,7 +221,7 @@ async def test_check_continuation_success(mock_goal_provider):
     assert decision.verdict == "continue"
     mock_goal_provider.account_usage.assert_awaited_once_with(
         "test-goal", token_delta=10, cost_delta=0.0, time_delta_seconds=1, turn_delta=1,
-    )
+    )  # cost_delta=0.0 because cost_this_turn was passed as 0.0 in this test
     assert len(collected_messages) == 1
     assert isinstance(collected_messages[0], HumanMessage)
     assert collected_messages[0].name == "developer"
@@ -343,6 +352,7 @@ async def test_check_continuation_semantic_judge_completes():
         collected_messages=messages,
         tools_called_this_turn=True,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
 
@@ -372,6 +382,7 @@ async def test_check_continuation_goal_disappears_after_accounting():
         collected_messages=[],
         tools_called_this_turn=True,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
 
@@ -403,6 +414,7 @@ async def test_check_continuation_decision_has_turns_info():
         collected_messages=[],
         tools_called_this_turn=True,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
 
@@ -449,6 +461,7 @@ async def test_convergence_completes_goal():
         collected_messages=[],
         tools_called_this_turn=False,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
 
@@ -493,6 +506,7 @@ async def test_convergence_not_reached_yet():
         collected_messages=[],
         tools_called_this_turn=False,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
 
@@ -538,6 +552,7 @@ async def test_loop_restart_triggers():
         collected_messages=[],
         tools_called_this_turn=False,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
 
@@ -572,6 +587,7 @@ async def test_loop_restart_exhausted_falls_to_suppressed():
         collected_messages=[],
         tools_called_this_turn=False,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
 
@@ -625,6 +641,7 @@ async def test_convergence_takes_priority_over_loop_restart():
         collected_messages=[],
         tools_called_this_turn=False,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
 
@@ -756,6 +773,7 @@ async def test_budget_limited_wrapup_injects_budget_info():
         collected_messages=collected,
         tools_called_this_turn=True,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
 
@@ -820,6 +838,7 @@ async def test_budget_limited_cancelled_takes_priority():
         collected_messages=[],
         tools_called_this_turn=True,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
     assert decision.verdict == "cancelled"
@@ -851,6 +870,7 @@ async def test_budget_limited_steering_takes_priority():
         collected_messages=[],
         tools_called_this_turn=True,
         net_tokens_this_turn=10,
+        cost_this_turn=0.0,
         time_this_turn_seconds=1,
     )
     assert decision.verdict == "steering"
@@ -899,6 +919,7 @@ async def test_judge_parse_failure_increments_counter():
         collected_messages=messages,
         tools_called_this_turn=True,
         net_tokens_this_turn=100,
+        cost_this_turn=0.01,
         time_this_turn_seconds=5,
     )
 
@@ -947,6 +968,7 @@ async def test_judge_parse_failure_auto_pause_at_threshold():
         collected_messages=messages,
         tools_called_this_turn=True,
         net_tokens_this_turn=100,
+        cost_this_turn=0.01,
         time_this_turn_seconds=5,
     )
 
@@ -995,6 +1017,7 @@ async def test_judge_parse_success_resets_counter():
         collected_messages=messages,
         tools_called_this_turn=True,
         net_tokens_this_turn=100,
+        cost_this_turn=0.01,
         time_this_turn_seconds=5,
     )
 
@@ -1032,6 +1055,7 @@ async def test_judge_parse_success_skips_db_when_counter_zero():
         collected_messages=messages,
         tools_called_this_turn=True,
         net_tokens_this_turn=100,
+        cost_this_turn=0.01,
         time_this_turn_seconds=5,
     )
 
@@ -1078,6 +1102,7 @@ async def test_judge_api_error_does_not_count_as_parse_failure():
         collected_messages=messages,
         tools_called_this_turn=True,
         net_tokens_this_turn=100,
+        cost_this_turn=0.01,
         time_this_turn_seconds=5,
     )
 

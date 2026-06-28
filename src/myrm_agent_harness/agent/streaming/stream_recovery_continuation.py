@@ -184,6 +184,7 @@ class StreamContinuationRecoveryMixin:
         collected_messages: list[BaseMessage],
         tools_called_this_turn: bool,
         net_tokens_this_turn: int,
+        cost_this_turn: float,
         time_this_turn_seconds: int,
     ) -> bool:
         """Check if the active goal should automatically continue to the next turn."""
@@ -207,6 +208,7 @@ class StreamContinuationRecoveryMixin:
             collected_messages=collected_messages,
             tools_called_this_turn=tools_called_this_turn,
             net_tokens_this_turn=net_tokens_this_turn,
+            cost_this_turn=cost_this_turn,
             time_this_turn_seconds=time_this_turn_seconds,
         )
 

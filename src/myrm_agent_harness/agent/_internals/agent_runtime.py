@@ -212,8 +212,8 @@ async def run_agent_loop(
                 raise
 
         event_logger: EventLogger | None = None
+        session_id = str(merged_context.get("session_id", message_id))
         if agent_state.event_log_backend is not None:
-            session_id = str(merged_context.get("session_id", message_id))
             event_logger = EventLogger(
                 agent_state.event_log_backend,
                 session_id,
@@ -223,6 +223,10 @@ async def run_agent_loop(
             await event_logger.start()
 
         set_event_logger(event_logger)
+
+        from myrm_agent_harness.core.context_vars import prompt_routing_key_var
+
+        prompt_routing_key_var.set(session_id)
 
         from myrm_agent_harness.agent.middlewares._session_context import (
             set_active_resolved_tools,

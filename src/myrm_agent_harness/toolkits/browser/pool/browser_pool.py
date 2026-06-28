@@ -576,6 +576,28 @@ class GlobalBrowserPool(CrashWatchdogMixin):
         """Get browser pool configuration."""
         return self._config
 
+    async def update_proxy_pool(self, proxy_pool: ProxyPool | None) -> None:
+        """Hot-reload proxy pool without restarting the browser pool.
+
+        Replaces the internal proxy pool and updates ContextFactory so all
+        subsequent ``acquire_page`` calls use the new proxy configuration.
+        Also toggles DNS-over-HTTPS launch flag to match the new state.
+        """
+        async with self._lock:
+            self._proxy_pool = proxy_pool
+            self._context_factory = ContextFactory(
+                proxy_pool=proxy_pool,
+                default_emulation=self._config.default_emulation,
+            )
+            doh_flag = "--dns-over-https-templates=https://cloudflare-dns.com/dns-query"
+            args = list(self._launch_options.get("args", []))
+            if proxy_pool and doh_flag not in args:
+                args.append(doh_flag)
+            elif not proxy_pool:
+                args = [a for a in args if a != doh_flag]
+            self._launch_options["args"] = args
+        logger.info("Proxy pool updated: %s", "enabled" if proxy_pool else "disabled")
+
     async def update_remote_endpoint(self, ws_url: str | None, headers: dict[str, str] | None = None) -> None:
         """Hot-reload remote WebSocket endpoint without restarting the pool.
 

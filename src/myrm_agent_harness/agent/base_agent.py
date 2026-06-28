@@ -224,6 +224,13 @@ class BaseAgent:
             except Exception:
                 logger.exception("Extension '%s' on_agent_init failed", ext.name)
 
+        # Fire-and-forget: pre-warm Anthropic/Qwen server-side prefix cache
+        # while the user is still typing their first message.
+        from myrm_agent_harness.agent.context_management.preheat import schedule_init_preheat
+
+        model_name = getattr(llm, "model_name", "") or getattr(llm, "model", "") or ""
+        schedule_init_preheat(llm, self._cached_system_prompt, model_name)
+
     def _rebuild_agent_with_llm(self, new_llm: BaseChatModel) -> None:
         """Rebuild agent graph with a different LLM for failover."""
         from ._internals.agent_recovery import rebuild_agent_with_llm

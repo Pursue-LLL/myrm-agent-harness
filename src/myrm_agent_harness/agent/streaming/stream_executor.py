@@ -194,6 +194,8 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                     initial_total_tokens = ctx.stats.token_usage.total_tokens if ctx.stats.token_usage else 0
                     initial_cached_tokens = ctx.stats.token_usage.cached_tokens if ctx.stats.token_usage else 0
 
+                initial_cost_usd = tracker.total_cost_usd if tracker else 0.0
+
                 import time
 
                 initial_time = time.time()
@@ -306,6 +308,8 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                     current_cached = ctx.stats.token_usage.cached_tokens if ctx.stats.token_usage else 0
 
                 net_tokens_this_turn = (current_total - initial_total_tokens) - (current_cached - initial_cached_tokens)
+                current_cost_usd = tracker.total_cost_usd if tracker else 0.0
+                cost_this_turn = max(0.0, current_cost_usd - initial_cost_usd)
                 time_this_turn_seconds = int(time.time() - initial_time)
 
                 # Check if we should emit trace slice based on call threshold
@@ -322,6 +326,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                     collected_messages,
                     tools_called_this_turn=tools_called_this_turn,
                     net_tokens_this_turn=net_tokens_this_turn,
+                    cost_this_turn=cost_this_turn,
                     time_this_turn_seconds=time_this_turn_seconds,
                 ):
                     reset_loop_guard(
