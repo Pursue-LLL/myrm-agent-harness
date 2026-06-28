@@ -1,4 +1,4 @@
-"""Tests for sub_agents/orchestrator.py — run_chain and wait_children."""
+"""Tests for sub_agents/orchestrator.py — run_chain, wait_children, and run_alternatives."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from myrm_agent_harness.agent.sub_agents._orchestrator_verification import (
 )
 from myrm_agent_harness.agent.sub_agents.orchestrator import (
     execute_dag_plan,
+    run_alternatives,
     run_chain,
     run_with_verification,
     wait_children,
@@ -1352,3 +1353,333 @@ class TestVerification:
         proxy_arg = mock_ctx_mgr.call_args[0][0]
         assert isinstance(proxy_arg, ReadonlyExecutorProxy)
         assert proxy_arg.inner == mock_executor
+
+
+# ---------------------------------------------------------------------------
+# run_alternatives
+# ---------------------------------------------------------------------------
+
+
+class TestRunAlternatives:
+    @pytest.mark.asyncio
+    async def test_empty_configs_returns_empty(self):
+        mgr = MagicMock()
+        result = await run_alternatives(mgr, "task", [], {}, lambda: [])
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_single_alternative_success(self):
+        mgr = MagicMock()
+        ok_result = _ok("alt-xxxxxxxx-0-writer", "writer", "solution A")
+        mgr.children = {}
+        mgr.child_results = {}
+
+        async def _spawn(**kwargs):
+            tid = kwargs["task_id"]
+            mgr.child_results[tid] = SubAgentResult(
+                success=True,
+                task_id=tid,
+                agent_type=kwargs["agent_type"],
+                result="solution A",
+                status=SubAgentStatus.COMPLETED,
+                completed_at=time.time(),
+            )
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future.set_result(mgr.child_results[tid])
+            mgr.children[tid] = future
+            return future
+
+        mgr.spawn_child = _spawn
+
+        config = SubagentConfig(system_prompt="write something")
+        results = await run_alternatives(
+            mgr, "write a landing page", [("writer", config)], {}, lambda: []
+        )
+
+        assert len(results) == 1
+        assert results[0].success
+        assert results[0].result == "solution A"
+
+    @pytest.mark.asyncio
+    async def test_multiple_alternatives_preserve_order(self):
+        mgr = MagicMock()
+        mgr.children = {}
+        mgr.child_results = {}
+
+        async def _spawn(**kwargs):
+            tid = kwargs["task_id"]
+            idx = int(tid.split("-")[2])
+            mgr.child_results[tid] = SubAgentResult(
+                success=True,
+                task_id=tid,
+                agent_type=kwargs["agent_type"],
+                result=f"solution-{idx}",
+                status=SubAgentStatus.COMPLETED,
+                completed_at=time.time(),
+            )
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future.set_result(mgr.child_results[tid])
+            mgr.children[tid] = future
+            return future
+
+        mgr.spawn_child = _spawn
+
+        configs = [
+            ("writer-a", SubagentConfig(system_prompt="formal")),
+            ("writer-b", SubagentConfig(system_prompt="casual")),
+            ("writer-c", SubagentConfig(system_prompt="creative")),
+        ]
+        results = await run_alternatives(mgr, "write", configs, {}, lambda: [])
+
+        assert len(results) == 3
+        assert results[0].result == "solution-0"
+        assert results[1].result == "solution-1"
+        assert results[2].result == "solution-2"
+
+    @pytest.mark.asyncio
+    async def test_spawn_early_failure_preserved(self):
+        mgr = MagicMock()
+        mgr.children = {}
+        mgr.child_results = {}
+
+        call_count = 0
+
+        async def _spawn(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            tid = kwargs["task_id"]
+            if call_count == 1:
+                return SubAgentResult(
+                    success=False,
+                    task_id=tid,
+                    agent_type=kwargs["agent_type"],
+                    error="capacity exceeded",
+                    status=SubAgentStatus.FAILED,
+                )
+            mgr.child_results[tid] = _ok(tid, kwargs["agent_type"], "ok")
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future.set_result(mgr.child_results[tid])
+            mgr.children[tid] = future
+            return future
+
+        mgr.spawn_child = _spawn
+
+        configs = [
+            ("a", SubagentConfig(system_prompt="s")),
+            ("b", SubagentConfig(system_prompt="s")),
+        ]
+        results = await run_alternatives(mgr, "task", configs, {}, lambda: [])
+
+        assert len(results) == 2
+        assert not results[0].success
+        assert "capacity exceeded" in results[0].error
+        assert results[1].success
+
+    @pytest.mark.asyncio
+    async def test_all_spawn_failures(self):
+        mgr = MagicMock()
+        mgr.children = {}
+        mgr.child_results = {}
+
+        async def _spawn(**kwargs):
+            return SubAgentResult(
+                success=False,
+                task_id=kwargs["task_id"],
+                agent_type=kwargs["agent_type"],
+                error="depth exceeded",
+                status=SubAgentStatus.FAILED,
+            )
+
+        mgr.spawn_child = _spawn
+
+        configs = [
+            ("a", SubagentConfig(system_prompt="s")),
+            ("b", SubagentConfig(system_prompt="s")),
+        ]
+        results = await run_alternatives(mgr, "task", configs, {}, lambda: [])
+
+        assert len(results) == 2
+        assert all(not r.success for r in results)
+
+    @pytest.mark.asyncio
+    async def test_workspace_policy_forced_to_isolated_copy(self):
+        from myrm_agent_harness.agent.sub_agents.types import WorkspacePolicy
+
+        mgr = MagicMock()
+        mgr.children = {}
+        mgr.child_results = {}
+        captured_configs: list[SubagentConfig] = []
+        captured_contexts: list[dict[str, object]] = []
+
+        async def _spawn(**kwargs):
+            captured_configs.append(kwargs["config"])
+            captured_contexts.append(kwargs["context"])
+            tid = kwargs["task_id"]
+            mgr.child_results[tid] = _ok(tid, kwargs["agent_type"])
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future.set_result(mgr.child_results[tid])
+            mgr.children[tid] = future
+            return future
+
+        mgr.spawn_child = _spawn
+
+        config = SubagentConfig(
+            system_prompt="s", workspace_policy=WorkspacePolicy.INHERIT
+        )
+        await run_alternatives(mgr, "task", [("w", config)], {}, lambda: [])
+
+        assert captured_configs[0].workspace_policy == WorkspacePolicy.ISOLATED_COPY
+        assert captured_contexts[0]["_defer_workspace_merge"] is True
+
+    @pytest.mark.asyncio
+    async def test_unique_batch_ids_across_calls(self):
+        mgr = MagicMock()
+        mgr.children = {}
+        mgr.child_results = {}
+        captured_task_ids: list[str] = []
+
+        async def _spawn(**kwargs):
+            tid = kwargs["task_id"]
+            captured_task_ids.append(tid)
+            mgr.child_results[tid] = _ok(tid, kwargs["agent_type"])
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future.set_result(mgr.child_results[tid])
+            mgr.children[tid] = future
+            return future
+
+        mgr.spawn_child = _spawn
+
+        config = SubagentConfig(system_prompt="s")
+        await run_alternatives(mgr, "task", [("w", config)], {}, lambda: [])
+        await run_alternatives(mgr, "task", [("w", config)], {}, lambda: [])
+
+        assert len(captured_task_ids) == 2
+        assert captured_task_ids[0] != captured_task_ids[1]
+
+    @pytest.mark.asyncio
+    async def test_cancel_token_propagated(self):
+        mgr = MagicMock()
+        mgr.children = {}
+        mgr.child_results = {}
+        captured_cancel_tokens: list[object] = []
+
+        async def _spawn(**kwargs):
+            captured_cancel_tokens.append(kwargs.get("cancel_token"))
+            tid = kwargs["task_id"]
+            mgr.child_results[tid] = _ok(tid, kwargs["agent_type"])
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future.set_result(mgr.child_results[tid])
+            mgr.children[tid] = future
+            return future
+
+        mgr.spawn_child = _spawn
+
+        sentinel = object()
+        config = SubagentConfig(system_prompt="s")
+        await run_alternatives(
+            mgr, "task", [("w", config)], {}, lambda: [], cancel_token=sentinel
+        )
+
+        assert len(captured_cancel_tokens) == 1
+        assert captured_cancel_tokens[0] is sentinel
+
+    @pytest.mark.asyncio
+    async def test_existing_context_not_mutated(self):
+        mgr = MagicMock()
+        mgr.children = {}
+        mgr.child_results = {}
+
+        async def _spawn(**kwargs):
+            tid = kwargs["task_id"]
+            mgr.child_results[tid] = _ok(tid, kwargs["agent_type"])
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future.set_result(mgr.child_results[tid])
+            mgr.children[tid] = future
+            return future
+
+        mgr.spawn_child = _spawn
+
+        original_ctx = {"workspace_path": "/tmp/ws", "some_key": "val"}
+        ctx_copy = dict(original_ctx)
+        config = SubagentConfig(system_prompt="s")
+        await run_alternatives(mgr, "task", [("w", config)], original_ctx, lambda: [])
+
+        assert original_ctx == ctx_copy, "Original context must not be mutated"
+
+    @pytest.mark.asyncio
+    async def test_mixed_runtime_success_and_failure(self):
+        mgr = MagicMock()
+        mgr.children = {}
+        mgr.child_results = {}
+
+        async def _spawn(**kwargs):
+            tid = kwargs["task_id"]
+            idx = int(tid.split("-")[2])
+            if idx == 0:
+                r = _ok(tid, kwargs["agent_type"], "good")
+            else:
+                r = _fail(tid, kwargs["agent_type"], "runtime error")
+            mgr.child_results[tid] = r
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future.set_result(r)
+            mgr.children[tid] = future
+            return future
+
+        mgr.spawn_child = _spawn
+
+        configs = [
+            ("a", SubagentConfig(system_prompt="s")),
+            ("b", SubagentConfig(system_prompt="s")),
+        ]
+        results = await run_alternatives(mgr, "task", configs, {}, lambda: [])
+
+        assert len(results) == 2
+        assert results[0].success
+        assert results[0].result == "good"
+        assert not results[1].success
+        assert "runtime error" in results[1].error
+
+    @pytest.mark.asyncio
+    async def test_result_carries_workspace_sync_back(self):
+        mgr = MagicMock()
+        mgr.children = {}
+        mgr.child_results = {}
+
+        sync_called = False
+
+        async def _mock_sync_back():
+            nonlocal sync_called
+            sync_called = True
+
+        async def _spawn(**kwargs):
+            tid = kwargs["task_id"]
+            r = SubAgentResult(
+                success=True,
+                task_id=tid,
+                agent_type=kwargs["agent_type"],
+                result={
+                    "text": "solution",
+                    "_workspace_sync_back": _mock_sync_back,
+                    "_isolated_child_workspace": "/tmp/child",
+                },
+                status=SubAgentStatus.COMPLETED,
+                completed_at=time.time(),
+            )
+            mgr.child_results[tid] = r
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future.set_result(r)
+            mgr.children[tid] = future
+            return future
+
+        mgr.spawn_child = _spawn
+
+        config = SubagentConfig(system_prompt="s")
+        results = await run_alternatives(mgr, "task", [("w", config)], {}, lambda: [])
+
+        assert len(results) == 1
+        assert results[0].success
+        result_dict = results[0].result
+        assert isinstance(result_dict, dict)
+        assert callable(result_dict["_workspace_sync_back"])
+        await result_dict["_workspace_sync_back"]()
+        assert sync_called
