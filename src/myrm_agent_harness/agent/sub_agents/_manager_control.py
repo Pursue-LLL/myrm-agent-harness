@@ -6,7 +6,7 @@
 
 [OUTPUT]
 - SubagentControlMixin: Mixin providing cancel_child, cancel_all, steer_child,
-  list_children, wait_children, drain_notifications, run_chain, run_with_verification
+  list_children, wait_children, drain_notifications, run_alternatives, run_chain, run_with_verification
 
 [POS]
 Control plane operations for SubagentManager.
@@ -178,6 +178,21 @@ class SubagentControlMixin:
         from .orchestrator import wait_children
 
         return await wait_children(self, task_ids, min_success_rate, timeout)
+
+    async def run_alternatives(
+        self,
+        task_description: str,
+        configs: list[tuple[str, SubagentConfig]],
+        context: dict[str, object],
+        tool_registry_getter: Callable[[], list[BaseTool]],
+        cancel_token: object | None = None,
+    ) -> list[SubAgentResult]:
+        """Spawn N subagents in parallel for the same task; return all results without auto-merging."""
+        from .orchestrator import run_alternatives
+
+        return await run_alternatives(
+            self, task_description, configs, context, tool_registry_getter, cancel_token=cancel_token
+        )
 
     async def run_chain(
         self,

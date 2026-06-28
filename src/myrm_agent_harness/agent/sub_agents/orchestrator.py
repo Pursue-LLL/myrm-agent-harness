@@ -1,27 +1,31 @@
-"""Subagent composition patterns — chain, batch, and verified orchestration.
+"""Subagent composition patterns — chain, batch, alternatives, and verified orchestration.
 
 Higher-level execution patterns built on top of SubagentManager.spawn_child.
 
 [INPUT]
 - agent.sub_agents.types::SubagentConfig, SubAgentResult, SubAgentStatus, WorkspacePolicy (POS: Subagent subsystem core type definitions. Defines all subagent-related data types, enums, and protocols.)
+- agent.workspace_coordination.policy::apply_parallel_write_isolation (POS: Policy helpers for parallel subagent workspace safety.)
 - toolkits.code_execution.executors.readonly_proxy::ReadonlyExecutorProxy (POS: Read-only executor proxy for Adversarial Sandbox Verifier.)
 - agent.skills.evolution.execution.executor_context::ExecutorContextManager (POS: Context manager for injecting executors into the current async context.)
 
 [OUTPUT]
 - run_chain: Execute subagents in chain: A -> B -> C, each receiving previous result.
+- run_alternatives: Spawn N subagents in parallel for the same task; return all results without auto-merging, so the caller can let the user choose.
 - wait_children: Wait for multiple child tasks to complete and aggregate results.
 - run_with_verification: Execute a worker then verify via an adversarial verifier, retrying on failure.
 - VerificationVerdict: Parsed verdict from a Verifier agent's structured JSON output.
 
 [POS]
-Subagent composition patterns — chain, batch, and verified orchestration.
+Subagent composition patterns — chain, batch, alternatives, and verified orchestration.
 """
 
 from __future__ import annotations
 
 import asyncio
 import time
+import uuid
 from collections.abc import Callable
+from dataclasses import replace as dc_replace
 from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool
@@ -30,6 +34,7 @@ from myrm_agent_harness.agent.sub_agents.types import (
     SubagentConfig,
     SubAgentResult,
     SubAgentStatus,
+    WorkspacePolicy,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -317,6 +322,95 @@ async def execute_dag_plan(
     }
 
 
+async def run_alternatives(
+    manager: SubagentManager,
+    task_description: str,
+    configs: list[tuple[str, SubagentConfig]],
+    context: dict[str, object],
+    tool_registry_getter: Callable[[], list[BaseTool]],
+    cancel_token: CancellationToken | None = None,
+) -> list[SubAgentResult]:
+    """Spawn N subagents in parallel for the same task; return all results without auto-merging.
+
+    Each subagent runs in an isolated workspace copy (ISOLATED_COPY) with deferred
+    merge.  The caller (Server layer) picks one result and calls its
+    ``_workspace_sync_back`` to apply workspace changes — the others are discarded.
+
+    This primitive powers the "generate N alternative solutions → user picks one"
+    pattern.  The Server layer stores results as sibling messages so the existing
+    SiblingNav frontend component handles comparison and switching.
+
+    Args:
+        manager: SubagentManager instance.
+        task_description: Common task description shared by all alternatives.
+        configs: List of (agent_type, config) tuples — one per alternative.
+            Each config may specify a different system_prompt/model to produce diverse results.
+        context: Shared execution context (workspace_path is required for isolation).
+        tool_registry_getter: Tool provider.
+        cancel_token: Propagated to each spawned child.
+
+    Returns:
+        List of SubAgentResult in the same order as *configs*.  Successful results
+        with workspace changes carry ``result["_workspace_sync_back"]`` for
+        on-demand merge.
+    """
+    if not configs:
+        return []
+
+    batch_id = uuid.uuid4().hex[:8]
+    task_ids: list[str] = []
+    early_failures: dict[str, SubAgentResult] = {}
+
+    for idx, (agent_type, config) in enumerate(configs):
+        iso_config = dc_replace(config, workspace_policy=WorkspacePolicy.ISOLATED_COPY)
+        iso_context = {**context, "_defer_workspace_merge": True}
+
+        task_id = f"alt-{batch_id}-{idx}-{agent_type}"
+        task_ids.append(task_id)
+
+        spawn_result = await manager.spawn_child(
+            task_id=task_id,
+            agent_type=agent_type,
+            task_description=task_description,
+            config=iso_config,
+            context=iso_context,
+            tool_registry_getter=tool_registry_getter,
+            wait=False,
+            cancel_token=cancel_token,
+        )
+        if isinstance(spawn_result, SubAgentResult) and not spawn_result.success:
+            early_failures[task_id] = spawn_result
+
+    spawned_ids = [tid for tid in task_ids if tid not in early_failures]
+    if spawned_ids:
+        batch = await wait_children(manager, spawned_ids, min_success_rate=0.0)
+    else:
+        batch = {"results": [], "failures": []}
+
+    # Collect SubAgentResult from manager (wait_children returns to_dict() snapshots,
+    # but we need the original objects which carry _workspace_sync_back callables).
+    results_map: dict[str, SubAgentResult] = dict(early_failures)
+    for item in (*batch.get("results", []), *batch.get("failures", [])):
+        if isinstance(item, SubAgentResult):
+            results_map[item.task_id] = item
+        elif isinstance(item, dict):
+            tid = str(item.get("task_id", ""))
+            completed = manager.child_results.get(tid)
+            if completed is not None:
+                results_map[tid] = completed
+
+    ordered: list[SubAgentResult] = [results_map[tid] for tid in task_ids if tid in results_map]
+
+    success_count = sum(1 for r in ordered if r.success)
+    logger.info(
+        "[alternatives] Completed %d/%d alternatives (%d succeeded)",
+        len(ordered),
+        len(configs),
+        success_count,
+    )
+    return ordered
+
+
 async def run_chain(
     manager: SubagentManager,
     configs: list[tuple[str, SubagentConfig, str]],
@@ -503,6 +597,7 @@ async def wait_children(
 __all__ = [
     "VerificationVerdict",
     "execute_dag_plan",
+    "run_alternatives",
     "run_chain",
     "run_with_verification",
     "wait_children",

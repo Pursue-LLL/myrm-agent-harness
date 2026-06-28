@@ -70,7 +70,7 @@
 | **AgentFactory** | "谁来构建" — 业务层注入的 Agent 构建协议 | build(config, tools, task_description, parent_agent, current_depth, complexity_tier) → BaseAgent |
 | **ModelResolver** | "用什么模型" — 业务层注入的 model→LLM 解析协议 | resolve(model_name, complexity_tier, task_description) → BaseChatModel |
 | **SubAgentResult** | "结果是什么" — 结构化输出 | success, result, token_usage, duration, completed_at, status, accumulated_duration_seconds |
-| **SubagentManager** | "怎么做" — 执行器 + 编排 | spawn_child, batch_delegate_tasks_tool, run_chain, run_with_verification, cancel_all, wait_children(timeout) |
+| **SubagentManager** | "怎么做" — 执行器 + 编排 | spawn_child, batch_delegate_tasks_tool, run_alternatives, run_chain, run_with_verification, cancel_all, wait_children(timeout) |
 | **SubAgentStatus** | "做到哪了" — 状态枚举 | PENDING, RUNNING, VERIFYING, COMPLETED, FAILED, TIMED_OUT, CANCELLED, CANCELLED_BY_BUDGET, PENDING_APPROVAL, YIELDED, INTERRUPTED |
 | **DelegationCapabilityManifest** | "能注入/能剥离什么" — 委派工具能力清单 | leaf_blocked_tools, orchestrator_child_tools, privileged_skill_tools |
 
@@ -170,6 +170,7 @@ Level 4: parent LLM (继承父 agent 的 LLM，兜底)
 | 异步 | `spawn_child(wait=False)` + `wait_children()` | 启动子任务返回 Task ID，可随时查询结果 |
 | 并行批量 | `batch_delegate_tasks_tool` | `asyncio.gather` 并行执行多个子任务（`max_concurrent` 可调并发度，race 模式 Speculative Execution first-winner） |
 | 链式 | `run_chain(configs)` | A → B → C，`{previous}` 模板传递 |
+| 替代方案 | `run_alternatives(task, configs)` | 并行派发 N 个子 agent 执行相同任务（各自 ISOLATED_COPY 隔离工作区），收集全部结果但不自动合并。上层按需调用选中结果的 `_workspace_sync_back` 合并工作区 |
 | 验证式 | `run_with_verification(worker, verifier, ...)` | Worker → Verifier 对抗验证，FAIL 则注入反馈重试，最多 max_rounds 轮。支持 `WorkspacePolicy.READ_ONLY_SANDBOX` 模式，通过 `ReadonlyExecutorProxy` 强制 Verifier 必须执行代码验证，防止 LLM 幻觉。 |
 
 ### 5.1 Worker / Coordinator 运行时角色

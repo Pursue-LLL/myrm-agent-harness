@@ -17,10 +17,10 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | executor.py | Core | Subagent executor. Runs child agents with retry, workspace isolation, event handling, cascade cancellation, manifest-scoped delegation tools, taint propagation with inbound security warnings, approval deadlock protection, error compaction (`_compact_error_message` — head+marker+tail truncation prevents context pollution), and conclusion-oriented fork context filtering (`_filter_fork_messages` + `max_fork_tokens` truncation). | ✅ |
 | manager.py | Core | Subagent lifecycle manager. Core state tracking, validation, cleanup, capacity, and observability. Inherits spawn/execution from `_manager_spawn` and control operations from `_manager_control`. | ✅ |
 | _manager_spawn.py | Internal | Spawn and execution mixin for SubagentManager (`_run_subagent*`, `spawn_child`). | ✅ |
-| _manager_control.py | Internal | Control plane mixin for SubagentManager (`cancel_child`, `steer_child`, `list_children`, `wait_children`, `drain_notifications`, `run_chain`, `run_with_verification`). | ✅ |
+| _manager_control.py | Internal | Control plane mixin for SubagentManager (`cancel_child`, `steer_child`, `list_children`, `wait_children`, `drain_notifications`, `run_alternatives`, `run_chain`, `run_with_verification`). | ✅ |
 | notifications.py | Core | Push-based notification formatting for subagent completion events and active subagent context injection. | ✅ |
 | SUBAGENT_NOTIFICATION_STRATEGY.md | L2 | Subagent push notification strategy and context injection design | — |
-| orchestrator.py | Core | Subagent composition patterns — chain, batch, and DAG execution (with Declarative Dependency Context Filtering, Auto-Vaulting, and Swarm Fission yield-resume). Delegates verification to `_orchestrator_verification`. | ✅ |
+| orchestrator.py | Core | Subagent composition patterns — chain, batch, alternatives, and DAG execution (with Declarative Dependency Context Filtering, Auto-Vaulting, Swarm Fission yield-resume, and `run_alternatives` for parallel multi-solution generation with deferred workspace merge). Delegates verification to `_orchestrator_verification`. | ✅ |
 | _orchestrator_verification.py | Internal | Adversarial verification orchestration — Worker -> Verifier -> Retry loop with structured verdict parsing and ReadonlyExecutorProxy sandboxing. | ✅ |
 | prompts.py | Core | Default prompt templates for multi-agent coordination. | ✅ |
 | registry.py | Core | Subagent configuration registry and loader. Provides global config registration and lookup. | ✅ |
