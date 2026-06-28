@@ -270,9 +270,33 @@ class TestSessionTarget:
     def test_values(self):
         assert SessionTarget.ISOLATED == "isolated"
         assert SessionTarget.MAIN == "main"
+        assert SessionTarget.DAILY == "daily"
+
+    def test_all_members(self):
+        assert {e.value for e in SessionTarget} == {"isolated", "main", "daily"}
 
     def test_is_str_enum(self):
         assert isinstance(SessionTarget.ISOLATED, str)
+        assert isinstance(SessionTarget.DAILY, str)
+
+    def test_daily_as_default_overridable(self):
+        """CronJob defaults to ISOLATED; DAILY is selectable via override."""
+        defaults = {
+            "id": "j1",
+            "user_id": "u1",
+            "name": "Test",
+            "job_type": JobType.AGENT,
+            "schedule": Schedule(kind=ScheduleKind.CRON, expr="0 * * * *"),
+        }
+        job_isolated = CronJob(**defaults)  # type: ignore[arg-type]
+        assert job_isolated.session_target == SessionTarget.ISOLATED
+
+        job_daily = CronJob(**{**defaults, "session_target": SessionTarget.DAILY})  # type: ignore[arg-type]
+        assert job_daily.session_target == SessionTarget.DAILY
+
+    def test_patch_session_target_daily(self):
+        patch = CronJobPatch(session_target=SessionTarget.DAILY)
+        assert patch.session_target == SessionTarget.DAILY
 
 
 # ---------------------------------------------------------------------------
