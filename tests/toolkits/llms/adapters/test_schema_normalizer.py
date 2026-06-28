@@ -1,7 +1,8 @@
 """Tests for tool schema normalization.
 
 Covers: nullable anyOf, oneOf, allOf, $ref/$defs, top-level composite,
-nested objects/arrays, passthrough of already-valid schemas, and edge cases.
+nested objects/arrays, passthrough of already-valid schemas, edge cases,
+and Anthropic-specific unsupported keyword stripping.
 """
 
 from myrm_agent_harness.toolkits.llms.adapters.schema_normalizer import (
@@ -629,3 +630,200 @@ class TestStrictProviderCompat:
         assert prop["type"] == "string"
         assert prop["enum"] == ["asc", "desc"]
         assert "anyOf" not in prop
+
+
+class TestAnthropicStrip:
+    """Anthropic-specific unsupported JSON Schema keyword stripping."""
+
+    def test_strips_minimum_maximum_for_claude(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "count": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10,
+                        "description": "Result count",
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
+        prop = result["properties"]["count"]
+        assert "minimum" not in prop
+        assert "maximum" not in prop
+        assert "range: 0\u201310" in prop["description"]
+
+    def test_preserves_keywords_for_non_claude(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "minimum": 0, "maximum": 10}
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema, model_name="gpt-4o"))
+        prop = result["properties"]["count"]
+        assert prop["minimum"] == 0
+        assert prop["maximum"] == 10
+
+    def test_preserves_keywords_when_no_model(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "minimum": 0, "maximum": 10}
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        prop = result["properties"]["count"]
+        assert prop["minimum"] == 0
+        assert prop["maximum"] == 10
+
+    def test_strips_title_default(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "title": "File Path",
+                        "default": ".",
+                        "description": "Target path",
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
+        prop = result["properties"]["path"]
+        assert "title" not in prop
+        assert "default" not in prop
+        assert "default: ." in prop["description"]
+
+    def test_strips_max_items(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "urls": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "maxItems": 20,
+                        "description": "URLs",
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema, model_name="anthropic/claude-sonnet-4-20250514"))
+        prop = result["properties"]["urls"]
+        assert "maxItems" not in prop
+        assert "items: 0\u201320" in prop["description"]
+
+    def test_strips_pattern_format(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "pattern": "^[a-z]+@",
+                        "description": "Email address",
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
+        prop = result["properties"]["email"]
+        assert "format" not in prop
+        assert "pattern" not in prop
+        assert "format: email" in prop["description"]
+        assert "pattern: ^[a-z]+@" in prop["description"]
+
+    def test_strips_nested_properties(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "config": {
+                        "type": "object",
+                        "properties": {
+                            "timeout": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 300,
+                                "default": 30,
+                                "description": "Timeout in seconds",
+                            }
+                        },
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
+        timeout = result["properties"]["config"]["properties"]["timeout"]
+        assert "minimum" not in timeout
+        assert "maximum" not in timeout
+        assert "default" not in timeout
+        assert "range: 1\u2013300" in timeout["description"]
+
+    def test_strips_items_format(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "urls": {
+                        "type": "array",
+                        "items": {"type": "string", "format": "uri"},
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
+        items = result["properties"]["urls"]["items"]
+        assert "format" not in items
+
+    def test_no_description_creates_hint(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "val": {"type": "integer", "minimum": 0, "maximum": 100}
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
+        prop = result["properties"]["val"]
+        assert prop["description"] == "(range: 0\u2013100)"
+
+    def test_does_not_mutate_original_with_model(self) -> None:
+        import copy
+
+        original = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "x": {"type": "integer", "minimum": 0, "maximum": 10}
+                },
+            }
+        )
+        frozen = copy.deepcopy(original)
+        normalize_tool_schema(original, model_name="claude-sonnet-4-20250514")
+        assert original == frozen
+
+    def test_anthropic_provider_prefix(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "n": {"type": "integer", "minimum": 1, "title": "N"}
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema, model_name="anthropic/claude-sonnet-4-20250514"))
+        prop = result["properties"]["n"]
+        assert "minimum" not in prop
+        assert "title" not in prop

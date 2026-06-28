@@ -1352,13 +1352,14 @@ class ChatLiteLLM(BaseChatModel):
         **kwargs: Any,
     ) -> Runnable[LanguageModelInput, AIMessage]:
         logger.debug(f"bind_tools called with {len(tools) if tools else 0} tools")
+        model_id = self.model_name or self.model
         openai_tools: list[dict[str, Any]] = []
         for t in tools:
             if isinstance(t, dict) and "function" in t:
-                openai_tools.append(normalize_tool_schema(t))
+                openai_tools.append(normalize_tool_schema(t, model_name=model_id))
             else:
                 try:
-                    openai_tools.append(normalize_tool_schema(convert_to_openai_tool(t)))
+                    openai_tools.append(normalize_tool_schema(convert_to_openai_tool(t), model_name=model_id))
                 except Exception as e:
                     logger.error(f"DEBUG: Failed to convert tool {getattr(t, 'name', t)}: {e}")
                     continue

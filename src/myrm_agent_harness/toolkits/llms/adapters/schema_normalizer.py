@@ -9,8 +9,11 @@ MCP tools use full JSON Schema, but OpenAI-compatible providers reject:
 - null/empty-string values in enum arrays on scalar types
 - tuple-style ``items`` arrays (positional element schemas)
 
-This module normalizes tool parameter schemas so they work across all providers
-while preserving as much semantic information as possible.
+Additionally, Anthropic's Tool Use API supports only a subset of JSON Schema.
+Keywords like ``minimum``, ``maxItems``, ``pattern``, ``format``, ``title``,
+and ``default`` cause 400 errors.  When the target model is Anthropic/Claude,
+this module strips unsupported keywords and folds validation constraints into
+the ``description`` field so the LLM still understands the intent.
 
 [INPUT]
 - (none)
@@ -29,15 +32,33 @@ import copy
 _COMPOSITE_KEYWORDS = frozenset({"anyOf", "oneOf", "allOf"})
 _REF_PREFIXES = ("#/$defs/", "#/definitions/")
 
+_ANTHROPIC_SUPPORTED_KEYS = frozenset({
+    "type", "properties", "required", "items", "additionalProperties",
+    "anyOf", "oneOf", "allOf", "not",
+    "$ref", "$defs", "definitions",
+    "description", "enum",
+    "prefixItems",
+})
 
-def normalize_tool_schema(tool: dict[str, object]) -> dict[str, object]:
+
+def normalize_tool_schema(
+    tool: dict[str, object],
+    *,
+    model_name: str | None = None,
+) -> dict[str, object]:
     """Normalize an OpenAI-format tool schema for provider compatibility.
 
     Processes the ``function.parameters`` sub-tree in-place (on a deep copy)
     to remove JSON Schema constructs that strict providers reject.
 
+    When *model_name* indicates an Anthropic/Claude model, additionally strips
+    unsupported JSON Schema keywords (``minimum``, ``maxItems``, ``title``,
+    ``default``, etc.) and folds validation constraints into ``description``.
+
     Args:
         tool: OpenAI-format tool dict ``{type: "function", function: {...}}``.
+        model_name: LLM model identifier (e.g. ``"claude-sonnet-4-20250514"``).
+            Used to activate provider-specific schema sanitization.
 
     Returns:
         A normalized copy of the tool dict.
@@ -54,6 +75,9 @@ def normalize_tool_schema(tool: dict[str, object]) -> dict[str, object]:
     params = _resolve_defs(params)
     params = _ensure_object_type(params)
     _normalize_properties(params)
+
+    if _is_anthropic_model(model_name):
+        params = _strip_anthropic_unsupported(params)
 
     func["parameters"] = params
     return tool
@@ -283,3 +307,113 @@ def _clean_enum(schema: dict[str, object]) -> None:
         schema["enum"] = cleaned
     else:
         schema.pop("enum", None)
+
+
+# ---------------------------------------------------------------------------
+# Anthropic-specific: strip unsupported JSON Schema keywords
+# ---------------------------------------------------------------------------
+
+
+def _is_anthropic_model(model_name: str | None) -> bool:
+    """Return True if *model_name* targets an Anthropic/Claude provider."""
+    if not model_name:
+        return False
+    lowered = model_name.lower()
+    return "claude" in lowered or "anthropic" in lowered
+
+
+def _build_constraint_hint(unsupported: dict[str, object]) -> str:
+    """Build a compact human-readable hint from stripped constraint keywords.
+
+    Returns an empty string when no meaningful constraints were removed.
+    """
+    parts: list[str] = []
+
+    lo = unsupported.get("minimum", unsupported.get("exclusiveMinimum"))
+    hi = unsupported.get("maximum", unsupported.get("exclusiveMaximum"))
+    if lo is not None and hi is not None:
+        parts.append(f"range: {lo}–{hi}")
+    elif lo is not None:
+        parts.append(f"min: {lo}")
+    elif hi is not None:
+        parts.append(f"max: {hi}")
+
+    min_len = unsupported.get("minLength")
+    max_len = unsupported.get("maxLength")
+    if min_len is not None or max_len is not None:
+        parts.append(f"length: {min_len or 0}–{max_len or '∞'}")
+
+    min_items = unsupported.get("minItems")
+    max_items = unsupported.get("maxItems")
+    if min_items is not None or max_items is not None:
+        parts.append(f"items: {min_items or 0}–{max_items or '∞'}")
+
+    if unsupported.get("uniqueItems"):
+        parts.append("unique items")
+
+    pat = unsupported.get("pattern")
+    if pat is not None:
+        parts.append(f"pattern: {pat}")
+
+    fmt = unsupported.get("format")
+    if fmt is not None:
+        parts.append(f"format: {fmt}")
+
+    default = unsupported.get("default")
+    if default is not None:
+        parts.append(f"default: {default}")
+
+    return ", ".join(parts)
+
+
+def _strip_anthropic_unsupported(schema: dict[str, object]) -> dict[str, object]:
+    """Recursively strip JSON Schema keywords unsupported by Anthropic.
+
+    Removed validation constraints are folded into ``description`` so the
+    LLM retains semantic awareness of the original intent.
+    """
+    cleaned: dict[str, object] = {}
+    unsupported: dict[str, object] = {}
+
+    for key, value in schema.items():
+        if key in _ANTHROPIC_SUPPORTED_KEYS:
+            cleaned[key] = value
+        else:
+            unsupported[key] = value
+
+    hint = _build_constraint_hint(unsupported)
+    if hint:
+        desc = str(cleaned.get("description", ""))
+        cleaned["description"] = f"{desc} ({hint})".lstrip() if desc else f"({hint})"
+
+    props = cleaned.get("properties")
+    if isinstance(props, dict):
+        cleaned["properties"] = {
+            k: _strip_anthropic_unsupported(v) if isinstance(v, dict) else v
+            for k, v in props.items()
+        }
+
+    items = cleaned.get("items")
+    if isinstance(items, dict):
+        cleaned["items"] = _strip_anthropic_unsupported(items)
+
+    for kw in ("anyOf", "oneOf", "allOf"):
+        branches = cleaned.get(kw)
+        if isinstance(branches, list):
+            cleaned[kw] = [
+                _strip_anthropic_unsupported(b) if isinstance(b, dict) else b
+                for b in branches
+            ]
+
+    not_schema = cleaned.get("not")
+    if isinstance(not_schema, dict):
+        cleaned["not"] = _strip_anthropic_unsupported(not_schema)
+
+    prefix_items = cleaned.get("prefixItems")
+    if isinstance(prefix_items, list):
+        cleaned["prefixItems"] = [
+            _strip_anthropic_unsupported(item) if isinstance(item, dict) else item
+            for item in prefix_items
+        ]
+
+    return cleaned

@@ -14,7 +14,7 @@ LLM adapter layer: LangChain-compatible LiteLLM interface, provider-specific mes
 | converters.py | Core | Bidirectional message format conversion (LangChain ↔ LiteLLM) with explicit message-name preservation | ✅ |
 | metrics.py | Core | Empty response retry metrics tracking | ✅ |
 | safety_termination_detector.py | Core | Detects provider safety terminations and suppresses truncated tool_calls to prevent corrupt dispatch | ✅ |
-| schema_normalizer.py | Core | Tool schema normalizer for OpenAI-compatible providers | ✅ |
+| schema_normalizer.py | Core | Tool schema normalizer for OpenAI-compatible providers; Anthropic-specific unsupported keyword stripping with constraint-to-description folding | ✅ |
 | stream_aggregator.py | Core | Stream data aggregation & XML tag purging — eliminates sync/async stream duplication | ✅ |
 | streaming.py | Core | Streaming response parsing, incremental tool call merging | ✅ |
 | tool_call_parsers.py | Core | Unified tool call format parsing for multiple LLMs (incl. XML and DeepSeek DSML) | ✅ |
