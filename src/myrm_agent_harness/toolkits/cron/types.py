@@ -64,10 +64,17 @@ class TransientErrorKind(StrEnum):
 
 
 class SessionTarget(StrEnum):
-    """Controls whether a cron job runs in an isolated or shared session."""
+    """Controls whether a cron job runs in an isolated or shared session.
+
+    - ``ISOLATED``: each execution starts with a blank context.
+    - ``MAIN``: reuses the bound web-chat session's history.
+    - ``DAILY``: same-day executions share context via injected history;
+      a fresh context is started each calendar day.
+    """
 
     ISOLATED = "isolated"
     MAIN = "main"
+    DAILY = "daily"
 
 
 # ---------------------------------------------------------------------------
