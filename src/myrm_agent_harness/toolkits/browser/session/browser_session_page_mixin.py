@@ -1,7 +1,7 @@
 """Viewport, dialog, and misc page-level helpers for BrowserSession.
 
 [INPUT]
-- (none)
+- session.extractor::_PDF_HEADER_TEMPLATE, _PDF_FOOTER_TEMPLATE, _PDF_MARGIN (POS: PDF metadata templates)
 
 [OUTPUT]
 - BrowserSessionPageMixin: evaluate, navigation helpers, PDF to temp path, viewport,...
@@ -15,6 +15,12 @@ from __future__ import annotations
 import logging
 import tempfile
 from pathlib import Path
+
+from myrm_agent_harness.toolkits.browser.session.extractor import (
+    _PDF_FOOTER_TEMPLATE,
+    _PDF_HEADER_TEMPLATE,
+    _PDF_MARGIN,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,13 +53,23 @@ class BrowserSessionPageMixin:
         await navigator.forward()
         return "Navigated forward"
 
-    async def save_pdf(self) -> str:
-        """Export PDF (Base64)"""
+    async def save_pdf(self, *, include_metadata: bool = True) -> str:
+        """Export current page as PDF with metadata header/footer and background."""
         await self._ensure_components()
         page = self._tab_controller.get_active_page()
 
         pdf_path = Path(tempfile.gettempdir()) / f"page_{self.get_active_tab_id()}.pdf"
-        await page.pdf(path=str(pdf_path))
+        if include_metadata:
+            await page.pdf(
+                path=str(pdf_path),
+                print_background=True,
+                display_header_footer=True,
+                header_template=_PDF_HEADER_TEMPLATE,
+                footer_template=_PDF_FOOTER_TEMPLATE,
+                margin=_PDF_MARGIN,
+            )
+        else:
+            await page.pdf(path=str(pdf_path), print_background=True)
         logger.info("BrowserSession: saved PDF to %s", pdf_path)
         return f"Saved PDF to {pdf_path}"
 

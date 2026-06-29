@@ -47,6 +47,22 @@ _SCREENSHOT_QUALITY = 50
 _SCREENSHOT_MAX_WIDTH = 1280
 _SCREENSHOT_MAX_HEIGHT = 720
 
+_PDF_HEADER_TEMPLATE = (
+    '<div style="font-size:8px;width:100%;padding:0 12px;color:#666">'
+    '<span class="title"></span>'
+    "</div>"
+)
+_PDF_FOOTER_TEMPLATE = (
+    '<div style="font-size:8px;width:100%;padding:0 12px;color:#666;'
+    'display:flex;justify-content:space-between">'
+    '<span class="url" style="max-width:70%;overflow:hidden;'
+    'text-overflow:ellipsis;white-space:nowrap"></span>'
+    '<span><span class="date"></span> &mdash; '
+    '<span class="pageNumber"></span>/<span class="totalPages"></span></span>'
+    "</div>"
+)
+_PDF_MARGIN = {"top": "20px", "bottom": "28px", "left": "0", "right": "0"}
+
 
 class Extractor:
     """Content extraction manager — single responsibility.
@@ -266,16 +282,29 @@ class Extractor:
         result = await self.compare_screenshots(self._prev_screenshot, strategy="fast")
         return result.to_llm_message()
 
-    async def export_pdf(self, path: str) -> str:
+    async def export_pdf(self, path: str, *, include_metadata: bool = True) -> str:
         """Export the current page as a PDF file.
 
         Args:
             path: Destination file path for the exported PDF.
+            include_metadata: Inject source URL, date, and page numbers into
+                header/footer. Also enables print_background for faithful
+                visual reproduction.
 
         Returns:
             Confirmation message with the output path.
         """
-        await self._page.pdf(path=path)
+        if include_metadata:
+            await self._page.pdf(
+                path=path,
+                print_background=True,
+                display_header_footer=True,
+                header_template=_PDF_HEADER_TEMPLATE,
+                footer_template=_PDF_FOOTER_TEMPLATE,
+                margin=_PDF_MARGIN,
+            )
+        else:
+            await self._page.pdf(path=path, print_background=True)
         logger.info("Extractor: exported PDF to %s", path)
         return f"Exported PDF to {path}"
 

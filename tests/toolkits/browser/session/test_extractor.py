@@ -187,8 +187,8 @@ class TestExtractor:
 
         assert "Good frame" in result
 
-    async def test_export_pdf(self, extractor: Extractor, mock_page: MagicMock) -> None:
-        """Test export_pdf saves page as PDF."""
+    async def test_export_pdf_with_metadata(self, extractor: Extractor, mock_page: MagicMock) -> None:
+        """Test export_pdf with default metadata header/footer and print_background."""
         pdf_path = "/tmp/test.pdf"
         mock_page.pdf = AsyncMock()
 
@@ -196,7 +196,22 @@ class TestExtractor:
 
         assert "Exported PDF to" in result
         assert pdf_path in result
-        mock_page.pdf.assert_called_once_with(path=pdf_path)
+        call_kwargs = mock_page.pdf.call_args[1]
+        assert call_kwargs["path"] == pdf_path
+        assert call_kwargs["print_background"] is True
+        assert call_kwargs["display_header_footer"] is True
+        assert "pageNumber" in call_kwargs["footer_template"]
+        assert "url" in call_kwargs["footer_template"]
+
+    async def test_export_pdf_without_metadata(self, extractor: Extractor, mock_page: MagicMock) -> None:
+        """Test export_pdf with include_metadata=False only sets print_background."""
+        pdf_path = "/tmp/test.pdf"
+        mock_page.pdf = AsyncMock()
+
+        result = await extractor.export_pdf(pdf_path, include_metadata=False)
+
+        assert "Exported PDF to" in result
+        mock_page.pdf.assert_called_once_with(path=pdf_path, print_background=True)
 
     async def test_detect_significant_visual_content_true(
         self, extractor: Extractor, mock_page: MagicMock

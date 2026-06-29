@@ -256,9 +256,9 @@ class BrowserSessionExtractionMixin:
 
         return await extractor.compare_screenshot()
 
-    async def export_pdf(self, path: str) -> str:
-        """Export PDF  to 指定Path"""
+    async def export_pdf(self, path: str, *, include_metadata: bool = True) -> str:
+        """Export PDF to the specified path with optional metadata header/footer."""
         await self._ensure_components()
         extractor = self._require_extractor()
 
-        return await extractor.export_pdf(path)
+        return await extractor.export_pdf(path, include_metadata=include_metadata)
