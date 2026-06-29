@@ -1,8 +1,8 @@
 """DesktopSession — semantic desktop control with @dref registry.
 
 [INPUT]
-- element_ref.registry::DRefRegistry (POS: session-scoped @dref element map)
-- element_ref.types::SnapshotScope, SnapshotMeta, ElementRef (POS: shared snapshot types)
+- dref.registry::DRefRegistry (POS: session-scoped @dref element map)
+- dref.types::SnapshotScope, SnapshotMeta, ElementRef (POS: shared snapshot types)
 - perception.ax_dispatch::capture_snapshot, inspect_backend, invoke_element (POS: platform AX dispatch)
 - perception.macos_ax::refs_for_view_update (POS: overlay ref serialization for WebUI)
 - perception.renderer::render_snapshot_tree (POS: AX tree text renderer)
@@ -50,13 +50,13 @@ from myrm_agent_harness.toolkits.computer_use.types import (
     PermissionStatus,
     ScrollDirection,
 )
-from myrm_agent_harness.toolkits.element_ref.errors import (
+from myrm_agent_harness.toolkits.computer_use.dref.errors import (
     AXPermissionRequiredError,
     AXTreeEmptyError,
     DRefStaleError,
 )
-from myrm_agent_harness.toolkits.element_ref.registry import DRefRegistry
-from myrm_agent_harness.toolkits.element_ref.types import SnapshotScope
+from myrm_agent_harness.toolkits.computer_use.dref.registry import DRefRegistry
+from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotScope
 
 logger = logging.getLogger(__name__)
 
@@ -365,7 +365,7 @@ class DesktopSession(ComputerSession):
         meta: object,
     ) -> None:
         from myrm_agent_harness.core.events.types import AgentEventType
-        from myrm_agent_harness.toolkits.element_ref.types import ElementRef, SnapshotMeta
+        from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef, SnapshotMeta
         from myrm_agent_harness.utils.runtime.progress_sink import get_tool_progress_sink
 
         assert isinstance(meta, SnapshotMeta)
@@ -401,7 +401,7 @@ class DesktopSession(ComputerSession):
             )
 
     async def _emit_permission_view_update(self) -> None:
-        from myrm_agent_harness.toolkits.element_ref.types import SnapshotMeta
+        from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
 
         meta = SnapshotMeta(
             ref_count=0,
@@ -423,7 +423,7 @@ class DesktopSession(ComputerSession):
 
     async def export_inspector_snapshot(self) -> dict[str, object]:
         """Capture foreground desktop state for WebUI inspector refresh."""
-        from myrm_agent_harness.toolkits.element_ref.types import ElementRef
+        from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef
 
         try:
             meta, refs = capture_snapshot(self._backend, "foreground", None)

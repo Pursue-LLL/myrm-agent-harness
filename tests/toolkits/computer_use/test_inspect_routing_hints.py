@@ -75,7 +75,7 @@ class TestMacOSNativeApiHint:
             MacAxSnapshot,
             inspect_foreground,
         )
-        from myrm_agent_harness.toolkits.element_ref.types import SnapshotMeta
+        from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
 
         meta = SnapshotMeta(ref_count=5, app_name="Finder", window_title="Desktop", scope="foreground")
         mock_snapshot.return_value = MacAxSnapshot(meta=meta, refs={})
@@ -93,7 +93,7 @@ class TestMacOSNativeApiHint:
             MacAxSnapshot,
             inspect_foreground,
         )
-        from myrm_agent_harness.toolkits.element_ref.types import SnapshotMeta
+        from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
 
         meta = SnapshotMeta(ref_count=3, app_name="UnknownApp", window_title="", scope="foreground")
         mock_snapshot.return_value = MacAxSnapshot(meta=meta, refs={})
@@ -134,7 +134,7 @@ class TestMacOSNativeApiHint:
             MacAxSnapshot,
             inspect_foreground,
         )
-        from myrm_agent_harness.toolkits.element_ref.types import SnapshotMeta
+        from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
 
         meta = SnapshotMeta(ref_count=10, app_name="Adobe Photoshop", window_title="Untitled-1", scope="foreground")
         mock_snapshot.return_value = MacAxSnapshot(meta=meta, refs={})

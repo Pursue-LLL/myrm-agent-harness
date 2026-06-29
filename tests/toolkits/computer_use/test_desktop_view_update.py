@@ -9,7 +9,7 @@ import pytest
 from myrm_agent_harness.core.events.types import AgentEventType
 from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
 from myrm_agent_harness.toolkits.computer_use.types import ComputerUseConfig, ScreenContext, ScreenInfo
-from myrm_agent_harness.toolkits.element_ref.errors import AXPermissionRequiredError
+from myrm_agent_harness.toolkits.computer_use.dref.errors import AXPermissionRequiredError
 from myrm_agent_harness.utils.runtime import progress_sink
 
 

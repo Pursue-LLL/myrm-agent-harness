@@ -17,7 +17,7 @@ Tests mirroring `src/myrm_agent_harness/backends/` — profiles, secrets, and sk
 
 | File | Role |
 |------|------|
-| `skills/test_config_version.py` | `MYRM_DATA_DIR/.skill_config_version` bump/get and corrupt-file fallback |
+| `skills/test_config_version.py` | `MYRM_DATA_DIR/.skill_config_version` bump/get, corrupt-file fallback + WARNING log |
 | `test_watcher.py` | SkillWatcher debounced snapshot updates |
 | `test_snapshot.py` | SQLite skill snapshot CRUD |
 

@@ -173,13 +173,13 @@ class ConsensusEngine:
             yield ConsensusStreamEvent(kind="done", result=self._cancelled_result(t0))
             return
 
-        # Progressive yield: emit ref_done as each model completes (not all-at-once).
         ref_responses: list[ReferenceResponse] = []
         if not (cancel_token and cancel_token.is_cancelled):
             tasks = [
                 asyncio.ensure_future(self._query_single(llm, query, system_prompt))
                 for llm in self._refs
             ]
+            task_to_llm = dict(zip(tasks, self._refs))
             try:
                 for coro in asyncio.as_completed(tasks, timeout=cfg.timeout_total):
                     ref = await coro
@@ -194,7 +194,7 @@ class ConsensusEngine:
                         task.cancel()
                         ref_responses.append(
                             ReferenceResponse(
-                                model="unknown",
+                                model=self._model_name(task_to_llm[task]),
                                 content="",
                                 elapsed_seconds=cfg.timeout_total,
                                 success=False,

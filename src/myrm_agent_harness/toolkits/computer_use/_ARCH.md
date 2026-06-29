@@ -22,7 +22,7 @@ with native desktop applications via accessibility trees (@dref) with coordinate
 | backends/ | Platform I/O: macOS, Windows, Linux |
 | perception/ | AX tree capture, renderer, ax_dispatch — see [perception/_ARCH.md](perception/_ARCH.md) |
 | execution/ | BBox click healer fallback — see [execution/_ARCH.md](execution/_ARCH.md) |
-| ../element_ref/ | Shared @dref types, registry, errors |
+| dref/ | @dref types, registry, errors (internal submodule) |
 
 ## Architecture
 
@@ -64,7 +64,7 @@ Agent → desktop_agent_tools (4 tools)
 
 ## Key Dependencies
 
-- `element_ref/` (shared @dref registry)
+- `dref/` (@dref registry submodule)
 - `security/credential_vault` (fill_credential vault resolution)
 - `code_execution` (platform detection)
 - `PIL`, `pyautogui`, platform AX libraries (see backends/)

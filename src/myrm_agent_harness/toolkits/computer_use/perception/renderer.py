@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.toolkits.element_ref.types import ElementRef, SnapshotMeta
+from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef, SnapshotMeta
 
 
 def render_snapshot_tree(meta: SnapshotMeta, refs: dict[str, ElementRef]) -> str:

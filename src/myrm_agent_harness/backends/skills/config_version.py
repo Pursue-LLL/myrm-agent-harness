@@ -15,11 +15,14 @@ API workers and long-lived agents in the same sandbox share invalidation state.
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 from pathlib import Path
 
 from myrm_agent_harness.infra.atomic_write import atomic_write
+
+logger = logging.getLogger(__name__)
 
 _VERSION_FILENAME = ".skill_config_version"
 
@@ -52,11 +55,13 @@ def get_skill_config_version() -> float:
         return 0.0
     try:
         raw = path.read_text(encoding="utf-8").strip()
-    except OSError:
+    except OSError as exc:
+        logger.warning("Failed to read skill config version file %s: %s", path, exc)
         return 0.0
     if not raw:
         return 0.0
     try:
         return float(raw)
     except ValueError:
+        logger.warning("Invalid skill config version in %s: %r", path, raw)
         return 0.0

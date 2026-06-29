@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from myrm_agent_harness.toolkits.computer_use.types import ActionResult, ModifierKey
-from myrm_agent_harness.toolkits.element_ref.types import ElementRef
+from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef
 
 
 async def try_bbox_click(

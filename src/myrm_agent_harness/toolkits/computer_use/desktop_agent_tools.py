@@ -3,7 +3,7 @@
 [INPUT]
 - desktop_session::DesktopSession (POS: semantic desktop orchestrator with @dref registry)
 - types::ModifierKey, DesktopInteractAction, DesktopVisionAction, ScrollDirection (POS: shared computer_use types)
-- element_ref.types::SnapshotScope (POS: snapshot scope enum)
+- dref.types::SnapshotScope (POS: snapshot scope enum)
 
 [OUTPUT]
 - create_desktop_tools(session) -> list[Tool]: 4 LangChain tools
@@ -28,7 +28,7 @@ from myrm_agent_harness.toolkits.computer_use.types import (
     ModifierKey,
     ScrollDirection,
 )
-from myrm_agent_harness.toolkits.element_ref.types import SnapshotScope
+from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotScope
 
 
 def create_desktop_tools(session: DesktopSession) -> list[object]:

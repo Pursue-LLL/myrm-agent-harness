@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from myrm_agent_harness.toolkits.element_ref.errors import DRefStaleError
-from myrm_agent_harness.toolkits.element_ref.types import ElementRef, SnapshotMeta
+from myrm_agent_harness.toolkits.computer_use.dref.errors import DRefStaleError
+from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef, SnapshotMeta
 
 
 class DRefRegistry:

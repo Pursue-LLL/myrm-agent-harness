@@ -1,4 +1,4 @@
-"""Shared element reference types for desktop semantic control."""
+"""Element reference types for desktop semantic control (@dref)."""
 
 from __future__ import annotations
 

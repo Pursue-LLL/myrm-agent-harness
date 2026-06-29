@@ -120,7 +120,7 @@ class TestDesktopSnapshotSensitiveGuard:
 
     @pytest.mark.asyncio
     async def test_snapshot_blocked_for_sensitive_app(self, session) -> None:
-        from myrm_agent_harness.toolkits.element_ref.types import SnapshotMeta
+        from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
 
         mock_meta = SnapshotMeta(
             ref_count=5, app_name="支付宝", window_title="余额", scope="foreground",
@@ -136,7 +136,7 @@ class TestDesktopSnapshotSensitiveGuard:
 
     @pytest.mark.asyncio
     async def test_snapshot_allowed_for_safe_app(self, session) -> None:
-        from myrm_agent_harness.toolkits.element_ref.types import SnapshotMeta
+        from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
 
         mock_meta = SnapshotMeta(
             ref_count=3, app_name="Microsoft Excel", window_title="Sheet1", scope="foreground",
@@ -163,7 +163,7 @@ class TestDesktopInteractSensitiveGuard:
     async def test_interact_revalidation_blocks_sensitive_app(self) -> None:
         from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
         from myrm_agent_harness.toolkits.computer_use.types import ComputerUseConfig
-        from myrm_agent_harness.toolkits.element_ref.types import SnapshotMeta
+        from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
 
         backend = MagicMock()
         session = DesktopSession(backend=backend, config=ComputerUseConfig())

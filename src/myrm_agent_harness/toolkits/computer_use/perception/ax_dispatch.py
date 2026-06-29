@@ -6,7 +6,7 @@ import logging
 
 from myrm_agent_harness.toolkits.computer_use.backends.protocols import ComputerBackend
 from myrm_agent_harness.toolkits.computer_use.perception import linux_ax, macos_ax, windows_ax
-from myrm_agent_harness.toolkits.element_ref.types import ElementRef, SnapshotMeta, SnapshotScope
+from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef, SnapshotMeta, SnapshotScope
 
 logger = logging.getLogger(__name__)
 

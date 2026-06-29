@@ -20,10 +20,6 @@ convenience layer for “drop into an agent tool list”. Do **not** describe a 
 as an “agent tool module” in overview docs — describe the **capability**, then note the
 optional adapter if present.
 
-Example: `notification/` exports `NotificationSender`, `NotifyTarget`, and send-side
-security constraints as the toolkit; `create_channel_notify_tool` is the optional LangChain
-surface, wired by the application layer when needed.
-
 ## Architecture gate
 
 **Framework vs business extension — do not confuse layers.** This is the primary cause of harness bloat.
@@ -90,8 +86,8 @@ Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
 | Category | Toolkits | Role |
 |----------|----------|------|
 | **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `security/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP, credential vault |
-| **Workspace** | `browser/`, `computer_use/`, `workspace/`, `context_bundle/`, `file_parsers/`, `wiki/`, `element_ref/` | Files, browser, desktop, context bundles |
-| **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/`, `deploy/`, `notification/` | External APIs, agent protocols, channels, deployment bridges |
+| **Workspace** | `browser/`, `computer_use/`, `workspace/`, `context_bundle/`, `file_parsers/`, `wiki/` | Files, browser, desktop, context bundles |
+| **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/`, `deploy/` | External APIs, agent protocols, deployment bridges |
 | **Collaboration & Media** | `kanban/`, `tasks/`, `automation/`, `cron/`, `interaction/`, `tts/` | Scheduling, tasks, user interaction primitives, media |
 | **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |
 
@@ -164,14 +160,12 @@ Does your code need to import anything from agent/?
 | cron/ | Scheduled task framework — scheduling engine, CRUD manager, built-in strategies. |
 | deploy/ | Artifact deployment — Protocol-based deploy tool with HITL approval via LangGraph interrupt. |
 | context_bundle/ | Unified context bundle — volume layout, facade, index/lifecycle hook registration. |
-| element_ref/ | Shared @dref element reference types and session-scoped registry for desktop control. |
 | file_parsers/ | File format parsers — PDF, DOCX, Excel, text, and structured data extraction. |
 | interaction/ | User interaction primitives — AskQuestion dialog and clipboard operations (UI rendering: `agent/meta_tools/interaction/`) |
 | kanban/ | Durable multi-task scheduling — heartbeat, zombie detection, run/event audit trail. |
 | llms/ | LLM manager and adapters — 100+ provider support, citation extraction, image/video generation and vision understanding (`llms/vision/`). |
 | mcp/ | MCP protocol support — client management, tool fetching, connection pooling. |
 | memory/ | Pluggable memory system — vector/relational/graph storage for AI agents. |
-| notification/ | Cross-channel outbound notification toolkit (Protocol + types + send-side security). Optional LangChain adapter: `create_channel_notify_tool`. |
 | openapi_bridge/ | OpenAPI Bridge — zero-code REST API integration via OpenAPI 3.x / Swagger 2.0 specs. |
 | retriever/ | Retrieval and reranking — multi-source document retrieval with scoring pipeline. |
 | security/ | Credential vault — in-memory password/TOTP resolution for tool execution. |

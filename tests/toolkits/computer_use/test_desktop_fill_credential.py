@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
-from myrm_agent_harness.toolkits.element_ref.types import ElementRef, SnapshotMeta
+from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef, SnapshotMeta
 
 
 @pytest.fixture

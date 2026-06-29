@@ -15,7 +15,7 @@ Platform AX/UIA/AT-SPI snapshot capture, tree rendering, element invoke dispatch
 
 ## Dependencies
 
-- `element_ref/types.py` (POS: shared @dref types)
+- `computer_use/dref/types.py` (POS: @dref types)
 - `backends/protocols.py` (POS: ComputerBackend protocol)
 - Used by `desktop_session.py` (POS: semantic desktop orchestrator)
 

@@ -5,7 +5,7 @@ import pytest
 
 from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
 from myrm_agent_harness.toolkits.computer_use.types import ScreenInfo
-from myrm_agent_harness.toolkits.element_ref.types import ElementRef, SnapshotMeta
+from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef, SnapshotMeta
 
 
 @pytest.fixture
@@ -110,7 +110,7 @@ async def test_desktop_interact_revalidation_capture_error(mock_backend, mock_co
 
 @pytest.mark.asyncio
 async def test_desktop_interact_stale_ref(mock_backend, mock_config):
-    from myrm_agent_harness.toolkits.element_ref.errors import DRefStaleError
+    from myrm_agent_harness.toolkits.computer_use.dref.errors import DRefStaleError
 
     session = DesktopSession(backend=mock_backend, config=mock_config)
     session._last_snapshot_time = time.time()
@@ -122,7 +122,7 @@ async def test_desktop_interact_stale_ref(mock_backend, mock_config):
 
 @pytest.mark.asyncio
 async def test_export_inspector_snapshot_success(mock_backend, mock_config):
-    from myrm_agent_harness.toolkits.element_ref.types import BBox, ElementRef, SnapshotMeta
+    from myrm_agent_harness.toolkits.computer_use.dref.types import BBox, ElementRef, SnapshotMeta
 
     mock_backend.screen_info.return_value = ScreenInfo(width=1440, height=900, dpi_scale=2.0)
     session = DesktopSession(backend=mock_backend, config=mock_config)

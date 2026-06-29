@@ -67,7 +67,7 @@ desktop_vision_tool (only when AX empty or interact failed)
 |-----------|----------|------|
 | `DesktopSession` | `desktop_session.py` | Orchestrator: registry, snapshot, interact, view updates |
 | `create_desktop_tools` | `desktop_agent_tools.py` | LangChain tool factory |
-| `DRefRegistry` | `element_ref/registry.py` | Session-scoped @dref map |
+| `DRefRegistry` | `computer_use/dref/registry.py` | Session-scoped @dref map |
 | `perception/` | `ax_dispatch.py`, platform AX | Capture AX tree, invoke elements |
 | `execution/healer.py` | BBox click fallback | When AX invoke fails |
 | `ComputerSession` | `session.py` | Screenshot + coordinate I/O |
