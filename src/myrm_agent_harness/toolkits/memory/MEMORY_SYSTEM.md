@@ -867,6 +867,22 @@ rating_new = rating_old + alpha * (normalized - rating_old)
 - [Qdrant 官方文档](https://qdrant.tech/documentation/)
 - [Apache AGE 文档](https://age.apache.org/)
 
+---
+
+## Proactive Follow-ups（智能跟进轨）
+
+与 MemoryManager（Qdrant/SQLite 语义/情景记忆）**并行**的独立持久化轨，用于隐式跟进承诺：
+
+| 维度 | MemoryManager | Proactive (`memory/proactive/`) |
+|------|---------------|----------------------------------|
+| 存储 | Vector + Relational + Graph | SQLite `CommitmentStore`（host 实现） |
+| 触发 | Agent 工具 / 策略 / 中间件 | 会话结束 LLM 抽取 + Cron heartbeat 投递 |
+| 开关 | `enable_memory` | 同样受 `enable_memory` 门控 |
+| 投递 ack | — | 非 `[SILENT]` → SENT；失败 ack → 自动 snooze 6h |
+| 详细设计 | 本文档 | [COMMITMENT_SYSTEM.md](proactive/COMMITMENT_SYSTEM.md) |
+
+会话后处理统一入口：`session_post_process.run_session_post_process`（记忆巩固与 proactive 抽取并行，互不合并 LLM 调用）。
+
 ## FTS5 混合检索 (Hybrid Search)
 
 为了解决长周期会话的“失忆”和“上下文爆炸”问题，系统实现了基于 SQLite FTS5 的混合检索架构：

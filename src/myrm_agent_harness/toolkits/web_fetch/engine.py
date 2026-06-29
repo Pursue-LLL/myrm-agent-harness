@@ -513,7 +513,7 @@ class CrawlEngine:
         from .url_normalizer import normalize_url
 
         if not self._allow_private_networks:
-            from myrm_agent_harness.utils.url_utils import validate_url_for_ssrf
+            from myrm_agent_harness.core.security.guards.ssrf import validate_url_for_ssrf
 
             is_safe, error = validate_url_for_ssrf(url)
             if not is_safe:

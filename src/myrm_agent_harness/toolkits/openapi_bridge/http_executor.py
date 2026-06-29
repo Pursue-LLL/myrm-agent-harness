@@ -25,6 +25,9 @@ from typing import Any
 
 import httpx
 
+from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
+from myrm_agent_harness.core.security.http.secure_fetch import secure_request
+
 from .auth import OpenAPIAuthProvider
 from .config import AuthConfig
 
@@ -67,7 +70,7 @@ class OpenAPIExecutor:
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
                 timeout=self._timeout,
-                follow_redirects=True,
+                follow_redirects=False,
                 limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
             )
         return self._client
@@ -155,12 +158,14 @@ class OpenAPIExecutor:
 
         for attempt in range(self._max_retries + 1):
             try:
-                response = await client.request(
-                    method=method.upper(),
-                    url=url,
+                response = await secure_request(
+                    client,
+                    method.upper(),
+                    url,
                     params=merged_query or None,
                     json=body,
                     headers=merged_headers,
+                    timeout=self._timeout,
                 )
 
                 if response.status_code == 401:
@@ -183,12 +188,14 @@ class OpenAPIExecutor:
                                             logger.info(
                                                 "OpenAPIExecutor: Retrying 401 request with freshly renewed token"
                                             )
-                                            response = await client.request(
-                                                method=method.upper(),
-                                                url=url,
+                                            response = await secure_request(
+                                                client,
+                                                method.upper(),
+                                                url,
                                                 params=merged_query or None,
                                                 json=body,
                                                 headers=merged_headers,
+                                                timeout=self._timeout,
                                             )
                                             if response.status_code < 500:
                                                 return self._format_response(response)
@@ -221,6 +228,8 @@ class OpenAPIExecutor:
                         self._max_retries,
                     )
 
+            except SSRFSecurityError as exc:
+                return f"Error: Blocked by SSRF policy: {exc}"
             except httpx.RequestError as e:
                 last_error = e
                 if attempt < self._max_retries:

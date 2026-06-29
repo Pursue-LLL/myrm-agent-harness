@@ -18,7 +18,7 @@ Session-level security guards integrated into tool_interceptor_middleware.
 | privacy_tracker.py | Core | Per-turn privacy state tracker. ContextVar session-scoped, independently evaluates each turn for pri | ✅ |
 | prompt_budget.py | Core | Prompt Budget Guard. | ✅ |
 | skill_approval_hook.py | Core | Integrated into tool_interceptor_middleware between the onion policy | ✅ |
-| ssrf_guard.py | Core | Standalone guard module. Called by browser toolkit (navigation) and | ✅ |
+| ssrf_guard.py | Shim | Re-exports `core.security.guards.ssrf` for stable `agent.security.guards.*` import paths. | ✅ |
 | taint_tracker.py | Core | Layer 2 enhancement. Sits between tool_interceptor (records taint after | ✅ |
 
 | Submodule | Description |

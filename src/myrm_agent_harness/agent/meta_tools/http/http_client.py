@@ -24,7 +24,7 @@ from myrm_agent_harness.agent.meta_tools.http.retry_policy import (
     extract_retry_after,
     is_retryable_error,
 )
-from myrm_agent_harness.toolkits.network.ssrf_shield import SSRFSecurityError, validate_and_resolve_url
+from myrm_agent_harness.core.security.http.secure_fetch import resolve_secure_http_target, secure_request
 from myrm_agent_harness.utils.progress_sink import get_tool_progress_sink
 
 logger = logging.getLogger(__name__)
@@ -71,17 +71,6 @@ async def http_request(
     allowed_hosts_str = os.getenv("MYRM_ALLOWED_INTERNAL_HOSTS", "")
     allowed_hosts = [h.strip() for h in allowed_hosts_str.split(",") if h.strip()]
 
-    if enable_ssrf_shield:
-        try:
-            safe_url, host_header = await validate_and_resolve_url(url, allowed_hosts)
-            url = safe_url
-            headers = headers or {}
-            if "Host" not in headers and "host" not in headers:
-                headers.update(host_header)
-        except SSRFSecurityError as e:
-            logger.error(f"SSRF attempt blocked: {e}")
-            raise ValueError(f"Security Error: {e}") from e
-
     headers = headers or {}
     if "X-Trace-ID" not in headers and "x-trace-id" not in headers:
         trace_id = str(uuid.uuid4())
@@ -124,7 +113,27 @@ async def http_request(
 
             for attempt in range(DEFAULT_RETRY_POLICY.max_retries + 1):
                 try:
-                    async with client.stream(**request_kwargs) as response:
+                    stream_url = url
+                    stream_headers = headers
+                    if enable_ssrf_shield:
+                        target = await resolve_secure_http_target(
+                            client,
+                            url,
+                            method=method,
+                            headers=headers,
+                            allowed_internal_hosts=allowed_hosts,
+                        )
+                        stream_url = target.request_url
+                        stream_headers = target.headers
+
+                    async with client.stream(
+                        method,
+                        stream_url,
+                        headers=stream_headers,
+                        content=request_kwargs.get("content"),
+                        timeout=timeout_val,
+                        follow_redirects=False,
+                    ) as response:
                         response.raise_for_status()
                         async for chunk in response.aiter_bytes(chunk_size=cfg.chunk_size_kb * 1024):
                             yield chunk
@@ -145,55 +154,23 @@ async def http_request(
 
     client = await get_http_client(verify_ssl)
 
-    from urllib.parse import urljoin
-
     for attempt in range(DEFAULT_RETRY_POLICY.max_retries + 1):
         try:
-            current_kwargs = dict(request_kwargs)
-            redirect_count = 0
-            max_redirects = 5
-            response = None
+            if enable_ssrf_shield:
+                response = await secure_request(
+                    client,
+                    method,
+                    url,
+                    headers=headers,
+                    content=request_kwargs.get("content"),
+                    timeout=timeout_val,
+                    allowed_internal_hosts=allowed_hosts,
+                    enable_ssrf_shield=True,
+                )
+                response.raise_for_status()
+                return response.text
 
-            while redirect_count <= max_redirects:
-                current_kwargs["follow_redirects"] = False
-
-                response = await client.request(**current_kwargs)
-
-                if response.status_code in (301, 302, 303, 307, 308):
-                    location = response.headers.get("Location")
-                    if not location:
-                        break
-
-                    next_url = urljoin(current_kwargs["url"], location)
-
-                    if enable_ssrf_shield:
-                        try:
-                            safe_url, host_header = await validate_and_resolve_url(next_url, allowed_hosts)
-                            current_kwargs["url"] = safe_url
-
-                            headers = dict(current_kwargs.get("headers") or {})
-                            headers.update(host_header)
-                            current_kwargs["headers"] = headers
-                        except SSRFSecurityError as e:
-                            logger.error(f"SSRF attempt blocked during redirect: {e}")
-                            raise ValueError(f"Security Error during redirect: {e}") from e
-                    else:
-                        current_kwargs["url"] = next_url
-
-                    if response.status_code in (301, 302, 303) and current_kwargs["method"].upper() != "GET":
-                        current_kwargs["method"] = "GET"
-                        current_kwargs.pop("content", None)
-                        current_kwargs.pop("json", None)
-                        current_kwargs.pop("data", None)
-
-                    redirect_count += 1
-                    continue
-
-                break
-
-            if response is None:
-                raise ValueError("No response received")
-
+            response = await client.request(**request_kwargs, follow_redirects=True)
             response.raise_for_status()
             return response.text
         except Exception as e:

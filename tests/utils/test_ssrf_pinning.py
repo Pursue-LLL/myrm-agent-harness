@@ -12,15 +12,16 @@ from unittest.mock import patch
 
 import pytest
 
-from myrm_agent_harness.utils.url_utils import (
+from myrm_agent_harness.core.security.guards.ssrf import (
     SSRFResult,
     async_validate_url_for_ssrf,
+    validate_url_for_ssrf,
+)
+from myrm_agent_harness.utils.url_utils import (
     build_host_resolver_rules,
-    check_ip_blocked,
     create_dns_pin_map,
     is_blocked_ip,
     validate_scheme_and_hostname,
-    validate_url_for_ssrf,
 )
 
 # ---------------------------------------------------------------------------
@@ -61,70 +62,70 @@ class TestSSRFResult:
 
 
 # ---------------------------------------------------------------------------
-# check_ip_blocked
+# is_blocked_ip (via check_ip_blocked-style assertions)
 # ---------------------------------------------------------------------------
 
 
 class TestCheckIPBlocked:
     def test_loopback_blocked(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("127.0.0.1")) is not None
+        assert is_blocked_ip("127.0.0.1") is True
 
     def test_private_10_blocked(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("10.0.0.1")) is not None
+        assert is_blocked_ip("10.0.0.1") is True
 
     def test_private_172_blocked(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("172.16.0.1")) is not None
+        assert is_blocked_ip("172.16.0.1") is True
 
     def test_private_192_blocked(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("192.168.1.1")) is not None
+        assert is_blocked_ip("192.168.1.1") is True
 
     def test_link_local_blocked(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("169.254.169.254")) is not None
+        assert is_blocked_ip("169.254.169.254") is True
 
     def test_ipv6_loopback_blocked(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("::1")) is not None
+        assert is_blocked_ip("::1") is True
 
     def test_cgnat_blocked(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("100.64.0.1")) is not None
+        assert is_blocked_ip("100.64.0.1") is True
 
     def test_cgnat_upper_blocked(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("100.127.255.254")) is not None
+        assert is_blocked_ip("100.127.255.254") is True
 
     def test_fake_ip_allowed(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("198.18.0.1")) is None
+        assert is_blocked_ip("198.18.0.1") is False
 
     def test_multicast_blocked(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("224.0.0.1")) is not None
+        assert is_blocked_ip("224.0.0.1") is True
 
     def test_reserved_blocked(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("240.0.0.1")) is not None
+        assert is_blocked_ip("240.0.0.1") is True
 
     def test_public_ip_allowed(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("8.8.8.8")) is None
+        assert is_blocked_ip("8.8.8.8") is False
 
     def test_public_ipv6_allowed(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("2001:4860:4860::8888")) is None
+        assert is_blocked_ip("2001:4860:4860::8888") is False
 
     def test_ipv4_mapped_loopback_blocked(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("::ffff:127.0.0.1")) is not None
+        assert is_blocked_ip("::ffff:127.0.0.1") is True
 
     def test_ipv4_mapped_private_blocked(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("::ffff:10.0.0.1")) is not None
+        assert is_blocked_ip("::ffff:10.0.0.1") is True
 
     def test_ipv4_mapped_cgnat_blocked(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("::ffff:100.64.0.1")) is not None
+        assert is_blocked_ip("::ffff:100.64.0.1") is True
 
     def test_ipv4_mapped_fake_ip_allowed(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("::ffff:198.18.0.1")) is None
+        assert is_blocked_ip("::ffff:198.18.0.1") is False
 
     def test_ipv4_mapped_public_allowed(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("::ffff:8.8.8.8")) is None
+        assert is_blocked_ip("::ffff:8.8.8.8") is False
 
     def test_unspecified_blocked(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("0.0.0.0")) is not None
+        assert is_blocked_ip("0.0.0.0") is True
 
     def test_doc_test_net_blocked(self) -> None:
-        assert check_ip_blocked(ipaddress.ip_address("192.0.2.1")) is not None
+        assert is_blocked_ip("192.0.2.1") is True
 
 
 class TestIsBlockedIPEdgeCases:
@@ -277,7 +278,7 @@ class TestAsyncValidateUrlForSSRF:
     @pytest.mark.asyncio
     async def test_public_url_async(self) -> None:
         with patch(
-            "myrm_agent_harness.utils.url_utils._resolve_and_check_async",
+            "myrm_agent_harness.core.security.guards.ssrf._resolve_and_check_async",
             return_value=SSRFResult(safe=True, hostname="example.com", resolved_ips=("93.184.216.34",)),
         ):
             result = await async_validate_url_for_ssrf("https://example.com")

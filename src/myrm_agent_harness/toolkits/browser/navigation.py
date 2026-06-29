@@ -9,7 +9,7 @@
 - .pool.throttle::ThrottleStrategy (POS: throttle strategy protocol)
 - .pool.config::BrowserMode, NavigationWaitConfig (POS: browser configuration)
 - .wait_strategies::wait_for_page_ready, WaitStrategy, WaitMetrics (POS: smart wait strategies)
-- agent.security.guards.ssrf_guard::check_url, resolve_and_check (POS: SSRF protection)
+- core.security.guards.ssrf::check_url, resolve_and_check (POS: SSRF protection)
 - .session.consent_dismisser::ConsentDismisser (POS: cookie consent auto-dismiss)
 
 [OUTPUT]
@@ -344,7 +344,7 @@ class Navigator:
         if parsed.scheme == "about":
             return
 
-        from myrm_agent_harness.core.security.guards.ssrf_guard import check_url, resolve_and_check
+        from myrm_agent_harness.core.security.guards.ssrf import check_url, resolve_and_check
 
         url_verdict = check_url(url)
         if not url_verdict.allowed:

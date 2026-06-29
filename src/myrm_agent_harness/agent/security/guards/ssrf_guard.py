@@ -1,3 +1,3 @@
-"""SSRF guard — re-exported from core.security.guards.ssrf_guard."""
+"""SSRF guard — re-exported from core.security.guards.ssrf."""
 
-from myrm_agent_harness.core.security.guards.ssrf_guard import *  # noqa: F403
+from myrm_agent_harness.core.security.guards.ssrf import *  # noqa: F403

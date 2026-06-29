@@ -593,9 +593,9 @@ async def test_fetch_with_redirects_ssrf_blocked(install_fake_scrapling: AsyncMo
     fetcher = HttpFetcher()
 
     with patch(
-        "myrm_agent_harness.toolkits.web_fetch.fetchers.http_fetcher.validate_and_resolve_url",
+        "myrm_agent_harness.toolkits.web_fetch.fetchers.http_fetcher.async_pin_url",
         new=AsyncMock(side_effect=__import__(
-            "myrm_agent_harness.toolkits.network.ssrf_shield",
+            "myrm_agent_harness.core.security.guards.url_allowlist",
             fromlist=["SSRFSecurityError"],
         ).SSRFSecurityError("blocked")),
     ):
@@ -795,7 +795,7 @@ async def test_fetch_with_redirects_ssrf_rewrites_url(install_fake_scrapling: As
     install_fake_scrapling.return_value = mock_response
 
     with patch(
-        "myrm_agent_harness.toolkits.web_fetch.fetchers.http_fetcher.validate_and_resolve_url",
+        "myrm_agent_harness.toolkits.web_fetch.fetchers.http_fetcher.async_pin_url",
         new=AsyncMock(return_value=("https://10.0.0.1/safe", {"Host": "blocked.example"})),
     ):
         result = await fetcher._fetch_with_redirects(

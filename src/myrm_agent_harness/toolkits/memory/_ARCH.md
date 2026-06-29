@@ -54,6 +54,8 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | protocols/  | Storage-agnostic protocols for the memory system.                                 |
 | relational/ | Relational Store — abstract interface and SQLite implementation.                  |
 | strategies/ | Optional memory strategies: forgetting, extraction, deduplication, consolidation, preference stability, recurrence-triggered consolidation. |
+| proactive/ | Proactive follow-up track — LLM implicit commitment extraction, `CommitmentStore` protocol, heartbeat delivery. See [COMMITMENT_SYSTEM.md](proactive/COMMITMENT_SYSTEM.md). |
+| session_post_process.py | Unified post-session task runner (memory consolidation + proactive extraction). | ✅ |
 
 | File (additional) | Role | Description | I/O/P |
 | --- | --- | --- | --- |

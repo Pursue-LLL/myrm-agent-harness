@@ -82,7 +82,14 @@ class CommitmentStore(Protocol):
         """Count commitments sent within a rolling window (for daily limits)."""
         ...
 
-    async def expire_stale(self, now_ms: int, expire_after_ms: int) -> int:
+    async def expire_stale(
+        self,
+        now_ms: int,
+        expire_after_ms: int,
+        *,
+        agent_id: str | None = None,
+        user_id: str | None = None,
+    ) -> int:
         """Expire commitments past their latest + grace period. Returns count."""
         ...
 

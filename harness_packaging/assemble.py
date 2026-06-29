@@ -3,7 +3,7 @@
 [INPUT]
 - harness_packaging.manifest::repo_root (POS: Harness repo path resolver)
 - harness_packaging.platforms::{PlatformSpec, get_current_platform} (POS: Eight-platform key detection)
-- harness_packaging.release::strip_manifest_sources_from_wheel (POS: Release wheel IP source stripping)
+- harness_packaging.release::{build_harness_source_wheel, finalize_stripped_release_wheel} (POS: Release wheel build + strip + verify)
 
 [OUTPUT]
 - assemble_production_wheels(): Build platform core wheel and stripped release wheel
@@ -23,7 +23,7 @@ from pathlib import Path
 
 from harness_packaging.manifest import repo_root
 from harness_packaging.platforms import PlatformSpec, get_current_platform
-from harness_packaging.release import strip_manifest_sources_from_wheel
+from harness_packaging.release import build_harness_source_wheel, finalize_stripped_release_wheel
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,19 +52,7 @@ def _build_platform_core_wheel(plat: PlatformSpec) -> Path:
 
 
 def _build_source_wheel(dist_dir: Path) -> Path:
-    dist_dir.mkdir(parents=True, exist_ok=True)
-    root = repo_root()
-    # uv build avoids repo-root build/core/ shadowing PyPA's ``python -m build`` module.
-    subprocess.run(
-        ["uv", "build", "--wheel", "--out-dir", str(dist_dir)],
-        check=True,
-        cwd=root,
-    )
-    wheels = sorted(dist_dir.glob("myrm_agent_harness-*.whl"))
-    if not wheels:
-        msg = f"No harness wheel produced in {dist_dir}"
-        raise RuntimeError(msg)
-    return wheels[-1]
+    return build_harness_source_wheel(dist_dir)
 
 
 def assemble_production_wheels(
@@ -76,7 +64,7 @@ def assemble_production_wheels(
 
     core_wheel = _build_platform_core_wheel(plat)
     source_wheel = _build_source_wheel(dist_dir)
-    release_wheel = strip_manifest_sources_from_wheel(source_wheel, in_place=True)
+    release_wheel = finalize_stripped_release_wheel(source_wheel, in_place=True)
 
     return ProductionWheels(core_wheel=core_wheel, release_wheel=release_wheel, platform=plat)
 

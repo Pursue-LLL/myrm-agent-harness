@@ -13,13 +13,9 @@
 - extract_domain(): 提取域名（支持去除 www 前缀）
 - is_valid_url(): 验证 URL 格式是否有效
 - clean_search_url(): 清理搜索引擎 URL（去除追踪参数）
-- validate_url_for_ssrf(): SSRF 防护验证 - 同步版（拒绝内网/回环/云元数据地址）
-- async_validate_url_for_ssrf(): SSRF 防护验证 - 异步版（非阻塞 DNS）
-- SSRFResult: SSRF 验证结果（含已验证安全的 resolved IPs）
-- create_dns_pin_map(): 基于 SSRFResult 构建 hostname→IP 映射
+- create_dns_pin_map(): 基于 SSRFResult 构建 hostname→IP 映射（SSRFResult 来自 core.security.guards.ssrf）
 - build_host_resolver_rules(): 构建 Chrome --host-resolver-rules 参数
-- is_blocked_ip(): IP 黑名单检查（单一数据源，被 ssrf_guard/ssrf_shield/本模块共用）
-- check_ip_blocked(): IP 黑名单检查（封装 is_blocked_ip，返回 reason string）
+- is_blocked_ip(): IP 黑名单检查（单一数据源，被 core.security.guards.ssrf 等共用）
 - validate_scheme_and_hostname(): URL scheme 和 hostname 验证（含 parser-confusing 字符防御、hostname 尾部点规范化、hostname 后缀匹配）
 
 [POS]
@@ -29,12 +25,10 @@ Web and URL utilities. Provides URL normalization, parsing, cleanup, and type de
 
 from __future__ import annotations
 
-import asyncio
-import dataclasses
 import ipaddress
 import logging
 import re as _re
-import socket
+from typing import Protocol
 from urllib.parse import unquote, urlparse, urlunparse
 
 logger = logging.getLogger(__name__)
@@ -251,7 +245,7 @@ def is_blocked_ip(addr: str | ipaddress.IPv4Address | ipaddress.IPv6Address) -> 
     Handles IPv4-mapped IPv6 addresses (e.g. ::ffff:10.0.0.1).
 
     This is the single source of truth for all SSRF IP checks in the framework.
-    Called by ssrf_guard, ssrf_shield, and url_utils' own SSRF validation.
+    Called by core.security.guards.ssrf and related outbound URL validators.
     """
     if isinstance(addr, str):
         try:
@@ -277,30 +271,11 @@ def is_blocked_ip(addr: str | ipaddress.IPv4Address | ipaddress.IPv6Address) -> 
     )
 
 
-@dataclasses.dataclass(frozen=True, slots=True)
-class SSRFResult:
-    """SSRF validation outcome with resolved IPs for DNS pinning.
-
-    When ``safe`` is True, ``resolved_ips`` contains the verified IP(s)
-    that callers MUST pin to the HTTP connection to prevent DNS rebinding.
-    """
-
+class _SSRFResultLike(Protocol):
     safe: bool
-    error: str = ""
-    hostname: str = ""
-    resolved_ips: tuple[str, ...] = ()
-
-    # Backward-compatible unpacking: ``ok, err = validate_url_for_ssrf(url)``
-    def __iter__(self):
-        yield self.safe
-        yield self.error
-
-
-def check_ip_blocked(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> str | None:
-    """Return block reason if IP is in a blocked range, else None."""
-    if is_blocked_ip(ip):
-        return f"{ip} is a non-public IP address"
-    return None
+    error: str
+    hostname: str
+    resolved_ips: tuple[str, ...]
 
 
 def validate_scheme_and_hostname(url: str) -> tuple[str | None, str]:
@@ -335,103 +310,6 @@ def validate_scheme_and_hostname(url: str) -> tuple[str | None, str]:
         return None, f"Blocked hostname suffix: {hostname}"
 
     return hostname, ""
-
-
-def _resolve_and_check_sync(hostname: str) -> SSRFResult:
-    """Synchronous DNS resolution + IP blocklist check."""
-    try:
-        addr = ipaddress.ip_address(hostname)
-        reason = check_ip_blocked(addr)
-        if reason:
-            return SSRFResult(safe=False, error=f"Blocked IP: {reason}", hostname=hostname)
-        return SSRFResult(safe=True, hostname=hostname, resolved_ips=(hostname,))
-    except ValueError:
-        pass
-
-    try:
-        resolved = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
-    except socket.gaierror:
-        return SSRFResult(safe=False, error=f"DNS resolution failed: {hostname}", hostname=hostname)
-
-    ips: list[str] = []
-    for _, _, _, _, sockaddr in resolved:
-        ip_str = sockaddr[0]
-        ip = ipaddress.ip_address(ip_str)
-        reason = check_ip_blocked(ip)
-        if reason:
-            return SSRFResult(
-                safe=False,
-                error=f"Blocked resolved IP: {reason} (from {hostname})",
-                hostname=hostname,
-            )
-        if ip_str not in ips:
-            ips.append(ip_str)
-
-    return SSRFResult(safe=True, hostname=hostname, resolved_ips=tuple(ips))
-
-
-async def _resolve_and_check_async(hostname: str) -> SSRFResult:
-    """Async DNS resolution + IP blocklist check (non-blocking)."""
-    try:
-        addr = ipaddress.ip_address(hostname)
-        reason = check_ip_blocked(addr)
-        if reason:
-            return SSRFResult(safe=False, error=f"Blocked IP: {reason}", hostname=hostname)
-        return SSRFResult(safe=True, hostname=hostname, resolved_ips=(hostname,))
-    except ValueError:
-        pass
-
-    loop = asyncio.get_running_loop()
-    try:
-        resolved = await loop.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
-    except socket.gaierror:
-        return SSRFResult(safe=False, error=f"DNS resolution failed: {hostname}", hostname=hostname)
-
-    ips: list[str] = []
-    for _, _, _, _, sockaddr in resolved:
-        ip_str = sockaddr[0]
-        ip = ipaddress.ip_address(ip_str)
-        reason = check_ip_blocked(ip)
-        if reason:
-            return SSRFResult(
-                safe=False,
-                error=f"Blocked resolved IP: {reason} (from {hostname})",
-                hostname=hostname,
-            )
-        if ip_str not in ips:
-            ips.append(ip_str)
-
-    return SSRFResult(safe=True, hostname=hostname, resolved_ips=tuple(ips))
-
-
-def validate_url_for_ssrf(url: str) -> SSRFResult:
-    """Validate URL against SSRF attacks (synchronous).
-
-    Checks scheme, hostname, and resolved IP against blocklists.
-    Returns SSRFResult with resolved_ips for DNS pinning.
-
-    Backward-compatible: ``ok, err = validate_url_for_ssrf(url)`` still works.
-    """
-    hostname, error = validate_scheme_and_hostname(url)
-    if hostname is None:
-        return SSRFResult(safe=False, error=error)
-
-    return _resolve_and_check_sync(hostname)
-
-
-async def async_validate_url_for_ssrf(url: str) -> SSRFResult:
-    """Validate URL against SSRF attacks (async, non-blocking DNS).
-
-    Same checks as validate_url_for_ssrf but uses asyncio.getaddrinfo.
-    Returns SSRFResult with resolved_ips for DNS pinning.
-
-    Backward-compatible: ``ok, err = await async_validate_url_for_ssrf(url)`` still works.
-    """
-    hostname, error = validate_scheme_and_hostname(url)
-    if hostname is None:
-        return SSRFResult(safe=False, error=error)
-
-    return await _resolve_and_check_async(hostname)
 
 
 # ============================================================================
@@ -590,7 +468,7 @@ def sanitize_url_for_error(url: str, max_length: int = 50) -> str:
 
 
 def create_dns_pin_map(
-    results: list[SSRFResult],
+    results: list[_SSRFResultLike],
 ) -> tuple[dict[str, str], str | None]:
     """Build hostname→IP mapping from validated SSRFResults for DNS pinning.
 
@@ -607,7 +485,7 @@ def create_dns_pin_map(
     return pin_map, None
 
 
-def build_host_resolver_rules(results: list[SSRFResult]) -> str:
+def build_host_resolver_rules(results: list[_SSRFResultLike]) -> str:
     """Build Chrome ``--host-resolver-rules`` flag value from SSRFResults.
 
     Used by crawl4ai/Playwright to pin DNS at the browser level.

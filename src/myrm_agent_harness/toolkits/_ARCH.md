@@ -68,10 +68,10 @@ Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
 
 | Category | Toolkits | Role |
 |----------|----------|------|
-| **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `network/`, `security/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP, SSRF guard |
+| **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `security/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP, credential vault |
 | **Workspace** | `browser/`, `computer_use/`, `workspace/`, `context_bundle/`, `file_parsers/`, `wiki/`, `element_ref/` | Files, browser, desktop, context bundles |
 | **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/`, `deploy/`, `notification/` | External APIs, agent protocols, channels, deployment bridges |
-| **Collaboration & Media** | `kanban/`, `tasks/`, `commitment/`, `automation/`, `cron/`, `interaction/`, `tts/`, `vision/` | Scheduling, tasks, user interaction primitives, media |
+| **Collaboration & Media** | `kanban/`, `tasks/`, `automation/`, `cron/`, `interaction/`, `tts/`, `vision/` | Scheduling, tasks, user interaction primitives, media |
 | **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |
 
 Agent runtime-bound tool wrappers (e.g. `render_ui_tool`, `planner_tool`) live in `agent/meta_tools/`, not here. LangChain factories named `*_agent_tools.py` that do not import `agent/` may stay in `toolkits/` — see § `*_agent_tools.py` naming convention.
@@ -138,7 +138,7 @@ Does your code need to import anything from agent/?
 | automation/ | Rule-based agent task automation — CRUD for automation rules (event/schedule/manual triggers). |
 | browser/ | Browser automation — multi-tab control, iframe traversal, session vault, stealth mode. |
 | code_execution/ | Code execution system — Agent-in-Sandbox mode with multiple executor backends. |
-| commitment/ | Commitment tracking — implicit promise extraction; host implements `CommitmentStore`. See [COMMITMENT_SYSTEM.md](commitment/COMMITMENT_SYSTEM.md). |
+| memory/proactive/ | Proactive follow-up tracking — implicit promise extraction; host implements `CommitmentStore`. See [COMMITMENT_SYSTEM.md](memory/proactive/COMMITMENT_SYSTEM.md). |
 | computer_use/ | System-wide desktop automation — screen capture + coordinate-based input (macOS/Linux). |
 | cron/ | Scheduled task framework — scheduling engine, CRUD manager, built-in strategies. |
 | deploy/ | Artifact deployment — Protocol-based deploy tool with HITL approval via LangGraph interrupt. |
@@ -151,7 +151,6 @@ Does your code need to import anything from agent/?
 | mcp/ | MCP protocol support — client management, tool fetching, connection pooling. |
 | memory/ | Pluggable memory system — vector/relational/graph storage for AI agents. |
 | notification/ | Cross-channel notification delivery — Protocol-based sender with rate limiting and whitelist security. |
-| network/ | Network security — SSRF protection and URL validation for outbound requests. |
 | openapi_bridge/ | OpenAPI Bridge — zero-code REST API integration via OpenAPI 3.x / Swagger 2.0 specs. |
 | retriever/ | Retrieval and reranking — multi-source document retrieval with scoring pipeline. |
 | security/ | Credential vault — in-memory password/TOTP resolution for tool execution. |

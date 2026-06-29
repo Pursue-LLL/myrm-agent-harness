@@ -161,7 +161,7 @@ Layer 2 由多个子模块组成，覆盖网络安全、命令安全、文件系
 
 ### 3.1 SSRF 防护 + DNS Pinning
 
-**位置**：`utils/url_utils.py`
+**位置**：`core/security/guards/ssrf.py`（IP/hostname 原语：`utils/url_utils.py`）
 
 **防御目标**：阻止 Agent 通过工具访问内网、回环地址、云元数据端点。
 
@@ -195,6 +195,8 @@ class SSRFResult:
 辅助函数 `create_dns_pin_map()` 构建 `hostname→IP` 映射，`build_host_resolver_rules()` 生成 Chrome `--host-resolver-rules` 参数用于浏览器级 DNS pinning。
 
 提供同步 (`validate_url_for_ssrf`) 和异步 (`async_validate_url_for_ssrf`) 两个版本。
+
+**出站 HTTP 执行层**：`core/security/http/secure_fetch.py` 提供 `secure_get` / `secure_request` / `resolve_secure_http_target`，在所有出站 HTTP 路径上强制执行 DNS pinning 与逐跳 redirect 复检。MediaResolver、ZipInstaller、OpenAPI Bridge、http_client 及 server 媒体下载均通过此模块发起请求。
 
 ### 3.2 命令/模块黑名单
 

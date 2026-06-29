@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Build Nuitka-compiled core modules and platform-specific wheels.
 
+[INPUT]
+- harness_packaging.integrity::{DistributionWheelRole, verify_distribution_wheel_artifact} (POS: post-build core wheel zip gate)
+
+[OUTPUT]
+- build_platform_wheel(): Nuitka compile + platform wheel + inline artifact verify
+
 Usage::
 
     uv sync --group build
@@ -26,6 +32,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
 from harness_packaging.manifest import load_core_manifest  # noqa: E402
+from harness_packaging.integrity import DistributionWheelRole, verify_distribution_wheel_artifact  # noqa: E402
 from harness_packaging.nuitka_compile import nuitka_artifact_stem, nuitka_compile_input  # noqa: E402
 from harness_packaging.platforms import (  # noqa: E402
     PlatformSpec,
@@ -236,8 +243,10 @@ def build_platform_wheel(platform: PlatformSpec | None = None) -> Path:
     if not wheels:
         msg = "Wheel build produced no artifacts"
         raise RuntimeError(msg)
-    print(f"Wheel ready: {wheels[-1]}")
-    return wheels[-1]
+    wheel_path = wheels[-1]
+    verify_distribution_wheel_artifact(wheel_path, role=DistributionWheelRole.CORE)
+    print(f"Wheel ready: {wheel_path}")
+    return wheel_path
 
 
 def main() -> None:

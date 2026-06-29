@@ -19,7 +19,8 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | Submodule | Description |
 |-----------|-------------|
 | detection/ | PII classification, content boundary marking, leak detection, prompt injection guard, pseudonymization. |
-| guards/ | Session-level security guards — privacy tracker, SSRF guard. |
+| guards/ | Session-level security guards — privacy tracker, unified SSRF (`ssrf.py`), skill DLP allowlist (`url_allowlist.py`). |
+| http/ | SSRF-protected outbound HTTP fetch — DNS pinning and redirect validation (`secure_fetch.py`). |
 
 ## Key Dependencies
 

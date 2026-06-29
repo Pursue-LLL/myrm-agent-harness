@@ -13,7 +13,7 @@ from myrm_agent_harness.toolkits.mcp.security import (
     ResolvedURL,
     URLValidationError,
 )
-from myrm_agent_harness.utils.url_utils import SSRFResult
+from myrm_agent_harness.core.security.guards.ssrf import SSRFResult
 
 # ============================================================================
 # MCPURLValidator

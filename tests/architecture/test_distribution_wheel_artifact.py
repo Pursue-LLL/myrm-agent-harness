@@ -19,7 +19,7 @@ from harness_packaging.integrity import (  # noqa: E402
     distribution_wheel_artifact_violations,
     verify_distribution_wheel_artifact,
 )
-from harness_packaging.release import manifest_source_paths  # noqa: E402
+from harness_packaging.release import finalize_stripped_release_wheel, manifest_source_paths  # noqa: E402
 from distribution_wheel_helpers import (  # noqa: E402
     write_minimal_core_wheel,
     write_minimal_release_wheel,
@@ -77,6 +77,25 @@ def test_core_wheel_artifact_accepts_compiled_layout(tmp_path: Path) -> None:
     wheel_path = tmp_path / "myrm_agent_harness_core_linux_x64-0.1.0-cp313-cp313-linux_x86_64.whl"
     write_minimal_core_wheel(wheel_path)
     verify_distribution_wheel_artifact(wheel_path, role=DistributionWheelRole.CORE)
+
+
+@pytest.mark.architecture
+def test_finalize_stripped_release_wheel_strips_and_verifies(tmp_path: Path) -> None:
+    manifest_paths = manifest_source_paths()
+    wheel_path = tmp_path / "myrm_agent_harness-0.1.0-py3-none-any.whl"
+    with zipfile.ZipFile(wheel_path, "w") as zf:
+        zf.writestr("myrm_agent_harness/api/__init__.py", "# public")
+        for manifest_path in manifest_paths[:2]:
+            zf.writestr(manifest_path, "# secret")
+
+    result = finalize_stripped_release_wheel(wheel_path, in_place=True)
+    assert result == wheel_path
+
+    with zipfile.ZipFile(wheel_path, "r") as zf:
+        names = zf.namelist()
+    assert "myrm_agent_harness/api/__init__.py" in names
+    assert manifest_paths[0] not in names
+    assert manifest_paths[1] not in names
 
 
 @pytest.mark.architecture

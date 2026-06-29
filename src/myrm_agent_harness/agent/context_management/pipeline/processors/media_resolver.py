@@ -12,6 +12,7 @@ Positioned AFTER MediaFilterProcessor in the pipeline:
 [INPUT]
 - base::BaseProcessor, ProcessorContext (POS: processor base class)
 - utils.image_utils (POS: image content detection utilities)
+- core.security.http.secure_fetch::secure_get (POS: SSRF-protected HTTP fetch)
 
 [OUTPUT]
 - MediaResolverProcessor: resolves URL references to base64 for LLM consumption
@@ -181,24 +182,34 @@ def _resolve_local_file(path_str: str) -> str | None:
 async def _resolve_http(url: str) -> str | None:
     """Fetch an HTTP URL and convert to base64 data URL."""
     try:
-        import httpx
+        from urllib.parse import urlparse
 
-        async with httpx.AsyncClient(timeout=_RESOLVE_TIMEOUT, follow_redirects=True) as client:
-            resp = await client.get(url)
-            resp.raise_for_status()
-            data = resp.content
+        from myrm_agent_harness.core.security.http.secure_fetch import secure_get
 
-            if len(data) > MAX_IMAGE_READ_BYTES:
-                logger.warning("[MediaResolver] HTTP response too large (%d bytes): %s", len(data), url[:80])
-                return None
+        parsed = urlparse(url)
+        allowed_internal: list[str] | None = None
+        if parsed.hostname in {"127.0.0.1", "localhost"}:
+            allowed_internal = ["127.0.0.1", "localhost"]
 
-            content_type = resp.headers.get("content-type", "")
-            mime = content_type.split(";")[0].strip() if content_type else ""
-            if not mime or not mime.startswith("image/"):
-                mime = _detect_mime(data)
+        response = await secure_get(
+            url,
+            timeout=_RESOLVE_TIMEOUT,
+            allowed_internal_hosts=allowed_internal,
+        )
+        response.raise_for_status()
+        data = response.content
 
-            b64 = base64.b64encode(data).decode("ascii")
-            return f"data:{mime};base64,{b64}"
+        if len(data) > MAX_IMAGE_READ_BYTES:
+            logger.warning("[MediaResolver] HTTP response too large (%d bytes): %s", len(data), url[:80])
+            return None
+
+        content_type = response.headers.get("content-type", "")
+        mime = content_type.split(";")[0].strip() if content_type else ""
+        if not mime or not mime.startswith("image/"):
+            mime = _detect_mime(data)
+
+        b64 = base64.b64encode(data).decode("ascii")
+        return f"data:{mime};base64,{b64}"
     except Exception as exc:
         logger.warning("[MediaResolver] HTTP fetch failed for %s: %s", url[:80], exc)
         return None

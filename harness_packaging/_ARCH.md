@@ -14,8 +14,8 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 | runtime_platform.py | Core | Build-time platform key (no installed package required) |
 | nuitka_compile.py | Core | Map manifest ``.py`` paths to Nuitka ``--module`` inputs |
 | pypi_index.py | Core | PyPI JSON probes (package exists, compiled-core extra) |
-| release.py | Core | Strip manifest `.py` in-place (PEP 427 compliant) |
-| assemble.py | Core | Unified production wheel assembly + venv install + post-install verify |
+| release.py | Core | Build source wheel, strip manifest `.py`, finalize strip+verify |
+| assemble.py | Core | Unified production wheel assembly (strip+verify release) + venv install + post-install verify |
 | integrity.py | Core | Manifest import paths; algorithm-zone drift gate; wheel artifact zip verify |
 
 ## Scripts
@@ -23,7 +23,7 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 | Script | Role |
 |--------|------|
 | `scripts/sync_distribution_metadata.py` | Regenerate `_core_ip_manifest.py` + pyproject compiled-core pins |
-| `scripts/build_core.py` | Nuitka compile + platform core wheel (static force-include) |
+| `scripts/build_core.py` | Nuitka compile + platform core wheel + inline artifact verify |
 | `scripts/build_release_wheel.py` | Release wheel via `uv build` + strip manifest `.py` + inline verify |
 | `scripts/assemble_production.py` | Full production pipeline + optional `--install` |
 | `scripts/verify_release_tag.py` | Assert `refs/tags/v*` matches `project.version` before wheel builds |

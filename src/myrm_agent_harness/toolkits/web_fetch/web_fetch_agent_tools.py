@@ -173,7 +173,7 @@ def create_web_fetch_tool(
 
         if operation == "deep_crawl":
             if not allow_private_networks:
-                from myrm_agent_harness.utils.url_utils import validate_url_for_ssrf
+                from myrm_agent_harness.core.security.guards.ssrf import validate_url_for_ssrf
 
                 result = validate_url_for_ssrf(urls[0])
                 if not result.safe:
@@ -206,7 +206,8 @@ def create_web_fetch_tool(
             return await _cancel_crawl(task_group_id, data_dir=data_dir)
 
         if not allow_private_networks:
-            from myrm_agent_harness.utils.url_utils import check_url_exfiltration, validate_url_for_ssrf
+            from myrm_agent_harness.core.security.guards.ssrf import validate_url_for_ssrf
+            from myrm_agent_harness.utils.url_utils import check_url_exfiltration
 
             for url in urls:
                 # SSRF protection

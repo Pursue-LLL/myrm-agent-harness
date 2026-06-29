@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import zipfile
 from pathlib import Path
 
@@ -50,3 +51,35 @@ def strip_manifest_sources_from_wheel(
         dest.replace(wheel_path)
         return wheel_path
     return dest
+
+
+def build_harness_source_wheel(dist_dir: Path) -> Path:
+    """Build the main harness wheel with ``uv build`` and return the produced path."""
+    dist_dir.mkdir(parents=True, exist_ok=True)
+    root = repo_root()
+    subprocess.run(
+        ["uv", "build", "--wheel", "--out-dir", str(dist_dir)],
+        check=True,
+        cwd=root,
+    )
+    wheels = sorted(
+        dist_dir.glob("myrm_agent_harness-*.whl"),
+        key=lambda path: path.stat().st_mtime,
+    )
+    if not wheels:
+        msg = f"No harness wheel produced in {dist_dir}"
+        raise RuntimeError(msg)
+    return wheels[-1]
+
+
+def finalize_stripped_release_wheel(
+    wheel_path: Path,
+    *,
+    in_place: bool = True,
+) -> Path:
+    """Strip manifest ``.py`` from a release wheel and verify artifact rules."""
+    from harness_packaging.integrity import DistributionWheelRole, verify_distribution_wheel_artifact
+
+    stripped = strip_manifest_sources_from_wheel(wheel_path, in_place=in_place)
+    verify_distribution_wheel_artifact(stripped, role=DistributionWheelRole.RELEASE)
+    return stripped

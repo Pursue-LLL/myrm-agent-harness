@@ -31,8 +31,20 @@ Harness (CommitmentExtractor, types, CommitmentStore Protocol)
 
 1. After a conversation turn batch, call `CommitmentExtractor.extract()` with messages and an async LLM function.
 2. Implement `CommitmentStore` (SQLite, Postgres, etc.) in the host layer.
-3. On heartbeat or cron ticks, call `list_due()` and deliver `suggested_text` to the user channel.
-4. Expose list/dismiss/snooze APIs for a settings panel if desired.
+3. On heartbeat or cron ticks: expire stale items, enforce `max_per_day` via `count_sent_rolling`, then `list_due()` and deliver `suggested_text`.
+4. Mark `SENT` only after the agent produces a non-`[SILENT]` heartbeat response (host delivery ack).
+5. When delivery is skipped (`[SILENT]` or empty), snooze injected items for a cooldown (host default: 6h) instead of re-injecting every heartbeat tick.
+6. Gate extraction and heartbeat injection on the user's memory enable setting (opt-in, default off).
+7. Expose list/dismiss/snooze APIs for a settings panel if desired.
+
+## Delivery Limits
+
+| Parameter | Default | Role |
+|-----------|---------|------|
+| `max_per_day` | 3 | Rolling 24h cap on SENT items per agent/user |
+| `max_per_heartbeat` | 3 | Max items injected per heartbeat run |
+| `expire_after_hours` | 72 | Grace after `due_window.latest_ms` before auto-expire |
+| `failed_delivery_snooze` | 6h | Host snooze after `[SILENT]` / empty heartbeat ack |
 
 ## Boundaries
 

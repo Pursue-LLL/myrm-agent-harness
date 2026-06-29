@@ -7,7 +7,7 @@
 - sanitize_filename(): cleans filenames to safe, portable forms
 
 [POS]
-Delegates SSRF logic to agent.security.guards.ssrf_guard (single source of truth).
+Delegates SSRF logic to core.security.guards.ssrf (single source of truth).
 Adds media-specific concerns: max-length filenames, path traversal prevention,
 extension allowlisting.
 """
@@ -18,7 +18,7 @@ import os
 import re
 import unicodedata
 
-from myrm_agent_harness.core.security.guards.ssrf_guard import (
+from myrm_agent_harness.core.security.guards.ssrf import (
     SSRFVerdict,
     check_url,
     resolve_and_check,

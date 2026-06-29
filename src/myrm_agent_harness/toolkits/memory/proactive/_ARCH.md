@@ -1,9 +1,10 @@
-# commitment/
+# memory/proactive/
 
 ## Overview
 
-Implicit commitment tracking — LLM extraction of follow-up items from conversations.
-Harness supplies types and extraction; hosts implement `CommitmentStore` and delivery.
+Proactive follow-up tracking — LLM extraction of implicit commitments from conversations.
+Lives under `toolkits/memory/` as a separate persistence track (SQLite `CommitmentStore`), gated by `enable_memory`.
+Harness supplies types and extraction; hosts implement `CommitmentStore`, session hooks, and heartbeat delivery.
 
 Detailed design: [COMMITMENT_SYSTEM.md](COMMITMENT_SYSTEM.md)
 

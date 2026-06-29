@@ -1,7 +1,7 @@
 """L1 HTTP fetcher via Scrapling curl_cffi with optional HTTP/3 retry lane.
 
 [INPUT]
-- toolkits.network.ssrf_shield::SSRFSecurityError (POS: SSRF shield for outbound HTTP)
+- core.security.guards.ssrf::SSRFSecurityError (POS: SSRF shield for outbound HTTP)
 - toolkits.web_fetch.antibot_detector::is_blocked (POS: Anti-bot detection for crawl results)
 - toolkits.web_fetch.http3_probe::is_quic_egress_available (POS: QUIC egress probe and L1 retry metrics)
 - toolkits.web_fetch.router.site_experience::get_global_site_experience_store (POS: Site experience store)
@@ -23,10 +23,7 @@ import os
 from typing import TYPE_CHECKING
 from urllib.parse import urljoin, urlparse
 
-from myrm_agent_harness.toolkits.network.ssrf_shield import (
-    SSRFSecurityError,
-    validate_and_resolve_url,
-)
+from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError, async_pin_url
 from myrm_agent_harness.toolkits.web_fetch.antibot_detector import is_blocked as detect_antibot
 from myrm_agent_harness.toolkits.web_fetch.http3_probe import (
     is_quic_egress_available,
@@ -236,7 +233,7 @@ class HttpFetcher:
 
             if enable_ssrf_shield:
                 try:
-                    safe_url, host_header = await validate_and_resolve_url(current_url, allowed_hosts)
+                    safe_url, host_header = await async_pin_url(current_url, allowed_hosts)
                     request_url = safe_url
                     request_headers.update(host_header)
                 except SSRFSecurityError as exc:

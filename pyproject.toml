@@ -19,14 +19,14 @@ classifiers = [
 
 dependencies = [
   # --- LangChain 生态 (Agent 框架基础) ---
-  "langchain>=1.3.10",                  # Agent 编排核心
+  "langchain>=1.3.11",                  # Agent 编排核心
   "langchain-core>=1.4.8",              # LangChain 基础抽象
   "langgraph>=1.2.6",                  # 图状态机 Agent 运行时
   "langgraph-checkpoint-sqlite>=3.1.0", # SQLite 状态持久化 (checkpoint factory)
   "aiosqlite>=0.22.1",                  # async SQLite (memory stores + checkpointer)
   "dill>=0.4.1",                        # checkpoint serde (ChatLiteLLM / complex objects)
   # --- LLM 多供应商适配 ---
-  "litellm>=1.89.3", # 统一 LLM API 代理 (100+ 供应商)
+  "litellm>=1.90.0", # 统一 LLM API 代理 (100+ 供应商)
   # --- MCP 协议支持 ---
   "langchain-mcp-adapters>=0.3.0", # MCP 工具/服务适配器
   # --- 数据验证与序列化 ---
@@ -44,7 +44,7 @@ dependencies = [
   # --- 系统监控 (健康诊断核心依赖) ---
   "psutil>=7.2.2", # 进程与系统监控 (CPU/Memory health probes)
   # --- 监控与可观测性 (仅保留轻量级 API，SDK 移至 optional) ---
-  "opentelemetry-api>=1.42.1",
+  "opentelemetry-api>=1.43.0",
   # --- Cron 定时任务 ---
   "croniter>=6.2.2", # Cron 表达式解析与计算
   # --- 检索器（基础） ---
@@ -109,13 +109,13 @@ file-parsers = [
 ]
 # infra/security/signature.py - FastAPI webhook signature verification
 fastapi = [
-  "fastapi>=0.138.0",
+  "fastapi>=0.138.1",
 ]
 
 # 全链路追踪与指标 (SaaS 级监控)
 observability = [
-  "opentelemetry-sdk>=1.42.1",
-  "opentelemetry-exporter-otlp-proto-grpc>=1.42.1",
+  "opentelemetry-sdk>=1.43.0",
+  "opentelemetry-exporter-otlp-proto-grpc>=1.43.0",
   "openinference-instrumentation-langchain>=0.1.66",
 ]
 compiled-core = [
@@ -142,9 +142,9 @@ all = [
 # Universal lock: skip Python 3.15+ splits where compiled-core platform wheels are not published.
 environments = ["python_full_version >= '3.13' and python_full_version < '3.14'"]
 override-dependencies = [
-  "click>=8.4.1",
+  "click>=8.4.2",
   "patchright>=1.59.1",
-  "openai>=2.43.0",
+  "openai>=2.44.0",
   "aiohttp>=3.14.1",
   "opentelemetry-semantic-conventions>=0.61b0",
   "mcp>=1.28.0,<2",               # langchain-mcp-adapters needs RequestContext (removed in mcp 2.0 alpha)
@@ -272,7 +272,6 @@ include = [
   "*/myrm_agent_harness/toolkits/tasks/*",
   "*/myrm_agent_harness/toolkits/web_search/*",
   "*/myrm_agent_harness/toolkits/wiki/*",
-  "*/myrm_agent_harness/toolkits/network/*",
   "*/myrm_agent_harness/toolkits/mcp/*",
   "*/myrm_agent_harness/toolkits/code_execution/ptc/*",
   "*/myrm_agent_harness/toolkits/code_execution/security/*",

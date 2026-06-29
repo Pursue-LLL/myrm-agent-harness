@@ -14,7 +14,7 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | `test_harness_boundary.py` | Gate | harness 禁止 import 业务层（server/control-plane） | — |
 | `test_wheel_browser_assets.py` | Gate | wheel 须含 `browser/assets/ad_domains.txt`（≥3500 域） | — |
 | `test_distribution_packaging.py` | Gate | 分发打包管线不变量（含 dual-wheel COMPILED e2e） | — |
-| `test_distribution_wheel_artifact.py` | Gate | release/core wheel zip must not leak manifest `.py` or debug maps | — |
+| `test_distribution_wheel_artifact.py` | Gate | release/core wheel zip + `finalize_stripped_release_wheel` strip+verify | — |
 | `distribution_wheel_helpers.py` | 辅助 | architecture 测试用最小合法 wheel zip 构造 | — |
 | `test_distribution_manifest_gate.py` | Gate | 算法区新增模块须 manifest 或 `@distribution-public` | — |
 | `test_distribution_codegen.py` | Gate | manifest codegen 新鲜度 + core IP import 可加载 | — |

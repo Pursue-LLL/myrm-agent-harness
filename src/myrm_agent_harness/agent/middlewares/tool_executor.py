@@ -66,7 +66,7 @@ async def execute_with_retry(
         tool_execution_failed_total,
         tool_execution_total,
     )
-    from myrm_agent_harness.toolkits.network.ssrf_shield import URLAllowlistGuard
+    from myrm_agent_harness.core.security.guards.url_allowlist import URLAllowlistGuard
 
     record_ttfa_first_action()
     if tool_execution_total is not None:

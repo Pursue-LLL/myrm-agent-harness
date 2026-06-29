@@ -9,7 +9,7 @@ All validators are stateless and deployment-mode agnostic. Behavior is controlle
 via constructor parameters, not environment checks.
 
 [INPUT]
-- myrm_agent_harness.utils.url_utils::async_validate_url_for_ssrf (POS: SSRF core with DNS pinning)
+- myrm_agent_harness.core.security.guards.ssrf::async_validate_url_for_ssrf (POS: SSRF validation with DNS pinning)
 - myrm_agent_harness.utils.url_utils::validate_scheme_and_hostname (POS: URL scheme validation)
 
 [OUTPUT]
@@ -48,10 +48,10 @@ from myrm_agent_harness.toolkits.mcp.config_scan import (
     scan_mcp_config,
     scan_mcp_runtime_surface,
 )
-from myrm_agent_harness.utils.url_utils import (
+from myrm_agent_harness.core.security.guards.ssrf import (
     async_validate_url_for_ssrf,
-    validate_scheme_and_hostname,
 )
+from myrm_agent_harness.utils.url_utils import validate_scheme_and_hostname
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ class MCPURLValidator:
     """MCP URL security validator.
 
     Delegates core SSRF checks (IP blocklists, hostname blocklists, DNS pinning)
-    to ``url_utils.async_validate_url_for_ssrf()``, and optionally enforces HTTPS.
+    to ``core.security.guards.ssrf.async_validate_url_for_ssrf()``, and optionally enforces HTTPS.
 
     Args:
         require_https: Enforce HTTPS scheme. Defaults to False (local MCP servers

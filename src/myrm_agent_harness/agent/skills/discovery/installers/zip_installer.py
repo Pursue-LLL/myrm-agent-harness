@@ -3,7 +3,7 @@
 从 URL 下载 ZIP 文件，通过框架层 safe_extract_zip 安全解压。
 
 [INPUT]
-- (none)
+- core.security.http.secure_fetch::secure_get (POS: SSRF-protected ZIP download)
 
 [OUTPUT]
 - ZipInstaller: class — Zip Installer
@@ -15,8 +15,6 @@ Provides ZipInstaller.
 from __future__ import annotations
 
 import logging
-
-import httpx
 
 from myrm_agent_harness.backends.skills.scanning import safe_extract_zip
 
@@ -47,15 +45,16 @@ class ZipInstaller:
         return self._extract_skill(zip_bytes, subdirectory)
 
     async def _download_zip(self, url: str) -> bytes:
-        async with httpx.AsyncClient(timeout=ZIP_DOWNLOAD_TIMEOUT, follow_redirects=True) as client:
-            resp = await client.get(url)
-            if resp.status_code != 200:
-                raise ValueError(f"ZIP download failed: HTTP {resp.status_code}")
+        from myrm_agent_harness.core.security.http.secure_fetch import secure_get
 
-            content = resp.content
-            if len(content) > MAX_ZIP_SIZE:
-                raise ValueError(f"ZIP too large: {len(content)} bytes (max {MAX_ZIP_SIZE})")
-            return content
+        response = await secure_get(url, timeout=ZIP_DOWNLOAD_TIMEOUT)
+        if response.status_code != 200:
+            raise ValueError(f"ZIP download failed: HTTP {response.status_code}")
+
+        content = response.content
+        if len(content) > MAX_ZIP_SIZE:
+            raise ValueError(f"ZIP too large: {len(content)} bytes (max {MAX_ZIP_SIZE})")
+        return content
 
     def _extract_skill(self, zip_bytes: bytes, subdirectory: str | None) -> InstalledSkillFiles:
         all_files = safe_extract_zip(zip_bytes, strip_top_dir=True, forbidden_check=_is_excluded_file)

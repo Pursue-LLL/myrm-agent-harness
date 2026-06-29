@@ -11,7 +11,7 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `boundary_check.py` | 核心 | CLI：全量/增量扫描 `src/myrm_agent_harness/` 非法跨层 import | ✅ |
 | `boundary_config.py` | 核心 | 白名单前缀、禁止前缀、允许路径配置 | ✅ |
 | `boundary_engine.py` | 核心 | AST 静态/动态 import 检测引擎 | ✅ |
-| `build_core.py` | 核心 | compiled-core 构建入口 | ✅ |
+| `build_core.py` | 核心 | compiled-core 构建 + wheel 后 inline artifact verify | ✅ |
 | `build_release_wheel.py` | 核心 | 发布 wheel 组装 + strip 后 inline artifact verify | ✅ |
 | `sync_distribution_metadata.py` | 核心 | 从 `core_manifest.yaml` 再生成 `_core_ip_manifest.py` 与 compiled-core pin | ✅ |
 | `assemble_production.py` | 辅助 | 生产包组装 | ✅ |

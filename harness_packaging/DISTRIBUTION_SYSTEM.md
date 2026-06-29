@@ -32,12 +32,12 @@ Ship `myrm-agent-harness` as a **closed-source Python package** that third-party
 | Core manifest | `harness_packaging/core_manifest.yaml` | Modules compiled to native extensions |
 | Platform detection | `harness_packaging/platforms.py` | Eight supported platform keys (incl. linux-*-musl) |
 | Metadata codegen | `scripts/sync_distribution_metadata.py` | Generate `_core_ip_manifest.py` + sync compiled-core pins |
-| Core build | `scripts/build_core.py` | Nuitka `--module` + static hatch `force-include` wheel |
-| Release build | `scripts/build_release_wheel.py` | `uv build --wheel` + strip manifest `.py` + inline artifact verify |
+| Core build | `scripts/build_core.py` | Nuitka `--module` + static hatch `force-include` wheel + inline artifact verify |
+| Release build | `scripts/build_release_wheel.py` | `uv build --wheel` + `finalize_stripped_release_wheel` (strip + verify) |
 | Browser data assets | `pyproject.toml` `[tool.hatch.build.targets.wheel.force-include]` | Ships `toolkits/browser/assets/ad_domains.txt` in release wheel (guard: `tests/architecture/test_wheel_browser_assets.py`) |
-| Production assemble | `scripts/assemble_production.py` | Core + release + optional `--install` |
+| Production assemble | `harness_packaging/assemble.py` | Core + release via same finalize helper + optional `--install` |
 | Post-install verify | `src/myrm_agent_harness/_verify_distribution.py` | Console script `verify-harness-distribution` |
-| Wheel artifact gate | `harness_packaging/integrity.py` | Zip scan: no manifest `.py` / debug maps in release; compiled-only core |
+| Wheel artifact gate | `harness_packaging/integrity.py` + `release.py::finalize_stripped_release_wheel` | Zip scan: no manifest `.py` / debug maps in release; compiled-only core; inline at all build entrypoints |
 | Distribution probe | `src/myrm_agent_harness/_distribution.py` | `source` vs `compiled` + fail-closed + version + platform key match |
 | Runtime platform | `src/myrm_agent_harness/_runtime_platform.py` | Platform key SSOT for install validation and build tooling |
 

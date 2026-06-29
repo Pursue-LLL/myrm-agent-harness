@@ -5,7 +5,7 @@ routing decisions for BrowserSession. Used in sandbox mode to transparently
 fallback to Extension Bridge for private URLs that the sandbox Chromium cannot reach.
 
 [INPUT]
-(none — self-contained pure utility, shares logic intent with ssrf_guard but independent)
+(none — self-contained pure utility; SSRF checks use core.security.guards.ssrf)
 
 [OUTPUT]
 - is_private_url(url): Detect if URL targets a private/loopback/LAN address

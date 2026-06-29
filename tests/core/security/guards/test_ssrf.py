@@ -1,4 +1,4 @@
-"""Tests for Framework-Level SSRF Shield (DNS-Resolved)."""
+"""Tests for core outbound URL SSRF protection."""
 
 from __future__ import annotations
 
@@ -7,19 +7,18 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.network.ssrf_shield import (
+from myrm_agent_harness.core.security.guards.ssrf import (
     SSRFSecurityError,
-    URLAllowlistGuard,
+    async_pin_url,
     is_internal_ip,
     validate_and_resolve_url,
 )
+from myrm_agent_harness.core.security.guards.url_allowlist import URLAllowlistGuard
 
 
 def mock_getaddrinfo(ip: str):
     """Create a mock for asyncio.get_running_loop().getaddrinfo."""
     mock_loop = AsyncMock()
-    # getaddrinfo returns a list of 5-tuples: (family, type, proto, canonname, sockaddr)
-    # sockaddr for IPv4 is a (address, port) tuple
     mock_loop.getaddrinfo.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0))]
     return patch("asyncio.get_running_loop", return_value=mock_loop)
 
@@ -56,9 +55,7 @@ class TestSSRFShield:
             assert safe_url == "https://8.8.8.8/search?q=test"
             assert headers == {"Host": "google.com"}
             mock_loop = mock_loop_patch.return_value
-            mock_loop.getaddrinfo.assert_called_once_with(
-                "google.com", None, family=socket.AF_INET, type=socket.SOCK_STREAM
-            )
+            mock_loop.getaddrinfo.assert_called_once_with("google.com", None, proto=socket.IPPROTO_TCP)
 
     @pytest.mark.asyncio
     async def test_validate_external_url_with_port(self):
@@ -76,20 +73,19 @@ class TestSSRFShield:
 
     @pytest.mark.asyncio
     async def test_blocks_dns_rebinding(self):
-        # Simulate a malicious domain that resolves to localhost
         with mock_getaddrinfo("127.0.0.1"):
             with pytest.raises(SSRFSecurityError, match="Access to internal network is blocked"):
                 await validate_and_resolve_url("http://evil-domain.com/flushall")
 
     @pytest.mark.asyncio
     async def test_allows_whitelisted_hosts(self):
-        # The host is explicitly allowed, so DNS resolution is skipped
         with mock_getaddrinfo("10.0.0.5") as mock_loop_patch:
-            safe_url, headers = await validate_and_resolve_url(
-                "http://my-internal-nas.local/api", allowed_internal_hosts=["my-internal-nas.local"]
+            safe_url, headers = await async_pin_url(
+                "http://my-internal-nas.example/api",
+                allowed_internal_hosts=["my-internal-nas.example"],
             )
 
-            assert safe_url == "http://my-internal-nas.local/api"
+            assert safe_url == "http://my-internal-nas.example/api"
             assert headers == {}
             mock_loop_patch.return_value.getaddrinfo.assert_not_called()
 

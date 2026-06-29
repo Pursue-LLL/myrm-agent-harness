@@ -16,14 +16,13 @@ Framework-level capability for discovering third-party A2A agents.
 
 from __future__ import annotations
 
-import ipaddress
 import logging
 import time
 from dataclasses import dataclass, field
-from urllib.parse import urlparse
 
 import httpx
 
+from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError, async_pin_url
 from myrm_agent_harness.toolkits.a2a.types import (
     AgentCard,
     WELL_KNOWN_AGENT_CARD_PATH,
@@ -38,44 +37,6 @@ class A2AResolveError(Exception):
 
 class SSRFBlockedError(A2AResolveError):
     """URL blocked by SSRF protection."""
-
-
-# ---------------------------------------------------------------------------
-# SSRF protection
-# ---------------------------------------------------------------------------
-
-
-
-def _validate_url_security(url: str) -> None:
-    """Block internal network and non-HTTP(S) URLs."""
-    parsed = urlparse(url)
-
-    # 仅允许 http/https
-    if parsed.scheme not in ("http", "https"):
-        raise SSRFBlockedError(
-            f"Blocked scheme '{parsed.scheme}': only http/https allowed"
-        )
-
-    hostname = parsed.hostname or ""
-
-    # 禁止空主机名
-    if not hostname:
-        raise SSRFBlockedError("Empty hostname not allowed")
-
-    # 禁止内网 IP
-    try:
-        addr = ipaddress.ip_address(hostname)
-        if addr.is_private or addr.is_loopback or addr.is_reserved or addr.is_link_local:
-            raise SSRFBlockedError(
-                f"Blocked private/reserved IP: {hostname}"
-            )
-    except ValueError:
-        # 非 IP 地址（域名），放行
-        pass
-
-    # 禁止 localhost 域名变种
-    if hostname.lower() in ("localhost", "localhost.localdomain"):
-        raise SSRFBlockedError(f"Blocked localhost hostname: {hostname}")
 
 
 # ---------------------------------------------------------------------------
@@ -135,9 +96,14 @@ class A2ACardResolver:
         """
         full_url = base_url.rstrip("/") + path
 
-        # SSRF 安全检查
+        request_url = full_url
+        request_headers = dict(headers or {})
         if not skip_ssrf_check:
-            _validate_url_security(full_url)
+            try:
+                request_url, pin_headers = await async_pin_url(full_url)
+                request_headers.update(pin_headers)
+            except SSRFSecurityError as exc:
+                raise SSRFBlockedError(str(exc)) from exc
 
         # 检查缓存
         cache_key = full_url
@@ -149,8 +115,8 @@ class A2ACardResolver:
         try:
             async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
                 resp = await client.get(
-                    full_url,
-                    headers=headers or {},
+                    request_url,
+                    headers=request_headers,
                 )
                 resp.raise_for_status()
                 data = resp.json()

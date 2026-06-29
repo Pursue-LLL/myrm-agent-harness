@@ -17,11 +17,11 @@ from langchain_core.tools import StructuredTool
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 from myrm_agent_harness.agent.tool_management.tool_layers import ToolLayer
 from myrm_agent_harness.agent.tool_management.types import ToolSource
-from myrm_agent_harness.toolkits.network.ssrf_shield import (
+from myrm_agent_harness.core.security.guards.ssrf import (
     SSRFSecurityError,
-    URLAllowlistGuard,
     validate_and_resolve_url,
 )
+from myrm_agent_harness.core.security.guards.url_allowlist import URLAllowlistGuard
 
 
 def mock_getaddrinfo(ip: str):

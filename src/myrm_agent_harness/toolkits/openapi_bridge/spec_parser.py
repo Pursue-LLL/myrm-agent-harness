@@ -79,24 +79,18 @@ async def parse_spec_from_url(url: str, *, timeout: float = 30.0) -> ParsedSpec:
     Raises:
         ValueError: If the spec cannot be fetched or parsed
     """
-    from myrm_agent_harness.toolkits.network.ssrf_shield import (
-        SSRFSecurityError,
-        validate_and_resolve_url,
-    )
+    from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
+    from myrm_agent_harness.core.security.http.secure_fetch import secure_get
 
     try:
-        await validate_and_resolve_url(url)
+        response = await secure_get(url, timeout=timeout)
+        response.raise_for_status()
     except SSRFSecurityError as e:
         raise ValueError(f"Blocked by SSRF policy: {e}") from e
-
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-        try:
-            response = await client.get(url)
-            response.raise_for_status()
-        except httpx.HTTPStatusError as e:
-            raise ValueError(f"Failed to fetch spec from {url}: HTTP {e.response.status_code}") from e
-        except httpx.RequestError as e:
-            raise ValueError(f"Failed to fetch spec from {url}: {e}") from e
+    except httpx.HTTPStatusError as e:
+        raise ValueError(f"Failed to fetch spec from {url}: HTTP {e.response.status_code}") from e
+    except httpx.RequestError as e:
+        raise ValueError(f"Failed to fetch spec from {url}: {e}") from e
 
     content = response.text
     return parse_spec_from_content(content, source_url=url)

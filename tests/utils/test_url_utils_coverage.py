@@ -8,19 +8,21 @@ from unittest.mock import patch
 
 import pytest
 
-from myrm_agent_harness.utils.url_utils import (
+from myrm_agent_harness.core.security.guards.ssrf import (
     SSRFResult,
     async_validate_url_for_ssrf,
+    validate_url_for_ssrf,
+)
+from myrm_agent_harness.utils.url_utils import (
     build_host_resolver_rules,
-    check_ip_blocked,
     create_dns_pin_map,
     extract_domain,
+    is_blocked_ip,
     is_file_url,
     is_image_url,
     is_valid_image_url,
     normalize_url,
     validate_scheme_and_hostname,
-    validate_url_for_ssrf,
 )
 
 
@@ -122,17 +124,17 @@ class TestSSRFResult:
 
 class TestCheckIpBlocked:
     def test_loopback_blocked(self):
-        assert check_ip_blocked(ipaddress.ip_address("127.0.0.1")) is not None
+        assert is_blocked_ip("127.0.0.1") is True
 
     def test_private_blocked(self):
-        assert check_ip_blocked(ipaddress.ip_address("192.168.1.1")) is not None
-        assert check_ip_blocked(ipaddress.ip_address("10.0.0.1")) is not None
+        assert is_blocked_ip("192.168.1.1") is True
+        assert is_blocked_ip("10.0.0.1") is True
 
     def test_public_allowed(self):
-        assert check_ip_blocked(ipaddress.ip_address("8.8.8.8")) is None
+        assert is_blocked_ip("8.8.8.8") is False
 
     def test_link_local_blocked(self):
-        assert check_ip_blocked(ipaddress.ip_address("169.254.169.254")) is not None
+        assert is_blocked_ip("169.254.169.254") is True
 
 
 class TestValidateSchemeAndHostname:
