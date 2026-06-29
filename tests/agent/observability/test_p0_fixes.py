@@ -18,6 +18,7 @@ from myrm_agent_harness.agent.observability.types import ToolCallEventData
 @pytest.mark.asyncio
 async def test_p0_1_eventbus_truncation():
     """Test P0-1: EventBus truncates large result/error while preserving original for EventLogger."""
+    EventBus._instance = None
     bus = await EventBus.get_instance()
 
     # Create event with large result
