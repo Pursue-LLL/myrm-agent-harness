@@ -281,10 +281,11 @@ class MCPAgent:
                         await MCPAgent._emit_mcp_app_event(raw, _name)
                         if isinstance(normalized, str) and len(normalized) > _max_chars:
                             original_len = len(normalized)
+                            discarded = original_len - _max_chars
                             normalized = (
                                 f"{normalized[:_max_chars]}\n\n"
-                                f"[Output truncated: {original_len} chars total, showing first {_max_chars}. "
-                                f"Use file-read tools to inspect full content if needed.]"
+                                f"[Output truncated: showing first {_max_chars:,} of {original_len:,} chars. "
+                                f"Remaining {discarded:,} chars were discarded to fit context budget.]"
                             )
                             logger.warning(
                                 "MCP tool '%s' output truncated: %d → %d chars",

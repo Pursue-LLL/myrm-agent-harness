@@ -408,8 +408,8 @@ async def test_wrap_tools_output_guard_truncates_large_output():
     assert isinstance(result, str)
     assert result.startswith("x" * 100)
     assert "[Output truncated:" in result
-    assert "500 chars total" in result
-    assert "showing first 100" in result
+    assert "showing first 100 of 500 chars" in result
+    assert "Remaining 400 chars were discarded" in result
 
 
 @pytest.mark.asyncio
@@ -482,7 +482,7 @@ async def test_wrap_tools_output_guard_text_tuple_truncated():
     assert isinstance(result, str)
     assert result.startswith("z" * 50)
     assert "[Output truncated:" in result
-    assert "300 chars total" in result
+    assert "showing first 50 of 300 chars" in result
 
 
 @pytest.mark.asyncio
@@ -499,8 +499,8 @@ async def test_wrap_tools_output_guard_one_char_over():
 
     result = await tool.coroutine()
     assert "[Output truncated:" in result
-    assert "1001 chars total" in result
-    assert "showing first 1000" in result
+    assert "showing first 1,000 of 1,001 chars" in result
+    assert "Remaining 1 chars were discarded" in result
 
 
 # ---------------------------------------------------------------------------
