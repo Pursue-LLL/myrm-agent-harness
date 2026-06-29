@@ -17,6 +17,7 @@ Agent middleware system exports. Provides the complete middleware stack (context
 | deferred_tool_middleware.py | Core | Parses `<AutoMountTools>` from discover_capability_tool; augments model tools and supplies deferred `BaseTool` at ToolNode via `awrap_tool_call`. | ✅ |
 | debug_logger_middleware.py | Core | Provides debug_logger_middleware. | ✅ |
 | filesystem_search_middleware.py | Core | Provides FilesystemFileSearchMiddleware, create_filesystem_search_middleware. | ✅ |
+| auto_session_recall_middleware.py | Core | First-turn auto session recall — searches conversation/task_digest memories and injects high-confidence results as HumanMessage before the Agent's first reasoning turn. Non-blocking with timeout; skips via quick-path when no memories exist. | ✅ |
 | memory_context_middleware.py | Core | Memory context — Stable `<user_memory_context>` (System) + learned `<<<UNTRUSTED_DATA>>>` (Human via `wrap_untrusted`). Unified budget. | ✅ |
 | planner_middleware.py | Core | Middleware to inject plan blueprint, anti-drift reminder, and decision log into HumanMessage (via request.override, cache-safe). | ✅ |
 | rate_limit.py | Core | Proactive rate-limit throttling middleware. Detects provider from HTTP header signatures, sleeps only when all tracked providers are exhausted (shortest recovery, capped at 120s), and emits SSE events for frontend awareness. | ✅ |
