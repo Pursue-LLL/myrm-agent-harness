@@ -295,6 +295,8 @@ async def _forget_procedural_rules(
         logger.warning("Forgetting: failed to fetch procedural rules: %s", e)
         return
 
+    rules = [r for r in rules if not r.is_user_locked]
+
     for rule in rules:
         if rule.tool_rule_priority == ToolRulePriority.CRITICAL:
             rule.importance = max(rule.importance, 0.95)

@@ -457,3 +457,83 @@ class TestCodingYamlIntegration:
 
         assert config is not None
         assert config.workspace_policy == WorkspacePolicy.INHERIT
+
+
+class TestDeepAuditYamlIntegration:
+    """Integration tests for deep-audit.yaml subagent preset."""
+
+    @pytest.fixture
+    def deep_audit_yaml_path(self):
+        monorepo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+        path = (
+            monorepo_root
+            / "myrm-agent"
+            / "myrm-agent-server"
+            / "app"
+            / "config"
+            / "subagents"
+            / "core"
+            / "deep-audit.yaml"
+        )
+        if not path.exists():
+            pytest.skip("deep-audit.yaml not found")
+        return path
+
+    def test_deep_audit_loads_successfully(self, deep_audit_yaml_path):
+        loader = SubagentConfigLoader()
+        config = loader.load_from_yaml(deep_audit_yaml_path, expected_name="deep-audit")
+
+        assert config is not None
+        assert isinstance(config, SubagentConfig)
+
+    def test_deep_audit_read_only_tools(self, deep_audit_yaml_path):
+        loader = SubagentConfigLoader()
+        config = loader.load_from_yaml(deep_audit_yaml_path, expected_name="deep-audit")
+
+        assert config is not None
+        assert set(config.tools) == {"file_read_tool", "grep_tool", "glob_tool", "bash_code_execute_tool"}
+        write_tools = {"file_write_tool", "file_edit_tool", "skill_manage_tool", "skill_discovery_tool", "delegate_to_agent_tool"}
+        assert write_tools.issubset(config.disallowed_tools)
+
+    def test_deep_audit_no_delegation(self, deep_audit_yaml_path):
+        loader = SubagentConfigLoader()
+        config = loader.load_from_yaml(deep_audit_yaml_path, expected_name="deep-audit")
+
+        assert config is not None
+        assert config.max_spawn_depth == 0
+        assert "delegate_to_agent_tool" in config.disallowed_tools
+
+    def test_deep_audit_config_values(self, deep_audit_yaml_path):
+        from myrm_agent_harness.agent.sub_agents.types import MemoryIsolationPolicy, WorkspacePolicy
+
+        loader = SubagentConfigLoader()
+        config = loader.load_from_yaml(deep_audit_yaml_path, expected_name="deep-audit")
+
+        assert config is not None
+        assert config.timeout_seconds == 600
+        assert config.concurrency_limit == 5
+        assert config.max_turns == 30
+        assert config.budget_tokens == 500000
+        assert config.max_result_tokens == 16000
+        assert config.workspace_policy == WorkspacePolicy.INHERIT
+        assert config.memory_isolation == MemoryIsolationPolicy.EPHEMERAL_SESSION
+        assert config.context_mode == "isolated"
+
+    def test_deep_audit_theme_color(self, deep_audit_yaml_path):
+        loader = SubagentConfigLoader()
+        config = loader.load_from_yaml(deep_audit_yaml_path, expected_name="deep-audit")
+
+        assert config is not None
+        assert config.theme_color == "orange"
+
+    def test_deep_audit_prompt_focuses_on_logic_flaws(self, deep_audit_yaml_path):
+        loader = SubagentConfigLoader()
+        config = loader.load_from_yaml(deep_audit_yaml_path, expected_name="deep-audit")
+
+        assert config is not None
+        prompt = config.system_prompt.lower()
+        assert "business logic bypass" in prompt
+        assert "privilege escalation" in prompt
+        assert "race condition" in prompt
+        assert "data exfiltration" in prompt
+        assert "prompt injection" in prompt

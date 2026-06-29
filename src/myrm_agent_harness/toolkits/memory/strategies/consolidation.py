@@ -227,6 +227,9 @@ async def _execute_operations(
             elif isinstance(op, CorrectOp):
                 full_id = resolve(op.memory_id)
                 existing = await manager.get_memory(full_id)
+                if getattr(existing, "is_user_locked", False):
+                    logger.info("Consolidation: skipped locked rule %s", full_id)
+                    continue
                 if isinstance(existing, SemanticMemory):
                     correction = await manager.correct_memory(full_id, op.corrected_content)
                     stats.corrected += 1
@@ -239,6 +242,10 @@ async def _execute_operations(
 
             elif isinstance(op, UpdateContentOp):
                 full_id = resolve(op.memory_id)
+                existing = await manager.get_memory(full_id)
+                if getattr(existing, "is_user_locked", False):
+                    logger.info("Consolidation: skipped locked rule %s", full_id)
+                    continue
                 await manager.update_memory(full_id, content=op.new_content, importance=op.importance)
                 stats.affected_ids.append(full_id)
                 stats.updated += 1

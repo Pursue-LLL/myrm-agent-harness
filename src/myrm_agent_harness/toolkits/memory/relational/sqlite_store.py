@@ -210,6 +210,10 @@ class SQLiteRelationalStore(RelationalStore):
                 await self._connection.execute(
                     "ALTER TABLE procedural_rules ADD COLUMN last_accessed_at TEXT"
                 )
+            if "is_user_locked" not in rule_columns:
+                await self._connection.execute(
+                    "ALTER TABLE procedural_rules ADD COLUMN is_user_locked INTEGER NOT NULL DEFAULT 0"
+                )
 
     def _scope_values(
         self, scope: MemoryScope | None
@@ -277,7 +281,8 @@ class SQLiteRelationalStore(RelationalStore):
                     access_count INTEGER NOT NULL DEFAULT 0,
                     last_accessed_at TEXT,
                     created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                    updated_at TEXT NOT NULL,
+                    is_user_locked INTEGER NOT NULL DEFAULT 0
                 )
             """
             )
@@ -470,8 +475,8 @@ class SQLiteRelationalStore(RelationalStore):
                    (id, user_id, content, trigger_text, action_text, priority, is_active, trigger_keywords,
                     source, metadata, primary_namespace, namespaces, agent_id, channel_id, conversation_id,
                     task_id, tool_name, tool_rule_priority, access_count, last_accessed_at,
-                    created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    created_at, updated_at, is_user_locked)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     rule_id,
                     "default",
@@ -495,6 +500,7 @@ class SQLiteRelationalStore(RelationalStore):
                     rule.last_accessed_at.isoformat() if rule.last_accessed_at else None,
                     now,
                     now,
+                    int(rule.is_user_locked),
                 ),
             )
             await conn.commit()
@@ -616,7 +622,7 @@ class SQLiteRelationalStore(RelationalStore):
                        primary_namespace = ?, namespaces = ?, agent_id = ?, channel_id = ?,
                        conversation_id = ?, task_id = ?, tool_name = ?,
                        tool_rule_priority = ?, access_count = ?, last_accessed_at = ?,
-                       updated_at = ?
+                       is_user_locked = ?, updated_at = ?
                    WHERE id = ?""",
                 (
                     rule.content,
@@ -637,6 +643,7 @@ class SQLiteRelationalStore(RelationalStore):
                     rule.tool_rule_priority.value,
                     rule.access_count,
                     rule.last_accessed_at.isoformat() if rule.last_accessed_at else None,
+                    int(rule.is_user_locked),
                     now,
                     rule_id,
                 ),

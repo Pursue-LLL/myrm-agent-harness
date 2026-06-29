@@ -426,8 +426,11 @@ class TestAffectedIdsCollection:
             UpdateContentOp,
             _execute_operations,
         )
+        from myrm_agent_harness.toolkits.memory.types import SemanticMemory
 
+        existing = SemanticMemory(content="old", user_id="t", importance=0.5)
         manager = AsyncMock()
+        manager.get_memory = AsyncMock(return_value=existing)
         manager.update_memory = AsyncMock()
 
         ops = [UpdateContentOp(memory_id="mem-1", new_content="new", importance=0.8)]

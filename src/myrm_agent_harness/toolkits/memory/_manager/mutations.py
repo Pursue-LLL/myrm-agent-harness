@@ -180,6 +180,7 @@ class MemoryManagerMutationsMixin:
         reasoning: str | None = None,
         application: str | None = None,
         namespaces: list[str] | None = None,
+        is_user_locked: bool | None = None,
     ) -> AnyMemory:
         existing = await self.get_memory(memory_id)
         if existing is None:
@@ -239,6 +240,8 @@ class MemoryManagerMutationsMixin:
                 updated.reasoning = reasoning
             if application is not None:
                 updated.application = application
+            if is_user_locked is not None:
+                updated.is_user_locked = is_user_locked
         updated.updated_at = datetime.now(UTC)
 
         if content_changed and self._config.security_scan_enabled:

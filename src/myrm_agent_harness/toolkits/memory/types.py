@@ -412,6 +412,10 @@ class ProceduralMemory(BaseMemory):
         default=ToolRulePriority.NORMAL,
         description="Compression resistance: CRITICAL rules are pinned into system prompt",
     )
+    is_user_locked: bool = Field(
+        default=False,
+        description="User-edited rules are locked against background consolidation/forgetting overwrites",
+    )
 
     def model_post_init(self, __context: object) -> None:
         """Sync is_active ↔ status on construction for legacy data."""

@@ -34,7 +34,8 @@ PROCEDURAL_COLUMNS = (
     "id, user_id, content, trigger_text, action_text, "
     "priority, is_active, trigger_keywords, source, metadata, "
     "primary_namespace, namespaces, agent_id, channel_id, conversation_id, task_id, "
-    "tool_name, tool_rule_priority, access_count, last_accessed_at, created_at, updated_at"
+    "tool_name, tool_rule_priority, access_count, last_accessed_at, created_at, updated_at, "
+    "is_user_locked"
 )
 
 
@@ -86,6 +87,8 @@ def row_to_procedural(row: tuple[object, ...]) -> ProceduralMemory:
     except ValueError:
         tool_priority = ToolRulePriority.NORMAL
 
+    is_locked = bool(row[22]) if len(row) > 22 and row[22] else False
+
     return ProceduralMemory(
         id=str(row[0]),
         user_id=str(row[1]),
@@ -112,6 +115,7 @@ def row_to_procedural(row: tuple[object, ...]) -> ProceduralMemory:
         last_accessed_at=parse_dt(str(row[19])) if row[19] else None,
         created_at=parse_dt(str(row[20])),
         updated_at=parse_dt(str(row[21])),
+        is_user_locked=is_locked,
     )
 
 

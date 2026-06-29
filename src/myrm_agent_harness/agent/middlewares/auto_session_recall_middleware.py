@@ -35,7 +35,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from typing import TYPE_CHECKING
 
 from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage
 
 from myrm_agent_harness.agent.security.detection.content_boundary import wrap_untrusted
 from myrm_agent_harness.toolkits.memory.config import RecallMode
@@ -66,6 +66,9 @@ def _has_session_recall(messages: Sequence[BaseMessage]) -> bool:
     return False
 
 
+_UNTRUSTED_MARKER = "<<<UNTRUSTED_DATA"
+
+
 def _extract_query(messages: Sequence[BaseMessage]) -> str:
     """Extract the user's first query from messages for retrieval."""
     for msg in messages:
@@ -73,13 +76,13 @@ def _extract_query(messages: Sequence[BaseMessage]) -> str:
             content = msg.content
             if isinstance(content, str):
                 text = content.strip()
-                if text and _SESSION_RECALL_MARKER not in text:
+                if text and _SESSION_RECALL_MARKER not in text and _UNTRUSTED_MARKER not in text:
                     return text[:2000]
             elif isinstance(content, list):
                 for block in content:
                     if isinstance(block, dict) and block.get("type") == "text":
                         text = block.get("text", "").strip()
-                        if text:
+                        if text and _UNTRUSTED_MARKER not in text:
                             return text[:2000]
     return ""
 
@@ -143,19 +146,12 @@ class AutoSessionRecallMiddleware(AgentMiddleware):  # type: ignore[type-arg]
             return await handler(request)
 
         config = getattr(manager, "_config", None)
-        threshold = _DEFAULT_THRESHOLD
-        budget_tokens = _DEFAULT_BUDGET_TOKENS
-        timeout = _DEFAULT_TIMEOUT
-        enabled = True
-
-        if config:
-            enabled = getattr(config, "auto_session_recall_enabled", True)
-            threshold = getattr(config, "auto_session_recall_threshold", _DEFAULT_THRESHOLD)
-            budget_tokens = getattr(config, "auto_session_recall_budget_tokens", _DEFAULT_BUDGET_TOKENS)
-            timeout = getattr(config, "auto_session_recall_timeout", _DEFAULT_TIMEOUT)
-
-        if not enabled:
+        if config and not getattr(config, "auto_session_recall_enabled", True):
             return await handler(request)
+
+        threshold = getattr(config, "auto_session_recall_threshold", _DEFAULT_THRESHOLD) if config else _DEFAULT_THRESHOLD
+        budget_tokens = getattr(config, "auto_session_recall_budget_tokens", _DEFAULT_BUDGET_TOKENS) if config else _DEFAULT_BUDGET_TOKENS
+        timeout = getattr(config, "auto_session_recall_timeout", _DEFAULT_TIMEOUT) if config else _DEFAULT_TIMEOUT
 
         try:
             conv_count = await asyncio.wait_for(
@@ -164,8 +160,8 @@ class AutoSessionRecallMiddleware(AgentMiddleware):  # type: ignore[type-arg]
             )
             if conv_count == 0:
                 return await handler(request)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[AutoSessionRecall] count_memories failed: %s, proceeding to search", exc)
 
         try:
             results: list[MemorySearchResult] = await asyncio.wait_for(
