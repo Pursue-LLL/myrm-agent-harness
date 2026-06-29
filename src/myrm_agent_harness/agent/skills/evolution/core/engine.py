@@ -526,6 +526,7 @@ class SkillEvolutionEngine:
         trajectory: str,
         session_id: str,
         env_fingerprint: EnvironmentFingerprint | None = None,
+        agent_id: str | None = None,
     ) -> EvolutionProposal | None:
         """CAPTURED evolution: Learn from conversation trajectory.
 
@@ -643,6 +644,7 @@ class SkillEvolutionEngine:
             task_context=f"Session {session_id}",
             is_general=result.is_general,
             environment=env_fingerprint,
+            agent_id=agent_id,
             recommended_form=result.recommended_form,
             form_metadata=form_metadata,
             created_at=datetime.now(),
