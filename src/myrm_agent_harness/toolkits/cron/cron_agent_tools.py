@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Literal
 
 from langchain_core.tools import BaseTool, tool
 
+from myrm_agent_harness.infra.incremental.types import MonitorConfig
 from myrm_agent_harness.toolkits.cron.engine.name_generator import generate_job_name
 from myrm_agent_harness.toolkits.cron.engine.parser import describe_schedule
 from myrm_agent_harness.toolkits.cron.types import (
@@ -126,6 +127,8 @@ def create_cron_tools(
         context_from: str = "",
         blueprint: str = "",
         blueprint_values: str = "",
+        monitor_type: str = "",
+        monitor_enabled: bool = False,
     ) -> str:
         """Manage scheduled tasks (create, list, update, delete, trigger, pause, resume).
 
@@ -192,6 +195,14 @@ def create_cron_tools(
             blueprint_values: JSON object of slot values for the blueprint.
                 E.g. '{"time": "08:00", "weekdays": "weekdays"}'.
                 Only used when blueprint is set.
+            monitor_type: Incremental monitoring type. "set" (detect new items
+                in line-delimited output), "hash", or "timeseries". For add/update.
+                When set with monitor_enabled=true, the task only delivers
+                results when output changes (e.g. new prices, new articles).
+                Use "off" to disable monitoring on an existing task (update only).
+            monitor_enabled: Enable incremental monitoring. For add/update.
+                Use when the user wants to track changes and only be notified
+                on new content (e.g. "notify me only when the price changes").
         """
         effective_model = model.strip() or current_model
 
@@ -255,6 +266,8 @@ def create_cron_tools(
                 expires_after,
                 agent_id=agent_id,
                 context_from=context_from,
+                monitor_type=monitor_type,
+                monitor_enabled=monitor_enabled,
                 resolve_delivery=_resolve_delivery,
             ),
             "list": lambda: _do_list(manager, user_id, name_filter),
@@ -273,6 +286,8 @@ def create_cron_tools(
                 max_fires,
                 expires_after,
                 context_from=context_from,
+                monitor_type=monitor_type,
+                monitor_enabled=monitor_enabled,
             ),
             "remove": lambda: _do_remove(manager, user_id, job_id),
             "run": lambda: _do_run(manager, user_id, job_id),
@@ -359,6 +374,31 @@ def _build_active_hours(start: str, end: str, active_tz: str) -> ActiveHours | N
     return ActiveHours(start=start.strip(), end=end.strip(), tz=active_tz.strip() or "UTC")
 
 
+_VALID_MONITOR_TYPES = {"set", "hash", "timeseries"}
+
+
+def _build_monitor_config(
+    monitor_type: str, monitor_enabled: bool,
+) -> tuple[str | None, MonitorConfig | None, bool]:
+    """Build MonitorConfig from tool parameters.
+
+    Returns (error_msg, config, should_clear).  When ``monitor_type`` is
+    ``"off"``, ``should_clear=True`` signals that monitoring should be removed.
+    """
+    mt = monitor_type.strip().lower()
+    if mt == "off":
+        return None, None, True
+    if not monitor_enabled and not mt:
+        return None, None, False
+    if not monitor_enabled:
+        return "Set monitor_enabled=true to enable monitoring.", None, False
+    mt = mt or "set"
+    if mt not in _VALID_MONITOR_TYPES:
+        valid = ", ".join(sorted(_VALID_MONITOR_TYPES))
+        return f"Invalid monitor_type '{monitor_type}'. Must be one of: {valid}.", None, False
+    return None, MonitorConfig(monitor_type=mt, enabled=True), False
+
+
 def _parse_context_from(raw: str) -> tuple[str, ...]:
     """Parse comma-separated job IDs into a deduplicated tuple."""
     if not raw.strip():
@@ -395,6 +435,8 @@ async def _do_add(
     expires_after: str = "",
     agent_id: str | None = None,
     context_from: str = "",
+    monitor_type: str = "",
+    monitor_enabled: bool = False,
     *,
     resolve_delivery: DeliveryResolver,
 ) -> str:
@@ -436,6 +478,9 @@ async def _do_add(
         return f"Invalid expires_after format: '{expires_after}'. Use '3d', '2w', '3m', or ISO 8601."
 
     parsed_context_from = _parse_context_from(context_from)
+    mon_err, monitor_config, _clear = _build_monitor_config(monitor_type, monitor_enabled)
+    if mon_err:
+        return mon_err
 
     try:
         job = await mgr.create_job(
@@ -454,6 +499,7 @@ async def _do_add(
             max_fires=effective_max_fires,
             expires_at=expires_at,
             context_from=parsed_context_from,
+            monitor_config=monitor_config,
         )
     except ValueError as exc:
         return str(exc)
@@ -477,6 +523,8 @@ async def _do_add(
         result["expires_at"] = job.expires_at.strftime("%Y-%m-%d %H:%M UTC")
     if job.context_from:
         result["context_from"] = list(job.context_from)
+    if job.monitor_config and job.monitor_config.enabled:
+        result["monitor"] = job.monitor_config.monitor_type
 
     return json.dumps(result, ensure_ascii=False)
 
@@ -494,8 +542,9 @@ async def _do_list(mgr: CronManager, user_id: str, name_filter: str) -> str:
         model_tag = f" ({j.model})" if j.model else ""
         fires_tag = f" [{j.fire_count}/{j.max_fires}]" if j.max_fires else ""
         ctx_tag = f" ←[{','.join(j.context_from)}]" if j.context_from else ""
+        mon_tag = f" [Δ{j.monitor_config.monitor_type}]" if j.monitor_config and j.monitor_config.enabled else ""
         lines.append(
-            f"  {icon} [{j.id}] {j.name}{type_tag}{model_tag}{fires_tag}{ctx_tag} | {j.status.value} | next: {next_run}"
+            f"  {icon} [{j.id}] {j.name}{type_tag}{model_tag}{fires_tag}{ctx_tag}{mon_tag} | {j.status.value} | next: {next_run}"
         )
     return "\n".join(lines)
 
@@ -515,6 +564,8 @@ async def _do_update(
     max_fires: int = 0,
     expires_after: str = "",
     context_from: str = "",
+    monitor_type: str = "",
+    monitor_enabled: bool = False,
 ) -> str:
     if not job_id:
         return "job_id required. Use action='list' first."
@@ -532,6 +583,9 @@ async def _do_update(
         return f"Invalid expires_after format: '{expires_after}'. Use '3d', '2w', '3m', or ISO 8601."
 
     parsed_context_from = _parse_context_from(context_from) if context_from.strip() else None
+    mon_err, monitor_config, clear_monitor = _build_monitor_config(monitor_type, monitor_enabled)
+    if mon_err:
+        return mon_err
 
     patch = CronJobPatch(
         name=name.strip() or None,
@@ -542,6 +596,8 @@ async def _do_update(
         max_fires=effective_max_fires,
         expires_at=expires_at,
         context_from=parsed_context_from,
+        monitor_config=monitor_config,
+        clear_monitor_config=clear_monitor,
     )
 
     try:
@@ -572,6 +628,8 @@ async def _do_update(
         result["expires_at"] = job.expires_at.strftime("%Y-%m-%d %H:%M UTC")
     if job.context_from:
         result["context_from"] = list(job.context_from)
+    if job.monitor_config and job.monitor_config.enabled:
+        result["monitor"] = job.monitor_config.monitor_type
 
     return json.dumps(result, ensure_ascii=False)
 

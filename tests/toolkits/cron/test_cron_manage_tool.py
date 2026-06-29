@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 import pytest
 
 from myrm_agent_harness.toolkits.cron.cron_agent_tools import (
+    _build_monitor_config,
     _parse_context_from,
     _parse_expires_after,
     create_cron_tools,
@@ -1418,3 +1419,181 @@ class TestCronManageContextFrom:
         tool = tools[0]
         result = await tool.ainvoke({"action": "list"})
         assert ref_job.id in result
+
+
+# ---------------------------------------------------------------------------
+# _build_monitor_config
+# ---------------------------------------------------------------------------
+
+
+class TestBuildMonitorConfig:
+    """Validates all branches of _build_monitor_config."""
+
+    def test_enable_set(self):
+        err, cfg, clear = _build_monitor_config("set", True)
+        assert err is None
+        assert cfg is not None
+        assert cfg.monitor_type == "set"
+        assert cfg.enabled is True
+        assert clear is False
+
+    def test_enable_hash(self):
+        err, cfg, clear = _build_monitor_config("hash", True)
+        assert err is None
+        assert cfg is not None
+        assert cfg.monitor_type == "hash"
+        assert clear is False
+
+    def test_enable_timeseries(self):
+        err, cfg, clear = _build_monitor_config("timeseries", True)
+        assert err is None
+        assert cfg is not None
+        assert cfg.monitor_type == "timeseries"
+        assert clear is False
+
+    def test_enable_default_type(self):
+        err, cfg, clear = _build_monitor_config("", True)
+        assert err is None
+        assert cfg is not None
+        assert cfg.monitor_type == "set"
+        assert clear is False
+
+    def test_off_disables(self):
+        err, cfg, clear = _build_monitor_config("off", False)
+        assert err is None
+        assert cfg is None
+        assert clear is True
+
+    def test_off_ignores_enabled_flag(self):
+        err, cfg, clear = _build_monitor_config("off", True)
+        assert err is None
+        assert cfg is None
+        assert clear is True
+
+    def test_off_case_insensitive(self):
+        err, cfg, clear = _build_monitor_config("  OFF  ", False)
+        assert err is None
+        assert clear is True
+
+    def test_default_no_op(self):
+        err, cfg, clear = _build_monitor_config("", False)
+        assert err is None
+        assert cfg is None
+        assert clear is False
+
+    def test_invalid_type(self):
+        err, cfg, clear = _build_monitor_config("invalid", True)
+        assert err is not None
+        assert "Invalid" in err
+        assert cfg is None
+        assert clear is False
+
+    def test_contradictory_input(self):
+        err, cfg, clear = _build_monitor_config("set", False)
+        assert err is not None
+        assert "monitor_enabled" in err
+        assert cfg is None
+        assert clear is False
+
+
+# ---------------------------------------------------------------------------
+# Monitor via cron_manage tool (E2E through agent tool)
+# ---------------------------------------------------------------------------
+
+
+class TestMonitorViaCronManageTool:
+    """E2E tests: create with monitor, then disable via monitor_type='off'."""
+
+    @pytest.mark.asyncio
+    async def test_add_with_monitor_then_disable(self, tool, manager: CronManager):
+        """Full lifecycle: add with monitor → verify → disable with 'off' → verify."""
+        result = await tool.ainvoke({
+            "action": "add",
+            "prompt": "check price",
+            "every_minutes": 60,
+            "recurring_confirmed": True,
+            "monitor_type": "set",
+            "monitor_enabled": True,
+        })
+        parsed = json.loads(result)
+        job_id = parsed["job_id"]
+        assert parsed.get("monitor") == "set"
+
+        job = await manager.get_job(job_id, USER_ID)
+        assert job is not None
+        assert job.monitor_config is not None
+        assert job.monitor_config.monitor_type == "set"
+        assert job.monitor_config.enabled is True
+
+        result2 = await tool.ainvoke({
+            "action": "update",
+            "job_id": job_id,
+            "monitor_type": "off",
+        })
+        parsed2 = json.loads(result2)
+        assert parsed2["status"] == "success"
+
+        job_after = await manager.get_job(job_id, USER_ID)
+        assert job_after is not None
+        assert job_after.monitor_config is None
+
+    @pytest.mark.asyncio
+    async def test_add_without_monitor_then_enable(self, tool, manager: CronManager):
+        """Add without monitor → enable via update → verify."""
+        result = await tool.ainvoke({
+            "action": "add",
+            "prompt": "daily report",
+            "every_minutes": 1440,
+            "recurring_confirmed": True,
+        })
+        parsed = json.loads(result)
+        job_id = parsed["job_id"]
+        assert "monitor" not in parsed
+
+        result2 = await tool.ainvoke({
+            "action": "update",
+            "job_id": job_id,
+            "monitor_type": "hash",
+            "monitor_enabled": True,
+        })
+        parsed2 = json.loads(result2)
+        assert parsed2.get("monitor") == "hash"
+
+        job = await manager.get_job(job_id, USER_ID)
+        assert job is not None
+        assert job.monitor_config is not None
+        assert job.monitor_config.monitor_type == "hash"
+
+    @pytest.mark.asyncio
+    async def test_update_with_invalid_monitor_type(self, tool, manager: CronManager):
+        """Invalid monitor_type returns error, job unchanged."""
+        result = await tool.ainvoke({
+            "action": "add",
+            "prompt": "check status",
+            "every_minutes": 30,
+            "recurring_confirmed": True,
+        })
+        parsed = json.loads(result)
+        job_id = parsed["job_id"]
+
+        result2 = await tool.ainvoke({
+            "action": "update",
+            "job_id": job_id,
+            "monitor_type": "bogus",
+            "monitor_enabled": True,
+        })
+        assert "Invalid" in result2
+
+    @pytest.mark.asyncio
+    async def test_list_shows_monitor_tag(self, tool, manager: CronManager):
+        """List output includes [Δset] tag for monitored jobs."""
+        await tool.ainvoke({
+            "action": "add",
+            "prompt": "monitor something",
+            "every_minutes": 60,
+            "recurring_confirmed": True,
+            "monitor_type": "set",
+            "monitor_enabled": True,
+        })
+        result = await tool.ainvoke({"action": "list"})
+        assert "Δset" in result
