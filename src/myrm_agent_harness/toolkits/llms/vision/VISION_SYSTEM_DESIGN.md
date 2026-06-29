@@ -175,17 +175,24 @@ except Exception as e:
 - ✅ SSE `analyzing_image_clear` 事件
 - ✅ Vision fallback 逻辑触发
 
-### Frontend E2E Test
+### Backend API stream test (TestClient)
 
-**工具**: Playwright
+**工具**: FastAPI TestClient + agent-stream SSE
 
 **文件**: `myrm-agent-server/tests/api/agent/test_vision_fallback.py`
 
 **验证点**:
-- ✅ 图片上传
-- ✅ 消息发送
-- ✅ SSE 事件接收
+- ✅ SSE `step_key: analyzing_image` 事件
+- ✅ SSE `step_key: analyzing_image_clear` 事件
 - ✅ Vision fallback 逻辑触发
+
+### chat_utils 模块测试
+
+**文件**: `myrm-agent-server/tests/core/utils/test_chat_utils_vision.py`
+
+**验证点**:
+- ✅ `VisionFallbackEngine` / `VideoAnalysisEngine` import 自 `toolkits.llms.vision`
+- ✅ MD5 cache 命中、SSE bus 发布、supports_vision 直传路径
 
 ## 当前能力
 
