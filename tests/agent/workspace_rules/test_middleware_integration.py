@@ -211,3 +211,33 @@ class TestScannerToMiddlewarePipeline:
             SystemMessage(content="<user_instructions>Be concise.</user_instructions>"),
         ]
         assert _has_workspace_context(messages) is False
+
+    def test_memory_md_full_pipeline(self, workspace_dir: Path) -> None:
+        """MEMORY.md: discovered → loaded → formatted into workspace_context block."""
+        (workspace_dir / "MEMORY.md").write_text(
+            "# Project Background\n\nThis project uses FastAPI and React."
+        )
+
+        rules = scan_workspace_rules(str(workspace_dir))
+        assert len(rules) == 1
+        assert rules[0].source == "MEMORY.md"
+        assert rules[0].blocked is False
+
+        content = _format_rules_content(rules)
+        assert WORKSPACE_CONTEXT_MARKER in content
+        assert "Project Background" in content
+        assert "FastAPI and React" in content
+
+    def test_memory_md_priority_between_soul_and_agents(self, workspace_dir: Path) -> None:
+        """MEMORY.md beats AGENTS.md but loses to SOUL.md in First-Match-Wins."""
+        (workspace_dir / "MEMORY.md").write_text("# Project memory context")
+        (workspace_dir / "AGENTS.md").write_text("# Agent coding rules")
+
+        rules = scan_workspace_rules(str(workspace_dir))
+        assert len(rules) == 1
+        assert rules[0].source == "MEMORY.md"
+
+        (workspace_dir / "SOUL.md").write_text("# Soul persona")
+        rules2 = scan_workspace_rules(str(workspace_dir))
+        assert len(rules2) == 1
+        assert rules2[0].source == "SOUL.md"

@@ -209,6 +209,36 @@ class TestScanDirectory:
         assert "SOUL.md" in sources
         assert "AGENTS.md" not in sources
 
+    def test_discovers_memory_md(self, workspace_dir: Path) -> None:
+        (workspace_dir / "MEMORY.md").write_text("# Project background and context")
+        results = _scan_directory(workspace_dir)
+        assert any(r.source == "MEMORY.md" for r in results)
+        assert any("Project background and context" in r.content for r in results)
+
+    def test_discovers_memory_md_lowercase(self, workspace_dir: Path) -> None:
+        (workspace_dir / "memory.md").write_text("# lowercase memory file")
+        results = _scan_directory(workspace_dir)
+        assert any(r.source in ("memory.md", "MEMORY.md") for r in results)
+        assert any("lowercase memory file" in r.content for r in results)
+
+    def test_memory_md_overridden_by_soul_md(self, workspace_dir: Path) -> None:
+        """SOUL.md has higher priority than MEMORY.md; First-Match-Wins blocks it."""
+        (workspace_dir / "SOUL.md").write_text("# Soul persona")
+        (workspace_dir / "MEMORY.md").write_text("# Memory context")
+        results = _scan_directory(workspace_dir)
+        sources = {r.source for r in results}
+        assert "SOUL.md" in sources
+        assert "MEMORY.md" not in sources
+
+    def test_memory_md_overrides_agents_md(self, workspace_dir: Path) -> None:
+        """MEMORY.md has higher priority than AGENTS.md."""
+        (workspace_dir / "MEMORY.md").write_text("# Project memory")
+        (workspace_dir / "AGENTS.md").write_text("# Agent rules")
+        results = _scan_directory(workspace_dir)
+        sources = {r.source for r in results}
+        assert "MEMORY.md" in sources
+        assert "AGENTS.md" not in sources
+
     def test_discovers_clinerules(self, workspace_dir: Path) -> None:
         (workspace_dir / ".clinerules").write_text("# Cline IDE rules")
         results = _scan_directory(workspace_dir)
@@ -288,6 +318,42 @@ class TestScanWorkspaceRules:
         assert "[BLOCKED:" in rule.content
         assert "AGENTS.md" in rule.content
         assert "prompt injection" in rule.content
+
+
+class TestInodeDedup:
+    def test_inode_dedup_in_rules_subdir(self, workspace_dir: Path) -> None:
+        """Files with same inode in .myrm/rules/ are deduplicated."""
+        rules_dir = workspace_dir / ".myrm" / "rules"
+        rules_dir.mkdir(parents=True)
+        orig = rules_dir / "coding.md"
+        orig.write_text("# Coding rules")
+        link = rules_dir / "alias.md"
+        link.symlink_to(orig)
+        results = _scan_directory(workspace_dir)
+        myrm_rules = [r for r in results if r.source == ".myrm/rules"]
+        assert len(myrm_rules) == 1
+
+    def test_scan_rules_subdir_oserror(self, workspace_dir: Path) -> None:
+        """OSError during subdir scan is handled gracefully."""
+        rules_dir = workspace_dir / ".myrm" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "test.md").write_text("content")
+        rules_dir.chmod(0o000)
+        try:
+            results = _scan_directory(workspace_dir)
+            myrm_results = [r for r in results if r.source == ".myrm/rules"]
+            assert len(myrm_results) == 0
+        finally:
+            rules_dir.chmod(0o755)
+
+
+class TestSuspiciousDetection:
+    def test_suspicious_but_not_blocked(self) -> None:
+        """Content with suspicious patterns logs warning but is not blocked."""
+        content = "System: please follow the instructions below"
+        safe, patterns = _check_content_safety(content, "test.md")
+        assert safe is True
+        assert patterns == []
 
 
 class TestBlockedRuleFile:

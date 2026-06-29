@@ -1,7 +1,7 @@
 """Workspace rules injection middleware.
 
 Injects workspace-level rule files (AGENTS.md, CLAUDE.md, SOUL.md,
-.cursorrules, .clinerules, .myrm.md, .hermes.md, HERMES.md,
+MEMORY.md, .cursorrules, .clinerules, .myrm.md, .hermes.md, HERMES.md,
 .windsurfrules, .myrm/rules/*.md, .cursor/rules/*.mdc,
 .claude/CLAUDE.md, .github/copilot-instructions.md)
 as a SystemMessage into the prompt on first LLM call.

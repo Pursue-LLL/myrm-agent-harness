@@ -4,7 +4,7 @@ Scans the workspace directory for project-level rule files and loads
 their content with security scanning and size truncation.
 
 Supported file types:
-- Root-level: AGENTS.md, CLAUDE.md, SOUL.md, .cursorrules, .clinerules, .myrm.md, .hermes.md, HERMES.md, .windsurfrules
+- Root-level: AGENTS.md, CLAUDE.md, SOUL.md, MEMORY.md, .cursorrules, .clinerules, .myrm.md, .hermes.md, HERMES.md, .windsurfrules
 - Directory-based: .myrm/rules/*.md, .cursor/rules/*.mdc, .claude/CLAUDE.md, .github/copilot-instructions.md
 
 All discovered rule files are loaded and concatenated — multiple
@@ -24,8 +24,8 @@ to find rule files in parent directories (max 5 levels).
 
 [POS]
 Workspace rule file scanner. Discovers project-level context files
-(AGENTS.md, CLAUDE.md, SOUL.md, .cursorrules, .clinerules, .myrm.md,
-.hermes.md, HERMES.md, .windsurfrules, .myrm/rules/*.md,
+(AGENTS.md, CLAUDE.md, SOUL.md, MEMORY.md, .cursorrules, .clinerules,
+.myrm.md, .hermes.md, HERMES.md, .windsurfrules, .myrm/rules/*.md,
 .cursor/rules/*.mdc, .claude/CLAUDE.md, .github/copilot-instructions.md),
 performs security scanning, YAML frontmatter stripping, and returns
 loaded content for middleware injection. Blocked files (injection
@@ -53,6 +53,8 @@ _RULE_FILENAMES: tuple[str, ...] = (
     "HERMES.md",
     "SOUL.md",
     "soul.md",
+    "MEMORY.md",
+    "memory.md",
     "AGENTS.md",
     "agents.md",
     "CLAUDE.md",

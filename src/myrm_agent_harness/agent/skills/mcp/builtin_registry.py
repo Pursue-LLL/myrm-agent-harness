@@ -169,7 +169,7 @@ def _register_default_tools(registry: BuiltinToolRegistry) -> None:
 
     async def _web_fetch_handler(params: dict[str, object]) -> str:
         from myrm_agent_harness.toolkits.web_fetch import CrawlEngine
-        from myrm_agent_harness.utils.context_format import format_crawl_results
+        from myrm_agent_harness.utils.context_format import format_crawl_results, wrap_with_external_sources_tag
 
         url = str(params.get("url", ""))
         if not url:
@@ -180,7 +180,8 @@ def _register_default_tools(registry: BuiltinToolRegistry) -> None:
         if not success_results:
             return f"Failed to fetch content from {url}"
 
-        return format_crawl_results(success_results=success_results, include_title=True, include_date=False) or ""
+        result = format_crawl_results(success_results=success_results, include_title=True, include_date=False) or ""
+        return wrap_with_external_sources_tag(result, source="ptc_web_fetch") if result else result
 
     registry.register(
         name="web_search",

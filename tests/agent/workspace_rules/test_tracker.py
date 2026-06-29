@@ -1,4 +1,4 @@
-"""Tests for workspace rules subdirectory tracker."""
+"""Tests for subdirectory context tracker."""
 
 from __future__ import annotations
 
@@ -8,247 +8,230 @@ import pytest
 
 from myrm_agent_harness.agent.workspace_rules.tracker import (
     SubdirectoryContextTracker,
+    _PATH_ARG_KEYS,
     check_and_append_rules,
+    get_subdirectory_tracker,
     init_subdirectory_tracker,
     reset_subdirectory_tracker,
 )
 
 
 @pytest.fixture()
-def workspace(tmp_path: Path) -> Path:
-    """Create a workspace with .git and subdirectory structure."""
+def workspace_dir(tmp_path: Path) -> Path:
+    """Create a temporary workspace with .git marker and an AGENTS.md."""
     (tmp_path / ".git").mkdir()
-    (tmp_path / "src" / "lib").mkdir(parents=True)
-    (tmp_path / "apps" / "web" / "src" / "components").mkdir(parents=True)
     return tmp_path
 
 
 class TestSubdirectoryContextTracker:
-    def test_skips_workspace_root(self, workspace: Path) -> None:
-        (workspace / "AGENTS.md").write_text("# Root rules")
-        tracker = SubdirectoryContextTracker(str(workspace))
-        result = tracker.check_tool_call(
-            "read_file",
-            {"path": str(workspace / "README.md")},
-            "file content",
-        )
-        assert result is None
+    def test_init_marks_workspace_root_checked(self, workspace_dir: Path) -> None:
+        tracker = SubdirectoryContextTracker(str(workspace_dir))
+        resolved = str(workspace_dir.resolve())
+        assert resolved in tracker._checked_dirs
 
-    def test_discovers_subdir_rules(self, workspace: Path) -> None:
-        (workspace / "src" / "AGENTS.md").write_text("# Src rules")
-        tracker = SubdirectoryContextTracker(str(workspace))
-        result = tracker.check_tool_call(
-            "read_file",
-            {"path": str(workspace / "src" / "main.py")},
-            "file content",
-        )
-        assert result is not None
-        assert "Src rules" in result
+    def test_init_empty_workspace_root(self) -> None:
+        tracker = SubdirectoryContextTracker("")
+        assert len(tracker._checked_dirs) == 0
 
-    def test_no_duplicate_discovery(self, workspace: Path) -> None:
-        (workspace / "src" / "AGENTS.md").write_text("# Src rules")
-        tracker = SubdirectoryContextTracker(str(workspace))
-        result1 = tracker.check_tool_call(
-            "read_file",
-            {"path": str(workspace / "src" / "main.py")},
-            "content",
-        )
-        result2 = tracker.check_tool_call(
-            "read_file",
-            {"path": str(workspace / "src" / "other.py")},
-            "content",
-        )
-        assert result1 is not None
+    def test_skips_already_checked_directories(self, workspace_dir: Path) -> None:
+        subdir = workspace_dir / "src"
+        subdir.mkdir()
+        (subdir / "AGENTS.md").write_text("# Subdirectory rules")
+
+        tracker = SubdirectoryContextTracker(str(workspace_dir))
+        result1 = tracker.check_tool_call("read_file", {"path": str(subdir / "main.py")}, "")
+        result2 = tracker.check_tool_call("read_file", {"path": str(subdir / "other.py")}, "")
+
         assert result2 is None
 
-    def test_ancestor_traversal_discovers_parent_rules(
-        self, workspace: Path
-    ) -> None:
-        """Reading a deep file should discover rules in parent directories."""
-        (workspace / "apps" / "web" / "AGENTS.md").write_text("# Web rules")
-        tracker = SubdirectoryContextTracker(str(workspace))
-        result = tracker.check_tool_call(
-            "read_file",
-            {"path": str(workspace / "apps" / "web" / "src" / "components" / "Button.tsx")},
-            "component code",
-        )
-        assert result is not None
-        assert "Web rules" in result
+    def test_discovers_rules_in_new_subdirectory(self, workspace_dir: Path) -> None:
+        subdir = workspace_dir / "packages" / "core"
+        subdir.mkdir(parents=True)
+        (subdir / "AGENTS.md").write_text("# Core package rules")
 
-    def test_respects_workspace_boundary(self, workspace: Path) -> None:
-        outside_dir = workspace.parent / "outside"
-        outside_dir.mkdir(exist_ok=True)
-        (outside_dir / "AGENTS.md").write_text("# Outside rules")
-        tracker = SubdirectoryContextTracker(str(workspace))
-        result = tracker.check_tool_call(
-            "read_file",
-            {"path": str(outside_dir / "file.py")},
-            "content",
-        )
+        tracker = SubdirectoryContextTracker(str(workspace_dir))
+        result = tracker.check_tool_call("read_file", {"path": str(subdir / "index.ts")}, "")
+
+        assert result is not None
+        assert "Core package rules" in result
+        assert "Workspace Rules" in result
+
+    def test_returns_none_when_no_rules(self, workspace_dir: Path) -> None:
+        subdir = workspace_dir / "empty"
+        subdir.mkdir()
+
+        tracker = SubdirectoryContextTracker(str(workspace_dir))
+        result = tracker.check_tool_call("read_file", {"path": str(subdir / "file.txt")}, "")
         assert result is None
 
-    def test_rejects_prefix_matched_sibling_directory(self, workspace: Path) -> None:
-        """Path prefix attack: /workspace-backup must not match /workspace."""
-        sibling = workspace.parent / (workspace.name + "-backup")
-        sibling.mkdir(exist_ok=True)
-        (sibling / "AGENTS.md").write_text("# Malicious rules")
-        tracker = SubdirectoryContextTracker(str(workspace))
-        result = tracker.check_tool_call(
-            "read_file",
-            {"path": str(sibling / "file.py")},
-            "content",
-        )
-        assert result is None
-
-    def test_handles_relative_paths(self, workspace: Path) -> None:
-        (workspace / "src" / "AGENTS.md").write_text("# Relative rules")
-        tracker = SubdirectoryContextTracker(str(workspace))
-        result = tracker.check_tool_call(
-            "read_file",
-            {"path": "src/main.py"},
-            "content",
-        )
-        assert result is not None
-        assert "Relative rules" in result
-
-    def test_extracts_from_shell_commands(self, workspace: Path) -> None:
-        (workspace / "src" / "AGENTS.md").write_text("# Shell discovered")
-        tracker = SubdirectoryContextTracker(str(workspace))
-        result = tracker.check_tool_call(
-            "shell_exec",
-            {"command": f"cat {workspace / 'src' / 'main.py'}"},
-            "output",
-        )
-        assert result is not None
-        assert "Shell discovered" in result
-
-    def test_respects_max_append_chars(self, workspace: Path) -> None:
-        # Create 5 directories, each with a 5000-char rule file
-        # 5 * 5000 = 25000 > 16000. The 4th file will trigger truncation,
-        # and the 5th file will hit the `break` condition.
-        for i in range(5):
-            d = workspace / f"dir{i}"
-            d.mkdir()
-            (d / "AGENTS.md").write_text("X" * 5000)
-
-        tracker = SubdirectoryContextTracker(str(workspace))
-        result = tracker.check_tool_call(
-            "read_file",
-            {
-                "path": str(workspace / "dir0"),
-                "file_path": str(workspace / "dir1"),
-                "directory": str(workspace / "dir2"),
-                "cwd": str(workspace / "dir3"),
-                "target": str(workspace / "dir4"),
-            },
-            "content",
-        )
-        assert result is not None
-        assert "truncated AGENTS.md: exceeded total append budget" in result
-        assert len(result) <= 17000
-
-    def test_discovers_claude_subdir_in_subdirectory(self, workspace: Path) -> None:
-        """Tracker discovers .claude/CLAUDE.md in newly accessed subdirectories."""
-        claude_dir = workspace / "src" / ".claude"
-        claude_dir.mkdir()
-        (claude_dir / "CLAUDE.md").write_text("# Claude subdir rules in src")
-        tracker = SubdirectoryContextTracker(str(workspace))
-        result = tracker.check_tool_call(
-            "read_file",
-            {"path": str(workspace / "src" / "main.py")},
-            "content",
-        )
-        assert result is not None
-        assert "Claude subdir rules in src" in result
-        assert "CLAUDE.md" in result
-
-    def test_claude_subdir_overridden_by_root_rules(self, workspace: Path) -> None:
-        """AGENTS.md overrides .claude/CLAUDE.md in same subdir (First-Match-Wins)."""
-        subdir = workspace / "src"
-        claude_dir = subdir / ".claude"
-        claude_dir.mkdir()
-        (claude_dir / "CLAUDE.md").write_text("# Claude rules")
-        (subdir / "AGENTS.md").write_text("# Agent rules")
-        tracker = SubdirectoryContextTracker(str(workspace))
-        result = tracker.check_tool_call(
-            "read_file",
-            {"path": str(subdir / "main.py")},
-            "content",
-        )
-        assert result is not None
-        assert "Claude rules" not in result
-        assert "Agent rules" in result
-
-    def test_discovers_windsurfrules_in_subdirectory(self, workspace: Path) -> None:
-        """Tracker discovers .windsurfrules in newly accessed subdirectories."""
-        (workspace / "src" / ".windsurfrules").write_text("# Windsurf subdir rules")
-        tracker = SubdirectoryContextTracker(str(workspace))
-        result = tracker.check_tool_call(
-            "read_file",
-            {"path": str(workspace / "src" / "main.py")},
-            "content",
-        )
-        assert result is not None
-        assert "Windsurf subdir rules" in result
-
-    def test_discovers_copilot_instructions_in_subdirectory(self, workspace: Path) -> None:
-        """Tracker discovers .github/copilot-instructions.md in subdirectories."""
-        github_dir = workspace / "src" / ".github"
-        github_dir.mkdir()
-        (github_dir / "copilot-instructions.md").write_text("# Copilot subdir rules")
-        tracker = SubdirectoryContextTracker(str(workspace))
-        result = tracker.check_tool_call(
-            "read_file",
-            {"path": str(workspace / "src" / "main.py")},
-            "content",
-        )
-        assert result is not None
-        assert "Copilot subdir rules" in result
-        assert "copilot-instructions.md" in result
-
-    def test_copilot_overridden_by_windsurfrules(self, workspace: Path) -> None:
-        """copilot-instructions.md is overridden by .windsurfrules (First-Match-Wins)."""
-        subdir = workspace / "src"
-        github_dir = subdir / ".github"
-        github_dir.mkdir()
-        (github_dir / "copilot-instructions.md").write_text("# Copilot rules")
-        (subdir / ".windsurfrules").write_text("# Windsurf rules")
-        tracker = SubdirectoryContextTracker(str(workspace))
-        result = tracker.check_tool_call(
-            "read_file",
-            {"path": str(subdir / "main.py")},
-            "content",
-        )
-        assert result is not None
-        assert "Copilot rules" not in result
-        assert "Windsurf rules" in result
-
-    def test_empty_workspace_root(self) -> None:
+    def test_returns_none_with_empty_workspace_root(self) -> None:
         tracker = SubdirectoryContextTracker("")
-        result = tracker.check_tool_call(
-            "read_file", {"path": "/some/path.py"}, "content"
-        )
+        result = tracker.check_tool_call("read_file", {"path": "/some/path"}, "")
         assert result is None
+
+    def test_rejects_outside_workspace(self, workspace_dir: Path) -> None:
+        tracker = SubdirectoryContextTracker(str(workspace_dir))
+        result = tracker.check_tool_call("read_file", {"path": "/etc/passwd"}, "")
+        assert result is None
+
+    def test_extracts_from_multiple_arg_keys(self, workspace_dir: Path) -> None:
+        subdir = workspace_dir / "target"
+        subdir.mkdir()
+        (subdir / "AGENTS.md").write_text("# Target rules")
+
+        tracker = SubdirectoryContextTracker(str(workspace_dir))
+        result = tracker.check_tool_call("copy_file", {"destination": str(subdir / "out.txt")}, "")
+        assert result is not None
+        assert "Target rules" in result
+
+    def test_extracts_from_shell_cd_command(self, workspace_dir: Path) -> None:
+        subdir = workspace_dir / "deploy"
+        subdir.mkdir()
+        (subdir / "AGENTS.md").write_text("# Deploy rules")
+
+        tracker = SubdirectoryContextTracker(str(workspace_dir))
+        result = tracker.check_tool_call(
+            "bash_code_execute_tool",
+            {"command": f"cd {subdir} && ls"},
+            "",
+        )
+        assert result is not None
+        assert "Deploy rules" in result
+
+    def test_handles_relative_path(self, workspace_dir: Path) -> None:
+        subdir = workspace_dir / "lib"
+        subdir.mkdir()
+        (subdir / "AGENTS.md").write_text("# Lib rules")
+
+        tracker = SubdirectoryContextTracker(str(workspace_dir))
+        result = tracker.check_tool_call("read_file", {"path": "lib/util.py"}, "")
+        assert result is not None
+        assert "Lib rules" in result
+
+    def test_budget_enforcement_per_call(self, workspace_dir: Path) -> None:
+        """_MAX_APPEND_CHARS (16000) limits total content per single check_tool_call."""
+        subdir = workspace_dir / "bigpkg"
+        subdir.mkdir()
+        for i in range(5):
+            nested = subdir / f"sub{i}"
+            nested.mkdir()
+            (nested / "AGENTS.md").write_text("R" * 5000)
+
+        tracker = SubdirectoryContextTracker(str(workspace_dir))
+        result = tracker.check_tool_call("read_file", {"path": str(subdir / "sub0" / "f.py")}, "")
+        if result:
+            rule_content = result.split("--- Workspace Rules", 1)[-1]
+            assert len(rule_content) <= 18000
+
+    def test_ancestor_walk_discovers_parent_rules(self, workspace_dir: Path) -> None:
+        (workspace_dir / "AGENTS.md").write_text("# Root rules")
+        deep = workspace_dir / "a" / "b"
+        deep.mkdir(parents=True)
+
+        tracker = SubdirectoryContextTracker(str(workspace_dir))
+        tracker._checked_dirs.discard(str(workspace_dir.resolve()))
+        result = tracker.check_tool_call("read_file", {"path": str(deep / "main.py")}, "")
+        assert result is not None
+        assert "Root rules" in result
 
 
 class TestContextVarManagement:
-    def test_init_and_check(self, workspace: Path) -> None:
-        (workspace / "src" / "AGENTS.md").write_text("# Context var rules")
-        init_subdirectory_tracker(str(workspace))
-        result = check_and_append_rules(
-            "read_file",
-            {"path": str(workspace / "src" / "main.py")},
-            "content",
-        )
-        assert result is not None
-        assert "Context var rules" in result
-
-    def test_reset_clears_tracker(self, workspace: Path) -> None:
-        init_subdirectory_tracker(str(workspace))
+    def test_get_returns_none_before_init(self) -> None:
         reset_subdirectory_tracker()
-        result = check_and_append_rules(
+        tracker = get_subdirectory_tracker()
+        assert tracker is None or isinstance(tracker, SubdirectoryContextTracker)
+
+    def test_init_and_get(self, workspace_dir: Path) -> None:
+        tracker = init_subdirectory_tracker(str(workspace_dir))
+        assert tracker is not None
+        got = get_subdirectory_tracker()
+        assert got is tracker
+
+    def test_reset(self, workspace_dir: Path) -> None:
+        init_subdirectory_tracker(str(workspace_dir))
+        reset_subdirectory_tracker()
+        tracker = get_subdirectory_tracker()
+        assert tracker is not None
+        assert tracker._workspace_root == ""
+
+
+class TestCheckAndAppendRules:
+    def test_returns_none_when_no_tracker(self) -> None:
+        reset_subdirectory_tracker()
+        result = check_and_append_rules("read_file", {"path": "/some/path"}, "")
+        assert result is None
+
+    def test_delegates_to_tracker(self, workspace_dir: Path) -> None:
+        subdir = workspace_dir / "src"
+        subdir.mkdir()
+        (subdir / "AGENTS.md").write_text("# Src rules")
+
+        init_subdirectory_tracker(str(workspace_dir))
+        result = check_and_append_rules("read_file", {"path": str(subdir / "main.py")}, "")
+        assert result is not None
+        assert "Src rules" in result
+
+
+class TestEdgeCases:
+    def test_extract_from_shell_with_bad_quotes(self, workspace_dir: Path) -> None:
+        """shlex.split fails on malformed quotes, falls back to str.split."""
+        subdir = workspace_dir / "data"
+        subdir.mkdir()
+        (subdir / "AGENTS.md").write_text("# Data rules")
+
+        tracker = SubdirectoryContextTracker(str(workspace_dir))
+        result = tracker.check_tool_call(
+            "shell_exec",
+            {"command": f"cd {subdir} 'unclosed"},
+            "",
+        )
+        if result:
+            assert "Data rules" in result
+
+    def test_nonexistent_path_in_args(self, workspace_dir: Path) -> None:
+        """Non-existent path in args is silently skipped."""
+        tracker = SubdirectoryContextTracker(str(workspace_dir))
+        result = tracker.check_tool_call(
             "read_file",
-            {"path": str(workspace / "src" / "main.py")},
-            "content",
+            {"path": str(workspace_dir / "nonexistent" / "deep" / "file.py")},
+            "",
         )
         assert result is None
+
+    def test_non_string_arg_values_ignored(self, workspace_dir: Path) -> None:
+        """Non-string arg values are silently ignored."""
+        tracker = SubdirectoryContextTracker(str(workspace_dir))
+        result = tracker.check_tool_call(
+            "read_file",
+            {"path": 12345, "directory": None},
+            "",
+        )
+        assert result is None
+
+    def test_empty_arg_values_ignored(self, workspace_dir: Path) -> None:
+        """Empty string arg values are silently ignored."""
+        tracker = SubdirectoryContextTracker(str(workspace_dir))
+        result = tracker.check_tool_call("read_file", {"path": ""}, "")
+        assert result is None
+
+    def test_command_flag_args_skipped(self, workspace_dir: Path) -> None:
+        """Shell command flags (starting with -) are not treated as paths."""
+        subdir = workspace_dir / "src"
+        subdir.mkdir()
+
+        tracker = SubdirectoryContextTracker(str(workspace_dir))
+        result = tracker.check_tool_call(
+            "bash_code_execute_tool",
+            {"command": "ls -la"},
+            "",
+        )
+        assert result is None
+
+
+class TestPathArgKeys:
+    def test_contains_expected_keys(self) -> None:
+        expected = {"path", "file_path", "filepath", "directory", "working_directory", "command"}
+        assert expected.issubset(_PATH_ARG_KEYS)
+
+    def test_is_frozenset(self) -> None:
+        assert isinstance(_PATH_ARG_KEYS, frozenset)

@@ -10,6 +10,7 @@ Provides MCP tool fetching capabilities:
 - Supports parallel multi-server tool fetching
 - Auto-truncates excessively long tool descriptions to prevent token waste
 - Content block coercion: ``_coerce_content_block`` ensures only LLM-safe types (text, image) reach the API — ``file``, ``audio``, and unknown blocks are gracefully degraded to text, preventing 400 errors and session history poisoning
+- Content boundary defense: ``_timeout_wrapper`` applies ``wrap_untrusted()`` to MCP tool string outputs, ensuring third-party server data receives the same 5-layer content boundary protection (Unicode folding, structural framing strip, marker sanitization, random boundary, pattern detection) as all built-in tools
 - Upstream fault tolerance: ``_timeout_wrapper`` catches adapter-layer exceptions (NotImplementedError for AudioContent, ValueError for unknown types) from langchain_mcp_adapters, returning readable error messages instead of crashing
 - Extracts MCP structuredContent from artifacts as supplementary text blocks
 - Detects ext-apps ``_meta.ui.resourceUri`` and emits MCP App view events via progress_sink
@@ -22,16 +23,18 @@ Provides MCP tool fetching capabilities:
 - core.security.tool_registry::MCPAnnotations, SafetyMetadata, register_ptc_safety_metadata (POS: Tool metadata and permission mapping)
 - agent.streaming.types::AgentEventType (POS: Framework-agnostic streaming event types)
 - utils.runtime.progress_sink::get_tool_progress_sink (POS: Runtime tool progress event sink)
+- core.security.detection.content_boundary::wrap_untrusted (POS: 5-layer content boundary defense for MCP tool outputs)
 - langchain_mcp_adapters (POS: MCP adapter library)
 
 [OUTPUT]
-- MCPAgent: MCP tool fetching, server mapping, content block coercion (file/audio/unknown→text), multimodal result normalization, upstream fault tolerance, ext-apps metadata emission, and safety annotation registration
+- MCPAgent: MCP tool fetching, server mapping, content block coercion (file/audio/unknown→text), multimodal result normalization, content boundary defense (wrap_untrusted for all string outputs), upstream fault tolerance, ext-apps metadata emission, and safety annotation registration
 
 [POS]
 MCP tool discovery layer (not harness Agent runtime). Orchestrates multi-server tool discovery with parallel fetching,
 server-prefix isolation (mcp__{server}__{tool} naming), per-server tool filtering
 (include/exclude whitelist), description truncation, content block coercion
 (file/audio/unknown types gracefully degraded to text for LLM API safety),
+content boundary defense (wrap_untrusted for all string outputs against prompt injection),
 upstream fault tolerance (catches adapter-layer NotImplementedError/ValueError),
 multimodal result normalization (ImageContent passthrough + structuredContent
 extraction), ext-apps UI metadata detection and SSE event emission, and safety
@@ -291,6 +294,12 @@ class MCPAgent:
                                 "MCP tool '%s' output truncated: %d → %d chars",
                                 _name, original_len, _max_chars,
                             )
+                        if isinstance(normalized, str):
+                            from myrm_agent_harness.core.security.detection.content_boundary import (
+                                wrap_untrusted,
+                            )
+
+                            normalized = wrap_untrusted(normalized, source=f"mcp:{_name}")
                         return normalized
                 except TimeoutError:
                     error_msg = f"MCP tool '{_name}' timed out after {_timeout}s. Server may be slow or unresponsive."

@@ -371,7 +371,8 @@ async def test_wrap_tools_normal_execution():
     agent._wrap_tools_with_timeout([tool], timeout=5.0)
 
     result = await tool.coroutine()
-    assert result == "success"
+    assert "success" in result
+    assert "UNTRUSTED_DATA" in result
 
 
 # ---------------------------------------------------------------------------
@@ -389,7 +390,8 @@ async def test_wrap_tools_output_guard_no_truncation():
     agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=1000)
 
     result = await tool.coroutine()
-    assert result == "short result"
+    assert "short result" in result
+    assert "UNTRUSTED_DATA" in result
 
 
 @pytest.mark.asyncio
@@ -406,10 +408,11 @@ async def test_wrap_tools_output_guard_truncates_large_output():
 
     result = await tool.coroutine()
     assert isinstance(result, str)
-    assert result.startswith("x" * 100)
+    assert "x" * 100 in result
     assert "[Output truncated:" in result
     assert "showing first 100 of 500 chars" in result
     assert "Remaining 400 chars were discarded" in result
+    assert "UNTRUSTED_DATA" in result
 
 
 @pytest.mark.asyncio
@@ -446,7 +449,8 @@ async def test_wrap_tools_output_guard_exact_boundary():
     agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=1000)
 
     result = await tool.coroutine()
-    assert result == exact_text
+    assert exact_text in result
+    assert "UNTRUSTED_DATA" in result
     assert "[Output truncated:" not in result
 
 
@@ -480,9 +484,10 @@ async def test_wrap_tools_output_guard_text_tuple_truncated():
 
     result = await tool.coroutine()
     assert isinstance(result, str)
-    assert result.startswith("z" * 50)
+    assert "z" * 50 in result
     assert "[Output truncated:" in result
     assert "showing first 50 of 300 chars" in result
+    assert "UNTRUSTED_DATA" in result
 
 
 @pytest.mark.asyncio

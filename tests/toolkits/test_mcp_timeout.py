@@ -71,7 +71,8 @@ class TestWrapToolsWithTimeout:
         tool = self._make_tool("fast", fast_fn)
         MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
         result = await tool.coroutine()
-        assert result == "result"
+        assert "result" in result
+        assert "UNTRUSTED_DATA" in result
 
     @pytest.mark.asyncio
     async def test_slow_tool_times_out(self) -> None:
@@ -118,7 +119,8 @@ class TestWrapToolsWithTimeout:
         MCPAgent._wrap_tools_with_timeout([tool_a, tool_b], timeout=0.1)
 
         result_a = await tool_a.coroutine()
-        assert result_a == "a"
+        assert "a" in result_a
+        assert "UNTRUSTED_DATA" in result_a
 
         result_b = await tool_b.coroutine()
         assert "timed out" in result_b

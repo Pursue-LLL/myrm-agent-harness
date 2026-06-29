@@ -3,8 +3,8 @@
 Provides two mechanisms for workspace rule file support:
 
 1. **Startup injection** (middleware.py): Scans workspace root for rule files
-   (AGENTS.md, CLAUDE.md, SOUL.md, .cursorrules, .clinerules, .myrm.md,
-   .hermes.md, HERMES.md, .windsurfrules, .myrm/rules/*.md,
+   (AGENTS.md, CLAUDE.md, SOUL.md, MEMORY.md, .cursorrules, .clinerules,
+   .myrm.md, .hermes.md, HERMES.md, .windsurfrules, .myrm/rules/*.md,
    .cursor/rules/*.mdc, .claude/CLAUDE.md, .github/copilot-instructions.md)
    and injects them as a SystemMessage on the first LLM call. Position:
    after user_instructions, before memory_context — optimized for KV Cache

@@ -293,7 +293,6 @@ include = [
   "*/myrm_agent_harness/agent/streaming/*",
   "*/myrm_agent_harness/agent/context_management/*",
   "*/myrm_agent_harness/agent/event_log/*",
-  "*/myrm_agent_harness/agent/workspace_rules/*",
   "*/myrm_agent_harness/agent/deep_research/*",
   "*/myrm_agent_harness/agent/dynamic_workflow/*",
   "*/myrm_agent_harness/agent/memory_extraction.py",
