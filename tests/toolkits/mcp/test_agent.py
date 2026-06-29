@@ -450,6 +450,59 @@ async def test_wrap_tools_output_guard_exact_boundary():
     assert "[Output truncated:" not in result
 
 
+@pytest.mark.asyncio
+async def test_wrap_tools_output_guard_empty_string():
+    """Empty string output passes through without truncation."""
+    agent = MCPAgent()
+
+    async def empty_output(*_a, **_kw):
+        return ""
+
+    tool = _make_tool(coroutine=empty_output)
+    agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=1000)
+
+    result = await tool.coroutine()
+    assert result == ""
+
+
+@pytest.mark.asyncio
+async def test_wrap_tools_output_guard_text_tuple_truncated():
+    """Text-only tuple result (normalized to str) is truncated when oversized."""
+    agent = MCPAgent()
+    large_text = "z" * 300
+    content_blocks = [{"type": "text", "text": large_text}]
+
+    async def tuple_output(*_a, **_kw):
+        return (content_blocks, None)
+
+    tool = _make_tool(coroutine=tuple_output)
+    agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=50)
+
+    result = await tool.coroutine()
+    assert isinstance(result, str)
+    assert result.startswith("z" * 50)
+    assert "[Output truncated:" in result
+    assert "300 chars total" in result
+
+
+@pytest.mark.asyncio
+async def test_wrap_tools_output_guard_one_char_over():
+    """Output 1 char over the limit should still be truncated."""
+    agent = MCPAgent()
+    text = "a" * 1001
+
+    async def over_by_one(*_a, **_kw):
+        return text
+
+    tool = _make_tool(coroutine=over_by_one)
+    agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=1000)
+
+    result = await tool.coroutine()
+    assert "[Output truncated:" in result
+    assert "1001 chars total" in result
+    assert "showing first 1000" in result
+
+
 # ---------------------------------------------------------------------------
 # _sanitize_tools: coercion wrapper (covers line 150-154)
 # ---------------------------------------------------------------------------

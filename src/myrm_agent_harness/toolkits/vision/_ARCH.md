@@ -22,7 +22,11 @@
 
 ---
 
+## 架构定位
+
+LLM 多模态**理解**层（与 `llms/image/` 生成、`llms/video/` 生成对称）。当前位于 `toolkits/vision/` 顶层包；逻辑归属 `llms/` 媒体栈，未来 refactor 可迁至 `llms/vision/`（无行为变更，仅 import 路径）。
+
 ## 依赖关系
 
-- **内部**：`myrm_agent_harness.agent.config.llm`、`myrm_agent_harness.toolkits.llms.core.llm`、`myrm_agent_harness.utils.media.image_compressor`
-- **被依赖**：`myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool`、`myrm-agent-server/app/core/utils/chat_utils.py`
+- **内部**：`myrm_agent_harness.core.config.llm`、`myrm_agent_harness.toolkits.llms.core.llm`、`myrm_agent_harness.utils.media.image_compressor`
+- **被依赖**：`myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool`、`myrm-agent-server/app/core/utils/chat_utils.py`、`myrm-agent-server/app/channels/media/sticker_vision.py`

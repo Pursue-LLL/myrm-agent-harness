@@ -195,3 +195,31 @@ class TestSanitizeMcpNameComponent:
 
     def test_multi_special_chars_fallback(self) -> None:
         assert sanitize_mcp_name_component("---") == "unnamed"
+
+
+class TestMaxOutputCharsValidation:
+    """Verify max_output_chars Pydantic constraints (ge=1000, le=10_000_000)."""
+
+    def test_default_value(self) -> None:
+        cfg = MCPConfig(name="s", type="stdio", command="echo")
+        assert cfg.max_output_chars == 100_000
+
+    def test_custom_value(self) -> None:
+        cfg = MCPConfig(name="s", type="stdio", command="echo", max_output_chars=5000)
+        assert cfg.max_output_chars == 5000
+
+    def test_minimum_boundary(self) -> None:
+        cfg = MCPConfig(name="s", type="stdio", command="echo", max_output_chars=1000)
+        assert cfg.max_output_chars == 1000
+
+    def test_maximum_boundary(self) -> None:
+        cfg = MCPConfig(name="s", type="stdio", command="echo", max_output_chars=10_000_000)
+        assert cfg.max_output_chars == 10_000_000
+
+    def test_below_minimum_rejected(self) -> None:
+        with pytest.raises(ValueError):
+            MCPConfig(name="s", type="stdio", command="echo", max_output_chars=999)
+
+    def test_above_maximum_rejected(self) -> None:
+        with pytest.raises(ValueError):
+            MCPConfig(name="s", type="stdio", command="echo", max_output_chars=10_000_001)
