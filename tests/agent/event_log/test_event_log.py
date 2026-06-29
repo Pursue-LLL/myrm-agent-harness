@@ -106,6 +106,10 @@ class TestPersistentEventTypes:
         assert "error" in types
         assert "status" in types
 
+    def test_includes_takeover_trace(self) -> None:
+        types = get_persistent_event_types()
+        assert "takeover_trace" in types
+
 
 # ============================================================================
 # _cap_data_size

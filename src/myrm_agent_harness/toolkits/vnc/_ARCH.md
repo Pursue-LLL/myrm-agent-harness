@@ -7,7 +7,7 @@ VNC visual desktop streaming for sandbox environments. Captures the existing Xvf
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | VNC visual desktop streaming — re-exports VncServer, TakeoverCoordinator, TakeoverState, get_environment_hint. | — |
+| __init__.py | Package | VNC visual desktop streaming — re-exports VncServer, TakeoverCoordinator, TakeoverLifecycleHook, TakeoverState, get_environment_hint. | — |
 | server.py | Core | VNC server lifecycle manager — lazy-start x11vnc + websockify on existing Xvfb display. Also provides `get_environment_hint()` for system prompt VNC awareness injection. | ✅ |
 | takeover.py | Core | Takeover coordinator — state machine for human-agent browser control handoff. | ✅ |
 
@@ -23,6 +23,10 @@ TakeoverCoordinator:
   AGENT_ACTIVE ──(user requests)──→ USER_TAKEOVER
        ↑                                  │
        └──(user resumes / timeout)────────┘
+
+  Lifecycle hooks (async, Optional):
+    on_takeover_start(reason) → business layer captures pre-state
+    on_takeover_end(reason)   → business layer captures post-state
 ```
 
 ## Key Design Decisions
@@ -33,3 +37,4 @@ TakeoverCoordinator:
 4. **Random one-time password**: x11vnc uses a fresh password per session, passed securely to the business layer.
 5. **Auto-revert timeout**: Takeover automatically returns control to Agent after 5 minutes (configurable).
 6. **Environment awareness**: `get_environment_hint()` detects VNC availability and Xvfb resolution, returning a prompt string for system prompt injection. Process-level cached for deterministic output (KV-cache safe). Called by `platform.py`'s `environment_prompt_line`.
+7. **Lifecycle hooks**: `on_takeover_start` / `on_takeover_end` are Optional async callbacks. Business layer registers them to capture page snapshots (ARIA tree) before/after human intervention, enabling skill evolution to learn from human demonstrations. Zero cost when unregistered.

@@ -156,7 +156,7 @@ def _build_persistent_types() -> frozenset[str]:
         AgentEventType.ARTIFACT_CONTENT.value,
     }
     return frozenset(e.value for e in AgentEventType if e.value not in exclude) | frozenset(
-        {"user_interruption", "trace_run_digest", "llm_request"}
+        {"user_interruption", "trace_run_digest", "llm_request", "takeover_trace"}
     )
 
 

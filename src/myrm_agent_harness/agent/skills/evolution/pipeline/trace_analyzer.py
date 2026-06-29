@@ -107,13 +107,50 @@ class TraceAnalyzer:
         execution trace AND the actual code that failed, significantly improving
         root cause analysis accuracy.
         """
-        # Get the base trajectory analysis
         trajectory = await self.extract_trajectory(session_id, skill.skill_id, max_token_budget=1500)
 
-        # Append the code context
         code_context = f"\n\n## 技能代码上下文 (Skill Code Context)\n```python\n{skill.content}\n```\n"
 
-        return trajectory + code_context
+        takeover_context = await self._extract_takeover_evidence(session_id)
+
+        return trajectory + code_context + takeover_context
+
+    async def _extract_takeover_evidence(self, session_id: str) -> str:
+        """Extract human takeover traces as supplementary evidence for evolution.
+
+        When a user took over during the same session, their actions provide
+        a concrete demonstration of the correct approach.
+        """
+        if not self._backend:
+            return ""
+
+        takeover_events = await self._backend.get_events(
+            session_id,
+            EventFilter(event_types=frozenset({"takeover_trace"})),
+        )
+
+        if not takeover_events:
+            return ""
+
+        lines = ["\n\n## 人类接管示范 (Human Takeover Evidence)"]
+        for evt in takeover_events[-3:]:
+            reason = evt.data.get("reason", "")
+            pre_url = evt.data.get("pre_url", "")
+            post_url = evt.data.get("post_url", "")
+            duration = evt.data.get("duration_s", 0)
+            post_aria = evt.data.get("post_aria_tree", "")
+
+            lines.append(f"\n### 接管记录 (duration: {duration}s)")
+            if reason:
+                lines.append(f"- 原因: {reason}")
+            if pre_url != post_url:
+                lines.append(f"- 页面变化: {pre_url} → {post_url}")
+            elif pre_url:
+                lines.append(f"- 页面: {pre_url} (URL 未变, DOM 结构变化)")
+            if post_aria:
+                lines.append(f"- 接管后页面状态:\n```\n{post_aria[:800]}\n```")
+
+        return "\n".join(lines)
 
     async def extract_trajectory(self, session_id: str, skill_id: str, max_token_budget: int = 2000) -> str:
         """Extract a formatted string of the execution trace leading to a failure.
