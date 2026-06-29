@@ -19,7 +19,7 @@ from myrm_agent_harness.agent.tool_management.tool_layers import ToolLayer
 from myrm_agent_harness.agent.tool_management.types import ToolSource
 from myrm_agent_harness.core.security.guards.ssrf import (
     SSRFSecurityError,
-    validate_and_resolve_url,
+    async_pin_url,
 )
 from myrm_agent_harness.core.security.guards.url_allowlist import URLAllowlistGuard
 
@@ -39,20 +39,20 @@ class TestNetworkShieldIntegration:
         """Test that DLP blocks unauthorized domains."""
         with mock_getaddrinfo("8.8.8.8"), URLAllowlistGuard.apply(["api.github.com"]):
             # Allowed domain should work
-            safe_url, headers = await validate_and_resolve_url("https://api.github.com/users")
+            safe_url, headers = await async_pin_url("https://api.github.com/users")
             assert safe_url == "https://8.8.8.8/users"
             assert headers == {"Host": "api.github.com"}
 
             # Unauthorized domain should be blocked
             with pytest.raises(SSRFSecurityError, match="Access to evil.com is blocked"):
-                await validate_and_resolve_url("https://evil.com/steal")
+                await async_pin_url("https://evil.com/steal")
 
     @pytest.mark.asyncio
     async def test_ssrf_blocks_internal_ips(self):
         """Test that SSRF blocks internal IPs even with no DLP."""
         with mock_getaddrinfo("192.168.1.100"), URLAllowlistGuard.apply(None):  # No DLP restrictions
             with pytest.raises(SSRFSecurityError, match="Access to internal network is blocked"):
-                await validate_and_resolve_url("http://192.168.1.100/admin")
+                await async_pin_url("http://192.168.1.100/admin")
 
     @pytest.mark.asyncio
     async def test_ssrf_blocks_dns_rebinding(self):
@@ -60,7 +60,7 @@ class TestNetworkShieldIntegration:
         with mock_getaddrinfo("127.0.0.1"), URLAllowlistGuard.apply(["evil-domain.com"]):
             # Even if the domain is in the allowlist, if it resolves to internal IP, it should be blocked
             with pytest.raises(SSRFSecurityError, match="Access to internal network is blocked"):
-                await validate_and_resolve_url("http://evil-domain.com/flushall")
+                await async_pin_url("http://evil-domain.com/flushall")
 
     @pytest.mark.asyncio
     async def test_tool_registry_with_allowed_domains(self):

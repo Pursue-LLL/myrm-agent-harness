@@ -11,7 +11,6 @@ from myrm_agent_harness.core.security.guards.ssrf import (
     SSRFSecurityError,
     async_pin_url,
     is_internal_ip,
-    validate_and_resolve_url,
 )
 from myrm_agent_harness.core.security.guards.url_allowlist import URLAllowlistGuard
 
@@ -50,7 +49,7 @@ class TestSSRFShield:
     @pytest.mark.asyncio
     async def test_validate_external_url(self):
         with mock_getaddrinfo("8.8.8.8") as mock_loop_patch:
-            safe_url, headers = await validate_and_resolve_url("https://google.com/search?q=test")
+            safe_url, headers = await async_pin_url("https://google.com/search?q=test")
 
             assert safe_url == "https://8.8.8.8/search?q=test"
             assert headers == {"Host": "google.com"}
@@ -60,7 +59,7 @@ class TestSSRFShield:
     @pytest.mark.asyncio
     async def test_validate_external_url_with_port(self):
         with mock_getaddrinfo("8.8.8.8"):
-            safe_url, headers = await validate_and_resolve_url("http://example.com:8080/api")
+            safe_url, headers = await async_pin_url("http://example.com:8080/api")
 
             assert safe_url == "http://8.8.8.8:8080/api"
             assert headers == {"Host": "example.com"}
@@ -69,13 +68,23 @@ class TestSSRFShield:
     async def test_blocks_internal_ip(self):
         with mock_getaddrinfo("192.168.1.100"):
             with pytest.raises(SSRFSecurityError, match="Access to internal network is blocked"):
-                await validate_and_resolve_url("http://192.168.1.100/admin")
+                await async_pin_url("http://192.168.1.100/admin")
+
+    @pytest.mark.asyncio
+    async def test_blocks_internal_ip_records_audit(self):
+        with mock_getaddrinfo("192.168.1.100"):
+            with patch("myrm_agent_harness.core.security.guards.ssrf.record_decision") as mock_audit:
+                with pytest.raises(SSRFSecurityError):
+                    await async_pin_url("http://192.168.1.100/admin")
+
+        mock_audit.assert_called_once()
+        assert mock_audit.call_args.args[1] == "SSRF_BLOCKED"
 
     @pytest.mark.asyncio
     async def test_blocks_dns_rebinding(self):
         with mock_getaddrinfo("127.0.0.1"):
             with pytest.raises(SSRFSecurityError, match="Access to internal network is blocked"):
-                await validate_and_resolve_url("http://evil-domain.com/flushall")
+                await async_pin_url("http://evil-domain.com/flushall")
 
     @pytest.mark.asyncio
     async def test_allows_whitelisted_hosts(self):
@@ -92,7 +101,7 @@ class TestSSRFShield:
     @pytest.mark.asyncio
     async def test_allows_whitelisted_ips(self):
         with mock_getaddrinfo("10.0.0.5"):
-            safe_url, headers = await validate_and_resolve_url(
+            safe_url, headers = await async_pin_url(
                 "http://10.0.0.5:9000/data", allowed_internal_hosts=["10.0.0.5"]
             )
 
@@ -106,23 +115,31 @@ class TestURLAllowlistGuard:
     @pytest.mark.asyncio
     async def test_allowlist_guard_allows_matching_domain(self):
         with mock_getaddrinfo("8.8.8.8"), URLAllowlistGuard.apply(["api.github.com"]):
-            safe_url, _headers = await validate_and_resolve_url("https://api.github.com/users")
+            safe_url, _headers = await async_pin_url("https://api.github.com/users")
             assert safe_url == "https://8.8.8.8/users"
 
     @pytest.mark.asyncio
     async def test_allowlist_guard_blocks_unauthorized_domain(self):
         with mock_getaddrinfo("8.8.8.8"), URLAllowlistGuard.apply(["api.github.com"]):
             with pytest.raises(SSRFSecurityError, match="Access to evil.com is blocked"):
-                await validate_and_resolve_url("https://evil.com/log")
+                await async_pin_url("https://evil.com/log")
+
+    def test_check_url_blocks_dlp_violation(self):
+        with URLAllowlistGuard.apply(["api.github.com"]):
+            from myrm_agent_harness.core.security.guards.ssrf import check_url
+
+            verdict = check_url("https://evil.com/log")
+            assert verdict.allowed is False
+            assert "evil.com" in verdict.reason
 
     @pytest.mark.asyncio
     async def test_allowlist_guard_allows_subdomains(self):
         with mock_getaddrinfo("8.8.8.8"), URLAllowlistGuard.apply(["github.com"]):
-            safe_url, _headers = await validate_and_resolve_url("https://api.github.com/users")
+            safe_url, _headers = await async_pin_url("https://api.github.com/users")
             assert safe_url == "https://8.8.8.8/users"
 
     @pytest.mark.asyncio
     async def test_allowlist_guard_allows_all_when_none(self):
         with mock_getaddrinfo("8.8.8.8"), URLAllowlistGuard.apply(None):
-            safe_url, _headers = await validate_and_resolve_url("https://random.com/users")
+            safe_url, _headers = await async_pin_url("https://random.com/users")
             assert safe_url == "https://8.8.8.8/users"

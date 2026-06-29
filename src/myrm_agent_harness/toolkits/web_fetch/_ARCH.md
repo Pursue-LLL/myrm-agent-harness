@@ -11,11 +11,11 @@ Layered web crawl engine with L1 HTTP / L2 Browser / L3 Stealth fallback, adapti
 | engine.py | Core | CrawlEngine — tiered fetcher pool with AdaptiveRouter, caching, and concurrent crawl_many. | ✅ |
 | pipeline.py | Core | ContentPipeline — HTML to clean Markdown conversion. | ✅ |
 | web_fetch_agent_tools.py | Core | LangChain @tool factory. Routes fetch_full_content / fetch_and_extract / deep_crawl / check_crawl_status / cancel_crawl. | ✅ |
-| deep_crawl.py | Core | DeepCrawlPipeline — recursive site crawl via sitemap/link discovery, robots.txt compliance. | ✅ |
+| deep_crawl.py | Core | DeepCrawlPipeline — recursive site crawl via sitemap/link discovery, robots.txt compliance; sitemap fetch via `secure_get`. | ✅ |
 | task_store.py | Core | CrawlTaskStore — SQLite WAL durable task queue for async crawl groups. | ✅ |
 | task_executor.py | Core | CrawlTaskExecutor — background asyncio worker pool consuming tasks from store. | ✅ |
 | rate_limiter.py | Core | DomainRateLimiter — per-domain request interval + concurrency control. | ✅ |
-| robots_parser.py | Core | RobotsParser — fetches and parses robots.txt for Allow/Disallow/Crawl-Delay/Sitemap. | ✅ |
+| robots_parser.py | Core | RobotsParser — fetches and parses robots.txt via `secure_get` for Allow/Disallow/Crawl-Delay/Sitemap. | ✅ |
 | url_normalizer.py | Util | URL normalization for de-duplication. | ✅ |
 | html_to_markdown.py | Util | HTML to Markdown conversion utilities. | ✅ |
 | markdown_generator.py | Util | Markdown document generation helpers. | ✅ |

@@ -164,6 +164,7 @@ class AsyncTTSEngine:
                 "model": self.config.model,
                 "input": text,
                 "voice": self.config.voice,
+                "speed": self.config.speed,
             }
         elif provider == "elevenlabs":
             payload = {

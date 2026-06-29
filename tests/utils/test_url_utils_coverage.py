@@ -109,17 +109,16 @@ class TestIsFileUrl:
 
 
 class TestSSRFResult:
-    def test_unpacking(self):
+    def test_safe_result_fields(self):
         result = SSRFResult(safe=True, hostname="example.com")
-        ok, err = result
-        assert ok is True
-        assert err == ""
+        assert result.safe is True
+        assert result.error == ""
+        assert result.hostname == "example.com"
 
     def test_unsafe_result(self):
         result = SSRFResult(safe=False, error="blocked")
-        ok, err = result
-        assert ok is False
-        assert err == "blocked"
+        assert result.safe is False
+        assert result.error == "blocked"
 
 
 class TestCheckIpBlocked:

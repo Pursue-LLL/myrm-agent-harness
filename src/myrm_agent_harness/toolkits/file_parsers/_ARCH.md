@@ -10,7 +10,7 @@ File parsers toolkit entry point. Aggregates all file format parsers and provide
 | __init__.py | Package | File parsers toolkit entry point. Aggregates all file format parsers and provides | ✅ |
 | base.py | Core | File parser base classes and data structures | ✅ |
 | docx.py | Core | Word document parser (headings, lists, tables with merged-cell dedup, document order) | ✅ |
-| excel.py | Core | Excel file parser | ✅ |
+| excel.py | Core | Excel file parser. Supports markdown/text (content), structure (JSON metadata for token-efficient overview), audit (formula error detection). Dynamic data_only based on mode. | ✅ |
 | image_filter.py | Core | Smart image ablation filter. Intercepts UI noise, decorative lines, tiny logos, | ✅ |
 | ocr.py | Core | OCR parser for images using PaddleOCR. Supports CJK languages natively. | ✅ |
 | pdf.py | Core | PDF parser based on pdfplumber. Implements text layout preservation, Markdown table | ✅ |

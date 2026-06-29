@@ -4,13 +4,14 @@
 - myrm_agent_harness.utils.url_utils::is_blocked_ip (POS: shared IP blocklist)
 - myrm_agent_harness.utils.url_utils::validate_scheme_and_hostname (POS: scheme/hostname validation)
 - myrm_agent_harness.core.security.guards.url_allowlist::URLAllowlistGuard (POS: skill DLP domain allowlist)
+- myrm_agent_harness.core.security.audit::record_decision (POS: security decision audit trail)
 
 [OUTPUT]
 - SSRFResult / SSRFVerdict: validation outcomes
 - SSRFSecurityError: raised on blocked URLs (re-exported from url_allowlist)
 - check_url / resolve_and_check: sync validation
 - validate_url_for_ssrf / async_validate_url_for_ssrf: full validation with DNS
-- async_pin_url / validate_and_resolve_url: DNS-pinned URL for HTTP clients
+- async_pin_url: DNS-pinned URL for HTTP clients; blocks emit SSRF_BLOCKED audit entries
 
 [POS]
 Single orchestration layer for outbound URL SSRF checks across toolkits and agent meta-tools.
@@ -26,6 +27,7 @@ import socket
 from dataclasses import dataclass
 from urllib.parse import urlparse, urlunparse
 
+from myrm_agent_harness.core.security.audit import record_decision
 from myrm_agent_harness.core.security.guards.url_allowlist import SSRFSecurityError, URLAllowlistGuard
 from myrm_agent_harness.utils.url_utils import is_blocked_ip, validate_scheme_and_hostname
 
@@ -41,7 +43,6 @@ __all__ = [
     "check_url",
     "is_internal_ip",
     "resolve_and_check",
-    "validate_and_resolve_url",
     "validate_url_for_ssrf",
 ]
 
@@ -54,10 +55,6 @@ class SSRFResult:
     error: str = ""
     hostname: str = ""
     resolved_ips: tuple[str, ...] = ()
-
-    def __iter__(self):
-        yield self.safe
-        yield self.error
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,6 +229,7 @@ async def async_pin_url(
     result = await _resolve_and_check_async(hostname)
     if not result.safe:
         logger.warning("SSRF blocked request: %s — %s", url, result.error)
+        record_decision("ssrf", "SSRF_BLOCKED", f"{url}: {result.error}")
         raise SSRFSecurityError(
             "Access to internal network is blocked for security reasons. "
             f"{result.error}"
@@ -244,6 +242,3 @@ async def async_pin_url(
     netloc = f"{ip_address}:{parsed.port}" if parsed.port else ip_address
     safe_url = urlunparse(parsed._replace(netloc=netloc))
     return safe_url, {"Host": hostname}
-
-
-validate_and_resolve_url = async_pin_url

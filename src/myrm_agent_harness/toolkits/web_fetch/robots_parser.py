@@ -4,7 +4,7 @@ Fetches and parses robots.txt to filter disallowed paths and
 extract Crawl-Delay directives for rate limiting.
 
 [INPUT]
-- (none)
+- myrm_agent_harness.core.security.http.secure_fetch::secure_get (POS: SSRF-protected outbound HTTP)
 
 [OUTPUT]
 - RobotsParser: Async robots.txt fetcher and path filter
@@ -19,6 +19,8 @@ from __future__ import annotations
 import logging
 import re
 from urllib.parse import urljoin, urlparse
+
+from myrm_agent_harness.core.security.http.secure_fetch import secure_get
 
 logger = logging.getLogger(__name__)
 
@@ -105,14 +107,11 @@ class RobotsParser:
     async def _fetch_robots(self, robots_url: str) -> RobotsRules:
         """Fetch robots.txt content and parse it."""
         try:
-            import httpx
-
-            async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-                resp = await client.get(robots_url)
-                if resp.status_code != 200:
-                    logger.info("robots.txt not found (HTTP %d): %s", resp.status_code, robots_url)
-                    return RobotsRules([], [], None, [])
-                return self._parse_content(resp.text)
+            response = await secure_get(robots_url, timeout=10.0)
+            if response.status_code != 200:
+                logger.info("robots.txt not found (HTTP %d): %s", response.status_code, robots_url)
+                return RobotsRules([], [], None, [])
+            return self._parse_content(response.text)
         except Exception as e:
             logger.warning("Failed to fetch robots.txt: %s — %s", robots_url, e)
             return RobotsRules([], [], None, [])

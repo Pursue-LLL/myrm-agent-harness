@@ -515,9 +515,9 @@ class CrawlEngine:
         if not self._allow_private_networks:
             from myrm_agent_harness.core.security.guards.ssrf import validate_url_for_ssrf
 
-            is_safe, error = validate_url_for_ssrf(url)
-            if not is_safe:
-                logger.warning(f"URL blocked (SSRF): {url} — {error}")
+            result = validate_url_for_ssrf(url)
+            if not result.safe:
+                logger.warning(f"URL blocked (SSRF): {url} — {result.error}")
                 return None
 
         if self._domain_allowlist:

@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 DOCUMENT_EXTENSIONS: frozenset[str] = frozenset({".docx", ".xlsx", ".xls", ".pptx", ".ppt", ".ipynb"})
 
 _FALLBACK_MAX_CHARS = 200_000
+_EXCEL_STRUCTURE_THRESHOLD_BYTES = 50 * 1024
 
 
 def is_document_path(path: str) -> bool:
@@ -57,11 +58,23 @@ async def _write_to_temp(raw_bytes: bytes, suffix: str) -> str:
     return await asyncio.to_thread(_write)
 
 
-async def read_document_as_text(path: str, executor: CodeExecutor) -> str:
+async def read_document_as_text(
+    path: str,
+    executor: CodeExecutor,
+    *,
+    excel_mode: str | None = None,
+) -> str:
     """Read a structured document and return parsed Markdown text.
 
     Uses DocxParser for .docx, ExcelParser for .xlsx/.xls, PptxParser for .pptx/.ppt,
     IpynbParser for .ipynb. Falls back to a descriptive error message on failure.
+
+    Args:
+        path: File path within the sandbox.
+        executor: Code executor for sandbox file access.
+        excel_mode: Optional override for Excel output format
+            ("content", "structure", "audit"). When None, large Excel files
+            (>50KB) automatically use "structure" to prevent token explosion.
     """
     suffix = PurePosixPath(path).suffix.lower()
 
@@ -88,7 +101,14 @@ async def read_document_as_text(path: str, executor: CodeExecutor) -> str:
         elif suffix in (".xlsx", ".xls"):
             from myrm_agent_harness.toolkits.file_parsers.excel import ExcelParser
 
-            parser = ExcelParser()
+            effective_mode = excel_mode
+            if effective_mode is None and len(raw_bytes) > _EXCEL_STRUCTURE_THRESHOLD_BYTES:
+                effective_mode = "structure"
+
+            if effective_mode in ("structure", "audit"):
+                parser = ExcelParser(output_format=effective_mode)
+            else:
+                parser = ExcelParser()
         elif suffix in (".pptx", ".ppt"):
             from myrm_agent_harness.toolkits.file_parsers.pptx import PptxParser
 

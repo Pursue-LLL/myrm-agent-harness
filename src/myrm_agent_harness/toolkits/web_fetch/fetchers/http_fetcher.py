@@ -19,11 +19,11 @@ from __future__ import annotations
 import asyncio
 import http.cookiejar
 import logging
-import os
 from typing import TYPE_CHECKING
 from urllib.parse import urljoin, urlparse
 
 from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError, async_pin_url
+from myrm_agent_harness.core.security.http.secure_fetch import is_ssrf_shield_enabled, parse_allowed_internal_hosts
 from myrm_agent_harness.toolkits.web_fetch.antibot_detector import is_blocked as detect_antibot
 from myrm_agent_harness.toolkits.web_fetch.http3_probe import (
     is_quic_egress_available,
@@ -63,9 +63,8 @@ class HttpFetcher:
         self._session_vault = session_vault
 
     async def fetch(self, url: str, *, etag: str | None = None, last_modified: str | None = None) -> FetchResult | None:
-        enable_ssrf_shield = os.getenv("MYRM_ENABLE_SSRF_SHIELD", "true").lower() in ("true", "1", "yes")
-        allowed_hosts_str = os.getenv("MYRM_ALLOWED_INTERNAL_HOSTS", "")
-        allowed_hosts = [h.strip() for h in allowed_hosts_str.split(",") if h.strip()]
+        enable_ssrf_shield = is_ssrf_shield_enabled()
+        allowed_hosts = parse_allowed_internal_hosts()
 
         headers: dict[str, str] = {}
         if etag:

@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import base64
 import logging
-import os
 import time
 import uuid
 from collections.abc import AsyncIterator
@@ -24,7 +23,12 @@ from myrm_agent_harness.agent.meta_tools.http.retry_policy import (
     extract_retry_after,
     is_retryable_error,
 )
-from myrm_agent_harness.core.security.http.secure_fetch import resolve_secure_http_target, secure_request
+from myrm_agent_harness.core.security.http.secure_fetch import (
+    is_ssrf_shield_enabled,
+    parse_allowed_internal_hosts,
+    resolve_secure_http_target,
+    secure_request,
+)
 from myrm_agent_harness.utils.progress_sink import get_tool_progress_sink
 
 logger = logging.getLogger(__name__)
@@ -67,9 +71,8 @@ async def http_request(
     if method not in ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]:
         raise ValueError(f"Unsupported HTTP method: {method}")
 
-    enable_ssrf_shield = os.getenv("MYRM_ENABLE_SSRF_SHIELD", "true").lower() in ("true", "1", "yes")
-    allowed_hosts_str = os.getenv("MYRM_ALLOWED_INTERNAL_HOSTS", "")
-    allowed_hosts = [h.strip() for h in allowed_hosts_str.split(",") if h.strip()]
+    enable_ssrf_shield = is_ssrf_shield_enabled()
+    allowed_hosts = parse_allowed_internal_hosts()
 
     headers = headers or {}
     if "X-Trace-ID" not in headers and "x-trace-id" not in headers:

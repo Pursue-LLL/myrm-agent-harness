@@ -196,7 +196,7 @@ class SSRFResult:
 
 提供同步 (`validate_url_for_ssrf`) 和异步 (`async_validate_url_for_ssrf`) 两个版本。
 
-**出站 HTTP 执行层**：`core/security/http/secure_fetch.py` 提供 `secure_get` / `secure_request` / `resolve_secure_http_target`，在所有出站 HTTP 路径上强制执行 DNS pinning 与逐跳 redirect 复检。MediaResolver、ZipInstaller、OpenAPI Bridge、http_client 及 server 媒体下载均通过此模块发起请求。
+**出站 HTTP 执行层**：`core/security/http/secure_fetch.py` 提供 `secure_get` / `secure_request` / `resolve_secure_http_target`，在所有出站 HTTP 路径上强制执行 DNS pinning 与逐跳 redirect 复检。MediaResolver、ZipInstaller、OpenAPI Bridge、http_client、web_fetch deep_crawl（robots/sitemap）、server 媒体下载均通过此模块发起请求。`async_pin_url` 阻断时写入 `SSRF_BLOCKED` 审计条目。
 
 ### 3.2 命令/模块黑名单
 

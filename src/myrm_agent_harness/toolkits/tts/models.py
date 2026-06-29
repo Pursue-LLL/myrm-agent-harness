@@ -52,6 +52,8 @@ class TTSConfig(BaseModel):
     provider: str = Field(default="openai", description="TTS provider (openai, elevenlabs)")
     model: str = Field(default="tts-1", description="TTS model identifier")
     voice: str = Field(default="alloy", description="Voice identifier")
+    speed: float = Field(default=1.0, ge=0.25, le=4.0, description="Speech speed multiplier (provider-dependent)")
+    pitch: float = Field(default=0.0, ge=-20.0, le=20.0, description="Pitch adjustment in Hz (provider-dependent)")
     api_key: SecretStr | None = Field(default=None, description="API key (protected from logging)")
     base_url: str | None = Field(default=None, description="Custom API base URL")
     timeout_seconds: int = Field(default=60, description="Request timeout in seconds")

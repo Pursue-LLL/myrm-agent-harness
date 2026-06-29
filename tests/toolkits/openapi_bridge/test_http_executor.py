@@ -242,10 +242,11 @@ class TestExecuteRequest:
             request=httpx.Request("POST", "https://api.example.com/users/123/posts"),
         )
 
-        with patch.object(executor, "_get_client") as mock_get_client:
-            mock_client = AsyncMock()
-            mock_client.request.return_value = mock_response
-            mock_get_client.return_value = mock_client
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request",
+            new_callable=AsyncMock,
+        ) as mock_secure_request:
+            mock_secure_request.return_value = mock_response
 
             await executor.execute(
                 method="POST",
@@ -254,9 +255,10 @@ class TestExecuteRequest:
                 body={"title": "Hello"},
             )
 
-        call_kwargs = mock_client.request.call_args[1]
-        assert call_kwargs["url"] == "https://api.example.com/users/123/posts"
-        assert call_kwargs["json"] == {"title": "Hello"}
+        call_args = mock_secure_request.call_args
+        assert call_args is not None
+        assert call_args.args[2] == "https://api.example.com/users/123/posts"
+        assert call_args.kwargs["json"] == {"title": "Hello"}
 
     @pytest.mark.asyncio
     async def test_close(self):

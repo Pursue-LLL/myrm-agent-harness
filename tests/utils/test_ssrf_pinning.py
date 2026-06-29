@@ -43,18 +43,6 @@ class TestSSRFResult:
         assert r.error == "blocked"
         assert r.resolved_ips == ()
 
-    def test_backward_compatible_unpacking(self) -> None:
-        r = SSRFResult(safe=True, hostname="ok.com", resolved_ips=("5.6.7.8",))
-        ok, err = r
-        assert ok is True
-        assert err == ""
-
-    def test_backward_compatible_unpacking_unsafe(self) -> None:
-        r = SSRFResult(safe=False, error="bad ip")
-        ok, err = r
-        assert ok is False
-        assert err == "bad ip"
-
     def test_frozen(self) -> None:
         r = SSRFResult(safe=True, hostname="x.com", resolved_ips=("1.1.1.1",))
         with pytest.raises(AttributeError):
@@ -231,12 +219,6 @@ class TestValidateUrlForSSRF:
             result = validate_url_for_ssrf("https://nonexistent.invalid")
         assert result.safe is False
         assert "DNS" in result.error
-
-    def test_backward_compat_tuple_unpack(self) -> None:
-        with patch("socket.getaddrinfo", return_value=_FAKE_ADDRS):
-            is_safe, error = validate_url_for_ssrf("https://example.com")
-        assert is_safe is True
-        assert error == ""
 
     def test_ip_literal_safe(self) -> None:
         result = validate_url_for_ssrf("http://8.8.8.8/dns")

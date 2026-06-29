@@ -116,6 +116,17 @@ class FileReadInput(BaseModel):
 
     chunk_size_mb: int = Field(default=10, description="streaming模式下的块大小（MB），默认10MB")
 
+    excel_mode: str | None = Field(
+        default=None,
+        description=(
+            "Excel 文件专用读取模式（仅对 .xlsx/.xls 生效）：\n"
+            "- None（默认）：小文件完整输出 Markdown 表格；大文件(>50KB)自动输出结构概览\n"
+            "- 'content'：强制输出完整 Markdown 表格内容\n"
+            "- 'structure'：仅输出 JSON 结构元数据（sheet名/行列数/列头/公式分布）\n"
+            "- 'audit'：输出 JSON 公式错误审计报告"
+        ),
+    )
+
     reason: str | None = Field(default=None, description="执行命令的原因（可选，用于日志）")
 
     preserve_in_context: bool = Field(
@@ -160,6 +171,7 @@ async def _build_multimodal_result(
     supports_vision: bool,
     vision_fallback_model_cfg: object | None = None,
     video_paths: list[str] | None = None,
+    excel_mode: str | None = None,
 ) -> list[ContentBlock]:
     """Build multimodal result: images/PDFs as content blocks, documents/text as text blocks"""
     blocks: list[ContentBlock] = []
@@ -202,7 +214,7 @@ async def _build_multimodal_result(
             blocks.append(create_text_block(result))
 
     for doc_path in document_paths:
-        result = await read_document_as_text(doc_path, executor)
+        result = await read_document_as_text(doc_path, executor, excel_mode=excel_mode)
         blocks.append(create_text_block(result))
 
     for vid_path in video_paths or []:
@@ -283,6 +295,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
         paths: list[str],
         mode: str = "all",
         chunk_size_mb: int = 10,
+        excel_mode: str | None = None,
         reason: str | None = None,
         preserve_in_context: bool = False,
         *,
@@ -342,6 +355,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
                     supports_vision=supports_vision,
                     vision_fallback_model_cfg=vision_fallback_model_cfg,
                     video_paths=video_paths,
+                    excel_mode=excel_mode,
                 )
                 if preserve_in_context:
                     blocks.insert(0, create_text_block("<preserve_context>\n"))
@@ -388,7 +402,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
 
             for doc_path in document_paths:
                 if executor is not None:
-                    doc_result = await read_document_as_text(doc_path, executor)
+                    doc_result = await read_document_as_text(doc_path, executor, excel_mode=excel_mode)
                     text_parts.append(doc_result)
                 else:
                     text_parts.append(f"[Document: {doc_path}] (No workspace filesystem available)")

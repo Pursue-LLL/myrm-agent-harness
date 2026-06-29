@@ -10,6 +10,7 @@ for async background execution.
 - web_fetch.rate_limiter::DomainRateLimiter (POS: Rate limiting)
 - web_fetch.task_executor::CrawlTaskExecutor (POS: Background execution)
 - web_fetch.engine::CrawlEngine (POS: Core crawl engine)
+- myrm_agent_harness.core.security.http.secure_fetch::secure_get (POS: SSRF-protected outbound HTTP)
 
 [OUTPUT]
 - DeepCrawlPipeline: Orchestrates full deep_crawl lifecycle
@@ -26,6 +27,8 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urljoin, urlparse
+
+from myrm_agent_harness.core.security.http.secure_fetch import secure_get
 
 if TYPE_CHECKING:
     from .engine import CrawlEngine
@@ -168,22 +171,19 @@ class DeepCrawlPipeline:
     ) -> list[str]:
         """Parse sitemap.xml and extract valid URLs."""
         try:
-            import httpx
+            response = await secure_get(sitemap_url, timeout=15.0)
+            if response.status_code != 200:
+                return []
 
-            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
-                resp = await client.get(sitemap_url)
-                if resp.status_code != 200:
-                    return []
+            urls: list[str] = []
+            for match in _SITEMAP_URL_RE.finditer(response.text):
+                url = match.group(1).strip()
+                if self._is_valid_crawl_url(url, base_origin, rules):
+                    urls.append(url)
+                    if len(urls) >= limit:
+                        break
 
-                urls: list[str] = []
-                for match in _SITEMAP_URL_RE.finditer(resp.text):
-                    url = match.group(1).strip()
-                    if self._is_valid_crawl_url(url, base_origin, rules):
-                        urls.append(url)
-                        if len(urls) >= limit:
-                            break
-
-                return urls
+            return urls
         except Exception as e:
             logger.warning("Failed to parse sitemap: %s — %s", sitemap_url, e)
             return []
