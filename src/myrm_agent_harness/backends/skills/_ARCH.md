@@ -11,7 +11,7 @@ Skill backend implementations — read/write/discovery protocols, local/memory/s
 | _runtime.py | Internal | Builds runtime SkillMetadata from frontmatter plus computed fields. | ✅ |
 | _utils.py | Internal | SKILL.md frontmatter parsing and shared parsing utilities. | ✅ |
 | composite.py | Core | Routes skill requests across multiple backends with prefix-based fallback. | ✅ |
-| config_version.py | Core | In-process skill config version counter for hot-reload polling (re-exported by server). | ✅ |
+| config_version.py | Core | MYRM_DATA_DIR file-backed skill config version for hot-reload polling (re-exported by server). | ✅ |
 | creation_protocols.py | Core | SkillWriteBackend protocol and save/delete/write result types. | ✅ |
 | credential_checker.py | Core | Optional DX helper for detecting missing skill credentials. | ✅ |
 | credential_validator.py | Core | Validates skill credential files without full file_ops validators. | ✅ |
@@ -45,4 +45,5 @@ Skill backend implementations — read/write/discovery protocols, local/memory/s
 
 - `toolkits` (storage, shared exceptions)
 - `utils` (crypto, db, coercion)
-- `agent` (types.py, memory.py, scanning_write_backend.py import agent modules)
+- `infra` (atomic_write for config_version persistence)
+- `core` (hooks types for SkillMetadata hook fields)

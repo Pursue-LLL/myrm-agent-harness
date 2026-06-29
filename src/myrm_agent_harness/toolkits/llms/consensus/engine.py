@@ -173,10 +173,34 @@ class ConsensusEngine:
             yield ConsensusStreamEvent(kind="done", result=self._cancelled_result(t0))
             return
 
-        ref_responses = await self._query_references(query, system_prompt, cancel_token)
-
-        for ref in ref_responses:
-            yield ConsensusStreamEvent(kind="ref_done", ref=ref)
+        # Progressive yield: emit ref_done as each model completes (not all-at-once).
+        ref_responses: list[ReferenceResponse] = []
+        if not (cancel_token and cancel_token.is_cancelled):
+            tasks = [
+                asyncio.ensure_future(self._query_single(llm, query, system_prompt))
+                for llm in self._refs
+            ]
+            try:
+                for coro in asyncio.as_completed(tasks, timeout=cfg.timeout_total):
+                    ref = await coro
+                    ref_responses.append(ref)
+                    yield ConsensusStreamEvent(kind="ref_done", ref=ref)
+                    if cancel_token and cancel_token.is_cancelled:
+                        break
+            except TimeoutError:
+                logger.warning("Consensus global timeout (%.0fs)", cfg.timeout_total)
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                        ref_responses.append(
+                            ReferenceResponse(
+                                model="unknown",
+                                content="",
+                                elapsed_seconds=cfg.timeout_total,
+                                success=False,
+                                error="global timeout",
+                            )
+                        )
 
         if cancel_token and cancel_token.is_cancelled:
             yield ConsensusStreamEvent(kind="done", result=self._cancelled_result(t0, ref_responses))

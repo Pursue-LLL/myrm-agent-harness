@@ -1,9 +1,9 @@
 """Scanning skill write backend — framework-level security wrapper.
 
 [INPUT]
-- creation_protocols::SkillWriteBackend, (POS: SkillBackend SkillDiscoveryBackend SkillBackend)
-- scanning::scan_skill_content, (POS: Scan result cache layer. Stores scan results in Volume (~/.myrm/skill_scans/) to avoid redundant scanning. Critical for performance: 20x speedup for repeat scans. Cache key: SHA256 hash of skill content Cache location: ~/.myrm/skill_scans/{content_hash}.json Expiration: 60 days TTL (auto-cleanup on get))
-- scanning.llm_auditor::SkillLLMAuditor (POS: Semantic-level threat detection layer. Catches threats that regex patterns cannot detect (e.g., multi-step exfiltration, social engineering, obfuscated intent). Operates on an "only-escalate" principle: LLM findings can only raise severity, never lower static scan results. Designed as an optional enhancement — when no LLM is available, the system gracefully falls back to pure regex scanning.)
+- creation_protocols::SkillWriteBackend (POS: Skill write-backend protocol)
+- scanning::scan_skill_content (POS: Skill content security scanner)
+- scanning.llm_auditor::SkillLLMAuditor (POS: Optional LLM semantic audit layer)
 
 [OUTPUT]
 - ScanningSkillWriteBackend: security wrapper that enforces scanning before writes
@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 import posixpath
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from myrm_agent_harness.backends.skills.creation_protocols import (
     SkillDeleteResult,
@@ -38,10 +38,15 @@ from myrm_agent_harness.backends.skills.scanning import (
 )
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.agent.skills.runtime.loader import SkillMdLoader
     from myrm_agent_harness.backends.skills.scanning.llm_auditor import SkillLLMAuditor
 
 logger = logging.getLogger(__name__)
+
+
+class SkillLoaderCacheInvalidator(Protocol):
+    """Minimal loader surface for post-write cache invalidation."""
+
+    def invalidate_skill(self, skill_name: str) -> None: ...
 
 
 class ScanningSkillWriteBackend:
@@ -64,7 +69,7 @@ class ScanningSkillWriteBackend:
     def __init__(
         self,
         inner: SkillWriteBackend,
-        loader: SkillMdLoader | None = None,
+        loader: SkillLoaderCacheInvalidator | None = None,
         llm_auditor: SkillLLMAuditor | None = None,
     ) -> None:
         self._inner = inner

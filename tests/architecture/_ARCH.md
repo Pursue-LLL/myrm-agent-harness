@@ -9,6 +9,8 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | 文件 | 地位 | 职责 | I/O/P |
 | --- | --- | --- | --- |
 | `test_toolkits_agent_boundary.py` | Gate | AST：`toolkits/` 禁止 import `myrm_agent_harness.agent` | — |
+| `test_backends_agent_boundary.py` | Gate | AST：`backends/` 禁止 module-level import `myrm_agent_harness.agent` | — |
+| `test_no_src_test_support.py` | Gate | `src/myrm_agent_harness/test_support/` 目录不得存在 | — |
 | `test_toolkits_vendor_boundary.py` | Gate | `toolkits/` 禁止 top-level vendor 包名 / vendor 前缀模块名 | — |
 | `test_artifact_vault_path_boundary.py` | Gate | harness `src/` 禁止 `.myrm/vault` 等品牌 vault 路径字面量 | — |
 | `test_harness_boundary.py` | Gate | harness 禁止 import 业务层（server/control-plane） | — |

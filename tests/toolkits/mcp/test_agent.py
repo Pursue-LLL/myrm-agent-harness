@@ -375,6 +375,82 @@ async def test_wrap_tools_normal_execution():
 
 
 # ---------------------------------------------------------------------------
+# _wrap_tools_with_timeout: output size guard (max_output_chars truncation)
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_wrap_tools_output_guard_no_truncation():
+    """Output within limit passes through unchanged."""
+    agent = MCPAgent()
+
+    async def small_output(*_a, **_kw):
+        return "short result"
+
+    tool = _make_tool(coroutine=small_output)
+    agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=1000)
+
+    result = await tool.coroutine()
+    assert result == "short result"
+
+
+@pytest.mark.asyncio
+async def test_wrap_tools_output_guard_truncates_large_output():
+    """Output exceeding max_output_chars is truncated with notice."""
+    agent = MCPAgent()
+    large_text = "x" * 500
+
+    async def large_output(*_a, **_kw):
+        return large_text
+
+    tool = _make_tool(coroutine=large_output)
+    agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=100)
+
+    result = await tool.coroutine()
+    assert isinstance(result, str)
+    assert result.startswith("x" * 100)
+    assert "[Output truncated:" in result
+    assert "500 chars total" in result
+    assert "showing first 100" in result
+
+
+@pytest.mark.asyncio
+async def test_wrap_tools_output_guard_skips_multimodal():
+    """Multimodal results (image + text tuple) are NOT truncated."""
+    agent = MCPAgent()
+    content_blocks = [
+        {"type": "image", "base64": "abc123", "media_type": "image/png"},
+        {"type": "text", "text": "x" * 500},
+    ]
+
+    async def image_output(*_a, **_kw):
+        return (content_blocks, None)
+
+    tool = _make_tool(coroutine=image_output)
+    agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=100)
+
+    result = await tool.coroutine()
+    assert isinstance(result, list)
+    assert len(result) == 2
+    assert result[0]["type"] == "image"
+
+
+@pytest.mark.asyncio
+async def test_wrap_tools_output_guard_exact_boundary():
+    """Output exactly at limit should NOT be truncated."""
+    agent = MCPAgent()
+    exact_text = "y" * 1000
+
+    async def exact_output(*_a, **_kw):
+        return exact_text
+
+    tool = _make_tool(coroutine=exact_output)
+    agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=1000)
+
+    result = await tool.coroutine()
+    assert result == exact_text
+    assert "[Output truncated:" not in result
+
+
+# ---------------------------------------------------------------------------
 # _sanitize_tools: coercion wrapper (covers line 150-154)
 # ---------------------------------------------------------------------------
 @pytest.mark.asyncio

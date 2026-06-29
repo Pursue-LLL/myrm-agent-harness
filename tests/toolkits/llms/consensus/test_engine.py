@@ -446,18 +446,11 @@ class TestTimeouts:
 
         token = CancellationToken(request_id="test")
 
-        original_query_refs = engine._query_references
-
-        async def _cancel_after_refs(*args, **kwargs):
-            result = await original_query_refs(*args, **kwargs)
-            token.cancel()
-            return result
-
-        engine._query_references = _cancel_after_refs
-
         events: list[ConsensusStreamEvent] = []
         async for event in engine.run_stream("q", cancel_token=token):
             events.append(event)
+            if event.kind == "ref_done":
+                token.cancel()
 
         done_events = [e for e in events if e.kind == "done"]
         assert len(done_events) == 1

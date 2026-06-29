@@ -2,7 +2,7 @@
 
 
 [INPUT]
-- agent.hooks.types::HookDefinition (POS: Hook 定义类型)
+- core.hooks.types::HookDefinition (POS: Hook definition types)
 
 [OUTPUT]
 - SkillLifecycleStatus: 技能生命周期状态枚举（ACTIVE/STALE/ARCHIVED）
@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import IntEnum, StrEnum
 
-from myrm_agent_harness.agent.hooks.types import HookDefinition, HookEvent
+from myrm_agent_harness.core.hooks.types import HookDefinition, HookEvent
 
 # Activation criteria limits (aligned with ironclaw security model)
 _MAX_KEYWORDS_PER_SKILL = 20
