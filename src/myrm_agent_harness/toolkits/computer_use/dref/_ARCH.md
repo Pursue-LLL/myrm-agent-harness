@@ -7,12 +7,12 @@ Owned by `computer_use/` — not a standalone toolkit.
 
 ## File Index
 
-| File | Role | Description |
-|------|------|-------------|
-| types.py | Core | ElementRef, BBox, SnapshotMeta, SnapshotScope |
-| registry.py | Core | DRefRegistry session-scoped ref map |
-| errors.py | Core | DRefStaleError, AXPermissionRequiredError, AXTreeEmptyError |
-| __init__.py | Package | Public exports |
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| types.py | Core | ElementRef, BBox, SnapshotMeta, SnapshotScope | ✅ |
+| registry.py | Core | DRefRegistry session-scoped ref map | ✅ |
+| errors.py | Core | DRefStaleError, AXPermissionRequiredError, AXTreeEmptyError | ✅ |
+| __init__.py | Package | Public exports | ✅ |
 
 ## Consumers
 

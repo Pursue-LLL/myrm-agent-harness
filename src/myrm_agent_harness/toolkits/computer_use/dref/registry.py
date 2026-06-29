@@ -1,4 +1,15 @@
-"""Session-scoped @dref registry."""
+"""Session-scoped @dref registry.
+
+[INPUT]
+- dref.errors::DRefStaleError (POS: stale ref lookup errors)
+- dref.types::{ElementRef, SnapshotMeta} (POS: ref entries and snapshot metadata)
+
+[OUTPUT]
+- DRefRegistry: session-scoped @dref ID map with generation tracking
+
+[POS]
+Session-scoped registry for desktop @dref entries during a computer_use session.
+"""
 
 from __future__ import annotations
 

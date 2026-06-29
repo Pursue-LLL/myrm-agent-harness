@@ -590,6 +590,45 @@ class TestUnexpectedExceptionWrapping:
 
 
 class TestAuditLog:
+    async def test_densification_triggers_in_full_chain(
+        self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig
+    ) -> None:
+        """Full-chain integration: grep_tool → ripgrep/mmap → format_grep_results produces densified output."""
+        for i in range(6):
+            (workspace / f"mod_{i}.py").write_text(f"DENSE_TOKEN = {i}\n")
+        tool_fn = create_grep_tool()
+        with patch(
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            return_value=mock_executor,
+        ):
+            result = await tool_fn.ainvoke(
+                {"pattern": "DENSE_TOKEN"},
+                config=runnable_config,
+            )
+            lines = result.split("\n")
+            indented = [ln for ln in lines if ln.startswith("  ") and "DENSE_TOKEN" in ln]
+            assert len(indented) >= 6, f"Expected densified indented lines, got: {result}"
+            path_headers = [ln for ln in lines if ln.strip().endswith(".py") and not ln.startswith("  ")]
+            assert len(path_headers) >= 1
+
+    async def test_no_densification_below_threshold(
+        self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig
+    ) -> None:
+        """Full-chain: grep_tool with < 5 matches stays flat."""
+        for i in range(3):
+            (workspace / f"small_{i}.py").write_text(f"FLAT_TOKEN = {i}\n")
+        tool_fn = create_grep_tool()
+        with patch(
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            return_value=mock_executor,
+        ):
+            result = await tool_fn.ainvoke(
+                {"pattern": "FLAT_TOKEN"},
+                config=runnable_config,
+            )
+            indented = [ln for ln in result.split("\n") if ln.startswith("  ") and "FLAT_TOKEN" in ln]
+            assert len(indented) == 0, f"Below threshold should use flat format, got: {result}"
+
     async def test_audit_log_enabled(
         self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig, caplog: pytest.LogCaptureFixture
     ) -> None:

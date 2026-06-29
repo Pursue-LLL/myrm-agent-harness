@@ -1,4 +1,14 @@
-"""Element reference types for desktop semantic control (@dref)."""
+"""Element reference types for desktop semantic control (@dref).
+
+[INPUT]
+- (none)
+
+[OUTPUT]
+- SnapshotScope, INTERACTIVE_AX_ROLES, BBox, ElementRef, SnapshotMeta
+
+[POS]
+Core @dref value types for semantic desktop control in computer_use.
+"""
 
 from __future__ import annotations
 

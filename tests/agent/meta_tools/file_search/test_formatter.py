@@ -5,6 +5,7 @@ from __future__ import annotations
 from myrm_agent_harness.agent.meta_tools.file_search._formatter import (
     MAX_LINE_CHARS,
     NON_CODE_MATCH_CAP,
+    _DENSIFY_MIN_MATCHES,
     compact_match_line,
     format_grep_results,
 )
@@ -100,7 +101,6 @@ class TestFormatGrepResults:
         matches = [{"file": "service.py", "line": i, "content": f"x = {i}"} for i in range(10)]
         output = format_grep_results(matches, "x", 1, 100)
         assert "non-code matches omitted" not in output
-        assert output.count("service.py:") == 10
         assert output.count("x =") == 10
 
     def test_multiple_files_ordered(self) -> None:
@@ -114,6 +114,29 @@ class TestFormatGrepResults:
         a_pos = output.index("a.py:10")
         b_pos = output.index("b.py:20")
         assert a_pos < b_pos
+
+
+class TestFlatContextSeparator:
+    """Flat (non-densified) context separators and context line formatting."""
+
+    def test_flat_context_separator(self) -> None:
+        results = [
+            {"file": "a.py", "line": 10, "content": "match1", "type": "match"},
+            {"file": "a.py", "line": 50, "content": "match2", "type": "match"},
+        ]
+        output = format_grep_results(results, "match", 50, 200, is_regex=False)
+        lines = output.split("\n")
+        assert "--" in lines
+        assert "  --" not in lines
+
+    def test_flat_context_line_uses_dash_sep(self) -> None:
+        results = [
+            {"file": "a.py", "line": 10, "content": "match line", "type": "match"},
+            {"file": "a.py", "line": 11, "content": "context line", "type": "context"},
+        ]
+        output = format_grep_results(results, "match", 50, 200, is_regex=False)
+        assert "a.py-11- context line" in output
+        assert "a.py:10: match line" in output
 
 
 class TestCompactMatchLineEdgeCases:
@@ -140,3 +163,99 @@ class TestCompactMatchLineEdgeCases:
         result = compact_match_line(line, "x", is_regex=False)
         assert result == line
         assert "truncated" not in result
+
+
+class TestDensification:
+    """Path-grouped densification: eliminates repeated paths when >= 5 matches."""
+
+    def test_below_threshold_flat(self) -> None:
+        results = [
+            {"file": "a.py", "line": i * 10, "content": f"line {i}", "type": "match"}
+            for i in range(_DENSIFY_MIN_MATCHES - 1)
+        ]
+        output = format_grep_results(results, "line", 50, 200, is_regex=False)
+        assert "a.py:" in output
+
+    def test_at_threshold_densified(self) -> None:
+        results = [
+            {"file": "src/long/path/module.py", "line": i * 10, "content": f"match {i}", "type": "match"}
+            for i in range(_DENSIFY_MIN_MATCHES)
+        ]
+        output = format_grep_results(results, "match", 50, 200, is_regex=False)
+        lines = output.split("\n")
+        assert "src/long/path/module.py" in lines
+        indented = [ln for ln in lines if ln.startswith("  ") and "match" in ln]
+        assert len(indented) == _DENSIFY_MIN_MATCHES
+
+    def test_single_file_densified(self) -> None:
+        results = [
+            {"file": "src/utils/api.ts", "line": i * 5, "content": f"data = fetch({i})", "type": "match"}
+            for i in range(7)
+        ]
+        output = format_grep_results(results, "data", 50, 200, is_regex=False)
+        lines = output.split("\n")
+        path_header_count = sum(1 for ln in lines if ln == "src/utils/api.ts")
+        assert path_header_count == 1
+
+    def test_multi_file_densified(self) -> None:
+        results = []
+        for j, path in enumerate(["a.py", "b.py", "c.py"]):
+            for i in range(3):
+                results.append({"file": path, "line": 10 + i + j * 100, "content": f"x = {i}", "type": "match"})
+        output = format_grep_results(results, "x", 50, 200, is_regex=False)
+        lines = output.split("\n")
+        assert "a.py" in lines
+        assert "b.py" in lines
+        assert "c.py" in lines
+        assert not any(ln.startswith("a.py:") for ln in lines)
+
+    def test_densified_saves_tokens(self) -> None:
+        results = [
+            {"file": "src/features/dashboard/UserStatsCard.tsx", "line": i * 10, "content": f"const x = {i};", "type": "match"}
+            for i in range(8)
+        ]
+        dense_output = format_grep_results(results, "x", 50, 200, is_regex=False)
+        flat_lines = [
+            f"src/features/dashboard/UserStatsCard.tsx:{i * 10}: const x = {i};"
+            for i in range(8)
+        ]
+        flat_total_path_chars = sum(len("src/features/dashboard/UserStatsCard.tsx") for _ in range(8))
+        dense_path_chars = len("src/features/dashboard/UserStatsCard.tsx")
+        assert dense_path_chars < flat_total_path_chars
+        assert len(dense_output) < sum(len(ln) for ln in flat_lines) + 200
+
+    def test_densified_context_separator(self) -> None:
+        results = [
+            {"file": "a.py", "line": 10, "content": "line1", "type": "match"},
+            {"file": "a.py", "line": 50, "content": "line2", "type": "match"},
+            {"file": "b.py", "line": 5, "content": "line3", "type": "match"},
+            {"file": "b.py", "line": 6, "content": "line4", "type": "match"},
+            {"file": "b.py", "line": 100, "content": "line5", "type": "match"},
+        ]
+        output = format_grep_results(results, "line", 50, 200, is_regex=False)
+        assert "  --" in output
+
+    def test_densified_non_code_capping_preserved(self) -> None:
+        results = [
+            {"file": "data.json", "line": i, "content": f'"key": {i}', "type": "match"}
+            for i in range(10)
+        ]
+        output = format_grep_results(results, "key", 1, 100, is_regex=False)
+        assert "non-code matches omitted" in output
+        match_lines = [ln for ln in output.split("\n") if ln.strip().startswith(("  ", "data.json")) and "key" in ln and "omitted" not in ln]
+        assert len(match_lines) <= NON_CODE_MATCH_CAP + 1
+
+    def test_densified_with_context_lines(self) -> None:
+        results = [
+            {"file": "a.py", "line": 10, "content": "match line", "type": "match"},
+            {"file": "a.py", "line": 11, "content": "context line", "type": "context"},
+            {"file": "a.py", "line": 12, "content": "match again", "type": "match"},
+            {"file": "b.py", "line": 5, "content": "another", "type": "match"},
+            {"file": "b.py", "line": 6, "content": "ctx", "type": "context"},
+            {"file": "b.py", "line": 7, "content": "last", "type": "match"},
+            {"file": "b.py", "line": 20, "content": "far", "type": "match"},
+        ]
+        output = format_grep_results(results, "match", 50, 200, is_regex=False)
+        lines = output.split("\n")
+        context_lines = [ln for ln in lines if "- " in ln and ("context" in ln or "ctx" in ln)]
+        assert len(context_lines) >= 1

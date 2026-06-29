@@ -145,9 +145,6 @@ myrm_agent_harness/toolkits/computer_use/perception/renderer.py
 myrm_agent_harness/toolkits/computer_use/perception/windows_ax.py
 myrm_agent_harness/toolkits/computer_use/safety.py
 myrm_agent_harness/toolkits/context_bundle/__init__.py
-myrm_agent_harness/toolkits/computer_use/dref/errors.py
-myrm_agent_harness/toolkits/computer_use/dref/registry.py
-myrm_agent_harness/toolkits/computer_use/dref/types.py
 myrm_agent_harness/toolkits/file_parsers/pdf_heuristic_table.py
 myrm_agent_harness/toolkits/llms/__init__.py
 myrm_agent_harness/toolkits/llms/adapters/__init__.py

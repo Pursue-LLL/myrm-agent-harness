@@ -1,4 +1,14 @@
-"""Typed errors for semantic desktop element references."""
+"""Typed errors for semantic desktop element references.
+
+[INPUT]
+- (none)
+
+[OUTPUT]
+- ElementRefError, DRefStaleError, AXPermissionRequiredError, AXTreeEmptyError
+
+[POS]
+Typed error hierarchy for @dref desktop element reference operations.
+"""
 
 from __future__ import annotations
 
