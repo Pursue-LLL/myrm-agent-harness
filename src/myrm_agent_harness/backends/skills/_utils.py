@@ -1,6 +1,5 @@
 """Skill backend utilities — frontmatter parsing.
 
-1. 本文件的 INPUT/OUTPUT/POS 注释
 
 [INPUT]
 - yaml::yaml (POS: YAML 解析库)

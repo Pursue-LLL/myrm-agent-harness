@@ -1,6 +1,5 @@
 """Skill system data types.
 
-1. 本文件的 INPUT/OUTPUT/POS 注释
 
 [INPUT]
 - agent.hooks.types::HookDefinition (POS: Hook 定义类型)

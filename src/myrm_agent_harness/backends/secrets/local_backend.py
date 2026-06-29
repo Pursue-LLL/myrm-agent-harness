@@ -4,15 +4,15 @@ This backend provides out-of-the-box persistent storage for agent secrets
 using the local file system and AES-256-GCM encryption.
 
 [INPUT]
-- utils.crypto.config_crypto::ConfigCrypto (POS: Pure encryption tool. No business logic (no deploy_mode, no user_id). All methods are static (no state). Key injection via parameter. Design principles: No business logic (no deploy_mode, no user_id) No environment variables (key injected via parameter) Stateless (all methods are static) Pure functions (same input → same output))
-- utils.crypto.exceptions::DecryptionError, (POS: Config crypto exceptions.)
+- utils.crypto.config_crypto::ConfigCrypto (POS: Stateless AES encryption helper with injected key material)
+- utils.crypto.exceptions::DecryptionError, EncryptionError (POS: Config crypto exception types)
 
 [OUTPUT]
-- SecretEncryptionError: Raised when secret encryption or decryption fails.
-- LocalSecretBackend: Store agent secrets in an encrypted .secrets.enc file wit...
+- SecretEncryptionError: Raised when secret encryption or decryption fails
+- LocalSecretBackend: Encrypted .secrets.enc persistent secret store
 
 [POS]
-Local Secret Backend Implementation.
+Local secret backend. Persists agent secrets as AES-256-GCM encrypted files on disk.
 """
 
 import contextlib

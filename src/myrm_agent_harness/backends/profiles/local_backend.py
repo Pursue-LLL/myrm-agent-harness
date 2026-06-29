@@ -8,7 +8,7 @@ local SQLite index for fast listing.
 [INPUT]
 - .types::AgentProfile (POS: Agent Profile 数据类型定义)
 - .exceptions::ProfileNotFoundError, ProfileAlreadyExistsError (POS: Profile 后端异常类型)
-- .protocol::AgentProfileBackend (POS: Agent Profile 存储后端协议)
+- .protocols::AgentProfileBackend (POS: Agent Profile 存储后端协议)
 - myrm_agent_harness.toolkits.memory.config (POS: Agent 记忆策略配置)
 
 [OUTPUT]

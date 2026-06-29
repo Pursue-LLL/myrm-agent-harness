@@ -1,6 +1,5 @@
 """Skill backend protocols.
 
-1. 本文件的 INPUT/OUTPUT/POS 注释
 
 [INPUT]
 - types::SkillMetadata (POS: 技能元数据类型定义)

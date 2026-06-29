@@ -1,6 +1,5 @@
 """Skill runtime builder — constructs SkillMetadata with runtime-computed fields.
 
-1. 本文件的 INPUT/OUTPUT/POS 注释
 
 [INPUT]
 - types::SkillMetadata, SkillTrust (POS: 技能元数据类型和信任枚举)

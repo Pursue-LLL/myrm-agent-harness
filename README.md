@@ -384,7 +384,8 @@ class MyCodeExecutor(CodeExecutor):
 加载技能和技能内容：
 
 ```python
-from myrm_agent_harness.backends import SkillBackend, SkillMetadata
+from myrm_agent_harness.backends.skills import SkillBackend
+from myrm_agent_harness.backends.skills.types import SkillMetadata
 
 class MySkillBackend(SkillBackend):
     async def load_skills(self, skill_ids: list[str]) -> list[SkillMetadata]:

@@ -1,6 +1,5 @@
 """Skill state and instance management.
 
-1. 本文件的 INPUT/OUTPUT/POS 注释
 
 [INPUT]
 - backends.skills.types::SkillInstanceConfig (POS: 实例配置数据类型)

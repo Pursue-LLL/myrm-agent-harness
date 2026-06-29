@@ -2,8 +2,13 @@
 
 ## Overview
 
-Cross-channel notification delivery toolkit. Protocol-first: the application layer
-implements `NotificationSender`; the harness provides rate limiting and security.
+Cross-channel **outbound notification toolkit** (generic capability package). Protocol-first:
+the application layer implements `NotificationSender`; the harness provides types, target
+resolution, rate limiting, and whitelist security.
+
+This is a **toolkit module** (import Protocol/types/engine directly), not an agent-tool
+module. The optional LangChain adapter `create_channel_notify_tool` in `tool.py` is one
+consumption form — wired by the application layer when an agent should call it.
 
 ## File Index
 
@@ -11,8 +16,8 @@ implements `NotificationSender`; the harness provides rate limiting and security
 |------|------|-------------|-------|
 | `protocols.py` | Core | `NotificationSender` protocol contract | ✅ |
 | `types.py` | Core | `NotifyTarget`, `NotifyResult`, `NotifyToolConfig`, `NotifySessionState` | ✅ |
-| `tool.py` | Core | `create_channel_notify_tool` agent tool factory | ✅ |
-| `__init__.py` | Package | Public exports | — |
+| `tool.py` | Adapter | Optional LangChain adapter — `create_channel_notify_tool` factory | ✅ |
+| `__init__.py` | Package | Public exports (Protocol, types, optional adapter) | — |
 
 ## Dependencies
 

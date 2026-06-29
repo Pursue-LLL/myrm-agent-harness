@@ -1,9 +1,15 @@
-"""
-@input: 无外部依赖
-@output: 对外提供技能配置版本号管理（bump/get）
-@pos: 框架级技能配置版本追踪 —— Agent 轮询检测技能变更并热重载
+"""Skill config version counter for hot-reload polling.
 
-🔄 更新规则：修改此文件后，请更新头注释 + 所属文件夹 _ARCH.md
+[INPUT]
+- (none)
+
+[OUTPUT]
+- bump_skill_config_version(): increment in-process version timestamp
+- get_skill_config_version(): return current version (0.0 if unchanged)
+
+[POS]
+Framework-level skill config version tracker. Server and agents poll version
+changes to reload skill sets without process restart.
 """
 
 from __future__ import annotations

@@ -1,6 +1,5 @@
 """Storage Skill Backend (Pure Implementation)
 
-1. 本文件的 INPUT/OUTPUT/POS 注释
 
 [INPUT]
 - protocols::SkillBackend (POS: 技能后端协议)

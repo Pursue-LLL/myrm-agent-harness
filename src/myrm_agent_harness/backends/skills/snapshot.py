@@ -4,7 +4,6 @@ Provides O(1) loading of SkillMetadata from a local SQLite database,
 avoiding expensive file system I/O and parsing of hundreds of SKILL.md files
 during application cold start.
 
-1. 本文件的 INPUT/OUTPUT/POS 注释
 
 [INPUT]
 - sqlite3 (POS: SQLite 数据库库)

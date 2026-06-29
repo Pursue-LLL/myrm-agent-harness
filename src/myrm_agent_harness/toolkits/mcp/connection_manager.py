@@ -383,6 +383,7 @@ class MCPConnectionManager:
                 conn_dict,
                 connect_timeout=getattr(cfg, "connect_timeout", 15.0),
                 execute_timeout=getattr(cfg, "execute_timeout", 120.0),
+                max_output_chars=getattr(cfg, "max_output_chars", 100_000),
                 tool_include=getattr(cfg, "tool_include", None),
                 tool_exclude=getattr(cfg, "tool_exclude", None),
             )

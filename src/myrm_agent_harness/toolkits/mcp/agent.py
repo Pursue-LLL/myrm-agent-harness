@@ -257,8 +257,8 @@ class MCPAgent:
         return str(result)
 
     @staticmethod
-    def _wrap_tools_with_timeout(tools: list[BaseTool], timeout: float) -> None:
-        """Wrap MCP tool execution with asyncio.timeout and normalize result."""
+    def _wrap_tools_with_timeout(tools: list[BaseTool], timeout: float, max_output_chars: int = 100_000) -> None:
+        """Wrap MCP tool execution with asyncio.timeout, normalize, and guard output size."""
         for tool in tools:
             original_coroutine = tool.coroutine
             if original_coroutine is None:
@@ -271,6 +271,7 @@ class MCPAgent:
                 _orig: object = original_coroutine,
                 _name: str = tool_name,
                 _timeout: float = timeout,
+                _max_chars: int = max_output_chars,
                 **kwargs: object,
             ) -> str | list[dict[str, object]]:
                 try:
@@ -278,6 +279,17 @@ class MCPAgent:
                         raw = await _orig(*args, **kwargs)  # type: ignore[misc]
                         normalized = MCPAgent._normalize_mcp_result(raw)
                         await MCPAgent._emit_mcp_app_event(raw, _name)
+                        if isinstance(normalized, str) and len(normalized) > _max_chars:
+                            original_len = len(normalized)
+                            normalized = (
+                                f"{normalized[:_max_chars]}\n\n"
+                                f"[Output truncated: {original_len} chars total, showing first {_max_chars}. "
+                                f"Use file-read tools to inspect full content if needed.]"
+                            )
+                            logger.warning(
+                                "MCP tool '%s' output truncated: %d → %d chars",
+                                _name, original_len, _max_chars,
+                            )
                         return normalized
                 except TimeoutError:
                     error_msg = f"MCP tool '{_name}' timed out after {_timeout}s. Server may be slow or unresponsive."
@@ -437,6 +449,7 @@ class MCPAgent:
         tool_include: list[str] | None,
         tool_exclude: list[str] | None,
         execute_timeout: float,
+        max_output_chars: int = 100_000,
     ) -> list[BaseTool]:
         """Apply the full post-processing chain to tools bound to a live session.
 
@@ -447,13 +460,13 @@ class MCPAgent:
 
         Pipeline order:
         filter (uses original names) → prefix → description limit →
-        sanitize (schema) → timeout → annotations.
+        sanitize (schema) → timeout + output guard → annotations.
         """
         tools = MCPAgent._apply_tool_filter(tools, server_name, tool_include, tool_exclude)
         MCPAgent._prefix_tool_names(tools, server_name)
         MCPAgent._enforce_description_limits(tools)
         MCPAgent._sanitize_tools(tools)
-        MCPAgent._wrap_tools_with_timeout(tools, execute_timeout)
+        MCPAgent._wrap_tools_with_timeout(tools, execute_timeout, max_output_chars)
         MCPAgent._register_tool_annotations(tools, server_name)
         return tools
 
@@ -541,14 +554,16 @@ class MCPAgent:
         server_names = list(client.connections.keys())
         all_tools: list[BaseTool] = []
 
-        # Build per-server timeout and tool-filter mappings
+        # Build per-server timeout, output-limit, and tool-filter mappings
         connect_timeout_by_server: dict[str, float] = {}
         execute_timeout_by_server: dict[str, float] = {}
+        max_output_chars_by_server: dict[str, int] = {}
         tool_filter_by_server: dict[str, tuple[list[str] | None, list[str] | None]] = {}
         if mcp_config:
             for cfg in mcp_config:
                 connect_timeout_by_server[cfg.name] = cfg.connect_timeout
                 execute_timeout_by_server[cfg.name] = cfg.execute_timeout
+                max_output_chars_by_server[cfg.name] = getattr(cfg, "max_output_chars", 100_000)
                 tool_filter_by_server[cfg.name] = (
                     getattr(cfg, "tool_include", None),
                     getattr(cfg, "tool_exclude", None),
@@ -570,6 +585,7 @@ class MCPAgent:
                 include,
                 exclude,
                 execute_timeout_by_server.get(server_name, 120.0),
+                max_output_chars_by_server.get(server_name, 100_000),
             )
             self._store_tool_server_mapping(tools, server_name)
             all_tools = tools
@@ -597,6 +613,7 @@ class MCPAgent:
                         include,
                         exclude,
                         execute_timeout_by_server.get(server_name, 120.0),
+                        max_output_chars_by_server.get(server_name, 100_000),
                     )
                     self._store_tool_server_mapping(tools, server_name)
                     all_tools.extend(tools)

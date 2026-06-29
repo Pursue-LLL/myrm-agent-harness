@@ -128,6 +128,16 @@ class MCPConfig(BaseModel):
         le=600.0,
         description="Tool execution timeout in seconds (complex operations like DB queries need more time)",
     )
+    max_output_chars: int = Field(
+        default=100_000,
+        ge=1000,
+        le=10_000_000,
+        description=(
+            "Maximum characters for tool result text before truncation. "
+            "Prevents oversized MCP responses from blowing up the LLM context window. "
+            "Set to a higher value for servers that legitimately return large payloads."
+        ),
+    )
     ssl_verify: bool | str | None = Field(
         default=None,
         description=(

@@ -8,8 +8,8 @@ SkillBackend decorator proxies — version routing (A/B tests) and quarantine fi
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Re-exports decorator backends | — |
-| version_aware.py | Core | VersionAwareSkillBackend — A/B routing and snapshot serving | — |
-| quarantine_aware.py | Core | QuarantineAwareSkillBackend — filters `is_active=False` skills at runtime | — |
+| version_aware.py | Core | VersionAwareSkillBackend — A/B routing and snapshot serving | baseline |
+| quarantine_aware.py | Core | QuarantineAwareSkillBackend — filters inactive skills at runtime | baseline |
 
 ## Module Dependencies
 

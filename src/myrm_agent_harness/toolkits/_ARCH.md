@@ -1,9 +1,28 @@
 # toolkits/
 
 ## Overview
-Generic, framework-agnostic toolkit collection — analogous to lodash for Node.js.
-Each toolkit is a **self-contained, absolutely independent** module usable via
-`myrm_agent_harness.toolkits.xxx` by any consumer, without requiring the Agent runtime.
+
+Generic, framework-agnostic **capability packages** — analogous to **lodash** (utility
+library) and **LangChain toolkits** (domain modules you import directly). Each toolkit is a
+**self-contained, absolutely independent** module usable via `myrm_agent_harness.toolkits.xxx`
+by any consumer, without requiring the Agent runtime.
+
+### What a toolkit exports (primary vs optional)
+
+| Export shape | Typical location | Role |
+|--------------|------------------|------|
+| **Primary — generic API** | `__init__.py`, `protocols.py`, engines, managers | Protocols, types, engines, `create_*()` factories — callable from server, cron, CLI, tests, or any agent framework |
+| **Optional — LangChain adapter** | `*_agent_tools.py` (or legacy `tool.py`) | Thin `create_*_tools()` → `list[BaseTool]` wrapper so an LLM agent can call the toolkit without re-wiring |
+
+**Agent-callable LangChain tools are one consumption form, not the identity of `toolkits/`.**
+Most packages lead with engine + Protocol in `__init__.py`; the LangChain adapter is a
+convenience layer for “drop into an agent tool list”. Do **not** describe a toolkit package
+as an “agent tool module” in overview docs — describe the **capability**, then note the
+optional adapter if present.
+
+Example: `notification/` exports `NotificationSender`, `NotifyTarget`, and send-side
+security constraints as the toolkit; `create_channel_notify_tool` is the optional LangChain
+surface, wired by the application layer when needed.
 
 ## Architecture gate
 
@@ -23,21 +42,23 @@ Each toolkit is a **self-contained, absolutely independent** module usable via
 2. **Never** ship a prebuilt skill that promises OAuth/API access without a working product integration path (GUI OAuth or documented MCP).
 3. **Single-vendor narrow tools** → skill script + `bash_code_execute_tool` / `web_fetch_tool`, or user MCP — not a new harness toolkit.
 4. **`allowed-tools` in SKILL.md** must use **registered tool names** (e.g. `bash_code_execute_tool`, not unregistered aliases like `bash_tool`).
-5. **Adding a harness tool** requires: generic reuse across projects, zero `agent/` imports, entry in `tool_layers.py` + `validate_tool_registry.py` PASS.
+5. **Adding a LangChain adapter** (optional `*_agent_tools.py` factory) requires: generic reuse across projects, zero `agent/` imports, entry in `tool_layers.py` + `validate_tool_registry.py` PASS. The underlying toolkit capability must be usable without LangChain.
 
-### `*_agent_tools.py` naming convention
+### `*_agent_tools.py` naming convention (optional adapter)
 
-Several toolkits ship a **LangChain StructuredTool factory** beside the generic engine, e.g.
-`wiki/wiki_agent_tools.py`, `cron/cron_agent_tools.py`, `kanban/kanban_agent_tools.py`.
+Several toolkits ship a **LangChain StructuredTool factory beside the generic engine** — this
+is an adapter, not the toolkit itself. Examples: `wiki/wiki_agent_tools.py`,
+`cron/cron_agent_tools.py`, `kanban/kanban_agent_tools.py`.
 
 | Criterion | Belongs in `toolkits/<pkg>/*_agent_tools.py` | Belongs in `agent/meta_tools/` |
 |-----------|-----------------------------------------------|--------------------------------|
 | Imports `myrm_agent_harness.agent.*` | ❌ Never | ✅ When runtime binding is required |
 | Needs session / planner / HITL context at construction | ❌ | ✅ |
 | Pure factory over toolkit engine (`create_*_tools()` → `list[BaseTool]`) | ✅ | — |
-| Filename contains `agent` | ✅ Allowed — means “tools for an agent consumer”, **not** “imports agent runtime” | — |
+| Filename contains `agent` | ✅ Allowed — means “LangChain adapter for agent consumers”, **not** “imports agent runtime” or “this package is only for agents” | — |
 
-**Rule of thumb:** engine + persistence in `toolkits/`; thin LangChain adapter may stay in the same package if it passes `test_toolkits_agent_boundary.py`. Wrappers that must read `agent/` session state belong in `agent/meta_tools/`.
+**Rule of thumb:** engine + persistence + Protocol in `toolkits/` (exported from `__init__.py`);
+LangChain adapter is optional and secondary. Wrappers that must read `agent/` session state belong in `agent/meta_tools/`.
 
 Current `*_agent_tools.py` modules (all compliant): `acp/`, `automation/`, `computer_use/`, `cron/`, `deploy/`, `kanban/`, `memory/`, `web_fetch/`, `web_search/`, `wiki/`.
 
@@ -74,7 +95,7 @@ Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
 | **Collaboration & Media** | `kanban/`, `tasks/`, `automation/`, `cron/`, `interaction/`, `tts/`, `vision/` | Scheduling, tasks, user interaction primitives, media |
 | **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |
 
-Agent runtime-bound tool wrappers (e.g. `render_ui_tool`, `planner_tool`) live in `agent/meta_tools/`, not here. LangChain factories named `*_agent_tools.py` that do not import `agent/` may stay in `toolkits/` — see § `*_agent_tools.py` naming convention.
+Agent runtime-bound tool wrappers (e.g. `render_ui_tool`, `planner_tool`) live in `agent/meta_tools/`, not here. Optional LangChain adapters (`*_agent_tools.py`) that do not import `agent/` may stay in `toolkits/` as a secondary export — see § `*_agent_tools.py` naming convention.
 
 ### Top-level directory hygiene
 
@@ -129,7 +150,7 @@ Does your code need to import anything from agent/?
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | SECURITY_WRAPPER_GUIDE.md | L2 | Tool output security wrapping guide (`wrap_with_external_sources_tag` / `wrap_with_tool_output_tag`) | — |
-| __init__.py | Package | Toolkits module export file. Provides various toolkits and services for Agent use: | ✅ |
+| __init__.py | Package | Toolkits package root — re-exports subpackages; each subpackage `__init__.py` exposes generic capability APIs (Protocols, engines, factories), not agent-only surfaces | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
@@ -150,7 +171,7 @@ Does your code need to import anything from agent/?
 | llms/ | LLM manager and adapters — 100+ provider support, citation extraction, image gen/edit (via `image_langchain_tool` / `video_langchain_tool` BaseTool wrappers). |
 | mcp/ | MCP protocol support — client management, tool fetching, connection pooling. |
 | memory/ | Pluggable memory system — vector/relational/graph storage for AI agents. |
-| notification/ | Cross-channel notification delivery — Protocol-based sender with rate limiting and whitelist security. |
+| notification/ | Cross-channel outbound notification toolkit (Protocol + types + send-side security). Optional LangChain adapter: `create_channel_notify_tool`. |
 | openapi_bridge/ | OpenAPI Bridge — zero-code REST API integration via OpenAPI 3.x / Swagger 2.0 specs. |
 | retriever/ | Retrieval and reranking — multi-source document retrieval with scoring pipeline. |
 | security/ | Credential vault — in-memory password/TOTP resolution for tool execution. |

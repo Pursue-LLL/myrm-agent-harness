@@ -6,7 +6,7 @@ Useful for testing, single-run scripts, or ephemeral environments.
 [INPUT]
 - .types::AgentProfile (POS: Agent Profile 数据类型定义)
 - .exceptions::ProfileAlreadyExistsError, ProfileNotFoundError (POS: Profile 后端异常类型)
-- .protocol::AgentProfileBackend (POS: Agent Profile 存储后端协议)
+- .protocols::AgentProfileBackend (POS: Agent Profile 存储后端协议)
 
 [OUTPUT]
 - InMemoryProfileBackend: Dict-backed in-memory profile store.

@@ -144,6 +144,7 @@ class MCPSessionActor:
         *,
         connect_timeout: float = 15.0,
         execute_timeout: float = 120.0,
+        max_output_chars: int = 100_000,
         tool_include: list[str] | None = None,
         tool_exclude: list[str] | None = None,
     ) -> None:
@@ -151,6 +152,7 @@ class MCPSessionActor:
         self._connection = connection
         self._connect_timeout = connect_timeout
         self._execute_timeout = execute_timeout
+        self._max_output_chars = max_output_chars
         self._tool_include = tool_include
         self._tool_exclude = tool_exclude
         # Idle keepalive only matters for remote transports that sit behind LBs /
@@ -508,6 +510,7 @@ class MCPSessionActor:
             self._tool_include,
             self._tool_exclude,
             self._execute_timeout,
+            self._max_output_chars,
         )
         instructions: str | None = None
         if not self._ready.is_set():
@@ -589,6 +592,7 @@ class MCPSessionActor:
                 self._tool_include,
                 self._tool_exclude,
                 self._execute_timeout,
+                self._max_output_chars,
             )
             new_names = {tool.name for tool in processed}
             added = new_names - old_names
