@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.agent.config.llm import LLMConfig
-from myrm_agent_harness.toolkits.vision.fallback_engine import VisionFallbackEngine
+from myrm_agent_harness.toolkits.llms.vision.fallback_engine import VisionFallbackEngine
 
 
 @pytest.fixture
@@ -16,7 +16,7 @@ def mock_llm_config():
 
 @pytest.fixture
 def fallback_engine(mock_llm_config):
-    with patch("myrm_agent_harness.toolkits.vision.fallback_engine.create_litellm_model") as mock_create:
+    with patch("myrm_agent_harness.toolkits.llms.vision.fallback_engine.create_litellm_model") as mock_create:
         mock_model = AsyncMock()
         mock_create.return_value = mock_model
         engine = VisionFallbackEngine(mock_llm_config)
@@ -46,7 +46,7 @@ async def test_describe_image_b64_reactive_resize(fallback_engine):
         mock_response_success
     ]
 
-    with patch("myrm_agent_harness.toolkits.vision.fallback_engine.image_compressor") as mock_compressor:
+    with patch("myrm_agent_harness.toolkits.llms.vision.fallback_engine.image_compressor") as mock_compressor:
         mock_compressor.compress.return_value = b"compressed_dummy_bytes"
         result = await fallback_engine.describe_image_b64(base64.b64encode(b"dummy").decode(), "image/png")
 
@@ -59,7 +59,7 @@ async def test_describe_image_b64_reactive_resize_fails(fallback_engine):
     # Setup mock response to fail with 413, and compression returns None
     fallback_engine.model.ainvoke.side_effect = Exception("413 Payload Too Large")
 
-    with patch("myrm_agent_harness.toolkits.vision.fallback_engine.image_compressor") as mock_compressor:
+    with patch("myrm_agent_harness.toolkits.llms.vision.fallback_engine.image_compressor") as mock_compressor:
         mock_compressor.compress.return_value = None
         result = await fallback_engine.describe_image_b64(base64.b64encode(b"dummy").decode(), "image/png")
 

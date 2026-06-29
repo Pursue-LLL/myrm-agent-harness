@@ -302,7 +302,7 @@ include = [
   "*/myrm_agent_harness/toolkits/llms/video/*",
   "*/myrm_agent_harness/toolkits/llms/image/*",
   "*/myrm_agent_harness/toolkits/llms/core/*",
-  "*/myrm_agent_harness/toolkits/vision/*",
+  "*/myrm_agent_harness/toolkits/llms/vision/*",
   "*/myrm_agent_harness/toolkits/acp/*",
   "*/myrm_agent_harness/toolkits/cron/*",
   "*/myrm_agent_harness/observability/*",

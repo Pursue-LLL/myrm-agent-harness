@@ -15,7 +15,7 @@ async def test_build_multimodal_result_vision_fallback_success():
     vision_fallback_model_cfg = {"model": "gpt-4o-mini", "api_key": "test"}
 
     with patch(
-        "myrm_agent_harness.toolkits.vision.fallback_engine.VisionFallbackEngine.describe_local_image",
+        "myrm_agent_harness.toolkits.llms.vision.fallback_engine.VisionFallbackEngine.describe_local_image",
         new_callable=AsyncMock,
     ) as mock_describe:
         mock_describe.return_value = "A mock fallback text description"
@@ -45,7 +45,7 @@ async def test_build_multimodal_result_vision_fallback_failure():
     vision_fallback_model_cfg = {"model": "gpt-4o-mini", "api_key": "test"}
 
     with patch(
-        "myrm_agent_harness.toolkits.vision.fallback_engine.VisionFallbackEngine.describe_local_image",
+        "myrm_agent_harness.toolkits.llms.vision.fallback_engine.VisionFallbackEngine.describe_local_image",
         new_callable=AsyncMock,
     ) as mock_describe:
         mock_describe.side_effect = Exception("Fallback API Error")

@@ -26,6 +26,7 @@ Toolkits Llms module.
 | routing/ | Routing submodule. |
 | utils/ | LLM toollayer: JSON handles, modelparameter, log |
 | video/ | Video generation module — multi-provider video generation with failover. |
+| vision/ | Multimodal understanding — `VisionFallbackEngine` / `VideoAnalysisEngine`. See [vision/_ARCH.md](vision/_ARCH.md). |
 
 ## Media stack (generation vs understanding)
 
@@ -33,6 +34,4 @@ Toolkits Llms module.
 |-------|----------|------|
 | **Generation** | `image/`, `video/` | LLM/agent tools for image and video creation |
 | **Shared media** | `_media_shared/` | SSRF-safe fetch, normalization — shared by generation modules |
-| **Understanding** | [`../vision/`](../vision/_ARCH.md) | `VisionFallbackEngine` / `VideoAnalysisEngine` — text-mode fallback when the primary model lacks vision; consumed by `file_read_tool`, server chat utils |
-
-Understanding engines live at `toolkits/vision/` today; a future move to `llms/vision/` is optional (import-path only).
+| **Understanding** | `vision/` | Text-mode fallback when the primary model lacks vision; consumed by `file_read_tool`, server chat utils |

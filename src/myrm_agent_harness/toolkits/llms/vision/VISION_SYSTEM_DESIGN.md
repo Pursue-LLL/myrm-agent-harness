@@ -38,11 +38,11 @@
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         Harness Layer                                │
 ├─────────────────────────────────────────────────────────────────────┤
-│ - VisionFallbackEngine (toolkits/vision/fallback_engine.py)        │
+│ - VisionFallbackEngine (toolkits/llms/vision/fallback_engine.py)        │
 │   • Image compression (if too large)                                │
 │   • Call vision model via LiteLLM                                   │
 │   • Return text description                                         │
-│ - VideoAnalysisEngine (toolkits/vision/video_analysis_engine.py)   │
+│ - VideoAnalysisEngine (toolkits/llms/vision/video_analysis_engine.py)   │
 │   • Native video pass-through (for video-capable models)            │
 │   • ffmpeg frame extraction fallback (scene detection + uniform)    │
 │   • Return text description via vision fallback                     │
@@ -53,7 +53,7 @@
 
 ### 1. VisionFallbackEngine (Harness Layer)
 
-**位置**: `myrm_agent_harness/toolkits/vision/fallback_engine.py`
+**位置**: `myrm_agent_harness/toolkits/llms/vision/fallback_engine.py`
 
 **职责**:
 - 接收 Base64 图像数据和 MIME 类型

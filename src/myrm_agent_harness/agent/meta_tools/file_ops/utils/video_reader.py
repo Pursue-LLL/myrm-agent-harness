@@ -11,7 +11,7 @@
 
 [INPUT]
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
-- toolkits.vision.video_analysis_engine::VideoAnalysisEngine (POS: 视频分析引擎)
+- toolkits.llms.vision.video_analysis_engine::VideoAnalysisEngine (POS: 视频分析引擎)
 
 [OUTPUT]
 - is_video_path: function — 检测路径是否为视频文件
@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING
 
 from langchain_core.messages.content import ContentBlock, create_text_block
 
-from myrm_agent_harness.toolkits.vision.video_analysis_engine import (
+from myrm_agent_harness.toolkits.llms.vision.video_analysis_engine import (
     MAX_VIDEO_BYTES,
     VIDEO_EXTENSIONS,
     VIDEO_MIME_TYPES,
@@ -99,7 +99,7 @@ async def read_video_as_content_blocks(
     # 模型仅支持图像不支持视频 → 通过 VideoAnalysisEngine 帧提取分析
     if vision_fallback_model_cfg:
         from myrm_agent_harness.agent.config.llm import LLMConfig
-        from myrm_agent_harness.toolkits.vision.video_analysis_engine import (
+        from myrm_agent_harness.toolkits.llms.vision.video_analysis_engine import (
             VideoAnalysisEngine,
         )
 

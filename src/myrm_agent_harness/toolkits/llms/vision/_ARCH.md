@@ -24,7 +24,7 @@
 
 ## 架构定位
 
-LLM 多模态**理解**层（与 `llms/image/` 生成、`llms/video/` 生成对称）。当前位于 `toolkits/vision/` 顶层包；逻辑归属 `llms/` 媒体栈，未来 refactor 可迁至 `llms/vision/`（无行为变更，仅 import 路径）。
+LLM 多模态**理解**层（与同级 `llms/image/` 生成、`llms/video/` 生成对称），位于 `toolkits/llms/vision/`。
 
 ## 依赖关系
 

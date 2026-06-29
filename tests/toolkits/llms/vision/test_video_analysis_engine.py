@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.agent.config.llm import LLMConfig
-from myrm_agent_harness.toolkits.vision.video_analysis_engine import (
+from myrm_agent_harness.toolkits.llms.vision.video_analysis_engine import (
     MAX_VIDEO_BYTES,
     VIDEO_EXTENSIONS,
     VIDEO_MIME_TYPES,
@@ -21,7 +21,7 @@ def mock_llm_config():
 @pytest.fixture
 def video_engine(mock_llm_config):
     with patch(
-        "myrm_agent_harness.toolkits.vision.video_analysis_engine.create_litellm_model"
+        "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.create_litellm_model"
     ) as mock_create:
         mock_model = AsyncMock()
         mock_create.return_value = mock_model
@@ -107,7 +107,7 @@ class TestVideoAnalysisEngineFrameExtraction:
     @pytest.mark.asyncio
     async def test_frame_extraction_no_ffmpeg(self, video_engine):
         with patch(
-            "myrm_agent_harness.toolkits.vision.video_analysis_engine._has_ffmpeg",
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._has_ffmpeg",
             return_value=False,
         ):
             result = await video_engine.analyze_video_b64(
@@ -123,10 +123,10 @@ class TestVideoAnalysisEngineFrameExtraction:
 
         fake_frame = b"\xff\xd8\xff\xe0" + b"\x00" * 100  # fake JPEG header
         with patch(
-            "myrm_agent_harness.toolkits.vision.video_analysis_engine._has_ffmpeg",
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._has_ffmpeg",
             return_value=True,
         ), patch(
-            "myrm_agent_harness.toolkits.vision.video_analysis_engine._extract_frames_ffmpeg",
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._extract_frames_ffmpeg",
             new_callable=AsyncMock,
             return_value=[(fake_frame, "image/jpeg"), (fake_frame, "image/jpeg")],
         ):
@@ -140,10 +140,10 @@ class TestVideoAnalysisEngineFrameExtraction:
     @pytest.mark.asyncio
     async def test_frame_extraction_empty_frames(self, video_engine):
         with patch(
-            "myrm_agent_harness.toolkits.vision.video_analysis_engine._has_ffmpeg",
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._has_ffmpeg",
             return_value=True,
         ), patch(
-            "myrm_agent_harness.toolkits.vision.video_analysis_engine._extract_frames_ffmpeg",
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._extract_frames_ffmpeg",
             new_callable=AsyncMock,
             return_value=[],
         ):
@@ -196,7 +196,7 @@ class TestVideoAnalysisEngineLocalVideo:
         mock_executor.read_file_bytes.return_value = b"fake"
 
         with patch(
-            "myrm_agent_harness.toolkits.vision.video_analysis_engine._has_ffmpeg",
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._has_ffmpeg",
             return_value=False,
         ):
             result = await video_engine.analyze_local_video(

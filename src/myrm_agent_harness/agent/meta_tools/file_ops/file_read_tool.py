@@ -188,7 +188,7 @@ async def _build_multimodal_result(
                 blocks.append(create_text_block(result))
         elif vision_fallback_model_cfg:
             from myrm_agent_harness.agent.config.llm import LLMConfig
-            from myrm_agent_harness.toolkits.vision.fallback_engine import (
+            from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
                 VisionFallbackEngine,
             )
 
@@ -372,7 +372,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
                             text_parts.append(img_result)
                     elif vision_fallback_model_cfg:
                         from myrm_agent_harness.agent.config.llm import LLMConfig
-                        from myrm_agent_harness.toolkits.vision.fallback_engine import (
+                        from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
                             VisionFallbackEngine,
                         )
 

@@ -6,7 +6,7 @@ from myrm_agent_harness.agent.meta_tools.file_ops.utils.video_reader import (
     is_video_path,
     read_video_as_content_blocks,
 )
-from myrm_agent_harness.toolkits.vision.video_analysis_engine import MAX_VIDEO_BYTES
+from myrm_agent_harness.toolkits.llms.vision.video_analysis_engine import MAX_VIDEO_BYTES
 
 
 @pytest.fixture
@@ -108,10 +108,10 @@ class TestReadVideoAsContentBlocks:
         with patch(
             "myrm_agent_harness.agent.config.llm.LLMConfig.model_validate"
         ) as mock_model_validate, patch(
-            "myrm_agent_harness.toolkits.vision.video_analysis_engine.VideoAnalysisEngine.__init__",
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.__init__",
             return_value=None,
         ), patch(
-            "myrm_agent_harness.toolkits.vision.video_analysis_engine.VideoAnalysisEngine.analyze_local_video",
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.analyze_local_video",
             new_callable=AsyncMock,
             return_value="A cat playing",
         ):
