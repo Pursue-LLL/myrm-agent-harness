@@ -27,8 +27,8 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
-from myrm_agent_harness.toolkits.commitment.config import CommitmentConfig
-from myrm_agent_harness.toolkits.commitment.types import (
+from myrm_agent_harness.toolkits.memory.proactive.config import CommitmentConfig
+from myrm_agent_harness.toolkits.memory.proactive.types import (
     CommitmentCandidate,
     CommitmentKind,
     CommitmentSensitivity,

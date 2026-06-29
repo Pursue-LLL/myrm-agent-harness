@@ -9,7 +9,7 @@ from myrm_agent_harness.agent.meta_tools.file_ops.vault_tools import vault_extra
 @pytest.fixture
 def temp_workspace(tmp_path):
     # Setup temporary workspace for vault
-    vault_dir = tmp_path / ".myrm" / "vault"
+    vault_dir = tmp_path / ".agent" / "vault"
     vault_dir.mkdir(parents=True)
     yield str(tmp_path)
     shutil.rmtree(tmp_path)

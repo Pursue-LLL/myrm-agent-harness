@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from myrm_agent_harness.toolkits.commitment.types import (
+from myrm_agent_harness.toolkits.memory.proactive.types import (
     CommitmentCandidate,
     CommitmentDueWindow,
     CommitmentKind,

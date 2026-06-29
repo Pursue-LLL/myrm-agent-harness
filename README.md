@@ -303,7 +303,7 @@ myrm-agent-harness/          # 本仓库根（示意）
 │       │   ├── browser/             # 浏览器自动化
 │       │   ├── web_search/          # 网络搜索
 │       │   ├── web_fetch/           # 网页抓取
-│       │   ├── context/             # ContextBundle 统一上下文卷
+│       │   ├── context_bundle/      # ContextBundle 统一上下文卷
 │       │   └── llms/                # LLM 管理（工厂、适配器）
 │       ├── eval/                    # Agent 行为评估框架
 │       └── utils/                   # 通用工具函数
@@ -321,7 +321,7 @@ myrm-agent-harness/          # 本仓库根（示意）
 
 | 分区 | 模块 | 说明 | Optional extra |
 |------|------|------|----------------|
-| **Core** | `code_execution`, `storage`, `mcp`, `context`, `llms`, `memory`, `network`, `retriever`, `web_search`, `web_fetch`, `vector`, `file_parsers` | Agent 运行时基础能力；PDF（pdfplumber）、HTML（bs4/lxml）等已在主依赖 | `[file-parsers]` 补 Office（docx/xlsx/pptx）与 pypdfium2；`retrieval`, `qdrant`, `web` 增强子能力 |
+| **Core** | `code_execution`, `storage`, `mcp`, `context_bundle`, `llms`, `memory`, `network`, `retriever`, `web_search`, `web_fetch`, `vector`, `file_parsers` | Agent 运行时基础能力；PDF（pdfplumber）、HTML（bs4/lxml）等已在主依赖 | `[file-parsers]` 补 Office（docx/xlsx/pptx）与 pypdfium2；`retrieval`, `qdrant`, `web` 增强子能力 |
 | **Integrations** | `browser`, `computer_use`, `acp`, `openapi_bridge`, `vision`, `tts` | 外部系统/协议集成，按需安装 | `browser`, `computer-use`, `image-processing`, `observability` |
 | **Product-adjacent** | `kanban`, `commitment`, `cron`, `notification`, `automation`, `wiki`, `tasks`, `workspace`, `interaction`, `element_ref`, `security` | 通用 Protocol 实现，零 `agent/` 依赖；Myrm 产品默认启用，第三方可按需选用 | 多数无额外 extra |
 

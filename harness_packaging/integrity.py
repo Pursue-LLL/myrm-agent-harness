@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import zipfile
+from enum import StrEnum
 from pathlib import Path
 
 from harness_packaging.manifest import load_core_manifest, repo_root
+from harness_packaging.release import manifest_source_paths
 
 
 def module_file_to_import_name(module_file: Path, src_root: Path) -> str:
@@ -151,3 +154,114 @@ def manifest_watch_violations() -> tuple[str, ...]:
             violations.append(rel)
 
     return tuple(violations)
+
+
+class DistributionWheelRole(StrEnum):
+    """Built wheel kind for distribution artifact verification."""
+
+    RELEASE = "release"
+    CORE = "core"
+
+
+class DistributionWheelArtifactError(ValueError):
+    """Raised when a built wheel violates release or core artifact rules."""
+
+
+_FORBIDDEN_DEBUG_SUFFIXES: tuple[str, ...] = (".map", ".c.src")
+
+
+def _manifest_compiled_prefix(manifest_py: str) -> str:
+    """Return the wheel entry prefix for a manifest module's Nuitka artifact."""
+    if not manifest_py.endswith(".py"):
+        msg = f"Expected manifest path ending in .py, got: {manifest_py!r}"
+        raise ValueError(msg)
+    if manifest_py.endswith("/__init__.py"):
+        parent_dir = manifest_py[: -len("/__init__.py")]
+        stem = parent_dir.rsplit("/", 1)[-1]
+        return f"{parent_dir}/{stem}."
+    return f"{manifest_py[:-3]}."
+
+
+def manifest_compiled_artifact_prefix(manifest_wheel_py: str) -> str:
+    """Return the wheel zip entry prefix for a manifest module's compiled artifact."""
+    return _manifest_compiled_prefix(manifest_wheel_py)
+
+
+def _wheel_zip_entries(wheel_path: Path) -> tuple[str, ...]:
+    with zipfile.ZipFile(wheel_path, "r") as zf:
+        return tuple(zf.namelist())
+
+
+def _forbidden_debug_entries(entries: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(
+        name
+        for name in entries
+        if name.endswith(_FORBIDDEN_DEBUG_SUFFIXES)
+    )
+
+
+def _has_compiled_artifact(entries: tuple[str, ...], manifest_py: str) -> bool:
+    prefix = _manifest_compiled_prefix(manifest_py)
+    return any(
+        name.startswith(prefix) and (name.endswith(".so") or name.endswith(".pyd"))
+        for name in entries
+    )
+
+
+def distribution_wheel_artifact_violations(
+    wheel_path: Path,
+    *,
+    role: DistributionWheelRole,
+) -> tuple[str, ...]:
+    """Return human-readable violations for a release or platform core wheel."""
+    if not wheel_path.is_file():
+        return (f"Wheel file not found: {wheel_path}",)
+
+    try:
+        entries = _wheel_zip_entries(wheel_path)
+    except zipfile.BadZipFile:
+        return (f"Invalid wheel zip: {wheel_path.name}",)
+
+    entry_set = frozenset(entries)
+    violations: list[str] = []
+
+    manifest_paths = manifest_source_paths()
+    leaked = [path for path in manifest_paths if path in entry_set]
+    if leaked:
+        preview = ", ".join(leaked[:3])
+        suffix = f" (+{len(leaked) - 3} more)" if len(leaked) > 3 else ""
+        violations.append(f"Manifest .py source must not ship in wheel: {preview}{suffix}")
+
+    debug_entries = _forbidden_debug_entries(entries)
+    if debug_entries:
+        preview = ", ".join(debug_entries[:3])
+        suffix = f" (+{len(debug_entries) - 3} more)" if len(debug_entries) > 3 else ""
+        violations.append(f"Debug mapping artifacts must not ship in wheel: {preview}{suffix}")
+
+    if role is DistributionWheelRole.CORE:
+        missing_compiled = [
+            path for path in manifest_paths if not _has_compiled_artifact(entries, path)
+        ]
+        if missing_compiled:
+            preview = ", ".join(missing_compiled[:3])
+            suffix = f" (+{len(missing_compiled) - 3} more)" if len(missing_compiled) > 3 else ""
+            violations.append(f"Missing Nuitka .so/.pyd for manifest modules: {preview}{suffix}")
+
+    return tuple(violations)
+
+
+def verify_distribution_wheel_artifact(
+    wheel_path: Path,
+    *,
+    role: DistributionWheelRole,
+) -> None:
+    """Fail closed when a built wheel violates distribution artifact rules."""
+    violations = distribution_wheel_artifact_violations(wheel_path, role=role)
+    if not violations:
+        return
+    joined = "\n  - ".join(violations)
+    msg = (
+        f"Distribution wheel artifact violations ({role.value}) in {wheel_path.name}:\n"
+        f"  - {joined}"
+    )
+    raise DistributionWheelArtifactError(msg)

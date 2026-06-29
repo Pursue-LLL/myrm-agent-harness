@@ -253,7 +253,8 @@ agent/ (运行时核心层)
 | [EXECUTION_SYSTEM.md](src/myrm_agent_harness/toolkits/code_execution/EXECUTION_SYSTEM.md) | 沙箱代码执行 |
 | [STORAGE_SYSTEM.md](src/myrm_agent_harness/toolkits/storage/STORAGE_SYSTEM.md) | 存储与缓存 |
 | [RETRIEVER_SYSTEM.md](src/myrm_agent_harness/toolkits/retriever/RETRIEVER_SYSTEM.md) | 检索系统 |
-| [CONTEXT_BUNDLE_SYSTEM.md](src/myrm_agent_harness/toolkits/context/CONTEXT_BUNDLE_SYSTEM.md) | ContextBundle |
+| [CONTEXT_BUNDLE_SYSTEM.md](src/myrm_agent_harness/toolkits/context_bundle/CONTEXT_BUNDLE_SYSTEM.md) | ContextBundle |
+| [COMMITMENT_SYSTEM.md](src/myrm_agent_harness/toolkits/commitment/COMMITMENT_SYSTEM.md) | Commitment tracking |
 | [SKILL_SYSTEM_DESIGN.md](src/myrm_agent_harness/agent/skills/SKILL_SYSTEM_DESIGN.md) | 技能系统 |
 | [SUB_AGENT_SYSTEM.md](src/myrm_agent_harness/agent/sub_agents/SUB_AGENT_SYSTEM.md) | 子智能体 |
 | [GOAL_SYSTEM_DESIGN.md](src/myrm_agent_harness/agent/goals/GOAL_SYSTEM_DESIGN.md) | 目标系统 |

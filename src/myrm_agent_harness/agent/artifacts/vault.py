@@ -5,6 +5,7 @@
 
 [INPUT]
 - myrm_agent_harness.agent.security.path_security::safe_join_path (POS: 路径安全与边界守卫模块)
+- myrm_agent_harness.core.artifacts.paths::resolve_workspace_artifact_vault_dir (POS: workspace artifact vault path SSOT)
 
 [OUTPUT]
 - VaultObject: class — Vault Object
@@ -20,6 +21,8 @@ import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from uuid import uuid4
+
+from myrm_agent_harness.core.artifacts.paths import resolve_workspace_artifact_vault_dir
 
 logger = logging.getLogger(__name__)
 
@@ -45,12 +48,12 @@ class VaultObject:
 class ArtifactVault:
     """多智能体共享的巨型工件金库.
 
-    默认使用工作区下的 `.myrm/vault` 目录持久化存储, 使得主子智能体可以在同一沙箱内直接共享读写.
+    Default uses ``{workspace}/.agent/vault`` (see ``core.artifacts.paths``).
     """
 
     def __init__(self, workspace_root: str):
         self.workspace_root = Path(workspace_root)
-        self.vault_dir = self.workspace_root / ".myrm" / "vault"
+        self.vault_dir = resolve_workspace_artifact_vault_dir(self.workspace_root)
         self.objects_dir = self.vault_dir / "objects"
         self.meta_dir = self.vault_dir / "meta"
 

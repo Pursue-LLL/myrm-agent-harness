@@ -18,7 +18,11 @@ from harness_packaging.assemble import (
     install_production_wheels,
     run_post_install_verify,
 )
-from harness_packaging.integrity import manifest_import_names
+from harness_packaging.integrity import (
+    DistributionWheelRole,
+    manifest_import_names,
+    verify_distribution_wheel_artifact,
+)
 from harness_packaging.manifest import load_core_manifest
 from harness_packaging.platforms import SUPPORTED_PLATFORMS, get_current_platform
 from harness_packaging.release import manifest_source_paths, strip_manifest_sources_from_wheel
@@ -118,6 +122,8 @@ def test_core_wheel_contains_compiled_artifacts() -> None:
     wheels = sorted(wheel_dir.glob("*.whl"))
     assert wheels, f"No core wheel in {wheel_dir}"
 
+    verify_distribution_wheel_artifact(wheels[-1], role=DistributionWheelRole.CORE)
+
     with zipfile.ZipFile(wheels[-1], "r") as zf:
         names = zf.namelist()
     compiled = [n for n in names if n.startswith("myrm_agent_harness/") and (n.endswith(".so") or n.endswith(".pyd"))]
@@ -152,6 +158,8 @@ def test_release_wheel_is_uv_installable(tmp_path: Path) -> None:
         text=True,
     )
     assert result.returncode == 0, result.stderr
+
+    verify_distribution_wheel_artifact(wheel_path, role=DistributionWheelRole.RELEASE)
 
 
 @pytest.mark.architecture

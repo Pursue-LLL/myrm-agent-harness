@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from myrm_agent_harness.toolkits.commitment.config import CommitmentConfig
-from myrm_agent_harness.toolkits.commitment.extraction import (
+from myrm_agent_harness.toolkits.memory.proactive.config import CommitmentConfig
+from myrm_agent_harness.toolkits.memory.proactive.extraction import (
     CommitmentExtractor,
     _detect_language,
     _parse_iso_to_ms,
@@ -16,7 +16,7 @@ from myrm_agent_harness.toolkits.commitment.extraction import (
     build_extraction_prompt,
     validate_candidates,
 )
-from myrm_agent_harness.toolkits.commitment.types import (
+from myrm_agent_harness.toolkits.memory.proactive.types import (
     CommitmentCandidate,
     CommitmentKind,
     CommitmentSensitivity,

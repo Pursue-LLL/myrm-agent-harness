@@ -16,7 +16,7 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 | pypi_index.py | Core | PyPI JSON probes (package exists, compiled-core extra) |
 | release.py | Core | Strip manifest `.py` in-place (PEP 427 compliant) |
 | assemble.py | Core | Unified production wheel assembly + venv install + post-install verify |
-| integrity.py | Core | Manifest import paths for dev/CI helpers; algorithm-zone drift gate |
+| integrity.py | Core | Manifest import paths; algorithm-zone drift gate; wheel artifact zip verify |
 
 ## Scripts
 
@@ -24,7 +24,7 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 |--------|------|
 | `scripts/sync_distribution_metadata.py` | Regenerate `_core_ip_manifest.py` + pyproject compiled-core pins |
 | `scripts/build_core.py` | Nuitka compile + platform core wheel (static force-include) |
-| `scripts/build_release_wheel.py` | Release wheel via `uv build` + strip manifest `.py` |
+| `scripts/build_release_wheel.py` | Release wheel via `uv build` + strip manifest `.py` + inline verify |
 | `scripts/assemble_production.py` | Full production pipeline + optional `--install` |
 | `scripts/verify_release_tag.py` | Assert `refs/tags/v*` matches `project.version` before wheel builds |
 | `scripts/verify_pypi_publish.py` | Post-upload PyPI index gate (release + 6 core wheels mandatory; musl when indexed) |

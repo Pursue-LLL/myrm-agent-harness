@@ -92,6 +92,7 @@ class SituationContext:
     last_tick_at: datetime | None
     agent_id: str
     user_id: str
+    memory_enabled: bool = True
 
 
 class SituationReportBuilder:

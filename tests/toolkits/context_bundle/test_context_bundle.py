@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from myrm_agent_harness.toolkits.context import (
+from myrm_agent_harness.toolkits.context_bundle import (
     ContextBundleFacade,
     ContextBundleSpec,
     ContextScene,
@@ -45,7 +45,7 @@ def test_apply_migration_writes_manifest(tmp_path: Path) -> None:
 
 
 def test_incognito_policy_blocks_memory_writes() -> None:
-    from myrm_agent_harness.toolkits.context import IncognitoPolicy
+    from myrm_agent_harness.toolkits.context_bundle import IncognitoPolicy
 
     spec = ContextBundleSpec(incognito=IncognitoPolicy(enabled=True))
     assert spec.allows_persistent_write(ContextScene.MEMORY) is False

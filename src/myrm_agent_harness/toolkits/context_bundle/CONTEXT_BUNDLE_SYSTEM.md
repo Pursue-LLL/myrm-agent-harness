@@ -15,7 +15,7 @@ Server (ContextBundleService, ResolvedContextBinding)
 Harness (ContextBundleFacade)
         ├── memory_path      → MemoryManager (existing)
         ├── harness_path     → LocalStorageBackend / workspace scene
-        ├── offload_root     → runtime/context/offload.py paths
+        ├── offload_root     → `{state_dir}/harness/.context/` (VolumeLayout.offload_root)
         ├── archive_path     → future export/import (#8)
         ├── index registry   → ContextIndexRegistry (per-scene health probes)
         └── lifecycle hooks  → OpenClaw-style phases (registration only)
@@ -33,6 +33,14 @@ Harness (ContextBundleFacade)
 
 Task cwd (user project directory) is carried on `AgentContextOverlay.task_workspace_root`
 in `ResolvedContextBinding`, decoupled from long-lived memory paths.
+
+### Task workspace artifact vault
+
+Sub-agent and tool outputs too large for the LLM context use the Shared Artifact Vault
+(`agent/artifacts/vault.py`) under the task workspace — default `{task_workspace}/.agent/vault`.
+Agents exchange `vault://<uuid>` pointers only (zero-copy within the sandbox).
+Path resolution: `core/artifacts/paths.py` (`AGENT_WORKSPACE_VAULT_RELATIVE` optional override).
+`ContextBundleFacade.vault_dir()` exposes the same path for health and server GC alignment.
 
 ## Server Contract
 

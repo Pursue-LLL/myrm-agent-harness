@@ -35,6 +35,7 @@ Workspace file versioning and rollback subsystem. Provides transparent file-leve
 - **Factory pattern**: create_file_snapshot_store() auto-detects git and caches the result.
 - **Max file size**: 10MB per file to avoid snapshotting large binaries.
 - **Max file count**: 50,000 files per workspace to prevent timeouts on oversized directories.
+- **Runtime excludes**: `.agent/` (artifact vault) and `.myrm/` (workspace runtime metadata) are excluded from shadow git and local snapshots.
 - **Structured commit messages**: Metadata stored as key=value in commit body for reliable parsing.
 - **Maintenance mixin separation**: Pruning, repair, and validation logic in ShadowGitMaintenance mixin keeps ShadowGitSnapshotStore under 500 lines.
 - **No-change skip**: `git diff-index --cached --quiet` avoids creating redundant commits when no files changed.

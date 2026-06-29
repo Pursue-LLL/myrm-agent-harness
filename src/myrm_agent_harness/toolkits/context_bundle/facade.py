@@ -1,6 +1,7 @@
 """Context bundle facade.
 
 [INPUT]
+- myrm_agent_harness.core.artifacts.paths::resolve_workspace_artifact_vault_dir (POS: workspace artifact vault path SSOT)
 - toolkits.storage.base::StorageProvider (POS: storage provider abstract base class)
 - toolkits.storage.local::LocalStorageBackend (POS: local storage backend implementation)
 - .hooks::ContextLifecycleHooks (POS: context lifecycle hook registration)
@@ -23,6 +24,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from myrm_agent_harness.core.artifacts.paths import resolve_workspace_artifact_vault_dir
 from myrm_agent_harness.toolkits.storage.base import StorageProvider
 from myrm_agent_harness.toolkits.storage.local import LocalStorageBackend
 
@@ -111,7 +113,7 @@ class ContextBundleFacade:
 
     def vault_dir(self, workspace_root: str | Path) -> Path:
         """Directory where agent ArtifactVault stores objects for a task workspace."""
-        return Path(workspace_root).expanduser().resolve() / ".myrm" / "vault"
+        return resolve_workspace_artifact_vault_dir(workspace_root)
 
     def storage(self) -> StorageProvider:
         if self._storage is None:

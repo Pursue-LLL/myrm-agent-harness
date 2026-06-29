@@ -1,18 +1,18 @@
 """Context bundle toolkit entry point."""
 
-from myrm_agent_harness.toolkits.context.facade import ContextBundleFacade, ContextBundleHealth
-from myrm_agent_harness.toolkits.context.hooks import (
+from myrm_agent_harness.toolkits.context_bundle.facade import ContextBundleFacade, ContextBundleHealth
+from myrm_agent_harness.toolkits.context_bundle.hooks import (
     ContextLifecycleHooks,
     ContextLifecyclePhase,
 )
-from myrm_agent_harness.toolkits.context.index import ContextIndexBackend, ContextIndexRegistry
-from myrm_agent_harness.toolkits.context.migrate import (
+from myrm_agent_harness.toolkits.context_bundle.index import ContextIndexBackend, ContextIndexRegistry
+from myrm_agent_harness.toolkits.context_bundle.migrate import (
     MigrationAction,
     MigrationReport,
     apply_migration,
     run_migration_dry_run,
 )
-from myrm_agent_harness.toolkits.context.spec import (
+from myrm_agent_harness.toolkits.context_bundle.spec import (
     CONTEXT_BUNDLE_SCHEMA_VERSION,
     DEFAULT_BUNDLE_ID,
     DEFAULT_SCENES,
@@ -22,7 +22,7 @@ from myrm_agent_harness.toolkits.context.spec import (
     ContextScene,
     IncognitoPolicy,
 )
-from myrm_agent_harness.toolkits.context.volume import BUNDLE_MANIFEST_FILENAME, VolumeLayout
+from myrm_agent_harness.toolkits.context_bundle.volume import BUNDLE_MANIFEST_FILENAME, VolumeLayout
 
 __all__ = [
     "BUNDLE_MANIFEST_FILENAME",

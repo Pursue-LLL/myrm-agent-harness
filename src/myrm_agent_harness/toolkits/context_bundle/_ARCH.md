@@ -11,7 +11,7 @@ Detailed design: [CONTEXT_BUNDLE_SYSTEM.md](CONTEXT_BUNDLE_SYSTEM.md)
 |------|------|-------------|
 | `spec.py` | Core | `ContextBundleSpec`, `ContextScene`, `IncognitoPolicy`, `AgentContextOverlay` |
 | `volume.py` | Core | `VolumeLayout` — MYRM_DATA_DIR path mapping + manifest |
-| `facade.py` | Core | `ContextBundleFacade` — memory/storage/offload/index/hooks entry |
+| `facade.py` | Core | `ContextBundleFacade` — memory/storage/offload/index/hooks entry; `vault_dir()` delegates to `core.artifacts.paths` |
 | `index.py` | Protocol | `ContextIndexRegistry` extension mount point (optional index backends) |
 | `hooks.py` | Protocol | `ContextLifecycleHooks` mount point for OpenClaw-style lifecycle |
 | `health.py` | Core | Scene health probe adapters (`MemorySceneHealthBackend`, `WorkspaceSceneHealthBackend`, `StaticSceneHealthBackend`) |
@@ -38,3 +38,15 @@ Detailed design: [CONTEXT_BUNDLE_SYSTEM.md](CONTEXT_BUNDLE_SYSTEM.md)
 
 Task workspace cwd (user-selected project directory) is expressed via
 `AgentContextOverlay.task_workspace_root` on the Server binding, decoupled from memory paths.
+
+### Task workspace artifact vault
+
+Large tool/sub-agent payloads for a task cwd are stored outside the memory bundle:
+
+| Path | Purpose |
+|------|---------|
+| `{task_workspace}/.agent/vault/objects/` | Binary blobs referenced by `vault://<uuid>` |
+| `{task_workspace}/.agent/vault/meta/` | Vault object metadata JSON |
+
+Override layout for deployments: set infra env `AGENT_WORKSPACE_VAULT_RELATIVE` (relative segments only).
+Single source of truth: `myrm_agent_harness.core.artifacts.paths`.

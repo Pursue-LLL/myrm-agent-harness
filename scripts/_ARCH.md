@@ -12,12 +12,12 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `boundary_config.py` | 核心 | 白名单前缀、禁止前缀、允许路径配置 | ✅ |
 | `boundary_engine.py` | 核心 | AST 静态/动态 import 检测引擎 | ✅ |
 | `build_core.py` | 核心 | compiled-core 构建入口 | ✅ |
-| `build_release_wheel.py` | 核心 | 发布 wheel 组装 | ✅ |
+| `build_release_wheel.py` | 核心 | 发布 wheel 组装 + strip 后 inline artifact verify | ✅ |
 | `sync_distribution_metadata.py` | 核心 | 从 `core_manifest.yaml` 再生成 `_core_ip_manifest.py` 与 compiled-core pin | ✅ |
 | `assemble_production.py` | 辅助 | 生产包组装 | ✅ |
 | `verify_release_tag.py` | 辅助 | tag 与 `project.version` 一致性校验 | ✅ |
 | `verify_pypi_publish.py` | 辅助 | PyPI 发布后索引校验（6 core 必选；musl 已索引则必选） | ✅ |
-| `validate_pypi_wheels.py` | 辅助 | wheel 产物校验 | ✅ |
+| `validate_pypi_wheels.py` | 辅助 | wheel 数量/版本 + zip artifact 校验 | ✅ |
 | `publish_pypi_rc1.py` | 辅助 | RC 发布脚本 | ✅ |
 | `bootstrap_pypi_core_upload.sh` | 辅助 | core extra 首次上传引导 | ✅ |
 | `tool_registry_config.py` | 辅助 | Tool registry 扫描配置 | ✅ |

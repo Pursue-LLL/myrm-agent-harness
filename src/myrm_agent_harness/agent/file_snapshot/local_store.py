@@ -66,7 +66,9 @@ DEFAULT_EXCLUDES: set[str] = {
     # OS files
     ".DS_Store",
     "Thumbs.db",
-    # Myrm internal
+    # Agent runtime (artifact vault, etc.)
+    ".agent",
+    # Workspace runtime metadata directory
     ".myrm",
 }
 

@@ -33,10 +33,11 @@ Ship `myrm-agent-harness` as a **closed-source Python package** that third-party
 | Platform detection | `harness_packaging/platforms.py` | Eight supported platform keys (incl. linux-*-musl) |
 | Metadata codegen | `scripts/sync_distribution_metadata.py` | Generate `_core_ip_manifest.py` + sync compiled-core pins |
 | Core build | `scripts/build_core.py` | Nuitka `--module` + static hatch `force-include` wheel |
-| Release build | `scripts/build_release_wheel.py` | `uv build --wheel` + strip manifest `.py` |
+| Release build | `scripts/build_release_wheel.py` | `uv build --wheel` + strip manifest `.py` + inline artifact verify |
 | Browser data assets | `pyproject.toml` `[tool.hatch.build.targets.wheel.force-include]` | Ships `toolkits/browser/assets/ad_domains.txt` in release wheel (guard: `tests/architecture/test_wheel_browser_assets.py`) |
 | Production assemble | `scripts/assemble_production.py` | Core + release + optional `--install` |
 | Post-install verify | `src/myrm_agent_harness/_verify_distribution.py` | Console script `verify-harness-distribution` |
+| Wheel artifact gate | `harness_packaging/integrity.py` | Zip scan: no manifest `.py` / debug maps in release; compiled-only core |
 | Distribution probe | `src/myrm_agent_harness/_distribution.py` | `source` vs `compiled` + fail-closed + version + platform key match |
 | Runtime platform | `src/myrm_agent_harness/_runtime_platform.py` | Platform key SSOT for install validation and build tooling |
 
@@ -87,10 +88,11 @@ Tag `v*` (e.g. `v0.1.0rc1`, aligned with `project.version`) in **myrm-agent-harn
 
 0. `scripts/verify_release_tag.py` asserts `refs/tags/v{version}` matches `project.version` before any wheel build
 1. Matrix build eight `myrm-agent-harness-core-*` wheels
-2. Build stripped release wheel
-3. `publish-release` job uploads the release wheel (OIDC, `environment: pypi`)
-4. `publish-core` matrix (one job per platform) uploads each core wheel — OIDC tokens are project-scoped; batch upload fails with 403
-5. `publish-verify` runs `scripts/verify_pypi_publish.py` (release + 6 bootstrapped core wheels mandatory; musl mandatory once indexed; see `bootstrap_pypi_core_upload.sh`)
+2. Build stripped release wheel (`scripts/build_release_wheel.py`: strip manifest `.py` + inline artifact verify)
+3. `validate-wheels` job runs `scripts/validate_pypi_wheels.py` on release + all core wheels (count/version + zip artifact scan)
+4. `publish-release` job uploads the release wheel (OIDC, `environment: pypi`)
+5. `publish-core` matrix (one job per platform) uploads each core wheel — OIDC tokens are project-scoped; batch upload fails with 403
+6. `publish-verify` runs `scripts/verify_pypi_publish.py` (release + 6 bootstrapped core wheels mandatory; musl mandatory once indexed; see `bootstrap_pypi_core_upload.sh`)
 
 Alpine/musl deployments: use `compiled-core-musl` extra (or `install.sh` `reinstall_harness_musl_core()` after `uv sync`). PEP 508 cannot distinguish glibc vs musl on Linux; do not install both linux extras on the same host.
 
@@ -106,7 +108,7 @@ One-time bootstrap for new core project names (OIDC cannot create projects): `sc
 |----------|------|
 | `publish-pypi.yml` | Tag release → PyPI (OIDC upload for release + 8 core wheels; verify 6 + indexed musl); matrix from `.github/core-platform-matrix.json` |
 | `build-core-wheels.yml` | Dev/matrix core wheel artifacts (same shared matrix; optional `platform` input) |
-| `boundary-check.yml` | Architecture + distribution tests (dual-wheel COMPILED e2e, manifest drift gate) |
+| `boundary-check.yml` | Architecture + distribution tests (dual-wheel COMPILED e2e, manifest drift gate, wheel artifact zip scan via `validate_pypi_wheels.py`) |
 
 ## References
 

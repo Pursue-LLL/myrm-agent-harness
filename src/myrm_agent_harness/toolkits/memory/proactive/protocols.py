@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from myrm_agent_harness.toolkits.commitment.types import (
+from myrm_agent_harness.toolkits.memory.proactive.types import (
     CommitmentRecord,
     CommitmentStatus,
 )

@@ -61,7 +61,7 @@ _COMMIT_ID_RE = re.compile(r"^[0-9a-f]{40}$")
 DEFAULT_EXCLUDES = (
     "node_modules/\n.venv/\nvenv/\nenv/\n__pycache__/\n.cache/\n.pytest_cache/\n"
     ".mypy_cache/\n.ruff_cache/\ndist/\nbuild/\ntarget/\nout/\n.next/\n.nuxt/\n"
-    ".git/\n.hg/\n.svn/\n.DS_Store\nThumbs.db\n.myrm/\n"
+    ".git/\n.hg/\n.svn/\n.DS_Store\nThumbs.db\n.myrm/\n.agent/\n"
     "*.sqlite\n*.sqlite3\n*.db\n*.mp4\n*.mov\n*.avi\n*.zip\n*.tar.gz\n*.tar.bz2\n"
     "*.7z\n*.rar\n*.jar\n*.war\n*.pyc\n*.pyo\n.idea/\n.vscode/\n*.log\n"
 )

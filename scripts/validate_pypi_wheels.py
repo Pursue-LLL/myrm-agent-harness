@@ -3,13 +3,14 @@
 
 [INPUT]
 - harness_packaging.platforms::PUBLISH_PLATFORMS (POS: active PyPI publish platform set)
+- harness_packaging.integrity::{DistributionWheelRole, verify_distribution_wheel_artifact} (POS: wheel zip artifact gate)
 - harness_packaging.version::read_harness_version (POS: harness version reader)
 
 [OUTPUT]
 - main(): exit 0 when upload dir has release + all publish-platform core wheels
 
 [POS]
-Release pipeline gate preventing partial PyPI publishes.
+Release pipeline gate preventing partial PyPI publishes and wheel IP/debug leaks.
 """
 
 from __future__ import annotations
@@ -22,6 +23,11 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
+from harness_packaging.integrity import (  # noqa: E402
+    DistributionWheelArtifactError,
+    DistributionWheelRole,
+    verify_distribution_wheel_artifact,
+)
 from harness_packaging.platforms import PUBLISH_PLATFORMS  # noqa: E402
 from harness_packaging.version import read_harness_version  # noqa: E402
 
@@ -96,6 +102,17 @@ def validate_upload_dir(upload_dir: Path, expected_version: str) -> None:
     missing = set(publish_platforms) - found_platforms
     if missing:
         raise SystemExit(f"Missing core wheels for platforms: {sorted(missing)}")
+
+    for wheel in wheels:
+        role = (
+            DistributionWheelRole.RELEASE
+            if wheel in release_wheels
+            else DistributionWheelRole.CORE
+        )
+        try:
+            verify_distribution_wheel_artifact(wheel, role=role)
+        except DistributionWheelArtifactError as exc:
+            raise SystemExit(str(exc)) from exc
 
 
 def main() -> int:
