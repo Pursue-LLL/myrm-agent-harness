@@ -179,17 +179,15 @@ except Exception as e:
 
 **工具**: Playwright
 
-**文件**: `myrm-agent-server/tests/misc/test_vision_simple.py`
+**文件**: `myrm-agent-server/tests/api/agent/test_vision_fallback.py`
 
 **验证点**:
 - ✅ 图片上传
 - ✅ 消息发送
 - ✅ SSE 事件接收
-- ✅ DOM UI 渲染（"分析图片中..."）
+- ✅ Vision fallback 逻辑触发
 
-## 已知限制与未来优化
-
-### 当前能力
+## 当前能力
 
 1. 多图/视频并发分析（asyncio.gather）
 2. MD5 hash 字典缓存（避免重复分析）
