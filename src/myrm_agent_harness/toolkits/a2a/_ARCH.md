@@ -17,7 +17,12 @@ Google A2A 协议的框架级基础设施，与 `acp/`（IDE↔Agent）和 `mcp/
 
 - `types.py` ← 无外部依赖
 - `protocols.py` ← `types.py`
-- `resolver.py` ← `types.py` + `httpx`
+- `resolver.py` ← `types.py` + `httpx` + `core/security/http/secure_fetch.py`（`secure_get`）
+
+## SSRF 边界
+
+- 默认路径：`resolve()` 经 `secure_get` 做 DNS pin + redirect 逐跳校验。
+- `skip_ssrf_check=True`：裸 httpx，**仅限 trusted internal 调用**；禁止从用户可控 URL 路径传入。
 
 ## 不做什么
 

@@ -3,8 +3,9 @@
 Shared utilities for scanning, deduplication, ranking, origin tracking, and LobeHub conversion.
 
 [INPUT]
-- backends.skills.discovery_protocols::SkillSearchResult (POS: SkillBackend SkillBackend SkillDiscoveryBackend)
-- backends.skills.scanning::ScanResult (POS: Scan result cache layer. Stores scan results in Volume (~/.myrm/skill_scans/) to avoid redundant scanning. Critical for performance: 20x speedup for repeat scans. Cache key: SHA256 hash of skill content Cache location: ~/.myrm/skill_scans/{content_hash}.json Expiration: 60 days TTL (auto-cleanup on get))
+- backends.skills.discovery_protocols::SkillSearchResult (POS: unified skill discovery result type)
+- backends.skills.scanning::ScanResult (POS: scan result cache layer for skill content)
+- core.security.http.secure_fetch::secure_get (POS: SSRF-protected outbound HTTP)
 
 [OUTPUT]
 - scan_all_text_files: Scan all text files in a skill package for security threats.

@@ -5,6 +5,7 @@ with TTL caching, timeout control, and SSRF protection.
 
 [INPUT]
 - types::AgentCard, WELL_KNOWN_AGENT_CARD_PATH
+- core.security.http.secure_fetch::secure_get (POS: SSRF-protected outbound HTTP)
 
 [OUTPUT]
 - A2ACardResolver: Client for discovering remote AgentCards

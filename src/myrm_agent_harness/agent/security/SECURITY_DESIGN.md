@@ -192,11 +192,13 @@ class SSRFResult:
     resolved_ips: tuple[str, ...] = ()  # 已验证安全的 IP，用于 DNS pinning
 ```
 
-辅助函数 `create_dns_pin_map()` 构建 `hostname→IP` 映射，`build_host_resolver_rules()` 生成 Chrome `--host-resolver-rules` 参数用于浏览器级 DNS pinning。
+辅助函数 `create_dns_pin_map()` 构建 `hostname→IP` 映射，`build_host_resolver_rules()` 生成 Chrome `--host-resolver-rules` 参数（供需要浏览器级 DNS 映射的调用方使用；Playwright 导航见下文）。
 
 提供同步 (`validate_url_for_ssrf`) 和异步 (`async_validate_url_for_ssrf`) 两个版本。
 
-**出站 HTTP 执行层**：`core/security/http/secure_fetch.py` 提供 `secure_get` / `secure_request` / `resolve_secure_http_target`，在所有出站 HTTP 路径上强制执行 DNS pinning 与逐跳 redirect 复检。MediaResolver、ZipInstaller、OpenAPI Bridge、http_client、web_fetch deep_crawl（robots/sitemap）、server 媒体下载均通过此模块发起请求。`async_pin_url` 阻断时写入 `SSRF_BLOCKED` 审计条目。
+**出站 HTTP 执行层（httpx）**：`core/security/http/secure_fetch.py` 提供 `secure_get` / `secure_request` / `resolve_secure_http_target`，在 httpx 出站路径上强制执行 DNS pinning 与逐跳 redirect 复检。消费者包括 MediaResolver、ZipInstaller、OpenAPI Bridge、http_client、web_fetch deep_crawl（robots/sitemap）、A2A resolver、cron webhook、HTTP hooks、LobeHub 技能安装、image 参考 URL、server 媒体下载。`async_pin_url` 阻断时写入 `SSRF_BLOCKED` 审计条目。
+
+**浏览器 document 导航层（Playwright）**：`toolkits/browser/navigation_ssrf_guard.py` 在 `page.goto` 期间注册 document 级 route 拦截，对每个 document 请求与 redirect 链逐跳调用 `async_pin_url` 校验。不拦截 subresource（与 OpenClaw 同级策略）。本地模式 `allow_private_networks=True` 时跳过 SSRF 校验。
 
 ### 3.2 命令/模块黑名单
 

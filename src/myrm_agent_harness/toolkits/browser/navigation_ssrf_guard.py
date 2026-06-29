@@ -15,14 +15,11 @@ Reuses core SSRF guards; does not duplicate IP blocklists.
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:
     from patchright.async_api import Page, Request, Response, Route
-
-logger = logging.getLogger(__name__)
 
 _NETWORK_SCHEMES = frozenset({"http", "https"})
 

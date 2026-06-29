@@ -134,12 +134,11 @@ async def test_fetch_image_bytes_reads_response() -> None:
     response.headers = {"content-type": "image/png"}
     response.content = b"abc"
 
-    client = MagicMock()
-    client.get = AsyncMock(return_value=response)
-    client.__aenter__ = AsyncMock(return_value=client)
-    client.__aexit__ = AsyncMock(return_value=False)
-
-    with patch("myrm_agent_harness.toolkits.llms.image.image_langchain_tool.httpx.AsyncClient", return_value=client):
+    with patch(
+        "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
+        new_callable=AsyncMock,
+        return_value=response,
+    ):
         body, mime, size = await _fetch_image_bytes("https://example.com/x.png")
 
     assert body == b"abc"

@@ -9,7 +9,7 @@
 - .pool.throttle::ThrottleStrategy (POS: throttle strategy protocol)
 - .pool.config::BrowserMode, NavigationWaitConfig (POS: browser configuration)
 - .wait_strategies::wait_for_page_ready, WaitStrategy, WaitMetrics (POS: smart wait strategies)
-- core.security.guards.ssrf::check_url, resolve_and_check (POS: SSRF protection)
+- .navigation_ssrf_guard::goto_with_ssrf_guard (POS: Playwright document navigation SSRF guard)
 - .session.consent_dismisser::ConsentDismisser (POS: cookie consent auto-dismiss)
 
 [OUTPUT]
@@ -130,8 +130,6 @@ class Navigator:
             CircuitBreakerOpenError: Domain熔断器打开
         """
         self._validate_url_scheme(url)
-        if not self._allow_private_networks:
-            self._validate_ssrf(url)
 
         # 熔断器Check
         if self._circuit_breaker:
@@ -332,29 +330,3 @@ class Navigator:
                 f"Blocked URL scheme: '{scheme}' not allowed (only http/https/about permitted). "
                 f"Rejected dangerous schemes: javascript/file/data/blob/ftp. Got: {url}"
             )
-
-    @staticmethod
-    def _validate_ssrf(url: str) -> None:
-        """Validate URL against SSRF attacks (private/internal network access).
-
-        Checks both the URL itself and DNS-resolved IP addresses.
-        Skips validation for about: scheme URLs.
-
-        Raises:
-            ValueError: URL targets a private/internal network
-        """
-        parsed = urlparse(url)
-        if parsed.scheme == "about":
-            return
-
-        from myrm_agent_harness.core.security.guards.ssrf import check_url, resolve_and_check
-
-        url_verdict = check_url(url)
-        if not url_verdict.allowed:
-            raise ValueError(f"SSRF blocked: {url_verdict.reason}")
-
-        hostname = parsed.hostname
-        if hostname:
-            dns_verdict = resolve_and_check(hostname)
-            if not dns_verdict.allowed:
-                raise ValueError(f"SSRF blocked: {dns_verdict.reason}")
