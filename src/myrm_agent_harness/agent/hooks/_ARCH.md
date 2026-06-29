@@ -15,9 +15,11 @@ User-configurable lifecycle hook system. Complements middlewares (framework-inte
 | skill_parser.py | Core | SKILL.md Hook parser — extract hooks from Markdown frontmatter. | ✅ |
 | tool_name_mapping.py | Core | Provides map_to_claude_tool_name, map_from_claude_tool_name, should_trigger_hook. | ✅ |
 | types.py | Core | Hook type definitions. Defines all Hook-related data structures, consumed by executor.py and integra | ✅ |
-| webhook.py | Core | SSRF defense-in-depth utilities for webhook hooks. | ✅ |
+
+HTTP hooks use `core/security/http/secure_fetch.py` (`secure_request`) for SSRF protection — not a local duplicate.
 
 ## Key Dependencies
 
+- `core/security/http/secure_fetch.py` — HTTP hook outbound SSRF
 - `toolkits`
 - `utils`

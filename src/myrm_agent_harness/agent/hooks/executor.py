@@ -2,6 +2,7 @@
 
 [INPUT]
 - agent.hooks.types (POS: Hook 类型定义)
+- core.security.http.secure_fetch::secure_request (POS: SSRF-protected outbound HTTP)
 - utils.logger_utils (POS: 日志工具)
 
 [OUTPUT]
