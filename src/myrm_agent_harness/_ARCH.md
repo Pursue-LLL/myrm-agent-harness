@@ -19,8 +19,9 @@ Myrm Agent Harness — a production-grade framework for building, deploying, and
 | core/ | Framework-agnostic foundation layer — security, config, events, hooks, artifacts, features. Used by both agent/ and toolkits/. |
 | agent/ | Agent core module — runtime, context management, skill system. External consumers use api/ instead. |
 | backends/ | Backend implementations — skill backends and storage adapters. |
-| client.py | SDK facade — AgentClient providing clean, fluent API to configure and run Agent. |
+| client.py | SDK facade — AgentClient fluent API; convenience layer, not PyPI-stable contract (see api/) |
 | eval/ | Eval Framework — Agent behavior quality evaluation. |
+| test_support/ | Pytest teardown helpers; not part of public consumer API |
 | infra/ | Infrastructure layer — file locks, message delivery, tracing, state monitoring. |
 | observability/ | Observability tools — Prometheus metrics, auth detection, health diagnostics. |
 | runtime/ | Agent runtime infrastructure for single-instance execution. |

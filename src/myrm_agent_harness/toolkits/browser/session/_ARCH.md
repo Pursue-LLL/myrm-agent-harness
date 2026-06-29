@@ -9,6 +9,7 @@ Browser session components.
 |------|------|-------------|-------|
 | __init__.py | Package | Browser session components. | — |
 | browser_session.py | Core | Browser session manager (aggregate root). Composes TabController, Navigator, SnapshotManager, Interactor, Extractor, CaptchaCoordinator (optional). new_tab() implements origin-based routing to reuse same-origin tabs. close() auto-saves sessions for auto_restore_domains (hash-diff to skip unchanged, triggers SessionLifecycleHook for memory sync). | ✅ |
+| browser_session_extraction_mixin.py | Core | Content extraction, vision fallback, media URLs, screenshot compare/export mixin for BrowserSession. | ✅ |
 | browser_session_page_mixin.py | Core | Viewport, dialog, and misc page-level helpers for BrowserSession. | ✅ |
 | consent_dismisser.py | Core | Cookie consent auto-dismisser. 7-phase strategy: CMP-specific buttons (75+ selectors), generic attributes, multilingual text matching (14 languages), Shadow DOM CMPs, CMP JS APIs (Didomi/Cookiebot/Osano/Klaro), force-remove CMP containers (55+ selectors + iframe cleanup), scroll restoration. Also hooked into Navigator for L2 web_fetch coverage. Zero LLM cost, ~50ms. | ✅ |
 | browser_session_persistence_mixin.py | Core | Encrypted session save/restore API for BrowserSession. | ✅ |

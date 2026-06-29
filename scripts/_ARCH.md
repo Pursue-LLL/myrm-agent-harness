@@ -13,6 +13,7 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `boundary_engine.py` | 核心 | AST 静态/动态 import 检测引擎 | ✅ |
 | `build_core.py` | 核心 | compiled-core 构建入口 | ✅ |
 | `build_release_wheel.py` | 核心 | 发布 wheel 组装 | ✅ |
+| `sync_distribution_metadata.py` | 核心 | 从 `core_manifest.yaml` 再生成 `_core_ip_manifest.py` 与 compiled-core pin | ✅ |
 | `assemble_production.py` | 辅助 | 生产包组装 | ✅ |
 | `verify_release_tag.py` | 辅助 | tag 与 `project.version` 一致性校验 | ✅ |
 | `verify_pypi_publish.py` | 辅助 | PyPI 发布后索引校验（6 core 必选；musl 已索引则必选） | ✅ |
@@ -23,7 +24,8 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `tool_registry_engine.py` | 辅助 | Tool registry 扫描引擎 | ✅ |
 | `tool_registry_models.py` | 辅助 | Tool registry 数据模型 | ✅ |
 | `validate_tool_registry.py` | 辅助 | Tool registry CI 校验 | ✅ |
-| `check_fractal_docs.py` | 辅助 | 分形 `_ARCH.md` 目录覆盖 + 可选 IOP 头门禁 | ✅ |
+| `check_fractal_docs.py` | 辅助 | 分形 `_ARCH.md` 目录覆盖 + IOP 头 baseline 门禁（`fractal_header_baseline.txt`） | ✅ |
+| `fractal_header_baseline.txt` | 辅助 | 允许暂缺 IOP 头的 legacy 路径清单（相对 `src/`）；新文件不得加入 | — |
 | `detect_blocking_io.py` | 辅助 | 阻塞 I/O 检测 | ✅ |
 
 ## 边界 enforcement 用法
@@ -32,7 +34,8 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 python scripts/boundary_check.py              # CI 全量
 python scripts/boundary_check.py --incremental  # pre-commit 增量
 python scripts/boundary_check.py --fix          # 自动注释违规 import
-python scripts/check_fractal_docs.py            # 分形 _ARCH 目录覆盖
+python scripts/check_fractal_docs.py            # 目录 _ARCH 覆盖
+python scripts/check_fractal_docs.py --strict-headers --header-baseline scripts/fractal_header_baseline.txt --no-stub
 ```
 
 性能基线见 `benchmarks/bench_boundary_detection.py`。

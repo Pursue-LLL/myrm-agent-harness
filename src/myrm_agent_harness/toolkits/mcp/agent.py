@@ -1,4 +1,7 @@
-"""MCP agent core module.
+"""MCP tool discovery layer — ``MCPAgent`` is not ``myrm_agent_harness.agent``.
+
+``MCPAgent`` orchestrates multi-server MCP tool fetch/normalize; it does **not** import or
+belong to the harness Agent runtime package. See ``toolkits/_ARCH.md`` § Naming disambiguation.
 
 Provides MCP tool fetching capabilities:
 - Fetches tools from multiple MCP servers
@@ -25,7 +28,7 @@ Provides MCP tool fetching capabilities:
 - MCPAgent: MCP tool fetching, server mapping, content block coercion (file/audio/unknown→text), multimodal result normalization, upstream fault tolerance, ext-apps metadata emission, and safety annotation registration
 
 [POS]
-MCP agent layer. Orchestrates multi-server tool discovery with parallel fetching,
+MCP tool discovery layer (not harness Agent runtime). Orchestrates multi-server tool discovery with parallel fetching,
 server-prefix isolation (mcp__{server}__{tool} naming), per-server tool filtering
 (include/exclude whitelist), description truncation, content block coercion
 (file/audio/unknown types gracefully degraded to text for LLM API safety),

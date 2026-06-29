@@ -1,7 +1,7 @@
-# testing/
+# test_support/
 
 ## Overview
-Test-only helpers shipped with harness for pytest teardown and local dev hygiene.
+Pytest-only helpers shipped with harness for teardown and local dev hygiene (not consumer API).
 
 ## File Index
 

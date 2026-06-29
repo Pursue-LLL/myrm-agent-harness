@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.toolkits.browser.session.browser_session import ContentVault
+from myrm_agent_harness.toolkits.browser.session import ContentVault
 
 
 class TestContentVaultProtocol:

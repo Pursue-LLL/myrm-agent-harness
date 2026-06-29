@@ -1,4 +1,4 @@
-"""Map manifest module files to import names and source-relative paths."""
+"""Map manifest module files to import names, source paths, and drift-gate checks."""
 
 from __future__ import annotations
 
@@ -48,3 +48,106 @@ def verify_manifest_imports() -> None:
 
     for import_name in manifest_import_names():
         importlib.import_module(import_name)
+
+
+DISTRIBUTION_PUBLIC_MARKER = "@distribution-public"
+
+_MARKER_SCAN_BYTES = 4096
+
+# Sibling zones: new subdirectories/files outside known public trees need manifest or marker.
+_PARENT_WATCH_ZONES: tuple[tuple[str, str, frozenset[str]], ...] = (
+    (
+        "agent/skills/",
+        "agent/skills/evolution",
+        frozenset(
+            {
+                "curator",
+                "discovery",
+                "history",
+                "mcp",
+                "optimization",
+                "packaging",
+                "runtime",
+                "security",
+                "sync",
+            }
+        ),
+    ),
+    (
+        "agent/context_management/",
+        "agent/context_management/pipeline",
+        frozenset({"archive_checkpoint", "infra", "strategies", "tracking"}),
+    ),
+)
+
+_MEMORY_MANIFEST_PREFIXES: tuple[str, ...] = (
+    "toolkits/memory/strategies",
+    "toolkits/memory/cognitive",
+)
+
+_MEMORY_PUBLIC_SUBDIRS: frozenset[str] = frozenset(
+    {
+        "graph",
+        "integration",
+        "protocols",
+        "relational",
+        "_manager",
+        "conversation_search",
+        "_internal",
+    }
+)
+
+
+def _file_has_public_marker(module_file: Path) -> bool:
+    head = module_file.read_bytes()[:_MARKER_SCAN_BYTES].decode("utf-8", errors="ignore")
+    return DISTRIBUTION_PUBLIC_MARKER in head
+
+
+def _is_under_manifest_dir(rel_posix: str, manifest_dir: str) -> bool:
+    return rel_posix == manifest_dir or rel_posix.startswith(f"{manifest_dir}/")
+
+
+def manifest_watch_violations() -> tuple[str, ...]:
+    """Return ``myrm_agent_harness/``-relative paths missing manifest coverage or public marker."""
+    manifest = load_core_manifest()
+    manifest_files = {path.resolve() for path in manifest.module_paths}
+    src_root = repo_root() / "src" / "myrm_agent_harness"
+    violations: list[str] = []
+
+    for parent_prefix, manifest_dir_prefix, public_subdirs in _PARENT_WATCH_ZONES:
+        zone_root = src_root / parent_prefix
+        if not zone_root.is_dir():
+            continue
+        for module_file in sorted(zone_root.rglob("*.py")):
+            rel = module_file.relative_to(src_root).as_posix()
+            if _is_under_manifest_dir(rel, manifest_dir_prefix):
+                continue
+            rel_to_parent = module_file.relative_to(zone_root)
+            if len(rel_to_parent.parts) == 1:
+                continue
+            if rel_to_parent.parts[0] in public_subdirs:
+                continue
+            if module_file.resolve() in manifest_files:
+                continue
+            if _file_has_public_marker(module_file):
+                continue
+            violations.append(rel)
+
+    memory_root = src_root / "toolkits/memory"
+    if memory_root.is_dir():
+        for module_file in sorted(memory_root.rglob("*.py")):
+            rel = module_file.relative_to(src_root).as_posix()
+            if any(_is_under_manifest_dir(rel, prefix) for prefix in _MEMORY_MANIFEST_PREFIXES):
+                continue
+            rel_to_memory = module_file.relative_to(memory_root)
+            if len(rel_to_memory.parts) == 1:
+                continue
+            if rel_to_memory.parts[0] in _MEMORY_PUBLIC_SUBDIRS:
+                continue
+            if module_file.resolve() in manifest_files:
+                continue
+            if _file_has_public_marker(module_file):
+                continue
+            violations.append(rel)
+
+    return tuple(violations)

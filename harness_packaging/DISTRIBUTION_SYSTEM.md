@@ -106,7 +106,7 @@ One-time bootstrap for new core project names (OIDC cannot create projects): `sc
 |----------|------|
 | `publish-pypi.yml` | Tag release → PyPI (OIDC upload for release + 8 core wheels; verify 6 + indexed musl); matrix from `.github/core-platform-matrix.json` |
 | `build-core-wheels.yml` | Dev/matrix core wheel artifacts (same shared matrix; optional `platform` input) |
-| `boundary-check.yml` | Architecture + distribution tests |
+| `boundary-check.yml` | Architecture + distribution tests (dual-wheel COMPILED e2e, manifest drift gate) |
 
 ## References
 

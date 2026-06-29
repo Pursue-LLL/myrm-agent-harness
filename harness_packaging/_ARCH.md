@@ -16,7 +16,7 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 | pypi_index.py | Core | PyPI JSON probes (package exists, compiled-core extra) |
 | release.py | Core | Strip manifest `.py` in-place (PEP 427 compliant) |
 | assemble.py | Core | Unified production wheel assembly + venv install + post-install verify |
-| integrity.py | Core | Manifest import paths for dev/CI helpers |
+| integrity.py | Core | Manifest import paths for dev/CI helpers; algorithm-zone drift gate |
 
 ## Scripts
 

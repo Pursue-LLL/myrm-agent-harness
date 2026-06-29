@@ -13,6 +13,10 @@ Stable public import surface for external consumers (`myrm-agent-server`, third-
 | config.py | Core | LLM/Agent configuration types | ✅ |
 | protocols.py | Core | Extension-point Protocol definitions | ✅ |
 
+## SDK convenience (non-stable)
+
+- `myrm_agent_harness.client.AgentClient` — fluent builder; **not** part of this package. Server should prefer `api.factory.create_skill_agent`.
+
 ## Tests
 
 - `tests/api/test_public_surface.py` — public `__all__`, lazy exports, submodule smoke, distribution mode

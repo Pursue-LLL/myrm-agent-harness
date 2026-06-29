@@ -7,6 +7,7 @@ to be reusable by both BrowserSession and BrowserFetcher.
 """
 
 from .browser_session import BrowserSession
+from .browser_session_extraction_mixin import ContentVault
 from .consent_dismisser import ConsentDismisser
 from .dialog_manager import DialogManager, DialogPolicy
 from .download_manager import DownloadConfig, DownloadManager, DownloadResult
@@ -21,6 +22,7 @@ from .tab_controller import TabController
 __all__ = [
     "BrowserSession",
     "ConsentDismisser",
+    "ContentVault",
     "DialogManager",
     "DialogPolicy",
     "DownloadConfig",

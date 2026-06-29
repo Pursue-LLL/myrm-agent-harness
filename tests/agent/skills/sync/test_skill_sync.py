@@ -1,7 +1,7 @@
-"""Skill sync subsystem unit tests.
+"""Skill sync integration tests.
 
-Covers: ThresholdQualityGate, SkillSyncManifest, LocalFSSyncBackend,
-        SkillSyncManager, idle_integration.
+Unit tests: test_quality_gate.py, test_sync_manifest.py, test_sync_manager.py.
+This module covers LocalFSSyncBackend, SkillSyncManager, idle integration, and sync DTOs.
 """
 
 from __future__ import annotations
@@ -10,14 +10,12 @@ import asyncio
 import hashlib
 import json
 import sqlite3
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.skills.sync.quality_gate import ThresholdQualityGate
 from myrm_agent_harness.agent.skills.sync.manifest import SkillSyncManifest
 from myrm_agent_harness.agent.skills.sync.types import (
     ConflictResolution,
@@ -29,135 +27,6 @@ from myrm_agent_harness.agent.skills.sync.types import (
     SyncDirection,
     SyncStatus,
 )
-
-
-# ──────────────────────────────────────────────
-#  ThresholdQualityGate
-# ──────────────────────────────────────────────
-
-class TestThresholdQualityGate:
-    """ThresholdQualityGate 单元测试."""
-
-    @pytest.fixture
-    def gate(self) -> ThresholdQualityGate:
-        return ThresholdQualityGate(min_executions=3, min_effective_rate=0.7)
-
-    @pytest.mark.asyncio
-    async def test_pass_with_good_metrics(self, gate: ThresholdQualityGate) -> None:
-        verdict = await gate.evaluate("test_skill", "# Skill\ncontent", 0.9, 10)
-        assert verdict.passed is True
-        assert verdict.score == pytest.approx(0.9)
-        assert verdict.reasons == []
-
-    @pytest.mark.asyncio
-    async def test_reject_empty_content(self, gate: ThresholdQualityGate) -> None:
-        verdict = await gate.evaluate("empty", "", 1.0, 100)
-        assert verdict.passed is False
-        assert any("Empty" in r for r in verdict.reasons)
-
-    @pytest.mark.asyncio
-    async def test_reject_whitespace_only(self, gate: ThresholdQualityGate) -> None:
-        verdict = await gate.evaluate("ws", "   \n  ", 1.0, 100)
-        assert verdict.passed is False
-
-    @pytest.mark.asyncio
-    async def test_reject_low_executions(self, gate: ThresholdQualityGate) -> None:
-        verdict = await gate.evaluate("few_runs", "# Skill", 0.9, 2)
-        assert verdict.passed is False
-        assert any("Insufficient" in r for r in verdict.reasons)
-
-    @pytest.mark.asyncio
-    async def test_reject_low_effective_rate(self, gate: ThresholdQualityGate) -> None:
-        verdict = await gate.evaluate("low_rate", "# Skill", 0.3, 10)
-        assert verdict.passed is False
-        assert any("Low effective rate" in r for r in verdict.reasons)
-
-    @pytest.mark.asyncio
-    async def test_reject_both_insufficient_and_low_rate(self, gate: ThresholdQualityGate) -> None:
-        verdict = await gate.evaluate("bad", "# Skill", 0.1, 1)
-        assert verdict.passed is False
-        assert len(verdict.reasons) == 2
-
-    @pytest.mark.asyncio
-    async def test_boundary_exact_thresholds(self, gate: ThresholdQualityGate) -> None:
-        verdict = await gate.evaluate("boundary", "# Skill", 0.7, 3)
-        assert verdict.passed is True
-
-    @pytest.mark.asyncio
-    async def test_custom_thresholds(self) -> None:
-        strict = ThresholdQualityGate(min_executions=10, min_effective_rate=0.95)
-        verdict = await strict.evaluate("s", "# Skill", 0.9, 9)
-        assert verdict.passed is False
-
-
-# ──────────────────────────────────────────────
-#  SkillSyncManifest
-# ──────────────────────────────────────────────
-
-class TestSkillSyncManifest:
-    """SkillSyncManifest SQLite 持久化状态测试."""
-
-    @pytest.fixture
-    def manifest(self, tmp_path: Path) -> SkillSyncManifest:
-        return SkillSyncManifest(tmp_path / "sync.db")
-
-    def test_update_local_new_skill(self, manifest: SkillSyncManifest) -> None:
-        manifest.update_local("my_skill", "sha_abc", "1.0.0")
-        assert manifest.get_local_sha256("my_skill") == "sha_abc"
-        pending = manifest.get_pending_push()
-        assert "my_skill" in pending
-
-    def test_update_local_existing_skill(self, manifest: SkillSyncManifest) -> None:
-        manifest.update_local("sk", "sha1", "1.0.0")
-        manifest.update_local("sk", "sha2", "1.0.1")
-        assert manifest.get_local_sha256("sk") == "sha2"
-
-    def test_update_remote_new_skill(self, manifest: SkillSyncManifest) -> None:
-        manifest.update_remote("remote_sk", "rsha", "2.0.0")
-        pending_pull = manifest.get_pending_pull()
-        assert "remote_sk" in pending_pull
-
-    def test_mark_pushed(self, manifest: SkillSyncManifest) -> None:
-        manifest.update_local("sk", "sha1")
-        assert "sk" in manifest.get_pending_push()
-        manifest.mark_pushed("sk")
-        assert "sk" not in manifest.get_pending_push()
-
-    def test_mark_synced(self, manifest: SkillSyncManifest) -> None:
-        manifest.update_local("sk", "sha_old")
-        manifest.mark_synced("sk", "sha_new")
-        assert manifest.get_local_sha256("sk") == "sha_new"
-        assert "sk" not in manifest.get_pending_push()
-
-    def test_get_conflicts(self, manifest: SkillSyncManifest) -> None:
-        conflicts = manifest.get_conflicts()
-        assert conflicts == []
-
-    def test_sync_time_tracking(self, manifest: SkillSyncManifest) -> None:
-        assert manifest.get_last_sync_time() is None
-        now = datetime.now(UTC)
-        manifest.set_last_sync_time(now)
-        stored = manifest.get_last_sync_time()
-        assert stored is not None
-        assert abs((stored - now).total_seconds()) < 1
-
-    def test_get_sync_counts(self, manifest: SkillSyncManifest) -> None:
-        manifest.update_local("a", "sha_a")
-        manifest.update_local("b", "sha_b")
-        manifest.update_remote("c", "sha_c")
-        counts = manifest.get_sync_counts()
-        assert counts.get("local_only", 0) == 2
-        assert counts.get("remote_ahead", 0) == 1
-
-    def test_unknown_skill_sha256(self, manifest: SkillSyncManifest) -> None:
-        assert manifest.get_local_sha256("nonexistent") == ""
-
-    def test_persistence_across_instances(self, tmp_path: Path) -> None:
-        db = tmp_path / "persist.db"
-        m1 = SkillSyncManifest(db)
-        m1.update_local("persistent", "sha_p")
-        m2 = SkillSyncManifest(db)
-        assert m2.get_local_sha256("persistent") == "sha_p"
 
 
 # ──────────────────────────────────────────────

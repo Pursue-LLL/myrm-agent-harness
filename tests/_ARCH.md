@@ -9,13 +9,18 @@ Harness test suite: unit, integration, architecture gates, and performance bench
 | Path | Role | Description |
 |------|------|-------------|
 | `conftest.py` | 核心 | 全局 pytest 配置：隔离 `MYRM_DATA_DIR`、blocking_io gate、benchmark→performance 标记、浏览器 xdist 串行组、`pytest_collection_finish` warmup/acquire_page 漏标门禁、`reset_global_browser_pool_for_tests()` 清理 |
-| `fixtures/` | 辅助 | 预留 harness-only 夹具目录 |
+| `fixtures/` | 辅助 | 预留 harness-only 夹具目录 · [fixtures/_ARCH.md](fixtures/_ARCH.md) |
+| `examples/` | 辅助 | 非 shipping 参考实现 · [examples/_ARCH.md](examples/_ARCH.md) |
+| `mocks/` | 辅助 | 共享 in-memory backend mock · [mocks/_ARCH.md](mocks/_ARCH.md) |
+| `scripts/` | 单元 | `scripts/` 维护脚本单测（tool registry）· [scripts/_ARCH.md](scripts/_ARCH.md) |
+| `features/` | 单元 | Feature Flag 引擎 · [features/_ARCH.md](features/_ARCH.md) |
 | `performance/` | 性能 | 子进程 import 热点与 lazy-loading 回归（`performance` marker） |
 | `toolkits/browser/` | 集成 | 浏览器单元 + e2e/integration；真实 Chromium 用例带 `integration`/`e2e` |
 | `architecture/` | 门禁 | 边界与打包一致性检测 — 见 [architecture/_ARCH.md](architecture/_ARCH.md) |
 | `integration/` | 集成 | 跨模块集成（含浏览器 wait-strategies 等） |
 | `dev/` | 单元 | vortexai 维护者脚本回归（`test_run_pytest_safe.py`） |
 | `agent/skills/curator/test_curator_engine.py` | 单元 | SkillCurator 生命周期与 LRU 驱逐（勿用通用名 `test_engine.py`，会与 `agent/dynamic_workflow/test_engine.py` 触发 collect import mismatch） |
+| `agent/skills/` | 单元 | 技能子系统测试树 · [agent/skills/_ARCH.md](agent/skills/_ARCH.md) |
 
 ## Test file naming
 

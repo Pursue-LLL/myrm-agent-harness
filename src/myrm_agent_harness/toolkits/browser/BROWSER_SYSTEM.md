@@ -972,18 +972,27 @@ browser/
 │   ├── page_snapshot.py (222 行) — 多 Frame 聚合快照管理
 │   └── observer_scripts.py (196 行) — JavaScript 脚本
 ├── session/
-│   ├── browser_session.py (399 行) — BrowserSession（聚合根，组合各组件）
-│   ├── tab_controller.py (200 行) — TabController
-│   ├── navigator.py (153 行) — Navigator（含 URL scheme 白名单验证与重试自愈）
-│   ├── snapshot_manager.py (281 行) — SnapshotManager（委托 FrameRegistry）
-│   ├── interactor.py (178 行) — Interactor
-│   ├── extractor.py (545 行) — Extractor
-│   ├── page_analyzer.py (202 行) — PageAnalyzer（两阶段快照架构）
-│   ├── session_persistence.py (232 行) — SessionPersistence（会话持久化）
-│   ├── session_lifecycle_hook.py — SessionLifecycleHookProtocol（会话生命周期钩子协议）
-│   ├── session_memory_bridge.py — SessionMemoryBridge（会话→记忆 Profile 自动同步）
-│   ├── network_intelligence.py (230 行) — NetworkIntelligence（CDP 懒加载 API 响应体检索）
-│   └── vision_verifier.py — VisionVerifier（三层极速视觉漏斗）
+│   ├── browser_session.py — BrowserSession 聚合根（tab/navigate/snapshot/interact/网络/下载）
+│   ├── browser_session_extraction_mixin.py — 内容提取、vision fallback、截图对比
+│   ├── browser_session_page_mixin.py — viewport、dialog、evaluate 等页面级 API
+│   ├── browser_session_persistence_mixin.py — SessionVault 持久化 API
+│   ├── browser_session_recording_mixin.py — trace/HAR 录制控制
+│   ├── tab_controller.py — TabController
+│   ├── snapshot_manager.py — SnapshotManager（委托 FrameRegistry）
+│   ├── interactor.py — Interactor
+│   ├── extractor.py — Extractor
+│   ├── structured_extractor.py — LLM + JSON Schema 结构化提取
+│   ├── page_analyzer.py — 两阶段快照架构
+│   ├── session_persistence.py — SessionPersistence
+│   ├── session_lifecycle_hook.py — SessionLifecycleHookProtocol
+│   ├── session_memory_bridge.py — SessionMemoryBridge
+│   ├── network_intelligence.py — CDP 懒加载 API 响应体检索
+│   ├── network_logger.py — 网络请求日志
+│   ├── vision_verifier.py — 三层视觉验证
+│   ├── dialog_manager.py — JS dialog 生命周期
+│   ├── download_manager.py — 文件下载
+│   └── consent_dismisser.py — Cookie consent 自动 dismiss
+│   （Navigator 位于 `navigation/` 包，BrowserSession 与 BrowserFetcher 共用）
 ├── domain_filter.py (317 行) — 四层域名过滤（CSP + HTTP + 主线程硬化 + CDP）
 ├── session_vault.py (678 行) — 加密 Session 存储（O(1) LRU + 内存限制 + 并发锁 + Metrics + 批量 API）
 ├── exceptions.py (约 150 行) — 异常类型

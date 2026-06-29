@@ -25,6 +25,26 @@ Each toolkit is a **self-contained, absolutely independent** module usable via
 4. **`allowed-tools` in SKILL.md** must use **registered tool names** (e.g. `bash_code_execute_tool`, not unregistered aliases like `bash_tool`).
 5. **Adding a harness tool** requires: generic reuse across projects, zero `agent/` imports, entry in `tool_layers.py` + `validate_tool_registry.py` PASS.
 
+### `*_agent_tools.py` naming convention
+
+Several toolkits ship a **LangChain StructuredTool factory** beside the generic engine, e.g.
+`wiki/wiki_agent_tools.py`, `cron/cron_agent_tools.py`, `kanban/kanban_agent_tools.py`.
+
+| Criterion | Belongs in `toolkits/<pkg>/*_agent_tools.py` | Belongs in `agent/meta_tools/` |
+|-----------|-----------------------------------------------|--------------------------------|
+| Imports `myrm_agent_harness.agent.*` | ❌ Never | ✅ When runtime binding is required |
+| Needs session / planner / HITL context at construction | ❌ | ✅ |
+| Pure factory over toolkit engine (`create_*_tools()` → `list[BaseTool]`) | ✅ | — |
+| Filename contains `agent` | ✅ Allowed — means “tools for an agent consumer”, **not** “imports agent runtime” | — |
+
+**Rule of thumb:** engine + persistence in `toolkits/`; thin LangChain adapter may stay in the same package if it passes `test_toolkits_agent_boundary.py`. Wrappers that must read `agent/` session state belong in `agent/meta_tools/`.
+
+Current `*_agent_tools.py` modules (all compliant): `acp/`, `automation/`, `computer_use/`, `cron/`, `deploy/`, `kanban/`, `memory/`, `web_fetch/`, `web_search/`, `wiki/`.
+
+### Naming disambiguation: `mcp/agent.py`
+
+`toolkits/mcp/agent.py` defines **`MCPAgent`** — MCP multi-server tool discovery. It is **not** part of `myrm_agent_harness.agent` (Agent runtime). Do not move it into `agent/`; the name reflects “MCP-side agent layer”, not the harness Agent package.
+
 ### Decision flow (framework vs business)
 
 ```
@@ -39,6 +59,11 @@ Is this a specific vendor/product integration (Google Calendar, HF Hub, RSS feed
 `toolkits/**/*.py` imports `myrm_agent_harness.agent.*`, `myrm_agent_harness.runtime.*`,
 or `myrm_agent_harness.backends.*`.
 
+`tests/architecture/test_toolkits_vendor_boundary.py` fails if a new **top-level** toolkit
+package or shallow (depth ≤ 2) vendor-prefixed module name (e.g. `google_*`, `feishu_*`) appears
+under `toolkits/` — third-party product integrations belong in server skills/MCP/integrations.
+Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
+
 ## Category Index
 
 | Category | Toolkits | Role |
@@ -49,7 +74,18 @@ or `myrm_agent_harness.backends.*`.
 | **Collaboration & Media** | `kanban/`, `tasks/`, `commitment/`, `automation/`, `cron/`, `interaction/`, `tts/`, `vision/` | Scheduling, tasks, user interaction primitives, media |
 | **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |
 
-Agent-specific tool wrappers (e.g. `render_ui_tool`) live in `agent/meta_tools/`, not here.
+Agent runtime-bound tool wrappers (e.g. `render_ui_tool`, `planner_tool`) live in `agent/meta_tools/`, not here. LangChain factories named `*_agent_tools.py` that do not import `agent/` may stay in `toolkits/` — see § `*_agent_tools.py` naming convention.
+
+### Top-level directory hygiene
+
+Only Python toolkit **packages** belong as direct children of `toolkits/` (each with `__init__.py` or a documented single-module layout like `security/`).
+
+| Allowed | Forbidden |
+|---------|-----------|
+| Named toolkit packages (`browser/`, `mcp/`, …) | Runtime/cache dirs (`local_browser_data/`, `__pycache__/`) |
+| `_ARCH.md`, `SECURITY_WRAPPER_GUIDE.md`, `__init__.py` | Vendor integration packages (see vendor boundary test) |
+
+Runtime data belongs under `MYRM_DATA_DIR` / deployment volume — never committed under `src/.../toolkits/`.
 
 ## Allowed Dependencies
 
@@ -74,7 +110,7 @@ Agent-specific tool wrappers (e.g. `render_ui_tool`) live in `agent/meta_tools/`
 
 ### When NOT to place code in toolkits/
 
-❌ **Agent-specific tool wrappers** (e.g. `goal_agent_tools`) → `agent/meta_tools/`
+❌ **Agent runtime-bound wrappers** needing session/planner/HITL (e.g. `render_ui_tool`, `goal_agent_tools`) → `agent/meta_tools/`
 ❌ **Code requiring Agent runtime context** (e.g. session state, planner) → `agent/`
 ❌ **Wrappers around Agent subsystems** (e.g. planner tools) → `agent/sub_agents/`
 

@@ -13,6 +13,11 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
+from harness_packaging.assemble import (
+    assemble_production_wheels,
+    install_production_wheels,
+    run_post_install_verify,
+)
 from harness_packaging.integrity import manifest_import_names
 from harness_packaging.manifest import load_core_manifest
 from harness_packaging.platforms import SUPPORTED_PLATFORMS, get_current_platform
@@ -147,6 +152,42 @@ def test_release_wheel_is_uv_installable(tmp_path: Path) -> None:
         text=True,
     )
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.architecture
+@_SKIP_UNDER_XDIST
+@_SKIP_WITHOUT_NUITKA
+def test_dual_wheel_compiled_mode_e2e(tmp_path: Path) -> None:
+    """Release + platform core wheels must install together and enter COMPILED mode."""
+    wheels = assemble_production_wheels()
+
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    subprocess.run([sys.executable, "-m", "venv", str(consumer / ".venv")], check=True)
+
+    venv_python = install_production_wheels(
+        wheels.core_wheel,
+        wheels.release_wheel,
+        install_dir=consumer,
+    )
+    run_post_install_verify(venv_python)
+
+    probe = subprocess.run(
+        [
+            str(venv_python),
+            "-c",
+            (
+                "from myrm_agent_harness._distribution import ("
+                "DistributionMode, assert_distribution_ready, get_distribution_mode"
+                "); "
+                "assert_distribution_ready(); "
+                "assert get_distribution_mode() is DistributionMode.COMPILED"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert probe.returncode == 0, probe.stderr or probe.stdout
 
 
 @pytest.mark.architecture

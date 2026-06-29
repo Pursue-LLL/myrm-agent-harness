@@ -67,3 +67,11 @@ def test_get_conflicts(manifest: SkillSyncManifest) -> None:
 
 def test_local_sha256_not_tracked(manifest: SkillSyncManifest) -> None:
     assert manifest.get_local_sha256("nonexistent") == ""
+
+
+def test_persistence_across_instances(tmp_path: Path) -> None:
+    db_path = tmp_path / "sync" / "persist.db"
+    first = SkillSyncManifest(db_path)
+    first.update_local("persistent", "sha_p")
+    second = SkillSyncManifest(db_path)
+    assert second.get_local_sha256("persistent") == "sha_p"

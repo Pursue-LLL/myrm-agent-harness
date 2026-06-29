@@ -24,7 +24,7 @@
 | `tests/` | 辅助 | 单元 / 集成 / API 冒烟 · [\_ARCH.md](tests/_ARCH.md) |
 | `benchmarks/` | 辅助 | CI 性能回归；`archive/` 存历史脚本 · [\_ARCH.md](benchmarks/_ARCH.md) |
 | `scripts/` | 辅助 | 边界检测、PyPI 发布、tool registry、分形 `_ARCH` 门禁 · [\_ARCH.md](scripts/_ARCH.md) |
-| `packages/` | 辅助 | 内部 vendored 子包（若有） |
+| `packages/` | 辅助 | 平台 core wheel 子工程 · [\_ARCH.md](packages/_ARCH.md) |
 
 ## 模块依赖
 
