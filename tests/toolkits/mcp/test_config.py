@@ -223,3 +223,27 @@ class TestMaxOutputCharsValidation:
     def test_above_maximum_rejected(self) -> None:
         with pytest.raises(ValueError):
             MCPConfig(name="s", type="stdio", command="echo", max_output_chars=10_000_001)
+
+
+class TestTypeAutoInference:
+    """Verify type is auto-inferred from command/url when omitted."""
+
+    def test_command_infers_stdio(self) -> None:
+        cfg = MCPConfig(name="fs", command="npx", args=["-y", "server"])
+        assert cfg.type == "stdio"
+
+    def test_url_infers_sse(self) -> None:
+        cfg = MCPConfig(name="remote", url="https://example.com/sse")
+        assert cfg.type == "sse"
+
+    def test_url_with_mcp_path_infers_streamable_http(self) -> None:
+        cfg = MCPConfig(name="remote", url="https://example.com/mcp")
+        assert cfg.type == "streamable_http"
+
+    def test_explicit_type_not_overridden(self) -> None:
+        cfg = MCPConfig(name="remote", type="sse", url="https://example.com/mcp")
+        assert cfg.type == "sse"
+
+    def test_no_type_no_hints_raises(self) -> None:
+        with pytest.raises(ValueError):
+            MCPConfig(name="bare")

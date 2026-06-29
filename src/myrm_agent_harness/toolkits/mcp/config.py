@@ -81,9 +81,26 @@ class MCPConfig(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
     name: str = Field(..., description="MCP server name (unique identifier)")
-    type: str = Field(..., description="Connection type: sse, stdio, streamable_http")
+    type: str = Field(default="", description="Connection type: sse, stdio, streamable_http (auto-inferred if omitted)")
     url: str | None = Field(default=None, description="URL for SSE or HTTP connections")
     command: str | None = Field(default=None, description="Command for stdio connections")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _infer_type(cls, data: dict[str, object]) -> dict[str, object]:
+        """Auto-infer transport type from url/command when type is omitted."""
+        if isinstance(data, dict) and not data.get("type"):
+            if data.get("command"):
+                data["type"] = "stdio"
+            elif data.get("url"):
+                url = str(data["url"])
+                data["type"] = "streamable_http" if "/mcp" in url else "sse"
+            else:
+                raise ValueError(
+                    f"MCPConfig '{data.get('name', '?')}': "
+                    "cannot infer 'type' — provide 'type', 'command', or 'url'"
+                )
+        return data
     args: list[str] | None = Field(default=None, description="Arguments for stdio connections")
     description: str = Field(
         default="",
