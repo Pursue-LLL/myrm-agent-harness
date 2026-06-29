@@ -1,7 +1,7 @@
-# test_support/
+# tests/support/
 
 ## Overview
-Pytest-only helpers shipped with harness for teardown and local dev hygiene (not consumer API).
+Pytest-only helpers for teardown and local dev hygiene. Not part of the distributable package.
 
 ## File Index
 
@@ -12,6 +12,6 @@ Pytest-only helpers shipped with harness for teardown and local dev hygiene (not
 ## Key Dependencies
 
 - `ps` subprocess (stdlib) for process-tree scans
-- `utils.os_compat.terminate_process_graceful` for teardown kills
+- `myrm_agent_harness.utils.os_compat.terminate_process_graceful` for teardown kills
 - Invoked from `tests/conftest.py` via `pytest_sessionfinish` / `atexit`
-- Maintainer script tests: `tests/dev/test_run_pytest_safe.py`
+- Browser tests: `tests/toolkits/browser/conftest.py` via `atexit`

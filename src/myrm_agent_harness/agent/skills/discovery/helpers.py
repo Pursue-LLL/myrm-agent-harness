@@ -24,8 +24,6 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
-import httpx
-
 from myrm_agent_harness.backends.skills.discovery_protocols import SkillSearchResult
 from myrm_agent_harness.backends.skills.scanning import ScanResult, scan_skill_content
 
@@ -95,11 +93,12 @@ def rank_results(results: list[SkillSearchResult], query: str) -> list[SkillSear
 
 async def fetch_lobehub_as_skill(detail: SkillSearchResult) -> dict[str, bytes]:
     """Download a LobeHub agent JSON and convert it to a SKILL.md file set."""
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.get(detail.install_url)
-        if resp.status_code != 200:
-            raise ValueError(f"LobeHub agent fetch failed: HTTP {resp.status_code}")
-        data = resp.json()
+    from myrm_agent_harness.core.security.http.secure_fetch import secure_get
+
+    resp = await secure_get(detail.install_url, timeout=15.0)
+    if resp.status_code != 200:
+        raise ValueError(f"LobeHub agent fetch failed: HTTP {resp.status_code}")
+    data = resp.json()
 
     if not isinstance(data, dict):
         raise ValueError("LobeHub agent data is not a valid JSON object")

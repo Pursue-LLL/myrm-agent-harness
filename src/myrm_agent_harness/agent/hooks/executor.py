@@ -207,20 +207,8 @@ class HookExecutor:
     # -- HTTP --
 
     async def _run_http(self, hook: HttpHookDefinition, event: str, payload: dict[str, object]) -> HookResult:
-        from myrm_agent_harness.agent.hooks.webhook import check_ssrf, resolve_and_pin_dns
-
-        ssrf_err = check_ssrf(hook.url)
-        if ssrf_err:
-            return HookResult(hook_type="http", success=False, blocked=hook.block_on_failure, reason=ssrf_err)
-
-        resolved_url, host_header = resolve_and_pin_dns(hook.url)
-        if not resolved_url:
-            return HookResult(
-                hook_type="http",
-                success=False,
-                blocked=hook.block_on_failure,
-                reason="SSRF blocked: DNS resolved to private IP",
-            )
+        from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
+        from myrm_agent_harness.core.security.http.secure_fetch import secure_request
 
         try:
             import httpx
@@ -232,13 +220,17 @@ class HookExecutor:
                 reason="httpx not installed or broken — required for Http hooks",
             )
 
-        headers = {**hook.headers}
-        if host_header:
-            headers["Host"] = host_header
-
+        headers = dict(hook.headers)
         try:
-            async with httpx.AsyncClient(timeout=hook.timeout_seconds) as client:
-                response = await client.post(resolved_url, json={"event": event, "payload": payload}, headers=headers)
+            async with httpx.AsyncClient(timeout=hook.timeout_seconds, follow_redirects=False) as client:
+                response = await secure_request(
+                    client,
+                    "POST",
+                    hook.url,
+                    json={"event": event, "payload": payload},
+                    headers=headers,
+                    timeout=hook.timeout_seconds,
+                )
             success = response.is_success
             return HookResult(
                 hook_type="http",
@@ -247,6 +239,13 @@ class HookExecutor:
                 blocked=hook.block_on_failure and not success,
                 reason=response.text[:200] or f"HTTP {response.status_code}",
                 metadata={"status_code": response.status_code},
+            )
+        except SSRFSecurityError as exc:
+            return HookResult(
+                hook_type="http",
+                success=False,
+                blocked=hook.block_on_failure,
+                reason=f"SSRF blocked: {exc}",
             )
         except Exception as exc:
             return HookResult(hook_type="http", success=False, blocked=hook.block_on_failure, reason=str(exc))

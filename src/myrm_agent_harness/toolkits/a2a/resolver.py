@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 
 import httpx
 
-from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError, async_pin_url
+from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
 from myrm_agent_harness.toolkits.a2a.types import (
     AgentCard,
     WELL_KNOWN_AGENT_CARD_PATH,
@@ -95,31 +95,31 @@ class A2ACardResolver:
             A2AResolveError: If fetch or parse fails.
         """
         full_url = base_url.rstrip("/") + path
-
-        request_url = full_url
         request_headers = dict(headers or {})
-        if not skip_ssrf_check:
-            try:
-                request_url, pin_headers = await async_pin_url(full_url)
-                request_headers.update(pin_headers)
-            except SSRFSecurityError as exc:
-                raise SSRFBlockedError(str(exc)) from exc
 
-        # 检查缓存
         cache_key = full_url
         cached = self._cache.get(cache_key)
         if cached and cached.expires_at > time.monotonic():
             return cached.card
 
-        # 发起 HTTP 请求
         try:
-            async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-                resp = await client.get(
-                    request_url,
-                    headers=request_headers,
+            if skip_ssrf_check:
+                async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+                    resp = await client.get(full_url, headers=request_headers)
+                    resp.raise_for_status()
+                    data = resp.json()
+            else:
+                from myrm_agent_harness.core.security.http.secure_fetch import secure_get
+
+                resp = await secure_get(
+                    full_url,
+                    timeout=self.timeout_seconds,
+                    headers=request_headers or None,
                 )
                 resp.raise_for_status()
                 data = resp.json()
+        except SSRFSecurityError as exc:
+            raise SSRFBlockedError(str(exc)) from exc
         except httpx.HTTPStatusError as exc:
             raise A2AResolveError(
                 f"AgentCard fetch failed: HTTP {exc.response.status_code}"

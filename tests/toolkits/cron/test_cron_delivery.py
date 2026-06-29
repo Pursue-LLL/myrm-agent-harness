@@ -64,13 +64,17 @@ class TestWebhookDelivery:
 
         with patch("myrm_agent_harness.toolkits.cron.delivery.httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
-            mock_client.post.return_value = mock_resp
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            await delivery.deliver(_job(), _result())
-            mock_client.post.assert_called_once()
+            with patch(
+                "myrm_agent_harness.core.security.http.secure_fetch.secure_request",
+                new_callable=AsyncMock,
+                return_value=mock_resp,
+            ) as mock_secure:
+                await delivery.deliver(_job(), _result())
+                mock_secure.assert_awaited_once()
 
     async def test_deliver_missing_url(self, delivery: WebhookDelivery) -> None:
         with pytest.raises(ValueError, match="Webhook URL missing"):
@@ -83,14 +87,18 @@ class TestWebhookDelivery:
 
         with patch("myrm_agent_harness.toolkits.cron.delivery.httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
-            mock_client.post.return_value = mock_resp
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            with pytest.raises(RuntimeError, match="Webhook returned 400"):
-                await delivery.deliver(_job(), _result())
-            assert mock_client.post.call_count == 1
+            with patch(
+                "myrm_agent_harness.core.security.http.secure_fetch.secure_request",
+                new_callable=AsyncMock,
+                return_value=mock_resp,
+            ) as mock_secure:
+                with pytest.raises(RuntimeError, match="Webhook returned 400"):
+                    await delivery.deliver(_job(), _result())
+                assert mock_secure.await_count == 1
 
     async def test_deliver_5xx_retries(self, delivery: WebhookDelivery) -> None:
         mock_resp = AsyncMock()
@@ -99,15 +107,19 @@ class TestWebhookDelivery:
 
         with patch("myrm_agent_harness.toolkits.cron.delivery.httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
-            mock_client.post.return_value = mock_resp
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            with patch("asyncio.sleep", new_callable=AsyncMock):
-                with pytest.raises(RuntimeError, match="Webhook returned 500"):
-                    await delivery.deliver(_job(), _result())
-                assert mock_client.post.call_count == 2
+            with patch(
+                "myrm_agent_harness.core.security.http.secure_fetch.secure_request",
+                new_callable=AsyncMock,
+                return_value=mock_resp,
+            ) as mock_secure:
+                with patch("asyncio.sleep", new_callable=AsyncMock):
+                    with pytest.raises(RuntimeError, match="Webhook returned 500"):
+                        await delivery.deliver(_job(), _result())
+                    assert mock_secure.await_count == 2
 
     async def test_hmac_signature_present(self, delivery: WebhookDelivery) -> None:
         mock_resp = AsyncMock()
@@ -115,13 +127,17 @@ class TestWebhookDelivery:
 
         with patch("myrm_agent_harness.toolkits.cron.delivery.httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
-            mock_client.post.return_value = mock_resp
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            await delivery.deliver(_job(secret="mysecret"), _result())
-            call_kwargs = mock_client.post.call_args
-            headers = call_kwargs.kwargs.get("headers") or call_kwargs[1].get("headers")
-            assert "X-Webhook-Signature" in headers
-            assert headers["X-Webhook-Signature"].startswith("sha256=")
+            with patch(
+                "myrm_agent_harness.core.security.http.secure_fetch.secure_request",
+                new_callable=AsyncMock,
+                return_value=mock_resp,
+            ) as mock_secure:
+                await delivery.deliver(_job(secret="mysecret"), _result())
+                call_kwargs = mock_secure.call_args.kwargs
+                headers = call_kwargs["headers"]
+                assert "X-Webhook-Signature" in headers
+                assert headers["X-Webhook-Signature"].startswith("sha256=")

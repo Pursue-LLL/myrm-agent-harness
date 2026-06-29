@@ -12,6 +12,7 @@ Harness test suite: unit, integration, architecture gates, and performance bench
 | `fixtures/` | 辅助 | 预留 harness-only 夹具目录 · [fixtures/_ARCH.md](fixtures/_ARCH.md) |
 | `examples/` | 辅助 | 非 shipping 参考实现 · [examples/_ARCH.md](examples/_ARCH.md) |
 | `mocks/` | 辅助 | 共享 in-memory backend mock · [mocks/_ARCH.md](mocks/_ARCH.md) |
+| `support/` | 辅助 | pytest teardown 辅助（浏览器进程树清理）· [support/_ARCH.md](support/_ARCH.md) |
 | `scripts/` | 单元 | `scripts/` 维护脚本单测（tool registry）· [scripts/_ARCH.md](scripts/_ARCH.md) |
 | `features/` | 单元 | Feature Flag 引擎 · [features/_ARCH.md](features/_ARCH.md) |
 | `performance/` | 性能 | 子进程 import 热点与 lazy-loading 回归（`performance` marker） |

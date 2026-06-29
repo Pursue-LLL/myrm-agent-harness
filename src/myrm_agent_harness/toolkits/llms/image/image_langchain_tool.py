@@ -59,13 +59,21 @@ class ImageToolInput(BaseModel):
     )
 
 
-async def _fetch_image_bytes(url: str) -> tuple[bytes, str | None, int]:
-    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0)) as client:
-        response = await client.get(url)
-        response.raise_for_status()
-        content_type = response.headers.get("content-type")
-        body = response.content
-        return body, content_type, len(body)
+async def _fetch_image_bytes(url: str, *, allow_private_networks: bool = False) -> tuple[bytes, str | None, int]:
+    if allow_private_networks:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0)) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            content_type = response.headers.get("content-type")
+            return response.content, content_type, len(response.content)
+
+    from myrm_agent_harness.core.security.http.secure_fetch import secure_get
+
+    response = await secure_get(url, timeout=30.0)
+    response.raise_for_status()
+    content_type = response.headers.get("content-type")
+    body = response.content
+    return body, content_type, len(body)
 
 
 def create_image_generation_tool(
@@ -99,7 +107,10 @@ def create_image_generation_tool(
             if url_error is not None:
                 return url_error
             try:
-                image_bytes, image_mime, image_size = await _fetch_image_bytes(image_url.strip())
+                image_bytes, image_mime, image_size = await _fetch_image_bytes(
+                    image_url.strip(),
+                    allow_private_networks=allow_private_networks,
+                )
             except Exception as exc:
                 return json.dumps(
                     {"error": f"Failed to fetch image_url: {type(exc).__name__}: {exc}"},
@@ -111,7 +122,10 @@ def create_image_generation_tool(
                 if mask_error is not None:
                     return mask_error
                 try:
-                    mask_bytes, _, _ = await _fetch_image_bytes(mask_url.strip())
+                    mask_bytes, _, _ = await _fetch_image_bytes(
+                        mask_url.strip(),
+                        allow_private_networks=allow_private_networks,
+                    )
                 except Exception as exc:
                     return json.dumps(
                         {"error": f"Failed to fetch mask_url: {type(exc).__name__}: {exc}"},

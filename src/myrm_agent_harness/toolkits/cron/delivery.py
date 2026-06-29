@@ -118,8 +118,18 @@ class WebhookDelivery:
 
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(self._read_timeout, connect=self._connect_timeout),
+            follow_redirects=False,
         ) as client:
-            resp = await client.post(url, content=body, headers=headers)
+            from myrm_agent_harness.core.security.http.secure_fetch import secure_request
+
+            resp = await secure_request(
+                client,
+                "POST",
+                url,
+                content=body,
+                headers=headers,
+                timeout=httpx.Timeout(self._read_timeout, connect=self._connect_timeout),
+            )
             status_code = resp.status_code
             if status_code >= 400:
                 raise RuntimeError(f"Webhook returned {status_code}: {resp.text[:200]}")

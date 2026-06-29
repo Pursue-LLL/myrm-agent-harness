@@ -1010,18 +1010,23 @@ class TestHttpHookExecution:
 
     @pytest.mark.asyncio
     async def test_http_hook_dns_blocked(self):
-        from unittest.mock import patch
+        from unittest.mock import AsyncMock, patch
+
+        from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
 
         registry = HookRegistry()
         registry.register(HookEvent.SESSION_START, HttpHookDefinition(url="https://evil.example.com/hook"))
         executor = HookExecutor(registry)
 
-        fake_results = [(2, 1, 6, "", ("127.0.0.1", 443))]
-        with patch("myrm_agent_harness.agent.hooks.webhook.socket.getaddrinfo", return_value=fake_results):
+        with patch(
+            "myrm_agent_harness.core.security.http.secure_fetch.secure_request",
+            new_callable=AsyncMock,
+            side_effect=SSRFSecurityError("private IP"),
+        ):
             result = await executor.execute(HookEvent.SESSION_START, {})
         assert len(result.results) == 1
         assert not result.results[0].success
-        assert "SSRF" in result.results[0].reason or "private" in result.results[0].reason.lower()
+        assert "SSRF" in result.results[0].reason
 
     @pytest.mark.asyncio
     async def test_http_hook_success_mock(self):
@@ -1032,7 +1037,6 @@ class TestHttpHookExecution:
         registry.register(HookEvent.SESSION_START, HttpHookDefinition(url="https://api.example.com/hook"))
         executor = HookExecutor(registry)
 
-        fake_results = [(2, 1, 6, "", ("93.184.216.34", 443))]
         mock_response = MagicMock()
         mock_response.is_success = True
         mock_response.text = '{"ok": true}'
@@ -1041,13 +1045,16 @@ class TestHttpHookExecution:
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client.post = AsyncMock(return_value=mock_response)
 
         mock_httpx = types.ModuleType("httpx")
         mock_httpx.AsyncClient = MagicMock(return_value=mock_client)
 
         with (
-            patch("myrm_agent_harness.agent.hooks.webhook.socket.getaddrinfo", return_value=fake_results),
+            patch(
+                "myrm_agent_harness.core.security.http.secure_fetch.secure_request",
+                new_callable=AsyncMock,
+                return_value=mock_response,
+            ),
             patch.dict("sys.modules", {"httpx": mock_httpx}),
         ):
             result = await executor.execute(HookEvent.SESSION_START, {})
@@ -1065,7 +1072,6 @@ class TestHttpHookExecution:
         )
         executor = HookExecutor(registry)
 
-        fake_results = [(2, 1, 6, "", ("93.184.216.34", 443))]
         mock_response = MagicMock()
         mock_response.is_success = False
         mock_response.text = "Forbidden"
@@ -1074,13 +1080,16 @@ class TestHttpHookExecution:
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client.post = AsyncMock(return_value=mock_response)
 
         mock_httpx = types.ModuleType("httpx")
         mock_httpx.AsyncClient = MagicMock(return_value=mock_client)
 
         with (
-            patch("myrm_agent_harness.agent.hooks.webhook.socket.getaddrinfo", return_value=fake_results),
+            patch(
+                "myrm_agent_harness.core.security.http.secure_fetch.secure_request",
+                new_callable=AsyncMock,
+                return_value=mock_response,
+            ),
             patch.dict("sys.modules", {"httpx": mock_httpx}),
         ):
             result = await executor.execute(HookEvent.SESSION_START, {})
@@ -1095,17 +1104,19 @@ class TestHttpHookExecution:
         registry.register(HookEvent.SESSION_START, HttpHookDefinition(url="https://api.example.com/hook"))
         executor = HookExecutor(registry)
 
-        fake_results = [(2, 1, 6, "", ("93.184.216.34", 443))]
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client.post = AsyncMock(side_effect=ConnectionError("refused"))
 
         mock_httpx = types.ModuleType("httpx")
         mock_httpx.AsyncClient = MagicMock(return_value=mock_client)
 
         with (
-            patch("myrm_agent_harness.agent.hooks.webhook.socket.getaddrinfo", return_value=fake_results),
+            patch(
+                "myrm_agent_harness.core.security.http.secure_fetch.secure_request",
+                new_callable=AsyncMock,
+                side_effect=ConnectionError("refused"),
+            ),
             patch.dict("sys.modules", {"httpx": mock_httpx}),
         ):
             result = await executor.execute(HookEvent.SESSION_START, {})

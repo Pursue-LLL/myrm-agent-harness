@@ -169,10 +169,13 @@ class Navigator:
         self._current_domain = self._extract_domain(url)
 
         try:
-            response = await self._page.goto(
+            from .navigation_ssrf_guard import goto_with_ssrf_guard
+
+            response = await goto_with_ssrf_guard(
+                self._page,
                 url,
-                wait_until="domcontentloaded",
-                timeout=_NAVIGATION_TIMEOUT_MS,
+                timeout_ms=_NAVIGATION_TIMEOUT_MS,
+                allow_private_networks=self._allow_private_networks,
             )
 
             metrics = await self._wait_for_page_ready()

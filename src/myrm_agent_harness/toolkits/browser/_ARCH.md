@@ -20,6 +20,7 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 | ad_domains.py | Data | Lazy loader for bundled `assets/ad_domains.txt` (~3500 Peter Lowe ad/tracker domains). | ✅ |
 | exceptions.py | Core | Exception hierarchy definition. RefNotFoundError provides structured diagnostic info, including URL  | ✅ |
 | navigation.py | Core | Page navigation utility module. Responsibilities: Hybrid Session routing (fast HTTP injection for static pages), Page navigation, history, smart wait, and timeout fallback rescue (window.stop). Integrates proxy error detection and state-preserving auto-retry. | ✅ |
+| navigation_ssrf_guard.py | Core | Playwright document navigation SSRF guard (route handler during goto + redirect chain validation). Aligns with OpenClaw document-level policy. | ✅ |
 | observability.py | Core | Observability module for the browser toolkit. Provides video recording, progress notifications, and  | ✅ |
 | recording_manager.py | Core | Unified browser recording manager. Provides lifecycle management and file management | ✅ |
 | retry_policy.py | Core | Retry policy framework. Zero external dependencies. Async-first design. | ✅ |
