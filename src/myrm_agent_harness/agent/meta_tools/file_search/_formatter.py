@@ -7,8 +7,8 @@
 [POS]
 Grep output formatter. Transforms raw search matches into LLM-friendly output
 with intelligent truncation, non-code file capping, and path-grouped
-densification (eliminates repeated path strings when >= 5 matches span 2+ files,
-saving 18-30% tokens in typical scenarios).
+densification (eliminates repeated path strings when >= 5 matches,
+saving 18-39% tokens in typical scenarios).
 """
 
 from __future__ import annotations
@@ -19,7 +19,6 @@ MAX_LINE_CHARS = 240
 LINE_PREFIX_CONTEXT_CHARS = 80
 NON_CODE_MATCH_CAP = 3
 _DENSIFY_MIN_MATCHES = 5
-_DENSIFY_MIN_FILES = 2
 _NON_CODE_EXTENSIONS = frozenset(
     {
         ".json",
@@ -88,10 +87,10 @@ def format_grep_results(
 ) -> str:
     """Format grep results with non-code truncation and path-grouped densification.
 
-    When total matches >= _DENSIFY_MIN_MATCHES across >= _DENSIFY_MIN_FILES,
-    groups consecutive matches under a single path header to eliminate repeated
-    path strings (saves 18-30% tokens). Falls back to flat ``path:line: content``
-    format for small result sets where densification adds no benefit.
+    When total matches >= _DENSIFY_MIN_MATCHES, groups consecutive matches under
+    a single path header to eliminate repeated path strings (saves 18-39% tokens).
+    Falls back to flat ``path:line: content`` format for small result sets where
+    densification adds no benefit.
     """
     if not results:
         return f"No matches found for: {pattern}\n(Searched {files_searched} file(s))"
@@ -106,10 +105,7 @@ def format_grep_results(
         matches_by_file[fp].append(r)
 
     total_matches = sum(1 for r in results if r.get("type", "match") == "match")
-    densify = (
-        total_matches >= _DENSIFY_MIN_MATCHES
-        and len(files_order) >= _DENSIFY_MIN_FILES
-    )
+    densify = total_matches >= _DENSIFY_MIN_MATCHES
 
     lines: list[str] = [f"Found {total_matches} match(es) for '{pattern}' (searched {files_searched} file(s)):\n"]
 

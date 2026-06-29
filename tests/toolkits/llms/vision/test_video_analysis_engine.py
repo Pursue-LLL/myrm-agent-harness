@@ -9,6 +9,8 @@ from myrm_agent_harness.toolkits.llms.vision.video_analysis_engine import (
     VIDEO_EXTENSIONS,
     VIDEO_MIME_TYPES,
     VideoAnalysisEngine,
+    _extract_frames_ffmpeg,
+    _has_ffmpeg,
     is_video_path,
 )
 
@@ -208,3 +210,133 @@ class TestVideoAnalysisEngineLocalVideo:
 class TestMaxVideoBytes:
     def test_limit_is_100mb(self):
         assert MAX_VIDEO_BYTES == 100 * 1024 * 1024
+
+
+class TestHasFfmpeg:
+    def test_returns_true_when_binary_present(self):
+        with patch("myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.shutil.which", return_value="/usr/bin/ffmpeg"):
+            assert _has_ffmpeg() is True
+
+    def test_returns_false_when_missing(self):
+        with patch("myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.shutil.which", return_value=None):
+            assert _has_ffmpeg() is False
+
+
+class TestExtractFramesFfmpeg:
+    @pytest.mark.asyncio
+    async def test_extract_frames_returns_jpeg_bytes(self):
+        frame_path = MagicMock()
+        frame_path.read_bytes.return_value = b"jpeg-bytes"
+
+        with patch(
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+        ), patch(
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.Path.glob",
+            return_value=[frame_path, frame_path],
+        ):
+            result = await _extract_frames_ffmpeg("/fake/video.mp4")
+            assert result == [("jpeg-bytes", "image/jpeg"), ("jpeg-bytes", "image/jpeg")]
+
+    @pytest.mark.asyncio
+    async def test_extract_frames_uniform_fallback_when_scene_sparse(self):
+        sparse_frame = MagicMock()
+        sparse_frame.unlink = MagicMock()
+        sparse_frame.read_bytes.return_value = b"uniform-frame"
+        glob_calls = {"count": 0}
+
+        def mock_glob(_self, _pattern: str):
+            glob_calls["count"] += 1
+            if glob_calls["count"] == 1:
+                return [sparse_frame]
+            return [sparse_frame, sparse_frame]
+
+        with patch(
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+        ), patch(
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.Path.glob",
+            side_effect=mock_glob,
+        ):
+            result = await _extract_frames_ffmpeg("/fake/video.mp4")
+            assert len(result) == 2
+            sparse_frame.unlink.assert_called_once()
+
+
+class TestVideoAnalysisEngineAdditionalPaths:
+    @pytest.mark.asyncio
+    async def test_analyze_video_url_invoke_failure(self, video_engine):
+        video_engine.model.ainvoke.side_effect = Exception("upstream down")
+
+        result = await video_engine.analyze_video_url("https://example.com/v.mp4", supports_video=True)
+
+        assert "[Video Analysis Failed:" in result
+
+    @pytest.mark.asyncio
+    async def test_local_video_uses_frame_extraction_when_no_video_support(self, video_engine):
+        mock_executor = AsyncMock()
+
+        with patch(
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._has_ffmpeg",
+            return_value=True,
+        ), patch.object(
+            video_engine,
+            "_frame_extraction_analyze_path",
+            new_callable=AsyncMock,
+            return_value="frame summary",
+        ) as mock_frames:
+            result = await video_engine.analyze_local_video(
+                "/path/video.mp4", mock_executor, supports_video=False
+            )
+
+        assert result == "frame summary"
+        mock_frames.assert_awaited_once_with("/path/video.mp4", None)
+
+    @pytest.mark.asyncio
+    async def test_frame_extraction_analyze_path_extract_failure(self, video_engine):
+        with patch(
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._extract_frames_ffmpeg",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("ffmpeg boom"),
+        ):
+            result = await video_engine._frame_extraction_analyze_path("/path/video.mp4")
+
+        assert "[Video frame extraction failed:" in result
+
+    @pytest.mark.asyncio
+    async def test_frame_extraction_analyze_path_model_failure(self, video_engine):
+        fake_frame = b"\xff\xd8\xff\xe0" + b"\x00" * 10
+        video_engine.model.ainvoke.side_effect = Exception("model boom")
+
+        with patch(
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._extract_frames_ffmpeg",
+            new_callable=AsyncMock,
+            return_value=[(fake_frame, "image/jpeg")],
+        ):
+            result = await video_engine._frame_extraction_analyze_path("/path/video.mp4")
+
+        assert "[Video Frame Analysis Failed:" in result
+
+    @pytest.mark.asyncio
+    async def test_analyze_video_b64_uses_quicktime_suffix_for_matching_mime(self, video_engine):
+        mock_response = MagicMock()
+        mock_response.content = "mov summary"
+        video_engine.model.ainvoke.return_value = mock_response
+
+        with patch(
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._has_ffmpeg",
+            return_value=True,
+        ), patch.object(
+            video_engine,
+            "_frame_extraction_analyze_path",
+            new_callable=AsyncMock,
+            return_value="unused",
+        ) as mock_path:
+            await video_engine.analyze_video_b64(
+                base64.b64encode(b"fake-mov").decode(),
+                "video/quicktime",
+                supports_video=False,
+            )
+
+        assert mock_path.await_args is not None
+        assert str(mock_path.await_args.args[0]).endswith(".mov")

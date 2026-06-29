@@ -93,3 +93,33 @@ async def test_describe_local_image(fallback_engine):
 
     assert result == "local img"
     mock_executor.read_file_bytes.assert_called_once_with("test.png")
+
+@pytest.mark.asyncio
+async def test_describe_local_image_read_failure(fallback_engine):
+    mock_executor = AsyncMock()
+    mock_executor.read_file_bytes.side_effect = OSError("Permission denied")
+
+    result = await fallback_engine.describe_local_image("secret.png", mock_executor)
+
+    assert "Failed to read local image" in result
+
+@pytest.mark.asyncio
+async def test_describe_image_b64_compression_returns_empty(fallback_engine):
+    fallback_engine.model.ainvoke.side_effect = Exception("413 Payload Too Large")
+
+    with patch("myrm_agent_harness.toolkits.llms.vision.fallback_engine.image_compressor") as mock_compressor:
+        mock_compressor.compress.return_value = b""
+        result = await fallback_engine.describe_image_b64(base64.b64encode(b"dummy").decode(), "image/png")
+
+        assert "Vision Analysis Failed" in result
+        mock_compressor.compress.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_describe_image_b64_compression_raises(fallback_engine):
+    fallback_engine.model.ainvoke.side_effect = Exception("413 Payload Too Large")
+
+    with patch("myrm_agent_harness.toolkits.llms.vision.fallback_engine.image_compressor") as mock_compressor:
+        mock_compressor.compress.side_effect = RuntimeError("compress boom")
+        result = await fallback_engine.describe_image_b64(base64.b64encode(b"dummy").decode(), "image/png")
+
+        assert "Vision Analysis Failed" in result
