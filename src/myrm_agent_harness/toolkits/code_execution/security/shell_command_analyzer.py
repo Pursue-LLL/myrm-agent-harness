@@ -136,6 +136,7 @@ _DANGEROUS_COMMANDS: tuple[tuple[str, str], ...] = (
     (r"\bsudo\s+", "Privilege escalation via sudo"),
     (r"\bsu\s+(-|\w)", "Switch user"),
     (r"\bchmod\s+[0-7]*777\b", "Setting world-writable permissions"),
+    (r"\bchmod\s+(-[a-zA-Z]*\s+)?0{1,4}\b", "Stripping all permissions (chmod 0)"),
     (r"\bchown\s+root", "Changing ownership to root"),
     (r"\bsystemctl\s+(stop|disable|mask)\s+", "Stopping system services"),
     (r"\bservice\s+\w+\s+(stop|disable)", "Stopping services"),
@@ -147,6 +148,9 @@ _DANGEROUS_COMMANDS: tuple[tuple[str, str], ...] = (
     (r"\bnmap\s+", "Network scanning"),
     (r"\bnetcat\s+.*-e\s+", "Netcat reverse shell"),
     (r"\bnc\s+.*-e\s+", "Netcat reverse shell"),
+    (r"\bfind\s+/\s.*-delete\b", "Deleting files from root directory"),
+    (r"\bfind\s+~\s*.*-delete\b", "Deleting files from home directory"),
+    (r"\bfind\s+\$HOME\s.*-delete\b", "Deleting files from home directory"),
     (r"\bcat\s+/etc/(passwd|shadow)", "Reading sensitive system files"),
     (r">\s*/etc/", "Overwriting system config files"),
     (r"\bhistory\s+-c\b", "Clearing command history"),
@@ -216,6 +220,11 @@ _SUSPICIOUS_PATTERNS: tuple[tuple[str, str], ...] = (
     (r"<<\s*\w+\s*\n.*\b(ba)?sh\b", "Heredoc shell execution"),
     # --- hex escape in non-ANSI-C context (e.g. printf/echo -e) ---
     (r"\\x[0-9a-fA-F]{2}", "Hex escape sequence (potential obfuscation)"),
+    # --- network listening / tunneling tools (dangerous in sandboxes) ---
+    (r"\bnc\s+.*-l", "Netcat listen mode (network exposure)"),
+    (r"\bnetcat\s+.*-l", "Netcat listen mode (network exposure)"),
+    (r"\bncat\s+", "Ncat network utility (potential tunneling)"),
+    (r"\bsocat\s+", "Socat bidirectional relay (potential tunneling)"),
     # --- process termination (prevents agent self-destruction) ---
     (r"\bkill\s+", "Process termination"),
     (r"\bpkill\s+", "Process termination by name/pattern"),
