@@ -9,7 +9,7 @@
 - **图像降级路由**：为不支持视觉的主模型提供图像自适应降级（Text-Mode Vision Fallback）
 - **视频分析**：双策略视频理解引擎（直传 + ffmpeg 帧提取降级）
 
-详细设计请参考 [VISION_SYSTEM_DESIGN.md](VISION_SYSTEM_DESIGN.md)
+详细设计请参考 [VISION_SYSTEM.md](VISION_SYSTEM.md)
 
 ---
 

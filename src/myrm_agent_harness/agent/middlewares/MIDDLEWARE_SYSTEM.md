@@ -113,4 +113,4 @@
 
 - [middlewares/_ARCH.md](_ARCH.md) — 完整文件清单
 - [context_management/CONTEXT_MANAGEMENT_SYSTEM.md](../context_management/CONTEXT_MANAGEMENT_SYSTEM.md)
-- [security/SECURITY_DESIGN.md](../security/SECURITY_DESIGN.md)
+- [security/SECURITY_SYSTEM.md](../security/SECURITY_SYSTEM.md)

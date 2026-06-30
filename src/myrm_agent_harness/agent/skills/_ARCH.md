@@ -3,7 +3,7 @@
 ## Overview
 Skills runtime — skill execution and management.
 
-Detailed design: [SKILL_SYSTEM_DESIGN.md](SKILL_SYSTEM_DESIGN.md)
+Detailed design: [SKILL_SYSTEM.md](SKILL_SYSTEM.md)
 
 ## File & Submodule Index
 

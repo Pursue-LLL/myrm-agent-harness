@@ -41,6 +41,7 @@ Key Details: Test Details
     )
 
     graph.get_or_create_node.side_effect = [evidence_node, claim_node]
+    graph.update_node_properties.return_value = claim_node
 
     result = await compile_claim_graph(vector, graph, config)
 

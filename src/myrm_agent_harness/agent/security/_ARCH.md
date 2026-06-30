@@ -8,7 +8,7 @@ Implementation split:
 - **Core shims** (`audit.py`, `types.py`, `tool_registry.py`, `detection/*`, `guards/ssrf_guard.py` → `core/security/guards/ssrf.py`, …): re-exports from `core/security/` for stable `agent.security.*` import paths. Canonical implementations live in [../../core/security/_ARCH.md](../../core/security/_ARCH.md). New code outside agent middleware wiring should import from `core.security`.
 
 Detailed design: [HITL_SYSTEM.md](HITL_SYSTEM.md)
-Detailed design: [SECURITY_DESIGN.md](SECURITY_DESIGN.md)
+Detailed design: [SECURITY_SYSTEM.md](SECURITY_SYSTEM.md)
 
 ## File & Submodule Index
 

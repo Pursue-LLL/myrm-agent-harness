@@ -36,4 +36,4 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 | goal_interceptor.py | 核心 | Goal 拦截器，负责在执行前调用 PlannerAgent 生成计划；支持多模态输入（图片直传 Planner）；auto_approve=True 时跳过 interrupt | ✅ |
 | invariant_snapshot.py | 核心 | Post-hoc tamper detection: SHA-256 snapshot of Goal protected_paths at activation; verify integrity before completion (bash_tool bypass safety net). | ✅ |
 | verification/ | 核心 | 验收测试模块，提供准则解析(Gatekeeper)与运行时验证(Shell/Semantic)机制 | ✅ |
-| GOAL_SYSTEM_DESIGN.md | 文档 | Goal 系统的详细设计文档 | - |
+| GOAL_SYSTEM.md | 文档 | Goal 系统的详细设计文档 | - |

@@ -3,7 +3,7 @@
 ## Overview
 ACP toolkit entry point. Provides lazy-loaded access to server and runtime components
 
-Detailed design: [ACP_DESIGN.md](ACP_DESIGN.md)
+Detailed design: [ACP_SYSTEM.md](ACP_SYSTEM.md)
 
 ## File & Submodule Index
 

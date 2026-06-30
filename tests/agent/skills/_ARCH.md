@@ -20,4 +20,4 @@ Tests mirroring `src/myrm_agent_harness/agent/skills/` layout.
 
 ## Key Dependencies
 
-- Design reference: [SKILL_SYSTEM_DESIGN.md](../../../src/myrm_agent_harness/agent/skills/SKILL_SYSTEM_DESIGN.md)
+- Design reference: [SKILL_SYSTEM.md](../../../src/myrm_agent_harness/agent/skills/SKILL_SYSTEM.md)

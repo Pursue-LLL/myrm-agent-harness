@@ -1,7 +1,15 @@
 """LLM configuration — framework-agnostic model config.
 
-Provides LLMConfig and CustomModelDef, usable by both agent/ and toolkits/
-without any coupling to the agent runtime.
+[INPUT]
+- pydantic::BaseModel (POS: Pydantic data validation base class)
+- pydantic::Field (POS: Pydantic field metadata and constraints)
+
+[OUTPUT]
+- CustomModelDef: self-hosted endpoint model capability definition (Ollama/LM Studio/vLLM)
+- LLMConfig: framework-agnostic LLM configuration with from_env() loader
+
+[POS]
+Framework-agnostic LLM configuration SSOT. Defines CustomModelDef and LLMConfig for agent/ and toolkits/ without runtime coupling.
 """
 
 import os

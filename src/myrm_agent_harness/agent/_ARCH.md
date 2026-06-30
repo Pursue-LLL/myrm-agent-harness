@@ -4,7 +4,7 @@
 
 Agent core module — public API for BaseAgent / SkillAgent runtime.
 
-**L2 system docs**: [sub_agents/SUB_AGENT_SYSTEM.md](sub_agents/SUB_AGENT_SYSTEM.md) · [skills/SKILL_SYSTEM_DESIGN.md](skills/SKILL_SYSTEM_DESIGN.md) · [meta_tools/META_TOOLS_SYSTEM.md](meta_tools/META_TOOLS_SYSTEM.md) · [context_management/CONTEXT_MANAGEMENT_SYSTEM.md](context_management/CONTEXT_MANAGEMENT_SYSTEM.md) · [middlewares/MIDDLEWARE_SYSTEM.md](middlewares/MIDDLEWARE_SYSTEM.md) · [streaming/STREAMING_SYSTEM.md](streaming/STREAMING_SYSTEM.md) · [event_log/EVENT_LOG_SYSTEM.md](event_log/EVENT_LOG_SYSTEM.md) · [dynamic_workflow/DYNAMIC_WORKFLOW_SYSTEM.md](dynamic_workflow/DYNAMIC_WORKFLOW_SYSTEM.md) · [deep_research/DEEP_RESEARCH_SYSTEM.md](deep_research/DEEP_RESEARCH_SYSTEM.md) · [tool_management/TOOL_MANAGEMENT_SYSTEM.md](tool_management/TOOL_MANAGEMENT_SYSTEM.md) · [security/SECURITY_DESIGN.md](security/SECURITY_DESIGN.md) · [goals/GOAL_SYSTEM_DESIGN.md](goals/GOAL_SYSTEM_DESIGN.md)
+**L2 system docs**: [sub_agents/SUB_AGENT_SYSTEM.md](sub_agents/SUB_AGENT_SYSTEM.md) · [skills/SKILL_SYSTEM.md](skills/SKILL_SYSTEM.md) · [meta_tools/META_TOOLS_SYSTEM.md](meta_tools/META_TOOLS_SYSTEM.md) · [context_management/CONTEXT_MANAGEMENT_SYSTEM.md](context_management/CONTEXT_MANAGEMENT_SYSTEM.md) · [middlewares/MIDDLEWARE_SYSTEM.md](middlewares/MIDDLEWARE_SYSTEM.md) · [streaming/STREAMING_SYSTEM.md](streaming/STREAMING_SYSTEM.md) · [event_log/EVENT_LOG_SYSTEM.md](event_log/EVENT_LOG_SYSTEM.md) · [dynamic_workflow/DYNAMIC_WORKFLOW_SYSTEM.md](dynamic_workflow/DYNAMIC_WORKFLOW_SYSTEM.md) · [deep_research/DEEP_RESEARCH_SYSTEM.md](deep_research/DEEP_RESEARCH_SYSTEM.md) · [tool_management/TOOL_MANAGEMENT_SYSTEM.md](tool_management/TOOL_MANAGEMENT_SYSTEM.md) · [security/SECURITY_SYSTEM.md](security/SECURITY_SYSTEM.md) · [goals/GOAL_SYSTEM.md](goals/GOAL_SYSTEM.md)
 
 ---
 
@@ -83,14 +83,14 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 | `event_log/` | Full event history (complements checkpointer) | [EVENT_LOG_SYSTEM.md](event_log/EVENT_LOG_SYSTEM.md) |
 | `extensions/` | Harness `AgentExtension` Protocol | [extensions/_ARCH.md](extensions/_ARCH.md) |
 | `file_snapshot/` | Workspace file versioning / rollback | [file_snapshot/_ARCH.md](file_snapshot/_ARCH.md) |
-| `goals/` | Goal-based autonomous loop engine | [GOAL_SYSTEM_DESIGN.md](goals/GOAL_SYSTEM_DESIGN.md) |
+| `goals/` | Goal-based autonomous loop engine | [GOAL_SYSTEM.md](goals/GOAL_SYSTEM.md) |
 | `hooks/` | User-configurable lifecycle hooks | [hooks/_ARCH.md](hooks/_ARCH.md) |
 | `meta_tools/` | Agent-bound LangChain meta-tools | [META_TOOLS_SYSTEM.md](meta_tools/META_TOOLS_SYSTEM.md) |
 | `middlewares/` | Framework middleware stack | [MIDDLEWARE_SYSTEM.md](middlewares/MIDDLEWARE_SYSTEM.md) |
 | `observability/` | Framework observability (EventBus) | [observability/_ARCH.md](observability/_ARCH.md) |
 | `parallel/` | Shared parallel spawn (batch / swarm) | [parallel/_ARCH.md](parallel/_ARCH.md) |
-| `security/` | 6-layer onion defense | [SECURITY_DESIGN.md](security/SECURITY_DESIGN.md) |
-| `skills/` | Skills runtime | [SKILL_SYSTEM_DESIGN.md](skills/SKILL_SYSTEM_DESIGN.md) |
+| `security/` | 6-layer onion defense | [SECURITY_SYSTEM.md](security/SECURITY_SYSTEM.md) |
+| `skills/` | Skills runtime | [SKILL_SYSTEM.md](skills/SKILL_SYSTEM.md) |
 | `streaming/` | BaseAgent event pipeline | [STREAMING_SYSTEM.md](streaming/STREAMING_SYSTEM.md) |
 | `sub_agents/` | Sub-agent lifecycle | [SUB_AGENT_SYSTEM.md](sub_agents/SUB_AGENT_SYSTEM.md) |
 | `tool_management/` | Tool registry, layers, dedup | [TOOL_MANAGEMENT_SYSTEM.md](tool_management/TOOL_MANAGEMENT_SYSTEM.md) |

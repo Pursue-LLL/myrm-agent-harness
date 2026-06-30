@@ -3,7 +3,7 @@
 ## Overview
 Agent runtime infrastructure for single-instance execution.
 
-Detailed design: [CONVERSATION_FORK_DESIGN.md](CONVERSATION_FORK_DESIGN.md)
+Detailed design: [CONVERSATION_FORK_SYSTEM.md](CONVERSATION_FORK_SYSTEM.md)
 
 ## File & Submodule Index
 

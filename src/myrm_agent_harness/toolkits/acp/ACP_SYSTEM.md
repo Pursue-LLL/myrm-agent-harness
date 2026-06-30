@@ -310,9 +310,9 @@ auth/
 ```
 acp/
 ├── __init__.py             # 惰性导出 RuntimePool / RuntimeConfig / RuntimeBackend + Server
-├── ACP_DESIGN.md           # 本设计文档
+├── ACP_SYSTEM.md           # 本设计文档
 ├── ACP_REFERENCE.md        # 竞品与协议调研备忘
-├── ACP_DESIGN.md           # 本文档
+├── ACP_SYSTEM.md           # 本文档
 ├── __main__.py             # CLI 入口
 ├── types.py                # RuntimeEvent、Protocol、RuntimeConfig、错误码等
 ├── permission.py           # DefaultPermissionManager

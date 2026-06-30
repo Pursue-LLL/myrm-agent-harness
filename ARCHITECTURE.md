@@ -254,18 +254,18 @@ agent/ (运行时核心层)
 | [RETRIEVER_SYSTEM.md](src/myrm_agent_harness/toolkits/retriever/RETRIEVER_SYSTEM.md) | 检索系统 |
 | [CONTEXT_BUNDLE_SYSTEM.md](src/myrm_agent_harness/toolkits/context_bundle/CONTEXT_BUNDLE_SYSTEM.md) | ContextBundle |
 | [COMMITMENT_SYSTEM.md](src/myrm_agent_harness/toolkits/memory/proactive/COMMITMENT_SYSTEM.md) | Proactive follow-up tracking |
-| [SKILL_SYSTEM_DESIGN.md](src/myrm_agent_harness/agent/skills/SKILL_SYSTEM_DESIGN.md) | 技能系统 |
+| [SKILL_SYSTEM.md](src/myrm_agent_harness/agent/skills/SKILL_SYSTEM.md) | 技能系统 |
 | [META_TOOLS_SYSTEM.md](src/myrm_agent_harness/agent/meta_tools/META_TOOLS_SYSTEM.md) | Agent 元工具层 |
 | [SUB_AGENT_SYSTEM.md](src/myrm_agent_harness/agent/sub_agents/SUB_AGENT_SYSTEM.md) | 子智能体 |
 | [CONTEXT_MANAGEMENT_SYSTEM.md](src/myrm_agent_harness/agent/context_management/CONTEXT_MANAGEMENT_SYSTEM.md) | 上下文管道实现 |
 | [MIDDLEWARE_SYSTEM.md](src/myrm_agent_harness/agent/middlewares/MIDDLEWARE_SYSTEM.md) | 中间件栈 |
 | [STREAMING_SYSTEM.md](src/myrm_agent_harness/agent/streaming/STREAMING_SYSTEM.md) | 流式事件管道 |
-| [GOAL_SYSTEM_DESIGN.md](src/myrm_agent_harness/agent/goals/GOAL_SYSTEM_DESIGN.md) | 目标系统 |
+| [GOAL_SYSTEM.md](src/myrm_agent_harness/agent/goals/GOAL_SYSTEM.md) | 目标系统 |
 | [ERROR_SYSTEM.md](src/myrm_agent_harness/agent/errors/ERROR_SYSTEM.md) | 错误系统 |
 | [HITL_SYSTEM.md](src/myrm_agent_harness/agent/security/HITL_SYSTEM.md) | HITL 审批 |
-| [SECURITY_DESIGN.md](src/myrm_agent_harness/agent/security/SECURITY_DESIGN.md) | Agent 安全引擎 |
+| [SECURITY_SYSTEM.md](src/myrm_agent_harness/agent/security/SECURITY_SYSTEM.md) | Agent 安全引擎 |
 | [CONTEXT_ENGINEERING.md](src/myrm_agent_harness/agent/context_management/CONTEXT_ENGINEERING.md) | 上下文工程（行业理论） |
-| [ACP_DESIGN.md](src/myrm_agent_harness/toolkits/acp/ACP_DESIGN.md) | ACP 协议 |
+| [ACP_SYSTEM.md](src/myrm_agent_harness/toolkits/acp/ACP_SYSTEM.md) | ACP 协议 |
 | [TRACE_STORAGE_SYSTEM.md](src/myrm_agent_harness/infra/tracing/TRACE_STORAGE_SYSTEM.md) | Trace 存储 |
 | [DISTRIBUTION_SYSTEM.md](harness_packaging/DISTRIBUTION_SYSTEM.md) | 闭源分发 |
 | [EVENT_LOG_SYSTEM.md](src/myrm_agent_harness/agent/event_log/EVENT_LOG_SYSTEM.md) | 事件日志 |

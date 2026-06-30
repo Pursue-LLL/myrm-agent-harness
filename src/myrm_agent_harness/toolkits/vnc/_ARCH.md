@@ -7,7 +7,7 @@ VNC visual desktop streaming for sandbox environments. Captures the existing Xvf
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | VNC visual desktop streaming — re-exports VncServer, TakeoverCoordinator, TakeoverLifecycleHook, TakeoverState, get_environment_hint. | — |
+| __init__.py | Package | VNC visual desktop streaming — re-exports VncServer, TakeoverCoordinator, TakeoverLifecycleHook, TakeoverState, get_environment_hint. | ✅ |
 | server.py | Core | VNC server lifecycle manager — lazy-start x11vnc + websockify on existing Xvfb display. Also provides `get_environment_hint()` for system prompt VNC awareness injection. | ✅ |
 | takeover.py | Core | Takeover coordinator — state machine for human-agent browser control handoff. | ✅ |
 

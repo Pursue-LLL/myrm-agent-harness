@@ -55,6 +55,10 @@ class _FakePage:
         self.context.cookies = AsyncMock(return_value=[])
         self.context.add_cookies = AsyncMock()
         self.context.storage_state = AsyncMock(return_value={"cookies": [], "origins": []})
+        self.route = AsyncMock()
+        self.unroute = AsyncMock()
+        self.main_frame = MagicMock()
+        self.main_frame.parent_frame = None
 
     async def goto(self, url: str, **kw: object) -> MagicMock:
         self.url = url
@@ -154,13 +158,18 @@ def mock_session_vault() -> MagicMock:
 @pytest.fixture
 def browser_session(mock_pool: _FakePool) -> BrowserSession:
     """BrowserSession without tabs — tests call new_tab() as needed."""
-    return BrowserSession(mock_pool, ContextType.AGENT)
+    return BrowserSession(mock_pool, ContextType.AGENT, allow_private_networks=True)
 
 
 @pytest.fixture
 def browser_session_with_vault(mock_pool: _FakePool, mock_session_vault: MagicMock) -> BrowserSession:
     """BrowserSession with SessionVault for session persistence tests."""
-    return BrowserSession(mock_pool, ContextType.AGENT, session_vault=mock_session_vault)
+    return BrowserSession(
+        mock_pool,
+        ContextType.AGENT,
+        session_vault=mock_session_vault,
+        allow_private_networks=True,
+    )
 
 
 # =============================================================================

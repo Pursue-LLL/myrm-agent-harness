@@ -8,7 +8,11 @@ LLM adapter layer: LangChain-compatible LiteLLM interface, provider-specific mes
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Module exports | — |
-| chat_model.py | Core | LangChain LiteLLM adapter for unified multi-model invocation, including provider-aware message normalization (MiniMax system→human demotion, OpenAI GPT-5+/Codex/o-series system→developer promotion), reasoning_content auto-stamp for thinking-mode models (DeepSeek/Kimi/MiMo), and per-call `allowed_openai_params` injection to protect framework/user params from LiteLLM's incomplete provider capability declarations | ✅ |
+| chat_model.py | Core | LangChain LiteLLM adapter aggregate root: config, bind_tools, structured_output, prompt_cache routing | ✅ |
+| chat_model_exceptions.py | Core | Shared adapter exceptions and OpenAI param whitelist constants | ✅ |
+| chat_model_message_mixin.py | Core | Message normalization, developer-role promotion, reasoning_content stamp, ChatResult assembly | ✅ |
+| chat_model_sync_mixin.py | Core | Synchronous generation and streaming with empty-response retry | ✅ |
+| chat_model_async_mixin.py | Core | Asynchronous generation and streaming with concurrency gate | ✅ |
 | model_capability.py | Core | Model capability detection for reasoning_content echo-back requirements (MiMo, DeepSeek, Kimi/Moonshot) | ✅ |
 | concurrency.py | Core | Concurrency gate — per-model and global asyncio semaphores | ✅ |
 | converters.py | Core | Bidirectional message format conversion (LangChain ↔ LiteLLM) with explicit message-name preservation | ✅ |
