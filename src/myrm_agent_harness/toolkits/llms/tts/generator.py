@@ -21,7 +21,7 @@ from typing import Any
 
 import httpx
 
-from myrm_agent_harness.toolkits.tts.models import (
+from .models import (
     MediaMeta,
     TTSConfig,
     TTSGenerationError,
@@ -51,7 +51,6 @@ class AsyncTTSEngine:
                 last_error = e
                 error_msg = str(e).lower()
 
-                # Gateway Flexible Fallback Logic
                 if (
                     not bypass_gateway
                     and self.config.gateway_config
@@ -65,7 +64,7 @@ class AsyncTTSEngine:
                     or "insufficient" in error_msg
                     or "timeout" in error_msg
                 ):
-                    logger.warning(f"Gateway TTS failed ({error_msg}), falling back to direct provider API (BYOK)")
+                    logger.warning("Gateway TTS failed (%s), falling back to direct provider API (BYOK)", error_msg)
                     try:
                         from myrm_agent_harness.utils.event_utils import dispatch_custom_event
 
@@ -73,7 +72,7 @@ class AsyncTTSEngine:
                             "agent_status",
                             {
                                 "event": "tool_fallback",
-                                "tool": "tts_tool",
+                                "tool": "tts_generate",
                                 "fallback_type": "gateway_failover",
                                 "message": f"统一网关异常，正在无缝回退至本地直连 ({self.config.provider})...",
                             },
@@ -81,7 +80,7 @@ class AsyncTTSEngine:
                     except Exception:
                         pass
                     bypass_gateway = True
-                    continue  # Retry immediately with direct connection
+                    continue
 
                 if attempt < max_attempts - 1:
                     await asyncio.sleep(1.0 * (2**attempt))
@@ -112,7 +111,7 @@ class AsyncTTSEngine:
             try:
                 persisted_url = await self.config.media_callback(audio_bytes, mime_type, meta)
             except Exception as e:
-                logger.warning(f"Failed to persist TTS audio: {e}")
+                logger.warning("Failed to persist TTS audio: %s", e)
 
         return TTSResult(
             audio_bytes=audio_bytes,
@@ -127,7 +126,6 @@ class AsyncTTSEngine:
         provider = self.config.provider
 
         if not bypass_gateway and self.config.gateway_config and self.config.gateway_config.use_gateway:
-            # Use Gateway
             base_url = self.config.gateway_config.gateway_url.rstrip("/")
             if provider == "openai":
                 url = f"{base_url}/tts/openai/{self.config.model}"
@@ -141,7 +139,6 @@ class AsyncTTSEngine:
                 "Content-Type": "application/json",
             }
         else:
-            # Direct Connection
             api_key = self.config.api_key.get_secret_value() if self.config.api_key else ""
             if provider == "openai":
                 url = self.config.base_url or "https://api.openai.com/v1/audio/speech"
@@ -158,7 +155,6 @@ class AsyncTTSEngine:
             else:
                 raise ValueError(f"Unsupported TTS provider: {provider}")
 
-        # Build Payload
         if provider == "openai":
             payload = {
                 "model": self.config.model,

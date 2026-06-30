@@ -1,4 +1,4 @@
-"""TTS tool for LangChain agents.
+"""LangChain BaseTool wrapper for AsyncTTSEngine.
 
 [INPUT]
 - langchain_core.tools::BaseTool (POS: LangChain tool base class)
@@ -8,9 +8,10 @@
 
 [OUTPUT]
 - TTSTool: LangChain tool for text-to-speech generation
+- create_tts_tool: factory returning a configured TTSTool
 
 [POS]
-Wraps the AsyncTTSEngine into a LangChain-compatible tool.
+Bridges AsyncTTSEngine to SkillAgent registry which requires BaseTool.
 """
 
 from __future__ import annotations
@@ -25,8 +26,9 @@ from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field, PrivateAttr
 
 from myrm_agent_harness.core.artifacts.constants import ArtifactType
-from myrm_agent_harness.toolkits.tts.generator import AsyncTTSEngine
-from myrm_agent_harness.toolkits.tts.models import TTSConfig
+
+from .generator import AsyncTTSEngine
+from .models import TTSConfig
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +45,10 @@ class TTSTool(BaseTool):
     """Tool for generating speech from text."""
 
     name: str = "tts_generate"
-    description: str = "Generate speech (audio) from text. Use this when the user asks you to read something out loud or generate a voice message."
+    description: str = (
+        "Generate speech (audio) from text. Use this when the user asks you to read something out loud "
+        "or generate a voice message."
+    )
     args_schema: type[BaseModel] = TTSInput
 
     config: TTSConfig = Field(exclude=True)
@@ -78,7 +83,7 @@ class TTSTool(BaseTool):
         try:
             result = await self._engine.generate(text)
 
-            out = {
+            out: dict[str, object] = {
                 "status": "success",
                 "provider": result.provider,
                 "model": result.model,
@@ -114,3 +119,12 @@ class TTSTool(BaseTool):
             )
         except Exception as exc:
             logger.debug("Artifact push callback failed: %s", exc)
+
+
+def create_tts_tool(
+    config: TTSConfig,
+    *,
+    on_artifact_created: ArtifactPushFn | None = None,
+) -> TTSTool:
+    """Wrap an AsyncTTSEngine config as a LangChain tool named ``tts_generate``."""
+    return TTSTool(config, on_artifact_created=on_artifact_created)

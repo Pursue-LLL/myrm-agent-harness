@@ -26,12 +26,13 @@ Toolkits Llms module.
 | routing/ | Routing submodule. |
 | utils/ | LLM toollayer: JSON handles, modelparameter, log |
 | video/ | Video generation module — multi-provider video generation with failover. |
+| tts/ | Audio generation module — OpenAI/ElevenLabs TTS with gateway fallback. See [tts/_ARCH.md](tts/_ARCH.md). |
 | vision/ | Multimodal understanding — `VisionFallbackEngine` / `VideoAnalysisEngine`. See [vision/_ARCH.md](vision/_ARCH.md). |
 
 ## Media stack (generation vs understanding)
 
 | Layer | Location | Role |
 |-------|----------|------|
-| **Generation** | `image/`, `video/` | LLM/agent tools for image and video creation |
+| **Generation** | `image/`, `video/`, `tts/` | LLM/agent tools for image, video, and audio creation |
 | **Shared media** | `_media_shared/` | SSRF-safe fetch, normalization — shared by generation modules |
 | **Understanding** | `vision/` | Text-mode fallback when the primary model lacks vision; consumed by `file_read_tool`, server chat utils |

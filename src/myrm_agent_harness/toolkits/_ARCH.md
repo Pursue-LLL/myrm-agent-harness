@@ -88,7 +88,7 @@ Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
 | **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `security/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP, credential vault |
 | **Workspace** | `browser/`, `computer_use/`, `filesystem_suggest/`, `context_bundle/`, `file_parsers/`, `wiki/` | Files, browser, desktop, @-mention path suggest |
 | **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/` | External APIs, agent protocols |
-| **Collaboration & Media** | `kanban/`, `tasks/`, `cron/`, `interaction/`, `tts/` | Scheduling (incl. event/webhook triggers), tasks, user interaction primitives, media |
+| **Collaboration & Media** | `kanban/`, `tasks/`, `cron/`, `interaction/` | Scheduling (incl. event/webhook triggers), tasks, user interaction primitives |
 | **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |
 
 Agent runtime-bound tool wrappers (e.g. `render_ui_tool`, `planner_tool`) live in `agent/meta_tools/`, not here. Optional LangChain adapters (`*_agent_tools.py`) that do not import `agent/` may stay in `toolkits/` as a secondary export — see § `*_agent_tools.py` naming convention.
@@ -161,7 +161,7 @@ Does your code need to import anything from agent/?
 | file_parsers/ | File format parsers — PDF, DOCX, Excel, text, and structured data extraction. |
 | interaction/ | User interaction primitives — AskQuestion dialog and clipboard operations (UI rendering: `agent/meta_tools/interaction/`) |
 | kanban/ | Durable multi-task scheduling — heartbeat, zombie detection, run/event audit trail. |
-| llms/ | LLM manager and adapters — 100+ provider support, citation extraction, image/video generation and vision understanding (`llms/vision/`). |
+| llms/ | LLM manager and adapters — 100+ provider support, citation extraction, image/video/tts generation and vision understanding (`llms/vision/`). |
 | mcp/ | MCP protocol support — client management, tool fetching, connection pooling. |
 | memory/ | Pluggable memory system — vector/relational/graph storage for AI agents. |
 | openapi_bridge/ | OpenAPI Bridge — zero-code REST API integration via OpenAPI 3.x / Swagger 2.0 specs. |
@@ -169,7 +169,6 @@ Does your code need to import anything from agent/?
 | security/ | Credential vault — in-memory password/TOTP resolution for tool execution. |
 | storage/ | Storage abstraction layer — Protocol + local filesystem implementation. |
 | tasks/ | Task management — task models, executor protocol, persistence layer. |
-| tts/ | Text-to-speech — OpenAI/ElevenLabs engine with gateway fallback. |
 | vector/ | Vector Store — unified async vector storage and retrieval. |
 | vnc/ | VNC visual desktop streaming — x11vnc + websockify + human takeover coordination. |
 | web_fetch/ | Web content crawling — layered engine with HTTP/Browser/Stealth fallback; `[web]` extra for scrapling + YouTube transcripts. |

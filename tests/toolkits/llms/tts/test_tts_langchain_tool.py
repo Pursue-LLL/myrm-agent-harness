@@ -4,8 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.core.artifacts.constants import ArtifactType
-from myrm_agent_harness.toolkits.tts.models import TTSConfig
-from myrm_agent_harness.toolkits.tts.tts_tool import TTSTool
+from myrm_agent_harness.toolkits.llms.tts import TTSConfig, TTSTool, create_tts_tool
 
 
 @pytest.fixture
@@ -15,7 +14,10 @@ def mock_config():
 
 @pytest.fixture
 def mock_engine_generate():
-    with patch("myrm_agent_harness.toolkits.tts.tts_tool.AsyncTTSEngine.generate", new_callable=AsyncMock) as mock:
+    with patch(
+        "myrm_agent_harness.toolkits.llms.tts.tts_langchain_tool.AsyncTTSEngine.generate",
+        new_callable=AsyncMock,
+    ) as mock:
         yield mock
 
 
@@ -27,6 +29,13 @@ def test_tts_tool_init(mock_config):
     assert tool.name == "tts_generate"
     assert tool.config == mock_config
     assert tool._on_artifact_created == mock_callback
+
+
+def test_create_tts_tool_factory(mock_config):
+    """Test create_tts_tool factory."""
+    tool = create_tts_tool(mock_config)
+    assert isinstance(tool, TTSTool)
+    assert tool.name == "tts_generate"
 
 
 def test_tts_tool_run_raises_not_implemented(mock_config):
@@ -52,10 +61,8 @@ async def test_tts_tool_arun_success_with_artifact(mock_config, mock_engine_gene
 
     result_str = await tool._arun(text="hello world")
 
-    # Verify engine was called
     mock_engine_generate.assert_called_once_with("hello world")
 
-    # Verify artifact callback was called
     mock_callback.assert_called_once()
     args = mock_callback.call_args[0]
     assert args[0].startswith("generated_tts-1.mp3")
@@ -63,7 +70,6 @@ async def test_tts_tool_arun_success_with_artifact(mock_config, mock_engine_gene
     assert args[2] == ArtifactType.AUDIO
     assert args[3] == "audio/mpeg"
 
-    # Verify JSON output
     result_dict = json.loads(result_str)
     assert result_dict["status"] == "success"
     assert result_dict["audio_url"] == "s3://bucket/audio.mp3"
@@ -84,10 +90,8 @@ async def test_tts_tool_arun_success_no_url(mock_config, mock_engine_generate):
 
     result_str = await tool._arun(text="hello world")
 
-    # Verify artifact callback was NOT called
     mock_callback.assert_not_called()
 
-    # Verify JSON output
     result_dict = json.loads(result_str)
     assert result_dict["status"] == "success"
     assert "audio_url" not in result_dict
@@ -103,7 +107,6 @@ async def test_tts_tool_arun_error(mock_config, mock_engine_generate):
 
     result_str = await tool._arun(text="hello world")
 
-    # Verify JSON output
     result_dict = json.loads(result_str)
     assert result_dict["status"] == "error"
     assert "API Error" in result_dict["error"]
