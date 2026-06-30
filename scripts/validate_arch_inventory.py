@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""Validate that module-level _ARCH.md files list all sibling .py files.
+"""Validate that module-level _ARCH.md file tables list sibling .py files.
 
-Scans directories under ``src/myrm_agent_harness/agent/`` that contain
-``_ARCH.md``. For each directory, every ``*.py`` file at that depth
-(excluding ``__pycache__``) must appear in the ``_ARCH.md`` table body.
+Only parses markdown **table rows** (lines starting with ``|``) in ``_ARCH.md`` —
+prose mentions of ``other_module.py`` are ignored.
 
 Usage:
     python scripts/validate_arch_inventory.py
-    python scripts/validate_arch_inventory.py --root agent/middlewares
+    python scripts/validate_arch_inventory.py --root src/myrm_agent_harness/agent/middlewares
     python scripts/validate_arch_inventory.py --json
 
 Exit codes:
@@ -20,14 +19,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _AGENT_ROOT = _REPO_ROOT / "src" / "myrm_agent_harness" / "agent"
-_PY_NAME = re.compile(r"[`'\"]?([a-zA-Z_][\w/]*\.py)[`'\"]?")
+_TABLE_HEADER_CELLS = frozenset({"File", "Module", "Submodule", "文件"})
 
 
 @dataclass(frozen=True)
@@ -44,19 +42,32 @@ def _collect_py_files(directory: Path) -> list[str]:
     return sorted(
         p.name
         for p in directory.iterdir()
-        if p.is_file() and p.suffix == ".py" and p.name != "__init__.py"
+        if p.is_file() and p.suffix == ".py"
     )
 
 
+def _first_table_cell(line: str) -> str | None:
+    stripped = line.strip()
+    if not stripped.startswith("|"):
+        return None
+    cells = [cell.strip() for cell in stripped.split("|")]
+    if len(cells) < 3:
+        return None
+    return cells[1].strip("`").strip()
+
+
 def _listed_py_in_arch(arch_path: Path) -> set[str]:
-    text = arch_path.read_text(encoding="utf-8")
     listed: set[str] = set()
-    for match in _PY_NAME.finditer(text):
-        name = match.group(1)
-        if "/" in name:
+    for line in arch_path.read_text(encoding="utf-8").splitlines():
+        first = _first_table_cell(line)
+        if first is None:
             continue
-        if name.endswith(".py"):
-            listed.add(name)
+        if first in _TABLE_HEADER_CELLS:
+            continue
+        if first.startswith("---") or first.startswith("—"):
+            continue
+        if first.endswith(".py"):
+            listed.add(first)
     return listed
 
 
@@ -65,10 +76,10 @@ def scan_directory(directory: Path) -> DirReport | None:
     if not arch_path.is_file():
         return None
     py_files = _collect_py_files(directory)
-    listed = {name for name in _listed_py_in_arch(arch_path) if name != "__init__.py"}
+    listed = _listed_py_in_arch(arch_path)
     py_set = set(py_files)
     missing = tuple(sorted(py_set - listed))
-    extra = tuple(sorted(listed - py_set - {"_ARCH.md"}))
+    extra = tuple(sorted(listed - py_set))
     return DirReport(
         directory=directory,
         py_files=tuple(py_files),

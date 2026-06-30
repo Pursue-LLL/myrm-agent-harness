@@ -24,6 +24,7 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `tool_registry_engine.py` | 辅助 | Tool registry 扫描引擎 | ✅ |
 | `tool_registry_models.py` | 辅助 | Tool registry 数据模型 | ✅ |
 | `validate_tool_registry.py` | 辅助 | Tool registry CI 校验 | ✅ |
+| `validate_arch_inventory.py` | 辅助 | `_ARCH.md` 文件清单表格 vs 同级 `.py` 一致性校验（仅解析表格行） | ✅ |
 | `check_fractal_docs.py` | 辅助 | 分形 `_ARCH.md` 目录覆盖 + IOP 头 baseline 门禁（`fractal_header_baseline.txt`） | ✅ |
 | `fractal_header_baseline.txt` | 辅助 | 允许暂缺 IOP 头的 legacy 路径清单（相对 `src/`）；新文件不得加入 | — |
 | `detect_blocking_io.py` | 辅助 | 阻塞 I/O 检测 | ✅ |
@@ -36,6 +37,7 @@ python scripts/boundary_check.py --incremental  # pre-commit 增量
 python scripts/boundary_check.py --fix          # 自动注释违规 import
 python scripts/check_fractal_docs.py            # 目录 _ARCH 覆盖
 python scripts/check_fractal_docs.py --strict-headers --header-baseline scripts/fractal_header_baseline.txt --no-stub
+python scripts/validate_arch_inventory.py --root src/myrm_agent_harness/agent/middlewares
 ```
 
 性能基线见 `benchmarks/bench_boundary_detection.py`。

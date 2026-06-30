@@ -9,6 +9,8 @@ on:
       - 'scripts/boundary_check.py'
       - 'scripts/boundary_config.py'
       - 'scripts/fractal_header_baseline.txt'
+      - 'scripts/validate_arch_inventory.py'
+      - 'src/myrm_agent_harness/agent/**/_ARCH.md'
       - 'scripts/build_core.py'
       - 'scripts/build_release_wheel.py'
       - 'scripts/assemble_production.py'
@@ -43,6 +45,9 @@ jobs:
 
       - name: Run fractal docs check
         run: uv run python scripts/check_fractal_docs.py --strict-headers --header-baseline scripts/fractal_header_baseline.txt --no-stub
+
+      - name: Run _ARCH inventory check (middlewares)
+        run: uv run python scripts/validate_arch_inventory.py --root src/myrm_agent_harness/agent/middlewares
 
       - name: Install dependencies
         run: uv sync --dev --group build
