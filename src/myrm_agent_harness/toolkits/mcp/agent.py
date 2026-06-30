@@ -262,6 +262,8 @@ class MCPAgent:
     @staticmethod
     def _wrap_tools_with_timeout(tools: list[BaseTool], timeout: float, max_output_chars: int = 100_000) -> None:
         """Wrap MCP tool execution with asyncio.timeout, normalize, and guard output size."""
+        from myrm_agent_harness.core.security.detection.content_boundary import wrap_untrusted
+
         for tool in tools:
             original_coroutine = tool.coroutine
             if original_coroutine is None:
@@ -295,10 +297,6 @@ class MCPAgent:
                                 _name, original_len, _max_chars,
                             )
                         if isinstance(normalized, str):
-                            from myrm_agent_harness.core.security.detection.content_boundary import (
-                                wrap_untrusted,
-                            )
-
                             normalized = wrap_untrusted(normalized, source=f"mcp:{_name}")
                         return normalized
                 except TimeoutError:

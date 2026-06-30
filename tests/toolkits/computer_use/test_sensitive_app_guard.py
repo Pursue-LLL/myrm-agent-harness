@@ -85,6 +85,22 @@ class TestIsSensitiveApp:
         assert is_sensitive_app("com.tencent.xinwei.WeChat") is not None
         assert is_sensitive_app("中国工商银行 Personal") is not None
 
+    def test_window_title_bank_in_chrome(self) -> None:
+        """Browser showing bank site is blocked via window_title check."""
+        result = is_sensitive_app("Google Chrome", window_title="招商银行 - 个人网银")
+        assert result is not None
+        assert "Window title" in result
+
+    def test_window_title_safe(self) -> None:
+        assert is_sensitive_app("Google Chrome", window_title="Google Search") is None
+
+    def test_window_title_wechat_web(self) -> None:
+        result = is_sensitive_app("Safari", window_title="微信读书 - WeChat")
+        assert result is not None
+
+    def test_window_title_empty_safe(self) -> None:
+        assert is_sensitive_app("Finder", window_title="") is None
+
     def test_custom_blocked(self) -> None:
         assert is_sensitive_app("Slack", custom_blocked=frozenset({"slack"})) is not None
         assert is_sensitive_app("Slack") is None

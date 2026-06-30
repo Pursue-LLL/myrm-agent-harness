@@ -1080,6 +1080,7 @@ class TestTimeoutWrapperFaultTolerance:
         assert isinstance(result, str)
         assert "unsupported content" in result
         assert "AudioContent" in result
+        assert "UNTRUSTED_DATA" not in result
 
     @pytest.mark.asyncio
     async def test_value_error_caught(self) -> None:
@@ -1093,6 +1094,7 @@ class TestTimeoutWrapperFaultTolerance:
         result = await tool.coroutine()
         assert isinstance(result, str)
         assert "unsupported content" in result
+        assert "UNTRUSTED_DATA" not in result
 
     @pytest.mark.asyncio
     async def test_type_error_caught(self) -> None:
@@ -1106,6 +1108,7 @@ class TestTimeoutWrapperFaultTolerance:
         result = await tool.coroutine()
         assert isinstance(result, str)
         assert "unsupported content" in result
+        assert "UNTRUSTED_DATA" not in result
 
     @pytest.mark.asyncio
     async def test_other_exceptions_still_propagate(self) -> None:

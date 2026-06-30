@@ -34,14 +34,14 @@
 | **Web 抓取** | `web_fetch` | 网页内容可能包含恶意指令 | `wrap_with_external_sources_tag(html_content, source="web_fetch")` |
 | **浏览器工具** | `browser_snapshot_tool`, `browser_extract_tool` | 网页内容不可信 | `wrap_with_external_sources_tag(page_content, source="browser")` |
 | **知识库查询** | `wiki_query_tool` | 知识库内容可能来自外部摄取 | `wrap_with_external_sources_tag(wiki_content, source="wiki")` |
-| **MCP 远程数据** | MCP 工具（如 `github_api`, `slack_api`） | 第三方 API 返回的数据不可信 | 框架层统一处理（工具层无需单独包装） |
+| **MCP 远程数据** | MCP 工具（如 `github_api`, `slack_api`） | 第三方 API 返回的数据不可信 | 框架层已统一处理（`MCPAgent._wrap_tools_with_timeout` 自动调用 `wrap_untrusted`） |
 
 ### ❌ 无需包装的工具
 
 | 工具类型 | 示例 | 原因 |
 |---------|------|------|
-| **代码执行** | `bash`, `python`, `code_execution` | 执行的是用户自己的代码，风险来源是用户自己 |
-| **文件操作** | `file_read`, `file_write`, `file_list` | 读取的是用户自己的文件 |
+| **代码执行** | `bash`, `python`, `code_execution` | 用户自己的代码输出（已用 `wrap_with_tool_output_tag` 防注入） |
+| **文件操作** | `file_read`, `file_write`, `file_list` | 用户自己的文件（已用 `wrap_with_tool_output_tag` 防注入） |
 | **记忆系统** | `memory_recall_tool`, `memory_save_tool` | 记忆数据已经过审核和存储，是可信的 |
 | **Agent 委托** | `delegate_task_tool`, `spawn_subagent` | Agent 之间的内部通信，是可信的 |
 | **系统工具** | `goals`, `cron`, `tasks` | 系统内部数据，是可信的 |
@@ -116,7 +116,7 @@ wrapped = wrap_with_external_sources_tag(content, source="web_search")
 - **用途**：工具执行结果（代码输出、文件内容）
 - **效果**：仅防止 prompt injection，不触发引用规则
 - **边界标记**：`<<<TOOL_OUTPUT id="...">>>`
-- **注意**：目前框架内**未使用**此函数，保留用于未来扩展
+- **使用场景**：`bash_tool.py`、`result_formatter.py`（文件读取/目录列表）
 
 ```python
 from myrm_agent_harness.utils.context_format import wrap_with_tool_output_tag
@@ -141,11 +141,14 @@ wrapped = wrap_with_tool_output_tag(content)
 
 - **核心实现**：`myrm_agent_harness/agent/security/detection/content_boundary.py`
 - **工具层接口**：`myrm_agent_harness/utils/context_format.py`
+- **MCP 框架层统一包装**：`toolkits/mcp/agent.py` (`_wrap_tools_with_timeout`)
 - **已有示例**：
   - `toolkits/web_search/web_search_agent_tools.py`
   - `toolkits/web_fetch/web_fetch_agent_tools.py`
   - `toolkits/wiki/wiki_agent_tools.py`
   - `toolkits/browser/tools/` (snapshot.py, extract.py)
+  - `agent/meta_tools/bash/bash_tool.py`
+  - `agent/meta_tools/file_ops/core/result_formatter.py`
 
 ---
 
@@ -153,11 +156,11 @@ wrapped = wrap_with_tool_output_tag(content)
 
 ### Q1: bash 工具输出需要包装吗？
 
-**A**: 不需要。bash 执行的是用户自己的命令，风险来源是用户自己，包装无法阻止用户执行恶意命令。
+**A**: 已用 `wrap_with_tool_output_tag` 包装（防止 bash 输出中的恶意内容被 LLM 当作指令执行）。
 
 ### Q2: MCP 工具输出需要包装吗？
 
-**A**: 理论上需要，但目前框架层尚未实现统一的 MCP 工具输出包装机制。这是一个独立的、更大的任务，需要在框架层（Agent 执行引擎）而不是工具层实现。
+**A**: 已由框架层统一处理。`MCPAgent._wrap_tools_with_timeout` 自动对所有 MCP 工具的字符串输出调用 `wrap_untrusted(source="mcp:{tool_name}")`，工具层无需额外处理。
 
 ### Q3: 包装会影响性能吗？
 

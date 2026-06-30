@@ -124,6 +124,37 @@ class TestWrapToolsWithTimeout:
 
         result_b = await tool_b.coroutine()
         assert "timed out" in result_b
+        assert "UNTRUSTED_DATA" not in result_b
+
+    @pytest.mark.asyncio
+    async def test_timeout_error_not_wrapped(self) -> None:
+        """System-generated timeout error messages must NOT be wrapped with UNTRUSTED_DATA."""
+        async def slow(*args: object, **kwargs: object) -> str:
+            await asyncio.sleep(10)
+            return "never"
+
+        tool = self._make_tool("slow_svc", slow)
+        MCPAgent._wrap_tools_with_timeout([tool], timeout=0.05)
+        result = await tool.coroutine()
+        assert "timed out" in result
+        assert "UNTRUSTED_DATA" not in result
+
+    @pytest.mark.asyncio
+    async def test_multimodal_output_not_wrapped(self) -> None:
+        """Multimodal (image) outputs return list[dict] and must NOT be wrapped."""
+        blocks: list[dict[str, object]] = [
+            {"type": "text", "text": "Image description"},
+            {"type": "image", "base64": "iVBORw0KGgoAAAANSUhEUg=="},
+        ]
+
+        async def multimodal_fn(*args: object, **kwargs: object) -> tuple[list[dict[str, object]], None]:
+            return (blocks, None)
+
+        tool = self._make_tool("vision_tool", multimodal_fn)
+        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        result = await tool.coroutine()
+        assert isinstance(result, list)
+        assert any(b.get("type") == "image" for b in result)
 
 
 class TestGetToolsFromServerTimeout:

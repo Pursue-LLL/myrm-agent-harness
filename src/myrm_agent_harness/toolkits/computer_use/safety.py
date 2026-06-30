@@ -85,10 +85,10 @@ def is_sensitive_app(
     custom_blocked: frozenset[str] | None = None,
     custom_allowed: frozenset[str] | None = None,
 ) -> str | None:
-    """Check if the foreground app is in the sensitive-application blocklist.
+    """Check if the foreground app or window title matches the sensitive blocklist.
 
-    Currently matches only against *app_name*. The ``window_title`` parameter
-    is accepted for forward-compatible call sites but not checked.
+    Matches against both *app_name* and *window_title* to catch scenarios where
+    sensitive content is opened inside a generic app (e.g. banking site in Chrome).
 
     Returns a human-readable block reason, or ``None`` if safe to proceed.
     """
@@ -96,6 +96,7 @@ def is_sensitive_app(
         return None
 
     lower_name = app_name.lower()
+    lower_title = window_title.lower() if window_title else ""
 
     if custom_allowed:
         if any(a.lower() in lower_name for a in custom_allowed):
@@ -103,10 +104,16 @@ def is_sensitive_app(
 
     effective_blocked = _SENSITIVE_APPS | (custom_blocked or frozenset())
     for keyword in effective_blocked:
-        if keyword.lower() in lower_name:
+        kw = keyword.lower()
+        if kw in lower_name:
             return (
                 f"Blocked: Agent cannot interact with sensitive application '{app_name}'. "
                 "Switch to a non-sensitive application to continue the task."
+            )
+        if lower_title and kw in lower_title:
+            return (
+                f"Blocked: Window title '{window_title}' indicates sensitive content "
+                f"(matched '{keyword}'). Switch away to continue the task."
             )
     return None
 
