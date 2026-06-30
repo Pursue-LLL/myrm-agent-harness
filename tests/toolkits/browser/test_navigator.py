@@ -7,16 +7,31 @@ import pytest
 from myrm_agent_harness.toolkits.browser.navigation import Navigator
 
 
+def _apply_ssrf_guard_stubs(mock_page: MagicMock) -> None:
+    """Attach async stubs required by SSRF guard route interception."""
+    mock_page.route = AsyncMock()
+    mock_page.unroute = AsyncMock()
+    mock_page.main_frame = MagicMock()
+
+
 def create_mock_page(url: str = "http://example.com", status: int = 200, title: str = "Test Page") -> MagicMock:
     """创建完整配置的mock page对象"""
     mock_page = MagicMock()
+
+    mock_request = MagicMock()
+    mock_request.url = url
+    mock_request.redirected_from = None
+
     mock_response = MagicMock()
     mock_response.status = status
+    mock_response.request = mock_request
+
     mock_page.goto = AsyncMock(return_value=mock_response)
     mock_page.wait_for_load_state = AsyncMock()
     mock_page.title = AsyncMock(return_value=title)
     mock_page.url = url
     mock_page.evaluate = AsyncMock(return_value=None)
+    _apply_ssrf_guard_stubs(mock_page)
     return mock_page
 
 
@@ -279,13 +294,11 @@ class TestNavigatorPrivateNetworks:
     @pytest.mark.asyncio
     async def test_private_ip_blocked_by_default(self):
         """默认模式下内网 IP 被 SSRF Guard 阻止"""
-        mock_page = MagicMock()
+        mock_page = create_mock_page("http://192.168.1.1/api", 200, "Private")
         navigator = Navigator(mock_page)
 
         with pytest.raises(ValueError, match="SSRF"):
             await navigator.goto("http://192.168.1.1/api")
-
-        mock_page.goto.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_private_ip_allowed_when_enabled(self):
@@ -303,6 +316,7 @@ class TestNavigatorPrivateNetworks:
     async def test_localhost_blocked_by_default(self):
         """默认模式下 localhost 被 SSRF Guard 阻止"""
         mock_page = MagicMock()
+        _apply_ssrf_guard_stubs(mock_page)
         navigator = Navigator(mock_page)
 
         with pytest.raises(ValueError, match="SSRF"):
