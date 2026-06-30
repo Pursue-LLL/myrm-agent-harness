@@ -19,3 +19,4 @@ Cron scheduling engine internals.
 ## Key Dependencies
 
 - `infra`
+- `observability.tracing` (TracingContext for per-execution trace_id/session_id)
