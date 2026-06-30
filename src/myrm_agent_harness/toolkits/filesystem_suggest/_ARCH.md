@@ -3,9 +3,9 @@
 
 ## 架构概述
 
-通用 **本地路径建议** 工具包（聊天 `@` 引用补全的后端原语）。只负责单机文件系统枚举、路径安全过滤和模糊排序；不包含 HTTP、chat_id、GUI 状态、多租户或业务存储语义。
+通用 **本地路径建议** 工具包（聊天 `@` 引用补全与 browse 搜索的后端原语）。只负责单机文件系统枚举、路径安全过滤和模糊排序；不包含 HTTP、chat_id、GUI 状态、多租户或业务存储语义。
 
-命名说明：顶层包名 `filesystem_suggest` 刻意与 `code_execution/workspace/`（沙箱会话生命周期）及 storage 卷 `/workspace` 区分，避免「workspace」语义撞车。
+`WorkspacePathIndexer` 是 workspace 文件列表的 **SSOT**（单一事实来源）：`GET /files/suggest` 与 `GET /files/browse/search` 共用同一枚举器与 `rank_basename` 排序。
 
 ## 文件清单
 
