@@ -7,6 +7,14 @@ import pytest
 
 from myrm_agent_harness.toolkits.retriever.bm25.tokenizer import _ENGLISH_WORD_PATTERN, get_tokenizer_service
 
+try:
+    from nltk.stem import PorterStemmer
+    _HAS_NLTK = True
+except ImportError:
+    _HAS_NLTK = False
+
+requires_nltk = pytest.mark.skipif(not _HAS_NLTK, reason="NLTK not installed")
+
 
 @pytest.fixture
 def tokenizer():
@@ -24,19 +32,16 @@ def test_english_word_detection():
     assert not _ENGLISH_WORD_PATTERN.match("hello123")
 
 
+@requires_nltk
 def test_simple_english_tokenization(tokenizer):
-    """测试纯英文分词"""
+    """测试纯英文分词（需要 NLTK 停用词过滤和词干提取）"""
     text = "The quick brown fox jumps over the lazy dog"
     tokens = tokenizer.tokenize(text, enable_english_enhancement=True)
 
-    # 停用词 "the", "over" 应被过滤
-    assert "the" not in tokens
-    assert "over" not in tokens
-
-    # 词干提取：jumps → jump
-    assert "jump" in tokens or "jump" in [t.lower() for t in tokens]
-
-    print(f" 英文分词结果: {tokens}")
+    lower_tokens = [t.lower() for t in tokens]
+    assert "the" not in lower_tokens
+    assert "over" not in lower_tokens
+    assert "jump" in tokens or "jump" in lower_tokens
 
 
 def test_chinese_tokenization(tokenizer):
@@ -51,8 +56,9 @@ def test_chinese_tokenization(tokenizer):
     print(f" 中文分词结果: {tokens}")
 
 
+@requires_nltk
 def test_mixed_language_tokenization(tokenizer):
-    """测试中英文混合分词"""
+    """测试中英文混合分词（需要 NLTK）"""
     text = "Python is a powerful programming language for 机器学习"
     tokens = tokenizer.tokenize(text, enable_english_enhancement=True)
 
@@ -69,8 +75,9 @@ def test_mixed_language_tokenization(tokenizer):
     print(f" 混合分词结果: {tokens}")
 
 
+@requires_nltk
 def test_stemming_functionality(tokenizer):
-    """测试词干提取功能"""
+    """测试词干提取功能（需要 NLTK PorterStemmer）"""
     # 测试常见的词形变化
     test_cases = {
         "running": "run",
@@ -88,8 +95,9 @@ def test_stemming_functionality(tokenizer):
     print(" 词干提取测试通过")
 
 
+@requires_nltk
 def test_stopword_filtering(tokenizer):
-    """测试停用词过滤"""
+    """测试停用词过滤（需要 NLTK）"""
     text = "The and is are was were been being have has had do does did"
     tokens = tokenizer.tokenize(text, enable_english_enhancement=True)
 
@@ -138,12 +146,11 @@ def test_special_characters(tokenizer):
     text = "hello-world, don't worry! machine_learning"
     tokens = tokenizer.tokenize(text, enable_english_enhancement=True)
 
-    # 连字符应保留在英文词中
-    # 标点应被去除
     assert any("hello" in t or "world" in t for t in tokens)
-    assert any("worri" in t for t in tokens)  # don't worry → worry → worri
-
-    print(f" 特殊字符处理: {tokens}")
+    if _HAS_NLTK:
+        assert any("worri" in t for t in tokens)
+    else:
+        assert any("worry" in t.lower() or "don't" in t.lower() for t in tokens)
 
 
 def test_empty_and_whitespace(tokenizer):
@@ -167,8 +174,9 @@ async def test_async_preload(tokenizer):
     print(" 异步预加载测试通过")
 
 
+@requires_nltk
 def test_real_world_query(tokenizer):
-    """测试真实查询场景"""
+    """测试真实查询场景（需要 NLTK 停用词过滤）"""
     # 模拟用户搜索查询
     queries = [
         "how to use Python for machine learning",

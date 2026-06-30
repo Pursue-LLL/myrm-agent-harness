@@ -143,18 +143,19 @@ def test_nltk_import_error_path():
     print(" [6/7] NLTK 已安装，跳过 ImportError 测试")
 
 
+@pytest.mark.skipif(
+    not importlib.util.find_spec("nltk"),
+    reason="nltk not installed — cannot patch nltk.corpus",
+)
 def test_nltk_general_exception_path():
     """测试 NLTK 通用异常处理路径（line 111-114）。"""
     mod = load_tokenizer_module()
     tokenizer = mod.TokenizerService()
     tokenizer._initialize()
 
-    # 模拟 NLTK 初始化时的通用异常
-    # 通过 Mock stopwords.words 抛出异常
     with patch("nltk.corpus.stopwords.words", side_effect=RuntimeError("NLTK error")):
         result = tokenizer._lazy_init_nltk()
 
-        # 应该捕获异常并返回 False
         assert result is False, "通用异常应返回 False"
         assert tokenizer._nltk_init_failed, "应设置失败标志"
 

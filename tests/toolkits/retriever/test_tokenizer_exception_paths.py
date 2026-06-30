@@ -70,6 +70,10 @@ def test_nltk_import_error():
     print(" NLTK ImportError 路径测试通过")
 
 
+@pytest.mark.skipif(
+    not importlib.util.find_spec("nltk"),
+    reason="nltk not installed — cannot patch nltk.corpus",
+)
 def test_nltk_stopwords_download():
     """测试 NLTK stopwords LookupError（需要下载）路径。"""
     tokenizer_path = (
@@ -100,6 +104,10 @@ def test_nltk_stopwords_download():
     print(" NLTK stopwords 下载路径测试通过")
 
 
+@pytest.mark.skipif(
+    not importlib.util.find_spec("nltk"),
+    reason="nltk not installed — cannot patch nltk.corpus",
+)
 def test_nltk_general_exception():
     """测试 NLTK 通用异常处理路径。"""
     tokenizer_path = (
