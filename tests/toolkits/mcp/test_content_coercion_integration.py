@@ -450,7 +450,7 @@ class TestFullToolExecutionPipeline:
 
     @pytest.mark.asyncio
     async def test_tool_returning_plain_string(self):
-        """Tool returns a plain string (not tuple) — passes through unchanged."""
+        """Tool returns a plain string (not tuple) — wrapped with security boundary."""
 
         async def _mock_invoke(*a: object, **kw: object) -> str:
             return "simple response"
@@ -461,7 +461,8 @@ class TestFullToolExecutionPipeline:
 
         result = await tool.coroutine()
         assert isinstance(result, str)
-        assert result == "simple response"
+        assert "simple response" in result
+        assert "UNTRUSTED_DATA" in result
 
     @pytest.mark.asyncio
     async def test_tool_returning_empty_list_tuple(self):
