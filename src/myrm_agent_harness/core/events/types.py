@@ -131,7 +131,6 @@ class AgentEventType(StrEnum):
     COGNITIVE_CONSOLIDATION = "cognitive_consolidation"
     GOAL_STATUS = "goal_status"
     ENGINE_LIMIT_REACHED = "engine_limit_reached"
-    CLIENT_ACTION = "client_action"
     FILE_DIFF = "file_diff"
     CAPTCHA_DETECTED = "captcha_detected"
     CAPTCHA_RESOLVED = "captcha_resolved"

@@ -10,12 +10,14 @@ import pytest
 
 from myrm_agent_harness.toolkits.kanban.context_builder import (
     _cap,
+    build_multimodal_query,
     build_task_context,
 )
 from myrm_agent_harness.toolkits.kanban.stores import InMemoryKanbanStore
 from myrm_agent_harness.toolkits.kanban.types import (
     KanbanBoard,
     KanbanTask,
+    TaskAttachment,
     TaskEventKind,
     TaskRunOutcome,
     TaskStatus,
@@ -421,3 +423,69 @@ class TestBuildTaskContext:
         assert "/v1/users" in ctx
         assert "Done A" in ctx
         assert "Done B" in ctx
+
+
+class TestBuildMultimodalQuery:
+    def test_no_attachments_returns_plain_text(self) -> None:
+        assert build_multimodal_query("hello context", []) == "hello context"
+
+    def test_image_with_vision_returns_blocks(self) -> None:
+        att = TaskAttachment(
+            file_id="f1",
+            filename="shot.png",
+            mime_type="image/png",
+            size_bytes=2048,
+            content_ref="https://host/files/f1",
+        )
+        result = build_multimodal_query("task body", [att], has_vision=True)
+        assert isinstance(result, list)
+        assert result[0] == {"type": "text", "text": "task body"}
+        assert result[1] == {
+            "type": "image_url",
+            "image_url": {"url": "https://host/files/f1"},
+        }
+
+    def test_image_without_vision_degrades_to_text_hint(self) -> None:
+        att = TaskAttachment(
+            file_id="f1",
+            filename="shot.png",
+            mime_type="image/jpeg",
+            size_bytes=5120,
+            content_ref="https://host/files/f1",
+        )
+        result = build_multimodal_query("task body", [att], has_vision=False)
+        assert isinstance(result, list)
+        hint = result[1]["text"]  # type: ignore[index]
+        assert "Attached image: shot.png" in hint
+        assert "model lacks vision" in hint
+        assert "5KB" in hint
+
+    def test_document_attachment_appends_text_block(self) -> None:
+        att = TaskAttachment(
+            file_id="f2",
+            filename="spec.pdf",
+            mime_type="application/pdf",
+            size_bytes=10240,
+            content_ref="vault://spec-uuid",
+        )
+        result = build_multimodal_query("ctx", [att])
+        assert isinstance(result, list)
+        doc_block = result[1]["text"]  # type: ignore[index]
+        assert "Attached file: spec.pdf" in doc_block
+        assert "application/pdf" in doc_block
+        assert "ref=vault://spec-uuid" in doc_block
+
+    def test_mixed_image_and_document(self) -> None:
+        image = TaskAttachment(
+            file_id="img", filename="ui.png", mime_type="image/png",
+            size_bytes=100, content_ref="http://x/img",
+        )
+        doc = TaskAttachment(
+            file_id="doc", filename="notes.txt", mime_type="text/plain",
+            size_bytes=200, content_ref="http://x/doc",
+        )
+        result = build_multimodal_query("mixed", [image, doc], has_vision=True)
+        assert isinstance(result, list)
+        assert len(result) == 3
+        assert result[1]["type"] == "image_url"
+        assert "Attached file: notes.txt" in result[2]["text"]  # type: ignore[index]

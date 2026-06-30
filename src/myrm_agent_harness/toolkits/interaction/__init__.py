@@ -2,8 +2,6 @@ from myrm_agent_harness.toolkits.interaction.ask_question import AskQuestionInpu
 from myrm_agent_harness.toolkits.interaction.interaction_agent_tools import (
     AskQuestionTool,
     create_ask_question_tool,
-    create_clipboard_tools,
-    write_to_clipboard,
 )
 
 __all__ = [
@@ -12,6 +10,4 @@ __all__ = [
     "OptionItem",
     "QuestionItem",
     "create_ask_question_tool",
-    "create_clipboard_tools",
-    "write_to_clipboard",
 ]

@@ -112,7 +112,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "image_tool": ToolLayer.EXTENDED,
     "video_tool": ToolLayer.EXTENDED,
     "render_ui_tool": ToolLayer.EXTENDED,
-    "write_to_clipboard_tool": ToolLayer.EXTENDED,
     # --- 看板 (Worker tools) ---
     "kanban_show": ToolLayer.EXTENDED,
     "kanban_complete": ToolLayer.EXTENDED,

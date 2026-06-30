@@ -159,7 +159,7 @@ Does your code need to import anything from agent/?
 | cron/ | Scheduled task framework — scheduling engine, CRUD manager, built-in strategies. |
 | context_bundle/ | Unified context bundle — volume layout, facade, index/lifecycle hook registration. |
 | file_parsers/ | File format parsers — PDF, DOCX, Excel, text, and structured data extraction. |
-| interaction/ | User interaction primitives — AskQuestion schemas + clipboard via `interaction_agent_tools.py` (UI rendering: `agent/meta_tools/interaction/`) |
+| interaction/ | User interaction primitives — AskQuestion schemas via `interaction_agent_tools.py` (UI rendering: `agent/meta_tools/interaction/`) |
 | kanban/ | Durable multi-task scheduling — heartbeat, zombie detection, run/event audit trail. |
 | llms/ | LLM manager and adapters — 100+ provider support, citation extraction, image/video/tts generation and vision understanding (`llms/vision/`). |
 | mcp/ | MCP protocol support — client management, tool fetching, connection pooling. |

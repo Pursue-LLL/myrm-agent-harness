@@ -90,16 +90,15 @@
 |---|--------|------------------:|----------|------|----------|
 | 26 | ask_question_tool | 98 | `harness/toolkits/interaction/interaction_agent_tools.py` | 向用户提出结构化澄清问题，单轮仅可调用一次 | enable_ask_question=True |
 | 27 | render_ui_tool | 1,254 | `harness/agent/meta_tools/interaction/render_ui_tool.py` | 交互式 UI 渲染（表单/卡片/表格） | enable_render_ui=True |
-| 28 | write_to_clipboard_tool | 131 | `harness/toolkits/interaction/interaction_agent_tools.py` | 写入用户系统剪贴板（通过客户端 Action） | enable_clipboard=True |
 
 ### 4.6 子 Agent 委托工具（有子 Agent 配置时加载）
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|
-| 29 | delegate_task_tool | 120 | `harness/agent/meta_tools/spawn_subagent/delegate_task_tool.py` | 委托任务给子 Agent |
-| 30 | batch_delegate_tasks_tool | 52 | `harness/agent/meta_tools/spawn_subagent/delegate_task_tool.py` | 批量委托任务 |
-| 31 | delegate_parallel_tasks_tool | 81 | `harness/agent/meta_tools/spawn_subagent/_delegate_batch.py` | Swarm Fission 并行委托（Yield-Resume 语义） |
-| 32 | list_subagents_tool | 6 | `harness/agent/meta_tools/spawn_subagent/agent_manage_tool.py` | 列出子 Agent |
+| 28 | delegate_task_tool | 120 | `harness/agent/meta_tools/spawn_subagent/delegate_task_tool.py` | 委托任务给子 Agent |
+| 29 | batch_delegate_tasks_tool | 52 | `harness/agent/meta_tools/spawn_subagent/delegate_task_tool.py` | 批量委托任务 |
+| 30 | delegate_parallel_tasks_tool | 81 | `harness/agent/meta_tools/spawn_subagent/_delegate_batch.py` | Swarm Fission 并行委托（Yield-Resume 语义） |
+| 31 | list_subagents_tool | 6 | `harness/agent/meta_tools/spawn_subagent/agent_manage_tool.py` | 列出子 Agent |
 | 33 | cancel_subagent_tool | 6 | `harness/agent/meta_tools/spawn_subagent/agent_manage_tool.py` | 取消子 Agent |
 | 34 | steer_subagent_tool | 11 | `harness/agent/meta_tools/spawn_subagent/agent_manage_tool.py` | 引导子 Agent |
 | 35 | send_teammate_message_tool | 40 | `harness/agent/meta_tools/spawn_subagent/send_teammate_tool.py` | 子 Agent 间 P2P 直接通信（队友邮箱） |
@@ -161,32 +160,32 @@
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|
-| 58 | kanban_show | - | `harness/toolkits/kanban/kanban_agent_tools.py` | 查看当前任务详情（描述/依赖/历史） |
-| 59 | kanban_complete | - | `harness/toolkits/kanban/kanban_agent_tools.py` | 标记任务完成并提交结构化交接 |
-| 60 | kanban_block | - | `harness/toolkits/kanban/kanban_agent_tools.py` | 阻塞任务（支持定时自动解除） |
-| 61 | kanban_heartbeat | - | `harness/toolkits/kanban/kanban_agent_tools.py` | 报告运行中任务的进度（防僵尸回收） |
-| 62 | kanban_comment | - | `harness/toolkits/kanban/kanban_agent_tools.py` | 跨任务评论协调（不限所有权，Worker 可评论任意任务） |
+| 58 | kanban_show | 75 | `harness/toolkits/kanban/kanban_agent_tools.py` | 查看当前任务详情（描述/依赖/历史） |
+| 59 | kanban_complete | 248 | `harness/toolkits/kanban/kanban_agent_tools.py` | 标记任务完成并提交结构化交接 |
+| 60 | kanban_block | 298 | `harness/toolkits/kanban/kanban_agent_tools.py` | 阻塞任务（支持定时自动解除） |
+| 61 | kanban_heartbeat | 100 | `harness/toolkits/kanban/kanban_agent_tools.py` | 报告运行中任务的进度（防僵尸回收） |
+| 62 | kanban_comment | 227 | `harness/toolkits/kanban/kanban_agent_tools.py` | 跨任务评论协调（不限所有权，Worker 可评论任意任务） |
 
 #### Orchestrator 工具（8 个）
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|
-| 63 | kanban_add_task | - | `harness/toolkits/kanban/kanban_agent_tools.py` | 添加新任务（支持依赖/优先级/技能/幂等） |
-| 64 | kanban_list_tasks | - | `harness/toolkits/kanban/kanban_agent_tools.py` | 列出看板任务（按状态/Agent 过滤） |
-| 65 | kanban_update_task | - | `harness/toolkits/kanban/kanban_agent_tools.py` | 更新任务属性（标题/描述/优先级/超时/技能） |
-| 66 | kanban_move_task | - | `harness/toolkits/kanban/kanban_agent_tools.py` | 变更任务状态（backlog/ready/blocked/archived） |
-| 67 | kanban_delete_task | - | `harness/toolkits/kanban/kanban_agent_tools.py` | 删除任务（自动级联处理子任务依赖） |
-| 68 | kanban_board_summary | - | `harness/toolkits/kanban/kanban_agent_tools.py` | 获取看板统计（各状态任务计数） |
-| 69 | kanban_add_dependency | - | `harness/toolkits/kanban/kanban_agent_tools.py` | 添加任务依赖关系 |
-| 70 | kanban_remove_dependency | - | `harness/toolkits/kanban/kanban_agent_tools.py` | 移除任务依赖关系 |
+| 63 | kanban_add_task | 616 | `harness/toolkits/kanban/kanban_agent_tools.py` | 添加新任务（支持依赖/优先级/技能/幂等） |
+| 64 | kanban_list_tasks | 119 | `harness/toolkits/kanban/kanban_agent_tools.py` | 列出看板任务（按状态/Agent 过滤） |
+| 65 | kanban_update_task | 453 | `harness/toolkits/kanban/kanban_agent_tools.py` | 更新任务属性（标题/描述/优先级/超时/技能） |
+| 66 | kanban_move_task | 116 | `harness/toolkits/kanban/kanban_agent_tools.py` | 变更任务状态（backlog/ready/blocked/archived） |
+| 67 | kanban_delete_task | 66 | `harness/toolkits/kanban/kanban_agent_tools.py` | 删除任务（自动级联处理子任务依赖） |
+| 68 | kanban_board_summary | 67 | `harness/toolkits/kanban/kanban_agent_tools.py` | 获取看板统计（各状态任务计数） |
+| 69 | kanban_add_dependency | 109 | `harness/toolkits/kanban/kanban_agent_tools.py` | 添加任务依赖关系 |
+| 70 | kanban_remove_dependency | 90 | `harness/toolkits/kanban/kanban_agent_tools.py` | 移除任务依赖关系 |
 
 #### Management 工具（3 个，仅 full 模式）
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|
-| 71 | kanban_create_board | - | `harness/toolkits/kanban/kanban_agent_tools.py` | 创建新看板 |
-| 72 | kanban_list_boards | - | `harness/toolkits/kanban/kanban_agent_tools.py` | 列出所有看板 |
-| 73 | kanban_get_task | - | `harness/toolkits/kanban/kanban_agent_tools.py` | 按 ID 获取任意任务详情 |
+| 71 | kanban_create_board | 87 | `harness/toolkits/kanban/kanban_agent_tools.py` | 创建新看板 |
+| 72 | kanban_list_boards | 42 | `harness/toolkits/kanban/kanban_agent_tools.py` | 列出所有看板 |
+| 73 | kanban_get_task | 70 | `harness/toolkits/kanban/kanban_agent_tools.py` | 按 ID 获取任意任务详情 |
 
 ### 4.17 桌面语义控制工具（启用 Computer Use 时加载）
 
@@ -295,8 +294,8 @@
 | System Prompt 层 | ~2,607 |
 | CORE 工具层 | ~255 |
 | COMMON 工具层 | ~4,457 |
-| EXTENDED 全部（83 工具，harness 81 + server 2） | ~7,542+ |
-| 工具 JSON schema | ~5,785 (~89 工具 × ~65) |
+| EXTENDED 全部（82 工具，harness 80 + server 2） | ~7,411+ |
+| 工具 JSON schema | ~5,720 (~88 工具 × ~65) |
 | 动态注入 | ~1,200 |
 | 消息格式 | ~500 |
 | **tiktoken 小计** | **~22,411+** |
