@@ -40,7 +40,7 @@ atexit.register(_cleanup_temp_workspace)
 
 
 def _cleanup_browser_child_processes() -> None:
-    from tests.support.browser_process_cleanup import terminate_browser_processes_in_tree
+    from myrm_agent_harness.testing.browser_process_cleanup import terminate_browser_processes_in_tree
 
     with suppress(Exception):
         terminate_browser_processes_in_tree(os.getpid())

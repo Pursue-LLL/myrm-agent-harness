@@ -8,11 +8,12 @@ Harness test suite: unit, integration, architecture gates, and performance bench
 
 | Path | Role | Description |
 |------|------|-------------|
-| `conftest.py` | 核心 | 全局 pytest 配置：隔离 `MYRM_DATA_DIR`、blocking_io gate、benchmark→performance 标记、浏览器 xdist 串行组、`pytest_collection_finish` warmup/acquire_page 漏标门禁、`reset_global_browser_pool_for_tests()` 清理 |
+| `conftest.py` | 核心 | 全局 pytest 配置：隔离 `MYRM_DATA_DIR`、blocking_io gate、benchmark→performance 标记、浏览器 xdist 串行组、`pytest_collection_finish` warmup/acquire_page 漏标门禁、integration/e2e 路径 `reset_global_browser_pool_for_tests()`；sessionfinish 浏览器进程树 cleanup（`myrm_agent_harness.testing.browser_process_cleanup`） |
+| `testing/` | 单元 | Shipped `myrm_agent_harness.testing` 模块单测 · `test_browser_process_cleanup.py` |
 | `fixtures/` | 辅助 | 预留 harness-only 夹具目录 · [fixtures/_ARCH.md](fixtures/_ARCH.md) |
 | `examples/` | 辅助 | 非 shipping 参考实现 · [examples/_ARCH.md](examples/_ARCH.md) |
 | `mocks/` | 辅助 | 共享 in-memory backend mock · [mocks/_ARCH.md](mocks/_ARCH.md) |
-| `support/` | 辅助 | pytest teardown 辅助（浏览器进程树清理）· [support/_ARCH.md](support/_ARCH.md) |
+| `support/` | 辅助 | pytest teardown re-export（`terminate_browser_processes_in_tree`）· [support/_ARCH.md](support/_ARCH.md) |
 | `backends/` | 单元 | 存储后端（profiles/secrets/skills）· [backends/_ARCH.md](backends/_ARCH.md) |
 | `scripts/` | 单元 | `scripts/` 维护脚本单测（tool registry）· [scripts/_ARCH.md](scripts/_ARCH.md) |
 | `features/` | 单元 | Feature Flag 引擎 · [features/_ARCH.md](features/_ARCH.md) |

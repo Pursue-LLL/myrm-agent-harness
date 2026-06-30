@@ -91,6 +91,7 @@ class CorrectOp(BaseModel):
     action: str = ConsolidationAction.CORRECT
     memory_id: str
     corrected_content: str
+    importance: float = Field(default=0.5, ge=0.0, le=1.0)
     accuracy_score: float = Field(default=1.0, ge=0.0, le=1.0)
     anti_fragmentation_score: float = Field(default=1.0, ge=0.0, le=1.0)
     redundancy_score: float = Field(default=1.0, ge=0.0, le=1.0)

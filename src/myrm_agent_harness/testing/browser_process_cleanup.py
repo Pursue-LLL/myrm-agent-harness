@@ -1,15 +1,15 @@
 """Terminate automation child processes owned by a pytest process tree.
 
 [INPUT]
-- ps subprocess (POS: process listing)
+- ps subprocess (POSIX process listing)
 - myrm_agent_harness.utils.os_compat::terminate_process_graceful (POS: Cross-platform process group control.)
 
 [OUTPUT]
 - terminate_browser_processes_in_tree: Gracefully terminate automation descendants of a root PID
 
 [POS]
-Lightweight pytest teardown helper under tests/support/. Complements
-`toolkits.browser.doctor` global orphan cleanup (`scripts/dev/cleanup-zombie-tests.sh`).
+Shipped pytest teardown helper for server and harness test suites. Complements
+``toolkits.browser.doctor`` global orphan cleanup (``scripts/dev/cleanup-zombie-tests.sh``).
 """
 
 from __future__ import annotations

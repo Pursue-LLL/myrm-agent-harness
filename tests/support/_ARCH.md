@@ -1,17 +1,17 @@
 # tests/support/
 
 ## Overview
-Pytest-only helpers for teardown and local dev hygiene. Not part of the distributable package.
+
+Pytest-only helpers for teardown and local dev hygiene. Browser process cleanup delegates to the shipped `myrm_agent_harness.testing` module.
 
 ## File Index
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| `browser_process_cleanup.py` | Core | Gracefully terminate automation child processes in the pytest process tree via `os_compat.terminate_process_graceful`. | ✅ |
+| `__init__.py` | Re-export | Re-exports `myrm_agent_harness.testing.browser_process_cleanup.terminate_browser_processes_in_tree` | ✅ |
 
 ## Key Dependencies
 
-- `ps` subprocess (stdlib) for process-tree scans
-- `myrm_agent_harness.utils.os_compat.terminate_process_graceful` for teardown kills
+- `myrm_agent_harness.testing.browser_process_cleanup` (POS: Shipped pytest teardown helper for downstream test suites.)
 - Invoked from `tests/conftest.py` via `pytest_sessionfinish` / `atexit`
 - Browser tests: `tests/toolkits/browser/conftest.py` via `atexit`
