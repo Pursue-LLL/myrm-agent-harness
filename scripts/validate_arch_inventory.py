@@ -6,7 +6,7 @@ prose mentions of ``other_module.py`` are ignored.
 
 Usage:
     python scripts/validate_arch_inventory.py
-    python scripts/validate_arch_inventory.py --root src/myrm_agent_harness/agent/middlewares
+    python scripts/validate_arch_inventory.py --root src/myrm_agent_harness/agent
     python scripts/validate_arch_inventory.py --json
 
 Exit codes:

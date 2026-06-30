@@ -515,7 +515,7 @@ class UserService:
 3. **接口契约**：OUTPUT 声明对外能力，形成清晰的接口契约
 4. **影响分析**：通过 INPUT/POS 链接快速定位变更影响范围
 5. **变更影响分析**：借助 INPUT/POS 链接定位依赖面，配合评审与测试降低回归风险
-6. **自动化门禁**：`check_fractal_docs.py` + `boundary_check.py` + `validate_arch_inventory.py`（`_ARCH.md` 文件表 vs 磁盘 `.py`）在 pre-commit 与 CI 阻断文档/层边界回归
+6. **自动化门禁**：`check_fractal_docs.py` + `boundary_check.py` + `validate_arch_inventory.py`（`_ARCH.md` 文件表 vs 磁盘 `.py`）在 pre-commit 与 CI 阻断文档/层边界回归；inventory CI 当前 scope 为 `agent/` 全量（`toolkits/`、`core/` 等待后续扩展）
 
 **实践约定**：
 
