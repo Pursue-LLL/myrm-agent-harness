@@ -9,6 +9,7 @@ Context management infrastructure: shared types, budget management, session lock
 |------|------|-------------|-------|
 | __init__.py | Package | Context management infrastructure: shared types, budget management, session locks, and optional cache metrics persistence. | — |
 | cache_break_detector.py | Core | Prompt cache break detection and attribution. Detects cache drops and attributes to system prompt change, tool schema change, model switch, or TTL expiry. Works with ``toolkits/mcp/schema_utils.canonicalize_schema_for_cache`` to form a prevention+detection closed loop. | ✅ |
+| cache_healer.py | Core | ActiveCacheHealer: monitors cache hit rate and triggers context compression when hit rate drops below threshold. | ✅ |
 | archive_reference.py | Core | Structured archive references and restore contracts for offloaded context payloads, including lightweight line/chunk, JSON, Markdown, code block, table, and list indexes plus chunk restore args for targeted recovery. | ✅ |
 | cache_policy.py | Core | Framework-level prompt cache policy profile resolution for context pruning with provider TTL calibration metadata. | ✅ |
 | cache_metrics_collector.py | Core | Request-scoped pairing via ContextVar (same asyncio task as token tracker). | ✅ |

@@ -37,7 +37,7 @@ python scripts/boundary_check.py --incremental  # pre-commit 增量
 python scripts/boundary_check.py --fix          # 自动注释违规 import
 python scripts/check_fractal_docs.py            # 目录 _ARCH 覆盖
 python scripts/check_fractal_docs.py --strict-headers --header-baseline scripts/fractal_header_baseline.txt --no-stub
-python scripts/validate_arch_inventory.py --root src/myrm_agent_harness/agent/middlewares
+python scripts/validate_arch_inventory.py --root src/myrm_agent_harness/agent
 ```
 
 性能基线见 `benchmarks/bench_boundary_detection.py`。

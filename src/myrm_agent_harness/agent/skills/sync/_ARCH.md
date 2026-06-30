@@ -11,6 +11,19 @@ Bidirectional skill synchronization enabling collective skill evolution across d
 3. **Incremental sync**: `SkillSyncManifest` (SQLite) tracks per-skill SHA256 hashes and timestamps for efficient delta sync.
 4. **Quality gate**: Only skills meeting minimum thresholds (execution count, success rate) get pushed to shared repositories.
 
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Package | Skill sync module exports: protocols, manager, manifest, backends, quality gate. | — |
+| types.py | Core | Frozen dataclasses for sync status, push/pull results, and gate verdicts. | ✅ |
+| protocols.py | Core | SkillSyncProtocol and SkillQualityGateProtocol framework interfaces. | ✅ |
+| manifest.py | Core | SkillSyncManifest SQLite persistence for per-skill SHA256 hashes and sync timestamps. | ✅ |
+| quality_gate.py | Core | ThresholdQualityGate default implementation for push validation. | ✅ |
+| manager.py | Core | SkillSyncManager orchestrator: pull-first full_sync, push with quality gate. | ✅ |
+| local_sync.py | Core | LocalFSSyncBackend using StorageProvider for multi-device file-system sync. | ✅ |
+| idle_integration.py | Core | IdleWorker bridge registering skill_sync periodic task. | ✅ |
+
 ## Component Map
 
 ```
