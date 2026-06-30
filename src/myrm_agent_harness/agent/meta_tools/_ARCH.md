@@ -11,7 +11,6 @@ Detailed design: [META_TOOLS_SYSTEM.md](META_TOOLS_SYSTEM.md)
 |------|------|-------------|-------|
 | __init__.py | Package | Agent meta-tools module. Provides tools that depend on Agent framework infrastructure (Bash, File Op | ✅ |
 | answer_user_tool.py | Core | Agent answer-phase gating tool. Scheduling signal for completion_guard middleware. | ✅ |
-| diagnostics_tool.py | Core | Framework-level read-only diagnostics tool. It exposes existing Harness health | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

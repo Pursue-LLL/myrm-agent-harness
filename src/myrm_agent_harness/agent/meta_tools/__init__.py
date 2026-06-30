@@ -52,7 +52,6 @@ from .bash import (
     create_bash_process_output_tool,
     create_bash_tool,
 )
-from .diagnostics_tool import runtime_diagnostics_tool
 from .discover_capability.discover_capability_tool import (
     create_discover_capability_tool,
 )
@@ -259,7 +258,7 @@ def get_meta_tools(
 
     # Low-frequency utility tools → deferred via registry (discoverable
     # through discover_capability_tool, auto-mounted on first use).
-    _deferred_tools: list = [runtime_diagnostics_tool]
+    _deferred_tools: list = []
 
     # Mutable container: filled after all tools are built so that
     # bash Python PTC can access the full tool list via closure.
@@ -363,5 +362,4 @@ __all__ = [
     "create_steer_subagent_tool",
     "get_meta_tools",
     "request_answer_user_tool",
-    "runtime_diagnostics_tool",
 ]

@@ -136,8 +136,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "memory_manage_tool": ToolLayer.EXTENDED,
     "memory_recall_tool": ToolLayer.EXTENDED,
     "memory_save_tool": ToolLayer.EXTENDED,
-    # --- 运行时诊断 ---
-    "runtime_diagnostics_tool": ToolLayer.EXTENDED,
     # --- 技能工具 ---
     "discover_capability_tool": ToolLayer.EXTENDED,
     "skill_analyze_tool": ToolLayer.EXTENDED,

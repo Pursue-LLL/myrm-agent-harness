@@ -54,12 +54,6 @@
 | 12 | glob_tool | 234 | `harness/agent/meta_tools/file_search/glob_tool.py` | 通配符文件搜索 |
 | 13 | grep_tool | 349 | `harness/agent/meta_tools/file_search/grep_tool.py` | 正则内容搜索 |
 
-### 4.1.1 Deferred 工具（不占默认 prompt，discover_capability 按需挂载）
-
-| # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
-|---|--------|------------------:|----------|------|
-| — | runtime_diagnostics_tool | 58 | `harness/agent/meta_tools/diagnostics_tool.py` | 运行时诊断 |
-
 ### 4.2 记忆工具（启用记忆系统时加载）
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
@@ -116,13 +110,13 @@
 | 42 | browser_manage_tool | 159 | `harness/toolkits/browser/tools/manage.py` | 浏览器管理 |
 | 43 | browser_local_search_tool | 113 | `myrm-agent-server/app/services/local_browser/local_browser_data_agent_tools.py` | 本地浏览器书签/历史搜索（server 层，local mode） |
 
-### 4.8 Bash 后台进程工具（启用 Bash 时加载）
+### 4.8 Bash 后台进程工具（enable_bash 时 deferred 注册，discover_capability 按需挂载）
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|
-| 44 | bash_process_list_tool | 76 | `harness/agent/meta_tools/bash/bash_process_tools.py` | 列出当前会话的后台进程（含进度快照） |
-| 45 | bash_process_output_tool | 55 | `harness/agent/meta_tools/bash/bash_process_tools.py` | 读取后台进程的 stdout/stderr 尾部（支持增量游标） |
-| 46 | bash_process_kill_tool | 38 | `harness/agent/meta_tools/bash/bash_process_tools.py` | 终止后台进程（SIGTERM/SIGKILL） |
+| 44 | bash_process_list_tool | 76 | `harness/agent/meta_tools/bash/bash_process_tools.py` | 列出当前会话的后台进程（deferred） |
+| 45 | bash_process_output_tool | 55 | `harness/agent/meta_tools/bash/bash_process_tools.py` | 读取后台进程输出尾部（deferred） |
+| 46 | bash_process_kill_tool | 38 | `harness/agent/meta_tools/bash/bash_process_tools.py` | 终止后台进程（deferred） |
 
 ### 4.9 定时任务工具（启用 Cron 时加载）
 
@@ -267,7 +261,7 @@
 | System Prompt 层 | ~2,607 | 固定，跨用户缓存 |
 | CORE 工具层 | ~255 | 1 工具，固定，始终缓存 |
 | COMMON 工具层 | ~4,457 | 7 工具，默认存在 |
-| EXTENDED 工具层 | ~2,096 | glob(234) + grep(349) + memory×3(670) + skill_select(125) + skill_manage(251) + discover_capability_tool(236) + conversation_search_tool(237) + …（deferred: runtime_diagnostics 不占默认 prompt） |
+| EXTENDED 工具层 | ~2,096 | glob(234) + grep(349) + memory×3(670) + skill_select(125) + skill_manage(251) + discover_capability_tool(236) + conversation_search_tool(237) + …（deferred: bash_process×3 不占默认 prompt） |
 | 工具 JSON schema | ~1,105 | ~17 工具 × ~65 tokens |
 | 动态注入 | ~1,200 | user_instructions + memory_context + inline_skills |
 | 消息格式 | ~500 | role tags, boundaries 等 |

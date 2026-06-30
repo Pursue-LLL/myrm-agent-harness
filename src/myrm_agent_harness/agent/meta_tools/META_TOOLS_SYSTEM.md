@@ -70,7 +70,8 @@
 | 文件 | 职责 |
 |------|------|
 | `answer_user_tool.py` | 完成阶段门控信号（配合 `completion_guard`） |
-| `diagnostics_tool.py` | 只读框架诊断暴露 |
+
+> 运行时诊断由业务层 Settings Doctor UI + `/health/doctor` API 提供（`observability/diagnostics/probes.py`），不作为 Agent meta_tool。
 
 ---
 
