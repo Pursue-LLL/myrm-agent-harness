@@ -3,6 +3,8 @@
 ## Overview
 Agent meta-tools module. Provides tools that depend on Agent framework infrastructure (Bash, File Ops, File Search, Skill system).
 
+Detailed design: [META_TOOLS_SYSTEM.md](META_TOOLS_SYSTEM.md)
+
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |
@@ -18,6 +20,7 @@ Agent meta-tools module. Provides tools that depend on Agent framework infrastru
 | file_ops/ | File operations tool module (Claude Code compatible). |
 | file_search/ | File search tool module (Claude Code compatible). |
 | goals/ | Goal interaction tools — LLM tools for querying/completing goals. |
+| clarification/ | Structured HITL clarification (`ask_question_tool`) — schemas + LangChain adapter. |
 | interaction/ | UI rendering (`render_ui_tool`) — depends on agent artifact context. |
 | http/ | HTTP request toolkit. Supports streaming upload, progress callbacks, streaming download, and concurr |
 | llm_map/ | Batch LLM-map agent tool adapter. See [llm_map/_ARCH.md](llm_map/_ARCH.md). |

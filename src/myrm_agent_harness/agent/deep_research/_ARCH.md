@@ -3,6 +3,8 @@
 ## Overview
 Public API for the Deep Research system. Import everything from here.
 
+Detailed design: [DEEP_RESEARCH_SYSTEM.md](DEEP_RESEARCH_SYSTEM.md)
+
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |
@@ -18,4 +20,4 @@ Public API for the Deep Research system. Import everything from here.
 ## Key Dependencies
 
 - `utils`
-- `toolkits/interaction`
+- `agent/meta_tools/clarification`

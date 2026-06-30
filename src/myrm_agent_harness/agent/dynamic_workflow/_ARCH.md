@@ -3,6 +3,8 @@
 ## Overview
 The Dynamic Workflow Engine is the third-generation orchestration layer in Harness. It breaks the context limits of single-agent execution by dynamically generating Python orchestration scripts. These scripts run in the PTC (Programmatic Tool Calling) sandbox and spawn multiple sub-agents concurrently through the delegate path.
 
+Detailed design: [DYNAMIC_WORKFLOW_SYSTEM.md](DYNAMIC_WORKFLOW_SYSTEM.md)
+
 ## Architecture
 
 ```

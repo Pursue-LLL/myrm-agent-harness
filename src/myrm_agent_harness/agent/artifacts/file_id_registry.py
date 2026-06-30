@@ -25,14 +25,14 @@ Example:
 - (none)
 
 [OUTPUT]
-- FileIdRegistry: class — File Id Registry
-- register_file: Args:
-- resolve_file_id: Args:
-- resolve_file_ids_in_text: Args:
-- is_file_id: Args:
+- FileIdRegistry: short-ID ↔ path bidirectional registry dataclass
+- register_file: module-level register helper (returns None if context unset)
+- resolve_file_id: module-level resolve helper
+- resolve_file_ids_in_text: replace all @file_* tokens in text with paths
+- is_file_id: predicate for @file_NNN pattern
 
 [POS]
-Example:
+File ID registry. Maps short @file_* aliases to workspace paths for token-efficient tool follow-ups.
 """
 
 import logging

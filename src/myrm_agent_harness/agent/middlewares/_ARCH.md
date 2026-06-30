@@ -1,46 +1,55 @@
 # middlewares/
 
 ## Overview
+
 Agent middleware system exports. Provides the complete middleware stack (context management, debug logging, tool interception, filesystem search).
+
+Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Agent middleware system exports. Provides the complete middleware stack (context management, debug l | ✅ |
-| _session_context.py | Internal | Middleware session context — shared ContextVars for the middleware chain. | ✅ |
-| completion_guard.py | Core | Fills the "Agent finishing" gap. CRITICAL blocking for code modification tasks without verification (tests/lint/type-check). Non-critical tasks pass through immediately. Filters internal tool (`_`-prefixed) CallRecords. Uses module-level state (not ContextVar) for cross-node persistence in LangGraph. Includes Mixed Message Guard that strips read-only tool_calls when content is already a substantive final answer. | ✅ |
-| concurrency_limiter.py | Core | Subagent concurrency limiter middleware. Limits concurrent execution count by agent_type to prevent  | ✅ |
-| context_pipeline_helpers.py | Internal | Helper layer for context pipeline middleware. Parses compression intent, resolves provider cache usage feedback, and fingerprints active tool schemas with stable JSON canonicalization for cache break attribution. | ✅ |
-| context_pipeline_middleware.py | Core | Provides create_context_pipeline_middleware. | ✅ |
-| dangling_tool_call_middleware.py | Core | Dangling tool call repair middleware. Covers all three serialization sources (tool_calls, invalid_tool_calls, additional_kwargs raw payloads) to prevent HTTP 400 from strict LLM providers. | ✅ |
-| deferred_tool_middleware.py | Core | Parses `<AutoMountTools>` from discover_capability_tool; augments model tools and supplies deferred `BaseTool` at ToolNode via `awrap_tool_call`. | ✅ |
-| debug_logger_middleware.py | Core | Provides debug_logger_middleware. | ✅ |
-| filesystem_search_middleware.py | Core | Provides FilesystemFileSearchMiddleware, create_filesystem_search_middleware. | ✅ |
-| auto_session_recall_middleware.py | Core | First-turn auto session recall — searches conversation/task_digest memories and injects high-confidence results as HumanMessage before the Agent's first reasoning turn. Non-blocking with timeout; skips via quick-path when no memories exist. | ✅ |
-| memory_context_middleware.py | Core | Memory context — Stable `<user_memory_context>` (System) + learned `<<<UNTRUSTED_DATA>>>` (Human via `wrap_untrusted`). Unified budget. | ✅ |
-| planner_middleware.py | Core | Middleware to inject plan blueprint, anti-drift reminder, and decision log into HumanMessage (via request.override, cache-safe). | ✅ |
-| rate_limit.py | Core | Proactive rate-limit throttling middleware. Detects provider from HTTP header signatures, sleeps only when all tracked providers are exhausted (shortest recovery, capped at 120s), and emits SSE events for frontend awareness. | ✅ |
-| replan_middleware.py | Core | Dynamic Replan Loop Middleware. Per-tool error counting prevents unrelated tool successes from resetting the counter for a persistently failing tool. | ✅ |
-| safety_dispatcher.py | Core | Tool concurrency safety dispatcher. Uses resolve_safety_metadata (3-level fallback: built-in → MCP dynamic → fail-closed) to route concurrent vs. serial execution. | ✅ |
-| security_boundary_middleware.py | Core | Security boundary middleware. | ✅ |
-| security_guardrail_middleware.py | Core | Security guardrail middleware. | ✅ |
-| subagent_limit_middleware.py | Core | Subagent limit middleware. Ensures the LLM cannot spawn more than MAX_CONCURRENT_SUBAGENTS | ✅ |
-| task_adaptive_middleware.py | Core | Applies execution constraints BEFORE the agent runs based on Trace Analytics. | ✅ |
-| tool_call_dedup_middleware.py | Core | Tool call deduplication middleware. Ensures each tool_call_id appears at most | ✅ |
-| _mutation_verifier.py | Internal | Per-turn file mutation verifier. Tracks file-mutating tool outcomes via ContextVar; surfaces failures as SSE events to prevent model hallucination of success. | ✅ |
-| _tool_helpers.py | Internal | Stateless helper functions for tool_interceptor_middleware | ✅ |
-| tool_executor.py | Core | Tool execution engine with timeout, retry, and exponential backoff | ✅ |
-| tool_interceptor_middleware.py | Core | Single interception point for all tool calls — orchestrates guards, emits structured archive-restore blocked status, and publishes framework-level skill failure events with session/LoopGuard metadata while filtering policy blocks. Converts ToolStuckException to GraphInterrupt via `interrupt()` to truly halt agent execution when stuck. | ✅ |
+| `__init__.py` | Package | Public middleware exports. | ✅ |
+| `_session_context.py` | Internal | Shared ContextVars for the middleware chain. | ✅ |
+| `_mutation_verifier.py` | Internal | Per-turn file mutation verifier → SSE on failure. | ✅ |
+| `_skill_failure_tracking.py` | Internal | Skill failure event tracking for interceptor. | ✅ |
+| `_tool_execution_lifecycle.py` | Internal | Tool execution lifecycle hooks. | ✅ |
+| `_tool_guards.py` | Internal | Guard modules orchestrated by tool_interceptor. | ✅ |
+| `_tool_helpers.py` | Internal | Stateless helpers for tool_interceptor_middleware. | ✅ |
+| `auto_session_recall_middleware.py` | Core | First-turn memory recall injection. | ✅ |
+| `completion_guard.py` | Core | Finish gate + Mixed Message Guard for code tasks. | ✅ |
+| `concurrency_limiter.py` | Core | Subagent Semaphore by agent_type. | ✅ |
+| `concurrency_router.py` | Core | Smart concurrency routing with safety_dispatcher. | ✅ |
+| `context_pipeline_helpers.py` | Internal | Compression intent, cache feedback, schema fingerprint. | ✅ |
+| `context_pipeline_middleware.py` | Core | `create_context_pipeline_middleware` factory. | ✅ |
+| `dangling_tool_call_middleware.py` | Core | Repair dangling tool_calls for strict providers. | ✅ |
+| `deferred_tool_middleware.py` | Core | AutoMount deferred tools from discover_capability. | ✅ |
+| `debug_logger_middleware.py` | Core | Full message list debug logging. | ✅ |
+| `filesystem_search_middleware.py` | Core | Inject glob/grep workspace search tools. | ✅ |
+| `memory_context_middleware.py` | Core | `<user_memory_context>` + untrusted data wrapping. | ✅ |
+| `planner_middleware.py` | Core | Plan blueprint / anti-drift HumanMessage injection. | ✅ |
+| `rate_limit.py` | Core | Proactive provider 429 throttling. | ✅ |
+| `replan_middleware.py` | Core | Dynamic replan loop on tool errors. | ✅ |
+| `safety_dispatcher.py` | Core | safe→concurrent / unsafe→serial tool routing. | ✅ |
+| `security_boundary_middleware.py` | Core | Security boundary enforcement. | ✅ |
+| `security_guardrail_middleware.py` | Core | Security guardrail enforcement. | ✅ |
+| `subagent_limit_middleware.py` | Core | Max concurrent subagents per turn. | ✅ |
+| `task_adaptive_middleware.py` | Core | Trace-analytics JIT execution constraints. | ✅ |
+| `tool_call_dedup_middleware.py` | Core | tool_call_id deduplication. | ✅ |
+| `tool_executor.py` | Core | Tool execution with timeout/retry/backoff. | ✅ |
+| `tool_interceptor_middleware.py` | Core | Single interception point for all tool calls. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
-| approval/ | Tool approval subsystem — Human-in-the-Loop approval flow. |
-| approval_interception/ | Approval Interception Middleware. |
-| guardrails/ | Guardrail provider chain + GuardrailMiddleware. See [guardrails/_ARCH.md](guardrails/_ARCH.md). |
+| `approval/` | HITL approval queue, batch, scheduler. See [approval/_ARCH.md](approval/_ARCH.md). |
+| `approval_interception/` | Approval interception recognizer. See [approval_interception/_ARCH.md](approval_interception/_ARCH.md). |
+| `guardrails/` | Guardrail provider chain + GuardrailMiddleware. See [guardrails/_ARCH.md](guardrails/_ARCH.md). |
 
 ## Key Dependencies
 
+- `agent/context_management/` — context pipeline processors
+- `agent/security/` — tool result validation, guards
 - `infra`
 - `observability`
 - `toolkits`

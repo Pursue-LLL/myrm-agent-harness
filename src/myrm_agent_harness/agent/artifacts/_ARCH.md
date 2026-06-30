@@ -10,7 +10,7 @@ Artifacts system — artifact lifecycle management.
 | __init__.py | Package | Artifacts system — artifact lifecycle management. | — |
 | constants.py | Core | Provides ArtifactType, ArtifactMappings, is_active_content. | ✅ |
 | context.py | Core | Provides ArtifactContext, ArtifactContextManager, get_artifact_context. | ✅ |
-| file_id_registry.py | Core | Example: | ✅ |
+| file_id_registry.py | Core | Short `@file_*` ID registry for large tool results — saves tokens in follow-up tool calls. | ✅ |
 | filters.py | Core | File filtering rules for artifact collection. | ✅ |
 | registry.py | Core | Provides GeneratedFile, ArtifactRegistry, RealtimeContentEvent. | ✅ |
 | types.py | Config | Provides ArtifactInfo, infer_language, infer_artifact_type. | ✅ |

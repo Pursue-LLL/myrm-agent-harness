@@ -3,6 +3,8 @@
 ## Overview
 BaseAgent event processing pipeline.
 
+Detailed design: [STREAMING_SYSTEM.md](STREAMING_SYSTEM.md)
+
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |

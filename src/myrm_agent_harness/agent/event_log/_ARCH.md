@@ -3,6 +3,8 @@
 ## Overview
 Complements Checkpointer with full event history. Optional — omitting
 
+Detailed design: [EVENT_LOG_SYSTEM.md](EVENT_LOG_SYSTEM.md)
+
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |
