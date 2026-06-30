@@ -19,7 +19,7 @@ Dedicated to browser instance launching, including:
 4. Automatic CDP port detection (HTTP GET /json/version)
 5. Auto mode: DevToolsActivePort discovery → probe → connect → fallback to launch
 6. Smart retry strategy (3 retries + exponential backoff)
-7. Zero-config auto-install: detects missing Chromium and installs via patchright
+7. Zero-config auto-install: detects missing Chromium and installs via patchright with CDN mirror fallback
 8. Camoufox fingerprint persistence: generates full config via launch_options(), saves/reloads via from_options, self-heals corrupted JSON
 """
 
@@ -29,6 +29,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -52,10 +53,42 @@ _install_lock: asyncio.Lock | None = None
 _last_install_failure_at: float = 0.0
 
 
+_CDN_PROBE_URL = "https://cdn.playwright.dev"
+_CN_MIRROR_HOST = "https://cdn.npmmirror.com/binaries/playwright"
+_CN_MIRROR_CHROMIUM_HOST = "https://cdn.npmmirror.com/binaries/chrome-for-testing"
+_CDN_PROBE_TIMEOUT_S_INSTALL = 5.0
+
+
 def _is_executable_missing(error: Exception) -> bool:
     """Detect if a launch failure is caused by missing browser executable."""
     msg = str(error).lower()
     return "executable doesn't exist" in msg or "no such file or directory" in msg
+
+
+def _get_install_env() -> dict[str, str]:
+    """Build env dict for patchright install with CDN mirror fallback.
+
+    Respects user-set PLAYWRIGHT_DOWNLOAD_HOST. When unset, probes the
+    default Playwright CDN; if unreachable within 5 s (common in mainland
+    China / corporate firewalls), falls back to npmmirror.
+    """
+    env = dict(os.environ)
+    if env.get("PLAYWRIGHT_DOWNLOAD_HOST"):
+        return env
+
+    import urllib.error
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(_CDN_PROBE_URL, method="HEAD")
+        urllib.request.urlopen(req, timeout=_CDN_PROBE_TIMEOUT_S_INSTALL)
+    except urllib.error.HTTPError:
+        pass  # HTTP 4xx/5xx means server is reachable
+    except Exception:
+        env["PLAYWRIGHT_DOWNLOAD_HOST"] = _CN_MIRROR_HOST
+        env["PLAYWRIGHT_CHROMIUM_DOWNLOAD_HOST"] = _CN_MIRROR_CHROMIUM_HOST
+        logger.info("Default Playwright CDN unreachable — using npmmirror (%s)", _CN_MIRROR_HOST)
+    return env
 
 
 async def _auto_install_chromium() -> bool:
@@ -81,11 +114,13 @@ async def _auto_install_chromium() -> bool:
 
         logger.info("Auto-installing Chromium via patchright (this may take a few minutes)...")
         try:
+            env = await asyncio.get_running_loop().run_in_executor(None, _get_install_env)
             proc = await asyncio.wait_for(
                 asyncio.create_subprocess_exec(
                     "patchright", "install", "chromium",
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
+                    env=env,
                 ),
                 timeout=_INSTALL_TIMEOUT_S,
             )
@@ -129,6 +164,9 @@ def _build_install_failure_message(original_error: Exception) -> str:
         "",
         "To fix this manually, open a terminal and run:",
         "  patchright install chromium",
+        "",
+        "If the download is slow or fails (e.g. in mainland China), use a mirror:",
+        f"  PLAYWRIGHT_DOWNLOAD_HOST={_CN_MIRROR_HOST} patchright install chromium",
         "",
         "Common causes:",
         "  - Insufficient disk space (Chromium requires ~400 MB)",
