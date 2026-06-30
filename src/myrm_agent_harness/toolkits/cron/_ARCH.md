@@ -3,8 +3,10 @@
 ## Overview
 Cron toolkit entry point. Aggregates scheduling engine, CRUD manager, protocols, built-in
 stores, triggers, delivery, runners, and situation report aggregator. **Single SSOT for
-user-facing automation** (time-based schedules plus event/system/webhook/poll/manual triggers
-via `triggers.py`; product wiring in `myrm-agent-server/app/core/cron/`). Supports `skip_if_active`
+user-facing automation** (time-based schedules plus **three wired** event triggers:
+event / system_event / webhook via `triggers.py`; `poll` and `manual` are reserved
+enum values not yet attached to `TriggerConfig`. Product wiring in
+`myrm-agent-server/app/core/cron/`). Supports `skip_if_active`
 concurrency control, `PreFlightCondition` script injection (probe interceptor), `context_from`
 cross-task data piping (inject referenced jobs' latest successful output), incremental monitoring
 (`MonitorConfig` — set/hash/timeseries change detection via `infra.incremental`), and
