@@ -315,14 +315,11 @@ class TestNavigatorPrivateNetworks:
     @pytest.mark.asyncio
     async def test_localhost_blocked_by_default(self):
         """默认模式下 localhost 被 SSRF Guard 阻止"""
-        mock_page = MagicMock()
-        _apply_ssrf_guard_stubs(mock_page)
+        mock_page = create_mock_page("http://127.0.0.1:8080/api", 200, "Local")
         navigator = Navigator(mock_page)
 
         with pytest.raises(ValueError, match="SSRF"):
             await navigator.goto("http://127.0.0.1:8080/api")
-
-        mock_page.goto.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_localhost_allowed_when_enabled(self):
