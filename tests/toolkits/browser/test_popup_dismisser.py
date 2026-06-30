@@ -199,10 +199,16 @@ def test_js_has_extra_cmp_selectors():
 async def test_navigator_skips_dismiss_when_disabled():
     from myrm_agent_harness.toolkits.browser.navigation import Navigator
 
+    mock_req = MagicMock(url="https://example.com", redirected_from=None)
+    mock_resp = MagicMock(status=200, request=mock_req)
+
     page = MagicMock()
-    page.goto = AsyncMock(return_value=MagicMock(status=200))
+    page.goto = AsyncMock(return_value=mock_resp)
     page.title = AsyncMock(return_value="Test")
     page.url = "https://example.com"
+    page.route = AsyncMock()
+    page.unroute = AsyncMock()
+    page.main_frame = MagicMock()
 
     nav = Navigator(page, auto_dismiss_popups=False)
 
@@ -222,10 +228,16 @@ async def test_navigator_skips_dismiss_when_disabled():
 async def test_navigator_calls_dismiss_when_enabled():
     from myrm_agent_harness.toolkits.browser.navigation import Navigator
 
+    mock_req = MagicMock(url="https://example.com", redirected_from=None)
+    mock_resp = MagicMock(status=200, request=mock_req)
+
     page = MagicMock()
-    page.goto = AsyncMock(return_value=MagicMock(status=200))
+    page.goto = AsyncMock(return_value=mock_resp)
     page.title = AsyncMock(return_value="Test")
     page.url = "https://example.com"
+    page.route = AsyncMock()
+    page.unroute = AsyncMock()
+    page.main_frame = MagicMock()
 
     nav = Navigator(page, auto_dismiss_popups=True)
 

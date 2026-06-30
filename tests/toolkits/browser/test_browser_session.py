@@ -62,8 +62,12 @@ class _FakePage:
 
     async def goto(self, url: str, **kw: object) -> MagicMock:
         self.url = url
+        req = MagicMock()
+        req.url = url
+        req.redirected_from = None
         resp = MagicMock()
         resp.status = 200
+        resp.request = req
         return resp
 
     async def title(self) -> str:
