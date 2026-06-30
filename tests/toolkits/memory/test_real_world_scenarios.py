@@ -23,7 +23,7 @@ class TestDeveloperWorkflowScenario:
         Expected: Recent memory of running pytest should rank higher than
         old documentation about test frameworks.
         """
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         recent_usage = SemanticMemory(
@@ -59,7 +59,7 @@ class TestDeveloperWorkflowScenario:
         Expected: Frequently accessed git commands should rank higher
         than rarely used alternatives.
         """
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         hot_command = SemanticMemory(
@@ -95,7 +95,7 @@ class TestConversationalContextScenario:
 
         Expected: Recent episodic memories should be highly ranked.
         """
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         recent_chat = EpisodicMemory(
@@ -128,7 +128,7 @@ class TestConversationalContextScenario:
         Expected: Very old episodic memories should rank lower even with
         similar semantic scores.
         """
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         fresh_memory = EpisodicMemory(
@@ -164,7 +164,7 @@ class TestUserPreferenceScenario:
 
         Expected: Important + frequently accessed memories rank high.
         """
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         important_frequent = SemanticMemory(
@@ -201,7 +201,7 @@ class TestSemanticDominanceScenario:
         Expected: Highly relevant but cold memory should beat hot but
         less relevant memory when semantic gap is large enough.
         """
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         highly_relevant = SemanticMemory(
@@ -234,7 +234,7 @@ class TestSemanticDominanceScenario:
         Expected: With similar semantic scores, hotness factors should
         break the tie.
         """
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         hot_memory = SemanticMemory(
@@ -272,7 +272,7 @@ class TestMultiSourceFusionScenario:
         Expected: RRF fusion should balance different memory types
         with geometric scoring applied to each.
         """
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         semantic_fact = SemanticMemory(
@@ -313,7 +313,7 @@ class TestPerformanceExpectations:
         This test simulates the expected 10-15% improvement in Top-5
         retrieval accuracy mentioned in the original proposal.
         """
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         # Create a realistic scenario: 10 memories, only 3 are truly relevant
@@ -387,7 +387,7 @@ class TestEdgeCasesInRealScenarios:
 
     def test_all_memories_very_old_still_ranks_correctly(self):
         """Scenario: All memories are old, relative ranking should still work."""
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         old_hot = SemanticMemory(
@@ -416,7 +416,7 @@ class TestEdgeCasesInRealScenarios:
 
     def test_brand_new_memory_not_over_ranked(self):
         """Scenario: Brand new memory shouldn't dominate just because it's new."""
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         brand_new = SemanticMemory(
@@ -452,7 +452,7 @@ class TestCrossTypeComparison:
 
         Expected: Type-specific weights should influence ranking.
         """
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         semantic_mem = SemanticMemory(

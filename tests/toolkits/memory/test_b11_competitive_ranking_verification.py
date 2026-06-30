@@ -42,6 +42,7 @@ class TestTypeWeightsVsSourceBoost:
         config = RetrievalConfig(
             keyword_overlap_weight=0.0,
             temporal_boost_weight=0.0,
+            min_relevance_score=0.0,
         )
         retriever = MemoryRetriever(config)
 
@@ -76,6 +77,7 @@ class TestTypeWeightsVsSourceBoost:
         config = RetrievalConfig(
             keyword_overlap_weight=0.0,
             temporal_boost_weight=0.0,
+            min_relevance_score=0.0,
             type_weights={
                 MemoryType.CLAIM: 1.05,
                 MemoryType.CONVERSATION: 0.95,
@@ -115,6 +117,7 @@ class TestTypeWeightsVsSourceBoost:
                 MemoryType.EPISODIC: 0.1,
             },
             keyword_overlap_weight=0.0,
+            min_relevance_score=0.0,
             temporal_boost_weight=0.0,
         )
         retriever = MemoryRetriever(config)
@@ -147,6 +150,7 @@ class TestCorrectionSuppressionVsHardExclude:
             correction_penalty=0.1,
             keyword_overlap_weight=0.0,
             temporal_boost_weight=0.0,
+            min_relevance_score=0.0,
         )
         retriever = MemoryRetriever(config)
 
@@ -172,6 +176,7 @@ class TestCorrectionSuppressionVsHardExclude:
             correction_penalty=0.1,
             keyword_overlap_weight=0.0,
             temporal_boost_weight=0.0,
+            min_relevance_score=0.0,
         )
         retriever = MemoryRetriever(config)
 
@@ -195,6 +200,7 @@ class TestCorrectionSuppressionVsHardExclude:
             correction_penalty=0.1,
             keyword_overlap_weight=0.0,
             temporal_boost_weight=0.0,
+            min_relevance_score=0.0,
         )
         retriever = MemoryRetriever(config)
 
@@ -226,7 +232,7 @@ class TestGeometricScoringVsSqlRanking:
 
     def test_five_signal_fusion_all_contribute(self) -> None:
         """All 5 signals should contribute to final score."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
         SignalCalculator()
 
@@ -303,7 +309,7 @@ class TestGeometricScoringVsSqlRanking:
 
     def test_confidence_gates_score(self) -> None:
         """Zero confidence should zero out entire score."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         mem_confident = SemanticMemory(
@@ -357,9 +363,10 @@ class TestMMRDiversity:
     def test_mmr_removes_near_duplicates(self) -> None:
         """MMR should prefer diverse results over similar ones."""
         config = RetrievalConfig(
-            mmr_lambda=0.5,  # 50% relevance, 50% diversity
+            mmr_lambda=0.5,
             keyword_overlap_weight=0.0,
             temporal_boost_weight=0.0,
+            min_relevance_score=0.0,
         )
         retriever = MemoryRetriever(config)
 
@@ -384,6 +391,7 @@ class TestMMRDiversity:
             mmr_lambda=1.0,
             keyword_overlap_weight=0.0,
             temporal_boost_weight=0.0,
+            min_relevance_score=0.0,
         )
         retriever = MemoryRetriever(config)
 
@@ -413,6 +421,7 @@ class TestContextAwareBoosts:
             keyword_overlap_weight=0.3,
             keyword_overlap_min_tokens=1,
             temporal_boost_weight=0.0,
+            min_relevance_score=0.0,
         )
         retriever = MemoryRetriever(config)
 
@@ -432,6 +441,7 @@ class TestContextAwareBoosts:
         config = RetrievalConfig(
             temporal_boost_weight=0.40,
             keyword_overlap_weight=0.0,
+            min_relevance_score=0.0,
         )
         retriever = MemoryRetriever(config)
 
@@ -455,7 +465,7 @@ class TestContextAwareBoosts:
 
     def test_preference_boost_for_profile_memories(self) -> None:
         """Preference-tagged memories should get boosted for PROFILE type."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         pref_mem = SemanticMemory(
@@ -489,7 +499,7 @@ class TestDualChannelFusion:
 
     def test_multi_channel_fusion_accumulates_scores(self) -> None:
         """Same memory appearing in multiple channels should accumulate RRF scores."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         shared_mem = SemanticMemory(
@@ -530,7 +540,7 @@ class TestDualChannelFusion:
 
     def test_single_channel_still_works(self) -> None:
         """Single channel input should still produce valid results."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         results = [
@@ -577,7 +587,7 @@ class TestEndToEndRankingPipeline:
 
     def test_complex_scenario_multi_signal_ranking(self) -> None:
         """Simulate a real search: mix of memory types, ages, and relevance."""
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         memories = [
@@ -656,7 +666,7 @@ class TestEndToEndRankingPipeline:
 
     def test_full_pipeline_deterministic(self) -> None:
         """Same inputs should produce same ranking (no randomness)."""
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         results = [
@@ -682,7 +692,7 @@ class TestEndToEndRankingPipeline:
 
     def test_all_scores_normalized_0_to_1(self) -> None:
         """Final scores must always be in [0, 1] range."""
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         results = [

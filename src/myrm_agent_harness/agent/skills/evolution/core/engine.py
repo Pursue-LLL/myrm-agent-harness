@@ -581,16 +581,6 @@ class SkillEvolutionEngine:
                 )
                 return None
 
-        # Minimal mock skill for proposal builder
-        SkillRecord(
-            skill_id=result.name,
-            name=result.name,
-            description=result.safety_analysis,  # Store analysis here temporarily
-            content="",
-            path="",
-            lineage=None,  # type: ignore
-        )
-
         from myrm_agent_harness.agent.skills.evolution.safety.validator import (
             SkillValidator,
         )

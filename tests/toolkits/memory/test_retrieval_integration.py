@@ -20,7 +20,7 @@ class TestRetrievalScenarios:
 
     def test_recent_config_beats_old_similar_config(self) -> None:
         """Recently used config should rank higher than older one with similar semantic score."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         recent_config = SemanticMemory(
@@ -49,7 +49,7 @@ class TestRetrievalScenarios:
 
     def test_highly_relevant_beats_hot_irrelevant(self) -> None:
         """Very high semantic score should beat hot but less relevant memory."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         highly_relevant = SemanticMemory(
@@ -74,7 +74,7 @@ class TestRetrievalScenarios:
 
     def test_episodic_recent_conversation_prioritized(self) -> None:
         """Recent episodic memory should rank higher than old ones."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         recent_convo = EpisodicMemory(
@@ -102,7 +102,7 @@ class TestRetrievalScenarios:
 
     def test_profile_preference_stable_over_time(self) -> None:
         """Profile preferences should not decay over time."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         old_preference = SemanticMemory(
@@ -122,7 +122,7 @@ class TestRetrievalScenarios:
 
     def test_multi_source_fusion(self) -> None:
         """Test RRF fusion with geometric scoring."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         vector_results = [
@@ -201,7 +201,7 @@ class TestEdgeCases:
     )
     def test_fuse_edge_cases(self, input_lists, expected_len) -> None:
         """Test fuse method with edge case inputs."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         result = retriever.fuse(input_lists, limit=10)
@@ -209,7 +209,7 @@ class TestEdgeCases:
 
     def test_fuse_with_empty_sublists(self) -> None:
         """Fusing with some empty sublists should work."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         mem1 = MemorySearchResult(
@@ -224,7 +224,7 @@ class TestEdgeCases:
 
     def test_suppress_corrected_with_episodic(self) -> None:
         """Correction suppression should only apply to SemanticMemory."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         epi_mem = EpisodicMemory(id="epi-id", content="episodic event", importance=0.8)
@@ -236,7 +236,7 @@ class TestEdgeCases:
 
     def test_rank_empty_results(self) -> None:
         """Ranking empty results should return empty."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         result = retriever.rank([], limit=10)
@@ -244,7 +244,7 @@ class TestEdgeCases:
 
     def test_normalise_with_single_result(self) -> None:
         """Normalising single result should set score to 1.0."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         mem = MemorySearchResult(
@@ -257,7 +257,7 @@ class TestEdgeCases:
 
     def test_fuse_with_duplicate_memories(self) -> None:
         """Fusing duplicate memories should accumulate scores."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         mem = SemanticMemory(id="same-id", content="duplicate", importance=0.5)
@@ -285,7 +285,7 @@ class TestEdgeCases:
 
     def test_geometric_score_all_memory_types(self) -> None:
         """Test geometric scoring with all memory types."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         profile_mem = SemanticMemory(
@@ -312,7 +312,7 @@ class TestEdgeCases:
 
     def test_fuse_with_all_empty_lists(self) -> None:
         """Fusing all empty lists should return empty."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         result = retriever.fuse([[], [], []], limit=10)
@@ -320,7 +320,7 @@ class TestEdgeCases:
 
     def test_correction_chain_with_missing_corrected_id(self) -> None:
         """Correction chain should handle missing corrected ID gracefully."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         corrected_mem = SemanticMemory(
@@ -341,7 +341,8 @@ class TestEdgeCases:
                 MemoryType.SEMANTIC: 1.0,
                 MemoryType.EPISODIC: 0.5,
                 MemoryType.PROCEDURAL: 0.8,
-            }
+            },
+            min_relevance_score=0.0,
         )
         retriever = MemoryRetriever(config)
 
@@ -363,7 +364,7 @@ class TestEdgeCases:
 
     def test_normalise_with_very_small_scores(self) -> None:
         """Normalise should handle very small scores without division by zero."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         mem = SemanticMemory(
@@ -377,7 +378,7 @@ class TestEdgeCases:
 
     def test_geometric_score_with_very_high_access_count(self) -> None:
         """Geometric scoring should handle very high access counts."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         mem = SemanticMemory(content="super hot", created_at=datetime.now(UTC), access_count=10000, importance=0.8)
@@ -388,7 +389,7 @@ class TestEdgeCases:
 
     def test_correction_chain_in_fuse(self) -> None:
         """Test correction chain suppression in fuse method."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         old_mem = SemanticMemory(id="old-id", content="old fact", importance=0.8)
@@ -405,7 +406,7 @@ class TestEdgeCases:
 
     def test_geometric_score_with_zero_confidence(self) -> None:
         """Zero confidence should zero out the final score."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         mem = SemanticMemory(
@@ -426,7 +427,7 @@ class TestEdgeCases:
     )
     def test_result_limiting(self, method_name, limit) -> None:
         """Test that fuse and rank methods respect limit parameter."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         memories = [
@@ -447,7 +448,7 @@ class TestEdgeCases:
 
     def test_suppress_corrected_with_none_correction_of(self) -> None:
         """Suppress should handle None correction_of gracefully."""
-        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+        config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         mem = SemanticMemory(id="mem-id", content="normal fact", correction_of=None, importance=0.8)

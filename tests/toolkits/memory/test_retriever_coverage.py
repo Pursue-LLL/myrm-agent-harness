@@ -235,7 +235,7 @@ class TestFuseEdgeCases:
 
     def test_fuse_with_very_large_rrf_k(self) -> None:
         """Test fuse with very large rrf_k value."""
-        config = RetrievalConfig(rrf_k=10000)
+        config = RetrievalConfig(rrf_k=10000, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         mem1 = SemanticMemory(content="test1", importance=0.8)
@@ -687,7 +687,8 @@ class TestRankWithQueryContext:
 
     def test_fuse_with_query_context(self) -> None:
         now = datetime.now(UTC)
-        retriever = MemoryRetriever()
+        config = RetrievalConfig(min_relevance_score=0.0)
+        retriever = MemoryRetriever(config)
 
         mem_match = SemanticMemory(id="match", content="Alice said hello world", importance=0.7, created_at=now)
         mem_no = SemanticMemory(id="nomatch", content="some other thing", importance=0.7, created_at=now)
@@ -786,3 +787,114 @@ class TestSourceDecayMMR:
         source_ids = [getattr(r.memory, "source_chat_id", None) for r in ranked]
         chat_a_count = sum(1 for s in source_ids if s == "chat_a")
         assert chat_a_count >= 2
+
+
+class TestHardCutoff:
+    """Test _hard_cutoff method (anti-hallucination low-score filter)."""
+
+    def _make_result(self, mid: str, score: float) -> MemorySearchResult:
+        mem = SemanticMemory(id=mid, content=f"content-{mid}", importance=0.5)
+        return MemorySearchResult(memory=mem, score=score, memory_type=MemoryType.SEMANTIC)
+
+    def test_disabled_when_threshold_zero(self) -> None:
+        """min_relevance_score=0 disables cutoff entirely."""
+        config = RetrievalConfig(min_relevance_score=0.0)
+        retriever = MemoryRetriever(config)
+
+        scores = {"a": 0.01, "b": 0.02}
+        items = {"a": self._make_result("a", 0.01), "b": self._make_result("b", 0.02)}
+
+        retriever._hard_cutoff(scores, items)
+        assert len(scores) == 2
+
+    def test_removes_below_threshold(self) -> None:
+        """Memories below threshold are removed."""
+        config = RetrievalConfig(min_relevance_score=0.35)
+        retriever = MemoryRetriever(config)
+
+        scores = {"high": 0.8, "mid": 0.5, "low": 0.1}
+        items = {
+            "high": self._make_result("high", 0.8),
+            "mid": self._make_result("mid", 0.5),
+            "low": self._make_result("low", 0.1),
+        }
+
+        retriever._hard_cutoff(scores, items)
+        assert "high" in scores
+        assert "mid" in scores
+        assert "low" not in scores
+
+    def test_preserves_best_when_all_below(self) -> None:
+        """When all candidates fall below threshold, keep the top-1."""
+        config = RetrievalConfig(min_relevance_score=0.9)
+        retriever = MemoryRetriever(config)
+
+        scores = {"a": 0.3, "b": 0.5, "c": 0.1}
+        items = {
+            "a": self._make_result("a", 0.3),
+            "b": self._make_result("b", 0.5),
+            "c": self._make_result("c", 0.1),
+        }
+
+        retriever._hard_cutoff(scores, items)
+        assert len(scores) == 1
+        assert "b" in scores
+
+    def test_single_item_always_kept(self) -> None:
+        """Single item is always preserved even if below threshold."""
+        config = RetrievalConfig(min_relevance_score=0.9)
+        retriever = MemoryRetriever(config)
+
+        scores = {"only": 0.1}
+        items = {"only": self._make_result("only", 0.1)}
+
+        retriever._hard_cutoff(scores, items)
+        assert len(scores) == 1
+        assert "only" in scores
+
+    def test_exact_threshold_not_removed(self) -> None:
+        """Score exactly equal to threshold is NOT removed (< not <=)."""
+        config = RetrievalConfig(min_relevance_score=0.35)
+        retriever = MemoryRetriever(config)
+
+        scores = {"exact": 0.35, "above": 0.5}
+        items = {
+            "exact": self._make_result("exact", 0.35),
+            "above": self._make_result("above", 0.5),
+        }
+
+        retriever._hard_cutoff(scores, items)
+        assert "exact" in scores
+        assert "above" in scores
+
+    def test_integrated_rank_filters_low_scores(self) -> None:
+        """End-to-end: rank() should filter low-score memories."""
+        config = RetrievalConfig(min_relevance_score=0.01, mmr_lambda=1.0)
+        retriever = MemoryRetriever(config)
+
+        high = SemanticMemory(id="high", content="very relevant", importance=0.9, created_at=datetime.now(UTC))
+        low = SemanticMemory(id="low", content="irrelevant noise", importance=0.01)
+
+        results = [
+            MemorySearchResult(memory=high, score=0.9, memory_type=MemoryType.SEMANTIC),
+            MemorySearchResult(memory=low, score=0.0, memory_type=MemoryType.SEMANTIC),
+        ]
+
+        ranked = retriever.rank(results, limit=10)
+        assert len(ranked) <= 2
+        assert ranked[0].memory.id == "high"
+
+    def test_integrated_fuse_filters_low_scores(self) -> None:
+        """End-to-end: fuse() should filter low-score memories."""
+        config = RetrievalConfig(min_relevance_score=0.001, mmr_lambda=1.0)
+        retriever = MemoryRetriever(config)
+
+        relevant = SemanticMemory(id="rel", content="relevant memory", importance=0.8, created_at=datetime.now(UTC))
+        noise = SemanticMemory(id="noise", content="noise", importance=0.01)
+
+        list1 = [MemorySearchResult(memory=relevant, score=0.9, memory_type=MemoryType.SEMANTIC)]
+        list2 = [MemorySearchResult(memory=noise, score=0.0, memory_type=MemoryType.SEMANTIC)]
+
+        fused = retriever.fuse([list1, list2], limit=10)
+        assert len(fused) >= 1
+        assert fused[0].memory.id == "rel"

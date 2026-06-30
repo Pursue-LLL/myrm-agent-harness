@@ -58,7 +58,7 @@ class TestJaccardSimilarity:
 class TestMMRSelect:
     def test_mmr_disabled_when_lambda_1(self) -> None:
         """λ=1.0 should return all candidates unchanged."""
-        config = RetrievalConfig(mmr_lambda=1.0)
+        config = RetrievalConfig(mmr_lambda=1.0, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         results = [
@@ -70,7 +70,7 @@ class TestMMRSelect:
 
     def test_mmr_promotes_diversity(self) -> None:
         """MMR should prefer diverse results over similar high-scoring ones."""
-        config = RetrievalConfig(mmr_lambda=0.5)
+        config = RetrievalConfig(mmr_lambda=0.5, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         results = [
@@ -86,7 +86,7 @@ class TestMMRSelect:
 
     def test_mmr_preserves_top_result(self) -> None:
         """The highest-scoring result should always be selected first."""
-        config = RetrievalConfig(mmr_lambda=0.3)
+        config = RetrievalConfig(mmr_lambda=0.3, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         results = [
@@ -98,7 +98,7 @@ class TestMMRSelect:
 
     def test_mmr_with_all_identical_content(self) -> None:
         """When all content is identical, MMR should still return limit results."""
-        config = RetrievalConfig(mmr_lambda=0.7)
+        config = RetrievalConfig(mmr_lambda=0.7, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         results = [
@@ -111,7 +111,7 @@ class TestMMRSelect:
 
     def test_mmr_fewer_candidates_than_limit(self) -> None:
         """When candidates < limit, all should be returned."""
-        config = RetrievalConfig(mmr_lambda=0.7)
+        config = RetrievalConfig(mmr_lambda=0.7, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         results = [_make_result("content", 0.9, "a")]
@@ -120,7 +120,7 @@ class TestMMRSelect:
 
     def test_mmr_with_fuse(self) -> None:
         """MMR should also work through the fuse() path."""
-        config = RetrievalConfig(mmr_lambda=0.5)
+        config = RetrievalConfig(mmr_lambda=0.5, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         list1 = [
@@ -139,13 +139,13 @@ class TestMMRSelect:
         assert config.mmr_lambda == 0.7
 
     def test_mmr_empty_results(self) -> None:
-        config = RetrievalConfig(mmr_lambda=0.5)
+        config = RetrievalConfig(mmr_lambda=0.5, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
         assert retriever.rank([], limit=5) == []
 
     def test_mmr_diverse_topics_selected(self) -> None:
         """With 5 candidates across 3 topics, MMR should pick from each topic."""
-        config = RetrievalConfig(mmr_lambda=0.5)
+        config = RetrievalConfig(mmr_lambda=0.5, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         results = [
@@ -164,7 +164,7 @@ class TestMMRSelect:
 
     def test_mmr_scores_normalized(self) -> None:
         """Output scores should be normalized to [0, 1]."""
-        config = RetrievalConfig(mmr_lambda=0.7)
+        config = RetrievalConfig(mmr_lambda=0.7, min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         results = [

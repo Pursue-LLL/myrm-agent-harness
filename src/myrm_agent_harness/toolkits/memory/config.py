@@ -217,6 +217,11 @@ class RetrievalConfig:
     """Source diversity penalty weight for MMR session diversification.
     Controls how much to penalize results from already-selected source sessions.
     0.0 = disabled (pure content MMR), 1.0 = strong source diversification."""
+    min_relevance_score: float = 0.35
+    """Absolute minimum score threshold for retrieved memories.
+    Memories below this score are discarded before normalization to prevent
+    irrelevant content from being injected into context (anti-hallucination).
+    Set to 0.0 to disable. Default 0.35 is conservative for BGE-M3 embeddings."""
     enable_intent_recognition: bool = True
     intent_recognizer: QueryIntentRecognizer | None = None
 

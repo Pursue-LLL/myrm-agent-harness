@@ -378,7 +378,7 @@ class TestPersonalityTemplates:
         sys.path.insert(0, str(SERVER_ROOT))
         from app.ai_agents.personality_templates import PERSONALITY_TEMPLATES
 
-        assert len(PERSONALITY_TEMPLATES) == 16
+        assert len(PERSONALITY_TEMPLATES) == 17
 
     def test_get_valid_template(self) -> None:
         import sys
@@ -422,11 +422,11 @@ class TestPersonalityTemplates:
         from app.ai_agents.personality_templates import list_all_personalities
 
         all_styles = list_all_personalities()
-        assert len(all_styles) == 16
+        assert len(all_styles) == 17
         names = {s.name for s in all_styles}
         expected = {
             "professional", "friendly", "concise", "detailed", "humorous", "academic", "creative", "socratic",
-            "pirate", "shakespeare", "noir", "kawaii", "catgirl", "hype", "uwu", "surfer",
+            "pirate", "shakespeare", "noir", "kawaii", "catgirl", "hype", "uwu", "surfer", "wenyan",
         }
         assert names == expected
 

@@ -18,7 +18,7 @@ from myrm_agent_harness.toolkits.memory.types import ConversationMemory, MemoryS
 
 @pytest.fixture
 def retriever() -> MemoryRetriever:
-    config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0)
+    config = RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0, min_relevance_score=0.0)
     return MemoryRetriever(config)
 
 

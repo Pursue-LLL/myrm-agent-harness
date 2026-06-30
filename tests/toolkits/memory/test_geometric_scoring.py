@@ -146,7 +146,7 @@ class TestGeometricScoring:
 
     def test_semantic_dominance(self) -> None:
         """High semantic score should dominate even with low context signals."""
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         high_semantic = SemanticMemory(
@@ -167,7 +167,7 @@ class TestGeometricScoring:
 
     def test_hotness_boost_for_recent_frequent(self) -> None:
         """Recent and frequent memory should get significant boost."""
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         hot_memory = SemanticMemory(
@@ -188,7 +188,7 @@ class TestGeometricScoring:
 
     def test_profile_no_decay(self) -> None:
         """Profile memories should not decay over time."""
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         old_profile = SemanticMemory(
@@ -207,7 +207,7 @@ class TestGeometricScoring:
 
     def test_episodic_fast_decay(self) -> None:
         """Episodic memories should decay faster than semantic."""
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         old_episodic = EpisodicMemory(
@@ -231,7 +231,7 @@ class TestGeometricScoring:
 
     def test_zero_semantic_score(self) -> None:
         """Zero semantic score should always result in zero final score."""
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         mem = SemanticMemory(content="test", created_at=datetime.now(UTC), access_count=50, importance=1.0)
@@ -243,7 +243,7 @@ class TestGeometricScoring:
 
     def test_confidence_multiplier(self) -> None:
         """Confidence should multiply the final score."""
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         high_conf = SemanticMemory(content="high confidence", confidence=1.0, importance=0.5)
@@ -261,7 +261,7 @@ class TestGeometricScoring:
 
     def test_procedural_memory_scoring(self) -> None:
         """Procedural memory should use correct weights."""
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         proc_mem = ProceduralMemory(
@@ -280,7 +280,7 @@ class TestGeometricScoring:
 
     def test_geometric_score_with_zero_weight_signal(self) -> None:
         """Signals with zero weight should not affect score."""
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         mem_with_pref = SemanticMemory(
@@ -361,7 +361,7 @@ class TestEndToEndScoring:
 
     def test_ranking_with_geometric_scoring(self) -> None:
         """Test that ranking works correctly with geometric scoring."""
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         memories = [
@@ -406,7 +406,7 @@ class TestEndToEndScoring:
 
     def test_correction_chain_suppression_still_works(self) -> None:
         """Correction chain suppression should work with geometric scoring."""
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         old_mem = SemanticMemory(id="old-id", content="old fact", importance=0.8)
@@ -432,7 +432,7 @@ class TestPerformance:
         """Geometric scoring should complete in reasonable time."""
         import time
 
-        config = RetrievalConfig()
+        config = RetrievalConfig(min_relevance_score=0.0)
         retriever = MemoryRetriever(config)
 
         memories = [

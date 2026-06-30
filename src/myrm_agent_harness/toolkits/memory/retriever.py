@@ -7,12 +7,13 @@
 - memory.types::{MemorySearchResult, SemanticMemory} (POS: memory data models)
 
 [OUTPUT]
-- MemoryRetriever: RRF retriever with correction-chain suppression, MMR diversity (content + source decay), dual-channel fusion
+- MemoryRetriever: RRF retriever with hard cutoff, correction-chain suppression, MMR diversity (content + source decay), dual-channel fusion
 
 [POS]
 RRF retriever for multi-source memory search. Pipeline: RRF scoring → correction-chain
-suppression → MMR diversity reranking (content similarity + source session decay) →
-normalization. Supports dual-channel (raw + summary embedding) fusion for ConversationMemory.
+suppression → hard cutoff (min_relevance_score) → MMR diversity reranking (content similarity
++ source session decay) → normalization. Supports dual-channel (raw + summary embedding)
+fusion for ConversationMemory.
 """
 
 from __future__ import annotations
@@ -60,6 +61,7 @@ class MemoryRetriever:
             scores[mid] = self._boost(r.score, r, query_tokens, query_context)
             items[mid] = r
         self._suppress_corrected(scores, items)
+        self._hard_cutoff(scores, items)
         scores, items = self._mmr_select(scores, items, limit)
         return self._normalise(scores, items, limit)
 
@@ -94,8 +96,30 @@ class MemoryRetriever:
                     items[mid] = r
 
         self._suppress_corrected(scores, items)
+        self._hard_cutoff(scores, items)
         scores, items = self._mmr_select(scores, items, limit)
         return self._normalise(scores, items, limit)
+
+    def _hard_cutoff(self, scores: dict[str, float], items: dict[str, MemorySearchResult]) -> None:
+        """Discard memories below min_relevance_score to prevent noise injection.
+
+        Operates in-place on *scores* and *items* dicts.  When all candidates
+        fall below the threshold the top-1 result is preserved so the caller
+        never receives an unexpectedly empty list.
+        """
+        threshold = self._config.min_relevance_score
+        if threshold <= 0 or not scores:
+            return
+
+        to_remove = [mid for mid, s in scores.items() if s < threshold]
+        if len(to_remove) >= len(scores):
+            # Keep the single best result to avoid returning nothing
+            best_id = max(scores, key=scores.__getitem__)
+            to_remove = [mid for mid in to_remove if mid != best_id]
+
+        for mid in to_remove:
+            del scores[mid]
+            del items[mid]
 
     def _mmr_select(
         self, scores: dict[str, float], items: dict[str, MemorySearchResult], limit: int
