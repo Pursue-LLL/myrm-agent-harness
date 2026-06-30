@@ -6,7 +6,7 @@ This module provides a generic async task system with support for:
 - Timeout and cancellation
 - Retry with exponential backoff
 - Result caching
-- Multi-tenant isolation
+- User-scoped isolation (via `user_id` on each task row)
 - Progress tracking
 - Worker health monitoring
 
