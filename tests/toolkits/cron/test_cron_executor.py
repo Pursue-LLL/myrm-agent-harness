@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from myrm_agent_harness.observability.tracing import TracingContext
 from myrm_agent_harness.toolkits.cron.engine.executor import JobExecutor, _output_hash
 from myrm_agent_harness.toolkits.cron.types import (
     CronConfig,
@@ -682,3 +683,154 @@ class TestRunnerSkip:
         await executor.run_and_record(job, runner)
 
         store.delete_job.assert_awaited_once_with("job-1")
+
+
+# ---------------------------------------------------------------------------
+# TracingContext injection in run_and_record
+# ---------------------------------------------------------------------------
+
+
+class TestRunAndRecordTracing:
+    """Verify TracingContext is properly set during execution and reset after."""
+
+    @pytest.mark.asyncio
+    async def test_trace_id_set_during_execution(self) -> None:
+        """trace_id should be a valid 32-char hex during runner.run()."""
+        executor, _store, _delivery = _make_executor()
+        job = _make_job()
+        captured_trace_id: str = ""
+
+        async def capturing_run(_job: CronJob, **_kw: object) -> JobResult:
+            nonlocal captured_trace_id
+            captured_trace_id = TracingContext.get_trace_id()
+            return JobResult(success=True, output="ok")
+
+        runner = AsyncMock()
+        runner.run = capturing_run
+
+        await executor.run_and_record(job, runner)
+
+        assert captured_trace_id != "-"
+        assert len(captured_trace_id) == 32
+        int(captured_trace_id, 16)  # valid hex
+
+    @pytest.mark.asyncio
+    async def test_session_id_set_to_job_id(self) -> None:
+        """session_id should equal job.id during execution."""
+        executor, _store, _delivery = _make_executor()
+        job = _make_job(id="my-cron-job-42")
+        captured_session_id: str = ""
+
+        async def capturing_run(_job: CronJob, **_kw: object) -> JobResult:
+            nonlocal captured_session_id
+            captured_session_id = TracingContext.get_session_id()
+            return JobResult(success=True, output="ok")
+
+        runner = AsyncMock()
+        runner.run = capturing_run
+
+        await executor.run_and_record(job, runner)
+
+        assert captured_session_id == "my-cron-job-42"
+
+    @pytest.mark.asyncio
+    async def test_context_reset_after_success(self) -> None:
+        """TracingContext must be reset to defaults after run_and_record completes."""
+        executor, _store, _delivery = _make_executor()
+        job = _make_job()
+        runner = AsyncMock()
+        runner.run = AsyncMock(return_value=JobResult(success=True, output="ok"))
+
+        await executor.run_and_record(job, runner)
+
+        assert TracingContext.get_trace_id() == "-"
+        assert TracingContext.get_session_id() == "-"
+
+    @pytest.mark.asyncio
+    async def test_context_reset_after_runner_exception(self) -> None:
+        """TracingContext must be reset even when runner raises an exception."""
+        executor, _store, _delivery = _make_executor()
+        job = _make_job()
+        runner = AsyncMock()
+        runner.run = AsyncMock(side_effect=RuntimeError("unexpected crash"))
+
+        with pytest.raises(RuntimeError, match="unexpected crash"):
+            await executor.run_and_record(job, runner)
+
+        assert TracingContext.get_trace_id() == "-"
+        assert TracingContext.get_session_id() == "-"
+
+    @pytest.mark.asyncio
+    async def test_each_execution_gets_unique_trace_id(self) -> None:
+        """Consecutive calls to run_and_record produce distinct trace_ids."""
+        executor, _store, _delivery = _make_executor()
+        captured_ids: list[str] = []
+
+        async def capturing_run(_job: CronJob, **_kw: object) -> JobResult:
+            captured_ids.append(TracingContext.get_trace_id())
+            return JobResult(success=True, output="ok")
+
+        runner = AsyncMock()
+        runner.run = capturing_run
+        job = _make_job()
+
+        await executor.run_and_record(job, runner)
+        await executor.run_and_record(job, runner)
+
+        assert len(captured_ids) == 2
+        assert captured_ids[0] != captured_ids[1]
+
+    @pytest.mark.asyncio
+    async def test_context_reset_after_timeout(self) -> None:
+        """TracingContext resets after job timeout (TimeoutError path)."""
+        executor, _store, _delivery = _make_executor()
+        job = _make_job(timeout_seconds=10)
+
+        async def slow_run(_job: CronJob, **_kw: object) -> JobResult:
+            await asyncio.sleep(100)
+            return JobResult(success=True, output="never")
+
+        runner = AsyncMock()
+        runner.run = slow_run
+
+        with patch("asyncio.wait_for", side_effect=TimeoutError):
+            await executor.run_and_record(job, runner)
+
+        assert TracingContext.get_trace_id() == "-"
+        assert TracingContext.get_session_id() == "-"
+
+    @pytest.mark.asyncio
+    async def test_trace_active_during_skipped_runner(self) -> None:
+        """trace_id is set during runner execution even when result is skipped."""
+        executor, _store, _delivery = _make_executor()
+        job = _make_job()
+        captured_trace_id: str = ""
+
+        async def skip_run(_job: CronJob, **_kw: object) -> JobResult:
+            nonlocal captured_trace_id
+            captured_trace_id = TracingContext.get_trace_id()
+            return JobResult(success=True, skipped=True, skip_reason="no-content")
+
+        runner = AsyncMock()
+        runner.run = skip_run
+
+        await executor.run_and_record(job, runner)
+
+        assert captured_trace_id != "-"
+        assert len(captured_trace_id) == 32
+        assert TracingContext.get_trace_id() == "-"
+
+    @pytest.mark.asyncio
+    async def test_context_reset_after_store_exception(self) -> None:
+        """TracingContext resets even when store.save_run raises."""
+        executor, store, _delivery = _make_executor()
+        store.save_run = AsyncMock(side_effect=RuntimeError("DB connection lost"))
+        job = _make_job()
+        runner = AsyncMock()
+        runner.run = AsyncMock(return_value=JobResult(success=True, output="ok"))
+
+        with pytest.raises(RuntimeError, match="DB connection lost"):
+            await executor.run_and_record(job, runner)
+
+        assert TracingContext.get_trace_id() == "-"
+        assert TracingContext.get_session_id() == "-"
