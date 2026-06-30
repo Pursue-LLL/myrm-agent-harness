@@ -197,16 +197,27 @@ async def _handle_tool_result(
     # Emit image events for multimodal tool outputs (e.g., MCP screenshots, computer_use)
     if isinstance(msg.content, list):
         for block in msg.content:
-            if isinstance(block, dict) and block.get("type") == "image" and block.get("base64"):
-                yield {
-                    "type": AgentEventType.TOOL_IMAGE_OUTPUT.value,
-                    "tool_name": tool_name,
-                    "data": {
-                        "base64": block["base64"],
-                        "mime_type": block.get("mime_type", "image/jpeg"),
-                    },
-                    "messageId": message_id,
-                }
+            if isinstance(block, dict) and block.get("type") == "image":
+                if block.get("base64"):
+                    yield {
+                        "type": AgentEventType.TOOL_IMAGE_OUTPUT.value,
+                        "tool_name": tool_name,
+                        "data": {
+                            "base64": block["base64"],
+                            "mime_type": block.get("mime_type", "image/jpeg"),
+                        },
+                        "messageId": message_id,
+                    }
+                elif block.get("url"):
+                    yield {
+                        "type": AgentEventType.TOOL_IMAGE_OUTPUT.value,
+                        "tool_name": tool_name,
+                        "data": {
+                            "url": block["url"],
+                            "mime_type": block.get("mime_type", "image/png"),
+                        },
+                        "messageId": message_id,
+                    }
 
     try:
         tool_metadata = _extract_tool_metadata(msg)

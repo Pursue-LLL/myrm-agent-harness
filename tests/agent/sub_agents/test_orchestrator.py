@@ -675,6 +675,205 @@ class TestExecuteDagPlan:
         assert "step2" in result["results"]
         assert mgr.spawn_child.await_count == 2
 
+    @pytest.mark.asyncio
+    async def test_allow_failure_optional_step_skipped(self):
+        """allow_failure=True step fails -> status='skipped', downstream unblocked, success=True."""
+        mgr = MagicMock()
+
+        async def selective_spawn(*args, **kwargs):
+            task_id = kwargs.get("task_id", "")
+            if "s1" in task_id:
+                return _fail("optional-step", "general", "service unavailable")
+            return _ok("downstream-step", "general", "result-ok")
+
+        mgr.spawn_child = AsyncMock(side_effect=selective_spawn)
+
+        class MockStep:
+            def __init__(self, step_id, desc, expected, deps=None, allow_failure=False):
+                self.step_id = step_id
+                self.description = desc
+                self.expected_output = expected
+                self.status = "pending"
+                self.dependencies = deps or []
+                self.allow_failure = allow_failure
+
+        class MockPlan:
+            def __init__(self):
+                self.steps = [
+                    MockStep("s1", "optional", "out", allow_failure=True),
+                    MockStep("s2", "downstream", "out", deps=["s1"]),
+                ]
+
+            def get_ready_steps(self):
+                resolved = ("completed", "skipped")
+                return [
+                    s for s in self.steps
+                    if s.status == "pending"
+                    and all(
+                        next((x.status for x in self.steps if x.step_id == d), "") in resolved
+                        for d in s.dependencies
+                    )
+                ]
+
+            def mark_step_completed(self, step_id):
+                for s in self.steps:
+                    if s.step_id == step_id:
+                        s.status = "completed"
+
+            def add_error(self, err_type, msg, step_id):
+                pass
+
+        plan = MockPlan()
+
+        with patch("asyncio.TaskGroup") as mock_tg:
+            mock_tg_instance = MagicMock()
+            mock_tg.return_value.__aenter__.return_value = mock_tg_instance
+            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(coro)
+            original_sleep = asyncio.sleep
+
+            async def mock_sleep_func(delay):
+                await original_sleep(0.001)
+
+            with patch("asyncio.sleep", side_effect=mock_sleep_func), patch(
+                "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
+                create=True,
+            ) as mock_get_instance:
+                mock_get_instance.return_value = MagicMock()
+                result = await asyncio.wait_for(
+                    asyncio.create_task(execute_dag_plan(plan, mgr, {}, lambda: [])),
+                    timeout=2.0,
+                )
+
+        assert result["success"], "Optional step failure should not block overall success"
+        assert plan.steps[0].status == "skipped"
+        assert plan.steps[1].status == "completed"
+        assert "s1" in result["partial_failures"]
+
+    @pytest.mark.asyncio
+    async def test_critical_step_failure_blocks_downstream(self):
+        """allow_failure=False step fails -> status='failed', downstream blocked, success=False."""
+        mgr = MagicMock()
+        mgr.spawn_child = AsyncMock(return_value=_fail("critical-step", "general", "crash"))
+
+        class MockStep:
+            def __init__(self, step_id, desc, expected, deps=None, allow_failure=False):
+                self.step_id = step_id
+                self.description = desc
+                self.expected_output = expected
+                self.status = "pending"
+                self.dependencies = deps or []
+                self.allow_failure = allow_failure
+
+        class MockPlan:
+            def __init__(self):
+                self.steps = [
+                    MockStep("s1", "critical", "out"),
+                    MockStep("s2", "downstream", "out", deps=["s1"]),
+                ]
+
+            def get_ready_steps(self):
+                resolved = ("completed", "skipped")
+                return [
+                    s for s in self.steps
+                    if s.status == "pending"
+                    and all(
+                        next((x.status for x in self.steps if x.step_id == d), "") in resolved
+                        for d in s.dependencies
+                    )
+                ]
+
+            def mark_step_completed(self, step_id):
+                for s in self.steps:
+                    if s.step_id == step_id:
+                        s.status = "completed"
+
+            def add_error(self, err_type, msg, step_id):
+                pass
+
+        plan = MockPlan()
+
+        with patch("asyncio.TaskGroup") as mock_tg:
+            mock_tg_instance = MagicMock()
+            mock_tg.return_value.__aenter__.return_value = mock_tg_instance
+            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(coro)
+            original_sleep = asyncio.sleep
+
+            async def mock_sleep_func(delay):
+                await original_sleep(0.001)
+
+            with patch("asyncio.sleep", side_effect=mock_sleep_func), patch(
+                "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
+                create=True,
+            ) as mock_get_instance:
+                mock_get_instance.return_value = MagicMock()
+                result = await asyncio.wait_for(
+                    asyncio.create_task(execute_dag_plan(plan, mgr, {}, lambda: [])),
+                    timeout=2.0,
+                )
+
+        assert not result["success"], "Critical step failure should mark overall as failed"
+        assert plan.steps[0].status == "failed"
+        assert plan.steps[1].status == "pending"
+        assert result["partial_failures"] == []
+
+    @pytest.mark.asyncio
+    async def test_all_optional_steps_fail_still_success(self):
+        """All allow_failure=True steps fail -> all skipped, success=True."""
+        mgr = MagicMock()
+        mgr.spawn_child = AsyncMock(return_value=_fail("opt", "general", "fail"))
+
+        class MockStep:
+            def __init__(self, step_id, desc, expected, allow_failure=False):
+                self.step_id = step_id
+                self.description = desc
+                self.expected_output = expected
+                self.status = "pending"
+                self.dependencies = []
+                self.allow_failure = allow_failure
+
+        class MockPlan:
+            def __init__(self):
+                self.steps = [
+                    MockStep("s1", "opt1", "out", allow_failure=True),
+                    MockStep("s2", "opt2", "out", allow_failure=True),
+                ]
+
+            def get_ready_steps(self):
+                return [s for s in self.steps if s.status == "pending"]
+
+            def mark_step_completed(self, step_id):
+                for s in self.steps:
+                    if s.step_id == step_id:
+                        s.status = "completed"
+
+            def add_error(self, err_type, msg, step_id):
+                pass
+
+        plan = MockPlan()
+
+        with patch("asyncio.TaskGroup") as mock_tg:
+            mock_tg_instance = MagicMock()
+            mock_tg.return_value.__aenter__.return_value = mock_tg_instance
+            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(coro)
+            original_sleep = asyncio.sleep
+
+            async def mock_sleep_func(delay):
+                await original_sleep(0.001)
+
+            with patch("asyncio.sleep", side_effect=mock_sleep_func), patch(
+                "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
+                create=True,
+            ) as mock_get_instance:
+                mock_get_instance.return_value = MagicMock()
+                result = await asyncio.wait_for(
+                    asyncio.create_task(execute_dag_plan(plan, mgr, {}, lambda: [])),
+                    timeout=2.0,
+                )
+
+        assert result["success"], "All optional failures should still be success"
+        assert all(s.status == "skipped" for s in plan.steps)
+        assert sorted(result["partial_failures"]) == ["s1", "s2"]
+
 
 class TestRunChain:
     @pytest.mark.asyncio
