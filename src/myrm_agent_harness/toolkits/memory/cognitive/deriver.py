@@ -130,7 +130,7 @@ class CognitiveDeriver:
         """Store the derived preference as a Claim node in the graph and Dual-Write to Vector."""
         now = datetime.now(UTC)
 
-        from myrm_agent_harness.toolkits.memory._internal.maintenance import (
+        from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support import (
             _classify_claim_relation,
             _normalize_change_kind,
         )
