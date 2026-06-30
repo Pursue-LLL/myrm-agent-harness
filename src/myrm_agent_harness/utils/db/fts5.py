@@ -1,20 +1,30 @@
 """FTS5 Utilities
 
-Provides robust sanitization for SQLite FTS5 MATCH queries to prevent
-OperationalError crashes and improve search quality (e.g., preserving
-hyphenated/dotted terms like code filenames).
+Provides robust sanitization for SQLite FTS5 MATCH queries and silent
+auto-healing for corrupted FTS5 indexes (power-loss survival guard).
 
 [INPUT]
-- (none)
+- sqlite3.Connection (POS: open connection for integrity/rebuild operations)
+- str (POS: table name, query string)
 
 [OUTPUT]
 - sanitize_fts5_query: Sanitize user input for safe use in FTS5 MATCH queries.
+- fts5_integrity_check: Check FTS5 virtual table health via official command.
+- fts5_rebuild: Rebuild a corrupted FTS5 index (safe, data-preserving).
+- fts5_auto_heal: Detect corruption on query failure and rebuild transparently.
 
 [POS]
-FTS5 Utilities
+Leaf FTS5 utility module in the unified SQLite hardening factory. Extends the
+file-level guards in ``sqlite/integrity.py`` to cover FTS5 virtual table indexes.
 """
 
+from __future__ import annotations
+
+import logging
 import re
+import sqlite3
+
+logger = logging.getLogger(__name__)
 
 
 def sanitize_fts5_query(query: str) -> str:
@@ -93,3 +103,63 @@ def sanitize_fts5_query(query: str) -> str:
         sanitized = sanitized.replace(f"\x00Q{i}\x00", quoted)
 
     return sanitized.strip()
+
+
+# ---------------------------------------------------------------------------
+# FTS5 Index Integrity & Auto-Heal
+# ---------------------------------------------------------------------------
+
+
+_VALID_TABLE_RE = re.compile(r"^[a-zA-Z_]\w*$")
+
+
+def _validate_table_name(table: str) -> str:
+    """Guard against SQL injection in table name parameters."""
+    if not _VALID_TABLE_RE.match(table):
+        raise ValueError(f"Invalid FTS5 table name: {table!r}")
+    return table
+
+
+def fts5_integrity_check(conn: sqlite3.Connection, table: str) -> bool:
+    """Return True if the FTS5 virtual table index is healthy.
+
+    Uses the official FTS5 ``integrity-check`` command. Returns False when the
+    shadow tables are inconsistent (e.g. after unclean shutdown with un-flushed
+    WAL pages).
+    """
+    table = _validate_table_name(table)
+    try:
+        conn.execute(f"INSERT INTO {table}({table}) VALUES('integrity-check')")
+        return True
+    except sqlite3.OperationalError:
+        return False
+
+
+def fts5_rebuild(conn: sqlite3.Connection, table: str) -> None:
+    """Rebuild the FTS5 index from source data (safe, data-preserving).
+
+    The ``rebuild`` command re-reads all content and reconstructs the inverted
+    index from scratch. No user data is lost — only the index is regenerated.
+    Typical cost: <100 ms for tables with <10 000 rows.
+    """
+    table = _validate_table_name(table)
+    conn.execute(f"INSERT INTO {table}({table}) VALUES('rebuild')")
+    logger.info("FTS5 index rebuilt successfully: %s", table)
+
+
+def fts5_auto_heal(conn: sqlite3.Connection, table: str) -> bool:
+    """Attempt to heal a corrupted FTS5 index after a query failure.
+
+    Call this from an ``except sqlite3.OperationalError`` block. It runs
+    ``integrity-check`` to confirm corruption, then ``rebuild`` to fix it.
+    Returns True if the index was repaired, False if repair failed or was
+    unnecessary.
+    """
+    try:
+        if fts5_integrity_check(conn, table):
+            return False
+        fts5_rebuild(conn, table)
+        return fts5_integrity_check(conn, table)
+    except sqlite3.Error as exc:
+        logger.error("FTS5 auto-heal failed for %s: %s", table, exc)
+        return False

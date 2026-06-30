@@ -163,8 +163,30 @@ async def check_workspace_storage_health() -> HealthReport:
         )
 
 
+def _check_fts5_indexes(data_dir: str) -> str:
+    """Best-effort FTS5 integrity check for wiki_index.db. Returns status string."""
+    from myrm_agent_harness.utils.db.fts5 import fts5_integrity_check, fts5_rebuild
+
+    workspace_dir = os.environ.get("MYRM_WORKSPACE_DIR", data_dir)
+    wiki_db = Path(workspace_dir) / "wiki" / ".wiki_index.db"
+    if not wiki_db.exists():
+        return ""
+    try:
+        conn = sqlite3.connect(str(wiki_db), timeout=2.0)
+        try:
+            if fts5_integrity_check(conn, "wiki_fts"):
+                return "wiki_fts OK"
+            fts5_rebuild(conn, "wiki_fts")
+            return "wiki_fts rebuilt (was corrupted)"
+        finally:
+            conn.close()
+    except sqlite3.Error as exc:
+        logger.warning("FTS5 probe failed: %s", exc)
+        return f"wiki_fts check failed: {exc}"
+
+
 async def check_database_health() -> HealthReport:
-    """Verify SQLite database connectivity and integrity."""
+    """Verify SQLite database connectivity and integrity (including FTS5 indexes)."""
     from myrm_agent_harness.utils.db.sqlite import (
         SQLiteIntegrityError,
         check_page_count_invariant,
@@ -188,11 +210,18 @@ async def check_database_health() -> HealthReport:
         finally:
             conn.close()
 
+        # FTS5 index health: check wiki_index.db if present in workspace
+        fts5_detail = _check_fts5_indexes(data_dir)
+
+        detail = "SQLite database is connectable, responsive, and integrity verified."
+        if fts5_detail:
+            detail += f" FTS5: {fts5_detail}"
+
         return HealthReport(
             component_name="Database",
             status="pass",
             message="Database is healthy.",
-            detail="SQLite database is connectable, responsive, and integrity verified.",
+            detail=detail,
         )
     except SQLiteIntegrityError as e:
         return HealthReport(

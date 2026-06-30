@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.retriever.fusion_strategies import rrf_fusion
 from myrm_agent_harness.toolkits.vector.base import VectorDocument
+from myrm_agent_harness.utils.db.fts5 import fts5_auto_heal, fts5_integrity_check, fts5_rebuild
 
 from ..core.config import WikiConfig
 from ..core.structure import WikiStructure
@@ -211,6 +212,10 @@ class WikiIndexer:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_wiki_edges_target ON wiki_edges(target)
             """)
+
+            if not fts5_integrity_check(conn, "wiki_fts"):
+                logger.warning("FTS5 index corrupted on startup, rebuilding: wiki_fts")
+                fts5_rebuild(conn, "wiki_fts")
 
     def get_knowledge_graph(self, center_node: str | None = None, depth: int = 1, limit: int = 1000) -> dict[str, list]:
         """Fetch the full topology graph in O(1) DB read time, with progressive BFS support across federated databases."""
@@ -527,7 +532,22 @@ class WikiIndexer:
                             results.append((row["concept_name"], score))
                 except sqlite3.OperationalError as e:
                     logger.error(f"FTS search error: {e}")
-                    pass
+                    healed = fts5_auto_heal(conn, "wiki_fts")
+                    if healed and fts_query:
+                        logger.info("FTS5 auto-heal succeeded, retrying search")
+                        with contextlib.suppress(sqlite3.OperationalError):
+                            cursor = conn.execute(
+                                f"""
+                                SELECT concept_name, rank
+                                FROM ({fts_union})
+                                ORDER BY rank
+                                LIMIT ? OFFSET ?
+                                """,
+                                (*params, limit * 2, offset),
+                            )
+                            for row in cursor.fetchall():
+                                score = 1.0 / (abs(row["rank"]) + 1.0)
+                                results.append((row["concept_name"], score))
             return results
 
         fts_results = await asyncio.to_thread(sync_fts_search)
