@@ -160,6 +160,8 @@ def create_planner_tool(
                         ui_status = "success"
                     elif status == "skipped":
                         ui_status = "skipped"
+                    elif status == "failed":
+                        ui_status = "error"
 
                     dispatch_custom_event(
                         "tasks_steps",

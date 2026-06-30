@@ -1,7 +1,7 @@
 """Bash code execution orchestrator (DI-based).
 
 [INPUT]
-code_detector::code_detector, CodeType (POS: Code type detector)
+toolkits.code_execution.code_detector::code_detector, CodeType (POS: Code type detector)
 mcp_citation_handler::MCPMetadataExtractor (POS: MCP citation handler)
 skill_workspace_manager::SkillWorkspaceManager (POS: Skill workspace manager)
 workspace_manager::WorkspaceManager (POS: Workspace manager)
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor, ExecutionResult
 
 from myrm_agent_harness.agent.artifacts.file_id_registry import resolve_file_ids_in_text
-from myrm_agent_harness.agent.meta_tools.bash.code_detector import CodeType, code_detector
+from myrm_agent_harness.toolkits.code_execution.code_detector import CodeType, code_detector
 from myrm_agent_harness.agent.meta_tools.bash.mcp_citation_handler import MCPMetadataExtractor
 from myrm_agent_harness.agent.meta_tools.bash.skill_workspace_manager import SkillWorkspaceManager
 from myrm_agent_harness.agent.meta_tools.bash.workspace_manager import WorkspaceManager
@@ -556,7 +556,7 @@ class BashExecutor:
         Raises BashExecutionError with an actionable hint when the code is invalid,
         preventing a timeout-then-retry loop when broken code is sent to the executor.
         """
-        from myrm_agent_harness.agent.skills.mcp.python_extractor import validate_python_syntax
+        from myrm_agent_harness.toolkits.code_execution.python_extractor import validate_python_syntax
 
         error = validate_python_syntax(code)
         if error is None:

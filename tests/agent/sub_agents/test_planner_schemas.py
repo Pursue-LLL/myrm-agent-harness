@@ -46,9 +46,35 @@ class TestPlanStep:
         assert step.dependencies[0] == "s1"
 
     def test_step_status_variants(self):
-        for status in ("pending", "in_progress", "completed", "skipped"):
+        for status in ("pending", "in_progress", "completed", "skipped", "failed"):
             step = PlanStep(step_id="s1", description="x", expected_output="x", status=status)
             assert step.status == status
+
+    def test_step_rejects_invalid_status(self):
+        import pytest
+
+        with pytest.raises(Exception):
+            PlanStep(step_id="s1", description="x", expected_output="x", status="invalid")
+
+    def test_allow_failure_default(self):
+        step = PlanStep(step_id="s1", description="x", expected_output="x")
+        assert step.allow_failure is False
+
+    def test_allow_failure_true(self):
+        step = PlanStep(step_id="s1", description="x", expected_output="x", allow_failure=True)
+        assert step.allow_failure is True
+
+    def test_allow_failure_serialization(self):
+        step = PlanStep(step_id="s1", description="x", expected_output="x", allow_failure=True)
+        data = step.model_dump()
+        assert data["allow_failure"] is True
+        restored = PlanStep.model_validate(data)
+        assert restored.allow_failure is True
+
+    def test_allow_failure_backward_compat(self):
+        data = {"step_id": "s1", "description": "x", "expected_output": "x"}
+        step = PlanStep.model_validate(data)
+        assert step.allow_failure is False
 
 
 class TestPlan:
@@ -200,6 +226,86 @@ class TestPlanMethods:
         plan.add_error_attempt("s1", "E", "d", "try2")
         err = plan.add_error_attempt("s1", "E", "d", "try3")
         assert err.escalated_to_user is True
+
+
+class TestPlanAllowFailure:
+    """Tests for allow_failure / failed status in Plan methods."""
+
+    def _mk(self, sid: str, **kw) -> PlanStep:
+        return PlanStep(step_id=sid, description=f"step {sid}", expected_output="output", **kw)
+
+    def _mkplan(self, steps: list[PlanStep]) -> Plan:
+        return Plan(goal="test", reasoning="test", steps=steps)
+
+    def test_get_ready_steps_skipped_dep_unblocks(self):
+        plan = self._mkplan([self._mk("s1", status="skipped"), self._mk("s2", dependencies=["s1"])])
+        ready_ids = [s.step_id for s in plan.get_ready_steps()]
+        assert "s2" in ready_ids
+
+    def test_get_next_step_skipped_dep_unblocks(self):
+        plan = self._mkplan([self._mk("s1", status="skipped"), self._mk("s2", dependencies=["s1"])])
+        nxt = plan.get_next_step()
+        assert nxt is not None
+        assert nxt.step_id == "s2"
+
+    def test_get_ready_steps_failed_dep_blocks(self):
+        plan = self._mkplan([self._mk("s1", status="failed"), self._mk("s2", dependencies=["s1"])])
+        ready_ids = [s.step_id for s in plan.get_ready_steps()]
+        assert "s2" not in ready_ids
+
+    def test_mixed_deps_optional_skipped_and_completed(self):
+        plan = self._mkplan([
+            self._mk("a", status="completed"),
+            self._mk("b", status="skipped", allow_failure=True),
+            self._mk("c", dependencies=["a", "b"]),
+        ])
+        ready_ids = [s.step_id for s in plan.get_ready_steps()]
+        assert "c" in ready_ids
+
+    def test_multi_level_deps_with_optional_skip(self):
+        plan = self._mkplan([
+            self._mk("a", status="completed"),
+            self._mk("b", status="skipped", allow_failure=True, dependencies=["a"]),
+            self._mk("c", dependencies=["b"]),
+            self._mk("d", dependencies=["a"]),
+        ])
+        ready_ids = [s.step_id for s in plan.get_ready_steps()]
+        assert "c" in ready_ids
+        assert "d" in ready_ids
+
+    def test_to_line_format_failed_marker(self):
+        plan = self._mkplan([self._mk("s1", status="failed")])
+        lines = plan.to_line_format()
+        assert "[!]" in lines
+
+    def test_to_line_format_no_failed_marker_when_all_completed(self):
+        plan = self._mkplan([self._mk("s1", status="completed")])
+        lines = plan.to_line_format()
+        assert "[!]" not in lines
+
+    def test_to_markdown_failed_emoji(self):
+        plan = self._mkplan([self._mk("s1", status="failed")])
+        md = plan.to_markdown()
+        assert "❌" in md
+        assert "failed" in md
+
+    def test_to_markdown_no_failed_emoji_when_all_completed(self):
+        plan = self._mkplan([self._mk("s1", status="completed")])
+        md = plan.to_markdown()
+        assert "❌" not in md
+
+    def test_plan_serialization_with_allow_failure(self):
+        plan = self._mkplan([self._mk("s1", allow_failure=True, status="skipped")])
+        json_str = plan.model_dump_json()
+        loaded = Plan.model_validate_json(json_str)
+        assert loaded.steps[0].allow_failure is True
+        assert loaded.steps[0].status == "skipped"
+
+    def test_plan_serialization_with_failed_status(self):
+        plan = self._mkplan([self._mk("s1", status="failed")])
+        json_str = plan.model_dump_json()
+        loaded = Plan.model_validate_json(json_str)
+        assert loaded.steps[0].status == "failed"
 
 
 class TestPlanToMarkdown:

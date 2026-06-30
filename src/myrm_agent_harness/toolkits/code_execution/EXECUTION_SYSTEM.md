@@ -23,11 +23,11 @@
 │  └──────────────────────┬───────────────────────────────┘   │
 │                         │ ContextVar (get_executor)          │
 │  ┌──────────────────────▼───────────────────────────────┐   │
-│  │              toolkits/execution                        │   │
+│  │              toolkits/code_execution                        │   │
 │  │                                                        │   │
-│  │  ┌─────────┐  ┌──────────┐  ┌──────────┐             │   │
-│  │  │ config  │  │ factory  │  │ platform │             │   │
-│  │  └────┬────┘  └────┬─────┘  └──────────┘             │   │
+│  │  ┌─────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐ │   │
+│  │  │ config  │  │ factory  │  │ platform │  │code_detector │ │   │
+│  │  └────┬────┘  └────┬─────┘  └──────────┘  └──────┬───────┘ │   │
 │  │       │            │                                   │   │
 │  │  ┌────▼────────────▼─────────────────────────────┐    │   │
 │  │  │              executors/                         │    │   │
@@ -85,6 +85,10 @@
 - **Python 执行**：每次调用创建独立子进程，通过 wrapper script 注入模块黑名单。内置 **Actionable Diagnostic Hints** 机制，拦截 `ModuleNotFoundError` 并追加 `python -m pip install` 修复建议，引导大模型自主纠错。
 - **Bash 执行**：通过 `PersistentSession` 维护长驻 Bash 进程，环境变量和工作目录跨命令保持
 - **文件操作**：直接使用 `pathlib` 本地 IO，零网络开销
+
+#### Language routing (`code_detector` + `python_extractor`)
+
+`toolkits/code_execution/code_detector.py` classifies incoming shell input as Python or Bash before execution. It delegates ``python -c`` quote-aware extraction to `python_extractor.py` (SSOT). `agent/meta_tools/bash/BashExecutor` consumes the detector and routes to `CodeExecutor.execute()` or `execute_bash()`; syntax pre-check uses the same `python_extractor.validate_python_syntax`.
 
 #### Matplotlib 内联图表捕获（Jupyter 级）
 

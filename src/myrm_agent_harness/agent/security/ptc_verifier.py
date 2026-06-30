@@ -5,7 +5,7 @@ to extract MCP intent and arguments (e.g., path parameters) before execution.
 This enables fine-grained Path Policy enforcement and Fast-Path Auto-Approve for PTC calls.
 
 [INPUT]
-- skills.mcp.python_extractor::extract_python_from_bash (POS: Unified Python extraction with quote-aware parsing)
+- toolkits.code_execution.python_extractor::extract_python_from_bash (POS: Unified Python extraction with quote-aware parsing)
 
 [OUTPUT]
 - PTCArgumentValue: Type alias for argument values extracted from PTC scripts.
@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import ast
 
-from myrm_agent_harness.agent.skills.mcp.python_extractor import extract_python_from_bash
+from myrm_agent_harness.toolkits.code_execution.python_extractor import extract_python_from_bash
 
 PTCArgumentValue = str | int | float | bool | list[object] | dict[str, object] | None
 

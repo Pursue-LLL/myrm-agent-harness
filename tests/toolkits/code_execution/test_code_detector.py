@@ -1,6 +1,10 @@
 """CodeTypeDetector tests — code type detection for Bash/Python."""
 
-from myrm_agent_harness.agent.meta_tools.bash.code_detector import CodeType, CodeTypeDetector, code_detector
+from myrm_agent_harness.toolkits.code_execution.code_detector import (
+    CodeType,
+    CodeTypeDetector,
+    code_detector,
+)
 
 
 class TestCodeTypeDetector:

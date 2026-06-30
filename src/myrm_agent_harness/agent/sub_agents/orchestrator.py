@@ -251,9 +251,19 @@ async def execute_dag_plan(
                 else:
                     if hasattr(plan, "add_error"):
                         plan.add_error("DAGExecutionError", result.error, step_id=step_id)
-                    if progress_sink:
-                        progress_sink(step_id, "error", f"Failed: {result.error}")
-                    logger.error(f"[DAG] Failed step {step_id}: {result.error}")
+                    step_optional = getattr(step, "allow_failure", False)
+                    if step_optional:
+                        if hasattr(step, "status"):
+                            step.status = "skipped"
+                        if progress_sink:
+                            progress_sink(step_id, "warning", f"Non-critical step failed (skipped): {result.error}")
+                        logger.warning(f"[DAG] Optional step {step_id} failed (skipped): {result.error}")
+                    else:
+                        if hasattr(step, "status"):
+                            step.status = "failed"
+                        if progress_sink:
+                            progress_sink(step_id, "error", f"Failed: {result.error}")
+                        logger.error(f"[DAG] Failed step {step_id}: {result.error}")
 
             running_tasks.remove(step_id)
 
@@ -295,9 +305,8 @@ async def execute_dag_plan(
                         running_tasks.discard(step_id)
                         if hasattr(plan, "add_error"):
                             plan.add_error("DAGExecutionError", str(e), step_id=step_id)
-                        # Mark step as failed so it's not retried infinitely
                         if hasattr(step, "status"):
-                            step.status = "failed"
+                            step.status = "skipped" if getattr(step, "allow_failure", False) else "failed"
 
                 if running_tasks:
                     await asyncio.sleep(0.1)  # Short sleep to yield control
@@ -315,12 +324,20 @@ async def execute_dag_plan(
 
     final_state = await reducer.get_state()
     steps = getattr(plan, "steps", [])
-    all_success = all(getattr(s, "status", "") == "completed" for s in steps)
+    _terminal = ("completed", "skipped", "failed")
+    all_resolved = all(getattr(s, "status", "") in _terminal for s in steps)
+    has_critical_failure = any(getattr(s, "status", "") == "failed" for s in steps)
+    partial_failures = [
+        getattr(s, "step_id", "")
+        for s in steps
+        if getattr(s, "status", "") == "skipped" and getattr(s, "allow_failure", False)
+    ]
 
     return {
-        "success": all_success,
+        "success": all_resolved and not has_critical_failure,
         "results": final_state,
         "plan": plan,
+        "partial_failures": partial_failures,
     }
 
 

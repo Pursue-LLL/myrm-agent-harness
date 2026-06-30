@@ -23,10 +23,8 @@ import logging
 import re
 from dataclasses import dataclass
 
-from myrm_agent_harness.agent.skills.mcp.python_extractor import (
+from myrm_agent_harness.toolkits.code_execution.python_extractor import (
     SKILL_IMPORT_RE as SKILL_NAME_PATTERN,
-)
-from myrm_agent_harness.agent.skills.mcp.python_extractor import (
     TOOLS_IMPORT_RE as TOOLS_IMPORT_PATTERN,
 )
 from myrm_agent_harness.toolkits.code_execution import MCPConfigItem
@@ -248,7 +246,7 @@ class SkillExecutor:
 
     def _extract_python_code(self, command: str) -> str | None:
         """从 Bash 命令中提取 Python 代码（委托给统一提取器）。"""
-        from myrm_agent_harness.agent.skills.mcp.python_extractor import (
+        from myrm_agent_harness.toolkits.code_execution.python_extractor import (
             extract_python_from_bash,
         )
 

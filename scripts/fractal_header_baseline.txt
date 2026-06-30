@@ -73,7 +73,8 @@ myrm_agent_harness/agent/skills/discovery/installers/batch_installer.py
 myrm_agent_harness/agent/skills/evolution/__init__.py
 myrm_agent_harness/agent/skills/evolution/quality/__init__.py
 myrm_agent_harness/agent/skills/mcp/__init__.py
-myrm_agent_harness/agent/skills/mcp/python_extractor.py
+myrm_agent_harness/toolkits/code_execution/python_extractor.py
+myrm_agent_harness/toolkits/code_execution/code_detector.py
 myrm_agent_harness/agent/skills/optimization/__init__.py
 myrm_agent_harness/agent/skills/runtime/__init__.py
 myrm_agent_harness/agent/streaming/__init__.py

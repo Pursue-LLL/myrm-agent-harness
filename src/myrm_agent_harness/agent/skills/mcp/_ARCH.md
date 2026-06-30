@@ -17,7 +17,6 @@ MCP Skills — Agent-layer MCP skill transformation.
 | executor.py | Core | Provides SkillExecutionContext, SkillExecutor. Propagates `session_id` / `workspace_root` to the generated client code. | ✅ |
 | ipc_proxy.py | Core | Provides MCPIPCRequest/Response/Server, `IPCCallContext` + `get_ipc_call_context` (ContextVar) so builtin handlers can read per-call session metadata. | ✅ |
 | proxy_service.py | Core | Provides MCPSkillProxyService, MCPInvokeResult, get_mcp_skill_proxy_service. Routes live PTC/IPC tool calls through the warm connection pool (`conn.call`) so invocations reuse the persistent session instead of re-spawning per call. | ✅ |
-| python_extractor.py | Core | Unified quote-aware Python code extractor with ast.parse validation. | ✅ |
 
 ## Key Dependencies
 

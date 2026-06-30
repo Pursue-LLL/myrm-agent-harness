@@ -67,10 +67,15 @@ class PlanStep(BaseModel):
         description="Specific, verifiable expected output. Must describe observable results "
         "(avoid vague terms like 'works correctly' or 'completed successfully')"
     )
-    status: Literal["pending", "in_progress", "completed", "skipped"] = Field(
+    status: Literal["pending", "in_progress", "completed", "skipped", "failed"] = Field(
         default="pending", description="Step status"
     )
     dependencies: list[str] = Field(default_factory=list, description="List of step IDs that must be completed first")
+    allow_failure: bool = Field(
+        default=False,
+        description="Non-critical step: when True, failure sets status to 'skipped' "
+        "instead of 'failed', allowing downstream steps to proceed.",
+    )
     risk_level: Literal["low", "medium", "high"] | None = Field(
         default=None,
         description="Self-assessed risk. high=hard to undo/touches external systems/destructive; "
@@ -254,22 +259,27 @@ class Plan(BaseModel):
         return None
 
     def get_ready_steps(self) -> list[PlanStep]:
-        """Get all pending steps whose dependencies are completed"""
+        """Get all pending steps whose dependencies are resolved.
+
+        A dependency is resolved when its status is 'completed' or 'skipped'
+        (non-critical steps that failed are marked 'skipped').
+        """
         ready_steps = []
+        _resolved = ("completed", "skipped")
         for step in self.steps:
             if step.status == "pending":
-                deps_completed = all(self._get_step_status(dep_id) == "completed" for dep_id in step.dependencies)
-                if deps_completed:
+                deps_done = all(self._get_step_status(dep_id) in _resolved for dep_id in step.dependencies)
+                if deps_done:
                     ready_steps.append(step)
         return ready_steps
 
     def get_next_step(self) -> PlanStep | None:
-        """Get next pending step"""
+        """Get next pending step whose dependencies are resolved"""
+        _resolved = ("completed", "skipped")
         for step in self.steps:
             if step.status == "pending":
-                # Check if all dependencies completed
-                deps_completed = all(self._get_step_status(dep_id) == "completed" for dep_id in step.dependencies)
-                if deps_completed:
+                deps_done = all(self._get_step_status(dep_id) in _resolved for dep_id in step.dependencies)
+                if deps_done:
                     return step
         return None
 
@@ -340,6 +350,7 @@ class Plan(BaseModel):
             "in_progress": "[>]",
             "completed": "[x]",
             "skipped": "[-]",
+            "failed": "[!]",
         }
 
         for step in self.steps:
@@ -420,6 +431,7 @@ class Plan(BaseModel):
             "in_progress": "",
             "completed": "",
             "skipped": "",
+            "failed": "❌",
         }
 
         status_text = {
@@ -427,6 +439,7 @@ class Plan(BaseModel):
             "in_progress": "in_progress",
             "completed": "complete",
             "skipped": "skipped",
+            "failed": "failed",
         }
 
         for i, step in enumerate(self.steps, 1):
