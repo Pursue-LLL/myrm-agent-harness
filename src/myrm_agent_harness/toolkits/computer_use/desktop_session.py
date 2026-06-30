@@ -198,7 +198,7 @@ class DesktopSession(ComputerSession):
         effective_text = text
 
         if action == "fill_credential":
-            from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
+            from myrm_agent_harness.core.security.credential_vault import get_global_credential_vault
 
             vault = get_global_credential_vault()
             is_totp = text.endswith("-totp")

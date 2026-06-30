@@ -9,6 +9,7 @@ Higher-level execution patterns built on top of SubagentManager.spawn_child.
 - agent.skills.evolution.execution.executor_context::ExecutorContextManager (POS: Context manager for injecting executors into the current async context.)
 
 [OUTPUT]
+- execute_dag_plan: Execute a Plan using DAG concurrency with optional node-level fault tolerance (allow_failure).
 - run_chain: Execute subagents in chain: A -> B -> C, each receiving previous result.
 - run_alternatives: Spawn N subagents in parallel for the same task; return all results without auto-merging, so the caller can let the user choose.
 - run_council: Multi-expert council orchestration with cross-review rounds and chair synthesis.

@@ -459,7 +459,7 @@ class Interactor:
                 return f"Filled {ref} with '{display_text}'{healed_msg}"
 
             elif action == "fill_credential":
-                from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
+                from myrm_agent_harness.core.security.credential_vault import get_global_credential_vault
 
                 vault = get_global_credential_vault()
 

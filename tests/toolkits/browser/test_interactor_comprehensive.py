@@ -801,7 +801,7 @@ async def test_interact_fill_credential():
         mock_loc = AsyncMock()
         mock_resolve.return_value = mock_loc
 
-        with patch("myrm_agent_harness.toolkits.security.credential_vault.CredentialVault.get_password", return_value="secret123"):
+        with patch("myrm_agent_harness.core.security.credential_vault.CredentialVault.get_password", return_value="secret123"):
             res = await interactor.interact("fill_credential", "e0", "github-personal")
             assert "Filled credential 'github-personal'" in res
             mock_loc.fill.assert_called_once_with("secret123", timeout=10000)
@@ -816,7 +816,7 @@ async def test_interact_fill_credential_totp():
         mock_loc = AsyncMock()
         mock_resolve.return_value = mock_loc
 
-        with patch("myrm_agent_harness.toolkits.security.credential_vault.CredentialVault.get_totp_token", return_value="123456"):
+        with patch("myrm_agent_harness.core.security.credential_vault.CredentialVault.get_totp_token", return_value="123456"):
             res = await interactor.interact("fill_credential", "e0", "github-personal-totp")
             assert "Filled credential 'github-personal-totp'" in res
             mock_loc.fill.assert_called_once_with("123456", timeout=10000)

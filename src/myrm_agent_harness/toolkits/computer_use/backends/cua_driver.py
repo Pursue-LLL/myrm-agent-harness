@@ -275,7 +275,7 @@ class CuaDriverBackend:
 
     async def type_credential(self, label: str) -> ActionResult:
         """Credential typing: retrieve from vault, then type via cua-driver."""
-        from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
+        from myrm_agent_harness.core.security.credential_vault import get_global_credential_vault
 
         vault = get_global_credential_vault()
         is_totp = label.endswith("-totp")

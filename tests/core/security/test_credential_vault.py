@@ -1,7 +1,7 @@
 
 import pytest
 
-from myrm_agent_harness.toolkits.security.credential_vault import CredentialVault, get_global_credential_vault
+from myrm_agent_harness.core.security.credential_vault import CredentialVault, get_global_credential_vault
 
 
 def test_credential_vault_add_remove():
@@ -28,7 +28,6 @@ def test_credential_vault_no_password():
 
 def test_credential_vault_totp():
     vault = CredentialVault()
-    # JBSWY3DPEHPK3PXP is base32 for "Hello!\xDE\xAD\xBE\xEF"
     vault.add_credential("test-totp", totp_seed="JBSWY3DPEHPK3PXP")
 
     token = vault.get_totp_token("test-totp")

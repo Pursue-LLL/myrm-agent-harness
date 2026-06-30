@@ -5,12 +5,13 @@
 
 [OUTPUT]
 - CredentialVault: In-memory secure credential storage and resolver.
+- CredentialEntry: Single vault entry (password and/or TOTP seed).
+- get_global_credential_vault: Process-wide vault singleton.
 
 [POS]
-Provides a secure in-memory vault for the execution engine (Harness) to hold
-decrypted credentials. The LLM only sees the credential labels, and the
-execution engine resolves the label to the actual password or TOTP token
-at the moment of injection (DOM or OS level).
+Foundational security primitive in core/security/. Server populates decrypted
+credentials; toolkits (browser, computer_use) resolve labels at injection time
+so secrets never enter LLM context.
 """
 
 import base64
@@ -34,8 +35,8 @@ class CredentialVault:
     """In-memory secure credential storage and resolver.
 
     This vault is populated by the Server layer (which decrypts the credentials
-    from the database) and is used by the Harness layer to resolve labels
-    into actual passwords or TOTP tokens during execution.
+    from the database) and is used by toolkits to resolve labels into actual
+    passwords or TOTP tokens during execution.
     """
 
     def __init__(self) -> None:
@@ -84,7 +85,6 @@ class CredentialVault:
             raise ValueError(f"Credential '{label}' does not have a TOTP seed configured.")
 
         try:
-            # Pad the base32 string if necessary
             seed = entry.totp_seed.strip().replace(" ", "").upper()
             padding = (8 - len(seed) % 8) % 8
             seed += "=" * padding
@@ -103,7 +103,6 @@ class CredentialVault:
         return list(self._credentials.keys())
 
 
-# Global singleton for the execution engine to use
 _global_credential_vault = CredentialVault()
 
 

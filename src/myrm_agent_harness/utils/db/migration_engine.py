@@ -34,6 +34,7 @@ _IDEMPOTENT_ERROR_FRAGMENTS: tuple[str, ...] = (
     "already exists",
     "index already exists",
     "table .* already exists",
+    "no such column",
 )
 
 

@@ -50,7 +50,7 @@ async def test_fill_credential_resolves_password(mock_backend, mock_config):
     with (
         patch("myrm_agent_harness.toolkits.computer_use.desktop_session.invoke_element") as mock_invoke,
         patch(
-            "myrm_agent_harness.toolkits.security.credential_vault.get_global_credential_vault"
+            "myrm_agent_harness.core.security.credential_vault.get_global_credential_vault"
         ) as mock_get_vault,
     ):
         vault = MagicMock()
@@ -76,7 +76,7 @@ async def test_fill_credential_resolves_totp(mock_backend, mock_config):
     with (
         patch("myrm_agent_harness.toolkits.computer_use.desktop_session.invoke_element") as mock_invoke,
         patch(
-            "myrm_agent_harness.toolkits.security.credential_vault.get_global_credential_vault"
+            "myrm_agent_harness.core.security.credential_vault.get_global_credential_vault"
         ) as mock_get_vault,
     ):
         vault = MagicMock()
@@ -99,7 +99,7 @@ async def test_fill_credential_missing_label_returns_error(mock_backend, mock_co
     _setup_session_with_ref(session)
 
     with patch(
-        "myrm_agent_harness.toolkits.security.credential_vault.get_global_credential_vault"
+        "myrm_agent_harness.core.security.credential_vault.get_global_credential_vault"
     ) as mock_get_vault:
         vault = MagicMock()
         vault.get_password.side_effect = KeyError("Credential label 'unknown' not found in vault.")
@@ -118,7 +118,7 @@ async def test_fill_credential_no_password_returns_error(mock_backend, mock_conf
     _setup_session_with_ref(session)
 
     with patch(
-        "myrm_agent_harness.toolkits.security.credential_vault.get_global_credential_vault"
+        "myrm_agent_harness.core.security.credential_vault.get_global_credential_vault"
     ) as mock_get_vault:
         vault = MagicMock()
         vault.get_password.side_effect = ValueError("Credential 'aws' does not have a password configured.")
@@ -142,7 +142,7 @@ async def test_fill_credential_success_message_with_multimodal_blocks(mock_backe
     with (
         patch("myrm_agent_harness.toolkits.computer_use.desktop_session.invoke_element") as mock_invoke,
         patch(
-            "myrm_agent_harness.toolkits.security.credential_vault.get_global_credential_vault"
+            "myrm_agent_harness.core.security.credential_vault.get_global_credential_vault"
         ) as mock_get_vault,
     ):
         vault = MagicMock()
@@ -167,7 +167,7 @@ async def test_fill_credential_ax_fail_falls_back_to_bbox(mock_backend, mock_con
         patch("myrm_agent_harness.toolkits.computer_use.desktop_session.invoke_element") as mock_invoke,
         patch("myrm_agent_harness.toolkits.computer_use.desktop_session.try_bbox_click") as mock_bbox,
         patch(
-            "myrm_agent_harness.toolkits.security.credential_vault.get_global_credential_vault"
+            "myrm_agent_harness.core.security.credential_vault.get_global_credential_vault"
         ) as mock_get_vault,
     ):
         vault = MagicMock()
@@ -194,7 +194,7 @@ async def test_fill_credential_both_ax_and_bbox_fail(mock_backend, mock_config):
         patch("myrm_agent_harness.toolkits.computer_use.desktop_session.invoke_element") as mock_invoke,
         patch("myrm_agent_harness.toolkits.computer_use.desktop_session.try_bbox_click") as mock_bbox,
         patch(
-            "myrm_agent_harness.toolkits.security.credential_vault.get_global_credential_vault"
+            "myrm_agent_harness.core.security.credential_vault.get_global_credential_vault"
         ) as mock_get_vault,
     ):
         vault = MagicMock()

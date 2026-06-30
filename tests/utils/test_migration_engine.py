@@ -169,3 +169,35 @@ async def test_migration_engine_idempotent_skip_index_already_exists(engine):
     assert report.failed_count == 0
     assert report.applied_count == 1, "V0 (IF NOT EXISTS) succeeds without error"
     assert report.skipped_count == 1, "V1 (CREATE INDEX duplicate) idempotently skipped"
+
+
+@pytest.mark.asyncio
+async def test_migration_engine_idempotent_skip_drop_nonexistent_column(engine):
+    """DROP COLUMN targeting a nonexistent column must skip without aborting.
+
+    Reproduces the production failure where artifacts table never had
+    deployment_url but a migration tries to drop it.
+    """
+    async with engine.begin() as conn:
+        await conn.execute(text("CREATE TABLE artifacts (id INTEGER PRIMARY KEY, name TEXT)"))
+
+    engine_runner = StatefulMigrationEngine(engine)
+
+    migrations = [
+        MigrationStatement(version=0, sql="CREATE TABLE IF NOT EXISTS artifacts (id INTEGER PRIMARY KEY)"),
+        MigrationStatement(version=1, sql="ALTER TABLE artifacts DROP COLUMN nonexistent_col"),
+        MigrationStatement(version=2, sql="ALTER TABLE artifacts ADD COLUMN description TEXT"),
+    ]
+
+    report = await engine_runner.run_migrations(migrations)
+
+    assert report.failed_count == 0, f"DROP nonexistent column must not fail: {report.error_message}"
+    assert report.applied_count == 2, "V0 and V2 succeed"
+    assert report.skipped_count == 1, "V1 (DROP nonexistent column) idempotently skipped"
+
+    async with engine.connect() as conn:
+        res = await conn.execute(text("SELECT version, checksum FROM _schema_migrations ORDER BY version"))
+        rows = list(res)
+        assert {r[0] for r in rows} == {0, 1, 2}
+        idempotent_marks = [r[1] for r in rows if r[1].startswith("idempotent:")]
+        assert len(idempotent_marks) == 1, "Only V1 should be flagged idempotent"

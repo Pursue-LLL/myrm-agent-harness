@@ -1,7 +1,7 @@
 # core/security/
 
 ## Overview
-Foundational security primitives used across all layers. Zero dependency on agent/ internals, enabling toolkits/ to import security capabilities without coupling to the agent framework.
+Foundational security primitives used across all layers. Zero dependency on agent/ internals, enabling toolkits/ to import security capabilities without coupling to the agent framework. Includes SSRF guards, audit, detection, and the in-memory credential vault for label-based password/TOTP injection.
 
 ## File & Submodule Index
 
@@ -15,6 +15,7 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | safe_exec.py | Core | Safe execution primitives — sandboxed code evaluation with resource limits. | ✅ |
 | tool_registry.py | Core | Tool metadata registry — permission mapping, canonical params, safety metadata, canonical tool group mapping (TOOL_GROUP_MAP/TOOL_TO_GROUP for skill conditional activation). | ✅ |
 | types.py | Core | Foundation security type hierarchy — SecurityConfig, PathPolicy, enums. | ✅ |
+| credential_vault.py | Core | In-memory credential vault — label→password/TOTP resolution for browser/desktop injection (secrets never in LLM context). | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
@@ -25,6 +26,12 @@ Foundational security primitives used across all layers. Zero dependency on agen
 ## Key Dependencies
 
 - No internal dependencies (foundation layer)
+
+## Consumers
+
+- `toolkits/browser/session/interactor.py`, `toolkits/browser/tools/interact.py` — fill_credential
+- `toolkits/computer_use/` — desktop fill_credential backends
+- `myrm-agent-server/app/services/security/vault_credential_service.py` — sync decrypted credentials into global vault
 
 ## Consumer Note
 

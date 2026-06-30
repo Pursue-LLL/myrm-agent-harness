@@ -65,7 +65,7 @@ Agent → desktop_agent_tools (4 tools)
 ## Key Dependencies
 
 - `dref/` (@dref registry submodule)
-- `security/credential_vault` (fill_credential vault resolution)
+- `core/security/credential_vault` (fill_credential vault resolution)
 - `code_execution` (platform detection)
 - `PIL`, `pyautogui`, platform AX libraries (see backends/)
 - `cua-driver` (optional, background input on macOS/Windows/Linux)

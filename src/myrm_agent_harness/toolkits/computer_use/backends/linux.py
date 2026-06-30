@@ -141,7 +141,7 @@ class LinuxBackend:
 
     async def type_credential(self, label: str) -> ActionResult:
         """Type a credential (password or TOTP) securely from the CredentialVault."""
-        from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
+        from myrm_agent_harness.core.security.credential_vault import get_global_credential_vault
 
         vault = get_global_credential_vault()
 

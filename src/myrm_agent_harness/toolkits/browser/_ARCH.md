@@ -45,5 +45,6 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 
 ## Key Dependencies
 
-- `core`
+- `core/security/credential_vault` — `fill_credential` resolves password/TOTP by label (secrets never in LLM context)
+- `core/security/guards/ssrf`, `core/security/audit`, `core/security/detection/content_boundary`
 - Optional extra `[browser]`: `patchright`, `orjson` (`session_vault.py`, `session/session_persistence.py`)

@@ -13,7 +13,7 @@
 [POS]
 LangGraph stream event to business event transformer. Core event handler for BaseAgent.run().
 Emits TOOL_IMAGE_OUTPUT for all image blocks in multimodal ToolMessage content
-(base64 images from MCP tools, computer_use screenshots, etc.).
+(base64 and URL images from MCP tools, ResourceLink, computer_use screenshots, etc.).
 
 """
 

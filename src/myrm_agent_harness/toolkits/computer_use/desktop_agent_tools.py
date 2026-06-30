@@ -34,7 +34,7 @@ from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotScope
 def create_desktop_tools(session: DesktopSession) -> list[object]:
     """Create 4 semantic desktop tools bound to *session*."""
 
-    from myrm_agent_harness.toolkits.security.credential_vault import get_global_credential_vault
+    from myrm_agent_harness.core.security.credential_vault import get_global_credential_vault
 
     vault = get_global_credential_vault()
     labels = vault.list_labels()

@@ -2,7 +2,7 @@
 
 import pytest
 
-from myrm_agent_harness.toolkits.security.credential_vault import CredentialVault
+from myrm_agent_harness.core.security.credential_vault import CredentialVault
 
 
 def test_get_totp_token_missing_label_raises_key_error() -> None:

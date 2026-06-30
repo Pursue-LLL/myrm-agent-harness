@@ -12,7 +12,7 @@ Framework-agnostic foundation layer. Provides security, config, events, hooks, a
 
 | Submodule | Description |
 |-----------|-------------|
-| security/ | Security primitives — PII detection, content boundary, prompt injection guard, SSRF guard, audit, path security, execution policy. |
+| security/ | Security primitives — PII detection, content boundary, prompt injection guard, SSRF guard, audit, path security, execution policy, credential vault (label→password/TOTP for tool injection). |
 | config/ | Framework-agnostic configuration types — LLMConfig, CustomModelDef. |
 | events/ | Event type definitions — AgentEventType, AgentStreamEvent, THINKING_TAG_NAMES. |
 | hooks/ | Hook lifecycle definitions — HookEvent, HookDefinition variants, HookResult, event payloads. |
