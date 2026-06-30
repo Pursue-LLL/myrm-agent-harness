@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from myrm_agent_harness.toolkits.memory._internal.maintenance import (
+from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support import (
     _classify_claim_relation,
     _contains_hint,
     _normalize_change_kind,
@@ -279,7 +279,7 @@ class TestContainsHint:
     """Tests for hint detection in text."""
 
     def test_supersede_hints(self) -> None:
-        from myrm_agent_harness.toolkits.memory._internal.maintenance import (
+        from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support import (
             _SUPERSEDE_HINTS,
         )
 
@@ -288,7 +288,7 @@ class TestContainsHint:
         assert _contains_hint("I still use Python", _SUPERSEDE_HINTS) is False
 
     def test_constraint_hints(self) -> None:
-        from myrm_agent_harness.toolkits.memory._internal.maintenance import (
+        from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support import (
             _CONSTRAINT_HINTS,
         )
 
