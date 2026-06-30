@@ -81,9 +81,14 @@ class WikiCompileConfig:
 
     extract_concepts_prompt_template: str = field(
         default=(
-            "Extract key concepts from the following document. Return a list of concepts with brief definitions.\n"
-            "CRITICAL: The concept 'name' MUST include a logical folder path for categorization (e.g., 'Programming/Rust/Ownership' or 'ProjectA/Architecture').\n"
-            "Use forward slashes '/' for paths. If no path is obvious, use 'Uncategorized/ConceptName'."
+            "Extract key concepts from the following document. Return a JSON array of objects.\n"
+            "Each object MUST have these fields:\n"
+            '- "name": concept name with logical folder path (e.g., "Programming/Rust/Ownership")\n'
+            '- "definition": brief definition of the concept\n'
+            '- "related_concepts": array of related concept names from the same document\n'
+            "CRITICAL: The concept 'name' MUST include a logical folder path for categorization.\n"
+            "Use forward slashes '/' for paths. If no path is obvious, use 'Uncategorized/ConceptName'.\n"
+            "Output ONLY the JSON array, no extra text."
         )
     )
     generate_article_prompt_template: str = field(

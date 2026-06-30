@@ -335,12 +335,15 @@ class WikiCompiler:
             if isinstance(json_data, list):
                 for item in json_data:
                     if isinstance(item, dict) and "name" in item and "definition" in item:
+                        raw_related = item.get("related_concepts", [])
+                        related = [str(r) for r in raw_related] if isinstance(raw_related, list) else []
                         concepts.append(
                             ConceptInfo(
                                 name=item["name"],
                                 definition=item["definition"],
                                 mentions=1,
                                 source_files=[source_file],
+                                related_concepts=related,
                             )
                         )
                 return concepts
