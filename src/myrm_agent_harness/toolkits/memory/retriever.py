@@ -10,10 +10,13 @@
 - MemoryRetriever: RRF retriever with hard cutoff, correction-chain suppression, MMR diversity (content + source decay), dual-channel fusion
 
 [POS]
-RRF retriever for multi-source memory search. Pipeline: RRF scoring → correction-chain
-suppression → hard cutoff (min_relevance_score) → MMR diversity reranking (content similarity
-+ source session decay) → normalization. Supports dual-channel (raw + summary embedding)
-fusion for ConversationMemory.
+RRF retriever for multi-source memory search.
+rank() pipeline: geometric scoring → correction-chain suppression → hard cutoff
+(min_relevance_score) → MMR diversity reranking → normalization.
+fuse() pipeline: RRF scoring → correction-chain suppression → MMR diversity reranking →
+normalization. Hard cutoff is intentionally omitted from fuse() because RRF scores are
+relative rank-based values where absolute thresholds have no meaning.
+Supports dual-channel (raw + summary embedding) fusion for ConversationMemory.
 """
 
 from __future__ import annotations
@@ -36,7 +39,7 @@ def _jaccard_similarity(a: frozenset[str], b: frozenset[str]) -> float:
 
 
 class MemoryRetriever:
-    """Stateless RRF-based result fuser with correction-chain awareness and MMR diversity."""
+    """Stateless retriever with RRF fusion, hard cutoff (rank path only), correction-chain suppression, and MMR diversity."""
 
     def __init__(self, config: RetrievalConfig | None = None) -> None:
         self._config = config or RetrievalConfig()
@@ -96,7 +99,6 @@ class MemoryRetriever:
                     items[mid] = r
 
         self._suppress_corrected(scores, items)
-        self._hard_cutoff(scores, items)
         scores, items = self._mmr_select(scores, items, limit)
         return self._normalise(scores, items, limit)
 

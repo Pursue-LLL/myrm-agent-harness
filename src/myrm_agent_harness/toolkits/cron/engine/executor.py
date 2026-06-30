@@ -11,6 +11,7 @@ but owns no scheduling state — that remains in ``CronScheduler``.
 - toolkits.cron.protocols::CronStore, (POS: Protocols for the cron toolkit.)
 - toolkits.cron.delivery_guard::is_silent_output, (POS: Cron delivery guard.)
 - infra.incremental.manager::IncrementalMonitorManager (POS: Incremental monitor lifecycle manager.)
+- observability.tracing::TracingContext (POS: Request-scoped trace_id/session_id for log correlation.)
 
 [OUTPUT]
 - JobExecutor: Manages the complete lifecycle of a single job execution.
@@ -31,6 +32,7 @@ from typing import TYPE_CHECKING
 from nanoid import generate as nanoid
 
 from myrm_agent_harness.infra.incremental.manager import IncrementalMonitorManager
+from myrm_agent_harness.observability.tracing import TracingContext
 from myrm_agent_harness.toolkits.cron.engine.helpers import (
     classify_transient_error,
     error_backoff_ms,
@@ -117,6 +119,23 @@ class JobExecutor:
         trigger_source: str = "cron",
     ) -> None:
         """Execute a job, persist the run record, deliver results, update state."""
+        trace_token = TracingContext.set_trace_id(TracingContext.generate_trace_id())
+        session_token = TracingContext.set_session_id(job.id)
+        try:
+            await self._execute_job(job, runner, context=context, trigger_source=trigger_source)
+        finally:
+            TracingContext.reset_trace_id(trace_token)
+            TracingContext.reset_session_id(session_token)
+
+    async def _execute_job(
+        self,
+        job: CronJob,
+        runner: JobRunner,
+        *,
+        context: str = "",
+        trigger_source: str = "cron",
+    ) -> None:
+        """Core execution logic within TracingContext scope."""
         self._current_trigger_source = trigger_source
 
         # 1. Pre-flight Condition check

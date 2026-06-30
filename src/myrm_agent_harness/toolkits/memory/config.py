@@ -172,6 +172,8 @@ class RetrievalConfig:
         quoted_phrase_boost_weight: Quoted phrase boost weight (multiplicative factor)
         enable_preference_boost: Enable preference boost for preference-tagged memories (MemPalace enhancement)
         preference_boost_weight: Preference boost weight (multiplicative factor, applied to preference_strength)
+        source_diversity_weight: Source diversity penalty weight for MMR session diversification
+        min_relevance_score: Absolute minimum RRF score threshold (anti-hallucination hard cutoff)
     """
 
     rrf_k: int = 60

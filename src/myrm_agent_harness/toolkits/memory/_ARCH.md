@@ -35,7 +35,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | reliability.py           | Core     | Framework-safe memory reliability DTOs for probe results, repair plans, repair execution results, archive restore plans/results, import dry-run mappings, import plans, and recall benchmark summaries with IR metrics (ndcg, mrr, precision, latency percentiles). | ✅    |
 | result_booster.py        | Core     | Result boosting for memory retrieval (MemPalace enhancement).                                                 | ✅    |
 | security.py              | Core     | Public facade for memory security preflight scanning used by app-layer import and archive restore review flows. | ✅    |
-| retriever.py             | Core     | RRF retriever for multi-source memory search. Pipeline: RRF scoring → correction-chain suppression → MMR diversity (content + source decay) → normalization. | ✅    |
+| retriever.py             | Core     | RRF retriever for multi-source memory search. rank(): geometric scoring → correction-chain suppression → hard cutoff (min_relevance_score) → MMR → normalization. fuse(): RRF scoring → correction-chain suppression → MMR → normalization (hard cutoff omitted — RRF scores are rank-based, absolute thresholds inapplicable). | ✅    |
 | session.py               | Core     | Conversation-level memory buffer. Buffers memory writes during a session and batch-flushes                    | ✅    |
 | setup.py                 | Core     | Out-of-the-box local memory factory. Combines SQLite and embedded Qdrant to provide zero-config               | ✅    |
 | signals.py               | Core     | Context signal calculator for memory retrieval scoring. Provides normalized [0,1] factors                     | ✅    |
