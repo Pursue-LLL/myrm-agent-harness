@@ -86,7 +86,7 @@ Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
 | Category | Toolkits | Role |
 |----------|----------|------|
 | **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `security/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP, credential vault |
-| **Workspace** | `browser/`, `computer_use/`, `workspace/`, `context_bundle/`, `file_parsers/`, `wiki/` | Files, browser, desktop, context bundles |
+| **Workspace** | `browser/`, `computer_use/`, `filesystem_suggest/`, `context_bundle/`, `file_parsers/`, `wiki/` | Files, browser, desktop, @-mention path suggest |
 | **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/` | External APIs, agent protocols |
 | **Collaboration & Media** | `kanban/`, `tasks/`, `automation/`, `cron/`, `interaction/`, `tts/` | Scheduling, tasks, user interaction primitives, media |
 | **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |

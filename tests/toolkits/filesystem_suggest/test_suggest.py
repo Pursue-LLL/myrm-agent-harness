@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from myrm_agent_harness.toolkits.workspace import WorkspaceSuggestionOptions, suggest_workspace_paths
-from myrm_agent_harness.toolkits.workspace.indexer import WorkspacePathIndexer
+from myrm_agent_harness.toolkits.filesystem_suggest import WorkspaceSuggestionOptions, suggest_workspace_paths
+from myrm_agent_harness.toolkits.filesystem_suggest.indexer import WorkspacePathIndexer
 
 
 def test_suggest_matches_camel_word_boundary(tmp_path):

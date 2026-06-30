@@ -1,7 +1,7 @@
 """
 [INPUT]
 myrm_agent_harness.core.security.path_security::safe_join_path (POS: Workspace path boundary guard)
-myrm_agent_harness.toolkits.workspace.indexer::WorkspacePathIndexer (POS: Local workspace file enumerator)
+myrm_agent_harness.toolkits.filesystem_suggest.indexer::WorkspacePathIndexer (POS: Local workspace file enumerator)
 
 [OUTPUT]
 rank_basename: ranks a basename against a query.
@@ -22,8 +22,8 @@ from myrm_agent_harness.core.security.path_security import (
     is_sensitive_file,
     safe_join_path,
 )
-from myrm_agent_harness.toolkits.workspace.indexer import WorkspacePathIndexer
-from myrm_agent_harness.toolkits.workspace.models import (
+from myrm_agent_harness.toolkits.filesystem_suggest.indexer import WorkspacePathIndexer
+from myrm_agent_harness.toolkits.filesystem_suggest.models import (
     WorkspacePathSuggestion,
     WorkspaceScoreTier,
     WorkspaceSuggestionKind,
