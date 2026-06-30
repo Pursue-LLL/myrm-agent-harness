@@ -2,11 +2,12 @@
 
 [INPUT]
 - manager::SubagentManager (POS: Access to internal state via self reference)
-- types::SubAgentStatus, CancellationStrategy, SubagentConfig
+- types::SubAgentStatus, CancellationStrategy, CouncilResult, SubagentConfig
 
 [OUTPUT]
 - SubagentControlMixin: Mixin providing cancel_child, cancel_all, steer_child,
-  list_children, wait_children, drain_notifications, run_alternatives, run_chain, run_with_verification
+  list_children, wait_children, drain_notifications, run_alternatives, run_chain,
+  run_council, run_with_verification
 
 [POS]
 Control plane operations for SubagentManager.
@@ -23,6 +24,7 @@ from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent.sub_agents.types import (
     CancellationStrategy,
+    CouncilResult,
     SubagentConfig,
     SubAgentResult,
     SubAgentStatus,
@@ -35,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 class SubagentControlMixin:
-    """Cancel, steer, list, wait, chain, verify, and drain operations for SubagentManager."""
+    """Cancel, steer, list, wait, chain, council, verify, and drain operations for SubagentManager."""
 
     _children: dict[str, SubagentTask]
     _children_types: dict[str, str]
@@ -205,6 +207,35 @@ class SubagentControlMixin:
         from .orchestrator import run_chain
 
         return await run_chain(self, configs, context, tool_registry_getter, cancel_token=cancel_token)
+
+    async def run_council(
+        self,
+        task_description: str,
+        expert_configs: list[tuple[str, SubagentConfig]],
+        context: dict[str, object],
+        tool_registry_getter: Callable[[], list[BaseTool]],
+        *,
+        chair_config: SubagentConfig | None = None,
+        cross_review_rounds: int = 1,
+        cross_review_prompt_template: str = "",
+        chair_prompt_template: str = "",
+        cancel_token: object | None = None,
+    ) -> CouncilResult:
+        """Run a multi-expert council session with cross-review and chair synthesis."""
+        from .orchestrator import run_council
+
+        return await run_council(
+            self,
+            task_description=task_description,
+            expert_configs=expert_configs,
+            context=context,
+            tool_registry_getter=tool_registry_getter,
+            chair_config=chair_config,
+            cross_review_rounds=cross_review_rounds,
+            cross_review_prompt_template=cross_review_prompt_template,
+            chair_prompt_template=chair_prompt_template,
+            cancel_token=cancel_token,
+        )
 
     async def run_with_verification(
         self,

@@ -11,6 +11,7 @@ Higher-level execution patterns built on top of SubagentManager.spawn_child.
 [OUTPUT]
 - run_chain: Execute subagents in chain: A -> B -> C, each receiving previous result.
 - run_alternatives: Spawn N subagents in parallel for the same task; return all results without auto-merging, so the caller can let the user choose.
+- run_council: Multi-expert council orchestration with cross-review rounds and chair synthesis.
 - wait_children: Wait for multiple child tasks to complete and aggregate results.
 - run_with_verification: Execute a worker then verify via an adversarial verifier, retrying on failure.
 - VerificationVerdict: Parsed verdict from a Verifier agent's structured JSON output.
@@ -38,6 +39,7 @@ from myrm_agent_harness.agent.sub_agents.types import (
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
+from ._orchestrator_council import run_council
 from ._orchestrator_verification import VerificationVerdict, run_with_verification
 
 if TYPE_CHECKING:
@@ -599,6 +601,7 @@ __all__ = [
     "execute_dag_plan",
     "run_alternatives",
     "run_chain",
+    "run_council",
     "run_with_verification",
     "wait_children",
 ]

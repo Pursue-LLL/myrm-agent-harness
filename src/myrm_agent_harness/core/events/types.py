@@ -147,6 +147,7 @@ class AgentEventType(StrEnum):
     BROWSER_TAKEOVER_COMPLETED = "browser_takeover_completed"
     CORRECTION_LEARNED = "correction_learned"
     VERIFICATION_VERDICT = "verification_verdict"
+    COUNCIL_PHASE = "council_phase"
 
 
 @dataclass

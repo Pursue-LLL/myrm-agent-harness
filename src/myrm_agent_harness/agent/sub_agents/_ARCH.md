@@ -17,15 +17,16 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | executor.py | Core | Subagent executor. Runs child agents with retry, workspace isolation, event handling, cascade cancellation, manifest-scoped delegation tools, taint propagation with inbound security warnings, approval deadlock protection, error compaction (`_compact_error_message` — head+marker+tail truncation prevents context pollution), and conclusion-oriented fork context filtering (`_filter_fork_messages` + `max_fork_tokens` truncation). | ✅ |
 | manager.py | Core | Subagent lifecycle manager. Core state tracking, validation, cleanup, capacity, and observability. Inherits spawn/execution from `_manager_spawn` and control operations from `_manager_control`. | ✅ |
 | _manager_spawn.py | Internal | Spawn and execution mixin for SubagentManager (`_run_subagent*`, `spawn_child`). | ✅ |
-| _manager_control.py | Internal | Control plane mixin for SubagentManager (`cancel_child`, `steer_child`, `list_children`, `wait_children`, `drain_notifications`, `run_alternatives`, `run_chain`, `run_with_verification`). | ✅ |
+| _manager_control.py | Internal | Control plane mixin for SubagentManager (`cancel_child`, `steer_child`, `list_children`, `wait_children`, `drain_notifications`, `run_alternatives`, `run_chain`, `run_council`, `run_with_verification`). | ✅ |
 | notifications.py | Core | Push-based notification formatting for subagent completion events and active subagent context injection. | ✅ |
 | SUBAGENT_NOTIFICATION_STRATEGY.md | L2 | Subagent push notification strategy and context injection design | — |
-| orchestrator.py | Core | Subagent composition patterns — chain, batch, alternatives, and DAG execution (with Declarative Dependency Context Filtering, Auto-Vaulting, Swarm Fission yield-resume, and `run_alternatives` for parallel multi-solution generation with deferred workspace merge). Delegates verification to `_orchestrator_verification`. | ✅ |
+| orchestrator.py | Core | Subagent composition patterns — chain, batch, alternatives, council, and DAG execution (with Declarative Dependency Context Filtering, Auto-Vaulting, Swarm Fission yield-resume, `run_alternatives` for parallel multi-solution generation with deferred workspace merge, and `run_council` for multi-expert cross-review). Delegates verification to `_orchestrator_verification` and council to `_orchestrator_council`. | ✅ |
+| _orchestrator_council.py | Internal | Council orchestration — multi-expert parallel analysis with cross-review debate and chair synthesis, COUNCIL_PHASE event emission. | ✅ |
 | _orchestrator_verification.py | Internal | Adversarial verification orchestration — Worker -> Verifier -> Retry loop with structured verdict parsing, ReadonlyExecutorProxy sandboxing, workspace diff injection, and VERIFICATION_VERDICT event emission. | ✅ |
 | _workspace_diff.py | Internal | Lightweight stat-based workspace file change detection for adversarial verification diff injection. | ✅ |
 | prompts.py | Core | Default prompt templates for multi-agent coordination. | ✅ |
 | registry.py | Core | Subagent configuration registry and loader. Provides global config registration and lookup. | ✅ |
-| types.py | Config | Subagent subsystem core type definitions. Defines all subagent-related data types, enums, protocols, DelegationCapabilityManifest, and SubagentConfig (including `max_error_chars` for error compaction control). | ✅ |
+| types.py | Config | Subagent subsystem core type definitions. Defines all subagent-related data types, enums, protocols, DelegationCapabilityManifest, SubagentConfig (including `max_error_chars` for error compaction control), CouncilOpinion, and CouncilResult. | ✅ |
 | workspace_isolation.py | Core | Workspace isolation for subagent execution. COW clone with ignore-pattern filtering (node_modules, .git, dist, etc.), max_bytes safety guard, and efficient file counting. | ✅ |
 
 | Submodule | Description |

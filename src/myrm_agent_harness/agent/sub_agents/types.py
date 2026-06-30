@@ -6,6 +6,8 @@ Self-update note: when this file changes, update its INPUT/OUTPUT/POS comments.
 - utils.token_tracker::TokenUsage (POS: Token usage tracking type for prompt/completion/total tokens)
 
 [OUTPUT]
+- CouncilOpinion: Single expert opinion from one council round.
+- CouncilResult: Structured result from a council orchestration session.
 - SubAgentStatus: Subagent lifecycle status enum.
 - SubagentBudgetExceededError: Subagent budget overrun exception.
 - CancellationStrategy: Cancellation strategy enum.
@@ -96,6 +98,59 @@ class SubAgentStatus(StrEnum):
     PENDING_APPROVAL = "pending_approval"
     YIELDED = "yielded"
     INTERRUPTED = "interrupted"
+
+
+@dataclass(frozen=True, slots=True)
+class CouncilOpinion:
+    """A single expert's opinion from one round of a council session."""
+
+    expert_id: str
+    agent_type: str
+    round_num: int
+    content: str
+    success: bool
+    duration_seconds: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class CouncilResult:
+    """Structured result from a council orchestration session.
+
+    Captures consensus points, divergences, and the chair's synthesis
+    across multiple rounds of independent analysis and cross-review.
+    """
+
+    success: bool
+    synthesis: str
+    consensus_points: tuple[str, ...] = ()
+    divergences: tuple[str, ...] = ()
+    action_items: tuple[str, ...] = ()
+    opinions: tuple[CouncilOpinion, ...] = ()
+    rounds_completed: int = 0
+    total_duration_seconds: float = 0.0
+    error: str = ""
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "success": self.success,
+            "synthesis": self.synthesis,
+            "consensus_points": list(self.consensus_points),
+            "divergences": list(self.divergences),
+            "action_items": list(self.action_items),
+            "rounds_completed": self.rounds_completed,
+            "total_duration_seconds": round(self.total_duration_seconds, 3),
+            "opinions": [
+                {
+                    "expert_id": o.expert_id,
+                    "agent_type": o.agent_type,
+                    "round_num": o.round_num,
+                    "content": o.content[:500],
+                    "success": o.success,
+                }
+                for o in self.opinions
+            ],
+            **({"error": self.error} if self.error else {}),
+        }
 
 
 class SubagentBudgetExceededError(Exception):
