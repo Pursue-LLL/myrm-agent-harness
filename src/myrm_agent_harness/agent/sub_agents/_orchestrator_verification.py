@@ -4,14 +4,17 @@ Worker -> Verifier -> Retry loop with structured verdict parsing.
 
 [INPUT]
 - agent.sub_agents.types::SubagentConfig, SubAgentResult, SubAgentStatus, WorkspacePolicy
+- agent.sub_agents._workspace_diff::take_workspace_snapshot, diff_snapshots (POS: Workspace diff for adversarial verification)
 - toolkits.code_execution (POS: executor proxies for sandboxed verification)
+- core.events.types::AgentEventType (POS: Streaming event types — VERIFICATION_VERDICT)
+- utils.runtime.progress_sink::get_tool_progress_sink (POS: SSE event emission sink)
 
 [OUTPUT]
 - VerificationVerdict: Parsed verdict from a Verifier agent's structured JSON output.
-- run_with_verification: Execute a worker then verify via adversarial verifier.
+- run_with_verification: Execute a worker then verify via adversarial verifier with workspace diff injection and verdict event emission.
 
 [POS]
-Adversarial verification orchestration — Worker -> Verifier -> Retry loop.
+Adversarial verification orchestration — Worker -> Verifier -> Retry loop with workspace diff injection and structured verdict events.
 """
 
 from __future__ import annotations
@@ -26,6 +29,10 @@ from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool
 
+from myrm_agent_harness.agent.sub_agents._workspace_diff import (
+    diff_snapshots,
+    take_workspace_snapshot,
+)
 from myrm_agent_harness.agent.sub_agents.types import (
     SubagentConfig,
     SubAgentResult,
@@ -132,6 +139,47 @@ def _parse_verdict(raw_result: str) -> VerificationVerdict:
     )
 
 
+async def _emit_verification_verdict(
+    *,
+    verdict: VerificationVerdict,
+    round_num: int,
+    max_rounds: int,
+    worker_type: str,
+    verifier_type: str,
+    has_diff: bool,
+) -> None:
+    """Emit a VERIFICATION_VERDICT event via the active ToolProgressSink."""
+    from myrm_agent_harness.core.events.types import AgentEventType
+    from myrm_agent_harness.utils.runtime.progress_sink import get_tool_progress_sink
+
+    sink = get_tool_progress_sink()
+    if not sink:
+        return
+
+    findings_brief = [
+        {"severity": f.get("severity", "UNKNOWN"), "description": f.get("description", "")[:200]}
+        for f in verdict.findings[:5]
+    ]
+
+    try:
+        await sink.emit({
+            "type": AgentEventType.VERIFICATION_VERDICT.value,
+            "data": {
+                "passed": verdict.passed,
+                "summary": verdict.summary[:500],
+                "confidence": verdict.confidence,
+                "round": round_num,
+                "max_rounds": max_rounds,
+                "worker_type": worker_type,
+                "verifier_type": verifier_type,
+                "has_workspace_diff": has_diff,
+                "findings": findings_brief,
+            },
+        })
+    except Exception as exc:
+        logger.debug("[verification] Failed to emit VERIFICATION_VERDICT event: %s", exc)
+
+
 async def run_with_verification(
     manager: SubagentManager,
     worker_type: str,
@@ -165,6 +213,8 @@ async def run_with_verification(
     )
     verdict = None
 
+    workspace_path = context.get("workspace_path")
+
     for round_idx in range(max_rounds):
         round_num = round_idx + 1
         worker_task_id = f"verify-worker-{round_num}-{worker_type}"
@@ -175,6 +225,14 @@ async def run_with_verification(
             max_rounds,
             worker_type,
         )
+
+        pre_snapshot: dict[str, tuple[float, int]] = {}
+        if workspace_path and isinstance(workspace_path, str):
+            try:
+                pre_snapshot = take_workspace_snapshot(workspace_path)
+            except Exception as exc:
+                logger.debug("[verification] Pre-snapshot failed: %s", exc)
+
         worker_result = await manager.spawn_child(
             task_id=worker_task_id,
             agent_type=worker_type,
@@ -205,6 +263,14 @@ async def run_with_verification(
 
         verifier_task_id = f"verify-check-{round_num}-{verifier_type}"
 
+        workspace_diff = ""
+        if pre_snapshot and workspace_path and isinstance(workspace_path, str):
+            try:
+                post_snapshot = take_workspace_snapshot(workspace_path)
+                workspace_diff = diff_snapshots(pre_snapshot, post_snapshot)
+            except Exception as exc:
+                logger.debug("[verification] Post-snapshot diff failed: %s", exc)
+
         base_desc = (
             "You are an Adversarial Sandbox Verifier.\n"
             "Verify the following work output by strictly applying your verification protocol.\n\n"
@@ -215,6 +281,14 @@ async def run_with_verification(
             "3. A 'PASS' verdict without execution evidence will be REJECTED by the system. "
             "The system tracks your execution at the OS level, so you cannot fake it by just writing 'STDOUT'.\n\n"
         )
+
+        if workspace_diff:
+            base_desc += (
+                f"{workspace_diff}\n\n"
+                "IMPORTANT: Review ALL files listed above, not just those mentioned in the Worker Output. "
+                "Files modified but not reported by the worker may contain unintended side effects.\n\n"
+            )
+
         if verifier_task_template:
             if "{worker_result}" in verifier_task_template:
                 verifier_task_desc = base_desc + verifier_task_template.replace("{worker_result}", worker_result.result)
@@ -287,11 +361,14 @@ async def run_with_verification(
             ReadonlyExecutorProxy,
         )
 
-        if round_verifier_config.workspace_policy == WorkspacePolicy.READ_ONLY_SANDBOX:
-            current_executor = get_executor()
-            if current_executor:
-                proxy_executor = ReadonlyExecutorProxy(current_executor)
-                with ExecutorContextManager(proxy_executor):
+        current_executor = get_executor()
+        use_readonly = round_verifier_config.workspace_policy == WorkspacePolicy.READ_ONLY_SANDBOX
+
+        if current_executor:
+            proxy_executor = ReadonlyExecutorProxy(current_executor) if use_readonly else None
+            ctx_mgr = ExecutorContextManager(proxy_executor) if proxy_executor else None
+            if ctx_mgr:
+                with ctx_mgr:
                     verifier_result = await manager.spawn_child(
                         task_id=verifier_task_id,
                         agent_type=verifier_type,
@@ -301,9 +378,7 @@ async def run_with_verification(
                         tool_registry_getter=verifier_tool_registry_getter,
                         wait=True,
                     )
-                context["_verifier_has_executed_code"] = proxy_executor.has_executed_code
             else:
-                logger.warning("[verification] No current executor found, cannot apply READ_ONLY_SANDBOX")
                 verifier_result = await manager.spawn_child(
                     task_id=verifier_task_id,
                     agent_type=verifier_type,
@@ -313,7 +388,11 @@ async def run_with_verification(
                     tool_registry_getter=verifier_tool_registry_getter,
                     wait=True,
                 )
+            tracked_executor = proxy_executor or current_executor
+            context["_verifier_has_executed_code"] = getattr(tracked_executor, "has_executed_code", False)
         else:
+            if use_readonly:
+                logger.warning("[verification] No current executor found, cannot apply READ_ONLY_SANDBOX")
             verifier_result = await manager.spawn_child(
                 task_id=verifier_task_id,
                 agent_type=verifier_type,
@@ -361,27 +440,35 @@ async def run_with_verification(
                 verdict.summary,
             )
 
-        if round_verifier_config.workspace_policy == WorkspacePolicy.READ_ONLY_SANDBOX:
-            has_executed = context.get("_verifier_has_executed_code", False)
-            if verdict.passed and not has_executed:
-                logger.warning(
-                    "[verification] Round %d — Verifier granted PASS but did not execute any code. Rejecting verdict.",
-                    round_num,
-                )
-                msg = (
-                    "FAIL: Validation rejected. System detected that you did not execute any code. "
-                    "You MUST use bash or python tools to run tests and observe actual STDOUT/STDERR "
-                    "before granting a PASS."
-                )
-                verdict = dataclasses.replace(
-                    verdict,
-                    passed=False,
-                    summary=msg,
-                    raw=f"{verdict.raw}\n\n{msg}",
-                )
+        has_executed = context.get("_verifier_has_executed_code", False)
+        if verdict.passed and not has_executed:
+            logger.warning(
+                "[verification] Round %d — Verifier granted PASS but did not execute any code. Rejecting verdict.",
+                round_num,
+            )
+            msg = (
+                "FAIL: Validation rejected. System detected that you did not execute any code. "
+                "You MUST use bash or python tools to run tests and observe actual STDOUT/STDERR "
+                "before granting a PASS."
+            )
+            verdict = dataclasses.replace(
+                verdict,
+                passed=False,
+                summary=msg,
+                raw=f"{verdict.raw}\n\n{msg}",
+            )
 
         context.pop("_verifier_verdict", None)
         context.pop("_verifier_has_executed_code", None)
+
+        await _emit_verification_verdict(
+            verdict=verdict,
+            round_num=round_num,
+            max_rounds=max_rounds,
+            worker_type=worker_type,
+            verifier_type=verifier_type,
+            has_diff=bool(workspace_diff),
+        )
 
         if verdict.passed:
             last_worker_result.result = (

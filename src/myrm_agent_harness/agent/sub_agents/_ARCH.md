@@ -21,7 +21,8 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | notifications.py | Core | Push-based notification formatting for subagent completion events and active subagent context injection. | ✅ |
 | SUBAGENT_NOTIFICATION_STRATEGY.md | L2 | Subagent push notification strategy and context injection design | — |
 | orchestrator.py | Core | Subagent composition patterns — chain, batch, alternatives, and DAG execution (with Declarative Dependency Context Filtering, Auto-Vaulting, Swarm Fission yield-resume, and `run_alternatives` for parallel multi-solution generation with deferred workspace merge). Delegates verification to `_orchestrator_verification`. | ✅ |
-| _orchestrator_verification.py | Internal | Adversarial verification orchestration — Worker -> Verifier -> Retry loop with structured verdict parsing and ReadonlyExecutorProxy sandboxing. | ✅ |
+| _orchestrator_verification.py | Internal | Adversarial verification orchestration — Worker -> Verifier -> Retry loop with structured verdict parsing, ReadonlyExecutorProxy sandboxing, workspace diff injection, and VERIFICATION_VERDICT event emission. | ✅ |
+| _workspace_diff.py | Internal | Lightweight stat-based workspace file change detection for adversarial verification diff injection. | ✅ |
 | prompts.py | Core | Default prompt templates for multi-agent coordination. | ✅ |
 | registry.py | Core | Subagent configuration registry and loader. Provides global config registration and lookup. | ✅ |
 | types.py | Config | Subagent subsystem core type definitions. Defines all subagent-related data types, enums, protocols, DelegationCapabilityManifest, and SubagentConfig (including `max_error_chars` for error compaction control). | ✅ |
