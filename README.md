@@ -323,7 +323,7 @@ myrm-agent-harness/          # 本仓库根（示意）
 |------|------|------|----------------|
 | **Core** | `code_execution`, `storage`, `mcp`, `context_bundle`, `llms`, `memory`, `network`, `retriever`, `web_search`, `web_fetch`, `vector`, `file_parsers` | Agent 运行时基础能力；PDF（pdfplumber）、HTML（bs4/lxml）等已在主依赖 | `[file-parsers]` 补 Office（docx/xlsx/pptx）与 pypdfium2；`retrieval`, `qdrant`, `web` 增强子能力 |
 | **Integrations** | `browser`, `computer_use`, `acp`, `openapi_bridge`, `vision`, `tts` | 外部系统/协议集成，按需安装 | `browser`, `computer-use`, `image-processing`, `observability` |
-| **Product-adjacent** | `kanban`, `cron`, `automation`, `wiki`, `tasks`, `workspace`, `interaction`, `security` | 通用 Protocol 实现，零 `agent/` 依赖；Myrm 产品默认启用，第三方可按需选用 | 多数无 extra |
+| **Product-adjacent** | `kanban`, `cron`, `automation`, `wiki`, `tasks`, `workspace`, `security` | 通用 Protocol 实现，零 `agent/` 依赖；Myrm 产品默认启用，第三方可按需选用 | 多数无 extra |
 
 框架层模块（非 toolkits）：`api/`（公开入口）、`agent/`、`runtime/`、`core/`、`infra/`、`backends/`、`eval/`、`utils/`。
 

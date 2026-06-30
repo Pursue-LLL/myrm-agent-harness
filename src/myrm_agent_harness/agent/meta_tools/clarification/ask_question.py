@@ -1,4 +1,4 @@
-"""Structured clarification form schemas for agent-user interaction.
+"""Structured clarification form schemas for agent HITL.
 
 [INPUT]
 - None
@@ -7,8 +7,7 @@
 - AskQuestionInput, QuestionItem, OptionItem: Pydantic schemas for structured forms.
 
 [POS]
-Framework-agnostic schema SSOT for HITL clarification. LangChain adapters live in
-interaction_agent_tools.py.
+Schema SSOT for ask_question_tool. LangChain adapter lives in clarification_agent_tools.py.
 """
 
 from pydantic import BaseModel, Field

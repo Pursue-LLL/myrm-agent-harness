@@ -56,7 +56,7 @@ is an adapter, not the toolkit itself. Examples: `wiki/wiki_agent_tools.py`,
 **Rule of thumb:** engine + persistence + Protocol in `toolkits/` (exported from `__init__.py`);
 LangChain adapter is optional and secondary. Wrappers that must read `agent/` session state belong in `agent/meta_tools/`.
 
-Current `*_agent_tools.py` modules (all compliant): `acp/`, `computer_use/`, `cron/`, `interaction/`, `kanban/`, `memory/`, `web_fetch/`, `web_search/`, `wiki/`.
+Current `*_agent_tools.py` modules (all compliant): `acp/`, `computer_use/`, `cron/`, `kanban/`, `memory/`, `web_fetch/`, `web_search/`, `wiki/`.
 
 ### Naming disambiguation: `mcp/agent.py`
 
@@ -88,10 +88,10 @@ Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
 | **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP |
 | **Workspace** | `browser/`, `computer_use/`, `filesystem_suggest/`, `context_bundle/`, `file_parsers/`, `wiki/` | Files, browser, desktop, @-mention path suggest |
 | **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/` | External APIs, agent protocols |
-| **Collaboration & Media** | `kanban/`, `tasks/`, `cron/`, `interaction/` | Scheduling (incl. event/webhook triggers), tasks, user interaction primitives |
+| **Collaboration & Media** | `kanban/`, `tasks/`, `cron/` | Scheduling (incl. event/webhook triggers), tasks |
 | **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |
 
-Agent runtime-bound tool wrappers (e.g. `render_ui_tool`, `planner_tool`) live in `agent/meta_tools/`, not here. Optional LangChain adapters (`*_agent_tools.py`) that do not import `agent/` may stay in `toolkits/` as a secondary export — see § `*_agent_tools.py` naming convention.
+Agent runtime-bound tool wrappers (e.g. `ask_question_tool`, `render_ui_tool`, `planner_tool`) live in `agent/meta_tools/`, not here. Optional LangChain adapters (`*_agent_tools.py`) that do not import `agent/` may stay in `toolkits/` as a secondary export — see § `*_agent_tools.py` naming convention.
 
 ### Top-level directory hygiene
 
@@ -159,7 +159,6 @@ Does your code need to import anything from agent/?
 | cron/ | Scheduled task framework — scheduling engine, CRUD manager, built-in strategies. |
 | context_bundle/ | Unified context bundle — volume layout, facade, index/lifecycle hook registration. |
 | file_parsers/ | File format parsers — PDF, DOCX, Excel, text, and structured data extraction. |
-| interaction/ | User interaction primitives — AskQuestion schemas via `interaction_agent_tools.py` (UI rendering: `agent/meta_tools/interaction/`) |
 | kanban/ | Durable multi-task scheduling — heartbeat, zombie detection, run/event audit trail. |
 | llms/ | LLM manager and adapters — 100+ provider support, citation extraction, image/video/tts generation and vision understanding (`llms/vision/`). |
 | mcp/ | MCP protocol support — client management, tool fetching, connection pooling. |

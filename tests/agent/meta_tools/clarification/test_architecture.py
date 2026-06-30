@@ -1,4 +1,4 @@
-"""Architecture guard: interaction schemas stay free of LangChain adapters."""
+"""Architecture guard: clarification schemas stay free of LangChain adapters."""
 
 from __future__ import annotations
 
@@ -22,11 +22,12 @@ def _collect_import_modules(py_file: Path) -> list[str]:
 
 def test_ask_question_schema_has_no_langchain_imports() -> None:
     schema_path = (
-        Path(__file__).resolve().parents[3]
+        Path(__file__).resolve().parents[4]
         / "src"
         / "myrm_agent_harness"
-        / "toolkits"
-        / "interaction"
+        / "agent"
+        / "meta_tools"
+        / "clarification"
         / "ask_question.py"
     )
     for module in _collect_import_modules(schema_path):

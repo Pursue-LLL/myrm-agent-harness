@@ -7,7 +7,7 @@ Contains the clarification phase and research agent dispatch logic.
 - helpers (POS: DeepResearchResult, utilities)
 - prompts (POS: prompt templates)
 - tools (POS: tool schemas)
-- toolkits.interaction (POS: structured clarification)
+- meta_tools.clarification (POS: structured clarification)
 
 [OUTPUT]
 - DeepResearchPhasesMixin: Mixin providing _phase_clarify and _dispatch_research_agents.
@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 from myrm_agent_harness.agent.streaming.types import AgentEventType
-from myrm_agent_harness.toolkits.interaction import AskQuestionInput, QuestionItem
+from myrm_agent_harness.agent.meta_tools.clarification import AskQuestionInput, QuestionItem
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .helpers import (

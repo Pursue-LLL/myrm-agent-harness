@@ -5,7 +5,7 @@
 - config::DeepResearchConfig, DeepResearchPhase (POS: configuration & phase enum)
 - prompts (POS: prompt templates for each phase)
 - tools (POS: orchestrator meta-tool schemas & names)
-- toolkits.interaction::AskQuestionInput, QuestionItem (POS: structured user clarification forms)
+- meta_tools.clarification::AskQuestionInput, QuestionItem (POS: structured user clarification forms)
 - agent.types::AgentEventType (POS: event types)
 - agent.sub_agents.builder::build_standalone_agent, filter_tools (POS: agent construction)
 - utils.runtime.cancellation::CancellationToken (POS: cooperative cancellation)
@@ -73,7 +73,7 @@ if TYPE_CHECKING:
 
     from langchain_core.tools import BaseTool
 
-    from myrm_agent_harness.toolkits.interaction import AskQuestionInput
+    from myrm_agent_harness.agent.meta_tools.clarification import AskQuestionInput
     from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
     from .config import PhaseGuidance

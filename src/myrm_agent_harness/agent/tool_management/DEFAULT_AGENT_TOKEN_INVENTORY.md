@@ -88,7 +88,7 @@
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
-| 26 | ask_question_tool | 98 | `harness/toolkits/interaction/interaction_agent_tools.py` | 向用户提出结构化澄清问题，单轮仅可调用一次 | enable_ask_question=True |
+| 26 | ask_question_tool | 98 | `harness/agent/meta_tools/clarification/clarification_agent_tools.py` | 向用户提出结构化澄清问题，单轮仅可调用一次 | enable_ask_question=True |
 | 27 | render_ui_tool | 1,254 | `harness/agent/meta_tools/interaction/render_ui_tool.py` | 交互式 UI 渲染（表单/卡片/表格） | enable_render_ui=True |
 
 ### 4.6 子 Agent 委托工具（有子 Agent 配置时加载）

@@ -1,13 +1,13 @@
 import pytest
 from pydantic import ValidationError
 
-from myrm_agent_harness.toolkits.interaction.interaction_agent_tools import (
-    AskQuestionTool,
-)
-from myrm_agent_harness.toolkits.interaction.ask_question import (
+from myrm_agent_harness.agent.meta_tools.clarification.ask_question import (
     AskQuestionInput,
     OptionItem,
     QuestionItem,
+)
+from myrm_agent_harness.agent.meta_tools.clarification.clarification_agent_tools import (
+    AskQuestionTool,
 )
 
 

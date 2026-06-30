@@ -31,7 +31,7 @@ from myrm_agent_harness.agent.deep_research.helpers import (
 )
 from myrm_agent_harness.agent.deep_research.orchestrator import DeepResearchOrchestrator
 from myrm_agent_harness.agent.streaming.types import AgentEventType
-from myrm_agent_harness.toolkits.interaction import AskQuestionInput
+from myrm_agent_harness.agent.meta_tools.clarification import AskQuestionInput
 
 if TYPE_CHECKING:
     pass

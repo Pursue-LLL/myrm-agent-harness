@@ -1,14 +1,14 @@
-"""LangChain adapters for user interaction primitives.
+"""LangChain adapter for ask_question HITL clarification.
 
 [INPUT]
-- ask_question::AskQuestionInput (POS: structured clarification form schema)
+- clarification.ask_question::AskQuestionInput (POS: structured clarification form schema)
 
 [OUTPUT]
 - AskQuestionTool: LangChain tool for structured user clarification.
-- create_ask_question_tool: Factory binding a runtime callback to AskQuestionTool.
+- create_ask_question_tool: Factory binding a runtime HITL callback to AskQuestionTool.
 
 [POS]
-Optional LangChain adapter layer per toolkits/_ARCH.md. Schemas remain in ask_question.py.
+Agent meta-tool adapter for clarification forms. Runtime interrupt binding is injected by server.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from collections.abc import Awaitable, Callable
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, PrivateAttr
 
-from myrm_agent_harness.toolkits.interaction.ask_question import AskQuestionInput
+from myrm_agent_harness.agent.meta_tools.clarification.ask_question import AskQuestionInput
 
 
 class AskQuestionTool(BaseTool):
