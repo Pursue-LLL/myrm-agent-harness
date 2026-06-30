@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from myrm_agent_harness.toolkits.memory.session import MemorySession
+    from myrm_agent_harness.toolkits.memory.strategies.consolidation import ConflictCallback
     from myrm_agent_harness.toolkits.memory.strategies.preference_stability_store import PreferenceFacetStoreProtocol
     from myrm_agent_harness.toolkits.memory.types import MemorySearchResult
     FTS5SearcherFunc = Callable[[str, int], Awaitable[list[MemorySearchResult]]]
@@ -62,6 +63,7 @@ class MemoryManagerCore:
         "_maintenance_service",
         "_memory_policy",
         "_namespaces",
+        "_on_conflict",
         "_preference_strategy",
         "_recall_mode",
         "_recurrence_detector",
@@ -98,10 +100,12 @@ class MemoryManagerCore:
         memory_policy: AgentMemoryPolicy | None = None,
         recall_mode: RecallMode = RecallMode.HYBRID,
         preference_facet_store: PreferenceFacetStoreProtocol | None = None,
+        on_conflict: ConflictCallback | None = None,
     ) -> None:
         self._user_id = user_id
         self._recall_mode = recall_mode
         self._memory_policy = memory_policy
+        self._on_conflict = on_conflict
         self._namespaces = derive_namespaces(
             namespaces=namespaces,
             agent_id=agent_id,

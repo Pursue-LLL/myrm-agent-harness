@@ -21,6 +21,7 @@ import os
 import re
 from urllib.parse import urlparse
 
+from myrm_agent_harness.agent.security.path_security import is_sensitive_file
 from myrm_agent_harness.agent.security.types import PathPolicy, PermissionAction
 
 # ---------------------------------------------------------------------------
@@ -54,14 +55,23 @@ def check_path_policy(raw_path: str, policy: PathPolicy, workspace_root: str | N
         if _is_subpath(normalized, _normalize_path(fp)):
             return PermissionAction.DENY, f"Path in forbidden zone: {raw_path}"
 
+    in_allowed_zone = False
+
     for ar in policy.allowed_roots:
         if _is_subpath(normalized, _normalize_path(ar)):
-            return PermissionAction.ALLOW, ""
+            in_allowed_zone = True
+            break
 
-    if workspace_root and _is_subpath(normalized, _normalize_path(workspace_root)):
-        return PermissionAction.ALLOW, ""
+    if not in_allowed_zone and workspace_root and _is_subpath(normalized, _normalize_path(workspace_root)):
+        in_allowed_zone = True
 
-    return PermissionAction.ASK, f"Path outside allowed zones: {raw_path}"
+    if not in_allowed_zone:
+        return PermissionAction.ASK, f"Path outside allowed zones: {raw_path}"
+
+    if is_sensitive_file(raw_path):
+        return PermissionAction.ASK, f"Sensitive file: {os.path.basename(raw_path)}"
+
+    return PermissionAction.ALLOW, ""
 
 
 # ---------------------------------------------------------------------------

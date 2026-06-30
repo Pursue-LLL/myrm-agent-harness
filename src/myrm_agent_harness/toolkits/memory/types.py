@@ -80,6 +80,20 @@ class ClaimConflictState(StrEnum):
     CONFLICTED = "conflicted"
 
 
+class ConflictResolution(StrEnum):
+    """Resolution action for a detected memory contradiction.
+
+    Used by the consolidation conflict callback to communicate
+    the user's decision back to the framework.
+    """
+
+    KEEP_OLD = "keep_old"
+    KEEP_NEW = "keep_new"
+    MERGE = "merge"
+    DISCARD_BOTH = "discard_both"
+    PENDING = "pending"
+
+
 class ToolRulePriority(StrEnum):
     """Priority level for tool-scoped procedural rules.
 
@@ -502,10 +516,12 @@ class MemorySearchResult(BaseModel):
 
 
 class PendingRecord(BaseModel):
-    """A memory awaiting user approval.
+    """A memory awaiting user approval or conflict resolution.
 
     Stores the original memory object as JSON so it can be fully
     reconstructed on approval without information loss.
+    When ``is_conflict`` is True, the record represents a detected memory
+    contradiction that requires user arbitration before automatic merging.
     """
 
     id: str = Field(default_factory=lambda: str(uuid4()))
@@ -516,9 +532,16 @@ class PendingRecord(BaseModel):
     )
     source_chat_id: str | None = None
     source_message_id: str | None = None
-    status: Literal["pending", "approved", "rejected"] = "pending"
+    status: Literal["pending", "approved", "rejected", "resolved"] = "pending"
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     resolved_at: datetime | None = None
+
+    is_conflict: bool = False
+    conflict_old_memory_id: str | None = None
+    conflict_old_content: str | None = None
+    conflict_accuracy_score: float | None = None
+    conflict_importance: float | None = None
+    conflict_auto_resolve_at: datetime | None = None
 
 
 # ── Type aliases ────────────────────────────────────────────────────

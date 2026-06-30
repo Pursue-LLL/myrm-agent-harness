@@ -120,7 +120,9 @@ class MemoryManagerStorageMixin:
             assert self._consolidation_llm is not None
             if not await should_consolidate(self, cfg):
                 return
-            await run_consolidation(self, self._consolidation_llm, cfg)
+            await run_consolidation(
+                self, self._consolidation_llm, cfg, on_conflict=self._on_conflict,
+            )
             self._stores_since_consolidation = 0
         except Exception as e:
             logger.warning("Background consolidation failed (non-fatal): %s", e)

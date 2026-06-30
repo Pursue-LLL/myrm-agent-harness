@@ -404,7 +404,7 @@ def create_memory_tools(manager: MemoryManager, recall_mode: RecallMode = Recall
 
             return f"Unknown category: {category}"
         except Exception as e:
-            logger.warning(f"memory_save failed: {e}")
+            logger.warning("memory_save failed: %s", e)
             return f"Failed to store memory: {e}"
 
     tools.append(memory_save)
@@ -508,7 +508,7 @@ def create_memory_tools(manager: MemoryManager, recall_mode: RecallMode = Recall
 
             return f"Unknown action: {action}"
         except Exception as e:
-            logger.warning(f"memory_manage failed: {e}")
+            logger.warning("memory_manage failed: %s", e)
             return f"Failed to manage memory: {e}"
 
     tools.append(memory_manage)

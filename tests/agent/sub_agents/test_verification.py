@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import FrozenInstanceError
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -14,6 +14,16 @@ from myrm_agent_harness.agent.sub_agents._orchestrator_verification import (
     run_with_verification,
 )
 from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, SubAgentResult, SubAgentStatus
+
+
+_GET_EXECUTOR_PATH = "myrm_agent_harness.toolkits.code_execution.executors.base.get_executor"
+
+
+def _mock_executor(*, has_executed: bool = True) -> MagicMock:
+    """Create a mock executor that reports code execution status."""
+    executor = MagicMock()
+    executor.has_executed_code = has_executed
+    return executor
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -185,7 +195,9 @@ class TestParseVerdict:
 
 class TestRunWithVerification:
     @pytest.mark.asyncio
-    async def test_pass_on_first_round(self):
+    @patch(_GET_EXECUTOR_PATH)
+    async def test_pass_on_first_round(self, mock_get_executor):
+        mock_get_executor.return_value = _mock_executor(has_executed=True)
         mgr = MagicMock()
         calls: list[str] = []
 
@@ -209,7 +221,9 @@ class TestRunWithVerification:
         assert len(calls) == 2  # 1 worker + 1 verifier
 
     @pytest.mark.asyncio
-    async def test_fail_then_pass_on_retry(self):
+    @patch(_GET_EXECUTOR_PATH)
+    async def test_fail_then_pass_on_retry(self, mock_get_executor):
+        mock_get_executor.return_value = _mock_executor(has_executed=True)
         mgr = MagicMock()
         round_counter = {"worker": 0, "verifier": 0}
 
@@ -325,7 +339,9 @@ class TestRunWithVerification:
         assert "FAIL after 1 round(s)" in result.result
 
     @pytest.mark.asyncio
-    async def test_custom_verifier_task_template(self):
+    @patch(_GET_EXECUTOR_PATH)
+    async def test_custom_verifier_task_template(self, mock_get_executor):
+        mock_get_executor.return_value = _mock_executor(has_executed=True)
         mgr = MagicMock()
         captured_desc: list[str] = []
 
@@ -349,7 +365,9 @@ class TestRunWithVerification:
         assert "CHECK THIS: my-output" in captured_desc[1]
 
     @pytest.mark.asyncio
-    async def test_retry_feedback_contains_findings(self):
+    @patch(_GET_EXECUTOR_PATH)
+    async def test_retry_feedback_contains_findings(self, mock_get_executor):
+        mock_get_executor.return_value = _mock_executor(has_executed=True)
         mgr = MagicMock()
         worker_tasks: list[str] = []
 
@@ -377,7 +395,9 @@ class TestRunWithVerification:
         assert "original task" in worker_tasks[1]
 
     @pytest.mark.asyncio
-    async def test_dict_return_from_spawn_child(self):
+    @patch(_GET_EXECUTOR_PATH)
+    async def test_dict_return_from_spawn_child(self, mock_get_executor):
+        mock_get_executor.return_value = _mock_executor(has_executed=True)
         mgr = MagicMock()
 
         async def _spawn(**kwargs):
@@ -416,7 +436,9 @@ class TestRunWithVerification:
         assert not result.success
 
     @pytest.mark.asyncio
-    async def test_verification_metadata_in_pass_result(self):
+    @patch(_GET_EXECUTOR_PATH)
+    async def test_verification_metadata_in_pass_result(self, mock_get_executor):
+        mock_get_executor.return_value = _mock_executor(has_executed=True)
         mgr = MagicMock()
 
         async def _spawn(**kwargs):
@@ -439,8 +461,10 @@ class TestRunWithVerification:
         assert "confidence=MEDIUM" in result.result
 
     @pytest.mark.asyncio
-    async def test_tool_call_verdict_used_when_present(self):
+    @patch(_GET_EXECUTOR_PATH)
+    async def test_tool_call_verdict_used_when_present(self, mock_get_executor):
         """When verifier sets _verifier_verdict via tool call, it takes precedence over text parsing."""
+        mock_get_executor.return_value = _mock_executor(has_executed=True)
         mgr = MagicMock()
 
         async def _spawn(**kwargs):
@@ -467,6 +491,31 @@ class TestRunWithVerification:
         )
         assert result.success
         assert "PASS" in result.result
+
+    @pytest.mark.asyncio
+    @patch(_GET_EXECUTOR_PATH)
+    async def test_no_execution_rejects_pass_verdict(self, mock_get_executor):
+        """Verifier that submits PASS without executing code should be rejected."""
+        mock_get_executor.return_value = _mock_executor(has_executed=False)
+        mgr = MagicMock()
+
+        async def _spawn(**kwargs):
+            if "worker" in kwargs["task_id"]:
+                return _ok(kwargs["task_id"], kwargs["agent_type"], "work done")
+            return _ok(kwargs["task_id"], kwargs["agent_type"],
+                       _verdict_json("PASS", "Looks good STDOUT", "HIGH"))
+
+        mgr.spawn_child = _spawn
+        w_cfg = SubagentConfig(system_prompt="worker")
+        v_cfg = SubagentConfig(system_prompt="verifier")
+
+        result = await run_with_verification(
+            mgr, worker_type="w", worker_config=w_cfg, worker_task="do work",
+            verifier_type="v", verifier_config=v_cfg, context={},
+            tool_registry_getter=lambda: [], max_rounds=1,
+        )
+        assert not result.success
+        assert "did not execute any code" in result.result
 
     @pytest.mark.asyncio
     async def test_verification_metadata_in_fail_result(self):

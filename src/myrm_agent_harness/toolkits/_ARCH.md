@@ -56,7 +56,7 @@ is an adapter, not the toolkit itself. Examples: `wiki/wiki_agent_tools.py`,
 **Rule of thumb:** engine + persistence + Protocol in `toolkits/` (exported from `__init__.py`);
 LangChain adapter is optional and secondary. Wrappers that must read `agent/` session state belong in `agent/meta_tools/`.
 
-Current `*_agent_tools.py` modules (all compliant): `acp/`, `automation/`, `computer_use/`, `cron/`, `deploy/`, `kanban/`, `memory/`, `web_fetch/`, `web_search/`, `wiki/`.
+Current `*_agent_tools.py` modules (all compliant): `acp/`, `automation/`, `computer_use/`, `cron/`, `kanban/`, `memory/`, `web_fetch/`, `web_search/`, `wiki/`.
 
 ### Naming disambiguation: `mcp/agent.py`
 
@@ -87,7 +87,7 @@ Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
 |----------|----------|------|
 | **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `security/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP, credential vault |
 | **Workspace** | `browser/`, `computer_use/`, `workspace/`, `context_bundle/`, `file_parsers/`, `wiki/` | Files, browser, desktop, context bundles |
-| **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/`, `deploy/` | External APIs, agent protocols, deployment bridges |
+| **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/` | External APIs, agent protocols |
 | **Collaboration & Media** | `kanban/`, `tasks/`, `automation/`, `cron/`, `interaction/`, `tts/` | Scheduling, tasks, user interaction primitives, media |
 | **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |
 
@@ -158,7 +158,6 @@ Does your code need to import anything from agent/?
 | memory/proactive/ | Proactive follow-up tracking — implicit promise extraction; host implements `CommitmentStore`. See [COMMITMENT_SYSTEM.md](memory/proactive/COMMITMENT_SYSTEM.md). |
 | computer_use/ | System-wide desktop automation — screen capture + coordinate-based input (macOS/Linux). |
 | cron/ | Scheduled task framework — scheduling engine, CRUD manager, built-in strategies. |
-| deploy/ | Artifact deployment — Protocol-based deploy tool with HITL approval via LangGraph interrupt. |
 | context_bundle/ | Unified context bundle — volume layout, facade, index/lifecycle hook registration. |
 | file_parsers/ | File format parsers — PDF, DOCX, Excel, text, and structured data extraction. |
 | interaction/ | User interaction primitives — AskQuestion dialog and clipboard operations (UI rendering: `agent/meta_tools/interaction/`) |

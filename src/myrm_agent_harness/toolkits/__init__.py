@@ -33,7 +33,6 @@ Generic, framework-agnostic toolkit collection. No agent coupling — each toolk
 - retriever: retrieval and reranking tools
 - storage: storage service
 - web_fetch: layered crawl engine
-- deploy: artifact deployment to hosting platforms
 - web_search: web search tools
 """
 
@@ -52,7 +51,6 @@ __all__ = [
     "create_browser_tools",
     "create_conversation_search_tool",
     "create_cron_tools",
-    "create_deploy_tool",
     "create_delegate_to_agent_tool",
     "create_litellm_model",
     "create_memory_tools",
@@ -72,7 +70,6 @@ _LAZY_IMPORTS = {
     "web_fetch_tools": ("myrm_agent_harness.toolkits.web_fetch", "web_fetch_tools"),
     "create_browser_tools": ("myrm_agent_harness.toolkits.browser.tools", "create_browser_tools"),
     "create_cron_tools": ("myrm_agent_harness.toolkits.cron.cron_agent_tools", "create_cron_tools"),
-    "create_deploy_tool": ("myrm_agent_harness.toolkits.deploy", "create_deploy_tool"),
     "create_memory_tools": ("myrm_agent_harness.toolkits.memory.memory_agent_tools", "create_memory_tools"),
     "create_conversation_search_tool": (
         "myrm_agent_harness.toolkits.memory.conversation_search",

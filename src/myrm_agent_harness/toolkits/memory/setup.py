@@ -13,8 +13,11 @@ Out-of-the-box local memory factory. Combines SQLite and embedded Qdrant to prov
 persistent memory capability for standalone deployments and single-machine sandboxes.
 """
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.memory.config import (
     AgentMemoryPolicy,
@@ -31,6 +34,9 @@ from myrm_agent_harness.toolkits.retriever.embedding.factory import (
 )
 from myrm_agent_harness.toolkits.vector.config import DeploymentMode, VectorStoreConfig
 from myrm_agent_harness.toolkits.vector.qdrant.factory import create_vector_store
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.memory.strategies.consolidation import ConflictCallback
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +58,7 @@ async def create_local_memory_manager(
     recall_mode: RecallMode = RecallMode.HYBRID,
     vector_store: object | None = None,
     time_decay_half_life_days: float | None = None,
+    on_conflict: ConflictCallback | None = None,
 ) -> MemoryManager:
     """Create a fully functional MemoryManager using local file-based storage.
 
@@ -187,6 +194,7 @@ async def create_local_memory_manager(
         memory_policy=memory_policy,
         recall_mode=recall_mode,
         preference_facet_store=preference_facet_store,
+        on_conflict=on_conflict,
     )
 
     logger.info(f"Local MemoryManager initialized at {base_path} for local user")

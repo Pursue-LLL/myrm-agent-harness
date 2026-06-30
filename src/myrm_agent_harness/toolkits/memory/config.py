@@ -264,6 +264,9 @@ class ConsolidationConfig:
         max_memories: Maximum memories to process per consolidation run
         soft_lock_hours: Skip if consolidated within this many hours (concurrency guard)
         enrich_max_similar: Max similar memories to fetch when only 1 new memory exists
+        conflict_importance_threshold: Minimum importance to route a contradiction to user review
+        conflict_confidence_threshold: Route to user when LLM accuracy is below this value
+        conflict_auto_resolve_days: Days before an unresolved conflict auto-resolves as keep_new
     """
 
     enabled: bool = True
@@ -272,6 +275,9 @@ class ConsolidationConfig:
     soft_lock_hours: float = 1.0
     enrich_max_similar: int = 3
     message_count_trigger: int = 50
+    conflict_importance_threshold: float = 0.6
+    conflict_confidence_threshold: float = 0.85
+    conflict_auto_resolve_days: int = 7
 
 
 @dataclass(frozen=True, slots=True)

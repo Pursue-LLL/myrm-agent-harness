@@ -1061,10 +1061,13 @@ class TestVerification:
         assert mgr.spawn_child.call_count == 4
 
     @pytest.mark.asyncio
-    async def test_run_with_verification_success_first_round(self):
+    @patch("myrm_agent_harness.toolkits.code_execution.executors.base.get_executor")
+    async def test_run_with_verification_success_first_round(self, mock_get_executor):
+        mock_executor = MagicMock()
+        mock_executor.has_executed_code = True
+        mock_get_executor.return_value = mock_executor
         mgr = MagicMock()
 
-        # Mock worker success
         worker_result = SubAgentResult(
             success=True,
             task_id="w1",
@@ -1074,7 +1077,6 @@ class TestVerification:
             completed_at=0.0,
             status=SubAgentStatus.COMPLETED,
         )
-        # Mock verifier success
         verifier_result = SubAgentResult(
             success=True,
             task_id="v1",
@@ -1105,10 +1107,13 @@ class TestVerification:
         assert mgr.spawn_child.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_run_with_verification_fail_then_pass(self):
+    @patch("myrm_agent_harness.toolkits.code_execution.executors.base.get_executor")
+    async def test_run_with_verification_fail_then_pass(self, mock_get_executor):
+        mock_executor = MagicMock()
+        mock_executor.has_executed_code = True
+        mock_get_executor.return_value = mock_executor
         mgr = MagicMock()
 
-        # Round 1: Worker succeeds, Verifier fails it
         w1 = SubAgentResult(
             success=True,
             task_id="w1",
@@ -1288,12 +1293,14 @@ class TestVerification:
         assert mgr.spawn_child.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_run_with_verification_dict_result(self):
+    @patch("myrm_agent_harness.toolkits.code_execution.executors.base.get_executor")
+    async def test_run_with_verification_dict_result(self, mock_get_executor):
+        mock_executor = MagicMock()
+        mock_executor.has_executed_code = True
+        mock_get_executor.return_value = mock_executor
         mgr = MagicMock()
 
-        # Worker returns dict
         w1 = {"success": True, "result": "dict out"}
-        # Verifier returns dict
         v1 = {"success": True, "result": '{"verdict": "PASS", "summary": "ok STDOUT"}'}
 
         mgr.spawn_child = AsyncMock(side_effect=[w1, v1])
