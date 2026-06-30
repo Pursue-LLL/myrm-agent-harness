@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -81,9 +82,6 @@ class CognitiveDeriver:
 
         try:
             raw = await self.llm_func(_DERIVER_PROMPT, prompt)
-
-            # Extract JSON
-            import re
 
             match = re.search(r"(\\[.*\\])", raw, re.DOTALL)
             if match:

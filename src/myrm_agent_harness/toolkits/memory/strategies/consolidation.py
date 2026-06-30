@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
@@ -30,11 +31,26 @@ from pydantic import BaseModel, Field
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import ConsolidationConfig
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-    from myrm_agent_harness.toolkits.memory.types import AnyMemory
+    from myrm_agent_harness.toolkits.memory.types import AnyMemory, ConflictResolution
 
 logger = logging.getLogger(__name__)
 
 LLMFunc = Callable[[str, str], Awaitable[str]]
+
+
+@dataclass(frozen=True, slots=True)
+class ConflictContext:
+    """Context passed to the conflict callback when a high-importance correction is uncertain."""
+
+    old_memory_id: str
+    old_content: str
+    new_content: str
+    accuracy_score: float
+    importance: float
+    merge_suggestion: str
+
+
+ConflictCallback = Callable[[ConflictContext], Awaitable["ConflictResolution"]]
 
 _PROFILE_KEY_LAST_CONSOLIDATED = "_system.last_consolidated_at"
 
@@ -100,6 +116,7 @@ class ConsolidationStats(BaseModel):
     corrected: int = 0
     updated: int = 0
     errors: int = 0
+    routed_to_user: int = 0
     total_processed: int = 0
     duration_ms: float = 0.0
     input_count: int = 0
@@ -195,12 +212,20 @@ class ConsolidationResponse(BaseModel):
 
 
 async def _execute_operations(
-    ops: list[ConsolidationOp], manager: MemoryManager, id_map: dict[str, str] | None = None
+    ops: list[ConsolidationOp],
+    manager: MemoryManager,
+    id_map: dict[str, str] | None = None,
+    *,
+    on_conflict: ConflictCallback | None = None,
+    config: ConsolidationConfig | None = None,
 ) -> ConsolidationStats:
-    from myrm_agent_harness.toolkits.memory.types import SemanticMemory
+    from myrm_agent_harness.toolkits.memory.types import ConflictResolution, SemanticMemory
 
     stats = ConsolidationStats(total_processed=len(ops))
     resolve = (lambda sid: id_map.get(sid, sid)) if id_map else (lambda sid: sid)
+
+    importance_thr = config.conflict_importance_threshold if config else 0.6
+    confidence_thr = config.conflict_confidence_threshold if config else 0.85
 
     for op in ops:
         try:
@@ -230,6 +255,35 @@ async def _execute_operations(
                 if getattr(existing, "is_user_locked", False):
                     logger.info("Consolidation: skipped locked rule %s", full_id)
                     continue
+
+                should_route = (
+                    on_conflict is not None
+                    and op.importance >= importance_thr
+                    and op.accuracy_score < confidence_thr
+                )
+
+                if should_route:
+                    ctx = ConflictContext(
+                        old_memory_id=full_id,
+                        old_content=getattr(existing, "content", ""),
+                        new_content=op.corrected_content,
+                        accuracy_score=op.accuracy_score,
+                        importance=op.importance,
+                        merge_suggestion=op.corrected_content,
+                    )
+                    resolution = await on_conflict(ctx)
+                    if resolution == ConflictResolution.PENDING:
+                        stats.routed_to_user += 1
+                        continue
+                    if resolution == ConflictResolution.KEEP_OLD:
+                        continue
+                    if resolution == ConflictResolution.DISCARD_BOTH:
+                        await manager.update_memory(full_id, importance=0.01)
+                        stats.affected_ids.append(full_id)
+                        stats.corrected += 1
+                        continue
+                    # KEEP_NEW or MERGE: proceed to execute the correction below
+
                 if isinstance(existing, SemanticMemory):
                     correction = await manager.correct_memory(full_id, op.corrected_content)
                     stats.corrected += 1
@@ -300,7 +354,11 @@ async def _enrich_with_similar(memory: AnyMemory, manager: MemoryManager, max_si
 
 
 async def run_consolidation(
-    manager: MemoryManager, llm: BaseChatModel, config: ConsolidationConfig
+    manager: MemoryManager,
+    llm: BaseChatModel,
+    config: ConsolidationConfig,
+    *,
+    on_conflict: ConflictCallback | None = None,
 ) -> ConsolidationStats:
     """Execute a full consolidation cycle.
 
@@ -308,7 +366,7 @@ async def run_consolidation(
     2. Fetch incremental memories (created after last consolidation)
     3. If only 1 new memory, enrich with similar existing memories
     4. LLM analysis → structured operations
-    5. Execute operations via MemoryManager primitives
+    5. Execute operations via MemoryManager primitives (conflicts routed via on_conflict)
     6. Record consolidation event + update timestamp
     """
     start = datetime.now(UTC)
@@ -357,7 +415,8 @@ async def run_consolidation(
                 valid_ops.append(op)
             else:
                 logger.info(
-                    f"Consolidation op {op.action} rejected by Rubric (Score: {total_score:.2f}). Reason: {op.reasoning}"
+                    "Consolidation op %s rejected by Rubric (Score: %.2f). Reason: %s",
+                    op.action, total_score, op.reasoning,
                 )
 
         parsed = ConsolidationResponse(operations=valid_ops, insights=response.insights)
@@ -370,7 +429,11 @@ async def run_consolidation(
         await _update_timestamp(manager, start)
         return ConsolidationStats(input_count=input_count, enriched_count=enriched_count)
 
-    stats = await _execute_operations(parsed.operations, manager, id_map) if parsed.operations else ConsolidationStats()
+    stats = (
+        await _execute_operations(parsed.operations, manager, id_map, on_conflict=on_conflict, config=config)
+        if parsed.operations
+        else ConsolidationStats()
+    )
     elapsed_ms = (datetime.now(UTC) - start).total_seconds() * 1000
     stats.duration_ms = elapsed_ms
     stats.input_count = input_count
@@ -382,8 +445,8 @@ async def run_consolidation(
         await _persist_insights(manager, parsed.insights)
     await _update_timestamp(manager, start)
 
-    logger.warning(
-        " Consolidation complete: input=%d, enriched=%d, merged=%d, corrected=%d, updated=%d, errors=%d, insights=%d (%.0fms)",
+    logger.info(
+        "Consolidation complete: input=%d, enriched=%d, merged=%d, corrected=%d, updated=%d, errors=%d, insights=%d (%.0fms)",
         input_count,
         enriched_count,
         stats.merged,
