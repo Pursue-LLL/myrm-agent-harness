@@ -133,6 +133,12 @@ class RelationalStore(ABC):
     @abstractmethod
     async def batch_mark_pending(self, pending_ids: list[str], status: str) -> int: ...
 
+    @abstractmethod
+    async def delete_pending_by_source_chat_id(self, source_chat_id: str) -> int: ...
+
+    @abstractmethod
+    async def count_pending_by_source_chat_id(self, source_chat_id: str) -> int: ...
+
     # ── Lifecycle ────────────────────────────────────────────────────
 
     @abstractmethod

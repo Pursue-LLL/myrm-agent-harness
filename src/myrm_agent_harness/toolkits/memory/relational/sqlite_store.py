@@ -313,6 +313,7 @@ class SQLiteRelationalStore(RelationalStore):
                 "CREATE INDEX IF NOT EXISTS idx_rules_tool_name ON procedural_rules(tool_name) WHERE tool_name IS NOT NULL",
                 "CREATE INDEX IF NOT EXISTS idx_pending_user ON pending_records(user_id)",
                 "CREATE INDEX IF NOT EXISTS idx_pending_user_status ON pending_records(user_id, status)",
+                "CREATE INDEX IF NOT EXISTS idx_pending_source_chat ON pending_records(source_chat_id) WHERE source_chat_id IS NOT NULL",
             ):
                 await self._connection.execute(idx_sql)
             await self._connection.commit()
@@ -772,6 +773,30 @@ class SQLiteRelationalStore(RelationalStore):
             return cursor.rowcount or 0
         except Exception as e:
             raise RelationalQueryError(f"batch_mark_pending failed: {e}") from e
+
+    async def delete_pending_by_source_chat_id(self, source_chat_id: str) -> int:
+        conn = await self._get_connection()
+        try:
+            cursor = await conn.execute(
+                "DELETE FROM pending_records WHERE source_chat_id = ?",
+                (source_chat_id,),
+            )
+            await conn.commit()
+            return cursor.rowcount or 0
+        except Exception as e:
+            raise RelationalQueryError(f"delete_pending_by_source_chat_id failed: {e}") from e
+
+    async def count_pending_by_source_chat_id(self, source_chat_id: str) -> int:
+        conn = await self._get_connection()
+        try:
+            async with conn.execute(
+                "SELECT COUNT(*) FROM pending_records WHERE source_chat_id = ?",
+                (source_chat_id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+            return row[0] if row else 0
+        except Exception as e:
+            raise RelationalQueryError(f"count_pending_by_source_chat_id failed: {e}") from e
 
     # ── Lifecycle ────────────────────────────────────────────────────
 

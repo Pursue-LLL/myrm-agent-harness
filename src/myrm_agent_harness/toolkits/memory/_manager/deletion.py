@@ -378,6 +378,38 @@ class MemoryManagerDeletionMixin:
 
         return refs
 
+    async def purge_by_source_chat_id(self, chat_id: str) -> dict[str, int]:
+        """Cascade-delete all memories derived from a specific chat session.
+
+        Deletes Semantic, Episodic, Conversation, and Procedural memories with
+        matching source_chat_id metadata, plus any PendingRecords linked to this chat.
+        Gracefully handles missing vector collections (returns 0 for those types).
+        """
+        try:
+            counts = await self.delete_memories_by_metadata("source_chat_id", chat_id)
+        except Exception as e:
+            logger.warning("Vector cascade deletion skipped (chat=%s): %s", chat_id, e)
+            counts = {}
+        if self._relational is not None:
+            pending_deleted = await self._relational.delete_pending_by_source_chat_id(chat_id)
+            if pending_deleted:
+                counts["pending"] = pending_deleted
+        return counts
+
+    async def count_by_source_chat_id(self, chat_id: str) -> dict[str, int]:
+        """Count memories linked to a chat session (for UI preview before deletion)."""
+        try:
+            id_map = await self.list_memory_ids_by_metadata("source_chat_id", chat_id)
+            result = {k: len(v) for k, v in id_map.items() if v}
+        except Exception as e:
+            logger.warning("Vector cascade count skipped (chat=%s): %s", chat_id, e)
+            result = {}
+        if self._relational is not None:
+            pending_count = await self._relational.count_pending_by_source_chat_id(chat_id)
+            if pending_count:
+                result["pending"] = pending_count
+        return result
+
     async def delete_all(self) -> dict[str, int]:
         uid, counts = self._user_id, {}
         if self._relational:
