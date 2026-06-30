@@ -118,7 +118,6 @@ myrm_agent_harness/toolkits/a2a/__init__.py
 myrm_agent_harness/toolkits/acp/runtime/__init__.py
 myrm_agent_harness/toolkits/acp/server/__init__.py
 myrm_agent_harness/toolkits/acp/toolchains/manager.py
-myrm_agent_harness/toolkits/automation/__init__.py
 myrm_agent_harness/toolkits/browser/captcha/__init__.py
 myrm_agent_harness/toolkits/browser/diff/__init__.py
 myrm_agent_harness/toolkits/browser/enhancers/dom_enhancer_loader.py

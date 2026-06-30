@@ -56,7 +56,7 @@ is an adapter, not the toolkit itself. Examples: `wiki/wiki_agent_tools.py`,
 **Rule of thumb:** engine + persistence + Protocol in `toolkits/` (exported from `__init__.py`);
 LangChain adapter is optional and secondary. Wrappers that must read `agent/` session state belong in `agent/meta_tools/`.
 
-Current `*_agent_tools.py` modules (all compliant): `acp/`, `automation/`, `computer_use/`, `cron/`, `kanban/`, `memory/`, `web_fetch/`, `web_search/`, `wiki/`.
+Current `*_agent_tools.py` modules (all compliant): `acp/`, `computer_use/`, `cron/`, `kanban/`, `memory/`, `web_fetch/`, `web_search/`, `wiki/`.
 
 ### Naming disambiguation: `mcp/agent.py`
 
@@ -88,7 +88,7 @@ Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
 | **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `security/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP, credential vault |
 | **Workspace** | `browser/`, `computer_use/`, `filesystem_suggest/`, `context_bundle/`, `file_parsers/`, `wiki/` | Files, browser, desktop, @-mention path suggest |
 | **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/` | External APIs, agent protocols |
-| **Collaboration & Media** | `kanban/`, `tasks/`, `automation/`, `cron/`, `interaction/`, `tts/` | Scheduling, tasks, user interaction primitives, media |
+| **Collaboration & Media** | `kanban/`, `tasks/`, `cron/`, `interaction/`, `tts/` | Scheduling (incl. event/webhook triggers), tasks, user interaction primitives, media |
 | **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |
 
 Agent runtime-bound tool wrappers (e.g. `render_ui_tool`, `planner_tool`) live in `agent/meta_tools/`, not here. Optional LangChain adapters (`*_agent_tools.py`) that do not import `agent/` may stay in `toolkits/` as a secondary export — see § `*_agent_tools.py` naming convention.
@@ -152,7 +152,6 @@ Does your code need to import anything from agent/?
 |-----------|-------------|
 | a2a/ | A2A (Agent-to-Agent) protocol support — AgentCard data models, client Resolver with SSRF protection, Provider Protocol contract. |
 | acp/ | ACP protocol integration — server and runtime components for Agent Communication Protocol. |
-| automation/ | Rule-based agent task automation — CRUD for automation rules (event/schedule/manual triggers). |
 | browser/ | Browser automation — multi-tab control, iframe traversal, session vault, stealth mode. |
 | code_execution/ | Code execution system — Agent-in-Sandbox mode with multiple executor backends. |
 | memory/proactive/ | Proactive follow-up tracking — implicit promise extraction; host implements `CommitmentStore`. See [COMMITMENT_SYSTEM.md](memory/proactive/COMMITMENT_SYSTEM.md). |
