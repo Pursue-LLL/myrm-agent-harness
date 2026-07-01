@@ -30,6 +30,10 @@ Detailed design: [STREAMING_SYSTEM.md](STREAMING_SYSTEM.md)
 | types.py | Config | Streaming module core type definitions. Defines all stream event data types and enums (incl. TOOL_IMAGE_OUTPUT for multimodal tool outputs). | ✅ |
 | utils.py | Core | Agent internal utility functions. Provides context validation, timestamp injection, agent behavior rules (anti-narration + tool honesty), and tool name normalization. | ✅ |
 
+| Submodule | Description |
+|-----------|-------------|
+| broadcast/ | ToolBroadcastBus + ToolCallBroadcaster for chat UI tool progress. See [broadcast/_ARCH.md](broadcast/_ARCH.md). |
+
 ## Key Dependencies
 
 - `toolkits`

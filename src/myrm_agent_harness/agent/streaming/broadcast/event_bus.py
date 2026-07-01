@@ -5,7 +5,7 @@
 - observability.types::ToolCallEventData (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
 
 [OUTPUT]
-- EventBus: Singleton async event bus
+- ToolBroadcastBus: Singleton async event bus
 - subscribe() / unsubscribe() / publish() / publish_batch()
 
 [POS]
@@ -19,13 +19,13 @@ import contextlib
 from collections.abc import Sequence
 from typing import ClassVar
 
-from myrm_agent_harness.agent.observability.types import EventCallback, ToolCallEventData, _truncate_for_event
+from myrm_agent_harness.agent.streaming.broadcast.types import EventCallback, ToolCallEventData, _truncate_for_event
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 logger = get_agent_logger(__name__)
 
 
-class EventBus:
+class ToolBroadcastBus:
     """Async event bus with backpressure for real-time broadcasting.
 
     Features:
@@ -39,11 +39,11 @@ class EventBus:
     - Async non-blocking dispatch
     """
 
-    _instance: ClassVar[EventBus | None] = None
+    _instance: ClassVar[ToolBroadcastBus | None] = None
     _lock: ClassVar[asyncio.Lock] = asyncio.Lock()
 
     def __init__(self, maxsize: int = 1000) -> None:
-        """Initialize EventBus.
+        """Initialize ToolBroadcastBus.
 
         Args:
             maxsize: Queue max size. When full, oldest events are dropped (LRU).
@@ -55,7 +55,7 @@ class EventBus:
         self._running: bool = False
 
     @classmethod
-    async def get_instance(cls) -> EventBus:
+    async def get_instance(cls) -> ToolBroadcastBus:
         """Get singleton instance (async-safe lazy init)."""
         if cls._instance is None:
             async with cls._lock:
@@ -70,7 +70,7 @@ class EventBus:
             return
         self._running = True
         self._dispatch_task = asyncio.create_task(self._dispatch_loop())
-        logger.info("EventBus started")
+        logger.info("ToolBroadcastBus started")
 
     async def stop(self) -> None:
         """Stop background dispatch loop gracefully."""
@@ -81,7 +81,7 @@ class EventBus:
             self._dispatch_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._dispatch_task
-        logger.info("EventBus stopped (dropped=%d)", self._dropped_count)
+        logger.info("ToolBroadcastBus stopped (dropped=%d)", self._dropped_count)
 
     def subscribe(self, callback: EventCallback) -> None:
         """Subscribe to events.
@@ -112,7 +112,7 @@ class EventBus:
         Args:
             event: Tool call event data.
         """
-        # Truncate large fields for memory-bound EventBus
+        # Truncate large fields for memory-bound ToolBroadcastBus
         truncated_event = event
         if event.result is not None or event.error is not None:
             truncated_result = _truncate_for_event(event.result, max_bytes=1024) if event.result is not None else None

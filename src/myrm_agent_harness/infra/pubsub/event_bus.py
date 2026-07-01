@@ -1,6 +1,6 @@
 """
 @input: 无外部依赖，纯 asyncio 基础设施
-@output: 对外提供通用 EventBus（per-subscriber Queue + topic backlog + 幂等去重 + 背压驱逐）
+@output: 对外提供通用 PubSubBus（per-subscriber Queue + topic backlog + 幂等去重 + 背压驱逐）
 @pos: 框架级进程内发布/订阅引擎
 
 🔄 更新规则：修改此文件后，请更新头注释 + 所属文件夹 _ARCH.md
@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
-class EventProtocol(Protocol):
-    """Minimal contract for events flowing through EventBus."""
+class PubSubEventProtocol(Protocol):
+    """Minimal contract for events flowing through PubSubBus."""
 
     @property
     def event_type(self) -> str: ...
@@ -30,23 +30,23 @@ class EventProtocol(Protocol):
     def data(self) -> dict[str, object]: ...
 
 
-E = TypeVar("E", bound=EventProtocol)
+E = TypeVar("E", bound=PubSubEventProtocol)
 
 
-def _default_idempotency_key(event: EventProtocol) -> str:
+def _default_idempotency_key(event: PubSubEventProtocol) -> str:
     """Derive a dedup key from event type and serialised data payload."""
     payload = json.dumps(event.data, sort_keys=True, default=str)
     digest = hashlib.blake2b(payload.encode(), digest_size=8).hexdigest()
     return f"{event.event_type}:{digest}"
 
 
-class EventBus[E: EventProtocol]:
+class PubSubBus[E: PubSubEventProtocol]:
     """Fan-out event bus backed by per-subscriber asyncio.Queue.
 
     Supports topic-scoped backlogs (deque, O(1) eviction) and consecutive
     duplicate suppression per topic.
 
-    Generic over event type E which must satisfy EventProtocol.
+    Generic over event type E which must satisfy PubSubEventProtocol.
     """
 
     def __init__(self, max_backlog: int = 100) -> None:
@@ -68,7 +68,7 @@ class EventBus[E: EventProtocol]:
                     q.put_nowait(event)
 
         logger.info(
-            "EventBus: new subscriber on topic %s (total on topic=%d)",
+            "PubSubBus: new subscriber on topic %s (total on topic=%d)",
             topic,
             len(self._subscribers[topic]),
         )
@@ -80,7 +80,7 @@ class EventBus[E: EventProtocol]:
                 self._subscribers[topic].remove(q)
                 if not self._subscribers[topic]:
                     del self._subscribers[topic]
-                logger.info("EventBus: subscriber removed on topic %s", topic)
+                logger.info("PubSubBus: subscriber removed on topic %s", topic)
             except ValueError:
                 pass
 
@@ -88,7 +88,7 @@ class EventBus[E: EventProtocol]:
         # Consecutive duplicate suppression
         key = _default_idempotency_key(event)
         if self._last_event_key.get(topic) == key:
-            logger.debug("EventBus: suppressed duplicate event on topic %s", topic)
+            logger.debug("PubSubBus: suppressed duplicate event on topic %s", topic)
             return
         self._last_event_key[topic] = key
 
@@ -107,9 +107,9 @@ class EventBus[E: EventProtocol]:
                 q.put_nowait(event)
             except asyncio.QueueFull:
                 dead.append(q)
-                logger.warning("EventBus: dropping slow subscriber on topic %s", topic)
+                logger.warning("PubSubBus: dropping slow subscriber on topic %s", topic)
             except Exception as e:
                 dead.append(q)
-                logger.warning("EventBus: dropping invalid subscriber: %s", e)
+                logger.warning("PubSubBus: dropping invalid subscriber: %s", e)
         for q in dead:
             self.unsubscribe(q, topic)

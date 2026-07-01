@@ -1,7 +1,7 @@
 """P0 optimization tests for tool call transparency enhancement.
 
 Tests for:
-- P0-1: Intelligent truncation in EventBus
+- P0-1: Intelligent truncation in ToolBroadcastBus
 - P0-2: Complete cancellation event lifecycle with cancel_reason
 """
 
@@ -10,15 +10,16 @@ import time
 
 import pytest
 
-from myrm_agent_harness.agent.observability.event_bus import EventBus
-from myrm_agent_harness.agent.observability.tool_call_broadcaster import ToolCallBroadcaster
-from myrm_agent_harness.agent.observability.types import ToolCallEventData
+from myrm_agent_harness.agent.streaming.broadcast.event_bus import ToolBroadcastBus
+from myrm_agent_harness.agent.streaming.broadcast.tool_call_broadcaster import ToolCallBroadcaster
+from myrm_agent_harness.agent.streaming.broadcast.types import ToolCallEventData
 
 
 @pytest.mark.asyncio
 async def test_p0_1_eventbus_truncation():
-    """Test P0-1: EventBus truncates large result/error while preserving original for EventLogger."""
-    bus = await EventBus.get_instance()
+    """Test P0-1: ToolBroadcastBus truncates large result/error while preserving original for EventLogger."""
+    ToolBroadcastBus._instance = None
+    bus = await ToolBroadcastBus.get_instance()
 
     # Create event with large result
     large_result = "x" * 10000  # 10KB
@@ -112,7 +113,7 @@ async def test_p0_2_cancel_reason_in_event_data():
 
 def test_p0_1_truncation_logic():
     """Test P0-1: Truncation logic for small results (unit test)."""
-    from myrm_agent_harness.agent.observability.types import _truncate_for_event
+    from myrm_agent_harness.agent.streaming.broadcast.types import _truncate_for_event
 
     # Small result should not be truncated
     small_result = "small result"

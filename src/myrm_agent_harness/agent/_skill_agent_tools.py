@@ -324,8 +324,8 @@ class SkillAgentToolsMixin:
             try:
                 import time as _time
 
-                from myrm_agent_harness.agent.observability.event_bus import EventBus
-                from myrm_agent_harness.agent.observability.types import ToolCallEventData
+                from myrm_agent_harness.agent.streaming.broadcast.event_bus import EventBus
+                from myrm_agent_harness.agent.streaming.broadcast.types import ToolCallEventData
 
                 bus = await EventBus.get_instance()
                 now = _time.time()

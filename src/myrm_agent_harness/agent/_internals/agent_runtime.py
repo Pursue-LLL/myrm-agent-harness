@@ -244,7 +244,7 @@ async def run_agent_loop(
             bootstrap_hook_registry,
             get_hook_executor,
         )
-        from myrm_agent_harness.agent.observability.tool_call_broadcaster import (
+        from myrm_agent_harness.agent.streaming.broadcast.tool_call_broadcaster import (
             register_to_hook_registry as register_broadcaster,
         )
 

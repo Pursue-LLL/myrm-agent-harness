@@ -14,7 +14,7 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 ┌─────────────────────────────────────────────────────────────┐
 │ L1 Runtime Core                                              │
 │  base_agent · skill_agent · _factory · _internals · types   │
-│  streaming · event_log · observability · config             │
+│  streaming · event_log · config                             │
 └────────────────────────────┬────────────────────────────────┘
                              │
 ┌────────────────────────────▼────────────────────────────────┐
@@ -49,7 +49,8 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 | `parallel/` | `sub_agents/` | **共享 spawn 路径** (batch/swarm semaphore) vs **子 Agent 生命周期全栈** |
 | `agent/artifacts/` | `core/artifacts/` | **运行时生命周期** (registry/vault/UI) vs **类型常量 + 路径 SSOT** |
 | `agent/extensions.AgentExtension` | `toolkits/a2a.AgentExtension` | **Harness 插件 Protocol** vs **Google A2A Pydantic 模型**（同名，import 时注意包路径） |
-| `agent/observability/` | `observability/` (top-level) | **EventBus / SSE 流式事件** vs **Prometheus + health probes + log trace_id** |
+| `agent/streaming/broadcast/` | `observability/` (top-level) | **ToolBroadcastBus / 聊天工具 SSE** vs **Prometheus + Doctor** |
+| `infra/pubsub/` | `agent/streaming/broadcast/` | **Server 业务 SSE** vs **聊天工具进度** |
 | `observability/tracing/` | `infra/tracing/` | **ContextVar stdlib 日志关联** vs **OpenTelemetry 分布式追踪** |
 | `middlewares/` | `hooks/` | **框架内建** LangChain middleware vs **用户 profile 可配** 生命周期 hook |
 | `meta_tools/goals/` | `goals/` | **LLM 工具面** vs **Goal 引擎域逻辑** |
@@ -89,11 +90,7 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 | `hooks/` | User-configurable lifecycle hooks | [hooks/_ARCH.md](hooks/_ARCH.md) |
 | `meta_tools/` | Agent-bound LangChain meta-tools | [META_TOOLS_SYSTEM.md](meta_tools/META_TOOLS_SYSTEM.md) |
 | `middlewares/` | Framework middleware stack | [MIDDLEWARE_SYSTEM.md](middlewares/MIDDLEWARE_SYSTEM.md) |
-| `observability/` | Framework observability (EventBus) | [observability/_ARCH.md](observability/_ARCH.md) — **not** top-level `myrm_agent_harness.observability/` |
-| `parallel/` | Shared parallel spawn (batch / swarm) | [parallel/_ARCH.md](parallel/_ARCH.md) |
-| `security/` | 6-layer onion defense | [SECURITY_SYSTEM.md](security/SECURITY_SYSTEM.md) |
-| `skills/` | Skills runtime | [SKILL_SYSTEM.md](skills/SKILL_SYSTEM.md) |
-| `streaming/` | BaseAgent event pipeline | [STREAMING_SYSTEM.md](streaming/STREAMING_SYSTEM.md) |
+| `streaming/` | BaseAgent event pipeline + [broadcast/](streaming/broadcast/_ARCH.md) tool SSE | [STREAMING_SYSTEM.md](streaming/STREAMING_SYSTEM.md) |
 | `sub_agents/` | Sub-agent lifecycle | [SUB_AGENT_SYSTEM.md](sub_agents/SUB_AGENT_SYSTEM.md) |
 | `tool_management/` | Tool registry, layers, dedup | [TOOL_MANAGEMENT_SYSTEM.md](tool_management/TOOL_MANAGEMENT_SYSTEM.md) |
 | `workspace_coordination/` | Parallel write isolation + batch merge | [workspace_coordination/_ARCH.md](workspace_coordination/_ARCH.md) |

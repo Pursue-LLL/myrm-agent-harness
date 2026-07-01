@@ -20,9 +20,9 @@ Infrastructure layer.
 | incremental/ | Incremental state tracking for monitoring data changes. |
 | health/ | Health checking infrastructure. Abstract interfaces for resource health checks and automatic recovery. |
 | locks/ | Unified locking mechanisms for concurrent operations. |
+| pubsub/ | Generic in-process pub-sub (`PubSubBus`); Server SSE / pairing / btw. Distinct from `runtime/events/` and `agent/streaming/broadcast/`. |
 | security/ | Infrastructure security module. |
-| tracing/ | Distributed tracing and metrics collection. Integrates OpenTelemetry for call chain tracing, perform |
-| events/ | Generic in-process asyncio EventBus (distinct from runtime/events and toolkits/acp event buses). |
+| tracing/ | OpenTelemetry distributed tracing. Distinct from `observability/tracing/` (stdlib log trace_id). |
 
 ## Key Dependencies
 

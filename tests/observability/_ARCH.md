@@ -2,7 +2,7 @@
 
 ## Overview
 
-Unit tests for **top-level** `myrm_agent_harness.observability` (metrics, diagnostics, tracing). Not `agent/observability/` EventBus tests — those live under `tests/agent/observability/`.
+Unit tests for **top-level** `myrm_agent_harness.observability` (metrics, diagnostics, tracing). Tool SSE tests live under `tests/agent/streaming/broadcast/`.
 
 ## File Index
 

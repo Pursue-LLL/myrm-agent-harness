@@ -289,7 +289,7 @@ class TestRegisterLargeDocIngest:
         with patch("myrm_agent_harness.agent._skill_agent_tools.os.open", return_value=fake_fd) as mock_open, \
              patch("myrm_agent_harness.agent._skill_agent_tools.os.write") as mock_write, \
              patch("myrm_agent_harness.agent._skill_agent_tools.os.close") as mock_close, \
-             patch("myrm_agent_harness.agent.observability.event_bus.EventBus.get_instance", new_callable=AsyncMock) as mock_bus:
+             patch("myrm_agent_harness.agent.streaming.broadcast.event_bus.ToolBroadcastBus.get_instance", new_callable=AsyncMock) as mock_bus:
             mock_bus_inst = AsyncMock()
             mock_bus.return_value = mock_bus_inst
 
@@ -321,7 +321,7 @@ class TestRegisterLargeDocIngest:
         with patch("myrm_agent_harness.agent._skill_agent_tools.os.open", return_value=fake_fd), \
              patch("myrm_agent_harness.agent._skill_agent_tools.os.write"), \
              patch("myrm_agent_harness.agent._skill_agent_tools.os.close"), \
-             patch("myrm_agent_harness.agent.observability.event_bus.EventBus.get_instance", side_effect=RuntimeError("bus down")):
+             patch("myrm_agent_harness.agent.streaming.broadcast.event_bus.ToolBroadcastBus.get_instance", side_effect=RuntimeError("bus down")):
             await cb("test.pdf", "text", "hash456")
 
         mock_compiler.enqueue_file.assert_called_once()

@@ -35,7 +35,7 @@ def _truncate_for_event(obj: object, max_bytes: int = 1024) -> object:
         max_bytes: Maximum bytes for truncated output (default 1KB).
 
     Returns:
-        Truncated object suitable for EventBus.
+        Truncated object suitable for ToolBroadcastBus.
     """
     if obj is None or isinstance(obj, (bool, int, float)):
         return obj
@@ -53,7 +53,7 @@ def _truncate_for_event(obj: object, max_bytes: int = 1024) -> object:
 
 @dataclass(frozen=True, slots=True)
 class ToolCallEventData:
-    """Immutable tool call event data for EventBus broadcasting."""
+    """Immutable tool call event data for ToolBroadcastBus broadcasting."""
 
     tool_name: str
     status: Literal["started", "completed", "failed", "cancelled"]

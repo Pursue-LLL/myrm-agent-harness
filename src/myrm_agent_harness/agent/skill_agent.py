@@ -530,7 +530,7 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
         from myrm_agent_harness.agent.middlewares._session_context import (
             get_event_logger,
         )
-        from myrm_agent_harness.agent.observability.tool_call_broadcaster import (
+        from myrm_agent_harness.agent.streaming.broadcast.tool_call_broadcaster import (
             register_to_hook_registry,
         )
 

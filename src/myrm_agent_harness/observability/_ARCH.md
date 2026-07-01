@@ -8,7 +8,8 @@ Observability tools for Myrm Agent framework. Provides Prometheus metrics, auth 
 | Path | Responsibility |
 |------|----------------|
 | **`myrm_agent_harness.observability`** (this package) | Metrics, health probes, ContextVar log tracing |
-| `myrm_agent_harness.agent.observability` | Agent **EventBus** + SSE/streaming hooks for server transport |
+| `myrm_agent_harness.agent.streaming.broadcast` | Chat tool SSE (`ToolBroadcastBus`) |
+| `myrm_agent_harness.infra.pubsub` | Server business SSE (`PubSubBus`) |
 | `myrm_agent_harness.infra.tracing` | **OpenTelemetry** distributed tracing (optional `[observability]` extra) |
 | `toolkits/*/observability.py` | Per-toolkit business-neutral operation DTOs |
 

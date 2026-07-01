@@ -3,14 +3,14 @@
 [INPUT]
 - agent.hooks.types::HookEvent (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
 - agent.hooks.types::HookResult (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
-- observability.event_bus::EventBus (POS: Framework-level event bus. Business layer subscribes for transport adapters.)
+- observability.event_bus::ToolBroadcastBus (POS: Framework-level event bus. Business layer subscribes for transport adapters.)
 
 [OUTPUT]
-- ToolCallBroadcaster: Hook listener that broadcasts tool calls to EventBus
+- ToolCallBroadcaster: Hook listener that broadcasts tool calls to ToolBroadcastBus
 - register_to_hook_registry(): Helper to register broadcaster
 
 [POS]
-Framework-level Hook listener. Automatically publishes tool call events to EventBus
+Framework-level Hook listener. Automatically publishes tool call events to ToolBroadcastBus
 whenever tools are executed. Integrates with EventLog for persistence.
 """
 
@@ -20,8 +20,8 @@ import time
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.hooks.types import HookResult
-from myrm_agent_harness.agent.observability.event_bus import EventBus
-from myrm_agent_harness.agent.observability.types import ToolCallEventData, _truncate_for_event
+from myrm_agent_harness.agent.streaming.broadcast.event_bus import ToolBroadcastBus
+from myrm_agent_harness.agent.streaming.broadcast.types import ToolCallEventData, _truncate_for_event
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.backends.skills.protocols import resolved_skill_versions_var
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
@@ -34,7 +34,7 @@ logger = get_agent_logger(__name__)
 
 
 class ToolCallBroadcaster:
-    """Hook listener that broadcasts tool call events to EventBus.
+    """Hook listener that broadcasts tool call events to ToolBroadcastBus.
 
     Lifecycle:
     1. PRE_TOOL_USE → publish "started" event
@@ -52,12 +52,12 @@ class ToolCallBroadcaster:
         """
         self._event_logger = event_logger
         self._pending_calls: dict[str, float] = {}  # tool_call_id -> start_time
-        self._event_bus: EventBus | None = None
+        self._event_bus: ToolBroadcastBus | None = None
 
-    async def _ensure_event_bus(self) -> EventBus:
-        """Lazy-init EventBus (singleton)."""
+    async def _ensure_event_bus(self) -> ToolBroadcastBus:
+        """Lazy-init ToolBroadcastBus (singleton)."""
         if self._event_bus is None:
-            self._event_bus = await EventBus.get_instance()
+            self._event_bus = await ToolBroadcastBus.get_instance()
         return self._event_bus
 
     async def on_pre_tool_use(self, event_type: str, payload: dict[str, object]) -> HookResult:
