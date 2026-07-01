@@ -295,3 +295,32 @@ class TestRegisterLargeDocIngest:
         mock_write.assert_called_once_with(fake_fd, b"# report.pdf\n\nfull content")
         mock_close.assert_called_once_with(fake_fd)
         mock_compiler.enqueue_file.assert_called_once_with(mock_path)
+
+    @pytest.mark.asyncio
+    async def test_ingest_does_not_publish_to_tool_broadcast_bus(self, wiki_dir: Path) -> None:
+        """Large-doc ingest must not use ToolBroadcastBus (chat UI uses EventLogger path)."""
+        from myrm_agent_harness.agent._skill_agent_tools import SkillAgentToolsMixin
+        from myrm_agent_harness.agent.meta_tools.file_ops.utils import pdf_reader
+
+        mock_structure = MagicMock()
+        mock_path = MagicMock()
+        mock_path.parent.mkdir = MagicMock()
+        mock_path.__str__ = MagicMock(return_value="/tmp/fake_raw_path.md")
+        mock_structure.get_raw_file_path.return_value = mock_path
+        mock_compiler = MagicMock()
+
+        SkillAgentToolsMixin._register_large_doc_ingest(mock_structure, mock_compiler)
+        cb = pdf_reader._ingest_callback
+        assert cb is not None
+
+        with patch("myrm_agent_harness.agent._skill_agent_tools.os.open", return_value=99), \
+             patch("myrm_agent_harness.agent._skill_agent_tools.os.write"), \
+             patch("myrm_agent_harness.agent._skill_agent_tools.os.close"), \
+             patch(
+                 "myrm_agent_harness.agent.streaming.broadcast.event_bus.ToolBroadcastBus.get_instance",
+                 new_callable=AsyncMock,
+             ) as mock_bus:
+            await cb("report.pdf", "content", "hash789")
+
+        mock_bus.assert_not_called()
+        mock_compiler.enqueue_file.assert_called_once()
