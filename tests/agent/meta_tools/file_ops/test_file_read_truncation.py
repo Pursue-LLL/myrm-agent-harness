@@ -1,4 +1,4 @@
-from myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool import _truncate_file_output
+from myrm_agent_harness.agent.meta_tools.file_ops.file_read_truncation import truncate_file_output as _truncate_file_output
 
 
 def test_truncate_file_output_no_truncation():

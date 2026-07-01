@@ -54,7 +54,7 @@
 | 子模块 | 职责 | 关键出口 |
 |--------|------|----------|
 | `bash/` | PTY/bash 执行、输出压缩与 eviction | `bash_tool`（6 模块聚合）、`bash_executor`（4 mixin 聚合） |
-| `file_ops/` | 读写编辑、validators、observers、vault 工具 | `file_read_tool`, `file_write_tool`, `file_edit_tool` |
+| `file_ops/` | 读写编辑、validators、observers；`file_read_tool` 支持 `vault://` 恢复 auto-vault 大结果 | `file_read_tool`, `file_write_tool`, `file_edit_tool` |
 | `file_search/` | glob/grep（Claude Code 兼容） | `glob_tool`, `grep_tool` |
 | `spawn_subagent/` | delegate/batch/steer/cancel/teammate | `delegate_task_tool`, `batch_delegate_tasks_tool` |
 | `skills/` | analyze/select/search/manage/discovery 技能工具 | `create_skill_*_tool` 系列（见各子目录） |

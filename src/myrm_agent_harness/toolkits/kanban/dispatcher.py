@@ -1,8 +1,9 @@
 """Kanban dispatcher — event-driven task scheduling.
 
-Handles: dispatch loop, heartbeat monitoring, zombie detection & reclaim,
-auto-block on consecutive failures, per-task retries, transient error
-smart backoff (429/503/quota → SCHEDULED block with auto-wakeup).
+Handles: startup orphan rescue, dispatch loop, heartbeat monitoring,
+zombie detection & reclaim, auto-block on consecutive failures, per-task
+retries, transient error smart backoff (429/503/quota → SCHEDULED block
+with auto-wakeup).
 
 [INPUT]
 - .types::KanbanBoard, KanbanTask, TaskStatus, BoardSettings, TaskTimeoutError (POS: Kanban domain types.)
@@ -103,10 +104,15 @@ class KanbanDispatcher:
         self._event_callbacks.append(callback)
 
     async def start(self) -> None:
-        """Start the dispatch and zombie-detection loops."""
+        """Start the dispatch and zombie-detection loops.
+
+        On startup, rescues orphaned RUNNING tasks left by a prior crash
+        before entering the main loops.
+        """
         if self._running:
             return
         self._running = True
+        await self._rescue_orphaned_tasks()
         self._dispatch_task = asyncio.create_task(self._dispatch_loop(), name="kanban-dispatch")
         self._zombie_task = asyncio.create_task(self._zombie_loop(), name="kanban-zombie")
         logger.info(
@@ -636,6 +642,40 @@ class KanbanDispatcher:
                 raise
             except Exception:
                 logger.warning("Heartbeat update failed for task %s, will retry next interval", task_id[:8], exc_info=True)
+
+    # -- Startup rescue --
+
+    async def _rescue_orphaned_tasks(self) -> None:
+        """Reclaim RUNNING tasks orphaned by a prior process crash.
+
+        Called once during ``start()`` before the dispatch/zombie loops begin.
+        Uses the same ``_reclaim_task`` pipeline (retry/block/fail/event/emit)
+        so behaviour is identical to zombie detection — just immediate.
+
+        Best-effort: store errors are logged but never prevent dispatcher
+        startup.
+        """
+        try:
+            orphans = await self._store.list_running_tasks(self._board.board_id)
+        except Exception:
+            logger.warning("Startup rescue: failed to query running tasks, skipping", exc_info=True)
+            return
+        active_ids = set(self._task_id_to_exec)
+        rescued = 0
+        for task in orphans:
+            if task.task_id in active_ids:
+                continue
+            try:
+                await self._reclaim_task(task)
+                rescued += 1
+            except Exception:
+                logger.warning("Startup rescue: failed to reclaim task %s", task.task_id[:8], exc_info=True)
+        if rescued:
+            logger.info(
+                "Rescued %d orphaned task(s) on startup for board=%s",
+                rescued,
+                self._board.board_id,
+            )
 
     # -- Zombie detection --
 

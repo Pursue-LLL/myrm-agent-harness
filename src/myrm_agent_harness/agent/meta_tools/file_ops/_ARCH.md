@@ -11,11 +11,12 @@ File operations tool module (Claude Code compatible).
 | constants.py | Core | Constants. | ✅ |
 | executor_storage_adapter.py | Core | CodeExecutor to StorageProvider adapter. | ✅ |
 | file_edit_tool.py | Core | File edit tool (Claude Code compatible). Supports precise search-and-replace text editing with auto  | ✅ |
-| file_read_tool.py | Core | File read tool (Claude Code compatible). Supports multiple path formats (local, MCP, File ID), batch | ✅ |
+| file_read_tool.py | Core | File read tool factory: local/MCP/File ID/**vault://** paths, batch reads, line ranges, multimodal | ✅ |
+| file_read_handlers.py | Internal | Multimodal/text/vault execution handlers for file_read_tool | ✅ |
+| file_read_truncation.py | Internal | Output truncation helpers for file_read_tool | ✅ |
 | file_write_tool.py | Core | File write tool (Claude Code compatible). Creates new files with auto File ID resolution (@file_001) | ✅ |
 | revert_service.py | Core | File revert service — undo AI file changes at message or file granularity. | ✅ |
 | streaming.py | Core | File streaming reader. Adaptive large-file handling to prevent OOM with configurable StreamingConfig | ✅ |
-| vault_tools.py | Core | Vault Tools | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

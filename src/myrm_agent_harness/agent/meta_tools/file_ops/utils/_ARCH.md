@@ -14,6 +14,7 @@ Utility functions module.
 | line_endings.py | Core | Line ending detection and normalization. Preserves CRLF/LF across agent edits. | ✅ |
 | video_reader.py | Core | Provides is_video_path, read_video_as_content_blocks. | ✅ |
 | path_utils.py | Core | Provides resolve_file_id_path. | ✅ |
+| vault_read.py | Core | vault:// URI read, workspace resolve, batch read for file_read_tool | ✅ |
 | pdf_reader.py | Core | PDF file reader with Large Document Smart RAG Diverter. Auto-ingests large PDFs (>20 pages) into wiki knowledge base for RAG retrieval. | ✅ |
 
 ## Key Dependencies

@@ -202,6 +202,18 @@ Protocol-first architecture with strict framework-business separation.
     if the task has already exceeded the threshold, it auto-blocks as HUMAN
     regardless of the transient pattern.
 
+22. **Startup orphan rescue**: `_rescue_orphaned_tasks()` runs once during
+    `start()` before the dispatch/zombie loops begin. It queries
+    `list_running_tasks` for the board and reclaims every task that has no
+    active execution handle in `_task_id_to_exec` — i.e. tasks left in
+    RUNNING state by a prior process crash. Uses the same `_reclaim_task`
+    pipeline (retry budget check → auto-block → fail → event/emit) so
+    behaviour is identical to zombie detection, just immediate (< 1 s vs
+    60–120 s zombie timeout). On `InMemoryKanbanStore` this is a harmless
+    no-op (data lost on restart); on persistent stores (e.g.
+    `SqlAlchemyKanbanStore`) it eliminates the post-restart "ghost RUNNING"
+    window entirely.
+
 ## Domain Model
 
 - `KanbanBoard`: Top-level grouping with `BoardSettings` (includes `default_workdir` for board-level workspace default)
@@ -227,7 +239,7 @@ Protocol-first architecture with strict framework-business separation.
 | `types.py` | Pure domain types (Board, Task, Status, Priority, Settings, Run, Event) |
 | `protocols.py` | KanbanStore (CRUD + edges + runs + events) + TaskRunner + CompletionVerifier + TaskSpecifier + TaskDecomposer protocol contracts |
 | `stores.py` | InMemoryKanbanStore (test/reference, with DFS cycle detection) |
-| `dispatcher.py` | Event-driven scheduler with heartbeat/zombie/auto-block/transient error smart backoff/run tracking/dependency promotion/pre-and-post-execution status drift guard |
+| `dispatcher.py` | Event-driven scheduler with startup orphan rescue/heartbeat/zombie/auto-block/transient error smart backoff/run tracking/dependency promotion/pre-and-post-execution status drift guard |
 | `diagnostics.py` | Task diagnostic framework — DTOs (TaskDiagnostic, DiagnosticAction, Severity), DiagnosticRule Protocol, DiagnosticEngine. Server layer implements 6 concrete rules including BlockUnblockCyclingRule for detecting block→unblock cycling |
 | `kanban_agent_tools.py` | Modular per-action kanban tools with role-scoped loading (worker/orchestrator/full) + `get_worker_lifecycle_guidance()` for system prompt injection |
 | `context_builder.py` | Worker context assembly helper for TaskRunner implementors — includes parent result + handoff metadata propagation + `build_multimodal_query()` for assembling TaskAttachment objects into LLM-compatible multimodal content blocks |

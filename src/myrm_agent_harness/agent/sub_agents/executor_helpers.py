@@ -3,12 +3,13 @@
 [INPUT]
 - .types::SubagentConfig, AgentHandoverState (POS: Subagent subsystem core type definitions.)
 - .builder::truncate_result (POS: Subagent construction helpers — tool filtering via DelegationCapabilityManifest, model resolution, token merge.)
-- agent.artifacts.vault::ArtifactVault (POS: Oversized result vault, vault:// pointer protocol)
+- agent.artifacts.vault::ArtifactVault (POS: Shared Artifact Vault, vault:// pointer protocol)
+- agent.artifacts::infer_artifact_type_from_extension, push_inline_artifact (POS: Inline artifact SSE queue for frontend delivery)
 
 [OUTPUT]
 - _filter_fork_messages, _estimate_msg_tokens: fork context filtering
 - _cascade_cancel_descendants: cascade cancellation
-- _compact_error_message, _auto_vault_or_truncate: result post-processing
+- _compact_error_message, _auto_vault_or_truncate: oversized result vault (parent workspace under ISOLATED_COPY), inline artifact, file_read_tool recovery hint
 - _parse_handover_state: handover block parsing
 
 [POS]
@@ -21,6 +22,10 @@ import json
 import re
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.agent.artifacts import (
+    infer_artifact_type_from_extension,
+    push_inline_artifact,
+)
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .builder import truncate_result
@@ -159,7 +164,11 @@ def _auto_vault_or_truncate(
     When ``config.auto_vault_threshold`` is set and the result exceeds it,
     the full output is persisted to the vault and a compact summary with a
     ``vault://`` pointer is returned so the parent agent (and frontend)
-    can reference it without inflating context.
+    can reference it without inflating context. Also queues an inline artifact
+    event when ArtifactContext is active so the vault card appears in the UI.
+
+    For ``ISOLATED_COPY`` subagents, vault objects are stored under
+    ``_isolated_parent_workspace`` so the parent agent and GUI can read them.
     """
     threshold = config.auto_vault_threshold
     if threshold is None or len(raw_result) <= threshold:
@@ -170,16 +179,39 @@ def _auto_vault_or_truncate(
         logger.debug("[subagent:%s] No workspace_path - falling back to truncation", task_id)
         return truncate_result(raw_result, config.max_result_tokens)
 
+    parent_workspace = context.get("_isolated_parent_workspace")
+    vault_workspace = (
+        parent_workspace
+        if isinstance(parent_workspace, str) and parent_workspace
+        else workspace_path
+    )
+
     try:
         from myrm_agent_harness.agent.artifacts.vault import ArtifactVault
 
-        vault = ArtifactVault(workspace_path)
+        vault = ArtifactVault(vault_workspace)
+        vault_filename = f"subagent_{task_id}.md"
         pointer = vault.put(
             raw_result,
-            f"subagent_{task_id}.md",
+            vault_filename,
             "text/markdown",
             f"{agent_type} task result ({len(raw_result)} chars)",
         )
+
+        try:
+            push_inline_artifact(
+                filename=vault_filename,
+                preview_url=pointer,
+                artifact_type=infer_artifact_type_from_extension(vault_filename),
+                content_type="text/markdown",
+            )
+        except Exception as inner_exc:
+            logger.warning(
+                "[subagent:%s] Failed to push inline artifact for vault pointer %s: %s",
+                task_id,
+                pointer,
+                inner_exc,
+            )
 
         head = raw_result[:_SUMMARY_HEAD_CHARS]
         tail_start = max(_SUMMARY_HEAD_CHARS, len(raw_result) - _SUMMARY_TAIL_CHARS)
@@ -197,7 +229,10 @@ def _auto_vault_or_truncate(
             len(raw_result),
             pointer,
         )
-        return f"{summary}\n\n[Full result stored in vault: {pointer}]"
+        return (
+            f"{summary}\n\n[Full result stored in vault: {pointer}]\n"
+            f'To read full content: file_read_tool(paths=["{pointer}"])'
+        )
     except Exception:
         logger.warning(
             "[subagent:%s] Auto-vault failed, falling back to truncation",

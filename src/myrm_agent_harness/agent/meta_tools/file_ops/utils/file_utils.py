@@ -23,6 +23,7 @@ def parse_path_with_range(path_str: str) -> tuple[str, ViewRange | None]:
     """解析路径字符串，提取行号范围
 
     支持文件 ID 格式：@file_001:1-50
+    支持 vault 指针：vault://uuid:1-50
 
     Args:
         path_str: 路径字符串，如 "file.py" 或 "file.py:1-50" 或 "@file_001:1-50"

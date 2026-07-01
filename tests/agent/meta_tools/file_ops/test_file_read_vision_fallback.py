@@ -1,10 +1,13 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from langchain_core.runnables import RunnableConfig
 
-from myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool import (
-    _build_multimodal_result,
+from myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers import (
+    build_multimodal_result as _build_multimodal_result,
 )
+
+_DUMMY_CONFIG = RunnableConfig()
 
 
 @pytest.mark.asyncio
@@ -25,12 +28,14 @@ async def test_build_multimodal_result_vision_fallback_success():
             pdf_paths=[],
             document_paths=[],
             text_paths=[],
+            vault_paths=[],
             executor=mock_executor,
             skills=None,
             reason=None,
             url_errors=[],
             supports_vision=False,
             vision_fallback_model_cfg=vision_fallback_model_cfg,
+            config=_DUMMY_CONFIG,
         )
 
         assert len(blocks) == 1
@@ -55,12 +60,14 @@ async def test_build_multimodal_result_vision_fallback_failure():
             pdf_paths=[],
             document_paths=[],
             text_paths=[],
+            vault_paths=[],
             executor=mock_executor,
             skills=None,
             reason=None,
             url_errors=[],
             supports_vision=False,
             vision_fallback_model_cfg=vision_fallback_model_cfg,
+            config=_DUMMY_CONFIG,
         )
 
         assert len(blocks) == 1

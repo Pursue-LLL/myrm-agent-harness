@@ -354,6 +354,114 @@ class TestZombieDetection:
 
 
 # ---------------------------------------------------------------------------
+# Startup rescue (orphaned RUNNING tasks)
+# ---------------------------------------------------------------------------
+
+
+class TestStartupRescue:
+
+    @pytest.mark.asyncio
+    async def test_no_orphans_start_succeeds_silently(self) -> None:
+        """When no RUNNING tasks exist, rescue is a no-op."""
+        store = InMemoryKanbanStore()
+        board = _make_board()
+        await store.save_board(board)
+
+        runner = _FakeRunner(succeed=True)
+        d = KanbanDispatcher(store, runner, board)
+        await d.start()
+        await d.stop()
+
+    @pytest.mark.asyncio
+    async def test_orphaned_running_task_reclaimed_on_start(self) -> None:
+        """A RUNNING task with no active worker is reclaimed at startup."""
+        store = InMemoryKanbanStore()
+        board = _make_board(auto_block_failures=10)
+        await store.save_board(board)
+
+        orphan = _make_task(task_id="orphan1", status=TaskStatus.RUNNING)
+        orphan.last_heartbeat_at = datetime.now(UTC) - timedelta(seconds=300)
+        orphan.max_retries = 5
+        await store.save_task(orphan)
+
+        events: list[tuple[str, str]] = []
+        runner = _FakeRunner(succeed=True)
+        d = KanbanDispatcher(store, runner, board)
+        d.on_event(lambda et, t: events.append((et, t.task_id)))
+        await d.start()
+        await asyncio.sleep(0.1)
+        await d.stop()
+
+        updated = await store.get_task("orphan1")
+        assert updated is not None
+        assert updated.status != TaskStatus.RUNNING
+        assert updated.retry_count >= 1
+
+        reclaim_events = [e for e in events if e[0] == "task_retrying" and e[1] == "orphan1"]
+        assert len(reclaim_events) >= 1
+
+    @pytest.mark.asyncio
+    async def test_multiple_orphans_all_reclaimed(self) -> None:
+        """All orphaned RUNNING tasks are reclaimed, not just the first."""
+        store = InMemoryKanbanStore()
+        board = _make_board(auto_block_failures=10)
+        await store.save_board(board)
+
+        for i in range(3):
+            t = _make_task(task_id=f"orphan{i}", status=TaskStatus.RUNNING)
+            t.last_heartbeat_at = datetime.now(UTC) - timedelta(seconds=300)
+            t.max_retries = 5
+            await store.save_task(t)
+
+        d = KanbanDispatcher(store, _FakeRunner(), board)
+        await d.start()
+        await asyncio.sleep(0.1)
+        await d.stop()
+
+        for i in range(3):
+            updated = await store.get_task(f"orphan{i}")
+            assert updated is not None
+            assert updated.status != TaskStatus.RUNNING
+
+    @pytest.mark.asyncio
+    async def test_orphan_rescue_does_not_affect_ready_tasks(self) -> None:
+        """Non-RUNNING tasks are not touched by rescue."""
+        store = InMemoryKanbanStore()
+        board = _make_board()
+        await store.save_board(board)
+
+        ready_task = _make_task(task_id="ready1", status=TaskStatus.READY)
+        await store.save_task(ready_task)
+
+        d = KanbanDispatcher(store, _FakeRunner(), board)
+        await d.start()
+        await asyncio.sleep(0.1)
+
+        updated = await store.get_task("ready1")
+        assert updated is not None
+        assert updated.retry_count == 0
+
+        await d.stop()
+
+    @pytest.mark.asyncio
+    async def test_rescue_tolerates_store_error(self) -> None:
+        """If list_running_tasks raises, dispatcher still starts normally."""
+
+        class _FailingStore(InMemoryKanbanStore):
+            async def list_running_tasks(self, board_id: str) -> list[KanbanTask]:
+                raise RuntimeError("store unavailable")
+
+        store = _FailingStore()
+        board = _make_board()
+        await store.save_board(board)
+
+        d = KanbanDispatcher(store, _FakeRunner(), board)
+        await d.start()
+        assert d.is_running
+        await d.stop()
+
+
+# ---------------------------------------------------------------------------
 # Dependency promotion
 # ---------------------------------------------------------------------------
 

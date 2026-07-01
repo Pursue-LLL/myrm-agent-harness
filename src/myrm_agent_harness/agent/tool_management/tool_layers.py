@@ -148,10 +148,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "list_subagents_tool": ToolLayer.EXTENDED,
     "send_teammate_message_tool": ToolLayer.EXTENDED,
     "steer_subagent_tool": ToolLayer.EXTENDED,
-    # --- Vault 工具 ---
-    "vault_extract_tool": ToolLayer.EXTENDED,
-    "vault_get_tool": ToolLayer.EXTENDED,
-    "vault_put_tool": ToolLayer.EXTENDED,
     # --- Wiki 知识库 ---
     "wiki_compile_tool": ToolLayer.EXTENDED,
     "wiki_ingest_tool": ToolLayer.EXTENDED,

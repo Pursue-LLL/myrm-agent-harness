@@ -133,15 +133,7 @@
 | 50 | wiki_compile_tool | 71 | `harness/toolkits/wiki/wiki_agent_tools.py` | 编译 Wiki 文档 |
 | 51 | wiki_maintain_tool | 84 | `harness/toolkits/wiki/wiki_agent_tools.py` | 维护 Wiki（清理/合并） |
 
-### 4.11 文件保险柜工具
-
-| # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
-|---|--------|------------------:|----------|------|
-| 52 | vault_get_tool | 60 | `harness/agent/meta_tools/file_ops/vault_tools.py` | 从保险柜获取文件 |
-| 53 | vault_put_tool | 96 | `harness/agent/meta_tools/file_ops/vault_tools.py` | 放入文件到保险柜 |
-| 54 | vault_extract_tool | 66 | `harness/agent/meta_tools/file_ops/vault_tools.py` | 从保险柜提取文件 |
-
-### 4.12 Goal 目标工具
+### 4.11 Goal 目标工具
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|
