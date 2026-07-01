@@ -3,6 +3,8 @@
 ## Overview
 User-configurable lifecycle hook system. Complements middlewares (framework-internal safety logic) by providing external extension points without source code modification.
 
+**Not** `myrm_agent_harness.api.hooks` — that is the server integration facade; see [../../api/_ARCH.md](../../api/_ARCH.md).
+
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |

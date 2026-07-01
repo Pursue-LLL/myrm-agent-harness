@@ -3,6 +3,14 @@
 ## Overview
 Stable public import surface for external consumers (`myrm-agent-server`, third-party agent frameworks). All symbols are lazy-loaded re-exports; core IP may ship as compiled native extensions in release wheels.
 
+## Not to be confused with
+
+| Path | Role |
+|------|------|
+| `myrm_agent_harness.api.hooks` | **This package** — integration facade for server/desktop (import here) |
+| `myrm_agent_harness.agent.hooks` | User profile lifecycle hook system — see [../agent/hooks/_ARCH.md](../agent/hooks/_ARCH.md) |
+| `myrm_agent_harness.core.hooks` | Hook type definitions shared across agent and toolkits |
+
 ## File Index
 
 | File | Role | Description | I/O/P |
