@@ -56,7 +56,7 @@ is an adapter, not the toolkit itself. Examples: `wiki/wiki_agent_tools.py`,
 **Rule of thumb:** engine + persistence + Protocol in `toolkits/` (exported from `__init__.py`);
 LangChain adapter is optional and secondary. Wrappers that must read `agent/` session state belong in `agent/meta_tools/`.
 
-Current `*_agent_tools.py` modules (all compliant): `acp/`, `computer_use/`, `cron/`, `kanban/`, `memory/`, `web_fetch/`, `web_search/`, `wiki/`.
+Current `*_agent_tools.py` modules (all compliant): `acp/`, `code_graph/`, `computer_use/`, `cron/`, `kanban/`, `memory/`, `web_fetch/`, `web_search/`, `wiki/`.
 
 ### Naming disambiguation: `mcp/agent.py`
 
@@ -86,7 +86,7 @@ Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
 | Category | Toolkits | Role |
 |----------|----------|------|
 | **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP |
-| **Workspace** | `browser/`, `computer_use/`, `filesystem_suggest/`, `context_bundle/`, `file_parsers/`, `wiki/` | Files, browser, desktop, @-mention path suggest |
+| **Workspace** | `browser/`, `code_graph/`, `computer_use/`, `filesystem_suggest/`, `context_bundle/`, `file_parsers/`, `wiki/` | Files, browser, code graph, desktop, @-mention path suggest |
 | **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/` | External APIs, agent protocols |
 | **Collaboration & Media** | `kanban/`, `tasks/`, `cron/` | Scheduling (incl. event/webhook triggers), tasks |
 | **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |
@@ -154,6 +154,7 @@ Does your code need to import anything from agent/?
 | acp/ | ACP protocol integration — server and runtime components for Agent Communication Protocol. |
 | browser/ | Browser automation — multi-tab control, iframe traversal, session vault, stealth mode. |
 | code_execution/ | Code execution system — Agent-in-Sandbox mode with multiple executor backends. |
+| code_graph/ | AST-based code knowledge graph — Tree-sitter multi-language parsing → SQLite graph storage → structural queries (impact radius, call chains, execution flows, hotspots). `[code-graph]` optional extra. |
 | memory/proactive/ | Proactive follow-up tracking — implicit promise extraction; host implements `CommitmentStore`. See [COMMITMENT_SYSTEM.md](memory/proactive/COMMITMENT_SYSTEM.md). |
 | computer_use/ | System-wide desktop automation — screen capture + coordinate-based input (macOS/Linux). |
 | cron/ | Scheduled task framework — scheduling engine, CRUD manager, built-in strategies. |
