@@ -256,7 +256,6 @@ show_missing = true
 skip_covered = false
 include = [
   "*/myrm_agent_harness/agent/goals/*",
-  "*/myrm_agent_harness/toolkits/llms/batch/*",
   "*/myrm_agent_harness/toolkits/llms/routing/*",
   "*/myrm_agent_harness/toolkits/code_execution/session/*",
   "*/myrm_agent_harness/toolkits/code_execution/executors/common/wrapper_script.py",

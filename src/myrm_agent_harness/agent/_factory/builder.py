@@ -97,7 +97,6 @@ async def create_skill_agent(
     on_session_cleanup: Callable[[Sequence[dict[str, str]], str | None], Awaitable[None]] | None = None,
     enable_file_tools: bool = True,
     enable_bash: bool = True,
-    enable_llm_map: bool = False,
     enable_answer_tool: bool = True,
 ) -> SkillAgent:
     """Create a SkillAgent instance (framework assembly entry)."""
@@ -341,7 +340,6 @@ async def create_skill_agent(
         on_session_cleanup=on_session_cleanup,
         enable_file_tools=enable_file_tools,
         enable_bash=enable_bash,
-        enable_llm_map=enable_llm_map,
         enable_answer_tool=enable_answer_tool,
         available_tool_names=frozenset(spec.allowed_tools) if spec.allowed_tools else None,
         available_tool_groups=frozenset(spec.tool_groups) if spec.tool_groups else None,

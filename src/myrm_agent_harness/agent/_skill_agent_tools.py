@@ -98,10 +98,6 @@ class SkillAgentToolsMixin:
         if wiki_tools:
             meta_tools.extend(wiki_tools)
 
-        llm_map_tool = self._create_llm_map_tool()
-        if llm_map_tool is not None:
-            meta_tools.append(llm_map_tool)
-
         registry.register_many(meta_tools, source=ToolSource.META)
         registry.register_many(
             normalize_tool_names(self.user_tools),
@@ -345,36 +341,6 @@ class SkillAgentToolsMixin:
                 logger.debug("EventBus notification skipped (non-critical)", exc_info=True)
 
         register_large_doc_ingest_callback(_ingest_large_doc)
-
-    def _create_llm_map_tool(self) -> BaseTool | None:
-        """Auto-create ``llm_map_tool`` (bulk per-item LLM fan-out) when enabled.
-
-        Uses the cheap extraction LLM (``_extraction_llm``, typically Haiku-class)
-        for the fan-out calls to keep per-item cost low; falls back to the main
-        model when no extraction LLM is configured.  The agent's primary ``llm``
-        serves as the per-item resilient-call fallback.  Opt-in via
-        ``enabled_builtin_tools`` so the always-on prompt prefix cache is
-        unaffected for agents that never use it — the tool sits in the EXTENDED
-        layer (prompt tail) when present.
-        """
-        if not self._enable_llm_map:  # type: ignore[attr-defined]
-            return None
-        if self.llm is None:  # type: ignore[attr-defined]
-            logger.info("llm_map_tool skipped (no LLM bound)")
-            return None
-        try:
-            from myrm_agent_harness.agent.meta_tools.llm_map import create_llm_map_tool
-
-            map_llm = getattr(self, "_extraction_llm", None) or self.llm  # type: ignore[attr-defined]
-            tool = create_llm_map_tool(
-                map_llm,
-                fallback_llm=self.llm,  # type: ignore[attr-defined]
-            )
-            logger.info(" llm_map_tool 已加载 (bulk LLM-map fan-out)")
-            return tool
-        except Exception as e:
-            logger.warning("llm_map_tool creation failed: %s", e)
-            return None
 
     def get_tool_snapshot(self) -> list[ToolSnapshot]:
         """Return a serializable snapshot of the current tool set."""

@@ -36,7 +36,7 @@ class TestGetToolLayer:
 
     def test_extended_tools_return_extended(self):
         extended_tools = ["skill_select_tool", "memory_recall_tool", "memory_save_tool",
-                          "memory_manage_tool", "skill_manage_tool", "llm_map_tool"]
+                          "memory_manage_tool", "skill_manage_tool"]
         for tool in extended_tools:
             assert get_tool_layer(tool) == ToolLayer.EXTENDED, f"{tool} should be EXTENDED"
 

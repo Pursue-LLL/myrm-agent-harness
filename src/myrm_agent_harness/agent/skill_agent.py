@@ -135,7 +135,6 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
         on_session_cleanup: "Callable[[Sequence[dict[str, str]], str | None], Awaitable[None]] | None" = None,
         enable_file_tools: bool = True,
         enable_bash: bool = True,
-        enable_llm_map: bool = False,
         enable_answer_tool: bool = True,
         available_tool_names: frozenset[str] | None = None,
         available_tool_groups: frozenset[str] | None = None,
@@ -185,7 +184,6 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
         self._on_session_cleanup = on_session_cleanup
         self._enable_file_tools = enable_file_tools
         self._enable_bash = enable_bash
-        self._enable_llm_map = enable_llm_map
         self._enable_answer_tool = enable_answer_tool
         self._available_tool_names = available_tool_names
         self._available_tool_groups = available_tool_groups
