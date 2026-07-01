@@ -12,5 +12,6 @@ directories:
   - agent/context_management/pipeline
   - toolkits/memory/strategies
   - toolkits/memory/cognitive
+  - toolkits/memory/proactive
 
 modules: []

@@ -55,8 +55,8 @@ Browser session manager. As the aggregate root, composes single-responsibility c
 14. ConsentDismisser (cookie consent auto-accept after navigation, zero LLM cost)
 
 The aggregate root class combines mixins via multiple inheritance (Persistence, Recording, Extraction,
-Page, Navigation, Lifecycle, Network). MRO order is fixed: Navigation before Lifecycle so navigate()
-can call _initialize_components and restart().
+Page, Network, Navigation, Lifecycle). MRO order is fixed: Network before Navigation before Lifecycle
+so navigate() can call _initialize_components and restart().
 """
 
 from __future__ import annotations

@@ -20,6 +20,7 @@ Detailed design: [COMMITMENT_SYSTEM.md](COMMITMENT_SYSTEM.md)
 
 ## Boundaries
 
+- **Core IP (release wheels)**: compiled via `harness_packaging/core_manifest.yaml` → `toolkits/memory/proactive`
 - **Reuses**: injected async LLM callback only (no harness LLM factory coupling)
 - **Does not import**: `agent/`, `runtime/`, `backends/`
 - **Host implements**: `CommitmentStore`, session hook timing, REST/GUI, heartbeat delivery

@@ -20,7 +20,7 @@ def test_tag_gate_skips_non_tag_ref(monkeypatch) -> None:
 
 
 def test_tag_gate_passes_when_versions_match(monkeypatch) -> None:
-    monkeypatch.setenv("GITHUB_REF", "refs/tags/v0.1.0rc3")
+    monkeypatch.setenv("GITHUB_REF", "refs/tags/v0.1.0rc4")
     assert main() == 0
 
 

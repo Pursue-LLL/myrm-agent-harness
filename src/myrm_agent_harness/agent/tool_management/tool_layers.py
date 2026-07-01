@@ -96,8 +96,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "channel_notify_tool": ToolLayer.EXTENDED,
     # --- Cron 定时任务 ---
     "cron_manage_tool": ToolLayer.EXTENDED,
-    # --- Deploy ---
-    "deploy_artifact": ToolLayer.EXTENDED,
     # --- 文件搜索 ---
     "glob_tool": ToolLayer.EXTENDED,
     "grep_tool": ToolLayer.EXTENDED,

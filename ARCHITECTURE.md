@@ -179,7 +179,6 @@ BaseAgent (基础 Agent)
 ├─ meta_tools/ (Agent 元工具)
 │   ├─ bash/ (Bash 执行)
 │   ├─ file_ops/ (文件操作)
-│   ├─ http/ (HTTP 请求)
 │   └─ skills/ (技能发现/搜索/选择)
 │
 ├─ skills/ (技能系统)

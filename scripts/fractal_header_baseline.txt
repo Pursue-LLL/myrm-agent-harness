@@ -33,7 +33,6 @@ myrm_agent_harness/agent/meta_tools/file_ops/strategies/__init__.py
 myrm_agent_harness/agent/meta_tools/file_ops/utils/__init__.py
 myrm_agent_harness/agent/meta_tools/file_ops/utils/line_endings.py
 myrm_agent_harness/agent/meta_tools/file_ops/validators/__init__.py
-myrm_agent_harness/agent/meta_tools/http/http_client.py
 myrm_agent_harness/agent/meta_tools/skills/search/__init__.py
 myrm_agent_harness/agent/meta_tools/skills/search/synonym_expander.py
 myrm_agent_harness/agent/meta_tools/spawn_subagent/__init__.py
@@ -183,6 +182,9 @@ myrm_agent_harness/toolkits/web_fetch/html_to_markdown.py
 myrm_agent_harness/toolkits/web_fetch/router/__init__.py
 myrm_agent_harness/toolkits/web_search/constants.py
 myrm_agent_harness/toolkits/web_search/local_probe.py
+myrm_agent_harness/observability/tracing/context.py
+myrm_agent_harness/observability/tracing/json_formatter.py
+myrm_agent_harness/observability/tracing/log_filter.py
 myrm_agent_harness/utils/crypto/__init__.py
 myrm_agent_harness/utils/mime_types.py
 myrm_agent_harness/utils/tree_truncator.py

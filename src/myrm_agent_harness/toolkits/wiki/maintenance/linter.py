@@ -12,8 +12,8 @@ WikiLinter: Wiki health check and maintenance engine
 
 [POS]
 Wiki health maintenance core engine. Performs wiki quality checks and automatic repairs:
-broken link detection, completeness checks (short articles, TODO markers), consistency checks
-(LLM-driven), automatic repair of incomplete articles, and discovery of potential cross-reference connections.
+broken link detection, completeness checks, consistency checks (LLM-driven), stale/drift
+detection, knowledge-gap analysis (isolated/bridge nodes), and cross-reference discovery.
 """
 
 from __future__ import annotations
@@ -41,15 +41,10 @@ logger = get_agent_logger(__name__)
 
 
 class WikiLinter:
-    """
-    Wiki health checker and automatic maintenance engine.
+    """Wiki health checker and automatic maintenance engine.
 
-    Features:
-    - Consistency checks (detect contradictions)
-    - Completeness checks (find missing information)
-    - Broken link detection
-    - Automatic repair (web search for missing info)
-    - Connection discovery (find potential cross-references)
+    Checks: broken links, completeness, consistency, stale content, drift,
+    knowledge-gap analysis (isolated/bridge nodes). Auto-repairs and discovers connections.
     """
 
     def __init__(
@@ -99,6 +94,28 @@ class WikiLinter:
         if self._config.enable_auto_maintenance:
             drift = await self._check_drift()
             all_issues.extend(drift)
+
+        # Check 6: Knowledge graph gaps (isolated/bridge nodes)
+        if self._indexer:
+            try:
+                insights = self._indexer.graph_insights()
+                _gap_desc = {
+                    "isolated": lambda g: f"Isolated concept ({g.get('degree', 0)} connections)",
+                    "bridge": lambda g: f"Bridge node (connects {g.get('communities_connected', 0)} communities)",
+                }
+                for gap in insights.get("knowledge_gaps", []):
+                    desc_fn = _gap_desc.get(gap.get("type", ""))
+                    if desc_fn:
+                        all_issues.append(
+                            LintIssue(
+                                issue_type="knowledge_gap",
+                                severity="low",
+                                location=gap["node"],
+                                description=desc_fn(gap),
+                            )
+                        )
+            except Exception as e:
+                logger.warning(f"Graph gap analysis failed: {e}")
 
         # Auto-fix issues
         fixed_count = 0

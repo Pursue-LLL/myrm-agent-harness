@@ -1,4 +1,16 @@
-"""ChatLiteLLM synchronous generation and streaming mixin."""
+"""ChatLiteLLM synchronous generation and streaming mixin.
+
+[INPUT]
+- adapters.chat_model_exceptions (POS: EmptyChoicesError / EmptyStreamError)
+- adapters.stream_aggregator / adapters.streaming (POS: stream aggregation)
+- utils.token_economics (POS: streaming usage recording — lazy import)
+
+[OUTPUT]
+- ChatLiteLLMSyncMixin: _generate, _stream, empty-response retry
+
+[POS]
+Synchronous LLM generation and streaming path for ChatLiteLLM, including empty-response retry.
+"""
 
 from __future__ import annotations
 

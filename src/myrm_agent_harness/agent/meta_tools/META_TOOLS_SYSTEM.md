@@ -28,7 +28,7 @@
 │ bash/           │ │ discover_       │ │ spawn_subagent/ │
 │ file_ops/       │ │  capability/    │ │ skills/         │
 │ file_search/    │ │ interaction/    │ │ goals/          │
-│ http/           │ │ clarification/  │ │ llm_map/        │
+│                 │ │ clarification/  │ │ llm_map/        │
 └─────────────────┘ └─────────────────┘ └─────────────────┘
          │                   │                   │
          └───────────────────┴───────────────────┘
@@ -62,7 +62,6 @@
 | `clarification/` | 结构化 HITL 澄清 | `ask_question_tool` |
 | `interaction/` | UI artifact 渲染 | `render_ui_tool` |
 | `discover_capability/` | 统一能力发现网关 | `discover_capability_tool` |
-| `http/` | HTTP 下载/上传（并发、流式） | `http_client` |
 | `llm_map/` | 批量 LLM map 适配 | `llm_map_tool` |
 
 根目录独立工具：

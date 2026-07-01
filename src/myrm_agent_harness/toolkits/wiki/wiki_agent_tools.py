@@ -205,6 +205,7 @@ def create_wiki_tools(
         - Consistency checks (find contradictions)
         - Automatic repairs (enhance incomplete articles)
         - Connection discovery (find potential cross-references)
+        - Knowledge graph gap analysis (isolated/bridge concepts)
 
         Use this periodically to keep the wiki healthy.
         Recommended frequency: once per day or after major updates.
@@ -214,13 +215,20 @@ def create_wiki_tools(
         try:
             result = await linter.lint_and_maintain()
 
-            return (
+            output = (
                 f"Wiki maintenance complete:\n"
                 f"- Issues found: {result.issues_found}\n"
                 f"- Issues fixed: {result.issues_fixed}\n"
                 f"- New connections: {result.connections_discovered}\n"
                 f"- Duration: {result.duration_ms}ms"
             )
+
+            gaps = [i for i in result.issues if i.issue_type == "knowledge_gap"]
+            if gaps:
+                top = [f"{g.location}: {g.description}" for g in gaps[:5]]
+                output += f"\n- Knowledge gaps ({len(gaps)}): " + "; ".join(top)
+
+            return output
 
         except Exception as e:
             logger.error(f"Maintenance failed: {e}")

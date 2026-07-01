@@ -17,9 +17,9 @@
 - utils.token_tracker (POS: Token tracking API — record_token_usage, append_to_ledger, record_finish_reason)
 
 [OUTPUT]
-- ChatLiteLLM: LangChain-compatible LiteLLM chat model class (with retry_metrics observability property and provider-aware system-message normalization)
-- EmptyChoicesError: empty response exception class (retryable)
-- EmptyStreamError: empty stream exception class (retryable)
+- ChatLiteLLM: LangChain-compatible LiteLLM chat model aggregate root (config, bind_tools, structured_output)
+- chat_model_message_mixin / chat_model_sync_mixin / chat_model_async_mixin: generation and message assembly mixins
+- chat_model_exceptions: EmptyChoicesError, EmptyStreamError, adapter constants
 - clean_model_kwargs(): utility function to clean model parameters
 
 [POS]
@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import types
 from collections.abc import Sequence
 from operator import itemgetter
 from typing import (
@@ -64,6 +65,15 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_core.utils.pydantic import is_basemodel_subclass
 from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
+from myrm_agent_harness.toolkits.llms.adapters.chat_model_async_mixin import ChatLiteLLMAsyncMixin
+from myrm_agent_harness.toolkits.llms.adapters.chat_model_exceptions import (
+    EmptyChoicesError,
+    EmptyStreamError,
+    _DEVELOPER_ROLE_PATTERN,
+    _FRAMEWORK_REQUIRED_OPENAI_PARAMS,
+)
+from myrm_agent_harness.toolkits.llms.adapters.chat_model_message_mixin import ChatLiteLLMMessageMixin
+from myrm_agent_harness.toolkits.llms.adapters.chat_model_sync_mixin import ChatLiteLLMSyncMixin
 from myrm_agent_harness.toolkits.llms.adapters.metrics import EmptyRetryMetrics
 from myrm_agent_harness.toolkits.llms.adapters.schema_normalizer import (
     normalize_tool_schema,
@@ -79,17 +89,6 @@ _BM = TypeVar("_BM", bound=BaseModel)
 
 logger = logging.getLogger(__name__)
 
-
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_async_mixin import ChatLiteLLMAsyncMixin
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_exceptions import (
-    EmptyChoicesError,
-    EmptyStreamError,
-    _DEVELOPER_ROLE_PATTERN,
-    _FRAMEWORK_REQUIRED_OPENAI_PARAMS,
-)
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_message_mixin import ChatLiteLLMMessageMixin
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_sync_mixin import ChatLiteLLMSyncMixin
-
 __all__ = [
     "ChatLiteLLM",
     "EmptyChoicesError",
@@ -98,6 +97,7 @@ __all__ = [
     "clean_model_kwargs",
 ]
 
+
 class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyncMixin, BaseChatModel):
     """Minimal LangChain ChatModel adapter for litellm.
 
@@ -105,7 +105,7 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
     chat completions and compatibility with LangChain Runnable API.
     """
 
-    client: Any = None  # type: ignore[assignment]
+    client: types.ModuleType | None = None
     model: str = "gpt-3.5-turbo"
     model_name: str | None = None
     openai_api_key: str | None = None
@@ -391,7 +391,11 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
                 try:
                     openai_tools.append(normalize_tool_schema(convert_to_openai_tool(t), model_name=model_id))
                 except Exception as e:
-                    logger.error(f"DEBUG: Failed to convert tool {getattr(t, 'name', t)}: {e}")
+                    logger.warning(
+                        "Failed to convert tool %s: %s",
+                        getattr(t, "name", t),
+                        e,
+                    )
                     continue
 
         tool_choice_param: str | dict[str, Any] | None = None
@@ -407,7 +411,10 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
 
         bind_kwargs: dict[str, Any] = {"tools": openai_tools}
         if not openai_tools:
-            logger.warning(f"DEBUG: openai_tools is empty! original tools count: {len(tools)}")
+            logger.debug(
+                "bind_tools produced no OpenAI tools after conversion (input count=%s)",
+                len(tools),
+            )
         if tool_choice_param:
             bind_kwargs["tool_choice"] = tool_choice_param
         if parallel_tool_calls is not None:
@@ -416,7 +423,6 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
             bind_kwargs.update(kwargs)
 
         return self.bind(**bind_kwargs)
-
 
 
 def clean_model_kwargs(kwargs: dict, model: str, additional_remove_keys: list[str] | None = None) -> dict:

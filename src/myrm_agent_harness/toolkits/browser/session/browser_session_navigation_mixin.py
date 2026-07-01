@@ -1,4 +1,17 @@
-"""BrowserSession navigation, tab switching, and CAPTCHA coordination APIs."""
+"""BrowserSession navigation, tab switching, and CAPTCHA coordination APIs.
+
+[INPUT]
+- navigation::Navigator (POS: throttled page navigation)
+- captcha protocols and coordinator (POS: blocking CAPTCHA detection/handling)
+- web_fetch site experience store (POS: post-navigation experience injection)
+
+[OUTPUT]
+- BrowserSessionNavigationMixin: new_tab, navigate, tab switch/close, CAPTCHA helpers
+
+[POS]
+Navigation and tab-management APIs for BrowserSession. Calls lifecycle mixin for
+component initialization; must appear before BrowserSessionLifecycleMixin in MRO.
+"""
 
 from __future__ import annotations
 

@@ -75,7 +75,7 @@ class QueryResult:
 class LintIssue:
     """Wiki quality issue."""
 
-    issue_type: str  # "inconsistency" | "incomplete" | "broken_link"
+    issue_type: str  # "broken_link" | "incomplete" | "inconsistency" | "stale" | "drift" | "knowledge_gap"
     severity: str  # "low" | "medium" | "high"
     location: str  # File path or concept name
     description: str

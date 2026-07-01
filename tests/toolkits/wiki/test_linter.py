@@ -95,6 +95,97 @@ async def test_lint_and_maintain(
 
 
 @pytest.mark.asyncio
+async def test_lint_and_maintain_knowledge_gaps(
+    mock_llm: MagicMock,
+    wiki_structure: WikiStructure,
+) -> None:
+    """Test that Check 6 produces knowledge_gap issues from graph insights."""
+    mock_indexer = MagicMock()
+    mock_indexer.graph_insights.return_value = {
+        "knowledge_gaps": [
+            {"node": "Orphan Topic", "type": "isolated", "degree": 0},
+            {"node": "Hub Topic", "type": "bridge", "communities_connected": 4},
+        ],
+        "unexpected_connections": [],
+        "communities": [],
+    }
+    config = WikiConfig(enable_auto_maintenance=False)
+    linter_with_indexer = WikiLinter(mock_llm, wiki_structure, config, indexer=mock_indexer)
+
+    result = await linter_with_indexer.lint_and_maintain()
+
+    gap_issues = [i for i in result.issues if i.issue_type == "knowledge_gap"]
+    assert len(gap_issues) == 2
+    assert gap_issues[0].location == "Orphan Topic"
+    assert "Isolated" in gap_issues[0].description
+    assert gap_issues[1].location == "Hub Topic"
+    assert "Bridge" in gap_issues[1].description
+    mock_indexer.graph_insights.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_lint_knowledge_gaps_exception_safe(
+    mock_llm: MagicMock,
+    wiki_structure: WikiStructure,
+) -> None:
+    """Check 6 gracefully handles graph_insights() exceptions."""
+    mock_indexer = MagicMock()
+    mock_indexer.graph_insights.side_effect = RuntimeError("db locked")
+    config = WikiConfig(enable_auto_maintenance=False)
+    linter_err = WikiLinter(mock_llm, wiki_structure, config, indexer=mock_indexer)
+
+    result = await linter_err.lint_and_maintain()
+
+    assert not any(i.issue_type == "knowledge_gap" for i in result.issues)
+    assert result.duration_ms >= 0
+
+
+@pytest.mark.asyncio
+async def test_lint_knowledge_gaps_empty(
+    mock_llm: MagicMock,
+    wiki_structure: WikiStructure,
+) -> None:
+    """Check 6 with empty knowledge_gaps produces no issues."""
+    mock_indexer = MagicMock()
+    mock_indexer.graph_insights.return_value = {
+        "knowledge_gaps": [],
+        "unexpected_connections": [],
+        "communities": [],
+    }
+    config = WikiConfig(enable_auto_maintenance=False)
+    linter_empty = WikiLinter(mock_llm, wiki_structure, config, indexer=mock_indexer)
+
+    result = await linter_empty.lint_and_maintain()
+
+    assert not any(i.issue_type == "knowledge_gap" for i in result.issues)
+
+
+@pytest.mark.asyncio
+async def test_lint_knowledge_gaps_unknown_type_ignored(
+    mock_llm: MagicMock,
+    wiki_structure: WikiStructure,
+) -> None:
+    """Check 6 ignores gap entries with unknown type."""
+    mock_indexer = MagicMock()
+    mock_indexer.graph_insights.return_value = {
+        "knowledge_gaps": [
+            {"node": "X", "type": "unknown_future_type"},
+            {"node": "Y", "type": "isolated", "degree": 1},
+        ],
+        "unexpected_connections": [],
+        "communities": [],
+    }
+    config = WikiConfig(enable_auto_maintenance=False)
+    linter_mixed = WikiLinter(mock_llm, wiki_structure, config, indexer=mock_indexer)
+
+    result = await linter_mixed.lint_and_maintain()
+
+    gap_issues = [i for i in result.issues if i.issue_type == "knowledge_gap"]
+    assert len(gap_issues) == 1
+    assert gap_issues[0].location == "Y"
+
+
+@pytest.mark.asyncio
 async def test_discover_connections(
     linter: WikiLinter,
     wiki_structure: WikiStructure,

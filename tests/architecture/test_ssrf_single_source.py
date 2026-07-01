@@ -29,7 +29,6 @@ _FOLLOW_REDIRECTS_ALLOWLIST = frozenset(
         "observability/diagnostics/probes.py",
         "runtime/doctor.py",
         "toolkits/web_search/local_probe.py",
-        "agent/meta_tools/http/skip_upload_helper.py",
         "toolkits/mcp/client.py",
     }
 )

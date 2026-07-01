@@ -1,4 +1,18 @@
-"""ChatLiteLLM message conversion and response assembly mixin."""
+"""ChatLiteLLM message conversion and response assembly mixin.
+
+[INPUT]
+- adapters.converters (POS: message and tool call converters)
+- adapters.model_capability (POS: reasoning_content echo requirements)
+- adapters.safety_termination_detector (POS: safety termination on truncated tool_calls)
+- adapters.chat_model_exceptions (POS: role patterns and EmptyChoicesError)
+
+[OUTPUT]
+- ChatLiteLLMMessageMixin: _create_message_dicts, normalize, stamp, ChatResult assembly
+
+[POS]
+Message normalization and response assembly for ChatLiteLLM. Provider-aware system
+demotion/promotion and reasoning_content stamping live here to keep the hot path in one module.
+"""
 
 from __future__ import annotations
 

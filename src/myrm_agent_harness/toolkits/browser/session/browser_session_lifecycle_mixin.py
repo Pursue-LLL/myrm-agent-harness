@@ -1,4 +1,17 @@
-"""BrowserSession restart/close and component initialization lifecycle."""
+"""BrowserSession restart/close and component initialization lifecycle.
+
+[INPUT]
+- navigation::Navigator, snapshot_manager, interactor, extractor (POS: per-tab components)
+- session_persistence::SessionPersistence (POS: auto-save on close)
+- network_logger / network_intelligence (POS: attach on init)
+
+[OUTPUT]
+- BrowserSessionLifecycleMixin: restart, close, _initialize_components, _require_* helpers
+
+[POS]
+Session lifecycle and lazy component wiring for BrowserSession. Navigation mixin
+depends on _initialize_components defined here; keep Lifecycle after Navigation in MRO.
+"""
 
 from __future__ import annotations
 

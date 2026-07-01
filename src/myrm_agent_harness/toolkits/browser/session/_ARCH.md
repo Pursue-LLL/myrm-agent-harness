@@ -8,7 +8,7 @@ Browser session components.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Browser session components. | — |
-| browser_session.py | Core | Browser session aggregate root: __init__, snapshot, interact, downloads, observability hooks, stats. Composes mixins below; MRO: Navigation before Lifecycle. | ✅ |
+| browser_session.py | Core | Browser session aggregate root: __init__, snapshot, interact, downloads, observability hooks, stats. Composes mixins below; MRO: Network before Navigation before Lifecycle. | ✅ |
 | browser_session_navigation_mixin.py | Core | Navigation, tab switching, CAPTCHA coordination, site-experience injection | ✅ |
 | browser_session_lifecycle_mixin.py | Core | Restart/close, component initialization, SessionVault auto-save on close | ✅ |
 | browser_session_network_mixin.py | Core | Console log and network log/detail/replay APIs | ✅ |

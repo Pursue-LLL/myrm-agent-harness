@@ -16,7 +16,7 @@ LLM-driven wikilink enrichment.
 | Submodule | Description |
 |-----------|-------------|
 | core/ | Config (purpose, compile strategy), types, file structure (incl. scan_folder with auto-ignore for .git/node_modules/etc) |
-| maintenance/ | Linter: health checks, drift/stale detection, LLM link enrichment |
+| maintenance/ | Linter: health checks, drift/stale detection, knowledge-gap analysis, LLM link enrichment |
 | pipeline/ | Compiler (SHA256 cache, auto-retry queue, raw text FTS5 pre-indexing on enqueue), pending edits (HITL) |
 | retrieval/ | Indexer (FTS5+CJK with raw text interim indexing, edges with weight, LPA, graph insights), query engine (graph expansion) |
 

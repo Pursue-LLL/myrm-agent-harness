@@ -1,4 +1,15 @@
-"""ChatLiteLLM shared exceptions and adapter constants."""
+"""ChatLiteLLM shared exceptions and adapter constants.
+
+[INPUT]
+- (none — constants and exception types only)
+
+[OUTPUT]
+- EmptyChoicesError / EmptyStreamError: retryable empty LLM response exceptions
+- _DEVELOPER_ROLE_PATTERN, _SYSTEM_MESSAGE_DENYLIST_HINTS, _FRAMEWORK_REQUIRED_OPENAI_PARAMS
+
+[POS]
+Shared adapter constants and exception types used by ChatLiteLLM mixins.
+"""
 
 from __future__ import annotations
 

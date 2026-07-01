@@ -57,6 +57,7 @@ from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support impo
     _QUERY_TOKEN_PATTERN,
     search_claim_graph as _search_claim_graph,
 )
+from myrm_agent_harness.toolkits.memory._internal.maintenance_enrichment import enrich_with_graph
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import MemoryConfig
@@ -443,8 +444,4 @@ async def sweep_orphaned_blobs(
         logger.info("Blob GC: deleted %d orphaned blobs", deleted_count)
 
     return deleted_count
-
-
-
-from myrm_agent_harness.toolkits.memory._internal.maintenance_enrichment import enrich_with_graph
 
