@@ -356,6 +356,10 @@ class SkillAgentReviewMixin:
         if self._should_trigger_skill_review(query):
             await self._trigger_background_skill_review(query, chat_history, assistant_chunks, active_skills)
 
+        from myrm_agent_harness.backends.skills.usage_recorder import flush_skill_usage_stats
+
+        flush_skill_usage_stats()
+
         # Reset active skill reference
         if hasattr(self, "_active_skill"):
             self._active_skill = None

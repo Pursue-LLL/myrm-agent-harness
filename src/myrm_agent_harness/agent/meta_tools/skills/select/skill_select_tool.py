@@ -122,6 +122,7 @@ Rules:
     async def select_skill_func(skill_names: list[str], reason: str, file_path: str | None = None) -> str:
         """Select skills and load their SOP documentation or specific auxiliary files."""
         from myrm_agent_harness.agent._skill_agent_context import add_loaded_skill, get_loaded_skills
+        from myrm_agent_harness.backends.skills.usage_recorder import record_skill_selection
 
         available_names = [s.name for s in skills]
         loaded_names = {s.name for s in get_loaded_skills()}
@@ -138,10 +139,12 @@ Rules:
                 file_content = await _get_skill_file(skill_meta, skill_backend, file_path)
                 if file_content is not None:
                     selected_skills_info.append(file_content)
+                    record_skill_selection(skill_meta, success=True)
                 else:
                     selected_skills_info.append(
                         f"# {skill_name}\n\nError: file '{file_path}' not found or inaccessible"
                     )
+                    record_skill_selection(skill_meta, success=False)
             elif skill_name in loaded_names:
                 selected_skills_info.append(_build_reload_summary(skill_meta))
             else:
@@ -149,8 +152,10 @@ Rules:
                 if skill_doc:
                     selected_skills_info.append(skill_doc)
                     add_loaded_skill(skill_meta)
+                    record_skill_selection(skill_meta, success=True)
                 else:
                     selected_skills_info.append(f"# {skill_name}\n\nError: failed to load skill document")
+                    record_skill_selection(skill_meta, success=False)
 
         skill_docs_formatted: list[str] = []
         for idx, skill_name in enumerate(skill_names):

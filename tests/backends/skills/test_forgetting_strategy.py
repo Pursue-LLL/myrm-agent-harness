@@ -21,16 +21,40 @@ def create_skill_metadata(name: str, usage_stats: SkillUsageStats | None = None)
 
 
 def test_should_forget_stale_skill() -> None:
-    """Test that stale skills are marked for forgetting."""
+    """Test that never-used skills past stale threshold are marked for forgetting."""
     config = ForgettingConfig(stale_after_days=30)
     strategy = DefaultForgettingStrategy(config)
 
-    # Skill never used (default last_used_at is None)
-    skill = create_skill_metadata("stale_skill")
+    old_created = datetime.now(UTC) - timedelta(days=60)
+    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=old_created)
+    skill = create_skill_metadata("stale_skill", usage_stats=stats)
     reason = strategy.should_forget(skill)
 
     assert reason is not None
     assert reason.reason_type == "stale"
+
+
+def test_should_not_forget_never_used_within_stale_threshold() -> None:
+    """Never-used skills younger than stale_after_days must not be marked stale."""
+    config = ForgettingConfig(stale_after_days=30, grace_period_days=0)
+    strategy = DefaultForgettingStrategy(config)
+
+    recent_created = datetime.now(UTC) - timedelta(days=5)
+    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=recent_created)
+    skill = create_skill_metadata("young_skill", usage_stats=stats)
+    assert strategy.should_forget(skill) is None
+
+
+def test_protect_system_skills_exempt() -> None:
+    """Prebuilt skills under /prebuilt/ are exempt when protect_system_skills is True."""
+    config = ForgettingConfig(stale_after_days=7, protect_system_skills=True, grace_period_days=0)
+    strategy = DefaultForgettingStrategy(config)
+
+    old_created = datetime.now(UTC) - timedelta(days=100)
+    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=old_created)
+    skill = create_skill_metadata("prebuilt_skill", usage_stats=stats)
+    object.__setattr__(skill, "storage_path", "/opt/myrm/assets/prebuilt/foo_skill")
+    assert strategy.should_forget(skill) is None
 
 
 def test_should_forget_low_quality_skill() -> None:

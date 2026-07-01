@@ -88,9 +88,13 @@ class CuratorConfig:
     """When True, skills with ``trust == INSTALLED`` (hub/registry) are
     exempt from curator transitions."""
 
+    protect_system_skills: bool = True
+    """When True, prebuilt/system skills (storage path contains ``/prebuilt/``)
+    are exempt from curator transitions."""
+
     # --- Consolidation (Umbrella Merge) settings ---
 
-    consolidation_enabled: bool = True
+    consolidation_enabled: bool = False
     """Enable skill consolidation (umbrella merge) during curator runs."""
 
     consolidation_min_skills: int = _DEFAULT_CONSOLIDATION_MIN_SKILLS
@@ -113,6 +117,7 @@ class CuratorConfig:
             "max_skills": self.max_skills,
             "min_call_count_for_quality_check": self.min_call_count_for_quality_check,
             "protect_installed_skills": self.protect_installed_skills,
+            "protect_system_skills": self.protect_system_skills,
             "consolidation_enabled": self.consolidation_enabled,
             "consolidation_min_skills": self.consolidation_min_skills,
             "consolidation_min_cluster_size": self.consolidation_min_cluster_size,
@@ -135,7 +140,8 @@ class CuratorConfig:
                 data.get("min_call_count_for_quality_check", _DEFAULT_MIN_CALL_COUNT_FOR_QUALITY_CHECK)
             ),
             protect_installed_skills=bool(data.get("protect_installed_skills", True)),
-            consolidation_enabled=bool(data.get("consolidation_enabled", True)),
+            protect_system_skills=bool(data.get("protect_system_skills", True)),
+            consolidation_enabled=bool(data.get("consolidation_enabled", False)),
             consolidation_min_skills=int(data.get("consolidation_min_skills", _DEFAULT_CONSOLIDATION_MIN_SKILLS)),
             consolidation_min_cluster_size=int(
                 data.get("consolidation_min_cluster_size", _DEFAULT_CONSOLIDATION_MIN_CLUSTER_SIZE)
@@ -230,6 +236,12 @@ class DefaultForgettingStrategy:
         if self._config.protect_installed_skills and skill.trust == SkillTrust.INSTALLED:
             return None
 
+        # 2b. Prebuilt/system skills optionally exempt
+        if self._config.protect_system_skills and skill.storage_path:
+            normalized = skill.storage_path.replace("\\", "/")
+            if "/prebuilt/" in normalized:
+                return None
+
         # 3. Grace period — recently discovered skills are exempt
         if stats.created_at is not None:
             age_days = (datetime.now(UTC) - stats.created_at).days
@@ -256,15 +268,22 @@ class DefaultForgettingStrategy:
                         target_status=SkillLifecycleStatus.ARCHIVED,
                     )
 
-        # 6. Stale check — never used or long inactive
+        # 6. Stale check — never used past threshold, or long inactive
         if stats.last_used_at is None and stats.call_count == 0:
-            return ForgettingReason(
-                skill_name=skill.name,
-                reason_type="stale",
-                reason_message=f"Never used (threshold: {self._config.stale_after_days} days)",
-                stats=stats,
-                target_status=SkillLifecycleStatus.STALE,
-            )
+            reference_time = stats.created_at
+            if reference_time is not None:
+                age_days = (datetime.now(UTC) - reference_time).days
+                if age_days >= self._config.stale_after_days:
+                    return ForgettingReason(
+                        skill_name=skill.name,
+                        reason_type="stale",
+                        reason_message=(
+                            f"Never used for {age_days} days "
+                            f"(stale threshold: {self._config.stale_after_days})"
+                        ),
+                        stats=stats,
+                        target_status=SkillLifecycleStatus.STALE,
+                    )
 
         if stats.last_used_at:
             days_inactive = (datetime.now(UTC) - stats.last_used_at).days

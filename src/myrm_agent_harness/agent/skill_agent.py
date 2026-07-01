@@ -418,6 +418,12 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
             total_chars,
             user_args[:80],
         )
+        from myrm_agent_harness.backends.skills.usage_recorder import record_skill_selection
+
+        for skill_meta in matched:
+            if skill_meta.name in loaded_names:
+                record_skill_selection(skill_meta, success=True)
+
         return "\n".join(parts), matched[0]
 
     @staticmethod
@@ -469,6 +475,9 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
         if active_skill is None and isinstance(query, str):
             query, active_skill = await self._preload_explicit_skill(query)
 
+        from myrm_agent_harness.backends.skills.usage_recorder import reset_turn_usage_dedupe
+
+        reset_turn_usage_dedupe()
         self._active_skill = active_skill
         reset_loaded_skills()
         if active_skill:
