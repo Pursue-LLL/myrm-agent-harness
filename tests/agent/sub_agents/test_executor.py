@@ -938,3 +938,28 @@ class TestExecuteWithRetry:
         assert result.status == SubAgentStatus.FAILED
         assert "unexpected error" in result.error
 
+
+class TestCompactErrorMessage:
+    """Tests for _compact_error_message helper."""
+
+    def test_no_truncation_when_within_budget(self) -> None:
+        from myrm_agent_harness.agent.sub_agents.executor import _compact_error_message
+
+        raw = "short error"
+        assert _compact_error_message(raw, 100) == raw
+
+    def test_tiny_budget_returns_prefix_slice(self) -> None:
+        from myrm_agent_harness.agent.sub_agents.executor import _compact_error_message
+
+        raw = "X" * 100
+        assert _compact_error_message(raw, 5) == raw[:5]
+
+    def test_head_tail_truncation(self) -> None:
+        from myrm_agent_harness.agent.sub_agents.executor import _compact_error_message
+
+        raw = "HEAD" + ("." * 200) + "TAIL"
+        compact = _compact_error_message(raw, 80)
+        assert "HEAD" in compact
+        assert "truncated" in compact
+        assert len(compact) < len(raw)
+

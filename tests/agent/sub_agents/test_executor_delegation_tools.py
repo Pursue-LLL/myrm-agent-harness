@@ -78,3 +78,39 @@ async def test_orchestrator_role_attaches_child_scoped_delegation_tools() -> Non
     assert tuple(tool.name for tool in child_agent.added_tools) == (
         DELEGATION_CAPABILITY_MANIFEST.orchestrator_child_tools
     )
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_without_catalog_skips_attachment() -> None:
+    child_agent = ChildAgentStub()
+
+    await SubagentExecutor()._attach_child_delegation_tools(
+        child_agent=child_agent,
+        agent_type="coordinator",
+        config=SubagentConfig(
+            system_prompt="test",
+            delegation_role=DelegateRole.ORCHESTRATOR,
+            delegation_catalog=None,
+        ),
+    )
+
+    assert child_agent.added_tools == []
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_uses_user_tools_when_cache_empty() -> None:
+    child_agent = ChildAgentStub()
+    child_agent._cached_tools = []
+    child_agent.user_tools = [FakeSearchTool()]
+
+    await SubagentExecutor()._attach_child_delegation_tools(
+        child_agent=child_agent,
+        agent_type="coordinator",
+        config=SubagentConfig(
+            system_prompt="test",
+            delegation_role=DelegateRole.ORCHESTRATOR,
+            delegation_catalog=CatalogStub(),
+        ),
+    )
+
+    assert child_agent.added_tools
