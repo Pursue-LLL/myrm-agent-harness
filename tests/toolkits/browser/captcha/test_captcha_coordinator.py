@@ -121,9 +121,10 @@ class TestCoordinatorHandleCaptcha:
         ]
         assert len(takeover_completed) == 1
         assert takeover_completed[0]["elapsed_ms"] == 3200.0
+        assert takeover_completed[0]["success"] is True
 
     @pytest.mark.asyncio
-    async def test_failed_solve_does_not_dispatch_takeover_completed(self) -> None:
+    async def test_failed_solve_dispatches_takeover_completed_with_success_false(self) -> None:
         solver = _make_solver(success=False)
         coord = CaptchaCoordinator(solver)
         page = _make_mock_page()
@@ -140,8 +141,15 @@ class TestCoordinatorHandleCaptcha:
         ):
             await coord.handle_captcha(_make_info(), page)
 
-        dispatch_events = [c.args[0] for c in mock_dispatch.call_args_list]
-        assert "browser_takeover_completed" not in dispatch_events
+        dispatch_calls = [
+            (c.args[0], c.args[1]) for c in mock_dispatch.call_args_list
+        ]
+        takeover_completed = [
+            payload for event, payload in dispatch_calls
+            if event == "browser_takeover_completed"
+        ]
+        assert len(takeover_completed) == 1
+        assert takeover_completed[0]["success"] is False
 
     @pytest.mark.asyncio
     async def test_failed_solve(self) -> None:

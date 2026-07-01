@@ -36,7 +36,8 @@ Skills → Filter (eligible) → ClusterDetector (prefix + embedding)
 ## Configuration
 
 All consolidation parameters are in `CuratorConfig`:
-- `consolidation_enabled`: Master switch (default: True)
+- `consolidation_enabled`: Master switch (default: **False** — LLM consolidation is opt-in via Settings)
+- `protect_system_skills`: Exempt prebuilt skills (`/prebuilt/` path) from auto transitions (default: True)
 - `consolidation_min_skills`: Minimum active skills to trigger (default: 10)
 - `consolidation_min_cluster_size`: Minimum cluster members (default: 3)
 - `consolidation_similarity_threshold`: Embedding cosine threshold (default: 0.75)

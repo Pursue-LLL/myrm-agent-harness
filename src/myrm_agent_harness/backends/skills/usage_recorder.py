@@ -1,7 +1,16 @@
 """Record skill selection usage for the Curator stats pipeline.
 
-Persists ``.stats.json`` via SkillStatsCollector when skills are selected
-through skill_select_tool or explicit ``[use skill]`` injection.
+[INPUT]
+- backends.skills.stats_collector::SkillStatsCollector (POS: Usage stats persistence)
+- backends.skills.types::SkillMetadata (POS: Skill runtime metadata)
+
+[OUTPUT]
+- record_skill_selection: Write .stats.json on skill select / [use skill]
+- reset_turn_usage_dedupe: Per-turn dedupe reset (SkillAgent.run)
+- flush_skill_usage_stats: Session-end flush (_cleanup_session)
+
+[POS]
+Agent-runtime bridge from skill_select_tool and explicit [use skill] to Curator usage stats.
 """
 
 from __future__ import annotations

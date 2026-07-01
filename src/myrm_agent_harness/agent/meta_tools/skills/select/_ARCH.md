@@ -25,6 +25,8 @@ Bound skills → get_metadata_summary() → XML in skill_select_tool.description
 
 **Loaded-skill deduplication**: Uses `get_loaded_skills()` ContextVar to detect already-loaded skills. Returns a concise summary via `_build_reload_summary()` (tool names from `MCPSkillData.tools` + usage hint, ~200 tokens) instead of the full SOP, preventing the select → compact → re-select token waste loop.
 
+**Usage stats**: First load / file read records via `backends.skills.usage_recorder.record_skill_selection()` → `{skill_dir}/.stats.json` for Curator. Reload summaries do not re-record. Turn-level dedupe prevents double-count within one agent run.
+
 **Prompt cache**: stable bound skill list → tool schema hash stable (`tool_definitions_changed` unlikely). Large catalogs increase cached tool-prefix size. `system prompt changed` breaks come from middleware (planner blueprint, SessionNotes, memory), not from this catalog. Explicit injection operates on HumanMessage only — zero impact on prompt prefix cache.
 
 ## File & Submodule Index
