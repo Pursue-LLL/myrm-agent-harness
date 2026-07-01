@@ -52,8 +52,12 @@ def test_protect_system_skills_exempt() -> None:
 
     old_created = datetime.now(UTC) - timedelta(days=100)
     stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=old_created)
-    skill = create_skill_metadata("prebuilt_skill", usage_stats=stats)
-    object.__setattr__(skill, "storage_path", "/opt/myrm/assets/prebuilt/foo_skill")
+    skill = SkillMetadata(
+        name="prebuilt_skill",
+        description="Test skill",
+        storage_path="/opt/myrm/assets/prebuilt/foo_skill",
+        usage_stats=stats,
+    )
     assert strategy.should_forget(skill) is None
 
 
