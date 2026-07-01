@@ -5,11 +5,12 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from myrm_agent_harness.backends.skills.forgetting_strategy import (
+    CuratorConfig,
     DefaultForgettingStrategy,
     ForgettingConfig,
     ForgettingReason,
 )
-from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillUsageStats
+from myrm_agent_harness.backends.skills.types import SkillLifecycleStatus, SkillMetadata, SkillTrust, SkillUsageStats
 
 
 def create_skill_metadata(name: str, usage_stats: SkillUsageStats | None = None) -> SkillMetadata:
@@ -174,6 +175,103 @@ def test_select_lru_candidates_no_eviction_needed() -> None:
 
     # Should not evict any (5 < 10)
     assert len(candidates) == 0
+
+
+def test_curator_config_round_trip() -> None:
+    """CuratorConfig to_dict / from_dict preserves consolidation default false."""
+    config = CuratorConfig(stale_after_days=14, consolidation_enabled=False)
+    data = config.to_dict()
+    assert data["stale_after_days"] == 14
+    assert data["consolidation_enabled"] is False
+
+    restored = CuratorConfig.from_dict(data)
+    assert restored.stale_after_days == 14
+    assert restored.consolidation_enabled is False
+
+    defaults = CuratorConfig.from_dict(None)
+    assert defaults.consolidation_enabled is False
+
+
+def test_should_not_forget_pinned_or_evolution_locked() -> None:
+    config = ForgettingConfig(stale_after_days=7, grace_period_days=0)
+    strategy = DefaultForgettingStrategy(config)
+    old = datetime.now(UTC) - timedelta(days=100)
+    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=old, pinned=True)
+    pinned = create_skill_metadata("pinned_skill", usage_stats=stats)
+    assert strategy.should_forget(pinned) is None
+
+    unlocked_stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=old)
+    locked = SkillMetadata(
+        name="locked_skill",
+        description="Evolution locked",
+        usage_stats=unlocked_stats,
+        evolution_locked=True,
+    )
+    assert strategy.should_forget(locked) is None
+
+
+def test_protect_installed_skills_exempt() -> None:
+    config = ForgettingConfig(stale_after_days=7, protect_installed_skills=True, grace_period_days=0)
+    strategy = DefaultForgettingStrategy(config)
+    old = datetime.now(UTC) - timedelta(days=100)
+    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=old)
+    skill = SkillMetadata(
+        name="hub_skill",
+        description="Installed from hub",
+        trust=SkillTrust.INSTALLED,
+        usage_stats=stats,
+    )
+    assert strategy.should_forget(skill) is None
+
+
+def test_grace_period_exempt() -> None:
+    config = ForgettingConfig(stale_after_days=7, grace_period_days=30)
+    strategy = DefaultForgettingStrategy(config)
+    recent = datetime.now(UTC) - timedelta(days=5)
+    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=recent)
+    skill = create_skill_metadata("grace_skill", usage_stats=stats)
+    assert strategy.should_forget(skill) is None
+
+
+def test_archived_skill_skipped() -> None:
+    config = ForgettingConfig(stale_after_days=7, grace_period_days=0)
+    strategy = DefaultForgettingStrategy(config)
+    old = datetime.now(UTC) - timedelta(days=200)
+    stats = SkillUsageStats(
+        call_count=1,
+        success_count=1,
+        failure_count=0,
+        created_at=old,
+        last_used_at=old,
+        lifecycle_status=SkillLifecycleStatus.ARCHIVED,
+    )
+    skill = create_skill_metadata("archived_skill", usage_stats=stats)
+    assert strategy.should_forget(skill) is None
+
+
+def test_stale_skill_promoted_to_archive() -> None:
+    config = ForgettingConfig(stale_after_days=30, archive_after_days=60, grace_period_days=0)
+    strategy = DefaultForgettingStrategy(config)
+    stale_since = datetime.now(UTC) - timedelta(days=90)
+    stats = SkillUsageStats(
+        call_count=5,
+        success_count=5,
+        failure_count=0,
+        created_at=stale_since,
+        last_used_at=stale_since,
+        lifecycle_status=SkillLifecycleStatus.STALE,
+    )
+    skill = create_skill_metadata("stale_to_archive", usage_stats=stats)
+    reason = strategy.should_forget(skill)
+    assert reason is not None
+    assert reason.reason_type == "archive"
+    assert reason.target_status == SkillLifecycleStatus.ARCHIVED
+
+
+def test_strategy_config_property() -> None:
+    config = ForgettingConfig(max_skills=5)
+    strategy = DefaultForgettingStrategy(config)
+    assert strategy.config.max_skills == 5
 
 
 def test_forgetting_reason_dataclass() -> None:

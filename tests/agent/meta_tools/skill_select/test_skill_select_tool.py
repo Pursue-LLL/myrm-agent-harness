@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -197,6 +198,57 @@ class TestCreateSelectSkillToolDeduplication:
 
             assert "already loaded" in result
             assert "skill_b Full SOP" in result
+
+
+class TestSelectSkillRecordsUsage:
+    """skill_select_tool must persist usage stats for Curator (.stats.json)."""
+
+    @pytest.mark.asyncio
+    async def test_first_load_writes_stats_file(self, tmp_path: Path) -> None:
+        skill_dir = tmp_path / "demo_skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text("# demo_skill\n")
+
+        skill = SkillMetadata(
+            name="demo_skill",
+            description="Test storage skill",
+            storage_skill_id="demo_skill",
+            storage_path=str(skill_dir),
+        )
+        backend = AsyncMock()
+
+        from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
+        from myrm_agent_harness.backends.skills.usage_recorder import (
+            flush_skill_usage_stats,
+            reset_turn_usage_dedupe,
+            set_stats_collector,
+        )
+
+        reset_turn_usage_dedupe()
+        collector = SkillStatsCollector(tmp_path)
+        set_stats_collector(collector)
+
+        with (
+            patch(
+                "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills",
+                return_value=[],
+            ),
+            patch(
+                "myrm_agent_harness.agent.meta_tools.skills.select.skill_select_tool.get_skill_document",
+                return_value="# demo_skill SOP\nStep 1",
+            ),
+            patch("myrm_agent_harness.agent._skill_agent_context.add_loaded_skill"),
+        ):
+            tool = create_select_skill_tool([skill], backend)
+            await tool.ainvoke({"skill_names": ["demo_skill"], "reason": "testing usage"})
+
+        flush_skill_usage_stats()
+        stats_file = skill_dir / ".stats.json"
+        assert stats_file.exists()
+        stats = collector.get_stats(skill_dir)
+        assert stats.call_count == 1
+        assert stats.success_count == 1
+        assert stats.last_used_at is not None
 
 
 class TestCleanupSessionContextFilesEdgeCases:

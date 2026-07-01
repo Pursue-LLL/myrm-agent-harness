@@ -6,6 +6,8 @@ import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 from myrm_agent_harness.agent.skills.curator import SkillCurator
 from myrm_agent_harness.backends.skills.forgetting_strategy import CuratorConfig
 from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
@@ -14,20 +16,28 @@ from myrm_agent_harness.backends.skills.usage_recorder import (
     flush_skill_usage_stats,
     record_skill_selection,
     reset_turn_usage_dedupe,
+    set_stats_collector,
 )
 
 
-def test_select_records_stats_and_curator_sweep_reads_them(tmp_path: Path, monkeypatch) -> None:
+@pytest.fixture(autouse=True)
+def _reset_usage_recorder() -> None:
+    """Isolate usage_recorder singleton state between tests."""
+    set_stats_collector(None)
+    reset_turn_usage_dedupe()
+    yield
+    set_stats_collector(None)
+    reset_turn_usage_dedupe()
+
+
+def test_select_records_stats_and_curator_sweep_reads_them(tmp_path: Path) -> None:
     """record_skill_selection writes .stats.json; inactive skills become stale on sweep."""
     skill_dir = tmp_path / "demo_skill"
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text("# demo_skill\n")
 
     collector = SkillStatsCollector(tmp_path)
-    monkeypatch.setattr(
-        "myrm_agent_harness.backends.skills.usage_recorder._collector",
-        collector,
-    )
+    set_stats_collector(collector)
 
     skill_meta = SkillMetadata(
         name="demo_skill",
@@ -75,3 +85,32 @@ def test_select_records_stats_and_curator_sweep_reads_them(tmp_path: Path, monke
     assert result.stale_count >= 1
     persisted = json.loads(stats_file.read_text())
     assert persisted["lifecycle_status"] == "stale"
+
+
+def test_set_stats_collector_uses_shared_instance(tmp_path: Path) -> None:
+    """Injected collector is used by record_skill_selection (server/harness SSOT)."""
+    from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
+    from myrm_agent_harness.backends.skills.usage_recorder import (
+        flush_skill_usage_stats,
+        get_injected_stats_collector,
+        record_skill_selection,
+        set_stats_collector,
+    )
+
+    skill_dir = tmp_path / "shared_skill"
+    skill_dir.mkdir()
+
+    shared = SkillStatsCollector(tmp_path)
+    set_stats_collector(shared)
+    assert get_injected_stats_collector() is shared
+
+    skill_meta = SkillMetadata(
+        name="shared_skill",
+        description="Shared collector test",
+        storage_path=str(skill_dir),
+    )
+    record_skill_selection(skill_meta, success=True)
+    flush_skill_usage_stats()
+
+    assert (skill_dir / ".stats.json").exists()
+    assert shared.get_stats(skill_dir).call_count == 1

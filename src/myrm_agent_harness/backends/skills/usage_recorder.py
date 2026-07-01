@@ -5,6 +5,7 @@
 - backends.skills.types::SkillMetadata (POS: Skill runtime metadata)
 
 [OUTPUT]
+- set_stats_collector / get_injected_stats_collector: Shared collector injection (server wiring)
 - record_skill_selection: Write .stats.json on skill select / [use skill]
 - reset_turn_usage_dedupe: Per-turn dedupe reset (SkillAgent.run)
 - flush_skill_usage_stats: Session-end flush (_cleanup_session)
@@ -25,11 +26,26 @@ from myrm_agent_harness.backends.skills.types import SkillMetadata
 logger = logging.getLogger(__name__)
 
 _collector: SkillStatsCollector | None = None
+_injected_collector: SkillStatsCollector | None = None
 _turn_recorded: ContextVar[set[str] | None] = ContextVar("skill_usage_turn_recorded", default=None)
+
+
+def set_stats_collector(collector: SkillStatsCollector | None) -> None:
+    """Inject the process-wide SkillStatsCollector (called from server on startup)."""
+    global _injected_collector, _collector
+    _injected_collector = collector
+    _collector = collector
+
+
+def get_injected_stats_collector() -> SkillStatsCollector | None:
+    """Return the injected collector, if any."""
+    return _injected_collector
 
 
 def _get_collector() -> SkillStatsCollector:
     global _collector
+    if _injected_collector is not None:
+        return _injected_collector
     if _collector is None:
         _collector = SkillStatsCollector(Path.home() / ".myrm")
     return _collector
@@ -70,5 +86,6 @@ def record_skill_selection(
 
 def flush_skill_usage_stats() -> None:
     """Flush pending usage stats to disk (session end / shutdown)."""
-    if _collector is not None:
-        _collector.flush()
+    collector = _injected_collector or _collector
+    if collector is not None:
+        collector.flush()

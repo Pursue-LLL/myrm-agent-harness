@@ -32,7 +32,7 @@ Skill backend implementations — read/write/discovery protocols, local/memory/s
 | watcher.py | Core | Watchdog-based SKILL.md hot reload with debounced snapshot updates. | ✅ |
 | state_manager.py | Core | Skill instance CRUD, state persistence, config_overrides JSON Schema validation. | ✅ |
 | stats_collector.py | Core | Skill usage stats and lifecycle_status / pinned persistence. | ✅ |
-| usage_recorder.py | Core | Agent-runtime skill selection → .stats.json bridge (turn dedupe + flush). | ✅ |
+| usage_recorder.py | Core | Agent-runtime skill selection → .stats.json; `set_stats_collector` SSOT with server. | ✅ |
 | storage.py | Core | Storage-backed skill backend (local/MinIO/S3/OSS via StorageBackend). | ✅ |
 | types.py | Core | Aggregate re-exports for skill types; import path unchanged. | ✅ |
 | types_coercion.py | Core | Safe list coercion for type deserialization. | ✅ |
