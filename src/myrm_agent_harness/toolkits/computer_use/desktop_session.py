@@ -1,24 +1,10 @@
 """DesktopSession — semantic desktop control with @dref registry.
 
 [INPUT]
-- dref.registry::DRefRegistry (POS: session-scoped @dref element map)
-- dref.types::SnapshotScope, SnapshotMeta, ElementRef (POS: shared snapshot types)
-- perception.ax_dispatch::capture_snapshot, inspect_backend, invoke_element (POS: platform AX dispatch)
-- perception.macos_ax::refs_for_view_update (POS: overlay ref serialization for WebUI)
-- perception.renderer::render_snapshot_tree (POS: AX tree text renderer)
-- execution.healer::try_bbox_click (POS: BBox coordinate fallback when AX invoke fails)
-- session::ComputerSession, create_computer_session (POS: screenshot and coordinate I/O orchestrator)
-- types::ComputerUseConfig, ModifierKey, DesktopInteractAction, DesktopVisionAction, ScrollDirection, ActionResult, PermissionStatus, ForegroundPermissionCallback (POS: shared computer_use types)
-- security.credential_vault::get_global_credential_vault (POS: in-memory credential vault for fill_credential resolution)
+- dref, perception, execution.healer, session, types, security.credential_vault modules
 
 [OUTPUT]
-- DesktopSession: semantic desktop orchestrator with @dref registry and DESKTOP_VIEW_UPDATE emission
-  - desktop_inspect() -> str
-  - desktop_snapshot(...) -> str | list[ContentBlock]
-  - desktop_interact(...) -> str | list[ContentBlock]
-  - desktop_vision_capture/action(...) -> str | list[ContentBlock]
-  - check_permissions() -> PermissionStatus
-  - export_inspector_snapshot() -> dict[str, object]
+- DesktopSession: AX snapshot, @dref registry, interact/vision, permissions, inspector export
 - create_desktop_session(...) -> DesktopSession
 
 [POS]
