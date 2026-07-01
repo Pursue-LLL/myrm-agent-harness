@@ -58,7 +58,7 @@ PREVIEW_ITEMS = 5
 PREVIEW_OUTPUT_CHARS = 280
 MAX_FAILURE_SAMPLES = 10
 
-_TOOL_DESCRIPTION = """Apply ONE instruction to MANY items in a single bounded-concurrency call.
+_TOOL_DESCRIPTION = f"""Apply ONE instruction to MANY items in a single bounded-concurrency call.
 
 Use this for repetitive per-item work over a list — summarise N documents,
 classify/score N reviews, translate N paragraphs, extract fields from N records.
@@ -67,13 +67,16 @@ per-item failures, emits progress events for UI rendering, and spills large
 result sets to a downloadable artifact. Prefer this over a manual loop or spawning sub-agents for
 homogeneous bulk tasks.
 
+Hard limit: at most {DEFAULT_MAX_ITEMS} items per call (adapter default; engine hard cap {MAX_ITEMS_HARD_CAP}).
+If you have more, split into batches and call again — oversized calls are rejected with an error.
+
 Args:
 - instruction: the single directive applied to every item (kept stable for cache hits).
-- items: the list of inputs; each may be inline text or a ``vault://`` pointer.
+- items: the list of inputs (max {DEFAULT_MAX_ITEMS} per call); each may be inline text or a ``vault://`` pointer.
 - max_concurrency: parallel calls (default 8).
 - output_keys: optional field names to force a structured JSON object per item.
 
-Returns a summary {total, succeeded, failed, cancelled} plus a preview; full
+Returns a summary {{total, succeeded, failed, cancelled}} plus a preview; full
 results are inlined when small or returned as a ``vault://`` artifact when large.
 Do NOT use it for tasks needing cross-item reasoning, tools, or multi-step plans —
 use sub-agent delegation for that.
@@ -87,7 +90,10 @@ class LlmMapInput(BaseModel):
         description="The single instruction applied to EVERY item (e.g. 'Summarise in 3 bullet points')."
     )
     items: list[str] = Field(
-        description="List of inputs to map over. Each item is inline text or a 'vault://' pointer to large content."
+        description=(
+            f"List of inputs to map over (max {DEFAULT_MAX_ITEMS} per call; split larger lists into batches). "
+            "Each item is inline text or a 'vault://' pointer to large content."
+        )
     )
     max_concurrency: int = Field(
         default=DEFAULT_MAX_CONCURRENCY,
@@ -195,10 +201,23 @@ def create_llm_map_tool(
         if not items:
             return {"success": False, "error": "items must not be empty"}
 
-        truncated = max(0, len(items) - item_cap)
-        effective = items[:item_cap]
+        if len(items) > item_cap:
+            return {
+                "success": False,
+                "error": (
+                    f"Too many items ({len(items)}). Maximum per call is {item_cap}. "
+                    f"Split into batches of at most {item_cap} items and call llm_map_tool again."
+                ),
+                "max_items": item_cap,
+                "received_items": len(items),
+            }
 
-        response_schema = _build_schema(output_keys) if output_keys else None
+        response_schema = None
+        if output_keys:
+            try:
+                response_schema = _build_schema(output_keys)
+            except ValueError as exc:
+                return {"success": False, "error": str(exc)}
 
         from myrm_agent_harness.utils.progress_sink import get_tool_progress_sink
         from myrm_agent_harness.utils.runtime.cancellation import get_cancel_token
@@ -226,7 +245,7 @@ def create_llm_map_tool(
 
         report = await llm_map(
             llm,
-            effective,
+            items,
             instruction,
             fallback_llm=fallback_llm,
             response_schema=response_schema,
@@ -243,8 +262,6 @@ def create_llm_map_tool(
             "failed": report.failed,
             "cancelled": report.cancelled,
         }
-        if truncated:
-            summary["truncated"] = truncated
 
         result: dict[str, object] = {"success": True, "summary": summary, "preview": _build_preview(report)}
         if report.failed:

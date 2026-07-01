@@ -33,7 +33,17 @@ Skill backend implementations — read/write/discovery protocols, local/memory/s
 | state_manager.py | Core | Skill instance CRUD, state persistence, config_overrides JSON Schema validation. | ✅ |
 | stats_collector.py | Core | Skill usage stats and lifecycle_status / pinned persistence. | ✅ |
 | storage.py | Core | Storage-backed skill backend (local/MinIO/S3/OSS via StorageBackend). | ✅ |
-| types.py | Core | SkillMetadata, SkillTrust, SkillInstance, security scan types, visibility filter. | ✅ |
+| types.py | Core | Aggregate re-exports for skill types; import path unchanged. | ✅ |
+| types_constants.py | Core | Activation criteria limits for skill frontmatter validation. | ✅ |
+| types_coercion.py | Core | Safe list coercion for type deserialization. | ✅ |
+| types_enums.py | Core | SkillTrust, SkillLifecycleStatus, SkillPermission enums. | ✅ |
+| types_usage.py | Core | SkillUsageStats for curator / forgetting persistence. | ✅ |
+| types_requires.py | Core | SkillRequires and MCPSkillData dependency types. | ✅ |
+| types_contract.py | Core | SkillContract* structured frontmatter contract types. | ✅ |
+| types_security.py | Core | SecurityFindingDetail and SecurityScanSummary. | ✅ |
+| types_metadata.py | Core | SkillMetadata runtime representation. | ✅ |
+| types_instance.py | Core | SkillInstanceConfig, SkillStateProtocol, SkillInstance. | ✅ |
+| types_visibility.py | Core | skill_visible_for_tools tool-conditional visibility filter. | ✅ |
 | versioning.py | Core | Semantic skill version comparison utilities. | ✅ |
 
 | Submodule | Description |

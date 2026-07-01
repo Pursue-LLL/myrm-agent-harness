@@ -9,8 +9,8 @@ with native desktop applications via accessibility trees (@dref) with coordinate
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Exports create_desktop_tools, create_desktop_session | ✅ |
-| types.py | Config | Shared types: ComputerAction, DesktopInteractAction, ScreenInfo, ActionResult, PermissionStatus, ComputerUseConfig | ✅ |
-| safety.py | Core | Blocked key combos, dangerous type-text guardrails, and sensitive app guard | ✅ |
+| types.py | Config | Shared types: ComputerAction, DesktopInteractAction, ScreenInfo, ActionResult, PermissionStatus, ExecutionMode, ForegroundPermissionCallback, ComputerUseConfig | ✅ |
+| safety.py | Core | Blocked key combos, dangerous type-text guardrails, sensitive app guard, and foreground permission classification | ✅ |
 | screenshot_processor.py | Core | Binary-search downsampling pipeline | ✅ |
 | coordinate_scaler.py | Core | DPI-aware coordinate transformer | ✅ |
 | session.py | Core | ComputerSession orchestrator (coordinate I/O) | ✅ |
@@ -59,8 +59,9 @@ Agent → desktop_agent_tools (4 tools)
 8. **Permission probing**: `DesktopSession.check_permissions()` delegates to backend `check_permissions()` to probe OS-level TCC permissions (macOS Accessibility + Screen Recording). Server exposes `GET /webui/desktop/permissions` for frontend proactive guidance.
 9. **Native API routing hints**: `inspect_foreground()` detects whether the frontmost app supports native scripting (AppleScript/COM/D-Bus) and appends a routing hint to `recommendation`. This guides the Agent to prefer `bash_code_execute_tool` with native commands for data-heavy or bulk tasks — no new tools needed, no prompt cache impact.
 
-10. **Background input (cua-driver)**: `CuaDriverBackend` wraps the native backend as a proxy. Input operations route to `cua-driver` MCP for focus-free execution; non-input operations delegate to the native backend. PID is re-resolved on every input operation to ensure cross-application correctness. Falls back transparently to native backend per-operation on any cua-driver error.
-11. **Session lifecycle**: `ComputerSession.close()` releases backend resources (e.g. cua-driver MCP subprocess). Server layer calls `close()` when the agent session ends to prevent subprocess leaks.
+10. **Background input (cua-driver)**: `CuaDriverBackend` wraps the native backend as a proxy. Input operations route to `cua-driver` MCP for focus-free execution; non-input operations delegate to the native backend. PID is re-resolved on every input operation to ensure cross-application correctness.
+11. **Foreground permission gate**: When `execution_mode` is `background_strict` or `background_best_effort`, coordinate-based operations (healer bbox click, vision actions) invoke `ComputerSession.check_foreground_permission()` before executing. The server layer implements `ForegroundPermissionCallback` Protocol to show a user-facing prompt (WebSocket push or Tauri dialog). Session caches the grant per `ForegroundPermissionScope` (once/session/always) to avoid repeated prompts.
+12. **Session lifecycle**: `ComputerSession.close()` releases backend resources (e.g. cua-driver MCP subprocess). Server layer calls `close()` when the agent session ends to prevent subprocess leaks.
 
 ## Key Dependencies
 

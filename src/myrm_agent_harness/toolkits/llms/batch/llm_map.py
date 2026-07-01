@@ -184,7 +184,19 @@ async def llm_map(
         return _extract_text(response)
 
     async def _process(index: int, item: str | dict[str, object]) -> LlmMapItemResult:
-        item_id, content = _normalise_item(index, item, item_resolver)
+        try:
+            item_id, content = _normalise_item(index, item, item_resolver)
+        except Exception as exc:
+            raw_id = item.get("id") if isinstance(item, dict) else None
+            item_id = str(raw_id) if raw_id is not None else str(index)
+            logger.warning("llm_map item %s normalize failed: %s", item_id, exc)
+            result = LlmMapItemResult(index=index, id=item_id, status="failed", error=str(exc))
+            counters["done"] += 1
+            counters["failed"] += 1
+            if on_progress is not None:
+                await on_progress(LlmMapProgress(done=counters["done"], total=total, failed=counters["failed"]))
+            return result
+
         if cancel_token is not None and cancel_token.is_cancelled:
             return LlmMapItemResult(index=index, id=item_id, status="cancelled", error="run cancelled")
         try:

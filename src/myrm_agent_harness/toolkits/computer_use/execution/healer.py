@@ -1,18 +1,36 @@
-"""BBox fallback click when AX invoke fails."""
+"""BBox fallback click when AX invoke fails.
+
+This is the coordinate-based fallback path — it WILL steal foreground focus
+(pyautogui/xdotool moves the real cursor). The foreground permission gate
+must be checked before entering this function.
+"""
 
 from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.computer_use.types import ActionResult, ModifierKey
 from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef
 
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.computer_use.session import ComputerSession
+
 
 async def try_bbox_click(
-    session: object,
+    session: ComputerSession,
     element: ElementRef,
     action: str,
     text: str,
     modifiers: list[ModifierKey] | None,
 ) -> ActionResult:
+    permission_denied = await session.check_foreground_permission(
+        reason=f"AX invoke failed for @{element.ref_id}; falling back to coordinate click",
+        operation=f"bbox_click({element.bbox.center_x}, {element.bbox.center_y})",
+        estimated_duration_seconds=3.0,
+    )
+    if permission_denied is not None:
+        return permission_denied
+
     backend = session._backend  # type: ignore[attr-defined]
     normalized = action.lower()
     x = element.bbox.center_x

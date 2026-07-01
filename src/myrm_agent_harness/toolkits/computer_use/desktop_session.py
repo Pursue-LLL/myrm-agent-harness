@@ -8,7 +8,7 @@
 - perception.renderer::render_snapshot_tree (POS: AX tree text renderer)
 - execution.healer::try_bbox_click (POS: BBox coordinate fallback when AX invoke fails)
 - session::ComputerSession, create_computer_session (POS: screenshot and coordinate I/O orchestrator)
-- types::ComputerUseConfig, ModifierKey, DesktopInteractAction, DesktopVisionAction, ScrollDirection, ActionResult, PermissionStatus (POS: shared computer_use types)
+- types::ComputerUseConfig, ModifierKey, DesktopInteractAction, DesktopVisionAction, ScrollDirection, ActionResult, PermissionStatus, ForegroundPermissionCallback (POS: shared computer_use types)
 - security.credential_vault::get_global_credential_vault (POS: in-memory credential vault for fill_credential resolution)
 
 [OUTPUT]
@@ -46,6 +46,7 @@ from myrm_agent_harness.toolkits.computer_use.types import (
     ComputerUseConfig,
     DesktopInteractAction,
     DesktopVisionAction,
+    ForegroundPermissionCallback,
     ModifierKey,
     PermissionStatus,
     ScrollDirection,
@@ -71,8 +72,9 @@ class DesktopSession(ComputerSession):
         backend: object,
         config: ComputerUseConfig | None = None,
         view_update_callback: ViewUpdateCallback | None = None,
+        permission_callback: ForegroundPermissionCallback | None = None,
     ) -> None:
-        super().__init__(backend=backend, config=config)  # type: ignore[arg-type]
+        super().__init__(backend=backend, config=config, permission_callback=permission_callback)  # type: ignore[arg-type]
         self._refs = DRefRegistry()
         self._view_update_callback = view_update_callback
         self._last_tree_text: str = ""
@@ -262,6 +264,16 @@ class DesktopSession(ComputerSession):
         if blocked:
             logger.warning("[SECURITY] Sensitive app guard (vision): %s", blocked)
             return f"Safety: {blocked}"
+
+        # [SECURITY] Foreground permission gate for coordinate-based actions.
+        if safety.is_foreground_required(action):
+            permission_denied = await self.check_foreground_permission(
+                reason=f"Vision action '{action}' requires foreground mouse/keyboard control",
+                operation=f"desktop_vision_action({action})",
+                estimated_duration_seconds=5.0,
+            )
+            if permission_denied is not None:
+                return f"Permission denied: {permission_denied.error}"
 
         # [SECURITY] Hard fuse for coordinate-based actions
         revalidation_threshold = 5.0
@@ -479,10 +491,12 @@ class DesktopSession(ComputerSession):
 def create_desktop_session(
     config: ComputerUseConfig | None = None,
     view_update_callback: ViewUpdateCallback | None = None,
+    permission_callback: ForegroundPermissionCallback | None = None,
 ) -> DesktopSession:
     base = create_computer_session(config=config)
     return DesktopSession(
         backend=base._backend,
         config=base._config,
         view_update_callback=view_update_callback,
+        permission_callback=permission_callback,
     )

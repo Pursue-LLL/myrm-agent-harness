@@ -238,6 +238,23 @@ class TestDictItems:
         report = await llm_map(_make_llm(), ["vault://abc"], "inst", item_resolver=resolver)
         assert report.items[0].output == "echo:resolved content"
 
+    @pytest.mark.asyncio
+    async def test_vault_resolver_failure_isolated(self) -> None:
+        def resolver(_ptr: str) -> str:
+            raise FileNotFoundError("Vault object not found: bad")
+
+        report = await llm_map(
+            _make_llm(),
+            ["good", "vault://bad", "also-good"],
+            "inst",
+            item_resolver=resolver,
+        )
+        assert report.total == 3
+        assert report.succeeded == 2
+        assert report.failed == 1
+        assert report.items[1].status == "failed"
+        assert "Vault object not found" in (report.items[1].error or "")
+
 
 class TestConcurrencyBounding:
     """Concurrency clamping and hard caps."""

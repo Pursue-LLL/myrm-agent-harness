@@ -122,3 +122,24 @@ def normalize_modifiers(modifiers: list[ModifierKey] | None) -> list[ModifierKey
     if not modifiers:
         return None
     return list(modifiers)
+
+
+_BACKGROUND_SAFE_ACTIONS: frozenset[str] = frozenset(
+    {
+        "capture",
+        "screenshot",
+        "wait",
+    }
+)
+
+
+def is_foreground_required(action: str) -> bool:
+    """Determine whether an action requires foreground focus (mouse/keyboard control).
+
+    AX invoke operations (handled at the perception layer) are inherently
+    background-safe. Coordinate-based actions (click, type, key, scroll, drag,
+    mouse_move) require foreground access via pyautogui/xdotool.
+
+    Returns True if the action needs foreground permission.
+    """
+    return action.lower() not in _BACKGROUND_SAFE_ACTIONS

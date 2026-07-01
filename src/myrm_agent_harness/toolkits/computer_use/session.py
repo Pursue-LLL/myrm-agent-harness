@@ -7,7 +7,7 @@ single cohesive API surface. Agent tools interact exclusively with this class.
 - backends.protocol::ComputerBackend (POS: platform-specific I/O)
 - screenshot_processor::ScreenshotProcessor (POS: image preprocessing)
 - coordinate_scaler::CoordinateScaler (POS: coordinate transformation)
-- types::ComputerAction, ComputerUseConfig, ActionResult, PermissionStatus (POS: shared types)
+- types::ComputerAction, ComputerUseConfig, ActionResult, PermissionStatus, ExecutionMode, ForegroundPermissionCallback, ForegroundPermissionScope (POS: shared types)
 
 [OUTPUT]
 - ComputerSession: high-level session manager
@@ -28,6 +28,9 @@ from myrm_agent_harness.toolkits.computer_use.screenshot_processor import Screen
 from myrm_agent_harness.toolkits.computer_use.types import (
     ActionResult,
     ComputerUseConfig,
+    ExecutionMode,
+    ForegroundPermissionCallback,
+    ForegroundPermissionScope,
     ModifierKey,
     PermissionStatus,
     ScreenContext,
@@ -47,6 +50,7 @@ class ComputerSession:
         self,
         backend: ComputerBackend,
         config: ComputerUseConfig | None = None,
+        permission_callback: ForegroundPermissionCallback | None = None,
     ) -> None:
         self._backend = backend
         self._config = config or ComputerUseConfig()
@@ -54,6 +58,9 @@ class ComputerSession:
         self._scaler: CoordinateScaler | None = None
         self._last_screenshot_bytes: bytes | None = None
         self._screen_info: ScreenInfo | None = None
+        self._permission_callback = permission_callback
+        self._session_permission_granted: bool = False
+        self._always_permission_granted: bool = False
 
     @property
     def screen_info(self) -> ScreenInfo:
@@ -68,6 +75,55 @@ class ComputerSession:
     @property
     def screen_context(self) -> ScreenContext:
         return self._backend.screen_context()
+
+    async def check_foreground_permission(
+        self,
+        *,
+        reason: str,
+        operation: str,
+        estimated_duration_seconds: float = 5.0,
+    ) -> ActionResult | None:
+        """Gate foreground-stealing operations behind user permission.
+
+        Returns None if permission is granted (proceed with execution).
+        Returns an ActionResult with error if permission is denied or unavailable.
+        """
+        mode = self._config.execution_mode
+
+        if mode == ExecutionMode.foreground:
+            return None
+
+        if self._always_permission_granted or self._session_permission_granted:
+            return None
+
+        if self._permission_callback is None:
+            if mode == ExecutionMode.background_strict:
+                return ActionResult(
+                    success=False,
+                    error="Foreground operation blocked: execution_mode is background_strict "
+                    "and no permission callback is configured.",
+                )
+            return None
+
+        result = await self._permission_callback(
+            reason=reason,
+            operation=operation,
+            estimated_duration_seconds=estimated_duration_seconds,
+        )
+
+        if not result.granted:
+            return ActionResult(
+                success=False,
+                error=f"Foreground permission denied by user. Reason: {reason}",
+            )
+
+        if result.scope == ForegroundPermissionScope.session:
+            self._session_permission_granted = True
+        elif result.scope == ForegroundPermissionScope.always:
+            self._always_permission_granted = True
+
+        logger.info("Foreground permission granted (scope=%s): %s", result.scope.value, reason)
+        return None
 
     async def take_screenshot(self) -> ActionResult:
         """Capture screen, preprocess, and return as base64 JPEG with screen metadata."""

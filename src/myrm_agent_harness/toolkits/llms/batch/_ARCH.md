@@ -20,5 +20,5 @@ Lightweight batch LLM-map primitive — one shared instruction over N items with
 
 | Package | Responsibility |
 |---------|----------------|
-| `toolkits/llms/batch/` | Pure engine (no agent/artifact deps) |
-| `agent/meta_tools/llm_map/` | LangChain tool + vault spillover adapter |
+| `toolkits/llms/batch/` | Pure engine (no agent/artifact deps); per-item failure isolation includes item-resolver errors |
+| `agent/meta_tools/llm_map/` | LangChain tool + vault spillover adapter; enforces adapter item cap before calling engine |

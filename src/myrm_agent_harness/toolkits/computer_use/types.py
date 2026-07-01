@@ -4,7 +4,7 @@
 - (none)
 
 [OUTPUT]
-- ComputerAction, DesktopInteractAction, DesktopVisionAction, ScrollDirection, ModifierKey, ScreenInfo, ScreenContext, ActionResult, WindowTextResult, ImageConstraints, PermissionStatus, ComputerUseConfig
+- ComputerAction, DesktopInteractAction, DesktopVisionAction, ScrollDirection, ModifierKey, ScreenInfo, ScreenContext, ActionResult, WindowTextResult, ImageConstraints, PermissionStatus, ExecutionMode, ForegroundPermissionScope, ForegroundPermissionResult, ForegroundPermissionCallback, ComputerUseConfig
 
 [POS]
 Shared type definitions consumed by all computer_use submodules.
@@ -13,7 +13,8 @@ Shared type definitions consumed by all computer_use submodules.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from enum import Enum
+from typing import Literal, Protocol
 
 DesktopInteractAction = Literal[
     "click",
@@ -183,6 +184,64 @@ class PermissionStatus:
         return self.accessibility and self.screen_recording
 
 
+class ExecutionMode(Enum):
+    """Controls how the computer use session handles foreground-stealing operations.
+
+    - background_strict: Never steal foreground without explicit user permission.
+      If permission is denied or callback is unavailable, the operation fails gracefully.
+    - background_best_effort: Attempt background execution; if unavailable, request
+      permission before falling back to foreground.
+    - foreground: Execute all operations directly (legacy behavior, no permission checks).
+    """
+
+    background_strict = "background_strict"
+    background_best_effort = "background_best_effort"
+    foreground = "foreground"
+
+
+class ForegroundPermissionScope(Enum):
+    """Scope of a foreground permission grant (modeled after iOS permission UX)."""
+
+    once = "once"
+    session = "session"
+    always = "always"
+
+
+@dataclass(frozen=True)
+class ForegroundPermissionResult:
+    """Result returned by the permission callback."""
+
+    granted: bool
+    scope: ForegroundPermissionScope = ForegroundPermissionScope.once
+
+
+class ForegroundPermissionCallback(Protocol):
+    """Protocol that server/frontend must implement to show a permission prompt.
+
+    The harness calls this when it needs to steal foreground focus. The implementation
+    should present a UI prompt (WebSocket push, Tauri dialog, etc.) and return the
+    user's decision. For cloud-hosted sandboxes, implement as auto-grant.
+    """
+
+    async def __call__(
+        self,
+        *,
+        reason: str,
+        operation: str,
+        estimated_duration_seconds: float,
+        timeout_seconds: float = 30.0,
+    ) -> ForegroundPermissionResult:
+        """Request foreground permission from the user.
+
+        Args:
+            reason: Human-readable explanation of why foreground is needed.
+            operation: The specific action being attempted (e.g. "click at (320, 480)").
+            estimated_duration_seconds: How long the foreground operation will take.
+            timeout_seconds: Max time to wait for user response before auto-denying.
+        """
+        ...
+
+
 @dataclass
 class ComputerUseConfig:
     """Configuration for computer use session."""
@@ -191,3 +250,4 @@ class ComputerUseConfig:
     screenshot_delay: float = 1.0
     typing_delay_ms: int = 12
     typing_chunk_size: int = 50
+    execution_mode: ExecutionMode = ExecutionMode.background_best_effort
