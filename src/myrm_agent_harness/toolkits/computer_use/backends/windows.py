@@ -260,12 +260,33 @@ class WindowsBackend:
         return await asyncio.to_thread(_is_browser_active_win)
 
     async def check_permissions(self) -> PermissionStatus:
-        """Windows has no TCC-like permission gates for screen capture / input."""
+        """Probe Windows environment readiness for desktop automation.
+
+        Checks hard dependencies: pyautogui (input simulation), mss (screenshots).
+        Windows has no TCC-like permission gates, but missing packages prevent operation.
+        """
+        has_pyautogui = _check_import("pyautogui")
+        has_mss = _check_import("mss")
+
+        deeplinks: dict[str, str] = {}
+        if not has_pyautogui:
+            deeplinks["input_tools"] = "pip install pyautogui"
+        if not has_mss:
+            deeplinks["screenshot_tools"] = "pip install mss"
+
         return PermissionStatus(
-            accessibility=True,
-            screen_recording=True,
+            accessibility=has_pyautogui,
+            screen_recording=has_mss,
             platform="windows",
+            settings_deeplinks=deeplinks,
         )
+
+
+def _check_import(module_name: str) -> bool:
+    """Return True if *module_name* can be imported without error."""
+    from importlib.util import find_spec
+
+    return find_spec(module_name) is not None
 
 
 def _detect_screen_info() -> tuple[int, int, float]:

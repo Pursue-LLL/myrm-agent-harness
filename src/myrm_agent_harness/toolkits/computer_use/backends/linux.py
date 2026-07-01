@@ -383,11 +383,31 @@ class LinuxBackend:
             return False
 
     async def check_permissions(self) -> PermissionStatus:
-        """Linux (X11/Wayland) generally has no TCC-like permission gates."""
+        """Probe Linux environment readiness for desktop automation.
+
+        Checks hard dependencies: xdotool (input), scrot/gnome-screenshot (capture),
+        and DISPLAY env var (X11 server connectivity).
+        """
+        has_xdotool = shutil.which("xdotool") is not None
+        has_screenshot = (
+            shutil.which("scrot") is not None
+            or shutil.which("gnome-screenshot") is not None
+        )
+        has_display = bool(os.getenv("DISPLAY"))
+
+        deeplinks: dict[str, str] = {}
+        if not has_xdotool:
+            deeplinks["input_tools"] = "sudo apt install -y xdotool"
+        if not has_screenshot:
+            deeplinks["screenshot_tools"] = "sudo apt install -y scrot"
+        if not has_display:
+            deeplinks["display"] = "export DISPLAY=:0"
+
         return PermissionStatus(
-            accessibility=True,
-            screen_recording=True,
+            accessibility=has_xdotool and has_display,
+            screen_recording=has_screenshot and has_display,
             platform="linux",
+            settings_deeplinks=deeplinks,
         )
 
 

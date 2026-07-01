@@ -255,6 +255,27 @@ class TestDictItems:
         assert report.items[1].status == "failed"
         assert "Vault object not found" in (report.items[1].error or "")
 
+    @pytest.mark.asyncio
+    async def test_resolver_failure_emits_progress(self) -> None:
+        events: list[LlmMapProgress] = []
+
+        async def _on_progress(p: LlmMapProgress) -> None:
+            events.append(p)
+
+        def resolver(_ptr: str) -> str:
+            raise FileNotFoundError("bad vault")
+
+        report = await llm_map(
+            _make_llm(),
+            ["ok", "vault://bad"],
+            "inst",
+            item_resolver=resolver,
+            on_progress=_on_progress,
+        )
+        assert report.failed == 1
+        assert events
+        assert events[-1].failed == 1
+
 
 class TestConcurrencyBounding:
     """Concurrency clamping and hard caps."""
@@ -355,6 +376,19 @@ class TestMidFlightCancellation:
         )
         assert report.cancelled + report.succeeded + report.failed == report.total
         assert report.succeeded >= 1
+
+    @pytest.mark.asyncio
+    async def test_invoke_cancelled_error_marks_item_cancelled(self) -> None:
+        async def _cancelled_ainvoke(_messages: list[SystemMessage | HumanMessage]) -> _FakeResponse:
+            raise asyncio.CancelledError()
+
+        llm = MagicMock()
+        llm.ainvoke = _cancelled_ainvoke
+        llm.with_structured_output = MagicMock(return_value=llm)
+
+        report = await llm_map(llm, ["a"], "inst", warm_prefix=False)
+        assert report.cancelled == 1
+        assert report.items[0].status == "cancelled"
 
 
 class TestNormaliseItemEdgeCases:
