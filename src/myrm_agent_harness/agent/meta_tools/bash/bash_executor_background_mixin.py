@@ -1,4 +1,16 @@
-"""BashExecutor background process spawn."""
+"""BashExecutor background process spawn.
+
+[INPUT]
+- ._background_registry::get_background_registry, BackgroundQuotaError (POS: Background job registry)
+- .bash_execution_error::BashExecutionError (POS: Structured execution error)
+- agent.artifacts.file_id_registry::resolve_file_ids_in_text (POS: File ID resolution)
+
+[OUTPUT]
+- BashExecutorBackgroundMixin.spawn_background
+
+[POS]
+Long-running shell spawn via background process registry; bypasses skill/python fast path.
+"""
 
 from __future__ import annotations
 

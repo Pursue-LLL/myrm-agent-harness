@@ -1,4 +1,14 @@
-"""Structured bash execution error with diagnostic previews."""
+"""Structured bash execution error with diagnostic previews.
+
+[INPUT]
+- None (stdlib only)
+
+[OUTPUT]
+- BashExecutionError: Exception with phase/category/hint and stdout/stderr previews
+
+[POS]
+Shared error type for BashExecutor mixins and bash_tool error surfacing.
+"""
 
 from __future__ import annotations
 

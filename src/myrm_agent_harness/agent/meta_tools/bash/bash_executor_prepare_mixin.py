@@ -1,4 +1,18 @@
-"""BashExecutor MCP proxy, preparation, and skill path helpers."""
+"""BashExecutor MCP proxy, preparation, and skill path helpers.
+
+[INPUT]
+- toolkits.code_execution.code_detector::code_detector, CodeType (POS: Code type detector)
+- agent.skills.mcp.executor::skill_executor (POS: Skill MCP execution bridge)
+- toolkits.code_execution.ptc.context::ptc_nesting_guard (POS: PTC nesting guard)
+- .bash_execution_error::BashExecutionError (POS: Structured execution error)
+- .bash_executor_constants::MCP_MIN_TIMEOUT (POS: MCP timeout floor)
+
+[OUTPUT]
+- BashExecutorPrepareMixin: _prepare_execution, MCP proxy, skill path rewrite, PTC routing
+
+[POS]
+Code-type detection, skill staging, MCP IPC startup, and Python PTC injection routing.
+"""
 
 from __future__ import annotations
 

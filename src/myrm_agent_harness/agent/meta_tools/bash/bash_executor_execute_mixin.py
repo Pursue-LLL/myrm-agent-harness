@@ -1,4 +1,17 @@
-"""BashExecutor synchronous execute() orchestration."""
+"""BashExecutor synchronous execute() orchestration.
+
+[INPUT]
+- agent.artifacts.file_id_registry::resolve_file_ids_in_text (POS: File ID resolution)
+- ._output_eviction::maybe_evict_large_output (POS: Large output eviction)
+- .mcp_citation_handler::MCPMetadataExtractor (POS: MCP citation handler)
+- .bash_execution_error::BashExecutionError (POS: Structured execution error)
+
+[OUTPUT]
+- BashExecutorExecuteMixin.execute
+
+[POS]
+Primary synchronous bash/python/skill execution orchestration for BashExecutor.
+"""
 
 from __future__ import annotations
 

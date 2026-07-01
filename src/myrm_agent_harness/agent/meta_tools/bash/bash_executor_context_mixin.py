@@ -1,4 +1,16 @@
-"""BashExecutor execution-context builders and post-run helpers."""
+"""BashExecutor execution-context builders and post-run helpers.
+
+[INPUT]
+- toolkits.code_execution::ExecutionContext (POS: Code executor protocol and context)
+- ._event_logging::log_bash_command_execution (POS: Event logging with redaction)
+- agent.artifacts.registry::register_generated_files (POS: Artifact registration)
+
+[OUTPUT]
+- BashExecutorContextMixin: _build_execution_context, logging, artifact registration
+
+[POS]
+ExecutionContext assembly, OAuth issuer scoping, and post-run logging for BashExecutor.
+"""
 
 from __future__ import annotations
 
