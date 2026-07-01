@@ -833,16 +833,17 @@ class TestMidStreamFailure:
 
 class TestAggregatorPersona:
     """The aggregator synthesis is streamed straight to the user as the final
-    reply, so it must inherit the agent persona. Ordering keeps a cacheable
-    static prefix: persona -> AGGREGATOR_SYSTEM -> per-request reference answers.
+    reply, so it must inherit the agent persona.
+
+    Cache-friendly layout: SystemMessage = stable prefix (persona +
+    AGGREGATOR_SYSTEM), HumanMessage = dynamic (reference answers + query).
     """
 
     _PERSONA = "You are Captain Redbeard. Always answer in pirate speak."
 
-    def _agg_system_text(self, agg: MagicMock) -> str:
+    def _agg_messages(self, agg: MagicMock) -> list:
         assert agg.astream_calls, "aggregator was not invoked"
-        messages = agg.astream_calls[0]
-        return str(messages[0].content)
+        return agg.astream_calls[0]
 
     async def test_batch_aggregator_receives_persona_in_order(self):
         ref_a = _make_llm("ref-a", "answer a")
@@ -853,12 +854,14 @@ class TestAggregatorPersona:
         result = await engine.run("q", system_prompt=self._PERSONA)
 
         assert result.success
-        system_text = self._agg_system_text(agg)
+        msgs = self._agg_messages(agg)
+        system_text = str(msgs[0].content)
+        human_text = str(msgs[1].content)
         assert self._PERSONA in system_text
         assert AGGREGATOR_SYSTEM in system_text
-        # persona before the synthesis instruction before the reference answers
         assert system_text.index(self._PERSONA) < system_text.index(AGGREGATOR_SYSTEM)
-        assert system_text.index(AGGREGATOR_SYSTEM) < system_text.index("answer a")
+        assert "answer a" not in system_text, "dynamic content must not be in SystemMessage"
+        assert "answer a" in human_text
 
     async def test_stream_aggregator_receives_persona_in_order(self):
         ref_a = _make_llm("ref-a", "answer a")
@@ -869,8 +872,10 @@ class TestAggregatorPersona:
         async for _ in engine.run_stream("q", system_prompt=self._PERSONA):
             pass
 
-        system_text = self._agg_system_text(agg)
+        msgs = self._agg_messages(agg)
+        system_text = str(msgs[0].content)
         assert system_text.index(self._PERSONA) < system_text.index(AGGREGATOR_SYSTEM)
+        assert "answer a" not in system_text
 
     async def test_no_persona_not_injected(self):
         ref_a = _make_llm("ref-a", "answer a")
@@ -881,8 +886,9 @@ class TestAggregatorPersona:
         result = await engine.run("q")
 
         assert result.success
-        system_text = self._agg_system_text(agg)
-        assert system_text.startswith(AGGREGATOR_SYSTEM)
+        msgs = self._agg_messages(agg)
+        system_text = str(msgs[0].content)
+        assert system_text == AGGREGATOR_SYSTEM
 
 
 class TestStreamEmptyAggregatorFallback:
@@ -952,3 +958,68 @@ class TestBatchAggregatorBothEmpty:
 
         assert result.success
         assert result.final_answer == ""
+
+
+# -----------------------------------------------------------------------
+# build_aggregation_messages — prompt-cache-friendly layout
+# -----------------------------------------------------------------------
+
+
+class TestBuildAggregationMessages:
+    """Verify that dynamic content (reference answers) stays out of the
+    SystemMessage so the stable prefix remains eligible for prompt caching.
+    """
+
+    def _refs(self) -> list[ReferenceResponse]:
+        return [
+            ReferenceResponse(model="claude", content="resp A", elapsed_seconds=1.0, success=True),
+            ReferenceResponse(model="gpt", content="resp B", elapsed_seconds=1.0, success=True),
+        ]
+
+    def test_system_message_is_static(self):
+        from myrm_agent_harness.toolkits.llms.consensus._prompts import (
+            build_aggregation_messages,
+        )
+
+        msgs = build_aggregation_messages("What is AI?", self._refs())
+        sys_content = str(msgs[0].content)
+        assert sys_content == AGGREGATOR_SYSTEM
+        assert "resp A" not in sys_content
+        assert "resp B" not in sys_content
+
+    def test_human_message_contains_refs_and_query(self):
+        from myrm_agent_harness.toolkits.llms.consensus._prompts import (
+            build_aggregation_messages,
+        )
+
+        msgs = build_aggregation_messages("What is AI?", self._refs())
+        human_content = str(msgs[1].content)
+        assert "resp A" in human_content
+        assert "resp B" in human_content
+        assert "What is AI?" in human_content
+        assert "Responses from models:" in human_content
+
+    def test_persona_prepended_in_system(self):
+        from myrm_agent_harness.toolkits.llms.consensus._prompts import (
+            build_aggregation_messages,
+        )
+
+        persona = "You are a legal expert."
+        msgs = build_aggregation_messages("q", self._refs(), system_prompt=persona)
+        sys_content = str(msgs[0].content)
+        assert sys_content.startswith(persona)
+        assert AGGREGATOR_SYSTEM in sys_content
+        assert "resp A" not in sys_content
+
+    def test_cache_stability_across_calls(self):
+        """Two calls with different refs must produce identical SystemMessage."""
+        from myrm_agent_harness.toolkits.llms.consensus._prompts import (
+            build_aggregation_messages,
+        )
+
+        persona = "Be concise."
+        refs_1 = [ReferenceResponse(model="m1", content="AAA", elapsed_seconds=1.0, success=True)]
+        refs_2 = [ReferenceResponse(model="m2", content="BBB", elapsed_seconds=1.0, success=True)]
+        msgs_1 = build_aggregation_messages("q1", refs_1, system_prompt=persona)
+        msgs_2 = build_aggregation_messages("q2", refs_2, system_prompt=persona)
+        assert str(msgs_1[0].content) == str(msgs_2[0].content)
