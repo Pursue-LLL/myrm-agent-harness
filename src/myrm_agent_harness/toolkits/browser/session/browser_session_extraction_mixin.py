@@ -76,7 +76,7 @@ class BrowserSessionExtractionMixin:
                         description=f"Extracted from {url} with selector '{selector}'",
                     )
                     logger.warning("BrowserSession: Extracted content extremely long, saved to vault: %s", vault_uri)
-                    return f"[System Note: WebpageContent极长 ({total_len} Characters)， is 了节省您  Context Window， already 整体固化至沙箱工件库。]\n\n工件Link: {vault_uri}\n\n or less 是前 {max_length} Characters预览：\n{chunk}"
+                    return f"[System Note: Page content is extremely long ({total_len} chars). Full text saved to sandbox vault to conserve your context window.]\n\nVault URI: {vault_uri}\n\nBelow is the first {max_length} chars as preview:\n{chunk}"
                 except Exception as e:
                     logger.warning("Failed to save to Vault: %s", e)
 
