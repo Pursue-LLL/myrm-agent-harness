@@ -8,8 +8,8 @@ from langchain_core.documents import Document
 from myrm_agent_harness.toolkits.web_fetch.engine import CrawlEngine
 
 SSRF_BYPASS = patch(
-    "myrm_agent_harness.utils.url_utils.validate_url_for_ssrf",
-    return_value=(True, None),
+    "myrm_agent_harness.core.security.guards.ssrf.validate_url_for_ssrf",
+    return_value=type("SSRFResult", (), {"safe": True, "error": None})(),
 )
 
 
