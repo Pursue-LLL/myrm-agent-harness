@@ -8,8 +8,8 @@
 - terminate_browser_processes_in_tree: Gracefully terminate automation descendants of a root PID
 
 [POS]
-Shipped pytest teardown helper for server and harness test suites. Complements
-``toolkits.browser.doctor`` global orphan cleanup (``scripts/dev/cleanup-zombie-tests.sh``).
+Browser toolkit pytest teardown helper for server and harness test suites. Complements
+``doctor`` global orphan cleanup (``scripts/dev/cleanup-zombie-tests.sh``).
 """
 
 from __future__ import annotations

@@ -128,6 +128,13 @@ def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -
 def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionResult:
     """Invoke an AT-SPI element by flat-index (mirrors Windows UIA pattern)."""
     try:
+        index = int(backend_key)
+    except (ValueError, TypeError):
+        return ActionResult(success=False, error=f"Invalid backend_key: {backend_key}")
+    if index < 0 or index >= _MAX_ELEMENTS:
+        return ActionResult(success=False, error=f"Index {index} out of range [0, {_MAX_ELEMENTS})")
+
+    try:
         import pyatspi  # type: ignore[import-untyped]
     except ImportError:
         return ActionResult(success=False, error="pyatspi not available; use desktop_vision_tool fallback")
@@ -136,7 +143,6 @@ def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionRe
     if desktop.childCount == 0:
         return ActionResult(success=False, error="AT-SPI desktop has no applications")
 
-    index = int(backend_key)
     interactive: list[object] = []
 
     def _collect(node: object) -> None:
@@ -144,6 +150,7 @@ def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionRe
             return
         try:
             role_name = node.getRoleName()  # type: ignore[attr-defined]
+            node.getState()  # type: ignore[attr-defined]
         except Exception:
             return
         if role_name in _INTERACTIVE_ROLES:

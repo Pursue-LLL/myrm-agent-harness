@@ -15,6 +15,7 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 | _wait_impl.py | Internal | Concrete wait strategy implementations. Each strategy function receives a Page instance and paramete | ✅ |
 | _wait_types.py | Internal | Wait strategy type definitions and runtime statistics module. | ✅ |
 | doctor.py | Core | Browser diagnostics: dependency checks, launchability probes, orphan automation process detection (Chromium + driver node; patchright/playwright/puppeteer caches), safe cleanup (`cleanup_orphan_processes`), and auto-fix Chromium install with CDN mirror fallback. | ✅ |
+| process_tree_cleanup.py | Core | Terminate automation child processes in a pytest process tree (complements `doctor` global orphan cleanup). | ✅ |
 | domain_filter.py | Core | Deep domain filtering, resource blocking, and ad/tracker domain blocking module. Four-layer defense: CSP + route interception + JS hardening + CDP audit. Route handler blocks ad domains (3500+ via ad_domains.py) and resource types. | ✅ |
 | assets/ | Data | Bundled static files (`ad_domains.txt`). Shipped in wheel via `pyproject.toml` force-include. See [assets/_ARCH.md](assets/_ARCH.md). |
 | ad_domains.py | Data | Lazy loader for bundled `assets/ad_domains.txt` (~3500 Peter Lowe ad/tracker domains). | ✅ |

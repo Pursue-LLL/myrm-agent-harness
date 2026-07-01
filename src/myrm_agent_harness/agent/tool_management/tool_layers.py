@@ -102,7 +102,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # --- Goal 工具 ---
     "get_goal_status_tool": ToolLayer.EXTENDED,
     "update_goal_status_tool": ToolLayer.EXTENDED,
-    # --- 批量 LLM (fan-out) ---
     # --- 交互工具 ---
     "ask_question_tool": ToolLayer.EXTENDED,
     "tts_generate": ToolLayer.EXTENDED,

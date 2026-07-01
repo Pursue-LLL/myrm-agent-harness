@@ -26,7 +26,6 @@ Myrm Agent Harness — a production-grade framework for building, deploying, and
 | runtime/ | Agent runtime infrastructure for single-instance execution. |
 | toolkits/ | Generic, framework-agnostic toolkit collection (like lodash). MUST NOT depend on agent/. |
 | utils/ | Utility library — error handling, logging, text processing, token tracking, URL tools. |
-| testing/ | Pytest teardown helpers shipped for downstream test suites (browser process-tree cleanup). · [testing/_ARCH.md](testing/_ARCH.md) |
 
 ## Key Dependencies
 

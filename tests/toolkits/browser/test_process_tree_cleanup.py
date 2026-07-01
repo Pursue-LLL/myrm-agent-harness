@@ -1,10 +1,10 @@
-"""Tests for shipped pytest teardown helpers."""
+"""Tests for browser process-tree pytest teardown helpers."""
 
 from __future__ import annotations
 
 from unittest.mock import patch
 
-from myrm_agent_harness.testing import browser_process_cleanup as bpc
+from myrm_agent_harness.toolkits.browser import process_tree_cleanup as ptc
 
 
 def test_terminate_browser_processes_in_tree_skips_non_automation_descendants() -> None:
@@ -15,10 +15,10 @@ def test_terminate_browser_processes_in_tree_skips_non_automation_descendants() 
     terminated: list[int] = []
 
     with (
-        patch.object(bpc, "_list_process_rows", return_value=rows),
-        patch.object(bpc, "terminate_process_graceful", side_effect=terminated.append),
+        patch.object(ptc, "_list_process_rows", return_value=rows),
+        patch.object(ptc, "terminate_process_graceful", side_effect=terminated.append),
     ):
-        count = bpc.terminate_browser_processes_in_tree(1000)
+        count = ptc.terminate_browser_processes_in_tree(1000)
 
     assert count == 0
     assert terminated == []
@@ -34,10 +34,10 @@ def test_terminate_browser_processes_in_tree_terminates_automation_descendants()
     terminated: list[int] = []
 
     with (
-        patch.object(bpc, "_list_process_rows", return_value=rows),
-        patch.object(bpc, "terminate_process_graceful", side_effect=terminated.append),
+        patch.object(ptc, "_list_process_rows", return_value=rows),
+        patch.object(ptc, "terminate_process_graceful", side_effect=terminated.append),
     ):
-        count = bpc.terminate_browser_processes_in_tree(1000)
+        count = ptc.terminate_browser_processes_in_tree(1000)
 
     assert count == 2
     assert terminated == [1001, 1003]
