@@ -282,6 +282,15 @@ def get_meta_tools(
     else:
         logger.info("Bash tool disabled by caller configuration")
 
+    # Skill quality analysis: deferred (Curator/WebUI is primary cleanup path).
+    # Mount via discover_capability when the user asks in chat.
+    if skills:
+        skills_snapshot = list(skills)
+        _deferred_tools.append(
+            create_skill_analyze_tool(get_all_skills_fn=lambda: skills_snapshot)
+        )
+        logger.info(" skill_analyze_tool registered as deferred")
+
     if registry is not None:
         from myrm_agent_harness.agent.tool_management.types import ToolSource
 
@@ -322,12 +331,6 @@ def get_meta_tools(
         )
     else:
         logger.info(" discover_capability_tool 未加载(无可搜索技能且无deferred工具)")
-
-    # skill_analyze_tool surfaces forgetting candidates and snowball-effect
-    # diagnostics; only meaningful when at least one skill is registered.
-    if skills:
-        tools.append(create_skill_analyze_tool(get_all_skills_fn=lambda: skills))
-        logger.info(" skill_analyze_tool 已加载")
 
     # PTC tools for bash Python execution — fill the mutable ref so that
     # BashExecutor.ptc_tools is populated before any actual execution.

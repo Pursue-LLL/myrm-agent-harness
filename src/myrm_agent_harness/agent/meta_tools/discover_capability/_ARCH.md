@@ -1,7 +1,7 @@
 # discover_capability/
 
 ## Overview
-Unified Capability Discovery gateway. Facade pattern that unifies native deferred tools (ToolRegistry) and external skills (SkillSearchEngine) into a single semantic index with XML-based robust middleware interception.
+Unified Capability Discovery gateway. Indexes deferred native tools (including `skill_analyze_tool`) and bound external skills; AutoMount via `DeferredToolMiddleware`.
 
 ## File & Submodule Index
 

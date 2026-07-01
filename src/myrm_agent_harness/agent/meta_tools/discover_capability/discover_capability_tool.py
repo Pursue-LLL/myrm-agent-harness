@@ -101,6 +101,8 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
 **What happens next**:
 - If a **Native Tool** is found, the system will automatically mount it for you, and you can use it in the NEXT turn.
 - If an **External Skill** is found, you MUST use `skill_select_tool` to load its SOP documentation before using it.
+
+**Examples**: cron jobs, video generation, stale skill cleanup (`skill_analyze_tool`), bash process management.
 """
 
     if native_skills:
