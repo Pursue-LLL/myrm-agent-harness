@@ -1,8 +1,8 @@
 """SubagentExecutor delegation tool attachment APIs.
 
 [INPUT]
-- .types::SubagentConfig, DelegateRole, DELEGATION_CAPABILITY_MANIFEST
-- agent.meta_tools.spawn_subagent (POS: delegation tool factories)
+- .types::SubagentConfig, DelegateRole, DELEGATION_CAPABILITY_MANIFEST (POS: Subagent subsystem core type definitions.)
+- agent.meta_tools.spawn_subagent (POS: Meta-tools for spawning and delegating to sub-agents.)
 
 [OUTPUT]
 - SubagentExecutorDelegationMixin._attach_child_delegation_tools

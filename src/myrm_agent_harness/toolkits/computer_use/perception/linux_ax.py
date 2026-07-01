@@ -15,6 +15,11 @@ logger = logging.getLogger(__name__)
 
 _MAX_ELEMENTS = 500
 
+_INTERACTIVE_ROLES: frozenset[str] = frozenset({
+    "push button", "check box", "text", "entry",
+    "menu item", "radio button", "combo box", "link",
+})
+
 
 @dataclass(frozen=True)
 class LinuxAxSnapshot:
@@ -53,16 +58,7 @@ def _try_pyatspi_snapshot() -> LinuxAxSnapshot | None:
         if role_name in {"application"} and not app_name:
             app_name = name
 
-        if role_name in {
-            "push button",
-            "check box",
-            "text",
-            "entry",
-            "menu item",
-            "radio button",
-            "combo box",
-            "link",
-        }:
+        if role_name in _INTERACTIVE_ROLES:
             try:
                 component = node.queryComponent()  # type: ignore[attr-defined]
                 extents = component.getExtents(0)  # type: ignore[attr-defined]
@@ -129,12 +125,79 @@ def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -
     raise AXTreeEmptyError("AT-SPI tree unavailable in this environment. Install pyatspi or use desktop_vision_tool.")
 
 
+_INTERACTIVE_ROLES: frozenset[str] = frozenset({
+    "push button", "check box", "text", "entry",
+    "menu item", "radio button", "combo box", "link",
+})
+
+
 def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionResult:
-    del backend_key, action, text
-    return ActionResult(
-        success=False,
-        error="Linux AX invoke requires pyatspi. Use desktop_vision_tool fallback.",
-    )
+    """Invoke an AT-SPI element by flat-index (mirrors Windows UIA pattern)."""
+    try:
+        import pyatspi  # type: ignore[import-untyped]
+    except ImportError:
+        return ActionResult(success=False, error="pyatspi not available; use desktop_vision_tool fallback")
+
+    desktop = pyatspi.Registry.getDesktop(0)
+    if desktop.childCount == 0:
+        return ActionResult(success=False, error="AT-SPI desktop has no applications")
+
+    index = int(backend_key)
+    interactive: list[object] = []
+
+    def _collect(node: object) -> None:
+        if len(interactive) > index:
+            return
+        try:
+            role_name = node.getRoleName()  # type: ignore[attr-defined]
+        except Exception:
+            return
+        if role_name in _INTERACTIVE_ROLES:
+            try:
+                component = node.queryComponent()  # type: ignore[attr-defined]
+                extents = component.getExtents(0)  # type: ignore[attr-defined]
+            except Exception:
+                extents = None
+            if extents and extents.width > 0 and extents.height > 0:
+                interactive.append(node)
+        try:
+            for i in range(node.childCount):  # type: ignore[attr-defined]
+                _collect(node.getChildAtIndex(i))  # type: ignore[attr-defined]
+        except Exception:
+            return
+
+    for i in range(desktop.childCount):
+        _collect(desktop.getChildAtIndex(i))
+
+    if index >= len(interactive):
+        return ActionResult(success=False, error=f"Stale element index {index}")
+
+    target = interactive[index]
+    normalized = action.lower()
+    try:
+        if normalized in {"fill", "type"}:
+            try:
+                editable = target.queryEditableText()  # type: ignore[attr-defined]
+                editable.setTextContents(text)  # type: ignore[attr-defined]
+            except Exception:
+                action_if = target.queryAction()  # type: ignore[attr-defined]
+                if action_if.getNActions() > 0:  # type: ignore[attr-defined]
+                    action_if.doAction(0)  # type: ignore[attr-defined]
+                subprocess.run(["xdotool", "type", "--clearmodifiers", text], timeout=5, check=False)
+        elif normalized in {"click", "press", "hover", "focus", "dblclick", "double_click"}:
+            try:
+                action_if = target.queryAction()  # type: ignore[attr-defined]
+                if action_if.getNActions() > 0:  # type: ignore[attr-defined]
+                    action_if.doAction(0)  # type: ignore[attr-defined]
+                else:
+                    target.queryComponent().grabFocus()  # type: ignore[attr-defined]
+            except Exception:
+                target.queryComponent().grabFocus()  # type: ignore[attr-defined]
+        else:
+            return ActionResult(success=False, error=f"Unsupported action: {action}")
+    except Exception as exc:
+        return ActionResult(success=False, error=str(exc))
+    return ActionResult(success=True, output=f"AT-SPI {normalized} succeeded")
 
 
 _DBUS_AUTOMATABLE_APPS: frozenset[str] = frozenset({

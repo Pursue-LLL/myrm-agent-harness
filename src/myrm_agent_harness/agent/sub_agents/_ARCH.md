@@ -33,6 +33,8 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | types.py | Config | Subagent subsystem core type definitions. Defines all subagent-related data types, enums, protocols, DelegationCapabilityManifest, SubagentConfig (including `max_error_chars` for error compaction control), CouncilOpinion, and CouncilResult. | ✅ |
 | workspace_isolation.py | Core | Workspace isolation for subagent execution. COW clone with ignore-pattern filtering (node_modules, .git, dist, etc.), max_bytes safety guard, and efficient file counting. | ✅ |
 
+**Tests mocking executor internals** must patch the defining module (e.g. `executor_attempt_mixin.build_child_agent`), not the aggregate `executor` module.
+
 | Submodule | Description |
 |-----------|-------------|
 | checkpoint/ | Subagent checkpoint utilities package. Includes orphan recovery for automatic resumption after restart. |

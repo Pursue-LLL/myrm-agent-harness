@@ -1854,7 +1854,7 @@ class TestHookExceptionSafety:
         manager = agent._subagent_manager
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
             result = await manager._run_subagent_inner(
@@ -1892,7 +1892,7 @@ class TestHookExceptionSafety:
         manager = agent._subagent_manager
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
             result = await manager._run_subagent_inner(
@@ -1934,7 +1934,7 @@ class TestHookExceptionSafety:
         manager = agent._subagent_manager
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
             result = await manager._run_subagent_inner(
@@ -1980,7 +1980,7 @@ class TestBudgetTokensLimit:
         manager = agent._subagent_manager
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
             result = await manager._run_subagent_inner(
@@ -2020,7 +2020,7 @@ class TestBudgetTokensLimit:
         manager = agent._subagent_manager
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
             result = await manager._run_subagent_inner(
@@ -2068,7 +2068,7 @@ class TestTimeoutRetryPath:
         manager = agent._subagent_manager
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
             result = await manager._run_subagent_inner(
@@ -2313,7 +2313,7 @@ class TestTraceId:
         )
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
             result = await manager.spawn_child(
@@ -2346,7 +2346,7 @@ class TestTraceId:
         )
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
             result = await manager.spawn_child(
@@ -2457,7 +2457,7 @@ class TestSteerChild:
         )
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=_SlowMockChild(),
         ):
             # Spawn async (no wait)
@@ -2503,7 +2503,7 @@ class TestSteerChild:
         )
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
             result = await manager.spawn_child(
@@ -2591,7 +2591,7 @@ class TestSteerSubagentTool:
         )
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=_SlowChild(),
         ):
             await manager.spawn_child(
@@ -2649,7 +2649,7 @@ class TestTraceIdExtended:
         )
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=_HangChild(),
         ):
             result = await manager.spawn_child(
@@ -2700,7 +2700,7 @@ class TestTraceIdExtended:
         )
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=_FailOnce(),
         ):
             result = await manager.spawn_child(
@@ -2733,7 +2733,7 @@ class TestTraceIdExtended:
             events=[{"type": "message", "data": "ok"}], last_run_stats=_FakeStats(10)
         )
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
             results = await asyncio.gather(
@@ -2799,7 +2799,7 @@ class TestSteeringTokenLifecycle:
         )
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=_SlowChild(),
         ):
             await manager.spawn_child(
@@ -2832,7 +2832,7 @@ class TestSteeringTokenLifecycle:
         )
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
             result = await manager.spawn_child(
@@ -2874,7 +2874,7 @@ class TestSteeringTokenLifecycle:
         )
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=_ExplodingChild(),
         ):
             result = await manager.spawn_child(
@@ -2921,7 +2921,7 @@ class TestSteerEdgeCases:
         )
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=_SlowChild(),
         ):
             await manager.spawn_child(
@@ -2964,7 +2964,7 @@ class TestSteerEdgeCases:
         )
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=_SlowChild(),
         ):
             await manager.spawn_child(
@@ -3141,7 +3141,7 @@ class TestCancellationStrategy:
         )
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor.build_child_agent",
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
             result = await manager.spawn_child(

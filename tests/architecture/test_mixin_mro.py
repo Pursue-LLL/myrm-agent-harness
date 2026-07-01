@@ -1,7 +1,7 @@
 """Architecture gate: aggregate-root mixin MRO order.
 
-BrowserSession, ChatLiteLLM, and OptimizationScheduler rely on multiple
-inheritance. Wrong mixin order silently changes which implementation runs.
+BrowserSession, ChatLiteLLM, OptimizationScheduler, and SubagentExecutor rely on
+multiple inheritance. Wrong mixin order silently changes which implementation runs.
 These tests lock the intended MRO prefix and method resolution owners.
 """
 
@@ -145,3 +145,9 @@ def test_subagent_executor_run_with_retry_resolves_to_retry_mixin() -> None:
 def test_subagent_executor_attach_delegation_resolves_to_delegation_mixin() -> None:
     owner = next(c for c in SubagentExecutor.__mro__ if "_attach_child_delegation_tools" in c.__dict__)
     assert owner is SubagentExecutorDelegationMixin
+
+
+@pytest.mark.architecture
+def test_subagent_executor_run_single_attempt_resolves_to_attempt_mixin() -> None:
+    owner = next(c for c in SubagentExecutor.__mro__ if "_run_single_attempt" in c.__dict__)
+    assert owner is SubagentExecutorAttemptMixin

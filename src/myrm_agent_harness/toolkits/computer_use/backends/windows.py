@@ -1,16 +1,11 @@
 """Windows backend — mss + pyautogui + ctypes/uiautomation.
 
-Uses `mss` for high-performance screenshots, `pyautogui` for keyboard/mouse input,
-`ctypes` + user32.dll for window info, and `uiautomation` for accessibility text extraction.
-
 [INPUT]
 - types::ScreenInfo, ScreenContext, ActionResult, WindowTextResult (POS: shared type definitions)
-
 [OUTPUT]
 - WindowsBackend: ComputerBackend implementation for Windows
-
 [POS]
-Windows-specific screen I/O. Only loaded when detect_platform().os_type == "windows".
+Windows-specific screen I/O. Loaded when detect_platform().os_type == \"windows\".
 """
 
 from __future__ import annotations

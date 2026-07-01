@@ -1,16 +1,18 @@
 """Subagent execution logic (aggregate root).
 
 [INPUT]
-- executor_retry_mixin, executor_attempt_mixin, executor_delegation_mixin (POS: split executor mixins)
-- executor_helpers (POS: pure helper functions)
+- .executor_retry_mixin::SubagentExecutorRetryMixin (POS: Retry loop with workspace isolation, hooks, and graceful cancellation.)
+- .executor_attempt_mixin::SubagentExecutorAttemptMixin (POS: One child-agent run attempt including fork context and result post-processing.)
+- .executor_delegation_mixin::SubagentExecutorDelegationMixin (POS: Orchestrator-role child agents receive scoped delegation meta-tools.)
+- .executor_helpers (POS: Pure helper functions for SubagentExecutor mixins and external callers.)
 
 [OUTPUT]
 - SubagentExecutor: child agent execution aggregate root
 - Re-exported helper functions for tests and notifications
 
 [POS]
-Subagent executor aggregate. MRO: Retry → Attempt → Delegation (locked by architecture tests).
-Public import path unchanged: ``from ...executor import SubagentExecutor``.
+Subagent executor aggregate root. MRO: Retry → Attempt → Delegation (locked by architecture tests).
+Public import path: ``from ...executor import SubagentExecutor``.
 """
 
 from .executor_delegation_mixin import SubagentExecutorDelegationMixin

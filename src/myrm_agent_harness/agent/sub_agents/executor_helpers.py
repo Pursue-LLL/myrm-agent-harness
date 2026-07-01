@@ -1,9 +1,9 @@
 """Subagent executor helper functions.
 
 [INPUT]
-- .types::SubagentConfig, AgentHandoverState (POS: subagent types)
-- .builder::truncate_result (POS: result truncation)
-- agent.artifacts.vault::ArtifactVault (POS: oversized result vault)
+- .types::SubagentConfig, AgentHandoverState (POS: Subagent subsystem core type definitions.)
+- .builder::truncate_result (POS: Subagent construction helpers — tool filtering via DelegationCapabilityManifest, model resolution, token merge.)
+- agent.artifacts.vault::ArtifactVault (POS: Oversized result vault, vault:// pointer protocol)
 
 [OUTPUT]
 - _filter_fork_messages, _estimate_msg_tokens: fork context filtering

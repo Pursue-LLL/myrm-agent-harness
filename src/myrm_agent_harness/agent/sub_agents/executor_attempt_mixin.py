@@ -1,8 +1,10 @@
 """SubagentExecutor single-attempt execution APIs.
 
 [INPUT]
-- .executor_helpers (POS: fork filter, vault, handover parsing)
-- .builder, .event_forwarder (POS: child construction and event routing)
+- .executor_helpers::_filter_fork_messages, _auto_vault_or_truncate, _parse_handover_state (POS: Pure helper functions for SubagentExecutor mixins and external callers.)
+- .builder::build_child_agent, filter_tools, merge_child_stats (POS: Subagent construction helpers — tool filtering via DelegationCapabilityManifest, model resolution, token merge.)
+- .event_forwarder::SubagentEventForwarder (POS: Subagent event forwarder. Translates subagent events into progress and log events.)
+- .types::SubagentConfig, SubAgentResult, SubAgentStatus (POS: Subagent subsystem core type definitions.)
 
 [OUTPUT]
 - SubagentExecutorAttemptMixin._inherit_parent_context

@@ -81,7 +81,7 @@ desktop_vision_tool (only when AX empty or interact failed)
 |----------|-------------|-----------|-----------------|
 | macOS | Accessibility API | ✅ | ✅ |
 | Windows | UI Automation | ✅ | ✅ |
-| Linux | AT-SPI (pyatspi) | ⚠️ stub → vision | ✅ |
+| Linux | AT-SPI (pyatspi) | ✅ | ✅ |
 
 ---
 
@@ -112,7 +112,7 @@ Injected via `DESKTOP_CONTROL_RULES` in `shared_rules.py` when `enable_computer_
 
 | Item | Status | Roadmap |
 |------|--------|---------|
-| Linux AT-SPI invoke | stub | platform parity |
+| Linux AT-SPI invoke | ✅ implemented (pyatspi doAction/EditableText/grabFocus) | platform parity |
 | `verify_goal` post-condition | field only | #7 |
 | Stream E2E tests | not covered | future |
 | Onboarding hint when computer_use enabled | implemented (toggle + tooltip + empty state) |

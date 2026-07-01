@@ -402,6 +402,8 @@ class LinuxBackend:
             deeplinks["screenshot_tools"] = "sudo apt install -y scrot"
         if not has_display:
             deeplinks["display"] = "export DISPLAY=:0"
+            if shutil.which("Xvfb") is None and shutil.which("xvfb-run") is None:
+                deeplinks["xvfb"] = "sudo apt install -y xvfb && Xvfb :99 -screen 0 1920x1080x24 &"
 
         return PermissionStatus(
             accessibility=has_xdotool and has_display,

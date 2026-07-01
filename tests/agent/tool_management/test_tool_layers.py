@@ -51,6 +51,10 @@ class TestGetToolLayer:
         """Semantic code_search was removed; workspace exploration uses grep/glob."""
         assert "code_search_tool" not in _TOOL_LAYERS
 
+    def test_llm_map_tool_not_registered(self):
+        """Batch fan-out uses SubAgent / batch_delegate_tasks_tool, not llm_map."""
+        assert "llm_map_tool" not in _TOOL_LAYERS
+
 
 class TestRegisterToolLayer:
     def test_register_new_tool(self):

@@ -1,8 +1,9 @@
 """SubagentExecutor retry loop and workspace isolation.
 
 [INPUT]
-- .executor_helpers (POS: error compaction, cascade cancel)
-- agent.hooks.executor::fire_hook (POS: subagent lifecycle hooks)
+- .executor_helpers::_cascade_cancel_descendants, _compact_error_message (POS: Pure helper functions for SubagentExecutor mixins and external callers.)
+- .types::SubagentConfig, SubAgentResult, SubAgentStatus, WorkspacePolicy (POS: Subagent subsystem core type definitions.)
+- agent.hooks.executor::fire_hook (POS: Hook execution layer. Manages hook registration and execution with ContextVar-based session isolatio)
 
 [OUTPUT]
 - SubagentExecutorRetryMixin.run_with_retry
