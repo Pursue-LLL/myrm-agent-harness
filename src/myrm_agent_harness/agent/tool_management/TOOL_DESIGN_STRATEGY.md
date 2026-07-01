@@ -94,6 +94,7 @@ class ToolLayer(IntEnum):
 | file_read_tool | 390 | 查看代码、配置、日志 |
 | file_write_tool | 131 | 保存代码、笔记、配置 |
 | planner_tool | 373 | 复杂任务规划/分解；默认关闭（`enable_planning=False` / Goal / 已有 plan 时加载） |
+| update_execution_checklist_tool | ~150 | 轻量多步清单；默认关闭（`task_tracking`；与 plan/planning 互斥） |
 | web_search_tool | 1,177 | 网络搜索，用户可因隐私/离线需求关闭 |
 
 #### 2.2.3 EXTENDED 层 (Layer 3)

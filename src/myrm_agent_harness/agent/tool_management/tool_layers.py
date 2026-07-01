@@ -72,6 +72,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "file_read_tool": ToolLayer.COMMON,
     "file_write_tool": ToolLayer.COMMON,
     "planner_tool": ToolLayer.COMMON,
+    "update_execution_checklist_tool": ToolLayer.COMMON,
     "web_search_tool": ToolLayer.COMMON,
     # ============================================================
     # EXTENDED - 按需加载或低频辅助工具(放最后,变化不影响前面的缓存)

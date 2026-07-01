@@ -28,9 +28,9 @@
 
 ---
 
-## 三、COMMON 工具层（注册 7 个；默认 profile Turn1 实际 bind 5 个）
+## 三、COMMON 工具层（注册 8 个；默认 profile Turn1 实际 bind 5 个）
 
-默认 `enabled_builtin_tools=(web_search, memory)` 且未开 Goal 时：`request_answer_user_tool` 与 `planner_tool` 不进入 bind_tools（CompletionGuard / Agent 配置 / Goal 按需加载）。
+默认 `enabled_builtin_tools=(web_search, memory)` 且未开 Goal 时：`request_answer_user_tool`、`planner_tool`、`update_execution_checklist_tool` 不进入 bind_tools（CompletionGuard / Agent 配置 / Goal 按需加载）。
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
@@ -40,7 +40,8 @@
 | 8 | file_read_tool | 390 | `harness/agent/meta_tools/file_ops/file_read_tool.py` | 读取文件内容 | 默认开启 |
 | 9 | file_write_tool | 131 | `harness/agent/meta_tools/file_ops/file_write_tool.py` | 创建/覆盖写入文件 | 默认开启 |
 | 10 | planner_tool | 373 | `harness/agent/sub_agents/planner/planner_agent_tools.py` | 复杂任务规划/分解 | 默认关闭（`enable_planning` / Goal / workspace 已有 plan） |
-| 11 | **web_search_tool** | **1,177** | `harness/toolkits/web_search/web_search_agent_tools.py` | 网络搜索，含搜索引擎选择逻辑、查询重写规则、多引擎支持说明 | 默认开启，前端可关闭 |
+| 11 | update_execution_checklist_tool | ~150 | `harness/agent/execution_checklist/tool.py` | 轻量多步清单进度 | 默认关闭（`task_tracking`；与 plan/planning 互斥） |
+| 12 | **web_search_tool** | **1,177** | `harness/toolkits/web_search/web_search_agent_tools.py` | 网络搜索，含搜索引擎选择逻辑、查询重写规则、多引擎支持说明 | 默认开启，前端可关闭 |
 
 **注意**：
 - `bash_code_execute_tool` 的实际 token 包含 `TOOL_DESCRIPTION`(1,207) + `_get_os_hint()`(~50) + `ptc_desc`(~80, PTC 内置工具描述) = ~1,337 tokens

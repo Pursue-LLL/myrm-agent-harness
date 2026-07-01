@@ -218,6 +218,7 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
         }
     ),
     "planning": frozenset({"planner_tool"}),
+    "task_tracking": frozenset({"update_execution_checklist_tool"}),
     "answer_tool": frozenset({"request_answer_user_tool"}),
 }
 
@@ -461,6 +462,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "conversation_search_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "memory_recall_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "planner_tool": SafetyMetadata(is_read_only=False, is_concurrent_safe=False, is_idempotent=False),
+    "update_execution_checklist_tool": SafetyMetadata(is_read_only=False, is_concurrent_safe=False, is_idempotent=True),
     "discover_capability_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "skill_discovery_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "skill_select_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),

@@ -11,7 +11,8 @@
 
 [POS]
 Tool building mixin for SkillAgent. Assembles meta-tools, planner tool (when
-enable_planning, Goal, or workspace plan), wiki tools, and deferred tool registration.
+enable_planning, Goal, or workspace plan), execution checklist tool (when
+task_tracking and no plan), wiki tools, and deferred tool registration.
 """
 
 from __future__ import annotations
@@ -41,6 +42,7 @@ class SkillAgentToolsMixin:
     - _enable_file_tools, _enable_bash
     - _skill_env_map, _default_skill_instances, state_manager
     - storage_backend, llm, config
+    - _task_workspace_root (chat sandbox path for checklist persistence)
     - _wiki_base_dir, _wiki_search_fn
     - _tool_registry, user_tools, deferred_tools, user_middlewares
     """
@@ -93,6 +95,10 @@ class SkillAgentToolsMixin:
         planner = await self._create_planner_tool(skills)
         if planner is not None:
             meta_tools.append(planner)
+
+        checklist = await self._create_checklist_tool(skills)
+        if checklist is not None:
+            meta_tools.append(checklist)
 
         wiki_tools = self._create_wiki_tools()
         if wiki_tools:
@@ -194,6 +200,77 @@ class SkillAgentToolsMixin:
             logger.info("planner_tool: loading for existing workspace plan (resume)")
             return True
         return False
+
+    def _get_checklist_workspace_root(self) -> str | None:
+        """Resolve chat workspace for checklist persistence."""
+        from myrm_agent_harness.agent.middlewares._session_context import get_workspace_root
+
+        live_root = get_workspace_root()
+        if live_root:
+            return live_root
+        bound_root = getattr(self, "_task_workspace_root", None)  # type: ignore[attr-defined]
+        if isinstance(bound_root, str) and bound_root.strip():
+            return bound_root.strip()
+        return None
+
+    async def _workspace_has_checklist(self) -> bool:
+        """Return True when a persisted execution checklist exists in the chat workspace."""
+        workspace_root = self._get_checklist_workspace_root()
+        if not workspace_root:
+            return False
+        try:
+            from myrm_agent_harness.agent.execution_checklist import checklist_exists_sync
+
+            return checklist_exists_sync(workspace_root)
+        except Exception as e:
+            logger.warning("Failed to check execution checklist existence: %s", e)
+            return False
+
+    async def _should_load_checklist_tool(self) -> bool:
+        """Checklist loads when task tracking is enabled or resuming, unless plan/planning active."""
+        if self._enable_planning:  # type: ignore[attr-defined]
+            return False
+        if await self._workspace_has_plan():
+            return False
+        if self._enable_task_tracking:  # type: ignore[attr-defined]
+            return True
+        if await self._workspace_has_checklist():
+            logger.info("update_execution_checklist_tool: loading for existing checklist (resume)")
+            return True
+        return False
+
+    async def _create_checklist_tool(self, skills: list[SkillMetadata]) -> BaseTool | None:  # noqa: ARG002
+        """Auto-create checklist tool when task tracking is enabled (no planner plan)."""
+        if not await self._should_load_checklist_tool():
+            logger.info("update_execution_checklist_tool: skipped (planning/plan active or tracking disabled)")
+            return None
+        if any(
+            getattr(t, "name", getattr(t, "tool_name", None)) == "update_execution_checklist_tool"
+            for t in self.user_tools  # type: ignore[attr-defined]
+        ):
+            logger.info("update_execution_checklist_tool: user override detected, skipping auto-creation")
+            return None
+        try:
+            from myrm_agent_harness.agent.execution_checklist import (
+                create_update_execution_checklist_tool,
+                read_checklist_sync,
+            )
+            from myrm_agent_harness.agent.execution_checklist.events import emit_checklist_events
+
+            tool = create_update_execution_checklist_tool(
+                fallback_workspace_root=self._get_checklist_workspace_root(),
+            )
+            workspace_root = self._get_checklist_workspace_root()
+            if workspace_root:
+                existing = read_checklist_sync(workspace_root)
+                if existing and existing.items:
+                    emit_checklist_events(existing)
+                    logger.info("update_execution_checklist_tool: resumed checklist UI from workspace")
+            logger.info("update_execution_checklist_tool auto-created")
+            return tool
+        except Exception as e:
+            logger.warning("update_execution_checklist_tool auto-creation failed: %s", e)
+            return None
 
     async def _create_planner_tool(self, skills: list[SkillMetadata]) -> BaseTool | None:
         """Auto-create planner_tool when planning is enabled or workspace has a persisted plan.

@@ -11,6 +11,8 @@ Implements shadow sync (3 files: plan.json, task_plan.md, plan_summary.txt).
 - PlannerStorage: Planner storage adapter
 - workspace_plan_exists: Check persisted plan under a storage prefix
 - workspace_load_plan: Load persisted plan under a storage prefix
+- read_plan_sync_from_workspace: Sync plan load for completion_guard
+- strip_storage_line_numbers: Strip line-number prefixes from storage text
 
 [POS]
 Planner Storage Adapter
@@ -20,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import re
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.storage.base import StorageProvider
@@ -28,6 +31,14 @@ if TYPE_CHECKING:
     from myrm_agent_harness.agent.sub_agents.planner.schemas import Plan
 
 logger = logging.getLogger(__name__)
+
+
+def strip_storage_line_numbers(content: str) -> str:
+    """Remove line-number prefixes added by some storage backends."""
+    if re.match(r"^\s*\d+\|", content):
+        lines = content.splitlines()
+        return "\n".join(re.sub(r"^\s*\d+\|", "", line) for line in lines)
+    return content
 
 
 class PlannerStorage:
@@ -87,10 +98,7 @@ class PlannerStorage:
         """
         # Check if content has line numbers (format: " 1|...")
         if re.match(r"^\s*\d+\|", content):
-            # Remove line numbers from each line
-            lines = content.splitlines()
-            stripped_lines = [re.sub(r"^\s*\d+\|", "", line) for line in lines]
-            return "\n".join(stripped_lines)
+            return strip_storage_line_numbers(content)
 
         return content
 
@@ -249,3 +257,24 @@ async def workspace_load_plan(
     """Load a persisted plan from the configured storage prefix."""
     store = PlannerStorage(storage_backend, prefix=storage_prefix)
     return await store.load_plan()
+
+
+def read_plan_sync_from_workspace(
+    workspace_root: str,
+    *,
+    storage_prefix: str = "/planner",
+) -> Plan | None:
+    """Load plan.json synchronously for completion_guard (no asyncio)."""
+    from myrm_agent_harness.agent.sub_agents.planner.schemas import Plan
+
+    prefix = storage_prefix.strip("/")
+    plan_path = Path(workspace_root) / prefix / "plan.json"
+    if not plan_path.is_file():
+        return None
+    try:
+        content = plan_path.read_text(encoding="utf-8")
+        content = strip_storage_line_numbers(content)
+        return Plan.model_validate_json(content)
+    except Exception as exc:
+        logger.warning("Failed to sync-read plan from %s: %s", plan_path, exc)
+        return None

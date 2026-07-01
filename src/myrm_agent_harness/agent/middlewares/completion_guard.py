@@ -377,14 +377,11 @@ def _build_checklist(records: list[CallRecord], workspace_root: str | None = Non
     # Check for incomplete plan steps
     if workspace_root:
         try:
-            from myrm_agent_harness.agent.sub_agents.planner import PlannerStorage
-            from myrm_agent_harness.toolkits.storage.local import (
-                LocalStorageBackend,
-            )
+            from myrm_agent_harness.agent.sub_agents.planner.config import PlannerConfig
+            from myrm_agent_harness.agent.sub_agents.planner.storage import read_plan_sync_from_workspace
 
-            storage_provider = LocalStorageBackend(workspace_root)
-            planner_storage = PlannerStorage(storage_provider, prefix="planner_")
-            plan = planner_storage.load_plan()
+            config = PlannerConfig()
+            plan = read_plan_sync_from_workspace(workspace_root, storage_prefix=config.storage_prefix)
             if plan:
                 uncompleted_steps = [
                     step for step in plan.steps if step.status != "completed" and step.status != "skipped"
@@ -406,6 +403,31 @@ def _build_checklist(records: list[CallRecord], workspace_root: str | None = Non
                     lines.append("")
         except Exception as e:
             logger.warning("[CompletionGuard] Failed to load plan for checklist: %s", e)
+
+        try:
+            from myrm_agent_harness.agent.execution_checklist.state import (
+                incomplete_checklist_items,
+                read_checklist_sync,
+            )
+
+            checklist = read_checklist_sync(workspace_root)
+            if checklist:
+                open_items = incomplete_checklist_items(checklist)
+                if open_items:
+                    if has_writes:
+                        has_critical_errors = True
+                        lines.append("  CRITICAL: Execution checklist has incomplete items!")
+                    else:
+                        lines.append("  WARNING: Execution checklist has incomplete items.")
+                    for item in open_items:
+                        lines.append(f" - [{item.status}] {item.content}")
+                    if has_writes:
+                        lines.append(
+                            " You MUST complete checklist items via `update_execution_checklist_tool` before finishing."
+                        )
+                    lines.append("")
+        except Exception as e:
+            logger.warning("[CompletionGuard] Failed to load execution checklist: %s", e)
 
     for i, item in enumerate(items, 1):
         lines.append(f" {i}. {item}")

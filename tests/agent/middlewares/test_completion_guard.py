@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -343,16 +344,20 @@ class TestBuildChecklist:
         checklist, _ = _build_checklist(records)
         assert "Confirm the response fully addresses" in checklist
 
-    def test_plan_uncompleted_steps_critical_with_writes(self) -> None:
+    def test_plan_uncompleted_steps_critical_with_writes(self, tmp_path: Path) -> None:
         """Uncompleted plan steps are CRITICAL when file writes exist."""
-        from unittest.mock import MagicMock
-
-        mock_plan = MagicMock()
-        mock_step = MagicMock()
-        mock_step.status = "pending"
-        mock_step.step_id = "1"
-        mock_step.description = "Test step"
-        mock_plan.steps = [mock_step]
+        plan_dir = tmp_path / "planner"
+        plan_dir.mkdir()
+        plan_dir.joinpath("plan.json").write_text(
+            """{
+  "goal": "Test goal",
+  "reasoning": "Test",
+  "steps": [
+    {"step_id": "1", "description": "Test step", "expected_output": "Done", "status": "pending"}
+  ]
+}""",
+            encoding="utf-8",
+        )
 
         records = [
             CallRecord(
@@ -363,38 +368,59 @@ class TestBuildChecklist:
             ),
         ]
 
-        with patch("myrm_agent_harness.toolkits.storage.local.LocalStorageBackend"), \
-             patch("myrm_agent_harness.agent.sub_agents.planner.PlannerStorage") as mock_planner_storage:
+        checklist, has_critical = _build_checklist(records, workspace_root=str(tmp_path))
 
-            mock_planner_storage.return_value.load_plan.return_value = mock_plan
+        assert has_critical
+        assert "CRITICAL" in checklist
+        assert "uncompleted steps in your Goal Plan" in checklist
 
-            checklist, has_critical = _build_checklist(records, workspace_root="/tmp/test_workspace")
-
-            assert has_critical
-            assert "CRITICAL" in checklist
-            assert "uncompleted steps in your Goal Plan" in checklist
-
-    def test_plan_uncompleted_steps_warning_without_writes(self) -> None:
+    def test_plan_uncompleted_steps_warning_without_writes(self, tmp_path: Path) -> None:
         """Uncompleted plan steps are WARNING when no file writes (query task)."""
-        from unittest.mock import MagicMock
+        plan_dir = tmp_path / "planner"
+        plan_dir.mkdir()
+        plan_dir.joinpath("plan.json").write_text(
+            """{
+  "goal": "Test goal",
+  "reasoning": "Test",
+  "steps": [
+    {"step_id": "1", "description": "Test step", "expected_output": "Done", "status": "pending"}
+  ]
+}""",
+            encoding="utf-8",
+        )
 
-        mock_plan = MagicMock()
-        mock_step = MagicMock()
-        mock_step.status = "pending"
-        mock_step.step_id = "1"
-        mock_step.description = "Test step"
-        mock_plan.steps = [mock_step]
+        checklist, has_critical = _build_checklist([], workspace_root=str(tmp_path))
 
-        with patch("myrm_agent_harness.toolkits.storage.local.LocalStorageBackend"), \
-             patch("myrm_agent_harness.agent.sub_agents.planner.PlannerStorage") as mock_planner_storage:
+        assert not has_critical
+        assert "WARNING" in checklist
+        assert "uncompleted steps in your Goal Plan" in checklist
 
-            mock_planner_storage.return_value.load_plan.return_value = mock_plan
+    def test_checklist_incomplete_critical_with_writes(self, tmp_path: Path) -> None:
+        """Incomplete execution checklist items are CRITICAL when file writes exist."""
+        checklist_dir = tmp_path / ".myrm"
+        checklist_dir.mkdir()
+        checklist_dir.joinpath("execution_checklist.json").write_text(
+            """{
+  "version": 1,
+  "items": [{"id": "a", "content": "Run tests", "status": "pending"}]
+}""",
+            encoding="utf-8",
+        )
 
-            checklist, has_critical = _build_checklist([], workspace_root="/tmp/test_workspace")
+        records = [
+            CallRecord(
+                tool_name="file_write_tool",
+                args_hash="w1",
+                args={"path": "/src/app.py", "content": "x"},
+                success_level=SuccessLevel.FULL_SUCCESS,
+            ),
+        ]
 
-            assert not has_critical
-            assert "WARNING" in checklist
-            assert "uncompleted steps in your Goal Plan" in checklist
+        checklist, has_critical = _build_checklist(records, workspace_root=str(tmp_path))
+
+        assert has_critical
+        assert "Execution checklist has incomplete items" in checklist
+        assert "update_execution_checklist_tool" in checklist
 
 
 class TestCompletionGuardGetTools:
