@@ -11,7 +11,6 @@ from myrm_agent_harness.agent.skill_agent import SkillAgent
 from myrm_agent_harness.agent.tool_management.tool_layers import _TOOL_LAYERS
 
 
-@pytest.mark.unit
 class TestLlmMapWithdrawalHarness:
     def test_llm_map_tool_not_in_tool_layers(self) -> None:
         assert "llm_map_tool" not in _TOOL_LAYERS

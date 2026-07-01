@@ -11,7 +11,7 @@ Platform AX/UIA/AT-SPI snapshot capture, tree rendering, element invoke dispatch
 | renderer.py | Core | AX tree text rendering for agent context | ✅ |
 | macos_ax.py | Platform | macOS Accessibility API snapshot + invoke + native API routing hints | ✅ |
 | windows_ax.py | Platform | Windows UI Automation snapshot + invoke + COM/PowerShell routing hints | ✅ |
-| linux_ax.py | Platform | Linux AT-SPI snapshot; invoke stub + D-Bus routing hints | ✅ |
+| linux_ax.py | Platform | Linux AT-SPI snapshot + invoke (pyatspi doAction/EditableText/grabFocus) + D-Bus routing hints | ✅ |
 
 ## Dependencies
 

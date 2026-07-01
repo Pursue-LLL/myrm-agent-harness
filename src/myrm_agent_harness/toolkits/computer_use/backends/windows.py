@@ -244,10 +244,7 @@ class WindowsBackend:
         return await asyncio.to_thread(_extract_window_text_uia)
 
     async def has_blocking_dialog(self, target_app_names: list[str] | None = None) -> bool:
-        """Check if there is an OS-level dialog window blocking the target application.
-
-        On Windows, we check if the foreground window is a dialog.
-        """
+        """Return True when the foreground window is a blocking OS dialog."""
         return await asyncio.to_thread(_has_blocking_dialog_win, target_app_names)
 
     async def is_browser_active(self) -> bool:
@@ -255,11 +252,7 @@ class WindowsBackend:
         return await asyncio.to_thread(_is_browser_active_win)
 
     async def check_permissions(self) -> PermissionStatus:
-        """Probe Windows environment readiness for desktop automation.
-
-        Checks hard dependencies: pyautogui (input simulation), mss (screenshots).
-        Windows has no TCC-like permission gates, but missing packages prevent operation.
-        """
+        """Probe pyautogui/mss availability for Windows desktop automation."""
         has_pyautogui = _check_import("pyautogui")
         has_mss = _check_import("mss")
 

@@ -125,12 +125,6 @@ def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -
     raise AXTreeEmptyError("AT-SPI tree unavailable in this environment. Install pyatspi or use desktop_vision_tool.")
 
 
-_INTERACTIVE_ROLES: frozenset[str] = frozenset({
-    "push button", "check box", "text", "entry",
-    "menu item", "radio button", "combo box", "link",
-})
-
-
 def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionResult:
     """Invoke an AT-SPI element by flat-index (mirrors Windows UIA pattern)."""
     try:
