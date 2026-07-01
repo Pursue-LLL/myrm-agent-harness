@@ -31,7 +31,7 @@ Myrm Agent Harness — a production-grade framework for building, deploying, and
 
 | Name | Role | Do NOT confuse with |
 |------|------|---------------------|
-| `eval/` | Shipped Agent eval engine (`AgentExecutor` Protocol, assertions, reports) | Deleted dev-only `testing/`; not `tests/eval/` |
+| `eval/` | Shipped Agent eval engine (`AgentExecutor` Protocol, assertions, reports) | `tests/eval/` (harness tests); pytest helpers live in `tests/support/` |
 | `observability/` | Prometheus metrics, `/health` diagnostics, stdlib log trace_id | `agent/observability/` (EventBus/SSE); `infra/tracing/` (OpenTelemetry); `toolkits/*/observability.py` (per-toolkit DTOs) |
 
 ## Key Dependencies
