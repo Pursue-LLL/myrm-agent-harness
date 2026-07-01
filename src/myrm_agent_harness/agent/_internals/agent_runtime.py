@@ -407,10 +407,10 @@ async def run_agent_loop(
 
             agent_input = cast("AgentState[Any]", {"messages": messages})
 
-        # Remove GoalManager from context so it doesn't break msgpack serialization in Checkpointer
-        # It's passed to StreamContext explicitly below.
+        # Strip non-serializable callbacks before LangGraph checkpoint (passed via StreamContext).
         goal_provider = merged_context.pop("goal_provider", None)
         on_goal_terminal = merged_context.pop("on_goal_terminal", None)
+        on_loop_restart = merged_context.pop("on_loop_restart", None)
 
         # --- Goal Planning Interception ---
         if goal_provider and not is_resume:
@@ -505,6 +505,7 @@ async def run_agent_loop(
             llm_info=llm_info,
             goal_provider=goal_provider,
             on_goal_terminal=on_goal_terminal,
+            on_loop_restart=on_loop_restart,
             escalation_target_llm=getattr(agent_state, "escalation_target_llm", None),
             llm=agent_state.llm,
         )

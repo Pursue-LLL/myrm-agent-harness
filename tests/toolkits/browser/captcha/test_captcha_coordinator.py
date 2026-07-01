@@ -93,6 +93,57 @@ class TestCoordinatorHandleCaptcha:
         assert "captcha_resolved" in published_events
 
     @pytest.mark.asyncio
+    async def test_successful_solve_dispatches_takeover_completed(self) -> None:
+        solver = _make_solver(success=True, elapsed_ms=3200.0)
+        coord = CaptchaCoordinator(solver)
+        info = _make_info()
+        page = _make_mock_page()
+
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.browser.captcha.coordinator.CaptchaCoordinator._publish_event",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+                new_callable=AsyncMock,
+            ) as mock_dispatch,
+        ):
+            result = await coord.handle_captcha(info, page)
+
+        assert result.success is True
+        dispatch_calls = [
+            (c.args[0], c.args[1]) for c in mock_dispatch.call_args_list
+        ]
+        takeover_completed = [
+            payload for event, payload in dispatch_calls
+            if event == "browser_takeover_completed"
+        ]
+        assert len(takeover_completed) == 1
+        assert takeover_completed[0]["elapsed_ms"] == 3200.0
+
+    @pytest.mark.asyncio
+    async def test_failed_solve_does_not_dispatch_takeover_completed(self) -> None:
+        solver = _make_solver(success=False)
+        coord = CaptchaCoordinator(solver)
+        page = _make_mock_page()
+
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.browser.captcha.coordinator.CaptchaCoordinator._publish_event",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+                new_callable=AsyncMock,
+            ) as mock_dispatch,
+        ):
+            await coord.handle_captcha(_make_info(), page)
+
+        dispatch_events = [c.args[0] for c in mock_dispatch.call_args_list]
+        assert "browser_takeover_completed" not in dispatch_events
+
+    @pytest.mark.asyncio
     async def test_failed_solve(self) -> None:
         solver = _make_solver(success=False)
         coord = CaptchaCoordinator(solver)

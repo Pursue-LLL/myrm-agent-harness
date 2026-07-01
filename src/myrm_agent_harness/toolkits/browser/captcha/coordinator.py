@@ -155,6 +155,16 @@ class CaptchaCoordinator:
                     result.elapsed_ms,
                 )
                 await self._publish_event("captcha_resolved", captcha_info)
+                try:
+                    from myrm_agent_harness.utils.event_utils import (
+                        dispatch_custom_event,
+                    )
+
+                    await dispatch_custom_event("browser_takeover_completed", {
+                        "elapsed_ms": result.elapsed_ms,
+                    })
+                except Exception:
+                    pass
             else:
                 self._status = CaptchaStatus.TIMEOUT
                 logger.warning(
