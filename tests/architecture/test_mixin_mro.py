@@ -23,6 +23,10 @@ from myrm_agent_harness.agent.skills.optimization.scheduler_queue_mixin import (
 from myrm_agent_harness.agent.skills.optimization.scheduler_resilience_mixin import (
     OptimizationSchedulerResilienceMixin,
 )
+from myrm_agent_harness.agent.sub_agents.executor import SubagentExecutor
+from myrm_agent_harness.agent.sub_agents.executor_attempt_mixin import SubagentExecutorAttemptMixin
+from myrm_agent_harness.agent.sub_agents.executor_delegation_mixin import SubagentExecutorDelegationMixin
+from myrm_agent_harness.agent.sub_agents.executor_retry_mixin import SubagentExecutorRetryMixin
 from myrm_agent_harness.toolkits.browser.session.browser_session import BrowserSession
 from myrm_agent_harness.toolkits.browser.session.browser_session_extraction_mixin import (
     BrowserSessionExtractionMixin,
@@ -112,3 +116,32 @@ def test_optimization_scheduler_mixin_mro_prefix() -> None:
 def test_optimization_scheduler_start_monitoring_resolves_to_monitoring_mixin() -> None:
     owner = next(c for c in OptimizationScheduler.__mro__ if "start_monitoring" in c.__dict__)
     assert owner is OptimizationSchedulerMonitoringMixin
+
+
+_EXPECTED_SUBAGENT_EXECUTOR_MIXIN_MRO: tuple[type[object], ...] = (
+    SubagentExecutor,
+    SubagentExecutorRetryMixin,
+    SubagentExecutorAttemptMixin,
+    SubagentExecutorDelegationMixin,
+    object,
+)
+
+
+@pytest.mark.architecture
+def test_subagent_executor_mixin_mro_prefix() -> None:
+    assert (
+        SubagentExecutor.__mro__[: len(_EXPECTED_SUBAGENT_EXECUTOR_MIXIN_MRO)]
+        == _EXPECTED_SUBAGENT_EXECUTOR_MIXIN_MRO
+    )
+
+
+@pytest.mark.architecture
+def test_subagent_executor_run_with_retry_resolves_to_retry_mixin() -> None:
+    owner = next(c for c in SubagentExecutor.__mro__ if "run_with_retry" in c.__dict__)
+    assert owner is SubagentExecutorRetryMixin
+
+
+@pytest.mark.architecture
+def test_subagent_executor_attach_delegation_resolves_to_delegation_mixin() -> None:
+    owner = next(c for c in SubagentExecutor.__mro__ if "_attach_child_delegation_tools" in c.__dict__)
+    assert owner is SubagentExecutorDelegationMixin

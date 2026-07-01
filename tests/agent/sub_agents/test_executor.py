@@ -423,7 +423,7 @@ class TestCacheHitPivot:
             yield {"type": "message", "data": "test"}
         child_agent.run = mock_run
 
-        with patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=child_agent):
+        with patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=child_agent):
             await executor._run_single_attempt(
                 task_id="t", agent_type="a", task_description="task", config=config,
                 context={"session_id": "test-session"}, tool_registry_getter=lambda: [], start_time=0.0,
@@ -473,7 +473,7 @@ class TestCacheHitPivot:
             yield {"type": "message", "data": "test"}
         child_agent.run = mock_run
 
-        with patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=child_agent):
+        with patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=child_agent):
             await executor._run_single_attempt(
                 task_id="t", agent_type="a", task_description="task", config=config,
                 context={"session_id": "test-session"}, tool_registry_getter=lambda: [], start_time=0.0,
@@ -709,10 +709,10 @@ class TestTaintInboundWarning:
             yield {"type": "message", "data": "result text"}
         child_agent.run = mock_run
 
-        with patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=child_agent), \
-             patch("myrm_agent_harness.agent.sub_agents.executor._auto_vault_or_truncate", return_value="some result"), \
-             patch("myrm_agent_harness.agent.sub_agents.executor._parse_handover_state", return_value=None), \
-             patch("myrm_agent_harness.agent.sub_agents.executor.merge_child_stats"):
+        with patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=child_agent), \
+             patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._auto_vault_or_truncate", return_value="some result"), \
+             patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._parse_handover_state", return_value=None), \
+             patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.merge_child_stats"):
 
             result = await executor._run_single_attempt(
                 task_id="t1", agent_type="research", task_description="fetch web data",
@@ -751,10 +751,10 @@ class TestTaintInboundWarning:
             yield {"type": "message", "data": "clean result"}
         child_agent.run = mock_run
 
-        with patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=child_agent), \
-             patch("myrm_agent_harness.agent.sub_agents.executor._auto_vault_or_truncate", return_value="clean result"), \
-             patch("myrm_agent_harness.agent.sub_agents.executor._parse_handover_state", return_value=None), \
-             patch("myrm_agent_harness.agent.sub_agents.executor.merge_child_stats"):
+        with patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=child_agent), \
+             patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._auto_vault_or_truncate", return_value="clean result"), \
+             patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._parse_handover_state", return_value=None), \
+             patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.merge_child_stats"):
 
             result = await executor._run_single_attempt(
                 task_id="t2", agent_type="research", task_description="read local file",

@@ -38,7 +38,7 @@ class SkillAgentToolsMixin:
     Requires the following attributes from SkillAgent:
     - skill_backend, discovery_backend, write_backend
     - _embedding_config, skill_configs, _similarity_checker
-    - _enable_file_tools, _enable_bash, _enable_llm_map
+    - _enable_file_tools, _enable_bash
     - _skill_env_map, _default_skill_instances, state_manager
     - storage_backend, llm, config
     - _wiki_base_dir, _wiki_search_fn

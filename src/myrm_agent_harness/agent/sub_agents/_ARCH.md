@@ -14,7 +14,11 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | builder.py | Core | Subagent construction helpers — tool filtering via DelegationCapabilityManifest, model resolution, token merge. | ✅ |
 | config_loader.py | Config | External config loader. Loads subagent configurations from YAML files with strict validation. | ✅ |
 | event_forwarder.py | Core | Subagent event forwarder. Translates subagent events into progress and log events. | ✅ |
-| executor.py | Core | Subagent executor. Runs child agents with retry, workspace isolation, event handling, cascade cancellation, manifest-scoped delegation tools, taint propagation with inbound security warnings, approval deadlock protection, error compaction (`_compact_error_message` — head+marker+tail truncation prevents context pollution), and conclusion-oriented fork context filtering (`_filter_fork_messages` + `max_fork_tokens` truncation). | ✅ |
+| executor.py | Core | SubagentExecutor aggregate root (mixin MRO: Retry → Attempt → Delegation). Re-exports helper functions for tests and notifications. | ✅ |
+| executor_retry_mixin.py | Internal | Retry loop, workspace isolation, hooks, and graceful cancellation (`run_with_retry`). | ✅ |
+| executor_attempt_mixin.py | Internal | Single child-agent attempt: fork context, event forwarding, handover parsing, taint propagation (`_inherit_parent_context`, `_run_single_attempt`). | ✅ |
+| executor_delegation_mixin.py | Internal | Orchestrator-role delegation meta-tool attachment (`_attach_child_delegation_tools`). | ✅ |
+| executor_helpers.py | Internal | Pure helpers: `_filter_fork_messages`, `_compact_error_message`, `_auto_vault_or_truncate`, `_parse_handover_state`, `_cascade_cancel_descendants`. | ✅ |
 | manager.py | Core | Subagent lifecycle manager. Core state tracking, validation, cleanup, capacity, and observability. Inherits spawn/execution from `_manager_spawn` and control operations from `_manager_control`. | ✅ |
 | _manager_spawn.py | Internal | Spawn and execution mixin for SubagentManager (`_run_subagent*`, `spawn_child`). | ✅ |
 | _manager_control.py | Internal | Control plane mixin for SubagentManager (`cancel_child`, `steer_child`, `list_children`, `wait_children`, `drain_notifications`, `run_alternatives`, `run_chain`, `run_council`, `run_with_verification`). | ✅ |

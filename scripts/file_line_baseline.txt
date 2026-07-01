@@ -2,7 +2,6 @@
 # CI: check_file_line_limit.py --baseline this file
 # Files listed here may exceed 500 lines; line count must not grow.
 # Remove entries after splitting below 500 lines.
-myrm_agent_harness/agent/sub_agents/executor.py	865
 myrm_agent_harness/toolkits/web_fetch/engine.py	840
 myrm_agent_harness/toolkits/llms/routing/complexity_router.py	839
 myrm_agent_harness/agent/skills/evolution/infra/integration.py	831
