@@ -1,8 +1,8 @@
 """Async event bus with backpressure for real-time tool call broadcasting.
 
 [INPUT]
-- observability.types::EventCallback (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
-- observability.types::ToolCallEventData (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
+- agent.streaming.broadcast.types::EventCallback (POS: Tool call event subscriber callback type.)
+- agent.streaming.broadcast.types::ToolCallEventData (POS: Immutable tool call event payload.)
 
 [OUTPUT]
 - ToolBroadcastBus: Singleton async event bus

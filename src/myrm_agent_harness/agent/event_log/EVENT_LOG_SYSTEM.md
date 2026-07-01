@@ -51,7 +51,7 @@ BaseAgent.run()
 
 | | event_log | observability |
 |--|-----------|---------------|
-| 数据 | 持久事件历史 | 实时 EventBus / Prometheus |
+| 数据 | 持久事件历史 | Prometheus / Doctor / log trace_id |
 | 用途 | 回放、导出、Trace 分析 | 运行时监控桥接 |
 
 ---

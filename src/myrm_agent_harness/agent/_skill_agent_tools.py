@@ -324,10 +324,10 @@ class SkillAgentToolsMixin:
             try:
                 import time as _time
 
-                from myrm_agent_harness.agent.streaming.broadcast.event_bus import EventBus
+                from myrm_agent_harness.agent.streaming.broadcast.event_bus import ToolBroadcastBus
                 from myrm_agent_harness.agent.streaming.broadcast.types import ToolCallEventData
 
-                bus = await EventBus.get_instance()
+                bus = await ToolBroadcastBus.get_instance()
                 now = _time.time()
                 await bus.publish(ToolCallEventData(
                     tool_name="wiki_auto_ingest",
@@ -338,7 +338,10 @@ class SkillAgentToolsMixin:
                     result=f"Auto-indexed '{filename}' into knowledge base for RAG retrieval",
                 ))
             except Exception:
-                logger.debug("EventBus notification skipped (non-critical)", exc_info=True)
+                logger.warning(
+                    "ToolBroadcastBus wiki_auto_ingest notification skipped (non-critical)",
+                    exc_info=True,
+                )
 
         register_large_doc_ingest_callback(_ingest_large_doc)
 
