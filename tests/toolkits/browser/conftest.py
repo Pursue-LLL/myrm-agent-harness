@@ -41,7 +41,7 @@ def browser_context():
 
 
 def _cleanup_browser_child_processes() -> None:
-    from myrm_agent_harness.toolkits.browser.process_tree_cleanup import terminate_browser_processes_in_tree
+    from tests.support.browser_process_cleanup import terminate_browser_processes_in_tree
 
     terminate_browser_processes_in_tree()
 
