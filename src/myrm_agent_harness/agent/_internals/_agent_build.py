@@ -104,7 +104,6 @@ def build_middlewares(
             return await workspace_load_plan(
                 storage_provider,
                 storage_prefix=config.storage_prefix,
-                legacy_prefixes=config.legacy_storage_prefixes,
             )
         except Exception as e:
             logger.warning(f"Failed to load plan for middleware: {e}")

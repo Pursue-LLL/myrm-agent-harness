@@ -10,8 +10,8 @@
 - SkillAgentToolsMixin: Mixin providing tool building methods for SkillAgent
 
 [POS]
-Tool building mixin for SkillAgent. Assembles meta-tools, planner tool,
-wiki tools, and handles deferred tool registration via ToolRegistry.
+Tool building mixin for SkillAgent. Assembles meta-tools, planner tool (when
+enable_planning, Goal, or workspace plan), wiki tools, and deferred tool registration.
 """
 
 from __future__ import annotations
@@ -181,7 +181,6 @@ class SkillAgentToolsMixin:
             return await workspace_plan_exists(
                 self.storage_backend,  # type: ignore[attr-defined]
                 storage_prefix=config.storage_prefix,
-                legacy_prefixes=config.legacy_storage_prefixes,
             )
         except Exception as e:
             logger.warning("Failed to check workspace plan existence: %s", e)

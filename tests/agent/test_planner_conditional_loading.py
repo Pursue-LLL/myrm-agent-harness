@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.agent._skill_agent_tools import SkillAgentToolsMixin
+from myrm_agent_harness.agent.skill_agent import SkillAgent
 from myrm_agent_harness.backends.skills.types import SkillMetadata
 
 
@@ -74,3 +75,30 @@ async def test_create_planner_tool_created_when_planning_enabled() -> None:
     ):
         result = await harness._create_planner_tool([_sample_skill()])
     assert result is mock_tool
+
+
+@pytest.mark.asyncio
+async def test_build_tools_excludes_planner_when_planning_disabled() -> None:
+    """Integration: resolved tool list must not contain planner_tool by default."""
+    mock_llm = AsyncMock()
+    storage = MagicMock()
+
+    async def mock_exists(_path: str) -> bool:
+        return False
+
+    storage.exists = mock_exists
+
+    agent = SkillAgent(
+        llm=mock_llm,
+        storage_backend=storage,
+        enable_planning=False,
+        enable_file_tools=False,
+        enable_bash=False,
+        enable_answer_tool=False,
+    )
+    agent.skill_backend = AsyncMock()
+    agent.skill_backend.list_skills.return_value = [_sample_skill()]
+
+    tools = await agent._build_tools()
+    tool_names = [t.name for t in tools]
+    assert "planner_tool" not in tool_names

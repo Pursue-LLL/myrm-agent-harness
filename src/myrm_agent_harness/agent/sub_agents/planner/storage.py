@@ -9,6 +9,8 @@ Implements shadow sync (3 files: plan.json, task_plan.md, plan_summary.txt).
 
 [OUTPUT]
 - PlannerStorage: Planner storage adapter
+- workspace_plan_exists: Check persisted plan under a storage prefix
+- workspace_load_plan: Load persisted plan under a storage prefix
 
 [POS]
 Planner Storage Adapter
@@ -233,41 +235,17 @@ async def workspace_plan_exists(
     storage_backend: StorageProvider,
     *,
     storage_prefix: str = "/planner",
-    legacy_prefixes: tuple[str, ...] = ("planner_",),
 ) -> bool:
-    """Return True if a persisted plan exists under the canonical or legacy prefix."""
-    primary = PlannerStorage(storage_backend, prefix=storage_prefix)
-    if await primary.plan_exists():
-        return True
-    normalized_primary = storage_prefix.rstrip("/")
-    for legacy in legacy_prefixes:
-        if legacy.rstrip("/") == normalized_primary:
-            continue
-        legacy_store = PlannerStorage(storage_backend, prefix=legacy)
-        if await legacy_store.plan_exists():
-            return True
-    return False
+    """Return True if a persisted plan exists under the configured storage prefix."""
+    store = PlannerStorage(storage_backend, prefix=storage_prefix)
+    return await store.plan_exists()
 
 
 async def workspace_load_plan(
     storage_backend: StorageProvider,
     *,
     storage_prefix: str = "/planner",
-    legacy_prefixes: tuple[str, ...] = ("planner_",),
 ) -> Plan | None:
-    """Load a persisted plan from the canonical prefix, then legacy prefixes."""
-    from myrm_agent_harness.agent.sub_agents.planner.schemas import Plan
-
-    primary = PlannerStorage(storage_backend, prefix=storage_prefix)
-    plan = await primary.load_plan()
-    if plan is not None:
-        return plan
-    normalized_primary = storage_prefix.rstrip("/")
-    for legacy in legacy_prefixes:
-        if legacy.rstrip("/") == normalized_primary:
-            continue
-        legacy_store = PlannerStorage(storage_backend, prefix=legacy)
-        plan = await legacy_store.load_plan()
-        if plan is not None:
-            return plan
-    return None
+    """Load a persisted plan from the configured storage prefix."""
+    store = PlannerStorage(storage_backend, prefix=storage_prefix)
+    return await store.load_plan()

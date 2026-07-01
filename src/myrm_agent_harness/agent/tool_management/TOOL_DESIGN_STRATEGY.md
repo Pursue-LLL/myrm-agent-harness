@@ -81,10 +81,10 @@ class ToolLayer(IntEnum):
 - Token 消耗可接受
 
 #### 2.2.2 COMMON 层 (Layer 2)
-- **特征**: 默认开启但可关闭
+- **特征**: 注册 7 个；默认 profile 实际 bind 5 个（answer/planner 条件加载）
 - **缓存**: 放中间使变化只影响后续工具
-- **工具数量**: 7 个
-- **Token 消耗**: ~4,457 tokens
+- **工具数量**: 注册 7 个；默认 bind 5 个
+- **Token 消耗**: 默认 bind 约 ~3,060 tokens（不含 answer/planner schema）
 
 | 工具名 | Token | 排序理由 |
 |--------|------:|----------|

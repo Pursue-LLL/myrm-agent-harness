@@ -25,10 +25,10 @@ from langgraph.types import interrupt
 
 from myrm_agent_harness.agent.goals.protocols import GoalProvider
 from myrm_agent_harness.agent.goals.types import GoalStatus
-from myrm_agent_harness.agent.sub_agents.planner import (
-    PlannerAgent,
-    PlannerConfig,
+from myrm_agent_harness.agent.sub_agents.planner import PlannerAgent, PlannerConfig
+from myrm_agent_harness.agent.sub_agents.planner.storage import (
     PlannerStorage,
+    workspace_load_plan,
 )
 from myrm_agent_harness.toolkits.storage.base import StorageProvider
 
@@ -86,12 +86,10 @@ async def intercept_goal_and_plan(
 
     # Check if a plan already exists for this session
     planner_config = PlannerConfig()
-    from myrm_agent_harness.agent.sub_agents.planner.storage import workspace_load_plan
 
     existing_plan = await workspace_load_plan(
         storage_provider,
         storage_prefix=planner_config.storage_prefix,
-        legacy_prefixes=planner_config.legacy_storage_prefixes,
     )
     planner_storage = PlannerStorage(storage_provider, prefix=planner_config.storage_prefix)
 

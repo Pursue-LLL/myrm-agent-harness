@@ -51,14 +51,14 @@ async def test_no_active_goal_returns_early(goal_provider, llm, storage_provider
 
 
 @pytest.mark.asyncio
-@patch(f"{_MODULE}.PlannerStorage")
+@patch(f"{_MODULE}.workspace_load_plan", new_callable=AsyncMock)
 async def test_existing_plan_skips_generation(
-    mock_storage_cls,
+    mock_load_plan,
     goal_provider,
     llm,
     storage_provider,
 ):
-    mock_storage_cls.return_value.load_plan = AsyncMock(return_value={"phases": []})
+    mock_load_plan.return_value = MagicMock()
 
     await intercept_goal_and_plan(
         goal_provider, "s1", "do stuff", llm, storage_provider
@@ -70,16 +70,16 @@ async def test_existing_plan_skips_generation(
 @pytest.mark.asyncio
 @patch(f"{_MODULE}.interrupt")
 @patch(f"{_MODULE}.PlannerAgent")
-@patch(f"{_MODULE}.PlannerStorage")
+@patch(f"{_MODULE}.workspace_load_plan", new_callable=AsyncMock)
 async def test_generates_plan_and_suspends(
-    mock_storage_cls,
+    mock_load_plan,
     mock_agent_cls,
     mock_interrupt,
     goal_provider,
     llm,
     storage_provider,
 ):
-    mock_storage_cls.return_value.load_plan = AsyncMock(return_value=None)
+    mock_load_plan.return_value = None
     mock_agent_cls.return_value.create_plan = AsyncMock()
 
     await intercept_goal_and_plan(
@@ -103,15 +103,15 @@ async def test_generates_plan_and_suspends(
 
 @pytest.mark.asyncio
 @patch(f"{_MODULE}.PlannerAgent")
-@patch(f"{_MODULE}.PlannerStorage")
+@patch(f"{_MODULE}.workspace_load_plan", new_callable=AsyncMock)
 async def test_plan_failure_rolls_back_to_cancelled(
-    mock_storage_cls,
+    mock_load_plan,
     mock_agent_cls,
     goal_provider,
     llm,
     storage_provider,
 ):
-    mock_storage_cls.return_value.load_plan = AsyncMock(return_value=None)
+    mock_load_plan.return_value = None
     mock_agent_cls.return_value.create_plan = AsyncMock(
         side_effect=RuntimeError("LLM timeout"),
     )
@@ -126,16 +126,16 @@ async def test_plan_failure_rolls_back_to_cancelled(
 
 @pytest.mark.asyncio
 @patch(f"{_MODULE}.PlannerAgent")
-@patch(f"{_MODULE}.PlannerStorage")
+@patch(f"{_MODULE}.workspace_load_plan", new_callable=AsyncMock)
 async def test_plan_failure_rollback_also_fails(
-    mock_storage_cls,
+    mock_load_plan,
     mock_agent_cls,
     goal_provider,
     llm,
     storage_provider,
 ):
     """Even if the rollback itself fails, the original error still propagates."""
-    mock_storage_cls.return_value.load_plan = AsyncMock(return_value=None)
+    mock_load_plan.return_value = None
     mock_agent_cls.return_value.create_plan = AsyncMock(
         side_effect=RuntimeError("LLM timeout"),
     )
@@ -153,9 +153,9 @@ async def test_plan_failure_rollback_also_fails(
 
 @pytest.mark.asyncio
 @patch(f"{_MODULE}.PlannerAgent")
-@patch(f"{_MODULE}.PlannerStorage")
+@patch(f"{_MODULE}.workspace_load_plan", new_callable=AsyncMock)
 async def test_plan_failure_preserves_exception_chain(
-    mock_storage_cls,
+    mock_load_plan,
     mock_agent_cls,
     goal_provider,
     llm,
@@ -163,7 +163,7 @@ async def test_plan_failure_preserves_exception_chain(
 ):
     """The raised RuntimeError wraps the original cause via 'from e'."""
     original = ValueError("bad prompt")
-    mock_storage_cls.return_value.load_plan = AsyncMock(return_value=None)
+    mock_load_plan.return_value = None
     mock_agent_cls.return_value.create_plan = AsyncMock(side_effect=original)
 
     with pytest.raises(RuntimeError) as exc_info:
@@ -182,9 +182,9 @@ async def test_plan_failure_preserves_exception_chain(
 @pytest.mark.asyncio
 @patch(f"{_MODULE}.interrupt")
 @patch(f"{_MODULE}.PlannerAgent")
-@patch(f"{_MODULE}.PlannerStorage")
+@patch(f"{_MODULE}.workspace_load_plan", new_callable=AsyncMock)
 async def test_multimodal_query_forwarded_to_planner(
-    mock_storage_cls,
+    mock_load_plan,
     mock_agent_cls,
     mock_interrupt,
     goal_provider,
@@ -192,7 +192,7 @@ async def test_multimodal_query_forwarded_to_planner(
     storage_provider,
 ):
     """Multimodal queries (list of content parts) are passed through to PlannerAgent."""
-    mock_storage_cls.return_value.load_plan = AsyncMock(return_value=None)
+    mock_load_plan.return_value = None
     mock_agent_cls.return_value.create_plan = AsyncMock()
 
     multimodal_query = [

@@ -28,7 +28,9 @@
 
 ---
 
-## 三、COMMON 工具层（~4,457 tokens，默认开启可关）
+## 三、COMMON 工具层（注册 7 个；默认 profile Turn1 实际 bind 5 个）
+
+默认 `enabled_builtin_tools=(web_search, memory)` 且未开 Goal 时：`request_answer_user_tool` 与 `planner_tool` 不进入 bind_tools（CompletionGuard / Agent 配置 / Goal 按需加载）。
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
