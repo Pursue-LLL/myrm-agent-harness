@@ -24,6 +24,7 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | `test_arch_no_placeholder.py` | Gate | `_ARCH.md` 禁止「见源码」等占位语 | — |
 | `test_no_temp_docs_links.py` | Gate | tracked markdown 禁止链到 dev-shell `temp-docs/` | — |
 | `test_no_star_imports.py` | Gate | 禁止 star import | — |
+| `test_event_bus_naming_boundary.py` | Gate | 禁止 stale `EventBus` import（pubsub/broadcast rename 回归） | — |
 | `test_manager_shared_barrel.py` | Gate | manager 共享 barrel 约束 | — |
 | `test_tool_registry.py` | Gate | tool registry 与 `_TOOL_LAYERS` 一致 | — |
 | `test_boundary_config.py` | Gate | boundary 配置完整性 | — |
