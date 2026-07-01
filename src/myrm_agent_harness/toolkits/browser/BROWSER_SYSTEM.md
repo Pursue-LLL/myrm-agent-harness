@@ -866,7 +866,7 @@ Frontend → POST /agents/agent-stream { resume_value: { action: "completed" } }
 - **Agent 主动触发**：不是被动等待超时，而是 Agent 智能判断何时需要人类介入
 - **统一 HITL 机制**：复用 LangGraph `interrupt()`/`Command(resume=...)` + SSE agent-stream resume，零额外基础设施
 - **VNC 自动弹出**：前端收到 `browser_takeover_requested` SSE 事件后自动打开 VNC 面板（SaaS 通过 VncProxy，Local 连接 localhost:6080）
-- **CAPTCHA 统一体验**：`CaptchaCoordinator` 检测到 CAPTCHA 时触发 `browser_takeover_requested`，自动解决后触发 `browser_takeover_completed` 关闭 VNC 面板，前端统一处理
+- **CAPTCHA 统一体验**：`CaptchaCoordinator` 检测到 CAPTCHA 时触发 `browser_takeover_requested`，无论解决成功或失败均触发 `browser_takeover_completed` 关闭 VNC 面板（载荷含 `success` 字段），前端统一处理
 - **零 Prompt Cache 影响**：tool 返回纯文本摘要（用时、URL 变化、页面标题），不影响主模型缓存
 
 **实现位置**：`tools/takeover.py` → `create_takeover_tool(session)`
