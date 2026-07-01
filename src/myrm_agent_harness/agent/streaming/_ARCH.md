@@ -32,7 +32,7 @@ Detailed design: [STREAMING_SYSTEM.md](STREAMING_SYSTEM.md)
 
 | Submodule | Description |
 |-----------|-------------|
-| broadcast/ | ToolBroadcastBus + ToolCallBroadcaster for chat UI tool progress. See [broadcast/_ARCH.md](broadcast/_ARCH.md). |
+| broadcast/ | ToolBroadcastBus side-channel + ToolCallBroadcaster (chat UI via EventLogger→SSE). See [broadcast/_ARCH.md](broadcast/_ARCH.md). |
 
 ## Key Dependencies
 

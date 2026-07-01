@@ -1,7 +1,11 @@
 # agent/streaming/broadcast/
 
 ## Overview
-Real-time **tool call broadcasting** to chat UI (SSE/WebSocket). **`ToolBroadcastBus`** singleton + **`ToolCallBroadcaster`** hook listener.
+In-process **tool-call side-channel** pub-sub. **`ToolBroadcastBus`** singleton + **`ToolCallBroadcaster`** hook listener.
+
+**Chat UI tool progress** uses `ToolCallBroadcaster` → `EventLogger` → agent SSE stream (see `agent/streaming/stream_dispatcher.py`), not bus subscribers.
+
+**Bus subscribers** are for server-side consumers (e.g. A/B test in `app/lifecycle/skills.py`).
 
 **Not** [`observability/`](../../../observability/_ARCH.md) (metrics/Doctor) or [`infra/pubsub/`](../../../infra/pubsub/_ARCH.md) (Server business SSE).
 

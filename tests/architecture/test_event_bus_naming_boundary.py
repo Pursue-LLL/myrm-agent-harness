@@ -1,4 +1,4 @@
-"""Architecture guard: stale EventBus imports after pubsub/broadcast rename."""
+"""Architecture guard: stale EventBus imports under pubsub/broadcast paths."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def _read_py_lines(py_file: Path) -> list[str] | None:
 
 @pytest.mark.architecture
 def test_no_stale_tool_broadcast_event_bus_imports() -> None:
-    """ToolBroadcastBus replaced EventBus under agent.streaming.broadcast."""
+    """Import ToolBroadcastBus from agent.streaming.broadcast.event_bus, not EventBus."""
     violations: list[str] = []
     for py_file in _scan_py_files(_HARNESS_SRC):
         rel = py_file.relative_to(_REPO_ROOT).as_posix()
@@ -49,7 +49,7 @@ def test_no_stale_tool_broadcast_event_bus_imports() -> None:
 
 @pytest.mark.architecture
 def test_no_stale_server_app_event_bus_imports() -> None:
-    """Server SSE bus is ServerEventBus (= PubSubBus[AppEvent]), not EventBus."""
+    """Import ServerEventBus from app.services.event.app_event_bus, not EventBus."""
     if not _SERVER_ROOT.is_dir():
         pytest.skip("myrm-agent-server not present in workspace")
 

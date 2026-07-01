@@ -3,7 +3,7 @@
 [INPUT]
 - agent.hooks.types::HookEvent (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
 - agent.hooks.types::HookResult (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
-- agent.streaming.broadcast.event_bus::ToolBroadcastBus (POS: Chat tool SSE pub-sub singleton.)
+- agent.streaming.broadcast.event_bus::ToolBroadcastBus (POS: In-process side-channel pub-sub for tool events.)
 
 [OUTPUT]
 - ToolCallBroadcaster: Hook listener that broadcasts tool calls to ToolBroadcastBus

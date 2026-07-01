@@ -74,7 +74,7 @@ dispatcher  handlers      events         recovery*
 ## 与 observability 边界
 
 - **streaming/** — Agent 运行时事件转换与恢复（热路径）
-- **streaming/broadcast/** — ToolBroadcastBus、tool_call_broadcaster（聊天工具 SSE）
+- **streaming/broadcast/** — ToolCallBroadcaster→EventLogger→SSE（UI）；ToolBroadcastBus 供 server 侧订阅
 
 streaming 产出的事件可被 observability 层订阅，但不反向依赖。
 

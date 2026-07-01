@@ -153,14 +153,15 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "wiki_ingest_tool": ToolLayer.EXTENDED,
     "wiki_maintain_tool": ToolLayer.EXTENDED,
     "wiki_query_tool": ToolLayer.EXTENDED,
-    # --- Deep Research 编排器内部工具（伪工具，仅作为 JSON schema 注入 LLM，
-    #     编排器截获 tool_call 驱动状态机转换，不经过运行时执行）---
+    # --- Deep Research 编排器内部工具（伪工具；登记供 registry/token 统计，
+    #     默认通用 Agent 不加载。仅 DR 编排器 LLM 注入 JSON schema；
+    #     编排器截获 tool_call 驱动状态机，不经过 ToolNode 执行）---
     "dispatch_research": ToolLayer.EXTENDED,
     "finalize_report": ToolLayer.EXTENDED,
     "think": ToolLayer.EXTENDED,
-    # --- 编排器验证子Agent内部工具 ---
+    # --- 编排器验证子 Agent 内部工具（仅 verifier 子会话注入）---
     "submit_verdict": ToolLayer.EXTENDED,
-    # --- 框架内部工具（deferred, 不暴露给 LLM）---
+    # --- 框架内部工具（deferred；CompletionGuard 强制注入，不进 bind_tools）---
     "_completion_check": ToolLayer.EXTENDED,
 }
 

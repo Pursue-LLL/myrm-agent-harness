@@ -18,7 +18,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `_tool_guards.py` | Internal | Guard modules orchestrated by tool_interceptor. | ✅ |
 | `_tool_helpers.py` | Internal | Stateless helpers for tool_interceptor_middleware. | ✅ |
 | `auto_session_recall_middleware.py` | Core | First-turn memory recall injection. | ✅ |
-| `completion_guard.py` | Core | Finish gate + Mixed Message Guard for code tasks. | ✅ |
+| `completion_guard.py` | Core | Finish gate + Mixed Message Guard for code tasks. Registers `_completion_check` as deferred (not in default bind_tools); guard injects tool_call in `aafter_model`. | ✅ |
 | `concurrency_limiter.py` | Core | Subagent Semaphore by agent_type. | ✅ |
 | `concurrency_router.py` | Core | Smart concurrency routing with safety_dispatcher. | ✅ |
 | `context_pipeline_helpers.py` | Internal | Compression intent, cache feedback, schema fingerprint. | ✅ |

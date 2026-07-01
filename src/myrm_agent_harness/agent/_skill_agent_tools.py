@@ -321,28 +321,6 @@ class SkillAgentToolsMixin:
             compiler.enqueue_file(raw_path)
             logger.info("Large doc auto-ingested into wiki for RAG: %s (%s)", filename, doc_hash)
 
-            try:
-                import time as _time
-
-                from myrm_agent_harness.agent.streaming.broadcast.event_bus import ToolBroadcastBus
-                from myrm_agent_harness.agent.streaming.broadcast.types import ToolCallEventData
-
-                bus = await ToolBroadcastBus.get_instance()
-                now = _time.time()
-                await bus.publish(ToolCallEventData(
-                    tool_name="wiki_auto_ingest",
-                    status="completed",
-                    start_time=now,
-                    end_time=now,
-                    duration_ms=0,
-                    result=f"Auto-indexed '{filename}' into knowledge base for RAG retrieval",
-                ))
-            except Exception:
-                logger.warning(
-                    "ToolBroadcastBus wiki_auto_ingest notification skipped (non-critical)",
-                    exc_info=True,
-                )
-
         register_large_doc_ingest_callback(_ingest_large_doc)
 
     def get_tool_snapshot(self) -> list[ToolSnapshot]:

@@ -7,9 +7,10 @@
 - build_orchestrator_tools(): factory returning the 3 orchestrator tools
 
 [POS]
-Defines the 3 fake/meta tools injected into the orchestrator LLM context.
-These tools are never executed by a real runtime — the orchestrator intercepts
-their tool_call outputs and drives the state machine transitions.
+Defines the 3 orchestrator meta-tools (JSON schema only) for Deep Research mode.
+Not registered in the default general Agent tool list (0 Turn-1 prompt token).
+The orchestrator intercepts tool_call outputs and drives state machine transitions;
+no ToolNode execution occurs for these names.
 
 - dispatch_research: dispatches a research sub-run with a task description
 - think: chain-of-thought scratchpad (non-reasoning models only)

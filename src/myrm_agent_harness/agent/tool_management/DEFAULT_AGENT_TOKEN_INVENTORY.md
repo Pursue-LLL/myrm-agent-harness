@@ -182,11 +182,23 @@
 | 79 | desktop_interact_tool | ~50 | `harness/toolkits/computer_use/desktop_agent_tools.py` | @dref 语义交互 |
 | 80 | desktop_vision_tool | ~60 | `harness/toolkits/computer_use/desktop_agent_tools.py` | 显式截图/坐标回退 |
 
+### 4.18 内部 / 伪工具（默认通用 Agent Turn 1 = **0 token**）
+
+以下 5 个名字登记在 `tool_layers.py`（供 registry 校验与 token 统计），**不会**进入默认通用 Agent 的 `registry.resolve()` / `bind_tools`：
+
+| 工具组 | 默认通用 Agent | 实际占 token 的场景 |
+|--------|:--------------:|---------------------|
+| `dispatch_research` / `think` / `finalize_report` | 0 | 仅 Deep Research 编排器 LLM（`build_orchestrator_tools()`） |
+| `submit_verdict` | 0 | 仅 Verification 子 Agent（`_orchestrator_verification.py` 动态注入） |
+| `_completion_check` | 0 | deferred 注册；CompletionGuard 在 `aafter_model` 强制注入 tool_call，不占 Turn 1 schema |
+
+表中 Token 列表示**若注入该 LLM 上下文时**的 schema 成本，非默认 Agent 固定开销。
+
 ### 4.20 Deep Research 编排器伪工具（仅深度搜索模式，JSON Schema 注入 LLM）
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
-| 83 | dispatch_research | 37 | `harness/agent/deep_research/tools.py` | 派遣研究子 Agent 调查特定主题（最多 3 个并行） | 深度搜索编排器内部 |
+| 83 | dispatch_research | 37 | `harness/agent/deep_research/tools.py` | 派遣研究子 Agent 调查特定主题（最多 3 个并行） | 深度搜索编排器内部；编排器截获 tool_call，无真实执行体 |
 | 84 | think | 37 | `harness/agent/deep_research/tools.py` | 思维链推理暂存区（非推理模型适用） | 深度搜索编排器内部，reasoning model 时省略 |
 | 85 | finalize_report | 26 | `harness/agent/deep_research/tools.py` | 通知编排器研究完成，进入报告生成阶段 | 深度搜索编排器内部 |
 
@@ -194,13 +206,13 @@
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
-| 86 | submit_verdict | 26 | `harness/agent/sub_agents/_orchestrator_verification.py` | 提交验证裁决结果（passed/findings/confidence） | 验证子 Agent 内部注入 |
+| 86 | submit_verdict | 26 | `harness/agent/sub_agents/_orchestrator_verification.py` | 提交验证裁决结果（passed/findings/confidence） | 验证子 Agent 内部注入；父编排器读取结构化 verdict |
 
-### 4.23 框架内部工具（不暴露给 LLM，中间件注入）
+### 4.23 框架内部工具（deferred，CompletionGuard 中间件注入）
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
-| 87 | _completion_check | 42 | `harness/agent/middlewares/completion_guard.py` | CompletionGuard 注入的完成验证检查点 | 中间件自动注入，不暴露给 LLM |
+| 87 | _completion_check | 42 | `harness/agent/middlewares/completion_guard.py` | CompletionGuard 注入的完成验证检查点 | `deferred=True`（`_` 前缀）；guard 改写 tool_calls，不进默认 bind_tools |
 
 ### 4.24 Server 层业务工具（server 启动时动态注册，依赖第三方 SDK）
 

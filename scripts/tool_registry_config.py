@@ -23,13 +23,14 @@ SCAN_ROOTS: tuple[Path, ...] = (HARNESS_SRC, SERVER_SRC)
 INTERNAL_TOOL_PREFIXES: tuple[str, ...] = ("_",)
 
 INTERNAL_TOOL_NAMES: frozenset[str] = frozenset({
-    "_completion_check",
-    "submit_verdict",
+    "_completion_check",  # deferred; CompletionGuard injects tool_call — not in default bind_tools
+    "submit_verdict",  # verifier sub-agent only
 })
 
 # Tools registered in _TOOL_LAYERS but injected as raw JSON schemas (not via
 # @tool/@BaseTool).  The AST scanner will never find a source declaration for
 # these, so they appear as "ghost" entries without this exemption.
+# None of these appear in the default general Agent Turn 1 tool list (0 token).
 SCHEMA_ONLY_TOOL_NAMES: frozenset[str] = frozenset({
     "dispatch_research",   # Deep Research orchestrator state-machine signal
     "finalize_report",     # Deep Research orchestrator state-machine signal

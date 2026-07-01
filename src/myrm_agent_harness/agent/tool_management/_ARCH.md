@@ -21,5 +21,5 @@ Tools registered: **90** (CORE 1 + COMMON 7 + EXTENDED 82). Source of truth: `to
 | tool_layers.py | Core | Tool layer priority registry. Defines CORE/COMMON/EXTENDED three-tier tool priorities. CORE: `web_fetch_tool`. COMMON: `request_answer_user_tool`, bash/file_edit/read/write/planner/web_search. EXTENDED: all others. `ToolRegistry.register()` emits WARNING for unregistered tools. | ✅ |
 | types.py | Config | Core types for the tool management subsystem. Includes deferred tool support. | ✅ |
 | utils.py | 辅助 | Re-exports with_dynamic_hints decorator for cross-tool dependency hint injection. | ✅ |
-| DEFAULT_AGENT_TOKEN_INVENTORY.md | Doc | 默认 Agent 初始 Token 逐项清单 — 工具/提示词/动态注入的 token 预算明细 | — |
+| DEFAULT_AGENT_TOKEN_INVENTORY.md | Doc | 默认 Agent 初始 Token 逐项清单 — 工具/提示词/动态注入的 token 预算明细；§4.18 汇总 5 个内部/伪工具默认 0 token | — |
 | TOOL_DESIGN_STRATEGY.md | Doc | 工具设计策略完整指南 — 工具层级/核心外围/ASCS/框架vs业务边界/Token预算/竞品对比 | — |
