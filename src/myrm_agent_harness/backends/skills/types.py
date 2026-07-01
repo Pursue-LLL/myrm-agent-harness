@@ -2,7 +2,7 @@
 
 
 [INPUT]
-- types_* submodules (POS: split skill type definitions)
+- types_* submodules (POS: skill type submodule definitions)
 
 [OUTPUT]
 - SkillLifecycleStatus, SkillTrust, SkillPermission: enums
@@ -12,19 +12,10 @@
 - skill_visible_for_tools: tool-conditional visibility filter
 
 [POS]
-Skill system core data types. Import path unchanged:
+Stable public aggregate for skill backend types. Import path:
 ``from myrm_agent_harness.backends.skills.types import X``.
-Split into types_*.py submodules; this module is the stable public aggregate.
 """
 
-from myrm_agent_harness.backends.skills.types_constants import (
-    _DEFAULT_MAX_CONTEXT_TOKENS,
-    _MAX_KEYWORDS_PER_SKILL,
-    _MAX_PATTERN_LENGTH,
-    _MAX_PATTERNS_PER_SKILL,
-    _MAX_TAGS_PER_SKILL,
-    _MIN_KEYWORD_TAG_LENGTH,
-)
 from myrm_agent_harness.backends.skills.types_contract import (
     SkillContract,
     SkillContractJudgment,

@@ -64,7 +64,7 @@
 | `SkillBackend` Protocol | `backends/skills/protocols.py` | **保留**，作为存储抽象层 |
 | `SkillDiscoveryBackend` Protocol | `backends/skills/discovery_protocols.py` | **保留**，作为 Marketplace 抽象层 |
 | `SkillWriteBackend` Protocol | `backends/skills/creation_protocols.py` | **保留**，作为技能写入抽象层（save/delete） |
-| `SkillMetadata` 数据类 | `backends/skills/types.py` | **增强**，添加 trust、requires、category 等字段 |
+| `SkillMetadata` 数据类 | `backends/skills/types.py`（aggregate；定义见 `types_metadata.py` 等） | **已实现** trust、requires、tool 条件激活等字段 |
 | `SkillRegistry` | `agent/skills/runtime/registry.py` | **增强**，集成信任模型和状态管理 |
 | `SkillMdLoader` | `agent/skills/runtime/loader.py` | **保留**，三级 Fallback + LRU 缓存已完善 |
 | `get_metadata_summary()` | `agent/skills/runtime/registry.py` | **升级**，改为安全 XML 摘要格式 |
@@ -956,7 +956,7 @@ STATIC_SKILL_SLUGS: list[str] = [
 
 | 方案模块 | 现有代码 | 状态 |
 |----------|----------|------|
-| 技能定义规范 | `backends/skills/types.py` | 需增强（添加 trust、requires、category 等字段） |
+| 技能定义规范 | `backends/skills/types.py` + `types_*.py` 子模块 | **已实现**（`types_enums`/`types_metadata`/`types_instance`/`types_visibility` 等） |
 | 存储抽象层 | `backends/skills/protocols.py` | **无需修改** |
 | 发现抽象层 | `backends/skills/discovery_protocols.py` | **无需修改** |
 | 创建抽象层 | `backends/skills/creation_protocols.py` | **无需修改** |

@@ -92,8 +92,7 @@ class SkillMetadata:
     metadata: dict[str, str] = field(default_factory=dict)
     """Arbitrary key-value metadata, e.g. author, version (agentskills.io spec)"""
 
-    # --- Activation & selection (from frontmatter) ---
-    """Activation criteria for deterministic skill selection"""
+    # --- Dependencies & tool-based conditional activation (from frontmatter) ---
 
     requires: SkillRequires | None = None
     """External dependency requirements (bins/env/config)"""

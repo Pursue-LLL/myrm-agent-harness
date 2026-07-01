@@ -53,8 +53,8 @@ class SkillFrontmatter:
     """Parsed SKILL.md frontmatter data (agentskills.io spec compliant).
 
     Contains all fields from the agentskills.io specification plus
-    our extensions (activation criteria, dependency requirements, hooks,
-    allowed-tools with hook-level control).
+    our extensions (tool-based conditional activation, dependency requirements,
+    hooks, allowed-tools with hook-level control).
     """
 
     description: str
@@ -486,7 +486,7 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
     - compatibility (optional, truncated to 500 chars)
     - metadata (optional, string key-value pairs)
     - allowed-tools (optional, space-delimited)
-    - activation (optional, tags/patterns/exclude-keywords/max-context-tokens)
+    - requires-tools / fallback-for-tools / requires-tool-groups (optional, tool conditional activation)
     - requires (optional, bins/env/config)
     - always (optional, bool)
     - version (optional, string)

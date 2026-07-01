@@ -34,7 +34,6 @@ Skill backend implementations — read/write/discovery protocols, local/memory/s
 | stats_collector.py | Core | Skill usage stats and lifecycle_status / pinned persistence. | ✅ |
 | storage.py | Core | Storage-backed skill backend (local/MinIO/S3/OSS via StorageBackend). | ✅ |
 | types.py | Core | Aggregate re-exports for skill types; import path unchanged. | ✅ |
-| types_constants.py | Core | Activation criteria limits for skill frontmatter validation. | ✅ |
 | types_coercion.py | Core | Safe list coercion for type deserialization. | ✅ |
 | types_enums.py | Core | SkillTrust, SkillLifecycleStatus, SkillPermission enums. | ✅ |
 | types_usage.py | Core | SkillUsageStats for curator / forgetting persistence. | ✅ |
