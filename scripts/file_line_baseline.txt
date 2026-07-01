@@ -103,4 +103,4 @@ myrm_agent_harness/agent/sub_agents/_orchestrator_verification.py	506
 myrm_agent_harness/toolkits/memory/mcp_server.py	505
 myrm_agent_harness/agent/context_management/strategies/compactor.py	503
 myrm_agent_harness/agent/sub_agents/event_forwarder.py	502
-# TOTAL: 104 files
+# TOTAL: 101 files
