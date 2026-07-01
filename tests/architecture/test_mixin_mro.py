@@ -1,8 +1,8 @@
 """Architecture gate: aggregate-root mixin MRO order.
 
-BrowserSession, ChatLiteLLM, OptimizationScheduler, and SubagentExecutor rely on
-multiple inheritance. Wrong mixin order silently changes which implementation runs.
-These tests lock the intended MRO prefix and method resolution owners.
+BrowserSession, ChatLiteLLM, OptimizationScheduler, SubagentExecutor, and BashExecutor
+rely on multiple inheritance. Wrong mixin order silently changes which implementation
+runs. These tests lock the intended MRO prefix and method resolution owners.
 """
 
 from __future__ import annotations
@@ -10,6 +10,11 @@ from __future__ import annotations
 import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
 
+from myrm_agent_harness.agent.meta_tools.bash.bash_executor import BashExecutor
+from myrm_agent_harness.agent.meta_tools.bash.bash_executor_background_mixin import BashExecutorBackgroundMixin
+from myrm_agent_harness.agent.meta_tools.bash.bash_executor_context_mixin import BashExecutorContextMixin
+from myrm_agent_harness.agent.meta_tools.bash.bash_executor_execute_mixin import BashExecutorExecuteMixin
+from myrm_agent_harness.agent.meta_tools.bash.bash_executor_prepare_mixin import BashExecutorPrepareMixin
 from myrm_agent_harness.agent.skills.optimization.scheduler import OptimizationScheduler
 from myrm_agent_harness.agent.skills.optimization.scheduler_batch_mixin import (
     OptimizationSchedulerBatchMixin,
@@ -153,12 +158,6 @@ def test_subagent_executor_run_single_attempt_resolves_to_attempt_mixin() -> Non
     assert owner is SubagentExecutorAttemptMixin
 
 
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor import BashExecutor
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor_background_mixin import BashExecutorBackgroundMixin
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor_context_mixin import BashExecutorContextMixin
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor_execute_mixin import BashExecutorExecuteMixin
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor_prepare_mixin import BashExecutorPrepareMixin
-
 _EXPECTED_BASH_EXECUTOR_MIXIN_MRO: tuple[type[object], ...] = (
     BashExecutor,
     BashExecutorExecuteMixin,
@@ -184,3 +183,9 @@ def test_bash_executor_execute_resolves_to_execute_mixin() -> None:
 def test_bash_executor_prepare_resolves_to_prepare_mixin() -> None:
     owner = next(c for c in BashExecutor.__mro__ if "_prepare_execution" in c.__dict__)
     assert owner is BashExecutorPrepareMixin
+
+
+@pytest.mark.architecture
+def test_bash_executor_spawn_background_resolves_to_background_mixin() -> None:
+    owner = next(c for c in BashExecutor.__mro__ if "spawn_background" in c.__dict__)
+    assert owner is BashExecutorBackgroundMixin

@@ -228,7 +228,11 @@ class BashExecutorPrepareMixin:
 
         return WorkspacePathResolver.to_container_paths(workspace_skill_paths, workspace_root_str)
 
-    def _maybe_extend_timeout_for_mcp(self, mcp_config_items: list[MCPConfigItem] | None, timeout: int | None) -> int | None:
+    def _maybe_extend_timeout_for_mcp(
+        self,
+        mcp_config_items: list[MCPConfigItem] | None,
+        timeout: int | None,
+    ) -> int | None:
         """Raise timeout floor when MCP skill execution is active."""
         if mcp_config_items and (timeout is None or timeout < MCP_MIN_TIMEOUT):
             logger.warning("Auto-increased timeout %ss -> %ss for MCP skill execution", timeout, MCP_MIN_TIMEOUT)

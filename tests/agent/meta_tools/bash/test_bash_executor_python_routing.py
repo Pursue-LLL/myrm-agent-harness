@@ -46,3 +46,9 @@ class TestPrepareExecutionPythonRouting:
         use_python, prepared, _ = bash_executor._prepare_execution("result = await fetch()")
         assert use_python is True
         assert "await" in prepared
+
+    def test_mcp_timeout_floor_applied(self, bash_executor: BashExecutor) -> None:
+        from myrm_agent_harness.agent.meta_tools.bash.bash_executor_constants import MCP_MIN_TIMEOUT
+
+        assert bash_executor._maybe_extend_timeout_for_mcp([object()], 30) == MCP_MIN_TIMEOUT
+        assert bash_executor._maybe_extend_timeout_for_mcp(None, 600) == 600

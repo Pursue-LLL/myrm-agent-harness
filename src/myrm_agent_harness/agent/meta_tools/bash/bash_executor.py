@@ -11,7 +11,7 @@
 [OUTPUT]
 - BashExecutor: Code execution orchestrator aggregate root
 - BashExecutionError: Execution error with error_hint + error_category diagnostics
-- _MCP_MIN_TIMEOUT: Backward-compatible alias for tests and bash_tool
+- _MCP_MIN_TIMEOUT: Alias of MCP_MIN_TIMEOUT for public aggregate exports
 
 [POS]
 Bash executor aggregate root. MRO: Execute → Background → Prepare → Context (locked by architecture tests).
@@ -22,7 +22,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.code_execution import ExecutionConfig
 from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import BashExecutionError
 from myrm_agent_harness.agent.meta_tools.bash.bash_executor_background_mixin import BashExecutorBackgroundMixin
 from myrm_agent_harness.agent.meta_tools.bash.bash_executor_constants import MCP_MIN_TIMEOUT
@@ -32,6 +31,7 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_executor_prepare_mixin import
 from myrm_agent_harness.agent.meta_tools.bash.mcp_citation_handler import MCPMetadataExtractor
 from myrm_agent_harness.agent.meta_tools.bash.skill_workspace_manager import SkillWorkspaceManager
 from myrm_agent_harness.agent.meta_tools.bash.workspace_manager import WorkspaceManager
+from myrm_agent_harness.toolkits.code_execution import ExecutionConfig
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
