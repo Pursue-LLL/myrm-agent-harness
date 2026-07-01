@@ -1,7 +1,9 @@
 # observability/
 
 ## Overview
-Framework-level observability layer. Business layer subscribes to EventBus
+Agent **EventBus and streaming hooks** for server/UI transport adapters.
+
+**Not** [`myrm_agent_harness.observability`](../../observability/_ARCH.md) (Prometheus metrics, health diagnostics, log trace_id). This package publishes framework events (tool calls, catchup summaries) that the business layer subscribes to over SSE/WebSocket.
 
 ## File & Submodule Index
 

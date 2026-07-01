@@ -3,6 +3,17 @@
 ## Overview
 Eval Framework — Agent behavior quality evaluation. Supports multi-dimensional assertions (tool, state, sandbox, semantic/LLM-as-a-Judge), concurrent execution, and pluggable reporting.
 
+## Placement (why top-level `eval/`, not `toolkits/` or `tests/`)
+
+| Candidate | Verdict |
+|-----------|---------|
+| `toolkits/eval/` | ❌ Not an agent-callable domain capability; violates [toolkits/_ARCH.md](../toolkits/_ARCH.md) |
+| `agent/eval/` | ❌ Runner uses `AgentExecutor` Protocol — must not import Agent runtime |
+| `tests/` only | ❌ Shipped product surface: `myrm-agent-server/app/core/eval/` runs suites in production |
+| **Top-level `eval/`** | ✅ Framework subsystem; business implements Protocol in server |
+
+Business wiring (AgentFactory, background jobs, GUI flywheel) lives in **`myrm-agent-server/app/core/eval/`**, not here.
+
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |

@@ -20,12 +20,19 @@ Myrm Agent Harness — a production-grade framework for building, deploying, and
 | agent/ | Agent core module — runtime, context management, skill system. External consumers use api/ instead. |
 | backends/ | Backend implementations — profiles, secrets, and skills storage adapters. |
 | client.py | SDK facade — AgentClient fluent API; convenience layer, not PyPI-stable contract (see api/) |
-| eval/ | Eval Framework — Agent behavior quality evaluation. |
-| infra/ | Infrastructure layer — file locks, message delivery, tracing, state monitoring. |
-| observability/ | Observability tools — Prometheus metrics, auth detection, health diagnostics. |
+| eval/ | Eval Framework — Agent behavior quality evaluation (Protocol-based; not a toolkit). See placement notes in [eval/_ARCH.md](eval/_ARCH.md). |
+| infra/ | Infrastructure layer — file locks, message delivery, OpenTelemetry tracing (`infra/tracing/`), state monitoring. |
+| observability/ | Cross-cutting metrics, health diagnostics, ContextVar log tracing — **not** `agent/observability/` EventBus. See [observability/_ARCH.md](observability/_ARCH.md). |
 | runtime/ | Agent runtime infrastructure for single-instance execution. |
 | toolkits/ | Generic, framework-agnostic toolkit collection (like lodash). MUST NOT depend on agent/. |
 | utils/ | Utility library — error handling, logging, text processing, token tracking, URL tools. |
+
+## Easily Confused Top-Level Packages
+
+| Name | Role | Do NOT confuse with |
+|------|------|---------------------|
+| `eval/` | Shipped Agent eval engine (`AgentExecutor` Protocol, assertions, reports) | Deleted dev-only `testing/`; not `tests/eval/` |
+| `observability/` | Prometheus metrics, `/health` diagnostics, stdlib log trace_id | `agent/observability/` (EventBus/SSE); `infra/tracing/` (OpenTelemetry); `toolkits/*/observability.py` (per-toolkit DTOs) |
 
 ## Key Dependencies
 

@@ -19,6 +19,8 @@ Harness test suite: unit, integration, architecture gates, and performance bench
 | `performance/` | 性能 | 子进程 import 热点与 lazy-loading 回归（`performance` marker） |
 | `toolkits/browser/` | 集成 | 浏览器单元 + e2e/integration；真实 Chromium 用例带 `integration`/`e2e` |
 | `architecture/` | 门禁 | 边界与打包一致性检测 — 见 [architecture/_ARCH.md](architecture/_ARCH.md) |
+| `eval/` | 单元 | Eval 框架断言/runner/reporter · 对应 `src/myrm_agent_harness/eval/` |
+| `observability/` | 单元 | 顶层 metrics/diagnostics/tracing · 对应 `src/myrm_agent_harness/observability/`（非 `agent/observability/`） |
 | `integration/` | 集成 | 跨模块集成（含浏览器 wait-strategies 等） |
 | `dev/` | 单元 | vortexai 维护者脚本回归（`test_run_pytest_safe.py`） |
 | `agent/skills/curator/test_curator_engine.py` | 单元 | SkillCurator 生命周期与 LRU 驱逐（勿用通用名 `test_engine.py`，会与 `agent/dynamic_workflow/test_engine.py` 触发 collect import mismatch） |
