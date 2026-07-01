@@ -444,6 +444,57 @@ class TestStartupRescue:
         await d.stop()
 
     @pytest.mark.asyncio
+    async def test_orphan_auto_blocked_after_consecutive_failures(self) -> None:
+        """Orphan with consecutive failures >= threshold is auto-blocked."""
+        store = InMemoryKanbanStore()
+        board = _make_board(auto_block_failures=3)
+        await store.save_board(board)
+
+        orphan = _make_task(task_id="block1", status=TaskStatus.RUNNING)
+        orphan.consecutive_failures = 2
+        orphan.max_retries = 10
+        await store.save_task(orphan)
+
+        events: list[tuple[str, str]] = []
+        d = KanbanDispatcher(store, _FakeRunner(), board)
+        d.on_event(lambda et, t: events.append((et, t.task_id)))
+        await d.start()
+        await asyncio.sleep(0.1)
+        await d.stop()
+
+        updated = await store.get_task("block1")
+        assert updated is not None
+        assert updated.status == TaskStatus.BLOCKED
+        blocked_events = [e for e in events if e[0] == "task_blocked" and e[1] == "block1"]
+        assert len(blocked_events) >= 1
+
+    @pytest.mark.asyncio
+    async def test_orphan_fails_when_retries_exhausted(self) -> None:
+        """Orphan with max_retries exhausted is marked FAILED."""
+        store = InMemoryKanbanStore()
+        board = _make_board(auto_block_failures=10)
+        await store.save_board(board)
+
+        orphan = _make_task(task_id="fail1", status=TaskStatus.RUNNING)
+        orphan.max_retries = 1
+        orphan.retry_count = 1
+        await store.save_task(orphan)
+
+        events: list[tuple[str, str]] = []
+        d = KanbanDispatcher(store, _FakeRunner(), board)
+        d.on_event(lambda et, t: events.append((et, t.task_id)))
+        await d.start()
+        await asyncio.sleep(0.1)
+        await d.stop()
+
+        updated = await store.get_task("fail1")
+        assert updated is not None
+        assert updated.status == TaskStatus.FAILED
+        assert updated.completed_at is not None
+        failed_events = [e for e in events if e[0] == "task_failed" and e[1] == "fail1"]
+        assert len(failed_events) >= 1
+
+    @pytest.mark.asyncio
     async def test_rescue_tolerates_store_error(self) -> None:
         """If list_running_tasks raises, dispatcher still starts normally."""
 
