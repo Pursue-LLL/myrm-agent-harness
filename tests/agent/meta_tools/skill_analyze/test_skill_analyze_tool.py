@@ -14,7 +14,13 @@ from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillUsageSt
 
 
 def create_test_skill(
-    name: str, call_count: int = 0, success_count: int = 0, failure_count: int = 0, last_used_at: datetime | None = None
+    name: str,
+    call_count: int = 0,
+    success_count: int = 0,
+    failure_count: int = 0,
+    last_used_at: datetime | None = None,
+    *,
+    created_at: datetime | None = None,
 ) -> SkillMetadata:
     """Helper to create test skill metadata."""
     stats = SkillUsageStats(
@@ -23,6 +29,7 @@ def create_test_skill(
         failure_count=failure_count,
         last_used_at=last_used_at,
         total_duration_ms=float(call_count * 100),
+        created_at=created_at or datetime.now(UTC),
     )
     skill = SkillMetadata(name=name, description=f"Test skill {name}")
     object.__setattr__(skill, "usage_stats", stats)
@@ -51,9 +58,17 @@ def test_skill_analyze_all_healthy() -> None:
 
 def test_skill_analyze_list_low_quality_stale() -> None:
     """Test list_low_quality action with stale skills."""
-    stale_skill = create_test_skill("stale_skill", call_count=0, success_count=0, failure_count=0, last_used_at=None)
+    old_created = datetime.now(UTC) - timedelta(days=60)
+    stale_skill = create_test_skill(
+        "stale_skill",
+        call_count=0,
+        success_count=0,
+        failure_count=0,
+        last_used_at=None,
+        created_at=old_created,
+    )
 
-    config = ForgettingConfig(stale_after_days=30)
+    config = ForgettingConfig(stale_after_days=30, grace_period_days=0)
     tool = create_skill_analyze_tool(get_all_skills_fn=lambda: [stale_skill], forgetting_config=config)
     result = tool.invoke({"action": "list_low_quality"})
 
@@ -64,15 +79,26 @@ def test_skill_analyze_list_low_quality_stale() -> None:
 
 def test_skill_analyze_list_low_quality_multiple() -> None:
     """Test list_low_quality with multiple candidate types."""
-    stale_skill = create_test_skill("stale", call_count=0, last_used_at=None)
+    old_created = datetime.now(UTC) - timedelta(days=60)
+    stale_skill = create_test_skill("stale", call_count=0, last_used_at=None, created_at=old_created)
     low_quality_skill = create_test_skill(
         "low_quality", call_count=10, success_count=2, failure_count=8, last_used_at=datetime.now(UTC)
     )
     inactive_skill = create_test_skill(
-        "inactive", call_count=5, success_count=4, failure_count=1, last_used_at=datetime.now(UTC) - timedelta(days=60)
+        "inactive",
+        call_count=5,
+        success_count=4,
+        failure_count=1,
+        last_used_at=datetime.now(UTC) - timedelta(days=60),
+        created_at=datetime.now(UTC) - timedelta(days=90),
     )
 
-    config = ForgettingConfig(stale_after_days=30, min_call_count_for_quality_check=5, min_success_rate=0.5)
+    config = ForgettingConfig(
+        stale_after_days=30,
+        grace_period_days=0,
+        min_call_count_for_quality_check=5,
+        min_success_rate=0.5,
+    )
     tool = create_skill_analyze_tool(
         get_all_skills_fn=lambda: [stale_skill, low_quality_skill, inactive_skill], forgetting_config=config
     )
@@ -86,12 +112,18 @@ def test_skill_analyze_list_low_quality_multiple() -> None:
 
 def test_skill_analyze_suggest_cleanup() -> None:
     """Test suggest_cleanup action with detailed output."""
-    stale_skill = create_test_skill("stale_skill", call_count=0, last_used_at=None)
+    old_created = datetime.now(UTC) - timedelta(days=60)
+    stale_skill = create_test_skill("stale_skill", call_count=0, last_used_at=None, created_at=old_created)
     low_quality_skill = create_test_skill(
         "low_quality_skill", call_count=10, success_count=2, failure_count=8, last_used_at=datetime.now(UTC)
     )
 
-    config = ForgettingConfig(stale_after_days=30, min_call_count_for_quality_check=5, min_success_rate=0.5)
+    config = ForgettingConfig(
+        stale_after_days=30,
+        grace_period_days=0,
+        min_call_count_for_quality_check=5,
+        min_success_rate=0.5,
+    )
     tool = create_skill_analyze_tool(
         get_all_skills_fn=lambda: [stale_skill, low_quality_skill], forgetting_config=config
     )
@@ -118,10 +150,11 @@ def test_skill_analyze_lru_eviction() -> None:
             success_count=5,
             failure_count=0,
             last_used_at=datetime.now(UTC) - timedelta(days=i),
+            created_at=datetime.now(UTC) - timedelta(days=90),
         )
         skills.append(skill)
 
-    config = ForgettingConfig(max_skills=5, stale_after_days=9999)  # High stale_after_days to avoid stale detection
+    config = ForgettingConfig(max_skills=5, stale_after_days=9999, grace_period_days=0)
     tool = create_skill_analyze_tool(get_all_skills_fn=lambda: skills, forgetting_config=config)
     result = tool.invoke({"action": "list_low_quality"})
 
