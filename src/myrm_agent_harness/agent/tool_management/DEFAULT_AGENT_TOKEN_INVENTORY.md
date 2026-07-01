@@ -32,12 +32,12 @@
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
-| 5 | **request_answer_user_tool** | **1,024** | `harness/agent/meta_tools/answer_user_tool.py` | 回复自审工具，包含完整的自审流程和回复质量检查逻辑 | 默认开启（`enable_answer_tool=True`） |
+| 5 | **request_answer_user_tool** | **1,024** | `harness/agent/meta_tools/answer_user_tool.py` | 回复自审工具，包含完整的自审流程和回复质量检查逻辑 | 默认关闭（`enable_answer_tool=False`，Agent 配置 opt-in） |
 | 6 | **bash_code_execute_tool** | **1,207** | `harness/agent/meta_tools/bash/bash_tool.py` | Shell/Python 代码执行，包含执行规则、依赖分析、优化策略、严格禁止项。另有 OS_HINT (~50 tokens) 动态追加 | 默认开启 |
 | 7 | file_edit_tool | 155 | `harness/agent/meta_tools/file_ops/file_edit_tool.py` | 精确编辑 (str_replace) | 默认开启 |
 | 8 | file_read_tool | 390 | `harness/agent/meta_tools/file_ops/file_read_tool.py` | 读取文件内容 | 默认开启 |
 | 9 | file_write_tool | 131 | `harness/agent/meta_tools/file_ops/file_write_tool.py` | 创建/覆盖写入文件 | 默认开启 |
-| 10 | planner_tool | 373 | `harness/toolkits/tasks/planner_agent_tools.py` | 复杂任务规划/分解 | 默认开启 |
+| 10 | planner_tool | 373 | `harness/agent/sub_agents/planner/planner_agent_tools.py` | 复杂任务规划/分解 | 默认关闭（`enable_planning` / Goal / workspace 已有 plan） |
 | 11 | **web_search_tool** | **1,177** | `harness/toolkits/web_search/web_search_agent_tools.py` | 网络搜索，含搜索引擎选择逻辑、查询重写规则、多引擎支持说明 | 默认开启，前端可关闭 |
 
 **注意**：

@@ -97,7 +97,8 @@ async def create_skill_agent(
     on_session_cleanup: Callable[[Sequence[dict[str, str]], str | None], Awaitable[None]] | None = None,
     enable_file_tools: bool = True,
     enable_bash: bool = True,
-    enable_answer_tool: bool = True,
+    enable_answer_tool: bool = False,
+    enable_planning: bool = False,
 ) -> SkillAgent:
     """Create a SkillAgent instance (framework assembly entry)."""
     from myrm_agent_harness._distribution import assert_distribution_ready
@@ -341,6 +342,7 @@ async def create_skill_agent(
         enable_file_tools=enable_file_tools,
         enable_bash=enable_bash,
         enable_answer_tool=enable_answer_tool,
+        enable_planning=enable_planning,
         available_tool_names=frozenset(spec.allowed_tools) if spec.allowed_tools else None,
         available_tool_groups=frozenset(spec.tool_groups) if spec.tool_groups else None,
     )

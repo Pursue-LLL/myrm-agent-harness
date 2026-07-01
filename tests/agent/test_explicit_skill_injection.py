@@ -185,6 +185,38 @@ class TestPreloadExplicitSkill:
         assert "generate today's report" in query
 
     @pytest.mark.asyncio
+    async def test_preload_records_usage_stats(self, tmp_path: Path) -> None:
+        """[use skill] preload must write .stats.json for Curator."""
+        skill_dir = tmp_path / "preload_skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text("# preload\n")
+
+        skill = _make_skill(
+            name="preload_skill",
+            storage_skill_id="preload_skill",
+            storage_path=str(skill_dir),
+        )
+        backend = _StubSkillBackend(content_map={"preload_skill": "# Preload\n\nSOP."})
+
+        from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
+        from myrm_agent_harness.backends.skills.usage_recorder import (
+            flush_skill_usage_stats,
+            set_stats_collector,
+        )
+
+        collector = SkillStatsCollector(tmp_path)
+        set_stats_collector(collector)
+        agent = _make_agent(skills=[skill], backend=backend)
+
+        await agent._preload_explicit_skill("[use preload_skill] run task")
+        flush_skill_usage_stats()
+
+        stats = collector.get_stats(skill_dir)
+        assert stats.call_count == 1
+        assert stats.success_count == 1
+        set_stats_collector(None)
+
+    @pytest.mark.asyncio
     async def test_user_args_preserved(self) -> None:
         """User arguments after [use] must appear at the end of the injected query."""
         skill = _make_skill(name="test_skill")

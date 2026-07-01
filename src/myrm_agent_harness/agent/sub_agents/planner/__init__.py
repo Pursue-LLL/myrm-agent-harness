@@ -41,7 +41,7 @@ from myrm_agent_harness.agent.sub_agents.planner.agent import PlannerAgent
 from myrm_agent_harness.agent.sub_agents.planner.archive import PlanArchiveStore, PlanRecaller
 from myrm_agent_harness.agent.sub_agents.planner.config import PlannerConfig, SkillSummary
 from myrm_agent_harness.agent.sub_agents.planner.schemas import ErrorRecord, Plan, PlannerInput, PlanStep
-from myrm_agent_harness.agent.sub_agents.planner.storage import PlannerStorage
+from myrm_agent_harness.agent.sub_agents.planner.storage import PlannerStorage, workspace_load_plan, workspace_plan_exists
 
 __all__ = [
     "ErrorRecord",
@@ -54,4 +54,6 @@ __all__ = [
     "PlannerInput",
     "PlannerStorage",
     "SkillSummary",
+    "workspace_load_plan",
+    "workspace_plan_exists",
 ]

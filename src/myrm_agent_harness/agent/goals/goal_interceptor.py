@@ -85,8 +85,15 @@ async def intercept_goal_and_plan(
         capture_protected_snapshot(goal.goal_id, goal.protected_paths, ws_root)
 
     # Check if a plan already exists for this session
-    planner_storage = PlannerStorage(storage_provider, prefix="planner_")
-    existing_plan = await planner_storage.load_plan()
+    planner_config = PlannerConfig()
+    from myrm_agent_harness.agent.sub_agents.planner.storage import workspace_load_plan
+
+    existing_plan = await workspace_load_plan(
+        storage_provider,
+        storage_prefix=planner_config.storage_prefix,
+        legacy_prefixes=planner_config.legacy_storage_prefixes,
+    )
+    planner_storage = PlannerStorage(storage_provider, prefix=planner_config.storage_prefix)
 
     if existing_plan:
         logger.info("Goal %s already has a plan. Skipping generation.", goal.goal_id)
@@ -95,7 +102,7 @@ async def intercept_goal_and_plan(
     logger.info("Goal %s has no plan. Generating one now...", goal.goal_id)
 
     try:
-        config = PlannerConfig()
+        config = planner_config
         planner = PlannerAgent(llm, planner_storage, config)
 
         task_content = _build_task_content(goal.objective, query)

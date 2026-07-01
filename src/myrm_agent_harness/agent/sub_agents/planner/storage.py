@@ -20,9 +20,10 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.toolkits.storage.base import StorageProvider
+
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.sub_agents.planner.schemas import Plan
-    from myrm_agent_harness.toolkits.storage.base import StorageProvider
 
 logger = logging.getLogger(__name__)
 
@@ -226,3 +227,47 @@ class PlannerStorage:
             return self._strip_line_numbers(content)
         except FileNotFoundError:
             return None
+
+
+async def workspace_plan_exists(
+    storage_backend: StorageProvider,
+    *,
+    storage_prefix: str = "/planner",
+    legacy_prefixes: tuple[str, ...] = ("planner_",),
+) -> bool:
+    """Return True if a persisted plan exists under the canonical or legacy prefix."""
+    primary = PlannerStorage(storage_backend, prefix=storage_prefix)
+    if await primary.plan_exists():
+        return True
+    normalized_primary = storage_prefix.rstrip("/")
+    for legacy in legacy_prefixes:
+        if legacy.rstrip("/") == normalized_primary:
+            continue
+        legacy_store = PlannerStorage(storage_backend, prefix=legacy)
+        if await legacy_store.plan_exists():
+            return True
+    return False
+
+
+async def workspace_load_plan(
+    storage_backend: StorageProvider,
+    *,
+    storage_prefix: str = "/planner",
+    legacy_prefixes: tuple[str, ...] = ("planner_",),
+) -> Plan | None:
+    """Load a persisted plan from the canonical prefix, then legacy prefixes."""
+    from myrm_agent_harness.agent.sub_agents.planner.schemas import Plan
+
+    primary = PlannerStorage(storage_backend, prefix=storage_prefix)
+    plan = await primary.load_plan()
+    if plan is not None:
+        return plan
+    normalized_primary = storage_prefix.rstrip("/")
+    for legacy in legacy_prefixes:
+        if legacy.rstrip("/") == normalized_primary:
+            continue
+        legacy_store = PlannerStorage(storage_backend, prefix=legacy)
+        plan = await legacy_store.load_plan()
+        if plan is not None:
+            return plan
+    return None

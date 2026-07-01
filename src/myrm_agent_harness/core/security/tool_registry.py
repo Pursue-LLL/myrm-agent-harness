@@ -217,6 +217,8 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
             "wiki_maintain_tool",
         }
     ),
+    "planning": frozenset({"planner_tool"}),
+    "answer_tool": frozenset({"request_answer_user_tool"}),
 }
 
 TOOL_TO_GROUP: dict[str, str] = {tool: group for group, tools in TOOL_GROUP_MAP.items() for tool in tools}

@@ -46,6 +46,9 @@ class PlannerConfig:
     storage_prefix: str = "/planner"
     """Storage path prefix for plan files"""
 
+    # Additional storage prefixes scanned when locating an existing persisted plan.
+    legacy_storage_prefixes: tuple[str, ...] = ("planner_",)
+
     # Prompt configuration
     system_prompt: str | None = None
     """Custom system prompt (overrides default)"""

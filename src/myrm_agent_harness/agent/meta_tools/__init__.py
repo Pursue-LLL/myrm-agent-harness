@@ -92,7 +92,7 @@ def get_meta_tools(
     registry: ToolRegistry | None = None,
     enable_file_tools: bool = True,
     enable_bash: bool = True,
-    enable_answer_tool: bool = True,
+    enable_answer_tool: bool = False,
     available_tool_names: frozenset[str] | None = None,
     available_tool_groups: frozenset[str] | None = None,
 ) -> list[BaseTool]:

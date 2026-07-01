@@ -95,12 +95,17 @@ def build_middlewares(
         if not workspace_root:
             return None
         try:
-            from myrm_agent_harness.agent.sub_agents.planner import PlannerStorage
+            from myrm_agent_harness.agent.sub_agents.planner.config import PlannerConfig
+            from myrm_agent_harness.agent.sub_agents.planner.storage import workspace_load_plan
             from myrm_agent_harness.toolkits.storage.local import LocalStorageBackend
 
             storage_provider = LocalStorageBackend(workspace_root)
-            planner_storage = PlannerStorage(storage_provider, prefix="planner_")
-            return await planner_storage.load_plan()
+            config = PlannerConfig()
+            return await workspace_load_plan(
+                storage_provider,
+                storage_prefix=config.storage_prefix,
+                legacy_prefixes=config.legacy_storage_prefixes,
+            )
         except Exception as e:
             logger.warning(f"Failed to load plan for middleware: {e}")
             return None

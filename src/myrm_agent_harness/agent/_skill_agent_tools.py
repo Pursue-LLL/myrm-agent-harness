@@ -90,7 +90,7 @@ class SkillAgentToolsMixin:
             available_tool_groups=self._available_tool_groups,  # type: ignore[attr-defined]
         )
 
-        planner = self._create_planner_tool(skills)
+        planner = await self._create_planner_tool(skills)
         if planner is not None:
             meta_tools.append(planner)
 
@@ -168,12 +168,43 @@ class SkillAgentToolsMixin:
         )
         return resolved
 
-    def _create_planner_tool(self, skills: list[SkillMetadata]) -> BaseTool | None:
-        """Auto-create planner_tool if storage_backend is available and user hasn't provided one.
+    async def _workspace_has_plan(self) -> bool:
+        """Return True when a persisted planner plan exists in the workspace."""
+        if self.storage_backend is None:  # type: ignore[attr-defined]
+            return False
+        try:
+            from myrm_agent_harness.agent.sub_agents.planner.config import PlannerConfig
+            from myrm_agent_harness.agent.sub_agents.planner.storage import workspace_plan_exists
+
+            planner_config = getattr(self.config, "planner_config", None)  # type: ignore[attr-defined]
+            config = planner_config if planner_config is not None else PlannerConfig()
+            return await workspace_plan_exists(
+                self.storage_backend,  # type: ignore[attr-defined]
+                storage_prefix=config.storage_prefix,
+                legacy_prefixes=config.legacy_storage_prefixes,
+            )
+        except Exception as e:
+            logger.warning("Failed to check workspace plan existence: %s", e)
+            return False
+
+    async def _should_load_planner_tool(self) -> bool:
+        """Planner loads when explicitly enabled, or when resuming an existing plan."""
+        if self._enable_planning:  # type: ignore[attr-defined]
+            return True
+        if await self._workspace_has_plan():
+            logger.info("planner_tool: loading for existing workspace plan (resume)")
+            return True
+        return False
+
+    async def _create_planner_tool(self, skills: list[SkillMetadata]) -> BaseTool | None:
+        """Auto-create planner_tool when planning is enabled or workspace has a persisted plan.
 
         Skips creation when there are no model-invocable skills.
         """
         if self.storage_backend is None:  # type: ignore[attr-defined]
+            return None
+        if not await self._should_load_planner_tool():
+            logger.info("planner_tool: skipped (planning disabled, no existing plan)")
             return None
         if any(
             getattr(t, "name", getattr(t, "tool_name", None)) == "planner_tool"

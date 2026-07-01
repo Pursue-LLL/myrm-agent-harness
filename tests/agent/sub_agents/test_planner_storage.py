@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from myrm_agent_harness.agent.sub_agents.planner.schemas import Plan, PlanStep
-from myrm_agent_harness.agent.sub_agents.planner.storage import PlannerStorage
+from myrm_agent_harness.agent.sub_agents.planner.storage import PlannerStorage, workspace_load_plan, workspace_plan_exists
 
 
 def _make_plan() -> Plan:
@@ -176,3 +176,38 @@ class TestPlannerStorageGetters:
         backend.read_text = mock_read_text
         storage = PlannerStorage(backend)
         assert await storage.get_summary() is None
+
+
+class TestWorkspacePlanHelpers:
+    async def test_workspace_plan_exists_primary(self):
+        backend = MagicMock()
+
+        async def mock_exists(_path: str) -> bool:
+            return True
+
+        backend.exists = mock_exists
+        assert await workspace_plan_exists(backend, storage_prefix="/planner") is True
+
+    async def test_workspace_plan_exists_legacy_fallback(self):
+        backend = MagicMock()
+
+        async def mock_exists(path: str) -> bool:
+            return path == "planner_/plan.json"
+
+        backend.exists = mock_exists
+        assert await workspace_plan_exists(backend, storage_prefix="/planner", legacy_prefixes=("planner_",)) is True
+
+    async def test_workspace_load_plan_legacy_fallback(self):
+        backend = MagicMock()
+        plan_json = _make_plan().model_dump_json()
+
+        async def mock_read_text(path: str) -> str:
+            if path == "planner_/plan.json":
+                return plan_json
+            raise FileNotFoundError(path)
+
+        backend.read_text = mock_read_text
+        backend.exists = MagicMock(return_value=True)
+        loaded = await workspace_load_plan(backend, storage_prefix="/planner", legacy_prefixes=("planner_",))
+        assert loaded is not None
+        assert loaded.goal == "Test goal"
