@@ -289,7 +289,7 @@ async def test_execute_with_skill_paths_stages_detected_skill() -> None:
         success=True, result=0, stdout="ok", stderr="", container_id="c1"
     )
     bash_exec = BashExecutor(executor, enable_skill_execution=False)
-    bash_exec.set_skill_env_map({"demo-skill": {"SK": "1"}})
+    bash_exec.set_skill_env_map({"demo_skill": {"SK": "1"}})
     workspace = MagicMock()
 
     with (
@@ -304,10 +304,16 @@ async def test_execute_with_skill_paths_stages_detected_skill() -> None:
         patch.object(
             bash_exec._skill_manager,
             "ensure_skills_in_workspace",
-            AsyncMock(return_value=["/ws/skills/demo-skill"]),
+            AsyncMock(return_value=["/ws/skills/demo_skill"]),
         ),
-        patch.object(bash_exec, "_rewrite_skill_paths", return_value=("import skills.demo_skill", "demo-skill")),
-        patch.object(bash_exec, "_convert_to_container_paths", return_value=["/workspace/skills/demo-skill"]),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash.bash_executor_prepare_mixin.rewrite_skill_paths",
+            return_value=("import skills.demo_skill", "demo_skill"),
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.utils.WorkspacePathResolver.to_container_paths",
+            return_value=["/workspace/skills/demo_skill"],
+        ),
         patch(
             "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
             AsyncMock(return_value=MagicMock(text="ok", evicted_ref=None)),
@@ -317,7 +323,7 @@ async def test_execute_with_skill_paths_stages_detected_skill() -> None:
         await bash_exec.execute(
             "from skills.demo_skill import run",
             session_id="sess-1",
-            skill_paths=["/host/skills/demo-skill"],
+            skill_paths=["/host/skills/demo_skill"],
         )
 
 
