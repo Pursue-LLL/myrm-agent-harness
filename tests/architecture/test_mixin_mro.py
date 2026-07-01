@@ -1,8 +1,8 @@
 """Architecture gate: aggregate-root mixin MRO order.
 
-BrowserSession and ChatLiteLLM rely on multiple inheritance. Wrong mixin order
-silently changes which navigate/restart/bind implementation runs. These tests
-lock the intended MRO prefix and method resolution owners.
+BrowserSession, ChatLiteLLM, and OptimizationScheduler rely on multiple
+inheritance. Wrong mixin order silently changes which implementation runs.
+These tests lock the intended MRO prefix and method resolution owners.
 """
 
 from __future__ import annotations
@@ -10,6 +10,19 @@ from __future__ import annotations
 import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
 
+from myrm_agent_harness.agent.skills.optimization.scheduler import OptimizationScheduler
+from myrm_agent_harness.agent.skills.optimization.scheduler_batch_mixin import (
+    OptimizationSchedulerBatchMixin,
+)
+from myrm_agent_harness.agent.skills.optimization.scheduler_monitoring_mixin import (
+    OptimizationSchedulerMonitoringMixin,
+)
+from myrm_agent_harness.agent.skills.optimization.scheduler_queue_mixin import (
+    OptimizationSchedulerQueueMixin,
+)
+from myrm_agent_harness.agent.skills.optimization.scheduler_resilience_mixin import (
+    OptimizationSchedulerResilienceMixin,
+)
 from myrm_agent_harness.toolkits.browser.session.browser_session import BrowserSession
 from myrm_agent_harness.toolkits.browser.session.browser_session_extraction_mixin import (
     BrowserSessionExtractionMixin,
@@ -75,3 +88,27 @@ def test_chat_lite_llm_mixin_order_before_base_chat_model() -> None:
     async_idx = mro.index(ChatLiteLLMAsyncMixin)
     base_idx = mro.index(BaseChatModel)
     assert message_idx < sync_idx < async_idx < base_idx
+
+
+_EXPECTED_OPTIMIZATION_SCHEDULER_MIXIN_MRO: tuple[type[object], ...] = (
+    OptimizationScheduler,
+    OptimizationSchedulerMonitoringMixin,
+    OptimizationSchedulerBatchMixin,
+    OptimizationSchedulerQueueMixin,
+    OptimizationSchedulerResilienceMixin,
+    object,
+)
+
+
+@pytest.mark.architecture
+def test_optimization_scheduler_mixin_mro_prefix() -> None:
+    assert (
+        OptimizationScheduler.__mro__[: len(_EXPECTED_OPTIMIZATION_SCHEDULER_MIXIN_MRO)]
+        == _EXPECTED_OPTIMIZATION_SCHEDULER_MIXIN_MRO
+    )
+
+
+@pytest.mark.architecture
+def test_optimization_scheduler_start_monitoring_resolves_to_monitoring_mixin() -> None:
+    owner = next(c for c in OptimizationScheduler.__mro__ if "start_monitoring" in c.__dict__)
+    assert owner is OptimizationSchedulerMonitoringMixin

@@ -38,7 +38,11 @@ Skill Optimization Toolkit
 | rate_limiter.py | Core | Per-User Rate Limiter for Skill Optimization | ✅ |
 | recommender.py | Core | Skill optimization recommendation engine (framework layer). Intelligently identifies skills worth op | ✅ |
 | result_comparator.py | Core | Shadow test result comparator. Provides accurate result comparison for the observation feedback loop | — |
-| scheduler.py | Core | Optimization scheduler (framework layer). Automates the skill optimization workflow. | ✅ |
+| scheduler.py | Core | Optimization scheduler aggregate root; mixin MRO: Monitoring→Batch→Queue→Resilience | ✅ |
+| scheduler_monitoring_mixin.py | Core | Monitoring loop, skill evaluation, trigger_optimization | ✅ |
+| scheduler_batch_mixin.py | Core | Batch optimization trigger, cancel, parallel execution | ✅ |
+| scheduler_queue_mixin.py | Core | Queue worker lifecycle and _execute_optimization | ✅ |
+| scheduler_resilience_mixin.py | Core | Cooldown, circuit breaker, hooks, health, metrics, DLQ | ✅ |
 | security.py | Core | Multi-layer skill security validator. Prevents malicious code in LLM-generated skills. | ✅ |
 | types.py | Config | Skill optimization system core type definitions. Provides type-safe data structures and protocol int | ✅ |
 

@@ -2,7 +2,6 @@
 # CI: check_file_line_limit.py --baseline this file
 # Files listed here may exceed 500 lines; line count must not grow.
 # Remove entries after splitting below 500 lines.
-myrm_agent_harness/agent/skills/optimization/scheduler.py	915
 myrm_agent_harness/backends/skills/types.py	905
 myrm_agent_harness/agent/sub_agents/executor.py	865
 myrm_agent_harness/toolkits/web_fetch/engine.py	840
@@ -108,4 +107,4 @@ myrm_agent_harness/agent/sub_agents/_orchestrator_verification.py	506
 myrm_agent_harness/toolkits/memory/mcp_server.py	505
 myrm_agent_harness/agent/context_management/strategies/compactor.py	503
 myrm_agent_harness/agent/sub_agents/event_forwarder.py	502
-# TOTAL: 105 files
+# TOTAL: 104 files
