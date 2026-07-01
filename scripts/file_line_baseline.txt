@@ -5,7 +5,6 @@
 myrm_agent_harness/toolkits/web_fetch/engine.py	840
 myrm_agent_harness/toolkits/llms/routing/complexity_router.py	839
 myrm_agent_harness/agent/skills/evolution/infra/integration.py	831
-myrm_agent_harness/agent/meta_tools/bash/bash_tool.py	825
 myrm_agent_harness/backends/skills/scanning/patterns.py	824
 myrm_agent_harness/toolkits/browser/doctor.py	819
 myrm_agent_harness/toolkits/kanban/kanban_agent_tools.py	803

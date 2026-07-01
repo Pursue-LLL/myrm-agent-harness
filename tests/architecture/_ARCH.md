@@ -36,6 +36,7 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | `test_mixin_mro.py` | Gate | BrowserSession / ChatLiteLLM / OptimizationScheduler / SubagentExecutor / BashExecutor mixin MRO 顺序锁 | — |
 | `test_executor_reexport.py` | Gate | `sub_agents/executor.py` `__all__` 聚合 re-export 完整性 | — |
 | `test_bash_executor_reexport.py` | Gate | `meta_tools/bash/bash_executor.py` `__all__` 聚合 re-export 完整性 | — |
+| `test_bash_tool_reexport.py` | Gate | `meta_tools/bash/bash_tool.py` `__all__` 聚合 re-export 完整性 | — |
 | `test_types_reexport.py` | Gate | `backends/skills/types.py` `__all__` 聚合 re-export 完整性 | — |
 | `test_validate_arch_inventory.py` | Gate | `_ARCH.md` 文件表 vs 同级 `.py` 一致性（table-only 解析） | — |
 | `test_readme_claims.py` | Gate | README 声明与实际代码/性能基准一致性校验 | — |

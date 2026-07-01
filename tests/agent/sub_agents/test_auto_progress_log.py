@@ -38,8 +38,8 @@ async def test_emit_error_handling():
 
     with (
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.logger") as mock_logger,
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
@@ -103,8 +103,8 @@ async def test_tool_based_progress_without_budget():
 
     with (
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=None, max_result_tokens=5000)
 
@@ -173,8 +173,8 @@ async def test_progress_throttling():
 
     with (
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -238,8 +238,8 @@ async def test_current_step_tracking():
 
     with (
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -305,8 +305,8 @@ async def test_tool_error_forwarding():
 
     with (
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -373,8 +373,8 @@ async def test_progress_deduplication():
 
     with (
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -448,8 +448,8 @@ async def test_custom_progress_calculator():
 
     with (
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
     ):
         config = SubagentConfig(
             system_prompt="You are a test agent",
@@ -523,8 +523,8 @@ async def test_eta_calculation():
 
     with (
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -587,8 +587,8 @@ async def test_auto_progress_emission():
 
     with (
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -651,8 +651,8 @@ async def test_auto_log_emission():
 
     with (
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -714,8 +714,8 @@ async def test_reasoning_event_forwarding():
 
     with (
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -777,8 +777,8 @@ async def test_tasks_steps_event_forwarding():
 
     with (
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -841,8 +841,8 @@ async def test_ui_update_event_forwarding():
 
     with (
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -903,8 +903,8 @@ async def test_status_event_forwarding():
 
     with (
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -972,8 +972,8 @@ async def test_tool_cancelled_forwarding():
 
     with (
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -1045,8 +1045,8 @@ async def test_tool_timeout_forwarding():
 
     with (
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -1120,8 +1120,8 @@ async def test_tool_retry_forwarding():
 
     with (
             patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
+        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
