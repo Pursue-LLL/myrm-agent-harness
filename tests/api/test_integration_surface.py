@@ -27,11 +27,13 @@ description: Demo skill for api.skills smoke test.
                 "get_background_registry",
                 "get_event_logger",
                 "get_memory_manager",
+                "get_task_intent",
                 "get_terminal_errors",
                 "invalidate_permissions",
                 "persist_extracted_memories",
                 "set_approval_user_id",
                 "set_permission_invalidation_callback",
+                "set_task_intent",
             ],
         ),
         (

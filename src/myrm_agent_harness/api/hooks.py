@@ -21,8 +21,10 @@ from myrm_agent_harness.agent._internals.memory_extraction import (
 )
 from myrm_agent_harness.agent._skill_agent_context import (
     get_memory_manager,
+    get_task_intent,
     invalidate_permissions,
     set_permission_invalidation_callback,
+    set_task_intent,
 )
 from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
     get_background_registry,
@@ -38,9 +40,11 @@ __all__ = [
     "get_background_registry",
     "get_event_logger",
     "get_memory_manager",
+    "get_task_intent",
     "get_terminal_errors",
     "invalidate_permissions",
     "persist_extracted_memories",
     "set_approval_user_id",
     "set_permission_invalidation_callback",
+    "set_task_intent",
 ]

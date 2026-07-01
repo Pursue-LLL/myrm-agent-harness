@@ -12,7 +12,7 @@ Stable public import surface for external consumers (`myrm-agent-server`, third-
 | types.py | Core | Runtime and streaming DTOs | ✅ |
 | config.py | Core | LLM/Agent configuration types | ✅ |
 | protocols.py | Core | Extension-point Protocol definitions | ✅ |
-| hooks.py | Core | Session / skill-agent / memory / bash integration hooks | ✅ |
+| hooks.py | Core | Session / skill-agent / memory / bash integration hooks (incl. task intent) | ✅ |
 | skills.py | Core | Skill frontmatter parse and metadata builders | ✅ |
 
 ## SDK convenience (non-stable)
