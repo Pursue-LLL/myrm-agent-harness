@@ -152,7 +152,7 @@ def create_interact_tool(session: BrowserSession):
             if len(session.list_downloads()) > count_before:
                 latest = session.last_download
                 if latest:
-                    result = f"{result}\nFile downloaded: {latest.file_name} ({latest.file_size} bytes)"
+                    result = f"{result}\nFile downloaded: {latest.file_name} ({latest.file_size} bytes)\nPath: {latest.path}"
 
         return result
 

@@ -28,7 +28,7 @@ Ship `myrm-agent-harness` as a **closed-source Python package** that third-party
 
 | Component | Path | Role |
 |-----------|------|------|
-| Public API | `src/myrm_agent_harness/api/` | Stable import surface (factory, Protocol, DTO) |
+| Public API | `src/myrm_agent_harness/api/` | Stable import surface (factory, Protocol, DTO, `hooks`, `skills`) |
 | Core manifest | `harness_packaging/core_manifest.yaml` | Modules compiled to native extensions |
 | Platform detection | `harness_packaging/platforms.py` | Eight supported platform keys (incl. linux-*-musl) |
 | Metadata codegen | `scripts/sync_distribution_metadata.py` | Generate `_core_ip_manifest.py` + sync compiled-core pins |

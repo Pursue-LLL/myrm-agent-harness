@@ -13,7 +13,6 @@ myrm_agent_harness/toolkits/browser/pool/browser_launcher.py	528
 myrm_agent_harness/toolkits/memory/_manager/deletion.py	504
 myrm_agent_harness/toolkits/memory/relational/sqlite_store.py	816
 myrm_agent_harness/toolkits/memory/strategies/extractor.py	789
-myrm_agent_harness/agent/meta_tools/bash/bash_executor.py	777
 myrm_agent_harness/toolkits/mcp/session_actor.py	755
 myrm_agent_harness/toolkits/kanban/dispatcher.py	750
 myrm_agent_harness/toolkits/browser/pool/browser_pool.py	738

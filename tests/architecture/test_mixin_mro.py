@@ -151,3 +151,36 @@ def test_subagent_executor_attach_delegation_resolves_to_delegation_mixin() -> N
 def test_subagent_executor_run_single_attempt_resolves_to_attempt_mixin() -> None:
     owner = next(c for c in SubagentExecutor.__mro__ if "_run_single_attempt" in c.__dict__)
     assert owner is SubagentExecutorAttemptMixin
+
+
+from myrm_agent_harness.agent.meta_tools.bash.bash_executor import BashExecutor
+from myrm_agent_harness.agent.meta_tools.bash.bash_executor_background_mixin import BashExecutorBackgroundMixin
+from myrm_agent_harness.agent.meta_tools.bash.bash_executor_context_mixin import BashExecutorContextMixin
+from myrm_agent_harness.agent.meta_tools.bash.bash_executor_execute_mixin import BashExecutorExecuteMixin
+from myrm_agent_harness.agent.meta_tools.bash.bash_executor_prepare_mixin import BashExecutorPrepareMixin
+
+_EXPECTED_BASH_EXECUTOR_MIXIN_MRO: tuple[type[object], ...] = (
+    BashExecutor,
+    BashExecutorExecuteMixin,
+    BashExecutorBackgroundMixin,
+    BashExecutorPrepareMixin,
+    BashExecutorContextMixin,
+    object,
+)
+
+
+@pytest.mark.architecture
+def test_bash_executor_mixin_mro_prefix() -> None:
+    assert BashExecutor.__mro__[: len(_EXPECTED_BASH_EXECUTOR_MIXIN_MRO)] == _EXPECTED_BASH_EXECUTOR_MIXIN_MRO
+
+
+@pytest.mark.architecture
+def test_bash_executor_execute_resolves_to_execute_mixin() -> None:
+    owner = next(c for c in BashExecutor.__mro__ if "execute" in c.__dict__)
+    assert owner is BashExecutorExecuteMixin
+
+
+@pytest.mark.architecture
+def test_bash_executor_prepare_resolves_to_prepare_mixin() -> None:
+    owner = next(c for c in BashExecutor.__mro__ if "_prepare_execution" in c.__dict__)
+    assert owner is BashExecutorPrepareMixin

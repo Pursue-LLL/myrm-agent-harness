@@ -14,7 +14,13 @@ Bash tool module.
 | _preflight_checks.py | Internal | Security preflight: URL exfiltration, sensitive paths, interactive detection. | ✅ |
 | output_compressor.py | Internal | Command-aware semantic compressor entry point (Dual-Engine: hardcoded + YAML-driven). Orchestrates compressor registry and DeclarativeFilterEngine. | ✅ |
 | _compressors.py | Internal | Concrete command-specific compressors (git, test, package install, docker, build, compiler, log). | ✅ |
-| bash_executor.py | Core | Code execution orchestrator (DI-based). Skill detect delegates to `env.detect_skill_script_command` (hyphenated names); stages bundled scripts via SkillWorkspaceManager. Routes Python/Bash via `toolkits.code_execution.code_detector`. Resolves `allowed_credential_issuers` from active skill `oauth_issuer` frontmatter (generic bash: inject all session OAuth tokens). | ✅ |
+| bash_execution_error.py | Core | Structured BashExecutionError with diagnostic previews. | ✅ |
+| bash_executor_constants.py | Internal | Shared BashExecutor constants (MCP timeout floor). | — |
+| bash_executor.py | Core | BashExecutor aggregate root (DI-based orchestrator). MRO: Execute → Background → Prepare → Context. | ✅ |
+| bash_executor_execute_mixin.py | Core | Synchronous ``execute()`` orchestration. | ✅ |
+| bash_executor_background_mixin.py | Core | ``spawn_background()`` via background process registry. | ✅ |
+| bash_executor_prepare_mixin.py | Core | MCP proxy, code-type detection, skill staging, PTC routing. | ✅ |
+| bash_executor_context_mixin.py | Core | ExecutionContext build, OAuth issuer scoping, event logging. | ✅ |
 | bash_tool.py | Core | LangChain tool factory. Persistent session, exit code semantics, multimodal image return (capped at MAX_IMAGES_PER_RETURN), `run_in_background` parameter wiring; builds per-spawn finish/progress listeners that bridge registry events to `ptc_notify` and classifies background exit codes (`oom_killed` / `segfault` / `signal_terminated` / `nonzero_exit`) for the UI. | ✅ |
 | bash_process_tools.py | Core | LangChain tools `bash_process_list_tool` / `bash_process_output_tool` / `bash_process_kill_tool` that operate on the background process registry. Session-scoped; `session_id=None` fails closed; `bash_process_list_tool` description exposes `last_progress` to the LLM so it can triage stuck workers without a per-pid output fetch; `bash_process_output_tool` supports incremental polling via `since_cursor`. | ✅ |
 | _background_types.py | Core | Shared dataclasses & typing aliases (`BackgroundProcessInfo`, `BackgroundQuotaError`, `FinishListener`, `ProgressListener`) consumed by the registry and bash tool wiring. Lives alongside the registry so downstream callers can import the snapshot type without triggering the registry singleton's `atexit` hook. | ✅ |

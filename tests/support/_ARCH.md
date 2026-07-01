@@ -10,6 +10,7 @@ Pytest-only helpers for harness test teardown and local dev hygiene. Not shipped
 |------|------|-------------|-------|
 | `browser_process_cleanup.py` | Core | Terminate automation child processes in a pytest process tree | ✅ |
 | `test_browser_process_cleanup.py` | Unit | Unit tests for `browser_process_cleanup` (100% line coverage) | — |
+| `test_conftest_browser_cleanup_wiring.py` | Integration | conftest hook smoke + harness/server marker parity | — |
 
 ## Key Dependencies
 

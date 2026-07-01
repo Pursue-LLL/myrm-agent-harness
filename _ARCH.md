@@ -28,7 +28,7 @@
 
 ## 模块依赖
 
-- **被依赖方**：`myrm-agent/myrm-agent-server`（业务编排，仅 import `myrm_agent_harness.api` 等公开路径）
+- **被依赖方**：`myrm-agent/myrm-agent-server`（业务编排，优先 `myrm_agent_harness.api` / `api.hooks` / `api.skills` 公开路径）
 - **构建**：tag `v*` → CI 发 PyPI → vortexai `./myrm harness sync-lock` 刷新 OSS `uv.lock`
 
 ## 约束

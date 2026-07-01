@@ -1,7 +1,16 @@
 """Stable integration hooks for product consumers (server, desktop).
 
-Re-exports session, skill-agent context, memory extraction, and bash registry
-entry points so consumers never import private ``agent._*`` modules directly.
+[INPUT]
+- myrm_agent_harness.agent._skill_agent_context (POS: per-agent runtime context registry)
+- myrm_agent_harness.agent._internals.memory_extraction (POS: session memory extraction helpers)
+- myrm_agent_harness.agent.middlewares._session_context (POS: middleware session ContextVar registry)
+- myrm_agent_harness.agent.meta_tools.bash._background_registry (POS: background bash job registry)
+
+[OUTPUT]
+- Session, skill-agent, memory-extraction, and bash-registry hook callables for server integration.
+
+[POS]
+Public re-export facade. Product code imports hooks here instead of private ``agent._*`` modules.
 """
 
 from __future__ import annotations

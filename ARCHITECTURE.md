@@ -277,7 +277,7 @@ agent/ (运行时核心层)
 
 ### 公开 API 与 SDK 入口
 
-- **PyPI 稳定契约**：`from myrm_agent_harness.api import ...`（factory、Protocol、DTO）
+- **PyPI 稳定契约**：`from myrm_agent_harness.api import ...`（factory、Protocol、DTO）；集成 hook 见 `api.hooks`，skill 元数据见 `api.skills`
 - **SDK 便利层**：`myrm_agent_harness.client.AgentClient` — 简化配置，**不**保证与 release wheel 公开面同步
 
 ### 模块架构文档
