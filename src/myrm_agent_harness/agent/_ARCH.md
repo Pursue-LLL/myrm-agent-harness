@@ -53,8 +53,8 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 | `parallel/` | `sub_agents/` | **共享 spawn 路径** (batch/swarm semaphore) vs **子 Agent 生命周期全栈** |
 | `agent/artifacts/` | `core/artifacts/` | **运行时生命周期** (registry/vault/UI) vs **类型常量 + 路径 SSOT** |
 | `agent/extensions.AgentExtension` | `toolkits/a2a.AgentExtension` | **Harness 插件 Protocol** vs **Google A2A Pydantic 模型**（同名，import 时注意包路径） |
-| `agent/streaming/broadcast/` | `observability/` (top-level) | **ToolBroadcastBus / 聊天工具 SSE** vs **Prometheus + Doctor** |
-| `infra/pubsub/` | `agent/streaming/broadcast/` | **Server 业务 SSE** vs **聊天工具进度** |
+| `agent/streaming/broadcast/` | `observability/` (top-level) | **ToolBroadcastBus side-channel** (chat UI via EventLogger→SSE) vs **Prometheus + Doctor** |
+| `infra/pubsub/` | `agent/streaming/broadcast/` | **PubSubBus / Server business SSE** vs **hook tool side-channel bus** |
 | `observability/tracing/` | `infra/tracing/` | **ContextVar stdlib 日志关联** vs **OpenTelemetry 分布式追踪** |
 | `middlewares/` | `hooks/` | **框架内建** LangChain middleware vs **用户 profile 可配** 生命周期 hook |
 | `meta_tools/goals/` | `goals/` | **LLM 工具面** vs **Goal 引擎域逻辑** |
