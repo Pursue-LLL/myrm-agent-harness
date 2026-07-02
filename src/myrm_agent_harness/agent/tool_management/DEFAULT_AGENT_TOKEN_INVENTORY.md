@@ -262,8 +262,6 @@
 
 ### 典型 Turn 1 场景（默认智能体，启用记忆+搜索+技能+高级检索）
 
-> **2026-07-02 修订**：`conversation_search_tool` 改回 GeneralAgent **eager**（竞品 Hermes/CodePilot 同构；deferred 动态 append 破坏 Anthropic prompt cache，净收益低于稳定前缀）。
-
 | 分类 | Token (tiktoken) | 明细 |
 |------|------------------:|------|
 | System Prompt 层 | ~2,607 | 固定，跨用户缓存 |
@@ -274,9 +272,9 @@
 | 动态注入 | ~1,200 | user_instructions + memory_context + inline_skills |
 | 消息格式 | ~500 | role tags, boundaries 等 |
 | 用户消息 | ~32 | 短消息 + datetime 标签 |
-| **tiktoken 小计** | **~12,417** | |
+| **tiktoken 小计** | **~12,317** | |
 | Qwen tokenizer 差异 | +~200~900 | 取决于中文内容比例 |
-| **Qwen 实测估计** | **~13,100~13,800** | |
+| **Qwen 实测估计** | **~12,900~13,600** | |
 
 ### 最小 Turn 1 场景（仅 CORE 工具，无 COMMON/EXTENDED）
 
