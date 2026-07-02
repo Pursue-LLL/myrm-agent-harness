@@ -115,3 +115,40 @@ def test_read_plan_sync_from_workspace(tmp_path: Path) -> None:
 
 def test_read_plan_sync_missing_returns_none(tmp_path: Path) -> None:
     assert read_plan_sync_from_workspace(str(tmp_path)) is None
+
+
+def test_read_plan_sync_invalid_json_returns_none(tmp_path: Path) -> None:
+    plan_dir = tmp_path / "planner"
+    plan_dir.mkdir()
+    (plan_dir / "plan.json").write_text("not-json{{{", encoding="utf-8")
+    assert read_plan_sync_from_workspace(str(tmp_path), storage_prefix="/planner") is None
+
+
+def test_read_checklist_sync_invalid_json_returns_none(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    path = checklist_file_path(str(workspace))
+    path.parent.mkdir(parents=True)
+    path.write_text("{bad json", encoding="utf-8")
+    assert read_checklist_sync(str(workspace)) is None
+
+
+def test_normalize_skips_empty_content() -> None:
+    items = normalize_checklist_items([{"content": "  ", "status": "pending"}, {"content": "OK", "status": "pending"}])
+    assert len(items) == 1
+    assert items[0].content == "OK"
+
+
+def test_normalize_uses_explicit_id() -> None:
+    items = normalize_checklist_items([{"id": "step-1", "content": "Do it", "status": "pending"}])
+    assert items[0].id == "step-1"
+
+
+def test_normalize_deduplicates_colliding_ids() -> None:
+    items = normalize_checklist_items(
+        [
+            {"id": "dup", "content": "First", "status": "pending"},
+            {"id": "dup", "content": "Second", "status": "pending"},
+        ]
+    )
+    assert items[0].id == "dup"
+    assert items[1].id != "dup"

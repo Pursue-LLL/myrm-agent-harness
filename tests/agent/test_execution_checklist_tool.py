@@ -76,3 +76,40 @@ async def test_checklist_tool_merge_by_id_on_partial_update(tmp_path: Path) -> N
     text = (workspace / ".myrm" / "execution_checklist.json").read_text(encoding="utf-8")
     assert '"status": "completed"' in text
     assert "Step B" in text
+
+
+@pytest.mark.asyncio
+async def test_checklist_tool_errors_without_workspace() -> None:
+    from myrm_agent_harness.agent.middlewares._session_context import set_workspace_root
+
+    set_workspace_root("")
+    tool = create_update_execution_checklist_tool()
+    result = await tool.ainvoke({"todos": [{"content": "Step", "status": "pending"}]})
+    assert "workspace root unavailable" in str(result)
+
+
+@pytest.mark.asyncio
+async def test_checklist_tool_rejects_empty_todos(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    set_workspace_root(str(workspace))
+    tool = create_update_execution_checklist_tool()
+    result = await tool.ainvoke({"todos": [{"content": "  ", "status": "pending"}]})
+    assert "at least one item" in str(result)
+
+
+@pytest.mark.asyncio
+async def test_checklist_tool_rejects_multiple_in_progress(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    set_workspace_root(str(workspace))
+    tool = create_update_execution_checklist_tool()
+    result = await tool.ainvoke(
+        {
+            "todos": [
+                {"content": "A", "status": "in_progress"},
+                {"content": "B", "status": "in_progress"},
+            ]
+        }
+    )
+    assert "at most one item may be in_progress" in str(result)

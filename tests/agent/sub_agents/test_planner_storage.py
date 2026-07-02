@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -64,6 +64,13 @@ class TestPlannerStorageSave:
         plan = _make_plan()
         with pytest.raises(RuntimeError, match="Shadow sync"):
             await storage.save_plan(plan)
+
+    async def test_write_file_wraps_storage_errors(self):
+        backend = MagicMock()
+        backend.write_text = MagicMock(side_effect=OSError("permission denied"))
+        storage = PlannerStorage(backend)
+        with pytest.raises(RuntimeError, match="Failed to write"):
+            await storage._write_file("plan.json", "{}")
 
 
 class TestPlannerStorageLoad:
@@ -279,3 +286,35 @@ class TestPlannerWorkspaceShadow:
         checklist, has_critical = _build_checklist(records, workspace_root=str(workspace))
         assert has_critical
         assert "uncompleted steps in your Goal Plan" in checklist
+
+    async def test_save_plan_workspace_write_failure(self, tmp_path):
+        backend = MagicMock()
+        workspace = tmp_path / "chat_ws"
+        workspace.mkdir()
+        storage = PlannerStorage(backend, workspace_root=str(workspace))
+        with patch(
+            "myrm_agent_harness.agent.sub_agents.planner.storage.save_plan_files_to_workspace",
+            side_effect=OSError("disk full"),
+        ):
+            with pytest.raises(RuntimeError, match="Shadow sync"):
+                await storage.save_plan(_make_plan())
+
+    async def test_plan_exists_true_from_workspace_without_storage(self, tmp_path):
+        backend = MagicMock()
+        workspace = tmp_path / "chat_ws"
+        plan_dir = workspace / "planner"
+        plan_dir.mkdir(parents=True)
+        plan_dir.joinpath("plan.json").write_text('{"goal":"g","reasoning":"r","steps":[]}', encoding="utf-8")
+        storage = PlannerStorage(backend, workspace_root=str(workspace))
+        assert await storage.plan_exists() is True
+        backend.exists.assert_not_called()
+
+    async def test_get_markdown_not_found(self):
+        backend = MagicMock()
+
+        async def mock_read_text(path):
+            raise FileNotFoundError("not found")
+
+        backend.read_text = mock_read_text
+        storage = PlannerStorage(backend)
+        assert await storage.get_markdown() is None
