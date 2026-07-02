@@ -40,6 +40,7 @@ from myrm_agent_harness.toolkits.cron.types import (
     JobType,
     Schedule,
     ScheduleKind,
+    SessionTarget,
 )
 
 if TYPE_CHECKING:
@@ -129,6 +130,7 @@ def create_cron_tools(
         blueprint_values: str = "",
         monitor_type: str = "",
         monitor_enabled: bool = False,
+        session_mode: str = "",
     ) -> str:
         """Manage scheduled tasks (create, list, update, delete, trigger, pause, resume).
 
@@ -203,6 +205,14 @@ def create_cron_tools(
             monitor_enabled: Enable incremental monitoring. For add/update.
                 Use when the user wants to track changes and only be notified
                 on new content (e.g. "notify me only when the price changes").
+            session_mode: Session context mode for agent tasks. For add/update.
+                "" or "isolated" — each execution starts with a blank context
+                    (default, good for independent tasks).
+                "main" — reuses the bound chat session's history, so the task
+                    remembers previous results and can compare changes
+                    (good for monitoring/polling within a conversation).
+                "daily" — same-day executions share context; fresh each day
+                    (good for daily briefings that build up during the day).
         """
         effective_model = model.strip() or current_model
 
@@ -268,6 +278,7 @@ def create_cron_tools(
                 context_from=context_from,
                 monitor_type=monitor_type,
                 monitor_enabled=monitor_enabled,
+                session_mode=session_mode,
                 resolve_delivery=_resolve_delivery,
             ),
             "list": lambda: _do_list(manager, user_id, name_filter),
@@ -288,6 +299,7 @@ def create_cron_tools(
                 context_from=context_from,
                 monitor_type=monitor_type,
                 monitor_enabled=monitor_enabled,
+                session_mode=session_mode,
             ),
             "remove": lambda: _do_remove(manager, user_id, job_id),
             "run": lambda: _do_run(manager, user_id, job_id),
@@ -413,6 +425,28 @@ def _parse_context_from(raw: str) -> tuple[str, ...]:
     return tuple(unique)
 
 
+_SESSION_MODE_MAP: dict[str, SessionTarget] = {
+    "isolated": SessionTarget.ISOLATED,
+    "main": SessionTarget.MAIN,
+    "daily": SessionTarget.DAILY,
+}
+
+
+def _parse_session_mode(raw: str) -> tuple[str | None, SessionTarget]:
+    """Parse session_mode string into SessionTarget enum.
+
+    Returns (error_msg, SessionTarget). error_msg is None on success.
+    """
+    cleaned = raw.strip().lower()
+    if not cleaned:
+        return None, SessionTarget.ISOLATED
+    target = _SESSION_MODE_MAP.get(cleaned)
+    if target is None:
+        valid = ", ".join(sorted(_SESSION_MODE_MAP))
+        return f"Invalid session_mode '{raw}'. Must be one of: {valid}.", SessionTarget.ISOLATED
+    return None, target
+
+
 async def _do_add(
     mgr: CronManager,
     user_id: str,
@@ -437,6 +471,7 @@ async def _do_add(
     context_from: str = "",
     monitor_type: str = "",
     monitor_enabled: bool = False,
+    session_mode: str = "",
     *,
     resolve_delivery: DeliveryResolver,
 ) -> str:
@@ -482,6 +517,10 @@ async def _do_add(
     if mon_err:
         return mon_err
 
+    sm_err, session_target = _parse_session_mode(session_mode)
+    if sm_err:
+        return sm_err
+
     try:
         job = await mgr.create_job(
             user_id=user_id,
@@ -496,6 +535,7 @@ async def _do_add(
             delivery=delivery,
             failure_delivery=failure_delivery,
             active_hours=active_hours,
+            session_target=session_target,
             max_fires=effective_max_fires,
             expires_at=expires_at,
             context_from=parsed_context_from,
@@ -566,6 +606,7 @@ async def _do_update(
     context_from: str = "",
     monitor_type: str = "",
     monitor_enabled: bool = False,
+    session_mode: str = "",
 ) -> str:
     if not job_id:
         return "job_id required. Use action='list' first."
@@ -587,6 +628,12 @@ async def _do_update(
     if mon_err:
         return mon_err
 
+    parsed_session_target: SessionTarget | None = None
+    if session_mode.strip():
+        sm_err, parsed_session_target = _parse_session_mode(session_mode)
+        if sm_err:
+            return sm_err
+
     patch = CronJobPatch(
         name=name.strip() or None,
         prompt=prompt.strip() or None,
@@ -598,6 +645,7 @@ async def _do_update(
         context_from=parsed_context_from,
         monitor_config=monitor_config,
         clear_monitor_config=clear_monitor,
+        session_target=parsed_session_target,
     )
 
     try:
