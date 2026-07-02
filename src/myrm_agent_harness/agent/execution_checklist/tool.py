@@ -2,7 +2,6 @@
 
 [INPUT]
 - execution_checklist.state::ExecutionChecklistState (POS: workspace-scoped checklist SSOT)
-- execution_checklist.events::emit_checklist_events (POS: SSE emission after updates)
 
 [OUTPUT]
 - create_update_execution_checklist_tool(): LangChain StructuredTool factory
@@ -13,6 +12,7 @@ Agent meta-tool for Path B checklist updates; workspace root resolved per invoca
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import TYPE_CHECKING
 
@@ -28,8 +28,8 @@ TOOL_NAME = "update_execution_checklist_tool"
 
 def create_update_execution_checklist_tool(*, fallback_workspace_root: str | None = None) -> BaseTool:
     """Create checklist update tool; workspace root resolved per invocation."""
-    from myrm_agent_harness.agent.execution_checklist.events import emit_checklist_events
     from myrm_agent_harness.agent.execution_checklist.state import (
+        CHECKLIST_WORKSPACE_METADATA_KEY,
         ExecutionChecklistState,
         normalize_checklist_items,
         read_checklist_sync,
@@ -74,9 +74,13 @@ def create_update_execution_checklist_tool(*, fallback_workspace_root: str | Non
         state = ExecutionChecklistState(items=merged_items)
         await save_checklist_to_workspace(workspace_root, state)
         remember_checklist_workspace_root(workspace_root)
-        emit_checklist_events(state)
 
         done = sum(1 for i in merged_items if i.status == "completed")
-        return f"Checklist updated: {done}/{len(merged_items)} completed"
+        return json.dumps(
+            {
+                "content": f"Checklist updated: {done}/{len(merged_items)} completed",
+                "metadata": {CHECKLIST_WORKSPACE_METADATA_KEY: workspace_root},
+            }
+        )
 
     return update_execution_checklist_tool  # type: ignore[return-value]

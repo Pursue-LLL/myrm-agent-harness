@@ -4,10 +4,27 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import json
+
 import pytest
 
 from myrm_agent_harness.agent.execution_checklist.tool import create_update_execution_checklist_tool
 from myrm_agent_harness.agent.middlewares._session_context import set_workspace_root
+
+
+def _tool_result_text(result: object) -> str:
+    if isinstance(result, str) and result.strip().startswith("{"):
+        try:
+            parsed = json.loads(result)
+            if isinstance(parsed, dict) and isinstance(parsed.get("content"), str):
+                return parsed["content"]
+        except json.JSONDecodeError:
+            pass
+    if isinstance(result, dict):
+        content = result.get("content")
+        if isinstance(content, str):
+            return content
+    return str(result)
 
 
 @pytest.mark.asyncio
@@ -25,7 +42,7 @@ async def test_checklist_tool_writes_to_workspace_not_global(tmp_path: Path) -> 
             ]
         }
     )
-    assert "Checklist updated" in str(result)
+    assert "Checklist updated" in _tool_result_text(result)
     checklist_path = workspace / ".myrm" / "execution_checklist.json"
     assert checklist_path.is_file()
     assert "Research competitors" in checklist_path.read_text(encoding="utf-8")
@@ -72,7 +89,7 @@ async def test_checklist_tool_merge_by_id_on_partial_update(tmp_path: Path) -> N
         }
     )
     result = await tool.ainvoke({"todos": [{"id": "a", "content": "Step A", "status": "completed"}]})
-    assert "1/2 completed" in str(result)
+    assert "1/2 completed" in _tool_result_text(result)
     text = (workspace / ".myrm" / "execution_checklist.json").read_text(encoding="utf-8")
     assert '"status": "completed"' in text
     assert "Step B" in text

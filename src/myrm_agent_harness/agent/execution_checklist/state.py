@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 CHECKLIST_STORAGE_REL = ".myrm/execution_checklist.json"
 CHECKLIST_STATE_VERSION = 1
+CHECKLIST_WORKSPACE_METADATA_KEY = "workspace_root"
 
 _checklist_workspace_hint_var: ContextVar[str] = ContextVar("checklist_workspace_hint", default="")
 _checklist_workspace_by_session: dict[str, str] = {}
@@ -139,8 +140,15 @@ def incomplete_checklist_items(state: ExecutionChecklistState) -> list[Checklist
     return [item for item in state.items if item.status not in ("completed", "cancelled")]
 
 
-def resolve_checklist_workspace_root(*, fallback_workspace_root: str | None = None) -> str:
+def resolve_checklist_workspace_root(
+    *,
+    fallback_workspace_root: str | None = None,
+    tool_message_workspace_root: str | None = None,
+) -> str:
     """Resolve workspace root for checklist read/write across LangGraph context boundaries."""
+    if tool_message_workspace_root and tool_message_workspace_root.strip():
+        return tool_message_workspace_root.strip()
+
     hint = _checklist_workspace_hint_var.get()
     if hint:
         return hint
@@ -193,3 +201,9 @@ def remember_checklist_workspace_root(workspace_root: str) -> None:
     session_id = get_approval_session()
     if session_id:
         _checklist_workspace_by_session[session_id] = workspace_root
+
+
+def clear_checklist_workspace_for_session(session_id: str) -> None:
+    """Remove cached checklist workspace root on session teardown."""
+    _checklist_workspace_by_session.pop(session_id, None)
+    _checklist_workspace_hint_var.set("")

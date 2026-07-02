@@ -11,12 +11,16 @@ from myrm_agent_harness.agent.execution_checklist.state import (
     ExecutionChecklistState,
     checklist_exists_sync,
     checklist_file_path,
+    clear_checklist_workspace_for_session,
     merge_checklist_by_id,
     normalize_checklist_items,
     read_checklist_sync,
+    remember_checklist_workspace_root,
     resolve_checklist_items,
+    resolve_checklist_workspace_root,
     save_checklist_to_workspace,
 )
+from myrm_agent_harness.agent.middlewares._session_context import set_approval_session
 from myrm_agent_harness.agent.sub_agents.planner.schemas import Plan, PlanStep
 from myrm_agent_harness.agent.sub_agents.planner.storage import read_plan_sync_from_workspace
 
@@ -152,3 +156,14 @@ def test_normalize_deduplicates_colliding_ids() -> None:
     )
     assert items[0].id == "dup"
     assert items[1].id != "dup"
+
+
+def test_clear_checklist_workspace_for_session_removes_cache(tmp_path: Path) -> None:
+    workspace = tmp_path / "sandbox"
+    workspace.mkdir()
+    session_id = "chat-checklist-cleanup"
+    set_approval_session(session_id)
+    remember_checklist_workspace_root(str(workspace))
+    clear_checklist_workspace_for_session(session_id)
+    set_approval_session(session_id)
+    assert resolve_checklist_workspace_root() == ""

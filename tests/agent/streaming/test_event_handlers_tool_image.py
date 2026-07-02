@@ -535,3 +535,40 @@ async def test_handle_tool_result_emits_checklist_via_stashed_executor(tmp_path:
         and (e.get("step_key") == "checklist_root" or str(e.get("step_key", "")).startswith("checklist_"))
     ]
     assert len(checklist_events) == 2
+
+
+@pytest.mark.asyncio
+async def test_handle_tool_result_emits_checklist_via_tool_message_metadata(tmp_path: Path) -> None:
+    """Checklist SSE should resolve workspace from ToolMessage metadata without ContextVar."""
+    from myrm_agent_harness.agent.execution_checklist.state import (
+        CHECKLIST_WORKSPACE_METADATA_KEY,
+        ChecklistItem,
+        ExecutionChecklistState,
+        save_checklist_to_workspace,
+    )
+    from myrm_agent_harness.agent.middlewares._session_context import set_workspace_root
+
+    workspace = tmp_path / "sandbox"
+    workspace.mkdir()
+    set_workspace_root("")
+    state = ExecutionChecklistState(items=[ChecklistItem(id="1", content="Step one", status="completed")])
+    await save_checklist_to_workspace(str(workspace), state)
+
+    msg = ToolMessage(
+        content=json.dumps(
+            {
+                "content": "Checklist updated: 1/1 completed",
+                "metadata": {CHECKLIST_WORKSPACE_METADATA_KEY: str(workspace)},
+            }
+        ),
+        name="update_execution_checklist_tool",
+        tool_call_id="c3",
+    )
+    events = [event async for event in _handle_tool_result(msg, "msg_checklist_meta", None)]
+    checklist_events = [
+        e
+        for e in events
+        if e.get("type") == AgentEventType.TASKS_STEPS.value
+        and (e.get("step_key") == "checklist_root" or str(e.get("step_key", "")).startswith("checklist_"))
+    ]
+    assert len(checklist_events) == 2
