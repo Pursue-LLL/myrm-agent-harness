@@ -1,5 +1,6 @@
 """Unit tests for run_dynamic_workflow_stream engine."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -633,3 +634,59 @@ async def test_stderr_included_in_summary(tmp_path, monkeypatch, mock_parent_age
     assert captured_summary_input
     assert "Execution Errors" in captured_summary_input[0]
     assert "WARNING: something bad happened" in captured_summary_input[0]
+
+
+@pytest.mark.asyncio
+async def test_notify_events_yielded_during_ptc_execution(tmp_path, monkeypatch, mock_parent_agent):
+    """workflow_stage events must stream while inject_ptc runs, not only after it completes."""
+    db_path = tmp_path / "events.db"
+    monkeypatch.chdir(tmp_path)
+
+    from myrm_agent_harness.agent.dynamic_workflow import store as store_mod
+
+    original_init = store_mod.WorkflowEventStore.__init__
+
+    def patched_init(self, path):
+        original_init(self, str(db_path))
+
+    monkeypatch.setattr(store_mod.WorkflowEventStore, "__init__", patched_init)
+
+    async def mock_ptc(context, executor, ptc_tools, override_allowed=frozenset()):
+        notify_tool = next(t for t in ptc_tools if getattr(t, "name", None) == "notify")
+        await asyncio.sleep(0.05)
+        await notify_tool._arun(message="mid-flight phase")
+
+        class Result:
+            stdout = "ok"
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection.inject_ptc_for_python_execution",
+        mock_ptc,
+    )
+
+    chunks = [
+        c
+        async for c in run_dynamic_workflow_stream(
+            parent_agent=mock_parent_agent,
+            query="test",
+            chat_history=[],
+            chat_id="live_c",
+            message_id="live_m",
+        )
+    ]
+
+    stage_idx = next(
+        i
+        for i, c in enumerate(chunks)
+        if c.get("step_key") == "workflow_stage"
+        and c.get("data", {}).get("message") == "mid-flight phase"
+    )
+    exec_success_idx = next(
+        i
+        for i, c in enumerate(chunks)
+        if c.get("step_key") == "workflow_execution" and c.get("status") == "success"
+    )
+    assert stage_idx < exec_success_idx

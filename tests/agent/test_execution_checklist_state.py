@@ -20,7 +20,8 @@ from myrm_agent_harness.agent.execution_checklist.state import (
     resolve_checklist_workspace_root,
     save_checklist_to_workspace,
 )
-from myrm_agent_harness.agent.middlewares._session_context import set_approval_session
+from myrm_agent_harness.agent.execution_checklist import state as checklist_state
+from myrm_agent_harness.agent.middlewares._session_context import set_approval_session, set_workspace_root
 from myrm_agent_harness.agent.sub_agents.planner.schemas import Plan, PlanStep
 from myrm_agent_harness.agent.sub_agents.planner.storage import read_plan_sync_from_workspace
 
@@ -167,3 +168,60 @@ def test_clear_checklist_workspace_for_session_removes_cache(tmp_path: Path) -> 
     clear_checklist_workspace_for_session(session_id)
     set_approval_session(session_id)
     assert resolve_checklist_workspace_root() == ""
+
+
+def test_resolve_checklist_workspace_root_prefers_tool_message_metadata(tmp_path: Path) -> None:
+    workspace = tmp_path / "from_metadata"
+    workspace.mkdir()
+    assert (
+        resolve_checklist_workspace_root(tool_message_workspace_root=str(workspace))
+        == str(workspace)
+    )
+
+
+def test_resolve_checklist_workspace_root_uses_fallback(tmp_path: Path) -> None:
+    workspace = tmp_path / "fallback"
+    workspace.mkdir()
+    set_workspace_root("")
+    assert resolve_checklist_workspace_root(fallback_workspace_root=str(workspace)) == str(workspace)
+
+
+def test_remember_checklist_workspace_root_skips_empty() -> None:
+    remember_checklist_workspace_root("")
+    assert checklist_state._checklist_workspace_hint_var.get() == ""
+
+
+def test_resolve_checklist_workspace_root_from_live_executor(tmp_path: Path) -> None:
+    from myrm_agent_harness.toolkits.code_execution import create_executor
+    from myrm_agent_harness.toolkits.code_execution.executors.base import set_executor
+
+    workspace = tmp_path / "executor_ws"
+    workspace.mkdir()
+    set_workspace_root("")
+    executor = create_executor()
+    executor.bind_workspace(str(workspace))
+    set_executor(executor)
+    try:
+        assert resolve_checklist_workspace_root() == str(workspace)
+    finally:
+        set_executor(None)
+
+
+@pytest.mark.asyncio
+async def test_resolve_checklist_workspace_root_from_stashed_executor(tmp_path: Path) -> None:
+    from myrm_agent_harness.toolkits.code_execution import create_executor
+    from myrm_agent_harness.toolkits.code_execution.executors.base import (
+        set_executor,
+        stash_executor_for_session,
+    )
+
+    workspace = tmp_path / "stashed_ws"
+    workspace.mkdir()
+    session_id = "chat-stash-resolve"
+    set_workspace_root("")
+    set_approval_session(session_id)
+    set_executor(None)
+    executor = create_executor()
+    executor.bind_workspace(str(workspace))
+    stash_executor_for_session(session_id, executor)
+    assert resolve_checklist_workspace_root() == str(workspace)

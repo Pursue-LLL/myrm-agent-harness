@@ -558,11 +558,11 @@ async def test_notify_valid_levels(notify_tool, notify_queue):
 
 @pytest.mark.asyncio
 async def test_notify_category_truncated(notify_tool, notify_queue):
-    """Long category is truncated to 100 chars."""
+    """Long category is truncated to shared SSOT max (32 chars)."""
     long_cat = "c" * 200
     await notify_tool._arun(message="test", category=long_cat)
     event = notify_queue.get_nowait()
-    assert len(event["data"]["notify_category"]) == 100
+    assert len(event["data"]["notify_category"]) == 32
 
 
 @pytest.mark.asyncio
@@ -601,3 +601,58 @@ async def test_notify_indeterminate_progress(notify_tool, notify_queue):
     await notify_tool._arun(message="Working...")
     event = notify_queue.get_nowait()
     assert event["data"]["notify_progress"] == -1
+
+
+@pytest.mark.asyncio
+async def test_spawn_emits_start_and_done_stage_events(temp_store, mock_parent_agent):
+    class MockResult:
+        success = True
+        task_id = "task_1"
+        agent_type = "generalPurpose"
+        result = "done"
+        error = None
+
+    mock_parent_agent._spawn_child.return_value = MockResult()
+    event_queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_123",
+        store=temp_store,
+        event_queue=event_queue,
+        message_id="msg_spawn",
+    )
+
+    await tool._arun("task_1", "generalPurpose", "do something")
+
+    assert event_queue.qsize() == 2
+    start_event = event_queue.get_nowait()
+    done_event = event_queue.get_nowait()
+    assert start_event["step_key"] == "workflow_stage"
+    assert "Spawning sub-agent" in start_event["data"]["message"]
+    assert done_event["data"]["notify_category"] == "subagent"
+    assert "completed" in done_event["data"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_spawn_failure_emits_warn_stage_event(mock_parent_agent):
+    mock_parent_agent._spawn_child.side_effect = RuntimeError("boom")
+    event_queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_fail",
+        event_queue=event_queue,
+        message_id="msg_fail",
+    )
+
+    result = await tool._arun("task_x", "generalPurpose", "fail task")
+
+    assert result["success"] is False
+    events = [event_queue.get_nowait() for _ in range(event_queue.qsize())]
+    assert len(events) == 2
+    assert events[0]["data"]["notify_level"] == "info"
+    assert events[1]["data"]["notify_level"] == "warn"
+    assert "failed" in events[1]["data"]["message"]

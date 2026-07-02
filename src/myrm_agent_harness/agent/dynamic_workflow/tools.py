@@ -28,6 +28,10 @@ from langchain_core.tools import BaseTool
 from pydantic import BaseModel, ConfigDict, Field
 
 from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
+from myrm_agent_harness.agent.skills.mcp.progress_payload import (
+    build_workflow_stage_event,
+    normalize_dw_message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +64,25 @@ class SpawnSubagentTool(BaseTool):
     catalog: object | None = None
     store: WorkflowEventStore | None = None
     cancel_token: object | None = None
+    event_queue: asyncio.Queue[dict[str, object]] | None = None
+    message_id: str = ""
+
+    async def _emit_spawn_stage(
+        self,
+        message: str,
+        *,
+        level: str = "info",
+        category: str = "subagent",
+    ) -> None:
+        if self.event_queue is None or not self.message_id:
+            return
+        event = build_workflow_stage_event(
+            self.message_id,
+            message,
+            level=level,
+            category=category,
+        )
+        await self.event_queue.put(event)
 
     def _run(self, task_id: str, agent_type: str, task_description: str, readonly: bool = False) -> object:
         raise NotImplementedError("SpawnSubagentTool only supports async execution.")
@@ -84,6 +107,7 @@ class SpawnSubagentTool(BaseTool):
             cached = self.store.get_cached_result(self.workflow_id, task_id)
             if cached:
                 logger.info("DW cache hit: workflow=%s task=%s", self.workflow_id, task_id)
+                await self._emit_spawn_stage(f"Using cached result for sub-agent `{task_id}`.")
                 return cached
 
         from dataclasses import replace
@@ -116,6 +140,10 @@ class SpawnSubagentTool(BaseTool):
                 + "\n\n[READONLY MODE] You are in read-only mode. You can only read and analyze — do NOT attempt file writes, terminal commands, or git commits.",
             )
 
+        await self._emit_spawn_stage(
+            f"Spawning sub-agent `{task_id}` ({agent_type})...",
+        )
+
         try:
             result = await self.parent_agent._spawn_child(
                 task_id=task_id,
@@ -129,6 +157,10 @@ class SpawnSubagentTool(BaseTool):
             )
         except Exception as e:
             logger.error("DW spawn failed: task=%s error=%s", task_id, e)
+            await self._emit_spawn_stage(
+                f"Sub-agent `{task_id}` failed: {type(e).__name__}: {e}",
+                level="warn",
+            )
             return {
                 "success": False,
                 "task_id": task_id,
@@ -159,14 +191,21 @@ class SpawnSubagentTool(BaseTool):
                 result=final_result,
             )
 
+        if final_result.get("success"):
+            await self._emit_spawn_stage(f"Sub-agent `{task_id}` completed.")
+        else:
+            error_text = final_result.get("error") or "unknown error"
+            await self._emit_spawn_stage(
+                f"Sub-agent `{task_id}` failed: {error_text}",
+                level="warn",
+            )
+
         return final_result
 
 
 # ---------------------------------------------------------------------------
 # NotifyProgressTool — real-time workflow stage notifications from PTC scripts
 # ---------------------------------------------------------------------------
-
-_VALID_NOTIFY_LEVELS = frozenset({"info", "warn", "alert"})
 
 
 class NotifyProgressInput(BaseModel):
@@ -228,22 +267,15 @@ class NotifyProgressTool(BaseTool):
         category: str = "",
         level: str = "info",
     ) -> object:
-        validated_level = level if level in _VALID_NOTIFY_LEVELS else "info"
-        clamped_progress = max(-1, min(100, progress))
-
-        event: dict[str, object] = {
-            "type": "status",
-            "step_key": "workflow_stage",
-            "messageId": self.message_id,
-            "status": "in_progress",
-            "data": {
-                "message": message[:500],
-                "notify_progress": clamped_progress,
-                "notify_step_index": max(0, step_index),
-                "notify_total_steps": max(0, total_steps),
-                "notify_category": category[:100],
-                "notify_level": validated_level,
-            },
-        }
+        event = build_workflow_stage_event(
+            self.message_id,
+            message,
+            progress=progress,
+            step_index=step_index,
+            total_steps=total_steps,
+            category=category,
+            level=level,
+        )
         await self.event_queue.put(event)
-        return {"success": True, "message": message[:500]}
+        display_message = normalize_dw_message(message)
+        return {"success": True, "message": display_message}
