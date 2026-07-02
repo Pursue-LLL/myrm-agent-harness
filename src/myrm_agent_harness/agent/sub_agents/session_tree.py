@@ -9,7 +9,7 @@
 - cancel_active_children_for_session: cancel all running children for one session_id via registry
 
 [POS]
-Server REST/SSE subagent tree uses the same registry as cancel_subagent when the parent agent session is gone.
+Server REST/SSE subagent tree and cancel-all use the same ACTIVE_SUBAGENTS registry when the parent gateway session is gone or a new agent instance replaced the spawner.
 """
 
 from __future__ import annotations

@@ -22,7 +22,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | manager.py | Core | Subagent lifecycle manager. Core state tracking, validation, cleanup, capacity, and observability. Inherits spawn/execution from `_manager_spawn` and control operations from `_manager_control`. | ✅ |
 | _manager_spawn.py | Internal | Spawn and execution mixin for SubagentManager (`_run_subagent*`, `spawn_child`). | ✅ |
 | _manager_control.py | Internal | Control plane mixin for SubagentManager (`cancel_child`, `steer_child`, `list_children`, `wait_children`, `drain_notifications`, `run_alternatives`, `run_chain`, `run_council`, `run_with_verification`). | ✅ |
-| session_tree.py | Core | Merge gateway + ACTIVE_SUBAGENTS + ACTIVE_SUBAGENT_SESSIONS child rows for one session (REST/SSE subagent tree SSOT). | ✅ |
+| session_tree.py | Core | Merge gateway + ACTIVE_SUBAGENTS rows and cancel-all via registry (REST/SSE subagent tree SSOT). | ✅ |
 | notifications.py | Core | Push-based notification formatting for subagent completion events and active subagent context injection. | ✅ |
 | SUBAGENT_NOTIFICATION_STRATEGY.md | L2 | Subagent push notification strategy and context injection design | — |
 | orchestrator.py | Core | Subagent composition patterns — chain, batch, alternatives, council, and DAG execution (with Declarative Dependency Context Filtering, Auto-Vaulting, Swarm Fission yield-resume, Optional Path Guard via `allow_failure` on PlanStep, `run_alternatives` for parallel multi-solution generation with deferred workspace merge, and `run_council` for multi-expert cross-review). Delegates verification to `_orchestrator_verification` and council to `_orchestrator_council`. | ✅ |
