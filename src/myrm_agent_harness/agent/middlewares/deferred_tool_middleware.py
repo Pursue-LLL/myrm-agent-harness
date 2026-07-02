@@ -29,17 +29,41 @@ from langchain.agents.middleware import (
     ModelRequest,
     ModelResponse,
 )
-from langchain_core.messages import AnyMessage, ToolMessage
+from langchain_core.messages import AnyMessage, HumanMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
+from myrm_agent_harness.toolkits.memory.conversation_search.types import (
+    CONVERSATION_SEARCH_TOOL_NAME,
+)
 
 logger = logging.getLogger(__name__)
 
 _DISCOVER_TOOL_MESSAGE_NAMES = frozenset(
     {"discover_capability", "discover_capability_tool"}
 )  # TODO(2026-Q3): remove "discover_capability" legacy alias after migration settles
+
+# User asks for verbatim / cross-chat evidence — pre-mount conversation_search without a discover LLM turn.
+_VERBATIM_CONVERSATION_INTENT_RE = re.compile(
+    r"(?:"
+    r"原文|原话|"
+    r"哪(?:一)?次(?:聊天|对话|会话)|"
+    r"历史(?:聊天|对话|会话|记录)|"
+    r"聊天记录|"
+    r"chat\s*history|"
+    r"(?:previous|past|earlier)\s+(?:chat|conversation)s?|"
+    r"(?:search|find|look\s+up).*(?:conversation|chat|session)|"
+    r"conversation[_\s-]*search|"
+    r"(?:之前|以前|上周|上次).*(?:聊|对话|说过)"
+    r")",
+    re.IGNORECASE,
+)
+
+_CONTINUE_ONLY_RE = re.compile(
+    r"^(?:继续|接着|continue(?:\s+where|\s+from)?)\b",
+    re.IGNORECASE,
+)
 
 
 def _is_discover_capability_tool_message(name: str | None) -> bool:
@@ -84,6 +108,61 @@ def collect_activated_native_tool_names(messages: list[AnyMessage]) -> set[str]:
     return activated
 
 
+def _last_human_message_text(messages: list[AnyMessage]) -> str:
+    for msg in reversed(messages):
+        if isinstance(msg, HumanMessage):
+            content = msg.content
+            if isinstance(content, str):
+                return content.strip()
+            if isinstance(content, list):
+                parts: list[str] = []
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        text = block.get("text")
+                        if isinstance(text, str):
+                            parts.append(text)
+                return " ".join(parts).strip()
+    return ""
+
+
+def detect_verbatim_conversation_search_intent(text: str) -> bool:
+    """True when the user likely needs FTS conversation evidence, not semantic recall alone."""
+    stripped = text.strip()
+    if len(stripped) < 4:
+        return False
+    if not _VERBATIM_CONVERSATION_INTENT_RE.search(stripped):
+        return False
+    if _CONTINUE_ONLY_RE.search(stripped) and not re.search(
+        r"历史|哪次|原文|previous|past|conversation\s*search",
+        stripped,
+        re.IGNORECASE,
+    ):
+        return False
+    return True
+
+
+def collect_deferred_premount_tool_names(
+    messages: list[AnyMessage],
+    deferred_tool_names: frozenset[str],
+) -> set[str]:
+    """Deterministic pre-mount for deferred tools (no discover LLM turn)."""
+    if CONVERSATION_SEARCH_TOOL_NAME not in deferred_tool_names:
+        return set()
+    query = _last_human_message_text(messages)
+    if detect_verbatim_conversation_search_intent(query):
+        return {CONVERSATION_SEARCH_TOOL_NAME}
+    return set()
+
+
+def collect_all_activated_deferred_tool_names(
+    messages: list[AnyMessage],
+    deferred_tool_names: frozenset[str],
+) -> set[str]:
+    return collect_activated_native_tool_names(messages) | collect_deferred_premount_tool_names(
+        messages, deferred_tool_names
+    )
+
+
 class DeferredToolMiddleware(AgentMiddleware[Any, Any, Any]):
     """Activates deferred tools after discover_capability exposes <AutoMountTools>.
 
@@ -108,10 +187,15 @@ class DeferredToolMiddleware(AgentMiddleware[Any, Any, Any]):
         request: ModelRequest[Any],
         handler: Callable[[ModelRequest[Any]], Awaitable[ModelResponse[Any]]],
     ) -> ModelResponse[Any]:
-        activated_tool_names = collect_activated_native_tool_names(request.messages)
+        deferred_tools = self.registry.get_deferred_tools()
+        deferred_tool_names = frozenset(
+            name for tool in deferred_tools if isinstance(name := getattr(tool, "name", None), str)
+        )
+        activated_tool_names = collect_all_activated_deferred_tool_names(
+            request.messages, deferred_tool_names
+        )
 
         if activated_tool_names:
-            deferred_tools = self.registry.get_deferred_tools()
             existing_tool_names = {t.name if hasattr(t, "name") else t.get("name") for t in request.tools}
 
             added_count = 0
@@ -124,7 +208,7 @@ class DeferredToolMiddleware(AgentMiddleware[Any, Any, Any]):
                 logger.info(
                     " DeferredToolMiddleware dynamically activated %d tools: %s",
                     added_count,
-                    activated_tool_names,
+                    sorted(activated_tool_names),
                 )
 
         return await handler(request)
@@ -154,7 +238,10 @@ class DeferredToolMiddleware(AgentMiddleware[Any, Any, Any]):
         resolved_tools = get_active_resolved_tools()
 
         messages = _messages_from_agent_state(request.state)
-        activated = collect_activated_native_tool_names(messages)
+        deferred_tool_names = frozenset(
+            name for dt in registry.get_deferred_tools() if isinstance(name := getattr(dt, "name", None), str)
+        )
+        activated = collect_all_activated_deferred_tool_names(messages, deferred_tool_names)
         call_name = str(request.tool_call.get("name", ""))
         candidate_names = {call_name}
         if not call_name.endswith("_tool"):
