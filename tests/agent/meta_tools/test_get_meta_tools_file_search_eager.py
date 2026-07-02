@@ -11,6 +11,9 @@ from unittest.mock import MagicMock
 import pytest
 
 from myrm_agent_harness.agent.meta_tools import get_meta_tools
+from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
+    sync_discover_capability_tool,
+)
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 from myrm_agent_harness.backends.skills.types import SkillMetadata
 
@@ -88,7 +91,7 @@ class TestFileSearchEager:
             available=True,
         )
         registry = ToolRegistry()
-        tools = get_meta_tools(
+        get_meta_tools(
             [sample_skill],
             skill_backend,
             registry=registry,
@@ -96,7 +99,10 @@ class TestFileSearchEager:
             enable_bash=False,
             enable_answer_tool=False,
         )
-        discover = next(t for t in tools if t.name == "discover_capability_tool")
+        sync_discover_capability_tool(registry, skills=[sample_skill])
+        discover = next(
+            t for t in registry.resolve() if t.name == "discover_capability_tool"
+        )
         description = discover.description or ""
         assert "glob_tool" not in description
         assert "grep_tool" not in description

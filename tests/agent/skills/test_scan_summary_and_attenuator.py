@@ -139,6 +139,24 @@ class TestComputeScanSummary:
         assert summary.findings[1].threat_type == "data_exfil"
         assert summary.findings[1].severity == "medium"
 
+    def test_line_number_passthrough(self):
+        """compute_scan_summary should pass line_number from ScanFinding to SecurityFindingDetail."""
+        result = ScanResult(
+            skill_name="line-check",
+            findings=[
+                ScanFinding("cmd_injection", ScanSeverity.HIGH, "found eval()", line_number=42),
+                ScanFinding("data_exfil", ScanSeverity.MEDIUM, "suspicious fetch", line_number=None),
+            ],
+        )
+        summary = compute_scan_summary(result)
+
+        assert summary.findings[0].line_number == 42
+        assert summary.findings[1].line_number is None
+
+        d = summary.to_dict()
+        assert d["findings"][0]["line_number"] == 42
+        assert "line_number" not in d["findings"][1]
+
     def test_to_dict_includes_findings(self):
         """to_dict should serialize findings details."""
         result = ScanResult(

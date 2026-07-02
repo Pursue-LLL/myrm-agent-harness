@@ -8,6 +8,9 @@ import pytest
 from langchain_core.tools import tool
 
 from myrm_agent_harness.agent.meta_tools import get_meta_tools
+from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
+    sync_discover_capability_tool,
+)
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 from myrm_agent_harness.agent.tool_management.types import ToolSource
 from myrm_agent_harness.backends.skills.types import SkillMetadata
@@ -51,7 +54,10 @@ class TestSkillAnalyzeDeferred:
 
         returned_names = {t.name for t in tools}
         assert "skill_analyze_tool" not in returned_names
-        assert "discover_capability_tool" in returned_names
+
+        sync_discover_capability_tool(registry, skills=[sample_skill])
+        resolved_after_sync = {t.name for t in registry.resolve()}
+        assert "discover_capability_tool" in resolved_after_sync
 
     def test_skill_analyze_in_deferred_registry(
         self,
@@ -77,7 +83,7 @@ class TestSkillAnalyzeDeferred:
         skill_backend: MagicMock,
     ) -> None:
         registry = ToolRegistry()
-        tools = get_meta_tools(
+        get_meta_tools(
             [sample_skill],
             skill_backend,
             registry=registry,
@@ -85,7 +91,10 @@ class TestSkillAnalyzeDeferred:
             enable_bash=False,
             enable_answer_tool=False,
         )
-        discover = next(t for t in tools if t.name == "discover_capability_tool")
+        sync_discover_capability_tool(registry, skills=[sample_skill])
+        discover = next(
+            t for t in registry.resolve() if t.name == "discover_capability_tool"
+        )
         assert "skill_analyze_tool" in (discover.description or "")
 
     def test_skill_analyze_eager_when_no_registry(

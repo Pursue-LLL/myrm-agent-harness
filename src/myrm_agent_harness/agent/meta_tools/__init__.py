@@ -309,13 +309,23 @@ def get_meta_tools(
             [t.name for t in _deferred_tools],
         )
 
-    # 统一能力发现网关：在 deferred 工具注册之后创建，确保
-    # native_tool_map 包含所有已注册的 deferred 工具。
+    # discover_capability_tool SSOT: when registry is provided, SkillAgent calls
+    # sync_discover_capability_tool() after all deferred/middleware tools register.
     discoverable_skills = [s for s in skills if s.model_invocable] if skills else []
-    has_deferred = registry is not None and bool(registry.get_deferred_tools())
-    if discoverable_skills or has_deferred:
+    if registry is not None:
+        deferred_count = len(registry.get_deferred_tools())
+        if discoverable_skills or deferred_count:
+            logger.info(
+                " discover_capability_tool deferred to sync_discover_capability_tool "
+                "(deferred工具: %d, 可搜索技能: %d)",
+                deferred_count,
+                len(discoverable_skills),
+            )
+        else:
+            logger.info(" discover_capability_tool 未加载(无可搜索技能且无deferred工具)")
+    elif discoverable_skills or _deferred_tools:
         discover_capability_tool = create_discover_capability_tool(
-            registry=registry,
+            registry=None,
             skills=discoverable_skills or None,
             embedding_config=embedding_config,
             cache=embedding_cache,
@@ -324,10 +334,9 @@ def get_meta_tools(
         search_mode = "混合(BM25+Embedding+RRF)" if embedding_config is not None else "BM25"
         cache_status = "+缓存" if embedding_cache is not None and embedding_config is not None else ""
         logger.info(
-            " 统一能力发现网关 discover_capability 已加载 (外部技能搜索模式: %s%s, deferred工具: %d)",
+            " 统一能力发现网关 discover_capability 已加载 (无 registry, 模式: %s%s)",
             search_mode,
             cache_status,
-            len(registry.get_deferred_tools()) if registry else 0,
         )
     else:
         logger.info(" discover_capability_tool 未加载(无可搜索技能且无deferred工具)")
