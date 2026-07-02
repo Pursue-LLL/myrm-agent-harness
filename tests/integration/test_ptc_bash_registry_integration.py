@@ -38,7 +38,9 @@ def test_bash_tool_description_merges_registry_without_web_stubs() -> None:
     assert "myrm_tools.notify" in ptc_section
     assert "myrm_tools.web_search(" not in ptc_section
     assert "myrm_tools.web_fetch(" not in ptc_section
-    assert "web_search_tool" in description
+    assert "myrm_tools.<agent_tool_name>" in description
+    assert "myrm_tools.web_search_tool" not in description
+    assert "单次调用仍用 native tool" in description
     assert set(registry.tool_names) == {"session_store", "session_load", "session_keys", "notify"}
     registry_mod._registry = None
 

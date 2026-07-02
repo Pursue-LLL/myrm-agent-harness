@@ -24,7 +24,7 @@ TOOL_DESCRIPTION = """
 2. **执行脚本**:运行已存在的脚本文件(python script.py / bash script.sh)。
 3. **执行 Python 代码**:**直接将 Python 源码作为 command 传入,框架自动识别并以文件模式执行**。
    - 可调用预装库:pandas, numpy, scipy, matplotlib, seaborn, json, datetime, re。
-   - **可 `import myrm_tools` 调用所有 Agent 工具**(PTC — Programmatic Tool Calling)。例如 `myrm_tools.web_search_tool(query="...")`, `myrm_tools.file_read_tool(path="...")` 等。工具名和参数与 Agent 工具完全一致,返回值为工具的 JSON/str 输出。
+   - **可 `import myrm_tools` 做 PTC**(Programmatic Tool Calling):**同一次 Python 脚本内**对已 bind 工具多次 RPC,中间结果留脚本内存,最终 `[RESULT]` 一行。函数名/参数与 Agent tool schema 一致,返回 JSON/str。**单次调用仍用 native tool,勿为单次任务写 PTC。** PTC-only 示例:`myrm_tools.session_store(key=..., value=...)`(非穷举)。
    - 可调用已注册技能(skills.*_skill)。
    - **严禁使用 `python -c "..."` / `python3 -c "..."` 包装器** — shell 转义会破坏复杂引号与多行字符串,产生不可预测的 SyntaxError。直接传代码即可,框架会自动以文件模式执行。
 
