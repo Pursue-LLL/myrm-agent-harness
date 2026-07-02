@@ -209,7 +209,7 @@ class AlertIntegration:
 
     async def _send_slack(self, config: dict[str, Any], message: str, metadata: dict[str, Any]) -> None:
         """Send alert to Slack"""
-        import httpx
+        from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
         webhook_url = config.get("webhook_url")
         channel = config.get("channel", "#alerts")
@@ -233,7 +233,7 @@ class AlertIntegration:
             ],
         }
 
-        async with httpx.AsyncClient() as client:
+        async with create_httpx_client() as client:
             response = await client.post(webhook_url, json=payload, timeout=5.0)
             response.raise_for_status()
 
@@ -241,7 +241,7 @@ class AlertIntegration:
 
     async def _send_pagerduty(self, config: dict[str, Any], message: str, metadata: dict[str, Any]) -> None:
         """Send alert to PagerDuty"""
-        import httpx
+        from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
         api_key = config.get("api_key")
         service_id = config.get("service_id")
@@ -261,7 +261,7 @@ class AlertIntegration:
             },
         }
 
-        async with httpx.AsyncClient() as client:
+        async with create_httpx_client() as client:
             response = await client.post("https://events.pagerduty.com/v2/enqueue", json=payload, timeout=5.0)
             response.raise_for_status()
 
@@ -304,7 +304,7 @@ class AlertIntegration:
 
     async def _send_webhook(self, config: dict[str, Any], message: str, metadata: dict[str, Any]) -> None:
         """Send alert to custom webhook"""
-        import httpx
+        from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
         url = config.get("url")
         headers = config.get("headers", {})
@@ -319,7 +319,7 @@ class AlertIntegration:
             "timestamp": datetime.now().isoformat(),
         }
 
-        async with httpx.AsyncClient() as client:
+        async with create_httpx_client() as client:
             response = await client.post(url, json=payload, headers=headers, timeout=5.0)
             response.raise_for_status()
 

@@ -21,6 +21,8 @@ from typing import Any
 
 import httpx
 
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
 from .models import (
     MediaMeta,
     TTSConfig,
@@ -97,7 +99,7 @@ class AsyncTTSEngine:
 
         url, headers, payload = self._build_request(text, bypass_gateway)
 
-        async with httpx.AsyncClient(timeout=self.config.timeout_seconds) as client:
+        async with create_httpx_client(timeout=self.config.timeout_seconds) as client:
             response = await client.post(url, headers=headers, json=payload)
             response.raise_for_status()
             audio_bytes = response.content

@@ -24,6 +24,8 @@ from dataclasses import dataclass
 from urllib.parse import urlparse
 
 import httpx
+
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
 import yaml
 
 from myrm_agent_harness.backends.skills.discovery_protocols import SkillSearchResult
@@ -54,7 +56,7 @@ class GitHubSkillSource:
         headers = self._build_headers()
 
         try:
-            async with httpx.AsyncClient(timeout=GITHUB_SEARCH_TIMEOUT) as client:
+            async with create_httpx_client(timeout=GITHUB_SEARCH_TIMEOUT) as client:
                 resp = await client.get(
                     f"{GITHUB_API_BASE}/search/code",
                     params={"q": search_query, "per_page": min(limit * 2, 30)},
@@ -87,7 +89,7 @@ class GitHubSkillSource:
 
         headers = self._build_headers()
         try:
-            async with httpx.AsyncClient(timeout=GITHUB_SEARCH_TIMEOUT) as client:
+            async with create_httpx_client(timeout=GITHUB_SEARCH_TIMEOUT) as client:
                 resp = await client.get(f"{GITHUB_API_BASE}/repos/{owner}/{repo}", headers=headers)
                 if resp.status_code != 200:
                     return None
@@ -323,7 +325,7 @@ async def analyze_github_url(url: str, token: str | None = None) -> list[GitHubR
     if token:
         headers["Authorization"] = f"token {token}"
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    async with create_httpx_client(timeout=10.0) as client:
         # Step 1: Resolve the default branch if ref is missing
         branch = ref.ref
         if not branch:

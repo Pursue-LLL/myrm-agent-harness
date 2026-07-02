@@ -23,6 +23,8 @@ from dataclasses import dataclass, field
 
 import httpx
 
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
 from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
 from myrm_agent_harness.toolkits.a2a.types import (
     AgentCard,
@@ -105,7 +107,7 @@ class A2ACardResolver:
 
         try:
             if skip_ssrf_check:
-                async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+                async with create_httpx_client(timeout=self.timeout_seconds) as client:
                     resp = await client.get(full_url, headers=request_headers)
                     resp.raise_for_status()
                     data = resp.json()

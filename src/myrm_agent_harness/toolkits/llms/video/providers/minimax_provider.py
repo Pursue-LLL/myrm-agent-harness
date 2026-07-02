@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING
 
 import httpx
 
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
 from myrm_agent_harness.toolkits.llms._media_shared.types import (
     ModeCapabilities,
     ProviderModeCapabilities,
@@ -158,7 +160,7 @@ class MiniMaxVideoProvider(VideoGenerationProvider):
             "Content-Type": "application/json",
         }
 
-        async with httpx.AsyncClient(timeout=timeout, headers=headers) as client:
+        async with create_httpx_client(timeout=timeout, headers=headers) as client:
             resp = await client.post(f"{base_url}/v1/video_generation", json=body)
             resp.raise_for_status()
             submitted = resp.json()
@@ -259,7 +261,7 @@ class MiniMaxVideoProvider(VideoGenerationProvider):
         if not api_key:
             return False
         try:
-            async with httpx.AsyncClient(
+            async with create_httpx_client(
                 timeout=httpx.Timeout(10.0),
                 headers={"Authorization": f"Bearer {api_key}"},
             ) as client:

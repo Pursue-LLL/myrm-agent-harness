@@ -209,7 +209,9 @@ class CloudReranker(RerankerService):
         if self._http_client is None:
             import httpx
 
-            self._http_client = httpx.AsyncClient(
+            from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
+            self._http_client = create_httpx_client(
                 timeout=60.0,
                 limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
             )

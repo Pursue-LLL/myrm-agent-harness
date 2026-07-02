@@ -219,7 +219,9 @@ class Doctor:
                 probe_url = "https://api.openai.com/v1"
 
             # Lightweight HEAD probe with 5s timeout
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
+            async with create_httpx_client(timeout=5.0) as client:
                 try:
                     resp = await client.head(probe_url, follow_redirects=True)
                     # 2xx, 401, 403 all indicate the endpoint is reachable

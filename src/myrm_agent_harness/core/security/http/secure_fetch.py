@@ -22,6 +22,7 @@ from urllib.parse import urljoin
 import httpx
 
 from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError, async_pin_url
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
 logger = logging.getLogger(__name__)
 
@@ -227,7 +228,7 @@ async def secure_get(
     max_redirects: int = DEFAULT_MAX_REDIRECTS,
 ) -> httpx.Response:
     """Perform a GET request with SSRF shield and manual redirect handling."""
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+    async with create_httpx_client(timeout=timeout, follow_redirects=False) as client:
         response = await secure_request(
             client,
             "GET",

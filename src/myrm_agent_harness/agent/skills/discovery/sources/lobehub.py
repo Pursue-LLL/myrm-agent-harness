@@ -21,6 +21,8 @@ import logging
 
 import httpx
 
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
 from myrm_agent_harness.backends.skills.discovery_protocols import SkillSearchResult
 
 logger = logging.getLogger(__name__)
@@ -77,7 +79,7 @@ class LobeHubSource:
 
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=LOBEHUB_TIMEOUT)
+            self._client = create_httpx_client(timeout=LOBEHUB_TIMEOUT)
         return self._client
 
     async def get_detail(self, skill_id: str) -> SkillSearchResult | None:

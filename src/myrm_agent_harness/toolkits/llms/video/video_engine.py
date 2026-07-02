@@ -489,7 +489,9 @@ async def _resolve_media_sources(
                 raise ValueError(f"URL blocked by SSRF protection: {verdict.reason} ({src[:80]})")
             import httpx
 
-            async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_seconds)) as client:
+            from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
+            async with create_httpx_client(timeout=httpx.Timeout(timeout_seconds)) as client:
                 resp = await client.get(src)
                 resp.raise_for_status()
                 data = resp.content

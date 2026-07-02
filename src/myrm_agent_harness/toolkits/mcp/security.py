@@ -37,6 +37,8 @@ from urllib.parse import urlparse
 import httpx
 from pydantic import BaseModel, Field
 
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
 from myrm_agent_harness.toolkits.mcp.config_scan import (
     MCPConfigScanResult,
     MCPConfigSnapshot,
@@ -279,7 +281,7 @@ async def check_osv_malware(
     package_name, ecosystem = info
 
     try:
-        async with httpx.AsyncClient(timeout=_OSV_TIMEOUT_SECONDS) as client:
+        async with create_httpx_client(timeout=_OSV_TIMEOUT_SECONDS) as client:
             response = await client.post(
                 _OSV_QUERY_URL,
                 json={"package": {"name": package_name, "ecosystem": ecosystem}},

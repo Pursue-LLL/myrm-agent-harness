@@ -57,8 +57,10 @@ async def check_network_health() -> HealthReport:
             fix_suggestion="Install httpx to enable network diagnostics.",
         )
 
+    from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
     last_failure: str | None = None
-    async with httpx.AsyncClient(timeout=5.0) as client:
+    async with create_httpx_client(timeout=5.0) as client:
         for url in _NETWORK_PROBE_URLS:
             try:
                 resp = await client.get(url, follow_redirects=True)

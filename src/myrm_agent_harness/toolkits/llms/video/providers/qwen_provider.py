@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING
 
 import httpx
 
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
 from myrm_agent_harness.toolkits.llms._media_shared.types import (
     ModeCapabilities,
     ProviderModeCapabilities,
@@ -153,7 +155,7 @@ class QwenVideoProvider(VideoGenerationProvider):
             "X-DashScope-Async": "enable",
         }
 
-        async with httpx.AsyncClient(timeout=timeout, headers=headers) as client:
+        async with create_httpx_client(timeout=timeout, headers=headers) as client:
             submit_url = f"{base_url}/api/v1/services/aigc/video-generation/video-synthesis"
             resp = await client.post(submit_url, json=body)
             resp.raise_for_status()
@@ -250,7 +252,7 @@ class QwenVideoProvider(VideoGenerationProvider):
 
         videos: list[VideoAsset] = []
         dl_timeout = httpx.Timeout(config.timeout_seconds, connect=30.0)
-        async with httpx.AsyncClient(timeout=dl_timeout) as dl_client:
+        async with create_httpx_client(timeout=dl_timeout) as dl_client:
             for i, url in enumerate(urls):
                 resp = await dl_client.get(url)
                 resp.raise_for_status()
@@ -273,7 +275,7 @@ class QwenVideoProvider(VideoGenerationProvider):
         if not api_key:
             return False
         try:
-            async with httpx.AsyncClient(
+            async with create_httpx_client(
                 timeout=httpx.Timeout(10.0),
                 headers={"Authorization": f"Bearer {api_key}"},
             ) as client:

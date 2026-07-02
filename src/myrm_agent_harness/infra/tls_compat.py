@@ -21,6 +21,7 @@ Activation:
 [OUTPUT]
 - tls_strict_disabled(): check if strict mode is opted out
 - build_httpx_verify(): SSLContext or True for httpx/LiteLLM verify param
+- create_httpx_client(): factory that auto-injects TLS-compat verify param
 - apply_global_tls_relaxation(): urllib3 monkeypatch for 3rd-party libs
 
 [POS]
@@ -128,6 +129,25 @@ def build_httpx_verify() -> ssl.SSLContext | bool:
     if tls_strict_disabled():
         return _default_strict_relaxed_context()
     return True
+
+
+def create_httpx_client(**kwargs: Any) -> "httpx.AsyncClient":
+    """Factory for ``httpx.AsyncClient`` with enterprise TLS auto-injection.
+
+    When ``MYRM_TLS_STRICT=0`` and the caller does **not** supply an explicit
+    ``verify`` kwarg, the factory injects ``build_httpx_verify()`` so the
+    client honours custom CA bundles and the ``X509_STRICT`` relaxation.
+
+    Non-enterprise environments (env unset) get an identical ``httpx.AsyncClient``
+    with zero behaviour change.
+    """
+    import httpx
+
+    if "verify" not in kwargs and tls_strict_disabled():
+        verify = build_httpx_verify()
+        if verify is not True:
+            kwargs["verify"] = verify
+    return httpx.AsyncClient(**kwargs)
 
 
 def apply_global_tls_relaxation() -> bool:

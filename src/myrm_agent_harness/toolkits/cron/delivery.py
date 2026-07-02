@@ -28,6 +28,8 @@ from datetime import UTC, datetime
 
 import httpx
 
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
 from myrm_agent_harness.toolkits.cron.types import CronJob, JobResult
 
 logger = logging.getLogger(__name__)
@@ -116,7 +118,7 @@ class WebhookDelivery:
             "X-Cron-Job-Id": job.id,
         }
 
-        async with httpx.AsyncClient(
+        async with create_httpx_client(
             timeout=httpx.Timeout(self._read_timeout, connect=self._connect_timeout),
             follow_redirects=False,
         ) as client:

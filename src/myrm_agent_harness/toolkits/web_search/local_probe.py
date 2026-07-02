@@ -9,6 +9,8 @@ from typing import Literal
 import httpx
 from pydantic import BaseModel, Field
 
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
 from myrm_agent_harness.toolkits.web_search.constants import SEARXNG_PROBE_CANDIDATE_URLS
 
 logger = logging.getLogger(__name__)
@@ -32,7 +34,7 @@ class LocalSearchProbeResult(BaseModel):
 async def _ping_url(url: str) -> tuple[bool, int, str | None]:
     start = time.monotonic()
     try:
-        async with httpx.AsyncClient(timeout=_PROBE_TIMEOUT_S, follow_redirects=True) as client:
+        async with create_httpx_client(timeout=_PROBE_TIMEOUT_S, follow_redirects=True) as client:
             resp = await client.get(url)
             elapsed = int((time.monotonic() - start) * 1000)
             if resp.status_code < 500:
@@ -52,7 +54,7 @@ async def _verify_searxng_search(base_url: str) -> tuple[bool, int, str | None]:
     search_url = f"{base_url.rstrip('/')}/search?q=probe&format=html"
     start = time.monotonic()
     try:
-        async with httpx.AsyncClient(timeout=_PROBE_TIMEOUT_S, follow_redirects=True) as client:
+        async with create_httpx_client(timeout=_PROBE_TIMEOUT_S, follow_redirects=True) as client:
             resp = await client.get(search_url)
             elapsed = int((time.monotonic() - start) * 1000)
             if resp.status_code >= 500:

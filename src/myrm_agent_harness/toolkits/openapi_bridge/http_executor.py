@@ -27,6 +27,7 @@ import httpx
 
 from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
 from myrm_agent_harness.core.security.http.secure_fetch import secure_request
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
 from .auth import OpenAPIAuthProvider
 from .config import AuthConfig
@@ -68,7 +69,7 @@ class OpenAPIExecutor:
     async def _get_client(self) -> httpx.AsyncClient:
         """Lazily create the httpx client."""
         if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(
+            self._client = create_httpx_client(
                 timeout=self._timeout,
                 follow_redirects=False,
                 limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),

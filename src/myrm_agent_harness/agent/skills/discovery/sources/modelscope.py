@@ -20,6 +20,8 @@ import urllib.parse
 
 import httpx
 
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
 from myrm_agent_harness.backends.skills.discovery_protocols import SkillSearchResult
 
 logger = logging.getLogger(__name__)
@@ -48,7 +50,7 @@ class ModelScopeSource:
             params["search"] = query.strip()
 
         try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            async with create_httpx_client(timeout=_TIMEOUT) as client:
                 resp = await client.get(f"{_BASE_URL}{_SEARCH_PATH}", params=params)
                 if resp.status_code != 200:
                     logger.warning("ModelScope search returned %d", resp.status_code)
@@ -85,7 +87,7 @@ class ModelScopeSource:
     async def get_detail(self, skill_id: str) -> SkillSearchResult | None:
         detail_path = f"{_SEARCH_PATH}/{urllib.parse.quote(skill_id, safe='@/')}"
         try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            async with create_httpx_client(timeout=_TIMEOUT) as client:
                 resp = await client.get(f"{_BASE_URL}{detail_path}")
                 if resp.status_code != 200:
                     return None

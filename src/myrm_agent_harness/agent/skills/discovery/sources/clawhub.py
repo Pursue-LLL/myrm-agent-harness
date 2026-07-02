@@ -28,6 +28,8 @@ import os
 
 import httpx
 
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
 from myrm_agent_harness.backends.skills.discovery_protocols import SkillSearchResult
 
 logger = logging.getLogger(__name__)
@@ -71,7 +73,7 @@ class ClawHubSource:
 
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=CLAWHUB_API_TIMEOUT, headers=self._build_headers())
+            self._client = create_httpx_client(timeout=CLAWHUB_API_TIMEOUT, headers=self._build_headers())
         return self._client
 
     async def search(self, query: str, limit: int = 10) -> list[SkillSearchResult]:

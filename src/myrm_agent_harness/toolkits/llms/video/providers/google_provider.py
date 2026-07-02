@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING
 
 import httpx
 
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
 from myrm_agent_harness.toolkits.llms._media_shared.types import (
     ModeCapabilities,
     ProviderModeCapabilities,
@@ -164,7 +166,7 @@ class GoogleVeoProvider(VideoGenerationProvider):
             body["image"] = _build_image_payload(reference_images[0])
 
         timeout = httpx.Timeout(config.timeout_seconds, connect=30.0)
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with create_httpx_client(timeout=timeout) as client:
             url = f"{base_url}/v1beta/models/{effective_model}:generateVideos?key={api_key}"
             resp = await client.post(url, json=body)
             resp.raise_for_status()
@@ -262,7 +264,7 @@ class GoogleVeoProvider(VideoGenerationProvider):
         if not api_key:
             return False
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
+            async with create_httpx_client(timeout=httpx.Timeout(10.0)) as client:
                 base_url = (config.base_url or _DEFAULT_BASE_URL).rstrip("/")
                 resp = await client.get(
                     f"{base_url}/v1beta/models",

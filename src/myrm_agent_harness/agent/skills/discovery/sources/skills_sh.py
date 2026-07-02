@@ -20,6 +20,8 @@ from typing import Literal
 
 import httpx
 
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
 from myrm_agent_harness.backends.skills.discovery_protocols import SkillSearchResult
 
 logger = logging.getLogger(__name__)
@@ -47,7 +49,7 @@ class SkillsShSource:
 
     async def search(self, query: str, limit: int = 10) -> list[SkillSearchResult]:
         try:
-            async with httpx.AsyncClient(timeout=SKILLS_SH_API_TIMEOUT) as client:
+            async with create_httpx_client(timeout=SKILLS_SH_API_TIMEOUT) as client:
                 resp = await client.get(f"{SKILLS_SH_API_BASE}/api/search", params={"q": query, "limit": limit})
                 if resp.status_code != 200:
                     logger.warning(f"skills.sh search returned {resp.status_code}, trying fallback")
@@ -65,7 +67,7 @@ class SkillsShSource:
 
     async def get_detail(self, skill_id: str) -> SkillSearchResult | None:
         try:
-            async with httpx.AsyncClient(timeout=SKILLS_SH_API_TIMEOUT) as client:
+            async with create_httpx_client(timeout=SKILLS_SH_API_TIMEOUT) as client:
                 resp = await client.get(f"{SKILLS_SH_API_BASE}/api/skills/{skill_id}")
                 if resp.status_code != 200:
                     return None

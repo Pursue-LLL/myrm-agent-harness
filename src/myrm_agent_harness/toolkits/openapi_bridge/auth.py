@@ -23,6 +23,8 @@ import time
 
 import httpx
 
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
 from .config import AuthConfig, AuthType
 
 logger = logging.getLogger(__name__)
@@ -109,7 +111,7 @@ class OpenAPIAuthProvider:
         if self._config.scopes:
             data["scope"] = " ".join(self._config.scopes)
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with create_httpx_client(timeout=15.0) as client:
             try:
                 response = await client.post(
                     self._config.token_url,

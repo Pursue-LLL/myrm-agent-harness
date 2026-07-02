@@ -223,7 +223,9 @@ class HookExecutor:
 
         headers = dict(hook.headers)
         try:
-            async with httpx.AsyncClient(timeout=hook.timeout_seconds, follow_redirects=False) as client:
+            from myrm_agent_harness.infra.tls_compat import create_httpx_client
+
+            async with create_httpx_client(timeout=hook.timeout_seconds, follow_redirects=False) as client:
                 response = await secure_request(
                     client,
                     "POST",

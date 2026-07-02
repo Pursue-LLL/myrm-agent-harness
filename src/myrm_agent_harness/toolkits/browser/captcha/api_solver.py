@@ -148,7 +148,7 @@ class ApiSolver:
         website_key: str,
     ) -> str | None:
         """Call CapSolver createTask and return the task ID."""
-        import httpx as _httpx
+        from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
         payload = {
             "clientKey": self._api_key,
@@ -159,7 +159,7 @@ class ApiSolver:
             },
         }
         try:
-            async with _httpx.AsyncClient(timeout=_CREATE_TASK_TIMEOUT) as client:
+            async with create_httpx_client(timeout=_CREATE_TASK_TIMEOUT) as client:
                 resp = await client.post(
                     f"{_CAPSOLVER_BASE}/createTask", json=payload
                 )
@@ -174,10 +174,10 @@ class ApiSolver:
 
     async def _poll_result(self, task_id: str) -> str | None:
         """Poll CapSolver getTaskResult until ready or max attempts."""
-        import httpx as _httpx
+        from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
         payload = {"clientKey": self._api_key, "taskId": task_id}
-        async with _httpx.AsyncClient(timeout=_CREATE_TASK_TIMEOUT) as client:
+        async with create_httpx_client(timeout=_CREATE_TASK_TIMEOUT) as client:
             for _ in range(_MAX_POLL_ATTEMPTS):
                 await asyncio.sleep(_POLL_INTERVAL_S)
                 try:
