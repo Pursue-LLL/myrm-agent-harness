@@ -461,3 +461,35 @@ def test_messages_chunk_anthropic_thinking():
 
     reasoning_events = [e for e, _ in events if e["type"] == AgentEventType.REASONING.value]
     assert len(reasoning_events) == 1
+
+
+@pytest.mark.asyncio
+async def test_handle_tool_result_emits_checklist_progress_steps(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Checklist tool results should emit checklist_root + checklist_* tasks_steps."""
+    from myrm_agent_harness.agent.execution_checklist.state import (
+        ChecklistItem,
+        ExecutionChecklistState,
+        save_checklist_to_workspace,
+    )
+
+    workspace = tmp_path / "sandbox"
+    workspace.mkdir()
+    state = ExecutionChecklistState(items=[ChecklistItem(id="1", content="Step one", status="completed")])
+    await save_checklist_to_workspace(str(workspace), state)
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares._session_context.get_workspace_root",
+        lambda: str(workspace),
+    )
+
+    msg = ToolMessage(content="Checklist updated: 1/1 completed", name="update_execution_checklist_tool", tool_call_id="c1")
+    events = [event async for event in _handle_tool_result(msg, "msg_checklist", None)]
+    checklist_events = [
+        e
+        for e in events
+        if e.get("type") == AgentEventType.TASKS_STEPS.value
+        and (e.get("step_key") == "checklist_root" or str(e.get("step_key", "")).startswith("checklist_"))
+    ]
+    assert len(checklist_events) == 2
+    assert checklist_events[0]["step_key"] == "checklist_root"
+    assert checklist_events[1]["step_key"] == "checklist_1"
