@@ -694,7 +694,8 @@ class TestBatchProcessorComprehensive:
         from myrm_agent_harness.agent.middlewares.approval.batch_processor import evaluate_tool_batch
 
         config = SecurityConfig(
-            yolo_mode_enabled=False, domain_hitl_enabled=False, capabilities=frozenset({Capability("shell_exec", "*")})
+            yolo_mode_enabled=False, domain_hitl_enabled=False,
+            capabilities=frozenset({Capability("code_interpreter", "*")}),
         )
         tool_calls = [
             {"name": "bash_code_execute_tool", "args": {"command": "ls"}, "id": "1", "type": "tool_call"},

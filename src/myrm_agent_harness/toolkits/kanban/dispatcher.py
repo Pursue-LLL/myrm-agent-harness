@@ -229,6 +229,10 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin):
         settings = self._board.settings
         while self._running:
             try:
+                # Clear before checking so wake() signals arriving during
+                # claim are not lost — the next wait() returns immediately.
+                self._wake_event.clear()
+
                 running_count = len(await self._store.list_running_tasks(self._board.board_id))
                 available_slots = settings.max_concurrent_tasks - running_count
 
@@ -253,7 +257,6 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin):
 
                             t.add_done_callback(_on_exec_done)
 
-                self._wake_event.clear()
                 with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(
                         self._wake_event.wait(),

@@ -6,6 +6,7 @@ the normal, error, and metadata extraction paths of _handle_tool_result.
 """
 
 import json
+from pathlib import Path
 
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
@@ -493,3 +494,44 @@ async def test_handle_tool_result_emits_checklist_progress_steps(tmp_path, monke
     assert len(checklist_events) == 2
     assert checklist_events[0]["step_key"] == "checklist_root"
     assert checklist_events[1]["step_key"] == "checklist_1"
+
+
+@pytest.mark.asyncio
+async def test_handle_tool_result_emits_checklist_via_stashed_executor(tmp_path: Path) -> None:
+    """Checklist SSE should resolve workspace via stashed executor when ContextVar is empty."""
+    from myrm_agent_harness.agent.execution_checklist.state import (
+        ChecklistItem,
+        ExecutionChecklistState,
+        save_checklist_to_workspace,
+    )
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        set_approval_session,
+        set_workspace_root,
+    )
+    from myrm_agent_harness.toolkits.code_execution import create_executor
+    from myrm_agent_harness.toolkits.code_execution.executors.base import stash_executor_for_session
+
+    workspace = tmp_path / "sandbox"
+    workspace.mkdir()
+    session_id = "chat-checklist-stash"
+    set_workspace_root("")
+    set_approval_session(session_id)
+    executor = create_executor()
+    executor.bind_workspace(str(workspace))
+    stash_executor_for_session(session_id, executor)
+
+    state = ExecutionChecklistState(items=[ChecklistItem(id="1", content="Step one", status="completed")])
+    await save_checklist_to_workspace(str(workspace), state)
+    from myrm_agent_harness.agent.execution_checklist.state import remember_checklist_workspace_root
+
+    remember_checklist_workspace_root(str(workspace))
+
+    msg = ToolMessage(content="Checklist updated: 1/1 completed", name="update_execution_checklist_tool", tool_call_id="c2")
+    events = [event async for event in _handle_tool_result(msg, "msg_checklist_stash", None)]
+    checklist_events = [
+        e
+        for e in events
+        if e.get("type") == AgentEventType.TASKS_STEPS.value
+        and (e.get("step_key") == "checklist_root" or str(e.get("step_key", "")).startswith("checklist_"))
+    ]
+    assert len(checklist_events) == 2

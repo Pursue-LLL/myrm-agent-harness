@@ -34,9 +34,10 @@ def create_update_execution_checklist_tool(*, fallback_workspace_root: str | Non
         normalize_checklist_items,
         read_checklist_sync,
         resolve_checklist_items,
+        resolve_checklist_workspace_root,
+        remember_checklist_workspace_root,
         save_checklist_to_workspace,
     )
-    from myrm_agent_harness.agent.middlewares._session_context import get_workspace_root
 
     @tool(TOOL_NAME)
     async def update_execution_checklist_tool(todos: list[dict[str, object]]) -> str:
@@ -55,7 +56,7 @@ def create_update_execution_checklist_tool(*, fallback_workspace_root: str | Non
         - Mark completed only after the work is actually done
         - Use for 3+ step tasks; skip for single-step or informational requests
         """
-        workspace_root = get_workspace_root() or (fallback_workspace_root or "")
+        workspace_root = resolve_checklist_workspace_root(fallback_workspace_root=fallback_workspace_root)
         if not workspace_root:
             return "Error: workspace root unavailable; cannot persist execution checklist"
 
@@ -72,6 +73,7 @@ def create_update_execution_checklist_tool(*, fallback_workspace_root: str | Non
         merged_items = resolve_checklist_items(existing_items, items)
         state = ExecutionChecklistState(items=merged_items)
         await save_checklist_to_workspace(workspace_root, state)
+        remember_checklist_workspace_root(workspace_root)
         emit_checklist_events(state)
 
         done = sum(1 for i in merged_items if i.status == "completed")

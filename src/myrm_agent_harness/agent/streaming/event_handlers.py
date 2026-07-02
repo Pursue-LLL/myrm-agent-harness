@@ -228,10 +228,12 @@ async def _handle_tool_result(
 
         if tool_name == "update_execution_checklist_tool" and status != "error":
             from myrm_agent_harness.agent.execution_checklist.events import build_checklist_sse_events
-            from myrm_agent_harness.agent.execution_checklist.state import read_checklist_sync
-            from myrm_agent_harness.agent.middlewares._session_context import get_workspace_root
+            from myrm_agent_harness.agent.execution_checklist.state import (
+                read_checklist_sync,
+                resolve_checklist_workspace_root,
+            )
 
-            workspace_root = get_workspace_root()
+            workspace_root = resolve_checklist_workspace_root()
             if workspace_root:
                 checklist_state = read_checklist_sync(workspace_root)
                 if checklist_state and checklist_state.items:

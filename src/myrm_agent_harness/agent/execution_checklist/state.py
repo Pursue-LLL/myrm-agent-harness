@@ -17,6 +17,7 @@ import asyncio
 import json
 import logging
 import re
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Literal
 
@@ -26,6 +27,9 @@ logger = logging.getLogger(__name__)
 
 CHECKLIST_STORAGE_REL = ".myrm/execution_checklist.json"
 CHECKLIST_STATE_VERSION = 1
+
+_checklist_workspace_hint_var: ContextVar[str] = ContextVar("checklist_workspace_hint", default="")
+_checklist_workspace_by_session: dict[str, str] = {}
 
 ChecklistStatus = Literal["pending", "in_progress", "completed", "cancelled"]
 
@@ -133,3 +137,59 @@ def resolve_checklist_items(
 def incomplete_checklist_items(state: ExecutionChecklistState) -> list[ChecklistItem]:
     """Return items that are not completed or cancelled."""
     return [item for item in state.items if item.status not in ("completed", "cancelled")]
+
+
+def resolve_checklist_workspace_root(*, fallback_workspace_root: str | None = None) -> str:
+    """Resolve workspace root for checklist read/write across LangGraph context boundaries."""
+    hint = _checklist_workspace_hint_var.get()
+    if hint:
+        return hint
+
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_approval_session,
+        get_workspace_root,
+    )
+
+    root = get_workspace_root()
+    if root:
+        return root
+
+    from myrm_agent_harness.toolkits.code_execution.executors.base import (
+        get_executor,
+        get_stashed_executor,
+    )
+
+    executor = get_executor()
+    if executor is not None:
+        try:
+            return executor.workspace_path
+        except RuntimeError:
+            pass
+
+    session_id = get_approval_session()
+    if session_id:
+        cached = _checklist_workspace_by_session.get(session_id)
+        if cached:
+            return cached
+        stashed = get_stashed_executor(session_id)
+        if stashed is not None:
+            try:
+                return stashed.workspace_path
+            except RuntimeError:
+                pass
+
+    if fallback_workspace_root:
+        return fallback_workspace_root
+    return ""
+
+
+def remember_checklist_workspace_root(workspace_root: str) -> None:
+    """Record the workspace used by the latest checklist tool invocation."""
+    if not workspace_root:
+        return
+    _checklist_workspace_hint_var.set(workspace_root)
+    from myrm_agent_harness.agent.middlewares._session_context import get_approval_session
+
+    session_id = get_approval_session()
+    if session_id:
+        _checklist_workspace_by_session[session_id] = workspace_root
