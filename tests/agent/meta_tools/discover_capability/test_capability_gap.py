@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from myrm_agent_harness.agent.meta_tools.discover_capability.capability_gap import (
     detect_capability_gap,
     detect_skill_gap,
@@ -59,6 +61,57 @@ def test_detect_capability_gap_computer_use_when_disabled() -> None:
 def test_detect_capability_gap_none_when_computer_use_enabled() -> None:
     groups = frozenset({"web", "memory", "file_ops", "shell", "computer_use"})
     assert detect_capability_gap("take a desktop screenshot", groups) is None
+
+
+@pytest.mark.parametrize(
+    ("tool_id", "query", "group"),
+    [
+        ("wiki", "search my personal wiki", "wiki"),
+        ("kanban", "move card on kanban board", "kanban"),
+        ("canvas", "draw on canvas whiteboard", "canvas"),
+        ("planning", "create multi-step plan for launch", "planning"),
+        ("video_generation", "generate video from text prompt", "video_generation"),
+        ("tts", "text to speech for this paragraph", "tts"),
+        ("file_ops", "grep pattern in repo files", "file_ops"),
+        ("code_execute", "run shell bash terminal script", "shell"),
+    ],
+)
+def test_detect_capability_gap_all_triggers_when_group_disabled(
+    tool_id: str,
+    query: str,
+    group: str,
+) -> None:
+    active = frozenset({"web", "memory"})
+    hit = detect_capability_gap(query, active)
+    assert hit is not None
+    assert hit.tool_id == tool_id
+    assert hit.tool_group == group
+
+
+@pytest.mark.parametrize(
+    ("group", "query"),
+    [
+        ("wiki", "search my personal wiki"),
+        ("kanban", "move card on kanban board"),
+        ("canvas", "draw on canvas whiteboard"),
+        ("planning", "create multi-step plan for launch"),
+        ("video_generation", "generate video from text prompt"),
+        ("tts", "text to speech for this paragraph"),
+        ("file_ops", "grep pattern in repo files"),
+        ("shell", "run shell bash terminal script"),
+    ],
+)
+def test_detect_capability_gap_none_when_group_enabled(group: str, query: str) -> None:
+    active = frozenset({"web", "memory", group})
+    assert detect_capability_gap(query, active) is None
+
+
+def test_detect_capability_gap_first_match_wins() -> None:
+    """Earlier _GAP_TRIGGERS entry wins when multiple could match."""
+    active = frozenset({"web", "memory"})
+    hit = detect_capability_gap("browse website and generate image", active)
+    assert hit is not None
+    assert hit.tool_id == "browser"
 
 
 def test_detect_skill_gap_unbound_skill() -> None:
