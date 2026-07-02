@@ -117,7 +117,7 @@ Protocol-first architecture with strict framework-business separation.
       kanban_move_task, kanban_delete_task, kanban_board_summary, kanban_add_dependency,
       kanban_remove_dependency.
     - `full` (16 tools): All worker + orchestrator + kanban_create_board, kanban_list_boards,
-      kanban_get_task.
+      kanban_get_task. Opt-in via explicit `kanban_tool_mode=full` on GeneralAgentParams.
 
 12. **Dispatcher-only status guard**: Agents cannot move tasks to RUNNING — only the
     dispatcher sets that status when claiming a task. Prevents status drift.
@@ -127,9 +127,11 @@ Protocol-first architecture with strict framework-business separation.
     instead of creating a new one — makes agent retries safe.
 
 14. **Conditional loading via `enable_kanban` flag**: The server's `profile_resolver`
-    maps `"kanban" in enabled_builtin_tools` to `enable_kanban=True`. Only agents
-    configured with kanban capability receive these tools, preventing schema bloat in
-    general chat sessions. Worker tools are auto-injected for `KanbanTaskRunner` tasks.
+    maps `"kanban" in enabled_builtin_tools` to `enable_kanban=True`. Binding is
+    resolved by `myrm-agent-server/app/ai_agents/general_agent/kanban_tool_mode.py`:
+    chat orchestrators default to 8-tool `orchestrator` mode; `KanbanTaskRunner` binds
+    5-tool `worker` mode when `kanban_current_task_id` is set; board management uses
+    REST/GUI unless `kanban_tool_mode=full` is explicitly passed.
 
 15. **Task-level timeout (max_runtime_seconds)**: Each task can declare an optional
     `max_runtime_seconds` limit. The `TaskRunner` enforces this via `asyncio.wait_for`,

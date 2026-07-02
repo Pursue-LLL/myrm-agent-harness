@@ -19,10 +19,12 @@ class _PlannerHarness(SkillAgentToolsMixin):
         *,
         storage_backend: object | None,
         enable_planning: bool = False,
+        task_workspace_root: str | None = None,
         user_tools: list[object] | None = None,
     ) -> None:
         self.storage_backend = storage_backend
         self._enable_planning = enable_planning
+        self._task_workspace_root = task_workspace_root
         self.user_tools = user_tools or []
         self.config = MagicMock(planner_config=None, max_skills_prompt_chars=12000)
         self.llm = MagicMock()
@@ -72,9 +74,48 @@ async def test_create_planner_tool_created_when_planning_enabled() -> None:
     with patch(
         "myrm_agent_harness.agent.sub_agents.planner.planner_agent_tools.create_planner_tool",
         return_value=mock_tool,
-    ):
+    ) as mock_create:
         result = await harness._create_planner_tool([_sample_skill()])
     assert result is mock_tool
+    mock_create.assert_called_once()
+    call_kwargs = mock_create.call_args.kwargs
+    assert call_kwargs.get("workspace_root") is None
+
+
+@pytest.mark.asyncio
+async def test_workspace_has_plan_detects_sandbox_plan_file(tmp_path) -> None:
+    workspace = tmp_path / "chat_resume"
+    plan_dir = workspace / "planner"
+    plan_dir.mkdir(parents=True)
+    plan_dir.joinpath("plan.json").write_text(
+        '{"goal":"g","reasoning":"r","steps":[]}',
+        encoding="utf-8",
+    )
+    harness = _PlannerHarness(
+        storage_backend=MagicMock(),
+        enable_planning=False,
+        task_workspace_root=str(workspace),
+    )
+    assert await harness._workspace_has_plan() is True
+    assert await harness._should_load_planner_tool() is True
+
+
+@pytest.mark.asyncio
+async def test_create_planner_passes_task_workspace_root_to_factory(tmp_path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    harness = _PlannerHarness(
+        storage_backend=MagicMock(),
+        enable_planning=True,
+        task_workspace_root=str(workspace),
+    )
+    mock_tool = MagicMock(name="planner_tool")
+    with patch(
+        "myrm_agent_harness.agent.sub_agents.planner.planner_agent_tools.create_planner_tool",
+        return_value=mock_tool,
+    ) as mock_create:
+        await harness._create_planner_tool([_sample_skill()])
+    assert mock_create.call_args.kwargs.get("workspace_root") == str(workspace)
 
 
 @pytest.mark.asyncio

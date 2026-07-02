@@ -145,6 +145,8 @@
 
 ### 4.13 看板工具（启用看板时加载，按角色分组）
 
+**Server bind 策略**：Chat Agent + kanban → `orchestrator` 8 工具（~1,636 tok）；`KanbanTaskRunner` → `worker` 5 工具（~948 tok）；`full` 16 工具仅显式 `kanban_tool_mode=full`。解析：`myrm-agent-server/app/ai_agents/general_agent/kanban_tool_mode.py`。
+
 #### Worker 工具（5 个）
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
