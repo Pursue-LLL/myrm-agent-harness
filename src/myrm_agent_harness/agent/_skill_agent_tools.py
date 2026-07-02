@@ -141,7 +141,7 @@ class SkillAgentToolsMixin:
             embedding_cache=getattr(self, "_embedding_cache", None),
             active_tool_groups=self._available_tool_groups,  # type: ignore[attr-defined]
             bound_skill_names=frozenset(s.name for s in skills),
-            library_skill_names=getattr(self, "_library_skill_names", None),
+            library_skill_names=self._library_skill_names,  # type: ignore[attr-defined]
         )
 
         self._tool_registry = registry  # type: ignore[attr-defined]
