@@ -29,6 +29,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent._skill_agent_context import (
+    SkillAgentContextMixin,
     add_loaded_skill,
     get_loaded_skills,
     reset_loaded_skills,
@@ -83,7 +84,7 @@ logger = get_agent_logger(__name__)
 __all__ = ["SkillAgent", "wait_all_background_tasks"]
 
 
-class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
+class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, SkillAgentContextMixin, BaseAgent):
     """技能 Agent - 扩展 BaseAgent
 
     在 BaseAgent 基础上添加:
@@ -599,20 +600,3 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, BaseAgent):
     async def close(self) -> None:
         """Release resources held by this agent."""
         self.memory_manager = None
-
-    async def _prepare_context(self, context: dict[str, object]) -> dict[str, object]:
-        """准备上下文(覆盖 BaseAgent)
-
-        使用 ContextVar 传递不可序列化对象(storage_backend, memory_manager),
-        避免 LangGraph checkpoint 序列化问题.
-        """
-        context = await super()._prepare_context(context)
-
-        set_storage_backend(self.storage_backend)
-        set_memory_manager(self.memory_manager)
-
-        skill_paths = await self._get_skill_storage_paths()
-        if skill_paths:
-            context["skill_paths"] = skill_paths
-
-        return context

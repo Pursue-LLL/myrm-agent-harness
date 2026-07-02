@@ -23,7 +23,7 @@ class TestMacOSNativeApiHint:
 
         result = _native_api_hint("Finder")
         assert "AppleScript" in result
-        assert "bash_tool" in result
+        assert "bash_code_execute_tool" in result
         assert "osascript" in result
 
     def test_unknown_app_returns_empty(self):
@@ -85,7 +85,7 @@ class TestMacOSNativeApiHint:
         rec = result["recommendation"]
         assert "desktop_snapshot_tool" in rec
         assert "AppleScript" in rec
-        assert "bash_tool" in rec
+        assert "bash_code_execute_tool" in rec
 
     @patch("myrm_agent_harness.toolkits.computer_use.perception.macos_ax.capture_ax_snapshot")
     def test_inspect_foreground_no_hint_for_unknown(self, mock_snapshot):
@@ -152,7 +152,7 @@ class TestWindowsNativeApiHint:
 
         result = _native_api_hint("Microsoft Excel")
         assert "COM/PowerShell" in result
-        assert "bash_tool" in result
+        assert "bash_code_execute_tool" in result
 
     def test_window_title_substring_match(self):
         from myrm_agent_harness.toolkits.computer_use.perception.windows_ax import _native_api_hint
@@ -229,7 +229,7 @@ class TestLinuxNativeApiHint:
 
         result = _native_api_hint("nautilus")
         assert "D-Bus" in result
-        assert "bash_tool" in result
+        assert "bash_code_execute_tool" in result
 
     def test_case_insensitive_matching(self):
         from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import _native_api_hint

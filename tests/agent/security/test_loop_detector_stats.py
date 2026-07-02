@@ -21,14 +21,14 @@ class TestLoopGuardStatsDB:
         assert db.db_path.exists()
 
     def test_record_event(self, db: LoopGuardStatsDB) -> None:
-        db.record_event("bash_tool", LoopKind.REPETITION)
+        db.record_event("bash_code_execute_tool", LoopKind.REPETITION)
         stats = db.get_tool_stats(since_days=1)
         assert len(stats) == 1
-        assert stats[0].tool_name == "bash_tool"
+        assert stats[0].tool_name == "bash_code_execute_tool"
         assert stats[0].total_events == 1
 
     def test_record_event_with_args(self, db: LoopGuardStatsDB) -> None:
-        db.record_event("bash_tool", LoopKind.REPETITION, args_sample={"cmd": "ls"}, severity="ERROR")
+        db.record_event("bash_code_execute_tool", LoopKind.REPETITION, args_sample={"cmd": "ls"}, severity="ERROR")
         stats = db.get_tool_stats(since_days=1)
         assert stats[0].total_events == 1
 

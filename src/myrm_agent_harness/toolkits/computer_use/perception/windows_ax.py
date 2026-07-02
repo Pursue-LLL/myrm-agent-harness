@@ -161,7 +161,7 @@ def _native_api_hint(app_name: str) -> str:
         if known.lower() in app_name.lower():
             return (
                 f" This app ('{app_name}') supports COM/PowerShell automation. "
-                "For data retrieval or bulk actions, bash_tool with PowerShell is faster and more reliable than GUI interaction."
+                "For data retrieval or bulk actions, bash_code_execute_tool with PowerShell is faster and more reliable than GUI interaction."
             )
     return ""
 

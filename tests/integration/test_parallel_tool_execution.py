@@ -210,7 +210,7 @@ class TestCombinedMiddlewareStack:
             execution_log.append((name, "end"))
             return "done"
 
-        unsafe_tools = ["bash_tool", "file_write_tool", "file_edit_tool"]
+        unsafe_tools = ["bash_code_execute_tool", "file_write_tool", "file_edit_tool"]
         requests = [_make_request(t) for t in unsafe_tools]
 
         await asyncio.gather(*[_invoke_middleware(safety, r, tracked_handler) for r in requests])

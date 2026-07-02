@@ -1,4 +1,15 @@
-"""Execution checklist tool — lightweight multi-step progress tracking."""
+"""Execution checklist tool — lightweight multi-step progress tracking.
+
+[INPUT]
+- execution_checklist.state::ExecutionChecklistState (POS: workspace-scoped checklist SSOT)
+- execution_checklist.events::emit_checklist_events (POS: SSE emission after updates)
+
+[OUTPUT]
+- create_update_execution_checklist_tool(): LangChain StructuredTool factory
+
+[POS]
+Agent meta-tool for Path B checklist updates; workspace root resolved per invocation via session ContextVar.
+"""
 
 from __future__ import annotations
 

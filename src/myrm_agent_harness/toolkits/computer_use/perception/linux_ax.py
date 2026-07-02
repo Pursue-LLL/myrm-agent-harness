@@ -216,7 +216,7 @@ def _native_api_hint(app_name: str) -> str:
         if known.lower() in app_name.lower():
             return (
                 f" This app ('{app_name}') supports D-Bus or CLI automation. "
-                "For data retrieval or bulk actions, bash_tool with dbus-send/gdbus or CLI flags is faster than GUI interaction."
+                "For data retrieval or bulk actions, bash_code_execute_tool with dbus-send/gdbus or CLI flags is faster than GUI interaction."
             )
     return ""
 

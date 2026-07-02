@@ -164,8 +164,8 @@ async def test_benchmark_mixed_outputs() -> None:
     # 90 个小输出
     for i in range(90):
         tcid = f"small_{i}"
-        messages.append(AIMessage(content="", tool_calls=[{"id": tcid, "name": "bash_tool", "args": {}}]))
-        messages.append(ToolMessage(content=small_content, tool_call_id=tcid, name="bash_tool"))
+        messages.append(AIMessage(content="", tool_calls=[{"id": tcid, "name": "bash_code_execute_tool", "args": {}}]))
+        messages.append(ToolMessage(content=small_content, tool_call_id=tcid, name="bash_code_execute_tool"))
 
     # 10 个大输出
     for i in range(10):

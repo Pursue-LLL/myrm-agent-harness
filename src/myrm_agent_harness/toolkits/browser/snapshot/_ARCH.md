@@ -18,5 +18,6 @@ Snapshot module. Provides comprehensive snapshot capabilities, ARIA tree enhance
 | frame_snapshot.py | Core | Single-frame snapshot manager. Responsibilities: | ✅ |
 | observer_manager.py | Core | MutationObserver management for change detection. | ✅ |
 | observer_scripts.py | Core | Browser-side JavaScript script constants. Single responsibility: defines DOM mutation | ✅ |
+| self_healer.py | Core | O(1) spatial BBox self-healing locators with semantic veto when strict locators fail | ✅ |
 | page_snapshot.py | Core | Multi-frame registry manager. Responsibilities: | ✅ |
 | snapshot_types.py | Config | Snapshot data types and enums. | ✅ |

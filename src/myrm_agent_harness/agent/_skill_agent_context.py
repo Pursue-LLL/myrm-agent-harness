@@ -184,3 +184,20 @@ def invalidate_permissions(user_id: str, skill_id: str) -> None:
             "set_permission_invalidation_callback() during Agent initialization.",
             skill_id,
         )
+
+
+class SkillAgentContextMixin:
+    """Context preparation mixin for SkillAgent."""
+
+    async def _prepare_context(self, context: dict[str, object]) -> dict[str, object]:
+        """Prepare context — ContextVar for non-serializable session objects."""
+        context = await super()._prepare_context(context)  # type: ignore[misc]
+
+        set_storage_backend(self.storage_backend)  # type: ignore[attr-defined]
+        set_memory_manager(self.memory_manager)  # type: ignore[attr-defined]
+
+        skill_paths = await self._get_skill_storage_paths()  # type: ignore[attr-defined]
+        if skill_paths:
+            context["skill_paths"] = skill_paths
+
+        return context

@@ -281,7 +281,7 @@ def _native_api_hint(app_name: str) -> str:
     if app_name in _SCRIPTABLE_APPS:
         return (
             f" This app ('{app_name}') supports native AppleScript automation. "
-            "For data retrieval or bulk actions, bash_tool with osascript is faster and more reliable than GUI interaction."
+            "For data retrieval or bulk actions, bash_code_execute_tool with osascript is faster and more reliable than GUI interaction."
         )
     return ""
 

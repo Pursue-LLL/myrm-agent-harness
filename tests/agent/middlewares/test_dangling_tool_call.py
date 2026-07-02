@@ -29,7 +29,7 @@ class TestBuildPatchedMessages:
     def test_patches_dangling_tool_call(self) -> None:
         messages = [
             HumanMessage(content="hi"),
-            AIMessage(content="", tool_calls=[{"id": "tc1", "name": "bash_tool", "args": {}}]),
+            AIMessage(content="", tool_calls=[{"id": "tc1", "name": "bash_code_execute_tool", "args": {}}]),
         ]
         patched = _build_patched_messages(messages)
         assert patched is not None

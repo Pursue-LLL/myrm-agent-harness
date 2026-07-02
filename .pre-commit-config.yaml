@@ -24,3 +24,11 @@ repos:
         pass_filenames: false
         always_run: true
         description: "Ensure every Python module directory under src/myrm_agent_harness has _ARCH.md"
+
+      - id: harness-arch-inventory-check
+        name: Harness _ARCH File Inventory
+        entry: python scripts/validate_arch_inventory.py --root src/myrm_agent_harness
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: "Ensure _ARCH.md file tables list every sibling .py module"

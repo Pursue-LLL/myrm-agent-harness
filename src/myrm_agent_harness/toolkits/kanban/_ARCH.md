@@ -126,7 +126,8 @@ Protocol-first architecture with strict framework-business separation.
     in task metadata. Duplicate creations with the same key return the existing task
     instead of creating a new one — makes agent retries safe.
 
-14. **Conditional loading via `enable_kanban` flag**: The server's `profile_resolver`
+14. **Conditional loading via `enable_kanban` flag**: Default agents do not bind any kanban tools
+    (`DEFAULT_ENABLED_BUILTIN_TOOLS` = `web_search` + `memory` only). The server's `profile_resolver`
     maps `"kanban" in enabled_builtin_tools` to `enable_kanban=True`. Binding is
     resolved by `myrm-agent-server/app/ai_agents/general_agent/kanban_tool_mode.py`:
     chat orchestrators default to 8-tool `orchestrator` mode; `KanbanTaskRunner` binds
@@ -242,7 +243,8 @@ Protocol-first architecture with strict framework-business separation.
 | `protocols.py` | KanbanStore (CRUD + edges + runs + events) + TaskRunner + CompletionVerifier + TaskSpecifier + TaskDecomposer protocol contracts |
 | `stores.py` | InMemoryKanbanStore (test/reference, with DFS cycle detection) |
 | `dispatcher.py` | Event-driven scheduler with startup orphan rescue/heartbeat/zombie/auto-block/transient error smart backoff/run tracking/dependency promotion/pre-and-post-execution status drift guard |
-| `diagnostics.py` | Task diagnostic framework — DTOs (TaskDiagnostic, DiagnosticAction, Severity), DiagnosticRule Protocol, DiagnosticEngine. Server layer implements 6 concrete rules including BlockUnblockCyclingRule for detecting block→unblock cycling |
+| `dispatcher_failure.py` | Failure/timeout/retry pipeline mixin for KanbanDispatcher |
+| `diagnostics.py` | Task diagnostic framework — DTOs, DiagnosticRule Protocol, DiagnosticEngine |
 | `kanban_agent_tools.py` | Modular per-action kanban tools with role-scoped loading (worker/orchestrator/full) + `get_worker_lifecycle_guidance()` for system prompt injection |
 | `context_builder.py` | Worker context assembly helper for TaskRunner implementors — includes parent result + handoff metadata propagation + `build_multimodal_query()` for assembling TaskAttachment objects into LLM-compatible multimodal content blocks |
 | `__init__.py` | Public API re-exports |

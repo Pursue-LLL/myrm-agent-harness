@@ -15,8 +15,8 @@ from myrm_agent_harness.agent.security.tool_registry import (
 class TestToolPermissionMap:
     def test_code_execution_tools_map_correctly(self):
         assert TOOL_PERMISSION_MAP["bash_code_execute_tool"] == "code_interpreter"
-        assert TOOL_PERMISSION_MAP["code_interpreter_tool"] == "code_interpreter"
-        assert TOOL_PERMISSION_MAP["bash_tool"] == "shell_exec"
+        assert "code_interpreter_tool" not in TOOL_PERMISSION_MAP
+        assert "bash_tool" not in TOOL_PERMISSION_MAP
 
     def test_file_tools_map_correctly(self):
         assert TOOL_PERMISSION_MAP["file_read_tool"] == "file_read"
@@ -47,7 +47,6 @@ class TestBuiltinToolNames:
         assert "skill_select_tool" in BUILTIN_TOOL_NAMES
         assert "skill_discovery_tool" in BUILTIN_TOOL_NAMES
         assert "discover_capability_tool" in BUILTIN_TOOL_NAMES
-        assert "code_interpreter_tool" in BUILTIN_TOOL_NAMES
         assert "request_answer_user_tool" in BUILTIN_TOOL_NAMES
         assert "render_ui_tool" in BUILTIN_TOOL_NAMES
 
@@ -149,8 +148,6 @@ class TestSafetyMetadata:
     def test_destructive_tools_declared(self):
         for tool in (
             "bash_code_execute_tool",
-            "code_interpreter_tool",
-            "bash_tool",
             "file_write_tool",
             "file_edit_tool",
         ):
@@ -288,7 +285,7 @@ class TestComputeCanonicalArgsHash:
     def test_none_args_returns_none(self):
         from myrm_agent_harness.agent.security.tool_registry import compute_canonical_args_hash
 
-        assert compute_canonical_args_hash("bash_tool", None) is None
+        assert compute_canonical_args_hash("bash_code_execute_tool", None) is None
 
     def test_known_tool_uses_canonical_params(self):
         from myrm_agent_harness.agent.security.tool_registry import TOOL_CANONICAL_PARAMS, compute_canonical_args_hash
@@ -335,7 +332,7 @@ class TestCheckSafetyCoverage:
         log_capture = io.StringIO()
         handler = logging.StreamHandler(log_capture)
         handler.setLevel(logging.WARNING)
-        logger = logging.getLogger("myrm_agent_harness.core.security.tool_registry")
+        logger = logging.getLogger("myrm_agent_harness.core.security.tool_registry_safety")
         logger.addHandler(handler)
         try:
             _check_safety_coverage()
@@ -354,7 +351,7 @@ class TestCheckSafetyCoverage:
         log_capture = io.StringIO()
         handler = logging.StreamHandler(log_capture)
         handler.setLevel(logging.WARNING)
-        logger = logging.getLogger("myrm_agent_harness.agent.security.tool_registry")
+        logger = logging.getLogger("myrm_agent_harness.core.security.tool_registry_safety")
         logger.addHandler(handler)
         try:
             _check_safety_coverage()

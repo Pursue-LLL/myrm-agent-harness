@@ -738,7 +738,7 @@ def test_taint_propagation_logic() -> None:
 
     assert parent_taint.is_tainted
     assert TaintLabel.EXTERNAL_NETWORK in parent_taint.labels
-    assert parent_taint.check_sink("bash_tool") is not None
+    assert parent_taint.check_sink("bash_code_execute_tool") is not None
 
 
 def test_taint_propagation_with_secret_label() -> None:

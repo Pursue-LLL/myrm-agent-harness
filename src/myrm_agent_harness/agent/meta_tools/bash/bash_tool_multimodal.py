@@ -59,7 +59,7 @@ async def maybe_build_image_blocks(
         try:
             image_result = await read_image_as_content_blocks(image_path, executor, supports_vision=True)
         except Exception as exc:
-            logger.warning("bash_tool: failed to inline image %s: %s", image_path, exc)
+            logger.warning("bash_code_execute_tool: failed to inline image %s: %s", image_path, exc)
             continue
 
         if isinstance(image_result, list):

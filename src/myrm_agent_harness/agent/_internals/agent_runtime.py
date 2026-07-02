@@ -596,11 +596,9 @@ async def run_agent_loop(
 
         if not stats.was_cancelled:
             logger.info(
-                "Final answer streaming %s",
+                "Agent execution completed; final answer streaming %s",
                 "completed" if executor.streaming_final_answer else "not detected",
             )
-
-        logger.success("Agent execution completed")
         usage_info = f", tokens: {stats.token_usage.total_tokens}" if stats.token_usage else ""
         cost_info = f", cost: ${stats.cost_usd:.6f}" if stats.cost_usd > 0 else ""
         logger.info(

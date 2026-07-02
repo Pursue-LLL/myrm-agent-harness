@@ -28,7 +28,7 @@ class TestTaintSources:
 
 class TestTaintSinkPolicies:
     def test_bash_blocks_external(self):
-        assert TaintLabel.EXTERNAL_NETWORK in TAINT_SINK_POLICIES["bash_tool"]
+        assert TaintLabel.EXTERNAL_NETWORK in TAINT_SINK_POLICIES["bash_code_execute_tool"]
         assert TaintLabel.EXTERNAL_NETWORK in TAINT_SINK_POLICIES["bash_code_execute_tool"]
 
     def test_file_write_blocks_external(self):
@@ -69,18 +69,18 @@ class TestTaintTracker:
 
     def test_check_sink_no_taint(self):
         tracker = TaintTracker()
-        assert tracker.check_sink("bash_tool") is None
+        assert tracker.check_sink("bash_code_execute_tool") is None
 
     def test_check_sink_with_conflict(self):
         tracker = TaintTracker()
         tracker.record(TaintLabel.EXTERNAL_NETWORK)
-        conflict = tracker.check_sink("bash_tool")
+        conflict = tracker.check_sink("bash_code_execute_tool")
         assert TaintLabel.EXTERNAL_NETWORK in conflict
 
     def test_check_sink_no_conflict(self):
         tracker = TaintTracker()
         tracker.record(TaintLabel.SECRET)
-        assert tracker.check_sink("bash_tool") is None
+        assert tracker.check_sink("bash_code_execute_tool") is None
 
     def test_check_sink_unknown_tool(self):
         tracker = TaintTracker()
@@ -91,7 +91,7 @@ class TestTaintTracker:
         """Simulate: web_fetch → taint → bash_tool blocked."""
         tracker = TaintTracker()
         tracker.record_tool_output("web_fetch_tool")
-        assert TaintLabel.EXTERNAL_NETWORK in tracker.check_sink("bash_tool")
+        assert TaintLabel.EXTERNAL_NETWORK in tracker.check_sink("bash_code_execute_tool")
         assert TaintLabel.EXTERNAL_NETWORK in tracker.check_sink("file_write_tool")
         assert tracker.check_sink("web_search_tool") is None
 
@@ -100,7 +100,7 @@ class TestTaintTracker:
         tracker.record(TaintLabel.EXTERNAL_NETWORK)
         tracker.record(TaintLabel.SECRET)
         assert len(tracker.labels) == 2
-        assert TaintLabel.EXTERNAL_NETWORK in tracker.check_sink("bash_tool")
+        assert TaintLabel.EXTERNAL_NETWORK in tracker.check_sink("bash_code_execute_tool")
 
 
 class TestContextVar:

@@ -11,12 +11,12 @@
 - .bash_tool_exit_semantics (POS: Exit-code semantic interpretation)
 
 [OUTPUT]
-- create_bash_tool: Factory creating the bash_code_execute_tool LangChain Tool
+- create_bash_code_execute_tool: Factory creating the bash_code_execute_tool LangChain Tool
 - Re-exported helpers for tests (see __all__)
 
 [POS]
 Bash code execution LangChain tool aggregate root.
-Public import path: ``from ...bash_tool import create_bash_tool``.
+Public import path: ``from ...bash_code_execute_tool import create_bash_code_execute_tool``.
 """
 
 from __future__ import annotations
@@ -65,7 +65,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Backward-compatible aliases for tests importing from bash_tool aggregate.
+# Test-oriented re-exports from the bash_code_execute_tool aggregate module.
 _interpret_exit_code = interpret_exit_code
 _format_result = format_result
 _truncate_bash_output = truncate_bash_output
@@ -78,7 +78,7 @@ _maybe_build_image_blocks = maybe_build_image_blocks
 _CONTEXT_PATH_PATTERNS = CONTEXT_PATH_PATTERNS
 
 
-def create_bash_tool(
+def create_bash_code_execute_tool(
     skills: list[SkillMetadata] | None = None,
     *,
     skill_env_map: dict[str, dict[str, str]] | None = None,
@@ -315,7 +315,7 @@ def create_bash_tool(
 __all__ = [
     "MAX_IMAGES_PER_RETURN",
     "BashInput",
-    "create_bash_tool",
+    "create_bash_code_execute_tool",
     "_build_background_listeners",
     "_classify_background_exit",
     "_format_result",

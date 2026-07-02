@@ -15,6 +15,7 @@ Browser session components.
 | browser_session_extraction_mixin.py | Core | Content extraction, vision fallback, media URLs, screenshot compare/export mixin for BrowserSession. | ✅ |
 | browser_session_page_mixin.py | Core | Viewport, dialog, and misc page-level helpers for BrowserSession. | ✅ |
 | consent_dismisser.py | Core | Cookie consent auto-dismisser. 7-phase strategy: CMP-specific buttons (75+ selectors), generic attributes, multilingual text matching (14 languages), Shadow DOM CMPs, CMP JS APIs (Didomi/Cookiebot/Osano/Klaro), force-remove CMP containers (55+ selectors + iframe cleanup), scroll restoration. Also hooked into Navigator for L2 web_fetch coverage. Zero LLM cost, ~50ms. | ✅ |
+| dialog_manager.py | Core | JavaScript dialog lifecycle manager (alert/confirm/prompt/beforeunload) with DialogPolicy strategies | ✅ |
 | browser_session_persistence_mixin.py | Core | Encrypted session save/restore API for BrowserSession. | ✅ |
 | browser_session_recording_mixin.py | Core | Playwright trace and HAR recording controls for BrowserSession. | ✅ |
 | download_manager.py | Core | Browser file download manager. Single responsibility: listen for, process, and record file downloads | ✅ |

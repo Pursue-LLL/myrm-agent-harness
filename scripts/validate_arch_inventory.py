@@ -6,6 +6,7 @@ prose mentions of ``other_module.py`` are ignored.
 
 Usage:
     python scripts/validate_arch_inventory.py
+    python scripts/validate_arch_inventory.py --root src/myrm_agent_harness
     python scripts/validate_arch_inventory.py --root src/myrm_agent_harness/agent
     python scripts/validate_arch_inventory.py --json
 
@@ -24,7 +25,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-_AGENT_ROOT = _REPO_ROOT / "src" / "myrm_agent_harness" / "agent"
 _TABLE_HEADER_CELLS = frozenset({"File", "Module", "Submodule", "文件"})
 
 
@@ -56,6 +56,23 @@ def _first_table_cell(line: str) -> str | None:
     return cells[1].strip("`").strip()
 
 
+def _is_inventory_file_cell(first: str) -> bool:
+    """Return True when the first table cell names a single sibling .py file."""
+    if first == "__init__.py":
+        return True
+    if not first.endswith(".py"):
+        return False
+    if "/" in first or "\\" in first:
+        return False
+    # Comparison/prose rows often list multiple paths in one cell.
+    if "," in first:
+        return False
+    stem = first[: -len(".py")]
+    if not stem.isidentifier():
+        return False
+    return True
+
+
 def _listed_py_in_arch(arch_path: Path) -> set[str]:
     listed: set[str] = set()
     for line in arch_path.read_text(encoding="utf-8").splitlines():
@@ -66,7 +83,7 @@ def _listed_py_in_arch(arch_path: Path) -> set[str]:
             continue
         if first.startswith("---") or first.startswith("—"):
             continue
-        if first.endswith(".py"):
+        if _is_inventory_file_cell(first):
             listed.add(first)
     return listed
 
@@ -99,8 +116,8 @@ def scan_tree(root: Path) -> list[DirReport]:
     return reports
 
 
-def _format_reports(reports: list[DirReport]) -> str:
-    lines = ["=" * 72, "_ARCH.md inventory validation (agent/)", "=" * 72]
+def _format_reports(reports: list[DirReport], *, root_label: str) -> str:
+    lines = ["=" * 72, f"_ARCH.md inventory validation ({root_label})", "=" * 72]
     failed = False
     for report in reports:
         rel = report.directory.relative_to(_REPO_ROOT)
@@ -123,8 +140,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--root",
         type=Path,
-        default=_AGENT_ROOT,
-        help="Subdirectory under agent/ to scan (default: entire agent/)",
+        default=_REPO_ROOT / "src" / "myrm_agent_harness",
+        help="Package subtree to scan (default: entire src/myrm_agent_harness/)",
     )
     parser.add_argument("--json", action="store_true", help="JSON output")
     args = parser.parse_args(argv)
@@ -149,7 +166,11 @@ def main(argv: list[str] | None = None) -> int:
         ]
         print(json.dumps({"ok": not has_fail, "reports": payload}, indent=2))
     else:
-        print(_format_reports(reports))
+        try:
+            root_label = root.relative_to(_REPO_ROOT).as_posix()
+        except ValueError:
+            root_label = str(root)
+        print(_format_reports(reports, root_label=root_label))
 
     return 1 if has_fail else 0
 

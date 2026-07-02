@@ -76,10 +76,10 @@ class TestProgressStepExtraction:
         steps = [
             {"tool_name": "file_write_tool", "items": [{"path": "a.py"}]},
             {"tool_name": "file_write_tool", "items": [{"path": "b.py"}]},
-            {"tool_name": "bash_tool", "items": [{"command": "ls"}]},
+            {"tool_name": "bash_code_execute_tool", "items": [{"command": "ls"}]},
         ]
         brief = CatchupBriefExtractor.extract([], steps)
-        assert brief.tool_counts == {"file_write_tool": 2, "bash_tool": 1}
+        assert brief.tool_counts == {"file_write_tool": 2, "bash_code_execute_tool": 1}
 
     def test_extracts_file_paths(self) -> None:
         steps = [
@@ -93,7 +93,7 @@ class TestProgressStepExtraction:
 
     def test_extracts_bash_activity(self) -> None:
         steps = [
-            {"tool_name": "bash_tool", "items": [{"command": "npm install"}]},
+            {"tool_name": "bash_code_execute_tool", "items": [{"command": "npm install"}]},
         ]
         brief = CatchupBriefExtractor.extract([], steps)
         assert len(brief.activity_steps) == 1
@@ -109,7 +109,7 @@ class TestProgressStepExtraction:
 
     def test_truncates_long_commands(self) -> None:
         long_cmd = "a" * 100
-        steps = [{"tool_name": "bash_tool", "items": [{"command": long_cmd}]}]
+        steps = [{"tool_name": "bash_code_execute_tool", "items": [{"command": long_cmd}]}]
         brief = CatchupBriefExtractor.extract([], steps)
         assert brief.activity_steps[0].endswith("...")
 
@@ -122,16 +122,16 @@ class TestProgressStepExtraction:
 
     def test_deduplicates_activity_steps(self) -> None:
         steps = [
-            {"tool_name": "bash_tool", "items": [{"command": "npm test"}]},
-            {"tool_name": "bash_tool", "items": [{"command": "npm test"}]},
-            {"tool_name": "bash_tool", "items": [{"command": "npm test"}]},
+            {"tool_name": "bash_code_execute_tool", "items": [{"command": "npm test"}]},
+            {"tool_name": "bash_code_execute_tool", "items": [{"command": "npm test"}]},
+            {"tool_name": "bash_code_execute_tool", "items": [{"command": "npm test"}]},
         ]
         brief = CatchupBriefExtractor.extract([], steps)
         assert len(brief.activity_steps) == 1
 
     def test_limits_activity_steps_to_five(self) -> None:
         steps = [
-            {"tool_name": "bash_tool", "items": [{"command": f"cmd-{i}"}]}
+            {"tool_name": "bash_code_execute_tool", "items": [{"command": f"cmd-{i}"}]}
             for i in range(10)
         ]
         brief = CatchupBriefExtractor.extract([], steps)
@@ -199,7 +199,7 @@ class TestIntegration:
             {"tool_name": "file_edit_tool", "items": [{"path": "auth/login.py"}]},
             {"tool_name": "file_edit_tool", "items": [{"path": "auth/logout.py"}]},
             {"tool_name": "file_write_tool", "items": [{"path": "auth/middleware.py"}]},
-            {"tool_name": "bash_tool", "items": [{"command": "pytest tests/"}]},
+            {"tool_name": "bash_code_execute_tool", "items": [{"command": "pytest tests/"}]},
             {"tool_name": "web_search_tool", "items": [{"query": "JWT best practices"}]},
         ]
         brief = CatchupBriefExtractor.extract(messages, steps, status="completed")
@@ -210,7 +210,7 @@ class TestIntegration:
         assert "auth/login.py" in brief.files_touched
         assert brief.tool_counts["file_edit_tool"] == 2
         assert brief.tool_counts["file_write_tool"] == 1
-        assert brief.tool_counts["bash_tool"] == 1
+        assert brief.tool_counts["bash_code_execute_tool"] == 1
         assert brief.tool_counts["web_search_tool"] == 1
         assert any("pytest" in s for s in brief.activity_steps)
         assert any("JWT" in s for s in brief.activity_steps)

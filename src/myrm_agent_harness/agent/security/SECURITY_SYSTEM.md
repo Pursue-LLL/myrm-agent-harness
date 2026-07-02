@@ -328,7 +328,6 @@ class TaintLabel(StrEnum):
 
 | 工具 | 阻止的污点 |
 |------|-----------|
-| `bash_tool` | `EXTERNAL_NETWORK` |
 | `bash_code_execute_tool` | `EXTERNAL_NETWORK` |
 | `file_write_tool` | `EXTERNAL_NETWORK` |
 | `file_edit_tool` | `EXTERNAL_NETWORK` |
@@ -1108,8 +1107,6 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 | 工具名 | 权限类型 |
 |--------|---------|
 | `bash_code_execute_tool` | `code_interpreter` |
-| `code_interpreter_tool` | `code_interpreter` |
-| `bash_tool` | `shell_exec` |
 | `file_read_tool` / `grep_tool` / `glob_tool` | `file_read` |
 | `file_write_tool` / `file_edit_tool` | `file_write` |
 | `web_fetch_tool` | `net_fetch` |

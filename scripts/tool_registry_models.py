@@ -59,6 +59,16 @@ class ScanReport:
             - SCHEMA_ONLY_TOOL_NAMES
         )
 
+    def ghost_registry_metadata_keys(self, metadata_keys: set[str]) -> set[str]:
+        """Registry metadata keys (permission map, tool groups, etc.) with no tool source."""
+        allowed = (
+            self.declared_names
+            | self.registered_names
+            | INTERNAL_TOOL_NAMES
+            | SCHEMA_ONLY_TOOL_NAMES
+        )
+        return metadata_keys - allowed
+
     def orphan_factories(self) -> set[str]:
         """Factory functions with zero outbound call sites."""
         return {

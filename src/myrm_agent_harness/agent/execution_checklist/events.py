@@ -1,4 +1,14 @@
-"""SSE tasks_steps emission for execution checklist UI."""
+"""SSE tasks_steps emission for execution checklist UI.
+
+[INPUT]
+- execution_checklist.state::ExecutionChecklistState, ChecklistItem (POS: checklist models)
+
+[OUTPUT]
+- emit_checklist_events(): dispatch tasks_steps custom events for ProgressSteps UI
+
+[POS]
+Bridges checklist state mutations to LangChain custom SSE events (`is_plan=false`).
+"""
 
 from __future__ import annotations
 

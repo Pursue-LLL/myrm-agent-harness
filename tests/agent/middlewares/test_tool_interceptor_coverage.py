@@ -669,7 +669,7 @@ async def test_pre_check_tool_stuck_triggers_interrupt_via_pre_call_guards():
     from myrm_agent_harness.agent.middlewares._tool_guards import run_pre_call_guards as _run_pre_call_guards
 
     request = ToolCallRequest(
-        tool_call={"name": "bash_tool", "id": "call_pre_check", "args": {"cmd": "echo"}},
+        tool_call={"name": "bash_code_execute_tool", "id": "call_pre_check", "args": {"cmd": "echo"}},
         tool=MagicMock(),
         state=None,
         runtime=MagicMock(),
@@ -694,11 +694,11 @@ async def test_pre_check_tool_stuck_triggers_interrupt_via_pre_call_guards():
         mock_hook.return_value = mock_hook_result
 
         mock_interrupt.side_effect = GraphInterrupt(
-            {"action_type": "tool_stuck", "tool_name": "bash_tool"}
+            {"action_type": "tool_stuck", "tool_name": "bash_code_execute_tool"}
         )
 
         with pytest.raises(GraphInterrupt):
-            await _run_pre_call_guards(request, "bash_tool", "call_pre_check", {"cmd": "echo"})
+            await _run_pre_call_guards(request, "bash_code_execute_tool", "call_pre_check", {"cmd": "echo"})
 
         mock_interrupt.assert_called_once()
         payload = mock_interrupt.call_args[0][0]
@@ -713,7 +713,7 @@ async def test_pre_check_tool_stuck_fallthrough_returns_error_msg():
     from myrm_agent_harness.agent.middlewares._tool_guards import run_pre_call_guards as _run_pre_call_guards
 
     request = ToolCallRequest(
-        tool_call={"name": "bash_tool", "id": "call_pre_ft", "args": {"cmd": "echo"}},
+        tool_call={"name": "bash_code_execute_tool", "id": "call_pre_ft", "args": {"cmd": "echo"}},
         tool=MagicMock(),
         state=None,
         runtime=MagicMock(),
@@ -737,7 +737,7 @@ async def test_pre_check_tool_stuck_fallthrough_returns_error_msg():
         mock_hook_result.updated_input = None
         mock_hook.return_value = mock_hook_result
 
-        result = await _run_pre_call_guards(request, "bash_tool", "call_pre_ft", {"cmd": "echo"})
+        result = await _run_pre_call_guards(request, "bash_code_execute_tool", "call_pre_ft", {"cmd": "echo"})
         assert isinstance(result, ToolMessage)
         assert "TOOL_STUCK_EXCEPTION" in result.content
 
@@ -756,16 +756,16 @@ async def test_handle_execution_error_tool_stuck_triggers_interrupt():
 
     with patch("langgraph.types.interrupt") as mock_interrupt:
         mock_interrupt.side_effect = GraphInterrupt(
-            {"action_type": "tool_stuck", "tool_name": "bash_tool"}
+            {"action_type": "tool_stuck", "tool_name": "bash_code_execute_tool"}
         )
 
         with pytest.raises(GraphInterrupt):
-            await _handle_execution_error(e, "bash_tool", "call_999", {"cmd": "echo"})
+            await _handle_execution_error(e, "bash_code_execute_tool", "call_999", {"cmd": "echo"})
 
         mock_interrupt.assert_called_once()
         call_payload = mock_interrupt.call_args[0][0]
         assert call_payload["action_type"] == "tool_stuck"
-        assert call_payload["tool_name"] == "bash_tool"
+        assert call_payload["tool_name"] == "bash_code_execute_tool"
         assert "TOOL_STUCK_EXCEPTION" in call_payload["error_message"]
 
 
@@ -781,5 +781,5 @@ async def test_handle_execution_error_tool_stuck_fallthrough_if_interrupt_return
 
     with patch("langgraph.types.interrupt", return_value=None):
         with patch("myrm_agent_harness.agent.hooks.executor.fire_hook"):
-            result = await _handle_execution_error(e, "bash_tool", "call_999", {})
+            result = await _handle_execution_error(e, "bash_code_execute_tool", "call_999", {})
             assert "ToolStuckException" in result.content or "TOOL_STUCK_EXCEPTION" in result.content

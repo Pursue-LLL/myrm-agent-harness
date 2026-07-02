@@ -1,6 +1,6 @@
 """Bash code execution tool description (prompt visible to the LLM).
 
-Decoupled from ``bash_tool.py`` to keep the tool factory focused on wiring
+Decoupled from ``bash_code_execute_tool.py`` to keep the tool factory focused on wiring
 and to satisfy the file-size guideline (single file ≤ 500 lines).
 
 [INPUT]
@@ -24,7 +24,7 @@ TOOL_DESCRIPTION = """
 2. **执行脚本**:运行已存在的脚本文件(python script.py / bash script.sh)。
 3. **执行 Python 代码**:**直接将 Python 源码作为 command 传入,框架自动识别并以文件模式执行**。
    - 可调用预装库:pandas, numpy, scipy, matplotlib, seaborn, json, datetime, re。
-   - **可 `import myrm_tools` 调用所有 Agent 工具**(PTC — Programmatic Tool Calling)。例如 `myrm_tools.web_search(query="...")`, `myrm_tools.file_read_tool(path="...")` 等。工具名和参数与 Agent 工具完全一致,返回值为工具的 JSON/str 输出。
+   - **可 `import myrm_tools` 调用所有 Agent 工具**(PTC — Programmatic Tool Calling)。例如 `myrm_tools.web_search_tool(query="...")`, `myrm_tools.file_read_tool(path="...")` 等。工具名和参数与 Agent 工具完全一致,返回值为工具的 JSON/str 输出。
    - 可调用已注册技能(skills.*_skill)。
    - **严禁使用 `python -c "..."` / `python3 -c "..."` 包装器** — shell 转义会破坏复杂引号与多行字符串,产生不可预测的 SyntaxError。直接传代码即可,框架会自动以文件模式执行。
 

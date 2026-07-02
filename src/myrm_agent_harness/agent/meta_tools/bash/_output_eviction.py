@@ -6,7 +6,7 @@
 3. 返回结构化结果供 SSE 事件携带 evicted 文件引用
 
 与 FilterProcessor 的关系：
-- 本模块是第一道防线（即时，只处理 bash_tool 输出）
+- 本模块是第一道防线（即时，只处理 bash_code_execute_tool 输出）
 - FilterProcessor 是第二道防线（延迟，处理所有 ToolMessage）
 - 两者独立，不冲突（eviction 后内容很小，FilterProcessor 自动跳过）
 

@@ -19,7 +19,7 @@ from myrm_agent_harness.agent.middlewares._tool_execution_lifecycle import (
 class TestResolveDynamicTool:
     def test_returns_request_when_tool_is_set(self) -> None:
         request = ToolCallRequest(
-            tool_call={"name": "bash_tool", "id": "c1", "args": {}},
+            tool_call={"name": "bash_code_execute_tool", "id": "c1", "args": {}},
             tool=MagicMock(),
             state=None,
             runtime=MagicMock(),
@@ -29,13 +29,13 @@ class TestResolveDynamicTool:
 
     def test_resolves_from_registry_exact_match(self) -> None:
         mock_tool = MagicMock()
-        mock_tool.name = "bash_tool"
+        mock_tool.name = "bash_code_execute_tool"
         mock_registry = MagicMock()
         mock_registry.resolve.return_value = [mock_tool]
         mock_registry.get_deferred_tools.return_value = []
 
         request = ToolCallRequest(
-            tool_call={"name": "bash_tool", "id": "c1", "args": {}},
+            tool_call={"name": "bash_code_execute_tool", "id": "c1", "args": {}},
             tool=None,
             state=None,
             runtime=MagicMock(),
@@ -125,7 +125,7 @@ class TestResolveDynamicTool:
         mock_registry.get_deferred_tools.return_value = []
 
         request = ToolCallRequest(
-            tool_call={"name": "bash_tool", "id": "c1", "args": {}},
+            tool_call={"name": "bash_code_execute_tool", "id": "c1", "args": {}},
             tool=None,
             state=None,
             runtime=MagicMock(),
@@ -149,7 +149,7 @@ class TestResolveDynamicTool:
 
     def test_no_registry(self) -> None:
         request = ToolCallRequest(
-            tool_call={"name": "bash_tool", "id": "c1", "args": {}},
+            tool_call={"name": "bash_code_execute_tool", "id": "c1", "args": {}},
             tool=None,
             state=None,
             runtime=MagicMock(),
@@ -173,10 +173,10 @@ class TestResolveDynamicTool:
 
     def test_resolves_from_active_tools(self) -> None:
         mock_tool = MagicMock()
-        mock_tool.name = "bash_tool"
+        mock_tool.name = "bash_code_execute_tool"
 
         request = ToolCallRequest(
-            tool_call={"name": "bash_tool", "id": "c1", "args": {}},
+            tool_call={"name": "bash_code_execute_tool", "id": "c1", "args": {}},
             tool=None,
             state=None,
             runtime=MagicMock(),

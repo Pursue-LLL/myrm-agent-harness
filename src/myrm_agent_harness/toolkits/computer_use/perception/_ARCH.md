@@ -7,6 +7,7 @@ Platform AX/UIA/AT-SPI snapshot capture, tree rendering, element invoke dispatch
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
+| __init__.py | Package | Platform AX/UIA/AT-SPI perception package | — |
 | ax_dispatch.py | Core | Platform routing: capture_snapshot, inspect_backend, invoke_element | ✅ |
 | renderer.py | Core | AX tree text rendering for agent context | ✅ |
 | macos_ax.py | Platform | macOS Accessibility API snapshot + invoke + native API routing hints | ✅ |

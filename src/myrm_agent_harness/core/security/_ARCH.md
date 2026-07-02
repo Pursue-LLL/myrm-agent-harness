@@ -14,6 +14,7 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | redact.py | Core | Output redaction layer — sanitizes sensitive patterns in agent output. | ✅ |
 | safe_exec.py | Core | Safe execution primitives — sandboxed code evaluation with resource limits. | ✅ |
 | tool_registry.py | Core | Tool metadata registry — permission mapping, canonical params, safety metadata, canonical tool group mapping (TOOL_GROUP_MAP/TOOL_TO_GROUP for skill conditional activation). | ✅ |
+| tool_registry_safety.py | Internal | Module-load built-in tool safety metadata coverage check. | ✅ |
 | types.py | Core | Foundation security type hierarchy — SecurityConfig, PathPolicy, enums. | ✅ |
 | credential_vault.py | Core | In-memory credential vault — label→password/TOTP resolution for browser/desktop injection (secrets never in LLM context). | ✅ |
 

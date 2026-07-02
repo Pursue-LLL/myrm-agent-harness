@@ -33,32 +33,32 @@ class TestLoopGuardRepetition:
     def test_no_loop_below_threshold(self) -> None:
         g = LoopGuard(warn_threshold=3)
         for _ in range(2):
-            verdict = g.pre_check("bash_tool", {"command": "ls"})
+            verdict = g.pre_check("bash_code_execute_tool", {"command": "ls"})
         assert verdict.action == LoopAction.ALLOW
 
     def test_repetition_at_warn_threshold(self) -> None:
         g = LoopGuard(warn_threshold=3)
         for _ in range(3):
-            verdict = g.pre_check("bash_tool", {"command": "ls"})
+            verdict = g.pre_check("bash_code_execute_tool", {"command": "ls"})
         assert verdict.action == LoopAction.WARN
 
     def test_repetition_at_break_threshold(self) -> None:
         g = LoopGuard(warn_threshold=3, break_threshold=5)
         for _ in range(5):
-            verdict = g.pre_check("bash_tool", {"command": "ls"})
+            verdict = g.pre_check("bash_code_execute_tool", {"command": "ls"})
         assert verdict.action == LoopAction.BREAK
 
     def test_repetition_message(self) -> None:
         g = LoopGuard(warn_threshold=3)
         for _ in range(3):
-            verdict = g.pre_check("bash_tool", {"command": "ls"})
-        assert "bash_tool" in verdict.reason
+            verdict = g.pre_check("bash_code_execute_tool", {"command": "ls"})
+        assert "bash_code_execute_tool" in verdict.reason
         assert "3" in verdict.reason
 
     def test_different_args_no_repetition(self) -> None:
         g = LoopGuard(warn_threshold=3)
         for i in range(5):
-            verdict = g.pre_check("bash_tool", {"command": f"cmd_{i}"})
+            verdict = g.pre_check("bash_code_execute_tool", {"command": f"cmd_{i}"})
         assert verdict.action == LoopAction.ALLOW
 
     def test_different_tools_no_repetition(self) -> None:

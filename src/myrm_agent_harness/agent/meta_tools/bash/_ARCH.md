@@ -8,7 +8,7 @@ Bash tool module.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Bash tool module. | — |
-| _tool_description.py | Internal | Static `TOOL_DESCRIPTION` prompt string for the LLM (split out for file-size hygiene; isolated from wiring). | ✅ |
+| `_tool_description.py` | Internal | Static `TOOL_DESCRIPTION` prompt string for the LLM. PTC examples use Agent tool names (e.g. `web_search_tool`); bash description appends PTC-only builtins via `get_ptc_description()`. | ✅ |
 | _output_eviction.py | Internal | Large output eviction (save to file, return `EvictionResult(text, evicted_ref)` for SSE propagation to GUI viewer). | ✅ |
 | _event_logging.py | Internal | Event logging for bash command execution (redaction, classification). | ✅ |
 | _preflight_checks.py | Internal | Security preflight: URL exfiltration, sensitive paths, interactive detection. | ✅ |
@@ -21,7 +21,7 @@ Bash tool module.
 | bash_executor_background_mixin.py | Core | ``spawn_background()`` via background process registry. | ✅ |
 | bash_executor_prepare_mixin.py | Core | MCP proxy, code-type detection, skill staging, PTC routing. | ✅ |
 | bash_executor_context_mixin.py | Core | ExecutionContext build, OAuth issuer scoping, event logging. | ✅ |
-| bash_tool.py | Core | ``create_bash_tool`` LangChain factory aggregate root; re-exports test helpers. | ✅ |
+| bash_code_execute_tool.py | Core | ``create_bash_code_execute_tool`` LangChain factory aggregate root; re-exports test helpers. | ✅ |
 | bash_tool_exit_semantics.py | Core | Exit-code semantic interpretation (grep=1, git diff, signals). | ✅ |
 | bash_tool_formatting.py | Core | Output compression, truncation, redaction, tool_output wrapping. | ✅ |
 | bash_tool_background_listeners.py | Core | Background spawn ptc_notify listeners and exit classification. | ✅ |

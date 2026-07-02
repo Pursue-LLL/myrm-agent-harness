@@ -8,7 +8,7 @@ and failed command outputs; unrecognized commands pass through.
 - (none — self-contained module, no cross-module dependencies)
 
 [OUTPUT]
-- compress_output(): Entry function called by bash_tool._format_result()
+- compress_output(): Entry function called by bash_code_execute_tool._format_result()
 
 [POS]
 Command-aware semantic compressor for bash tool outputs. Sits between raw execution
@@ -227,7 +227,7 @@ def compress_output(
 ) -> str:
     """Compress bash stdout for known commands. Returns original if not compressible.
 
-    This is the single entry point called from bash_tool._format_result().
+    This is the single entry point called from bash_code_execute_tool._format_result().
     Compresses when:
     - Feature is enabled (MYRM_BASH_COMPRESSION != "0")
     - Command matches a known pattern

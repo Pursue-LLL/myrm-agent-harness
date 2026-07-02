@@ -222,7 +222,7 @@ class LoopGuard(LoopDetectorMixin):
         if safety_meta.is_idempotent:
             is_idempotent = True
 
-        if not is_idempotent and tool_name in ("bash_tool", "bash_code_execute_tool") and args:
+        if not is_idempotent and tool_name == "bash_code_execute_tool" and args:
             command = str(args.get("command", "")).strip()
             if command.startswith(("ls ", "cat ", "grep ", "find ", "pwd", "echo ", "head ", "tail ")):
                 is_idempotent = True

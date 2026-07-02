@@ -1,4 +1,15 @@
-"""Execution checklist subsystem — lightweight session task tracking."""
+"""Execution checklist subsystem — lightweight session task tracking.
+
+[INPUT]
+- execution_checklist.state::ExecutionChecklistState (POS: checklist persistence models)
+- execution_checklist.tool::create_update_execution_checklist_tool (POS: LangChain tool factory)
+
+[OUTPUT]
+- Public re-exports for state helpers and update tool factory
+
+[POS]
+Package entry for Path B execution checklist — complements planner_tool (Path A).
+"""
 
 from myrm_agent_harness.agent.execution_checklist.state import (
     CHECKLIST_STORAGE_REL,

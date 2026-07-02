@@ -134,7 +134,7 @@ class TestToolCallEventData:
 
     def test_to_dict_full(self):
         data = ToolCallEventData(
-            tool_name="bash_tool",
+            tool_name="bash_code_execute_tool",
             status="completed",
             start_time=1000.0,
             end_time=1002.5,
@@ -148,7 +148,7 @@ class TestToolCallEventData:
             evicted_ref="/tmp/output.txt",
         )
         d = data.to_dict()
-        assert d["tool_name"] == "bash_tool"
+        assert d["tool_name"] == "bash_code_execute_tool"
         assert d["duration_ms"] == 2500
         assert d["evicted_ref"] == "/tmp/output.txt"
         assert d["version"] == 3

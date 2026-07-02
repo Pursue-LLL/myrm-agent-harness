@@ -32,6 +32,6 @@ Toolkits Llms module.
 
 | Layer | Location | Role |
 |-------|----------|------|
-| **Generation** | `image/`, `video/`, `tts/` | LLM/agent tools for image, video, and audio creation |
+| **Generation** | `image/`, `video/`, `tts/` | LLM engines for image, video, and audio creation (LangChain adapters in server `media_tools/`) |
 | **Shared media** | `_media_shared/` | SSRF-safe fetch, normalization — shared by generation modules |
 | **Understanding** | `vision/` | Text-mode fallback when the primary model lacks vision; consumed by `file_read_tool`, server chat utils |

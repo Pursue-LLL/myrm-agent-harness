@@ -239,7 +239,7 @@ async def test_normal_string_result_no_events():
     """Normal string result with no source_tracker should yield zero events."""
     msg = ToolMessage(
         content="Task completed successfully.",
-        name="bash_tool",
+        name="bash_code_execute_tool",
         tool_call_id="call_norm",
     )
 
@@ -344,7 +344,7 @@ async def test_process_updates_tool_result():
     """ToolMessage should be processed through _handle_tool_result."""
     stats = AgentRunStatistics()
     tool_msg = ToolMessage(
-        content="Result text", name="bash_tool", tool_call_id="tc_2"
+        content="Result text", name="bash_code_execute_tool", tool_call_id="tc_2"
     )
     data = {"agent": {"messages": [tool_msg]}}
 

@@ -5,7 +5,7 @@ Covers _interpret_exit_code and its integration in _format_result.
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool import _format_result, _interpret_exit_code
+from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import _format_result, _interpret_exit_code
 
 
 class TestInterpretExitCode:
@@ -253,7 +253,7 @@ class TestClassifyBackgroundExit:
         )
 
     def test_clean_exit_returns_none(self) -> None:
-        from myrm_agent_harness.agent.meta_tools.bash.bash_tool import (
+        from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
             _classify_background_exit,
         )
 
@@ -271,7 +271,7 @@ class TestClassifyBackgroundExit:
         ],
     )
     def test_known_codes_mapped(self, exit_code: int, expected: str) -> None:
-        from myrm_agent_harness.agent.meta_tools.bash.bash_tool import (
+        from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
             _classify_background_exit,
         )
 
@@ -279,7 +279,7 @@ class TestClassifyBackgroundExit:
 
     def test_user_kill_with_positive_code_is_silent(self) -> None:
         """A user-initiated kill should not raise an alarming category."""
-        from myrm_agent_harness.agent.meta_tools.bash.bash_tool import (
+        from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
             _classify_background_exit,
         )
 

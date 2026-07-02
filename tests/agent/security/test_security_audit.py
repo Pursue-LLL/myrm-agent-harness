@@ -15,10 +15,10 @@ from myrm_agent_harness.agent.security.audit import (
 class TestRecordAndGet:
     def test_record_single(self):
         reset_audit_log()
-        record_decision("bash_tool", "ALLOW", "capability fence passed")
+        record_decision("bash_code_execute_tool", "ALLOW", "capability fence passed")
         entries = get_audit_entries()
         assert len(entries) == 1
-        assert entries[0].tool_name == "bash_tool"
+        assert entries[0].tool_name == "bash_code_execute_tool"
         assert entries[0].decision == "ALLOW"
         assert entries[0].tainted is False
 
@@ -33,7 +33,7 @@ class TestRecordAndGet:
 
     def test_record_tainted(self):
         reset_audit_log()
-        record_decision("bash_tool", "TAINT_ESCALATE", "session tainted", tainted=True)
+        record_decision("bash_code_execute_tool", "TAINT_ESCALATE", "session tainted", tainted=True)
         entries = get_audit_entries()
         assert entries[0].tainted is True
 

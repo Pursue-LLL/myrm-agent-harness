@@ -100,16 +100,6 @@ web = [
   "youtube-transcript-api>=1.2.4",   # YouTube 字幕提取 (youtube_extractor; HTML fallback when missing)
 ]
 
-# toolkits/code_graph/ - AST-based code knowledge graph (Tree-sitter parsing)
-code-graph = [
-  "tree-sitter-language-pack>=0.7.0", # Multi-language grammar support
-]
-# toolkits/code_graph/ - optional graph analysis algorithms
-code-graph-analysis = [
-  "myrm-agent-harness[code-graph]",
-  "networkx>=3.5",   # Betweenness centrality (bridge detection)
-  "igraph>=0.11.8",  # Leiden community detection
-]
 # toolkits/file_parsers/ - Office/PDF 渲染扩展（pdfplumber 已在 core dependencies）
 file-parsers = [
   "pypdfium2>=5.10.1",   # PDF 页面渲染为图片 (图片回退)
@@ -145,7 +135,7 @@ compiled-core-musl = [
 # END compiled-core-musl
 ]
 all = [
-  "myrm-agent-harness[browser,code-graph-analysis,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,web]",
+  "myrm-agent-harness[browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,web]",
 ]
 
 [tool.uv]

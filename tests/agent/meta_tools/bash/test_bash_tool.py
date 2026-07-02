@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.agent.meta_tools.bash.bash_executor import BashExecutionError
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool import create_bash_tool
+from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import create_bash_code_execute_tool
 from myrm_agent_harness.utils.errors import ToolError
 
 
@@ -19,7 +19,7 @@ def _patch_bash_tool_deps():
     return (
         mock_bash_executor,
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_tool.extract_context_from_runnable_config",
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.extract_context_from_runnable_config",
             return_value={"session_id": "test-session"},
         ),
         patch(
@@ -48,7 +48,7 @@ async def test_bash_tool_git_clone_hint():
     )
 
     with p_ctx, p_get, p_be, p_scope:
-        tool = create_bash_tool()
+        tool = create_bash_code_execute_tool()
         with pytest.raises(ToolError) as exc_info:
             await tool.ainvoke(
                 {"command": "git clone https://github.com/owner/repo.git", "reason": "test"}
@@ -67,7 +67,7 @@ async def test_bash_tool_no_git_clone_hint_for_other_commands():
     )
 
     with p_ctx, p_get, p_be, p_scope:
-        tool = create_bash_tool()
+        tool = create_bash_code_execute_tool()
         with pytest.raises(ToolError) as exc_info:
             await tool.ainvoke({"command": "ls -la", "reason": "test"})
 

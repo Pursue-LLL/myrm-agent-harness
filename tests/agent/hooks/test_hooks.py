@@ -844,7 +844,7 @@ Content
 """
         hooks, _ = parse_hooks_from_skill_md(content)
         assert len(hooks) == 1
-        assert hooks[0][1].matcher == "bash_tool"
+        assert hooks[0][1].matcher == "bash_code_execute_tool"
 
     def test_parse_auth_env_var(self):
         import os

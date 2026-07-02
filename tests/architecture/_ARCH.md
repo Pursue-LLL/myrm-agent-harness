@@ -15,7 +15,7 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | `test_artifact_vault_path_boundary.py` | Gate | harness `src/` 禁止 `.myrm/vault` 等品牌 vault 路径字面量 | — |
 | `test_harness_boundary.py` | Gate | harness 禁止 import 业务层（server/control-plane） | — |
 | `test_wheel_browser_assets.py` | Gate | wheel 须含 `browser/assets/ad_domains.txt`（≥3500 域） | — |
-| `test_distribution_packaging.py` | Gate | 分发打包管线不变量（含 dual-wheel COMPILED e2e） | — |
+| `test_distribution_packaging.py` | Gate | 分发打包管线不变量（wheel build/install；`slow` 标记项在 CI `distribution-packaging-slow` job） | — |
 | `test_distribution_wheel_artifact.py` | Gate | release/core wheel zip + `finalize_stripped_release_wheel` strip+verify | — |
 | `distribution_wheel_helpers.py` | 辅助 | architecture 测试用最小合法 wheel zip 构造 | — |
 | `test_distribution_manifest_gate.py` | Gate | 算法区新增模块须 manifest 或 `@distribution-public` | — |
@@ -37,15 +37,18 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | `test_mixin_mro.py` | Gate | BrowserSession / ChatLiteLLM / OptimizationScheduler / SubagentExecutor / BashExecutor mixin MRO 顺序锁 | — |
 | `test_executor_reexport.py` | Gate | `sub_agents/executor.py` `__all__` 聚合 re-export 完整性 | — |
 | `test_bash_executor_reexport.py` | Gate | `meta_tools/bash/bash_executor.py` `__all__` 聚合 re-export 完整性 | — |
-| `test_bash_tool_reexport.py` | Gate | `meta_tools/bash/bash_tool.py` `__all__` 聚合 re-export 完整性 | — |
+| `test_bash_code_execute_tool_reexport.py` | Gate | `meta_tools/bash/bash_code_execute_tool.py` `__all__` 聚合 re-export 完整性 | — |
+| `test_no_ghost_registry_metadata.py` | Gate | `tool_registry.py` metadata maps 不得含无 @tool 源的幽灵键 | — |
 | `test_types_reexport.py` | Gate | `backends/skills/types.py` `__all__` 聚合 re-export 完整性 | — |
-| `test_validate_arch_inventory.py` | Gate | `_ARCH.md` 文件表 vs 同级 `.py` 一致性（table-only 解析） | — |
+| `test_validate_arch_inventory.py` | Gate | `_ARCH.md` 文件表 vs 同级 `.py` 一致性（table-only 解析）；含 agent/ 与全 harness subprocess gate | — |
 | `test_readme_claims.py` | Gate | README 声明与实际代码/性能基准一致性校验 | — |
 
 ## 运行
 
 ```bash
-pytest tests/architecture/ -m architecture
+pytest tests/architecture/ -m "architecture and not slow"
+pytest tests/architecture/test_distribution_packaging.py -m "architecture and slow"
 uv run python scripts/check_fractal_docs.py
+uv run python scripts/validate_arch_inventory.py --root src/myrm_agent_harness
 uv run python scripts/check_file_line_limit.py
 ```

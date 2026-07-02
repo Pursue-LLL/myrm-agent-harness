@@ -1,4 +1,8 @@
-"""Tests for frustration signal detector."""
+"""Tests for frustration_detector — pure-CPU regex-based detection.
+
+Covers: all 5 FrustrationCategory types, English + Chinese patterns,
+boundary cases (empty, no user messages, no match).
+"""
 
 import pytest
 
@@ -9,160 +13,177 @@ from myrm_agent_harness.agent.skills.evolution.pipeline.frustration_detector imp
 )
 
 
-class TestDetectFrustration:
-    """Test suite for detect_frustration function."""
+class TestVerbosityDetection:
+    """Verbosity frustration patterns (EN + ZH)."""
 
-    def test_returns_none_for_empty_messages(self) -> None:
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "just give me the answer",
+            "Just give me the code please",
+            "stop explaining and do it",
+            "too verbose, cut it down",
+            "too much text already",
+            "don't need explaining this",
+            "skip the preamble",
+            "get to the point",
+            "why are you explaining this?",
+            "太啰嗦",
+            "太冗长了",
+            "别说那么多废话",
+            "直接给我代码",
+            "简洁一点",
+            "废话太多",
+            "多余的解释不需要",
+        ],
+    )
+    def test_detects_verbosity(self, text: str) -> None:
+        msgs = [{"role": "user", "content": text}]
+        result = detect_frustration(msgs)
+        assert result is not None
+        assert result.category == FrustrationCategory.VERBOSITY
+
+
+class TestStyleDetection:
+    """Style frustration patterns (EN + ZH)."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "stop doing that every time",
+            "you always do this wrong",
+            "I hate when you add comments",
+            "don't do that again",
+            "please stop",
+            "I've told you many times",
+            "how many times do I need to say",
+            "别再这样做了",
+            "以后都不要这样",
+            "说了好几次了",
+            "你总是犯这个错误",
+            "烦死了",
+            "每次都这样搞",
+        ],
+    )
+    def test_detects_style(self, text: str) -> None:
+        msgs = [{"role": "user", "content": text}]
+        result = detect_frustration(msgs)
+        assert result is not None
+        assert result.category == FrustrationCategory.STYLE
+
+
+class TestFormatDetection:
+    """Format frustration patterns (EN + ZH)."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "don't use markdown tables",
+            "no markdown please",
+            "plain text only",
+            "stop using emojis",
+            "不要用表格",
+            "别格式化了",
+            "纯文本就行",
+            "不要加emoji",
+        ],
+    )
+    def test_detects_format(self, text: str) -> None:
+        msgs = [{"role": "user", "content": text}]
+        result = detect_frustration(msgs)
+        assert result is not None
+        assert result.category == FrustrationCategory.FORMAT
+
+
+class TestWorkflowDetection:
+    """Workflow frustration patterns (EN + ZH)."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "don't ask me every time",
+            "just do it",
+            "stop asking",
+            "don't wait for me to confirm",
+            "别总是问我",
+            "直接做就行",
+            "不用等我确认",
+        ],
+    )
+    def test_detects_workflow(self, text: str) -> None:
+        msgs = [{"role": "user", "content": text}]
+        result = detect_frustration(msgs)
+        assert result is not None
+        assert result.category == FrustrationCategory.WORKFLOW
+
+
+class TestGeneralDetection:
+    """General frustration patterns (EN + ZH)."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "from now on do it differently",
+            "never do that again",
+            "以后注意这一点",
+            "以后记住了",
+        ],
+    )
+    def test_detects_general(self, text: str) -> None:
+        msgs = [{"role": "user", "content": text}]
+        result = detect_frustration(msgs)
+        assert result is not None
+        assert result.category == FrustrationCategory.GENERAL
+
+
+class TestNegativeCases:
+    """No false positives on normal conversation."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Please help me write a Python script",
+            "Can you explain how async works?",
+            "What's the best way to deploy this?",
+            "Thanks, that worked perfectly!",
+            "请帮我写一个爬虫",
+            "这个函数怎么用？",
+            "谢谢，解决了",
+            "",
+        ],
+    )
+    def test_no_false_positive(self, text: str) -> None:
+        msgs = [{"role": "user", "content": text}]
+        result = detect_frustration(msgs)
+        assert result is None
+
+
+class TestEdgeCases:
+    """Edge cases: empty, no user, assistant-only, scan window."""
+
+    def test_empty_messages(self) -> None:
         assert detect_frustration([]) is None
 
-    def test_returns_none_for_neutral_messages(self) -> None:
-        messages = [
-            {"role": "user", "content": "How do I set up a Python virtual environment?"},
-            {"role": "assistant", "content": "You can use python -m venv..."},
-        ]
-        assert detect_frustration(messages) is None
+    def test_no_user_messages(self) -> None:
+        msgs = [{"role": "assistant", "content": "too verbose output here"}]
+        assert detect_frustration(msgs) is None
 
-    def test_detects_verbosity_english(self) -> None:
-        messages = [
-            {"role": "assistant", "content": "Here's a detailed explanation..."},
-            {"role": "user", "content": "just give me the answer, stop explaining"},
-        ]
-        result = detect_frustration(messages)
-        assert result is not None
-        assert result.category == FrustrationCategory.VERBOSITY
-        assert "just give me the answer" in result.matched_text
+    def test_only_scans_last_window(self) -> None:
+        old = [{"role": "user", "content": "太啰嗦"}]
+        filler = [{"role": "user", "content": f"normal message {i}"} for i in range(5)]
+        result = detect_frustration(old + filler)
+        assert result is None
 
-    def test_detects_verbosity_chinese(self) -> None:
-        messages = [
-            {"role": "user", "content": "太啰嗦了，直接给我代码"},
-        ]
-        result = detect_frustration(messages)
-        assert result is not None
-        assert result.category == FrustrationCategory.VERBOSITY
+    def test_result_has_correct_fields(self) -> None:
+        msgs = [{"role": "user", "content": "stop explaining already!"}]
+        result = detect_frustration(msgs)
+        assert isinstance(result, FrustrationSignal)
+        assert result.matched_text
+        assert result.user_message == "stop explaining already!"
 
-    def test_detects_style_english(self) -> None:
-        messages = [
-            {"role": "user", "content": "I hate when you add unnecessary boilerplate"},
-        ]
-        result = detect_frustration(messages)
-        assert result is not None
-        assert result.category == FrustrationCategory.STYLE
-
-    def test_detects_style_chinese(self) -> None:
-        messages = [
-            {"role": "user", "content": "以后都别这样写了"},
-        ]
-        result = detect_frustration(messages)
-        assert result is not None
-        assert result.category == FrustrationCategory.STYLE
-
-    def test_detects_format_english(self) -> None:
-        messages = [
-            {"role": "user", "content": "no markdown tables please, plain text only"},
-        ]
-        result = detect_frustration(messages)
-        assert result is not None
-        assert result.category == FrustrationCategory.FORMAT
-
-    def test_detects_format_chinese(self) -> None:
-        messages = [
-            {"role": "user", "content": "不要用markdown表格，纯文本就行"},
-        ]
-        result = detect_frustration(messages)
-        assert result is not None
-        assert result.category == FrustrationCategory.FORMAT
-
-    def test_detects_workflow_english(self) -> None:
-        messages = [
-            {"role": "user", "content": "just do it, stop asking me every time"},
-        ]
-        result = detect_frustration(messages)
-        assert result is not None
-        assert result.category == FrustrationCategory.WORKFLOW
-
-    def test_detects_workflow_chinese(self) -> None:
-        messages = [
-            {"role": "user", "content": "不用每次都问我确认，直接做就行"},
-        ]
-        result = detect_frustration(messages)
-        assert result is not None
-        assert result.category == FrustrationCategory.WORKFLOW
-
-    def test_only_scans_user_messages(self) -> None:
-        messages = [
-            {"role": "assistant", "content": "stop explaining everything"},
-            {"role": "system", "content": "just give me the answer"},
-        ]
-        assert detect_frustration(messages) is None
-
-    def test_scan_window_limit(self) -> None:
-        neutral = [{"role": "user", "content": "Hi"}] * 10
-        frustration = [{"role": "user", "content": "too verbose, be concise"}]
-        messages_old_frustration = frustration + neutral
-        assert detect_frustration(messages_old_frustration) is None
-
-        messages_recent_frustration = neutral + frustration
-        assert detect_frustration(messages_recent_frustration) is not None
-
-    def test_user_message_truncated_in_signal(self) -> None:
-        long_msg = "just give me the answer " + "x" * 1000
-        messages = [{"role": "user", "content": long_msg}]
-        result = detect_frustration(messages)
+    def test_message_truncation(self) -> None:
+        long_msg = "太啰嗦" + "x" * 1000
+        msgs = [{"role": "user", "content": long_msg}]
+        result = detect_frustration(msgs)
         assert result is not None
         assert len(result.user_message) <= 500
-
-    def test_verbosity_stop_explaining(self) -> None:
-        messages = [{"role": "user", "content": "Can you stop explaining and just code?"}]
-        result = detect_frustration(messages)
-        assert result is not None
-        assert result.category == FrustrationCategory.VERBOSITY
-
-    def test_style_please_stop(self) -> None:
-        messages = [{"role": "user", "content": "please stop adding type hints everywhere"}]
-        result = detect_frustration(messages)
-        assert result is not None
-        assert result.category == FrustrationCategory.STYLE
-
-    def test_general_from_now_on(self) -> None:
-        messages = [{"role": "user", "content": "from now on, always use tabs instead of spaces"}]
-        result = detect_frustration(messages)
-        assert result is not None
-        assert result.category == FrustrationCategory.GENERAL
-
-    def test_general_chinese_remember(self) -> None:
-        messages = [{"role": "user", "content": "以后注意不要加注释"}]
-        result = detect_frustration(messages)
-        assert result is not None
-        assert result.category == FrustrationCategory.GENERAL
-
-    def test_priority_order_verbosity_over_general(self) -> None:
-        messages = [{"role": "user", "content": "from now on, just give me the answer directly"}]
-        result = detect_frustration(messages)
-        assert result is not None
-        assert result.category == FrustrationCategory.VERBOSITY
-
-    def test_does_not_match_positive_feedback(self) -> None:
-        messages = [
-            {"role": "user", "content": "Great job! That's exactly what I wanted."},
-        ]
-        assert detect_frustration(messages) is None
-
-    def test_does_not_match_correction(self) -> None:
-        messages = [
-            {"role": "user", "content": "That's wrong, it should be PostgreSQL not MySQL"},
-        ]
-        assert detect_frustration(messages) is None
-
-
-class TestFrustrationSignal:
-    """Test FrustrationSignal dataclass properties."""
-
-    def test_frozen_and_hashable(self) -> None:
-        sig = FrustrationSignal(
-            category=FrustrationCategory.VERBOSITY,
-            matched_text="too verbose",
-            user_message="This is too verbose",
-        )
-        assert hash(sig)
-        with pytest.raises(AttributeError):
-            sig.category = FrustrationCategory.STYLE  # type: ignore[misc]

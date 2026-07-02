@@ -36,7 +36,6 @@ class ToolLayer(IntEnum):
 
 
 # 工具层级注册表
-# 注意:researcher_tool 不在这里,它专属于深度搜索智能体
 #
 # 设计原则:
 # 1. 始终加载的工具放 CORE,永远在最前面,缓存稳定
@@ -93,8 +92,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "desktop_snapshot_tool": ToolLayer.EXTENDED,
     "desktop_interact_tool": ToolLayer.EXTENDED,
     "desktop_vision_tool": ToolLayer.EXTENDED,
-    # --- 渠道通知 ---
-    "channel_notify_tool": ToolLayer.EXTENDED,
     # --- Cron 定时任务 ---
     "cron_manage_tool": ToolLayer.EXTENDED,
     # --- 文件搜索 ---
@@ -105,9 +102,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "update_goal_status_tool": ToolLayer.EXTENDED,
     # --- 交互工具 ---
     "ask_question_tool": ToolLayer.EXTENDED,
-    "tts_generate": ToolLayer.EXTENDED,
-    "image_tool": ToolLayer.EXTENDED,
-    "video_tool": ToolLayer.EXTENDED,
     "render_ui_tool": ToolLayer.EXTENDED,
     # --- 看板 (Worker tools) ---
     "kanban_show": ToolLayer.EXTENDED,

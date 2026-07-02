@@ -23,7 +23,7 @@ SSRF-protected outbound HTTP primitives shared by harness toolkits, agent pipeli
 - `agent/hooks/executor.py`
 - `toolkits/a2a/resolver.py`
 - `toolkits/cron/delivery.py`
-- `toolkits/llms/image/image_langchain_tool.py`
+- `myrm-agent-server/app/ai_agents/media_tools/image_agent_tool.py`
 - `toolkits/openapi_bridge/spec_parser.py`, `http_executor.py`
 - `toolkits/web_fetch/robots_parser.py`, `deep_crawl.py`
 - `myrm-agent-server/app/channels/media/downloader.py`, `image_enrichment.py`

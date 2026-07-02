@@ -56,47 +56,47 @@ def strict_guard() -> LoopGuard:
 class TestRepetition:
     def test_allow_below_threshold(self, guard: LoopGuard) -> None:
         """Below warn_threshold, calls are allowed."""
-        v1 = guard.pre_check("bash_tool", {"command": "ls"})
+        v1 = guard.pre_check("bash_code_execute_tool", {"command": "ls"})
         assert v1.action == LoopAction.ALLOW
-        guard.record_result("bash_tool", {"command": "ls"}, "file1.py")
+        guard.record_result("bash_code_execute_tool", {"command": "ls"}, "file1.py")
 
-        v2 = guard.pre_check("bash_tool", {"command": "ls"})
+        v2 = guard.pre_check("bash_code_execute_tool", {"command": "ls"})
         assert v2.action == LoopAction.ALLOW
 
     def test_warn_at_threshold(self, guard: LoopGuard) -> None:
         """At warn_threshold (3), emit WARN."""
         for _ in range(2):
-            guard.pre_check("bash_tool", {"command": "ls"})
-            guard.record_result("bash_tool", {"command": "ls"}, "ok")
+            guard.pre_check("bash_code_execute_tool", {"command": "ls"})
+            guard.record_result("bash_code_execute_tool", {"command": "ls"}, "ok")
 
-        verdict = guard.pre_check("bash_tool", {"command": "ls"})
+        verdict = guard.pre_check("bash_code_execute_tool", {"command": "ls"})
         assert verdict.action == LoopAction.WARN
         assert verdict.loop_kind == "repetition"
 
     def test_break_at_high_streak(self, guard: LoopGuard) -> None:
         """At break_threshold (5), emit BREAK."""
         for _ in range(4):
-            guard.pre_check("bash_tool", {"command": "ls"})
-            guard.record_result("bash_tool", {"command": "ls"}, "ok")
+            guard.pre_check("bash_code_execute_tool", {"command": "ls"})
+            guard.record_result("bash_code_execute_tool", {"command": "ls"}, "ok")
 
-        verdict = guard.pre_check("bash_tool", {"command": "ls"})
+        verdict = guard.pre_check("bash_code_execute_tool", {"command": "ls"})
         assert verdict.action == LoopAction.BREAK
         assert verdict.loop_kind == "repetition"
 
     def test_different_args_reset_streak(self, guard: LoopGuard) -> None:
         """Changing args resets the streak."""
         for _ in range(2):
-            guard.pre_check("bash_tool", {"command": "ls"})
-            guard.record_result("bash_tool", {"command": "ls"}, "ok")
+            guard.pre_check("bash_code_execute_tool", {"command": "ls"})
+            guard.record_result("bash_code_execute_tool", {"command": "ls"}, "ok")
 
-        verdict = guard.pre_check("bash_tool", {"command": "pwd"})
+        verdict = guard.pre_check("bash_code_execute_tool", {"command": "pwd"})
         assert verdict.action == LoopAction.ALLOW
 
     def test_different_tool_reset_streak(self, guard: LoopGuard) -> None:
         """Changing tool resets the streak."""
         for _ in range(2):
-            guard.pre_check("bash_tool", {"command": "ls"})
-            guard.record_result("bash_tool", {"command": "ls"}, "ok")
+            guard.pre_check("bash_code_execute_tool", {"command": "ls"})
+            guard.record_result("bash_code_execute_tool", {"command": "ls"}, "ok")
 
         verdict = guard.pre_check("file_read_tool", {"path": "/tmp/x"})
         assert verdict.action == LoopAction.ALLOW
@@ -150,7 +150,7 @@ class TestToolStuckException:
 class TestConsecutiveFailures:
     def test_break_after_3_consecutive_any_tool_failures(self, guard: LoopGuard) -> None:
         """3 consecutive failures across different tools → ToolStuckException."""
-        tools = ["bash_tool", "file_read_tool", "grep_tool"]
+        tools = ["bash_code_execute_tool", "file_read_tool", "grep_tool"]
         for tool in tools:
             guard.pre_check(tool, {"arg": "x"})
             guard.record_result(tool, {"arg": "x"}, "error: something failed")
@@ -163,8 +163,8 @@ class TestConsecutiveFailures:
 
     def test_no_break_if_success_interrupts(self, guard: LoopGuard) -> None:
         """A success in between resets the failure streak."""
-        guard.pre_check("bash_tool", {"arg": "x"})
-        guard.record_result("bash_tool", {"arg": "x"}, "error")
+        guard.pre_check("bash_code_execute_tool", {"arg": "x"})
+        guard.record_result("bash_code_execute_tool", {"arg": "x"}, "error")
         guard._window[-1].success_level = SuccessLevel.FAILURE
 
         guard.pre_check("file_read_tool", {"arg": "y"})
@@ -551,14 +551,14 @@ class TestErrorSignatureDetection:
         error_msg = self._make_error(
             "ToolExecutionError: SyntaxError: unexpected character"
         )
-        tools = ["bash_tool", "file_write_tool", "bash_tool", "grep_tool"]
+        tools = ["bash_code_execute_tool", "file_write_tool", "bash_code_execute_tool", "grep_tool"]
 
         for i, tool in enumerate(tools):
             self._feed_error_with_success_spacer(guard, tool, error_msg, i)
 
-        guard.pre_check("bash_tool", {"arg": "final"})
+        guard.pre_check("bash_code_execute_tool", {"arg": "final"})
         with pytest.raises(ToolStuckException) as exc_info:
-            guard.record_result("bash_tool", {"arg": "final"}, error_msg)
+            guard.record_result("bash_code_execute_tool", {"arg": "final"}, error_msg)
 
         assert "same error" in str(exc_info.value).lower()
 
@@ -569,7 +569,7 @@ class TestErrorSignatureDetection:
         for i in range(4):
             self._feed_error_with_success_spacer(
                 guard,
-                "bash_tool",
+                "bash_code_execute_tool",
                 self._make_error(f"ToolExecutionError: UniqueError_{i}: message"),
                 i,
             )
@@ -581,17 +581,17 @@ class TestErrorSignatureDetection:
         for i, line_num in enumerate([32, 42]):
             self._feed_error_with_success_spacer(
                 guard,
-                "bash_tool",
+                "bash_code_execute_tool",
                 self._make_error(
                     f"ToolExecutionError: SyntaxError: unexpected character (line {line_num})"
                 ),
                 i,
             )
 
-        guard.pre_check("bash_tool", {"arg": "final"})
+        guard.pre_check("bash_code_execute_tool", {"arg": "final"})
         with pytest.raises(ToolStuckException):
             guard.record_result(
-                "bash_tool",
+                "bash_code_execute_tool",
                 {"arg": "final"},
                 self._make_error(
                     "ToolExecutionError: SyntaxError: unexpected character (line 99)"
@@ -606,7 +606,7 @@ class TestErrorSignatureDetection:
         )
 
         for i in range(3):
-            self._feed_error_with_success_spacer(guard, "bash_tool", error_msg, i)
+            self._feed_error_with_success_spacer(guard, "bash_code_execute_tool", error_msg, i)
 
         guard.reset(preserve_error_signatures=True)
         assert len(guard._error_signatures) > 0
@@ -682,8 +682,8 @@ class TestMetrics:
     def test_detection_by_kind_tracked(self, guard: LoopGuard) -> None:
         """Detection events are tracked by kind."""
         for _ in range(3):
-            guard.pre_check("bash_tool", {"cmd": "ls"})
-            guard.record_result("bash_tool", {"cmd": "ls"}, "ok")
+            guard.pre_check("bash_code_execute_tool", {"cmd": "ls"})
+            guard.record_result("bash_code_execute_tool", {"cmd": "ls"}, "ok")
 
         metrics = guard.get_metrics()
         assert metrics.detections_by_kind[LoopKind.REPETITION] >= 1
@@ -721,21 +721,21 @@ class TestSuggestionTracking:
     def test_suggestion_followed_on_param_change(self, guard: LoopGuard) -> None:
         """Changing params after WARN counts as suggestion followed."""
         for _ in range(3):
-            guard.pre_check("bash_tool", {"cmd": "ls"})
-            guard.record_result("bash_tool", {"cmd": "ls"}, "ok")
+            guard.pre_check("bash_code_execute_tool", {"cmd": "ls"})
+            guard.record_result("bash_code_execute_tool", {"cmd": "ls"}, "ok")
 
         # Now change args — should be tracked as following suggestion
-        guard.pre_check("bash_tool", {"cmd": "pwd"})
+        guard.pre_check("bash_code_execute_tool", {"cmd": "pwd"})
         assert guard.get_metrics().suggestions_followed >= 1
 
     def test_effective_follow_tracks_success(self, guard: LoopGuard) -> None:
         """Successful follow counts towards effective_follows."""
         for _ in range(3):
-            guard.pre_check("bash_tool", {"cmd": "ls"})
-            guard.record_result("bash_tool", {"cmd": "ls"}, "ok")
+            guard.pre_check("bash_code_execute_tool", {"cmd": "ls"})
+            guard.record_result("bash_code_execute_tool", {"cmd": "ls"}, "ok")
 
-        guard.pre_check("bash_tool", {"cmd": "pwd"})
-        guard.record_result("bash_tool", {"cmd": "pwd"}, "success")
+        guard.pre_check("bash_code_execute_tool", {"cmd": "pwd"})
+        guard.record_result("bash_code_execute_tool", {"cmd": "pwd"}, "success")
         # The effective_follow is updated via pending_follow_check
         assert guard.get_metrics().effective_follows >= 0
 
@@ -748,7 +748,7 @@ class TestSuggestionTracking:
 class TestVerificationTagging:
     def test_tag_last_verification(self, guard: LoopGuard) -> None:
         """tag_last_verification sets category on last record."""
-        guard.pre_check("bash_tool", {"command": "pytest"})
+        guard.pre_check("bash_code_execute_tool", {"command": "pytest"})
         guard.tag_last_verification(VerificationCategory.TEST)
         assert guard._window[-1].verification_type == VerificationCategory.TEST
 
@@ -766,11 +766,11 @@ class TestLastDetectionKind:
     def test_updated_after_detection(self, guard: LoopGuard) -> None:
         """After repetition detection, property returns kind."""
         for _ in range(2):
-            guard.pre_check("bash_tool", {"cmd": "ls"})
-            guard.record_result("bash_tool", {"cmd": "ls"}, f"result_{_}")
+            guard.pre_check("bash_code_execute_tool", {"cmd": "ls"})
+            guard.record_result("bash_code_execute_tool", {"cmd": "ls"}, f"result_{_}")
 
         # 3rd pre_check triggers repetition detection
-        guard.pre_check("bash_tool", {"cmd": "ls"})
+        guard.pre_check("bash_code_execute_tool", {"cmd": "ls"})
         assert guard.last_detection_kind == "repetition"
 
 
@@ -821,16 +821,16 @@ class TestCompetitorScenarioComparison:
         """
         guard = LoopGuard(warn_threshold=3, break_threshold=5)
 
-        guard.pre_check("bash_tool", {"command": "pip install broken"})
-        guard.record_result("bash_tool", {"command": "pip install broken"}, "Error")
+        guard.pre_check("bash_code_execute_tool", {"command": "pip install broken"})
+        guard.record_result("bash_code_execute_tool", {"command": "pip install broken"}, "Error")
         guard._window[-1].success_level = SuccessLevel.FAILURE
 
-        guard.pre_check("bash_tool", {"command": "pip install broken"})
-        guard.record_result("bash_tool", {"command": "pip install broken"}, "Error")
+        guard.pre_check("bash_code_execute_tool", {"command": "pip install broken"})
+        guard.record_result("bash_code_execute_tool", {"command": "pip install broken"}, "Error")
         guard._window[-1].success_level = SuccessLevel.FAILURE
 
         with pytest.raises(ToolStuckException):
-            guard.pre_check("bash_tool", {"command": "pip install broken"})
+            guard.pre_check("bash_code_execute_tool", {"command": "pip install broken"})
 
     def test_diminishing_output_forces_summary(self) -> None:
         """Low output tokens → BREAK with final delivery hint.
@@ -863,18 +863,18 @@ class TestCompetitorScenarioComparison:
 
         # Trigger BREAK for one specific tool+args
         for _ in range(3):
-            guard.pre_check("bash_tool", {"command": "failing"})
-            guard.record_result("bash_tool", {"command": "failing"}, "ok")
+            guard.pre_check("bash_code_execute_tool", {"command": "failing"})
+            guard.record_result("bash_code_execute_tool", {"command": "failing"}, "ok")
 
         # Verify BREAK was triggered for that tool
-        verdict = guard.pre_check("bash_tool", {"command": "failing"})
+        verdict = guard.pre_check("bash_code_execute_tool", {"command": "failing"})
         # This might raise ToolStuckException or give BREAK depending on failure status
         # Reset and test a fresh guard to demonstrate the concept
         fresh_guard = LoopGuard(warn_threshold=3, break_threshold=5)
 
         for _ in range(5):
-            fresh_guard.pre_check("bash_tool", {"command": "failing"})
-            fresh_guard.record_result("bash_tool", {"command": "failing"}, "ok")
+            fresh_guard.pre_check("bash_code_execute_tool", {"command": "failing"})
+            fresh_guard.record_result("bash_code_execute_tool", {"command": "failing"}, "ok")
 
         # Now a DIFFERENT tool should still be ALLOWED
         verdict = fresh_guard.pre_check("file_read_tool", {"path": "/tmp/x"})

@@ -12,14 +12,14 @@ billing and BYOK fallback.
 |------|------|-------------|-------|
 | `models.py` | Config | `TTSConfig`, `TTSResult`, `MediaMeta`, `MediaCallback` | — |
 | `generator.py` | Core | `AsyncTTSEngine` — HTTP + gateway failover | ✅ |
-| `tts_langchain_tool.py` | Adapter | `TTSTool` + `create_tts_tool()` LangChain factory | ✅ |
-| `__init__.py` | Package | Generic engine + optional LangChain exports | — |
+| `__init__.py` | Package | Generic engine exports | — |
 
 ## Layering
 
 | Export | Role |
 |--------|------|
 | `AsyncTTSEngine` + `TTSConfig` | Primary generic API — usable without LangChain |
-| `create_tts_tool()` | Optional LangChain adapter for agent tool lists |
+
+LangChain adapter: `myrm-agent-server/app/ai_agents/media_tools/tts_agent_tool.py`.
 
 Channel outbound TTS (`myrm-agent-server/app/channels/voice/tts.py`) is **business layer** — not part of this module.

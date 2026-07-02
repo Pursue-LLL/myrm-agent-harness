@@ -207,7 +207,7 @@ def test_stream_end_to_end_tool_call_recovery(chat_model, messages):
     schema = {
         "type": "function",
         "function": {
-            "name": "bash_tool",
+            "name": "bash_code_execute_tool",
             "parameters": {
                 "type": "object",
                 "properties": {"command": {"type": "string"}},
@@ -228,7 +228,7 @@ def test_stream_end_to_end_tool_call_recovery(chat_model, messages):
                                     {
                                         "index": 0,
                                         "id": "call_1",
-                                        "function": {"name": "bash_tool", "arguments": '{"command":"echo '},
+                                        "function": {"name": "bash_code_execute_tool", "arguments": '{"command":"echo '},
                                     }
                                 ],
                             },
@@ -266,7 +266,7 @@ def test_stream_end_to_end_tool_call_recovery(chat_model, messages):
 
     assert len(result.generations) == 1
     ai_message = result.generations[0].message
-    assert ai_message.tool_calls[0]["name"] == "bash_tool"
+    assert ai_message.tool_calls[0]["name"] == "bash_code_execute_tool"
     assert ai_message.tool_calls[0]["args"]["command"] == 'echo "hi" && ls'
     assert ai_message.additional_kwargs.get("tool_call_recovery", []) == []
 

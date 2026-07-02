@@ -41,14 +41,14 @@ class TestEmitLoopGuardEvent:
             mock_dispatch,
         ):
             await _emit_loop_guard_event(
-                "loop_guard_warn", "bash_tool", "Repetition detected", "warning"
+                "loop_guard_warn", "bash_code_execute_tool", "Repetition detected", "warning"
             )
 
         mock_dispatch.assert_called_once_with(
             "agent_status",
             {
                 "step_key": "loop_guard_warn",
-                "tool_name": "bash_tool",
+                "tool_name": "bash_code_execute_tool",
                 "status": "warning",
                 "items": [{"text": "Repetition detected"}],
             },
@@ -85,7 +85,7 @@ class TestEmitLoopGuardEvent:
             mock_dispatch,
         ):
             await _emit_loop_guard_event(
-                "loop_guard_break", "bash_tool", "reason", "error"
+                "loop_guard_break", "bash_code_execute_tool", "reason", "error"
             )
 
     @pytest.mark.asyncio
@@ -165,7 +165,7 @@ class TestPreCallGuardsEmitEvent:
 
             result = await run_pre_call_guards(
                 mock_request,
-                "bash_tool",
+                "bash_code_execute_tool",
                 "call_123",
                 {"command": "ls"},
                 get_loop_guard_fn=lambda: mock_loop_guard,
@@ -173,7 +173,7 @@ class TestPreCallGuardsEmitEvent:
 
         mock_emit.assert_called_once_with(
             "loop_guard_break",
-            "bash_tool",
+            "bash_code_execute_tool",
             "Repetition pattern on bash_tool",
             "error",
         )
@@ -261,7 +261,7 @@ class TestPreCallGuardsEmitEvent:
 
             result = await run_pre_call_guards(
                 mock_request,
-                "bash_tool",
+                "bash_code_execute_tool",
                 "call_456",
                 {"command": "git status"},
                 get_loop_guard_fn=lambda: mock_loop_guard,
@@ -269,7 +269,7 @@ class TestPreCallGuardsEmitEvent:
 
         mock_emit.assert_called_once_with(
             "loop_guard_warn",
-            "bash_tool",
+            "bash_code_execute_tool",
             "Ping-pong oscillation detected",
             "warning",
         )
@@ -308,7 +308,7 @@ class TestPostCallGuardsEmitEvent:
 
         result_msg = ToolMessage(
             content="some output",
-            name="bash_tool",
+            name="bash_code_execute_tool",
             tool_call_id="call_789",
             status="success",
         )
@@ -368,7 +368,7 @@ class TestPostCallGuardsEmitEvent:
 
             await run_post_call_guards(
                 result_msg,
-                "bash_tool",
+                "bash_code_execute_tool",
                 "call_789",
                 {"command": "ls"},
                 loop_guard=mock_loop_guard,
@@ -380,7 +380,7 @@ class TestPostCallGuardsEmitEvent:
 
         mock_emit.assert_called_once_with(
             "loop_guard_break",
-            "bash_tool",
+            "bash_code_execute_tool",
             "Output diminishing pattern",
             "error",
         )
@@ -510,7 +510,7 @@ class TestPostCallGuardsEmitEvent:
 
         result_msg = ToolMessage(
             content="success",
-            name="bash_tool",
+            name="bash_code_execute_tool",
             tool_call_id="call_000",
             status="success",
         )
@@ -570,7 +570,7 @@ class TestPostCallGuardsEmitEvent:
 
             await run_post_call_guards(
                 result_msg,
-                "bash_tool",
+                "bash_code_execute_tool",
                 "call_000",
                 {"command": "echo hi"},
                 loop_guard=mock_loop_guard,

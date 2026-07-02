@@ -117,7 +117,7 @@ class TestParseToolCallArgsIntegration:
 
     def test_xai_bash_command(self) -> None:
         raw = json.dumps({"command": "source .env &amp;&amp; psql", "timeout": 30})
-        result = self.parse(raw, "bash_tool")
+        result = self.parse(raw, "bash_code_execute_tool")
         assert result["command"] == "source .env && psql"
         assert result["timeout"] == 30
 
@@ -137,6 +137,6 @@ class TestParseToolCallArgsIntegration:
 
     def test_nested_xai_values(self) -> None:
         raw = json.dumps({"cmd": "echo &quot;hi&quot; &amp;&amp; ls", "flag": True})
-        result = self.parse(raw, "bash_tool")
+        result = self.parse(raw, "bash_code_execute_tool")
         assert result["cmd"] == 'echo "hi" && ls'
         assert result["flag"] is True

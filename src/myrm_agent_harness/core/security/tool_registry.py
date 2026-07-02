@@ -78,15 +78,12 @@ from typing import TypedDict
 
 TOOL_PERMISSION_MAP: dict[str, str] = {
     "bash_code_execute_tool": "code_interpreter",
-    "code_interpreter_tool": "code_interpreter",
-    "bash_tool": "shell_exec",
     "file_read_tool": "file_read",
     "file_write_tool": "file_write",
     "file_edit_tool": "file_write",
     "web_fetch_tool": "net_fetch",
     "grep_tool": "file_read",
     "glob_tool": "file_read",
-    "ast_search_tool": "file_read",
     "browser_navigate_tool": "browser_navigate",
     "browser_inspect_tool": "browser_read",
     "browser_snapshot_tool": "browser_read",
@@ -161,13 +158,11 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
             "file_edit_tool",
             "glob_tool",
             "grep_tool",
-            "ast_search_tool",
         }
     ),
     "shell": frozenset(
         {
             "bash_code_execute_tool",
-            "bash_tool",
             "bash_process_list_tool",
             "bash_process_output_tool",
             "bash_process_kill_tool",
@@ -243,9 +238,7 @@ _MANAGE_ACTION_MAP: dict[str, str] = {
 }
 
 TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
-    "bash_tool": ["command"],
     "bash_code_execute_tool": ["command"],
-    "code_interpreter_tool": ["command"],
     "file_read_tool": ["path"],
     "file_write_tool": ["path", "content"],
     "file_edit_tool": ["path", "old_string", "new_string"],
@@ -257,7 +250,6 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
     "browser_extract_tool": ["selector"],
     "grep_tool": ["pattern", "path"],
     "glob_tool": ["pattern"],
-    "ast_search_tool": ["symbol_name"],
     "web_fetch_tool": ["url"],
     "web_search_tool": ["query"],
     "memory_save_tool": ["content", "tags"],
@@ -282,7 +274,7 @@ def compute_canonical_args_hash(tool_name: str, tool_args: dict | None) -> str |
     regardless of LLM's wording variations.
 
     Args:
-        tool_name: Tool name (e.g., 'bash_tool', 'file_read_tool')
+        tool_name: Tool name (e.g., 'bash_code_execute_tool', 'file_read_tool')
         tool_args: Tool arguments dict
 
     Returns:
@@ -423,13 +415,6 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "file_read_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "grep_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "glob_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "ast_search_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "file_outline_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "code_impact_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "code_context_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "code_query_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "code_detect_changes_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "code_rename_tool": SafetyMetadata(is_read_only=False, is_concurrent_safe=False, is_idempotent=False),
     "browser_inspect_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "browser_snapshot_tool": SafetyMetadata(
         is_read_only=True,
@@ -475,8 +460,6 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "delegate_to_agent_tool": SafetyMetadata(is_concurrent_safe=True),
     # Destructive tools (explicit fail-closed: is_concurrent_safe=False)
     "bash_code_execute_tool": SafetyMetadata(is_destructive=True),
-    "code_interpreter_tool": SafetyMetadata(is_destructive=True),
-    "bash_tool": SafetyMetadata(is_destructive=True),
     "file_write_tool": SafetyMetadata(is_destructive=True, is_idempotent=True),  # Writing same content is idempotent
     "file_edit_tool": SafetyMetadata(is_destructive=True),
     # Stateful tools (explicit fail-closed: is_concurrent_safe=False)
@@ -517,16 +500,7 @@ def resolve_safety_metadata(tool_name: str) -> SafetyMetadata:
     return _FAIL_CLOSED_DEFAULTS
 
 
-def _check_safety_coverage() -> None:
-    """Verify all built-in tools have explicit safety declarations."""
-    missing = BUILTIN_TOOL_NAMES - TOOL_SAFETY_METADATA.keys()
-    if missing:
-        import logging
+from myrm_agent_harness.core.security.tool_registry_safety import check_safety_coverage
 
-        logging.getLogger(__name__).warning(
-            "Built-in tools missing TOOL_SAFETY_METADATA (will use fail-closed defaults): %s",
-            ", ".join(sorted(missing)),
-        )
-
-
-_check_safety_coverage()
+_check_safety_coverage = check_safety_coverage
+check_safety_coverage()

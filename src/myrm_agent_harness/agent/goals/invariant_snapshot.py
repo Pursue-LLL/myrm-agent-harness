@@ -3,7 +3,7 @@
 Captures SHA-256 hashes of files matching ``Goal.protected_paths`` at Goal
 activation time, and verifies integrity before the Goal is marked complete.
 This is the safety-net layer that catches modifications made through channels
-that bypass the file_write_tool validator chain (e.g. ``bash_tool``).
+that bypass the file_write_tool validator chain (e.g. ``bash_code_execute_tool``).
 
 [INPUT]
 - .types::Goal (POS: Goal data model with protected_paths)
@@ -15,7 +15,7 @@ that bypass the file_write_tool validator chain (e.g. ``bash_tool``).
 
 [POS]
 Provides post-hoc tamper detection for Goal-protected files.
-Complements InvariantValidator (pre-write block) by catching bash_tool bypasses.
+Complements InvariantValidator (pre-write block) by catching bash_code_execute_tool bypasses.
 """
 
 from __future__ import annotations

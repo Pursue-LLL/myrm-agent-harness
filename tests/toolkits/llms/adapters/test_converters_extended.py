@@ -169,7 +169,7 @@ class TestParseToolCallArgsHooks:
         with patch(
             "myrm_agent_harness.toolkits.llms.adapters.converters.logger.warning"
         ) as mock_warn:
-            out = _parse_tool_call_args(raw, "bash_tool")
+            out = _parse_tool_call_args(raw, "bash_code_execute_tool")
             assert out == {}
             assert mock_warn.called
 
@@ -188,7 +188,7 @@ class TestRecoveryMetricsRecording:
         degraded_tc = {
             "type": "function",
             "id": "call_abcd12345678901234567890",
-            "function": {"name": "bash_tool", "arguments": "{}"},
+            "function": {"name": "bash_code_execute_tool", "arguments": "{}"},
         }
         with (
             patch(

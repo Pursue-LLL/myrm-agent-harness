@@ -9,8 +9,8 @@ from myrm_agent_harness.agent.streaming.types import AgentEventType
 async def test_handle_tool_result_engine_limit_tool_calls():
     """Test that ToolCallLimitMiddleware errors emit ENGINE_LIMIT_REACHED."""
     msg = ToolMessage(
-        content="Tool call limit exceeded. Do not call 'bash_tool' again.",
-        name="bash_tool",
+        content="Tool call limit exceeded. Do not call 'bash_code_execute_tool' again.",
+        name="bash_code_execute_tool",
         tool_call_id="call_1",
         status="error",
     )
@@ -27,7 +27,7 @@ async def test_handle_tool_result_engine_limit_tool_calls():
 
     assert events[1]["type"] == AgentEventType.ENGINE_LIMIT_REACHED.value
     assert events[1]["data"]["limit_type"] == "max_tool_calls"
-    assert events[1]["data"]["tool_name"] == "bash_tool"
+    assert events[1]["data"]["tool_name"] == "bash_code_execute_tool"
 
 
 @pytest.mark.asyncio

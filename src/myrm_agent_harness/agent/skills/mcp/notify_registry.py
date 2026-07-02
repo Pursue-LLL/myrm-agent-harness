@@ -7,7 +7,7 @@ under the session_id while a code execution is in flight, so the IPC handler
 can look it up by session_id (carried in :class:`IPCCallContext`) and route
 the notify event into LangGraph's custom stream.
 
-Lifetime is strictly bounded by the tool call: ``bash_tool`` registers on
+Lifetime is strictly bounded by the tool call: ``bash_code_execute_tool`` registers on
 entry and unregisters in ``finally`` to keep the registry small and to avoid
 leaking RunnableConfig references between sessions.
 

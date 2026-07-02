@@ -8,7 +8,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash import create_bash_tool
+from myrm_agent_harness.agent.meta_tools.bash import create_bash_code_execute_tool
 from myrm_agent_harness.toolkits.code_execution.executors.base import (
     _executor_var,
     get_executor,
@@ -152,7 +152,7 @@ async def test_bash_tool_no_executor_fails():
 
     _executor_var.set(None)
 
-    bash_tool = create_bash_tool()
+    bash_tool = create_bash_code_execute_tool()
 
     config = {
         "configurable": {
@@ -174,7 +174,7 @@ async def test_bash_tool_handles_non_mapping_context_without_attribute_error():
     from myrm_agent_harness.utils.errors import ToolError
 
     set_executor(MockExecutor("context_guard_executor"))
-    bash_tool = create_bash_tool()
+    bash_tool = create_bash_code_execute_tool()
 
     with pytest.raises(ToolError) as exc_info:
         await bash_tool.ainvoke(

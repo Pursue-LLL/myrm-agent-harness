@@ -1,7 +1,7 @@
 """Real-path integration: bash_tool background spawn + bash_process_* tools.
 
 Exercises C-4/C-5 split modules without mocking BashExecutor or LocalExecutor:
-create_bash_tool(run_in_background=True) → spawn_background → registry →
+create_bash_code_execute_tool(run_in_background=True) → spawn_background → registry →
 bash_process_list/output/kill.
 """
 
@@ -23,7 +23,7 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
     create_bash_process_list_tool,
     create_bash_process_output_tool,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool import create_bash_tool
+from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import create_bash_code_execute_tool
 from myrm_agent_harness.toolkits.code_execution.config import ExecutionConfig
 from myrm_agent_harness.toolkits.code_execution.executors.base import set_executor
 from myrm_agent_harness.toolkits.code_execution.workspace.storage_root_bind import (
@@ -88,7 +88,7 @@ async def test_background_spawn_list_output_kill_full_chain(tmp_path: Path) -> N
     }
     marker = "BG_INTEGRATION_MARKER"
 
-    bash_tool = create_bash_tool()
+    bash_tool = create_bash_code_execute_tool()
     list_tool = create_bash_process_list_tool()
     output_tool = create_bash_process_output_tool()
     kill_tool = create_bash_process_kill_tool()
@@ -152,7 +152,7 @@ async def test_background_spawn_list_output_kill_full_chain(tmp_path: Path) -> N
 async def test_background_spawn_requires_session_id(tmp_path: Path) -> None:
     executor = _make_local_executor(tmp_path)
     set_executor(executor)
-    bash_tool = create_bash_tool()
+    bash_tool = create_bash_code_execute_tool()
 
     with (
         patch(

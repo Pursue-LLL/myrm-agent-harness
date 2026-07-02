@@ -7,12 +7,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool import create_bash_tool
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool_background_listeners import (
+from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import create_bash_code_execute_tool
+from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool_background_listeners import (
     build_background_listeners,
     classify_background_exit,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool_helpers import (
+from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool_helpers import (
     get_os_hint,
     restore_context_vars,
     track_context_access_in_command,
@@ -113,7 +113,7 @@ def _patch_bash_tool_success(mock_execute_result: dict[str, object]):
     return (
         mock_bash_executor,
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_tool.extract_context_from_runnable_config",
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.extract_context_from_runnable_config",
             return_value={"session_id": "test-session", "supports_vision": False},
         ),
         patch(
@@ -132,7 +132,7 @@ def _patch_bash_tool_success(mock_execute_result: dict[str, object]):
             ),
         ),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_tool.track_context_access_in_command",
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.track_context_access_in_command",
             AsyncMock(),
         ),
     )
@@ -147,7 +147,7 @@ async def test_bash_tool_background_path_returns_pid_metadata() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_tool.extract_context_from_runnable_config",
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.extract_context_from_runnable_config",
             return_value={"session_id": "test-session"},
         ),
         patch(
@@ -163,7 +163,7 @@ async def test_bash_tool_background_path_returns_pid_metadata() -> None:
             AsyncMock(),
         ),
     ):
-        tool = create_bash_tool()
+        tool = create_bash_code_execute_tool()
         result = await tool.ainvoke(
             {"command": "sleep 60", "reason": "bg", "run_in_background": True},
             config={"configurable": {"context": {"session_id": "s"}}},
@@ -187,7 +187,7 @@ async def test_bash_tool_foreground_success_returns_content() -> None:
     mock_be, *patches = mocks
 
     with patches[0], patches[1], patches[2], patches[3], patches[4]:
-        tool = create_bash_tool()
+        tool = create_bash_code_execute_tool()
         result = await tool.ainvoke(
             {"command": "echo ok", "reason": "test"},
             config={"configurable": {"context": {"session_id": "s"}}},
@@ -214,7 +214,7 @@ async def test_bash_tool_foreground_with_truncation_eviction_and_hint() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_tool.extract_context_from_runnable_config",
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.extract_context_from_runnable_config",
             return_value={"session_id": "test-session", "supports_vision": False},
         ),
         patch(
@@ -233,7 +233,7 @@ async def test_bash_tool_foreground_with_truncation_eviction_and_hint() -> None:
             ),
         ),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_tool.track_context_access_in_command",
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.track_context_access_in_command",
             AsyncMock(),
         ),
         patch(
@@ -241,11 +241,11 @@ async def test_bash_tool_foreground_with_truncation_eviction_and_hint() -> None:
             AsyncMock(),
         ) as mock_dispatch,
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_tool.format_result",
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.format_result",
             return_value=("truncated", True, {"truncated": True}),
         ),
     ):
-        tool = create_bash_tool(
+        tool = create_bash_code_execute_tool(
             skills=[SimpleNamespace(name="s", oauth_issuer="iss", storage_path="/skills/s")],
             skill_env_map={"s": {}},
             global_env={"G": "1"},
@@ -262,10 +262,10 @@ async def test_bash_tool_foreground_with_truncation_eviction_and_hint() -> None:
 @pytest.mark.asyncio
 async def test_bash_tool_interactive_command_raises_tool_error() -> None:
     with patch(
-        "myrm_agent_harness.agent.meta_tools.bash.bash_tool.check_interactive_command",
+        "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.check_interactive_command",
         return_value="interactive not allowed",
     ):
-        tool = create_bash_tool()
+        tool = create_bash_code_execute_tool()
         with pytest.raises(Exception, match="interactive not allowed"):
             await tool.ainvoke(
                 {"command": "vim file", "reason": "test"},
@@ -288,7 +288,7 @@ async def test_bash_tool_restores_stashed_executor() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_tool.extract_context_from_runnable_config",
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.extract_context_from_runnable_config",
             return_value={"session_id": "sess-1", "workspace_path": "/ws"},
         ),
         patch(
@@ -300,7 +300,7 @@ async def test_bash_tool_restores_stashed_executor() -> None:
             return_value=mock_executor,
         ),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_tool.restore_context_vars",
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.restore_context_vars",
         ) as mock_restore,
         patch(
             "myrm_agent_harness.agent.meta_tools.bash.bash_executor.BashExecutor",
@@ -314,11 +314,11 @@ async def test_bash_tool_restores_stashed_executor() -> None:
             ),
         ),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_tool.track_context_access_in_command",
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.track_context_access_in_command",
             AsyncMock(),
         ),
     ):
-        tool = create_bash_tool()
+        tool = create_bash_code_execute_tool()
         await tool.ainvoke(
             {"command": "echo ok", "reason": "test"},
             config={"configurable": {"context": {"session_id": "sess-1"}}},
@@ -332,7 +332,7 @@ async def test_bash_tool_background_requires_session_id() -> None:
     mock_executor = MagicMock()
     with (
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_tool.extract_context_from_runnable_config",
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.extract_context_from_runnable_config",
             return_value={"session_id": ""},
         ),
         patch(
@@ -344,7 +344,7 @@ async def test_bash_tool_background_requires_session_id() -> None:
             return_value=AsyncMock(),
         ),
     ):
-        tool = create_bash_tool()
+        tool = create_bash_code_execute_tool()
         with pytest.raises(Exception, match="run_in_background requires"):
             await tool.ainvoke(
                 {"command": "sleep 1", "reason": "bg", "run_in_background": True},
@@ -356,7 +356,7 @@ async def test_bash_tool_background_requires_session_id() -> None:
 async def test_maybe_build_image_blocks_exception_str_fallback_and_overflow() -> None:
     from langchain_core.messages.content import create_text_block
 
-    from myrm_agent_harness.agent.meta_tools.bash.bash_tool_multimodal import (
+    from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool_multimodal import (
         MAX_IMAGES_PER_RETURN,
         maybe_build_image_blocks,
     )

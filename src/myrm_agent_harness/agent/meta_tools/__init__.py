@@ -1,7 +1,7 @@
 """Agent meta-tools module — tools depending on Agent framework infrastructure.
 
 [INPUT]
-- bash::create_bash_tool (POS: Bash 代码执行工具创建函数)
+- bash::create_bash_code_execute_tool (POS: Bash 代码执行工具创建函数)
 - file_ops::create_file_read_tool, create_file_write_tool, create_file_edit_tool (POS: 文件操作工具创建函数)
 - file_search::create_glob_tool, create_grep_tool (POS: 文件搜索工具创建函数)
 - skills.select::create_select_skill_tool (POS: 技能选择工具创建函数)
@@ -50,7 +50,7 @@ from .bash import (
     create_bash_process_kill_tool,
     create_bash_process_list_tool,
     create_bash_process_output_tool,
-    create_bash_tool,
+    create_bash_code_execute_tool,
 )
 from .discover_capability.discover_capability_tool import (
     create_discover_capability_tool,
@@ -111,7 +111,7 @@ def get_meta_tools(
     - 有 embedding_config: Hybrid 混合搜索(BM25+Embedding+RRF), 词法+语义双保障
 
     Skill tools extract user_id at runtime from RunnableConfig context
-    (consistent with bash_tool's session_id pattern).
+    (consistent with bash_code_execute_tool's session_id pattern).
 
     Args:
         skills: 可用的技能列表
@@ -265,13 +265,13 @@ def get_meta_tools(
     _ptc_tools_ref: list = []
 
     if enable_bash:
-        bash_tool = create_bash_tool(
+        bash_code_execute = create_bash_code_execute_tool(
             skills=skills,
             skill_env_map=skill_env_map,
             global_env=global_env,
             ptc_tools=_ptc_tools_ref,
         )
-        tools.append(bash_tool)
+        tools.append(bash_code_execute)
         _deferred_tools.extend(
             [
                 create_bash_process_list_tool(),
@@ -336,7 +336,7 @@ def get_meta_tools(
     # BashExecutor.ptc_tools is populated before any actual execution.
     _ptc_tools_ref.extend(t for t in tools if t.name not in ("bash_code_execute_tool", "request_answer_user_tool"))
     logger.info(
-        " PTC tools injected into bash_tool (%d tools exposed via myrm_tools)",
+        " PTC tools injected into bash_code_execute_tool (%d tools exposed via myrm_tools)",
         len(_ptc_tools_ref),
     )
 
@@ -349,7 +349,7 @@ __all__ = [
     "create_bash_process_kill_tool",
     "create_bash_process_list_tool",
     "create_bash_process_output_tool",
-    "create_bash_tool",
+    "create_bash_code_execute_tool",
     "create_batch_delegate_tasks_tool",
     "create_cancel_subagent_tool",
     "create_delegate_task_tool",

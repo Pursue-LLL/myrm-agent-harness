@@ -34,6 +34,6 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 | continuation.py | 核心 | guard chain → 返回 ContinuationDecision（含 convergence/loop_restart verdict）。支持收敛检测（no_progress_streak ≥ convergence_window → COMPLETE）、循环重启（loop_on_pause → 触发 trigger_goal_stream）和预算耗尽优雅收尾（Budget Wrap-up Turn） | ✅ |
 | audit.py | 核心 | 三段式 judge criteria + 行为引导 continuation prompt（含 Fidelity 防目标缩水、Evidence-based 防历史幻觉、Progress visibility 激活 planner_tool 进度推送、8 步 audit protocol、历史 learnings 注入、收敛引导指令）+ budget wrap-up prompt | ✅ |
 | goal_interceptor.py | 核心 | Goal 拦截器，负责在执行前调用 PlannerAgent 生成计划；支持多模态输入（图片直传 Planner）；auto_approve=True 时跳过 interrupt | ✅ |
-| invariant_snapshot.py | 核心 | Post-hoc tamper detection: SHA-256 snapshot of Goal protected_paths at activation; verify integrity before completion (bash_tool bypass safety net). | ✅ |
+| invariant_snapshot.py | 核心 | Post-hoc tamper detection: SHA-256 snapshot of Goal protected_paths at activation; verify integrity before completion (bash_code_execute_tool bypass safety net). | ✅ |
 | verification/ | 核心 | 验收测试模块，提供准则解析(Gatekeeper)与运行时验证(Shell/Semantic)机制 | ✅ |
 | GOAL_SYSTEM.md | 文档 | Goal 系统的详细设计文档 | - |

@@ -86,6 +86,7 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, str, frozenset[str]], ...] = (
 _MEMORY_MANIFEST_PREFIXES: tuple[str, ...] = (
     "toolkits/memory/strategies",
     "toolkits/memory/cognitive",
+    "toolkits/memory/proactive",
 )
 
 _MEMORY_PUBLIC_SUBDIRS: frozenset[str] = frozenset(

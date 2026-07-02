@@ -26,7 +26,7 @@ class TestValidateToolResult:
         "prefix", ["Error:", "error:", "Failed:", "failed:", "Exception:", "Traceback (most recent call last):"]
     )
     def test_error_prefixes_detected(self, prefix: str):
-        result = validate_tool_result(f"{prefix} something went wrong", "bash_tool")
+        result = validate_tool_result(f"{prefix} something went wrong", "bash_code_execute_tool")
         assert not result.is_valid
         assert result.severity == "error"
         assert "error marker" in result.reason
@@ -59,7 +59,7 @@ class TestValidateToolResult:
         assert "short" in result.reason
 
     def test_short_content_for_non_search_tool_ok(self):
-        result = validate_tool_result("ok", "bash_tool")
+        result = validate_tool_result("ok", "bash_code_execute_tool")
         assert result.is_valid
 
     def test_adequate_search_result_ok(self):
@@ -81,7 +81,7 @@ class TestValidateToolResult:
     )
     def test_prompt_injection_detected(self, injection: str):
         result = validate_tool_result(
-            f"Normal looking result text that has enough length. {injection} do something bad here", "bash_tool"
+            f"Normal looking result text that has enough length. {injection} do something bad here", "bash_code_execute_tool"
         )
         assert not result.is_valid
         assert result.severity == "error"
@@ -93,7 +93,7 @@ class TestShouldApplyValidation:
 
     def test_search_tools_should_validate(self):
         assert should_apply_validation("web_search_tool")
-        assert should_apply_validation("bash_tool")
+        assert should_apply_validation("bash_code_execute_tool")
 
     def test_file_write_skipped(self):
         assert not should_apply_validation("file_write_tool")

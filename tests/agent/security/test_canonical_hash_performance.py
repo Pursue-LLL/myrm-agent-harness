@@ -27,7 +27,7 @@ class TestCanonicalHashPerformance:
         for i in range(10):
             tool_calls.extend(
                 [
-                    {"name": "bash_tool", "args": {"command": f"echo test_{i}", "reason": f"Execute command {i}"}},
+                    {"name": "bash_code_execute_tool", "args": {"command": f"echo test_{i}", "reason": f"Execute command {i}"}},
                     {"name": "file_read_tool", "args": {"path": f"/tmp/file_{i}.txt", "reason": "Read file"}},
                     {
                         "name": "browser_navigate_tool",
@@ -77,7 +77,7 @@ class TestCanonicalHashPerformance:
 
         start = time.perf_counter()
         for _ in range(iterations):
-            _ = compute_canonical_args_hash("bash_tool", tool_args)
+            _ = compute_canonical_args_hash("bash_code_execute_tool", tool_args)
         elapsed = time.perf_counter() - start
 
         avg_time_us = (elapsed / iterations) * 1_000_000

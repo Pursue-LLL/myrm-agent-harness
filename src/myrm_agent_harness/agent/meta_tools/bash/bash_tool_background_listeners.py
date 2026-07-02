@@ -1,4 +1,4 @@
-"""Background job event listeners for bash_tool spawn path.
+"""Background job event listeners for bash_code_execute_tool spawn path.
 
 [INPUT]
 - ._background_registry::BackgroundProcessInfo (POS: Background job snapshot type)

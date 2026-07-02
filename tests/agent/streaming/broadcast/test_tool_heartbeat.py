@@ -37,7 +37,7 @@ class TestEmitToolHeartbeat:
         set_tool_progress_sink(sink)
         start = time.time()
         try:
-            task = asyncio.create_task(emit_tool_heartbeat("bash_tool", "tc_hb1", start))
+            task = asyncio.create_task(emit_tool_heartbeat("bash_code_execute_tool", "tc_hb1", start))
             await asyncio.sleep(3.5)
             task.cancel()
             with pytest.raises(asyncio.CancelledError):
@@ -48,7 +48,7 @@ class TestEmitToolHeartbeat:
         assert len(sink.events) >= 1
         event = sink.events[0]
         assert event["type"] == "tool_heartbeat"
-        assert event["tool_name"] == "bash_tool"
+        assert event["tool_name"] == "bash_code_execute_tool"
         assert event["tool_call_id"] == "tc_hb1"
         assert event["elapsed_ms"] >= 2500
 

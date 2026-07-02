@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool import (
+from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
     _maybe_build_image_blocks,
 )
 
@@ -99,7 +99,7 @@ async def test_caps_inlined_images_to_max_per_return(
     """
     import base64
 
-    from myrm_agent_harness.agent.meta_tools.bash.bash_tool import (
+    from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
         MAX_IMAGES_PER_RETURN,
     )
 

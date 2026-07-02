@@ -3,16 +3,15 @@
 [OUTPUT]
 - TTSConfig, TTSResult, TTSGenerationError, MediaMeta, MediaCallback
 - AsyncTTSEngine: Core generation engine
-- TTSTool, create_tts_tool: LangChain adapter
 
 [POS]
 Audio generation capability — symmetric with llms/image and llms/video.
 Supports OpenAI and ElevenLabs with gateway routing and BYOK fallback.
+LangChain adapters live in myrm-agent-server/app/ai_agents/media_tools/.
 """
 
 from .generator import AsyncTTSEngine
 from .models import MediaCallback, MediaMeta, TTSConfig, TTSGenerationError, TTSResult
-from .tts_langchain_tool import TTSTool, create_tts_tool
 
 __all__ = [
     "AsyncTTSEngine",
@@ -21,6 +20,4 @@ __all__ = [
     "TTSConfig",
     "TTSGenerationError",
     "TTSResult",
-    "TTSTool",
-    "create_tts_tool",
 ]

@@ -68,7 +68,7 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 | `__init__.py` | Package | Agent core module — public API. | — |
 | `base_agent.py` | Core | Base Agent — streaming, token tracking, artifacts. | ✅ |
 | `skill_agent.py` | Core | SkillAgent — skills, hooks, session lifecycle. | ✅ |
-| `_skill_agent_context.py` | Internal | ContextVar + background task utilities. | ✅ |
+| `_skill_agent_context.py` | Internal | ContextVar, background tasks, SkillAgentContextMixin (_prepare_context). | ✅ |
 | `_skill_agent_review.py` | Internal | Session-end review mixin. | ✅ |
 | `_skill_agent_tools.py` | Internal | Meta-tools / planner / wiki assembly mixin. | ✅ |
 | `skill_agent_factory.py` | Core | Facade — re-exports `create_skill_agent()`. | ✅ |
@@ -88,12 +88,16 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 | `deep_research/` | Multi-phase deep research orchestrator | [DEEP_RESEARCH_SYSTEM.md](deep_research/DEEP_RESEARCH_SYSTEM.md) |
 | `errors/` | Execution errors + diagnostics | [ERROR_SYSTEM.md](errors/ERROR_SYSTEM.md) |
 | `event_log/` | Full event history (complements checkpointer) | [EVENT_LOG_SYSTEM.md](event_log/EVENT_LOG_SYSTEM.md) |
+| `execution_checklist/` | Lightweight session checklist (Path B; mutual exclusion with planner) | [execution_checklist/_ARCH.md](execution_checklist/_ARCH.md) |
 | `extensions/` | Harness `AgentExtension` Protocol | [extensions/_ARCH.md](extensions/_ARCH.md) |
 | `file_snapshot/` | Workspace file versioning / rollback | [file_snapshot/_ARCH.md](file_snapshot/_ARCH.md) |
 | `goals/` | Goal-based autonomous loop engine | [GOAL_SYSTEM.md](goals/GOAL_SYSTEM.md) |
 | `hooks/` | User-configurable lifecycle hooks | [hooks/_ARCH.md](hooks/_ARCH.md) |
 | `meta_tools/` | Agent-bound LangChain meta-tools | [META_TOOLS_SYSTEM.md](meta_tools/META_TOOLS_SYSTEM.md) |
 | `middlewares/` | Framework middleware stack | [MIDDLEWARE_SYSTEM.md](middlewares/MIDDLEWARE_SYSTEM.md) |
+| `parallel/` | Shared subagent spawn path (batch/swarm semaphore) | [parallel/_ARCH.md](parallel/_ARCH.md) |
+| `security/` | Agent security engine (HITL, rate limiter, transcript classifier) | [security/SECURITY_SYSTEM.md](security/SECURITY_SYSTEM.md) |
+| `skills/` | Skill system (discovery, evolution, optimization, sync) | [skills/SKILL_SYSTEM.md](skills/SKILL_SYSTEM.md) |
 | `streaming/` | BaseAgent event pipeline + [broadcast/](streaming/broadcast/_ARCH.md) tool SSE | [STREAMING_SYSTEM.md](streaming/STREAMING_SYSTEM.md) |
 | `sub_agents/` | Sub-agent lifecycle | [SUB_AGENT_SYSTEM.md](sub_agents/SUB_AGENT_SYSTEM.md) |
 | `tool_management/` | Tool registry, layers, dedup | [TOOL_MANAGEMENT_SYSTEM.md](tool_management/TOOL_MANAGEMENT_SYSTEM.md) |

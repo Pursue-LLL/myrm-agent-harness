@@ -12,3 +12,4 @@ knowledge direction, compile/query configs, and recursive file system operations
 | config.py | Config | WikiConfig (purpose, compile strategy), WikiCompileConfig (provenance prompts), WikiQueryConfig | ✅ |
 | structure.py | Core | File system layout (raw/, wiki/, concepts/, purpose.md), tree CRUD, `delete_folder_safe` with indexer sync | ✅ |
 | types.py | Types | Data models: ConceptInfo, WikiArticle, CompileResult, LintIssue, LintResult | ✅ |
+| refactor.py | Core | LinkRefactorEngine — update relative markdown links when wiki files move or rename | ✅ |

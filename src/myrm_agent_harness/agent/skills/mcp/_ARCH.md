@@ -8,7 +8,7 @@ MCP Skills — Agent-layer MCP skill transformation.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | MCP Skills — Agent-layer MCP skill transformation. | — |
-| builtin_registry.py | Core | Provides BuiltinToolEntry, BuiltinToolRegistry, get_builtin_tool_registry. Registers PTC builtins (session_store/load/keys, notify, web_search, web_fetch). | ✅ |
+| builtin_registry.py | Core | Provides BuiltinToolEntry, BuiltinToolRegistry, get_builtin_tool_registry. Registers PTC-only builtins (session_store/load/keys, notify). Web uses native tools + PTC RPC stubs. | ✅ |
 | builtin_session_store.py | Core | PTC builtin handlers: cross-call file-backed session KV store at `<workspace>/.session_store/<sid>.json` (session_id is sanitised via `_SAFE_SESSION_ID_RE` to prevent path traversal). | ✅ |
 | builtin_notify.py | Core | PTC builtin handler: `tools.notify` → LangGraph `ptc_notify` custom event for real-time UI updates. Token-bucket rate limited (10rps / burst 20 per session); supports structured fields `progress` / `step_index` / `total_steps` / `category` for inline ActivityCard grouping. | ✅ |
 | notify_registry.py | Core | Session→RunnableConfig registry (with `session_scope` async ctx mgr) so the IPC task can resolve the caller's config for `notify` dispatch. | ✅ |

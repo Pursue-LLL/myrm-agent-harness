@@ -47,7 +47,28 @@ _BLOCK_BEGIN = "<!-- TOOL_COUNT_BEGIN -->"
 _BLOCK_END = "<!-- TOOL_COUNT_END -->"
 
 
-def _format_report(report: ScanReport, *, incremental: bool = False) -> str:
+def _load_registry_metadata_keys() -> set[str]:
+    from myrm_agent_harness.core.security.tool_registry import (
+        TOOL_CANONICAL_PARAMS,
+        TOOL_GROUP_MAP,
+        TOOL_PERMISSION_MAP,
+        TOOL_SAFETY_METADATA,
+    )
+
+    keys: set[str] = set(TOOL_PERMISSION_MAP)
+    keys.update(TOOL_CANONICAL_PARAMS)
+    keys.update(TOOL_SAFETY_METADATA)
+    for tools in TOOL_GROUP_MAP.values():
+        keys.update(tools)
+    return keys
+
+
+def _format_report(
+    report: ScanReport,
+    *,
+    incremental: bool = False,
+    metadata_ghosts: set[str] | None = None,
+) -> str:
     layer_counts = _layer_counts(report)
     lines = [
         "=" * 80,
@@ -65,8 +86,9 @@ def _format_report(report: ScanReport, *, incremental: bool = False) -> str:
     duplicates = report.duplicate_declarations()
     ghosts: set[str] = set() if incremental else report.ghost_registrations()
     orphans: set[str] = set() if incremental else report.orphan_factories()
+    meta_ghosts: set[str] = set() if incremental else (metadata_ghosts or set())
 
-    if not missing and not ghosts and not orphans and not duplicates:
+    if not missing and not ghosts and not orphans and not duplicates and not meta_ghosts:
         lines.append("PASS - tool registry consistent")
         return "\n".join(lines)
 
@@ -94,6 +116,15 @@ def _format_report(report: ScanReport, *, incremental: bool = False) -> str:
             lines.append(f"  - {factory}  (defined @ {origin.relative_to(_repo_root)})")
         lines.append("  Fix: either wire the factory into a startup path, or delete the dead code.")
         lines.append("       To intentionally allow an unused factory, add it to ORPHAN_FACTORY_WHITELIST.")
+        lines.append("")
+
+    if meta_ghosts:
+        lines.append(
+            f"FAIL - {len(meta_ghosts)} registry metadata key(s) with NO @tool source:"
+        )
+        for name in sorted(meta_ghosts):
+            lines.append(f"  - {name}")
+        lines.append("  Fix: remove dead keys from tool_registry.py maps or register the tool.")
         lines.append("")
 
     if duplicates:
@@ -226,7 +257,12 @@ def main() -> int:
     # incremental mode to avoid false positives from filtered declarations.
     ghosts = set() if args.incremental else report.ghost_registrations()
     orphans = set() if args.incremental else report.orphan_factories()
-    fail = bool(missing or ghosts or orphans or duplicates)
+    metadata_ghosts = (
+        set()
+        if args.incremental
+        else report.ghost_registry_metadata_keys(_load_registry_metadata_keys())
+    )
+    fail = bool(missing or ghosts or orphans or duplicates or metadata_ghosts)
 
     if args.json:
         payload = {
@@ -237,6 +273,7 @@ def main() -> int:
             "layer_counts": _layer_counts(report),
             "missing": sorted(missing),
             "ghosts": sorted(ghosts),
+            "metadata_ghosts": sorted(metadata_ghosts),
             "orphans": sorted(orphans),
             "duplicates": {
                 name: [f"{decl.file.relative_to(_repo_root)}:{decl.line}" for decl in decls]
@@ -245,7 +282,13 @@ def main() -> int:
         }
         print(json.dumps(payload, indent=2))
     else:
-        print(_format_report(report, incremental=args.incremental))
+        print(
+            _format_report(
+                report,
+                incremental=args.incremental,
+                metadata_ghosts=metadata_ghosts,
+            )
+        )
 
     return 1 if fail else 0
 

@@ -12,9 +12,9 @@ class TestCanonicalArgsHash:
         args2 = {"command": "ls -la /tmp", "reason": "列出 /tmp 目录下的所有文件及详细信息"}
         args3 = {"command": "ls -la /tmp", "reason": "Show all files in /tmp"}
 
-        hash1 = compute_canonical_args_hash("bash_tool", args1)
-        hash2 = compute_canonical_args_hash("bash_tool", args2)
-        hash3 = compute_canonical_args_hash("bash_tool", args3)
+        hash1 = compute_canonical_args_hash("bash_code_execute_tool", args1)
+        hash2 = compute_canonical_args_hash("bash_code_execute_tool", args2)
+        hash3 = compute_canonical_args_hash("bash_code_execute_tool", args3)
 
         assert hash1 == hash2 == hash3, "Hash should be identical for same command with different reasons"
 
@@ -23,8 +23,8 @@ class TestCanonicalArgsHash:
         args1 = {"command": "ls -la /tmp", "reason": "list files"}
         args2 = {"command": "pwd", "reason": "list files"}
 
-        hash1 = compute_canonical_args_hash("bash_tool", args1)
-        hash2 = compute_canonical_args_hash("bash_tool", args2)
+        hash1 = compute_canonical_args_hash("bash_code_execute_tool", args1)
+        hash2 = compute_canonical_args_hash("bash_code_execute_tool", args2)
 
         assert hash1 != hash2, "Different commands should produce different hashes"
 
@@ -84,7 +84,7 @@ class TestCanonicalArgsHash:
 
     def test_none_args_returns_none(self):
         """Verify None args returns None hash."""
-        assert compute_canonical_args_hash("bash_tool", None) is None
+        assert compute_canonical_args_hash("bash_code_execute_tool", None) is None
 
     def test_empty_canonical_params_hashes_all(self):
         """Verify tools with empty canonical params list hash all params."""
@@ -97,7 +97,7 @@ class TestCanonicalArgsHash:
     def test_hash_format(self):
         """Verify hash format is SHA256[:16]."""
         args = {"command": "echo hello"}
-        hash_value = compute_canonical_args_hash("bash_tool", args)
+        hash_value = compute_canonical_args_hash("bash_code_execute_tool", args)
 
         assert hash_value is not None
         assert len(hash_value) == 16, "Hash should be 16 characters (SHA256[:16])"
@@ -107,6 +107,6 @@ class TestCanonicalArgsHash:
         """Verify hash is deterministic across multiple calls."""
         args = {"command": "ls -la", "reason": "list files"}
 
-        hashes = [compute_canonical_args_hash("bash_tool", args) for _ in range(100)]
+        hashes = [compute_canonical_args_hash("bash_code_execute_tool", args) for _ in range(100)]
 
         assert len(set(hashes)) == 1, "Hash should be deterministic"

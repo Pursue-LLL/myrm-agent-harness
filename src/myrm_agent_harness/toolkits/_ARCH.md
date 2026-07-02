@@ -37,8 +37,9 @@ optional adapter if present.
 1. **Never** add a third-party SaaS wrapper as a harness `toolkits/*` module (calendar, huggingface, rss-class integrations belong in skill/MCP).
 2. **Never** ship a prebuilt skill that promises OAuth/API access without a working product integration path (GUI OAuth or documented MCP).
 3. **Single-vendor narrow tools** → skill script + `bash_code_execute_tool` / `web_fetch_tool`, or user MCP — not a new harness toolkit.
-4. **`allowed-tools` in SKILL.md** must use **registered tool names** (e.g. `bash_code_execute_tool`, not unregistered aliases like `bash_tool`).
-5. **Adding a LangChain adapter** (optional `*_agent_tools.py` factory) requires: generic reuse across projects, zero `agent/` imports, entry in `tool_layers.py` + `validate_tool_registry.py` PASS. The underlying toolkit capability must be usable without LangChain.
+4. **AST / call graph / code impact analysis** → user MCP (CodeGraph, code-review-graph, …) or Skill — not `toolkits/*` (see `myrm-agent-server/ARCHITECTURE.md` §代码智能).
+5. **`allowed-tools` in SKILL.md** must use **registered tool names** (e.g. `bash_code_execute_tool`, not unregistered aliases like `bash_tool`).
+6. **Adding a LangChain adapter** (optional `*_agent_tools.py` factory) requires: generic reuse across projects, zero `agent/` imports, entry in `tool_layers.py` + `validate_tool_registry.py` PASS. The underlying toolkit capability must be usable without LangChain.
 
 ### `*_agent_tools.py` naming convention (optional adapter)
 
@@ -56,7 +57,7 @@ is an adapter, not the toolkit itself. Examples: `wiki/wiki_agent_tools.py`,
 **Rule of thumb:** engine + persistence + Protocol in `toolkits/` (exported from `__init__.py`);
 LangChain adapter is optional and secondary. Wrappers that must read `agent/` session state belong in `agent/meta_tools/`.
 
-Current `*_agent_tools.py` modules (all compliant): `acp/`, `code_graph/`, `computer_use/`, `cron/`, `kanban/`, `memory/`, `web_fetch/`, `web_search/`, `wiki/`.
+Current `*_agent_tools.py` modules (all compliant): `acp/`, `computer_use/`, `cron/`, `kanban/`, `memory/`, `web_fetch/`, `web_search/`, `wiki/`.
 
 ### Naming disambiguation: `mcp/agent.py`
 
@@ -86,7 +87,7 @@ Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
 | Category | Toolkits | Role |
 |----------|----------|------|
 | **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP |
-| **Workspace** | `browser/`, `code_graph/`, `computer_use/`, `filesystem_suggest/`, `context_bundle/`, `file_parsers/`, `wiki/` | Files, browser, code graph, desktop, @-mention path suggest |
+| **Workspace** | `browser/`, `computer_use/`, `filesystem_suggest/`, `context_bundle/`, `file_parsers/`, `wiki/` | Files, browser, desktop, @-mention path suggest |
 | **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/` | External APIs, agent protocols |
 | **Collaboration & Media** | `kanban/`, `tasks/`, `cron/` | Scheduling (incl. event/webhook triggers), tasks |
 | **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |
@@ -100,7 +101,9 @@ Only Python toolkit **packages** belong as direct children of `toolkits/` (each 
 | Allowed | Forbidden |
 |---------|-----------|
 | Named toolkit packages (`browser/`, `mcp/`, …) | Runtime/cache dirs (`local_browser_data/`, `__pycache__/`) |
-| `_ARCH.md`, `SECURITY_WRAPPER_GUIDE.md`, `__init__.py` | Vendor integration packages (see vendor boundary test) |
+| Root docs and package marker files (see note below) | Vendor integration packages (see vendor boundary test) |
+
+Root-level files beside toolkit packages: `_ARCH.md`, `SECURITY_WRAPPER_GUIDE.md`, and the package `__init__.py`.
 
 Runtime data belongs under `MYRM_DATA_DIR` / deployment volume — never committed under `src/.../toolkits/`.
 
@@ -154,7 +157,6 @@ Does your code need to import anything from agent/?
 | acp/ | ACP protocol integration — server and runtime components for Agent Communication Protocol. |
 | browser/ | Browser automation — multi-tab control, iframe traversal, session vault, stealth mode. |
 | code_execution/ | Code execution system — Agent-in-Sandbox mode with multiple executor backends. |
-| code_graph/ | AST-based code knowledge graph — Tree-sitter multi-language parsing → SQLite graph storage → structural queries (impact radius, call chains, execution flows, hotspots). `[code-graph]` optional extra. |
 | memory/proactive/ | Proactive follow-up tracking — implicit promise extraction; host implements `CommitmentStore`. See [COMMITMENT_SYSTEM.md](memory/proactive/COMMITMENT_SYSTEM.md). |
 | computer_use/ | System-wide desktop automation — screen capture + coordinate-based input (macOS/Linux). |
 | cron/ | Scheduled task framework — scheduling engine, CRUD manager, built-in strategies. |

@@ -67,7 +67,7 @@ class TestToolArgumentRecovery:
     def test_regex_fallback_is_marked_unsafe_without_schema(self) -> None:
         raw = 'oops "command": "rm -rf /tmp/demo" trailing'
 
-        result = parse_tool_call_arguments_with_recovery(raw, "bash_tool")
+        result = parse_tool_call_arguments_with_recovery(raw, "bash_code_execute_tool")
 
         assert result.degraded is True
         assert result.strategy == "regex_fallback"
@@ -77,7 +77,7 @@ class TestToolArgumentRecovery:
     def test_parse_tool_call_args_drops_unsafe_partial_result(self) -> None:
         raw = 'oops "command": "rm -rf /tmp/demo" trailing'
 
-        parsed = _parse_tool_call_args(raw, "bash_tool")
+        parsed = _parse_tool_call_args(raw, "bash_code_execute_tool")
 
         assert parsed == {}
 
@@ -120,7 +120,7 @@ class TestConvertDictToMessageRecovery:
 class TestStreamFinalizationRecovery:
     def test_final_tool_call_chunk_uses_recovered_and_decoded_args(self) -> None:
         schema = _build_tool_schema(
-            "bash_tool",
+            "bash_code_execute_tool",
             {
                 "command": {"type": "string"},
             },
@@ -132,7 +132,7 @@ class TestStreamFinalizationRecovery:
                 "id": "call_1",
                 "type": "function",
                 "function": {
-                    "name": "bash_tool",
+                    "name": "bash_code_execute_tool",
                     "arguments": json.dumps({"command": 'echo "hi" &amp;&amp; ls'}),
                 },
             }
@@ -140,7 +140,7 @@ class TestStreamFinalizationRecovery:
 
         final_chunk, corrected_tool_calls, recovery_metadata = model._build_final_tool_call_chunk(
             raw_tool_calls,
-            {"bash_tool": schema},
+            {"bash_code_execute_tool": schema},
         )
 
         assert final_chunk is not None

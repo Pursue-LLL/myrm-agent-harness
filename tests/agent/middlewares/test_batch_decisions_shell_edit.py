@@ -83,7 +83,7 @@ class TestApprovalGuidanceInjection:
 
     @pytest.mark.asyncio
     async def test_approve_with_guidance(self) -> None:
-        tc = {"name": "bash_tool", "args": {"command": "ls"}, "id": "tc1", "type": "tool_call"}
+        tc = {"name": "bash_code_execute_tool", "args": {"command": "ls"}, "id": "tc1", "type": "tool_call"}
         ai_msg = AIMessage(content="", tool_calls=[tc])
         pending = [(0, tc, "shell_exec", "needs approval", None)]
         decisions = [{"type": "approve", "guidance": "Use the production API, not staging"}]
@@ -99,7 +99,7 @@ class TestApprovalGuidanceInjection:
 
     @pytest.mark.asyncio
     async def test_reject_with_guidance(self) -> None:
-        tc = {"name": "bash_tool", "args": {"command": "rm -rf /"}, "id": "tc1", "type": "tool_call"}
+        tc = {"name": "bash_code_execute_tool", "args": {"command": "rm -rf /"}, "id": "tc1", "type": "tool_call"}
         ai_msg = AIMessage(content="", tool_calls=[tc])
         pending = [(0, tc, "shell_exec", "dangerous", None)]
         decisions = [{"type": "reject", "feedback": "Too risky", "guidance": "Try a safer command instead"}]
@@ -114,7 +114,7 @@ class TestApprovalGuidanceInjection:
 
     @pytest.mark.asyncio
     async def test_no_guidance_when_empty(self) -> None:
-        tc = {"name": "bash_tool", "args": {"command": "ls"}, "id": "tc1", "type": "tool_call"}
+        tc = {"name": "bash_code_execute_tool", "args": {"command": "ls"}, "id": "tc1", "type": "tool_call"}
         ai_msg = AIMessage(content="", tool_calls=[tc])
         pending = [(0, tc, "shell_exec", "needs approval", None)]
         decisions = [{"type": "approve", "guidance": ""}]
@@ -126,7 +126,7 @@ class TestApprovalGuidanceInjection:
 
     @pytest.mark.asyncio
     async def test_no_guidance_when_missing(self) -> None:
-        tc = {"name": "bash_tool", "args": {"command": "ls"}, "id": "tc1", "type": "tool_call"}
+        tc = {"name": "bash_code_execute_tool", "args": {"command": "ls"}, "id": "tc1", "type": "tool_call"}
         ai_msg = AIMessage(content="", tool_calls=[tc])
         pending = [(0, tc, "shell_exec", "needs approval", None)]
         decisions = [{"type": "approve"}]
@@ -138,7 +138,7 @@ class TestApprovalGuidanceInjection:
 
     @pytest.mark.asyncio
     async def test_guidance_with_non_string_ignored(self) -> None:
-        tc = {"name": "bash_tool", "args": {"command": "ls"}, "id": "tc1", "type": "tool_call"}
+        tc = {"name": "bash_code_execute_tool", "args": {"command": "ls"}, "id": "tc1", "type": "tool_call"}
         ai_msg = AIMessage(content="", tool_calls=[tc])
         pending = [(0, tc, "shell_exec", "needs approval", None)]
         decisions = [{"type": "approve", "guidance": 123}]
@@ -150,7 +150,7 @@ class TestApprovalGuidanceInjection:
 
     @pytest.mark.asyncio
     async def test_batch_guidance_multiple_tools(self) -> None:
-        tc1 = {"name": "bash_tool", "args": {"command": "ls"}, "id": "tc1", "type": "tool_call"}
+        tc1 = {"name": "bash_code_execute_tool", "args": {"command": "ls"}, "id": "tc1", "type": "tool_call"}
         tc2 = {"name": "file_write", "args": {"path": "/tmp/x"}, "id": "tc2", "type": "tool_call"}
         ai_msg = AIMessage(content="", tool_calls=[tc1, tc2])
         pending = [

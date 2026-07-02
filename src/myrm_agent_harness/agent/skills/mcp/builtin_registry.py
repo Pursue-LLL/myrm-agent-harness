@@ -8,19 +8,18 @@
 - BuiltinToolRegistry: 全局注册表，提供 register / dispatch / get_ptc_description
 
 [INPUT]
-- toolkits.web_search.engine::SearchServiceConfig, WebSearchTools (POS: Web search tools wrapper. Provides two modes: basic mode (BM25 full-document retrieval without Reranker) and precise mode (chunk-level semantic filtering, requires Reranker). Basic mode suits most scenarios with performance priority; precise mode suits long-document scenarios with accuracy priority. Supports multiple search engines; BM25 index cache managed by RetrieverManager. As the toolkit's external interface, provides unified web search capability for Agent and business layer.)
-- toolkits.web_fetch::CrawlEngine (POS: Web fetch toolkit entry point. Re-exports the core crawl engine and result types.)
-- agent.skills.mcp.builtin_session_store::session_store_handler, session_load_handler, session_keys_handler (POS: Cross-call key-value persistence for PTC scripts.)
 - agent.skills.mcp.builtin_notify::notify_handler (POS: Realtime progress notification handler.)
+- agent.skills.mcp.builtin_session_store::session_store_handler, session_load_handler, session_keys_handler (POS: Cross-call key-value persistence for PTC scripts.)
 
 [OUTPUT]
 - BuiltinToolEntry: Registered handler + description + parameter schema + return type.
 - BuiltinToolRegistry: Process-wide registry with register / dispatch / get_ptc_description.
-- get_builtin_tool_registry: Lazy singleton accessor (registers session_store/load/keys, notify, web_search, web_fetch).
+- get_builtin_tool_registry: Lazy singleton accessor (registers session_store/load/keys, notify).
 
 [POS]
-PTC builtin tool registry & dispatcher. Sole entry point for builtin tools
-exposed to PTC scripts under the ``tools.*`` namespace.
+PTC builtin tool registry & dispatcher. Sole entry point for PTC-only builtins
+(session persistence, notify) exposed under the ``myrm_tools`` namespace in bash
+Python scripts. Web search/fetch use native LLM tools + PTC RPC stubs instead.
 """
 
 import logging
@@ -70,7 +69,7 @@ class BuiltinToolRegistry:
             handler: async handler，接收 dict 参数，返回 JSON-serialisable 结果
                      (handlers needing session context can call
                      ``get_ipc_call_context()`` to retrieve session_id / workspace_root).
-            description: 工具描述（注入 bash_tool 描述供 LLM 感知）
+            description: 工具描述（注入 bash_code_execute_tool 描述供 LLM 感知）
             parameters: 参数签名描述 {param_name: type_desc}
             return_type: 返回值类型说明（用于 PTC 描述生成，默认 str）
         """
@@ -113,7 +112,7 @@ class BuiltinToolRegistry:
         return name in self._tools
 
     def get_ptc_description(self) -> str:
-        """生成 PTC 内置工具描述（注入 bash_tool description）
+        """生成 PTC 内置工具描述（注入 bash_code_execute_tool description）
 
         Returns:
             格式化的工具描述字符串，供 LLM 感知可用的 myrm_tools 命名空间
@@ -149,55 +148,12 @@ def get_builtin_tool_registry() -> BuiltinToolRegistry:
 
 
 def _register_default_tools(registry: BuiltinToolRegistry) -> None:
-    """注册默认的 PTC 内置工具"""
+    """Register PTC-only builtins (no native LLM tool equivalent).
 
-    async def _web_search_handler(params: dict[str, object]) -> str:
-        from myrm_agent_harness.toolkits.web_search.engine import SearchServiceConfig, WebSearchTools
-
-        query = str(params.get("query", ""))
-        if not query:
-            return "Error: query parameter is required"
-        raw_max_results = params.get("max_results", 5)
-        max_results = int(raw_max_results) if isinstance(raw_max_results, str | int | float) else 5
-
-        config = SearchServiceConfig(search_service="searxng")
-        web_search = WebSearchTools(config)
-        _, formatted = await web_search.fast_search_with_questions(
-            questions=[query], search_results_per_query=max_results, top_k=max_results
-        )
-        return formatted or "No results found."
-
-    async def _web_fetch_handler(params: dict[str, object]) -> str:
-        from myrm_agent_harness.toolkits.web_fetch import CrawlEngine
-        from myrm_agent_harness.utils.context_format import format_crawl_results, wrap_with_external_sources_tag
-
-        url = str(params.get("url", ""))
-        if not url:
-            return "Error: url parameter is required"
-
-        engine = CrawlEngine()
-        success_results, _ = await engine.crawl_many([url])
-        if not success_results:
-            return f"Failed to fetch content from {url}"
-
-        result = format_crawl_results(success_results=success_results, include_title=True, include_date=False) or ""
-        return wrap_with_external_sources_tag(result, source="ptc_web_fetch") if result else result
-
-    registry.register(
-        name="web_search",
-        handler=_web_search_handler,
-        description="Search the web for information.",
-        parameters={"query": "str", "max_results": "int = 5"},
-        return_type="str",
-    )
-    registry.register(
-        name="web_fetch",
-        handler=_web_fetch_handler,
-        description="Fetch and extract content from a URL.",
-        parameters={"url": "str"},
-        return_type="str",
-    )
-
+    Web search/fetch are not registered here: bind ``web_search_tool`` /
+    ``web_fetch_tool`` on the agent for native + PTC RPC stub access. PTC-only
+    builtins below avoid duplicating web APIs in bash tool description.
+    """
     from myrm_agent_harness.agent.skills.mcp.builtin_notify import notify_handler
     from myrm_agent_harness.agent.skills.mcp.builtin_session_store import (
         session_keys_handler,

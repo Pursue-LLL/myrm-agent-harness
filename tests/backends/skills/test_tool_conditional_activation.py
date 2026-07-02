@@ -82,27 +82,27 @@ class TestRequiresTools:
         assert skill_visible_for_tools(skill, frozenset(), frozenset()) is True
 
     def test_requires_present_visible(self):
-        skill = _make_skill(requires_tools=["bash_tool"])
+        skill = _make_skill(requires_tools=["bash_code_execute_tool"])
         assert skill_visible_for_tools(
-            skill, frozenset({"bash_tool", "file_read_tool"}), frozenset()
+            skill, frozenset({"bash_code_execute_tool", "file_read_tool"}), frozenset()
         ) is True
 
     def test_requires_absent_hidden(self):
-        skill = _make_skill(requires_tools=["bash_tool"])
+        skill = _make_skill(requires_tools=["bash_code_execute_tool"])
         assert skill_visible_for_tools(
             skill, frozenset({"file_read_tool"}), frozenset()
         ) is False
 
     def test_requires_multiple_all_present(self):
-        skill = _make_skill(requires_tools=["bash_tool", "file_read_tool"])
+        skill = _make_skill(requires_tools=["bash_code_execute_tool", "file_read_tool"])
         assert skill_visible_for_tools(
-            skill, frozenset({"bash_tool", "file_read_tool", "web_search_tool"}), frozenset()
+            skill, frozenset({"bash_code_execute_tool", "file_read_tool", "web_search_tool"}), frozenset()
         ) is True
 
     def test_requires_multiple_one_missing(self):
-        skill = _make_skill(requires_tools=["bash_tool", "file_read_tool"])
+        skill = _make_skill(requires_tools=["bash_code_execute_tool", "file_read_tool"])
         assert skill_visible_for_tools(
-            skill, frozenset({"bash_tool"}), frozenset()
+            skill, frozenset({"bash_code_execute_tool"}), frozenset()
         ) is False
 
 
@@ -116,26 +116,26 @@ class TestFallbackForTools:
         assert skill_visible_for_tools(skill, frozenset(), frozenset()) is True
 
     def test_fallback_tool_present_hidden(self):
-        skill = _make_skill(fallback_for_tools=["bash_tool"])
+        skill = _make_skill(fallback_for_tools=["bash_code_execute_tool"])
         assert skill_visible_for_tools(
-            skill, frozenset({"bash_tool"}), frozenset()
+            skill, frozenset({"bash_code_execute_tool"}), frozenset()
         ) is False
 
     def test_fallback_tool_absent_visible(self):
-        skill = _make_skill(fallback_for_tools=["bash_tool"])
+        skill = _make_skill(fallback_for_tools=["bash_code_execute_tool"])
         assert skill_visible_for_tools(
             skill, frozenset({"web_search_tool"}), frozenset()
         ) is True
 
     def test_fallback_multiple_any_present_hidden(self):
         """ANY semantics: hidden when any one fallback tool is present."""
-        skill = _make_skill(fallback_for_tools=["bash_tool", "file_read_tool"])
+        skill = _make_skill(fallback_for_tools=["bash_code_execute_tool", "file_read_tool"])
         assert skill_visible_for_tools(
             skill, frozenset({"file_read_tool"}), frozenset()
         ) is False
 
     def test_fallback_multiple_none_present_visible(self):
-        skill = _make_skill(fallback_for_tools=["bash_tool", "file_read_tool"])
+        skill = _make_skill(fallback_for_tools=["bash_code_execute_tool", "file_read_tool"])
         assert skill_visible_for_tools(
             skill, frozenset({"web_search_tool"}), frozenset()
         ) is True
@@ -209,20 +209,20 @@ class TestFallbackForToolGroups:
 class TestCombinedConditions:
     def test_requires_tool_and_group_both_satisfied(self):
         skill = _make_skill(
-            requires_tools=["bash_tool"],
+            requires_tools=["bash_code_execute_tool"],
             requires_tool_groups=["shell"],
         )
         assert skill_visible_for_tools(
-            skill, frozenset({"bash_tool"}), frozenset({"shell"})
+            skill, frozenset({"bash_code_execute_tool"}), frozenset({"shell"})
         ) is True
 
     def test_requires_tool_satisfied_group_not(self):
         skill = _make_skill(
-            requires_tools=["bash_tool"],
+            requires_tools=["bash_code_execute_tool"],
             requires_tool_groups=["browser"],
         )
         assert skill_visible_for_tools(
-            skill, frozenset({"bash_tool"}), frozenset({"shell"})
+            skill, frozenset({"bash_code_execute_tool"}), frozenset({"shell"})
         ) is False
 
     def test_fallback_overrides_requires(self):
@@ -237,29 +237,29 @@ class TestCombinedConditions:
 
     def test_all_conditions_satisfied(self):
         skill = _make_skill(
-            requires_tools=["bash_tool"],
+            requires_tools=["bash_code_execute_tool"],
             requires_tool_groups=["shell"],
             fallback_for_tools=["nonexistent_tool"],
             fallback_for_tool_groups=["nonexistent_group"],
         )
         assert skill_visible_for_tools(
-            skill, frozenset({"bash_tool"}), frozenset({"shell"})
+            skill, frozenset({"bash_code_execute_tool"}), frozenset({"shell"})
         ) is True
 
     def test_dual_fallback_tool_and_group_tool_triggers(self):
         """Both fallback_for_tools and fallback_for_tool_groups set; tool triggers."""
         skill = _make_skill(
-            fallback_for_tools=["bash_tool"],
+            fallback_for_tools=["bash_code_execute_tool"],
             fallback_for_tool_groups=["web"],
         )
         assert skill_visible_for_tools(
-            skill, frozenset({"bash_tool"}), frozenset({"memory"})
+            skill, frozenset({"bash_code_execute_tool"}), frozenset({"memory"})
         ) is False
 
     def test_dual_fallback_tool_and_group_group_triggers(self):
         """Both fallback_for_tools and fallback_for_tool_groups set; group triggers."""
         skill = _make_skill(
-            fallback_for_tools=["bash_tool"],
+            fallback_for_tools=["bash_code_execute_tool"],
             fallback_for_tool_groups=["web"],
         )
         assert skill_visible_for_tools(
@@ -269,7 +269,7 @@ class TestCombinedConditions:
     def test_dual_fallback_neither_triggers_visible(self):
         """Both fallback_for_tools and fallback_for_tool_groups set; neither triggers."""
         skill = _make_skill(
-            fallback_for_tools=["bash_tool"],
+            fallback_for_tools=["bash_code_execute_tool"],
             fallback_for_tool_groups=["web"],
         )
         assert skill_visible_for_tools(
@@ -361,7 +361,7 @@ class TestFrontmatterParsing:
         content = """---
 description: test skill
 requires-tools:
-  - bash_tool
+  - bash_code_execute_tool
   - file_read_tool
 fallback-for-tool-groups:
   - browser
@@ -369,7 +369,7 @@ fallback-for-tool-groups:
 # Test
 """
         fm = parse_skill_frontmatter(content, skill_dir_name="test_skill")
-        assert fm.requires_tools == ["bash_tool", "file_read_tool"]
+        assert fm.requires_tools == ["bash_code_execute_tool", "file_read_tool"]
         assert fm.fallback_for_tool_groups == ["browser"]
 
     def test_parse_requires_tools_snake(self):
@@ -406,7 +406,7 @@ description: test skill
         content = """---
 description: full conditional skill
 requires-tools:
-  - bash_tool
+  - bash_code_execute_tool
 fallback-for-tools:
   - web_search_tool
 requires-tool-groups:
@@ -417,7 +417,7 @@ fallback-for-tool-groups:
 # Full
 """
         fm = parse_skill_frontmatter(content, skill_dir_name="full_skill")
-        assert fm.requires_tools == ["bash_tool"]
+        assert fm.requires_tools == ["bash_code_execute_tool"]
         assert fm.fallback_for_tools == ["web_search_tool"]
         assert fm.requires_tool_groups == ["shell"]
         assert fm.fallback_for_tool_groups == ["browser"]
@@ -428,12 +428,12 @@ fallback-for-tool-groups:
 
         content = """---
 description: single value skill
-requires-tools: bash_tool
+requires-tools: bash_code_execute_tool
 ---
 # Test
 """
         fm = parse_skill_frontmatter(content, skill_dir_name="single_val")
-        assert fm.requires_tools == ["bash_tool"]
+        assert fm.requires_tools == ["bash_code_execute_tool"]
 
 
 # ---------------------------------------------------------------------------
@@ -449,7 +449,7 @@ class TestBuildSkillMetadataFieldPropagation:
 
         fm = SkillFrontmatter(
             description="prop test",
-            requires_tools=["bash_tool"],
+            requires_tools=["bash_code_execute_tool"],
             fallback_for_tools=["web_search_tool"],
             requires_tool_groups=["shell"],
             fallback_for_tool_groups=["browser"],
@@ -461,7 +461,7 @@ class TestBuildSkillMetadataFieldPropagation:
             content="# test\nprop content",
             trust=SkillTrust.INSTALLED,
         )
-        assert meta.requires_tools == ["bash_tool"]
+        assert meta.requires_tools == ["bash_code_execute_tool"]
         assert meta.fallback_for_tools == ["web_search_tool"]
         assert meta.requires_tool_groups == ["shell"]
         assert meta.fallback_for_tool_groups == ["browser"]

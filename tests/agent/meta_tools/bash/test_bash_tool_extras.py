@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool import _format_result, _get_os_hint
+from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import _format_result, _get_os_hint
 
 
 def test_get_os_hint():

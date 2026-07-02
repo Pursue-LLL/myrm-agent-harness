@@ -8,6 +8,7 @@ Bundled static data files for the browser toolkit. Loaded at runtime via `import
 
 | File | Role | Description | Shipped in wheel |
 |------|------|-------------|------------------|
+| __init__.py | Package | Bundled static assets package marker | — |
 | `ad_domains.txt` | Data | Peter Lowe ad/tracker domain blocklist (~3500 lines). Consumed by `domain_filter.py`. | Yes — `[tool.hatch.build.targets.wheel.force-include]` in `pyproject.toml` |
 
 ## Packaging

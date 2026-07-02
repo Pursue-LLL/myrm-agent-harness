@@ -25,7 +25,7 @@ from myrm_agent_harness.toolkits.code_execution.security.command_explainer.types
 
 MAX_COMMAND_SPAN_SOURCE_CHARS = 128 * 1024
 
-_SHELL_TOOL_NAMES = frozenset({"bash_code_execute_tool", "bash_tool", "execute_code"})
+_SHELL_TOOL_NAMES = frozenset({"bash_code_execute_tool", "execute_code"})
 
 
 def is_shell_approval_tool(tool_name: str) -> bool:

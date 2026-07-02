@@ -12,8 +12,9 @@ Detailed design: [EXECUTION_SYSTEM.md](EXECUTION_SYSTEM.md)
 | __init__.py | Package | Code execution toolkit entry point. Aggregates execution configuration, executor implementations, | ✅ |
 | config.py | Config | Code execution configuration layer. Defines execution modes, network policies, and runtime settings | ✅ |
 | code_detector.py | Core | Python vs Bash code type detector. Delegates ``python -c`` extraction to ``python_extractor`` SSOT. | ✅ |
-| env_probe.py | Core | Python toolchain probe. Detects python3/pip/PEP-668/uv status; consumed by bash_tool.py (tool description) and platform.py (`<environment>` system prompt tag). | ✅ |
+| env_probe.py | Core | Python toolchain probe. Detects python3/pip/PEP-668/uv status; consumed by bash_code_execute_tool.py (tool description) and platform.py (`<environment>` system prompt tag). | ✅ |
 | factory.py | Core | Code executor factory. Creates LocalExecutor for in-container code execution based on configuration. | ✅ |
+| interceptor.py | Core | ExecutionInterceptor Protocol — hooks before destructive sandbox actions (file write, rm, sed) | ✅ |
 | platform.py | Core | Cross-platform runtime detection, shell configuration, and unified `<environment>` system prompt tag (OS + Shell + Python toolchain + VNC visual desktop). | ✅ |
 | python_extractor.py | Core | Quote-aware Python extraction from bash commands; SSOT for code_detector, SkillExecutor, PTC verifier. | ✅ |
 

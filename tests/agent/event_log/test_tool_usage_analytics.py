@@ -81,11 +81,11 @@ async def test_get_tool_usage_stats_basic(event_logger: EventLogger) -> None:
     await event_logger.log("tool_start", {"tool_name": "file_read", "timestamp": base_time})
     await event_logger.log("tool_end", {"tool_name": "file_read", "duration_ms": 100})
 
-    await event_logger.log("tool_start", {"tool_name": "bash_tool", "timestamp": base_time + 1})
+    await event_logger.log("tool_start", {"tool_name": "bash_code_execute_tool", "timestamp": base_time + 1})
     await event_logger.log(
         "tool_failure",
         {
-            "tool_name": "bash_tool",
+            "tool_name": "bash_code_execute_tool",
             "duration_ms": 500,
             "error_code": "TIMEOUT",
         },
@@ -111,7 +111,7 @@ async def test_get_tool_usage_stats_basic(event_logger: EventLogger) -> None:
     assert file_read_stats.avg_duration_ms == 125.0  # (100 + 150) / 2
 
     # Check bash_tool stats
-    bash_stats = next(s for s in stats if s.tool_name == "bash_tool")
+    bash_stats = next(s for s in stats if s.tool_name == "bash_code_execute_tool")
     assert bash_stats.total_calls == 1
     assert bash_stats.success_count == 0
     assert bash_stats.failure_count == 1
@@ -187,8 +187,8 @@ async def test_get_activity_patterns_basic(event_logger: EventLogger) -> None:
     await event_logger.log("tool_start", {"tool_name": "file_read"})
     await event_logger.log("tool_end", {"tool_name": "file_read", "duration_ms": 100})
 
-    await event_logger.log("tool_start", {"tool_name": "bash_tool"})
-    await event_logger.log("tool_end", {"tool_name": "bash_tool", "duration_ms": 200})
+    await event_logger.log("tool_start", {"tool_name": "bash_code_execute_tool"})
+    await event_logger.log("tool_end", {"tool_name": "bash_code_execute_tool", "duration_ms": 200})
 
     await event_logger.log("tool_start", {"tool_name": "file_read"})
     await event_logger.log("tool_end", {"tool_name": "file_read", "duration_ms": 150})
@@ -196,8 +196,8 @@ async def test_get_activity_patterns_basic(event_logger: EventLogger) -> None:
     await event_logger.log("tool_start", {"tool_name": "file_read"})
     await event_logger.log("tool_end", {"tool_name": "file_read", "duration_ms": 200})
 
-    await event_logger.log("tool_start", {"tool_name": "bash_tool"})
-    await event_logger.log("tool_end", {"tool_name": "bash_tool", "duration_ms": 300})
+    await event_logger.log("tool_start", {"tool_name": "bash_code_execute_tool"})
+    await event_logger.log("tool_end", {"tool_name": "bash_code_execute_tool", "duration_ms": 300})
 
     # Wait for buffer to flush
     await asyncio.sleep(1.0)
@@ -215,7 +215,7 @@ async def test_get_activity_patterns_basic(event_logger: EventLogger) -> None:
         tool_counts[usage.tool_name] = tool_counts.get(usage.tool_name, 0) + usage.call_count
 
     assert tool_counts["file_read"] == 3
-    assert tool_counts["bash_tool"] == 2
+    assert tool_counts["bash_code_execute_tool"] == 2
 
 
 @pytest.mark.asyncio

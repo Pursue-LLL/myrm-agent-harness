@@ -256,7 +256,7 @@ async def test_cross_tool_context_in_prompt():
         "bash ./deploy.sh",
         recent_tool_calls=(
             RecentToolCall(tool_name="file_write_tool", args={"path": "deploy.sh", "content": "rm -rf /"}),
-            RecentToolCall(tool_name="bash_tool", args={"command": "chmod +x deploy.sh"}),
+            RecentToolCall(tool_name="bash_code_execute_tool", args={"command": "chmod +x deploy.sh"}),
         ),
     )
 
@@ -265,7 +265,7 @@ async def test_cross_tool_context_in_prompt():
     user_msg = messages[1].content
     assert "file_write_tool" in user_msg
     assert "deploy.sh" in user_msg
-    assert "bash_tool" in user_msg
+    assert "bash_code_execute_tool" in user_msg
 
 
 @pytest.mark.asyncio

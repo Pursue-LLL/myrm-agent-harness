@@ -17,6 +17,7 @@
 
 | 文件 | 地位 | 职责 | I/O/P |
 |-----|------|------|-------|
+| __init__.py | Package | Vision toolkit package exports | — |
 | `fallback_engine.py` | 核心 | 提供 `VisionFallbackEngine`：使用辅助视觉模型将图像转换为文本描述，支持过大图片自适应降级压缩。 | ✅ |
 | `video_analysis_engine.py` | 核心 | 提供 `VideoAnalysisEngine`：视频分析引擎，双策略（支持视频的模型直传 + ffmpeg 帧提取降级）。 | ✅ |
 

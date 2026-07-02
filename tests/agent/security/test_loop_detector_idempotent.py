@@ -17,10 +17,10 @@ def test_bash_ls_is_idempotent():
 
     # bash_tool with 'ls' is idempotent, so threshold is 6
     for _ in range(5):
-        v = g.pre_check("bash_tool", {"command": "ls -la /tmp"})
+        v = g.pre_check("bash_code_execute_tool", {"command": "ls -la /tmp"})
         assert v.action == LoopAction.ALLOW
 
-    v = g.pre_check("bash_tool", {"command": "ls -la /tmp"})
+    v = g.pre_check("bash_code_execute_tool", {"command": "ls -la /tmp"})
     assert v.action == LoopAction.WARN
 
 def test_bash_rm_is_not_idempotent():
@@ -28,8 +28,8 @@ def test_bash_rm_is_not_idempotent():
 
     # bash_tool with 'rm' is NOT idempotent, so threshold is 3
     for _ in range(2):
-        v = g.pre_check("bash_tool", {"command": "rm -rf /tmp/test"})
+        v = g.pre_check("bash_code_execute_tool", {"command": "rm -rf /tmp/test"})
         assert v.action == LoopAction.ALLOW
 
-    v = g.pre_check("bash_tool", {"command": "rm -rf /tmp/test"})
+    v = g.pre_check("bash_code_execute_tool", {"command": "rm -rf /tmp/test"})
     assert v.action == LoopAction.WARN

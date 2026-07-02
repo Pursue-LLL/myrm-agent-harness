@@ -138,7 +138,7 @@ class TestYOLOMode:
         )
 
         tool_calls = [
-            ToolCall(type="tool_call", name="bash_tool", args={"command": "rm -rf /"}, id="c1"),
+            ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "rm -rf /"}, id="c1"),
             ToolCall(type="tool_call", name="file_write_tool", args={"path": "/tmp/x", "content": "y"}, id="c2"),
         ]
 
@@ -161,8 +161,8 @@ class TestYOLOMode:
         )
 
         tool_calls = [
-            ToolCall(type="tool_call", name="bash_tool", args={"command": "ls"}, id="c1"),
-            ToolCall(type="tool_call", name="bash_tool", args={"command": "cat /etc/passwd"}, id="c2"),
+            ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "ls"}, id="c1"),
+            ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "cat /etc/passwd"}, id="c2"),
         ]
 
         approved, denied, pending = await evaluate_tool_batch(
@@ -182,7 +182,7 @@ class TestYOLOMode:
         )
 
         tool_calls = [
-            ToolCall(type="tool_call", name="bash_tool", args={"command": "ls"}, id="c1"),
+            ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "ls"}, id="c1"),
         ]
 
         _approved, denied, _pending = await evaluate_tool_batch(
@@ -207,7 +207,7 @@ class TestYOLOMode:
         )
 
         tool_calls = [
-            ToolCall(type="tool_call", name="bash_tool", args={"command": "ls"}, id="c1"),
+            ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "ls"}, id="c1"),
             ToolCall(type="tool_call", name="file_read_tool", args={"path": "/tmp/x"}, id="c2"),
         ]
 
@@ -1581,7 +1581,7 @@ class TestShellEscalationAutoMode:
         )
 
         tool_calls = [
-            ToolCall(name="bash_tool", args={"command": "npm install express"}, id="tc1", type="tool_call")
+            ToolCall(name="bash_code_execute_tool", args={"command": "npm install express"}, id="tc1", type="tool_call")
         ]
 
         approved, _denied, _pending = await evaluate_tool_batch(
@@ -1606,7 +1606,7 @@ class TestShellEscalationAutoMode:
         )
 
         tool_calls = [
-            ToolCall(name="bash_tool", args={"command": "python exploit.py"}, id="tc1", type="tool_call")
+            ToolCall(name="bash_code_execute_tool", args={"command": "python exploit.py"}, id="tc1", type="tool_call")
         ]
 
         _approved, denied, _pending = await evaluate_tool_batch(
@@ -1632,7 +1632,7 @@ class TestShellEscalationAutoMode:
         )
 
         tool_calls = [
-            ToolCall(name="bash_tool", args={"command": "docker run --privileged alpine"}, id="tc1", type="tool_call")
+            ToolCall(name="bash_code_execute_tool", args={"command": "docker run --privileged alpine"}, id="tc1", type="tool_call")
         ]
 
         _approved, _denied, pending = await evaluate_tool_batch(
@@ -1658,7 +1658,7 @@ class TestShellEscalationAutoMode:
         )
 
         tool_calls = [
-            ToolCall(name="bash_tool", args={"command": "ls -la"}, id="tc1", type="tool_call")
+            ToolCall(name="bash_code_execute_tool", args={"command": "ls -la"}, id="tc1", type="tool_call")
         ]
 
         approved, _denied, _pending = await evaluate_tool_batch(
@@ -1677,7 +1677,7 @@ class TestShellEscalationAutoMode:
         )
 
         tool_calls = [
-            ToolCall(name="bash_tool", args={"command": "python exploit.py"}, id="tc1", type="tool_call")
+            ToolCall(name="bash_code_execute_tool", args={"command": "python exploit.py"}, id="tc1", type="tool_call")
         ]
 
         approved, _denied, _pending = await evaluate_tool_batch(

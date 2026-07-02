@@ -41,6 +41,8 @@ _SKIP_WITHOUT_NUITKA = pytest.mark.skipif(
     reason="Nuitka is not installed (install with: uv sync --group build)",
 )
 
+_SLOW_ARCHITECTURE = pytest.mark.slow
+
 
 @pytest.mark.architecture
 def test_platform_detection_returns_known_key() -> None:
@@ -108,6 +110,7 @@ def test_strip_manifest_in_place_preserves_pep427_name(tmp_path: Path) -> None:
 @pytest.mark.architecture
 @_SKIP_UNDER_XDIST
 @_SKIP_WITHOUT_NUITKA
+@_SLOW_ARCHITECTURE
 def test_core_wheel_contains_compiled_artifacts() -> None:
     """Platform core wheel must ship Nuitka .so/.pyd for manifest modules."""
     subprocess.run(
@@ -132,8 +135,11 @@ def test_core_wheel_contains_compiled_artifacts() -> None:
     assert any("agent/context_management/pipeline/engine" in n for n in compiled)
 
 
+_SLOW_ARCHITECTURE = pytest.mark.slow
+
 @pytest.mark.architecture
 @_SKIP_UNDER_XDIST
+@_SLOW_ARCHITECTURE
 def test_release_wheel_is_uv_installable(tmp_path: Path) -> None:
     """Release wheel filename must be PEP 427 compliant for uv pip install."""
     subprocess.run(
@@ -165,6 +171,7 @@ def test_release_wheel_is_uv_installable(tmp_path: Path) -> None:
 @pytest.mark.architecture
 @_SKIP_UNDER_XDIST
 @_SKIP_WITHOUT_NUITKA
+@_SLOW_ARCHITECTURE
 def test_dual_wheel_compiled_mode_e2e(tmp_path: Path) -> None:
     """Release + platform core wheels must install together and enter COMPILED mode."""
     wheels = assemble_production_wheels()

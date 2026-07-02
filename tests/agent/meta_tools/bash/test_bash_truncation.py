@@ -1,4 +1,4 @@
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool import _format_result, _truncate_bash_output
+from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import _format_result, _truncate_bash_output
 
 
 def test_truncate_bash_output_no_truncation():

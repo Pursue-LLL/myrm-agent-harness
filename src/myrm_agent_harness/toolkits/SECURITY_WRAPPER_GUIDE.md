@@ -116,7 +116,7 @@ wrapped = wrap_with_external_sources_tag(content, source="web_search")
 - **用途**：工具执行结果（代码输出、文件内容）
 - **效果**：仅防止 prompt injection，不触发引用规则
 - **边界标记**：`<<<TOOL_OUTPUT id="...">>>`
-- **使用场景**：`bash_tool.py`、`result_formatter.py`（文件读取/目录列表）
+- **使用场景**：`bash_code_execute_tool.py`、`result_formatter.py`（文件读取/目录列表）
 
 ```python
 from myrm_agent_harness.utils.context_format import wrap_with_tool_output_tag
@@ -147,7 +147,7 @@ wrapped = wrap_with_tool_output_tag(content)
   - `toolkits/web_fetch/web_fetch_agent_tools.py`
   - `toolkits/wiki/wiki_agent_tools.py`
   - `toolkits/browser/tools/` (snapshot.py, extract.py)
-  - `agent/meta_tools/bash/bash_tool.py`
+  - `agent/meta_tools/bash/bash_code_execute_tool.py`
   - `agent/meta_tools/file_ops/core/result_formatter.py`
 
 ---

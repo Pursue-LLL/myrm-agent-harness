@@ -50,7 +50,7 @@ def _patch_event_bus(broadcaster, mock_event_bus):
 
 
 def _make_payload(
-    tool_name: str = "bash_tool",
+    tool_name: str = "bash_code_execute_tool",
     tool_call_id: str = "tc_001",
     **extra,
 ) -> dict:
@@ -69,7 +69,7 @@ class TestPreToolUse:
         assert result.success is True
         mock_event_bus.publish.assert_awaited_once()
         event_data: ToolCallEventData = mock_event_bus.publish.call_args[0][0]
-        assert event_data.tool_name == "bash_tool"
+        assert event_data.tool_name == "bash_code_execute_tool"
         assert event_data.status == "started"
         assert event_data.tool_call_id == "tc_001"
 

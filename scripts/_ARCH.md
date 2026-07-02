@@ -40,8 +40,10 @@ python scripts/boundary_check.py --fix          # 自动注释违规 import
 python scripts/check_fractal_docs.py            # 目录 _ARCH 覆盖
 python scripts/check_fractal_docs.py --strict-headers --header-baseline scripts/fractal_header_baseline.txt --no-stub
 python scripts/check_file_line_limit.py --baseline scripts/file_line_baseline.txt
-python scripts/validate_arch_inventory.py --root src/myrm_agent_harness/agent
+python scripts/validate_arch_inventory.py --root src/myrm_agent_harness
 ```
+
+Pre-commit runs `validate_arch_inventory.py` via hook `harness-arch-inventory-check` (see `.pre-commit-config.yaml`).
 
 性能基线见 `benchmarks/bench_boundary_detection.py`。
 

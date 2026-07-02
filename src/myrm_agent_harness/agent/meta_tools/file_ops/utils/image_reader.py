@@ -74,7 +74,7 @@ async def read_image_as_content_blocks(
         return (
             f"[Image file: {path}] ({mime_type}, {size_display}. "
             f"Exceeds {_format_size(MAX_IMAGE_READ_BYTES)} limit for reading into memory. "
-            f"Use bash_tool to process or resize.)"
+            f"Use bash_code_execute_tool to process or resize.)"
         )
 
     if _needs_compression(raw_bytes):
@@ -98,7 +98,7 @@ async def read_image_as_content_blocks(
         return (
             f"[Image file: {path}] ({mime_type}, {_format_size(size_bytes)}. "
             f"Exceeds {_format_size(MAX_IMAGE_PAYLOAD_BYTES)} API payload limit even after compression. "
-            f"Use bash_tool to process or resize.)"
+            f"Use bash_code_execute_tool to process or resize.)"
         )
 
     b64 = base64.standard_b64encode(raw_bytes).decode("ascii")

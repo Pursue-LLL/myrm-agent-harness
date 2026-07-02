@@ -83,7 +83,7 @@ class TestFormatToolError:
             recovery_suggestions=["Set timeout to 60s"],
             error_code="SANDBOX_TIMEOUT",
         )
-        result = format_tool_error(err, "bash_tool")
+        result = format_tool_error(err, "bash_code_execute_tool")
         assert "SANDBOX_TIMEOUT" in result
         assert "timeout_seconds" in result
         assert "Set timeout to 60s" in result

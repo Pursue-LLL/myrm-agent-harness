@@ -170,7 +170,7 @@ class TestComputeScanSummary:
 # ---------------------------------------------------------------------------
 
 
-ALL_TOOLS = sorted(INSTALLED_CEILING_TOOLS | {"bash_tool", "code_exec_tool", "dangerous_tool"})
+ALL_TOOLS = sorted(INSTALLED_CEILING_TOOLS | {"bash_code_execute_tool", "code_exec_tool", "dangerous_tool"})
 
 
 def _make_skill(trust: SkillTrust, scanner_clean: bool = True, allowed_tools: list[str] | None = None) -> SkillMetadata:
@@ -232,7 +232,7 @@ class TestAttenuatorScannerGating:
         (READ_ONLY tools are removed if not in allowed_tools declaration).
         """
         skill = _make_skill(
-            SkillTrust.INSTALLED, scanner_clean=True, allowed_tools=["file_write_tool", "web_search_tool", "bash_tool"]
+            SkillTrust.INSTALLED, scanner_clean=True, allowed_tools=["file_write_tool", "web_search_tool", "bash_code_execute_tool"]
         )
         result = attenuate_tools(ALL_TOOLS, [skill])
 
@@ -241,7 +241,7 @@ class TestAttenuatorScannerGating:
         assert "file_write_tool" in tool_set
         assert "web_search_tool" in tool_set
         # bash_tool is NOT in CEILING → never granted
-        assert "bash_tool" not in tool_set
+        assert "bash_code_execute_tool" not in tool_set
         # READ_ONLY tools are not in allowed_tools → filtered out
         assert tool_set == {"file_write_tool", "web_search_tool"}
 
@@ -260,7 +260,7 @@ class TestAttenuatorScannerGating:
 
     def test_installed_ceiling_never_grants_shell(self):
         """INSTALLED_CEILING_TOOLS should not contain dangerous shell tools."""
-        dangerous = {"bash_tool", "shell_tool", "terminal_tool", "code_exec_tool"}
+        dangerous = {"bash_code_execute_tool", "shell_tool", "terminal_tool", "code_exec_tool"}
         assert not (INSTALLED_CEILING_TOOLS & dangerous)
 
     def test_readonly_is_subset_of_ceiling(self):
@@ -292,7 +292,7 @@ class TestAttenuatorScannerGating:
     def test_installed_widening_respects_ceiling(self):
         """Widened tools must be within INSTALLED_CEILING_TOOLS."""
         skill = _make_skill(
-            SkillTrust.INSTALLED, scanner_clean=True, allowed_tools=[*list(INSTALLED_CEILING_TOOLS), "bash_tool"]
+            SkillTrust.INSTALLED, scanner_clean=True, allowed_tools=[*list(INSTALLED_CEILING_TOOLS), "bash_code_execute_tool"]
         )
         result = attenuate_tools(ALL_TOOLS, [skill])
 

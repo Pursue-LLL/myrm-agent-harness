@@ -112,7 +112,7 @@ filters:
 
 
 def test_format_result_applies_workspace_declarative_filter(tmp_path: Path) -> None:
-    from myrm_agent_harness.agent.meta_tools.bash import bash_tool
+    import myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool as bash_code_execute_tool
 
     myrm_dir = tmp_path / ".myrm"
     myrm_dir.mkdir()
@@ -133,7 +133,7 @@ filters:
         "exit_code": "0",
         "workspace_root": str(tmp_path),
     }
-    formatted, _, _ = bash_tool._format_result(result, "bash run.sh")
+    formatted, _, _ = bash_code_execute_tool._format_result(result, "bash run.sh")
     assert "E2E_DEBUG:" not in formatted
     assert "E2E_BEGIN_LINE" in formatted
 

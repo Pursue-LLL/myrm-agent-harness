@@ -165,13 +165,13 @@ class TestExemptedTools:
 
         # Fill per-tool limit for non-exempted tool
         for _i in range(3):
-            verdict = guard.check("bash_tool")
-            guard.record("bash_tool")
+            verdict = guard.check("bash_code_execute_tool")
+            guard.record("bash_code_execute_tool")
 
         # 4th call should trigger per-tool BREAK
-        verdict = guard.check("bash_tool")
+        verdict = guard.check("bash_code_execute_tool")
         assert verdict.action == FrequencyAction.BREAK
-        assert "bash_tool" in verdict.reason
+        assert "bash_code_execute_tool" in verdict.reason
 
 
 class TestSlidingWindow:
@@ -463,13 +463,13 @@ class TestIntegration:
 
         # Simulate attacker rapidly calling bash_tool
         for i in range(20):
-            verdict = guard.check("bash_tool")
-            guard.record("bash_tool")
+            verdict = guard.check("bash_code_execute_tool")
+            guard.record("bash_code_execute_tool")
 
         # Should be blocked at limit
-        verdict = guard.check("bash_tool")
+        verdict = guard.check("bash_code_execute_tool")
         assert verdict.action == FrequencyAction.BREAK
-        assert "bash_tool" in verdict.reason
+        assert "bash_code_execute_tool" in verdict.reason
 
         # Other tools should also be affected by global limit
         for i in range(30):
@@ -486,7 +486,7 @@ class TestIntegration:
         guard = FrequencyGuard(global_limit=100, per_tool_limit=30)
 
         # Simulate normal agent execution
-        tools = ["bash_tool", "file_read_tool", "web_search_tool", "memory_recall_tool"]
+        tools = ["bash_code_execute_tool", "file_read_tool", "web_search_tool", "memory_recall_tool"]
 
         for _round in range(10):
             for tool in tools:
@@ -519,10 +519,10 @@ class TestIntegration:
 
         # But non-exempted tool should still have limit
         for _i in range(10):
-            guard.check("bash_tool")
-            guard.record("bash_tool")
+            guard.check("bash_code_execute_tool")
+            guard.record("bash_code_execute_tool")
 
-        verdict = guard.check("bash_tool")
+        verdict = guard.check("bash_code_execute_tool")
         assert verdict.action == FrequencyAction.BREAK
 
 

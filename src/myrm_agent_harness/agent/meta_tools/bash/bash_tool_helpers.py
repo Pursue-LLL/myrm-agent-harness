@@ -1,4 +1,4 @@
-"""Shared helpers for bash_tool factory (schema, context restore, OS hints).
+"""Shared helpers for bash_code_execute_tool factory (schema, context restore, OS hints).
 
 [INPUT]
 - runtime.context.file_access_tracker::get_file_access_tracker (POS: Context file access audit)
@@ -10,7 +10,7 @@
 - restore_context_vars, get_os_hint, track_context_access_in_command
 
 [POS]
-Non-factory helpers consumed by bash_tool and tests via aggregate re-exports.
+Non-factory helpers consumed by bash_code_execute_tool and tests via aggregate re-exports.
 """
 
 from __future__ import annotations

@@ -64,12 +64,12 @@ async def test_extract_digest_with_tool_failures():
     """Test that tool failures are correctly extracted as anti-patterns."""
     events = [
         make_event(0, 1.0, "session_start", {"query": "Fix database connection"}),
-        make_event(1, 2.0, "tool_start", {"tool_name": "bash_tool"}),
+        make_event(1, 2.0, "tool_start", {"tool_name": "bash_code_execute_tool"}),
         make_event(
             2,
             3.0,
             "tool_failure",
-            {"tool_name": "bash_tool", "error": "Connection refused: database not running", "command": "psql -h localhost"},
+            {"tool_name": "bash_code_execute_tool", "error": "Connection refused: database not running", "command": "psql -h localhost"},
         ),
         make_event(3, 4.0, "session_end", {}),
     ]
@@ -81,7 +81,7 @@ async def test_extract_digest_with_tool_failures():
 
     assert digest is not None
     assert len(digest.anti_patterns) == 1
-    assert digest.anti_patterns[0].failed_tool == "bash_tool"
+    assert digest.anti_patterns[0].failed_tool == "bash_code_execute_tool"
     assert "Connection refused" in digest.anti_patterns[0].error_signature
     assert digest.anti_patterns[0].user_correction is None
     assert digest.success_rate == 0.0  # 1 tool, 1 error
@@ -92,8 +92,8 @@ async def test_extract_digest_with_user_interruption():
     """Test that user interruptions are tied to anti-patterns as corrections."""
     events = [
         make_event(0, 1.0, "session_start", {"query": "Deploy to production"}),
-        make_event(1, 2.0, "tool_start", {"tool_name": "bash_tool"}),
-        make_event(2, 3.0, "tool_failure", {"tool_name": "bash_tool", "error": "Permission denied: cannot write to /prod"}),
+        make_event(1, 2.0, "tool_start", {"tool_name": "bash_code_execute_tool"}),
+        make_event(2, 3.0, "tool_failure", {"tool_name": "bash_code_execute_tool", "error": "Permission denied: cannot write to /prod"}),
         make_event(3, 4.0, "user_interruption", {"correction_message": "Need to use sudo for production deployment"}),
         make_event(4, 5.0, "session_end", {}),
     ]
@@ -105,7 +105,7 @@ async def test_extract_digest_with_user_interruption():
 
     assert digest is not None
     assert len(digest.anti_patterns) == 1
-    assert digest.anti_patterns[0].failed_tool == "bash_tool"
+    assert digest.anti_patterns[0].failed_tool == "bash_code_execute_tool"
     assert "Permission denied" in digest.anti_patterns[0].error_signature
     assert digest.anti_patterns[0].user_correction == "Need to use sudo for production deployment"
 
@@ -247,7 +247,7 @@ async def test_extract_digest_with_short_error_message():
     """Test that tool failures with very short error messages are ignored."""
     events = [
         make_event(0, 1.0, "session_start", {"query": "Test"}),
-        make_event(1, 2.0, "tool_failure", {"tool_name": "bash_tool", "error": "err"}),  # Too short (<= 5 chars)
+        make_event(1, 2.0, "tool_failure", {"tool_name": "bash_code_execute_tool", "error": "err"}),  # Too short (<= 5 chars)
         make_event(2, 3.0, "session_end", {}),
     ]
 
@@ -283,7 +283,7 @@ async def test_extract_digest_with_late_user_interruption():
     """Test that user interruptions too late after tool failure are not tied to anti-patterns."""
     events = [
         make_event(0, 1.0, "session_start", {"query": "Test"}),
-        make_event(1, 2.0, "tool_failure", {"tool_name": "bash_tool", "error": "Connection failed"}),
+        make_event(1, 2.0, "tool_failure", {"tool_name": "bash_code_execute_tool", "error": "Connection failed"}),
         make_event(2, 400.0, "user_interruption", {"correction_message": "Late correction"}),  # > 300s later
         make_event(3, 401.0, "session_end", {}),
     ]

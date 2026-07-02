@@ -158,7 +158,7 @@ class TestReadImageThresholdStrategy:
             mock_compress.assert_called_once()
             assert isinstance(result, str)
             assert "API payload limit" in result
-        assert "bash_tool" in result
+        assert "bash_code_execute_tool" in result
 
     @pytest.mark.asyncio
     async def test_compression_failure_falls_back_to_text(self) -> None:

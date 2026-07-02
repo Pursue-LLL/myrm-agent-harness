@@ -1020,7 +1020,7 @@ async def test_tool_timeout_forwarding():
         yield {
             "type": AgentEventType.TOOL_TIMEOUT.value,
             "data": {
-                "tool_name": "bash_tool",
+                "tool_name": "bash_code_execute_tool",
                 "timeout_seconds": 30,
                 "attempt": 1,
                 "elapsed_ms": 30100,
@@ -1074,7 +1074,7 @@ async def test_tool_timeout_forwarding():
         timeout_logs = [e for e in log_events if "Tool timeout" in e["data"]["message"]]
         assert len(timeout_logs) == 1
         assert timeout_logs[0]["data"]["level"] == "WARNING"
-        assert timeout_logs[0]["data"]["tool_name"] == "bash_tool"
+        assert timeout_logs[0]["data"]["tool_name"] == "bash_code_execute_tool"
         assert timeout_logs[0]["data"]["timeout_seconds"] == 30
         assert timeout_logs[0]["data"]["attempt"] == 1
         assert timeout_logs[0]["data"]["elapsed_ms"] == 30100

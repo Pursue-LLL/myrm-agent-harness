@@ -22,6 +22,7 @@ Utility library exports. Public interface for the utils module providing commonl
 | image_utils.py | Core | Central media processing utilities (image/video/audio). Used by context_management, MediaFilterProcessor, and stream recovery to prevent overflow and multimodal rejection errors. | ✅ |
 | log_rotation.py | Core | Agent utilities layer, used by audit logging and any growing log files. | ✅ |
 | logger_utils.py | Core | Unified logging utilities. Provides consistent log format and convenience methods (step/success/erro | ✅ |
+| locale.py | Core | BCP-47 locale normalization and Chinese detection (LocaleResolver SSOT) | ✅ |
 | lru_cache.py | Core | LRU cache utility. OrderedDict-based LRU cache implementation with TTL support. | ✅ |
 | mime_types.py | Core | Centralized image MIME type utilities: extension ↔ MIME mappings and magic-bytes detection (detect_image_mime, extension_for_mime). | ✅ |
 | network.py | Core | Pure network utilities. Get local IP using UDP socket (no actual data sent). | ✅ |

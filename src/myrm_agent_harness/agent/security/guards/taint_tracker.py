@@ -43,7 +43,6 @@ class TaintLabel(StrEnum):
 
 
 TAINT_SINK_POLICIES: dict[str, frozenset[TaintLabel]] = {
-    "bash_tool": frozenset({TaintLabel.EXTERNAL_NETWORK}),
     "bash_code_execute_tool": frozenset({TaintLabel.EXTERNAL_NETWORK}),
     "shell_exec": frozenset({TaintLabel.EXTERNAL_NETWORK}),
     "file_write_tool": frozenset({TaintLabel.EXTERNAL_NETWORK}),

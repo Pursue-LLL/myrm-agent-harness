@@ -46,14 +46,14 @@ jobs:
       - name: Run fractal docs check
         run: uv run python scripts/check_fractal_docs.py --strict-headers --header-baseline scripts/fractal_header_baseline.txt --no-stub
 
-      - name: Run _ARCH inventory check (agent/)
-        run: uv run python scripts/validate_arch_inventory.py --root src/myrm_agent_harness/agent
+      - name: Run _ARCH inventory check (full harness)
+        run: uv run python scripts/validate_arch_inventory.py --root src/myrm_agent_harness
 
       - name: Install dependencies
         run: uv sync --dev --group build
 
       - name: Run architecture tests
-        run: uv run pytest tests/architecture/ -m architecture -n0 -v --tb=short
+        run: uv run pytest tests/architecture/ -m "architecture and not slow" -n0 -v --tb=short
 
       - name: Report success
         if: success()
@@ -66,3 +66,26 @@ jobs:
           echo "❌ Boundary violation detected!"
           echo "The framework layer must not import from the business layer."
           echo "See test output above for violation details and fix suggestions."
+
+  distribution-packaging-slow:
+    name: Distribution Packaging (slow)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --dev --group build
+
+      - name: Run slow architecture packaging tests
+        run: uv run pytest tests/architecture/test_distribution_packaging.py -m "architecture and slow" -n0 -v --tb=short --timeout=900

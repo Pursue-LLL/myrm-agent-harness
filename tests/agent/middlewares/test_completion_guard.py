@@ -960,7 +960,7 @@ class TestMixedMessageGuard:
             AIMessage(
                 content=self._long_answer(),
                 tool_calls=[
-                    {"id": "tc1", "name": "bash_tool", "args": {"command": "ls"}},
+                    {"id": "tc1", "name": "bash_code_execute_tool", "args": {"command": "ls"}},
                 ],
             ),
         ])

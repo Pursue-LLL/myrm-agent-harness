@@ -26,6 +26,7 @@ Harness test suite: unit, integration, architecture gates, and performance bench
 | `dev/` | 单元 | vortexai 维护者脚本回归（`test_run_pytest_safe.py`） |
 | `agent/skills/curator/test_curator_engine.py` | 单元 | SkillCurator 生命周期与 LRU 驱逐（勿用通用名 `test_engine.py`，会与 `agent/dynamic_workflow/test_engine.py` 触发 collect import mismatch） |
 | `agent/skills/` | 单元 | 技能子系统测试树 · [agent/skills/_ARCH.md](agent/skills/_ARCH.md) |
+| `agent/skills/evolution/` | 单元 | Skill evolution pipeline tests (incl. trace analyzer takeover, variant generator) |
 
 ## Test file naming
 

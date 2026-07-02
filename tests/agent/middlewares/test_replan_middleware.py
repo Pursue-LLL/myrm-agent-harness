@@ -55,7 +55,7 @@ async def test_awrap_tool_call_catches_error(mock_get_suggestion, middleware):
 
     request = ToolCallRequest(
         tool_call={
-            "name": "bash_tool",
+            "name": "bash_code_execute_tool",
             "args": {"command": "ls /root"},
             "id": "call_err_1",
         },
@@ -70,12 +70,12 @@ async def test_awrap_tool_call_catches_error(mock_get_suggestion, middleware):
     result = await middleware.awrap_tool_call(request, handler)
 
     assert isinstance(result, ToolMessage)
-    assert result.name == "bash_tool"
+    assert result.name == "bash_code_execute_tool"
     assert result.tool_call_id == "call_err_1"
     assert result.status == "error"
     assert "ToolExecutionError: Permission denied" in result.content
     assert "Diagnostic Hint: Try checking the permissions." in result.content
-    mock_get_suggestion.assert_called_once_with("bash_tool")
+    mock_get_suggestion.assert_called_once_with("bash_code_execute_tool")
 
 
 @pytest.mark.asyncio
@@ -155,11 +155,11 @@ async def test_awrap_tool_call_no_exception(middleware):
 async def test_awrap_tool_call_exceeds_max_attempts(middleware):
     """Test that awrap_tool_call returns engine limit reached message when max attempts exceeded."""
     middleware.max_attempts = 2
-    _per_tool_errors_var.set({"bash_tool": 2})
+    _per_tool_errors_var.set({"bash_code_execute_tool": 2})
 
     request = ToolCallRequest(
         tool_call={
-            "name": "bash_tool",
+            "name": "bash_code_execute_tool",
             "args": {"command": "ls"},
             "id": "call_err_limit",
         },
@@ -174,11 +174,11 @@ async def test_awrap_tool_call_exceeds_max_attempts(middleware):
     result = await middleware.awrap_tool_call(request, handler)
 
     assert isinstance(result, ToolMessage)
-    assert result.name == "bash_tool"
+    assert result.name == "bash_code_execute_tool"
     assert result.tool_call_id == "call_err_limit"
     assert result.status == "error"
     assert "Engine limit reached: max_replan_attempts exceeded" in result.content
-    assert _per_tool_errors_var.get()["bash_tool"] == 3
+    assert _per_tool_errors_var.get()["bash_code_execute_tool"] == 3
 
 
 @pytest.mark.asyncio
@@ -190,7 +190,7 @@ async def test_per_tool_counting_isolation(mock_get_suggestion, middleware):
     mock_get_suggestion.return_value = "Check syntax."
     middleware.max_attempts = 3
 
-    _per_tool_errors_var.set({"bash_tool": 3})
+    _per_tool_errors_var.set({"bash_code_execute_tool": 3})
 
     success_request = ToolCallRequest(
         tool_call={"name": "skill_select_tool", "args": {}, "id": "call_ok"},
@@ -203,10 +203,10 @@ async def test_per_tool_counting_isolation(mock_get_suggestion, middleware):
         return ToolMessage(content="ok", name="skill_select_tool", tool_call_id="call_ok")
 
     await middleware.awrap_tool_call(success_request, ok_handler)
-    assert _per_tool_errors_var.get().get("bash_tool") == 3
+    assert _per_tool_errors_var.get().get("bash_code_execute_tool") == 3
 
     fail_request = ToolCallRequest(
-        tool_call={"name": "bash_tool", "args": {"command": "echo"}, "id": "call_f"},
+        tool_call={"name": "bash_code_execute_tool", "args": {"command": "echo"}, "id": "call_f"},
         tool=MagicMock(),
         state={},
         runtime=MagicMock(),
@@ -216,5 +216,5 @@ async def test_per_tool_counting_isolation(mock_get_suggestion, middleware):
         raise SyntaxError("bad code")
 
     result = await middleware.awrap_tool_call(fail_request, fail_handler)
-    assert _per_tool_errors_var.get()["bash_tool"] == 4
+    assert _per_tool_errors_var.get()["bash_code_execute_tool"] == 4
     assert "Engine limit reached" in result.content

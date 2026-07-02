@@ -5,13 +5,14 @@
 Google A2A 协议的框架级基础设施，与 `acp/`（IDE↔Agent）和 `mcp/`（Agent↔Tools）并列，
 构成完整的 Agent 协议栈：**ACP + MCP + A2A**。
 
-## 职责
+## File & Submodule Index
 
-| 文件 | 职责 |
-|------|------|
-| `types.py` | A2A 数据模型（AgentCard、AgentSkill 等 Pydantic frozen model） |
-| `protocols.py` | AgentCardProvider Protocol（框架-业务边界契约） |
-| `resolver.py` | A2ACardResolver（通过 URL 发现第三方 AgentCard，含 SSRF 防护和 TTL 缓存） |
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Package | Public A2A exports (AgentCard, AgentSkill, A2ACardResolver, …) | ✅ |
+| types.py | Core | A2A data models (AgentCard, AgentSkill, … Pydantic frozen models) | ✅ |
+| protocols.py | Core | AgentCardProvider Protocol (framework–business boundary contract) | ✅ |
+| resolver.py | Core | A2ACardResolver — discover third-party AgentCard via URL (SSRF guard + TTL cache) | ✅ |
 
 ## 依赖关系
 
