@@ -478,6 +478,21 @@ config = SubagentConfig(
 - ✅ **并发削峰**：高并发请求转化为排队等待，降低瞬时超限风险。
 - ✅ **资源可控**：通过全局和模型级信号量约束并发推理请求。
 
+### 19. Server registry bridge（`session_tree.py`）
+
+**设计目标**：`wait=false` 异步 spawn 后，子 Agent 可在 parent gateway stream 结束后继续运行；Server REST/SSE 与 cancel 必须在无 active gateway 或每消息新 agent 实例时仍能观测和控制这些任务。
+
+**核心机制**（Harness `session_tree.py`，Server 薄封装于 `subagents.py` 与 `harness_bridge.py`）：
+1. spawn 写入 `ACTIVE_SUBAGENTS` + `ACTIVE_SUBAGENT_SESSIONS`（`_manager_spawn.py`）
+2. **list / SSE**：`merge_active_subagent_children(session_id, gateway_children)` 合并 gateway `list_children` 与 registry 行
+3. **cancel-all**：当前 gateway agent 的 `cancel_all_children()` **加上** `cancel_active_children_for_session(session_id)`（每消息新建 agent 时 orphan manager 仍可达）
+4. **cancel / steer 单任务**：直接查 `ACTIVE_SUBAGENTS[task_id]`（无需 gateway）
+5. **resume**：仍需 active gateway parent agent（需 `subagent_manager.resume_from_checkpoint`）
+
+**与 OpenClaw 对齐点**：类似 `subagent-registry` + `killSubagentRunAdmin`——registry 独立于 parent turn 生命周期。
+
+**Prompt Cache**：纯 Server/Harness 控制面，零 LLM prompt 影响。
+
 ---
 
 ## 参考资料
