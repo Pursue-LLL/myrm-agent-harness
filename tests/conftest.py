@@ -133,13 +133,11 @@ def _reset_execution_checklist_session_cache(request: pytest.FixtureRequest) -> 
         yield
         return
 
-    from myrm_agent_harness.agent.execution_checklist import state as checklist_state
+    from myrm_agent_harness.agent.execution_checklist.state import reset_checklist_workspace_cache
 
-    checklist_state._checklist_workspace_by_session.clear()
-    checklist_state._checklist_workspace_hint_var.set("")
+    reset_checklist_workspace_cache()
     yield
-    checklist_state._checklist_workspace_by_session.clear()
-    checklist_state._checklist_workspace_hint_var.set("")
+    reset_checklist_workspace_cache()
 
 
 @pytest.fixture(autouse=True)

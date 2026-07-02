@@ -7,7 +7,8 @@
 - create_update_execution_checklist_tool(): LangChain StructuredTool factory
 
 [POS]
-Agent meta-tool for Path B checklist updates; workspace root resolved per invocation via session ContextVar.
+Agent meta-tool for Path B checklist updates. Persists to workspace SSOT; SSE via
+event_handlers reading ToolMessage JSON metadata (workspace_root).
 """
 
 from __future__ import annotations

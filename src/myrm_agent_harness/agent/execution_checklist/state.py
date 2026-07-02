@@ -207,3 +207,9 @@ def clear_checklist_workspace_for_session(session_id: str) -> None:
     """Remove cached checklist workspace root on session teardown."""
     _checklist_workspace_by_session.pop(session_id, None)
     _checklist_workspace_hint_var.set("")
+
+
+def reset_checklist_workspace_cache() -> None:
+    """Clear module-level checklist workspace cache (tests only)."""
+    _checklist_workspace_by_session.clear()
+    _checklist_workspace_hint_var.set("")

@@ -9,7 +9,7 @@ Lightweight session execution checklist (Path B SSOT). Complements `planner_tool
 | File | Role |
 |------|------|
 | `__init__.py` | Public re-exports for state helpers and tool factory |
-| `state.py` | Pydantic models + `.myrm/execution_checklist.json` + workspace resolve/cleanup + metadata key |
+| `state.py` | Pydantic models + `.myrm/execution_checklist.json` + resolve/cleanup/cache reset helpers |
 | `events.py` | `tasks_steps` SSE payloads (`is_plan=false`); resume via `dispatch_custom_event` |
 | `tool.py` | Persist checklist; return JSON metadata `{workspace_root}` for SSE in `event_handlers` |
 
