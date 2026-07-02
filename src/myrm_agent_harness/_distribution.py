@@ -66,16 +66,29 @@ def _assert_core_release_version_match() -> None:
         raise DistributionNotReadyError(msg)
 
 
+def _import_core_ip_module(import_name: str) -> None:
+    """Import a manifest module; surface compiled-layout failures as ImportError."""
+    import sys
+
+    parts = import_name.split(".")
+    for end in range(2, len(parts)):
+        parent = ".".join(parts[:end])
+        if parent not in sys.modules:
+            importlib.import_module(parent)
+    importlib.import_module(import_name)
+
+
 def assert_distribution_ready() -> None:
     """Verify manifest IP modules are importable (``.py`` source or compiled ``.so``)."""
     if _manifest_py_present():
         return
 
     missing: list[str] = []
-    for import_name in CORE_IP_IMPORTS:
+    sorted_imports = sorted(CORE_IP_IMPORTS, key=lambda name: (name.count("."), name))
+    for import_name in sorted_imports:
         try:
-            importlib.import_module(import_name)
-        except ImportError:
+            _import_core_ip_module(import_name)
+        except (ImportError, KeyError):
             missing.append(import_name)
 
     if missing:
@@ -122,10 +135,11 @@ def get_distribution_mode() -> DistributionMode:
     if _manifest_py_present():
         return DistributionMode.SOURCE
     if find_spec("myrm_agent_harness_core") is not None:
-        for import_name in CORE_IP_IMPORTS:
+        sorted_imports = sorted(CORE_IP_IMPORTS, key=lambda name: (name.count("."), name))
+        for import_name in sorted_imports:
             try:
-                importlib.import_module(import_name)
-            except ImportError:
+                _import_core_ip_module(import_name)
+            except (ImportError, KeyError):
                 return DistributionMode.INCOMPLETE
         return DistributionMode.COMPILED
     return DistributionMode.INCOMPLETE

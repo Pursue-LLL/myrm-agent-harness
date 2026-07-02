@@ -2,10 +2,8 @@
 #
 # Paths are relative to src/myrm_agent_harness/ (without .py suffix).
 # Development installs keep these as readable .py source.
-# Release CI replaces them with Nuitka-compiled .so via build_core.py.
-#
-# Use `directories` for algorithm-heavy subtrees; add explicit `modules` only
-# when a file sits outside those trees.
+# Release CI replaces leaf modules with Nuitka-compiled .so via build_core.py.
+# Package __init__.py files are kept as readable re-export stubs (not compiled).
 
 directories:
   - agent/skills/evolution

@@ -37,7 +37,9 @@ def _resolve_directory_entry(entry: str, path: Path) -> list[Path]:
     if not directory.is_dir():
         msg = f"Manifest directory not found: {directory} (declared in {path})"
         raise FileNotFoundError(msg)
-    module_files = sorted(p for p in directory.rglob("*.py") if p.is_file())
+    module_files = sorted(
+        p for p in directory.rglob("*.py") if p.is_file() and p.name != "__init__.py"
+    )
     if not module_files:
         msg = f"Manifest directory contains no Python modules: {directory}"
         raise ValueError(msg)
