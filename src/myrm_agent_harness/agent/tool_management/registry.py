@@ -68,7 +68,7 @@ class ToolRegistry:
     Usage::
 
         reg = ToolRegistry()
-        reg.register(bash_tool, source=ToolSource.META)
+        reg.register(bash_code_execute_tool, source=ToolSource.META)
         reg.register(user_tool, source=ToolSource.USER)
         tools = reg.resolve()
     """

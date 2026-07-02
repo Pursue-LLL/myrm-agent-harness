@@ -837,7 +837,7 @@ hooks:
   PreToolUse:
     - description: Single tool
       script: ./check.sh
-      tools: bash_tool
+      tools: bash_code_execute_tool
 ---
 
 Content

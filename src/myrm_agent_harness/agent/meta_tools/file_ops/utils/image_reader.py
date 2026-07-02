@@ -82,7 +82,7 @@ async def read_image_as_content_blocks(
         if compressed_bytes is None:
             return (
                 f"[Image file: {path}] ({mime_type}, {size_display}. "
-                f"Compression failed. Use bash_tool to process or resize.)"
+                f"Compression failed. Use bash_code_execute_tool to process or resize.)"
             )
         raw_bytes = compressed_bytes
         size_bytes = len(raw_bytes)
