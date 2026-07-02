@@ -27,6 +27,20 @@ def test_emit_checklist_events_dispatches_root_and_items() -> None:
     assert mock_dispatch.call_count == 3
 
 
+def test_build_checklist_sse_events_includes_root_and_items() -> None:
+    from myrm_agent_harness.agent.execution_checklist.events import build_checklist_sse_events
+
+    state = ExecutionChecklistState(
+        items=[ChecklistItem(id="a", content="Do work", status="completed")],
+    )
+    events = build_checklist_sse_events(state, message_id="msg-1")
+    assert len(events) == 2
+    assert events[0]["step_key"] == "checklist_root"
+    assert events[0]["messageId"] == "msg-1"
+    assert events[1]["step_key"] == "checklist_a"
+    assert events[1]["status"] == "success"
+
+
 def test_emit_checklist_events_swallows_dispatch_errors() -> None:
     state = ExecutionChecklistState(items=[ChecklistItem(id="1", content="Only", status="pending")])
     with patch(
