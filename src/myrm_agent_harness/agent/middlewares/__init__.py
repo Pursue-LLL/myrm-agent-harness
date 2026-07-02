@@ -43,9 +43,6 @@ from myrm_agent_harness.agent.middlewares.approval import (
     ApprovalRateLimiter,
     get_approval_rate_limiter,
 )
-from myrm_agent_harness.agent.middlewares.auto_session_recall_middleware import (
-    auto_session_recall_middleware,
-)
 from myrm_agent_harness.agent.middlewares.completion_guard import (
     CompletionGuard,
     reset_completion_guard,
@@ -92,7 +89,6 @@ __all__ = [
     # 速率限制
     "ApprovalRateLimiter",
     # 中间件
-    "auto_session_recall_middleware",
     "CompletionGuard",
     "FilesystemFileSearchMiddleware",
     # 权限检查

@@ -19,6 +19,48 @@ def test_detect_capability_gap_none_when_enabled() -> None:
     assert detect_capability_gap("open the website", groups) is None
 
 
+def test_detect_capability_gap_render_ui_when_disabled() -> None:
+    hit = detect_capability_gap(
+        "please render ui form",
+        frozenset({"web", "memory", "file_ops", "shell"}),
+    )
+    assert hit is not None
+    assert hit.tool_id == "render_ui"
+
+
+def test_detect_capability_gap_none_when_render_ui_enabled() -> None:
+    groups = frozenset({"web", "memory", "file_ops", "shell", "render_ui"})
+    assert detect_capability_gap("please render ui form", groups) is None
+
+
+def test_detect_capability_gap_none_when_image_generation_enabled() -> None:
+    groups = frozenset({"web", "memory", "file_ops", "shell", "image_generation"})
+    assert detect_capability_gap("generate image of a cat", groups) is None
+
+
+def test_detect_capability_gap_image_when_disabled() -> None:
+    hit = detect_capability_gap(
+        "generate image of a cat",
+        frozenset({"web", "memory", "file_ops", "shell"}),
+    )
+    assert hit is not None
+    assert hit.tool_id == "image_generation"
+
+
+def test_detect_capability_gap_computer_use_when_disabled() -> None:
+    hit = detect_capability_gap(
+        "take a desktop screenshot",
+        frozenset({"web", "memory", "file_ops", "shell"}),
+    )
+    assert hit is not None
+    assert hit.tool_id == "computer_use"
+
+
+def test_detect_capability_gap_none_when_computer_use_enabled() -> None:
+    groups = frozenset({"web", "memory", "file_ops", "shell", "computer_use"})
+    assert detect_capability_gap("take a desktop screenshot", groups) is None
+
+
 def test_detect_skill_gap_unbound_skill() -> None:
     hit = detect_skill_gap(
         "use github_pr_skill to review",

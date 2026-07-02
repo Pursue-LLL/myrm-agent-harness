@@ -410,19 +410,6 @@ class MemoryConfig:
     graph_distance_decay: float = 0.5
     """Score decay factor per hop depth. depth=1 gets base score, depth=2 gets base*decay."""
 
-    auto_session_recall_enabled: bool = True
-    """Enable automatic first-turn historical conversation recall.
-    When enabled, the middleware searches conversation/task_digest memories on the first
-    user message and injects high-confidence results before the Agent reasons."""
-    auto_session_recall_threshold: float = 0.72
-    """Minimum RRF score to inject a recalled memory. Higher = fewer but more precise results.
-    Range: [0.5, 0.95]. Default 0.72 is conservative — prefers precision over recall."""
-    auto_session_recall_budget_tokens: int = 800
-    """Maximum token budget for auto-recalled content injection."""
-    auto_session_recall_timeout: float = 3.0
-    """Timeout in seconds for the auto session recall search operation.
-    Exceeding this silently skips injection without affecting the main flow."""
-
     @property
     def semantic_collection(self) -> str:
         return f"{self.collection_prefix}_semantic_{_normalize_model_name(self.embedding_model)}"

@@ -6,7 +6,7 @@ Covers: parsing of `<AutoMountTools>` XML tags, injection of tools into the requ
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import ToolMessage
@@ -14,6 +14,8 @@ from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent.middlewares.deferred_tool_middleware import (
     DeferredToolMiddleware,
+    _messages_from_agent_state,
+    collect_activated_native_tool_names,
 )
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 from myrm_agent_harness.agent.tool_management.types import ToolSource
@@ -195,3 +197,148 @@ async def test_deferred_tool_middleware_already_in_tools(
     assert response == "response"
     # Should not duplicate the tool
     assert len(request.tools) == 1
+
+
+def test_collect_activated_native_tool_names_parses_discover_output() -> None:
+    json_data = json.dumps([{"name": "dummy_tool"}, {"name": "other_tool"}])
+    content = f"<AutoMountTools>\n{json_data}\n</AutoMountTools>"
+    msg = ToolMessage(content=content, name="discover_capability_tool", tool_call_id="1")
+    activated = collect_activated_native_tool_names([msg])
+    assert activated == {"dummy_tool", "other_tool"}
+
+
+def test_collect_activated_native_tool_names_swallows_parse_errors() -> None:
+    content = "<AutoMountTools>\n{broken json\n</AutoMountTools>"
+    msg = ToolMessage(content=content, name="discover_capability", tool_call_id="5")
+    assert collect_activated_native_tool_names([msg]) == set()
+
+
+def test_wrap_model_call_sync_raises() -> None:
+    middleware = DeferredToolMiddleware(ToolRegistry())
+    with pytest.raises(NotImplementedError):
+        middleware.wrap_model_call(MagicMock(), MagicMock())
+
+
+def test_wrap_tool_call_sync_raises() -> None:
+    middleware = DeferredToolMiddleware(ToolRegistry())
+    with pytest.raises(NotImplementedError):
+        middleware.wrap_tool_call(MagicMock(), MagicMock())
+
+
+def test_collect_activated_native_tool_names_ignores_non_discover_messages() -> None:
+    msg = ToolMessage(content="plain", name="bash_tool", tool_call_id="2")
+    assert collect_activated_native_tool_names([msg]) == set()
+
+
+def test_messages_from_agent_state_dict_and_object() -> None:
+    msg = ToolMessage(content="x", name="discover_capability_tool", tool_call_id="3")
+    assert _messages_from_agent_state({"messages": [msg]}) == [msg]
+
+    state = MagicMock()
+    state.messages = [msg]
+    assert _messages_from_agent_state(state) == [msg]
+
+    assert _messages_from_agent_state({}) == []
+    assert _messages_from_agent_state(MagicMock(messages=None)) == []
+
+
+@pytest.mark.asyncio
+async def test_awrap_tool_call_passes_through_when_tool_already_set(
+    registry: ToolRegistry,
+) -> None:
+    middleware = DeferredToolMiddleware(registry)
+    request = MagicMock()
+    request.tool = DummyTool()
+    handler = AsyncMock(return_value="handled")
+
+    result = await middleware.awrap_tool_call(request, handler)
+
+    assert result == "handled"
+    handler.assert_awaited_once_with(request)
+
+
+@pytest.mark.asyncio
+async def test_awrap_tool_call_supplies_deferred_tool_when_activated(
+    registry: ToolRegistry,
+) -> None:
+    middleware = DeferredToolMiddleware(registry)
+    json_data = json.dumps([{"name": "dummy_tool"}])
+    content = f"<AutoMountTools>\n{json_data}\n</AutoMountTools>"
+    discover_msg = ToolMessage(
+        content=content, name="discover_capability_tool", tool_call_id="4"
+    )
+
+    request = MagicMock()
+    request.tool = None
+    request.tool_call = {"name": "dummy_tool"}
+    request.state = {"messages": [discover_msg]}
+    request.override = MagicMock(side_effect=lambda **kwargs: MagicMock(tool=kwargs.get("tool")))
+
+    captured: list[object] = []
+
+    async def handler(req: object) -> str:
+        captured.append(req)
+        return "ok"
+
+    result = await middleware.awrap_tool_call(request, handler)
+
+    assert result == "ok"
+    assert len(captured) == 1
+    assert getattr(captured[0], "tool", None) is not None
+    assert captured[0].tool.name == "dummy_tool"
+
+
+@pytest.mark.asyncio
+async def test_awrap_tool_call_resolves_from_registry_when_not_activated(
+    registry: ToolRegistry,
+) -> None:
+    registry.register(DummyTool(), source=ToolSource.META, deferred=False)
+    middleware = DeferredToolMiddleware(registry)
+
+    request = MagicMock()
+    request.tool = None
+    request.tool_call = {"name": "dummy"}
+    request.state = {"messages": []}
+    request.override = MagicMock(side_effect=lambda **kwargs: MagicMock(tool=kwargs.get("tool")))
+
+    captured: list[object] = []
+
+    async def handler(req: object) -> str:
+        captured.append(req)
+        return "resolved"
+
+    with patch(
+        "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
+        return_value=[],
+    ), patch(
+        "myrm_agent_harness.agent.middlewares._session_context.get_active_tool_registry",
+        return_value=None,
+    ):
+        result = await middleware.awrap_tool_call(request, handler)
+
+    assert result == "resolved"
+    assert captured[0].tool.name == "dummy_tool"
+
+
+@pytest.mark.asyncio
+async def test_awrap_tool_call_falls_through_when_tool_missing(
+    registry: ToolRegistry,
+) -> None:
+    middleware = DeferredToolMiddleware(registry)
+    request = MagicMock()
+    request.tool = None
+    request.tool_call = {"name": "missing_tool"}
+    request.state = {"messages": []}
+    handler = AsyncMock(return_value="fallback")
+
+    with patch(
+        "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
+        return_value=[],
+    ), patch(
+        "myrm_agent_harness.agent.middlewares._session_context.get_active_tool_registry",
+        return_value=None,
+    ):
+        result = await middleware.awrap_tool_call(request, handler)
+
+    assert result == "fallback"
+    handler.assert_awaited_once_with(request)
