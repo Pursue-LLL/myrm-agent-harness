@@ -144,9 +144,9 @@ class TestBuildTools:
 
         calls: list[str] = []
 
-        def fake_factory(*, registry: object) -> object:
+        def fake_factory(**kwargs: object) -> object:
             calls.append("called")
-            assert registry is not None
+            assert kwargs.get("registry") is not None
             return discover_capability
 
         monkeypatch.setattr(

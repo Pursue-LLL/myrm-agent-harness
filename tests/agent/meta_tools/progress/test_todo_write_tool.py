@@ -46,6 +46,21 @@ async def test_todo_write_replace_and_merge(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_todo_write_returns_error_on_invalid_status(tmp_path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    tool = create_todo_write_tool(str(workspace))
+    result = await tool.ainvoke(
+        {
+            "todos": [{"id": "1", "content": "bad", "status": "not-a-status"}],
+            "merge": False,
+        }
+    )
+    error_payload = json.loads(result)
+    assert "error" in error_payload
+
+
+@pytest.mark.asyncio
 async def test_todo_write_requires_workspace() -> None:
     tool = create_todo_write_tool(None)
     result = await tool.ainvoke({"todos": [{"id": "1", "content": "x", "status": "pending"}]})

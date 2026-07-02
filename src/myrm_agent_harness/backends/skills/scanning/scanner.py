@@ -448,6 +448,7 @@ def compute_scan_summary(result: ScanResult) -> SecurityScanSummary:
                 threat_type=f.threat_type,
                 severity=sev_name,
                 description=f.description,
+                line_number=f.line_number,
             )
         )
 
@@ -461,6 +462,7 @@ def compute_scan_summary(result: ScanResult) -> SecurityScanSummary:
                 threat_type=af.threat_type,
                 severity=sev_name,
                 description=af.description,
+                line_number=af.line_number,
             )
         )
 

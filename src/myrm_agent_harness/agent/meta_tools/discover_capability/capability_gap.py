@@ -1,7 +1,15 @@
-"""Builtin tool capability gap detection for discover_capability_tool.
+"""Capability gap detection for discover_capability_tool.
 
-When a user request needs a tool group that is not enabled on the current Agent,
-return structured gap hints instead of a bare "not found" message.
+[INPUT]
+- core.security.tool_registry::TOOL_GROUP_MAP (POS: harness tool group SSOT)
+
+[OUTPUT]
+- detect_capability_gap / detect_skill_gap: entitlement gap hits
+- format_capability_gap_block / format_skill_gap_block: XML blocks for tool messages
+
+[POS]
+Detects when a user query needs a builtin tool group or skill that is not enabled on the
+current Agent profile, so discover can surface structured gap hints instead of bare misses.
 """
 
 from __future__ import annotations

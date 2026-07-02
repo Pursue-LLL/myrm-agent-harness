@@ -4,7 +4,7 @@
 - (none)
 
 [OUTPUT]
-- SecurityFindingDetail: single finding (threat_type/severity/description)
+- SecurityFindingDetail: single finding (threat_type/severity/description/line_number)
 - SecurityScanSummary: aggregate scan result with score and findings
 
 [POS]
@@ -20,19 +20,23 @@ from dataclasses import dataclass, field
 class SecurityFindingDetail:
     """A single security finding for API/frontend consumption.
 
-    Simplified version of ScanFinding (no line_number, severity as str).
+    Simplified version of ScanFinding (severity as str, optional line_number).
     """
 
     threat_type: str
     severity: str
     description: str
+    line_number: int | None = None
 
-    def to_dict(self) -> dict[str, str]:
-        return {
+    def to_dict(self) -> dict[str, object]:
+        d: dict[str, object] = {
             "threat_type": self.threat_type,
             "severity": self.severity,
             "description": self.description,
         }
+        if self.line_number is not None:
+            d["line_number"] = self.line_number
+        return d
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,7 +60,7 @@ class SecurityScanSummary:
     """Total number of security findings."""
 
     findings: tuple[SecurityFindingDetail, ...] = ()
-    """Individual findings with threat_type, severity, and description."""
+    """Individual findings with threat_type, severity, description, and optional line_number."""
 
     def to_dict(self) -> dict[str, object]:
         return {
