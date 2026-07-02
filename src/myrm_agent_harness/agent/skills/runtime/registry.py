@@ -8,7 +8,7 @@
 [OUTPUT]
 - SkillRegistry: 技能注册表类（管理技能的注册、查询、更新）
 - skill_registry: 全局技能注册表单例
-- get_metadata_summary(): XML 格式技能摘要（嵌入 skill_select_tool / planner_tool 的 tool description，非 SystemMessage）
+- get_metadata_summary(): XML 格式技能摘要（嵌入 skill_select_tool / todo_write 的 tool description，非 SystemMessage）
 
 [POS]
 Skill registry. Manages runtime caches and lookups, primarily for MCP-based skills.
@@ -125,7 +125,7 @@ skill_registry = SkillRegistry()
 def get_metadata_summary(skills: list[SkillMetadata], max_skills: int = MAX_SKILLS_IN_PROMPT) -> str:
     """Generate structured XML skill summary for tool descriptions.
 
-    Embedded in ``skill_select_tool`` and ``planner_tool`` LangChain tool
+    Embedded in ``skill_select_tool`` and ``todo_write`` LangChain tool
     descriptions (part of tool schema sent to the LLM), **not** in SystemMessage.
 
     XML format is more parseable by LLMs than Markdown lists, and supports

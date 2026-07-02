@@ -44,6 +44,9 @@ def create_discover_capability_tool(
     skills: list[SkillMetadata] | None = None,
     embedding_config: EmbeddingConfig | None = None,
     cache: EmbeddingCacheProtocol | None = None,
+    active_tool_groups: frozenset[str] | None = None,
+    bound_skill_names: frozenset[str] | None = None,
+    library_skill_names: frozenset[str] | None = None,
 ) -> BaseTool:
     """创建统一能力发现工具
 
@@ -109,6 +112,34 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
         deferred_names = ", ".join(s.name for s in native_skills[:20])
         tool_description += f"\n**Discoverable native tools**: {deferred_names}\n"
 
+    active_groups = active_tool_groups or frozenset()
+    bound_names = bound_skill_names or frozenset()
+    library_names = library_skill_names or frozenset()
+
+    def _resolve_gap_hints(search_query: str, base_message: str) -> str:
+        from langchain_core.callbacks.manager import dispatch_custom_event
+
+        from myrm_agent_harness.agent.meta_tools.discover_capability.capability_gap import (
+            detect_capability_gap,
+            detect_skill_gap,
+            format_capability_gap_block,
+            format_skill_gap_block,
+        )
+
+        parts = [base_message]
+        cap_gap = detect_capability_gap(search_query, active_groups)
+        if cap_gap is not None:
+            parts.append(format_capability_gap_block(cap_gap))
+            dispatch_custom_event(
+                "capability_gap",
+                {"tool_id": cap_gap.tool_id, "tool_group": cap_gap.tool_group},
+            )
+        skill_gap = detect_skill_gap(search_query, bound_names, library_names)
+        if skill_gap is not None:
+            parts.append(format_skill_gap_block(skill_gap))
+            dispatch_custom_event("skill_gap", {"skill_id": skill_gap.skill_id})
+        return "\n\n".join(parts)
+
     class DiscoverCapabilityInput(BaseModel):
         query: str = Field(
             description=(
@@ -129,11 +160,11 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
     )
     async def discover_capability_func(query: str, mode: Literal["bm25", "regex"] = "bm25") -> str:
         """Search for capabilities across native tools and external skills."""
-        if engine is None:
-            return f"No capabilities found matching '{query}'. Try broader terms or synonyms."
+        not_found = f"No capabilities found matching '{query}'. Try broader terms or synonyms."
 
-        # Perform ONE unified semantic search.
-        # HybridSkillSearchEngine returns coroutines; SkillSearchEngine returns lists.
+        if engine is None:
+            return _resolve_gap_hints(query, not_found)
+
         if mode == "regex":
             matches = engine.search_regex(query)
         else:
@@ -143,7 +174,7 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
             matches = await matches
 
         if not matches:
-            return f"No capabilities found matching '{query}'. Try broader terms or synonyms."
+            return _resolve_gap_hints(query, not_found)
 
         native_matches = []
         external_matches = []
@@ -184,3 +215,41 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
         return "\n\n".join(results)
 
     return discover_capability_func
+
+
+def sync_discover_capability_tool(
+    registry: ToolRegistry,
+    *,
+    skills: list[SkillMetadata] | None = None,
+    embedding_config: EmbeddingConfig | None = None,
+    embedding_cache: EmbeddingCacheProtocol | None = None,
+    active_tool_groups: frozenset[str] | None = None,
+    bound_skill_names: frozenset[str] | None = None,
+    library_skill_names: frozenset[str] | None = None,
+) -> BaseTool | None:
+    """Rebuild discover_capability_tool after deferred registry mutations.
+
+    Must run after all deferred tools (framework + server + middleware) are registered
+    so the search index includes the full agent-scoped deferred set.
+    """
+    from myrm_agent_harness.agent.tool_management.registry import ToolSource
+
+    discoverable_skills = [s for s in (skills or []) if s.model_invocable]
+    has_deferred = bool(registry.get_deferred_tools())
+
+    registry.remove_tool("discover_capability_tool")
+
+    if not discoverable_skills and not has_deferred:
+        return None
+
+    tool = create_discover_capability_tool(
+        registry=registry,
+        skills=discoverable_skills or None,
+        embedding_config=embedding_config,
+        cache=embedding_cache,
+        active_tool_groups=active_tool_groups,
+        bound_skill_names=bound_skill_names,
+        library_skill_names=library_skill_names,
+    )
+    registry.register(tool, source=ToolSource.META)
+    return tool

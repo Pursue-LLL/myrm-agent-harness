@@ -9,7 +9,7 @@
 1. **安全隔离**：子 agent 的工具访问受四层安全约束（L0 类型准入 + L1 全局黑名单 + L2 per-config + L3 父子交集），防止权限逃逸。子 agent 的 taint labels 自动传播到父 agent 的 taint_tracker，防止跨 agent 注入攻击链
 2. **资源可控**：Token 预算、并发上限、嵌套深度、每节点子任务数、每运行树总后代数均可声明式配置
 3. **Token 精确追踪**：子 agent 用量从 `last_run_stats` 精确合并到父 tracker
-4. **层级解耦**：与 PlannerAgent、BaseAgent、中间件系统通过明确接口协作
+4. **层级解耦**：与 BaseAgent、progress 中间件、Goal 系统通过明确接口协作
 5. **声明式配置**：一个 `SubagentConfig` dataclass 描述子 agent 的全部行为
 
 ---
@@ -59,7 +59,7 @@
 | `agent/base_agent.py` | 委托入口 + `_last_context` 保存 + 父取消传播 |
 | `agent/meta_tools/spawn_subagent/delegate_task_tool.py` | LLM delegate_task/batch_delegate_tasks_tool 工具（动态描述 + session 隔离缓存 + 结构化委派契约 + 预算安全并发） |
 | `agent/meta_tools/spawn_subagent/agent_manage_tool.py` | LLM list/cancel/steer 工具 |
-| `sub_agents/planner/` | PlannerAgent（独立子智能体） |
+| `sub_agents/dag_plan.py` | Orchestrator DAG 内部 Plan/PlanStep 类型（非用户面工具） |
 | `configs/subagents/` | 外部 YAML 配置文件（core 核心配置 + custom 自定义配置） |
 
 ### 6 个核心抽象

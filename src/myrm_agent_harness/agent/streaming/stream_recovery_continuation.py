@@ -234,9 +234,8 @@ class StreamContinuationRecoveryMixin:
                 }
             )
 
-        if decision.verdict in ("done", "budget", "convergence"):
-            if hasattr(self, "_check_and_emit_trace_slice"):
-                _track_background_recovery_task(asyncio.create_task(self._check_and_emit_trace_slice(force_flush=True)))
+        if decision.verdict in ("done", "budget", "convergence") and hasattr(self, "_check_and_emit_trace_slice"):
+            _track_background_recovery_task(asyncio.create_task(self._check_and_emit_trace_slice(force_flush=True)))
 
         if decision.should_continue:
             messages_dict = ctx.agent_input
@@ -270,6 +269,7 @@ class StreamContinuationRecoveryMixin:
             TOOL_SEMANTIC_MAP,
             SuccessLevel,
             ToolGroup,
+            VerificationCategory,
         )
 
         guard = get_loop_guard()
@@ -290,7 +290,11 @@ class StreamContinuationRecoveryMixin:
                 browser_checks += 1
             elif rec.verification_type is not None:
                 cmd = str(rec.args.get("command", rec.tool_name))
-                passed = rec.success_level is not None and rec.success_level != SuccessLevel.FAILURE
+                if rec.success_level == SuccessLevel.EMPTY_OK and rec.verification_type == VerificationCategory.TEST:
+                    passed = False
+                    cmd += " (empty: no tests executed)"
+                else:
+                    passed = rec.success_level is not None and rec.success_level != SuccessLevel.FAILURE
                 verifications.append({"cmd": cmd, "passed": passed})
 
         return GoalExecutionSummary(

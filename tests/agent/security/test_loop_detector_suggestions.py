@@ -129,6 +129,24 @@ class TestEvaluateSuccessLevel:
     def test_deprecated_warning_is_partial(self) -> None:
         assert evaluate_success_level("tool", "Warning: deprecated function used") == SuccessLevel.PARTIAL_SUCCESS
 
+    def test_trivial_test_no_tests_ran(self) -> None:
+        assert evaluate_success_level("bash_code_execute_tool", "no tests ran") == SuccessLevel.EMPTY_OK
+
+    def test_trivial_test_collected_0_items(self) -> None:
+        assert evaluate_success_level("bash_code_execute_tool", "collected 0 items") == SuccessLevel.EMPTY_OK
+
+    def test_trivial_test_0_passed(self) -> None:
+        assert evaluate_success_level("bash_code_execute_tool", "0 passed, 25 skipped") == SuccessLevel.EMPTY_OK
+
+    def test_real_pass_not_trivial(self) -> None:
+        assert evaluate_success_level("bash_code_execute_tool", "5 passed in 1.2s") == SuccessLevel.FULL_SUCCESS
+
+    def test_mixed_pass_skip_not_trivial(self) -> None:
+        assert evaluate_success_level("bash_code_execute_tool", "10 passed, 5 skipped") == SuccessLevel.FULL_SUCCESS
+
+    def test_non_execute_tool_not_affected(self) -> None:
+        assert evaluate_success_level("file_read_tool", "no tests ran") == SuccessLevel.FULL_SUCCESS
+
 
 class TestPrioritizeSuggestions:
     def test_empty(self) -> None:

@@ -51,7 +51,7 @@ async def test_goal_stash_restore_flow(mock_storage_provider) -> None:
     stashed = await manager.stash_goal(
         session_id=session_id,
         branch_name=branch_name,
-        planner_state=planner_state,
+        progress_state=planner_state,
         chat_history=chat_history,
     )
     assert stashed is True
@@ -69,7 +69,7 @@ async def test_goal_stash_restore_flow(mock_storage_provider) -> None:
     assert restored is not None
     assert restored["goal"].goal_id == goal.goal_id
     assert restored["goal"].status == GoalStatus.ACTIVE
-    assert restored["planner_state"] == planner_state
+    assert restored["progress_state"] == planner_state
     assert restored["chat_history"] == chat_history
 
     # Stash should be deleted after restore

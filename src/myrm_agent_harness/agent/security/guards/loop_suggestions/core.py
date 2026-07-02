@@ -20,6 +20,25 @@ import re
 
 from ..loop_guard_types import ErrorPattern, SuccessLevel, SuggestionPriority, ToolGroup, WarningLevel, get_tool_group
 
+_TRIVIAL_TEST_PATTERNS: tuple[str, ...] = (
+    "no tests ran",
+    "collected 0 items",
+    "no test files found",
+    "no tests found",
+    "tests: 0 total",
+    "tests 0 passed",
+    "running 0 tests",
+    "0 passed; 0 failed",
+    "ran 0 tests",
+    "total tests: 0",
+    "0 passing",
+    "no test files",
+    "0 passed",
+)
+_REAL_PASS_RE = re.compile(
+    r"[1-9]\d*\s*(?:passed|passing)|^ok\s", re.MULTILINE,
+)
+
 TOOL_SUGGESTIONS: dict[str, str] = {
     "memory_recall_tool": (
         "Try: (1) different 'categories' filter (knowledge/event/preference/rule), "
@@ -274,6 +293,11 @@ def evaluate_success_level(tool_name: str, result_content: str) -> SuccessLevel:
         return SuccessLevel.PARTIAL_SUCCESS
     elif warning_level == WarningLevel.INFO_WARN:
         return SuccessLevel.FULL_SUCCESS
+
+    if tool_group == ToolGroup.EXECUTE and any(
+        pat in content_lower for pat in _TRIVIAL_TEST_PATTERNS
+    ) and not _REAL_PASS_RE.search(content_lower):
+        return SuccessLevel.EMPTY_OK
 
     return SuccessLevel.FULL_SUCCESS
 

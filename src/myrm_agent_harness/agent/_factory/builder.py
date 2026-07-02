@@ -99,8 +99,10 @@ async def create_skill_agent(
     enable_bash: bool = True,
     enable_answer_tool: bool = False,
     enable_planning: bool = False,
-    enable_task_tracking: bool = False,
     task_workspace_root: str | None = None,
+    available_tool_names: frozenset[str] | None = None,
+    available_tool_groups: frozenset[str] | None = None,
+    library_skill_names: frozenset[str] | None = None,
 ) -> SkillAgent:
     """Create a SkillAgent instance (framework assembly entry)."""
     from myrm_agent_harness._distribution import assert_distribution_ready
@@ -345,9 +347,9 @@ async def create_skill_agent(
         enable_bash=enable_bash,
         enable_answer_tool=enable_answer_tool,
         enable_planning=enable_planning,
-        enable_task_tracking=enable_task_tracking,
         task_workspace_root=task_workspace_root
         or (spec.workspace_binding.root_path if spec.workspace_binding else None),
         available_tool_names=frozenset(spec.allowed_tools) if spec.allowed_tools else None,
         available_tool_groups=frozenset(spec.tool_groups) if spec.tool_groups else None,
+        library_skill_names=library_skill_names,
     )

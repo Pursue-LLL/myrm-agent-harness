@@ -73,35 +73,27 @@ class TestSystemPromptHashStability:
         assert hash_before == hash_after
 
 
-class TestPlannerMiddlewareNoMutation:
-    """Verify planner middleware does NOT mutate original messages in-place."""
+class TestProgressMiddlewareNoMutation:
+    """Verify progress middleware does NOT mutate original messages in-place."""
 
     @pytest.mark.asyncio
-    async def test_planner_does_not_mutate_original_message(self) -> None:
-        from myrm_agent_harness.agent.middlewares.planner_middleware import (
-            planner_middleware,
+    async def test_progress_does_not_mutate_original_message(self) -> None:
+        from myrm_agent_harness.agent.middlewares.progress_middleware import (
+            progress_middleware,
         )
-        from myrm_agent_harness.agent.sub_agents.planner.schemas import (
-            Plan,
-            PlanStep,
-        )
+        from myrm_agent_harness.agent.meta_tools.progress.schemas import TodoItem, TodoStatus, TodoStore
 
-        plan = Plan(
+        store = TodoStore(
             goal="test goal",
-            reasoning="test reasoning",
-            steps=[
-                PlanStep(
-                    step_id="s1",
-                    description="step 1",
-                    expected_output="output 1",
-                )
+            todos=[
+                TodoItem(id="s1", content="step 1", status=TodoStatus.IN_PROGRESS),
             ],
         )
 
-        async def mock_get_plan(_workspace: str | None) -> Plan:
-            return plan
+        async def mock_get_todos(_workspace: str | None) -> TodoStore:
+            return store
 
-        middleware = planner_middleware(mock_get_plan)
+        middleware = progress_middleware(mock_get_todos)
 
         original_content = "user question"
         original_msg = HumanMessage(content=original_content, id="test-id")
@@ -119,7 +111,7 @@ class TestPlannerMiddlewareNoMutation:
         await middleware.awrap_model_call(request, mock_handler)
 
         assert original_msg.content == original_content, (
-            "planner middleware must NOT mutate the original HumanMessage in-place"
+            "progress middleware must NOT mutate the original HumanMessage in-place"
         )
 
         handler_call_args = mock_handler.call_args[0][0]

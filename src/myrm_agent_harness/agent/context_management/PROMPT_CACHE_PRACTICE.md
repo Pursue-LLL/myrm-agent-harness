@@ -80,7 +80,7 @@ class ToolLayer(IntEnum):
 | 层级 | 工具 | 常驻理由 |
 |------|------|---------|
 | **CORE** | （无 unconditional 工具） | 登记层为空 | — | `web_fetch_tool` 在 COMMON，随 web 组加载 |
-| **COMMON** | `request_answer_user_tool`, `bash_code_execute_tool`, `file_edit_tool`, `file_read_tool`, `file_write_tool`, `planner_tool`, `web_search_tool` | 注册 7 个；默认 profile bind 5 个（answer/planner 由 Agent 配置 / Goal / workspace plan 按需加载） |
+| **COMMON** | `request_answer_user_tool`, `bash_code_execute_tool`, `file_edit_tool`, `file_read_tool`, `file_write_tool`, `todo_write`, `web_search_tool` | 注册 7 个；默认 profile bind 5 个（answer/todo_write 由 Agent 配置 / Goal / workspace todos 按需加载） |
 | **EXTENDED** | 83 个注册工具（浏览器/记忆/技能/Sub-Agent/…）+ 动态 MCP | 按需加载或始终加载的辅助工具 |
 
 `ToolRegistry.resolve()` 执行去重 + 排序：
@@ -545,7 +545,7 @@ META: tokens_saved=5000 time=2024-12-20T15:30:00
 `ToolProtectionConfig`（`schemas.py`）定义哪些工具的输出不可被**过滤**：
 
 ```python
-BUILTIN_PROTECTED_TOOLS = frozenset({"skill_select_tool", "planner_tool"})
+BUILTIN_PROTECTED_TOOLS = frozenset({"skill_select_tool", "todo_write"})
 ```
 
 注意：保护只针对 Filter（不可逆），不针对 Compress（可逆）。压缩后 Agent 可以通过 `cat` 恢复原始内容。
@@ -971,9 +971,9 @@ Turn 12 (会话结束):
 | 内容 | 位置 | Cache 维度 |
 |------|------|------------|
 | Bound 技能 XML（含 MCP `mcp_*_skill`） | ``skill_select_tool.description``（``get_metadata_summary()``） | tool schema 前缀；列表稳定则 **不** 触发 ``tool_definitions_changed`` |
-| Planner 可用技能列表 | ``planner_tool.description`` | 同上 |
+| todo_write 绑定说明 | ``todo_write`` tool description | 同上 |
 | MCP 函数文档 | skill workspace ``/mcp/.../*.md``；经 ``skill_select_tool`` 返回 ToolMessage | 对话消息，非 system/tool schema |
-| Goal Blueprint | ``planner_middleware`` **追加到第一个 SystemMessage** | **`system prompt changed`** |
+| Active todo focus | ``progress_middleware`` **追加到最后一个 HumanMessage** | 不破坏 system prefix cache |
 | Session Notes 摘要 | ``SessionNotesProcessor`` 注入 **HumanMessage** | 不破坏 cache |
 | Summarize 摘要 | ``SummarizeProcessor`` 注入 **HumanMessage** | 不破坏 cache |
 | 记忆上下文 | ``memory_context_middleware`` **SystemMessage** (one-shot) | 仅首轮 baseline 建立 |
@@ -1267,7 +1267,7 @@ messages.append(HumanMessage(content=dynamic_notification))
 1. **`base_agent.py:462`** — 子 Agent 通知注入
 2. **`stream_executor.py:522`** — 子 Agent 完成通知注入
 3. **`deep_research/orchestrator.py:774`** — Deep Research 结果注入
-4. **`planner_middleware.py`** — Plan Blueprint + Anti-Drift + Decision Log 注入（HumanMessage via request.override）
+4. **`progress_middleware.py`** — Active todo focus 注入（HumanMessage via request.override）
 5. **`security_guardrail_middleware.py`** — Circuit Breaker 环境约束注入（HumanMessage via awrap_model_call + request.override，瞬态不持久化）
 6. **`budget_boundary_middleware.py`** — 预算警告/终止提示注入（HumanMessage with `[SYSTEM INSTRUCTION]` prefix）
 7. **`citation_rules_middleware.py`**（server 层）— 引用规则注入（HumanMessage via request.override）

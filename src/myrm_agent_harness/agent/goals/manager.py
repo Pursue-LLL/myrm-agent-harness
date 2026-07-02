@@ -530,10 +530,10 @@ class GoalManager(GoalProvider):
         self,
         session_id: str,
         branch_name: str,
-        planner_state: dict[str, Any] | None = None,
+        progress_state: dict[str, Any] | None = None,
         chat_history: list[dict[str, Any]] | None = None,
     ) -> bool:
-        """Stash active goal state, planner progress, and short-term chat memory."""
+        """Stash active goal state, progress todos, and short-term chat memory."""
 
         goal = await self.get_active_goal(session_id)
         if not goal:
@@ -551,7 +551,7 @@ class GoalManager(GoalProvider):
             branch_name=branch_name,
             session_id=session_id,
             goal_id=goal.goal_id,
-            planner_state=planner_state,
+            progress_state=progress_state,
             chat_history=chat_history,
         )
         logger.info(
@@ -567,7 +567,7 @@ class GoalManager(GoalProvider):
         session_id: str,
         branch_name: str,
     ) -> dict[str, Any] | None:
-        """Restore stashed goal state, returning the planner progress, goal, and chat history."""
+        """Restore stashed goal state, returning progress todos, goal, and chat history."""
 
         stash = await self._storage.get_stash(session_id, branch_name)
         if not stash:
@@ -589,6 +589,6 @@ class GoalManager(GoalProvider):
         logger.info("Restored stashed goal %s for branch %s", goal_id, branch_name)
         return {
             "goal": goal,
-            "planner_state": stash.get("planner_state"),
+            "progress_state": stash.get("progress_state") or stash.get("planner_state"),
             "chat_history": stash.get("chat_history"),
         }

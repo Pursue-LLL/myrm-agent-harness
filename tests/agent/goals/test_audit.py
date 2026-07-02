@@ -210,7 +210,7 @@ def test_continuation_prompt_contains_progress_visibility():
     )
     prompt = build_continuation_prompt(goal)
     assert "Progress visibility:" in prompt
-    assert "planner_tool" in prompt
+    assert "todo_write" in prompt
     assert "trivial single-step" in prompt
 
 

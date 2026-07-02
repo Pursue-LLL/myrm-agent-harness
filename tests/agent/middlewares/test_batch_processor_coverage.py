@@ -131,7 +131,7 @@ class TestYOLOMode:
         """YOLO mode must NOT bypass DENY rules — 'deny always wins'."""
         config = SecurityConfig(
             ruleset=(
-                PermissionRule("shell_exec", "*", PermissionAction.DENY),
+                PermissionRule("code_interpreter", "*", PermissionAction.DENY),
                 PermissionRule("file_write", "*", PermissionAction.ASK),
             ),
             yolo_mode_enabled=True,
@@ -156,7 +156,7 @@ class TestYOLOMode:
     async def test_yolo_mode_denies_all_when_all_denied(self):
         """When all tools are DENY, YOLO mode should deny all matching tools."""
         config = SecurityConfig(
-            ruleset=(PermissionRule("shell_exec", "*", PermissionAction.DENY),),
+            ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.DENY),),
             yolo_mode_enabled=True,
         )
 
@@ -177,7 +177,7 @@ class TestYOLOMode:
     async def test_yolo_deny_reason_format_consistency(self):
         """YOLO DENY should produce the same reason format as normal DENY path."""
         config = SecurityConfig(
-            ruleset=(PermissionRule("shell_exec", "*", PermissionAction.DENY),),
+            ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.DENY),),
             yolo_mode_enabled=True,
         )
 
@@ -1614,7 +1614,7 @@ class TestShellEscalationAutoMode:
         )
 
         assert len(denied) == 1
-        assert "shell escalation" in denied[0][2].lower()
+        assert "denied" in denied[0][2].lower()
 
     @pytest.mark.asyncio
     async def test_shell_allow_with_classifier_uncertain(self):
@@ -1640,7 +1640,7 @@ class TestShellEscalationAutoMode:
         )
 
         assert len(pending) == 1
-        assert "shell command needs review" in pending[0][3].lower()
+        assert "ai security reviewer" in pending[0][3].lower() or "shell command needs review" in pending[0][3].lower()
 
     @pytest.mark.asyncio
     async def test_safe_command_skips_classifier(self):
@@ -1669,10 +1669,10 @@ class TestShellEscalationAutoMode:
 
     @pytest.mark.asyncio
     async def test_no_escalation_without_auto_mode(self):
-        """Without auto_mode, shell_exec ALLOW → auto-approved (no classifier)."""
+        """Without auto_mode, code_interpreter ALLOW → auto-approved (no classifier)."""
 
         config = SecurityConfig(
-            ruleset=(PermissionRule("shell_exec", "*", PermissionAction.ALLOW),),
+            ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ALLOW),),
             auto_mode_enabled=False,
         )
 

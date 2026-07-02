@@ -26,7 +26,7 @@
 
 ## 三、COMMON 工具层（注册 9 个；默认 profile Turn1 实际 bind 5–7 个）
 
-默认 `enabled_builtin_tools=(web_search, memory)` 且未开 Goal 时：`request_answer_user_tool`、`planner_tool`、`update_execution_checklist_tool` 不进入 bind_tools（CompletionGuard / Agent 配置 / Goal 按需加载）。
+默认 `enabled_builtin_tools=(web_search, memory)` 且未开 Goal 时：`request_answer_user_tool`、`todo_write` 不进入 bind_tools（CompletionGuard / Agent 配置 / Goal 按需加载）。
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
@@ -36,9 +36,8 @@
 | 7 | file_edit_tool | 155 | `harness/agent/meta_tools/file_ops/file_edit_tool.py` | 精确编辑 (str_replace) | 默认开启 |
 | 8 | file_read_tool | 390 | `harness/agent/meta_tools/file_ops/file_read_tool.py` | 读取文件内容 | 默认开启 |
 | 9 | file_write_tool | 131 | `harness/agent/meta_tools/file_ops/file_write_tool.py` | 创建/覆盖写入文件 | 默认开启 |
-| 10 | planner_tool | 373 | `harness/agent/sub_agents/planner/planner_agent_tools.py` | 复杂任务规划/分解 | 默认关闭（`enable_planning` / Goal / workspace 已有 plan） |
-| 11 | update_execution_checklist_tool | ~150 | `harness/agent/execution_checklist/tool.py` | 轻量多步清单进度 | 默认关闭（`task_tracking`；与 plan/planning 互斥） |
-| 12 | **web_search_tool** | **1,177** | `harness/toolkits/web_search/web_search_agent_tools.py` | 网络搜索，含搜索引擎选择逻辑、查询重写规则、多引擎支持说明 | 默认开启，前端可关闭 |
+| 10 | todo_write | ~150 | `harness/agent/meta_tools/progress/todo_write_tool.py` | 主 Agent 多步进度 | 默认关闭（`enable_planning` / Goal / workspace todos） |
+| 11 | **web_search_tool** | **1,177** | `harness/toolkits/web_search/web_search_agent_tools.py` | 网络搜索，含搜索引擎选择逻辑、查询重写规则、多引擎支持说明 | 默认开启，前端可关闭 |
 
 **注意**：
 - `bash_code_execute_tool` 的实际 token 包含 `TOOL_DESCRIPTION`(1,207) + `_get_os_hint()`(~50) + `ptc_desc`(~80, PTC 内置工具描述) = ~1,337 tokens
@@ -76,7 +75,7 @@
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|
-| 25 | conversation_search_tool | 237 | `harness/toolkits/memory/conversation_search/tool.py` | 搜索历史会话证据片段与预计算摘要 |
+| 25 | conversation_search_tool | 237 | `harness/toolkits/memory/conversation_search/tool.py` | 搜索历史会话证据片段与预计算摘要（**GeneralAgent deferred**，经 discover 挂载；不占默认 Turn1 prompt） |
 
 ### 4.5 交互工具（harness 提供，按配置加载）
 
@@ -263,19 +262,21 @@
 
 ### 典型 Turn 1 场景（默认智能体，启用记忆+搜索+技能+高级检索）
 
+> Turn1 记忆相关 prompt 减量：`conversation_search_tool`（§4.4 行 25 实测 237 tok）由 GeneralAgent server 装配为 deferred，默认 prompt 不含该工具；合计约 **-302 tok**（237 工具定义 + ~65 JSON schema 摊销）。
+
 | 分类 | Token (tiktoken) | 明细 |
 |------|------------------:|------|
 | System Prompt 层 | ~2,607 | 固定，跨用户缓存 |
 | CORE 工具层 | ~255 | 1 工具，固定，始终缓存 |
 | COMMON 工具层 | ~4,457 | 7 工具，默认存在 |
-| EXTENDED 工具层 | ~2,096 | glob(234) + grep(349) + memory×3(670) + skill_select(125) + skill_manage(251) + discover_capability_tool(236) + conversation_search_tool(237) + …（deferred: bash_process×3 不占默认 prompt） |
-| 工具 JSON schema | ~1,105 | ~17 工具 × ~65 tokens |
+| EXTENDED 工具层 | ~1,859 | glob(234) + grep(349) + memory×3(670) + skill_select(125) + skill_manage(251) + discover_capability_tool(236) + …（deferred: bash_process×3、conversation_search_tool(237) 等不占默认 prompt） |
+| 工具 JSON schema | ~1,040 | ~16 工具 × ~65 tokens |
 | 动态注入 | ~1,200 | user_instructions + memory_context + inline_skills |
 | 消息格式 | ~500 | role tags, boundaries 等 |
 | 用户消息 | ~32 | 短消息 + datetime 标签 |
-| **tiktoken 小计** | **~12,261** | |
+| **tiktoken 小计** | **~11,950** | |
 | Qwen tokenizer 差异 | +~200~900 | 取决于中文内容比例 |
-| **Qwen 实测估计** | **~12,900~13,600** | |
+| **Qwen 实测估计** | **~12,600~13,300** | |
 
 ### 最小 Turn 1 场景（仅 CORE 工具，无 COMMON/EXTENDED）
 

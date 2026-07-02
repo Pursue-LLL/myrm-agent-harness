@@ -68,7 +68,7 @@ from myrm_agent_harness.agent.middlewares.guardrails import (
     GuardrailMiddleware,
     SkillBoundaryProvider,
 )
-from myrm_agent_harness.agent.middlewares.planner_middleware import planner_middleware
+from myrm_agent_harness.agent.middlewares.progress_middleware import progress_middleware
 from myrm_agent_harness.agent.middlewares.rate_limit import RateLimitMiddleware
 from myrm_agent_harness.agent.middlewares.safety_dispatcher import (
     create_safety_dispatcher,
@@ -108,7 +108,7 @@ __all__ = [
     "debug_logger_middleware",
     "get_approval_rate_limiter",
     "get_subagent_semaphore",
-    "planner_middleware",
+    "progress_middleware",
     "reset_completion_guard",
     "reset_frequency_guard",
     "reset_loop_guard",

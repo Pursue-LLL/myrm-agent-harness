@@ -33,6 +33,7 @@ from myrm_agent_harness.agent.context_management.context import (
 )
 from myrm_agent_harness.agent.meta_tools.bash._preflight_checks import (
     check_command_url_exfiltration,
+    check_install_packages,
     check_interactive_command,
     check_sensitive_paths,
 )
@@ -137,6 +138,8 @@ def create_bash_code_execute_tool(
                     user_hint=interactive_msg,
                     diagnostic_info={"interactive_required": True},
                 )
+
+            await check_install_packages(command)
 
             context = extract_context_from_runnable_config(config)
             session_id = str(context.get("session_id", "")) or None

@@ -193,6 +193,14 @@ def build_checklist(records: list[CallRecord], workspace_root: str | None = None
             items.append(
                 f"CRITICAL: Verification failed for: {', '.join(sorted(failed_types))}. You MUST fix failing checks before finishing."
             )
+        elif all(r.success_level == SuccessLevel.EMPTY_OK for r in verifications):
+            has_critical_errors = True
+            trivial_types = {r.verification_type.value for r in verifications if r.verification_type}
+            items.append(
+                f"CRITICAL: Verification ({', '.join(sorted(trivial_types))}) ran but produced "
+                "no meaningful results (0 tests executed / all skipped). "
+                "You MUST ensure tests actually run before finishing."
+            )
         else:
             verified_types = {r.verification_type.value for r in verifications if r.verification_type}
             items.append(
@@ -296,60 +304,31 @@ def build_checklist(records: list[CallRecord], workspace_root: str | None = None
 
     lines = ["Before providing your final answer, verify the following:"]
 
-    # Check for incomplete plan steps
+    # Check for incomplete todo items
     if workspace_root:
         try:
-            from myrm_agent_harness.agent.sub_agents.planner.config import PlannerConfig
-            from myrm_agent_harness.agent.sub_agents.planner.storage import read_plan_sync_from_workspace
+            from myrm_agent_harness.agent.meta_tools.progress.storage import read_todos_sync_from_workspace
 
-            config = PlannerConfig()
-            plan = read_plan_sync_from_workspace(workspace_root, storage_prefix=config.storage_prefix)
-            if plan:
-                uncompleted_steps = [
-                    step for step in plan.steps if step.status != "completed" and step.status != "skipped"
-                ]
-                if uncompleted_steps:
+            store = read_todos_sync_from_workspace(workspace_root)
+            if store:
+                incomplete = store.incomplete_todos()
+                if incomplete:
                     if has_writes:
                         has_critical_errors = True
-                        lines.append("  CRITICAL: You have uncompleted steps in your Goal Plan!")
+                        lines.append("  CRITICAL: You have incomplete todos in your task list!")
                     else:
-                        lines.append("  WARNING: You have uncompleted steps in your Goal Plan.")
-                    for step in uncompleted_steps:
-                        lines.append(f" - Step {step.step_id}: {step.description} (Status: {step.status})")
+                        lines.append("  WARNING: You have incomplete todos in your task list.")
+                    for item in incomplete:
+                        lines.append(f" - Todo {item.id}: {item.content} (Status: {item.status.value})")
                     if has_writes:
                         lines.append(
-                            " You MUST complete these steps and call `planner_tool(action='update')` before finishing."
+                            " You MUST complete these todos and call `todo_write(merge=true)` before finishing."
                         )
                     else:
-                        lines.append(" Review if remaining steps are still needed for your answer.")
+                        lines.append(" Review if remaining todos are still needed for your answer.")
                     lines.append("")
         except Exception as e:
-            logger.warning("[CompletionGuard] Failed to load plan for checklist: %s", e)
-
-        try:
-            from myrm_agent_harness.agent.execution_checklist.state import (
-                incomplete_checklist_items,
-                read_checklist_sync,
-            )
-
-            checklist = read_checklist_sync(workspace_root)
-            if checklist:
-                open_items = incomplete_checklist_items(checklist)
-                if open_items:
-                    if has_writes:
-                        has_critical_errors = True
-                        lines.append("  CRITICAL: Execution checklist has incomplete items!")
-                    else:
-                        lines.append("  WARNING: Execution checklist has incomplete items.")
-                    for item in open_items:
-                        lines.append(f" - [{item.status}] {item.content}")
-                    if has_writes:
-                        lines.append(
-                            " You MUST complete checklist items via `update_execution_checklist_tool` before finishing."
-                        )
-                    lines.append("")
-        except Exception as e:
-            logger.warning("[CompletionGuard] Failed to load execution checklist: %s", e)
+            logger.warning("[CompletionGuard] Failed to load todos for checklist: %s", e)
 
     for i, item in enumerate(items, 1):
         lines.append(f" {i}. {item}")

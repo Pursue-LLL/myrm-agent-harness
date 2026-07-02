@@ -138,10 +138,10 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, SkillAgentContextM
         enable_bash: bool = True,
         enable_answer_tool: bool = False,
         enable_planning: bool = False,
-        enable_task_tracking: bool = False,
         task_workspace_root: str | None = None,
         available_tool_names: frozenset[str] | None = None,
         available_tool_groups: frozenset[str] | None = None,
+        library_skill_names: frozenset[str] | None = None,
     ) -> None:
         self.model_resolver = model_resolver
         super().__init__(
@@ -190,10 +190,10 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, SkillAgentContextM
         self._enable_bash = enable_bash
         self._enable_answer_tool = enable_answer_tool
         self._enable_planning = enable_planning
-        self._enable_task_tracking = enable_task_tracking
         self._task_workspace_root = task_workspace_root
         self._available_tool_names = available_tool_names
         self._available_tool_groups = available_tool_groups
+        self._library_skill_names = library_skill_names
 
     async def _get_cached_skills(self) -> list[SkillMetadata]:
         """Load skills from backend (no caching to enable hot reload).

@@ -25,7 +25,7 @@ CLAUDE_TO_OUR_MAPPING: dict[str, str] = {
     "SkillSelect": "skill_select_tool",
     "WebSearch": "web_search_tool",
     "WebFetch": "web_fetch_tool",
-    "Planner": "planner_tool",
+    "Planner": "todo_write",
 }
 
 # Myrm Agent Harness → Claude Code（反向映射）

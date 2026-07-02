@@ -38,7 +38,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | Submodule | Description |
 |-----------|-------------|
 | checkpoint/ | Subagent checkpoint utilities package. Includes orphan recovery for automatic resumption after restart. |
-| planner/ | Planner Sub-agent Module |
+| dag_plan.py | DAG `Plan`/`PlanStep` schemas for orchestrator only (not user-facing progress) |
 
 ## Key Dependencies
 

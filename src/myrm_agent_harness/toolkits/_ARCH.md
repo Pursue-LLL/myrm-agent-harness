@@ -27,7 +27,7 @@ optional adapter if present.
 | Layer | Location | What belongs | Examples |
 |-------|----------|--------------|----------|
 | **Framework primitives** | `toolkits/` + `agent/meta_tools/` | Generic, reusable capabilities any agent framework could ship; no vendor OAuth product flows | `web_fetch`, `web_search`, `browser`, `mcp`, `kanban`, `cron`, `bash_code_execute_tool` |
-| **Agent runtime binding** | `agent/meta_tools/`, `agent/sub_agents/` | Wrappers that need session/planner/HITL context | `planner_tool`, `render_ui_tool`, file ops meta-tools |
+| **Agent runtime binding** | `agent/meta_tools/`, `agent/sub_agents/` | Wrappers that need session/HITL context | `todo_write`, `render_ui_tool`, file ops meta-tools |
 | **Business workflows** | `myrm-agent-server/assets/prebuilt_skills/` | Prompt + contract + `allowed-tools`; orchestrates framework tools | `daily-briefing`, `blog-monitoring`, `github-workflow` |
 | **Third-party integrations (product)** | `myrm-agent-server/app/api/integrations/`, MCP servers, channel providers | OAuth CRUD, channel SDKs, user-configured MCP | Feishu channel, `integrations/oauth.py`, user MCP |
 | **Server REST domain** | `myrm-agent-server/app/api/` + `services/` | Product HTTP, not harness tools | kanban API, skills API |
@@ -92,7 +92,7 @@ Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
 | **Collaboration & Media** | `kanban/`, `tasks/`, `cron/` | Scheduling (incl. event/webhook triggers), tasks |
 | **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |
 
-Agent runtime-bound tool wrappers (e.g. `ask_question_tool`, `render_ui_tool`, `planner_tool`) live in `agent/meta_tools/`, not here. Optional LangChain adapters (`*_agent_tools.py`) that do not import `agent/` may stay in `toolkits/` as a secondary export — see § `*_agent_tools.py` naming convention.
+Agent runtime-bound tool wrappers (e.g. `ask_question_tool`, `render_ui_tool`, `todo_write`) live in `agent/meta_tools/`, not here. Optional LangChain adapters (`*_agent_tools.py`) that do not import `agent/` may stay in `toolkits/` as a secondary export — see § `*_agent_tools.py` naming convention.
 
 ### Top-level directory hygiene
 

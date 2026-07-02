@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.agent.sub_agents.orchestrator import execute_dag_plan
-from myrm_agent_harness.agent.sub_agents.planner.schemas import Plan, PlanStep
+from myrm_agent_harness.agent.sub_agents.dag_plan import Plan, PlanStep
 from myrm_agent_harness.agent.sub_agents.types import SubAgentResult, SubAgentStatus
 
 

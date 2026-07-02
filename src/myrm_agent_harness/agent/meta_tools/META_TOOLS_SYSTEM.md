@@ -27,8 +27,9 @@
 │ 执行面           │ │ 发现/交互面      │ │ 编排面           │
 │ bash/           │ │ discover_       │ │ spawn_subagent/ │
 │ file_ops/       │ │  capability/    │ │ skills/         │
-│ file_search/    │ │ interaction/    │ │ goals/          │
-│                 │ │ clarification/  │ │                 │
+│ file_search/    │ │ interaction/    │ │ skills/         │
+│                 │ │ clarification/  │ │ goals/          │
+│                 │ │                 │ │ progress/       │
 └─────────────────┘ └─────────────────┘ └─────────────────┘
          │                   │                   │
          └───────────────────┴───────────────────┘
@@ -42,7 +43,7 @@
 | 层级 | 路径 | 放什么 | 禁止 |
 |------|------|--------|------|
 | 通用原语 | `toolkits/` | 沙箱、检索、MCP 适配、Kanban 引擎 | import `agent/` |
-| 框架元工具 | `agent/meta_tools/` | 需要会话/Planner/HITL 的工具包装 | 单一 SaaS 硬编码 |
+| 框架元工具 | `agent/meta_tools/` | 需要会话/HITL/workspace 绑定的工具包装 | 单一 SaaS 硬编码 |
 | 业务 | `server/` + skills | OAuth、REST、prebuilt skills | 新 harness `@tool` |
 
 详见 [tool_management/TOOL_DESIGN_STRATEGY.md](../tool_management/TOOL_DESIGN_STRATEGY.md) §1.2。
@@ -59,6 +60,7 @@
 | `spawn_subagent/` | delegate/batch/steer/cancel/teammate | `delegate_task_tool`, `batch_delegate_tasks_tool` |
 | `skills/` | analyze/select/search/manage/discovery 技能工具 | `create_skill_*_tool` 系列（见各子目录） |
 | `goals/` | Goal 引擎 LLM 工具面（域逻辑在 `agent/goals/`） | `create_goal_tools` |
+| `progress/` | 主 Agent 多步 todo 进度（workspace SSOT + SSE） | `create_todo_write_tool` |
 | `clarification/` | 结构化 HITL 澄清 | `ask_question_tool` |
 | `interaction/` | UI artifact 渲染 | `render_ui_tool` |
 | `discover_capability/` | 统一能力发现网关 | `discover_capability_tool` |
@@ -100,7 +102,8 @@ Server 层通过 `factory.py` 的 `_setup_*_tools()` 注入 store/dispatcher 等
 1. 是否**必须**绑定 Agent 会话/运行时？否 → 放 `toolkits/`
 2. 是否单一厂商 SaaS？是 → skill 或 MCP
 3. 是否在 `tool_layers.py` 注册层级？
-4. 更新 `_ARCH.md` + token inventory
+4. 会话绑定工具（含 todo progress）→ `agent/meta_tools/<name>/`，**禁止**在 `agent/` 根下另建与 `meta_tools/` 平级的工具目录
+5. 更新 `_ARCH.md` + token inventory
 
 ---
 

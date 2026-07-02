@@ -144,7 +144,7 @@ def build_continuation_prompt(goal: Goal, *, last_judge_reason: str | None = Non
         "- Conversation context can help locate relevant work, but inspect actual state before relying on it.\n\n"
         "Instructions:\n"
         "Progress visibility:\n"
-        "- If the next work is meaningfully multi-step, use planner_tool to create or update a plan so progress is visible to the user.\n"
+        "- If the next work is meaningfully multi-step, use todo_write to create or update todos so progress is visible to the user.\n"
         "- Skip planning overhead for trivial single-step tasks.\n\n"
         "- Take the next concrete step toward completing the objective.\n"
         "- Do NOT repeat work already done — pick up where you left off.\n"

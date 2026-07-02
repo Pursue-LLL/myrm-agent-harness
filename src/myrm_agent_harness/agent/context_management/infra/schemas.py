@@ -204,7 +204,7 @@ DEFAULT_CONTEXT_CONFIG = ContextConfig(max_context_tokens=128000)
 BUILTIN_PROTECTED_TOOLS: frozenset[str] = frozenset(
     {
         "skill_select_tool",
-        "planner_tool",
+        "todo_write",
     }
 )
 
@@ -224,7 +224,7 @@ class ToolProtectionConfig:
     """Tool protection configuration.
 
     Architecture: built-in + business tool protection.
-    - Built-in: framework-level tools (skill_select_tool, planner_tool) are always protected
+    - Built-in: framework-level tools (skill_select_tool, todo_write) are always protected
     - Business: application-level tools (memory_search, etc.) are user-configurable
     - Soft-only: tools that can be trimmed but should not be fully archived
     - Final protected set = built-in tools union business tools

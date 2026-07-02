@@ -188,7 +188,7 @@ class GoalStorage:
         branch_name: str,
         session_id: str,
         goal_id: str,
-        planner_state: dict[str, Any] | None,
+        progress_state: dict[str, Any] | None,
         chat_history: list[dict[str, Any]] | None,
     ) -> None:
         """Save a stashed goal state for a branch."""
@@ -196,7 +196,7 @@ class GoalStorage:
         data = {
             "session_id": session_id,
             "goal_id": goal_id,
-            "planner_state": planner_state,
+            "progress_state": progress_state,
             "chat_history": chat_history,
             "stashed_at": datetime.now().isoformat(),
         }

@@ -241,6 +241,12 @@ class ToolRegistry:
         """Check whether a tool with the given name has been registered."""
         return any(e.tool.name == name for e in self._entries)
 
+    def remove_tool(self, name: str) -> bool:
+        """Remove all registry entries for *name*. Returns True if any were removed."""
+        before = len(self._entries)
+        self._entries = [e for e in self._entries if e.tool.name != name]
+        return len(self._entries) < before
+
     def entries_by_source(self) -> dict[ToolSource, list[str]]:
         """Diagnostic helper — group tool names by source."""
         result: dict[ToolSource, list[str]] = {}

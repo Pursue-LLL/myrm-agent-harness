@@ -150,7 +150,7 @@ class TestCleanupRun:
             )
         mock_set_st.assert_called_once_with(None)
 
-    def test_clears_stashed_executor_and_checklist_cache(self) -> None:
+    def test_clears_stashed_executor(self) -> None:
         with (
             patch(f"{_MOD}.set_tool_progress_sink"),
             patch(f"{_MOD}.set_cancel_token"),
@@ -161,9 +161,6 @@ class TestCleanupRun:
             patch("myrm_agent_harness.agent.middlewares.approval.set_security_config"),
             patch("myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"),
             patch("myrm_agent_harness.toolkits.code_execution.executors.base.clear_stashed_executor") as mock_clear_exec,
-            patch(
-                "myrm_agent_harness.agent.execution_checklist.state.clear_checklist_workspace_for_session"
-            ) as mock_clear_checklist,
         ):
             cleanup_run(
                 stats=AgentRunStatistics(),
@@ -171,10 +168,9 @@ class TestCleanupRun:
                 cancel_token=None,
                 steering_token=None,
                 cancel_all_fn=lambda: 0,
-                merged_context={"session_id": "sess-checklist-cleanup"},
+                merged_context={"session_id": "sess-exec-cleanup"},
             )
-        mock_clear_exec.assert_called_once_with("sess-checklist-cleanup")
-        mock_clear_checklist.assert_called_once_with("sess-checklist-cleanup")
+        mock_clear_exec.assert_called_once_with("sess-exec-cleanup")
 
     def test_survives_cleanup_error(self) -> None:
         stats = AgentRunStatistics()

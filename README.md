@@ -170,12 +170,12 @@ agent = await create_skill_agent(
 
 ```python
 from myrm_agent_harness.toolkits.web_search.web_search_agent_tools import create_web_search_tool
-from myrm_agent_harness.agent.sub_agents.planner.planner_agent_tools import create_planner_tool
+from myrm_agent_harness.agent.meta_tools.progress.todo_write_tool import create_todo_write_tool
 
 # 业务层创建工具
 tools = [
     create_web_search_tool(your_search_config),
-    create_planner_tool(llm=llm),
+    create_todo_write_tool(workspace_root="/path/to/workspace"),
 ]
 
 agent = await create_skill_agent(

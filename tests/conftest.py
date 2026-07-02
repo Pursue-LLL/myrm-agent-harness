@@ -126,21 +126,6 @@ def pytest_collection_finish(session: pytest.Session) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _reset_execution_checklist_session_cache(request: pytest.FixtureRequest) -> Iterator[None]:
-    """Prevent cross-test pollution from module-level checklist workspace cache."""
-    node_path = str(request.fspath)
-    if "execution_checklist" not in node_path and "test_event_handlers_tool_image.py" not in node_path:
-        yield
-        return
-
-    from myrm_agent_harness.agent.execution_checklist.state import reset_checklist_workspace_cache
-
-    reset_checklist_workspace_cache()
-    yield
-    reset_checklist_workspace_cache()
-
-
-@pytest.fixture(autouse=True)
 async def _reset_global_browser_pool_singleton(request: pytest.FixtureRequest) -> AsyncIterator[None]:
     """Shut down GlobalBrowserPool singleton after browser-related tests.
 

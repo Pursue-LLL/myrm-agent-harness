@@ -331,11 +331,6 @@ def cleanup_run(
             cleanup_session_id = str(merged_context.get("session_id", ""))
             if cleanup_session_id:
                 clear_stashed_executor(cleanup_session_id)
-                from myrm_agent_harness.agent.execution_checklist.state import (
-                    clear_checklist_workspace_for_session,
-                )
-
-                clear_checklist_workspace_for_session(cleanup_session_id)
 
         _collect_tracker_stats(stats)
 

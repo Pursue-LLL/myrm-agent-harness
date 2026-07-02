@@ -10,7 +10,7 @@ stored snippets, summaries and UI-safe source references without business storag
 |------|------|-------------|-------|
 | `__init__.py` | Package | Public exports for conversation recall. | — |
 | `types.py` | Core | Conversation search DTOs, limits, scope/lineage request fields and source reference contracts. | ✅ |
-| `tool.py` | Core | Agent-callable `conversation_search_tool` tool factory, compact formatter and standard `sources` SSE emission. | ✅ |
+| `tool.py` | Core | Agent-callable `conversation_search_tool` factory；Server GeneralAgent 经 `conversation_search_setup` 注册为 deferred（discover 挂载）。 | ✅ |
 | `memory_provider.py` | Core | Default `MemoryManager` provider for framework users, including recent-mode browsing. | ✅ |
 
 ## Key Dependencies

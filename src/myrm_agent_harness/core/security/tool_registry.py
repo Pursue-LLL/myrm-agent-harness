@@ -116,7 +116,7 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
         "browser_manage_tool",
         "request_answer_user_tool",
         "render_ui_tool",
-        "planner_tool",
+        "todo_write",
         "desktop_inspect_tool",
         "desktop_snapshot_tool",
         "desktop_interact_tool",
@@ -214,8 +214,7 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
             "wiki_maintain_tool",
         }
     ),
-    "planning": frozenset({"planner_tool"}),
-    "task_tracking": frozenset({"update_execution_checklist_tool"}),
+    "planning": frozenset({"todo_write"}),
     "answer_tool": frozenset({"request_answer_user_tool"}),
     "canvas": frozenset(
         {
@@ -459,8 +458,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     ),
     "conversation_search_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "memory_recall_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "planner_tool": SafetyMetadata(is_read_only=False, is_concurrent_safe=False, is_idempotent=False),
-    "update_execution_checklist_tool": SafetyMetadata(is_read_only=False, is_concurrent_safe=False, is_idempotent=True),
+    "todo_write": SafetyMetadata(is_read_only=False, is_concurrent_safe=False, is_idempotent=False),
     "discover_capability_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "skill_discovery_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "skill_select_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),

@@ -93,24 +93,23 @@ class ToolLayer(IntEnum):
 | file_edit_tool | 155 | 精确修改代码、配置 |
 | file_read_tool | 390 | 查看代码、配置、日志 |
 | file_write_tool | 131 | 保存代码、笔记、配置 |
-| planner_tool | 373 | 复杂任务规划/分解；默认关闭（`enable_planning=False` / Goal / 已有 plan 时加载） |
-| update_execution_checklist_tool | ~150 | 轻量多步清单；默认关闭（`task_tracking`；与 plan/planning 互斥） |
+| todo_write | ~150 | 多步任务进度；默认关闭（`planning` 工具组 opt-in） |
 | web_search_tool | 1,177 | 网络搜索，用户可因隐私/离线需求关闭 |
 
 #### 2.2.3 EXTENDED 层 (Layer 3)
 - **特征**: 按需加载或始终加载的辅助工具
 - **缓存**: 放最后使其变化不影响 CORE/COMMON 的缓存
 - **工具数量**: 变化，典型场景 14 个，满载场景 89 个（harness 87 + server 2）
-- **Token 消耗**: 典型 ~2,483 tokens，满载 ~7,290+ tokens
+- **Token 消耗**: 典型 ~2,246 tokens，满载 ~7,290+ tokens
 
 **子分类**:
 
 | 子类 | 加载条件 | 典型工具 | Token 消耗 |
 |------|---------|---------|----------:|
 | 默认加载的 EXTENDED 辅助（**eager**，非 deferred） | enable_file_tools | glob_tool, grep_tool, discover_capability_tool | ~819 |
-| Deferred 工具 | discover 挂载 | bash_process_list/output/kill_tool, skill_analyze_tool | 0（默认） / ~246（挂载 analyze+process 后） |
+| Deferred 工具 | discover 挂载 | bash_process_list/output/kill_tool, skill_analyze_tool, conversation_search_tool（GeneralAgent server 装配） | 0（默认） / ~246（挂载 analyze+process 后） / +237（挂载 conversation_search 后） |
 | 文件搜索中间件 | 显式启用 FilesystemFileSearchMiddleware | glob_tool, grep_tool | - |
-| 记忆工具 | 启用记忆系统 | memory_recall_tool, memory_save_tool, memory_manage_tool, conversation_search_tool | ~670 |
+| 记忆工具（eager） | 启用记忆系统 | memory_recall_tool, memory_save_tool, memory_manage_tool | ~670 |
 | 技能工具（Turn1 常驻） | 有技能后端 | skill_select, skill_manage, skill_discovery, discover_capability_tool | ~535 |
 | 技能工具（deferred） | discover 挂载 | skill_analyze_tool | 0（默认） / ~77（挂载后） |
 | 浏览器工具 | 启用浏览器 | browser_navigate_tool, browser_snapshot_tool, ... (7个) | ~535 |

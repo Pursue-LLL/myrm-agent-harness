@@ -33,7 +33,7 @@ class TestGetToolLayer:
             "file_edit_tool",
             "file_read_tool",
             "file_write_tool",
-            "planner_tool",
+            "todo_write",
             "web_search_tool",
         ]
         for tool in common_tools:

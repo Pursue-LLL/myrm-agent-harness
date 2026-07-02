@@ -11,7 +11,7 @@ Bash tool module.
 | `_tool_description.py` | Internal | Static `TOOL_DESCRIPTION` prompt string for the LLM. PTC section states generic bind-name RPC rules plus `session_store` (PTC-only); dynamic PTC builtins appended via `get_ptc_description()`. | ✅ |
 | _output_eviction.py | Internal | Large output eviction (save to file, return `EvictionResult(text, evicted_ref)` for SSE propagation to GUI viewer). | ✅ |
 | _event_logging.py | Internal | Event logging for bash command execution (redaction, classification). | ✅ |
-| _preflight_checks.py | Internal | Security preflight: URL exfiltration, sensitive paths, interactive detection. | ✅ |
+| _preflight_checks.py | Internal | Security preflight: URL exfiltration, sensitive paths, interactive detection, install package registry verification (anti-slopsquatting). | ✅ |
 | output_compressor.py | Internal | Command-aware semantic compressor entry point (Dual-Engine: hardcoded + YAML-driven). Orchestrates compressor registry and DeclarativeFilterEngine. | ✅ |
 | _compressors.py | Internal | Concrete command-specific compressors (git, test, package install, docker, build, compiler, log). | ✅ |
 | bash_execution_error.py | Core | Structured BashExecutionError with diagnostic previews. | ✅ |

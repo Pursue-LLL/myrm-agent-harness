@@ -131,10 +131,10 @@ class GoalProvider(Protocol):
         self,
         session_id: str,
         branch_name: str,
-        planner_state: dict[str, Any] | None = None,
+        progress_state: dict[str, Any] | None = None,
         chat_history: list[dict[str, Any]] | None = None,
     ) -> bool:
-        """Stash active goal state, planner progress, and short-term chat memory."""
+        """Stash active goal state, progress todos, and short-term chat memory."""
         ...
 
     async def restore_goal(

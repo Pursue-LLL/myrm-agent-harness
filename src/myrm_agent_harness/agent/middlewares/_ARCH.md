@@ -29,7 +29,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `debug_logger_middleware.py` | Core | Full message list debug logging. | ✅ |
 | `filesystem_search_middleware.py` | Core | Inject glob/grep workspace search tools. | ✅ |
 | `memory_context_middleware.py` | Core | `<user_memory_context>` + untrusted data wrapping. | ✅ |
-| `planner_middleware.py` | Core | Plan blueprint / anti-drift HumanMessage injection. | ✅ |
+| `progress_middleware.py` | Core | Active todo focus injection into last HumanMessage. | ✅ |
 | `rate_limit.py` | Core | Proactive provider 429 throttling. | ✅ |
 | `replan_middleware.py` | Core | Dynamic replan loop on tool errors. | ✅ |
 | `safety_dispatcher.py` | Core | safe→concurrent / unsafe→serial tool routing. | ✅ |

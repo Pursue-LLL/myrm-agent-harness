@@ -9,7 +9,7 @@
 1. **单一工具拦截点**：`tool_interceptor_middleware` 编排所有 guard，避免分散 patch
 2. **可组合**：各 middleware 独立文件，通过 `_factory/builder.py` 或 Server 注入组装
 3. **安全 fail-closed**：`safety_dispatcher` 未知工具默认串行；security 层验证 tool result
-4. **Cache 安全**：context/planner/replan 类 middleware 通过 `request.override` 注入 HumanMessage，不污染 system 前缀
+4. **Cache 安全**：context/progress/replan 类 middleware 通过 `request.override` 注入 HumanMessage，不污染 system 前缀
 
 ---
 
@@ -23,7 +23,7 @@
 │ context_pipeline_middleware             │  ← 上下文压缩/摘要链
 │ memory_context_middleware               │  ← 用户记忆注入
 │ auto_session_recall_middleware          │  ← 首轮回溯召回
-│ planner_middleware / replan_middleware    │  ← 计划/重规划
+│ progress_middleware / replan_middleware   │  ← todo 焦点/重规划
 │ task_adaptive_middleware                │  ← Trace 自适应约束
 │ GuardrailMiddleware (guardrails/)       │  ← 技能边界等
 │ security_*_middleware                   │  ← 安全边界/护栏
@@ -74,7 +74,7 @@
 | `deferred_tool_middleware.py` | discover_capability AutoMount |
 | `filesystem_search_middleware.py` | 工作区搜索工具注入 |
 | `memory_context_middleware.py` | 记忆上下文注入 |
-| `planner_middleware.py` | 计划蓝图/反漂移注入 |
+| `progress_middleware.py` | 活跃 todo 焦点注入（末位 HumanMessage） |
 | `replan_middleware.py` | 动态重规划循环 |
 | `task_adaptive_middleware.py` | Trace 分析 JIT 约束 |
 | `tool_call_dedup_middleware.py` | tool_call_id 去重 |

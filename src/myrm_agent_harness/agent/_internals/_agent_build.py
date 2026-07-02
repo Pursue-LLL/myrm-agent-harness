@@ -70,8 +70,8 @@ def build_middlewares(
     from myrm_agent_harness.agent.middlewares.deferred_tool_middleware import (
         DeferredToolMiddleware,
     )
-    from myrm_agent_harness.agent.middlewares.planner_middleware import (
-        planner_middleware,
+    from myrm_agent_harness.agent.middlewares.progress_middleware import (
+        progress_middleware,
     )
     from myrm_agent_harness.agent.middlewares.replan_middleware import ReplanMiddleware
     from myrm_agent_harness.agent.types import EngineParams as _EngineParams
@@ -91,25 +91,18 @@ def build_middlewares(
         CompletionGuard(),
     ]
 
-    async def get_current_plan(workspace_root: str | None = None):
+    async def get_current_todos(workspace_root: str | None = None):
         if not workspace_root:
             return None
         try:
-            from myrm_agent_harness.agent.sub_agents.planner.config import PlannerConfig
-            from myrm_agent_harness.agent.sub_agents.planner.storage import workspace_load_plan
-            from myrm_agent_harness.toolkits.storage.local import LocalStorageBackend
+            from myrm_agent_harness.agent.meta_tools.progress.storage import read_todos_sync_from_workspace
 
-            storage_provider = LocalStorageBackend(workspace_root)
-            config = PlannerConfig()
-            return await workspace_load_plan(
-                storage_provider,
-                storage_prefix=config.storage_prefix,
-            )
+            return read_todos_sync_from_workspace(workspace_root)
         except Exception as e:
-            logger.warning(f"Failed to load plan for middleware: {e}")
+            logger.warning("Failed to load todos for middleware: %s", e)
             return None
 
-    middlewares.append(planner_middleware(get_current_plan))
+    middlewares.append(progress_middleware(get_current_todos))
 
     if params.enable_replan:
         middlewares.append(ReplanMiddleware(max_attempts=params.max_replan_attempts))
@@ -182,7 +175,7 @@ async def build_tools(
     middlewares (e.g. ``get_tools()``).
     """
     from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
-        create_discover_capability_tool,
+        sync_discover_capability_tool,
     )
 
     registry.register_many(
@@ -214,9 +207,7 @@ async def build_tools(
                     exc,
                 )
 
-    if registry.get_deferred_tools():
-        discover_capability = create_discover_capability_tool(registry=registry)
-        registry.register(discover_capability, source=ToolSource.META)
+    sync_discover_capability_tool(registry)
 
     resolved_tools = registry.resolve()
     return _weave_dynamic_schemas(resolved_tools)

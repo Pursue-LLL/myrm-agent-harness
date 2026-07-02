@@ -1,18 +1,17 @@
-"""SkillAgent tool building logic — meta-tools, planner, wiki tools.
+"""SkillAgent tool building logic — meta-tools, todo progress, wiki tools.
 
 [INPUT]
 - meta_tools::get_meta_tools (POS: Meta-tools factory)
 - tool_management::ToolRegistry (POS: Tool registration and resolution)
-- sub_agents.planner (POS: Planner tool factory)
+- agent.meta_tools.progress (POS: Main-agent todo_write factory)
 - toolkits.wiki (POS: Wiki tools)
 
 [OUTPUT]
 - SkillAgentToolsMixin: Mixin providing tool building methods for SkillAgent
 
 [POS]
-Tool building mixin for SkillAgent. Assembles meta-tools, planner tool (when
-enable_planning, Goal, or workspace plan), execution checklist tool (when
-task_tracking and no plan), wiki tools, and deferred tool registration.
+Tool building mixin for SkillAgent. Assembles meta-tools, todo_write (when
+enable_planning or workspace todos exist), wiki tools, and deferred tool registration.
 """
 
 from __future__ import annotations
@@ -42,7 +41,7 @@ class SkillAgentToolsMixin:
     - _enable_file_tools, _enable_bash
     - _skill_env_map, _default_skill_instances, state_manager
     - storage_backend, llm, config
-    - _task_workspace_root (chat sandbox path for checklist persistence)
+    - _task_workspace_root (chat sandbox path for progress persistence)
     - _wiki_base_dir, _wiki_search_fn
     - _tool_registry, user_tools, deferred_tools, user_middlewares
     """
@@ -92,13 +91,9 @@ class SkillAgentToolsMixin:
             available_tool_groups=self._available_tool_groups,  # type: ignore[attr-defined]
         )
 
-        planner = await self._create_planner_tool(skills)
-        if planner is not None:
-            meta_tools.append(planner)
-
-        checklist = await self._create_checklist_tool(skills)
-        if checklist is not None:
-            meta_tools.append(checklist)
+        todo_tool = await self._create_todo_write_tool()
+        if todo_tool is not None:
+            meta_tools.append(todo_tool)
 
         wiki_tools = self._create_wiki_tools()
         if wiki_tools:
@@ -113,20 +108,6 @@ class SkillAgentToolsMixin:
         if self.deferred_tools:  # type: ignore[attr-defined]
             for tool in normalize_tool_names(self.deferred_tools):  # type: ignore[attr-defined]
                 registry.register(tool, source=ToolSource.USER, deferred=True)
-
-        # discover_capability_tool 由 get_meta_tools() 在 deferred 注册后创建，
-        # 已包含框架级 deferred 工具索引。仅在用户传入 deferred_tools 且
-        # discover 尚未注册时才补充创建（覆盖已有的以包含用户工具索引）。
-        has_discover = registry.has_tool("discover_capability_tool")
-        if self.deferred_tools and not has_discover:  # type: ignore[attr-defined]
-            from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
-                create_discover_capability_tool,
-            )
-
-            registry.register(
-                create_discover_capability_tool(registry=registry),
-                source=ToolSource.META,
-            )
 
         all_middlewares: list[object] = list(self.user_middlewares)  # type: ignore[attr-defined]
         cached_mws = getattr(self, "_cached_middlewares", None)
@@ -148,6 +129,20 @@ class SkillAgentToolsMixin:
                         middleware.__class__.__name__,
                         e,
                     )
+
+        from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
+            sync_discover_capability_tool,
+        )
+
+        sync_discover_capability_tool(
+            registry,
+            skills=skills,
+            embedding_config=self._embedding_config,  # type: ignore[attr-defined]
+            embedding_cache=getattr(self, "_embedding_cache", None),
+            active_tool_groups=self._available_tool_groups,  # type: ignore[attr-defined]
+            bound_skill_names=frozenset(s.name for s in skills),
+            library_skill_names=getattr(self, "_library_skill_names", None),
+        )
 
         self._tool_registry = registry  # type: ignore[attr-defined]
         resolved = registry.resolve()
@@ -174,36 +169,32 @@ class SkillAgentToolsMixin:
         )
         return resolved
 
-    async def _workspace_has_plan(self) -> bool:
-        """Return True when a persisted planner plan exists in the workspace."""
+    async def _workspace_has_todos(self) -> bool:
+        """Return True when persisted todos exist in the chat workspace."""
         if self.storage_backend is None:  # type: ignore[attr-defined]
             return False
         try:
-            from myrm_agent_harness.agent.sub_agents.planner.config import PlannerConfig
-            from myrm_agent_harness.agent.sub_agents.planner.storage import workspace_plan_exists
+            from myrm_agent_harness.agent.meta_tools.progress.storage import workspace_todos_exist
 
-            planner_config = getattr(self.config, "planner_config", None)  # type: ignore[attr-defined]
-            config = planner_config if planner_config is not None else PlannerConfig()
-            return await workspace_plan_exists(
+            return await workspace_todos_exist(
                 self.storage_backend,  # type: ignore[attr-defined]
-                workspace_root=self._get_checklist_workspace_root(),
-                storage_prefix=config.storage_prefix,
+                workspace_root=self._resolve_task_workspace_root(),
             )
         except Exception as e:
-            logger.warning("Failed to check workspace plan existence: %s", e)
+            logger.warning("Failed to check workspace todos existence: %s", e)
             return False
 
-    async def _should_load_planner_tool(self) -> bool:
-        """Planner loads when explicitly enabled, or when resuming an existing plan."""
+    async def _should_load_todo_write_tool(self) -> bool:
+        """todo_write loads when planning is enabled or when resuming existing todos."""
         if self._enable_planning:  # type: ignore[attr-defined]
             return True
-        if await self._workspace_has_plan():
-            logger.info("planner_tool: loading for existing workspace plan (resume)")
+        if await self._workspace_has_todos():
+            logger.info("todo_write: loading for existing workspace todos (resume)")
             return True
         return False
 
-    def _get_checklist_workspace_root(self) -> str | None:
-        """Resolve chat workspace for checklist persistence."""
+    def _resolve_task_workspace_root(self) -> str | None:
+        """Resolve chat workspace for progress persistence."""
         from myrm_agent_harness.agent.middlewares._session_context import get_workspace_root
 
         live_root = get_workspace_root()
@@ -214,144 +205,26 @@ class SkillAgentToolsMixin:
             return bound_root.strip()
         return None
 
-    async def _workspace_has_checklist(self) -> bool:
-        """Return True when a persisted execution checklist exists in the chat workspace."""
-        workspace_root = self._get_checklist_workspace_root()
-        if not workspace_root:
-            return False
-        try:
-            from myrm_agent_harness.agent.execution_checklist import checklist_exists_sync
-
-            return checklist_exists_sync(workspace_root)
-        except Exception as e:
-            logger.warning("Failed to check execution checklist existence: %s", e)
-            return False
-
-    async def _should_load_checklist_tool(self) -> bool:
-        """Checklist loads when task tracking is enabled or resuming, unless plan/planning active."""
-        if self._enable_planning:  # type: ignore[attr-defined]
-            return False
-        if await self._workspace_has_plan():
-            return False
-        if self._enable_task_tracking:  # type: ignore[attr-defined]
-            return True
-        if await self._workspace_has_checklist():
-            logger.info("update_execution_checklist_tool: loading for existing checklist (resume)")
-            return True
-        return False
-
-    async def _create_checklist_tool(self, skills: list[SkillMetadata]) -> BaseTool | None:  # noqa: ARG002
-        """Auto-create checklist tool when task tracking is enabled (no planner plan)."""
-        if not await self._should_load_checklist_tool():
-            logger.info("update_execution_checklist_tool: skipped (planning/plan active or tracking disabled)")
+    async def _create_todo_write_tool(self) -> BaseTool | None:
+        """Auto-create todo_write when planning is enabled or workspace has todos."""
+        if not await self._should_load_todo_write_tool():
+            logger.info("todo_write: skipped (planning disabled, no existing todos)")
             return None
         if any(
-            getattr(t, "name", getattr(t, "tool_name", None)) == "update_execution_checklist_tool"
+            getattr(t, "name", getattr(t, "tool_name", None)) == "todo_write"
             for t in self.user_tools  # type: ignore[attr-defined]
         ):
-            logger.info("update_execution_checklist_tool: user override detected, skipping auto-creation")
-            return None
-        try:
-            from myrm_agent_harness.agent.execution_checklist import (
-                create_update_execution_checklist_tool,
-                read_checklist_sync,
-            )
-            from myrm_agent_harness.agent.execution_checklist.events import emit_checklist_events
-
-            tool = create_update_execution_checklist_tool(
-                fallback_workspace_root=self._get_checklist_workspace_root(),
-            )
-            workspace_root = self._get_checklist_workspace_root()
-            if workspace_root:
-                existing = read_checklist_sync(workspace_root)
-                if existing and existing.items:
-                    emit_checklist_events(existing)
-                    logger.info("update_execution_checklist_tool: resumed checklist UI from workspace")
-            logger.info("update_execution_checklist_tool auto-created")
-            return tool
-        except Exception as e:
-            logger.warning("update_execution_checklist_tool auto-creation failed: %s", e)
-            return None
-
-    async def _create_planner_tool(self, skills: list[SkillMetadata]) -> BaseTool | None:
-        """Auto-create planner_tool when planning is enabled or workspace has a persisted plan.
-
-        Skips creation when there are no model-invocable skills.
-        """
-        if self.storage_backend is None:  # type: ignore[attr-defined]
-            return None
-        if not await self._should_load_planner_tool():
-            logger.info("planner_tool: skipped (planning disabled, no existing plan)")
-            return None
-        if any(
-            getattr(t, "name", getattr(t, "tool_name", None)) == "planner_tool"
-            for t in self.user_tools  # type: ignore[attr-defined]
-        ):
-            logger.info("planner_tool: user-provided override detected, skipping auto-creation")
+            logger.info("todo_write: user-provided override detected, skipping auto-creation")
             return None
 
         try:
-            from myrm_agent_harness.agent.sub_agents.planner.archive import PlanArchiveStore, PlanRecaller
-            from myrm_agent_harness.agent.sub_agents.planner.planner_agent_tools import create_planner_tool
+            from myrm_agent_harness.agent.meta_tools.progress.todo_write_tool import create_todo_write_tool
 
-            planner_config = getattr(self.config, "planner_config", None)  # type: ignore[attr-defined]
-            max_chars = getattr(self.config, "max_skills_prompt_chars", 12000)  # type: ignore[attr-defined]
-
-            available_skills: list[tuple[str, str]] = []
-            current_chars = 0
-            total_invocable = 0
-            for s in skills:
-                if not s.model_invocable:
-                    continue
-                total_invocable += 1
-                est_chars = len(s.name) + len(s.description)
-                if current_chars + est_chars > max_chars:
-                    if not any(x[0] == "..." for x in available_skills):
-                        available_skills.append(
-                            (
-                                "...",
-                                f"... truncated. {total_invocable}+ skills loaded, "
-                                "use skill_search tool to find unlisted skills.",
-                            )
-                        )
-                    continue
-                available_skills.append((s.name, s.description))
-                current_chars += est_chars
-
-            if total_invocable == 0:
-                logger.info("planner_tool: skipped (0 model-invocable skills)")
-                return None
-
-            # Initialize Plan Archive & Recall (Workflow RAG)
-            archive_store = None
-            recaller = None
-            try:
-                db_path = storage_config.get_local_base_path() / "plan_archive.db"
-                mm = getattr(self, "memory_manager", None)
-                vector = getattr(mm, "_vector", None) if mm else None
-                embedding = getattr(mm, "_embedding", None) if mm else None
-                archive_store = PlanArchiveStore(db_path, vector_store=vector, embedding=embedding)
-                recaller = PlanRecaller(archive_store)
-            except Exception as e:
-                logger.warning("Plan archive initialization failed (proceeding without): %s", e)
-
-            tool = create_planner_tool(
-                self.llm,  # type: ignore[attr-defined]
-                self.storage_backend,  # type: ignore[attr-defined]
-                planner_config=planner_config,
-                available_skills=available_skills or None,
-                plan_archive_store=archive_store,
-                plan_recaller=recaller,
-                workspace_root=self._get_checklist_workspace_root(),
-            )
-            logger.warning(
-                " planner_tool auto-created (skills=%d, truncated=%s)",
-                len(available_skills),
-                current_chars > max_chars,
-            )
+            tool = create_todo_write_tool(workspace_root=self._resolve_task_workspace_root())
+            logger.warning(" todo_write auto-created")
             return tool
         except Exception as e:
-            logger.warning("planner_tool auto-creation failed: %s", e)
+            logger.warning("todo_write auto-creation failed: %s", e)
             return None
 
     def _create_wiki_tools(self) -> list[BaseTool]:

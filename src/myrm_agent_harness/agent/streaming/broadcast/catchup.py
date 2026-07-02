@@ -87,7 +87,7 @@ class CatchupBriefExtractor:
                             files_touched_set.add(path)
 
                     # Add activity steps for important actions
-                    if tool_name == "bash_code_execute_tool":
+                    if tool_name in ("bash_code_execute_tool", "shell_tool"):
                         cmd = item.get("command")
                         if isinstance(cmd, str) and cmd:
                             # Only add short commands or truncated long commands

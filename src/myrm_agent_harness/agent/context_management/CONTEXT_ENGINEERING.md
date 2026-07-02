@@ -158,7 +158,7 @@ Orchestrator Agent（调度者）
   │ │ 不直接互相通信          │
   │ └─────────────────────────┘
   │
-  ├─ planner_tool（子智能体，有推理能力）
+  ├─ todo_write（主 Agent 多步进度，planning 组 opt-in）
   ├─ delegate_to_agent_tool / dispatch_research（子智能体委派，独立上下文）
   ├─ knowledge_manager（子智能体，有推理能力）
   │
@@ -184,7 +184,7 @@ Orchestrator Agent（调度者）
 | **迭代能力** | ❌ 一次调用一次结果 | ✅ 可多轮迭代决策 |
 | **工具调用** | ❌ 不能调用其他工具 | ✅ 可以调用工具 |
 | **对外接口** | ✅ 工具接口 | ✅ 工具接口（包装） |
-| **示例** | `grep_tool`, `file_read_tool` | `planner_tool`, `delegate_to_agent_tool` |
+| **示例** | `grep_tool`, `file_read_tool` | `todo_write`, `delegate_to_agent_tool` |
 
 **决策树**：
 
@@ -736,7 +736,7 @@ Logits Masking（解码阶段）:
 | 层级 | 稳定性 | 变化频率 | 缓存价值 | 工具示例 |
 |------|--------|---------|---------|---------|
 | **CORE** | 极高 | 几乎不变 | 最高 | `web_fetch_tool` |
-| **COMMON** | 高 | 很少变 | 高 | `bash_code_execute_tool`, `file_read_tool`, `file_write_tool`, `file_edit_tool`, `planner_tool`, `web_search_tool`, `request_answer_user_tool` |
+| **COMMON** | 高 | 很少变 | 高 | `bash_code_execute_tool`, `file_read_tool`, `file_write_tool`, `file_edit_tool`, `todo_write`, `web_search_tool`, `request_answer_user_tool` |
 | **EXTENDED** | 中 | 偶尔变 | 中 | `skill_select_tool`, `memory_recall_tool`, 浏览器/MCP 动态工具 |
 
 #### 分层结构示例

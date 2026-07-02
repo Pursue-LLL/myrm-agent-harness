@@ -243,6 +243,28 @@ class TestBuildChecklist:
         assert "Verification failed" in checklist
         assert "test" in checklist
 
+    def test_write_with_trivial_verification_is_critical(self) -> None:
+        """All verifications EMPTY_OK (trivial test output) triggers CRITICAL."""
+        records = [
+            CallRecord(
+                tool_name="file_write_tool",
+                args_hash="abc",
+                args={"path": "/tmp/test.py"},
+                success_level=SuccessLevel.FULL_SUCCESS,
+            ),
+            CallRecord(
+                tool_name="bash_code_execute_tool",
+                args_hash="def",
+                args={"command": "pytest tests/"},
+                success_level=SuccessLevel.EMPTY_OK,
+                verification_type=VerificationCategory.TEST,
+            ),
+        ]
+        checklist, has_critical = _build_checklist(records)
+        assert has_critical
+        assert "no meaningful results" in checklist
+        assert "MUST ensure tests actually run" in checklist
+
     def test_execute_tools_produce_verification(self) -> None:
         records = [
             CallRecord(
@@ -344,16 +366,15 @@ class TestBuildChecklist:
         checklist, _ = _build_checklist(records)
         assert "Confirm the response fully addresses" in checklist
 
-    def test_plan_uncompleted_steps_critical_with_writes(self, tmp_path: Path) -> None:
-        """Uncompleted plan steps are CRITICAL when file writes exist."""
-        plan_dir = tmp_path / "planner"
-        plan_dir.mkdir()
-        plan_dir.joinpath("plan.json").write_text(
+    def test_todo_uncompleted_critical_with_writes(self, tmp_path: Path) -> None:
+        """Uncompleted todos are CRITICAL when file writes exist."""
+        progress_dir = tmp_path / ".myrm" / "progress"
+        progress_dir.mkdir(parents=True)
+        progress_dir.joinpath("todos.json").write_text(
             """{
   "goal": "Test goal",
-  "reasoning": "Test",
-  "steps": [
-    {"step_id": "1", "description": "Test step", "expected_output": "Done", "status": "pending"}
+  "todos": [
+    {"id": "1", "content": "Test step", "status": "pending"}
   ]
 }""",
             encoding="utf-8",
@@ -372,18 +393,17 @@ class TestBuildChecklist:
 
         assert has_critical
         assert "CRITICAL" in checklist
-        assert "uncompleted steps in your Goal Plan" in checklist
+        assert "incomplete todos" in checklist
 
-    def test_plan_uncompleted_steps_warning_without_writes(self, tmp_path: Path) -> None:
-        """Uncompleted plan steps are WARNING when no file writes (query task)."""
-        plan_dir = tmp_path / "planner"
-        plan_dir.mkdir()
-        plan_dir.joinpath("plan.json").write_text(
+    def test_todo_uncompleted_warning_without_writes(self, tmp_path: Path) -> None:
+        """Uncompleted todos are WARNING when no file writes."""
+        progress_dir = tmp_path / ".myrm" / "progress"
+        progress_dir.mkdir(parents=True)
+        progress_dir.joinpath("todos.json").write_text(
             """{
   "goal": "Test goal",
-  "reasoning": "Test",
-  "steps": [
-    {"step_id": "1", "description": "Test step", "expected_output": "Done", "status": "pending"}
+  "todos": [
+    {"id": "1", "content": "Test step", "status": "pending"}
   ]
 }""",
             encoding="utf-8",
@@ -393,34 +413,7 @@ class TestBuildChecklist:
 
         assert not has_critical
         assert "WARNING" in checklist
-        assert "uncompleted steps in your Goal Plan" in checklist
-
-    def test_checklist_incomplete_critical_with_writes(self, tmp_path: Path) -> None:
-        """Incomplete execution checklist items are CRITICAL when file writes exist."""
-        checklist_dir = tmp_path / ".myrm"
-        checklist_dir.mkdir()
-        checklist_dir.joinpath("execution_checklist.json").write_text(
-            """{
-  "version": 1,
-  "items": [{"id": "a", "content": "Run tests", "status": "pending"}]
-}""",
-            encoding="utf-8",
-        )
-
-        records = [
-            CallRecord(
-                tool_name="file_write_tool",
-                args_hash="w1",
-                args={"path": "/src/app.py", "content": "x"},
-                success_level=SuccessLevel.FULL_SUCCESS,
-            ),
-        ]
-
-        checklist, has_critical = _build_checklist(records, workspace_root=str(tmp_path))
-
-        assert has_critical
-        assert "Execution checklist has incomplete items" in checklist
-        assert "update_execution_checklist_tool" in checklist
+        assert "incomplete todos" in checklist
 
 
 class TestCompletionGuardGetTools:

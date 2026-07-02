@@ -1,3 +1,5 @@
+"""Tests for Goal interceptor without planner sub-agent."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -34,11 +36,6 @@ def llm() -> MagicMock:
     return MagicMock()
 
 
-# --------------------------------------------------------------------- #
-# Happy paths
-# --------------------------------------------------------------------- #
-
-
 @pytest.mark.asyncio
 async def test_no_active_goal_returns_early(goal_provider, llm, storage_provider):
     goal_provider.get_active_goal.return_value = None
@@ -51,166 +48,25 @@ async def test_no_active_goal_returns_early(goal_provider, llm, storage_provider
 
 
 @pytest.mark.asyncio
-@patch(f"{_MODULE}.workspace_load_plan", new_callable=AsyncMock)
-async def test_existing_plan_skips_generation(
-    mock_load_plan,
+@patch("myrm_agent_harness.agent.middlewares._session_context.set_protected_paths")
+@patch("myrm_agent_harness.agent.goals.invariant_snapshot.capture_protected_snapshot")
+@patch("myrm_agent_harness.agent.middlewares._session_context.get_workspace_root", return_value=".")
+async def test_applies_goal_invariants_without_plan_generation(
+    _mock_ws,
+    mock_capture,
+    mock_set_paths,
     goal_provider,
     llm,
     storage_provider,
 ):
-    mock_load_plan.return_value = MagicMock()
+    goal = _make_goal()
+    goal.protected_paths = ["src/main.py"]
+    goal_provider.get_active_goal.return_value = goal
 
     await intercept_goal_and_plan(
         goal_provider, "s1", "do stuff", llm, storage_provider
     )
 
+    mock_set_paths.assert_called_once_with(("src/main.py",))
+    mock_capture.assert_called_once()
     goal_provider.update_status.assert_not_called()
-
-
-@pytest.mark.asyncio
-@patch(f"{_MODULE}.interrupt")
-@patch(f"{_MODULE}.PlannerAgent")
-@patch(f"{_MODULE}.workspace_load_plan", new_callable=AsyncMock)
-async def test_generates_plan_and_suspends(
-    mock_load_plan,
-    mock_agent_cls,
-    mock_interrupt,
-    goal_provider,
-    llm,
-    storage_provider,
-):
-    mock_load_plan.return_value = None
-    mock_agent_cls.return_value.create_plan = AsyncMock()
-
-    await intercept_goal_and_plan(
-        goal_provider, "s1", "do stuff", llm, storage_provider
-    )
-
-    mock_agent_cls.return_value.create_plan.assert_awaited_once()
-    goal_provider.update_status.assert_awaited_once_with(
-        "g1", GoalStatus.PENDING_APPROVAL
-    )
-    mock_interrupt.assert_called_once()
-    payload = mock_interrupt.call_args[0][0]
-    assert payload["type"] == "goal_approval_required"
-    assert payload["goal_id"] == "g1"
-
-
-# --------------------------------------------------------------------- #
-# Failure & rollback paths
-# --------------------------------------------------------------------- #
-
-
-@pytest.mark.asyncio
-@patch(f"{_MODULE}.PlannerAgent")
-@patch(f"{_MODULE}.workspace_load_plan", new_callable=AsyncMock)
-async def test_plan_failure_rolls_back_to_cancelled(
-    mock_load_plan,
-    mock_agent_cls,
-    goal_provider,
-    llm,
-    storage_provider,
-):
-    mock_load_plan.return_value = None
-    mock_agent_cls.return_value.create_plan = AsyncMock(
-        side_effect=RuntimeError("LLM timeout"),
-    )
-
-    with pytest.raises(RuntimeError, match="plan generation failed"):
-        await intercept_goal_and_plan(
-            goal_provider, "s1", "do stuff", llm, storage_provider
-        )
-
-    goal_provider.update_status.assert_awaited_once_with("g1", GoalStatus.CANCELLED)
-
-
-@pytest.mark.asyncio
-@patch(f"{_MODULE}.PlannerAgent")
-@patch(f"{_MODULE}.workspace_load_plan", new_callable=AsyncMock)
-async def test_plan_failure_rollback_also_fails(
-    mock_load_plan,
-    mock_agent_cls,
-    goal_provider,
-    llm,
-    storage_provider,
-):
-    """Even if the rollback itself fails, the original error still propagates."""
-    mock_load_plan.return_value = None
-    mock_agent_cls.return_value.create_plan = AsyncMock(
-        side_effect=RuntimeError("LLM timeout"),
-    )
-    goal_provider.update_status = AsyncMock(
-        side_effect=ConnectionError("DB unreachable"),
-    )
-
-    with pytest.raises(RuntimeError, match="plan generation failed"):
-        await intercept_goal_and_plan(
-            goal_provider, "s1", "do stuff", llm, storage_provider
-        )
-
-    goal_provider.update_status.assert_awaited_once_with("g1", GoalStatus.CANCELLED)
-
-
-@pytest.mark.asyncio
-@patch(f"{_MODULE}.PlannerAgent")
-@patch(f"{_MODULE}.workspace_load_plan", new_callable=AsyncMock)
-async def test_plan_failure_preserves_exception_chain(
-    mock_load_plan,
-    mock_agent_cls,
-    goal_provider,
-    llm,
-    storage_provider,
-):
-    """The raised RuntimeError wraps the original cause via 'from e'."""
-    original = ValueError("bad prompt")
-    mock_load_plan.return_value = None
-    mock_agent_cls.return_value.create_plan = AsyncMock(side_effect=original)
-
-    with pytest.raises(RuntimeError) as exc_info:
-        await intercept_goal_and_plan(
-            goal_provider, "s1", "do stuff", llm, storage_provider
-        )
-
-    assert exc_info.value.__cause__ is original
-
-
-# --------------------------------------------------------------------- #
-# Multimodal query support
-# --------------------------------------------------------------------- #
-
-
-@pytest.mark.asyncio
-@patch(f"{_MODULE}.interrupt")
-@patch(f"{_MODULE}.PlannerAgent")
-@patch(f"{_MODULE}.workspace_load_plan", new_callable=AsyncMock)
-async def test_multimodal_query_forwarded_to_planner(
-    mock_load_plan,
-    mock_agent_cls,
-    mock_interrupt,
-    goal_provider,
-    llm,
-    storage_provider,
-):
-    """Multimodal queries (list of content parts) are passed through to PlannerAgent."""
-    mock_load_plan.return_value = None
-    mock_agent_cls.return_value.create_plan = AsyncMock()
-
-    multimodal_query = [
-        {"type": "text", "text": "Plan from this whiteboard"},
-        {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc123"}},
-    ]
-
-    await intercept_goal_and_plan(
-        goal_provider, "s1", multimodal_query, llm, storage_provider
-    )
-
-    mock_agent_cls.return_value.create_plan.assert_awaited_once()
-    task_content = mock_agent_cls.return_value.create_plan.call_args[0][0]
-    # Should be a list (multimodal), not a plain string
-    assert isinstance(task_content, list)
-    # First part is the preamble text
-    assert task_content[0]["type"] == "text"
-    assert "Goal Objective:" in task_content[0]["text"]
-    # Original content parts are preserved after preamble
-    assert task_content[1] == {"type": "text", "text": "Plan from this whiteboard"}
-    assert task_content[2]["type"] == "image_url"
