@@ -131,6 +131,25 @@ def test_merge_active_subagent_children_registry_when_gateway_empty() -> None:
         ACTIVE_SUBAGENTS.pop("bg-1", None)
 
 
+def test_list_active_children_from_registry_matches_double_chat_prefix() -> None:
+    chat_uuid = "double-prefix-uuid"
+    session_id = f"chat_chat_{chat_uuid}"
+    manager = MagicMock(spec=SubagentManager)
+    manager._parent_agent = MagicMock(session_id=None, _last_context={})
+    manager.list_children.return_value = [
+        {"task_id": "task-double", "status": "running", "agent_type": "bash_worker"},
+    ]
+    ACTIVE_SUBAGENTS["task-double"] = manager
+    ACTIVE_SUBAGENT_SESSIONS["task-double"] = session_id
+    try:
+        rows = list_active_children_from_registry(chat_uuid)
+        assert len(rows) == 1
+        assert rows[0]["task_id"] == "task-double"
+    finally:
+        ACTIVE_SUBAGENTS.pop("task-double", None)
+        ACTIVE_SUBAGENT_SESSIONS.pop("task-double", None)
+
+
 def test_cancel_active_children_for_session_cancels_matching_managers() -> None:
     session_id = "chat-cancel-all"
     manager_a = MagicMock(spec=SubagentManager)
