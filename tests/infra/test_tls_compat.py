@@ -105,52 +105,60 @@ class TestCreateHttpxClient:
     """Tests for create_httpx_client() factory function."""
 
     def test_default_mode_no_injection(self) -> None:
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("MYRM_TLS_STRICT", None)
-            client = create_httpx_client(timeout=5.0)
-            assert client is not None
-            client.close()
+        async def _run() -> None:
+            with patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("MYRM_TLS_STRICT", None)
+                async with create_httpx_client(timeout=5.0) as client:
+                    assert client is not None
+
+        asyncio.run(_run())
 
     def test_enterprise_mode_injects_context(self) -> None:
-        with patch.dict(os.environ, {"MYRM_TLS_STRICT": "0"}):
-            os.environ.pop("SSL_CERT_FILE", None)
-            client = create_httpx_client(timeout=5.0)
-            pool = getattr(client._transport, "_pool", None)
-            if pool is not None:
-                ctx = getattr(pool, "_ssl_context", None)
-                assert isinstance(ctx, ssl.SSLContext)
-                assert ctx.check_hostname is True
-                assert ctx.verify_mode == ssl.CERT_REQUIRED
-            client.close()
+        async def _run() -> None:
+            with patch.dict(os.environ, {"MYRM_TLS_STRICT": "0"}):
+                os.environ.pop("SSL_CERT_FILE", None)
+                async with create_httpx_client(timeout=5.0) as client:
+                    pool = getattr(client._transport, "_pool", None)
+                    if pool is not None:
+                        ctx = getattr(pool, "_ssl_context", None)
+                        assert isinstance(ctx, ssl.SSLContext)
+                        assert ctx.check_hostname is True
+                        assert ctx.verify_mode == ssl.CERT_REQUIRED
+
+        asyncio.run(_run())
 
     def test_caller_verify_false_respected(self) -> None:
-        with patch.dict(os.environ, {"MYRM_TLS_STRICT": "0"}):
-            client = create_httpx_client(timeout=5.0, verify=False)
-            assert client is not None
-            client.close()
+        async def _run() -> None:
+            with patch.dict(os.environ, {"MYRM_TLS_STRICT": "0"}):
+                async with create_httpx_client(timeout=5.0, verify=False) as client:
+                    assert client is not None
+
+        asyncio.run(_run())
 
     def test_caller_verify_true_respected(self) -> None:
-        with patch.dict(os.environ, {"MYRM_TLS_STRICT": "0"}):
-            client = create_httpx_client(timeout=5.0, verify=True)
-            assert client is not None
-            client.close()
+        async def _run() -> None:
+            with patch.dict(os.environ, {"MYRM_TLS_STRICT": "0"}):
+                async with create_httpx_client(timeout=5.0, verify=True) as client:
+                    assert client is not None
+
+        asyncio.run(_run())
 
     def test_kwargs_passthrough(self) -> None:
         import httpx
 
-        with patch.dict(os.environ, {"MYRM_TLS_STRICT": "0"}):
-            client = create_httpx_client(
-                timeout=httpx.Timeout(30.0, connect=5.0),
-                follow_redirects=False,
-                limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
-            )
-            assert client._timeout.connect == 5.0
-            assert client._timeout.read == 30.0
-            client.close()
+        async def _run() -> None:
+            with patch.dict(os.environ, {"MYRM_TLS_STRICT": "0"}):
+                async with create_httpx_client(
+                    timeout=httpx.Timeout(30.0, connect=5.0),
+                    follow_redirects=False,
+                    limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+                ) as client:
+                    assert client._timeout.connect == 5.0
+                    assert client._timeout.read == 30.0
+
+        asyncio.run(_run())
 
     def test_context_manager_usage(self) -> None:
-        import asyncio
-
         async def _run() -> None:
             with patch.dict(os.environ, {"MYRM_TLS_STRICT": "0"}):
                 async with create_httpx_client(timeout=5.0) as client:
