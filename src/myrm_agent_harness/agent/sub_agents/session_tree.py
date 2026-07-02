@@ -21,16 +21,19 @@ from myrm_agent_harness.agent.sub_agents.manager import (
 )
 
 
-def _session_id_candidates(session_id: str) -> set[str]:
+def _normalize_rest_chat_id(session_id: str) -> str:
+    """Strip repeated chat_ prefixes so REST uuid aligns with harness session ids."""
     normalized = session_id.strip()
-    if not normalized:
+    while normalized.startswith("chat_"):
+        normalized = normalized.removeprefix("chat_")
+    return normalized
+
+
+def _session_id_candidates(session_id: str) -> set[str]:
+    base = _normalize_rest_chat_id(session_id)
+    if not base:
         return set()
-    candidates = {normalized}
-    if normalized.startswith("chat_"):
-        candidates.add(normalized.removeprefix("chat_"))
-    else:
-        candidates.add(f"chat_{normalized}")
-    return candidates
+    return {base, f"chat_{base}", f"chat_chat_{base}"}
 
 
 def _manager_session_id(manager: SubagentManager) -> str:
