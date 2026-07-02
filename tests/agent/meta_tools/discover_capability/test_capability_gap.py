@@ -36,3 +36,38 @@ def test_detect_skill_gap_ignores_bound_skill() -> None:
         library_skill_names=frozenset({"github_pr_skill"}),
     )
     assert hit is None
+
+
+def test_detect_capability_gap_empty_query() -> None:
+    assert detect_capability_gap("   ", frozenset()) is None
+
+
+def test_detect_skill_gap_ignores_unknown_library_skill() -> None:
+    hit = detect_skill_gap(
+        "use ghost_skill",
+        bound_skill_names=frozenset(),
+        library_skill_names=frozenset({"github_pr_skill"}),
+    )
+    assert hit is None
+
+
+def test_format_capability_gap_block() -> None:
+    from myrm_agent_harness.agent.meta_tools.discover_capability.capability_gap import (
+        CapabilityGapHit,
+        format_capability_gap_block,
+    )
+
+    block = format_capability_gap_block(CapabilityGapHit(tool_id="browser", tool_group="browser"))
+    assert "<CapabilityGap>" in block
+    assert '"tool_id": "browser"' in block
+
+
+def test_format_skill_gap_block() -> None:
+    from myrm_agent_harness.agent.meta_tools.discover_capability.capability_gap import (
+        SkillGapHit,
+        format_skill_gap_block,
+    )
+
+    block = format_skill_gap_block(SkillGapHit(skill_id="github_pr_skill"))
+    assert "<SkillGap>" in block
+    assert '"skill_id": "github_pr_skill"' in block

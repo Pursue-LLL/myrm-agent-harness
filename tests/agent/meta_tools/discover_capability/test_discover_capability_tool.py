@@ -19,7 +19,7 @@ class DummyInput(BaseModel):
 
 class DummyTool(BaseTool):
     name: str = "dummy_native_tool"
-    description: str = "A dummy native tool for testing"
+    description: str = "Browse websites and open webpages for the user"
     args_schema: type[BaseModel] = DummyInput
 
     def _run(self, arg1: str) -> str:
@@ -83,6 +83,65 @@ async def test_no_matches(mock_registry, mock_skills):
     tool = create_discover_capability_tool(registry=mock_registry, skills=mock_skills)
     result = await tool.ainvoke({"query": "nonexistent_capability_xyz123"})
     assert "No capabilities found" in result
+
+
+@pytest.mark.asyncio
+async def test_capability_gap_block_on_miss() -> None:
+    tool = create_discover_capability_tool(
+        active_tool_groups=frozenset({"web", "memory", "file_ops", "shell"}),
+    )
+    result = await tool.ainvoke({"query": "please browse this website"})
+    assert "No capabilities found" in result
+    assert "<CapabilityGap>" in result
+    assert "browser" in result
+
+
+@pytest.mark.asyncio
+async def test_capability_gap_block_on_hit(mock_registry, mock_skills) -> None:
+    """Search hits must still append browser gap when browser group is disabled."""
+    tool = create_discover_capability_tool(
+        registry=mock_registry,
+        skills=mock_skills,
+        active_tool_groups=frozenset({"web", "memory", "file_ops", "shell"}),
+    )
+    result = await tool.ainvoke({"query": "website", "mode": "regex"})
+    assert "Found Native Tools" in result or "Found External Skills" in result
+    assert "<CapabilityGap>" in result
+    assert "browser" in result
+
+
+@pytest.mark.asyncio
+async def test_skill_gap_block_on_miss() -> None:
+    tool = create_discover_capability_tool(
+        bound_skill_names=frozenset(),
+        library_skill_names=frozenset({"github_pr_skill"}),
+    )
+    result = await tool.ainvoke({"query": "run github_pr_skill workflow"})
+    assert "No capabilities found" in result
+    assert "<SkillGap>" in result
+    assert "github_pr_skill" in result
+
+
+@pytest.mark.asyncio
+async def test_gap_dispatch_events_on_miss(monkeypatch: pytest.MonkeyPatch) -> None:
+    events: list[tuple[str, object]] = []
+
+    async def _capture(event_name: str, payload: object, config: object | None = None) -> None:
+        events.append((event_name, payload))
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+        _capture,
+    )
+    tool = create_discover_capability_tool(
+        active_tool_groups=frozenset({"web", "memory", "file_ops", "shell"}),
+        bound_skill_names=frozenset(),
+        library_skill_names=frozenset({"github_pr_skill"}),
+    )
+    await tool.ainvoke({"query": "browse website with github_pr_skill"})
+    event_names = [name for name, _ in events]
+    assert "capability_gap" in event_names
+    assert "skill_gap" in event_names
 
 
 @pytest.mark.asyncio

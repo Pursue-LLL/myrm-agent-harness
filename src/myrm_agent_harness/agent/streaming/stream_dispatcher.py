@@ -328,6 +328,30 @@ class StreamDispatcherMixin:
                         event_dict_3[field] = event_data[field]
             await self._emit_event(event_dict_3, ctx)
 
+        elif event_name == AgentEventType.CAPABILITY_GAP.value:
+            event_data = data.get("data", {})
+            if isinstance(event_data, dict):
+                await self._emit_event(
+                    {
+                        "type": AgentEventType.CAPABILITY_GAP.value,
+                        "data": event_data,
+                        "messageId": ctx.message_id,
+                    },
+                    ctx,
+                )
+
+        elif event_name == AgentEventType.SKILL_GAP.value:
+            event_data = data.get("data", {})
+            if isinstance(event_data, dict):
+                await self._emit_event(
+                    {
+                        "type": AgentEventType.SKILL_GAP.value,
+                        "data": event_data,
+                        "messageId": ctx.message_id,
+                    },
+                    ctx,
+                )
+
     def _restore_pseudonyms(self, text: str) -> str:
         """Restore pseudonymized placeholders in streamed text chunks.
 

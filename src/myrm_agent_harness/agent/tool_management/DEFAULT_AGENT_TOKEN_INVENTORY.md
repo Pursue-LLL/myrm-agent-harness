@@ -75,7 +75,7 @@
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|
-| 25 | conversation_search_tool | 237 | `harness/toolkits/memory/conversation_search/tool.py` | 搜索历史会话证据片段与预计算摘要（**GeneralAgent deferred**，经 discover 挂载；不占默认 Turn1 prompt） |
+| 25 | conversation_search_tool | 237 | `harness/toolkits/memory/conversation_search/tool.py` | 搜索历史会话证据片段与预计算摘要（**GeneralAgent eager**，与 memory_recall 对称；稳定 tools 前缀以利 prompt cache） |
 
 ### 4.5 交互工具（harness 提供，按配置加载）
 
@@ -262,21 +262,21 @@
 
 ### 典型 Turn 1 场景（默认智能体，启用记忆+搜索+技能+高级检索）
 
-> Turn1 记忆相关 prompt 减量：`conversation_search_tool`（§4.4 行 25 实测 237 tok）由 GeneralAgent server 装配为 deferred，默认 prompt 不含该工具；合计约 **-302 tok**（237 工具定义 + ~65 JSON schema 摊销）。
+> **2026-07-02 修订**：`conversation_search_tool` 改回 GeneralAgent **eager**（竞品 Hermes/CodePilot 同构；deferred 动态 append 破坏 Anthropic prompt cache，净收益低于稳定前缀）。
 
 | 分类 | Token (tiktoken) | 明细 |
 |------|------------------:|------|
 | System Prompt 层 | ~2,607 | 固定，跨用户缓存 |
 | CORE 工具层 | ~255 | 1 工具，固定，始终缓存 |
 | COMMON 工具层 | ~4,457 | 7 工具，默认存在 |
-| EXTENDED 工具层 | ~1,859 | glob(234) + grep(349) + memory×3(670) + skill_select(125) + skill_manage(251) + discover_capability_tool(236) + …（deferred: bash_process×3、conversation_search_tool(237) 等不占默认 prompt） |
-| 工具 JSON schema | ~1,040 | ~16 工具 × ~65 tokens |
+| EXTENDED 工具层 | ~2,161 | glob(234) + grep(349) + memory×3(670) + conversation_search(237) + skill_select(125) + skill_manage(251) + discover_capability_tool(236) + …（deferred: bash_process×3 等不占默认 prompt） |
+| 工具 JSON schema | ~1,105 | ~17 工具 × ~65 tokens |
 | 动态注入 | ~1,200 | user_instructions + memory_context + inline_skills |
 | 消息格式 | ~500 | role tags, boundaries 等 |
 | 用户消息 | ~32 | 短消息 + datetime 标签 |
-| **tiktoken 小计** | **~11,950** | |
+| **tiktoken 小计** | **~12,417** | |
 | Qwen tokenizer 差异 | +~200~900 | 取决于中文内容比例 |
-| **Qwen 实测估计** | **~12,600~13,300** | |
+| **Qwen 实测估计** | **~13,100~13,800** | |
 
 ### 最小 Turn 1 场景（仅 CORE 工具，无 COMMON/EXTENDED）
 

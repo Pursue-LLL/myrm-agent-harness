@@ -54,6 +54,7 @@ class TestSkillAnalyzeDeferred:
 
         returned_names = {t.name for t in tools}
         assert "skill_analyze_tool" not in returned_names
+        assert "discover_capability_tool" not in returned_names
 
         sync_discover_capability_tool(registry, skills=[sample_skill])
         resolved_after_sync = {t.name for t in registry.resolve()}

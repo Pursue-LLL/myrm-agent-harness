@@ -121,6 +121,42 @@ async def test_dispatch_custom_agent_status(ctx):
 
 
 @pytest.mark.asyncio
+async def test_dispatch_custom_capability_gap(ctx):
+    """Custom event with name='capability_gap' dispatches CAPABILITY_GAP."""
+    executor = _make_executor(ctx)
+    payload = {"tool_id": "browser", "tool_group": "browser"}
+    data = {"name": "capability_gap", "data": payload}
+    chunk = ("custom", data)
+
+    await executor._dispatch_chunk(chunk, ctx, [])
+
+    events = executor._compactor.events
+    gap_events = [
+        e for e in events if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.CAPABILITY_GAP
+    ]
+    assert len(gap_events) == 1
+    assert gap_events[0].data == payload
+
+
+@pytest.mark.asyncio
+async def test_dispatch_custom_skill_gap(ctx):
+    """Custom event with name='skill_gap' dispatches SKILL_GAP."""
+    executor = _make_executor(ctx)
+    payload = {"skill_id": "github_pr_skill"}
+    data = {"name": "skill_gap", "data": payload}
+    chunk = ("custom", data)
+
+    await executor._dispatch_chunk(chunk, ctx, [])
+
+    events = executor._compactor.events
+    gap_events = [
+        e for e in events if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.SKILL_GAP
+    ]
+    assert len(gap_events) == 1
+    assert gap_events[0].data == payload
+
+
+@pytest.mark.asyncio
 async def test_emit_event_with_event_logger(ctx):
     """_emit_event logs to event_logger when present."""
     mock_logger = AsyncMock()

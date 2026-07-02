@@ -9,15 +9,11 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
-from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent.middlewares.deferred_tool_middleware import (
     DeferredToolMiddleware,
-    detect_verbatim_conversation_search_intent,
-)
-from myrm_agent_harness.toolkits.memory.conversation_search.types import (
-    CONVERSATION_SEARCH_TOOL_NAME,
 )
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 from myrm_agent_harness.agent.tool_management.types import ToolSource
@@ -199,41 +195,3 @@ async def test_deferred_tool_middleware_already_in_tools(
     assert response == "response"
     # Should not duplicate the tool
     assert len(request.tools) == 1
-
-
-@pytest.mark.parametrize(
-    ("query", "expected"),
-    [
-        ("客户需求的原文是什么？", True),
-        ("Which conversation mentioned Kubernetes?", True),
-        ("Search past chats for billing decisions", True),
-        ("继续刚才的话题", False),
-        ("Write a hello world function", False),
-    ],
-)
-def test_detect_verbatim_conversation_search_intent(query: str, expected: bool) -> None:
-    assert detect_verbatim_conversation_search_intent(query) is expected
-
-
-@pytest.mark.asyncio
-async def test_deferred_tool_middleware_premounts_conversation_search_on_verbatim_intent() -> None:
-    class ConversationSearchTool(BaseTool):
-        name: str = CONVERSATION_SEARCH_TOOL_NAME
-        description: str = "Search prior conversations"
-
-        def _run(self, *args: object, **kwargs: object) -> str:
-            return "hits"
-
-    reg = ToolRegistry()
-    reg.register(ConversationSearchTool(), source=ToolSource.USER, deferred=True)
-    middleware = DeferredToolMiddleware(reg)
-    request = MagicMock()
-    request.messages = [HumanMessage(content="客户需求的原文是什么？")]
-    request.tools = []
-
-    async def next_call(req: object) -> str:
-        return "response"
-
-    await middleware.awrap_model_call(request, next_call)
-    assert len(request.tools) == 1
-    assert request.tools[0].name == CONVERSATION_SEARCH_TOOL_NAME

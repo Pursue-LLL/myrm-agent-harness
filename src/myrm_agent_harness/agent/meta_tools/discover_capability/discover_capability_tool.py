@@ -117,8 +117,6 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
     library_names = library_skill_names or frozenset()
 
     def _resolve_gap_hints(search_query: str, base_message: str) -> str:
-        from langchain_core.callbacks.manager import dispatch_custom_event
-
         from myrm_agent_harness.agent.meta_tools.discover_capability.capability_gap import (
             detect_capability_gap,
             detect_skill_gap,
@@ -130,15 +128,28 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
         cap_gap = detect_capability_gap(search_query, active_groups)
         if cap_gap is not None:
             parts.append(format_capability_gap_block(cap_gap))
-            dispatch_custom_event(
+        skill_gap = detect_skill_gap(search_query, bound_names, library_names)
+        if skill_gap is not None:
+            parts.append(format_skill_gap_block(skill_gap))
+        return "\n\n".join(parts)
+
+    async def _emit_gap_events(search_query: str) -> None:
+        from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
+        from myrm_agent_harness.agent.meta_tools.discover_capability.capability_gap import (
+            detect_capability_gap,
+            detect_skill_gap,
+        )
+
+        cap_gap = detect_capability_gap(search_query, active_groups)
+        if cap_gap is not None:
+            await dispatch_custom_event(
                 "capability_gap",
                 {"tool_id": cap_gap.tool_id, "tool_group": cap_gap.tool_group},
             )
         skill_gap = detect_skill_gap(search_query, bound_names, library_names)
         if skill_gap is not None:
-            parts.append(format_skill_gap_block(skill_gap))
-            dispatch_custom_event("skill_gap", {"skill_id": skill_gap.skill_id})
-        return "\n\n".join(parts)
+            await dispatch_custom_event("skill_gap", {"skill_id": skill_gap.skill_id})
 
     class DiscoverCapabilityInput(BaseModel):
         query: str = Field(
@@ -163,7 +174,9 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
         not_found = f"No capabilities found matching '{query}'. Try broader terms or synonyms."
 
         if engine is None:
-            return _resolve_gap_hints(query, not_found)
+            message = _resolve_gap_hints(query, not_found)
+            await _emit_gap_events(query)
+            return message
 
         if mode == "regex":
             matches = engine.search_regex(query)
@@ -174,7 +187,9 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
             matches = await matches
 
         if not matches:
-            return _resolve_gap_hints(query, not_found)
+            message = _resolve_gap_hints(query, not_found)
+            await _emit_gap_events(query)
+            return message
 
         native_matches = []
         external_matches = []
@@ -212,7 +227,9 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
                 f"<ExternalSkills>\n{skill_text}\n</ExternalSkills>"
             )
 
-        return "\n\n".join(results)
+        result_body = "\n\n".join(results)
+        await _emit_gap_events(query)
+        return _resolve_gap_hints(query, result_body)
 
     return discover_capability_func
 
