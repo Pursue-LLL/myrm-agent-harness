@@ -7,6 +7,7 @@
 [OUTPUT]
 - merge_active_subagent_children: deduped active rows for one session_id
 - cancel_active_children_for_session: cancel all running children for one session_id via registry
+- _normalize_rest_chat_id: strip repeated chat_ prefixes to REST uuid
 
 [POS]
 Server REST/SSE subagent tree and cancel-all use the same ACTIVE_SUBAGENTS registry when the parent gateway session is gone or a new agent instance replaced the spawner.
