@@ -226,6 +226,18 @@ async def _handle_tool_result(
             async for source_event in _emit_source_events(tool_metadata, message_id, source_tracker):
                 yield source_event
 
+        if tool_name == "update_execution_checklist_tool" and status != "error":
+            from myrm_agent_harness.agent.execution_checklist.events import build_checklist_sse_events
+            from myrm_agent_harness.agent.execution_checklist.state import read_checklist_sync
+            from myrm_agent_harness.agent.middlewares._session_context import get_workspace_root
+
+            workspace_root = get_workspace_root()
+            if workspace_root:
+                checklist_state = read_checklist_sync(workspace_root)
+                if checklist_state and checklist_state.items:
+                    for checklist_event in build_checklist_sse_events(checklist_state, message_id=message_id):
+                        yield checklist_event
+
     except Exception as e:
         logger.error(" Failed to send tool event: %s: %s", type(e).__name__, e)
 
