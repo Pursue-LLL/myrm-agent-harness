@@ -3,6 +3,7 @@
 [INPUT]
 - base_agent::BaseAgent (POS: Parent agent with _spawn_child capability)
 - dynamic_workflow.store::WorkflowEventStore (POS: L2 persistent cache)
+- agent.skills.mcp.progress_payload::build_workflow_stage_event (POS: Shared notify field SSOT)
 - sub_agents.types::SubagentCatalog, SubagentConfig, WorkspacePolicy (POS: Agent configuration and workspace isolation)
 - utils.runtime.cancellation::CancellationToken
 

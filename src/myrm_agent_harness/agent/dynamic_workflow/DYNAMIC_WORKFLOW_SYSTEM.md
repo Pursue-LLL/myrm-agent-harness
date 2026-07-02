@@ -26,6 +26,8 @@ PTC Sandbox
        ↓
 SpawnSubagentTool / NotifyProgressTool (tools.py)
        ↓
+notify_stream.py — 并发 drain queue，PTC 执行期间实时 yield workflow_stage
+       ↓
 WorkflowEventStore (store.py) — L2 cache / replay
        ↓
 Summarization LLM → 用户可读 Markdown
@@ -38,8 +40,9 @@ Summarization LLM → 用户可读 Markdown
 | 文件 | 职责 |
 |------|------|
 | `__init__.py` | `run_dynamic_workflow_stream` 入口；类型发现；阶段 cancel 检查 |
+| `notify_stream.py` | PTC 执行期间并发 drain notify queue |
 | `store.py` | SQLite Event Sourcing；`harden_connection_sync(CACHE)` |
-| `tools.py` | `SpawnSubagentTool`（含 readonly 双保护）、`NotifyProgressTool` |
+| `tools.py` | `SpawnSubagentTool`（含 readonly 双保护、stage 事件）、`NotifyProgressTool` |
 
 ---
 

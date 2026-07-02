@@ -139,7 +139,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "cancel_subagent_tool": ToolLayer.EXTENDED,
     "delegate_parallel_tasks_tool": ToolLayer.EXTENDED,
     "delegate_task_tool": ToolLayer.EXTENDED,
-    "spawn_subagent": ToolLayer.EXTENDED,
     "list_subagents_tool": ToolLayer.EXTENDED,
     "send_teammate_message_tool": ToolLayer.EXTENDED,
     "steer_subagent_tool": ToolLayer.EXTENDED,

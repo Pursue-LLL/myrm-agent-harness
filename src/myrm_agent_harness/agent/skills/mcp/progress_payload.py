@@ -3,6 +3,16 @@
 PTC ``notify_handler`` validates strictly (raises on bad input).
 DW ``NotifyProgressTool`` normalizes leniently (clamp/truncate) for script ergonomics.
 Both paths share level/category/message bounds so ASCS stays consistent.
+
+[INPUT]
+- (none — pure validation/build helpers)
+
+[OUTPUT]
+- parse_ptc_notify_params / build_ptc_notify_payload: PTC ``ptc_notify`` stream
+- build_workflow_stage_event: DW ``workflow_stage`` SSE events
+
+[POS]
+Single source of truth for notify field bounds shared across PTC and DW paths.
 """
 
 from __future__ import annotations

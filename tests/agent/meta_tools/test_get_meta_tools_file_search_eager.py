@@ -101,3 +101,44 @@ class TestFileSearchEager:
         assert "glob_tool" not in description
         assert "grep_tool" not in description
         assert "skill_analyze_tool" in description
+
+    def test_bash_process_tools_deferred_when_bash_enabled(
+        self,
+        skill_backend: MagicMock,
+    ) -> None:
+        registry = ToolRegistry()
+        tools = get_meta_tools(
+            [],
+            skill_backend,
+            registry=registry,
+            enable_file_tools=False,
+            enable_bash=True,
+            enable_answer_tool=False,
+        )
+
+        returned_names = {t.name for t in tools}
+        assert "bash_code_execute_tool" in returned_names
+        assert "bash_process_list_tool" not in returned_names
+
+        deferred_names = {t.name for t in registry.get_deferred_tools()}
+        assert {
+            "bash_process_list_tool",
+            "bash_process_output_tool",
+            "bash_process_kill_tool",
+        }.issubset(deferred_names)
+
+    def test_answer_tool_eager_when_enabled(
+        self,
+        skill_backend: MagicMock,
+    ) -> None:
+        tools = get_meta_tools(
+            [],
+            skill_backend,
+            registry=ToolRegistry(),
+            enable_file_tools=False,
+            enable_bash=False,
+            enable_answer_tool=True,
+        )
+
+        returned_names = {t.name for t in tools}
+        assert "request_answer_user_tool" in returned_names

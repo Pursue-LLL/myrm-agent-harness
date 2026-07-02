@@ -107,7 +107,7 @@ class ToolLayer(IntEnum):
 
 | 子类 | 加载条件 | 典型工具 | Token 消耗 |
 |------|---------|---------|----------:|
-| 默认加载的 EXTENDED 辅助 | enable_file_tools | glob_tool, grep_tool, discover_capability_tool | ~819 |
+| 默认加载的 EXTENDED 辅助（**eager**，非 deferred） | enable_file_tools | glob_tool, grep_tool, discover_capability_tool | ~819 |
 | Deferred 工具 | discover 挂载 | bash_process_list/output/kill_tool, skill_analyze_tool | 0（默认） / ~246（挂载 analyze+process 后） |
 | 文件搜索中间件 | 显式启用 FilesystemFileSearchMiddleware | glob_tool, grep_tool | - |
 | 记忆工具 | 启用记忆系统 | memory_recall_tool, memory_save_tool, memory_manage_tool, conversation_search_tool | ~670 |

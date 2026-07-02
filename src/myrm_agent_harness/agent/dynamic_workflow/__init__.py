@@ -21,7 +21,6 @@ tool registry, catalog, and budget from the parent agent through the delegate pa
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import hashlib
 import logging
 from collections.abc import AsyncIterable
@@ -29,6 +28,10 @@ from typing import TYPE_CHECKING
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
+from myrm_agent_harness.agent.dynamic_workflow.notify_stream import (
+    drain_notify_queue_nowait,
+    iter_notify_events_while_task_runs,
+)
 from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
 from myrm_agent_harness.agent.dynamic_workflow.tools import (
     NotifyProgressTool,
@@ -297,15 +300,6 @@ async def run_dynamic_workflow_stream(
 
     workflow_failed = False
 
-    async def _drain_notify_queue_nowait() -> list[dict[str, object]]:
-        drained: list[dict[str, object]] = []
-        while True:
-            try:
-                drained.append(notify_queue.get_nowait())
-            except asyncio.QueueEmpty:
-                break
-        return drained
-
     try:
         inject_task = asyncio.create_task(
             inject_ptc_for_python_execution(
@@ -315,28 +309,11 @@ async def run_dynamic_workflow_stream(
                 override_allowed=frozenset({"spawn_subagent", "notify"}),
             )
         )
-        queue_get_task: asyncio.Task[dict[str, object]] | None = None
-        try:
-            while not inject_task.done():
-                if queue_get_task is None or queue_get_task.done():
-                    queue_get_task = asyncio.create_task(notify_queue.get())
-                done, _ = await asyncio.wait(
-                    {inject_task, queue_get_task},
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
-                if queue_get_task in done:
-                    yield queue_get_task.result()
-                    queue_get_task = None
-                if cancel_token and cancel_token.is_cancelled:
-                    inject_task.cancel()
-            result = await inject_task
-        finally:
-            if queue_get_task is not None and not queue_get_task.done():
-                queue_get_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await queue_get_task
-            for notify_event in await _drain_notify_queue_nowait():
-                yield notify_event
+        async for notify_event in iter_notify_events_while_task_runs(
+            notify_queue, inject_task, cancel_token=cancel_token
+        ):
+            yield notify_event
+        result = await inject_task
 
         yield {
             "type": "status",
@@ -390,7 +367,7 @@ async def run_dynamic_workflow_stream(
 
     except Exception as e:
         workflow_failed = True
-        for notify_event in await _drain_notify_queue_nowait():
+        for notify_event in await drain_notify_queue_nowait(notify_queue):
             yield notify_event
         logger.error("Dynamic Workflow execution failed: %s", e, exc_info=True)
         yield {
