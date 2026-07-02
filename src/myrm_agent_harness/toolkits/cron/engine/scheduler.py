@@ -113,6 +113,7 @@ class CronScheduler:
         self._last_purge_at: datetime | None = None
         self._active_jobs: set[str] = set()
         self._bg_tasks: set[asyncio.Task[None]] = set()
+        self._push_callback = push_callback
 
         self._executor = JobExecutor(
             store=store,
@@ -393,6 +394,16 @@ class CronScheduler:
                 logger.warning("Job %s skipped: %s", job.id, skip_reason)
                 if skip_reason in ("expired", "max_fires_reached"):
                     await self._store.save_job(job)
+                    if self._push_callback:
+                        reason_text = (
+                            f"[{job.name}] 已到期，自动暂停"
+                            if skip_reason == "expired"
+                            else f"[{job.name}] 已达最大执行次数({job.max_fires})，自动暂停"
+                        )
+                        try:
+                            await self._push_callback(job.user_id, job.name, reason_text, "warning")
+                        except Exception as exc:
+                            logger.warning("Push notification failed for paused job %s: %s", job.id, exc)
                 return
 
             if not is_within_active_hours(job.active_hours):
