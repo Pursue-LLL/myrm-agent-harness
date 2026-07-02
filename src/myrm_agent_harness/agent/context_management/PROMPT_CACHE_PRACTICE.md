@@ -79,7 +79,7 @@ class ToolLayer(IntEnum):
 
 | 层级 | 工具 | 常驻理由 |
 |------|------|---------|
-| **CORE** | `web_fetch_tool` | 始终加载，不受用户设置影响 |
+| **CORE** | （无 unconditional 工具） | 登记层为空 | — | `web_fetch_tool` 在 COMMON，随 web 组加载 |
 | **COMMON** | `request_answer_user_tool`, `bash_code_execute_tool`, `file_edit_tool`, `file_read_tool`, `file_write_tool`, `planner_tool`, `web_search_tool` | 注册 7 个；默认 profile bind 5 个（answer/planner 由 Agent 配置 / Goal / workspace plan 按需加载） |
 | **EXTENDED** | 83 个注册工具（浏览器/记忆/技能/Sub-Agent/…）+ 动态 MCP | 按需加载或始终加载的辅助工具 |
 

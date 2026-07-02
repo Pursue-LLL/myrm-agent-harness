@@ -18,7 +18,7 @@ Tools registered: **91** (CORE 1 + COMMON 8 + EXTENDED 82). Source of truth: `to
 | lifecycle_protocol.py | Core | LifecycleAwareTool protocol for tools needing init/cleanup. | ✅ |
 | registry.py | Core | Replaces the scattered ``_deduplicate_tools()`` + ``sort_tools()`` calls in BaseAgent. Supports deferred tools. | ✅ |
 | action_space.py | Core | ActionSpaceProfiler: 动作空间量化引擎，计算工具 Schema 复杂度 (ASCS)。 | ✅ |
-| tool_layers.py | Core | Tool layer priority registry. Defines CORE/COMMON/EXTENDED three-tier tool priorities. CORE: `web_fetch_tool`. COMMON: bash/file_edit/read/write/planner/checklist/web_search (planner gated by `enable_planning`; checklist gated by `task_tracking`; `request_answer_user_tool` gated by `enable_answer_tool`, default off). EXTENDED: all others. `ToolRegistry.register()` emits WARNING for unregistered tools. | ✅ |
+| tool_layers.py | Core | Tool layer priority registry. CORE: **（空，无 unconditional 工具）**. COMMON: web_fetch/bash/file_*/planner/checklist/web_search/request_answer（后三者条件加载，request_answer 默认 off）. EXTENDED: all others. | ✅ |
 | types.py | Config | Core types for the tool management subsystem. Includes deferred tool support. | ✅ |
 | utils.py | 辅助 | Re-exports with_dynamic_hints decorator for cross-tool dependency hint injection. | ✅ |
 | DEFAULT_AGENT_TOKEN_INVENTORY.md | Doc | 默认 Agent 初始 Token 逐项清单 — 工具/提示词/动态注入的 token 预算明细；§4.18 汇总 5 个内部/伪工具默认 0 token | — |

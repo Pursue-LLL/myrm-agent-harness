@@ -18,22 +18,19 @@
 
 ---
 
-## 二、CORE 工具层（~255 tokens，始终加载，排最前面 → 永远被缓存）
+## 二、CORE 工具层（0 tokens — 登记层无 unconditional 工具）
 
-| # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
-|---|--------|------------------:|----------|------|----------|
-| 4 | web_fetch_tool | 255 | `harness/toolkits/web_fetch/web_fetch_agent_tools.py` | HTTP 请求/网页抓取（含 fetch_and_extract + fetch_full_content 两种操作说明） | 始终 |
-
-**注意**：`web_fetch_tool` 的 token 取决于是否启用 advanced_retrieval：启用时 255 tokens（含 extract），未启用时 ~51 tokens。
+> 2026-07-02：`web_fetch_tool` 登记迁至 COMMON（与 `enable_web_search` 装配一致）。见 §三 #4a。
 
 ---
 
-## 三、COMMON 工具层（注册 8 个；默认 profile Turn1 实际 bind 5 个）
+## 三、COMMON 工具层（注册 9 个；默认 profile Turn1 实际 bind 5–7 个）
 
 默认 `enabled_builtin_tools=(web_search, memory)` 且未开 Goal 时：`request_answer_user_tool`、`planner_tool`、`update_execution_checklist_tool` 不进入 bind_tools（CompletionGuard / Agent 配置 / Goal 按需加载）。
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
+| 4a | web_fetch_tool | 255 | `harness/toolkits/web_fetch/web_fetch_agent_tools.py` | HTTP 请求/网页抓取 | `enable_web_search` + search_service_cfg |
 | 5 | **request_answer_user_tool** | **1,024** | `harness/agent/meta_tools/answer_user_tool.py` | 回复自审工具，包含完整的自审流程和回复质量检查逻辑 | 默认关闭（`enable_answer_tool=False`，Agent 配置 opt-in） |
 | 6 | **bash_code_execute_tool** | **1,207** | `harness/agent/meta_tools/bash/bash_code_execute_tool.py` | Shell/Python 代码执行，包含执行规则、依赖分析、优化策略、严格禁止项。另有 OS_HINT (~50 tokens) 动态追加 | 默认开启 |
 | 7 | file_edit_tool | 155 | `harness/agent/meta_tools/file_ops/file_edit_tool.py` | 精确编辑 (str_replace) | 默认开启 |
