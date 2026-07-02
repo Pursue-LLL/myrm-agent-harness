@@ -7,7 +7,13 @@ from unittest.mock import MagicMock
 import pytest
 
 from myrm_agent_harness.agent.sub_agents.planner.schemas import Plan, PlanStep
-from myrm_agent_harness.agent.sub_agents.planner.storage import PlannerStorage, workspace_load_plan, workspace_plan_exists
+from myrm_agent_harness.agent.sub_agents.planner.storage import (
+    PlannerStorage,
+    plan_exists_sync,
+    read_plan_sync_from_workspace,
+    workspace_load_plan,
+    workspace_plan_exists,
+)
 
 
 def _make_plan() -> Plan:
@@ -188,6 +194,17 @@ class TestWorkspacePlanHelpers:
         backend.exists = mock_exists
         assert await workspace_plan_exists(backend, storage_prefix="/planner") is True
 
+    async def test_workspace_plan_exists_prefers_workspace_root(self, tmp_path):
+        backend = MagicMock()
+        plan_dir = tmp_path / "planner"
+        plan_dir.mkdir()
+        (plan_dir / "plan.json").write_text('{"goal":"g","reasoning":"r","steps":[]}', encoding="utf-8")
+        assert await workspace_plan_exists(
+            backend,
+            workspace_root=str(tmp_path),
+            storage_prefix="/planner",
+        ) is True
+
     async def test_workspace_load_plan_returns_plan(self):
         backend = MagicMock()
         plan_json = _make_plan().model_dump_json()
@@ -201,3 +218,64 @@ class TestWorkspacePlanHelpers:
         loaded = await workspace_load_plan(backend, storage_prefix="/planner")
         assert loaded is not None
         assert loaded.goal == "Test goal"
+
+
+class TestPlannerWorkspaceShadow:
+    async def test_save_plan_writes_to_workspace_not_storage(self, tmp_path):
+        backend = MagicMock()
+        workspace = tmp_path / "chat_ws"
+        workspace.mkdir()
+        storage = PlannerStorage(backend, workspace_root=str(workspace))
+        await storage.save_plan(_make_plan())
+
+        plan_path = workspace / "planner" / "plan.json"
+        assert plan_path.is_file()
+        assert (workspace / "planner" / "task_plan.md").is_file()
+        assert (workspace / "planner" / "plan_summary.txt").is_file()
+        backend.write_text.assert_not_called()
+
+    async def test_load_plan_reads_workspace_first(self, tmp_path):
+        backend = MagicMock()
+        workspace = tmp_path / "chat_ws"
+        plan_dir = workspace / "planner"
+        plan_dir.mkdir(parents=True)
+        plan_dir.joinpath("plan.json").write_text(_make_plan().model_dump_json(), encoding="utf-8")
+
+        storage = PlannerStorage(backend, workspace_root=str(workspace))
+        loaded = await storage.load_plan()
+        assert loaded is not None
+        assert loaded.goal == "Test goal"
+        backend.read_text.assert_not_called()
+
+    async def test_plan_exists_sync_and_load_roundtrip(self, tmp_path):
+        backend = MagicMock()
+        workspace = tmp_path / "ws"
+        storage = PlannerStorage(backend, workspace_root=str(workspace))
+        await storage.save_plan(_make_plan())
+
+        assert plan_exists_sync(str(workspace), storage_prefix="/planner") is True
+        loaded = read_plan_sync_from_workspace(str(workspace), storage_prefix="/planner")
+        assert loaded is not None
+        assert loaded.goal == "Test goal"
+
+    async def test_completion_guard_sees_workspace_plan_after_save(self, tmp_path):
+        from myrm_agent_harness.agent.middlewares.completion_guard import _build_checklist
+        from myrm_agent_harness.agent.security.guards.loop_guard_types import CallRecord, SuccessLevel
+
+        backend = MagicMock()
+        workspace = tmp_path / "chat_ws"
+        workspace.mkdir()
+        storage = PlannerStorage(backend, workspace_root=str(workspace))
+        await storage.save_plan(_make_plan())
+
+        records = [
+            CallRecord(
+                tool_name="file_write_tool",
+                args_hash="w1",
+                args={"path": "/out/app.py", "content": "x"},
+                success_level=SuccessLevel.FULL_SUCCESS,
+            ),
+        ]
+        checklist, has_critical = _build_checklist(records, workspace_root=str(workspace))
+        assert has_critical
+        assert "uncompleted steps in your Goal Plan" in checklist

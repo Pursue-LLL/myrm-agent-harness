@@ -12,6 +12,8 @@ Implements shadow sync (3 files: plan.json, task_plan.md, plan_summary.txt).
 - workspace_plan_exists: Check persisted plan under a storage prefix
 - workspace_load_plan: Load persisted plan under a storage prefix
 - read_plan_sync_from_workspace: Sync plan load for completion_guard
+- plan_exists_sync: Sync plan existence check under chat workspace
+- save_plan_files_to_workspace: Write planner shadow files to chat workspace
 - strip_storage_line_numbers: Strip line-number prefixes from storage text
 
 [POS]
@@ -20,6 +22,7 @@ Planner Storage Adapter
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from pathlib import Path
@@ -39,6 +42,34 @@ def strip_storage_line_numbers(content: str) -> str:
         lines = content.splitlines()
         return "\n".join(re.sub(r"^\s*\d+\|", "", line) for line in lines)
     return content
+
+
+def plan_workspace_dir(workspace_root: str, *, storage_prefix: str = "/planner") -> Path:
+    """Directory for planner shadow files under a chat workspace."""
+    prefix = storage_prefix.strip("/")
+    return Path(workspace_root) / prefix
+
+
+def plan_exists_sync(workspace_root: str, *, storage_prefix: str = "/planner") -> bool:
+    """Return True when plan.json exists under chat workspace."""
+    return (plan_workspace_dir(workspace_root, storage_prefix=storage_prefix) / "plan.json").is_file()
+
+
+async def save_plan_files_to_workspace(
+    workspace_root: str,
+    files: list[tuple[str, str]],
+    *,
+    storage_prefix: str = "/planner",
+) -> None:
+    """Persist planner shadow files under chat workspace (completion_guard SSOT)."""
+    target_dir = plan_workspace_dir(workspace_root, storage_prefix=storage_prefix)
+
+    def _write_all() -> None:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        for filename, content in files:
+            (target_dir / filename).write_text(content, encoding="utf-8")
+
+    await asyncio.to_thread(_write_all)
 
 
 class PlannerStorage:
@@ -63,15 +94,22 @@ class PlannerStorage:
         >>> await planner_storage.save_plan(plan)
     """
 
-    def __init__(self, storage_backend: StorageProvider, prefix: str = "/planner"):
+    def __init__(
+        self,
+        storage_backend: StorageProvider,
+        prefix: str = "/planner",
+        workspace_root: str | None = None,
+    ):
         """Initialize planner storage
 
         Args:
-            storage_backend: Storage backend implementation
+            storage_backend: Storage backend implementation (fallback when no workspace_root)
             prefix: Storage path prefix
+            workspace_root: Chat sandbox path — when set, session plans persist here
         """
         self.storage = storage_backend
         self.prefix = prefix.rstrip("/")
+        self.workspace_root = workspace_root.strip() if workspace_root else None
 
     def _get_path(self, filename: str) -> str:
         """Get full file path
@@ -128,12 +166,22 @@ class PlannerStorage:
             ("plan_summary.txt", summary_content),
         ]
 
-        errors = []
-        for filename, content in files:
+        errors: list[tuple[str, Exception]] = []
+        if self.workspace_root:
             try:
-                await self._write_file(filename, content)
+                await save_plan_files_to_workspace(
+                    self.workspace_root,
+                    files,
+                    storage_prefix=f"/{self.prefix.lstrip('/')}",
+                )
             except Exception as e:
-                errors.append((filename, e))
+                errors.append(("workspace_shadow", e))
+        else:
+            for filename, content in files:
+                try:
+                    await self._write_file(filename, content)
+                except Exception as e:
+                    errors.append((filename, e))
 
         # Check for errors
         if errors:
@@ -158,15 +206,16 @@ class PlannerStorage:
             raise RuntimeError(msg) from e
 
     async def load_plan(self) -> Plan | None:
-        """Load plan from storage
-
-        Returns:
-            Plan object if exists, None otherwise
-
-        Raises:
-            Exception: If plan.json exists but parsing fails
-        """
+        """Load plan from workspace (preferred) or storage backend."""
         from myrm_agent_harness.agent.sub_agents.planner.schemas import Plan
+
+        if self.workspace_root:
+            plan = read_plan_sync_from_workspace(
+                self.workspace_root,
+                storage_prefix=f"/{self.prefix.lstrip('/')}",
+            )
+            if plan is not None:
+                return plan
 
         path = self._get_path("plan.json")
         try:
@@ -184,11 +233,12 @@ class PlannerStorage:
             raise RuntimeError(msg) from e
 
     async def plan_exists(self) -> bool:
-        """Check if plan exists
-
-        Returns:
-            True if plan.json exists
-        """
+        """Check if plan exists in workspace or storage backend."""
+        if self.workspace_root and plan_exists_sync(
+            self.workspace_root,
+            storage_prefix=f"/{self.prefix.lstrip('/')}",
+        ):
+            return True
         path = self._get_path("plan.json")
         return await self.storage.exists(path)
 
@@ -242,9 +292,12 @@ class PlannerStorage:
 async def workspace_plan_exists(
     storage_backend: StorageProvider,
     *,
+    workspace_root: str | None = None,
     storage_prefix: str = "/planner",
 ) -> bool:
-    """Return True if a persisted plan exists under the configured storage prefix."""
+    """Return True if a persisted plan exists under workspace or storage prefix."""
+    if workspace_root:
+        return plan_exists_sync(workspace_root, storage_prefix=storage_prefix)
     store = PlannerStorage(storage_backend, prefix=storage_prefix)
     return await store.plan_exists()
 
@@ -252,10 +305,15 @@ async def workspace_plan_exists(
 async def workspace_load_plan(
     storage_backend: StorageProvider,
     *,
+    workspace_root: str | None = None,
     storage_prefix: str = "/planner",
 ) -> Plan | None:
-    """Load a persisted plan from the configured storage prefix."""
-    store = PlannerStorage(storage_backend, prefix=storage_prefix)
+    """Load a persisted plan from workspace or storage prefix."""
+    store = PlannerStorage(
+        storage_backend,
+        prefix=storage_prefix,
+        workspace_root=workspace_root,
+    )
     return await store.load_plan()
 
 

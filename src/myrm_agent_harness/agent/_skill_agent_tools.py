@@ -186,6 +186,7 @@ class SkillAgentToolsMixin:
             config = planner_config if planner_config is not None else PlannerConfig()
             return await workspace_plan_exists(
                 self.storage_backend,  # type: ignore[attr-defined]
+                workspace_root=self._get_checklist_workspace_root(),
                 storage_prefix=config.storage_prefix,
             )
         except Exception as e:
@@ -341,6 +342,7 @@ class SkillAgentToolsMixin:
                 available_skills=available_skills or None,
                 plan_archive_store=archive_store,
                 plan_recaller=recaller,
+                workspace_root=self._get_checklist_workspace_root(),
             )
             logger.warning(
                 " planner_tool auto-created (skills=%d, truncated=%s)",

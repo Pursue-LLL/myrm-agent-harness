@@ -46,6 +46,7 @@ def create_planner_tool(
     available_skills: list[tuple[str, str]] | None = None,
     plan_archive_store: object | None = None,
     plan_recaller: object | None = None,
+    workspace_root: str | None = None,
 ) -> BaseTool:
     """Create planner tool (wraps PlannerAgent)
 
@@ -60,6 +61,7 @@ def create_planner_tool(
             When provided, the Planner can reference these skills in plan steps.
         plan_archive_store: PlanArchiveStore instance for archiving completed plans.
         plan_recaller: PlanRecaller instance for retrieving similar historical plans.
+        workspace_root: Chat sandbox path for session-scoped plan shadow files.
 
     Returns:
         Planner tool (LangChain BaseTool)
@@ -89,7 +91,11 @@ def create_planner_tool(
     if available_skills:
         _config.available_skills = [SkillSummary(name=n, description=d) for n, d in available_skills]
 
-    _storage = PlannerStorage(storage_backend, prefix=_config.storage_prefix)
+    _storage = PlannerStorage(
+        storage_backend,
+        prefix=_config.storage_prefix,
+        workspace_root=workspace_root,
+    )
     _planner = PlannerAgent(_planner_llm, _storage, _config)
     _archive_store = plan_archive_store
     _recaller = plan_recaller
