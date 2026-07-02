@@ -8,6 +8,9 @@ import pytest
 
 from myrm_agent_harness.toolkits.cron.triggers import (
     EventTrigger,
+    PollTrigger,
+    StreamProtocol,
+    StreamTrigger,
     SystemEventTrigger,
     TriggerConfig,
     WebhookTrigger,
@@ -178,6 +181,102 @@ class TestTriggerConfigSerialization:
         assert restored is not None
         assert restored.webhooks[0].secret is None
 
+    def test_polls_round_trip(self) -> None:
+        tc = TriggerConfig(
+            polls=(
+                PollTrigger(url="https://api.example.com/data", json_path="$.count", interval_seconds=120),
+            ),
+        )
+        d = trigger_config_to_dict(tc)
+        assert d is not None
+        assert "polls" in d
+        restored = dict_to_trigger_config(d)
+        assert restored is not None
+        assert len(restored.polls) == 1
+        assert restored.polls[0].url == "https://api.example.com/data"
+        assert restored.polls[0].json_path == "$.count"
+        assert restored.polls[0].interval_seconds == 120
+        assert restored.polls[0].change_detection is True
+
+    def test_streams_round_trip(self) -> None:
+        tc = TriggerConfig(
+            streams=(
+                StreamTrigger(
+                    url="wss://stream.example.com/ws",
+                    protocol=StreamProtocol.WS,
+                    filter_json_path="$.data.price",
+                    filter_regex=r"^\d{6,}",
+                    headers={"Authorization": "Bearer token123"},
+                ),
+            ),
+        )
+        d = trigger_config_to_dict(tc)
+        assert d is not None
+        assert "streams" in d
+        restored = dict_to_trigger_config(d)
+        assert restored is not None
+        assert len(restored.streams) == 1
+        s = restored.streams[0]
+        assert s.url == "wss://stream.example.com/ws"
+        assert s.protocol == StreamProtocol.WS
+        assert s.filter_json_path == "$.data.price"
+        assert s.filter_regex == r"^\d{6,}"
+        assert s.headers == {"Authorization": "Bearer token123"}
+
+    def test_streams_sse_protocol(self) -> None:
+        tc = TriggerConfig(
+            streams=(StreamTrigger(url="https://api.example.com/events", protocol=StreamProtocol.SSE),),
+        )
+        d = trigger_config_to_dict(tc)
+        restored = dict_to_trigger_config(d)
+        assert restored is not None
+        assert restored.streams[0].protocol == StreamProtocol.SSE
+
+    def test_streams_minimal(self) -> None:
+        tc = TriggerConfig(streams=(StreamTrigger(url="wss://example.com/ws"),))
+        d = trigger_config_to_dict(tc)
+        restored = dict_to_trigger_config(d)
+        assert restored is not None
+        assert restored.streams[0].filter_json_path is None
+        assert restored.streams[0].filter_regex is None
+        assert restored.streams[0].headers == {}
+
+    def test_mixed_all_types(self) -> None:
+        tc = TriggerConfig(
+            webhooks=(WebhookTrigger(path="p1"),),
+            events=(EventTrigger(pattern="test"),),
+            system_events=(SystemEventTrigger(source="sentry", event_type="alert"),),
+            polls=(PollTrigger(url="https://api.example.com/data"),),
+            streams=(StreamTrigger(url="wss://stream.example.com/ws"),),
+        )
+        d = trigger_config_to_dict(tc)
+        assert d is not None
+        restored = dict_to_trigger_config(d)
+        assert restored is not None
+        assert len(restored.webhooks) == 1
+        assert len(restored.events) == 1
+        assert len(restored.system_events) == 1
+        assert len(restored.polls) == 1
+        assert len(restored.streams) == 1
+
+    def test_only_polls_returns_config(self) -> None:
+        tc = TriggerConfig(polls=(PollTrigger(url="https://example.com"),))
+        d = trigger_config_to_dict(tc)
+        restored = dict_to_trigger_config(d)
+        assert restored is not None
+        assert len(restored.polls) == 1
+        assert not restored.webhooks
+        assert not restored.events
+
+    def test_only_streams_returns_config(self) -> None:
+        tc = TriggerConfig(streams=(StreamTrigger(url="wss://example.com/ws"),))
+        d = trigger_config_to_dict(tc)
+        restored = dict_to_trigger_config(d)
+        assert restored is not None
+        assert len(restored.streams) == 1
+        assert not restored.webhooks
+        assert not restored.polls
+
 
 # ---------------------------------------------------------------------------
 # TriggerConfig immutability
@@ -194,3 +293,75 @@ class TestTriggerConfigImmutability:
         et = EventTrigger(pattern="test")
         with pytest.raises(AttributeError):
             et.pattern = "other"  # type: ignore[misc]
+
+    def test_stream_trigger_frozen(self) -> None:
+        st = StreamTrigger(url="wss://example.com/ws")
+        with pytest.raises(AttributeError):
+            st.url = "other"  # type: ignore[misc]
+
+    def test_poll_trigger_frozen(self) -> None:
+        pt = PollTrigger(url="https://example.com/api")
+        with pytest.raises(AttributeError):
+            pt.url = "other"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# StreamTrigger / PollTrigger data model tests
+# ---------------------------------------------------------------------------
+
+
+class TestStreamTriggerModel:
+    def test_defaults(self) -> None:
+        st = StreamTrigger(url="wss://example.com")
+        assert st.protocol == StreamProtocol.WS
+        assert st.filter_json_path is None
+        assert st.filter_regex is None
+        assert st.headers == {}
+
+    def test_sse_protocol(self) -> None:
+        st = StreamTrigger(url="https://example.com/events", protocol=StreamProtocol.SSE)
+        assert st.protocol == StreamProtocol.SSE
+
+    def test_with_filters(self) -> None:
+        st = StreamTrigger(
+            url="wss://stream.binance.com/ws",
+            filter_json_path="$.p",
+            filter_regex=r"^\d{6,}",
+        )
+        assert st.filter_json_path == "$.p"
+        assert st.filter_regex == r"^\d{6,}"
+
+    def test_with_headers(self) -> None:
+        st = StreamTrigger(
+            url="wss://api.example.com/ws",
+            headers={"Authorization": "Bearer xxx", "X-Custom": "val"},
+        )
+        assert len(st.headers) == 2
+
+
+class TestPollTriggerModel:
+    def test_defaults(self) -> None:
+        pt = PollTrigger(url="https://example.com/api")
+        assert pt.json_path is None
+        assert pt.interval_seconds == 300
+        assert pt.change_detection is True
+
+    def test_custom_interval(self) -> None:
+        pt = PollTrigger(url="https://example.com", interval_seconds=60)
+        assert pt.interval_seconds == 60
+
+    def test_no_change_detection(self) -> None:
+        pt = PollTrigger(url="https://example.com", change_detection=False)
+        assert pt.change_detection is False
+
+
+class TestStreamProtocolEnum:
+    def test_ws_value(self) -> None:
+        assert StreamProtocol.WS.value == "ws"
+
+    def test_sse_value(self) -> None:
+        assert StreamProtocol.SSE.value == "sse"
+
+    def test_from_string(self) -> None:
+        assert StreamProtocol("ws") == StreamProtocol.WS
+        assert StreamProtocol("sse") == StreamProtocol.SSE

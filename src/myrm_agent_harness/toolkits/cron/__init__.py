@@ -11,8 +11,8 @@ Provides:
 - ShellJobRunner: built-in runner for shell-type jobs
 - InMemoryCronStore: built-in in-memory store for development and testing
 - WebhookDelivery: built-in webhook delivery with HMAC signing
-- Protocols: CronStore, JobRunner, ResultDelivery, ConcurrencyLock, TriggerProvider
-- Triggers: EventTrigger, SystemEventTrigger, WebhookTrigger, PollTrigger
+- Protocols: CronStore, JobRunner, ResultDelivery, ConcurrencyLock, TriggerProvider, StreamListener
+- Triggers: EventTrigger, SystemEventTrigger, WebhookTrigger, PollTrigger, StreamTrigger
 
 
 [INPUT]
@@ -30,9 +30,9 @@ Provides:
 [OUTPUT]
 - CronScheduler, CronManager: core scheduling components
 - Heartbeat utilities: enable_heartbeat, disable_heartbeat, get_heartbeat_status, etc.
-- Protocols: CronStore, JobRunner, ResultDelivery, ConcurrencyLock, TriggerProvider
+- Protocols: CronStore, JobRunner, ResultDelivery, ConcurrencyLock, TriggerProvider, StreamListener
 - Built-in implementations: ShellJobRunner, InMemoryCronStore, WebhookDelivery
-- Triggers: EventTrigger, SystemEventTrigger, WebhookTrigger, PollTrigger, TriggerConfig
+- Triggers: EventTrigger, SystemEventTrigger, WebhookTrigger, PollTrigger, StreamTrigger, TriggerConfig
 - Situation Report: SituationSection, SituationReportBuilder, SituationContext
 - Types: CronJob, CronJobPatch, CronConfig, JobStatus, JobType, ScheduleKind, etc.
 
@@ -57,6 +57,7 @@ from myrm_agent_harness.toolkits.cron.protocols import (
     CronStore,
     JobRunner,
     ResultDelivery,
+    StreamListener,
     TriggerProvider,
 )
 from myrm_agent_harness.toolkits.cron.runners import RouterJobRunner, ShellJobRunner
@@ -69,6 +70,8 @@ from myrm_agent_harness.toolkits.cron.stores import InMemoryCronStore
 from myrm_agent_harness.toolkits.cron.triggers import (
     EventTrigger,
     PollTrigger,
+    StreamProtocol,
+    StreamTrigger,
     SystemEventTrigger,
     TriggerConfig,
     TriggerKind,
@@ -125,6 +128,9 @@ __all__ = [
     "SessionTarget",
     "ShellJobRunner",
     "SituationContext",
+    "StreamListener",
+    "StreamProtocol",
+    "StreamTrigger",
     "SituationReportBuilder",
     "SituationSection",
     "SystemEventTrigger",

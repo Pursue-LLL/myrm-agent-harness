@@ -200,7 +200,7 @@ def is_file_url(url: str) -> bool:
 # SSRF 防护
 # ============================================================================
 
-SSRF_ALLOWED_SCHEMES = frozenset({"http", "https"})
+SSRF_ALLOWED_SCHEMES = frozenset({"http", "https", "ws", "wss"})
 
 SSRF_BLOCKED_HOSTNAMES = frozenset(
     {

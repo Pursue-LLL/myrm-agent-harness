@@ -482,7 +482,7 @@ class TestScheduleBuilder:
     @pytest.mark.asyncio
     async def test_add_no_schedule_param(self, tool) -> None:
         result = await tool.ainvoke({"action": "add", "prompt": "test"})
-        assert "Provide one of" in result
+        assert "Provide a schedule" in result
 
     @pytest.mark.asyncio
     async def test_add_multiple_schedule_params(self, tool) -> None:

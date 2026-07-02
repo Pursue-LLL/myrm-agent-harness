@@ -1,8 +1,8 @@
 """Trigger type definitions and security helpers.
 
-Provides data models for 6 trigger kinds (cron, event, system_event,
-webhook, poll, manual), ``TriggerConfig`` (container for per-job trigger
-rules), and security utilities (SSRF protection, ReDoS prevention,
+Provides data models for 7 trigger kinds (cron, event, system_event,
+webhook, poll, stream, manual), ``TriggerConfig`` (container for per-job
+trigger rules), and security utilities (SSRF protection, ReDoS prevention,
 constant-time HMAC comparison).
 
 Concrete trigger matching and dispatching is implemented by the application
@@ -12,11 +12,12 @@ layer via the ``TriggerProvider`` protocol in ``protocols.py``.
 - (none)
 
 [OUTPUT]
-- TriggerKind: Fires when an incoming message matches a regex pattern.
-- EventTrigger: class — Event Trigger
+- TriggerKind: Enum of all supported trigger kinds.
+- EventTrigger: Fires when an incoming message matches a regex pattern.
 - SystemEventTrigger: Fires on structured system events (e.g. GitHub webhook pa...
 - WebhookTrigger: Fires when an HTTP request hits the job's webhook endpoint.
 - PollTrigger: Periodically fetches a URL and fires when the content cha...
+- StreamTrigger: Listens on an outbound WS/SSE long connection and fires ...
 
 [POS]
 Trigger type definitions and security helpers.
@@ -40,7 +41,15 @@ class TriggerKind(StrEnum):
     SYSTEM_EVENT = "system"
     WEBHOOK = "webhook"
     POLL = "poll"
+    STREAM = "stream"
     MANUAL = "manual"
+
+
+class StreamProtocol(StrEnum):
+    """Wire protocol for outbound stream connections."""
+
+    WS = "ws"
+    SSE = "sse"
 
 
 # ---------------------------------------------------------------------------
@@ -98,6 +107,30 @@ class PollTrigger:
     change_detection: bool = True
 
 
+@dataclass(frozen=True, slots=True)
+class StreamTrigger:
+    """Listens on an outbound WS/SSE long connection and fires on matching events.
+
+    The Agent establishes an **outbound** connection from the local/sandbox
+    network to ``url``, enabling real-time event monitoring even behind NAT
+    (no public IP required — unlike ``WebhookTrigger``).
+
+    ``filter_json_path`` extracts a value from each incoming message via a
+    JSONPath expression (e.g. ``$.data.price``).
+    ``filter_regex`` is matched against the extracted value (or the raw
+    message if no json_path is set). Only matching events fire the job.
+
+    ``headers`` supplies custom headers for the initial HTTP handshake
+    (e.g. ``Authorization`` for authenticated streams).
+    """
+
+    url: str
+    protocol: StreamProtocol = StreamProtocol.WS
+    filter_json_path: str | None = None
+    filter_regex: str | None = None
+    headers: dict[str, str] = field(default_factory=dict)
+
+
 # ---------------------------------------------------------------------------
 # TriggerConfig — per-job trigger rules container
 # ---------------------------------------------------------------------------
@@ -115,6 +148,8 @@ class TriggerConfig:
     webhooks: tuple[WebhookTrigger, ...] = ()
     events: tuple[EventTrigger, ...] = ()
     system_events: tuple[SystemEventTrigger, ...] = ()
+    polls: tuple[PollTrigger, ...] = ()
+    streams: tuple[StreamTrigger, ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +171,27 @@ def trigger_config_to_dict(tc: TriggerConfig | None) -> dict[str, list[dict[str,
     if tc.system_events:
         d["system_events"] = [
             {"source": s.source, "event_type": s.event_type, "filters": s.filters} for s in tc.system_events
+        ]
+    if tc.polls:
+        d["polls"] = [
+            {
+                "url": p.url,
+                "json_path": p.json_path,
+                "interval_seconds": p.interval_seconds,
+                "change_detection": p.change_detection,
+            }
+            for p in tc.polls
+        ]
+    if tc.streams:
+        d["streams"] = [
+            {
+                "url": s.url,
+                "protocol": s.protocol.value,
+                "filter_json_path": s.filter_json_path,
+                "filter_regex": s.filter_regex,
+                "headers": s.headers if s.headers else None,
+            }
+            for s in tc.streams
         ]
     return d if d else None
 
@@ -168,9 +224,34 @@ def dict_to_trigger_config(d: dict[str, list[dict[str, object]]] | None) -> Trig
         )
         for s in d.get("system_events", [])
     )
+    polls = tuple(
+        PollTrigger(
+            url=str(p["url"]),
+            json_path=str(p["json_path"]) if p.get("json_path") else None,
+            interval_seconds=int(p.get("interval_seconds", 300)),  # type: ignore[arg-type]
+            change_detection=bool(p.get("change_detection", True)),
+        )
+        for p in d.get("polls", [])
+    )
+    streams = tuple(
+        StreamTrigger(
+            url=str(st["url"]),
+            protocol=StreamProtocol(str(st.get("protocol", "ws"))),
+            filter_json_path=str(st["filter_json_path"]) if st.get("filter_json_path") else None,
+            filter_regex=str(st["filter_regex"]) if st.get("filter_regex") else None,
+            headers=dict(st.get("headers", {})) if st.get("headers") else {},  # type: ignore[arg-type]
+        )
+        for st in d.get("streams", [])
+    )
 
-    tc = TriggerConfig(webhooks=webhooks, events=events, system_events=system_events)
-    if not tc.webhooks and not tc.events and not tc.system_events:
+    tc = TriggerConfig(
+        webhooks=webhooks,
+        events=events,
+        system_events=system_events,
+        polls=polls,
+        streams=streams,
+    )
+    if not tc.webhooks and not tc.events and not tc.system_events and not tc.polls and not tc.streams:
         return None
     return tc
 

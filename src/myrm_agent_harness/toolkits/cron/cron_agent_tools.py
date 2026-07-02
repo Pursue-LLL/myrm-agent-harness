@@ -33,6 +33,12 @@ from langchain_core.tools import BaseTool, tool
 from myrm_agent_harness.infra.incremental.types import MonitorConfig
 from myrm_agent_harness.toolkits.cron.engine.name_generator import generate_job_name
 from myrm_agent_harness.toolkits.cron.engine.parser import describe_schedule
+from myrm_agent_harness.toolkits.cron.triggers import (
+    PollTrigger,
+    StreamProtocol,
+    StreamTrigger,
+    TriggerConfig,
+)
 from myrm_agent_harness.toolkits.cron.types import (
     ActiveHours,
     CronJobPatch,
@@ -131,6 +137,14 @@ def create_cron_tools(
         monitor_type: str = "",
         monitor_enabled: bool = False,
         session_mode: str = "",
+        stream_url: str = "",
+        stream_protocol: str = "",
+        stream_filter_json_path: str = "",
+        stream_filter_regex: str = "",
+        stream_headers: str = "",
+        poll_url: str = "",
+        poll_json_path: str = "",
+        poll_interval_seconds: int = 0,
     ) -> str:
         """Manage scheduled tasks (create, list, update, delete, trigger, pause, resume).
 
@@ -213,6 +227,25 @@ def create_cron_tools(
                     (good for monitoring/polling within a conversation).
                 "daily" — same-day executions share context; fresh each day
                     (good for daily briefings that build up during the day).
+            stream_url: WebSocket or SSE endpoint URL for real-time event monitoring.
+                Enables outbound streaming from local/desktop networks (no public IP
+                needed). E.g. "wss://stream.binance.com:9443/ws/btcusdt@ticker".
+                When set, also provide a schedule param as fallback timing.
+            stream_protocol: Protocol for stream_url. "ws" (WebSocket) or "sse"
+                (Server-Sent Events). Defaults to "ws".
+            stream_filter_json_path: JSONPath expression to extract a value from each
+                stream message. E.g. "$.data.price". Optional.
+            stream_filter_regex: Regex to match against the extracted value (or raw
+                message if no json_path). Only matching events fire the task. Optional.
+            stream_headers: JSON object of custom HTTP headers for the stream
+                connection. E.g. '{"Authorization": "Bearer xxx"}'. Optional.
+            poll_url: URL to periodically fetch for change detection. Enables
+                polling trigger for services without streaming APIs.
+                E.g. "https://api.github.com/repos/user/repo/commits?sha=main".
+            poll_json_path: JSONPath to extract a sub-field from poll responses.
+                E.g. "$.0.sha" for the latest commit SHA. Optional.
+            poll_interval_seconds: Polling interval in seconds (minimum 60, default 300).
+                Only used when poll_url is set.
         """
         effective_model = model.strip() or current_model
 
@@ -279,6 +312,14 @@ def create_cron_tools(
                 monitor_type=monitor_type,
                 monitor_enabled=monitor_enabled,
                 session_mode=session_mode,
+                stream_url=stream_url,
+                stream_protocol=stream_protocol,
+                stream_filter_json_path=stream_filter_json_path,
+                stream_filter_regex=stream_filter_regex,
+                stream_headers=stream_headers,
+                poll_url=poll_url,
+                poll_json_path=poll_json_path,
+                poll_interval_seconds=poll_interval_seconds,
                 resolve_delivery=_resolve_delivery,
             ),
             "list": lambda: _do_list(manager, user_id, name_filter),
@@ -386,6 +427,8 @@ def _build_active_hours(start: str, end: str, active_tz: str) -> ActiveHours | N
     return ActiveHours(start=start.strip(), end=end.strip(), tz=active_tz.strip() or "UTC")
 
 
+_MIN_POLL_INTERVAL_SECONDS = 60
+_VALID_STREAM_PROTOCOLS = {"ws", "sse"}
 _VALID_MONITOR_TYPES = {"set", "hash", "timeseries"}
 
 
@@ -447,6 +490,67 @@ def _parse_session_mode(raw: str) -> tuple[str | None, SessionTarget]:
     return None, target
 
 
+def _build_trigger_config(
+    stream_url: str,
+    stream_protocol: str,
+    stream_filter_json_path: str,
+    stream_filter_regex: str,
+    stream_headers: str,
+    poll_url: str,
+    poll_json_path: str,
+    poll_interval_seconds: int,
+) -> tuple[str | None, TriggerConfig | None]:
+    """Build TriggerConfig from stream/poll tool parameters.
+
+    Returns (error_msg, TriggerConfig).  Both None when neither is specified.
+    """
+    streams: tuple[StreamTrigger, ...] = ()
+    polls: tuple[PollTrigger, ...] = ()
+
+    if stream_url.strip():
+        proto_str = stream_protocol.strip().lower() or "ws"
+        if proto_str not in _VALID_STREAM_PROTOCOLS:
+            valid = ", ".join(sorted(_VALID_STREAM_PROTOCOLS))
+            return f"Invalid stream_protocol '{stream_protocol}'. Must be one of: {valid}.", None
+
+        headers: dict[str, str] = {}
+        if stream_headers.strip():
+            try:
+                headers = json.loads(stream_headers)
+            except (json.JSONDecodeError, TypeError):
+                return "Error: stream_headers must be valid JSON object.", None
+
+        streams = (
+            StreamTrigger(
+                url=stream_url.strip(),
+                protocol=StreamProtocol(proto_str),
+                filter_json_path=stream_filter_json_path.strip() or None,
+                filter_regex=stream_filter_regex.strip() or None,
+                headers=headers,
+            ),
+        )
+
+    if poll_url.strip():
+        interval = poll_interval_seconds if poll_interval_seconds > 0 else 300
+        if interval < _MIN_POLL_INTERVAL_SECONDS:
+            return (
+                f"poll_interval_seconds must be >= {_MIN_POLL_INTERVAL_SECONDS}.",
+                None,
+            )
+        polls = (
+            PollTrigger(
+                url=poll_url.strip(),
+                json_path=poll_json_path.strip() or None,
+                interval_seconds=interval,
+            ),
+        )
+
+    if not streams and not polls:
+        return None, None
+
+    return None, TriggerConfig(streams=streams, polls=polls)
+
+
 async def _do_add(
     mgr: CronManager,
     user_id: str,
@@ -472,6 +576,14 @@ async def _do_add(
     monitor_type: str = "",
     monitor_enabled: bool = False,
     session_mode: str = "",
+    stream_url: str = "",
+    stream_protocol: str = "",
+    stream_filter_json_path: str = "",
+    stream_filter_regex: str = "",
+    stream_headers: str = "",
+    poll_url: str = "",
+    poll_json_path: str = "",
+    poll_interval_seconds: int = 0,
     *,
     resolve_delivery: DeliveryResolver,
 ) -> str:
@@ -483,17 +595,39 @@ async def _do_add(
     if not has_prompt and not has_command:
         return "Either prompt or command is required."
 
-    err, schedule = _build_schedule(cron_expr, every_minutes, at, tz)
-    if err or not schedule:
-        return err or "Schedule build failed."
+    has_stream_or_poll = bool(stream_url.strip()) or bool(poll_url.strip())
+    has_schedule = any([cron_expr, every_minutes > 0, at])
 
-    is_recurring = schedule.kind in (ScheduleKind.CRON, ScheduleKind.INTERVAL)
-    if is_recurring and not recurring_confirmed:
-        return (
-            "Recurring schedules (cron_expr or every_minutes) require "
-            "recurring_confirmed=true to prevent accidental creation. "
-            "For one-time reminders, use 'at' instead."
-        )
+    if not has_schedule and not has_stream_or_poll:
+        return "Provide a schedule (cron_expr/every_minutes/at) or a trigger (stream_url/poll_url)."
+
+    schedule: Schedule | None = None
+    if has_schedule:
+        err, schedule = _build_schedule(cron_expr, every_minutes, at, tz)
+        if err or not schedule:
+            return err or "Schedule build failed."
+
+        is_recurring = schedule.kind in (ScheduleKind.CRON, ScheduleKind.INTERVAL)
+        if is_recurring and not recurring_confirmed:
+            return (
+                "Recurring schedules (cron_expr or every_minutes) require "
+                "recurring_confirmed=true to prevent accidental creation. "
+                "For one-time reminders, use 'at' instead."
+            )
+
+    if not has_schedule and has_stream_or_poll:
+        schedule = Schedule(kind=ScheduleKind.INTERVAL, interval_ms=_MIN_INTERVAL_MINUTES * 60_000)
+
+    if schedule is None:
+        return "Schedule build failed."
+
+    trig_err, trigger_config = _build_trigger_config(
+        stream_url, stream_protocol, stream_filter_json_path,
+        stream_filter_regex, stream_headers, poll_url, poll_json_path,
+        poll_interval_seconds,
+    )
+    if trig_err:
+        return trig_err
 
     if has_command:
         job_type = JobType.SHELL
@@ -540,6 +674,7 @@ async def _do_add(
             expires_at=expires_at,
             context_from=parsed_context_from,
             monitor_config=monitor_config,
+            triggers=trigger_config,
         )
     except ValueError as exc:
         return str(exc)
@@ -565,6 +700,11 @@ async def _do_add(
         result["context_from"] = list(job.context_from)
     if job.monitor_config and job.monitor_config.enabled:
         result["monitor"] = job.monitor_config.monitor_type
+    if trigger_config:
+        if trigger_config.streams:
+            result["stream"] = trigger_config.streams[0].url
+        if trigger_config.polls:
+            result["poll"] = trigger_config.polls[0].url
 
     return json.dumps(result, ensure_ascii=False)
 

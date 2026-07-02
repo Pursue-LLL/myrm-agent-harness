@@ -1,12 +1,13 @@
 """Protocols for the cron toolkit.
 
-Five contracts that the application layer must satisfy:
+Six contracts that the application layer must satisfy:
 
 - ``CronStore``        — persistence (17 methods, unified for scheduler & manager)
 - ``JobRunner``        — execute a single job and produce a ``JobResult``
 - ``ResultDelivery``   — push results to the user via some channel
 - ``ConcurrencyLock``  — optional lock for cross-process coordination (Leader election)
 - ``TriggerProvider``  — optional event/webhook/poll trigger matching
+- ``StreamListener``   — optional outbound stream (WS/SSE) lifecycle management
 
 [INPUT]
 - infra.incremental.types::MonitorState (POS: Domain types for incremental monitoring.)
@@ -17,6 +18,7 @@ Five contracts that the application layer must satisfy:
 - ResultDelivery: Delivers job results to the user via their configured cha...
 - ConcurrencyLock: Optional lock for leader election or cross-process coordi...
 - TriggerProvider: Optional trigger provider for event-driven job execution.
+- StreamListener: Manages outbound WS/SSE stream connections for real-time ...
 
 [POS]
 Protocols for the cron toolkit.
@@ -24,11 +26,13 @@ Protocols for the cron toolkit.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Coroutine
 from datetime import datetime
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from myrm_agent_harness.infra.incremental.types import MonitorState
+    from myrm_agent_harness.toolkits.cron.triggers import StreamTrigger
     from myrm_agent_harness.toolkits.cron.types import CronJob, CronRunRecord, JobResult
 
 
@@ -315,4 +319,65 @@ class TriggerProvider(Protocol):
         payload: dict[str, object],
     ) -> CronJob | None:
         """Validate and return the job matching the webhook path + secret."""
+        ...
+
+
+# ---------------------------------------------------------------------------
+# StreamListener — outbound stream (WS/SSE) lifecycle management
+# ---------------------------------------------------------------------------
+
+StreamEventCallback = Callable[[str, str, str], Coroutine[None, None, None]]
+"""Async callback ``(job_id, trigger_url, matched_payload) -> None``.
+
+Invoked by the ``StreamListener`` implementation when a stream event
+matches the trigger's filter criteria.  The application layer wires this
+to ``JobExecutor.fire(job, context=matched_payload)``.
+"""
+
+
+@runtime_checkable
+class StreamListener(Protocol):
+    """Manages outbound WS/SSE stream connections for real-time event triggers.
+
+    The application layer implements this protocol to maintain persistent
+    outbound connections that listen for events matching ``StreamTrigger``
+    configurations.  This enables real-time monitoring even behind NAT
+    (Local WebUI, Tauri desktop) where inbound webhooks are impossible.
+
+    Lifecycle: ``start_stream`` when a job with ``StreamTrigger`` is created
+    or activated, ``stop_stream`` on delete/pause, ``stop_all`` on shutdown.
+    """
+
+    async def start_stream(
+        self,
+        job_id: str,
+        trigger: StreamTrigger,
+        on_event: StreamEventCallback,
+    ) -> None:
+        """Establish an outbound stream connection for the given trigger.
+
+        The implementation must handle reconnection with exponential backoff,
+        heartbeat/ping for connection health, and filter matching (json_path +
+        regex) before invoking ``on_event``.
+
+        Raises ``ValueError`` if the ``trigger.url`` fails SSRF validation.
+        """
+        ...
+
+    async def stop_stream(self, job_id: str) -> None:
+        """Tear down the stream connection for the given job.
+
+        No-op if no active stream exists for ``job_id``.
+        """
+        ...
+
+    async def stop_all(self) -> None:
+        """Tear down all active stream connections (graceful shutdown)."""
+        ...
+
+    def active_streams(self) -> dict[str, str]:
+        """Return ``{job_id: stream_url}`` for all active connections.
+
+        Used by the frontend status indicator and health checks.
+        """
         ...
