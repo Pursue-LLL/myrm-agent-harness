@@ -149,6 +149,8 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
             "browser_extract_tool",
             "browser_inspect_tool",
             "browser_local_search_tool",
+            "browser_execute_script_tool",
+            "browser_ask_human_tool",
         }
     ),
     "file_ops": frozenset(
@@ -215,6 +217,17 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
     "planning": frozenset({"planner_tool"}),
     "task_tracking": frozenset({"update_execution_checklist_tool"}),
     "answer_tool": frozenset({"request_answer_user_tool"}),
+    "canvas": frozenset(
+        {
+            "canvas_get_state",
+            "canvas_get_selection",
+            "canvas_insert_element",
+        }
+    ),
+    "render_ui": frozenset({"render_ui_tool"}),
+    "image_generation": frozenset({"image_tool"}),
+    "video_generation": frozenset({"video_tool"}),
+    "tts": frozenset({"tts_generate"}),
 }
 
 TOOL_TO_GROUP: dict[str, str] = {tool: group for group, tools in TOOL_GROUP_MAP.items() for tool in tools}

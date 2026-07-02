@@ -53,12 +53,13 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # ============================================================
     # CORE - 始终加载且不可关闭(放最前面,永远缓存)
     # 仅包含真正无条件存在、不受用户配置影响的工具
+    # (当前无 unconditional CORE 工具 — web_fetch 随 enable_web_search 加载)
     # ============================================================
-    "web_fetch_tool": ToolLayer.CORE,
     # ============================================================
     # COMMON - 默认开启但受用户配置控制(放中间)
     # 大多数场景启用,用户可通过 GUI enabled_builtin_tools 开关控制
     # ============================================================
+    "web_fetch_tool": ToolLayer.COMMON,
     "request_answer_user_tool": ToolLayer.COMMON,
     "bash_code_execute_tool": ToolLayer.COMMON,
     # Background-process companions of bash_code_execute_tool. Opt-in (only
