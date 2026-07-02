@@ -84,9 +84,12 @@ class CapacitySnapshot:
 
 
 # Global registry mapping task_id to the SubagentManager that spawned it.
+# ACTIVE_SUBAGENT_SESSIONS mirrors spawn session_id for REST list after parent stream ends.
 # This allows Server API to find and control background subagents
 # without needing complex session lifecycle binding.
 ACTIVE_SUBAGENTS: weakref.WeakValueDictionary[str, SubagentManager] = weakref.WeakValueDictionary()
+# Strong map task_id -> spawn session_id so REST list works after parent stream ends.
+ACTIVE_SUBAGENT_SESSIONS: dict[str, str] = {}
 
 
 def _emit_global_subagent_event(event_name: str, task_id: str, session_id: str, data: SubagentLifecycleData) -> None:
@@ -366,6 +369,7 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
         self._children.pop(task_id, None)
         self._children_steering.pop(task_id, None)
         ACTIVE_SUBAGENTS.pop(task_id, None)  # Remove from global registry
+        ACTIVE_SUBAGENT_SESSIONS.pop(task_id, None)
         self._purge_expired_results()
 
         # Cleanup file conflict tracking data for completed subagent

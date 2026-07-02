@@ -284,7 +284,15 @@ class SubagentSpawnMixin:
         task.add_done_callback(lambda t: self._cleanup_child(task_id, t))  # type: ignore[attr-defined]
 
         session_id = str(context.get("session_id", "")) if context else ""
+        if not session_id:
+            parent_ctx = getattr(self._parent_agent, "_last_context", None)
+            if isinstance(parent_ctx, dict):
+                session_id = str(parent_ctx.get("session_id", "") or "")
+
         if session_id:
+            from .manager import ACTIVE_SUBAGENT_SESSIONS
+
+            ACTIVE_SUBAGENT_SESSIONS[task_id] = session_id
             from myrm_agent_harness.agent.coordination.mailbox import register_active_teammate
 
             workspace_path = str(context.get("workspace_path", "") or "") or None
