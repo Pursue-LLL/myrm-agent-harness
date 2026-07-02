@@ -6,6 +6,7 @@
 
 [OUTPUT]
 - merge_active_subagent_children: deduped active rows for one session_id
+- cancel_active_children_for_session: cancel all running children for one session_id via registry
 
 [POS]
 Server REST/SSE subagent tree uses the same registry as cancel_subagent when the parent agent session is gone.
@@ -102,3 +103,24 @@ def merge_active_subagent_children(
             merged[task_id] = row
 
     return list(merged.values())
+
+
+def cancel_active_children_for_session(session_id: str) -> int:
+    """Cancel all running children for session_id via ACTIVE_SUBAGENTS (no gateway required)."""
+    candidates = _session_id_candidates(session_id)
+    if not candidates:
+        return 0
+
+    seen_managers: set[int] = set()
+    cancelled = 0
+
+    for task_id, manager in list(ACTIVE_SUBAGENTS.items()):
+        if _task_session_id(task_id, manager) not in candidates:
+            continue
+        manager_key = id(manager)
+        if manager_key in seen_managers:
+            continue
+        seen_managers.add(manager_key)
+        cancelled += manager.cancel_all()
+
+    return cancelled

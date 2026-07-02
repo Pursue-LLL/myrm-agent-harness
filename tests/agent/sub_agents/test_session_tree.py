@@ -10,6 +10,7 @@ from myrm_agent_harness.agent.sub_agents.manager import (
     SubagentManager,
 )
 from myrm_agent_harness.agent.sub_agents.session_tree import (
+    cancel_active_children_for_session,
     list_active_children_from_registry,
     merge_active_subagent_children,
 )
@@ -128,3 +129,31 @@ def test_merge_active_subagent_children_registry_when_gateway_empty() -> None:
         assert merged[0]["task_id"] == "bg-1"
     finally:
         ACTIVE_SUBAGENTS.pop("bg-1", None)
+
+
+def test_cancel_active_children_for_session_cancels_matching_managers() -> None:
+    session_id = "chat-cancel-all"
+    manager_a = MagicMock(spec=SubagentManager)
+    manager_a._parent_agent = MagicMock(session_id=session_id)
+    manager_a.cancel_all.return_value = 2
+
+    manager_b = MagicMock(spec=SubagentManager)
+    manager_b._parent_agent = MagicMock(session_id="other-session")
+    manager_b.cancel_all.return_value = 1
+
+    ACTIVE_SUBAGENTS["task-a1"] = manager_a
+    ACTIVE_SUBAGENTS["task-a2"] = manager_a
+    ACTIVE_SUBAGENTS["task-b1"] = manager_b
+    try:
+        cancelled = cancel_active_children_for_session(session_id)
+        assert cancelled == 2
+        manager_a.cancel_all.assert_called_once()
+        manager_b.cancel_all.assert_not_called()
+    finally:
+        ACTIVE_SUBAGENTS.pop("task-a1", None)
+        ACTIVE_SUBAGENTS.pop("task-a2", None)
+        ACTIVE_SUBAGENTS.pop("task-b1", None)
+
+
+def test_cancel_active_children_for_session_returns_zero_when_no_match() -> None:
+    assert cancel_active_children_for_session("missing-session") == 0
