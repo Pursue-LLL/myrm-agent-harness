@@ -33,3 +33,17 @@ def test_collect_activated_includes_session_spawn() -> None:
     activate_session_deferred_tool("chat-9", "bash_process_tool")
     names = collect_activated_native_tool_names([], session_id="chat-9")
     assert "bash_process_tool" in names
+
+
+def test_activate_ignores_empty_session_or_tool() -> None:
+    activate_session_deferred_tool("", "bash_process_tool")
+    activate_session_deferred_tool("chat-1", "")
+    assert get_session_deferred_tool_names("chat-1") == frozenset()
+
+
+def test_get_and_clear_ignore_empty_session_id() -> None:
+    assert get_session_deferred_tool_names("") == frozenset()
+    clear_session_deferred_tools("")
+    activate_session_deferred_tool("chat-1", "bash_process_tool")
+    clear_session_deferred_tools("")
+    assert get_session_deferred_tool_names("chat-1") == frozenset({"bash_process_tool"})
