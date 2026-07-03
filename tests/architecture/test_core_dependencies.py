@@ -1,4 +1,4 @@
-"""Architecture gate: core vs optional dependency layering (core slimdown)."""
+"""Architecture gate: core vs optional dependency layering."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _PYPROJECT = _REPO_ROOT / "pyproject.toml"
 _UV_LOCK = _REPO_ROOT / "uv.lock"
 
-# Packages moved out of core during slimdown — must never re-enter [project].dependencies.
+# Must remain out of [project].dependencies — each maps to an extra or dev group.
 _MOVED_FROM_CORE: dict[str, str] = {
     "sqlalchemy": "dev",
     "prometheus-client": "observability",
@@ -76,17 +76,17 @@ def _lock_core_dependency_names() -> set[str]:
 
 
 @pytest.mark.architecture
-def test_core_dependencies_exclude_slimdown_packages() -> None:
+def test_core_dependencies_exclude_optional_only_packages() -> None:
     """Core deps must not include packages relegated to extras or dev groups."""
     data = _load_pyproject()
     core = _core_dependency_names(data)
     for pkg in _MOVED_FROM_CORE:
-        assert pkg not in core, f"{pkg} must not be a core dependency (slimdown regression)"
+        assert pkg not in core, f"{pkg} must not be a core dependency"
 
 
 @pytest.mark.architecture
-def test_slimdown_packages_live_in_expected_extras_or_dev() -> None:
-    """Moved packages must remain reachable via the documented install surface."""
+def test_optional_only_packages_live_in_expected_extras_or_dev() -> None:
+    """Optional-only packages must remain reachable via documented install surfaces."""
     data = _load_pyproject()
     for pkg, target in _MOVED_FROM_CORE.items():
         if target == "dev":
@@ -99,7 +99,7 @@ def test_slimdown_packages_live_in_expected_extras_or_dev() -> None:
 
 @pytest.mark.architecture
 def test_core_dependency_count_is_stable() -> None:
-    """Lock core footprint: 24 runtime packages after slimdown (was 28)."""
+    """Lock core footprint: 24 runtime packages in [project].dependencies."""
     data = _load_pyproject()
     core = _core_dependency_names(data)
     assert len(core) == 24

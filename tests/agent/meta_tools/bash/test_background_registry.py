@@ -525,3 +525,49 @@ async def test_shutdown_uses_process_group_kill_for_living_children() -> None:
         f"shutdown must SIGKILL only the still-running pid via group kill; "
         f"got {killed_pids}"
     )
+
+
+@pytest.mark.asyncio
+async def test_list_processes_without_session_returns_all() -> None:
+    """Unfiltered list must include every registered session."""
+    registry = BackgroundProcessRegistry()
+    proc_a = _FakeProc(pid=17001, stdout=[], stderr=[])
+    proc_b = _FakeProc(pid=17002, stdout=[], stderr=[])
+    await registry.register(cast(AsyncProcessProtocol, proc_a), command="a", session_id="sess-a")
+    await registry.register(cast(AsyncProcessProtocol, proc_b), command="b", session_id="sess-b")
+
+    listed = registry.list_processes()
+    pids = {row.pid for row in listed}
+    assert pids == {17001, 17002}
+
+
+def test_get_output_unknown_pid_returns_empty_snapshot() -> None:
+    registry = BackgroundProcessRegistry()
+    out = registry.get_output(99999, since_cursor=5)
+    assert out == {
+        "stdout": [],
+        "stderr": [],
+        "next_cursor": 5,
+        "dropped": False,
+    }
+
+
+@pytest.mark.asyncio
+async def test_kill_non_running_pid_is_noop_success() -> None:
+    registry = BackgroundProcessRegistry()
+    proc = _FakeProc(pid=18001, stdout=[], stderr=[])
+    await registry.register(cast(AsyncProcessProtocol, proc), command="echo done", session_id="done-s")
+    proc.finish(0)
+    await asyncio.sleep(0.05)
+
+    ok = await registry.kill(18001)
+    assert ok is True
+
+
+def test_get_background_registry_returns_singleton() -> None:
+    from myrm_agent_harness.agent.meta_tools.bash import _background_registry as mod
+
+    mod._registry = None
+    first = mod.get_background_registry()
+    second = mod.get_background_registry()
+    assert first is second

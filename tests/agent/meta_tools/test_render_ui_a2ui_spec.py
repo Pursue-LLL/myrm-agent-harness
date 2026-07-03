@@ -133,13 +133,14 @@ class TestRenderUiSuccessAndEdges:
             events = registry.pop_pending_events()
             assert len(events[0].actions) == 1
 
-    def test_render_outside_artifact_context_still_returns_message(self) -> None:
+    def test_render_outside_artifact_context_returns_error(self) -> None:
         result = render_ui(
             title="No Context",
             components=[{"id": "t", "type": "text", "props": {"text": "x"}}],
             root_ids=["t"],
         )
-        assert "No Context" in result
+        assert result.startswith("Failed to render UI")
+        assert "registry is not initialized" in result
 
     def test_render_ui_returns_error_on_unexpected_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
         def _boom(*_args: object, **_kwargs: object) -> None:
@@ -178,15 +179,6 @@ class TestRenderUiFailClosed:
         with ArtifactContextManager():
             result = render_ui(title="Empty", components=[], root_ids=[])
             assert "components must not be empty" in result
-
-    def test_missing_registry_returns_error(self) -> None:
-        result = render_ui(
-            title="No context",
-            components=[{"id": "t1", "type": "text", "props": {"text": "hi"}}],
-            root_ids=["t1"],
-        )
-        assert result.startswith("Failed to render UI")
-        assert "registry is not initialized" in result
 
     def test_slim_docstring_under_token_budget(self) -> None:
         doc = render_ui.__doc__ or ""
