@@ -89,3 +89,46 @@ async def test_self_healer_cursor_roles():
     # For CURSOR_ROLES, we use page.locator with a CSS selector
     page.locator.assert_called_once()
     assert "a, button, input" in page.locator.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_self_healer_text_content_exception():
+    """When text_content raises, healed_name should be None but locator still returned."""
+    page = AsyncMock(spec=Page)
+    ref_info = RefInfo(
+        role="button", name="Save", nth=0,
+        bbox=BBox(x=10, y=10, width=80, height=30, centerX=50, centerY=25,
+                  viewport_x=10, viewport_y=10, viewport_width=1920, viewport_height=1080),
+    )
+    mock_candidates = AsyncMock(spec=Locator)
+    mock_candidates.evaluate_all.return_value = [0, 5.0]
+    mock_healed = AsyncMock(spec=Locator)
+    mock_healed.text_content.side_effect = TimeoutError("detached")
+    mock_candidates.nth.return_value = mock_healed
+    page.get_by_role.return_value = mock_candidates
+
+    loc, name, dist = await SelfHealer.heal(page, ref_info)
+
+    assert loc is mock_healed
+    assert name is None
+    assert dist == 5.0
+
+
+@pytest.mark.asyncio
+async def test_self_healer_evaluate_all_exception():
+    """When JS evaluation itself throws, heal returns (None, None, 0.0)."""
+    page = AsyncMock(spec=Page)
+    ref_info = RefInfo(
+        role="link", name="Home", nth=0,
+        bbox=BBox(x=20, y=20, width=60, height=20, centerX=50, centerY=30,
+                  viewport_x=20, viewport_y=20, viewport_width=1920, viewport_height=1080),
+    )
+    mock_candidates = AsyncMock(spec=Locator)
+    mock_candidates.evaluate_all.side_effect = RuntimeError("page crashed")
+    page.get_by_role.return_value = mock_candidates
+
+    loc, name, dist = await SelfHealer.heal(page, ref_info)
+
+    assert loc is None
+    assert name is None
+    assert dist == 0.0
