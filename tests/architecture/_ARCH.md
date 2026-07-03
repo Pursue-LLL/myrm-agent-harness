@@ -42,6 +42,7 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | `test_types_reexport.py` | Gate | `backends/skills/types.py` `__all__` 聚合 re-export 完整性 | — |
 | `test_validate_arch_inventory.py` | Gate | `_ARCH.md` 文件表 vs 同级 `.py` 一致性（table-only 解析）；含 agent/ 与全 harness subprocess gate | — |
 | `test_readme_claims.py` | Gate | README 声明与实际代码/性能基准一致性校验 | — |
+| `test_core_dependencies.py` | Gate | core vs optional/dev 分层：slimdown 移出项不得回潮；uv.lock core 与 pyproject 对齐 | — |
 
 ## 运行
 

@@ -179,6 +179,15 @@ class TestRenderUiFailClosed:
             result = render_ui(title="Empty", components=[], root_ids=[])
             assert "components must not be empty" in result
 
+    def test_missing_registry_returns_error(self) -> None:
+        result = render_ui(
+            title="No context",
+            components=[{"id": "t1", "type": "text", "props": {"text": "hi"}}],
+            root_ids=["t1"],
+        )
+        assert result.startswith("Failed to render UI")
+        assert "registry is not initialized" in result
+
     def test_slim_docstring_under_token_budget(self) -> None:
         doc = render_ui.__doc__ or ""
         assert len(doc) < 2200

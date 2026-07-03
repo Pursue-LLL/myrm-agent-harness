@@ -25,6 +25,7 @@ and the intent-aware search parameter optimizer.
 ## Key Dependencies
 
 - `utils`
+- `[retrieval]` extra — `engine.py` uses `TextChunker` from `toolkits/retriever/splitter/` for precision search chunking (`langchain-text-splitters` is not a core dep)
 
 ## Intent-Aware Search Flow
 

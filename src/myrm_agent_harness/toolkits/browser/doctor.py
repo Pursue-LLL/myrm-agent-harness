@@ -87,6 +87,27 @@ def _check_patchright() -> DoctorCheckResult:
         )
 
 
+def _check_camoufox() -> DoctorCheckResult:
+    """Check if camoufox is installed (stealth ladder fallback)."""
+    try:
+        import camoufox
+
+        version = getattr(camoufox, "__version__", "unknown")
+        return DoctorCheckResult(
+            name="camoufox",
+            status=CheckStatus.OK,
+            message=f"camoufox {version} installed",
+            details={"version": version},
+        )
+    except (ImportError, TypeError):
+        return DoctorCheckResult(
+            name="camoufox",
+            status=CheckStatus.WARNING,
+            message="camoufox not installed (stealth auto-upgrade unavailable)",
+            fix="uv add 'camoufox[async]' or pip install 'myrm-agent-harness[browser]'",
+        )
+
+
 def _check_browser_executable(executable_path_str: str = "") -> DoctorCheckResult:
     """Check if browser executable exists and is executable."""
     executable_path_str = executable_path_str.strip()
@@ -412,6 +433,7 @@ async def run_doctor(
     checks: dict[str, DoctorCheckResult] = {}
 
     checks["patchright"] = _check_patchright()
+    checks["camoufox"] = _check_camoufox()
     checks["browser_executable"] = _check_browser_executable(browser_executable_path)
     checks["memory"] = _check_memory()
     checks["disk"] = _check_disk()

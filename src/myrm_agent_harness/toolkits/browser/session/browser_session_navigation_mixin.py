@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import NoReturn
 
 from myrm_agent_harness.toolkits.browser.captcha.protocols import CaptchaHandleResult
+from myrm_agent_harness.toolkits.browser.exceptions import BrowserLaunchError
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +45,7 @@ def _clear_engine_affinity_for_url(url: str) -> None:
         get_engine_affinity_store().clear(domain)
 
 
-def _camoufox_launch_tool_error(exc: Exception) -> None:
+def _camoufox_launch_tool_error(exc: BrowserLaunchError) -> NoReturn:
     from myrm_agent_harness.utils.errors import ToolError
 
     raise ToolError(
@@ -137,12 +139,13 @@ class BrowserSessionNavigationMixin:
                     self._engine_preference = remembered
                     try:
                         await self.restart(engine=remembered.value, restore_url=False)
-                    except Exception as exc:
-                        from myrm_agent_harness.toolkits.browser.exceptions import BrowserLaunchError
-
+                    except BrowserLaunchError as exc:
                         get_engine_affinity_store().clear(domain)
-                        if remembered == BrowserEngine.FIREFOX_CAMOUFOX and isinstance(exc, BrowserLaunchError):
+                        if remembered == BrowserEngine.FIREFOX_CAMOUFOX:
                             _camoufox_launch_tool_error(exc)
+                        raise
+                    except Exception:
+                        get_engine_affinity_store().clear(domain)
                         raise
 
         max_attempts = 3
@@ -209,16 +212,15 @@ class BrowserSessionNavigationMixin:
                             f"CAPTCHA not resolved with {current_engine.value}. Auto-upgrading to CAMOUFOX and retrying..."
                         )
                         await self.notify_progress(
-                            "Detected advanced anti-bot protection. Upgrading browser engine to stealth mode..."
+                            "Detected advanced anti-bot protection. Switching to enhanced stealth mode..."
                         )
                         try:
                             await self.restart(engine=BrowserEngine.FIREFOX_CAMOUFOX.value, restore_url=False)
-                        except Exception as exc:
-                            from myrm_agent_harness.toolkits.browser.exceptions import BrowserLaunchError
-
+                        except BrowserLaunchError as exc:
                             _clear_engine_affinity_for_url(url)
-                            if isinstance(exc, BrowserLaunchError):
-                                _camoufox_launch_tool_error(exc)
+                            _camoufox_launch_tool_error(exc)
+                        except Exception:
+                            _clear_engine_affinity_for_url(url)
                             raise
                         navigator = self._require_navigator()
                         snapshot_manager = self._require_snapshot_manager()

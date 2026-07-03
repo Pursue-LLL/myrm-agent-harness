@@ -141,15 +141,18 @@ def render_ui(
         )
 
         registry = get_ui_registry()
-        if registry:
-            registry.add_ui(ui_artifact)
-            logger.warning(
-                "UI artifact registered: %s (surface_id=%s)",
-                title,
-                ui_artifact.surface_id,
+        if registry is None:
+            return (
+                "Failed to render UI: UI registry is not initialized. "
+                "Call render_ui only within an active artifact context."
             )
-        else:
-            logger.warning("UI Registry not initialized, UI artifact will be lost")
+
+        registry.add_ui(ui_artifact)
+        logger.warning(
+            "UI artifact registered: %s (surface_id=%s)",
+            title,
+            ui_artifact.surface_id,
+        )
 
         return f"已向用户展示交互式界面：「{title}」。用户可以在界面上进行操作，操作结果将自动反馈给我。"
 
