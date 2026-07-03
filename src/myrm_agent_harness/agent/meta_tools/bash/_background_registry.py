@@ -303,11 +303,7 @@ class BackgroundProcessRegistry:
                 if entry.info.session_id == session_id and entry.info.status == "running"
             ]
         if not targets:
-            from myrm_agent_harness.agent.meta_tools.bash.background_deferred_activation import (
-                clear_session_deferred_tools,
-            )
-
-            clear_session_deferred_tools(session_id)
+            self._maybe_clear_session_deferred_tools(session_id)
             return 0
 
         results = await asyncio.gather(
@@ -323,12 +319,25 @@ class BackgroundProcessRegistry:
                 len(targets),
                 grace_seconds,
             )
+        self._maybe_clear_session_deferred_tools(session_id)
+        return killed
+
+    def _maybe_clear_session_deferred_tools(self, session_id: str | None) -> None:
+        """Drop deferred AutoMount when a session has no running shell jobs."""
+        if not session_id:
+            return
+        with self._lock:
+            has_running = any(
+                entry.info.session_id == session_id and entry.info.status == "running"
+                for entry in self._entries.values()
+            )
+        if has_running:
+            return
         from myrm_agent_harness.agent.meta_tools.bash.background_deferred_activation import (
             clear_session_deferred_tools,
         )
 
         clear_session_deferred_tools(session_id)
-        return killed
 
     async def _consume(self, entry: _Entry) -> None:
         from myrm_agent_harness.agent.meta_tools.bash._background_progress import (
@@ -416,6 +425,7 @@ class BackgroundProcessRegistry:
                         entry.info.pid,
                         exc,
                     )
+            self._maybe_clear_session_deferred_tools(entry.info.session_id)
             self._schedule_reap(entry.info.pid)
 
     def _schedule_reap(self, pid: int) -> None:
