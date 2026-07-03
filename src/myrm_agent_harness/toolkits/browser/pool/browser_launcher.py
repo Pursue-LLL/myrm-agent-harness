@@ -378,7 +378,9 @@ class BrowserLauncher:
                         from camoufox.utils import launch_options as build_camoufox_options
                     except ImportError as e:
                         raise BrowserLaunchError(
-                            "camoufox is not installed. Please install it with: pip install camoufox[async]"
+                            "camoufox is not installed. "
+                            "Install the browser extra: pip install 'myrm-agent-harness[browser]' "
+                            "(includes camoufox[async])"
                         ) from e
 
                     fp_file = self._fingerprint_dir / "camoufox_fingerprint.json" if self._fingerprint_dir else None
@@ -477,6 +479,11 @@ class BrowserLauncher:
         error_msg = f"Failed to create Browser after 3 attempts: {last_exc}"
         if last_exc and _is_executable_missing(last_exc):
             error_msg = _build_install_failure_message(last_exc)
+        elif self._engine == BrowserEngine.FIREFOX_CAMOUFOX:
+            error_msg = (
+                f"Camoufox stealth engine failed to launch after 3 attempts: {last_exc}. "
+                "Ensure camoufox is installed: pip install 'myrm-agent-harness[browser]'"
+            )
         logger.error(error_msg)
         raise BrowserLaunchError(error_msg) from last_exc
 

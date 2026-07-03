@@ -18,9 +18,20 @@ Provides detect_code_language, split_large_code_block, protect_code_blocks.
 import logging
 import re
 
-from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
-
 logger = logging.getLogger(__name__)
+
+_RETRIEVAL_INSTALL_HINT = (
+    "langchain-text-splitters is required for code-aware splitting. "
+    "Install with: pip install 'myrm-agent-harness[retrieval]'"
+)
+
+
+def _get_langchain_splitters():
+    try:
+        from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
+    except ImportError as exc:
+        raise ImportError(_RETRIEVAL_INSTALL_HINT) from exc
+    return Language, RecursiveCharacterTextSplitter
 
 # 语言映射表（映射 to langchain Language枚举）
 LANGUAGE_MAP = {
@@ -195,6 +206,7 @@ def split_large_code_block(code_content: str, language: str, max_tokens: int = 2
         return _split_by_lines(code_content, max_tokens)
 
     try:
+        Language, RecursiveCharacterTextSplitter = _get_langchain_splitters()
         splitter = RecursiveCharacterTextSplitter.from_language(
             language=Language[lang_key.upper()],
             chunk_size=max_tokens,

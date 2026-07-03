@@ -3,7 +3,7 @@
 [INPUT]
 - langchain_core.tools::tool
 - myrm_agent_harness.agent.artifacts::UIArtifact, get_ui_registry
-- myrm_agent_harness.agent.meta_tools.interaction.a2ui_spec::format_validation_error
+- myrm_agent_harness.agent.meta_tools.interaction.a2ui_spec::format_validation_error, parse_reference_allowed_types (POS: A2UI spec SSOT helpers)
 
 [OUTPUT]
 - render_ui_tool: LangChain tool that creates a UIArtifact from declarative JSON.

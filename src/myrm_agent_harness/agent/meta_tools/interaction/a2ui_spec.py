@@ -1,7 +1,21 @@
-"""A2UI component reference helpers — SSOT for allowed types and bundled spec."""
+"""A2UI component reference helpers — SSOT for allowed types and bundled spec.
+
+[INPUT]
+- myrm_agent_harness.agent.artifacts.ui_artifact::UIComponentType (POS: UI 组件类型安全白名单枚举)
+
+[OUTPUT]
+- allowed_component_type_names: canonical type strings from enum
+- parse_reference_allowed_types: types declared in bundled reference markdown
+- get_bundled_reference_content / seed_reference_to_workspace: packaged spec + workspace copy
+- format_validation_error: fail-closed ToolMessage for invalid component types
+
+[POS]
+A2UI spec SSOT helpers. Keeps enum, bundled markdown, and slim tool docstrings aligned.
+"""
 
 from __future__ import annotations
 
+import re
 from importlib.resources import files
 from pathlib import Path
 
@@ -20,6 +34,32 @@ def allowed_component_type_names() -> tuple[str, ...]:
 def format_allowed_types_line() -> str:
     """One-line whitelist for slim tool docstrings."""
     return ", ".join(allowed_component_type_names())
+
+
+def parse_reference_allowed_types(content: str | None = None) -> tuple[str, ...]:
+    """Parse allowed component types from bundled reference markdown header."""
+    text = content if content is not None else get_bundled_reference_content()
+    blockquote_lines: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("> Allowed types"):
+            blockquote_lines.append(stripped.removeprefix(">").strip())
+            continue
+        if blockquote_lines and stripped.startswith(">"):
+            blockquote_lines.append(stripped.removeprefix(">").strip())
+            continue
+        if blockquote_lines:
+            break
+
+    if not blockquote_lines:
+        return ()
+
+    header_text = " ".join(blockquote_lines)
+    match = re.search(r":\s*(.+)$", header_text)
+    if not match:
+        return ()
+
+    return tuple(token.strip() for token in match.group(1).split(",") if token.strip())
 
 
 def format_validation_error(invalid_types: list[str]) -> str:

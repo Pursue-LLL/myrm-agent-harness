@@ -46,20 +46,15 @@ dependencies = [
   # --- 监控与可观测性 (仅保留轻量级 API，SDK 移至 optional) ---
   "opentelemetry-api>=1.43.0",
   # --- Cron 定时任务 ---
-  "croniter>=6.2.2", # Cron 表达式解析与计算
-  # --- 检索器（基础） ---
-  "langchain-text-splitters>=1.1.2", # 代码感知文本分块
+  "croniter>=6.2.3", # Cron 表达式解析与计算
   # --- 网页爬取与内容提取（基础） ---
   "beautifulsoup4>=4.15.0", # HTML DOM 解析与清洗（ContentPruningFilter）
   "lxml>=6.1.1",            # bs4 lxml parser (content_pruning + tree_truncator)
   # --- Agent 协议与基础设施 ---
-  "agent-client-protocol>=0.10.1", # ACP 协议 SDK (Agent 间通信)
-  "filelock>=3.29.4",             # 跨进程文件锁 (Skill 并发控制)
-  "mcp>=1.28.1",                  # MCP 协议 SDK (Server transport)
-  "watchdog>=6.0.0",              # 文件系统变更监控 (backends/skills/watcher.py)
-  "prometheus-client>=0.25.0",    # Prometheus 指标采集 (observability/metrics + infra/tracing)
-  "sqlalchemy>=2.0.51",
-  "pdfplumber>=0.11.10", # PDF 文本+表格提取 (file_parsers + file_read_tool; pypdfium2 在 [file-parsers])
+  "filelock>=3.29.5",  # 跨进程文件锁 (Skill 并发控制)
+  "mcp>=1.28.1",       # MCP 协议 SDK (Server transport)
+  "watchdog>=6.0.0",   # 文件系统变更监控 (backends/skills/watcher.py)
+  "pdfplumber>=0.11.10", # PDF 文本+表格提取 (file_read_tool CORE; pypdfium2 由 pdfplumber 传递依赖)
 ]
 
 [project.urls]
@@ -71,8 +66,9 @@ verify-harness-distribution = "myrm_agent_harness._verify_distribution:main"
 [project.optional-dependencies]
 # toolkits/browser/ - 浏览器自动化（需要 Patchright）
 browser = [
-  "patchright>=1.60.1", # CDP 泄露修补浏览器引擎
-  "orjson>=3.11.9",     # session vault / persistence JSON (browser toolkit only)
+  "patchright>=1.60.1",   # CDP 泄露修补浏览器引擎
+  "camoufox[async]>=0.4.11", # Firefox stealth fallback (auto-upgrade ladder)
+  "orjson>=3.11.9",       # session vault / persistence JSON (browser toolkit only)
 ]
 # toolkits/vector/ - 向量存储（Qdrant 嵌入式/远程）
 qdrant = [
@@ -80,11 +76,16 @@ qdrant = [
 ]
 # toolkits/retriever/ - 高级检索功能（中文分词、向量检索、稀疏检索）
 retrieval = [
+  "langchain-text-splitters>=1.1.2", # 代码感知文本分块 (retriever/splitter/code_utils.py)
   "numpy>=2.5.0",     # embedding 序列化 + BM25 数值计算
   "tenacity>=9.1.4",  # cloud embedding retries
   "jieba>=0.42.1",    # 中文分词 (BM25 tokenizer)
   "nltk>=3.9.4",      # 英文分词/词干提取/停用词
   "rank-bm25>=0.2.2", # BM25 稀疏检索算法
+]
+# toolkits/acp/ - ACP 协议（外部 Agent 委托 + ACP Server）
+acp = [
+  "agent-client-protocol>=0.10.1",
 ]
 # utils/media/image_compressor - PNG 量化压缩（延迟导入，失败回退 Pillow）
 image-processing = [
@@ -100,9 +101,8 @@ web = [
   "youtube-transcript-api>=1.2.4",   # YouTube 字幕提取 (youtube_extractor; HTML fallback when missing)
 ]
 
-# toolkits/file_parsers/ - Office/PDF 渲染扩展（pdfplumber 已在 core dependencies）
+# toolkits/file_parsers/ - Office 扩展（pdfplumber + pypdfium2 已在 core / pdfplumber 传递依赖）
 file-parsers = [
-  "pypdfium2>=5.10.1",   # PDF 页面渲染为图片 (图片回退)
   "python-docx>=1.2.0", # Word 文档解析
   "openpyxl>=3.1.5",    # Excel 文件读写
   "python-pptx>=1.0.2", # PowerPoint 文档解析
@@ -114,9 +114,10 @@ fastapi = [
 
 # 全链路追踪与指标 (SaaS 级监控)
 observability = [
+  "prometheus-client>=0.25.0",
   "opentelemetry-sdk>=1.43.0",
   "opentelemetry-exporter-otlp-proto-grpc>=1.43.0",
-  "openinference-instrumentation-langchain>=0.1.66",
+  "openinference-instrumentation-langchain>=0.1.67",
 ]
 compiled-core = [
 # BEGIN compiled-core (generated — do not edit)
@@ -135,7 +136,7 @@ compiled-core-musl = [
 # END compiled-core-musl
 ]
 all = [
-  "myrm-agent-harness[browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,web]",
+  "myrm-agent-harness[acp,browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,web]",
 ]
 
 [tool.uv]
@@ -328,6 +329,7 @@ dev = [
   "ruff>=0.15.18",                   # Linter + Formatter
   "mypy>=2.1.0",                    # 静态类型检查
   "aiosqlite>=0.22.1",               # SQLite async driver (for checkpoint tests)
+  "sqlalchemy>=2.0.51",              # migration_engine unit tests
   "respx>=0.23.1",                   # HTTPX mock
   "scikit-learn>=1.9.0",             # ML utilities (test)
   "types-aiofiles>=25.1.0.20251011", # Type stubs

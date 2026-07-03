@@ -22,6 +22,40 @@ from myrm_agent_harness.toolkits.browser.captcha.protocols import CaptchaHandleR
 
 logger = logging.getLogger(__name__)
 
+_CAMOUFOX_INSTALL_HINT = (
+    "Camoufox stealth engine is unavailable. "
+    "Install the browser stack: pip install 'myrm-agent-harness[browser]' "
+    "(includes camoufox[async]). Retry navigation after install."
+)
+
+
+def _domain_from_url(url: str) -> str:
+    from urllib.parse import urlparse
+
+    return urlparse(url).netloc
+
+
+def _clear_engine_affinity_for_url(url: str) -> None:
+    domain = _domain_from_url(url)
+    if domain:
+        from myrm_agent_harness.toolkits.browser.pool.engine_affinity import get_engine_affinity_store
+
+        get_engine_affinity_store().clear(domain)
+
+
+def _camoufox_launch_tool_error(exc: Exception) -> None:
+    from myrm_agent_harness.utils.errors import ToolError
+
+    raise ToolError(
+        message=f"Camoufox stealth engine unavailable: {exc}",
+        user_hint=_CAMOUFOX_INSTALL_HINT,
+        error_code="BROWSER_CAMOUFOX_UNAVAILABLE",
+        recovery_suggestions=[
+            "Install myrm-agent-harness[browser] and retry",
+            "Use Chromium (Patchright) for sites without advanced anti-bot",
+        ],
+    ) from exc
+
 
 class BrowserSessionNavigationMixin:
     async def new_tab(self, url: str | None = None) -> str:
@@ -92,6 +126,7 @@ class BrowserSessionNavigationMixin:
         if self._engine_preference is None:
             from urllib.parse import urlparse
 
+            from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine
             from myrm_agent_harness.toolkits.browser.pool.engine_affinity import get_engine_affinity_store
 
             domain = urlparse(url).netloc
@@ -100,7 +135,15 @@ class BrowserSessionNavigationMixin:
                 if remembered is not None:
                     logger.info("Engine affinity hit for %s → %s", domain, remembered.value)
                     self._engine_preference = remembered
-                    await self.restart(engine=remembered.value, restore_url=False)
+                    try:
+                        await self.restart(engine=remembered.value, restore_url=False)
+                    except Exception as exc:
+                        from myrm_agent_harness.toolkits.browser.exceptions import BrowserLaunchError
+
+                        get_engine_affinity_store().clear(domain)
+                        if remembered == BrowserEngine.FIREFOX_CAMOUFOX and isinstance(exc, BrowserLaunchError):
+                            _camoufox_launch_tool_error(exc)
+                        raise
 
         max_attempts = 3
         attempt = 0
@@ -168,7 +211,15 @@ class BrowserSessionNavigationMixin:
                         await self.notify_progress(
                             "Detected advanced anti-bot protection. Upgrading browser engine to stealth mode..."
                         )
-                        await self.restart(engine=BrowserEngine.FIREFOX_CAMOUFOX.value, restore_url=False)
+                        try:
+                            await self.restart(engine=BrowserEngine.FIREFOX_CAMOUFOX.value, restore_url=False)
+                        except Exception as exc:
+                            from myrm_agent_harness.toolkits.browser.exceptions import BrowserLaunchError
+
+                            _clear_engine_affinity_for_url(url)
+                            if isinstance(exc, BrowserLaunchError):
+                                _camoufox_launch_tool_error(exc)
+                            raise
                         navigator = self._require_navigator()
                         snapshot_manager = self._require_snapshot_manager()
                         page = self._tab_controller.get_active_page()
@@ -193,6 +244,7 @@ class BrowserSessionNavigationMixin:
                         from urllib.parse import urlparse
 
                         domain = urlparse(url).netloc
+                        _clear_engine_affinity_for_url(url)
                         self._terminal_challenges[domain] = _time.monotonic()
                         logger.warning(
                             "Terminal challenge recorded for domain %s (%s)",

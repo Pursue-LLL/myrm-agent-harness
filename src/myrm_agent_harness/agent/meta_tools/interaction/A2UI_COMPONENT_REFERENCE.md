@@ -1,7 +1,6 @@
 # A2UI Component Reference
 
-> Allowed types (must match harness `UIComponentType`):  
-> text, button, button_group, text_field, textarea, select, date_picker, time_picker, slider, checkbox, radio, switch, container, card, divider, grid, tabs, table, list, image, chart, progress, badge
+> Allowed types (must match harness `UIComponentType`): text, button, button_group, text_field, textarea, select, date_picker, time_picker, slider, checkbox, radio, switch, container, card, divider, grid, tabs, table, list, image, chart, progress, badge
 
 Load this file via `file_read_tool` before building complex UI (table, chart, tabs, multi-step forms).
 

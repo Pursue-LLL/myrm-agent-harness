@@ -18,15 +18,31 @@ Zero-ops stateful SQLite migration engine. Provides version tracking, precise ti
 checksum verification, and baseline initialization for Agent-in-Sandbox architectures.
 """
 
+from __future__ import annotations
+
 import hashlib
 import logging
 import time
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncEngine
 
 logger = logging.getLogger(__name__)
+
+_SQLALCHEMY_INSTALL_HINT = (
+    "sqlalchemy is required for StatefulMigrationEngine. "
+    "Install with: pip install sqlalchemy  # or uv sync --group dev"
+)
+
+
+def _sql_text(sql: str):
+    try:
+        from sqlalchemy import text
+    except ImportError as exc:
+        raise ImportError(_SQLALCHEMY_INSTALL_HINT) from exc
+    return text(sql)
 
 
 _IDEMPOTENT_ERROR_FRAGMENTS: tuple[str, ...] = (
@@ -106,7 +122,7 @@ class StatefulMigrationEngine:
         """Create the state table if it doesn't exist. Returns True if newly created."""
         check_sql = "SELECT name FROM sqlite_master WHERE type='table' AND name=:name"
         async with self.engine.connect() as conn:
-            result = await conn.execute(text(check_sql), {"name": self.table_name})
+            result = await conn.execute(_sql_text(check_sql), {"name": self.table_name})
             exists = result.scalar() is not None
 
         if not exists:
@@ -119,7 +135,7 @@ class StatefulMigrationEngine:
             )
             """
             async with self.engine.begin() as conn:
-                await conn.execute(text(create_sql))
+                await conn.execute(_sql_text(create_sql))
             return True
         return False
 
@@ -129,7 +145,7 @@ class StatefulMigrationEngine:
             return False
         try:
             async with self.engine.connect() as conn:
-                result = await conn.execute(text(self.baseline_check_sql))
+                result = await conn.execute(_sql_text(self.baseline_check_sql))
                 return result.scalar() is not None
         except Exception as exc:
             logger.debug("Baseline check failed: %s", exc)
@@ -152,7 +168,10 @@ class StatefulMigrationEngine:
                     INSERT INTO {self.table_name} (version, duration_ms, checksum)
                     VALUES (:version, 0, :checksum)
                     """
-                    await conn.execute(text(insert_sql), {"version": m.version, "checksum": "baselined:" + checksum})
+                    await conn.execute(
+                        _sql_text(insert_sql),
+                        {"version": m.version, "checksum": "baselined:" + checksum},
+                    )
             report.skipped_count = len(migrations)
             report.baselined = True
             report.total_duration_ms = (time.time() - total_start) * 1000
@@ -161,7 +180,7 @@ class StatefulMigrationEngine:
         # Fetch already applied migrations
         applied_versions: dict[int, str] = {}
         async with self.engine.connect() as conn:
-            result = await conn.execute(text(f"SELECT version, checksum FROM {self.table_name}"))
+            result = await conn.execute(_sql_text(f"SELECT version, checksum FROM {self.table_name}"))
             for row in result:
                 applied_versions[row[0]] = row[1]
 
@@ -185,7 +204,7 @@ class StatefulMigrationEngine:
             start_time = time.time()
             try:
                 async with self.engine.begin() as conn:
-                    await conn.execute(text(m.sql))
+                    await conn.execute(_sql_text(m.sql))
                     duration_ms = (time.time() - start_time) * 1000
                     checksum = self._compute_checksum(m.sql)
                     insert_sql = f"""
@@ -193,7 +212,7 @@ class StatefulMigrationEngine:
                     VALUES (:version, :duration_ms, :checksum)
                     """
                     await conn.execute(
-                        text(insert_sql),
+                        _sql_text(insert_sql),
                         {"version": m.version, "duration_ms": duration_ms, "checksum": checksum},
                     )
 
@@ -217,7 +236,7 @@ class StatefulMigrationEngine:
                         VALUES (:version, :duration_ms, :checksum)
                         """
                         await conn.execute(
-                            text(insert_sql),
+                            _sql_text(insert_sql),
                             {
                                 "version": m.version,
                                 "duration_ms": duration_ms,

@@ -530,15 +530,17 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 - **点击延迟**：在 `click` 和 `dblclick` 动作中引入随机的按下/抬起延迟（50-150ms），模拟真实鼠标点击。
 - **动态超时自适应**：根据文本长度和随机延迟动态计算 `timeout`，防止因拟人化延迟导致 Playwright 内部超时崩溃。
 
-**反检测验证**：
+**反检测验证**（内部基准，非全站保证；高强度站点可能仍需自动升级到 Camoufox）：
 
-| 检测系统 | 标准 Playwright | Patchright |
-|---------|----------------|-----------|
-| BrowserScan | ❌ 检测到 | ✅ 通过 |
-| Fingerprint.com | ❌ 检测到 | ✅ 通过 |
-| CreepJS | ❌ 100% headless | ✅ 0% headless |
-| Cloudflare | ❌ 拦截 | ✅ 通过 |
-| DataDome | ❌ 拦截 | ✅ 通过 |
+| 检测系统 | 标准 Playwright | Patchright（默认） | Camoufox（自动升级） |
+|---------|----------------|-------------------|---------------------|
+| BrowserScan | ❌ 检测到 | ✅ 多数通过 | ✅ 更强指纹伪装 |
+| Fingerprint.com | ❌ 检测到 | ✅ 多数通过 | ✅ Firefox 指纹池 |
+| CreepJS | ❌ 100% headless | ✅ 显著改善 | ✅ 非 headless 信号 |
+| Cloudflare | ❌ 常拦截 | ⚠️ 部分通过 | ✅ 自动升级目标 |
+| DataDome | ❌ 常拦截 | ⚠️ 部分通过 | ✅ 自动升级目标 |
+
+**Stealth Ladder**：默认 Patchright → CAPTCHA/反爬失败时自动升级 Camoufox → 仍失败则 Terminal Challenge（不再重试）。
 
 **生产验证域名**：
 - 微信公众号 (mp.weixin.qq.com)
