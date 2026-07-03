@@ -11,6 +11,19 @@
 3. **高安全**：URL scheme 白名单验证、四层纵深域名过滤（覆盖 Worker）、加密 Session 存储、审批机制与语义否决（Semantic Veto）。
 4. **高可靠**：双引擎反爬机制（Patchright/Camoufox）、智能重试、精细化错误处理。
 
+### 已登录站点与内网访问
+
+产品**不读取**用户 OS 级 Chrome/Edge `History` 或 `Bookmarks` 数据库（无 Agent 工具、无 server 服务）。
+
+| 场景 | 路径 | 层 |
+|------|------|-----|
+| 复用用户 Chrome 登录态（JIRA、内网等） | Agent 配置 `browser_source=extension` → Extension Bridge CDP 代理 | server `services/extension/` |
+| 手动登录后跨会话保持 | `SessionVault` 加密保存 Cookies/Storage；`browser_manage` 保存/恢复 | harness `session/` + server `browser_vault` |
+| Agent 跨引擎共享登录态 | SessionVault 注入 CrawlEngine / HttpFetcher | harness `navigation.py` |
+| 找回「跟 Agent 聊过的 URL」 | `memory_recall_tool` / opt-in `conversation_search_tool` | harness memory + server adapter |
+
+Extension Bridge 与 SessionVault 覆盖竞品（orca/holaboss）cookie 导入的核心收益，且无需读取 OS 浏览器数据库。
+
 ---
 
 ## 系统架构

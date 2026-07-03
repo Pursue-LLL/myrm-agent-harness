@@ -54,7 +54,6 @@ coverage_report/
 htmlcov*/
 .browsers/
 # Runtime browser profile cache — must not live inside toolkits/ source tree
-src/myrm_agent_harness/toolkits/local_browser_data/
 myrm-agent-server/
 .benchmarks/
 scratch/

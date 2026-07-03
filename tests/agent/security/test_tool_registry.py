@@ -51,6 +51,22 @@ class TestBuiltinToolNames:
         assert "render_ui_tool" in BUILTIN_TOOL_NAMES
 
 
+class TestRemovedOsBrowserHistoryTool:
+    """Regression: OS History/Bookmarks search is not an Agent tool."""
+
+    def test_not_in_permission_map(self) -> None:
+        assert "browser_local_search_tool" not in TOOL_PERMISSION_MAP
+
+    def test_not_in_browser_tool_group(self) -> None:
+        from myrm_agent_harness.core.security.tool_registry import TOOL_GROUP_MAP
+
+        browser_tools = TOOL_GROUP_MAP["browser"]
+        assert "browser_local_search_tool" not in browser_tools
+
+    def test_not_in_safety_metadata(self) -> None:
+        assert "browser_local_search_tool" not in TOOL_SAFETY_METADATA
+
+
 class TestResolvePermissionType:
     def test_mapped_tool_returns_permission_type(self):
         assert resolve_permission_type("bash_code_execute_tool") == "code_interpreter"

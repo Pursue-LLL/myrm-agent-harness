@@ -100,7 +100,7 @@ Only Python toolkit **packages** belong as direct children of `toolkits/` (each 
 
 | Allowed | Forbidden |
 |---------|-----------|
-| Named toolkit packages (`browser/`, `mcp/`, …) | Runtime/cache dirs (`local_browser_data/`, `__pycache__/`) |
+| Named toolkit packages (`browser/`, `mcp/`, …) | Runtime/cache dirs (`__pycache__/`) |
 | Root docs and package marker files (see note below) | Vendor integration packages (see vendor boundary test) |
 
 Root-level files beside toolkit packages: `_ARCH.md`, `SECURITY_WRAPPER_GUIDE.md`, and the package `__init__.py`.

@@ -117,7 +117,7 @@ class ToolLayer(IntEnum):
 | 定时任务工具 | 启用 Cron | cron_manage_tool | ~827 |
 | Wiki 工具 | 有 Wiki 目录 | wiki_query, wiki_ingest, ... (4个) | ~250 |
 | 子 Agent 工具 | 有子 Agent 配置 | delegate_task_tool, batch_delegate_tasks_tool, send_teammate_message_tool, steer_subagent_tool, ... (8个) | ~411 |
-| UI 渲染工具 | enable_render_ui | render_ui_tool | ~1,254 |
+| UI 渲染工具 | enable_render_ui | render_ui_tool | ~400 |
 | Goal 工具 | Goal 模式 | get_goal_status_tool, update_goal_status_tool | ~247 |
 | 看板工具 | 启用看板 | kanban_show, kanban_complete, kanban_add_task, ... (15个) | - |
 
@@ -302,7 +302,7 @@ const staleCoreSkills = useMemo(() => {
 | 定时任务工具 | 启用 Cron | 1 | ~827 |
 | Wiki 工具 | 有 Wiki 目录 | 4 | ~250 |
 | 子 Agent 工具 | 有子 Agent 配置 | 8 | ~411 |
-| UI 渲染工具 | enable_render_ui | 1 | ~1,254 |
+| UI 渲染工具 | enable_render_ui | 1 | ~400 |
 | 看板工具 | 启用看板 | 15 | - |
 
 ### 7.3 按需加载 (On-Demand Load)
