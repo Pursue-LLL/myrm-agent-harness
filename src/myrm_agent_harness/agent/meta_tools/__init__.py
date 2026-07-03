@@ -5,7 +5,7 @@
 - file_ops::create_file_read_tool, create_file_write_tool, create_file_edit_tool (POS: 文件操作工具创建函数)
 - file_search::create_glob_tool, create_grep_tool (POS: 文件搜索工具创建函数)
 - skills.select::create_select_skill_tool (POS: 技能选择工具创建函数)
-- discover_capability::create_discover_capability_tool (POS: 统一能力发现网关)
+- discover_capability::sync_discover_capability_tool (POS: 统一能力发现网关，由 SkillAgent 调用)
 - skills.discovery::create_skill_discovery_tool (POS: 外部技能发现工具创建函数)
 - skills.manage::create_skill_manage_tool (POS: 技能管理工具创建函数)
 - spawn_subagent::create_delegate_task_tool (POS: Subagent 委托工具创建函数)
@@ -52,9 +52,7 @@ from .bash import (
     create_bash_process_output_tool,
     create_bash_code_execute_tool,
 )
-from .discover_capability.discover_capability_tool import (
-    create_discover_capability_tool,
-)
+
 from .file_ops import (
     create_file_edit_tool,
     create_file_read_tool,
@@ -116,6 +114,7 @@ def get_meta_tools(
     Args:
         skills: 可用的技能列表
         skill_backend: 技能后端(用于 skill_select_tool)
+        registry: ToolRegistry（必填；deferred 工具与 discover 索引 SSOT）
         discovery_backend: 技能发现后端(用于 skill_discovery_tool)
         write_backend: 技能写入后端(用于 skill_manage_tool, ScanningSkillWriteBackend)
         embedding_config: Embedding 配置(可选, 用于语义搜索)
@@ -130,6 +129,12 @@ def get_meta_tools(
     from myrm_agent_harness.backends.skills.types import skill_visible_for_tools
 
     logger = logging.getLogger(__name__)
+
+    if registry is None:
+        raise TypeError(
+            "get_meta_tools requires a ToolRegistry instance; deferred tools and "
+            "discover_capability_tool register exclusively via registry."
+        )
 
     # --- Conditional skill filtering based on agent's tool capabilities ---
     if skills and (available_tool_names is not None or available_tool_groups is not None):
@@ -294,52 +299,27 @@ def get_meta_tools(
     if skill_discovery_pending is not None:
         _deferred_tools.append(skill_discovery_pending)
 
-    if registry is not None:
-        from myrm_agent_harness.agent.tool_management.types import ToolSource
+    from myrm_agent_harness.agent.tool_management.types import ToolSource
 
-        for dt in _deferred_tools:
-            registry.register(dt, source=ToolSource.META, deferred=True)
+    for dt in _deferred_tools:
+        registry.register(dt, source=ToolSource.META, deferred=True)
+    if _deferred_tools:
         logger.info(
             " %d 个低频工具已注册为 deferred: %s",
             len(_deferred_tools),
             [t.name for t in _deferred_tools],
         )
-    else:
-        tools.extend(_deferred_tools)
-        logger.info(
-            " %d 个低频工具直接加载 (无 registry): %s",
-            len(_deferred_tools),
-            [t.name for t in _deferred_tools],
-        )
 
-    # discover_capability_tool SSOT: when registry is provided, SkillAgent calls
-    # sync_discover_capability_tool() after all deferred/middleware tools register.
+    # discover_capability_tool SSOT: SkillAgent calls sync_discover_capability_tool()
+    # after all deferred/middleware tools register.
     discoverable_skills = [s for s in skills if s.model_invocable] if skills else []
-    if registry is not None:
-        deferred_count = len(registry.get_deferred_tools())
-        if discoverable_skills or deferred_count:
-            logger.info(
-                " discover_capability_tool deferred to sync_discover_capability_tool "
-                "(deferred工具: %d, 可搜索技能: %d)",
-                deferred_count,
-                len(discoverable_skills),
-            )
-        else:
-            logger.info(" discover_capability_tool 未加载(无可搜索技能且无deferred工具)")
-    elif discoverable_skills or _deferred_tools:
-        discover_capability_tool = create_discover_capability_tool(
-            registry=None,
-            skills=discoverable_skills or None,
-            embedding_config=embedding_config,
-            cache=embedding_cache,
-        )
-        tools.append(discover_capability_tool)
-        search_mode = "混合(BM25+Embedding+RRF)" if embedding_config is not None else "BM25"
-        cache_status = "+缓存" if embedding_cache is not None and embedding_config is not None else ""
+    deferred_count = len(registry.get_deferred_tools())
+    if discoverable_skills or deferred_count:
         logger.info(
-            " 统一能力发现网关 discover_capability 已加载 (无 registry, 模式: %s%s)",
-            search_mode,
-            cache_status,
+            " discover_capability_tool deferred to sync_discover_capability_tool "
+            "(deferred工具: %d, 可搜索技能: %d)",
+            deferred_count,
+            len(discoverable_skills),
         )
     else:
         logger.info(" discover_capability_tool 未加载(无可搜索技能且无deferred工具)")

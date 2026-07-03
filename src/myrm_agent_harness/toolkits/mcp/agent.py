@@ -25,10 +25,13 @@ Provides MCP tool fetching capabilities:
 - agent.streaming.types::AgentEventType (POS: Framework-agnostic streaming event types)
 - utils.runtime.progress_sink::get_tool_progress_sink (POS: Runtime tool progress event sink)
 - core.security.detection.content_boundary::wrap_untrusted (POS: 5-layer content boundary defense for MCP tool outputs)
+- runtime.events::get_event_bus (POS: Framework event bus for cross-layer communication)
+- runtime.events.system_events::MCPAuthExpiredEvent (POS: System-level event for MCP auth expiry notification)
+- httpx::HTTPStatusError (POS: HTTP status error for 401 auth detection)
 - langchain_mcp_adapters (POS: MCP adapter library)
 
 [OUTPUT]
-- MCPAgent: MCP tool fetching, server mapping, content block coercion (file/audio/unknown→text), multimodal result normalization, content boundary defense (wrap_untrusted for all string outputs), upstream fault tolerance, ext-apps metadata emission, and safety annotation registration
+- MCPAgent: MCP tool fetching, server mapping, content block coercion (file/audio/unknown→text), multimodal result normalization, content boundary defense (wrap_untrusted for all string outputs), upstream fault tolerance, auth error detection (401→MCPAuthExpiredEvent), ext-apps metadata emission, and safety annotation registration
 
 [POS]
 MCP tool discovery layer (not harness Agent runtime). Orchestrates multi-server tool discovery with parallel fetching,
@@ -37,6 +40,7 @@ server-prefix isolation (mcp__{server}__{tool} naming), per-server tool filterin
 (file/audio/unknown types gracefully degraded to text for LLM API safety),
 content boundary defense (wrap_untrusted for all string outputs against prompt injection),
 upstream fault tolerance (catches adapter-layer NotImplementedError/ValueError),
+auth error detection (httpx 401 → MCPAuthExpiredEvent + clear re-auth message),
 multimodal result normalization (ImageContent passthrough + structuredContent
 extraction), ext-apps UI metadata detection and SSE event emission, and safety
 metadata registration. `process_session_tools()` is the single post-processing

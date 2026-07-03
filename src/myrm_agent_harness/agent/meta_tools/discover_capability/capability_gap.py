@@ -51,12 +51,15 @@ class SkillGapHit:
 
 # (tool_id, trigger terms — lowercase substrings)
 _GAP_TRIGGERS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("web_search", ("web search", "search the web", "internet search", "google search", "联网搜索", "网上搜", "搜索网页", "上网查")),
+    ("memory", ("remember this", "recall from memory", "save to memory", "记住", "回忆", "记忆", "想起来")),
     ("browser", ("browser", "browse", "webpage", "website", "selenium", "网页", "浏览", "打开网站")),
     ("computer_use", ("desktop", "screenshot", "screen capture", "gui click", "桌面", "截屏", "截图", "屏幕")),
     ("wiki", ("wiki", "知识库", "personal wiki")),
     ("kanban", ("kanban", "看板", "task board")),
     ("canvas", ("canvas", "画布", "whiteboard")),
     ("render_ui", ("render ui", "interactive ui", "ui artifact", "渲染界面")),
+    ("answer_tool", ("ask the user", "confirm with user", "request answer", "向用户确认", "问问用户", "让用户选择")),
     ("planning", ("multi-step plan", "task plan", "规划步骤", "任务规划")),
     ("image_generation", ("generate image", "draw picture", "dall-e", "文生图", "生成图片", "画图")),
     ("video_generation", ("generate video", "text to video", "生成视频", "文生视频")),

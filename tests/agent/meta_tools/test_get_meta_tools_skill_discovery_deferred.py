@@ -65,21 +65,3 @@ class TestSkillDiscoveryDeferred:
 
         deferred_names = {t.name for t in registry.get_deferred_tools()}
         assert "skill_discovery_tool" in deferred_names
-
-    def test_skill_discovery_eager_when_no_registry(
-        self,
-        discovery_backend: MagicMock,
-        skill_backend: MagicMock,
-    ) -> None:
-        tools = get_meta_tools(
-            [],
-            skill_backend,
-            registry=None,
-            discovery_backend=discovery_backend,
-            enable_file_tools=False,
-            enable_bash=False,
-            enable_answer_tool=False,
-        )
-
-        returned_names = {t.name for t in tools}
-        assert "skill_discovery_tool" in returned_names

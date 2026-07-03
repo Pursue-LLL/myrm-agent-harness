@@ -22,8 +22,8 @@ Performance model (the real win):
 - session_actor::MCPSessionActor (POS: MCP persistent-session layer)
 
 [OUTPUT]
-- MCPConnection: warm per-config connection (a set of per-server session actors)
-- MCPConnectionManager: persistent pool with health checks and TTL expiry
+- MCPConnection: warm per-config connection (a set of per-server session actors), refresh_server_auth() for hot-updating auth headers
+- MCPConnectionManager: persistent pool with health checks, TTL expiry, and refresh_server_auth() for pool-wide auth header hot-update
 - get_mcp_connection_manager(): global singleton accessor
 - get_mcp_connection(): acquire a pooled connection for a config
 

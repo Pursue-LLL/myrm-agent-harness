@@ -34,17 +34,20 @@ prefix cache stability is never compromised.
 - config::sanitize_mcp_name_component (POS: MCP Configuration — name sanitizer for prefix fallback)
 - config_scan::scan_mcp_runtime_surface (POS: static/runtime MCP scanners)
 - errors::MCPRuntimePostureError (POS: MCP error handling utilities)
+- runtime.events::get_event_bus (POS: Framework event bus for cross-layer communication)
+- runtime.events.system_events::MCPAuthExpiredEvent (POS: System-level event for MCP auth expiry notification)
 
 [OUTPUT]
 - MCPSessionActor: persistent, self-reconnecting per-server session with
   serialised tool calls, resource reads (ext-apps UI), transport-aware keepalive,
-  and dynamic tool discovery.
+  dynamic tool discovery, auth expiry notification, and dynamic auth header refresh.
 
 [POS]
 MCP persistent-session layer. Owns one warm ClientSession per server and routes
 all tool calls and resource reads through a single task, enabling true
-process/connection reuse with transparent recovery from transport breaks and
-dynamic tool refresh on ``notifications/tools/list_changed``.
+process/connection reuse with transparent recovery from transport breaks,
+dynamic tool refresh on ``notifications/tools/list_changed``, and dynamic auth
+header refresh from ``auth_provider`` on reconnect.
 """
 
 from __future__ import annotations

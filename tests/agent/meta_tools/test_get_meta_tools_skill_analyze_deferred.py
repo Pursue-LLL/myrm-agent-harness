@@ -98,23 +98,6 @@ class TestSkillAnalyzeDeferred:
         )
         assert "skill_analyze_tool" in (discover.description or "")
 
-    def test_skill_analyze_eager_when_no_registry(
-        self,
-        sample_skill: SkillMetadata,
-        skill_backend: MagicMock,
-    ) -> None:
-        tools = get_meta_tools(
-            [sample_skill],
-            skill_backend,
-            registry=None,
-            enable_file_tools=False,
-            enable_bash=False,
-            enable_answer_tool=False,
-        )
-
-        returned_names = {t.name for t in tools}
-        assert "skill_analyze_tool" in returned_names
-
     def test_no_skill_analyze_when_no_skills(
         self,
         skill_backend: MagicMock,

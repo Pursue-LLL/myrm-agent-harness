@@ -106,6 +106,66 @@ def test_detect_capability_gap_none_when_group_enabled(group: str, query: str) -
     assert detect_capability_gap(query, active) is None
 
 
+def test_detect_capability_gap_web_search_when_disabled() -> None:
+    hit = detect_capability_gap(
+        "search the web for apple news",
+        frozenset({"memory", "file_ops", "shell"}),
+    )
+    assert hit is not None
+    assert hit.tool_id == "web_search"
+    assert hit.tool_group == "web"
+
+
+def test_detect_capability_gap_memory_when_disabled() -> None:
+    hit = detect_capability_gap(
+        "remember this for next time",
+        frozenset({"web", "file_ops", "shell"}),
+    )
+    assert hit is not None
+    assert hit.tool_id == "memory"
+    assert hit.tool_group == "memory"
+
+
+def test_detect_capability_gap_answer_tool_when_disabled() -> None:
+    hit = detect_capability_gap(
+        "confirm with user before proceeding",
+        frozenset({"web", "memory", "file_ops", "shell"}),
+    )
+    assert hit is not None
+    assert hit.tool_id == "answer_tool"
+    assert hit.tool_group == "answer_tool"
+
+
+def test_detect_capability_gap_none_when_web_search_enabled() -> None:
+    groups = frozenset({"web", "memory", "file_ops", "shell"})
+    assert detect_capability_gap("search the web for news", groups) is None
+
+
+def test_detect_capability_gap_web_search_zh_query() -> None:
+    hit = detect_capability_gap(
+        "网上搜一下苹果发布会",
+        frozenset({"memory", "file_ops", "shell"}),
+    )
+    assert hit is not None
+    assert hit.tool_id == "web_search"
+
+
+def test_detect_capability_gap_no_false_positive_for_local_file_query() -> None:
+    """Generic local queries without web-specific terms must not suggest web_search."""
+    active = frozenset({"memory", "file_ops", "shell"})
+    assert detect_capability_gap("list local documents", active) is None
+    assert detect_capability_gap("summarize project readme", active) is None
+
+
+def test_detect_capability_gap_file_ops_when_disabled() -> None:
+    hit = detect_capability_gap(
+        "grep pattern in repo files",
+        frozenset({"web", "memory", "shell"}),
+    )
+    assert hit is not None
+    assert hit.tool_id == "file_ops"
+
+
 def test_detect_capability_gap_first_match_wins() -> None:
     """Earlier _GAP_TRIGGERS entry wins when multiple could match."""
     active = frozenset({"web", "memory"})
