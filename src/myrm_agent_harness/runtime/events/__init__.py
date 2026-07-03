@@ -6,6 +6,7 @@ from .system_events import (
     JsonObject,
     JsonValue,
     LocatorSelfHealedEvent,
+    MCPAuthExpiredEvent,
     ResourceMetricsEvent,
     SubagentLifecycleData,
     SubagentLifecycleEvent,
@@ -20,6 +21,7 @@ __all__ = [
     "JsonObject",
     "JsonValue",
     "LocatorSelfHealedEvent",
+    "MCPAuthExpiredEvent",
     "ResourceMetricsEvent",
     "SkillFailureCandidate",
     "SkillFailureEvent",
@@ -28,3 +30,19 @@ __all__ = [
     "get_event_bus",
     "to_json_object",
 ]
+
+
+def _wire_mcp_auth_expired_handler() -> None:
+    from myrm_agent_harness.toolkits.mcp.auth_notify import register_mcp_auth_expired_handler
+
+    from .system_events import MCPAuthExpiredEvent
+
+    def _publish_auth_expired(server_name: str, error_detail: str) -> None:
+        get_event_bus().publish(
+            MCPAuthExpiredEvent(server_name=server_name, error_detail=error_detail)
+        )
+
+    register_mcp_auth_expired_handler(_publish_auth_expired)
+
+
+_wire_mcp_auth_expired_handler()

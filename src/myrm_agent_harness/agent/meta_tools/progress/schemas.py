@@ -1,4 +1,15 @@
-"""Progress todo schemas — SSOT for main-agent multi-step tracking."""
+"""Progress todo schemas — SSOT for main-agent multi-step tracking.
+
+[INPUT]
+- pydantic::BaseModel (POS: validation)
+
+[OUTPUT]
+- TodoStatus, TodoItem, TodoStore: workspace todo models
+- plan-compat helpers for Goal API hydration
+
+[POS]
+Data models for `.myrm/progress/todos.json` SSOT and server plan endpoint.
+"""
 
 from __future__ import annotations
 

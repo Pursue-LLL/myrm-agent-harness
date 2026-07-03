@@ -682,16 +682,12 @@ class MCPSessionActor:
         self._maybe_emit_auth_expired(detail)
 
     def _maybe_emit_auth_expired(self, detail: str) -> None:
-        """Emit MCPAuthExpiredEvent if the failure looks like an auth/token issue."""
+        """Notify auth expiry if the failure looks like an auth/token issue."""
         if not _is_auth_error(detail):
             return
-        from myrm_agent_harness.runtime.events import get_event_bus
-        from myrm_agent_harness.runtime.events.system_events import MCPAuthExpiredEvent
+        from myrm_agent_harness.toolkits.mcp.auth_notify import notify_mcp_auth_expired
 
-        get_event_bus().publish(MCPAuthExpiredEvent(
-            server_name=self.server_name,
-            error_detail=detail,
-        ))
+        notify_mcp_auth_expired(self.server_name, detail)
 
     async def _refresh_auth_headers(self, conn: dict[str, object]) -> None:
         """Re-fetch auth headers from the provider and update *conn* in place.

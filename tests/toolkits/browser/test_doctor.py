@@ -66,6 +66,21 @@ def test_check_camoufox_missing() -> None:
         result = doctor_module._check_camoufox()
         assert result.status == CheckStatus.WARNING
         assert "stealth auto-upgrade unavailable" in result.message
+        assert result.fix is not None
+        assert "camoufox>=0.4.11" in result.fix
+
+
+def test_check_camoufox_missing_fix_string() -> None:
+    """Install hint must match production dependency (no invalid [async] extra)."""
+    with patch.dict("sys.modules", {"camoufox": None}):
+        import importlib
+
+        import myrm_agent_harness.toolkits.browser.doctor as doctor_module
+
+        importlib.reload(doctor_module)
+
+        result = doctor_module._check_camoufox()
+        assert "camoufox[async]" not in (result.fix or "")
 
 
 def test_format_report_includes_camoufox() -> None:

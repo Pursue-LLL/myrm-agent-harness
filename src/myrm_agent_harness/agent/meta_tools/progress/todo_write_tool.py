@@ -1,4 +1,16 @@
-"""Main-agent todo_write tool — deer-flow/Hermes-style progress without sub-agent LLM."""
+"""Main-agent todo_write tool — deer-flow/Hermes-style progress without sub-agent LLM.
+
+[INPUT]
+- progress.storage::read/write/merge todos (POS: workspace SSOT)
+- progress.events::emit_todo_progress_events (POS: SSE UI)
+- langchain_core.tools::tool (POS: LangChain tool decorator)
+
+[OUTPUT]
+- create_todo_write_tool: Factory for main-agent todo_write LangChain tool
+
+[POS]
+Opt-in planning meta-tool; bound when enable_planning or existing todos file.
+"""
 
 from __future__ import annotations
 

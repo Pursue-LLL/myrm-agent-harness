@@ -6,13 +6,13 @@ myrm_agent_harness/toolkits/web_fetch/engine.py	840
 myrm_agent_harness/toolkits/llms/routing/complexity_router.py	839
 myrm_agent_harness/agent/skills/evolution/infra/integration.py	831
 myrm_agent_harness/backends/skills/scanning/patterns.py	824
-myrm_agent_harness/toolkits/browser/doctor.py	819
+myrm_agent_harness/toolkits/browser/doctor.py	841
 myrm_agent_harness/toolkits/kanban/kanban_agent_tools.py	803
-myrm_agent_harness/toolkits/browser/pool/browser_launcher.py	528
+myrm_agent_harness/toolkits/browser/pool/browser_launcher.py	535
 myrm_agent_harness/toolkits/memory/_manager/deletion.py	504
 myrm_agent_harness/toolkits/memory/relational/sqlite_store.py	816
 myrm_agent_harness/toolkits/memory/strategies/extractor.py	789
-myrm_agent_harness/toolkits/mcp/session_actor.py	755
+myrm_agent_harness/toolkits/mcp/session_actor.py	830
 myrm_agent_harness/toolkits/kanban/dispatcher.py	750
 myrm_agent_harness/toolkits/browser/pool/browser_pool.py	738
 myrm_agent_harness/backends/skills/_utils.py	728
@@ -26,7 +26,7 @@ myrm_agent_harness/agent/context_management/infra/schemas.py	689
 myrm_agent_harness/agent/skills/evolution/db/store.py	686
 myrm_agent_harness/agent/skills/evolution/core/engine.py	682
 myrm_agent_harness/agent/skills/optimization/protocols.py	681
-myrm_agent_harness/toolkits/cron/cron_agent_tools.py	673
+myrm_agent_harness/toolkits/cron/cron_agent_tools.py	861
 myrm_agent_harness/agent/meta_tools/file_ops/file_read_tool.py	673
 myrm_agent_harness/agent/middlewares/approval/batch_processor.py	665
 myrm_agent_harness/toolkits/memory/_internal/storage.py	663
@@ -35,7 +35,7 @@ myrm_agent_harness/toolkits/browser/session/interactor.py	648
 myrm_agent_harness/agent/skills/optimization/batch_executor.py	640
 myrm_agent_harness/agent/middlewares/completion_guard.py	636
 myrm_agent_harness/toolkits/llms/adapters/tool_call_parsers.py	631
-myrm_agent_harness/toolkits/mcp/agent.py	629
+myrm_agent_harness/toolkits/mcp/agent.py	663
 myrm_agent_harness/agent/skills/evolution/pipeline/screener.py	629
 myrm_agent_harness/agent/sub_agents/orchestrator.py	625
 myrm_agent_harness/agent/_internals/agent_runtime.py	615
@@ -73,7 +73,7 @@ myrm_agent_harness/utils/context_format.py	541
 myrm_agent_harness/agent/skills/optimization/types.py	541
 myrm_agent_harness/toolkits/computer_use/backends/macos.py	537
 myrm_agent_harness/toolkits/browser/pool/config.py	536
-myrm_agent_harness/backends/skills/scanning/scanner.py	536
+myrm_agent_harness/backends/skills/scanning/scanner.py	538
 myrm_agent_harness/toolkits/llms/image/generator.py	535
 myrm_agent_harness/toolkits/file_parsers/pdf.py	535
 myrm_agent_harness/infra/delivery/storage.py	535
@@ -84,7 +84,7 @@ myrm_agent_harness/toolkits/memory/memory_agent_tools.py	529
 myrm_agent_harness/core/security/tool_registry.py	528
 myrm_agent_harness/toolkits/memory/_internal/search_service.py	527
 myrm_agent_harness/toolkits/code_execution/security/shell_command_analyzer.py	527
-myrm_agent_harness/toolkits/llms/video/video_engine.py	526
+myrm_agent_harness/toolkits/llms/video/video_engine.py	528
 myrm_agent_harness/agent/skills/optimization/in_memory_storage.py	524
 myrm_agent_harness/toolkits/memory/ephemeral.py	522
 myrm_agent_harness/toolkits/wiki/maintenance/linter.py	509
@@ -103,4 +103,8 @@ myrm_agent_harness/agent/sub_agents/_orchestrator_verification.py	506
 myrm_agent_harness/toolkits/memory/mcp_server.py	505
 myrm_agent_harness/agent/context_management/strategies/compactor.py	503
 myrm_agent_harness/agent/sub_agents/event_forwarder.py	502
-# TOTAL: 101 files
+myrm_agent_harness/agent/meta_tools/bash/_background_registry.py	514
+myrm_agent_harness/agent/middlewares/memory_context_middleware.py	503
+myrm_agent_harness/toolkits/llms/consensus/engine.py	527
+myrm_agent_harness/toolkits/mcp/connection_manager.py	517
+# TOTAL: 105 files

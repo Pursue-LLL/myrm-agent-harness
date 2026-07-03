@@ -1,4 +1,15 @@
-"""Progress middleware — inject todo blueprint into HumanMessage when todos exist."""
+"""Progress middleware — inject todo blueprint into HumanMessage when todos exist.
+
+[INPUT]
+- progress.schemas::TodoStore (POS: active todos)
+- langchain.agents.middleware::ModelRequest, wrap_model_call (POS: LC middleware)
+
+[OUTPUT]
+- progress_middleware: Injects non-persistent todo focus into last HumanMessage
+
+[POS]
+Surfaces active todos to the model without polluting persistent message history.
+"""
 
 from __future__ import annotations
 

@@ -12,6 +12,7 @@ SSOT: `{workspace_root}/.myrm/progress/todos.json`
 
 | File | Role | Description |
 |------|------|-------------|
+| __init__.py | Package | Public exports for progress meta-tool |
 | schemas.py | Config | `TodoItem`, `TodoStore`, plan-compat adapter for Goal API |
 | storage.py | Core | Read/write/merge todos in chat workspace (atomic write via `infra.atomic_write`) |
 | events.py | Core | Emit `tasks_steps` for ProgressSteps UI |

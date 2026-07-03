@@ -1,4 +1,16 @@
-"""Workspace SSOT for session todos (`.myrm/progress/todos.json`)."""
+"""Workspace SSOT for session todos (`.myrm/progress/todos.json`).
+
+[INPUT]
+- progress.schemas::TodoItem, TodoStore (POS: models)
+- infra.atomic_write::atomic_write (POS: crash-safe writes)
+
+[OUTPUT]
+- read/write/merge todos under workspace `.myrm/progress/`
+- todos_path, workspace_todos_exist helpers
+
+[POS]
+Persists main-agent todo state in chat workspace (atomic JSON).
+"""
 
 from __future__ import annotations
 

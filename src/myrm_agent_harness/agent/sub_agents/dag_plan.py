@@ -1,4 +1,14 @@
-"""DAG plan schemas for sub-agent orchestration (not main-agent progress)."""
+"""DAG plan schemas for sub-agent orchestration (not main-agent progress).
+
+[INPUT]
+- pydantic::BaseModel, Field (POS: validation)
+
+[OUTPUT]
+- PlanStep, Plan: sub-agent DAG plan models with dependency resolution
+
+[POS]
+Structured plan DTOs for sub-agent orchestrator (separate from todo_write progress).
+"""
 
 from __future__ import annotations
 

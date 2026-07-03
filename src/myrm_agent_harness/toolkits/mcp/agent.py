@@ -25,8 +25,8 @@ Provides MCP tool fetching capabilities:
 - agent.streaming.types::AgentEventType (POS: Framework-agnostic streaming event types)
 - utils.runtime.progress_sink::get_tool_progress_sink (POS: Runtime tool progress event sink)
 - core.security.detection.content_boundary::wrap_untrusted (POS: 5-layer content boundary defense for MCP tool outputs)
-- runtime.events::get_event_bus (POS: Framework event bus for cross-layer communication)
-- runtime.events.system_events::MCPAuthExpiredEvent (POS: System-level event for MCP auth expiry notification)
+- runtime.events::get_event_bus (wired via auth_notify at runtime import)
+- runtime.events.system_events::MCPAuthExpiredEvent (published by runtime handler)
 - httpx::HTTPStatusError (POS: HTTP status error for 401 auth detection)
 - langchain_mcp_adapters (POS: MCP adapter library)
 
@@ -88,17 +88,10 @@ def _is_mcp_auth_error(exc: Exception) -> bool:
 
 
 def _emit_auth_expired_for_tool(server_name: str, error_detail: str) -> None:
-    """Fire MCPAuthExpiredEvent so the existing toast/SSE chain notifies the user."""
-    try:
-        from myrm_agent_harness.runtime.events import get_event_bus
-        from myrm_agent_harness.runtime.events.system_events import MCPAuthExpiredEvent
+    """Fire MCP auth-expiry notification so the toast/SSE chain can notify the user."""
+    from myrm_agent_harness.toolkits.mcp.auth_notify import notify_mcp_auth_expired
 
-        get_event_bus().publish(MCPAuthExpiredEvent(
-            server_name=server_name,
-            error_detail=error_detail,
-        ))
-    except Exception:
-        logger.debug("Failed to emit MCPAuthExpiredEvent for '%s'", server_name, exc_info=True)
+    notify_mcp_auth_expired(server_name, error_detail)
 
 
 # Auto-generated MCP servers (e.g. Swagger/OpenAPI converters) may embed

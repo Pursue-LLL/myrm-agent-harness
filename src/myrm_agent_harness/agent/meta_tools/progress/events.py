@@ -1,4 +1,15 @@
-"""Progress SSE helpers — emit `tasks_steps` for ProgressSteps UI."""
+"""Progress SSE helpers — emit `tasks_steps` for ProgressSteps UI.
+
+[INPUT]
+- progress.schemas::TodoItem, TodoStatus, TodoStore (POS: todo models)
+- langchain_core.callbacks.manager::dispatch_custom_event (POS: SSE bridge)
+
+[OUTPUT]
+- emit_todo_progress_events: Dispatch tasks_steps custom events for UI
+
+[POS]
+Emits LangGraph custom events consumed by server SSE → ProgressSteps UI.
+"""
 
 from __future__ import annotations
 
