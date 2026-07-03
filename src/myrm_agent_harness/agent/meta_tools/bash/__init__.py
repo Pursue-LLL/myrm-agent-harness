@@ -5,24 +5,19 @@ See _ARCH.md for file index and module structure.
 """
 
 from .bash_executor import BashExecutionError, BashExecutor
-from .bash_process_tools import (
-    create_bash_process_kill_tool,
-    create_bash_process_list_tool,
-    create_bash_process_output_tool,
-)
+from .bash_process_tools import BASH_PROCESS_TOOL_NAME, create_bash_process_tool
 from .bash_code_execute_tool import create_bash_code_execute_tool
 from .command_classifier import CommandClassifier, CommandType, RiskLevel
 from .sensitive_parameter_redactor import SensitiveParameterRedactor
 
 __all__ = [
+    "BASH_PROCESS_TOOL_NAME",
     "BashExecutionError",
     "BashExecutor",
     "CommandClassifier",
     "CommandType",
     "RiskLevel",
     "SensitiveParameterRedactor",
-    "create_bash_process_kill_tool",
-    "create_bash_process_list_tool",
-    "create_bash_process_output_tool",
     "create_bash_code_execute_tool",
+    "create_bash_process_tool",
 ]

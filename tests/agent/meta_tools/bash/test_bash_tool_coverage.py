@@ -35,19 +35,51 @@ class _FakeBackgroundInfo:
 
 
 @pytest.mark.asyncio
+async def test_build_background_listeners_skips_finish_handler_when_killed() -> None:
+    config: dict[str, object] = {}
+    info = _FakeBackgroundInfo(pid=9, status="killed", exit_code=None)
+
+    handler = AsyncMock()
+
+    with (
+        patch(
+            "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+            AsyncMock(),
+        ),
+        patch(
+            "myrm_agent_harness.utils.runtime.background_job_finish_registry.get_global_background_job_finish_handler",
+            return_value=handler,
+        ),
+    ):
+        finish, _progress = build_background_listeners(session_id="sess", config=config)  # type: ignore[arg-type]
+        await finish(info)
+
+    handler.on_background_job_finish.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_build_background_listeners_dispatch_progress_and_finish() -> None:
     config: dict[str, object] = {}
     info = _FakeBackgroundInfo(pid=9, status="exited", exit_code=137)
 
-    with patch(
-        "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
-        AsyncMock(),
-    ) as mock_dispatch:
+    handler = AsyncMock()
+
+    with (
+        patch(
+            "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+            AsyncMock(),
+        ) as mock_dispatch,
+        patch(
+            "myrm_agent_harness.utils.runtime.background_job_finish_registry.get_global_background_job_finish_handler",
+            return_value=handler,
+        ),
+    ):
         finish, progress = build_background_listeners(session_id="sess", config=config)  # type: ignore[arg-type]
         await progress(info, {"message": "50%", "progress": 50})
         await finish(info)
 
     assert mock_dispatch.await_count == 2
+    handler.on_background_job_finish.assert_awaited_once()
 
 
 def test_classify_background_exit_oom() -> None:

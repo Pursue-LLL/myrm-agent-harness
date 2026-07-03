@@ -19,8 +19,8 @@ def _cron_manage_tool(name: str) -> str:
     return name
 
 
-@tool("bash_process_list_tool", description="List background bash processes")
-def _bash_process_list_tool() -> str:
+@tool("bash_process_tool", description="Manage background bash processes")
+def _bash_process_tool() -> str:
     """List processes."""
     return "ok"
 
@@ -29,7 +29,7 @@ def _bash_process_list_tool() -> str:
 async def test_sync_reindexes_server_deferred_after_meta_deferred() -> None:
     """Server deferred tools registered after initial discover must become searchable."""
     registry = ToolRegistry()
-    registry.register(_bash_process_list_tool, source=ToolSource.META, bind_mode=ToolBindMode.DISCOVERABLE)
+    registry.register(_bash_process_tool, source=ToolSource.META, bind_mode=ToolBindMode.DISCOVERABLE)
     registry.register(
         create_discover_capability_tool(registry=registry),
         source=ToolSource.META,
@@ -51,10 +51,10 @@ async def test_sync_reindexes_server_deferred_after_meta_deferred() -> None:
 @pytest.mark.asyncio
 async def test_sync_removes_discover_when_no_deferred_or_skills() -> None:
     registry = ToolRegistry()
-    registry.register(_bash_process_list_tool, source=ToolSource.META, bind_mode=ToolBindMode.DISCOVERABLE)
+    registry.register(_bash_process_tool, source=ToolSource.META, bind_mode=ToolBindMode.DISCOVERABLE)
     sync_discover_capability_tool(registry)
     assert registry.has_tool("discover_capability_tool")
 
-    registry.remove_tool("bash_process_list_tool")
+    registry.remove_tool("bash_process_tool")
     sync_discover_capability_tool(registry)
     assert not registry.has_tool("discover_capability_tool")

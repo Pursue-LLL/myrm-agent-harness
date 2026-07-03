@@ -4,8 +4,7 @@ When ``bash_code_execute_tool`` is invoked with ``run_in_background=True`` the
 underlying ``LocalExecutor.spawn_background_process`` returns an
 ``AsyncProcessProtocol`` handle; this registry keeps that handle alive,
 buffers stdout/stderr ring-tail for later inspection, and exposes a tiny CRUD
-surface used by ``bash_process_list_tool`` / ``bash_process_output_tool`` /
-``bash_process_kill_tool``.
+surface used by ``bash_process_tool``.
 
 Lifetime is the agent process lifetime — orphaned children are killed on
 process exit via :mod:`atexit`. Each ``session_id`` has its own bucket so
@@ -304,6 +303,11 @@ class BackgroundProcessRegistry:
                 if entry.info.session_id == session_id and entry.info.status == "running"
             ]
         if not targets:
+            from myrm_agent_harness.agent.meta_tools.bash.background_deferred_activation import (
+                clear_session_deferred_tools,
+            )
+
+            clear_session_deferred_tools(session_id)
             return 0
 
         results = await asyncio.gather(
@@ -319,6 +323,11 @@ class BackgroundProcessRegistry:
                 len(targets),
                 grace_seconds,
             )
+        from myrm_agent_harness.agent.meta_tools.bash.background_deferred_activation import (
+            clear_session_deferred_tools,
+        )
+
+        clear_session_deferred_tools(session_id)
         return killed
 
     async def _consume(self, entry: _Entry) -> None:
@@ -328,7 +337,7 @@ class BackgroundProcessRegistry:
 
         async def _emit_progress(progress: dict[str, object]) -> None:
             # 1. Cache the most recent progress on the info record so that
-            #    ``bash_process_list_tool`` can surface it without a follow-up
+            #    ``bash_process_tool(action='list')`` can surface it without a follow-up
             #    output fetch. The ``updated_at`` field lets the LLM identify
             #    stale snapshots (e.g. a job that stopped emitting progress
             #    minutes ago) without bookkeeping.

@@ -110,9 +110,9 @@ print(f"[OBSERVATION] date={date}, codes={codes}")
 
 启动 dev server / 监听器 / 长爬虫时,传 `run_in_background=true`,立即返回 `{pid, status}` 而不阻塞当前轮。后台进程按 chat session 隔离,每会话最多 5 个并发。配套工具:
 
-- `bash_process_list_tool()` — 列出本会话所有后台任务;每条记录包含 `pid / command / status / uptime_seconds / exit_code / error_category`,任务一旦上报过进度还会带 `last_progress` (`percent / step / message / updated_at`),让你**不用为每个 pid 单独拉 output** 就能比对哪个 worker 卡住、哪个快收尾。
-- `bash_process_output_tool(pid, since_cursor?)` — 拉 stdout/stderr 尾部;传上次的 `next_cursor` 实现增量轮询,token 极省。
-- `bash_process_kill_tool(pid, force?)` — `force=false` 发 SIGTERM,卡住再 `force=true` 发 SIGKILL。
+- `bash_process_tool(action='list')` — 列出本会话所有后台任务;每条记录包含 `pid / command / status / uptime_seconds / exit_code / error_category`,任务一旦上报过进度还会带 `last_progress` (`percent / step / message / updated_at`),让你**不用为每个 pid 单独拉 output** 就能比对哪个 worker 卡住、哪个快收尾。
+- `bash_process_tool(action='output', pid, since_cursor?)` — 拉 stdout/stderr 尾部;传上次的 `next_cursor` 实现增量轮询,token 极省。
+- `bash_process_tool(action='kill', pid, force?)` — `force=false` 发 SIGTERM,卡住再 `force=true` 发 SIGKILL。
 
 ### 零 token 进度上报
 

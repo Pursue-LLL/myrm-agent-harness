@@ -107,7 +107,7 @@ class ToolLayer(IntEnum):
 | 子类 | 加载条件 | 典型工具 | Token 消耗 |
 |------|---------|---------|----------:|
 | 默认加载的 EXTENDED 辅助（**TURN1**） | enable_file_tools | glob_tool, grep_tool, discover_capability_tool | ~819 |
-| Discoverable 工具 | discover 挂载 | bash_process_list/output/kill_tool, skill_analyze_tool, cron_manage_tool | 0（默认） / ~246+（挂载后） |
+| Discoverable 工具 | discover / spawn AutoMount | bash_process_tool, skill_analyze_tool, cron_manage_tool | 0（默认） / ~120+（挂载后） |
 | 文件搜索中间件 | 显式启用 FilesystemFileSearchMiddleware | glob_tool, grep_tool | - |
 | 记忆工具（eager） | 启用记忆系统 | memory_recall_tool, memory_save_tool, memory_manage_tool, conversation_search_tool（GeneralAgent server 装配） | ~907 |
 | 技能工具（Turn1 常驻） | 有技能后端 | skill_select, skill_manage, discover_capability_tool | ~343 |

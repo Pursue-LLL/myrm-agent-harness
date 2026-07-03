@@ -82,7 +82,7 @@ class BashInput(BaseModel):
             "Optional timeout in seconds for foreground execution. Increase "
             "for long-running tasks like 'npm install' or 'docker build' "
             "(max 600). Ignored when run_in_background=True — background "
-            "jobs run until they exit on their own or bash_process_kill_tool "
+            "jobs run until they exit on their own or bash_process_tool(action='kill') "
             "is invoked."
         ),
         ge=1,
@@ -94,7 +94,7 @@ class BashInput(BaseModel):
             "Detach the command as a background process and return immediately "
             "with its PID instead of waiting for completion. Use for dev "
             "servers, watchers, long crawlers, or any job whose stdout you "
-            "intend to poll later via bash_process_output_tool. Limit to one "
+            "intend to poll later via bash_process_tool(action='output'). Limit to one "
             "active background job per task unless explicitly needed."
         ),
     )

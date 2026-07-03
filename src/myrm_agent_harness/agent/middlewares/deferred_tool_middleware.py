@@ -34,6 +34,9 @@ from langchain_core.messages import AnyMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
+from myrm_agent_harness.agent.meta_tools.bash.background_deferred_activation import (
+    get_session_deferred_tool_names,
+)
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -60,9 +63,15 @@ def _messages_from_agent_state(state: object) -> list[AnyMessage]:
     return []
 
 
-def collect_activated_native_tool_names(messages: list[AnyMessage]) -> set[str]:
-    """Parse discover_capability ToolMessages for <AutoMountTools> native tool names."""
+def collect_activated_native_tool_names(
+    messages: list[AnyMessage],
+    *,
+    session_id: str = "",
+) -> set[str]:
+    """Parse discover_capability ToolMessages and session spawn AutoMount names."""
     activated: set[str] = set()
+    if session_id:
+        activated |= set(get_session_deferred_tool_names(session_id))
     for msg in messages:
         if not isinstance(msg, ToolMessage) or not _is_discover_capability_tool_message(msg.name):
             continue
@@ -110,7 +119,13 @@ class DeferredToolMiddleware(AgentMiddleware[Any, Any, Any]):
         handler: Callable[[ModelRequest[Any]], Awaitable[ModelResponse[Any]]],
     ) -> ModelResponse[Any]:
         discoverable_tools = self.registry.get_discoverable_tools()
-        activated_tool_names = collect_activated_native_tool_names(request.messages)
+        from myrm_agent_harness.agent.middlewares._session_context import get_approval_session
+
+        session_id = get_approval_session()
+        activated_tool_names = collect_activated_native_tool_names(
+            request.messages,
+            session_id=session_id,
+        )
 
         if activated_tool_names:
             existing_tool_names = {t.name if hasattr(t, "name") else t.get("name") for t in request.tools}
@@ -155,7 +170,10 @@ class DeferredToolMiddleware(AgentMiddleware[Any, Any, Any]):
         resolved_tools = get_active_resolved_tools()
 
         messages = _messages_from_agent_state(request.state)
-        activated = collect_activated_native_tool_names(messages)
+        from myrm_agent_harness.agent.middlewares._session_context import get_approval_session
+
+        session_id = get_approval_session()
+        activated = collect_activated_native_tool_names(messages, session_id=session_id)
         call_name = str(request.tool_call.get("name", ""))
         candidate_names = {call_name}
         if not call_name.endswith("_tool"):

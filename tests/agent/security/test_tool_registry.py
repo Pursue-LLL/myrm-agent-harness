@@ -364,3 +364,43 @@ class TestCheckSafetyCoverage:
             logger.removeHandler(handler)
 
         assert "missing" not in log_capture.getvalue().lower()
+
+
+class TestPtcSafetyMetadata:
+    def test_register_get_and_resolve_ptc_tool(self) -> None:
+        from myrm_agent_harness.core.security.tool_registry import (
+            MCPAnnotations,
+            SafetyMetadata,
+            get_ptc_safety_metadata,
+            register_ptc_safety_metadata,
+            resolve_safety_metadata,
+        )
+
+        meta = SafetyMetadata(is_read_only=True, is_concurrent_safe=True)
+        annotations: MCPAnnotations = {"title": "dynamic"}
+        tool_name = "__test_ptc_dynamic_tool__"
+
+        register_ptc_safety_metadata("skill-a", tool_name, meta, annotations)
+        assert get_ptc_safety_metadata("skill-a", tool_name) == (meta, annotations)
+        assert resolve_safety_metadata(tool_name) == meta
+
+
+class TestSanitizeUrlForTaint:
+    def test_strips_query_and_fragment(self) -> None:
+        from myrm_agent_harness.core.security.tool_registry import _sanitize_url_for_taint
+
+        assert _sanitize_url_for_taint("https://example.com/a?token=secret#frag") == "https://example.com/a"
+
+    def test_none_returns_none(self) -> None:
+        from myrm_agent_harness.core.security.tool_registry import _sanitize_url_for_taint
+
+        assert _sanitize_url_for_taint(None) is None
+
+    def test_invalid_url_redacted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from myrm_agent_harness.core.security.tool_registry import _sanitize_url_for_taint
+
+        def _boom(_url: str) -> object:
+            raise ValueError("parse fail")
+
+        monkeypatch.setattr("urllib.parse.urlparse", _boom)
+        assert _sanitize_url_for_taint("https://example.com/x") == "invalid_or_redacted_url"

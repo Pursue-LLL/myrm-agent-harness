@@ -165,9 +165,7 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
     "shell": frozenset(
         {
             "bash_code_execute_tool",
-            "bash_process_list_tool",
-            "bash_process_output_tool",
-            "bash_process_kill_tool",
+            "bash_process_tool",
         }
     ),
     "computer_use": frozenset(

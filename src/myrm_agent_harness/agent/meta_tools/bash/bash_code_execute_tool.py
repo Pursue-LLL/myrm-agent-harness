@@ -190,6 +190,14 @@ def create_bash_code_execute_tool(
                     finish_listener=finish_listener,
                     progress_listener=progress_listener,
                 )
+                from myrm_agent_harness.agent.meta_tools.bash.background_deferred_activation import (
+                    activate_session_deferred_tool,
+                )
+                from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
+                    BASH_PROCESS_TOOL_NAME,
+                )
+
+                activate_session_deferred_tool(session_id, BASH_PROCESS_TOOL_NAME)
                 from myrm_agent_harness.utils.event_utils import dispatch_custom_event
 
                 await dispatch_custom_event(
@@ -209,8 +217,8 @@ def create_bash_code_execute_tool(
                         f"  pid: {info.pid}\n"
                         f"  command: {info.command}\n"
                         f"  status: {info.status}\n\n"
-                        "Use bash_process_output_tool(pid) to poll stdout/stderr "
-                        "or bash_process_kill_tool(pid) to stop it."
+                        "Use bash_process_tool(action='output', pid=...) to poll stdout/stderr "
+                        "or bash_process_tool(action='kill', pid=...) to stop it."
                     ),
                     "metadata": {
                         "background": True,

@@ -12,6 +12,14 @@ import pytest
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 
+from myrm_agent_harness.agent.meta_tools.bash.background_deferred_activation import (
+    activate_session_deferred_tool,
+    reset_deferred_activation_for_tests,
+)
+from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
+    BASH_PROCESS_TOOL_NAME,
+    create_bash_process_tool,
+)
 from myrm_agent_harness.agent.middlewares.deferred_tool_middleware import (
     DeferredToolMiddleware,
     _messages_from_agent_state,
@@ -34,6 +42,37 @@ def registry() -> ToolRegistry:
     reg = ToolRegistry()
     reg.register(DummyTool(), source=ToolSource.META, bind_mode=ToolBindMode.DISCOVERABLE)
     return reg
+
+
+@pytest.mark.asyncio
+async def test_deferred_tool_middleware_session_spawn_automount() -> None:
+    """Background spawn activates bash_process_tool via session-scoped deferred registry."""
+    reset_deferred_activation_for_tests()
+    reg = ToolRegistry()
+    reg.register(
+        create_bash_process_tool(),
+        source=ToolSource.META,
+        bind_mode=ToolBindMode.DISCOVERABLE,
+    )
+    middleware = DeferredToolMiddleware(reg)
+    request = MagicMock()
+    request.messages = []
+    request.tools = []
+
+    activate_session_deferred_tool("chat-spawn", BASH_PROCESS_TOOL_NAME)
+
+    async def next_call(req: object) -> str:
+        return "response"
+
+    with patch(
+        "myrm_agent_harness.agent.middlewares._session_context.get_approval_session",
+        return_value="chat-spawn",
+    ):
+        response = await middleware.awrap_model_call(request, next_call)
+
+    assert response == "response"
+    assert len(request.tools) == 1
+    assert request.tools[0].name == BASH_PROCESS_TOOL_NAME
 
 
 @pytest.mark.asyncio

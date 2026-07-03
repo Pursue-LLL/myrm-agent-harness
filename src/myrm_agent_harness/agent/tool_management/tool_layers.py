@@ -72,10 +72,8 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # ============================================================
     # --- ACP（Agent Communication Protocol）---
     "delegate_to_agent_tool": ToolLayer.EXTENDED,
-    # --- Bash 后台进程（discoverable；仅 enable_bash 时注册）---
-    "bash_process_list_tool": ToolLayer.EXTENDED,
-    "bash_process_output_tool": ToolLayer.EXTENDED,
-    "bash_process_kill_tool": ToolLayer.EXTENDED,
+    # --- Bash 后台进程（discoverable；spawn 后 session AutoMount）---
+    "bash_process_tool": ToolLayer.EXTENDED,
     # --- 浏览器工具 ---
     "browser_extract_tool": ToolLayer.EXTENDED,
     "browser_inspect_tool": ToolLayer.EXTENDED,

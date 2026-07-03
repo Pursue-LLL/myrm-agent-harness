@@ -124,14 +124,10 @@ class TestFileSearchEager:
 
         returned_names = {t.name for t in tools}
         assert "bash_code_execute_tool" in returned_names
-        assert "bash_process_list_tool" not in returned_names
+        assert "bash_process_tool" not in returned_names
 
         discoverable_names = {t.name for t in registry.get_discoverable_tools()}
-        assert {
-            "bash_process_list_tool",
-            "bash_process_output_tool",
-            "bash_process_kill_tool",
-        }.issubset(discoverable_names)
+        assert "bash_process_tool" in discoverable_names
 
     def test_answer_tool_eager_when_enabled(
         self,

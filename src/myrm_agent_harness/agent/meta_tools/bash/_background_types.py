@@ -46,10 +46,10 @@ class BackgroundProcessInfo:
 
     ``last_progress`` is the most recent ptc_notify payload distilled out of
     stdout/stderr (explicit ``MYRM_PROGRESS`` marker or heuristic ``42%`` /
-    ``3/10 tests`` parse). It lets ``bash_process_list_tool`` answer the
+    ``3/10 tests`` parse). It lets ``bash_process_tool`` list action answer the
     "how far along is each background job?" question in a single token-cheap
     call instead of forcing the LLM to follow up with one
-    ``bash_process_output_tool`` per pid. The ``updated_at`` epoch second is
+    ``bash_process_tool(action='output')`` per pid. The ``updated_at`` epoch second is
     embedded by the registry so a multi-minute-old snapshot is recognisable
     without extra bookkeeping. Mirrors ``jcode``'s
     ``TaskStatusFile.progress`` field.

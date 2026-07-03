@@ -13,6 +13,7 @@ Bridges background process registry events to ptc_notify for frontend ActivityCa
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -25,11 +26,17 @@ if TYPE_CHECKING:
     )
 
 
+logger = logging.getLogger(__name__)
+
+
 def build_background_listeners(
     *, session_id: str, config: RunnableConfig
 ) -> tuple[FinishListener, ProgressListener]:
     """Return ``(finish_listener, progress_listener)`` bound to this session/config."""
     from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+    from myrm_agent_harness.utils.runtime.background_job_finish_registry import (
+        get_global_background_job_finish_handler,
+    )
 
     async def _on_progress(info: BackgroundProcessInfo, payload: dict[str, object]) -> None:
         message = str(payload.get("message", "")) or info.command
@@ -67,6 +74,30 @@ def build_background_listeners(
         if error_category is not None:
             envelope["error_category"] = error_category
         await dispatch_custom_event("ptc_notify", envelope, config=config)
+
+        finish_handler = get_global_background_job_finish_handler()
+        if finish_handler is not None and session_id and info.status == "exited":
+            from myrm_agent_harness.utils.runtime.background_job_finish_registry import (
+                BackgroundJobFinishResult,
+            )
+
+            try:
+                await finish_handler.on_background_job_finish(
+                    BackgroundJobFinishResult(
+                        session_id=session_id,
+                        pid=info.pid,
+                        command=info.command,
+                        status=info.status,
+                        exit_code=info.exit_code,
+                        error_category=error_category,
+                    )
+                )
+            except Exception:
+                logger.exception(
+                    "Background job finish handler failed for pid=%s session=%s",
+                    info.pid,
+                    session_id,
+                )
 
     return _on_finish, _on_progress
 
