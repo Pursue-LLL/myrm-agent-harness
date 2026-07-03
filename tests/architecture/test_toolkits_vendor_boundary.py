@@ -79,7 +79,6 @@ _FORBIDDEN_NAME_PREFIXES: tuple[str, ...] = (
 _IGNORED_TOP_LEVEL_NAMES: frozenset[str] = frozenset(
     {
         "__pycache__",
-        "local_browser_data",
     }
 )
 
