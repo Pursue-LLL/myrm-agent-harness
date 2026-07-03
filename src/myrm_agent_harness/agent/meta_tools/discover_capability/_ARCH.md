@@ -1,7 +1,7 @@
 # discover_capability/
 
 ## Overview
-Unified Capability Discovery gateway. Indexes deferred native tools (including `skill_analyze_tool`) and bound external skills; AutoMount via `DeferredToolMiddleware`. After all deferred tools register, `sync_discover_capability_tool()` rebuilds the search index (SSOT when `ToolRegistry` is used; `get_meta_tools()` requires `registry` and no longer creates discover inline). Gap detection uses server-supplied `active_tool_groups` (from `derive_active_tool_groups()`, aligned with `BUILTIN_TOOL_ID_TO_GROUP` derived from `CAPABILITY_GAP_REGISTRY`); emits `<CapabilityGap>` / `<SkillGap>` plus SSE only for **disabled** builtins or unbound skills.
+Unified Capability Discovery gateway. Indexes deferred native tools (including `skill_analyze_tool`) and bound external skills; AutoMount via `DeferredToolMiddleware`. After all deferred tools register, `sync_discover_capability_tool()` rebuilds the search index (SSOT when `ToolRegistry` is used; `get_meta_tools()` requires `registry` and no longer creates discover inline). Gap detection uses server-supplied `active_tool_groups` (from `derive_active_tool_groups()`); `CAPABILITY_GAP_REGISTRY` covers **GUI-togglable** builtins only — `file_ops` / `code_execute` baseline tools are omitted. Emits `<CapabilityGap>` / `<SkillGap>` plus SSE only for disabled togglable builtins or unbound skills.
 
 ## File & Submodule Index
 

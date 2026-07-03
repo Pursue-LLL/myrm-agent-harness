@@ -193,7 +193,7 @@ class TestToolLayerFunctions:
     def test_get_tool_layer_registered(self) -> None:
         from myrm_agent_harness.agent.tool_management.tool_layers import get_tool_layer
 
-        assert get_tool_layer("file_read_tool") == ToolLayer.COMMON
+        assert get_tool_layer("file_read_tool") == ToolLayer.CORE
         assert get_tool_layer("web_search_tool") == ToolLayer.COMMON
         assert get_tool_layer("skill_select_tool") == ToolLayer.EXTENDED
 

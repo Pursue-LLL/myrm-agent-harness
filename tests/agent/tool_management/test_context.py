@@ -21,7 +21,7 @@ class TestToolLayerRegistry:
 
     def test_get_registered_tool_layer(self) -> None:
         layer = get_tool_layer("bash_code_execute_tool")
-        assert layer == ToolLayer.COMMON
+        assert layer == ToolLayer.CORE
 
     def test_get_unregistered_tool_layer(self) -> None:
         layer = get_tool_layer("unknown_tool")

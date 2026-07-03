@@ -29,6 +29,8 @@ SCHEMA_ONLY_CONTROL_PLANE_TOOL_NAMES: frozenset[str] = frozenset(
     }
 )
 
+PTC_RUNTIME_TOOL_NAMES: frozenset[str] = frozenset({"spawn_subagent", "notify"})
+
 
 @pytest.mark.asyncio
 async def test_default_resolve_excludes_internal_pseudo_tools() -> None:
@@ -86,3 +88,11 @@ async def test_schema_only_tools_not_registered_in_default_build() -> None:
 
     for name in SCHEMA_ONLY_CONTROL_PLANE_TOOL_NAMES:
         assert not registry.has_tool(name), f"{name} must not be in default registry"
+
+
+def test_ptc_runtime_tools_not_in_tool_layers_registry() -> None:
+    """DW PTC bridge tools are runtime-only; must not inflate _TOOL_LAYERS."""
+    from myrm_agent_harness.agent.tool_management.tool_layers import _TOOL_LAYERS
+
+    overlap = set(_TOOL_LAYERS) & PTC_RUNTIME_TOOL_NAMES
+    assert not overlap, f"PTC runtime tools must not be in _TOOL_LAYERS: {sorted(overlap)}"

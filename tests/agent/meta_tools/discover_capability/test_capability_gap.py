@@ -72,8 +72,6 @@ def test_detect_capability_gap_none_when_computer_use_enabled() -> None:
         ("planning", "create multi-step plan for launch", "planning"),
         ("video_generation", "generate video from text prompt", "video_generation"),
         ("tts", "text to speech for this paragraph", "tts"),
-        ("file_ops", "grep pattern in repo files", "file_ops"),
-        ("code_execute", "run shell bash terminal script", "shell"),
     ],
 )
 def test_detect_capability_gap_all_triggers_when_group_disabled(
@@ -97,8 +95,6 @@ def test_detect_capability_gap_all_triggers_when_group_disabled(
         ("planning", "create multi-step plan for launch"),
         ("video_generation", "generate video from text prompt"),
         ("tts", "text to speech for this paragraph"),
-        ("file_ops", "grep pattern in repo files"),
-        ("shell", "run shell bash terminal script"),
     ],
 )
 def test_detect_capability_gap_none_when_group_enabled(group: str, query: str) -> None:
@@ -157,16 +153,14 @@ def test_detect_capability_gap_no_false_positive_for_local_file_query() -> None:
     assert detect_capability_gap("summarize project readme", active) is None
 
 
-def test_detect_capability_gap_file_ops_when_disabled() -> None:
-    hit = detect_capability_gap(
-        "grep pattern in repo files",
-        frozenset({"web", "memory", "shell"}),
-    )
-    assert hit is not None
-    assert hit.tool_id == "file_ops"
+def test_detect_capability_gap_baseline_file_ops_never_suggested() -> None:
+    """file_ops/code_execute are runtime baseline — no GUI toggle, no gap hint."""
+    active = frozenset({"web", "memory"})
+    assert detect_capability_gap("grep pattern in repo files", active) is None
+    assert detect_capability_gap("run shell bash terminal script", active) is None
 
 
-def test_capability_gap_registry_covers_all_builtin_tool_ids() -> None:
+def test_capability_gap_registry_covers_all_togglable_builtin_tool_ids() -> None:
     from myrm_agent_harness.agent.meta_tools.discover_capability.capability_gap import (
         BUILTIN_TOOL_ID_TO_GROUP,
         CAPABILITY_GAP_REGISTRY,

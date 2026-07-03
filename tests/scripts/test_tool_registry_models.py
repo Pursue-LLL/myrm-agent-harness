@@ -43,6 +43,15 @@ def test_missing_registrations_excludes_internal_prefix_and_explicit() -> None:
     assert report.missing_registrations() == {"real_tool"}
 
 
+def test_missing_registrations_excludes_ptc_runtime_tools() -> None:
+    """DW PTC bridge tools are runtime-only; not required in _TOOL_LAYERS."""
+    report = ScanReport(
+        declarations=[_decl("spawn_subagent"), _decl("notify"), _decl("registered_tool")],
+        registered_names={"registered_tool"},
+    )
+    assert report.missing_registrations() == set()
+
+
 def test_missing_registrations_empty_when_all_registered() -> None:
     report = ScanReport(
         declarations=[_decl("foo")],
@@ -58,6 +67,25 @@ def test_ghost_registrations_filters_internal() -> None:
         registered_names={"alive", "ghost", "submit_verdict"},
     )
     assert report.ghost_registrations() == {"ghost"}
+
+
+def test_ghost_registrations_filters_schema_only_control_plane() -> None:
+    """DR orchestrator signal tools are schema-only registry entries."""
+    report = ScanReport(
+        declarations=[_decl("alive")],
+        registered_names={"alive", "dispatch_research", "think", "finalize_report"},
+    )
+    assert report.ghost_registrations() == set()
+
+
+def test_ghost_registry_metadata_keys_flags_orphan_maps() -> None:
+    """Permission/group maps must not reference tools with no source."""
+    report = ScanReport(
+        declarations=[_decl("alive")],
+        registered_names={"alive", "submit_verdict"},
+    )
+    ghosts = report.ghost_registry_metadata_keys({"alive", "orphan_meta_key", "submit_verdict"})
+    assert ghosts == {"orphan_meta_key"}
 
 
 def test_orphan_factories_skips_whitelist_and_called() -> None:

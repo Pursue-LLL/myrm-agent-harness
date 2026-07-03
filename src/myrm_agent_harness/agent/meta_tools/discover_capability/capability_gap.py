@@ -6,12 +6,14 @@
 [OUTPUT]
 - detect_capability_gap / detect_skill_gap: entitlement gap hits
 - format_capability_gap_block / format_skill_gap_block: XML blocks for tool messages
-- CAPABILITY_GAP_REGISTRY: single SSOT for builtin tool_id → group + triggers
+- CAPABILITY_GAP_REGISTRY: SSOT for GUI-togglable builtin tool_id → group + triggers (baseline excluded)
 - BUILTIN_TOOL_ID_TO_GROUP: derived view for server catalog parity tests
 
 [POS]
-Detects when a user query needs a builtin tool group or skill that is not enabled on the
-current Agent profile, so discover can surface structured gap hints instead of bare misses.
+Detects when a user query needs a **GUI-togglable** builtin tool group or skill that is not
+enabled on the current Agent profile, so discover can surface structured gap hints instead of
+bare misses. ``AGENT_BASELINE_BUILTIN_TOOLS`` (file_ops, code_execute) are forced at runtime
+and omitted from ``CAPABILITY_GAP_REGISTRY`` — they must never emit entitlement gaps.
 """
 
 from __future__ import annotations
@@ -30,7 +32,8 @@ class CapabilityGapEntry:
 
 
 # Ordered registry: earlier entries win when multiple triggers could match.
-# Maps server ``enabled_builtin_tools`` IDs to harness TOOL_GROUP_MAP keys + gap triggers.
+# Maps GUI-togglable server tool IDs to harness TOOL_GROUP_MAP keys + gap triggers.
+# Agent baseline (file_ops, code_execute) is forced at runtime — not listed here.
 CAPABILITY_GAP_REGISTRY: tuple[CapabilityGapEntry, ...] = (
     CapabilityGapEntry(
         "web_search",
@@ -130,33 +133,6 @@ CAPABILITY_GAP_REGISTRY: tuple[CapabilityGapEntry, ...] = (
         ("generate video", "text to video", "生成视频", "文生视频"),
     ),
     CapabilityGapEntry("tts", "tts", ("text to speech", "tts", "语音合成", "朗读")),
-    CapabilityGapEntry(
-        "file_ops",
-        "file_ops",
-        (
-            "read file",
-            "write file",
-            "edit file",
-            "glob",
-            "grep",
-            "读文件",
-            "写文件",
-            "改文件",
-        ),
-    ),
-    CapabilityGapEntry(
-        "code_execute",
-        "shell",
-        (
-            "run shell",
-            "bash",
-            "terminal",
-            "execute script",
-            "命令行",
-            "运行脚本",
-            "执行命令",
-        ),
-    ),
 )
 
 BUILTIN_TOOL_ID_TO_GROUP: dict[str, str] = {

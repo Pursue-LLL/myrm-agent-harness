@@ -186,6 +186,12 @@ def _run_main(monkeypatch: pytest.MonkeyPatch, argv: list[str], **scan_kwargs: o
     monkeypatch.setattr(
         cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1}
     )
+    # main() compares real TOOL_* maps against the stubbed scan report; isolate metadata.
+    monkeypatch.setattr(
+        cli,
+        "_load_registry_metadata_keys",
+        lambda: fake_report.declared_names | fake_report.registered_names,
+    )
     monkeypatch.setattr(cli.sys, "argv", ["validate_tool_registry.py", *argv])
     capsys = scan_kwargs["capsys"]
     rc = cli.main()
