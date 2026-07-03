@@ -9,8 +9,8 @@
 - create_interact_tool: Create browser_interact tool bound to session.
 
 [POS]
-browser_interact tool for element interactions. Includes semantic DOM risk check
-that gates destructive/financial/admin click actions via HITL approval.
+browser_interact tool for element interactions. Semantic DOM risk check runs in
+BrowserSession.interact (shared with execute_script); this tool adds download detection.
 """
 
 from __future__ import annotations
@@ -71,79 +71,6 @@ def create_interact_tool(session: BrowserSession):
         Use verify_goal to automatically verify the visual result of your action without needing to call a separate vision tool.
         """
         count_before = len(session.list_downloads())
-
-        ref_info = session.get_ref_info(ref)
-        if ref_info is not None and isinstance(getattr(ref_info, "name", None), str):
-            from myrm_agent_harness.toolkits.browser.tools._semantic_risk import (
-                SemanticRiskLevel,
-                classify_interaction_risk,
-            )
-
-            verdict = classify_interaction_risk(action, ref_info)
-            if verdict.level is SemanticRiskLevel.HIGH:
-                from langgraph.types import interrupt
-
-                from myrm_agent_harness.core.security.audit import record_decision
-
-                page_url = ""
-                try:
-                    page_url = session.page.url
-                except Exception:
-                    logger.debug("Failed to retrieve page URL for semantic DOM guard")
-
-                logger.warning(
-                    "[SEMANTIC_DOM_GUARD] High-risk interaction blocked for approval: "
-                    "action=%s ref=%s role=%s name=%r url=%s",
-                    action, ref, ref_info.role, ref_info.name, page_url,
-                )
-
-                record_decision(
-                    "browser_interact_tool",
-                    "ASK",
-                    f"Semantic DOM guard: {verdict.reason}",
-                )
-
-                hitl_payload = {
-                    "action_type": "high_risk_dom_action",
-                    "tool_name": "browser_interact_tool",
-                    "tool_input": {"action": action, "ref": ref, "text": text},
-                    "reason": verdict.reason,
-                    "element": {
-                        "role": ref_info.role,
-                        "name": ref_info.name,
-                        "ref": ref,
-                    },
-                    "page_url": page_url,
-                }
-
-                user_response = interrupt(hitl_payload)
-
-                approved = False
-                if isinstance(user_response, dict):
-                    approved = user_response.get("decision") == "approve"
-                elif isinstance(user_response, str):
-                    approved = user_response.lower() in ("approve", "allow", "yes", "y")
-
-                if not approved:
-                    record_decision(
-                        "browser_interact_tool",
-                        "USER_REJECTED",
-                        f"User rejected high-risk DOM action: {verdict.reason}",
-                    )
-                    feedback = ""
-                    if isinstance(user_response, dict):
-                        feedback = user_response.get("feedback", "")
-                    return (
-                        f"[BLOCKED] User rejected this action: {verdict.reason}."
-                        + (f" Feedback: {feedback}" if feedback else "")
-                        + " Please find an alternative approach."
-                    )
-
-                record_decision(
-                    "browser_interact_tool",
-                    "USER_APPROVED",
-                    f"User approved high-risk DOM action: {verdict.reason}",
-                )
 
         result = await session.interact(action, ref, text, verify_goal=verify_goal)
 

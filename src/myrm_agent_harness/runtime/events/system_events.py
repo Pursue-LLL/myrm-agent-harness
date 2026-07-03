@@ -9,6 +9,7 @@
 - SubagentLifecycleData: Typed subagent lifecycle event payload.
 - SubagentLifecycleEvent: Event emitted when a subagent changes lifecycle state.
 - ResourceMetricsEvent: Event emitted with current resource usage metrics.
+- MCPAuthExpiredEvent: Event emitted when an MCP session fails due to expired OAuth credentials.
 - to_json_object: Convert arbitrary mapping data into JSON-compatible event payloads.
 
 [POS]
@@ -132,6 +133,24 @@ class ResourceMetricsEvent(BaseEvent):
 
     metrics: JsonObject
     history: list[JsonObject]
+
+
+@dataclass(slots=True)
+class MCPAuthExpiredEvent(BaseEvent):
+    """Event emitted when an MCP session fails due to expired/revoked OAuth credentials.
+
+    Allows business layers to notify users (e.g. via toast) that re-authorization
+    is required, without coupling the Harness MCP toolkit to any GUI or product layer.
+    """
+
+    server_name: str
+    error_detail: str
+
+    def to_dict(self) -> JsonObject:
+        return {
+            "server_name": self.server_name,
+            "error_detail": self.error_detail,
+        }
 
 
 @dataclass(slots=True)

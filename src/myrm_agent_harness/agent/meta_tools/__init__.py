@@ -217,16 +217,16 @@ def get_meta_tools(
         else:
             logger.info(" skill_select_tool 未加载(skill_backend 未提供)")
 
+    skill_discovery_pending: BaseTool | None = None
     if discovery_backend is not None:
         install_url_fn = getattr(discovery_backend, "install_from_url", None)
         uninstall_fn = getattr(discovery_backend, "uninstall", None)
-        skill_disc_tool = create_skill_discovery_tool(
+        skill_discovery_pending = create_skill_discovery_tool(
             discovery_backend,
             install_from_url_fn=install_url_fn,
             uninstall_fn=uninstall_fn,
         )
-        tools.append(skill_disc_tool)
-        logger.info("skill_discovery_tool loaded")
+        logger.info(" skill_discovery_tool registered as deferred")
 
     if has_manage_tool:
         assert write_backend is not None  # narrowed by has_manage_tool
@@ -290,6 +290,9 @@ def get_meta_tools(
             create_skill_analyze_tool(get_all_skills_fn=lambda: skills_snapshot)
         )
         logger.info(" skill_analyze_tool registered as deferred")
+
+    if skill_discovery_pending is not None:
+        _deferred_tools.append(skill_discovery_pending)
 
     if registry is not None:
         from myrm_agent_harness.agent.tool_management.types import ToolSource

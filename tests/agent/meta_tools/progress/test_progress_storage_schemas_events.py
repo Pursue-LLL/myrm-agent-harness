@@ -142,6 +142,16 @@ async def test_workspace_todos_exist_via_backend(tmp_path) -> None:
     backend = MagicMock()
     backend.exists = AsyncMock(return_value=True)
     assert await workspace_todos_exist(backend, workspace_root=str(tmp_path)) is True
+    backend.exists.assert_awaited_once_with(".myrm/progress/todos.json")
+
+
+@pytest.mark.asyncio
+async def test_workspace_todos_exist_falls_back_when_backend_returns_false(tmp_path) -> None:
+    store = TodoStore(todos=[TodoItem(id="1", content="x", status=TodoStatus.PENDING)])
+    write_todos_sync_to_workspace(str(tmp_path), store)
+    backend = MagicMock()
+    backend.exists = AsyncMock(return_value=False)
+    assert await workspace_todos_exist(backend, workspace_root=str(tmp_path)) is True
 
 
 @pytest.mark.asyncio

@@ -110,8 +110,8 @@ class ToolLayer(IntEnum):
 | Deferred 工具 | discover 挂载 | bash_process_list/output/kill_tool, skill_analyze_tool | 0（默认） / ~246（挂载 analyze+process 后） |
 | 文件搜索中间件 | 显式启用 FilesystemFileSearchMiddleware | glob_tool, grep_tool | - |
 | 记忆工具（eager） | 启用记忆系统 | memory_recall_tool, memory_save_tool, memory_manage_tool, conversation_search_tool（GeneralAgent server 装配） | ~907 |
-| 技能工具（Turn1 常驻） | 有技能后端 | skill_select, skill_manage, skill_discovery, discover_capability_tool | ~535 |
-| 技能工具（deferred） | discover 挂载 | skill_analyze_tool | 0（默认） / ~77（挂载后） |
+| 技能工具（Turn1 常驻） | 有技能后端 | skill_select, skill_manage, discover_capability_tool | ~343 |
+| 技能工具（deferred） | discover 挂载 | skill_analyze_tool, skill_discovery_tool | 0（默认） / ~269（挂载后） |
 | 浏览器工具 | 启用浏览器 | browser_navigate_tool, browser_snapshot_tool, ... (7个) | ~535 |
 | 定时任务工具 | 启用 Cron | cron_manage_tool | ~827 |
 | Wiki 工具 | 有 Wiki 目录 | wiki_query, wiki_ingest, ... (4个) | ~250 |

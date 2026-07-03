@@ -648,22 +648,26 @@ Agent 根据元信息自主决定优化策略，无需隐式知识。
 browser_interact_tool(action="click")          → browser_click     → ALLOW (+ Semantic DOM Guard)
 browser_interact_tool(action="fill")           → browser_fill      → ASK
 browser_interact_tool(action="upload_file")    → browser_upload    → ASK
-browser_manage_tool(action="evaluate")         → browser_evaluate  → DENY
+browser_manage_tool(action="evaluate")         → browser_evaluate  → DENY (L1 ToolApproval; L2 Semantic JS Guard on mutating expressions that reach session evaluate)
 browser_manage_tool(action="save_session")     → browser_session   → ASK
 browser_manage_tool(action="wait_for_user")    → browser_human_handover → ASK (handover 模式)
 ```
 
 ### 语义级 DOM 高危动作拦截 (Semantic DOM Guard)
 
-在 `browser_interact_tool` 的 click/dblclick 操作执行前，基于目标元素的 ARIA role 和 name 进行语义风险分类。匹配五大高危类别（destructive/financial/account/admin/publish）时，通过 LangGraph `interrupt()` 强制触发 HITL 审批，无论当前权限配置如何。
+在 **BrowserSession.interact**（覆盖 `browser_interact_tool` 与 `browser_execute_script` 内 `session.interact()`）的 click/dblclick 执行前，基于目标元素的 ARIA role 和 name 进行语义风险分类。匹配五大高危类别（destructive/financial/account/admin/publish）时，通过 LangGraph `interrupt()` 强制触发 HITL 审批，无论当前权限配置如何。
+
+**browser_manage evaluate**：L1 默认 `browser_evaluate` → DENY（`core/security/types.py`）；经 YOLO/allowlist 放行后，L2 变异 JS（`.click()`、`submit()`、`innerHTML=` 等）经 `classify_js_eval_risk` 仍走 HITL；只读表达式（如 `document.title`）直接执行。
 
 ```
 click(ref="e5", name="Delete Repository") → HIGH (destructive) → interrupt() → 用户审批
 click(ref="e3", name="Pay Now")           → HIGH (financial)   → interrupt() → 用户审批
 click(ref="e1", name="Search")            → SAFE               → 直接执行
+evaluate("document.querySelector('.pay').click()") → HIGH → interrupt()
+evaluate("document.title")                → SAFE               → 直接执行
 ```
 
-实现：`tools/_semantic_risk.py`（纯函数，零 LLM 开销）
+实现：`tools/_semantic_risk.py`（纯函数）+ `tools/semantic_dom_hitl.py`（共享 interrupt 路径）
 
 ### URL 安全验证
 

@@ -320,6 +320,22 @@ class BrowserSession(
         interactor = self._require_interactor()
         page = self._tab_controller.get_active_page()
 
+        from myrm_agent_harness.toolkits.browser.tools.semantic_dom_hitl import (
+            enforce_semantic_interaction_guard,
+        )
+
+        ref_info = self.get_ref_info(ref)
+        blocked = await enforce_semantic_interaction_guard(
+            session=self,
+            tool_name="browser_interact_tool",
+            action=action,
+            ref=ref,
+            ref_info=ref_info,
+            text=text,
+        )
+        if blocked is not None:
+            return blocked
+
         baseline_screenshot = None
         if verify_goal:
             try:

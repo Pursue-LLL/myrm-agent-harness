@@ -13,6 +13,7 @@ from myrm_agent_harness.toolkits.browser.snapshot.aria_types import RefInfo
 from myrm_agent_harness.toolkits.browser.tools._semantic_risk import (
     SemanticRiskLevel,
     classify_interaction_risk,
+    classify_js_eval_risk,
 )
 
 
@@ -282,3 +283,33 @@ def test_with_bbox_and_position():
     ref = RefInfo(role="button", name="Terminate Instance", nth=0, bbox=bbox, position="at top-right")
     verdict = classify_interaction_risk("click", ref)
     assert verdict.level is SemanticRiskLevel.HIGH
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "document.querySelector('button.delete').click()",
+        "el.dispatchEvent(new MouseEvent('click'))",
+        "form.submit()",
+        "node.remove()",
+        "document.body.innerHTML = ''",
+        "location.href = 'https://evil.example'",
+    ],
+)
+def test_js_eval_mutations_high_risk(expression: str):
+    verdict = classify_js_eval_risk(expression)
+    assert verdict.level is SemanticRiskLevel.HIGH
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "document.title",
+        "window.location.pathname",
+        "JSON.stringify({ ok: true })",
+        "return document.querySelectorAll('a').length",
+    ],
+)
+def test_js_eval_read_only_safe(expression: str):
+    verdict = classify_js_eval_risk(expression)
+    assert verdict.level is SemanticRiskLevel.SAFE

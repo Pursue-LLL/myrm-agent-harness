@@ -31,6 +31,17 @@ class BrowserSessionPageMixin:
     async def evaluate(self, expression: str) -> str:
         """Execute JavaScript code"""
         await self._ensure_components()
+
+        from myrm_agent_harness.toolkits.browser.tools.semantic_dom_hitl import enforce_js_eval_guard
+
+        blocked = await enforce_js_eval_guard(
+            session=self,
+            tool_name="browser_manage_tool",
+            expression=expression,
+        )
+        if blocked is not None:
+            return blocked
+
         page = self._tab_controller.get_active_page()
 
         result = await page.evaluate(expression)

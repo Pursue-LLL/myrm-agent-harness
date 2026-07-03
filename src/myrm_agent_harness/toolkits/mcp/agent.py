@@ -12,6 +12,7 @@ Provides MCP tool fetching capabilities:
 - Content block coercion: ``_coerce_content_block`` ensures only LLM-safe types (text, image) reach the API — ``file``, ``audio``, and unknown blocks are gracefully degraded to text, preventing 400 errors and session history poisoning
 - Content boundary defense: ``_timeout_wrapper`` applies ``wrap_untrusted()`` to MCP tool string outputs, ensuring third-party server data receives the same 5-layer content boundary protection (Unicode folding, structural framing strip, marker sanitization, random boundary, pattern detection) as all built-in tools
 - Upstream fault tolerance: ``_timeout_wrapper`` catches adapter-layer exceptions (NotImplementedError for AudioContent, ValueError for unknown types) from langchain_mcp_adapters, returning readable error messages instead of crashing
+- Auth error detection: ``_timeout_wrapper`` catches ``httpx.HTTPStatusError(401)`` from the MCP transport, returns a clear re-authorization message to the Agent, and emits ``MCPAuthExpiredEvent`` to trigger the existing toast/SSE notification chain
 - Extracts MCP structuredContent from artifacts as supplementary text blocks
 - Detects ext-apps ``_meta.ui.resourceUri`` and emits MCP App view events via progress_sink
 
@@ -71,6 +72,30 @@ from .schema_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _is_mcp_auth_error(exc: Exception) -> bool:
+    """Return True if *exc* is an HTTP 401 from the MCP transport layer."""
+    try:
+        from httpx import HTTPStatusError
+    except ImportError:
+        return False
+    return isinstance(exc, HTTPStatusError) and exc.response.status_code == 401
+
+
+def _emit_auth_expired_for_tool(server_name: str, error_detail: str) -> None:
+    """Fire MCPAuthExpiredEvent so the existing toast/SSE chain notifies the user."""
+    try:
+        from myrm_agent_harness.runtime.events import get_event_bus
+        from myrm_agent_harness.runtime.events.system_events import MCPAuthExpiredEvent
+
+        get_event_bus().publish(MCPAuthExpiredEvent(
+            server_name=server_name,
+            error_detail=error_detail,
+        ))
+    except Exception:
+        logger.debug("Failed to emit MCPAuthExpiredEvent for '%s'", server_name, exc_info=True)
+
 
 # Auto-generated MCP servers (e.g. Swagger/OpenAPI converters) may embed
 # 15-60 KB of API docs into tool descriptions, wasting massive tokens.
@@ -307,6 +332,18 @@ class MCPAgent:
                     error_msg = f"MCP tool '{_name}' returned unsupported content: {exc}"
                     logger.warning(error_msg)
                     return error_msg
+                except Exception as exc:
+                    if _is_mcp_auth_error(exc):
+                        server = parse_mcp_tool_name(_name)
+                        srv_label = server[0] if server else _name
+                        logger.warning("MCP tool '%s' failed with auth error (401)", _name)
+                        _emit_auth_expired_for_tool(srv_label, str(exc))
+                        return (
+                            f"MCP server '{srv_label}' requires re-authorization. "
+                            f"Please go to Settings → MCP → {srv_label} → Authorize to refresh your credentials, "
+                            f"then ask me to retry."
+                        )
+                    raise
 
             tool.coroutine = _timeout_wrapper
             # Override response_format to prevent ToolNode from tuple-destructuring

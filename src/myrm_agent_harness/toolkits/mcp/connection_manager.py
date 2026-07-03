@@ -202,6 +202,19 @@ class MCPConnection:
             "error_rate": f"{self.metrics.error_count / max(1, self.metrics.use_count) * 100:.1f}%",
         }
 
+    def refresh_server_auth(self, server_name: str, new_headers: dict[str, str]) -> bool:
+        """Hot-update auth headers for a specific server's session actor.
+
+        Returns True if the server was found and updated, False otherwise.
+        Called by the business layer after a successful OAuth re-authorization
+        so the existing warm session picks up the fresh token.
+        """
+        actor = self._resolve_actor(server_name)
+        if actor is None:
+            return False
+        actor.update_auth_headers(new_headers)
+        return True
+
     async def close(self) -> None:
         """Close every session actor, releasing all processes / connections."""
         if self.status == ConnectionStatus.CLOSED:
@@ -386,6 +399,7 @@ class MCPConnectionManager:
                 max_output_chars=getattr(cfg, "max_output_chars", 100_000),
                 tool_include=getattr(cfg, "tool_include", None),
                 tool_exclude=getattr(cfg, "tool_exclude", None),
+                auth_provider=getattr(cfg, "auth_provider", None),
             )
             await actor.start()
             return cfg.name, actor
@@ -458,6 +472,19 @@ class MCPConnectionManager:
             return_exceptions=True,
         )
         self._connections.clear()
+
+    def refresh_server_auth(self, server_name: str, new_headers: dict[str, str]) -> bool:
+        """Hot-update auth headers for a named server across all pooled connections.
+
+        Returns True if at least one connection contained the server and was updated.
+        """
+        updated = False
+        for conn in self._connections.values():
+            if conn.status != ConnectionStatus.CLOSED and conn.refresh_server_auth(server_name, new_headers):
+                updated = True
+        if updated:
+            logger.info("[MCPConnectionManager] Auth headers refreshed for server '%s'", server_name)
+        return updated
 
     def get_stats(self) -> dict[str, object]:
         """Return pool-wide statistics for observability."""

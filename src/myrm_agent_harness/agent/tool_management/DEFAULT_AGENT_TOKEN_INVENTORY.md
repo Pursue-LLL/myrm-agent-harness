@@ -68,7 +68,7 @@
 | 20 | skill_select_tool | 125 | `harness/agent/meta_tools/skills/select/skill_select_tool.py` | 加载技能 SOP 文档 |
 | 21 | skill_manage_tool | 251 | `harness/agent/meta_tools/skills/manage/skill_manage_tool.py` | 创建/修改/删除技能 |
 | 22 | discover_capability_tool | 236~299 | `harness/agent/meta_tools/discover_capability/discover_capability_tool.py` | 统一能力发现（BM25+Embedding 语义搜索） |
-| 23 | skill_discovery_tool | 192 | `harness/agent/meta_tools/skills/discovery/skill_discovery_tool.py` | 从外部源安装/卸载技能 |
+| 23 | skill_discovery_tool | 192 | `harness/agent/meta_tools/skills/discovery/skill_discovery_tool.py` | 从外部源安装/卸载技能 | **deferred**（discover 挂载；有 ToolRegistry 时） |
 | 24 | skill_analyze_tool | 77 | `harness/agent/meta_tools/skills/analyze/skill_analyze_tool.py` | 技能质量分析（**deferred**，经 discover 挂载；WebUI Curator 为主路径） |
 
 ### 4.4 历史会话搜索工具

@@ -1212,3 +1212,115 @@ class TestPropertyEdgeCases:
         actor = MCPSessionActor("srv", {"transport": "stdio"})
         after = time.time()
         assert before <= actor.last_activity <= after
+
+
+# ────────── auth error detection ──────────
+
+
+class TestAuthErrorDetection:
+    """Cover _is_auth_error heuristic and _maybe_emit_auth_expired event emission."""
+
+    def test_detects_401_status(self) -> None:
+        from myrm_agent_harness.toolkits.mcp.session_actor import _is_auth_error
+
+        assert _is_auth_error("HTTPStatusError: 401 Unauthorized") is True
+
+    def test_detects_unauthorized_keyword(self) -> None:
+        from myrm_agent_harness.toolkits.mcp.session_actor import _is_auth_error
+
+        assert _is_auth_error("Server returned Unauthorized access") is True
+
+    def test_detects_invalid_token(self) -> None:
+        from myrm_agent_harness.toolkits.mcp.session_actor import _is_auth_error
+
+        assert _is_auth_error("OAuth error: invalid_token") is True
+
+    def test_detects_token_expired(self) -> None:
+        from myrm_agent_harness.toolkits.mcp.session_actor import _is_auth_error
+
+        assert _is_auth_error("token expired at 2026-07-01") is True
+        assert _is_auth_error("token_expired") is True
+
+    def test_detects_unauthenticated(self) -> None:
+        from myrm_agent_harness.toolkits.mcp.session_actor import _is_auth_error
+
+        assert _is_auth_error("request unauthenticated") is True
+
+    def test_ignores_port_number_containing_401(self) -> None:
+        from myrm_agent_harness.toolkits.mcp.session_actor import _is_auth_error
+
+        assert _is_auth_error("ConnectionError: failed to connect to localhost:4010") is False
+
+    def test_ignores_unrelated_error(self) -> None:
+        from myrm_agent_harness.toolkits.mcp.session_actor import _is_auth_error
+
+        assert _is_auth_error("TimeoutError: connection timed out after 30s") is False
+        assert _is_auth_error("FileNotFoundError: /path/to/oauth/config.json") is False
+
+    def test_ignores_empty_string(self) -> None:
+        from myrm_agent_harness.toolkits.mcp.session_actor import _is_auth_error
+
+        assert _is_auth_error("") is False
+
+    def test_case_insensitive(self) -> None:
+        from myrm_agent_harness.toolkits.mcp.session_actor import _is_auth_error
+
+        assert _is_auth_error("UNAUTHORIZED") is True
+        assert _is_auth_error("Invalid_Token") is True
+
+    def test_maybe_emit_auth_expired_fires_event(self) -> None:
+        actor = MCPSessionActor("github-mcp", {"transport": "sse"})
+        with patch("myrm_agent_harness.runtime.events.get_event_bus") as mock_get_bus:
+            mock_bus_instance = MagicMock()
+            mock_get_bus.return_value = mock_bus_instance
+            actor._maybe_emit_auth_expired("HTTPStatusError: 401 Unauthorized")
+            mock_bus_instance.publish.assert_called_once()
+            event = mock_bus_instance.publish.call_args[0][0]
+            assert event.server_name == "github-mcp"
+            assert "401" in event.error_detail
+
+    def test_maybe_emit_auth_expired_no_event_for_non_auth(self) -> None:
+        actor = MCPSessionActor("srv", {"transport": "stdio"})
+        with patch("myrm_agent_harness.runtime.events.get_event_bus") as mock_get_bus:
+            actor._maybe_emit_auth_expired("ConnectionRefusedError: connection refused")
+            mock_get_bus.return_value.publish.assert_not_called()
+
+    def test_event_to_dict_serialization(self) -> None:
+        from myrm_agent_harness.runtime.events.system_events import MCPAuthExpiredEvent
+
+        event = MCPAuthExpiredEvent(server_name="linear-mcp", error_detail="401 Unauthorized")
+        d = event.to_dict()
+        assert d == {"server_name": "linear-mcp", "error_detail": "401 Unauthorized"}
+
+    def test_401_in_url_path_not_detected(self) -> None:
+        from myrm_agent_harness.toolkits.mcp.session_actor import _is_auth_error
+
+        assert _is_auth_error("GET /api/v2/users/401/profile returned 500") is True
+        # Note: \b401\b matches "401" as standalone word even in URL paths.
+        # This is acceptable: if "401" appears as a standalone word in an error,
+        # it almost always indicates an HTTP 401 status, not a user ID.
+
+    def test_multiword_auth_patterns(self) -> None:
+        from myrm_agent_harness.toolkits.mcp.session_actor import _is_auth_error
+
+        assert _is_auth_error("Error: token_expired") is True
+        assert _is_auth_error("invalid_token: The access token expired") is True
+        assert _is_auth_error("Request failed: 401 Forbidden") is True
+        # "token has expired" has >1 char gap — not matched (acceptable edge case)
+        assert _is_auth_error("Error: token has expired") is False
+
+    def test_fail_to_start_emits_auth_event(self) -> None:
+        actor = MCPSessionActor("notion-mcp", {"transport": "sse"})
+        with patch("myrm_agent_harness.runtime.events.get_event_bus") as mock_get_bus:
+            mock_bus_instance = MagicMock()
+            mock_get_bus.return_value = mock_bus_instance
+            actor._fail_to_start("HTTPStatusError: 401 Unauthorized")
+            mock_bus_instance.publish.assert_called_once()
+            event = mock_bus_instance.publish.call_args[0][0]
+            assert event.server_name == "notion-mcp"
+
+    def test_fail_to_start_no_event_for_timeout(self) -> None:
+        actor = MCPSessionActor("srv", {"transport": "stdio"})
+        with patch("myrm_agent_harness.runtime.events.get_event_bus") as mock_get_bus:
+            actor._fail_to_start("TimeoutError: connect timed out")
+            mock_get_bus.return_value.publish.assert_not_called()

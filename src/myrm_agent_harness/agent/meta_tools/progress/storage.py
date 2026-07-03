@@ -45,7 +45,9 @@ async def workspace_todos_exist(storage_backend: object, *, workspace_root: str 
     exists_fn = getattr(storage_backend, "exists", None)
     if callable(exists_fn):
         try:
-            return bool(await exists_fn(str(path)))
+            rel_key = f"{PROGRESS_RELATIVE_DIR}/{TODOS_FILENAME}"
+            if await exists_fn(rel_key):
+                return True
         except Exception as exc:
             logger.warning("Failed to check todos existence via storage backend: %s", exc)
     return path.is_file()

@@ -81,6 +81,67 @@ async def test_create_todo_write_created_when_planning_enabled() -> None:
 
 
 @pytest.mark.asyncio
+async def test_create_todo_write_skips_when_user_provided_override() -> None:
+    user_tool = MagicMock()
+    user_tool.name = "todo_write"
+    harness = _TodoHarness(
+        storage_backend=MagicMock(),
+        enable_planning=True,
+        user_tools=[user_tool],
+    )
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.progress.todo_write_tool.create_todo_write_tool",
+    ) as mock_create:
+        result = await harness._create_todo_write_tool()
+    assert result is None
+    mock_create.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_todo_write_returns_none_on_factory_exception() -> None:
+    harness = _TodoHarness(storage_backend=MagicMock(), enable_planning=True)
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.progress.todo_write_tool.create_todo_write_tool",
+        side_effect=RuntimeError("factory failed"),
+    ):
+        result = await harness._create_todo_write_tool()
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_workspace_has_todos_returns_false_without_storage_backend() -> None:
+    harness = _TodoHarness(storage_backend=None, enable_planning=False)
+    assert await harness._workspace_has_todos() is False
+
+
+@pytest.mark.asyncio
+async def test_workspace_has_todos_returns_false_on_backend_error() -> None:
+    backend = MagicMock()
+    backend.exists = AsyncMock(side_effect=RuntimeError("backend down"))
+    harness = _TodoHarness(storage_backend=backend, enable_planning=False, task_workspace_root="/tmp/ws")
+    with patch.object(harness, "_resolve_task_workspace_root", return_value="/tmp/ws"):
+        assert await harness._workspace_has_todos() is False
+
+
+def test_resolve_task_workspace_root_prefers_live_session_context() -> None:
+    harness = _TodoHarness(storage_backend=MagicMock(), task_workspace_root="/bound/path")
+    with patch(
+        "myrm_agent_harness.agent.middlewares._session_context.get_workspace_root",
+        return_value="/live/session",
+    ):
+        assert harness._resolve_task_workspace_root() == "/live/session"
+
+
+def test_resolve_task_workspace_root_falls_back_to_bound_root() -> None:
+    harness = _TodoHarness(storage_backend=MagicMock(), task_workspace_root="  /bound/path  ")
+    with patch(
+        "myrm_agent_harness.agent.middlewares._session_context.get_workspace_root",
+        return_value=None,
+    ):
+        assert harness._resolve_task_workspace_root() == "/bound/path"
+
+
+@pytest.mark.asyncio
 async def test_workspace_has_todos_detects_sandbox_file(tmp_path) -> None:
     workspace = tmp_path / "chat_resume"
     progress_dir = workspace / ".myrm" / "progress"

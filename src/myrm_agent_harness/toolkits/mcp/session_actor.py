@@ -52,6 +52,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import re
 import time
 from dataclasses import dataclass
 from enum import Enum
@@ -135,6 +136,11 @@ class MCPSessionActor:
     boundaries — the one discipline that keeps an open ``anyio``-based session
     safe across many calls. The owner reconnects on a transport break, so the
     actor stays usable for the agent's whole lifetime.
+
+    An optional ``auth_provider`` (MCPAuthProvider protocol) enables dynamic
+    auth header refresh on reconnect: when a session breaks and reconnects,
+    fresh headers are fetched from the provider so a re-authorized token is
+    used instead of replaying stale credentials baked in at initial spawn.
     """
 
     def __init__(
@@ -147,6 +153,7 @@ class MCPSessionActor:
         max_output_chars: int = 100_000,
         tool_include: list[str] | None = None,
         tool_exclude: list[str] | None = None,
+        auth_provider: object | None = None,
     ) -> None:
         self.server_name = server_name
         self._connection = connection
@@ -155,6 +162,7 @@ class MCPSessionActor:
         self._max_output_chars = max_output_chars
         self._tool_include = tool_include
         self._tool_exclude = tool_exclude
+        self._auth_provider = auth_provider
         # Idle keepalive only matters for remote transports that sit behind LBs /
         # NAT; a local stdio pipe never idle-disconnects (interval 0 = disabled).
         transport = str(connection.get("transport", "")).lower()
@@ -196,6 +204,17 @@ class MCPSessionActor:
     def last_activity(self) -> float:
         """Wall-clock time of the most recent tool call (for TTL accounting)."""
         return self._last_activity
+
+    def update_auth_headers(self, new_headers: dict[str, str]) -> None:
+        """Hot-update the stored connection auth headers after re-authorization.
+
+        Called by the connection manager when the business layer completes a new
+        OAuth flow. The next reconnect (or a forced reconnect) will pick up the
+        fresh token instead of replaying stale credentials.
+        """
+        existing: dict[str, str] = dict(self._connection.get("headers") or {})  # type: ignore[arg-type]
+        existing.update(new_headers)
+        self._connection["headers"] = existing  # type: ignore[assignment]
 
     def is_healthy(self) -> bool:
         """True when the owner task is alive and the session started cleanly.
@@ -290,6 +309,10 @@ class MCPSessionActor:
         last_error = "not started"
 
         while not self._closed:
+            # On reconnect, refresh auth headers from the provider so a newly
+            # re-authorized token is picked up instead of replaying stale creds.
+            if reconnect_failures > 0:
+                await self._refresh_auth_headers(conn)
             outcome: _ServeOutcome | None = None
             connected_at = 0.0
             try:
@@ -642,6 +665,7 @@ class MCPSessionActor:
         self._start_error = RuntimeError(f"MCP server '{self.server_name}' failed to start: {detail}")
         self._ready.set()
         self._fail_pending(self._start_error)
+        self._maybe_emit_auth_expired(detail)
 
     def _give_up_reconnecting(self, detail: str) -> None:
         """Reconnect budget exhausted: fail queued calls; the pool rebuilds next."""
@@ -652,6 +676,47 @@ class MCPSessionActor:
             detail,
         )
         self._fail_pending(RuntimeError(f"MCP session '{self.server_name}' reconnect exhausted: {detail}"))
+        self._maybe_emit_auth_expired(detail)
+
+    def _maybe_emit_auth_expired(self, detail: str) -> None:
+        """Emit MCPAuthExpiredEvent if the failure looks like an auth/token issue."""
+        if not _is_auth_error(detail):
+            return
+        from myrm_agent_harness.runtime.events import get_event_bus
+        from myrm_agent_harness.runtime.events.system_events import MCPAuthExpiredEvent
+
+        get_event_bus().publish(MCPAuthExpiredEvent(
+            server_name=self.server_name,
+            error_detail=detail,
+        ))
+
+    async def _refresh_auth_headers(self, conn: dict[str, object]) -> None:
+        """Re-fetch auth headers from the provider and update *conn* in place.
+
+        Called before each reconnect attempt so a token refreshed or re-authorized
+        via the Settings UI is picked up immediately instead of replaying stale
+        credentials baked in at initial spawn.
+        """
+        if self._auth_provider is None:
+            return
+        transport = str(conn.get("transport", "")).lower()
+        if transport not in ("sse", "streamable_http"):
+            return
+        try:
+            url = str(conn.get("url", ""))
+            headers = await self._auth_provider.get_auth_headers(self.server_name, url)
+            if headers:
+                existing: dict[str, str] = dict(conn.get("headers") or {})  # type: ignore[arg-type]
+                existing.update(headers)
+                conn["headers"] = existing  # type: ignore[assignment]
+                self._connection["headers"] = existing  # type: ignore[assignment]
+                logger.info("MCP session '%s' auth headers refreshed for reconnect", self.server_name)
+        except Exception:
+            logger.debug(
+                "Auth header refresh failed for MCP session '%s', proceeding with existing headers",
+                self.server_name,
+                exc_info=True,
+            )
 
     @staticmethod
     def _reconnect_backoff(attempt: int) -> float:
@@ -736,6 +801,17 @@ class MCPSessionActor:
                 break
             if isinstance(item, _ToolCall) and not item.future.done():
                 item.future.set_exception(error)
+
+
+_AUTH_ERROR_PATTERN = re.compile(
+    r"\b401\b|unauthorized|invalid_token|token.?expired|unauthenticated",
+    re.IGNORECASE,
+)
+
+
+def _is_auth_error(detail: str) -> bool:
+    """Heuristic: return True if the error description indicates an auth/token failure."""
+    return _AUTH_ERROR_PATTERN.search(detail) is not None
 
 
 def _describe_error(exc: Exception) -> str:

@@ -13,8 +13,8 @@ to request explicit user approval via LangGraph's HITL mechanism.
 - classify_interaction_risk: classify (action, RefInfo) → risk level + reason
 
 [POS]
-Pure function module — no side effects, no I/O. Called by browser_interact_tool
-before element interaction to gate destructive operations.
+Pure function module — no side effects, no I/O. Consumed by semantic_dom_hitl
+(session.interact and evaluate HITL gates) before element interaction or JS eval.
 """
 
 from __future__ import annotations
@@ -106,6 +106,47 @@ _CATEGORY_LABELS: dict[str, str] = {
     "admin": "Infrastructure operation",
     "publish": "Content publishing",
 }
+
+
+_JS_MUTATION_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\.click\s*\("), "DOM click via JS"),
+    (re.compile(r"\.dblclick\s*\("), "DOM double-click via JS"),
+    (re.compile(r"\.dispatchEvent\s*\("), "Synthetic DOM event"),
+    (re.compile(r"\.submit\s*\("), "Form submission via JS"),
+    (re.compile(r"\bsubmit\s*\("), "Form submission via JS"),
+    (re.compile(r"\.remove\s*\("), "DOM node removal"),
+    (re.compile(r"removeChild\s*\("), "DOM node removal"),
+    (re.compile(r"innerHTML\s*="), "DOM content overwrite"),
+    (re.compile(r"outerHTML\s*="), "DOM content overwrite"),
+    (re.compile(r"document\.write\s*\("), "Document write"),
+    (re.compile(r"\beval\s*\("), "Dynamic code execution"),
+    (re.compile(r"location\.(?:href|assign|replace)\s*="), "Navigation redirect"),
+    (re.compile(r"location\.(?:assign|replace)\s*\("), "Navigation redirect"),
+    (re.compile(r"fetch\s*\([^)]*method\s*:\s*['\"]post", re.IGNORECASE), "Network POST"),
+    (re.compile(r"XMLHttpRequest"), "Legacy XHR mutation"),
+    (re.compile(r"删除"), "destructive"),
+    (re.compile(r"支付|付款|购买|下单"), "financial"),
+    (re.compile(r"发布|广播"), "publish"),
+)
+
+
+def classify_js_eval_risk(expression: str) -> RiskVerdict:
+    """Classify risk for browser_manage / session JS evaluate expressions."""
+    stripped = expression.strip()
+    if not stripped:
+        return RiskVerdict(SemanticRiskLevel.SAFE, "")
+
+    lowered = stripped.lower()
+    for pattern, category in _JS_MUTATION_PATTERNS:
+        if pattern.search(stripped) or pattern.search(lowered):
+            label = _CATEGORY_LABELS.get(category, category)
+            preview = stripped[:120] + ("…" if len(stripped) > 120 else "")
+            return RiskVerdict(
+                SemanticRiskLevel.HIGH,
+                f"{label}: JS evaluate `{preview}`",
+            )
+
+    return RiskVerdict(SemanticRiskLevel.SAFE, "")
 
 
 def classify_interaction_risk(action: str, ref_info: RefInfo) -> RiskVerdict:

@@ -22,7 +22,7 @@ Detailed design: [META_TOOLS_SYSTEM.md](META_TOOLS_SYSTEM.md)
 | progress/ | Main-agent todo progress (`todo_write`, workspace todos SSOT). |
 | clarification/ | Structured HITL clarification (`ask_question_tool`) — schemas + LangChain adapter. |
 | interaction/ | UI rendering (`render_ui_tool`) — depends on agent artifact context. |
-| skills/ | Skills submodule. |
+| skills/ | Skills submodule (`skill_discovery_tool` deferred when ToolRegistry is used). |
 | spawn_subagent/ | Spawn subagent meta-tool module. |
 
 ## Key Dependencies
