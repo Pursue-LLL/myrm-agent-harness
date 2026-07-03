@@ -24,7 +24,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `context_pipeline_helpers.py` | Internal | Compression intent, cache feedback, schema fingerprint. | ✅ |
 | `context_pipeline_middleware.py` | Core | `create_context_pipeline_middleware` factory. | ✅ |
 | `dangling_tool_call_middleware.py` | Core | Repair dangling tool_calls for strict providers. | ✅ |
-| `deferred_tool_middleware.py` | Core | AutoMount deferred tools from discover_capability. | ✅ |
+| `deferred_tool_middleware.py` | Core | AutoMount `DISCOVERABLE` tools from discover_capability. | ✅ |
 | `debug_logger_middleware.py` | Core | Full message list debug logging. | ✅ |
 | `filesystem_search_middleware.py` | Core | Inject glob/grep workspace search tools. | ✅ |
 | `memory_context_middleware.py` | Core | `<user_memory_context>` + untrusted data wrapping. | ✅ |

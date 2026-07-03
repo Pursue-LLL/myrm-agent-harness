@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent.meta_tools import get_meta_tools
-from myrm_agent_harness.agent.tool_management import ToolSnapshot, ToolSource
+from myrm_agent_harness.agent.tool_management import ToolBindMode, ToolSnapshot, ToolSource
 from myrm_agent_harness.toolkits.storage import storage_config
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -106,8 +106,6 @@ class SkillAgentToolsMixin:
         )
 
         if self.deferred_tools:  # type: ignore[attr-defined]
-            from myrm_agent_harness.agent.tool_management.types import ToolBindMode
-
             for tool in normalize_tool_names(self.deferred_tools):  # type: ignore[attr-defined]
                 registry.register(tool, source=ToolSource.USER, bind_mode=ToolBindMode.DISCOVERABLE)
 
@@ -123,8 +121,6 @@ class SkillAgentToolsMixin:
                     mw_tools = middleware.get_tools()  # type: ignore[attr-defined]
                     if mw_tools:
                         for t in mw_tools:
-                            from myrm_agent_harness.agent.tool_management.types import ToolBindMode
-
                             is_internal = t.name.startswith("_")
                             bind_mode = ToolBindMode.RUNTIME_ONLY if is_internal else ToolBindMode.TURN1
                             registry.register(t, source=ToolSource.MIDDLEWARE, bind_mode=bind_mode)  # type: ignore[arg-type]

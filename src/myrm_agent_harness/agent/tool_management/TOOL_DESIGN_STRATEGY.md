@@ -106,12 +106,12 @@ class ToolLayer(IntEnum):
 
 | 子类 | 加载条件 | 典型工具 | Token 消耗 |
 |------|---------|---------|----------:|
-| 默认加载的 EXTENDED 辅助（**eager**，非 deferred） | enable_file_tools | glob_tool, grep_tool, discover_capability_tool | ~819 |
-| Deferred 工具 | discover 挂载 | bash_process_list/output/kill_tool, skill_analyze_tool | 0（默认） / ~246（挂载 analyze+process 后） |
+| 默认加载的 EXTENDED 辅助（**TURN1**） | enable_file_tools | glob_tool, grep_tool, discover_capability_tool | ~819 |
+| Discoverable 工具 | discover 挂载 | bash_process_list/output/kill_tool, skill_analyze_tool, cron_manage_tool | 0（默认） / ~246+（挂载后） |
 | 文件搜索中间件 | 显式启用 FilesystemFileSearchMiddleware | glob_tool, grep_tool | - |
 | 记忆工具（eager） | 启用记忆系统 | memory_recall_tool, memory_save_tool, memory_manage_tool, conversation_search_tool（GeneralAgent server 装配） | ~907 |
 | 技能工具（Turn1 常驻） | 有技能后端 | skill_select, skill_manage, discover_capability_tool | ~343 |
-| 技能工具（deferred） | discover 挂载 | skill_analyze_tool, skill_discovery_tool | 0（默认） / ~269（挂载后） |
+| 技能工具（Discoverable） | discover 挂载 | skill_analyze_tool, skill_discovery_tool | 0（默认） / ~269（挂载后） |
 | 浏览器工具 | 启用浏览器 | browser_navigate_tool, browser_snapshot_tool, ... (8个) | ~535 |
 | 定时任务工具 | 启用 Cron | cron_manage_tool | ~827 |
 | Wiki 工具 | 有 Wiki 目录 | wiki_query, wiki_ingest, ... (4个) | ~250 |
@@ -295,7 +295,7 @@ const staleCoreSkills = useMemo(() => {
 |---------|---------|-----:|------:|
 | 记忆工具 | 启用记忆系统 | 4 | ~670 |
 | 技能工具 | 有技能后端 | 5 | ~612-944 |
-| 本地文件索引工具 | 用户配置本地索引目录（deferred） | 2 | - |
+| 本地文件索引工具 | 用户配置本地索引目录（Discoverable） | 2 | - |
 | 文件搜索中间件 | 显式启用 FilesystemFileSearchMiddleware | 2 | - |
 | 浏览器工具 | 启用浏览器 | 7 | ~535 |
 | 定时任务工具 | 启用 Cron | 1 | ~827 |
@@ -402,7 +402,7 @@ def get_tool_layer(tool_name: str) -> ToolLayer:
 
 ### 11.2 自适应工具加载 ✅ 已实现
 
-**实现**: `discover_capability_tool` (BM25+Embedding 语义搜索) + `deferred_tool_middleware` (自动挂载)
+**实现**: `discover_capability_tool` (BM25+Embedding 语义搜索) + `DeferredToolMiddleware` (AutoMount `DISCOVERABLE` 工具)
 
 **效果**:
 - Agent 遇到未知能力 → 调用 discover_capability_tool → 自动挂载 → 下轮可用
@@ -411,7 +411,7 @@ def get_tool_layer(tool_name: str) -> ToolLayer:
 
 ### 11.3 工具推荐系统 ✅ 已实现
 
-**实现**: `discover_capability_tool` 统一搜索 Native Deferred Tools + External Skills
+**实现**: `discover_capability_tool` 统一搜索 Native Discoverable Tools + External Skills
 
 **效果**:
 - BM25 + Embedding 混合语义搜索

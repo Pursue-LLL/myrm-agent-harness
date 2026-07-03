@@ -20,7 +20,7 @@ SkillAgent / Server factory
         ↓
 tool_layers.py — CORE/COMMON/EXTENDED SSOT
         ↓
-registry.py — dedup + sort + deferred tools
+registry.py — dedup + sort + ToolBindMode (TURN1 / DISCOVERABLE / RUNTIME_ONLY)
         ↓
 lifecycle_manager.py — init_tools / cleanup_tools
         ↓
@@ -34,11 +34,11 @@ action_space.py — ASCS _profiler
 | 文件 | 职责 |
 |------|------|
 | `tool_layers.py` | 三层优先级注册表；未注册工具 WARNING |
-| `registry.py` | 去重、排序、deferred tool 支持 |
+| `registry.py` | 去重、排序、`ToolBindMode` 三分绑定 |
 | `lifecycle_manager.py` | 工具 init/cleanup 编排 |
 | `lifecycle_protocol.py` | `LifecycleAwareTool` Protocol |
 | `action_space.py` | ActionSpaceProfiler / ASCS |
-| `types.py` | 子系统类型定义 |
+| `types.py` | `ToolBindMode` + 子系统类型 |
 | `TOOL_DESIGN_STRATEGY.md` | 设计策略与竞品对比 |
 | `DEFAULT_AGENT_TOKEN_INVENTORY.md` | tiktoken 逐项计量 |
 

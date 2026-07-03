@@ -6,14 +6,15 @@
 - langgraph.prebuilt.tool_node::ToolCallRequest (POS: Tool execution request for interceptors)
 
 [OUTPUT]
-- DeferredToolMiddleware: Injects dynamically activated deferred tools into model bind_tools
+- DeferredToolMiddleware: AutoMount discoverable tools into model bind_tools
   and supplies BaseTool instances at ToolNode execution via awrap_tool_call.
 
 [POS]
 Middleware that scans chat history for discover_capability outputs and dynamically
-activates deferred tools: augments ModelRequest.tools for the LLM and uses
-ToolCallRequest.override(tool=...) so LangGraph ToolNode can execute tools not
-present at graph compile time (see LangChain DYNAMIC_TOOL_ERROR_TEMPLATE).
+activates discoverable tools (``ToolBindMode.DISCOVERABLE``): augments ModelRequest.tools
+for the LLM and uses ToolCallRequest.override(tool=...) so LangGraph ToolNode can execute
+tools not present at graph compile time (see LangChain DYNAMIC_TOOL_ERROR_TEMPLATE).
+``RUNTIME_ONLY`` tools are executable via awrap_tool_call but never AutoMount.
 """
 
 from __future__ import annotations
@@ -85,12 +86,12 @@ def collect_activated_native_tool_names(messages: list[AnyMessage]) -> set[str]:
 
 
 class DeferredToolMiddleware(AgentMiddleware[Any, Any, Any]):
-    """Activates deferred tools after discover_capability exposes <AutoMountTools>.
+    """Activates discoverable tools after discover_capability exposes <AutoMountTools>.
 
-    - ``awrap_model_call``: appends activated deferred ``BaseTool`` instances to
+    - ``awrap_model_call``: appends activated discoverable ``BaseTool`` instances to
       ``request.tools`` so the model can emit tool_calls for them.
     - ``awrap_tool_call``: when ToolNode has no ``BaseTool`` for that name (dynamic tool),
-      supplies the deferred tool via ``request.override(tool=...)`` so execution succeeds.
+      supplies discoverable or runtime-only tools via ``request.override(tool=...)``.
     """
 
     def __init__(self, registry: ToolRegistry) -> None:

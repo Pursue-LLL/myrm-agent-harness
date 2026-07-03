@@ -75,8 +75,8 @@ async def test_completion_check_is_runtime_only_not_turn1() -> None:
     active_names = {tool.name for tool in registry.resolve()}
     assert COMPLETION_CHECK_TOOL_NAME not in active_names
 
-    entry = next(e for e in registry._entries if e.tool.name == COMPLETION_CHECK_TOOL_NAME)
-    assert entry.bind_mode == ToolBindMode.RUNTIME_ONLY
+    entry = next(s for s in registry.snapshot() if s.name == COMPLETION_CHECK_TOOL_NAME)
+    assert entry.bind_mode == ToolBindMode.RUNTIME_ONLY.value
 
 
 @pytest.mark.asyncio

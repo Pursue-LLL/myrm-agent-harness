@@ -46,7 +46,7 @@ from myrm_agent_harness.agent.middlewares.tool_call_dedup_middleware import (
     tool_call_dedup_middleware,
 )
 from myrm_agent_harness.agent.streaming.utils import normalize_tool_names
-from myrm_agent_harness.agent.tool_management import ToolRegistry, ToolSource
+from myrm_agent_harness.agent.tool_management import ToolBindMode, ToolRegistry, ToolSource
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -184,8 +184,6 @@ async def build_tools(
     )
 
     if deferred_tools:
-        from myrm_agent_harness.agent.tool_management.types import ToolBindMode
-
         for tool in normalize_tool_names(deferred_tools):
             registry.register(tool, source=ToolSource.USER, bind_mode=ToolBindMode.DISCOVERABLE)
 
@@ -195,8 +193,6 @@ async def build_tools(
                 mw_tools = mw.get_tools()  # type: ignore[attr-defined]
                 if mw_tools:
                     for t in mw_tools:
-                        from myrm_agent_harness.agent.tool_management.types import ToolBindMode
-
                         is_internal = t.name.startswith("_")
                         bind_mode = ToolBindMode.RUNTIME_ONLY if is_internal else ToolBindMode.TURN1
                         registry.register(t, source=ToolSource.MIDDLEWARE, bind_mode=bind_mode)  # type: ignore[arg-type]

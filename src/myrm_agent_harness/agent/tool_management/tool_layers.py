@@ -48,7 +48,7 @@ class ToolLayer(IntEnum):
 # 工具名称必须与 @tool() 装饰器中声明的名称完全一致
 #
 # 架构边界:此处登记 harness 框架自有工具。业务层 vendor 集成 tool（如 x_search_tool）
-# 在 myrm-agent-server 通过 skill-gated deferred 注册,以维持框架-业务层分离原则。
+# 在 myrm-agent-server 通过 skill-gated Turn1 注册,以维持框架-业务层分离原则。
 _TOOL_LAYERS: dict[str, ToolLayer] = {
     # ============================================================
     # CORE - 通用 Agent 基线工具（无条件 Turn1 eager，前端无开关）

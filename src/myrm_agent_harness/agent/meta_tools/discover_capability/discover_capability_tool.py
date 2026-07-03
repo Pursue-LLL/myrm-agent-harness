@@ -16,7 +16,7 @@
 - create_discover_capability_tool: 创建统一能力发现工具的工厂函数
 
 [POS]
-Unified Capability Discovery meta-tool. Facade pattern that unifies native deferred tools (ToolRegistry) and external skills (SkillSearchEngine) into a single semantic index with XML-based robust middleware interception.
+Unified Capability Discovery meta-tool. Indexes ``ToolBindMode.DISCOVERABLE`` native tools and external skills (SkillSearchEngine) into a single semantic index with XML-based middleware interception. ``RUNTIME_ONLY`` hooks (e.g. ``_completion_check``) are excluded from the index.
 """
 
 from __future__ import annotations
@@ -246,7 +246,7 @@ def sync_discover_capability_tool(
 ) -> BaseTool | None:
     """Rebuild discover_capability_tool after deferred registry mutations.
 
-    Must run after all deferred tools (framework + server + middleware) are registered
+    Must run after all discoverable tools (framework + server) are registered
     so the search index includes the full agent-scoped deferred set.
     """
     from myrm_agent_harness.agent.tool_management.registry import ToolSource

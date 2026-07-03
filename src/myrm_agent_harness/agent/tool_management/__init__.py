@@ -7,12 +7,12 @@ from .lifecycle_manager import ToolLifecycleManager
 from .lifecycle_protocol import LifecycleAwareTool
 from .registry import ToolRegistry
 from .tool_layers import ToolLayer, get_tool_layer, register_tool_layer
-from .types import ToolEntry, ToolSnapshot, ToolSource
+from .types import ToolBindMode, ToolEntry, ToolSnapshot, ToolSource
 from .utils import with_dynamic_hints
 
 __all__ = [
     "LifecycleAwareTool",
-    "ToolEntry",
+    "ToolBindMode",
     "ToolLayer",
     "ToolLifecycleManager",
     "ToolRegistry",
