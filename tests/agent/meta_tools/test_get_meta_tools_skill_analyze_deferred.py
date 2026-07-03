@@ -75,8 +75,8 @@ class TestSkillAnalyzeDeferred:
             enable_answer_tool=False,
         )
 
-        deferred_names = {t.name for t in registry.get_deferred_tools()}
-        assert "skill_analyze_tool" in deferred_names
+        discoverable_names = {t.name for t in registry.get_discoverable_tools()}
+        assert "skill_analyze_tool" in discoverable_names
 
     def test_discover_indexes_deferred_skill_analyze(
         self,
@@ -120,8 +120,8 @@ class TestSkillAnalyzeDeferred:
             enable_answer_tool=False,
         )
 
-        deferred_names = {t.name for t in registry.get_deferred_tools()}
-        assert "skill_analyze_tool" not in deferred_names
+        discoverable_names = {t.name for t in registry.get_discoverable_tools()}
+        assert "skill_analyze_tool" not in discoverable_names
 
 
 def test_get_meta_tools_requires_tool_registry() -> None:

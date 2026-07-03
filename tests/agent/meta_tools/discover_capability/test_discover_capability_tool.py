@@ -10,6 +10,7 @@ from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability
     create_discover_capability_tool,
 )
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
+from myrm_agent_harness.agent.tool_management.types import ToolBindMode, ToolSource
 from myrm_agent_harness.backends.skills.types import SkillMetadata
 
 
@@ -145,7 +146,7 @@ async def test_gap_dispatch_events_on_miss(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 @pytest.mark.asyncio
-async def test_description_includes_deferred_tool_names():
+async def test_description_includes_discoverable_tool_names():
     """Verify dynamic description lists discoverable native tool names."""
     registry = MagicMock(spec=ToolRegistry)
     registry.get_discoverable_tools.return_value = [DummyTool()]
@@ -169,9 +170,32 @@ async def test_description_includes_deferred_tool_names():
     assert "dummy_native_tool" in tool.description
 
 
+def test_discover_index_excludes_runtime_only_tools() -> None:
+    """RUNTIME_ONLY hooks (e.g. _completion_check) must not appear in discover index."""
+    registry = ToolRegistry()
+    hook = DummyTool()
+    hook.name = "_completion_check"
+    hook.description = "Internal completion guard hook"
+    registry.register(
+        hook,
+        source=ToolSource.MIDDLEWARE,
+        bind_mode=ToolBindMode.RUNTIME_ONLY,
+    )
+    registry.register(
+        DummyTool(),
+        source=ToolSource.META,
+        bind_mode=ToolBindMode.DISCOVERABLE,
+    )
+
+    tool = create_discover_capability_tool(registry=registry)
+
+    assert "_completion_check" not in (tool.description or "")
+    assert "dummy_native_tool" in (tool.description or "")
+
+
 @pytest.mark.asyncio
-async def test_description_excludes_deferred_names_when_empty():
-    """When no registry/deferred tools, description omits the native tools list."""
+async def test_description_excludes_discoverable_names_when_empty():
+    """When no registry/discoverable tools, description omits the native tools list."""
     tool = create_discover_capability_tool()
     assert "Discoverable native tools" not in tool.description
 

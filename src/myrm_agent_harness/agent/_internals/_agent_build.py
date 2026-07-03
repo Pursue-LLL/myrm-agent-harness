@@ -166,7 +166,7 @@ def _weave_dynamic_schemas(resolved_tools: list[BaseTool]) -> list[BaseTool]:
 async def build_tools(
     registry: ToolRegistry,
     user_tools: list[BaseTool],
-    deferred_tools: list[BaseTool],
+    discoverable_tools: list[BaseTool],
     cached_middlewares: list[object],
 ) -> list[BaseTool]:
     """Build the resolved tool list via ToolRegistry.
@@ -183,8 +183,8 @@ async def build_tools(
         source=ToolSource.USER,
     )
 
-    if deferred_tools:
-        for tool in normalize_tool_names(deferred_tools):
+    if discoverable_tools:
+        for tool in normalize_tool_names(discoverable_tools):
             registry.register(tool, source=ToolSource.USER, bind_mode=ToolBindMode.DISCOVERABLE)
 
     for mw in cached_middlewares:

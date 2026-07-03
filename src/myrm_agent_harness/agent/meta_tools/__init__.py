@@ -263,7 +263,7 @@ def get_meta_tools(
 
     # Low-frequency utility tools → deferred via registry (discoverable
     # through discover_capability_tool, auto-mounted on first use).
-    _deferred_tools: list = []
+    _discoverable_tools: list = []
 
     # Mutable container: filled after all tools are built so that
     # bash Python PTC can access the full tool list via closure.
@@ -277,7 +277,7 @@ def get_meta_tools(
             ptc_tools=_ptc_tools_ref,
         )
         tools.append(bash_code_execute)
-        _deferred_tools.extend(
+        _discoverable_tools.extend(
             [
                 create_bash_process_list_tool(),
                 create_bash_process_output_tool(),
@@ -291,25 +291,25 @@ def get_meta_tools(
     # Mount via discover_capability when the user asks in chat.
     if skills:
         skills_snapshot = list(skills)
-        _deferred_tools.append(
+        _discoverable_tools.append(
             create_skill_analyze_tool(get_all_skills_fn=lambda: skills_snapshot)
         )
         logger.info(" skill_analyze_tool registered as deferred")
 
     if skill_discovery_pending is not None:
-        _deferred_tools.append(skill_discovery_pending)
+        _discoverable_tools.append(skill_discovery_pending)
 
     from myrm_agent_harness.agent.tool_management.types import ToolSource
 
-    for dt in _deferred_tools:
+    for dt in _discoverable_tools:
         from myrm_agent_harness.agent.tool_management.types import ToolBindMode
 
         registry.register(dt, source=ToolSource.META, bind_mode=ToolBindMode.DISCOVERABLE)
-    if _deferred_tools:
+    if _discoverable_tools:
         logger.info(
             " %d discoverable tools registered: %s",
-            len(_deferred_tools),
-            [t.name for t in _deferred_tools],
+            len(_discoverable_tools),
+            [t.name for t in _discoverable_tools],
         )
 
     # discover_capability_tool SSOT: SkillAgent calls sync_discover_capability_tool()

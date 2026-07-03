@@ -32,7 +32,7 @@ class TestResolveDynamicTool:
         mock_tool.name = "bash_code_execute_tool"
         mock_registry = MagicMock()
         mock_registry.resolve.return_value = [mock_tool]
-        mock_registry.get_deferred_tools.return_value = []
+        mock_registry.get_runtime_tools.return_value = []
 
         request = ToolCallRequest(
             tool_call={"name": "bash_code_execute_tool", "id": "c1", "args": {}},
@@ -62,7 +62,7 @@ class TestResolveDynamicTool:
         mock_tool.name = "search_tool"
         mock_registry = MagicMock()
         mock_registry.resolve.return_value = [mock_tool]
-        mock_registry.get_deferred_tools.return_value = []
+        mock_registry.get_runtime_tools.return_value = []
 
         request = ToolCallRequest(
             tool_call={"name": "search", "id": "c1", "args": {}},
@@ -92,7 +92,7 @@ class TestResolveDynamicTool:
         mock_tool.name = "search"
         mock_registry = MagicMock()
         mock_registry.resolve.return_value = [mock_tool]
-        mock_registry.get_deferred_tools.return_value = []
+        mock_registry.get_runtime_tools.return_value = []
 
         request = ToolCallRequest(
             tool_call={"name": "search_tool", "id": "c1", "args": {}},
@@ -122,7 +122,7 @@ class TestResolveDynamicTool:
         mock_tool.name = "other_tool"
         mock_registry = MagicMock()
         mock_registry.resolve.return_value = [mock_tool]
-        mock_registry.get_deferred_tools.return_value = []
+        mock_registry.get_runtime_tools.return_value = []
 
         request = ToolCallRequest(
             tool_call={"name": "bash_code_execute_tool", "id": "c1", "args": {}},

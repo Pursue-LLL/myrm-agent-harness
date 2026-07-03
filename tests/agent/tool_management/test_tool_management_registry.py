@@ -299,23 +299,6 @@ class TestToolRegistryBindMode:
         assert {t.name for t in reg.get_discoverable_tools()} == {"cron_manage_tool"}
         assert {t.name for t in reg.get_runtime_tools()} == {"_internal_hook", "cron_manage_tool"}
 
-    def test_get_deferred_tools_alias(self) -> None:
-        reg = ToolRegistry()
-        reg.register(_make_tool("visible"), source=ToolSource.META)
-        reg.register(
-            _make_tool("deferred_a"),
-            source=ToolSource.META,
-            bind_mode=ToolBindMode.DISCOVERABLE,
-        )
-        reg.register(
-            _make_tool("_hook"),
-            source=ToolSource.MIDDLEWARE,
-            bind_mode=ToolBindMode.RUNTIME_ONLY,
-        )
-        deferred = reg.get_deferred_tools()
-        names = [t.name for t in deferred]
-        assert set(names) == {"deferred_a", "_hook"}
-
     def test_lazy_tools_in_snapshot(self) -> None:
         reg = ToolRegistry()
         reg.register(_make_tool("active"), source=ToolSource.META)

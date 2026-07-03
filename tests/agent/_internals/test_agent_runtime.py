@@ -113,7 +113,7 @@ class TestBuildTools:
     """Tests for build_tools — resolves user, deferred, and discovery tools."""
 
     @pytest.mark.asyncio
-    async def test_registers_discover_capability_for_deferred_tools(
+    async def test_registers_discover_capability_for_discoverable_tools(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from myrm_agent_harness.agent._internals.agent_runtime import (

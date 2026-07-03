@@ -63,5 +63,5 @@ class TestSkillDiscoveryDeferred:
             enable_answer_tool=False,
         )
 
-        deferred_names = {t.name for t in registry.get_deferred_tools()}
-        assert "skill_discovery_tool" in deferred_names
+        discoverable_names = {t.name for t in registry.get_discoverable_tools()}
+        assert "skill_discovery_tool" in discoverable_names

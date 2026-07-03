@@ -214,10 +214,6 @@ class ToolRegistry:
         entries = self._resolve_entries()
         return [e.tool for e in entries if e.bind_mode != ToolBindMode.TURN1]
 
-    def get_deferred_tools(self) -> list[BaseTool]:
-        """Alias for :meth:`get_runtime_tools` (legacy name)."""
-        return self.get_runtime_tools()
-
     def snapshot(self) -> list[ToolSnapshot]:
         """Return a serializable snapshot of the resolved tool set.
 

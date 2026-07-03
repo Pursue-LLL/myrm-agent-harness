@@ -58,9 +58,9 @@ class TestFileSearchEager:
             enable_answer_tool=False,
         )
 
-        deferred_names = {t.name for t in registry.get_deferred_tools()}
-        assert "glob_tool" not in deferred_names
-        assert "grep_tool" not in deferred_names
+        discoverable_names = {t.name for t in registry.get_discoverable_tools()}
+        assert "glob_tool" not in discoverable_names
+        assert "grep_tool" not in discoverable_names
 
     def test_glob_grep_absent_when_file_ops_disabled(
         self,
@@ -126,12 +126,12 @@ class TestFileSearchEager:
         assert "bash_code_execute_tool" in returned_names
         assert "bash_process_list_tool" not in returned_names
 
-        deferred_names = {t.name for t in registry.get_deferred_tools()}
+        discoverable_names = {t.name for t in registry.get_discoverable_tools()}
         assert {
             "bash_process_list_tool",
             "bash_process_output_tool",
             "bash_process_kill_tool",
-        }.issubset(deferred_names)
+        }.issubset(discoverable_names)
 
     def test_answer_tool_eager_when_enabled(
         self,

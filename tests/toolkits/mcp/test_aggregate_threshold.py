@@ -133,8 +133,8 @@ class TestApplyAggregateThreshold:
         assert len(kept) == 1
         assert len(deferred) == 0
 
-    def test_deferred_tools_are_largest(self) -> None:
-        """Deferred tools are always larger than or equal to any kept tool."""
+    def test_overflow_tools_are_largest(self) -> None:
+        """Overflow discoverable tools are always larger than or equal to any kept tool."""
         tools = [_make_mock_tool(f"t_{i}", desc_size=50 * (i + 1), n_params=i + 1) for i in range(10)]
         kept, deferred = apply_aggregate_threshold(tools, budget=300)
 
