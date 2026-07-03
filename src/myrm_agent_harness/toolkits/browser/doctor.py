@@ -104,7 +104,7 @@ def _check_camoufox() -> DoctorCheckResult:
             name="camoufox",
             status=CheckStatus.WARNING,
             message="camoufox not installed (stealth auto-upgrade unavailable)",
-            fix="uv add 'camoufox[async]' or pip install 'myrm-agent-harness[browser]'",
+            fix="uv add 'camoufox>=0.4.11' or pip install 'myrm-agent-harness[browser]'",
         )
 
 

@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 _CAMOUFOX_INSTALL_HINT = (
     "Camoufox stealth engine is unavailable. "
     "Install the browser stack: pip install 'myrm-agent-harness[browser]' "
-    "(includes camoufox[async]). Retry navigation after install."
+    "(includes camoufox>=0.4.11). Retry navigation after install."
 )
 
 
@@ -171,7 +171,16 @@ class BrowserSessionNavigationMixin:
                 title, final_url, status_code = await navigator.goto(url)
 
                 if is_blocked_response(status_code):
-                    raise Exception(f"Blocked response detected: HTTP {status_code}")
+                    if attempt < max_attempts:
+                        raise Exception(f"Blocked response detected: HTTP {status_code}")
+                    logger.warning(
+                        "Blocked HTTP %s after %s navigation attempts for %s; "
+                        "proceeding to CAPTCHA/stealth ladder with loaded page",
+                        status_code,
+                        max_attempts,
+                        url,
+                    )
+                    break
 
                 break  # Success, exit retry loop
 

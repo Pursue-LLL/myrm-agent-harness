@@ -380,7 +380,7 @@ class BrowserLauncher:
                         raise BrowserLaunchError(
                             "camoufox is not installed. "
                             "Install the browser extra: pip install 'myrm-agent-harness[browser]' "
-                            "(includes camoufox[async])"
+                            "(includes camoufox>=0.4.11)"
                         ) from e
 
                     fp_file = self._fingerprint_dir / "camoufox_fingerprint.json" if self._fingerprint_dir else None

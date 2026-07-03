@@ -540,7 +540,15 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 | Cloudflare | ❌ 常拦截 | ⚠️ 部分通过 | ✅ 自动升级目标 |
 | DataDome | ❌ 常拦截 | ⚠️ 部分通过 | ✅ 自动升级目标 |
 
-**Stealth Ladder**：默认 Patchright → CAPTCHA/反爬失败时自动升级 Camoufox → 仍失败则 Terminal Challenge（不再重试）。
+**用户配置面（三轴，零引擎选择）**：
+- 用户仅启用 Browser 内置工具，并在 Agent 编辑页配置：**browser_source**（启动/连接方式）、**dialog_policy**（JS 弹窗策略）、**session_recording**（录制策略）
+- **browser_engine 不是用户配置项**：Server 传 `engine_preference=None`，引擎由框架内 Stealth Ladder 自动决定
+
+**Stealth Ladder 触发条件**：
+1. 默认 Patchright 导航
+2. HTTP 403/429：代理重试耗尽后 fallthrough 至 CAPTCHA 检测（页面已加载）
+3. CAPTCHA/反爬检测失败 → 自动升级 Camoufox + Progress SSE（`notify_category=browser`）
+4. 仍失败 → Terminal Challenge（10min TTL，0ms 快速失败，防 LLM 反复重试）
 
 **生产验证域名**：
 - 微信公众号 (mp.weixin.qq.com)

@@ -67,7 +67,7 @@ verify-harness-distribution = "myrm_agent_harness._verify_distribution:main"
 # toolkits/browser/ - 浏览器自动化（需要 Patchright）
 browser = [
   "patchright>=1.61.1",   # CDP 泄露修补浏览器引擎
-  "camoufox[async]>=0.4.11", # Firefox stealth fallback (auto-upgrade ladder)
+  "camoufox>=0.4.11", # Firefox stealth fallback (auto-upgrade ladder)
   "orjson>=3.11.9",       # session vault / persistence JSON (browser toolkit only)
 ]
 # toolkits/vector/ - 向量存储（Qdrant 嵌入式/远程）

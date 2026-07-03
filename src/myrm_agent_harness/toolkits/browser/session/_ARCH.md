@@ -8,8 +8,8 @@ Browser session components.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Browser session components. | — |
-| browser_session.py | Core | Browser session aggregate root: __init__, snapshot, interact (semantic HITL + `_hitl_caller_tool` for execute_script audit), downloads, observability hooks, stats. Composes mixins below; MRO: Network before Navigation before Lifecycle. | ✅ |
-| browser_session_navigation_mixin.py | Core | Navigation, tab switching, CAPTCHA coordination, Stealth Ladder auto-upgrade (Patchright→Camoufox), engine affinity clear on terminal challenge / Camoufox launch failure (`ToolError`), site-experience injection | ✅ |
+| browser_session.py | Core | Browser session aggregate root: __init__, snapshot, interact (semantic HITL + `_hitl_caller_tool` for execute_script audit), downloads, observability hooks, notify_progress→progress_sink SSE, stats. Composes mixins below; MRO: Network before Navigation before Lifecycle. | ✅ |
+| browser_session_navigation_mixin.py | Core | Navigation, tab switching, CAPTCHA coordination, Stealth Ladder auto-upgrade (Patchright→Camoufox), HTTP 403/429 fallthrough to CAPTCHA after proxy retries, engine affinity clear on terminal challenge / Camoufox launch failure (`ToolError`), site-experience injection | ✅ |
 | browser_session_lifecycle_mixin.py | Core | Restart/close, component initialization, SessionVault auto-save on close | ✅ |
 | browser_session_network_mixin.py | Core | Console log and network log/detail/replay APIs | ✅ |
 | browser_session_extraction_mixin.py | Core | Content extraction, vision fallback, media URLs, screenshot compare/export mixin for BrowserSession. | ✅ |

@@ -36,6 +36,7 @@
   - get_all_refs() -> MappingProxyType[str, RefInfo]: get all element reference mappings (immutable view)
   - get_session_hash(domain: str) -> str | None: get cached session state hash (in-memory read)
   - stats: dict[str, object]: statistics info (includes ref_failures monitoring metrics)
+  - notify_progress(message) -> None: push to observability hook and agent SSE via progress_sink
 
 [POS]
 Browser session manager. As the aggregate root, composes single-responsibility components:
