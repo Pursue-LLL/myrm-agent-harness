@@ -145,8 +145,64 @@ def _partition_budget_sections(
     return stable_body, untrusted_body
 
 
+def _conversation_search_tool_bound(request: ModelRequest) -> bool:
+    tools = getattr(request, "tools", None) or []
+    for tool in tools:
+        name = tool.name if hasattr(tool, "name") else tool.get("name")
+        if name == "conversation_search_tool":
+            return True
+    return False
+
+
+def _memory_search_guidance(*, include_conversation_search: bool) -> str:
+    lines = [
+        "## Memory Search",
+        (
+            "Use memory_recall for durable user facts, preferences, profile data, learned rules, "
+            "project stack, and coding conventions."
+        ),
+    ]
+    if include_conversation_search:
+        lines.append(
+            'Use conversation_search for prior chat evidence, earlier decisions, branch/fork context, '
+            'or requests like "last time", "previously", and "continue that discussion".'
+        )
+    lines.append(
+        "Memories and recalled conversations are point-in-time records. "
+        "If recalled info conflicts with current observations, trust what you see now."
+    )
+    return "\n".join(lines)
+
+
+def _build_cold_start_context(*, include_conversation_search: bool) -> str:
+    return f"""<user_memory_context>
+# New User — Discovery Mode
+
+No memories yet. Actively learn about this user during the conversation:
+- Note their name, role, and tech stack when mentioned
+- Observe communication style preferences (language, verbosity, formality)
+- Track project context and domain expertise
+- Use memory_save to persist key observations
+
+This guidance will be replaced by real user context as memories accumulate.
+
+## Citation Requirements
+When your answer directly relies on any provided memory or rule (from either stable or learned contexts), you MUST append a citation tag at the end of the relevant sentence or paragraph.
+Format: <cite:MEMORY_ID>
+Example: "Based on your preference for concise answers <cite:mem-123>, here is the script."
+
+{_memory_search_guidance(include_conversation_search=include_conversation_search)}
+</user_memory_context>"""
+
+
+_COLD_START_CONTEXT = _build_cold_start_context(include_conversation_search=False)
+
+
 def _format_memory_context(
-    ctx: dict[str, object], learned: dict[str, list[dict[str, str]]]
+    ctx: dict[str, object],
+    learned: dict[str, list[dict[str, str]]],
+    *,
+    include_conversation_search: bool = False,
 ) -> tuple[str | None, str | None]:
     stable_sections: list[BudgetedSection] = []
     untrusted_sections: list[BudgetedSection] = []
@@ -244,7 +300,7 @@ def _format_memory_context(
 
     # Cold start: guide the agent to actively learn about the user
     if is_cold:
-        return _COLD_START_CONTEXT, None
+        return _build_cold_start_context(include_conversation_search=include_conversation_search), None
 
     truncation_message = (
         "\n... (Some lower-priority memory items were truncated to preserve prompt stability. "
@@ -281,34 +337,9 @@ Format: <cite:MEMORY_ID>
 Example: "Based on your preference for concise answers <cite:mem-123>, here is the script."
 
 ## Memory Search
-Use memory_recall for durable user facts, preferences, profile data, learned rules, project stack, and coding conventions.
-Use conversation_search for prior chat evidence, earlier decisions, branch/fork context, or requests like "last time", "previously", and "continue that discussion".
-Memories and recalled conversations are point-in-time records. If recalled info conflicts with current observations, trust what you see now."""
+{_memory_search_guidance(include_conversation_search=include_conversation_search)}"""
 
     return stable_formatted, untrusted_formatted
-
-
-_COLD_START_CONTEXT = """<user_memory_context>
-# New User — Discovery Mode
-
-No memories yet. Actively learn about this user during the conversation:
-- Note their name, role, and tech stack when mentioned
-- Observe communication style preferences (language, verbosity, formality)
-- Track project context and domain expertise
-- Use memory_save to persist key observations
-
-This guidance will be replaced by real user context as memories accumulate.
-
-## Citation Requirements
-When your answer directly relies on any provided memory or rule (from either stable or learned contexts), you MUST append a citation tag at the end of the relevant sentence or paragraph.
-Format: <cite:MEMORY_ID>
-Example: "Based on your preference for concise answers <cite:mem-123>, here is the script."
-
-## Memory Search
-Use memory_recall for durable user facts, preferences, profile data, learned rules, project stack, and coding conventions.
-Use conversation_search for prior chat evidence, earlier decisions, branch/fork context, or requests like "last time", "previously", and "continue that discussion".
-Memories and recalled conversations are point-in-time records. If recalled info conflicts with current observations, trust what you see now.
-</user_memory_context>"""
 
 
 class MemoryContextMiddleware(AgentMiddleware):  # type: ignore[type-arg]
@@ -406,7 +437,12 @@ class MemoryContextMiddleware(AgentMiddleware):  # type: ignore[type-arg]
         else:
             learned_ctx = learned_result
 
-        stable_formatted, untrusted_formatted = _format_memory_context(memory_ctx, learned_ctx)
+        include_conversation_search = _conversation_search_tool_bound(request)
+        stable_formatted, untrusted_formatted = _format_memory_context(
+            memory_ctx,
+            learned_ctx,
+            include_conversation_search=include_conversation_search,
+        )
         if not stable_formatted and not untrusted_formatted:
             return await handler(request)
 
@@ -437,7 +473,7 @@ class MemoryContextMiddleware(AgentMiddleware):  # type: ignore[type-arg]
 
         n_rules = len(learned_ctx.get("learned_rules", []))
         n_prefs = len(learned_ctx.get("learned_preferences", []))
-        is_cold = stable_formatted == _COLD_START_CONTEXT
+        is_cold = stable_formatted is not None and "Discovery Mode" in stable_formatted
 
         # Expose memory budget to the runner state for UX progress bars (Item 7)
         if hasattr(manager, "_config"):

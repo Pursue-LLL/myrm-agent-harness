@@ -128,17 +128,17 @@ async def test_build_default_turn1_tools_resolves_default_profile() -> None:
     """Smoke: default product profile resolves 15 Turn-1 tools (P3 baseline)."""
     tools = await measure._build_default_turn1_tools()
     names = {tool.name for tool in tools}
-    assert len(tools) == 15
+    assert len(tools) == 14
     assert "web_search_tool" in names
     assert "bash_code_execute_tool" in names
     assert "dispatch_research" not in names
     assert "spawn_subagent" not in names
 
 
-# SSOT: DEFAULT_AGENT_TOKEN_INVENTORY.md §二–§四 (2026-07-03 P3 measure)
+# SSOT: DEFAULT_AGENT_TOKEN_INVENTORY.md §二–§四 (2026-07-03 memory COMMON layer)
 _DOC_TURN1_TOOL_TOKENS: dict[str, int] = {
     "web_fetch_tool": 280,
-    "bash_code_execute_tool": 2356,
+    "bash_code_execute_tool": 2393,
     "file_edit_tool": 175,
     "file_read_tool": 489,
     "file_write_tool": 153,
@@ -150,8 +150,7 @@ _DOC_TURN1_TOOL_TOKENS: dict[str, int] = {
     "memory_manage_tool": 247,
     "skill_select_tool": 295,
     "skill_manage_tool": 251,
-    "discover_capability_tool": 238,
-    "conversation_search_tool": 67,
+    "discover_capability_tool": 223,
 }
 
 
@@ -161,11 +160,11 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
     report = await measure.measure_turn1_inventory()
     measured = {row["name"]: int(row["tokens"]) for row in report["per_tool"]}
     assert measured == _DOC_TURN1_TOOL_TOKENS
-    assert report["tool_count"] == 15
+    assert report["tool_count"] == 14
     assert report["description_tokens"] == sum(_DOC_TURN1_TOOL_TOKENS.values())
     assert report["tools_subtotal"] == report["description_tokens"] + report["schema_wrapper_tokens"]
     layer_totals = report["layer_totals"]
-    assert layer_totals["CORE"] == 4060
-    assert layer_totals["COMMON"] == 1175
-    assert layer_totals["EXTENDED"] == 2144
-    assert report["tools_subtotal"] == 8354
+    assert layer_totals["CORE"] == 4097
+    assert layer_totals["COMMON"] == 2468
+    assert layer_totals["EXTENDED"] == 769
+    assert report["tools_subtotal"] == 8244

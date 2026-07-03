@@ -24,7 +24,7 @@ Bash tool module.
 | bash_code_execute_tool.py | Core | ``create_bash_code_execute_tool`` LangChain factory aggregate root; re-exports test helpers. | ✅ |
 | bash_tool_exit_semantics.py | Core | Exit-code semantic interpretation (grep=1, git diff, signals). | ✅ |
 | bash_tool_formatting.py | Core | Output compression, truncation, redaction, tool_output wrapping. | ✅ |
-| bash_tool_background_listeners.py | Core | Background spawn ptc_notify listeners and exit classification. | ✅ |
+| bash_tool_background_listeners.py | Core | Background spawn ptc_notify listeners and exit classification; natural ``exited`` finish emits progress + optional server finish hook; ``killed`` (session cancel) is silent (no finish ptc_notify, no chat persistence). | ✅ |
 | bash_tool_multimodal.py | Core | Vision ContentBlock inline return for generated images. | ✅ |
 | bash_tool_helpers.py | Core | BashInput schema, OS hint, context restore, context access tracking. | ✅ |
 | background_deferred_activation.py | Core | Session-scoped deferred tool AutoMount set; spawn activates ``bash_process_tool`` for ``DeferredToolMiddleware``. | ✅ |

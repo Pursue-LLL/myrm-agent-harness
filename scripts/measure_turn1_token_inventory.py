@@ -2,8 +2,9 @@
 """Measure default GeneralAgent Turn-1 bind_tools token cost (tiktoken cl100k_base).
 
 Builds the harness-side default product profile:
-  web_search + web_fetch + file_ops (5) + bash + memory (3) + conversation_search
+  web_search + web_fetch + file_ops (5) + bash + memory (3, COMMON)
   + skill_select + skill_manage + discover_capability
+  (conversation_search opt-in via server; excluded from default Turn1)
   (TSM v1: no request_answer_user_tool, no todo_write)
 
 Usage:
@@ -52,9 +53,6 @@ async def _build_default_turn1_tools() -> list[BaseTool]:
     from myrm_agent_harness.agent.meta_tools import get_meta_tools
     from myrm_agent_harness.backends.skills.types import SkillMetadata
     from myrm_agent_harness.toolkits.memory.config import MemoryConfig
-    from myrm_agent_harness.toolkits.memory.conversation_search.tool import (
-        create_conversation_search_tool,
-    )
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
     from myrm_agent_harness.toolkits.memory.memory_agent_tools import create_memory_tools
     from myrm_agent_harness.toolkits.web_fetch.web_fetch_agent_tools import create_web_fetch_tool
@@ -120,11 +118,7 @@ async def _build_default_turn1_tools() -> list[BaseTool]:
     )
     memory_tools = create_memory_tools(memory_manager)
 
-    conversation_provider = MagicMock()
-    conversation_provider.search = AsyncMock(return_value=[])
-    conversation_tools = [create_conversation_search_tool(conversation_provider)]
-
-    user_tools = list(meta_tools) + web_tools + list(memory_tools) + conversation_tools
+    user_tools = list(meta_tools) + web_tools + list(memory_tools)
     middlewares = build_middlewares(registry, [])
     return await build_tools(registry, user_tools, [], middlewares)
 

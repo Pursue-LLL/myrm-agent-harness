@@ -62,11 +62,14 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "glob_tool": ToolLayer.CORE,
     "grep_tool": ToolLayer.CORE,
     # ============================================================
-    # COMMON - 默认开启但用户可在 GUI 关闭（放中间）
+    # COMMON - 默认开启但用户可在 GUI 关闭（放中间；组内 memory 优先于 web_search）
     # ============================================================
     "request_answer_user_tool": ToolLayer.COMMON,
     "todo_write": ToolLayer.COMMON,
     "web_search_tool": ToolLayer.COMMON,
+    "memory_recall_tool": ToolLayer.COMMON,
+    "memory_save_tool": ToolLayer.COMMON,
+    "memory_manage_tool": ToolLayer.COMMON,
     # ============================================================
     # EXTENDED - 按需加载或低频辅助工具(放最后,变化不影响前面的缓存)
     # ============================================================
@@ -115,11 +118,8 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "kanban_create_board": ToolLayer.EXTENDED,
     "kanban_list_boards": ToolLayer.EXTENDED,
     "kanban_get_task": ToolLayer.EXTENDED,
-    # --- 记忆工具 ---
+    # --- 记忆工具（recall/save/manage → COMMON；conversation_search → EXTENDED opt-in）---
     "conversation_search_tool": ToolLayer.EXTENDED,
-    "memory_manage_tool": ToolLayer.EXTENDED,
-    "memory_recall_tool": ToolLayer.EXTENDED,
-    "memory_save_tool": ToolLayer.EXTENDED,
     # --- 技能工具 ---
     "discover_capability_tool": ToolLayer.EXTENDED,
     "skill_analyze_tool": ToolLayer.EXTENDED,
@@ -150,6 +150,25 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # --- 框架内部工具（runtime-only；CompletionGuard 注入，不进 bind_tools / discover）---
     "_completion_check": ToolLayer.EXTENDED,
 }
+
+
+# COMMON 层组内排序：高频默认能力簇优先，单工具开关次之（组内仍按 name 稳定排序）
+_COMMON_LAYER_SORT_RANK: dict[str, int] = {
+    "memory_manage_tool": 0,
+    "memory_recall_tool": 1,
+    "memory_save_tool": 2,
+    "web_search_tool": 10,
+    "request_answer_user_tool": 20,
+    "todo_write": 30,
+}
+
+
+def get_tool_registry_sort_key(tool_name: str, layer: ToolLayer) -> tuple[int, int, str]:
+    """Cache-friendly registry sort key: layer → COMMON group rank → name."""
+    if layer == ToolLayer.COMMON:
+        group_rank = _COMMON_LAYER_SORT_RANK.get(tool_name, 50)
+        return (int(layer), group_rank, tool_name)
+    return (int(layer), 0, tool_name)
 
 
 def get_tool_layer(tool_name: str) -> ToolLayer:

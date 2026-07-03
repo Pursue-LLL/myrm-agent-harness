@@ -181,6 +181,10 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
             "memory_recall_tool",
             "memory_save_tool",
             "memory_manage_tool",
+        }
+    ),
+    "conversation_history": frozenset(
+        {
             "conversation_search_tool",
         }
     ),

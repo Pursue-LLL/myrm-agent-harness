@@ -80,26 +80,27 @@ class ToolLayer(IntEnum):
 | 层级 | 工具 | 常驻理由 |
 |------|------|---------|
 | **CORE** | web_fetch + file×3 + bash + glob/grep | 7 登记 | 通用 Agent 基线 | 不依赖搜索 API |
-| **COMMON** | web_search、todo_write、request_answer | 3 登记 | GUI 可开关 | web_search 需 search_service_cfg |
-| **COMMON** | `request_answer_user_tool`, `bash_code_execute_tool`, `file_edit_tool`, `file_read_tool`, `file_write_tool`, `todo_write`, `web_search_tool` | 注册 7 个；默认 profile bind 5 个（answer/todo_write 由 Agent 配置 / Goal / workspace todos 按需加载） |
-| **EXTENDED** | 83 个注册工具（浏览器/记忆/技能/Sub-Agent/…）+ 动态 MCP | 按需加载或始终加载的辅助工具 |
+| **COMMON** | memory×3 + web_search + todo_write + request_answer | 6 登记 | 默认 bind memory×3 + web_search | memory 组内优先排序 |
+| **EXTENDED** | 81 个注册工具（浏览器/技能/Sub-Agent/conversation_search/…）+ 动态 MCP | 按需加载 | conversation_search **默认不 bind** |
 
 `ToolRegistry.resolve()` 执行去重 + 排序：
 
 ```python
+from myrm_agent_harness.agent.tool_management.tool_layers import get_tool_registry_sort_key
+
 sorted_entries = sorted(
     best.values(),
-    key=lambda e: (e.layer or ToolLayer.EXTENDED, e.tool.name),
+    key=lambda e: get_tool_registry_sort_key(e.tool.name, e.layer or ToolLayer.EXTENDED),
 )
 ```
 
-排序规则：先按层级（CORE → COMMON → EXTENDED），同层级内按名称字母序。
+排序规则：先按层级（CORE → COMMON → EXTENDED）；COMMON 层内按工具组优先级（memory → web_search → 其余），同组内按名称字母序；EXTENDED 层按名称字母序。
 
 **缓存效果**：
 
 ```
-第 1 轮: [CORE: web_fetch,bash,file_*,glob,grep][COMMON: web_search,request_answer_user,todo_write][EXTENDED: skill_select,memory_*…][Messages...]
-第 2 轮: [CORE: web_fetch][COMMON: request_answer_user,bash,file_edit,file_read,file_write,planner,web_search][EXTENDED: memory_recall_tool][Messages...]
+第 1 轮: [CORE: web_fetch,bash,file_*,glob,grep][COMMON: memory_*,web_search][EXTENDED: skill_*…][Messages...]
+第 2 轮: [CORE: web_fetch,bash,file_*,glob,grep][COMMON: memory_*,web_search][EXTENDED: +browser…][Messages...]
          |<────────────────────────────────── 这部分始终缓存命中 ──────────────────────────────────>|
 ```
 

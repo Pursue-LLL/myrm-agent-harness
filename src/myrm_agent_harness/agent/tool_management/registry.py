@@ -27,6 +27,7 @@ from myrm_agent_harness.agent.tool_management.tool_layers import (
     _TOOL_LAYERS,
     ToolLayer,
     get_tool_layer,
+    get_tool_registry_sort_key,
 )
 from myrm_agent_harness.agent.tool_management.types import (
     ToolBindMode,
@@ -159,7 +160,13 @@ class ToolRegistry:
             if existing is None or source_priority(entry.source) < source_priority(existing.source):
                 best[name] = entry
 
-        return sorted(best.values(), key=lambda e: (e.layer or ToolLayer.EXTENDED, e.tool.name))
+        return sorted(
+            best.values(),
+            key=lambda e: get_tool_registry_sort_key(
+                e.tool.name,
+                e.layer or ToolLayer.EXTENDED,
+            ),
+        )
 
     def resolve(self) -> list[BaseTool]:
         """Deduplicate and sort all registered tools.
@@ -168,8 +175,7 @@ class ToolRegistry:
         priority** wins (META > USER > MIDDLEWARE).
 
         Sort rule: first by ``ToolLayer`` (CORE → COMMON → EXTENDED),
-        then alphabetically within each layer — identical to the existing
-        the cache-friendly ordering contract (CORE → COMMON → EXTENDED).
+        then COMMON group priority, then alphabetically within each tier.
 
         Only returns Turn1-bound tools (``bind_mode == TURN1``).
         """

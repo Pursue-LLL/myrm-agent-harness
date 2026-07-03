@@ -45,7 +45,7 @@ async def test_build_background_listeners_skips_finish_handler_when_killed() -> 
         patch(
             "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
             AsyncMock(),
-        ),
+        ) as mock_dispatch,
         patch(
             "myrm_agent_harness.utils.runtime.background_job_finish_registry.get_global_background_job_finish_handler",
             return_value=handler,
@@ -54,6 +54,7 @@ async def test_build_background_listeners_skips_finish_handler_when_killed() -> 
         finish, _progress = build_background_listeners(session_id="sess", config=config)  # type: ignore[arg-type]
         await finish(info)
 
+    mock_dispatch.assert_not_awaited()
     handler.on_background_job_finish.assert_not_awaited()
 
 

@@ -190,12 +190,38 @@ def test_format_empty_returns_cold_start():
     assert untrusted is None
     assert "Discovery Mode" in stable
     assert MEMORY_CONTEXT_MARKER in stable
+    assert "conversation_search" not in stable
 
     stable2, untrusted2 = _format_memory_context(
         {"global_profile": {}, "rules": [], "agent_instructions": []}, _EMPTY_LEARNED
     )
     assert stable2 == _COLD_START_CONTEXT
     assert untrusted2 is None
+
+
+def test_format_memory_search_omits_conversation_search_by_default():
+    learned = {
+        "learned_preferences": [{"content": "Prefers dark mode", "id": "p1"}],
+        "learned_rules": [],
+    }
+    _stable, untrusted = _format_memory_context({}, learned)
+    assert untrusted is not None
+    assert "memory_recall" in untrusted
+    assert "conversation_search" not in untrusted
+
+
+def test_format_memory_search_includes_conversation_search_when_opt_in():
+    learned = {
+        "learned_preferences": [{"content": "Prefers dark mode", "id": "p1"}],
+        "learned_rules": [],
+    }
+    _stable, untrusted = _format_memory_context(
+        {},
+        learned,
+        include_conversation_search=True,
+    )
+    assert untrusted is not None
+    assert "conversation_search" in untrusted
 
 
 def test_format_profile():

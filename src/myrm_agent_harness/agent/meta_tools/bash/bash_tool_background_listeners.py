@@ -9,6 +9,8 @@
 
 [POS]
 Bridges background process registry events to ptc_notify for frontend ActivityCard.
+Natural ``exited`` jobs emit finish ptc_notify and invoke the optional server finish handler.
+``killed`` jobs (session cancel via ``kill_session_jobs``) emit nothing on finish.
 """
 
 from __future__ import annotations
@@ -53,8 +55,13 @@ def build_background_listeners(
         await dispatch_custom_event("ptc_notify", envelope, config=config)
 
     async def _on_finish(info: BackgroundProcessInfo) -> None:
+        # Session cancel kills jobs with status=killed — skip finish UI noise
+        # (no success toast, no chat persistence; see server finish handler guard).
+        if info.status == "killed":
+            return
+
         error_category = classify_background_exit(info)
-        if info.status == "killed" or (info.status == "exited" and (info.exit_code or 0) == 0):
+        if info.status == "exited" and (info.exit_code or 0) == 0:
             level = "info"
         elif error_category in ("oom_killed", "segfault"):
             level = "alert"

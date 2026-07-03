@@ -242,32 +242,49 @@ class TestToolLayerFunctions:
         assert names[:2] == ["bash_code_execute_tool", "file_read_tool"]
         assert names[2] == "mcp_tool_a"
 
-    def test_memory_tools_stay_after_core_common_prompt_cache_prefix(self) -> None:
+    def test_memory_tools_sorted_before_web_search_in_common(self) -> None:
         from myrm_agent_harness.agent.tool_management.tool_layers import get_tool_layer
 
         for memory_tool in ("memory_manage_tool", "memory_recall_tool", "memory_save_tool"):
-            assert get_tool_layer(memory_tool) == ToolLayer.EXTENDED
+            assert get_tool_layer(memory_tool) == ToolLayer.COMMON
 
-        baseline = ToolRegistry()
-        baseline.register(_make_tool("file_read_tool"), source=ToolSource.META)
-        baseline.register(_make_tool("bash_code_execute_tool"), source=ToolSource.META)
-        baseline.register(_make_tool("web_search_tool"), source=ToolSource.USER)
-        baseline_prefix = [tool.name for tool in baseline.resolve()]
-
-        with_memory = ToolRegistry()
+        reg = ToolRegistry()
         for name in (
-            "memory_recall_tool",
             "web_search_tool",
+            "memory_recall_tool",
             "file_read_tool",
             "memory_save_tool",
             "bash_code_execute_tool",
             "memory_manage_tool",
         ):
-            with_memory.register(_make_tool(name), source=ToolSource.USER)
-        names = [tool.name for tool in with_memory.resolve()]
+            reg.register(_make_tool(name), source=ToolSource.USER)
+        names = [tool.name for tool in reg.resolve()]
 
-        assert names[: len(baseline_prefix)] == baseline_prefix
-        assert names[len(baseline_prefix) :] == ["memory_manage_tool", "memory_recall_tool", "memory_save_tool"]
+        assert names[:2] == ["bash_code_execute_tool", "file_read_tool"]
+        memory_block = ["memory_manage_tool", "memory_recall_tool", "memory_save_tool"]
+        assert names[2:5] == memory_block
+        assert names[5] == "web_search_tool"
+
+    def test_extended_tools_append_after_common_prefix(self) -> None:
+        reg = ToolRegistry()
+        reg.register(_make_tool("file_read_tool"), source=ToolSource.META, layer=ToolLayer.CORE)
+        reg.register(_make_tool("web_search_tool"), source=ToolSource.USER, layer=ToolLayer.COMMON)
+        reg.register(_make_tool("memory_recall_tool"), source=ToolSource.USER, layer=ToolLayer.COMMON)
+        common_prefix = [tool.name for tool in reg.resolve()]
+
+        with_extended = ToolRegistry()
+        for name in (
+            "discover_capability_tool",
+            "file_read_tool",
+            "memory_recall_tool",
+            "web_search_tool",
+        ):
+            layer = ToolLayer.EXTENDED if name == "discover_capability_tool" else None
+            with_extended.register(_make_tool(name), source=ToolSource.USER, layer=layer)
+        names = [tool.name for tool in with_extended.resolve()]
+
+        assert names[: len(common_prefix)] == common_prefix
+        assert names[len(common_prefix) :] == ["discover_capability_tool"]
 
 
 class TestToolRegistryBindMode:

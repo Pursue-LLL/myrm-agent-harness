@@ -717,7 +717,7 @@ tools = create_memory_tools(manager=manager)
 | `memory_recall_tool` | 搜索记忆（合并缓冲区，偏好提权，纠正链抑制，图增强，动态陈旧代码路径验证警告）                  |
 | `memory_save_tool`   | 存储新记忆，支持 knowledge/event/preference/rule/instruction 五种类别。description 含写入质量引导（何时存/何时不存/声明式写入/类别选择/重要性评分/write_target），从源头减少垃圾记忆 |
 | `memory_manage_tool` | 更新/删除/纠正记忆（correct action 创建纠正链）                       |
-| `conversation_search_tool` | 搜索历史会话，返回证据片段和预计算摘要；框架只依赖 `ConversationSearchProtocol`。GeneralAgent 经 Server 装配为 **eager**（与 memory_recall 对称，稳定 prompt cache）。CustomAgent 委派仍 scoped eager。 |
+| `conversation_search_tool` | 搜索历史会话，返回证据片段和预计算摘要；框架只依赖 `ConversationSearchProtocol`。GeneralAgent 经 Server 装配为 **opt-in**（用户设置 `memoryEnableConversationSearch`，默认关闭；无痕模式不 bind）。CustomAgent 委派仍 scoped eager。 |
 
 `memory_recall_tool` 的 `limit` 是 Agent 工具层上下文预算，而不是底层检索能力上限。工具入口会将模型请求归一化并收敛到 `1..15`：默认返回 5 条，复杂问题允许提升到 10-15 条，非法值回落到默认值，超大值不会继续下传到检索层。返回内容还会受到工具输出预算保护：每条超长记忆会截断正文但保留 id/category/score/age/citation 相关元信息，整体输出保持在上下文安全范围内，避免一次错误工具调用污染当前上下文窗口。检索链路会输出 sanitize / route / embed / collect / rank / graph / budget 等 retrieval trace step，供应用层做回放、诊断和瀑布流展示；该 DTO 不含业务表依赖，仍属于框架层通用能力。
 `conversation_search_tool` 的 `limit` 收敛到 `1..8`；空查询或 `*` 表示浏览最近会话。工具自身不调用 LLM，也不持有数据库连接，并通过标准 `sources` 事件输出 `conversation_history` 来源；Server 层可用 FTS5 + `compacted_summary` 实现零现场摘要成本的会话召回。

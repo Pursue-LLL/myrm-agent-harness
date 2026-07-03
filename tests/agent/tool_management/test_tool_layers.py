@@ -38,13 +38,19 @@ class TestGetToolLayer:
             "request_answer_user_tool",
             "todo_write",
             "web_search_tool",
+            "memory_recall_tool",
+            "memory_save_tool",
+            "memory_manage_tool",
         ]
         for tool in common_tools:
             assert get_tool_layer(tool) == ToolLayer.COMMON, f"{tool} should be COMMON"
 
     def test_extended_tools_return_extended(self):
-        extended_tools = ["skill_select_tool", "memory_recall_tool", "memory_save_tool",
-                          "memory_manage_tool", "skill_manage_tool"]
+        extended_tools = [
+            "skill_select_tool",
+            "skill_manage_tool",
+            "conversation_search_tool",
+        ]
         for tool in extended_tools:
             assert get_tool_layer(tool) == ToolLayer.EXTENDED, f"{tool} should be EXTENDED"
 
@@ -75,3 +81,20 @@ class TestRegisterToolLayer:
         register_tool_layer("web_search_tool", ToolLayer.CORE)
         assert get_tool_layer("web_search_tool") == ToolLayer.CORE
         register_tool_layer("web_search_tool", original)
+
+
+class TestCommonLayerSortKey:
+    def test_memory_block_before_web_search(self) -> None:
+        from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
+        from myrm_agent_harness.agent.tool_management.types import ToolSource
+        from langchain_core.tools import StructuredTool
+
+        def _tool(name: str) -> StructuredTool:
+            return StructuredTool.from_function(lambda: None, name=name, description="d")
+
+        reg = ToolRegistry()
+        for name in ("web_search_tool", "memory_recall_tool", "memory_save_tool", "memory_manage_tool"):
+            reg.register(_tool(name), source=ToolSource.USER)
+        names = [t.name for t in reg.resolve()]
+        assert names.index("memory_manage_tool") < names.index("web_search_tool")
+        assert names.index("memory_recall_tool") < names.index("web_search_tool")

@@ -13,6 +13,7 @@ Agent run() lifecycle control parameters. All based on ContextVar for request-le
 | progress_sink.py | Core | Progress event push mechanism. Tools implicitly obtain a sink via ContextVar to push intermediate pr | ✅ |
 | steering.py | Core | Steering token mechanism. Allows external message injection during Agent runtime to interrupt the cu | ✅ |
 | wakeup_registry.py | Core | Global registry for async wakeup events (Idle Wakeup). | ✅ |
+| background_job_finish_registry.py | Core | ``BackgroundJobFinishResult`` DTO + ``BackgroundJobFinishHandler`` Protocol; server registers handler at warmup for natural bash background job ``exited`` events (no headless LLM). | ✅ |
 
 ## Key Dependencies
 
