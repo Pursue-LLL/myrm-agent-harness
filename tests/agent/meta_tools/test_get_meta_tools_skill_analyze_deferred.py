@@ -122,3 +122,8 @@ class TestSkillAnalyzeDeferred:
 
         deferred_names = {t.name for t in registry.get_deferred_tools()}
         assert "skill_analyze_tool" not in deferred_names
+
+
+def test_get_meta_tools_requires_tool_registry() -> None:
+    with pytest.raises(TypeError, match="ToolRegistry"):
+        get_meta_tools([], registry=None)

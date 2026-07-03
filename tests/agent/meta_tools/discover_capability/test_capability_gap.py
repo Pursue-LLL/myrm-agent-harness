@@ -166,8 +166,22 @@ def test_detect_capability_gap_file_ops_when_disabled() -> None:
     assert hit.tool_id == "file_ops"
 
 
+def test_capability_gap_registry_covers_all_builtin_tool_ids() -> None:
+    from myrm_agent_harness.agent.meta_tools.discover_capability.capability_gap import (
+        BUILTIN_TOOL_ID_TO_GROUP,
+        CAPABILITY_GAP_REGISTRY,
+    )
+
+    registry_ids = [entry.tool_id for entry in CAPABILITY_GAP_REGISTRY]
+    assert len(registry_ids) == len(set(registry_ids))
+    assert set(registry_ids) == set(BUILTIN_TOOL_ID_TO_GROUP)
+    for entry in CAPABILITY_GAP_REGISTRY:
+        assert BUILTIN_TOOL_ID_TO_GROUP[entry.tool_id] == entry.tool_group
+        assert entry.triggers
+
+
 def test_detect_capability_gap_first_match_wins() -> None:
-    """Earlier _GAP_TRIGGERS entry wins when multiple could match."""
+    """Earlier CAPABILITY_GAP_REGISTRY entry wins when multiple could match."""
     active = frozenset({"web", "memory"})
     hit = detect_capability_gap("browse website and generate image", active)
     assert hit is not None

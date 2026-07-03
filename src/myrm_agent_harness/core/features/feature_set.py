@@ -80,6 +80,13 @@ class FeatureSet:
                 if spec.stage == FeatureStage.REMOVED:
                     warnings.append(f"Feature '{key}' has been removed and will be ignored")
                     continue
+                if spec.stage == FeatureStage.UNDER_DEVELOPMENT:
+                    if value:
+                        warnings.append(
+                            f"Feature '{key}' is under development and cannot be enabled via overrides"
+                        )
+                    enabled.discard(spec.id)
+                    continue
                 if value:
                     enabled.add(spec.id)
                 else:

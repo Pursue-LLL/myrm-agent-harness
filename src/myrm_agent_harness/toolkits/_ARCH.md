@@ -155,7 +155,7 @@ Does your code need to import anything from agent/?
 |-----------|-------------|
 | a2a/ | A2A (Agent-to-Agent) protocol support — AgentCard data models, client Resolver with SSRF protection, Provider Protocol contract. |
 | acp/ | ACP protocol integration — server and runtime components for Agent Communication Protocol. |
-| browser/ | Browser automation — multi-tab control, iframe traversal, session vault, stealth mode. |
+| browser/ | Browser automation — multi-tab control, iframe traversal, session vault, stealth mode, action capture. |
 | code_execution/ | Code execution system — Agent-in-Sandbox mode with multiple executor backends. |
 | memory/proactive/ | Proactive follow-up tracking — implicit promise extraction; host implements `CommitmentStore`. See [COMMITMENT_SYSTEM.md](memory/proactive/COMMITMENT_SYSTEM.md). |
 | computer_use/ | System-wide desktop automation — screen capture + coordinate-based input (macOS/Linux). |

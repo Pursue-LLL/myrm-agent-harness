@@ -24,9 +24,9 @@
 
 ---
 
-## 三、COMMON 工具层（注册 9 个；默认 profile Turn1 实际 bind 5–7 个）
+## 三、COMMON 工具层（注册 9 个；默认 profile Turn1 实际 bind ~12 个）
 
-默认 `enabled_builtin_tools=(web_search, memory)` 且未开 Goal 时：`request_answer_user_tool`、`todo_write` 不进入 bind_tools（CompletionGuard / Agent 配置 / Goal 按需加载）。
+默认 `DEFAULT_ENABLED_BUILTIN_TOOLS=(web_search, memory, file_ops, code_execute)`（SSOT：`myrm-agent-server/app/services/agent/builtin_tool_ids.py`）且未开 Goal 时：`request_answer_user_tool`、`todo_write` 不进入 bind_tools（需 `answer_tool` / `planning` 开关或 Goal 激活）。
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
@@ -249,7 +249,20 @@
 
 ---
 
-## 七、用户消息
+## 七、Fast 模式 Turn1（`action_mode='fast'`）
+
+> SSOT：`myrm-agent-server/app/services/agent/params/converter.py` · `params/_ARCH.md`
+
+| 子模式 | Turn1 eager 工具 | 说明 |
+|--------|------------------|------|
+| normal | web_search + web_fetch + request_answer_user + memory×4（可选） | max_tool_calls=8 |
+| deep | 同上 + SufficiencyConfig 增强搜索 | prompt 追加 `<deep_search_mode>`（web_fetch 深读 + answer 自审）；max_tool_calls=20 |
+
+**不含**：file/bash/glob/grep、browser（browser 仅 Agent profile `browser` 开关 opt-in）、kanban、wiki、planning、子 Agent 委托。
+
+---
+
+## 八、用户消息
 
 | 组件 | Token | 说明 |
 |------|------:|------|

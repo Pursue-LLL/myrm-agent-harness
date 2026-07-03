@@ -30,6 +30,11 @@ Reuses the existing ``ManagedBrowser`` (Patchright) infrastructure.
 - RetryPolicy + 3 subclasses: retry policy classes (re-export)
 - BrowserObservability: browser observability manager (re-export)
 - RecordingConfig: recording configuration (re-export)
+- ActionCaptureEngine: browser action capture engine (re-export)
+- ActionStep: captured browser action (re-export)
+- ActionType: capturable action types (re-export)
+- CaptureSession: recording session state (re-export)
+- CaptureCallback: real-time step notification protocol (re-export)
 
 Note: create_browser_tools lives in the myrm_agent_harness.toolkits module
 
@@ -92,6 +97,13 @@ if TYPE_CHECKING:
         format_report,
         run_doctor,
     )
+    from .action_capture import (
+        ActionCaptureEngine,
+        ActionStep,
+        ActionType,
+        CaptureCallback,
+        CaptureSession,
+    )
     from .observability import BrowserObservability, RecordingConfig
     from .session_vault import SessionVault
     from .session_vault_exceptions import (
@@ -104,6 +116,11 @@ if TYPE_CHECKING:
     from .session_vault_types import SessionEntry, VaultMetrics
 
 __all__ = [
+    "ActionCaptureEngine",
+    "ActionStep",
+    "ActionType",
+    "CaptureCallback",
+    "CaptureSession",
     "AutoRecoveryOrchestrator",
     "BrowserCheckpointHelper",
     "BrowserClosedError",
@@ -200,6 +217,13 @@ _LAZY_MODULES = {
         "CorruptedSessionError",
     ],
     "observability": ["BrowserObservability", "RecordingConfig"],
+    "action_capture": [
+        "ActionCaptureEngine",
+        "ActionStep",
+        "ActionType",
+        "CaptureCallback",
+        "CaptureSession",
+    ],
 }
 
 _SYMBOL_TO_MODULE = {symbol: module_name for module_name, symbols in _LAZY_MODULES.items() for symbol in symbols}

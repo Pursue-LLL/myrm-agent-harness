@@ -6,6 +6,8 @@
 [OUTPUT]
 - detect_capability_gap / detect_skill_gap: entitlement gap hits
 - format_capability_gap_block / format_skill_gap_block: XML blocks for tool messages
+- CAPABILITY_GAP_REGISTRY: single SSOT for builtin tool_id → group + triggers
+- BUILTIN_TOOL_ID_TO_GROUP: derived view for server catalog parity tests
 
 [POS]
 Detects when a user query needs a builtin tool group or skill that is not enabled on the
@@ -18,23 +20,147 @@ import json
 import re
 from dataclasses import dataclass
 
-# Maps server ``enabled_builtin_tools`` IDs to harness TOOL_GROUP_MAP keys.
+@dataclass(frozen=True, slots=True)
+class CapabilityGapEntry:
+    """Single builtin entitlement gap spec: server tool_id, harness group, match triggers."""
+
+    tool_id: str
+    tool_group: str
+    triggers: tuple[str, ...]
+
+
+# Ordered registry: earlier entries win when multiple triggers could match.
+# Maps server ``enabled_builtin_tools`` IDs to harness TOOL_GROUP_MAP keys + gap triggers.
+CAPABILITY_GAP_REGISTRY: tuple[CapabilityGapEntry, ...] = (
+    CapabilityGapEntry(
+        "web_search",
+        "web",
+        (
+            "web search",
+            "search the web",
+            "internet search",
+            "google search",
+            "联网搜索",
+            "网上搜",
+            "搜索网页",
+            "上网查",
+        ),
+    ),
+    CapabilityGapEntry(
+        "memory",
+        "memory",
+        (
+            "remember this",
+            "recall from memory",
+            "save to memory",
+            "记住",
+            "回忆",
+            "记忆",
+            "想起来",
+        ),
+    ),
+    CapabilityGapEntry(
+        "browser",
+        "browser",
+        (
+            "browser",
+            "browse",
+            "webpage",
+            "website",
+            "selenium",
+            "网页",
+            "浏览",
+            "打开网站",
+        ),
+    ),
+    CapabilityGapEntry(
+        "computer_use",
+        "computer_use",
+        (
+            "desktop",
+            "screenshot",
+            "screen capture",
+            "gui click",
+            "桌面",
+            "截屏",
+            "截图",
+            "屏幕",
+        ),
+    ),
+    CapabilityGapEntry("wiki", "wiki", ("wiki", "知识库", "personal wiki")),
+    CapabilityGapEntry("kanban", "kanban", ("kanban", "看板", "task board")),
+    CapabilityGapEntry("canvas", "canvas", ("canvas", "画布", "whiteboard")),
+    CapabilityGapEntry(
+        "render_ui",
+        "render_ui",
+        ("render ui", "interactive ui", "ui artifact", "渲染界面"),
+    ),
+    CapabilityGapEntry(
+        "answer_tool",
+        "answer_tool",
+        (
+            "ask the user",
+            "confirm with user",
+            "request answer",
+            "向用户确认",
+            "问问用户",
+            "让用户选择",
+        ),
+    ),
+    CapabilityGapEntry(
+        "planning",
+        "planning",
+        ("multi-step plan", "task plan", "规划步骤", "任务规划"),
+    ),
+    CapabilityGapEntry(
+        "image_generation",
+        "image_generation",
+        (
+            "generate image",
+            "draw picture",
+            "dall-e",
+            "文生图",
+            "生成图片",
+            "画图",
+        ),
+    ),
+    CapabilityGapEntry(
+        "video_generation",
+        "video_generation",
+        ("generate video", "text to video", "生成视频", "文生视频"),
+    ),
+    CapabilityGapEntry("tts", "tts", ("text to speech", "tts", "语音合成", "朗读")),
+    CapabilityGapEntry(
+        "file_ops",
+        "file_ops",
+        (
+            "read file",
+            "write file",
+            "edit file",
+            "glob",
+            "grep",
+            "读文件",
+            "写文件",
+            "改文件",
+        ),
+    ),
+    CapabilityGapEntry(
+        "code_execute",
+        "shell",
+        (
+            "run shell",
+            "bash",
+            "terminal",
+            "execute script",
+            "命令行",
+            "运行脚本",
+            "执行命令",
+        ),
+    ),
+)
+
 BUILTIN_TOOL_ID_TO_GROUP: dict[str, str] = {
-    "web_search": "web",
-    "memory": "memory",
-    "file_ops": "file_ops",
-    "code_execute": "shell",
-    "browser": "browser",
-    "computer_use": "computer_use",
-    "wiki": "wiki",
-    "kanban": "kanban",
-    "canvas": "canvas",
-    "answer_tool": "answer_tool",
-    "render_ui": "render_ui",
-    "planning": "planning",
-    "image_generation": "image_generation",
-    "video_generation": "video_generation",
-    "tts": "tts",
+    entry.tool_id: entry.tool_group for entry in CAPABILITY_GAP_REGISTRY
 }
 
 
@@ -47,26 +173,6 @@ class CapabilityGapHit:
 @dataclass(frozen=True, slots=True)
 class SkillGapHit:
     skill_id: str
-
-
-# (tool_id, trigger terms — lowercase substrings)
-_GAP_TRIGGERS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("web_search", ("web search", "search the web", "internet search", "google search", "联网搜索", "网上搜", "搜索网页", "上网查")),
-    ("memory", ("remember this", "recall from memory", "save to memory", "记住", "回忆", "记忆", "想起来")),
-    ("browser", ("browser", "browse", "webpage", "website", "selenium", "网页", "浏览", "打开网站")),
-    ("computer_use", ("desktop", "screenshot", "screen capture", "gui click", "桌面", "截屏", "截图", "屏幕")),
-    ("wiki", ("wiki", "知识库", "personal wiki")),
-    ("kanban", ("kanban", "看板", "task board")),
-    ("canvas", ("canvas", "画布", "whiteboard")),
-    ("render_ui", ("render ui", "interactive ui", "ui artifact", "渲染界面")),
-    ("answer_tool", ("ask the user", "confirm with user", "request answer", "向用户确认", "问问用户", "让用户选择")),
-    ("planning", ("multi-step plan", "task plan", "规划步骤", "任务规划")),
-    ("image_generation", ("generate image", "draw picture", "dall-e", "文生图", "生成图片", "画图")),
-    ("video_generation", ("generate video", "text to video", "生成视频", "文生视频")),
-    ("tts", ("text to speech", "tts", "语音合成", "朗读")),
-    ("file_ops", ("read file", "write file", "edit file", "glob", "grep", "读文件", "写文件", "改文件")),
-    ("code_execute", ("run shell", "bash", "terminal", "execute script", "命令行", "运行脚本", "执行命令")),
-)
 
 
 def _normalized_query(query: str) -> str:
@@ -82,12 +188,11 @@ def detect_capability_gap(
     if not normalized:
         return None
 
-    for tool_id, triggers in _GAP_TRIGGERS:
-        group = BUILTIN_TOOL_ID_TO_GROUP.get(tool_id)
-        if group is None or group in active_tool_groups:
+    for entry in CAPABILITY_GAP_REGISTRY:
+        if entry.tool_group in active_tool_groups:
             continue
-        if any(term in normalized for term in triggers):
-            return CapabilityGapHit(tool_id=tool_id, tool_group=group)
+        if any(term in normalized for term in entry.triggers):
+            return CapabilityGapHit(tool_id=entry.tool_id, tool_group=entry.tool_group)
     return None
 
 
