@@ -29,7 +29,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 from myrm_agent_harness.toolkits.llms.consensus._prompts import (
     build_aggregation_messages,
@@ -93,6 +93,7 @@ class ConsensusEngine:
         query: str,
         *,
         system_prompt: str | None = None,
+        chat_history: list[BaseMessage] | None = None,
         cancel_token: CancellationToken | None = None,
     ) -> ConsensusResult:
         """Execute a full consensus run.
@@ -103,6 +104,10 @@ class ConsensusEngine:
                 each reference call and prepended to the aggregator's synthesis
                 prompt so the final answer honours the same persona, language
                 and format.
+            chat_history: prior conversation messages.  Placed between the
+                system prompt and the current query so the stable prefix
+                maximises prompt-cache hits.  ToolMessages are flattened to
+                plain text for reference models (they have no tools).
             cancel_token: optional cancellation token; checked before
                 each phase to abort early and avoid wasted API calls.
 
@@ -116,7 +121,7 @@ class ConsensusEngine:
         if cancel_token and cancel_token.is_cancelled:
             return self._cancelled_result(t0)
 
-        ref_responses = await self._query_references(query, system_prompt, cancel_token)
+        ref_responses = await self._query_references(query, system_prompt, chat_history, cancel_token)
 
         if cancel_token and cancel_token.is_cancelled:
             return self._cancelled_result(t0, ref_responses)
@@ -142,7 +147,7 @@ class ConsensusEngine:
             )
             return self._success_result(successful[0].content, ref_responses, t0)
 
-        final = await self._aggregate(query, successful, system_prompt)
+        final = await self._aggregate(query, successful, system_prompt, chat_history)
 
         logger.info(
             "Consensus complete: %d/%d refs OK, %.1fs total",
@@ -157,6 +162,7 @@ class ConsensusEngine:
         query: str,
         *,
         system_prompt: str | None = None,
+        chat_history: list[BaseMessage] | None = None,
         cancel_token: CancellationToken | None = None,
     ) -> AsyncIterator[ConsensusStreamEvent]:
         """Execute a consensus run with streaming aggregation output.
@@ -168,6 +174,7 @@ class ConsensusEngine:
         """
         t0 = time.monotonic()
         cfg = self._cfg
+        ref_history = self._flatten_history_for_reference(chat_history) if chat_history else None
 
         if cancel_token and cancel_token.is_cancelled:
             yield ConsensusStreamEvent(kind="done", result=self._cancelled_result(t0))
@@ -176,7 +183,7 @@ class ConsensusEngine:
         ref_responses: list[ReferenceResponse] = []
         if not (cancel_token and cancel_token.is_cancelled):
             tasks = [
-                asyncio.ensure_future(self._query_single(llm, query, system_prompt))
+                asyncio.ensure_future(self._query_single(llm, query, system_prompt, ref_history))
                 for llm in self._refs
             ]
             task_to_llm = dict(zip(tasks, self._refs))
@@ -238,7 +245,7 @@ class ConsensusEngine:
             return
 
         final_chunks: list[str] = []
-        async for chunk in self._aggregate_stream(query, successful, cancel_token, system_prompt):
+        async for chunk in self._aggregate_stream(query, successful, cancel_token, system_prompt, chat_history):
             final_chunks.append(chunk)
             yield ConsensusStreamEvent(kind="agg_chunk", chunk=chunk)
 
@@ -295,13 +302,15 @@ class ConsensusEngine:
         self,
         query: str,
         system_prompt: str | None,
+        chat_history: list[BaseMessage] | None = None,
         cancel_token: CancellationToken | None = None,
     ) -> list[ReferenceResponse]:
         """Fan-out to all reference models in parallel."""
         if cancel_token and cancel_token.is_cancelled:
             return []
 
-        tasks = [self._query_single(llm, query, system_prompt) for llm in self._refs]
+        ref_history = self._flatten_history_for_reference(chat_history) if chat_history else None
+        tasks = [self._query_single(llm, query, system_prompt, ref_history) for llm in self._refs]
         try:
             return list(
                 await asyncio.wait_for(
@@ -327,14 +336,17 @@ class ConsensusEngine:
         llm: BaseChatModel,
         query: str,
         system_prompt: str | None,
+        chat_history: list[BaseMessage] | None = None,
     ) -> ReferenceResponse:
         """Query one reference model with retry and per-model timeout."""
         model_name = self._model_name(llm)
         cfg = self._cfg
 
-        messages: list[SystemMessage | HumanMessage] = []
+        messages: list[BaseMessage] = []
         if system_prompt:
             messages.append(SystemMessage(content=system_prompt))
+        if chat_history:
+            messages.extend(chat_history)
         messages.append(HumanMessage(content=query))
 
         last_error = ""
@@ -388,6 +400,7 @@ class ConsensusEngine:
         query: str,
         successful: list[ReferenceResponse],
         system_prompt: str | None = None,
+        chat_history: list[BaseMessage] | None = None,
     ) -> str:
         """Synthesise successful reference responses (batch mode).
 
@@ -399,7 +412,7 @@ class ConsensusEngine:
         honours the same agent persona as the references (see
         ``build_aggregation_messages``).
         """
-        messages = build_aggregation_messages(query, successful, system_prompt)
+        messages = build_aggregation_messages(query, successful, system_prompt, chat_history)
         try:
             for attempt in (1, 2):
                 streamed = await asyncio.wait_for(
@@ -424,6 +437,7 @@ class ConsensusEngine:
         successful: list[ReferenceResponse],
         cancel_token: CancellationToken | None = None,
         system_prompt: str | None = None,
+        chat_history: list[BaseMessage] | None = None,
     ) -> AsyncIterator[str]:
         """Stream aggregation tokens from the aggregator LLM.
 
@@ -445,7 +459,7 @@ class ConsensusEngine:
         full raw reference onto it would corrupt the answer, so the partial
         output is kept as-is.
         """
-        messages = build_aggregation_messages(query, successful, system_prompt)
+        messages = build_aggregation_messages(query, successful, system_prompt, chat_history)
         agg = self._agg.bind(temperature=self._cfg.aggregator_temperature)
         saw_content = False
         try:
@@ -469,6 +483,37 @@ class ConsensusEngine:
             best = max(successful, key=lambda r: len(r.content))
             logger.info("Falling back to best reference response (%s)", best.model)
             yield best.content
+
+    @staticmethod
+    def _flatten_history_for_reference(
+        chat_history: list[BaseMessage],
+    ) -> list[BaseMessage]:
+        """Flatten chat history into a tool-free view for reference models.
+
+        Reference models are advisory — they have no tools and cannot call
+        them.  Passing raw ToolMessages or AIMessages with ``tool_calls``
+        would confuse them or trigger provider-level validation errors.
+
+        Strategy: keep HumanMessage/SystemMessage as-is, strip tool_calls
+        from AIMessage (keep text content only), convert ToolMessage to a
+        brief HumanMessage summary.
+        """
+        from langchain_core.messages import ToolMessage
+
+        flat: list[BaseMessage] = []
+        for msg in chat_history:
+            if isinstance(msg, (HumanMessage, SystemMessage)):
+                flat.append(msg)
+            elif isinstance(msg, AIMessage):
+                content = msg.content or ""
+                if content:
+                    flat.append(AIMessage(content=content))
+            elif isinstance(msg, ToolMessage):
+                name = getattr(msg, "name", None) or "tool"
+                text = str(msg.content)[:500] if msg.content else ""
+                if text:
+                    flat.append(HumanMessage(content=f"[{name} result]: {text}"))
+        return flat
 
     @staticmethod
     def _model_name(llm: BaseChatModel) -> str:

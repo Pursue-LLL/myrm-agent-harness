@@ -468,7 +468,8 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     # Concurrent-safe but not read-only (independent execution contexts)
     "delegate_task_tool": SafetyMetadata(is_concurrent_safe=True),
     "batch_delegate_tasks_tool": SafetyMetadata(is_concurrent_safe=True),
-    "delegate_to_agent_tool": SafetyMetadata(is_concurrent_safe=True),
+    # CliRuntime uses a single subprocess per backend — parallel turns are unsafe.
+    "delegate_to_agent_tool": SafetyMetadata(),
     # Destructive tools (explicit fail-closed: is_concurrent_safe=False)
     "bash_code_execute_tool": SafetyMetadata(is_destructive=True),
     "file_write_tool": SafetyMetadata(is_destructive=True, is_idempotent=True),  # Writing same content is idempotent

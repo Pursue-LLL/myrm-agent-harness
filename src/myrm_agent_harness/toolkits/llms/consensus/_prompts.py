@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.llms.consensus.types import ReferenceResponse
@@ -34,7 +34,8 @@ def build_aggregation_messages(
     query: str,
     successful: list[ReferenceResponse],
     system_prompt: str | None = None,
-) -> list[SystemMessage | HumanMessage]:
+    chat_history: list[BaseMessage] | None = None,
+) -> list[BaseMessage]:
     """Compose the aggregator prompt from successful reference responses.
 
     ``system_prompt`` is the agent persona/instructions the reference models
@@ -42,17 +43,19 @@ def build_aggregation_messages(
     straight to the user as the final reply — stays faithful to the configured
     persona, language and format.
 
-    **Prompt-cache layout**: the ``SystemMessage`` contains only the stable
-    prefix (persona + ``AGGREGATOR_SYSTEM``), which is identical across all
-    calls of the same agent and therefore eligible for LLM prompt caching.
-    The per-request dynamic content (numbered reference answers + user query)
-    lives in the ``HumanMessage``.
+    ``chat_history`` is placed between ``SystemMessage`` and ``HumanMessage``
+    so the aggregator understands the conversational context when synthesising.
+
+    **Prompt-cache layout**: ``SystemMessage`` (stable persona prefix) →
+    ``chat_history`` (incrementally growing prefix, cache-friendly) →
+    ``HumanMessage`` (per-request dynamic: reference answers + query).
     """
     numbered = "\n".join(f"{i + 1}. [{r.model}]: {r.content}" for i, r in enumerate(successful))
     system = AGGREGATOR_SYSTEM
     if system_prompt:
         system = f"{system_prompt}\n\n{AGGREGATOR_SYSTEM}"
-    return [
-        SystemMessage(content=system),
-        HumanMessage(content=f"Responses from models:\n{numbered}\n\nUser query:\n{query}"),
-    ]
+    messages: list[BaseMessage] = [SystemMessage(content=system)]
+    if chat_history:
+        messages.extend(chat_history)
+    messages.append(HumanMessage(content=f"Responses from models:\n{numbered}\n\nUser query:\n{query}"))
+    return messages

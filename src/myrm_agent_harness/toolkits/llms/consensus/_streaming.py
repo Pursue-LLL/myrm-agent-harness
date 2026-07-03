@@ -2,7 +2,7 @@
 
 [INPUT]
 - langchain_core.language_models::BaseChatModel (POS: any LangChain chat model)
-- langchain_core.messages::SystemMessage, HumanMessage
+- langchain_core.messages::BaseMessage
 
 [OUTPUT]
 - collect_stream(): stream one model into a single answer string
@@ -18,12 +18,12 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
-    from langchain_core.messages import HumanMessage, SystemMessage
+    from langchain_core.messages import BaseMessage
 
 
 async def collect_stream(
     llm: BaseChatModel,
-    messages: list[SystemMessage | HumanMessage],
+    messages: list[BaseMessage],
     temperature: float,
 ) -> str:
     """Stream a model's answer into a single string.

@@ -194,10 +194,15 @@ class TestSafetyMetadata:
         assert not missing, f"Built-in tools missing TOOL_SAFETY_METADATA: {sorted(missing)}"
 
     def test_concurrent_safe_agents(self):
-        for tool in ("delegate_task_tool", "delegate_to_agent_tool"):
+        for tool in ("delegate_task_tool", "batch_delegate_tasks_tool"):
             meta = resolve_safety_metadata(tool)
             assert meta.is_concurrent_safe is True, f"{tool} should be concurrent-safe"
             assert meta.is_read_only is False, f"{tool} should not be read-only"
+
+    def test_delegate_to_agent_not_concurrent(self):
+        meta = resolve_safety_metadata("delegate_to_agent_tool")
+        assert meta.is_concurrent_safe is False
+        assert meta.is_read_only is False
 
     def test_stateful_tools_not_concurrent(self):
         for tool in ("browser_navigate_tool", "browser_interact_tool", "cron_manage_tool", "memory_save_tool"):
