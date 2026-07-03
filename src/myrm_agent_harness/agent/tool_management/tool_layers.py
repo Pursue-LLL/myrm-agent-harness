@@ -72,7 +72,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # ============================================================
     # --- ACP（Agent Communication Protocol）---
     "delegate_to_agent_tool": ToolLayer.EXTENDED,
-    # --- Bash 后台进程（deferred；仅 enable_bash 时注册）---
+    # --- Bash 后台进程（discoverable；仅 enable_bash 时注册）---
     "bash_process_list_tool": ToolLayer.EXTENDED,
     "bash_process_output_tool": ToolLayer.EXTENDED,
     "bash_process_kill_tool": ToolLayer.EXTENDED,
@@ -149,7 +149,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "think": ToolLayer.EXTENDED,
     # --- 编排器验证子 Agent 内部工具（仅 verifier 子会话注入）---
     "submit_verdict": ToolLayer.EXTENDED,
-    # --- 框架内部工具（deferred；CompletionGuard 强制注入，不进 bind_tools）---
+    # --- 框架内部工具（runtime-only；CompletionGuard 注入，不进 bind_tools / discover）---
     "_completion_check": ToolLayer.EXTENDED,
 }
 

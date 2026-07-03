@@ -29,7 +29,7 @@ class DummyTool(BaseTool):
 @pytest.fixture
 def mock_registry():
     registry = MagicMock(spec=ToolRegistry)
-    registry.get_deferred_tools.return_value = [DummyTool()]
+    registry.get_discoverable_tools.return_value = [DummyTool()]
     return registry
 
 
@@ -148,7 +148,7 @@ async def test_gap_dispatch_events_on_miss(monkeypatch: pytest.MonkeyPatch) -> N
 async def test_description_includes_deferred_tool_names():
     """Verify dynamic description lists discoverable native tool names."""
     registry = MagicMock(spec=ToolRegistry)
-    registry.get_deferred_tools.return_value = [DummyTool()]
+    registry.get_discoverable_tools.return_value = [DummyTool()]
 
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(

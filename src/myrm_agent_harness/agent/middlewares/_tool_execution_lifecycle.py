@@ -69,7 +69,7 @@ def resolve_dynamic_tool(request: ToolCallRequest) -> ToolCallRequest:
         search_pool.extend(resolved_tools)
     if registry is not None:
         search_pool.extend(registry.resolve())
-        search_pool.extend(registry.get_deferred_tools())
+        search_pool.extend(registry.get_runtime_tools())
 
     seen: set[str] = set()
     for resolved_tool in search_pool:

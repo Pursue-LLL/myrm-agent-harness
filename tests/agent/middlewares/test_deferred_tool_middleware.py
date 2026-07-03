@@ -18,7 +18,7 @@ from myrm_agent_harness.agent.middlewares.deferred_tool_middleware import (
     collect_activated_native_tool_names,
 )
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
-from myrm_agent_harness.agent.tool_management.types import ToolSource
+from myrm_agent_harness.agent.tool_management.types import ToolBindMode, ToolSource
 
 
 class DummyTool(BaseTool):
@@ -32,7 +32,7 @@ class DummyTool(BaseTool):
 @pytest.fixture
 def registry() -> ToolRegistry:
     reg = ToolRegistry()
-    reg.register(DummyTool(), source=ToolSource.META, deferred=True)
+    reg.register(DummyTool(), source=ToolSource.META, bind_mode=ToolBindMode.DISCOVERABLE)
     return reg
 
 
@@ -292,7 +292,7 @@ async def test_awrap_tool_call_supplies_deferred_tool_when_activated(
 async def test_awrap_tool_call_resolves_from_registry_when_not_activated(
     registry: ToolRegistry,
 ) -> None:
-    registry.register(DummyTool(), source=ToolSource.META, deferred=False)
+    registry.register(DummyTool(), source=ToolSource.META, bind_mode=ToolBindMode.TURN1)
     middleware = DeferredToolMiddleware(registry)
 
     request = MagicMock()

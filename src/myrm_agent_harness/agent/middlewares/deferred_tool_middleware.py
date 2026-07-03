@@ -108,14 +108,14 @@ class DeferredToolMiddleware(AgentMiddleware[Any, Any, Any]):
         request: ModelRequest[Any],
         handler: Callable[[ModelRequest[Any]], Awaitable[ModelResponse[Any]]],
     ) -> ModelResponse[Any]:
-        deferred_tools = self.registry.get_deferred_tools()
+        discoverable_tools = self.registry.get_discoverable_tools()
         activated_tool_names = collect_activated_native_tool_names(request.messages)
 
         if activated_tool_names:
             existing_tool_names = {t.name if hasattr(t, "name") else t.get("name") for t in request.tools}
 
             added_count = 0
-            for tool in deferred_tools:
+            for tool in discoverable_tools:
                 if tool.name in activated_tool_names and tool.name not in existing_tool_names:
                     request.tools.append(tool)
                     added_count += 1
@@ -166,7 +166,7 @@ class DeferredToolMiddleware(AgentMiddleware[Any, Any, Any]):
         if resolved_tools:
             search_pool.extend(resolved_tools)
         search_pool.extend(registry.resolve())
-        search_pool.extend(registry.get_deferred_tools())
+        search_pool.extend(registry.get_runtime_tools())
 
         if call_name not in activated:
             seen: set[str] = set()
@@ -180,7 +180,7 @@ class DeferredToolMiddleware(AgentMiddleware[Any, Any, Any]):
 
             return await handler(request)
 
-        for dt in registry.get_deferred_tools():
+        for dt in registry.get_discoverable_tools():
             if dt.name in candidate_names:
                 return await handler(request.override(tool=dt))
 

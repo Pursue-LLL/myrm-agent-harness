@@ -302,10 +302,12 @@ def get_meta_tools(
     from myrm_agent_harness.agent.tool_management.types import ToolSource
 
     for dt in _deferred_tools:
-        registry.register(dt, source=ToolSource.META, deferred=True)
+        from myrm_agent_harness.agent.tool_management.types import ToolBindMode
+
+        registry.register(dt, source=ToolSource.META, bind_mode=ToolBindMode.DISCOVERABLE)
     if _deferred_tools:
         logger.info(
-            " %d 个低频工具已注册为 deferred: %s",
+            " %d discoverable tools registered: %s",
             len(_deferred_tools),
             [t.name for t in _deferred_tools],
         )
@@ -313,7 +315,7 @@ def get_meta_tools(
     # discover_capability_tool SSOT: SkillAgent calls sync_discover_capability_tool()
     # after all deferred/middleware tools register.
     discoverable_skills = [s for s in skills if s.model_invocable] if skills else []
-    deferred_count = len(registry.get_deferred_tools())
+    deferred_count = len(registry.get_discoverable_tools())
     if discoverable_skills or deferred_count:
         logger.info(
             " discover_capability_tool deferred to sync_discover_capability_tool "

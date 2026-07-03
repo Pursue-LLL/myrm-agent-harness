@@ -106,8 +106,10 @@ class ConsensusEngine:
                 and format.
             chat_history: prior conversation messages.  Placed between the
                 system prompt and the current query so the stable prefix
-                maximises prompt-cache hits.  ToolMessages are flattened to
-                plain text for reference models (they have no tools).
+                maximises prompt-cache hits.  ToolMessages and tool_calls
+                are flattened to plain text — neither reference nor
+                aggregator models have tools defined, so raw ToolMessages
+                would trigger provider-level validation errors.
             cancel_token: optional cancellation token; checked before
                 each phase to abort early and avoid wasted API calls.
 
@@ -117,11 +119,12 @@ class ConsensusEngine:
         """
         t0 = time.monotonic()
         cfg = self._cfg
+        flat_history = self._flatten_history(chat_history) if chat_history else None
 
         if cancel_token and cancel_token.is_cancelled:
             return self._cancelled_result(t0)
 
-        ref_responses = await self._query_references(query, system_prompt, chat_history, cancel_token)
+        ref_responses = await self._query_references(query, system_prompt, flat_history, cancel_token)
 
         if cancel_token and cancel_token.is_cancelled:
             return self._cancelled_result(t0, ref_responses)
@@ -147,7 +150,7 @@ class ConsensusEngine:
             )
             return self._success_result(successful[0].content, ref_responses, t0)
 
-        final = await self._aggregate(query, successful, system_prompt, chat_history)
+        final = await self._aggregate(query, successful, system_prompt, flat_history)
 
         logger.info(
             "Consensus complete: %d/%d refs OK, %.1fs total",
@@ -174,7 +177,7 @@ class ConsensusEngine:
         """
         t0 = time.monotonic()
         cfg = self._cfg
-        ref_history = self._flatten_history_for_reference(chat_history) if chat_history else None
+        flat_history = self._flatten_history(chat_history) if chat_history else None
 
         if cancel_token and cancel_token.is_cancelled:
             yield ConsensusStreamEvent(kind="done", result=self._cancelled_result(t0))
@@ -183,7 +186,7 @@ class ConsensusEngine:
         ref_responses: list[ReferenceResponse] = []
         if not (cancel_token and cancel_token.is_cancelled):
             tasks = [
-                asyncio.ensure_future(self._query_single(llm, query, system_prompt, ref_history))
+                asyncio.ensure_future(self._query_single(llm, query, system_prompt, flat_history))
                 for llm in self._refs
             ]
             task_to_llm = dict(zip(tasks, self._refs))
@@ -245,7 +248,7 @@ class ConsensusEngine:
             return
 
         final_chunks: list[str] = []
-        async for chunk in self._aggregate_stream(query, successful, cancel_token, system_prompt, chat_history):
+        async for chunk in self._aggregate_stream(query, successful, cancel_token, system_prompt, flat_history):
             final_chunks.append(chunk)
             yield ConsensusStreamEvent(kind="agg_chunk", chunk=chunk)
 
@@ -309,8 +312,7 @@ class ConsensusEngine:
         if cancel_token and cancel_token.is_cancelled:
             return []
 
-        ref_history = self._flatten_history_for_reference(chat_history) if chat_history else None
-        tasks = [self._query_single(llm, query, system_prompt, ref_history) for llm in self._refs]
+        tasks = [self._query_single(llm, query, system_prompt, chat_history) for llm in self._refs]
         try:
             return list(
                 await asyncio.wait_for(
@@ -485,14 +487,14 @@ class ConsensusEngine:
             yield best.content
 
     @staticmethod
-    def _flatten_history_for_reference(
+    def _flatten_history(
         chat_history: list[BaseMessage],
     ) -> list[BaseMessage]:
-        """Flatten chat history into a tool-free view for reference models.
+        """Flatten chat history into a tool-free view.
 
-        Reference models are advisory — they have no tools and cannot call
-        them.  Passing raw ToolMessages or AIMessages with ``tool_calls``
-        would confuse them or trigger provider-level validation errors.
+        Neither reference nor aggregator models have tools defined, so raw
+        ToolMessages or AIMessages with ``tool_calls`` would trigger
+        provider-level validation errors (e.g. OpenAI 400).
 
         Strategy: keep HumanMessage/SystemMessage as-is, strip tool_calls
         from AIMessage (keep text content only), convert ToolMessage to a

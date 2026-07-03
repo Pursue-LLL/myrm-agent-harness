@@ -13,6 +13,8 @@ from myrm_agent_harness.toolkits.llms.consensus import (
     ConsensusStreamEvent,
     ReferenceResponse,
 )
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
 from myrm_agent_harness.toolkits.llms.consensus._prompts import AGGREGATOR_SYSTEM
 from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
@@ -1023,3 +1025,103 @@ class TestBuildAggregationMessages:
         msgs_1 = build_aggregation_messages("q1", refs_1, system_prompt=persona)
         msgs_2 = build_aggregation_messages("q2", refs_2, system_prompt=persona)
         assert str(msgs_1[0].content) == str(msgs_2[0].content)
+
+
+# -----------------------------------------------------------------------
+# Multi-turn chat history — verify history is threaded through the engine
+# -----------------------------------------------------------------------
+
+
+class TestChatHistory:
+    """Consensus must honour chat_history so multi-turn conversations
+    work correctly, matching the behaviour of the other stream lanes
+    (dynamic workflow, deep research, fast lane).
+    """
+
+    async def test_run_with_chat_history(self):
+        """run() must forward chat_history to references and aggregator."""
+        ref = _make_llm("ref-a", "ref answer")
+        agg = _make_llm("agg", "final answer")
+        engine = ConsensusEngine(reference_llms=[ref], aggregator_llm=agg)
+
+        history = [HumanMessage(content="hello"), AIMessage(content="hi there")]
+        result = await engine.run("follow up", chat_history=history)
+
+        assert result.success
+        assert len(ref.astream_calls) == 1
+        ref_msgs = ref.astream_calls[0]
+        assert len(ref_msgs) == 3  # history[0] + history[1] + query
+        assert ref_msgs[0].content == "hello"
+        assert ref_msgs[1].content == "hi there"
+        assert ref_msgs[2].content == "follow up"
+
+    async def test_stream_with_chat_history(self):
+        """run_stream() must forward chat_history to references."""
+        ref_a = _make_llm("ref-a", "answer a")
+        ref_b = _make_llm("ref-b", "answer b")
+        agg = _make_llm("agg", "synthesis")
+        engine = ConsensusEngine(reference_llms=[ref_a, ref_b], aggregator_llm=agg)
+
+        history = [HumanMessage(content="prev q"), AIMessage(content="prev a")]
+        events = [e async for e in engine.run_stream("new q", chat_history=history)]
+
+        done = [e for e in events if e.kind == "done"]
+        assert done[0].result.success
+
+        for llm in (ref_a, ref_b):
+            assert len(llm.astream_calls) == 1
+            msgs = llm.astream_calls[0]
+            assert msgs[0].content == "prev q"
+            assert msgs[1].content == "prev a"
+            assert msgs[-1].content == "new q"
+
+    async def test_tool_messages_flattened_for_references(self):
+        """ToolMessages in chat_history must be flattened to plain text
+        for reference models (they have no tools).
+        """
+        ref = _make_llm("ref", "ref answer")
+        agg = _make_llm("agg", "final")
+        engine = ConsensusEngine(reference_llms=[ref], aggregator_llm=agg)
+
+        history = [
+            HumanMessage(content="search for X"),
+            AIMessage(content="", additional_kwargs={"tool_calls": [{"id": "1", "function": {"name": "search"}}]}),
+            ToolMessage(content="search result here", tool_call_id="1", name="search"),
+            AIMessage(content="Based on the search..."),
+        ]
+        result = await engine.run("tell me more", chat_history=history)
+
+        assert result.success
+        ref_msgs = ref.astream_calls[0]
+        msg_types = [type(m).__name__ for m in ref_msgs]
+        assert "ToolMessage" not in msg_types
+        assert ref_msgs[0].content == "search for X"
+        search_result_msg = [m for m in ref_msgs if "[search result]:" in str(m.content)]
+        assert len(search_result_msg) == 1
+        assert ref_msgs[-1].content == "tell me more"
+
+    async def test_aggregator_also_receives_flattened_history(self):
+        """Aggregator must also receive tool-free history — sending raw
+        ToolMessage to an LLM without tools defined causes API errors.
+        """
+        ref_a = _make_llm("ref-a", "answer a")
+        ref_b = _make_llm("ref-b", "answer b")
+        agg = _make_llm("agg", "synthesis")
+        engine = ConsensusEngine(reference_llms=[ref_a, ref_b], aggregator_llm=agg)
+
+        history = [
+            HumanMessage(content="run code"),
+            AIMessage(content="", additional_kwargs={"tool_calls": [{"id": "c1", "function": {"name": "execute"}}]}),
+            ToolMessage(content="output: 42", tool_call_id="c1", name="execute"),
+            AIMessage(content="The result is 42."),
+        ]
+        result = await engine.run("explain the result", chat_history=history)
+
+        assert result.success
+        agg_msgs = agg.astream_calls[0]
+        agg_msg_types = [type(m).__name__ for m in agg_msgs]
+        assert "ToolMessage" not in agg_msg_types
+        has_tool_calls = any(
+            m.additional_kwargs.get("tool_calls") for m in agg_msgs if hasattr(m, "additional_kwargs")
+        )
+        assert not has_tool_calls

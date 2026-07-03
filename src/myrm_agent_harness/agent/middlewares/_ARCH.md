@@ -17,7 +17,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `_tool_execution_lifecycle.py` | Internal | Tool execution lifecycle hooks. | ✅ |
 | `_tool_guards.py` | Internal | Guard modules orchestrated by tool_interceptor. | ✅ |
 | `_tool_helpers.py` | Internal | Stateless helpers for tool_interceptor_middleware. | ✅ |
-| `completion_guard.py` | Core | Finish gate + Mixed Message Guard for code tasks. Registers `_completion_check` as deferred (not in default bind_tools); guard injects tool_call in `aafter_model`. | ✅ |
+| `completion_guard.py` | Core | Finish gate + Mixed Message Guard for code tasks. Registers `_completion_check` as **runtime-only** (not Turn1, not discover); guard injects tool_call in `aafter_model`. | ✅ |
 | `completion_guard_checklist.py` | Internal | Verification command classification + checklist builder for CompletionGuard. | ✅ |
 | `concurrency_limiter.py` | Core | Subagent Semaphore by agent_type. | ✅ |
 | `concurrency_router.py` | Core | Smart concurrency routing with safety_dispatcher. | ✅ |

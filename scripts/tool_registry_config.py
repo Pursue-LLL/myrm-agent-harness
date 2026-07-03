@@ -30,7 +30,7 @@ PTC_RUNTIME_TOOL_NAMES: frozenset[str] = frozenset({
 INTERNAL_TOOL_PREFIXES: tuple[str, ...] = ("_",)
 
 INTERNAL_TOOL_NAMES: frozenset[str] = frozenset({
-    "_completion_check",  # deferred; CompletionGuard injects tool_call — not in default bind_tools
+    "_completion_check",  # runtime-only; CompletionGuard injects tool_call — not in Turn1 bind or discover
     "submit_verdict",  # verifier sub-agent only
 })
 

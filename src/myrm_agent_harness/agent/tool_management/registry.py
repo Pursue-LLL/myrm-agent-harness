@@ -29,6 +29,7 @@ from myrm_agent_harness.agent.tool_management.tool_layers import (
     get_tool_layer,
 )
 from myrm_agent_harness.agent.tool_management.types import (
+    ToolBindMode,
     ToolEntry,
     ToolSnapshot,
     ToolSource,
@@ -84,7 +85,7 @@ class ToolRegistry:
         layer: ToolLayer | None = None,
         provider: str | None = None,
         allowed_domains: list[str] | None = None,
-        deferred: bool = False,
+        bind_mode: ToolBindMode = ToolBindMode.TURN1,
     ) -> None:
         """Add a tool to the registry.
 
@@ -102,9 +103,11 @@ class ToolRegistry:
             Human-readable identifier of the tool provider, e.g.
             ``"skill:web_search"`` or ``"mcp:github"``.  ``None`` for
             built-in tools.
-        deferred:
-            If True, the tool is not immediately bound to the LLM.
-            It can be discovered via `discover_capability` and activated dynamically.
+        bind_mode:
+            ``TURN1``: bound on first model turn.
+            ``DISCOVERABLE``: lazy-load via discover_capability + AutoMount.
+            ``RUNTIME_ONLY``: internal hooks (e.g. ``_completion_check``);
+            not in discover index; executable when middleware injects tool_calls.
         """
         resolved_layer = layer if layer is not None else get_tool_layer(tool.name)
 
@@ -123,7 +126,7 @@ class ToolRegistry:
                 layer=resolved_layer,
                 provider=provider,
                 allowed_domains=allowed_domains,
-                deferred=deferred,
+                bind_mode=bind_mode,
             )
         )
 
@@ -135,7 +138,7 @@ class ToolRegistry:
         layer: ToolLayer | None = None,
         provider: str | None = None,
         allowed_domains: list[str] | None = None,
-        deferred: bool = False,
+        bind_mode: ToolBindMode = ToolBindMode.TURN1,
     ) -> None:
         for t in tools:
             self.register(
@@ -144,7 +147,7 @@ class ToolRegistry:
                 layer=layer,
                 provider=provider,
                 allowed_domains=allowed_domains,
-                deferred=deferred,
+                bind_mode=bind_mode,
             )
 
     def _resolve_entries(self) -> list[ToolEntry]:
@@ -168,7 +171,7 @@ class ToolRegistry:
         then alphabetically within each layer — identical to the existing
         the cache-friendly ordering contract (CORE → COMMON → EXTENDED).
 
-        Only returns active (non-deferred) tools.
+        Only returns Turn1-bound tools (``bind_mode == TURN1``).
         """
         entries = self._resolve_entries()
 
@@ -184,7 +187,7 @@ class ToolRegistry:
                 current_map[e.tool.name] = e.allowed_domains
         set_allowed_domains_map(current_map)
 
-        resolved_tools = [e.tool for e in entries if not e.deferred]
+        resolved_tools = [e.tool for e in entries if e.bind_mode == ToolBindMode.TURN1]
 
         # Weave dynamic schemas (e.g. cross-tool hints)
         resolved_names = {t.name for t in resolved_tools}
@@ -201,10 +204,19 @@ class ToolRegistry:
 
         return final_tools
 
-    def get_deferred_tools(self) -> list[BaseTool]:
-        """Return all deferred tools."""
+    def get_discoverable_tools(self) -> list[BaseTool]:
+        """Return tools indexed by discover_capability (excludes runtime-only hooks)."""
         entries = self._resolve_entries()
-        return [e.tool for e in entries if e.deferred]
+        return [e.tool for e in entries if e.bind_mode == ToolBindMode.DISCOVERABLE]
+
+    def get_runtime_tools(self) -> list[BaseTool]:
+        """Return tools executable outside Turn1 bind (discoverable + runtime-only)."""
+        entries = self._resolve_entries()
+        return [e.tool for e in entries if e.bind_mode != ToolBindMode.TURN1]
+
+    def get_deferred_tools(self) -> list[BaseTool]:
+        """Alias for :meth:`get_runtime_tools` (legacy name)."""
+        return self.get_runtime_tools()
 
     def snapshot(self) -> list[ToolSnapshot]:
         """Return a serializable snapshot of the resolved tool set.
@@ -228,7 +240,7 @@ class ToolRegistry:
                     provider=entry.provider,
                     layer=str((entry.layer or ToolLayer.EXTENDED).value),
                     parameters_schema=params,
-                    deferred=entry.deferred,
+                    bind_mode=entry.bind_mode.value,
                 )
             )
         return snapshots

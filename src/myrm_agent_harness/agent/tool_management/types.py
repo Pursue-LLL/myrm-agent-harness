@@ -39,6 +39,19 @@ class ToolSource(Enum):
     MIDDLEWARE = "middleware"
 
 
+class ToolBindMode(str, Enum):
+    """How a tool participates in Turn1 bind_tools and discover_capability.
+
+    TURN1: bound on first model turn (default).
+    DISCOVERABLE: excluded from Turn1; indexed by discover_capability; AutoMount on hit.
+    RUNTIME_ONLY: excluded from Turn1 and discover; executable when middleware injects tool_calls.
+    """
+
+    TURN1 = "turn1"
+    DISCOVERABLE = "discoverable"
+    RUNTIME_ONLY = "runtime_only"
+
+
 _SOURCE_PRIORITY: dict[ToolSource, int] = {
     ToolSource.META: 0,
     ToolSource.USER: 1,
@@ -60,7 +73,7 @@ class ToolEntry:
     layer: ToolLayer | None = field(default=None)
     provider: str | None = field(default=None)
     allowed_domains: list[str] | None = field(default=None)
-    deferred: bool = field(default=False)
+    bind_mode: ToolBindMode = field(default=ToolBindMode.TURN1)
 
 
 @dataclass(slots=True, frozen=True)
@@ -74,4 +87,9 @@ class ToolSnapshot:
     provider: str | None
     layer: str
     parameters_schema: dict[str, object] | None
-    deferred: bool = field(default=False)
+    bind_mode: str = field(default=ToolBindMode.TURN1.value)
+
+    @property
+    def deferred(self) -> bool:
+        """True when the tool is not bound on Turn1 (discoverable or runtime-only)."""
+        return self.bind_mode != ToolBindMode.TURN1.value

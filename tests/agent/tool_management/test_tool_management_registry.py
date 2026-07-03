@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry, _extract_summary, _safe_extract_schema
 from myrm_agent_harness.agent.tool_management.tool_layers import ToolLayer
-from myrm_agent_harness.agent.tool_management.types import ToolSnapshot, ToolSource
+from myrm_agent_harness.agent.tool_management.types import ToolBindMode, ToolSnapshot, ToolSource
 
 
 def _make_tool(name: str, description: str = "desc", schema: type[BaseModel] | None = None) -> MagicMock:
@@ -270,34 +270,66 @@ class TestToolLayerFunctions:
         assert names[len(baseline_prefix) :] == ["memory_manage_tool", "memory_recall_tool", "memory_save_tool"]
 
 
-class TestToolRegistryDeferred:
-    def test_deferred_tool_not_in_resolve(self) -> None:
+class TestToolRegistryBindMode:
+    def test_discoverable_tool_not_in_resolve(self) -> None:
         reg = ToolRegistry()
         reg.register(_make_tool("visible"), source=ToolSource.META)
-        reg.register(_make_tool("hidden"), source=ToolSource.META, deferred=True)
+        reg.register(
+            _make_tool("hidden"),
+            source=ToolSource.META,
+            bind_mode=ToolBindMode.DISCOVERABLE,
+        )
         resolved = reg.resolve()
         names = [t.name for t in resolved]
         assert "visible" in names
         assert "hidden" not in names
 
-    def test_get_deferred_tools(self) -> None:
+    def test_runtime_only_not_in_discoverable(self) -> None:
+        reg = ToolRegistry()
+        reg.register(
+            _make_tool("_internal_hook"),
+            source=ToolSource.MIDDLEWARE,
+            bind_mode=ToolBindMode.RUNTIME_ONLY,
+        )
+        reg.register(
+            _make_tool("cron_manage_tool"),
+            source=ToolSource.USER,
+            bind_mode=ToolBindMode.DISCOVERABLE,
+        )
+        assert {t.name for t in reg.get_discoverable_tools()} == {"cron_manage_tool"}
+        assert {t.name for t in reg.get_runtime_tools()} == {"_internal_hook", "cron_manage_tool"}
+
+    def test_get_deferred_tools_alias(self) -> None:
         reg = ToolRegistry()
         reg.register(_make_tool("visible"), source=ToolSource.META)
-        reg.register(_make_tool("deferred_a"), source=ToolSource.META, deferred=True)
-        reg.register(_make_tool("deferred_b"), source=ToolSource.META, deferred=True)
+        reg.register(
+            _make_tool("deferred_a"),
+            source=ToolSource.META,
+            bind_mode=ToolBindMode.DISCOVERABLE,
+        )
+        reg.register(
+            _make_tool("_hook"),
+            source=ToolSource.MIDDLEWARE,
+            bind_mode=ToolBindMode.RUNTIME_ONLY,
+        )
         deferred = reg.get_deferred_tools()
         names = [t.name for t in deferred]
-        assert set(names) == {"deferred_a", "deferred_b"}
+        assert set(names) == {"deferred_a", "_hook"}
 
-    def test_deferred_tools_in_snapshot(self) -> None:
+    def test_lazy_tools_in_snapshot(self) -> None:
         reg = ToolRegistry()
         reg.register(_make_tool("active"), source=ToolSource.META)
-        reg.register(_make_tool("lazy"), source=ToolSource.META, deferred=True)
+        reg.register(
+            _make_tool("lazy"),
+            source=ToolSource.META,
+            bind_mode=ToolBindMode.DISCOVERABLE,
+        )
         snaps = reg.snapshot()
         deferred_snaps = [s for s in snaps if s.deferred]
         active_snaps = [s for s in snaps if not s.deferred]
         assert len(deferred_snaps) == 1
         assert deferred_snaps[0].name == "lazy"
+        assert deferred_snaps[0].bind_mode == ToolBindMode.DISCOVERABLE.value
         assert len(active_snaps) == 1
 
 
@@ -313,7 +345,11 @@ class TestToolRegistryHasTool:
 
     def test_has_tool_deferred(self) -> None:
         reg = ToolRegistry()
-        reg.register(_make_tool("deferred_one"), source=ToolSource.META, deferred=True)
+        reg.register(
+            _make_tool("deferred_one"),
+            source=ToolSource.META,
+            bind_mode=ToolBindMode.DISCOVERABLE,
+        )
         assert reg.has_tool("deferred_one") is True
 
     def test_has_tool_after_duplicate_registration(self) -> None:

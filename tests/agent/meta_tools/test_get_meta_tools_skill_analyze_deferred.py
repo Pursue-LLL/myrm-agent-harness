@@ -12,7 +12,7 @@ from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability
     sync_discover_capability_tool,
 )
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
-from myrm_agent_harness.agent.tool_management.types import ToolSource
+from myrm_agent_harness.agent.tool_management.types import ToolBindMode, ToolSource
 from myrm_agent_harness.backends.skills.types import SkillMetadata
 
 
@@ -109,7 +109,7 @@ class TestSkillAnalyzeDeferred:
             """Deferred placeholder."""
             return "ok"
 
-        registry.register(dummy_deferred, source=ToolSource.META, deferred=True)
+        registry.register(dummy_deferred, source=ToolSource.META, bind_mode=ToolBindMode.DISCOVERABLE)
 
         get_meta_tools(
             [],

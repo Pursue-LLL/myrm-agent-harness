@@ -16,10 +16,10 @@ Tools registered: **81** (CORE 7 + COMMON 3 + EXTENDED 71). Source of truth: `to
 | __init__.py | Package | Tool management subsystem — unified tool registration, dedup, ordering, and lifecycle. | — |
 | lifecycle_manager.py | Core | Orchestrates tool lifecycle: initialize_tools() -> cleanup_tools() | ✅ |
 | lifecycle_protocol.py | Core | LifecycleAwareTool protocol for tools needing init/cleanup. | ✅ |
-| registry.py | Core | Replaces the scattered ``_deduplicate_tools()`` + ``sort_tools()`` calls in BaseAgent. Supports deferred tools. | ✅ |
+| registry.py | Core | Replaces the scattered ``_deduplicate_tools()`` + ``sort_tools()`` calls in BaseAgent. ``ToolBindMode``: TURN1 / DISCOVERABLE / RUNTIME_ONLY. | ✅ |
 | action_space.py | Core | ActionSpaceProfiler: 动作空间量化引擎，计算工具 Schema 复杂度 (ASCS)。 | ✅ |
 | tool_layers.py | Core | Tool layer priority registry. **CORE**: web_fetch/bash/file_*/glob/grep (agent baseline). **COMMON**: web_search/todo_write/request_answer. **EXTENDED**: all others. | ✅ |
-| types.py | Config | Core types for the tool management subsystem. Includes deferred tool support. | ✅ |
+| types.py | Config | Core types for the tool management subsystem. ``ToolBindMode`` tri-state binding. | ✅ |
 | utils.py | 辅助 | Re-exports with_dynamic_hints decorator for cross-tool dependency hint injection. | ✅ |
 | DEFAULT_AGENT_TOKEN_INVENTORY.md | Doc | 默认 Agent 初始 Token 逐项清单；§4.18 控制面工具 taxonomy；P3 重测见 `scripts/measure_turn1_token_inventory.py` | — |
 | TOOL_DESIGN_STRATEGY.md | Doc | 工具设计策略完整指南 — 工具层级/核心外围/ASCS/框架vs业务边界/Token预算/竞品对比 | — |

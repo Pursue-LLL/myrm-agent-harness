@@ -52,24 +52,31 @@ async def test_default_resolve_excludes_internal_pseudo_tools() -> None:
 
 
 @pytest.mark.asyncio
-async def test_completion_check_is_deferred_not_active() -> None:
-    """CompletionGuard registers _completion_check as deferred middleware tool."""
+async def test_completion_check_is_runtime_only_not_turn1() -> None:
+    """CompletionGuard registers _completion_check as runtime-only middleware tool."""
     from myrm_agent_harness.agent._internals._agent_build import (
         build_middlewares,
         build_tools,
         create_registry,
     )
+    from myrm_agent_harness.agent.tool_management.types import ToolBindMode
 
     registry = create_registry()
     middlewares = build_middlewares(registry, [])
 
     await build_tools(registry, [], [], middlewares)
 
-    deferred_names = {tool.name for tool in registry.get_deferred_tools()}
-    assert COMPLETION_CHECK_TOOL_NAME in deferred_names
+    runtime_names = {tool.name for tool in registry.get_runtime_tools()}
+    assert COMPLETION_CHECK_TOOL_NAME in runtime_names
+
+    discoverable_names = {tool.name for tool in registry.get_discoverable_tools()}
+    assert COMPLETION_CHECK_TOOL_NAME not in discoverable_names
 
     active_names = {tool.name for tool in registry.resolve()}
     assert COMPLETION_CHECK_TOOL_NAME not in active_names
+
+    entry = next(e for e in registry._entries if e.tool.name == COMPLETION_CHECK_TOOL_NAME)
+    assert entry.bind_mode == ToolBindMode.RUNTIME_ONLY
 
 
 @pytest.mark.asyncio

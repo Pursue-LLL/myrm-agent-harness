@@ -67,7 +67,7 @@ def create_discover_capability_tool(
     if registry is not None:
         from myrm_agent_harness.backends.skills.types import SkillMetadata
 
-        for t in registry.get_deferred_tools():
+        for t in registry.get_discoverable_tools():
             native_tool_map[t.name] = t
             native_skills.append(
                 SkillMetadata(
@@ -252,11 +252,11 @@ def sync_discover_capability_tool(
     from myrm_agent_harness.agent.tool_management.registry import ToolSource
 
     discoverable_skills = [s for s in (skills or []) if s.model_invocable]
-    has_deferred = bool(registry.get_deferred_tools())
+    has_discoverable = bool(registry.get_discoverable_tools())
 
     registry.remove_tool("discover_capability_tool")
 
-    if not discoverable_skills and not has_deferred:
+    if not discoverable_skills and not has_discoverable:
         return None
 
     tool = create_discover_capability_tool(
