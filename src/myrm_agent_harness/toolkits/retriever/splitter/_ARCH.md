@@ -24,3 +24,4 @@ Detailed design: [RETRIEVER_SYSTEM.md](../RETRIEVER_SYSTEM.md)
 ## Key Dependencies
 
 - `utils`
+- Optional: `[retrieval]` → langchain-text-splitters (code_utils.py)

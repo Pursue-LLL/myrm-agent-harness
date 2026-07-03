@@ -28,3 +28,4 @@ Detailed design: [ACP_SYSTEM.md](ACP_SYSTEM.md)
 
 - `core`
 - `utils`
+- Optional: `[acp]` → agent-client-protocol (server/, bridge/, event_translator/)

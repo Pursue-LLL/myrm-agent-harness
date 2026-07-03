@@ -24,7 +24,7 @@ Observability tools for Myrm Agent framework. Provides Prometheus metrics, auth 
 
 | Submodule | Description |
 |-----------|-------------|
-| metrics/ | Harness-layer generic metrics utilities for any project using the Myrm framework. |
+| metrics/ | Generic metrics utilities; Prometheus counters require `[observability]` extra (NoOp fallback otherwise). |
 | diagnostics/ | Framework-level self-inspection — health probes, benchmark probes, and diagnostic protocol. |
 | tracing/ | ContextVar-based request tracing (trace_id / session_id) with logging.Filter and JSON formatter. |
 

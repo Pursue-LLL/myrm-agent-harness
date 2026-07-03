@@ -23,6 +23,6 @@ File parsers toolkit entry point. Aggregates all file format parsers and provide
 
 ## Dependencies
 
-- **Core**: `pdfplumber`（`pyproject.toml` 主依赖；`pdf.py`, `pdf_content_extractor.py`）
-- **Optional `[file-parsers]`**: `pypdfium2`, `python-docx`, `openpyxl`, `python-pptx`
+- **Core**: `pdfplumber`（含 pypdfium2 传递依赖；`pdf.py`, `pdf_content_extractor.py`, `file_read_tool`）
+- **Optional `[file-parsers]`**: `python-docx`, `openpyxl`, `python-pptx`
 - **Stdlib**: `json`（`ipynb.py`，无额外依赖）

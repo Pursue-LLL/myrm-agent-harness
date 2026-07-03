@@ -5,7 +5,7 @@ Provides parsers for various file formats:
 - Word (python-docx, `[file-parsers]`): DOCX files with headings, lists, and tables (merged-cell dedup) in document order
 - Excel (openpyxl, `[file-parsers]`): XLSX files with merged cells support
 - PowerPoint (python-pptx, `[file-parsers]`): PPTX files with slide text, tables, and notes
-- PDF page render fallback (pypdfium2, `[file-parsers]`)
+- PDF page render fallback (pypdfium2 via pdfplumber transitive dependency)
 - Text: Plain text and Markdown files
 - Jupyter Notebook (stdlib json): IPYNB cell extraction (Markdown/code/raw)
 

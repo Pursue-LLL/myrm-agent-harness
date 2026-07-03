@@ -33,3 +33,4 @@ Detailed design: [RETRIEVER_SYSTEM.md](RETRIEVER_SYSTEM.md)
 ## Key Dependencies
 
 - `utils`
+- Optional `[retrieval]`: langchain-text-splitters, numpy, jieba, rank-bm25, tenacity

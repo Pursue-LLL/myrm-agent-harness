@@ -1,7 +1,6 @@
 """Database utilities for SQLite migration management.
 
-Provides lightweight, zero-dependency database migration tools for
-Agent-in-Sandbox architectures.
+Provides lightweight SQLite migration tools. StatefulMigrationEngine requires sqlalchemy (dev group or consumer install).
 """
 
 from .migration_engine import MigrationReport, MigrationStatement, StatefulMigrationEngine

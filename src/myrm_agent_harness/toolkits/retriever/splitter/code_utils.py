@@ -3,7 +3,7 @@
 provides代码语言检测、Code blocks保护、AST智能分割 etc.功能
 
 [INPUT]
-- (none)
+- langchain_text_splitters (optional `[retrieval]` extra)::Language, RecursiveCharacterTextSplitter
 
 [OUTPUT]
 - detect_code_language: Args:

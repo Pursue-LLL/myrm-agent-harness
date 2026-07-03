@@ -1,12 +1,10 @@
 """Zero-Ops Stateful SQLite Migration Engine.
 
-Provides a robust, dependency-free (no Alembic) database migration utility
-for Agent-in-Sandbox architectures. Supports state tracking, precise timing,
-checksum verification, and seamless baseline initialization for existing databases.
+Provides a lightweight SQLite migration utility (no Alembic).
+SQLAlchemy AsyncEngine is optional at import time; install `sqlalchemy` when using StatefulMigrationEngine.
 
 [INPUT]
-- sqlalchemy.ext.asyncio::AsyncEngine (POS: Async database engine)
-- sqlalchemy::text (POS: Raw SQL execution)
+- sqlalchemy (optional)::text, AsyncEngine — lazy import at runtime
 
 [OUTPUT]
 - StatefulMigrationEngine: Zero-ops SQLite migration engine with state tracking
@@ -37,7 +35,7 @@ _SQLALCHEMY_INSTALL_HINT = (
 )
 
 
-def _sql_text(sql: str):
+def _sql_text(sql: str) -> object:
     try:
         from sqlalchemy import text
     except ImportError as exc:

@@ -38,7 +38,7 @@ jobs:
         run: uv python install 3.13
 
       - name: Install dependencies
-        run: uv sync --dev
+        run: uv sync --dev --extra retrieval --extra acp --extra observability
 
       - name: Run unit tests
         run: uv run pytest -n 2 --dist=loadscope -q --tb=short tests/

@@ -7,7 +7,7 @@ Harness-layer generic metrics utilities for any project using the Myrm framework
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Metrics factory (`create_*`, `get_or_create_*`) with NoOp fallback when prometheus_client is absent. | ✅ |
+| __init__.py | Package | Metrics factory with NoOp fallback when `[observability]` / prometheus-client is absent. | ✅ |
 | agent_metrics.py | Core | Harness-layer generic Agent monitoring metrics reusable by any Myrm-based project. | ✅ |
 | circuit_breaker_metrics.py | Core | Prometheus metrics for circuit breaker monitoring. | ✅ |
 | db_pool_collector.py | Core | Harness-layer generic database connection pool monitor reusable by any Myrm-based project. | ✅ |
