@@ -32,7 +32,7 @@ TOOL_DESCRIPTION = """
 
 - 读/写/编辑文件:**必须**使用 `file_read_tool` / `file_write_tool` / `file_edit_tool`,**不要**用 echo/cat/sed/awk/tee/perl 操作文件 — 缺少验证、无回滚、还会触发额外审批,浪费交互轮次。
 - 检索代码:**必须**使用 `glob_tool` / `grep_tool`,**不要**用 bash 的 find/grep 递归扫描。
-- 浏览目录:**必须**使用 `list_directory_tool`。
+- 浏览目录:**必须**使用 `glob_tool`（如 `pattern="*"` 或 `pattern="**/*"` 限定 depth），**不要**用 bash `ls/find`。
 
 bash_code_execute_tool 适用于:文件移动/复制(mv/cp)、包管理、构建测试、git 操作、Python 数据处理、技能调用。
 
