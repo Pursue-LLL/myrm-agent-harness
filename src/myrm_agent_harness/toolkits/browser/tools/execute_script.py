@@ -9,7 +9,8 @@
 
 [POS]
 Allows the agent to write and execute a Python script to perform batch browser actions,
-bypassing the single-step bottleneck. Uses AST transformation to inject async yields,
+bypassing the single-step bottleneck. Sets `session._hitl_caller_tool` for semantic HITL audit
+attribution during script execution. Uses AST transformation to inject async yields,
 preventing event loop blocking, and restricts globals for safety.
 """
 
@@ -192,6 +193,7 @@ def create_execute_script_tool(session: BrowserSession):
             except Exception as e:
                 logger.warning("Failed to take baseline screenshot for verification: %s", e)
 
+        session._hitl_caller_tool = "browser_execute_script_tool"
         try:
             await session.notify_progress("Starting browser script execution...")
             # Run with a 60-second timeout
@@ -204,6 +206,7 @@ def create_execute_script_tool(session: BrowserSession):
             error_trace = traceback.format_exc()
             output_buffer.write(f"\n[Error] Runtime exception:\n{error_trace}")
         finally:
+            session._hitl_caller_tool = None
             print_queue.put_nowait(None)
             await flusher_task
             await session.notify_progress("Browser script execution completed.")

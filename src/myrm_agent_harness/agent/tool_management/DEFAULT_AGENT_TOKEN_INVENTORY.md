@@ -308,7 +308,7 @@
 [CORE: web_fetch(255)]
   ↑ 始终缓存命中（~255 tokens）
 
-[COMMON: request_answer_user(1024) bash(1207) file_edit(155) file_read(390) file_write(131) planner(373) web_search(1177)]
+[COMMON: request_answer_user(1024) bash(1207) file_edit(155) file_read(390) file_write(131) todo_write(~150) web_search(1177)]
   ↑ 默认缓存命中，用户可通过前端开关控制（~4,457 tokens）
 
 [EXTENDED: glob(234) grep(349) memory_*(670) skill_*(~600) ...]

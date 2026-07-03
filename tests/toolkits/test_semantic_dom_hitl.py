@@ -58,6 +58,20 @@ class TestEnforceSemanticInteractionGuard:
         mock_interrupt.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_high_risk_click_uses_hitl_caller_tool(self, mock_session: MagicMock) -> None:
+        with patch("langgraph.types.interrupt", return_value={"decision": "approve"}) as mock_interrupt:
+            result = await enforce_semantic_interaction_guard(
+                session=mock_session,
+                tool_name="browser_execute_script_tool",
+                action="click",
+                ref="e5",
+                ref_info=_ref("button", "Delete Repository"),
+            )
+        assert result is None
+        payload = mock_interrupt.call_args[0][0]
+        assert payload["tool_name"] == "browser_execute_script_tool"
+
+    @pytest.mark.asyncio
     async def test_high_risk_click_approved(self, mock_session: MagicMock) -> None:
         with patch("langgraph.types.interrupt", return_value={"decision": "approve"}) as mock_interrupt:
             result = await enforce_semantic_interaction_guard(

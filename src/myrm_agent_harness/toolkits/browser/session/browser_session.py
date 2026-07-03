@@ -208,6 +208,7 @@ class BrowserSession(
             DownloadManager(download_config) if download_config is not None else None
         )
         self._session_hash_cache: dict[str, str] = {}
+        self._hitl_caller_tool: str | None = None
         self._content_vault = content_vault
         self._vision_verifier = VisionVerifier(vision_llm)
         self._structured_extractor = StructuredExtractor(vision_llm)
@@ -325,9 +326,10 @@ class BrowserSession(
         )
 
         ref_info = self.get_ref_info(ref)
+        caller_tool = self._hitl_caller_tool or "browser_interact_tool"
         blocked = await enforce_semantic_interaction_guard(
             session=self,
-            tool_name="browser_interact_tool",
+            tool_name=caller_tool,
             action=action,
             ref=ref,
             ref_info=ref_info,

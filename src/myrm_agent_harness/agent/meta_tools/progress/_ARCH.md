@@ -13,7 +13,7 @@ SSOT: `{workspace_root}/.myrm/progress/todos.json`
 | File | Role | Description |
 |------|------|-------------|
 | schemas.py | Config | `TodoItem`, `TodoStore`, plan-compat adapter for Goal API |
-| storage.py | Core | Read/write/merge todos in chat workspace |
+| storage.py | Core | Read/write/merge todos in chat workspace (atomic write via `infra.atomic_write`) |
 | events.py | Core | Emit `tasks_steps` for ProgressSteps UI |
 | todo_write_tool.py | Core | LangChain `todo_write` factory (main agent, no sub-agent LLM) |
 

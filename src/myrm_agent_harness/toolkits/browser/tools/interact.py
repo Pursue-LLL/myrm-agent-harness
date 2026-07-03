@@ -1,15 +1,13 @@
 """browser_interact tool for element interactions.
 
 [INPUT]
-- toolkits.browser.tools._semantic_risk::classify_interaction_risk (POS: Pure function semantic DOM risk classification)
-- core.security.audit::record_decision (POS: Security decision audit trail)
-- langgraph.types::interrupt (POS: LangGraph HITL interrupt mechanism)
+- session.browser_session::BrowserSession (POS: browser session aggregate root; semantic guard in interact)
 
 [OUTPUT]
 - create_interact_tool: Create browser_interact tool bound to session.
 
 [POS]
-browser_interact tool for element interactions. Semantic DOM risk check runs in
+browser_interact tool for element interactions. Semantic DOM HITL runs in
 BrowserSession.interact (shared with execute_script); this tool adds download detection.
 """
 

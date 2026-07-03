@@ -655,9 +655,9 @@ browser_manage_tool(action="wait_for_user")    → browser_human_handover → AS
 
 ### 语义级 DOM 高危动作拦截 (Semantic DOM Guard)
 
-在 **BrowserSession.interact**（覆盖 `browser_interact_tool` 与 `browser_execute_script` 内 `session.interact()`）的 click/dblclick 执行前，基于目标元素的 ARIA role 和 name 进行语义风险分类。匹配五大高危类别（destructive/financial/account/admin/publish）时，通过 LangGraph `interrupt()` 强制触发 HITL 审批，无论当前权限配置如何。
+在 **BrowserSession.interact**（覆盖 `browser_interact_tool` 与 `browser_execute_script` 内 `session.interact()`）的 click/dblclick 执行前，基于目标元素的 ARIA role 和 name 进行语义风险分类。匹配五大高危类别（destructive/financial/account/admin/publish）时，通过 LangGraph `interrupt()` 强制触发 HITL 审批，无论当前权限配置如何。`browser_execute_script_tool` 执行期间通过 `BrowserSession._hitl_caller_tool` 将 HITL/audit 的 `tool_name` 归因到脚本入口（`finally` 复位）。
 
-**browser_manage evaluate**：L1 默认 `browser_evaluate` → DENY（`core/security/types.py`）；经 YOLO/allowlist 放行后，L2 变异 JS（`.click()`、`submit()`、`innerHTML=` 等）经 `classify_js_eval_risk` 仍走 HITL；只读表达式（如 `document.title`）直接执行。
+**browser_manage evaluate**：L1 默认 `browser_evaluate` → DENY（`core/security/types.py`）；经 YOLO/allowlist 放行后，L2 变异 JS（`.click()`、`submit()`、`innerHTML=` 等）经 `classify_js_eval_risk` 仍走 HITL；只读表达式（如 `document.title`）直接执行。WebUI `high_risk_dom_action` 审批卡展示 `tool_input.expression`（zh/en `jsExpression`）。
 
 ```
 click(ref="e5", name="Delete Repository") → HIGH (destructive) → interrupt() → 用户审批

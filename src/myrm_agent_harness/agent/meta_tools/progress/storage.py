@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 
 from myrm_agent_harness.agent.meta_tools.progress.schemas import TodoItem, TodoStatus, TodoStore
+from myrm_agent_harness.infra.atomic_write import atomic_write
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +35,7 @@ def read_todos_sync_from_workspace(workspace_root: str) -> TodoStore | None:
 
 def write_todos_sync_to_workspace(workspace_root: str, store: TodoStore) -> None:
     path = todos_path(workspace_root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(store.model_dump_json(indent=2), encoding="utf-8")
+    atomic_write(path, store.model_dump_json(indent=2))
 
 
 async def workspace_todos_exist(storage_backend: object, *, workspace_root: str | None) -> bool:

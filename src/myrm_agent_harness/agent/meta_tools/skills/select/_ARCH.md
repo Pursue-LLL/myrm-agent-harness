@@ -27,7 +27,7 @@ Bound skills → get_metadata_summary() → XML in skill_select_tool.description
 
 **Usage stats**: First load / file read records via `backends.skills.usage_recorder.record_skill_selection()` → `{skill_dir}/.stats.json` for Curator. Reload summaries do not re-record. Turn-level dedupe prevents double-count within one agent run.
 
-**Prompt cache**: stable bound skill list → tool schema hash stable (`tool_definitions_changed` unlikely). Large catalogs increase cached tool-prefix size. `system prompt changed` breaks come from middleware (planner blueprint, SessionNotes, memory), not from this catalog. Explicit injection operates on HumanMessage only — zero impact on prompt prefix cache.
+**Prompt cache**: stable bound skill list → tool schema hash stable (`tool_definitions_changed` unlikely). Large catalogs increase cached tool-prefix size. `system prompt changed` breaks come from middleware (SessionNotes, goal continuation, memory), not from this catalog. Explicit injection operates on HumanMessage only — zero impact on prompt prefix cache.
 
 ## File & Submodule Index
 
