@@ -1,7 +1,6 @@
 """Unit tests for semantic DOM HITL guards (session.interact + evaluate paths).
 
-Uses mocked LangGraph interrupt — no browser, patchright, or browser/conftest fixtures.
-Placed under tests/toolkits/ (not tests/toolkits/browser/) to avoid patchright conftest.
+Mock LangGraph interrupt only — no real browser or patchright session fixtures.
 """
 
 from __future__ import annotations
@@ -58,18 +57,20 @@ class TestEnforceSemanticInteractionGuard:
         mock_interrupt.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_high_risk_click_uses_hitl_caller_tool(self, mock_session: MagicMock) -> None:
-        with patch("langgraph.types.interrupt", return_value={"decision": "approve"}) as mock_interrupt:
+    async def test_non_string_ref_name_skips_interrupt(self, mock_session: MagicMock) -> None:
+        bad_ref = MagicMock()
+        bad_ref.name = 123
+        bad_ref.role = "button"
+        with patch("langgraph.types.interrupt") as mock_interrupt:
             result = await enforce_semantic_interaction_guard(
                 session=mock_session,
-                tool_name="browser_execute_script_tool",
+                tool_name="browser_interact_tool",
                 action="click",
-                ref="e5",
-                ref_info=_ref("button", "Delete Repository"),
+                ref="e1",
+                ref_info=bad_ref,
             )
         assert result is None
-        payload = mock_interrupt.call_args[0][0]
-        assert payload["tool_name"] == "browser_execute_script_tool"
+        mock_interrupt.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_high_risk_click_approved(self, mock_session: MagicMock) -> None:
@@ -86,6 +87,7 @@ class TestEnforceSemanticInteractionGuard:
         payload = mock_interrupt.call_args[0][0]
         assert payload["action_type"] == "high_risk_dom_action"
         assert payload["tool_name"] == "browser_interact_tool"
+        assert payload["page_url"] == "https://example.com/app"
         assert payload["element"] == {
             "role": "button",
             "name": "Delete Repository",
@@ -93,7 +95,21 @@ class TestEnforceSemanticInteractionGuard:
         }
 
     @pytest.mark.asyncio
-    async def test_high_risk_click_rejected(self, mock_session: MagicMock) -> None:
+    async def test_high_risk_click_rejected_without_feedback(self, mock_session: MagicMock) -> None:
+        with patch("langgraph.types.interrupt", return_value={"decision": "reject"}):
+            result = await enforce_semantic_interaction_guard(
+                session=mock_session,
+                tool_name="browser_interact_tool",
+                action="click",
+                ref="e5",
+                ref_info=_ref("button", "Pay Now"),
+            )
+        assert result is not None
+        assert "[BLOCKED]" in result
+        assert "Feedback:" not in result
+
+    @pytest.mark.asyncio
+    async def test_high_risk_click_rejected_with_feedback(self, mock_session: MagicMock) -> None:
         with patch(
             "langgraph.types.interrupt",
             return_value={"decision": "reject", "feedback": "Use API instead"},
@@ -106,9 +122,45 @@ class TestEnforceSemanticInteractionGuard:
                 ref_info=_ref("button", "Pay Now"),
             )
         assert result is not None
-        assert "[BLOCKED]" in result
-        assert "Pay Now" in result or "financial" in result.lower()
         assert "Use API instead" in result
+
+    @pytest.mark.asyncio
+    async def test_high_risk_dblclick_approved(self, mock_session: MagicMock) -> None:
+        with patch("langgraph.types.interrupt", return_value={"decision": "approve"}) as mock_interrupt:
+            result = await enforce_semantic_interaction_guard(
+                session=mock_session,
+                tool_name="browser_interact_tool",
+                action="dblclick",
+                ref="e5",
+                ref_info=_ref("button", "Delete Repository"),
+            )
+        assert result is None
+        mock_interrupt.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_string_allow_approves(self, mock_session: MagicMock) -> None:
+        with patch("langgraph.types.interrupt", return_value="allow"):
+            result = await enforce_js_eval_guard(
+                session=mock_session,
+                tool_name="browser_manage_tool",
+                expression="document.querySelector('button').click()",
+            )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_page_url_failure_still_interrupts(self, mock_session: MagicMock) -> None:
+        type(mock_session.page).url = property(lambda _self: (_ for _ in ()).throw(RuntimeError("no page")))
+        with patch("langgraph.types.interrupt", return_value={"decision": "approve"}) as mock_interrupt:
+            result = await enforce_semantic_interaction_guard(
+                session=mock_session,
+                tool_name="browser_interact_tool",
+                action="click",
+                ref="e5",
+                ref_info=_ref("button", "Delete Repository"),
+            )
+        assert result is None
+        payload = mock_interrupt.call_args[0][0]
+        assert payload["page_url"] == ""
 
 
 class TestEnforceJsEvalGuard:
@@ -135,8 +187,18 @@ class TestEnforceJsEvalGuard:
         assert result is None
         mock_interrupt.assert_called_once()
         payload = mock_interrupt.call_args[0][0]
-        assert payload["action_type"] == "high_risk_dom_action"
         assert payload["tool_input"] == {"action": "evaluate", "expression": expr}
+        assert payload.get("element") is None
+
+    @pytest.mark.asyncio
+    async def test_mutating_expression_string_yes_approved(self, mock_session: MagicMock) -> None:
+        with patch("langgraph.types.interrupt", return_value="yes"):
+            result = await enforce_js_eval_guard(
+                session=mock_session,
+                tool_name="browser_manage_tool",
+                expression="document.forms[0].submit()",
+            )
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_mutating_expression_rejected(self, mock_session: MagicMock) -> None:
@@ -148,3 +210,24 @@ class TestEnforceJsEvalGuard:
             )
         assert result is not None
         assert "[BLOCKED]" in result
+
+    @pytest.mark.asyncio
+    async def test_invalid_interrupt_response_treated_as_reject(self, mock_session: MagicMock) -> None:
+        with patch("langgraph.types.interrupt", return_value=42):
+            result = await enforce_js_eval_guard(
+                session=mock_session,
+                tool_name="browser_manage_tool",
+                expression="document.forms[0].submit()",
+            )
+        assert result is not None
+        assert "[BLOCKED]" in result
+
+    @pytest.mark.asyncio
+    async def test_string_y_approves(self, mock_session: MagicMock) -> None:
+        with patch("langgraph.types.interrupt", return_value="y"):
+            result = await enforce_js_eval_guard(
+                session=mock_session,
+                tool_name="browser_manage_tool",
+                expression="document.forms[0].submit()",
+            )
+        assert result is None

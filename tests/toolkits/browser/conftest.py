@@ -1,14 +1,22 @@
 """Shared fixtures for browser integration tests."""
 
+from __future__ import annotations
+
 import asyncio
 import atexit
 
 import pytest
-from patchright.async_api import Browser, BrowserContext, async_playwright
+
+try:
+    from patchright.async_api import Browser, BrowserContext, async_playwright
+except ImportError:
+    Browser = None  # type: ignore[misc, assignment]
+    BrowserContext = None  # type: ignore[misc, assignment]
+    async_playwright = None  # type: ignore[misc, assignment]
 
 _shared_playwright = None
-_shared_browser: Browser | None = None
-_shared_context: BrowserContext | None = None
+_shared_browser = None
+_shared_context = None
 
 
 @pytest.fixture(scope="session")
@@ -18,6 +26,9 @@ def browser_context():
     Uses patchright directly for simplicity and reliability.
     Avoids GlobalBrowserPool which may be slow in test environments.
     """
+    if async_playwright is None:
+        pytest.skip("patchright not installed")
+
     global _shared_playwright, _shared_browser, _shared_context
 
     async def setup():

@@ -1,6 +1,6 @@
 [project]
 name = "myrm-agent-harness"
-version = "0.1.0rc4"
+version = "0.1.0rc5"
 description = "Myrm Agent Harness: Professional Agent framework built on LangChain with advanced skill system and MCP integration"
 authors = [{ name = "Myrm Agent Harness Contributors" }]
 requires-python = ">=3.13"
@@ -120,18 +120,18 @@ observability = [
 ]
 compiled-core = [
 # BEGIN compiled-core (generated — do not edit)
-"myrm-agent-harness-core-darwin-arm64==0.1.0rc4; platform_system == 'Darwin' and platform_machine == 'arm64'",
-  "myrm-agent-harness-core-darwin-x64==0.1.0rc4; platform_system == 'Darwin' and platform_machine == 'x86_64'",
-  "myrm-agent-harness-core-linux-x64==0.1.0rc4; platform_system == 'Linux' and platform_machine == 'x86_64'",
-  "myrm-agent-harness-core-linux-arm64==0.1.0rc4; platform_system == 'Linux' and platform_machine == 'aarch64'",
-  "myrm-agent-harness-core-win32-x64==0.1.0rc4; platform_system == 'Windows' and platform_machine == 'AMD64'",
-  "myrm-agent-harness-core-win32-arm64==0.1.0rc4; platform_system == 'Windows' and platform_machine == 'ARM64'",
+"myrm-agent-harness-core-darwin-arm64==0.1.0rc5; platform_system == 'Darwin' and platform_machine == 'arm64'",
+  "myrm-agent-harness-core-darwin-x64==0.1.0rc5; platform_system == 'Darwin' and platform_machine == 'x86_64'",
+  "myrm-agent-harness-core-linux-x64==0.1.0rc5; platform_system == 'Linux' and platform_machine == 'x86_64'",
+  "myrm-agent-harness-core-linux-arm64==0.1.0rc5; platform_system == 'Linux' and platform_machine == 'aarch64'",
+  "myrm-agent-harness-core-win32-x64==0.1.0rc5; platform_system == 'Windows' and platform_machine == 'AMD64'",
+  "myrm-agent-harness-core-win32-arm64==0.1.0rc5; platform_system == 'Windows' and platform_machine == 'ARM64'",
 # END compiled-core
 ]
 compiled-core-musl = [
 # BEGIN compiled-core-musl (generated — do not edit)
-"myrm-agent-harness-core-linux-x64-musl==0.1.0rc4; platform_system == 'Linux' and platform_machine == 'x86_64'",
-  "myrm-agent-harness-core-linux-arm64-musl==0.1.0rc4; platform_system == 'Linux' and platform_machine == 'aarch64'",
+"myrm-agent-harness-core-linux-x64-musl==0.1.0rc5; platform_system == 'Linux' and platform_machine == 'x86_64'",
+  "myrm-agent-harness-core-linux-arm64-musl==0.1.0rc5; platform_system == 'Linux' and platform_machine == 'aarch64'",
 # END compiled-core-musl
 ]
 all = [
