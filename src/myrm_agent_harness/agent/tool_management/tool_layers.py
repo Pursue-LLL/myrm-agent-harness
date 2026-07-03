@@ -51,26 +51,20 @@ class ToolLayer(IntEnum):
 # 在 myrm-agent-server 通过 skill-gated deferred 注册,以维持框架-业务层分离原则。
 _TOOL_LAYERS: dict[str, ToolLayer] = {
     # ============================================================
-    # CORE - 始终加载且不可关闭(放最前面,永远缓存)
-    # 仅包含真正无条件存在、不受用户配置影响的工具
-    # (当前无 unconditional CORE 工具 — web_fetch 随 enable_web_search 加载)
+    # CORE - 通用 Agent 基线工具（无条件 Turn1 eager，前端无开关）
+    # file/bash/web_fetch/glob/grep；Fast 模式仍由 converter 关闭 file/bash
     # ============================================================
+    "web_fetch_tool": ToolLayer.CORE,
+    "bash_code_execute_tool": ToolLayer.CORE,
+    "file_edit_tool": ToolLayer.CORE,
+    "file_read_tool": ToolLayer.CORE,
+    "file_write_tool": ToolLayer.CORE,
+    "glob_tool": ToolLayer.CORE,
+    "grep_tool": ToolLayer.CORE,
     # ============================================================
-    # COMMON - 默认开启但受用户配置控制(放中间)
-    # 大多数场景启用,用户可通过 GUI enabled_builtin_tools 开关控制
+    # COMMON - 默认开启但用户可在 GUI 关闭（放中间）
     # ============================================================
-    "web_fetch_tool": ToolLayer.COMMON,
     "request_answer_user_tool": ToolLayer.COMMON,
-    "bash_code_execute_tool": ToolLayer.COMMON,
-    # Background-process companions of bash_code_execute_tool. Opt-in (only
-    # appear when enable_bash=True), so EXTENDED keeps them out of the always-
-    # on prefix cache slot.
-    "bash_process_list_tool": ToolLayer.EXTENDED,
-    "bash_process_output_tool": ToolLayer.EXTENDED,
-    "bash_process_kill_tool": ToolLayer.EXTENDED,
-    "file_edit_tool": ToolLayer.COMMON,
-    "file_read_tool": ToolLayer.COMMON,
-    "file_write_tool": ToolLayer.COMMON,
     "todo_write": ToolLayer.COMMON,
     "web_search_tool": ToolLayer.COMMON,
     # ============================================================
@@ -78,6 +72,10 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # ============================================================
     # --- ACP（Agent Communication Protocol）---
     "delegate_to_agent_tool": ToolLayer.EXTENDED,
+    # --- Bash 后台进程（deferred；仅 enable_bash 时注册）---
+    "bash_process_list_tool": ToolLayer.EXTENDED,
+    "bash_process_output_tool": ToolLayer.EXTENDED,
+    "bash_process_kill_tool": ToolLayer.EXTENDED,
     # --- 浏览器工具 ---
     "browser_extract_tool": ToolLayer.EXTENDED,
     "browser_inspect_tool": ToolLayer.EXTENDED,
@@ -94,9 +92,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "desktop_vision_tool": ToolLayer.EXTENDED,
     # --- Cron 定时任务 ---
     "cron_manage_tool": ToolLayer.EXTENDED,
-    # --- 文件搜索 ---
-    "glob_tool": ToolLayer.EXTENDED,
-    "grep_tool": ToolLayer.EXTENDED,
     # --- Goal 工具 ---
     "get_goal_status_tool": ToolLayer.EXTENDED,
     "update_goal_status_tool": ToolLayer.EXTENDED,
@@ -146,7 +141,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "wiki_ingest_tool": ToolLayer.EXTENDED,
     "wiki_maintain_tool": ToolLayer.EXTENDED,
     "wiki_query_tool": ToolLayer.EXTENDED,
-    # --- Deep Research 编排器内部工具（伪工具；登记供 registry/token 统计，
+    # --- Deep Research 编排器控制面工具（登记供 registry/token 统计；
     #     默认通用 Agent 不加载。仅 DR 编排器 LLM 注入 JSON schema；
     #     编排器截获 tool_call 驱动状态机，不经过 ToolNode 执行）---
     "dispatch_research": ToolLayer.EXTENDED,

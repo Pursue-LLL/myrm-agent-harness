@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 import logging
 import uuid
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
@@ -174,7 +175,10 @@ class ActionCaptureEngine:
         self._callbacks.append(cb)
 
     def remove_callback(self, cb: CaptureCallback) -> None:
-        self._callbacks.remove(cb)
+        try:
+            self._callbacks.remove(cb)
+        except ValueError:
+            pass
 
     async def start(self, start_url: str = "") -> CaptureSession:
         """Start a new capture session on the attached page."""
@@ -237,8 +241,6 @@ class ActionCaptureEngine:
 
     async def _on_action_event(self, raw_json: str) -> None:
         """Bridge callback invoked from JS — parse and dispatch."""
-        import json
-
         if not self._session or self._session.status != "recording":
             return
 

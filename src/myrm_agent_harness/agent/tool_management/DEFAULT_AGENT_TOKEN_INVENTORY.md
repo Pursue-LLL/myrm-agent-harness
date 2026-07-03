@@ -1,7 +1,7 @@
 # 默认 Agent 初始 Token 逐项清单
 
 > 测量方法：`tiktoken cl100k_base` 编码器（OpenAI 标准）
-> 测量时间：2026-05-02
+> 测量时间：2026-07-03（P3 重测，`scripts/measure_turn1_token_inventory.py`）
 > 测量对象：默认通用智能体，Turn 1 初始化时的完整 prompt 结构
 
 ---
@@ -18,56 +18,59 @@
 
 ---
 
-## 二、CORE 工具层（0 tokens — 登记层无 unconditional 工具）
+## 二、CORE 工具层（7 个；通用 Agent Turn1 bind 7 个，2026-07-03 实测）
 
-> 2026-07-02：`web_fetch_tool` 登记迁至 COMMON（与 `enable_web_search` 装配一致）。见 §三 #4a。
-
----
-
-## 三、COMMON 工具层（注册 9 个；默认 profile Turn1 实际 bind ~12 个）
-
-默认 `DEFAULT_ENABLED_BUILTIN_TOOLS=(web_search, memory, file_ops, code_execute)`（SSOT：`myrm-agent-server/app/services/agent/builtin_tool_ids.py`）且未开 Goal 时：`request_answer_user_tool`、`todo_write` 不进入 bind_tools（需 `answer_tool` / `planning` 开关或 Goal 激活）。
+> 通用 Agent 基线：`web_fetch` + file×3 + bash + glob/grep（`tool_layers.py:57-63`）。Fast 模式由 converter 关闭 file/bash。
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
-| 4a | web_fetch_tool | 255 | `harness/toolkits/web_fetch/web_fetch_agent_tools.py` | HTTP 请求/网页抓取 | `enable_web_search` + search_service_cfg |
-| 5 | **request_answer_user_tool** | **1,024** | `harness/agent/meta_tools/answer_user_tool.py` | 回复自审工具，包含完整的自审流程和回复质量检查逻辑 | 默认关闭（`enable_answer_tool=False`，Agent 配置 opt-in） |
-| 6 | **bash_code_execute_tool** | **1,207** | `harness/agent/meta_tools/bash/bash_code_execute_tool.py` | Shell/Python 代码执行，包含执行规则、依赖分析、优化策略、严格禁止项。另有 OS_HINT (~50 tokens) 动态追加 | 默认开启 |
-| 7 | file_edit_tool | 155 | `harness/agent/meta_tools/file_ops/file_edit_tool.py` | 精确编辑 (str_replace) | 默认开启 |
-| 8 | file_read_tool | 390 | `harness/agent/meta_tools/file_ops/file_read_tool.py` | 读取文件内容 | 默认开启 |
-| 9 | file_write_tool | 131 | `harness/agent/meta_tools/file_ops/file_write_tool.py` | 创建/覆盖写入文件 | 默认开启 |
-| 10 | todo_write | ~150 | `harness/agent/meta_tools/progress/todo_write_tool.py` | 主 Agent 多步进度 | 默认关闭（`enable_planning` / Goal / workspace todos） |
-| 11 | **web_search_tool** | **1,177** | `harness/toolkits/web_search/web_search_agent_tools.py` | 网络搜索，含搜索引擎选择逻辑、查询重写规则、多引擎支持说明 | 默认开启，前端可关闭 |
+| 4a | web_fetch_tool | 280 | `harness/toolkits/web_fetch/web_fetch_agent_tools.py` | HTTP 抓取/深读 | Turn1 基线 |
+| 6 | **bash_code_execute_tool** | **2,356** | `harness/agent/meta_tools/bash/bash_code_execute_tool.py` | Shell/Python；resolve 后含 PTC 动态工具描述 | 通用 Agent 基线 |
+| 7 | file_edit_tool | 175 | `harness/agent/meta_tools/file_ops/file_edit_tool.py` | 精确编辑 | 通用 Agent 基线 |
+| 8 | file_read_tool | 489 | `harness/agent/meta_tools/file_ops/file_read_tool.py` | 读取文件 | 通用 Agent 基线 |
+| 9 | file_write_tool | 153 | `harness/agent/meta_tools/file_ops/file_write_tool.py` | 创建/覆盖写入 | 通用 Agent 基线 |
+| 10 | glob_tool | 263 | `harness/agent/meta_tools/file_search/glob_tool.py` | 通配符搜索 | 通用 Agent 基线 |
+| 11 | grep_tool | 344 | `harness/agent/meta_tools/file_search/grep_tool.py` | 正则搜索 | 通用 Agent 基线 |
 
-**注意**：
-- `bash_code_execute_tool` 的实际 token 包含 `TOOL_DESCRIPTION`(1,207) + `_get_os_hint()`(~50) + `ptc_desc`(~80, PTC 内置工具描述) = ~1,337 tokens
+**CORE 描述小计（Turn1 实测）**：**~4,060 tokens**（7 工具）
+
+---
+
+## 三、COMMON 工具层（注册 3 个；GUI 可开关）
+
+默认 `DEFAULT_ENABLED_BUILTIN_TOOLS=(web_search, memory)`；`file_ops`/`code_execute` 为 Agent 基线（前端无开关，converter 强制）。未开 Goal 时：`request_answer_user_tool`、`todo_write` 不 bind（需 `answer_tool` / `planning` 或 Goal）。
+
+| # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
+|---|--------|------------------:|----------|------|----------|
+| 12 | **request_answer_user_tool** | **1,024** | `harness/agent/meta_tools/answer_user_tool.py` | 回复自审 | 默认关闭（`answer_tool` opt-in） |
+| 13 | todo_write | ~150 | `harness/agent/meta_tools/progress/todo_write_tool.py` | 主 Agent 多步进度 | 默认关闭（`planning` / Goal） |
+| 14 | **web_search_tool** | **1,175** | `harness/toolkits/web_search/web_search_agent_tools.py` | 网络搜索 | GUI 可关；需 search_service_cfg |
+
+**COMMON Turn1 实测（默认 profile）**：**~1,175 tokens**（1 工具；TSM v1 不含 answer/todo）
 
 ---
 
 ## 四、EXTENDED 工具层（按需加载，放最后 → 变化不影响前面的缓存）
 
-### 4.1 默认加载的 EXTENDED 辅助工具（enable_file_tools 时）
+### 4.1 glob/grep（已迁至 §二 CORE）
 
-| # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
-|---|--------|------------------:|----------|------|
-| 12 | glob_tool | 234 | `harness/agent/meta_tools/file_search/glob_tool.py` | 通配符文件搜索 |
-| 13 | grep_tool | 349 | `harness/agent/meta_tools/file_search/grep_tool.py` | 正则内容搜索 |
+glob_tool / grep_tool 登记在 CORE 层，Turn1 与 file 工具一并 bind。见 §二。
 
 ### 4.2 记忆工具（启用记忆系统时加载）
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|
-| 17 | memory_recall_tool | 378 | `harness/toolkits/memory/memory_agent_tools.py` | 检索相关记忆 |
-| 18 | memory_save_tool | 111 | `harness/toolkits/memory/memory_agent_tools.py` | 保存信息到长期记忆 |
-| 19 | memory_manage_tool | 181 | `harness/toolkits/memory/memory_agent_tools.py` | 管理/删除记忆条目 |
+| 17 | memory_recall_tool | 362 | `harness/toolkits/memory/memory_agent_tools.py` | 检索相关记忆 |
+| 18 | memory_save_tool | 684 | `harness/toolkits/memory/memory_agent_tools.py` | 保存信息到长期记忆 |
+| 19 | memory_manage_tool | 247 | `harness/toolkits/memory/memory_agent_tools.py` | 管理/删除记忆条目 |
 
 ### 4.3 技能工具（有技能后端时加载）
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|
-| 20 | skill_select_tool | 125 | `harness/agent/meta_tools/skills/select/skill_select_tool.py` | 加载技能 SOP 文档 |
+| 20 | skill_select_tool | 295 | `harness/agent/meta_tools/skills/select/skill_select_tool.py` | 加载技能 SOP 文档 |
 | 21 | skill_manage_tool | 251 | `harness/agent/meta_tools/skills/manage/skill_manage_tool.py` | 创建/修改/删除技能 |
-| 22 | discover_capability_tool | 236~299 | `harness/agent/meta_tools/discover_capability/discover_capability_tool.py` | 统一能力发现（BM25+Embedding 语义搜索） |
+| 22 | discover_capability_tool | 238 | `harness/agent/meta_tools/discover_capability/discover_capability_tool.py` | 统一能力发现 |
 | 23 | skill_discovery_tool | 192 | `harness/agent/meta_tools/skills/discovery/skill_discovery_tool.py` | 从外部源安装/卸载技能 | **deferred**（discover 挂载；有 ToolRegistry 时） |
 | 24 | skill_analyze_tool | 77 | `harness/agent/meta_tools/skills/analyze/skill_analyze_tool.py` | 技能质量分析（**deferred**，经 discover 挂载；WebUI Curator 为主路径） |
 
@@ -75,7 +78,7 @@
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|
-| 25 | conversation_search_tool | 237 | `harness/toolkits/memory/conversation_search/tool.py` | 搜索历史会话证据片段与预计算摘要（**GeneralAgent eager**，与 memory_recall 对称；稳定 tools 前缀以利 prompt cache） |
+| 25 | conversation_search_tool | 67 | `harness/toolkits/memory/conversation_search/tool.py` | 历史会话证据检索 |
 
 ### 4.5 交互工具（harness 提供，按配置加载）
 
@@ -183,19 +186,26 @@
 | 79 | desktop_interact_tool | ~50 | `harness/toolkits/computer_use/desktop_agent_tools.py` | @dref 语义交互 |
 | 80 | desktop_vision_tool | ~60 | `harness/toolkits/computer_use/desktop_agent_tools.py` | 显式截图/坐标回退 |
 
-### 4.18 内部 / 伪工具（默认通用 Agent Turn 1 = **0 token**）
+### 4.18 控制面工具（Control-Plane Tools；默认 Turn 1 = **0 token**）
 
-以下 5 个名字登记在 `tool_layers.py`（供 registry 校验与 token 统计），**不会**进入默认通用 Agent 的 `registry.resolve()` / `bind_tools`：
+四类（不进 GeneralAgent 默认 `bind_tools`）：
+
+| 类型 | 工具 | 执行方式 |
+|------|------|----------|
+| 编排信号 | `dispatch_research` / `think` / `finalize_report` | DR 编排器截获 tool_call |
+| Guard 注入 | `_completion_check` | CompletionGuard deferred + 运行时注入 |
+| 验证交接 | `submit_verdict` | Verifier 子 Agent 动态注入 |
+| PTC 桥接 | `spawn_subagent` / `notify`（见 §4.25） | DW 脚本 `myrm_tools.*`，非 LLM schema |
+
+登记在 `tool_layers.py` 供 registry 校验；**不会**进入默认 `registry.resolve()`（`test_internal_tools_not_default_loaded.py`）。
 
 | 工具组 | 默认通用 Agent | 实际占 token 的场景 |
 |--------|:--------------:|---------------------|
-| `dispatch_research` / `think` / `finalize_report` | 0 | 仅 Deep Research 编排器 LLM（`build_orchestrator_tools()`） |
-| `submit_verdict` | 0 | 仅 Verification 子 Agent（`_orchestrator_verification.py` 动态注入） |
-| `_completion_check` | 0 | deferred 注册；CompletionGuard 在 `aafter_model` 强制注入 tool_call，不占 Turn 1 schema |
+| DR 三件套 | 0 | Deep Research 编排器（产品 **UNDER_DEVELOPMENT** gate，代码保留） |
+| `submit_verdict` | 0 | Verification 子 Agent |
+| `_completion_check` | 0 | CompletionGuard 收尾轮（非 Turn1） |
 
-表中 Token 列表示**若注入该 LLM 上下文时**的 schema 成本，非默认 Agent 固定开销。
-
-### 4.20 Deep Research 编排器伪工具（仅深度搜索模式，JSON Schema 注入 LLM）
+### 4.20 Deep Research 编排器控制面工具（JSON Schema 注入 LLM）
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
@@ -221,6 +231,13 @@
 |---|--------|------------------:|----------|------|----------|
 | 88 | x_search_tool | 77 | `server/integrations/tools/x_live_search.py` | X/Twitter 实时搜索（xAI Live Search API） | Agent 启用 `x-live-search` prebuilt skill 时 [Deferred] |
 | 89 | channel_notify_tool | 333 | `server/services/agent/outbound_notify/channel_notify_tool.py` | Agent 主动 IM 出站（白名单+频控+附件） | Agent 配置 `notify_targets` 时 [Turn1] |
+
+### 4.25 Dynamic Workflow PTC 桥接（非 tool_layers 登记）
+
+| 名称 | 暴露形式 | 说明 |
+|------|----------|------|
+| `spawn_subagent` | `myrm_tools.spawn_subagent()` | PTC 脚本内阻塞 spawn；≠ LLM `delegate_task_tool` |
+| `notify` | `myrm_tools.notify()` | Workflow 阶段 SSE；0 Turn1 bind |
 
 ---
 
@@ -273,32 +290,32 @@
 
 ## 总计估算
 
-### 典型 Turn 1 场景（默认智能体，启用记忆+搜索+技能+高级检索）
+### 典型 Turn 1 场景（默认智能体，记忆+搜索+技能；无 answer/todo）
 
 | 分类 | Token (tiktoken) | 明细 |
 |------|------------------:|------|
 | System Prompt 层 | ~2,607 | 固定，跨用户缓存 |
-| CORE 工具层 | ~255 | 1 工具，固定，始终缓存 |
-| COMMON 工具层 | ~4,457 | 7 工具，默认存在 |
-| EXTENDED 工具层 | ~2,161 | glob(234) + grep(349) + memory×3(670) + conversation_search(237) + skill_select(125) + skill_manage(251) + discover_capability_tool(236) + …（deferred: bash_process×3 等不占默认 prompt） |
-| 工具 JSON schema | ~1,105 | ~17 工具 × ~65 tokens |
+| CORE 工具层 | **~4,060** | 7 工具（2026-07-03 实测） |
+| COMMON 工具层 | **~1,175** | web_search_tool ×1 |
+| EXTENDED 工具层 | **~2,144** | memory×3 + conversation_search + skill×2 + discover |
+| 工具 JSON schema | **~975** | 15 工具 × ~65 |
 | 动态注入 | ~1,200 | user_instructions + memory_context + inline_skills |
 | 消息格式 | ~500 | role tags, boundaries 等 |
 | 用户消息 | ~32 | 短消息 + datetime 标签 |
-| **tiktoken 小计** | **~12,317** | |
-| Qwen tokenizer 差异 | +~200~900 | 取决于中文内容比例 |
-| **Qwen 实测估计** | **~12,900~13,600** | |
+| **tiktoken 小计** | **~12,693** | |
 
-### 最小 Turn 1 场景（仅 CORE 工具，无 COMMON/EXTENDED）
+> bash Turn1 描述 token **~2,356**（含 PTC 动态工具摘要，随 resolve 工具集变化）。
+
+### 最小 Turn 1 场景（仅 CORE 7 工具，无 COMMON/EXTENDED）
 
 | 分类 | Token (tiktoken) |
 |------|------------------:|
 | System Prompt 层 | ~2,607 |
-| CORE 工具层 | ~255 |
-| 工具 JSON schema | ~65 (~1 工具) |
+| CORE 工具层 | ~4,060 |
+| 工具 JSON schema | ~455 (~7 工具 × ~65) |
 | 用户消息 | ~32 |
 | 消息格式 | ~300 |
-| **tiktoken 小计** | **~3,259** |
+| **tiktoken 小计** | **~7,454** |
 
 ### 满载场景（所有可选功能全开：浏览器+Cron+Wiki+子Agent+渲染UI+看板+日历+计算机+IM）
 
@@ -318,30 +335,30 @@
 ## 缓存分层效果
 
 ```
-[CORE: web_fetch(255)]
-  ↑ 始终缓存命中（~255 tokens）
+[CORE: web_fetch + bash + file_* + glob + grep (~4,060 tok, 7 tools)]
+  ↑ 通用 Agent 基线前缀（agent 模式）
 
-[COMMON: request_answer_user(1024) bash(1207) file_edit(155) file_read(390) file_write(131) todo_write(~150) web_search(1177)]
-  ↑ 默认缓存命中，用户可通过前端开关控制（~4,457 tokens）
+[COMMON: web_search (~1,175 tok)]
+  ↑ GUI 可关；默认不含 request_answer_user / todo_write
 
-[EXTENDED: glob(234) grep(349) memory_*(670) skill_*(~600) ...]
-  ↑ 按需变化，不影响 CORE/COMMON 缓存
+[EXTENDED: memory_* + conversation_search + skill_* + discover (~2,144 tok)]
+  ↑ 按需变化，不影响 CORE/COMMON 前缀
 
-[System Prompt: core(2188) + datetime_rules(91) + security_boundary(328)]
+[System Prompt: ~2,607]
   ↑ 冻结，跨用户共享缓存
 
 [Dynamic: user_instructions(~200) + memory_context(~500) + skills(~500)]
   ↑ 同用户会话内稳定
 ```
 
-**实际缓存效果**：固定部分 ~7,300+ tokens 全部被缓存（仅收 5-10% 费用）→ 首轮后续调用大幅节省成本。
+**实测 Turn1 工具层合计**：描述 **7,379** + schema **975** = **8,354 tokens**（15 工具，`measure_turn1_token_inventory.py`）。
 
 ---
 
 ## 工具层级注册表 (tool_layers.py)
 
 <!-- TOOL_COUNT_BEGIN -->
-Tools registered: **78** (CORE 1 + COMMON 7 + EXTENDED 70). Source of truth: `tool_layers.py` (harness) + `_tool_layer_bootstrap.py` (server, +6 business tools). Auto-generated by `scripts/validate_tool_registry.py --generate-docs`.
+Tools registered: **81** (CORE 7 + COMMON 3 + EXTENDED 71). Source of truth: `tool_layers.py` (harness) + `_tool_layer_bootstrap.py` (server). Auto-generated by `scripts/validate_tool_registry.py --generate-docs`.
 <!-- TOOL_COUNT_END -->
 未注册的工具（如 MCP 动态工具）自动归入 EXTENDED，并在运行时打印 WARNING 日志。
 完整列表请直接查看 `tool_layers.py`。

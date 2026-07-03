@@ -79,7 +79,8 @@ class ToolLayer(IntEnum):
 
 | 层级 | 工具 | 常驻理由 |
 |------|------|---------|
-| **CORE** | （无 unconditional 工具） | 登记层为空 | — | `web_fetch_tool` 在 COMMON，随 web 组加载 |
+| **CORE** | web_fetch + file×3 + bash + glob/grep | 7 登记 | 通用 Agent 基线 | 不依赖搜索 API |
+| **COMMON** | web_search、todo_write、request_answer | 3 登记 | GUI 可开关 | web_search 需 search_service_cfg |
 | **COMMON** | `request_answer_user_tool`, `bash_code_execute_tool`, `file_edit_tool`, `file_read_tool`, `file_write_tool`, `todo_write`, `web_search_tool` | 注册 7 个；默认 profile bind 5 个（answer/todo_write 由 Agent 配置 / Goal / workspace todos 按需加载） |
 | **EXTENDED** | 83 个注册工具（浏览器/记忆/技能/Sub-Agent/…）+ 动态 MCP | 按需加载或始终加载的辅助工具 |
 
@@ -97,7 +98,7 @@ sorted_entries = sorted(
 **缓存效果**：
 
 ```
-第 1 轮: [CORE: web_fetch][COMMON: request_answer_user,bash,file_edit,file_read,file_write,planner,web_search][EXTENDED: skill_select][Messages...]
+第 1 轮: [CORE: web_fetch,bash,file_*,glob,grep][COMMON: web_search,request_answer_user,todo_write][EXTENDED: skill_select,memory_*…][Messages...]
 第 2 轮: [CORE: web_fetch][COMMON: request_answer_user,bash,file_edit,file_read,file_write,planner,web_search][EXTENDED: memory_recall_tool][Messages...]
          |<────────────────────────────────── 这部分始终缓存命中 ──────────────────────────────────>|
 ```

@@ -13,6 +13,7 @@ from scripts.tool_registry_config import (
     INTERNAL_TOOL_NAMES,
     INTERNAL_TOOL_PREFIXES,
     ORPHAN_FACTORY_WHITELIST,
+    PTC_RUNTIME_TOOL_NAMES,
     SCHEMA_ONLY_TOOL_NAMES,
 )
 
@@ -100,6 +101,8 @@ class ScanReport:
     @staticmethod
     def _is_internal(name: str) -> bool:
         if name in INTERNAL_TOOL_NAMES:
+            return True
+        if name in PTC_RUNTIME_TOOL_NAMES:
             return True
         return any(name.startswith(p) for p in INTERNAL_TOOL_PREFIXES)
 

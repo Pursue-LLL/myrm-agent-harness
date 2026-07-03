@@ -47,7 +47,7 @@ SSE events (message / message_end / status)
 |------|------|-------------|
 | `__init__.py` | Engine | Core entry point (`run_dynamic_workflow_stream`). Dynamically discovers available subagent types via `_build_available_types_hint(catalog)` using the SubagentCatalog protocol, prompts the LLM to generate the orchestration script, executes via PTC, then summarizes results. |
 | `store.py` | Persistence | `WorkflowEventStore` provides SQLite-based Event Sourcing for durable execution and crash recovery. Uses the Harness unified SQLite hardening profile (`CACHE`). |
-| `tools.py` | PTC Tools | `SpawnSubagentTool` bridges the PTC Python script to `parent_agent._spawn_child()` through the delegate path, inheriting full tool registry, catalog, and budget. Supports `readonly` mode for analysis-only tasks; emits start/done `workflow_stage` events on the shared notify queue. `NotifyProgressTool` emits real-time workflow stage events via `asyncio.Queue` (field normalization via `progress_payload.py`). |
+| `tools.py` | PTC Tools | `SpawnSubagentTool` / `NotifyProgressTool` — runtime-only PTC bridge (`PTC_RUNTIME_TOOL_NAMES` in `scripts/tool_registry_config.py`; not in `tool_layers`) |
 | `notify_stream.py` | Streaming | `iter_notify_events_while_task_runs` concurrently drains the notify queue while PTC execution runs; honors `cancel_token` cancellation. |
 | `_ARCH.md` | Doc | This architecture document. |
 

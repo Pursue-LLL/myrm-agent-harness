@@ -21,18 +21,21 @@ class TestToolLayer:
 
 class TestGetToolLayer:
     def test_core_tools_return_core(self):
-        core_tools = [name for name, layer in _TOOL_LAYERS.items() if layer == ToolLayer.CORE]
+        core_tools = [
+            "web_fetch_tool",
+            "bash_code_execute_tool",
+            "file_edit_tool",
+            "file_read_tool",
+            "file_write_tool",
+            "glob_tool",
+            "grep_tool",
+        ]
         for tool in core_tools:
             assert get_tool_layer(tool) == ToolLayer.CORE, f"{tool} should be CORE"
 
     def test_common_tools_return_common(self):
         common_tools = [
-            "web_fetch_tool",
             "request_answer_user_tool",
-            "bash_code_execute_tool",
-            "file_edit_tool",
-            "file_read_tool",
-            "file_write_tool",
             "todo_write",
             "web_search_tool",
         ]

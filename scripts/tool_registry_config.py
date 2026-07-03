@@ -20,6 +20,13 @@ SERVER_SRC = SERVER_ROOT / "app"
 
 SCAN_ROOTS: tuple[Path, ...] = (HARNESS_SRC, SERVER_SRC)
 
+# Dynamic Workflow PTC bridge — instantiated per DW run into myrm_tools.py stubs;
+# not registered in _TOOL_LAYERS (see DEFAULT_AGENT_TOKEN_INVENTORY.md §4.25).
+PTC_RUNTIME_TOOL_NAMES: frozenset[str] = frozenset({
+    "spawn_subagent",
+    "notify",
+})
+
 INTERNAL_TOOL_PREFIXES: tuple[str, ...] = ("_",)
 
 INTERNAL_TOOL_NAMES: frozenset[str] = frozenset({
