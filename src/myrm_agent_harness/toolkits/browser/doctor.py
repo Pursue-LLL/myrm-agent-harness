@@ -512,7 +512,7 @@ def format_report(report: DoctorReport) -> str:
     lines = [f"{bold} Browser Doctor{reset}", ""]
 
     lines.append(f"{bold}Environment{reset}")
-    for name in ["patchright", "browser_executable", "memory", "disk", "proxy"]:
+    for name in ["patchright", "camoufox", "browser_executable", "memory", "disk", "proxy"]:
         if name in report.checks:
             check = report.checks[name]
             icon = _status_icon(check.status, green, yellow, red)

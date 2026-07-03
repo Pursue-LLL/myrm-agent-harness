@@ -15,9 +15,9 @@ Bundled vs workspace filename mapping: `A2UI_COMPONENT_REFERENCE.md` → `A2UI_R
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | `__init__.py` | Package | Re-exports `render_ui`, `render_ui_tool`. | — |
-| `a2ui_spec.py` | Core | Allowed types SSOT, bundled reference loader, workspace seed. | ✅ |
+| `a2ui_spec.py` | Core | Allowed types SSOT, bundled reference loader, workspace seed, adjacency validation. | ✅ |
 | `A2UI_COMPONENT_REFERENCE.md` | Config | Full component props manual (wheel force-include). | — |
-| `render_ui_tool.py` | Core | A2UI declarative UI tool; fail-closed validation (unknown types, empty components, missing registry). | ✅ |
+| `render_ui_tool.py` | Core | A2UI declarative UI tool; fail-closed graph/type/action/registry validation. | ✅ |
 
 ## Key Dependencies
 

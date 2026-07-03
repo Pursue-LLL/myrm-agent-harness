@@ -12,11 +12,13 @@ from myrm_agent_harness.agent.artifacts.ui_registry import get_ui_registry
 from myrm_agent_harness.agent.meta_tools.interaction.a2ui_spec import (
     A2UI_REFERENCE_FILENAME,
     allowed_component_type_names,
+    format_adjacency_error,
     format_allowed_types_line,
     format_validation_error,
     get_bundled_reference_content,
     parse_reference_allowed_types,
     seed_reference_to_workspace,
+    validate_ui_adjacency,
 )
 from myrm_agent_harness.agent.meta_tools.interaction.render_ui_tool import render_ui, render_ui_tool
 
@@ -41,6 +43,35 @@ class TestA2uiSpec:
         assert "bad_type" in msg
         assert "text" in msg
         assert ".agent/docs/A2UI_REFERENCE.md" in msg
+
+    def test_format_adjacency_error(self) -> None:
+        msg = format_adjacency_error(["root_id not found: missing"])
+        assert "invalid UI graph" in msg
+        assert "missing" in msg
+
+    def test_validate_ui_adjacency_detects_missing_root(self) -> None:
+        errors = validate_ui_adjacency(
+            [{"id": "a", "type": "text", "props": {}}],
+            ["ghost"],
+        )
+        assert "root_id not found: ghost" in errors
+
+    def test_validate_ui_adjacency_detects_missing_child(self) -> None:
+        errors = validate_ui_adjacency(
+            [{"id": "parent", "type": "card", "children": ["missing_child"], "props": {}}],
+            ["parent"],
+        )
+        assert any("child id not found" in err for err in errors)
+
+    def test_validate_ui_adjacency_detects_duplicate_ids(self) -> None:
+        errors = validate_ui_adjacency(
+            [
+                {"id": "dup", "type": "text", "props": {}},
+                {"id": "dup", "type": "text", "props": {}},
+            ],
+            ["dup"],
+        )
+        assert "duplicate component id: dup" in errors
 
     def test_seed_returns_none_for_non_directory(self, tmp_path: Path) -> None:
         file_path = tmp_path / "not_a_dir"
@@ -120,18 +151,19 @@ class TestRenderUiSuccessAndEdges:
             events = registry.pop_pending_events()
             assert events[0].actions[0].type == "custom"
 
-    def test_non_dict_action_entry_is_skipped(self) -> None:
+    def test_non_dict_action_entry_fail_closed(self) -> None:
         with ArtifactContextManager():
-            render_ui(
+            result = render_ui(
                 title="Actions",
                 components=[{"id": "btn", "type": "button", "props": {"label": "Go"}}],
                 root_ids=["btn"],
                 actions=[{"id": "a1", "type": "submit", "label": "OK"}, "skip-me"],  # type: ignore[list-item]
             )
+            assert result.startswith("Failed to render UI")
+            assert "actions[1]" in result
             registry = get_ui_registry()
             assert registry is not None
-            events = registry.pop_pending_events()
-            assert len(events[0].actions) == 1
+            assert not registry.has_pending_events()
 
     def test_render_outside_artifact_context_returns_error(self) -> None:
         result = render_ui(
@@ -179,6 +211,26 @@ class TestRenderUiFailClosed:
         with ArtifactContextManager():
             result = render_ui(title="Empty", components=[], root_ids=[])
             assert "components must not be empty" in result
+
+    def test_empty_root_ids_returns_error(self) -> None:
+        with ArtifactContextManager():
+            result = render_ui(
+                title="No roots",
+                components=[{"id": "t", "type": "text", "props": {"text": "x"}}],
+                root_ids=[],
+            )
+            assert "invalid UI graph" in result
+            assert "root_ids must not be empty" in result
+
+    def test_unknown_root_id_returns_error(self) -> None:
+        with ArtifactContextManager():
+            result = render_ui(
+                title="Bad root",
+                components=[{"id": "t", "type": "text", "props": {"text": "x"}}],
+                root_ids=["missing"],
+            )
+            assert "invalid UI graph" in result
+            assert "root_id not found: missing" in result
 
     def test_slim_docstring_under_token_budget(self) -> None:
         doc = render_ui.__doc__ or ""

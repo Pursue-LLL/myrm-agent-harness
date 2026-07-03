@@ -8,6 +8,7 @@
 - parse_reference_allowed_types: types declared in bundled reference markdown
 - get_bundled_reference_content / seed_reference_to_workspace: packaged spec + workspace copy
 - format_validation_error: fail-closed ToolMessage for invalid component types
+- validate_ui_adjacency / format_adjacency_error: fail-closed graph checks (root_ids, children, ids)
 
 [POS]
 A2UI spec SSOT helpers. Keeps enum, bundled markdown, and slim tool docstrings aligned.
@@ -71,6 +72,70 @@ def format_validation_error(invalid_types: list[str]) -> str:
         f"Allowed types: {allowed}. "
         f"For full props/validation rules, file_read_tool `{A2UI_REFERENCE_REL_PATH}` "
         f"before complex UI (table/chart/tabs)."
+    )
+
+
+def validate_ui_adjacency(
+    components: list[dict[str, object]],
+    root_ids: list[str],
+) -> tuple[str, ...]:
+    """Return structural error messages; empty tuple means the adjacency graph is valid."""
+    errors: list[str] = []
+
+    if not root_ids:
+        errors.append("root_ids must not be empty")
+
+    id_set: set[str] = set()
+    for index, comp in enumerate(components):
+        if not isinstance(comp, dict):
+            errors.append(f"components[{index}] must be an object")
+            continue
+        raw_id = comp.get("id")
+        component_id = str(raw_id).strip() if raw_id is not None else ""
+        if not component_id:
+            errors.append(f"components[{index}] missing id")
+            continue
+        if component_id in id_set:
+            errors.append(f"duplicate component id: {component_id}")
+        id_set.add(component_id)
+
+    for root_id in root_ids:
+        root_str = str(root_id).strip()
+        if not root_str:
+            errors.append("root_ids must not contain empty id")
+        elif root_str not in id_set:
+            errors.append(f"root_id not found: {root_str}")
+
+    for comp in components:
+        if not isinstance(comp, dict):
+            continue
+        component_id = str(comp.get("id", "")).strip()
+        if not component_id:
+            continue
+        children = comp.get("children", [])
+        if children is None:
+            continue
+        if not isinstance(children, list):
+            errors.append(f"component {component_id}: children must be a list")
+            continue
+        for child_ref in children:
+            child_id = str(child_ref).strip()
+            if child_id not in id_set:
+                errors.append(f"component {component_id}: child id not found: {child_id}")
+
+    return tuple(errors)
+
+
+def format_adjacency_error(errors: tuple[str, ...] | list[str]) -> str:
+    """Build fail-closed ToolMessage when adjacency graph is invalid."""
+    if not errors:
+        return ""
+    detail = "; ".join(errors[:8])
+    if len(errors) > 8:
+        detail += f"; … and {len(errors) - 8} more"
+    return (
+        f"Failed to render UI: invalid UI graph: {detail}. "
+        f"Use adjacency list with matching id, root_ids, and children references."
     )
 
 

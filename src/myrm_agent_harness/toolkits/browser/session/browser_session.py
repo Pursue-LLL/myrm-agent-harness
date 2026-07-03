@@ -412,9 +412,29 @@ class BrowserSession(
         return self._download_manager is not None
 
     async def notify_progress(self, message: str) -> None:
-        """Send进度通知"""
+        """Send progress notification to observability hook and agent SSE stream."""
         if self._observability:
             await self._observability.notify_progress(message)
+
+        from myrm_agent_harness.utils.runtime.progress_sink import get_tool_progress_sink
+
+        sink = get_tool_progress_sink()
+        if sink is not None:
+            await sink.emit(
+                {
+                    "type": "status",
+                    "step_key": "workflow_stage",
+                    "status": "in_progress",
+                    "data": {
+                        "message": message,
+                        "notify_progress": -1,
+                        "notify_step_index": 0,
+                        "notify_total_steps": 0,
+                        "notify_category": "browser",
+                        "notify_level": "info",
+                    },
+                }
+            )
 
     async def get_final_screenshot(self) -> bytes:
         """GetfinalStateScreenshot"""

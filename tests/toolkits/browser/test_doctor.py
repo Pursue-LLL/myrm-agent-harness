@@ -9,6 +9,7 @@ import pytest
 from myrm_agent_harness.toolkits.browser.doctor import (
     CheckStatus,
     _check_browser_executable,
+    _check_camoufox,
     _check_memory,
     _check_patchright,
     _check_proxy,

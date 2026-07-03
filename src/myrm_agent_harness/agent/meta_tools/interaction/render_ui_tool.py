@@ -27,8 +27,10 @@ from myrm_agent_harness.agent.artifacts.ui_artifact import (
 )
 from myrm_agent_harness.agent.meta_tools.interaction.a2ui_spec import (
     A2UI_REFERENCE_REL_PATH,
+    format_adjacency_error,
     format_allowed_types_line,
     format_validation_error,
+    validate_ui_adjacency,
 )
 
 logger = logging.getLogger(__name__)
@@ -73,6 +75,10 @@ def render_ui(
             f"Allowed types: {_ALLOWED_TYPES_LINE}."
         )
 
+    adjacency_errors = validate_ui_adjacency(components, root_ids)
+    if adjacency_errors:
+        return format_adjacency_error(adjacency_errors)
+
     try:
         parsed_components: list[UIComponent] = []
         invalid_types: list[str] = []
@@ -112,9 +118,12 @@ def render_ui(
             )
 
         parsed_actions: list[UIAction] = []
-        for action_dict in actions or []:
+        for index, action_dict in enumerate(actions or []):
             if not isinstance(action_dict, dict):
-                continue
+                return (
+                    f"Failed to render UI: actions[{index}] must be an object, "
+                    f"got {type(action_dict).__name__}."
+                )
             raw_action_type = str(action_dict.get("type", "custom"))
             action_type: Literal["submit", "cancel", "navigate", "custom"] = (
                 raw_action_type
