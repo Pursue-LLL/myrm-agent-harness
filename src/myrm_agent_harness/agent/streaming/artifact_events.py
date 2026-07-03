@@ -28,6 +28,7 @@ from myrm_agent_harness.agent.artifacts import (
     get_realtime_content_queue,
     get_ui_registry,
     infer_artifact_type,
+    pop_pending_ui_events_for_message,
 )
 from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
@@ -91,11 +92,14 @@ async def emit_artifacts_ready_event(message_id: str, context: dict[str, object]
 async def collect_ui_artifacts(message_id: str) -> AsyncGenerator[dict[str, object]]:
     """收集并发送 UI 工件（仅 UI，文件工件通过 artifacts_ready 事件处理）"""
     try:
-        ui_registry = get_ui_registry()
-        if not ui_registry or not ui_registry.has_pending_events():
-            return
+        pending_events: list[UIArtifact | UIDataUpdate] = pop_pending_ui_events_for_message(message_id)
 
-        pending_events = ui_registry.pop_pending_events()
+        ui_registry = get_ui_registry()
+        if ui_registry is not None and ui_registry.has_pending_events():
+            pending_events.extend(ui_registry.pop_pending_events())
+
+        if not pending_events:
+            return
         ui_artifacts_data: list[dict[str, object]] = []
 
         for event in pending_events:

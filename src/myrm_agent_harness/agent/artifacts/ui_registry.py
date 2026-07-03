@@ -17,6 +17,25 @@ from dataclasses import dataclass, field
 
 from .ui_artifact import UIArtifact, UIDataUpdate
 
+# Cross-task UI events: StreamExecutor runs in asyncio.create_task(), so tool calls
+# mutate a child ContextVar copy. Parent post_run must collect by message_id.
+_PENDING_BY_MESSAGE_ID: dict[str, list[UIArtifact | UIDataUpdate]] = {}
+
+
+def pop_pending_ui_events_for_message(message_id: str) -> list[UIArtifact | UIDataUpdate]:
+    """Pop UI events stashed for a message (cross-task safe)."""
+    return _PENDING_BY_MESSAGE_ID.pop(message_id, [])
+
+
+def has_pending_ui_events_for_message(message_id: str) -> bool:
+    """True when either in-process registry or message stash has pending UI events."""
+    from .context import get_artifact_context
+
+    ctx = get_artifact_context()
+    if ctx is not None and ctx.ui_registry.has_pending_events():
+        return True
+    return bool(_PENDING_BY_MESSAGE_ID.get(message_id))
+
 
 @dataclass
 class UIRegistry:
@@ -34,10 +53,24 @@ class UIRegistry:
 
     def add_ui(self, ui: UIArtifact) -> None:
         """添加 UI 工件"""
+        from .context import get_artifact_context
+
+        ctx = get_artifact_context()
+        message_id = ctx.message_id if ctx is not None else None
+        if message_id:
+            _PENDING_BY_MESSAGE_ID.setdefault(message_id, []).append(ui)
+            return
         self.ui_artifacts.append(ui)
 
     def add_data_update(self, update: UIDataUpdate) -> None:
         """添加数据增量更新"""
+        from .context import get_artifact_context
+
+        ctx = get_artifact_context()
+        message_id = ctx.message_id if ctx is not None else None
+        if message_id:
+            _PENDING_BY_MESSAGE_ID.setdefault(message_id, []).append(update)
+            return
         self.data_updates.append(update)
 
     def pop_pending_events(self) -> list[UIArtifact | UIDataUpdate]:

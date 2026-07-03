@@ -60,7 +60,7 @@ from .types import ArtifactInfo, infer_artifact_type, infer_language
 from .ui_artifact import UIArtifact, UIDataUpdate
 
 # UI Registry
-from .ui_registry import UIRegistry, get_ui_registry
+from .ui_registry import UIRegistry, get_ui_registry, pop_pending_ui_events_for_message
 
 __all__ = [
     "ACTIVE_CONTENT_MIME_TYPES",
@@ -95,6 +95,7 @@ __all__ = [
     "get_inline_artifact_queue",
     "get_realtime_content_queue",
     "get_ui_registry",
+    "pop_pending_ui_events_for_message",
     # Types
     "infer_artifact_type",
     "infer_artifact_type_from_extension",

@@ -683,6 +683,22 @@ class TestUIRegistry:
     def test_get_ui_registry_outside_context(self):
         assert get_ui_registry() is None
 
+    def test_add_ui_with_message_id_stashes_for_cross_task_collect(self):
+        from myrm_agent_harness.agent.artifacts.ui_registry import pop_pending_ui_events_for_message
+
+        with ArtifactContextManager(message_id="msg_cross_task"):
+            registry = get_ui_registry()
+            assert registry is not None
+            ui = UIArtifact(title="Stashed", components=[], root_ids=[], data={})
+            registry.add_ui(ui)
+            assert registry.ui_artifacts == []
+            assert not registry.has_pending_events()
+
+        stashed = pop_pending_ui_events_for_message("msg_cross_task")
+        assert len(stashed) == 1
+        assert stashed[0].title == "Stashed"
+        assert pop_pending_ui_events_for_message("msg_cross_task") == []
+
 
 class TestUIComponentType:
     """Tests for UIComponentType enum completeness."""
