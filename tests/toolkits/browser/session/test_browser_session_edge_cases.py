@@ -100,6 +100,27 @@ class TestBrowserSessionEdgeCases:
         mock_observability.notify_progress.assert_called_once_with("Step 1/3: Loading page")
 
     @pytest.mark.asyncio
+    async def test_notify_progress_emits_tool_progress_sink(self, mock_browser_pool):
+        """Progress messages must reach the agent SSE stream via ToolProgressSink."""
+        from unittest.mock import AsyncMock, patch
+
+        session = BrowserSession(browser_pool=mock_browser_pool, context_type=ContextType.AGENT)
+        mock_sink = AsyncMock()
+
+        with patch(
+            "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
+            return_value=mock_sink,
+        ):
+            await session.notify_progress("Switching to enhanced stealth mode...")
+
+        mock_sink.emit.assert_awaited_once()
+        event = mock_sink.emit.await_args.args[0]
+        assert event["type"] == "status"
+        assert event["step_key"] == "workflow_stage"
+        assert event["data"]["message"] == "Switching to enhanced stealth mode..."
+        assert event["data"]["notify_category"] == "browser"
+
+    @pytest.mark.asyncio
     async def test_notify_progress_no_observability(self, mock_browser_pool):
         """Test notify_progress without observability."""
         session = BrowserSession(browser_pool=mock_browser_pool, context_type=ContextType.AGENT)

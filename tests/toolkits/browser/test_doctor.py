@@ -43,6 +43,50 @@ def test_check_patchright_missing() -> None:
         assert result.fix == "uv add patchright"
 
 
+def test_check_camoufox_installed() -> None:
+    """Test camoufox check when installed."""
+    mock_camoufox = MagicMock()
+    mock_camoufox.__version__ = "0.4.11"
+
+    with patch.dict("sys.modules", {"camoufox": mock_camoufox}):
+        result = _check_camoufox()
+        assert result.status == CheckStatus.OK
+        assert "0.4.11" in result.message
+
+
+def test_check_camoufox_missing() -> None:
+    """Test camoufox check when not installed."""
+    with patch.dict("sys.modules", {"camoufox": None}):
+        import importlib
+
+        import myrm_agent_harness.toolkits.browser.doctor as doctor_module
+
+        importlib.reload(doctor_module)
+
+        result = doctor_module._check_camoufox()
+        assert result.status == CheckStatus.WARNING
+        assert "stealth auto-upgrade unavailable" in result.message
+
+
+def test_format_report_includes_camoufox() -> None:
+    """Environment section in CLI report must list camoufox when checked."""
+    from myrm_agent_harness.toolkits.browser.doctor import DoctorCheckResult, DoctorReport
+
+    report = DoctorReport(
+        checks={
+            "camoufox": DoctorCheckResult(
+                name="camoufox",
+                status=CheckStatus.OK,
+                message="camoufox 0.4.11 installed",
+            ),
+        },
+        summary="1/1 checks passed",
+        overall_healthy=True,
+    )
+    rendered = format_report(report)
+    assert "camoufox 0.4.11 installed" in rendered
+
+
 def test_check_browser_executable_default() -> None:
     """Test browser executable check with default bundled browser."""
     with patch.dict(os.environ, {"BROWSER_EXECUTABLE_PATH": ""}, clear=False):

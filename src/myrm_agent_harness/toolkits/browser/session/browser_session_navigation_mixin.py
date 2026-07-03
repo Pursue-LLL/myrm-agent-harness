@@ -54,7 +54,7 @@ def _camoufox_launch_tool_error(exc: BrowserLaunchError) -> NoReturn:
         error_code="BROWSER_CAMOUFOX_UNAVAILABLE",
         recovery_suggestions=[
             "Install myrm-agent-harness[browser] and retry",
-            "Use Chromium (Patchright) for sites without advanced anti-bot",
+            "Report the access issue to the user and suggest alternatives",
         ],
     ) from exc
 
