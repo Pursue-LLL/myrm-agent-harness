@@ -1270,20 +1270,15 @@ class TestAuthErrorDetection:
 
     def test_maybe_emit_auth_expired_fires_event(self) -> None:
         actor = MCPSessionActor("github-mcp", {"transport": "sse"})
-        with patch("myrm_agent_harness.runtime.events.get_event_bus") as mock_get_bus:
-            mock_bus_instance = MagicMock()
-            mock_get_bus.return_value = mock_bus_instance
+        with patch("myrm_agent_harness.toolkits.mcp.auth_notify.notify_mcp_auth_expired") as mock_notify:
             actor._maybe_emit_auth_expired("HTTPStatusError: 401 Unauthorized")
-            mock_bus_instance.publish.assert_called_once()
-            event = mock_bus_instance.publish.call_args[0][0]
-            assert event.server_name == "github-mcp"
-            assert "401" in event.error_detail
+            mock_notify.assert_called_once_with("github-mcp", "HTTPStatusError: 401 Unauthorized")
 
     def test_maybe_emit_auth_expired_no_event_for_non_auth(self) -> None:
         actor = MCPSessionActor("srv", {"transport": "stdio"})
-        with patch("myrm_agent_harness.runtime.events.get_event_bus") as mock_get_bus:
+        with patch("myrm_agent_harness.toolkits.mcp.auth_notify.notify_mcp_auth_expired") as mock_notify:
             actor._maybe_emit_auth_expired("ConnectionRefusedError: connection refused")
-            mock_get_bus.return_value.publish.assert_not_called()
+            mock_notify.assert_not_called()
 
     def test_event_to_dict_serialization(self) -> None:
         from myrm_agent_harness.runtime.events.system_events import MCPAuthExpiredEvent
@@ -1311,16 +1306,12 @@ class TestAuthErrorDetection:
 
     def test_fail_to_start_emits_auth_event(self) -> None:
         actor = MCPSessionActor("notion-mcp", {"transport": "sse"})
-        with patch("myrm_agent_harness.runtime.events.get_event_bus") as mock_get_bus:
-            mock_bus_instance = MagicMock()
-            mock_get_bus.return_value = mock_bus_instance
+        with patch("myrm_agent_harness.toolkits.mcp.auth_notify.notify_mcp_auth_expired") as mock_notify:
             actor._fail_to_start("HTTPStatusError: 401 Unauthorized")
-            mock_bus_instance.publish.assert_called_once()
-            event = mock_bus_instance.publish.call_args[0][0]
-            assert event.server_name == "notion-mcp"
+            mock_notify.assert_called_once_with("notion-mcp", "HTTPStatusError: 401 Unauthorized")
 
     def test_fail_to_start_no_event_for_timeout(self) -> None:
         actor = MCPSessionActor("srv", {"transport": "stdio"})
-        with patch("myrm_agent_harness.runtime.events.get_event_bus") as mock_get_bus:
+        with patch("myrm_agent_harness.toolkits.mcp.auth_notify.notify_mcp_auth_expired") as mock_notify:
             actor._fail_to_start("TimeoutError: connect timed out")
-            mock_get_bus.return_value.publish.assert_not_called()
+            mock_notify.assert_not_called()
