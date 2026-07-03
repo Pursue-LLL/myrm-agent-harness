@@ -1,9 +1,12 @@
 """Test observability metrics utilities.
 
 Verifies create_counter/gauge/histogram工具函数功能正常。
+Requires [observability] extra (prometheus-client); skipped on core-only dev sync.
 """
 
 import pytest
+
+pytest.importorskip("prometheus_client")
 from prometheus_client import Counter, Gauge, Histogram
 
 from myrm_agent_harness.observability.metrics import (
