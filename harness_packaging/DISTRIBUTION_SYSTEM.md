@@ -96,6 +96,8 @@ Tag `v*` (e.g. `v0.1.0rc1`, aligned with `project.version`) in **myrm-agent-harn
 
 Alpine/musl deployments: use `compiled-core-musl` extra (or `install.sh` `reinstall_harness_musl_core()` after `uv sync`). PEP 508 cannot distinguish glibc vs musl on Linux; do not install both linux extras on the same host.
 
+Until musl core wheels are indexed on PyPI for the current `project.version`, `uv lock` cannot resolve `[compiled-core-musl]`; maintainers may regenerate `uv.lock` with that extra omitted and restore `pyproject.toml` afterward (lock `provides-extras` may omit `compiled-core-musl` until wheels exist).
+
 CI build jobs use `uv sync --only-group build --frozen` and `uv run --no-project` so the editable project is not installed before wheels exist on PyPI.
 
 Each PyPI project needs a GitHub publisher: Owner `Pursue-LLL`, repository `myrm-agent-harness`, workflow `publish-pypi.yml`, environment `pypi`.
