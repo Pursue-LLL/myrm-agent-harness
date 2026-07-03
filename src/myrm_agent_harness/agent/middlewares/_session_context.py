@@ -42,6 +42,7 @@ _security_config_var: ContextVar[SecurityConfig | None] = ContextVar("security_c
 _workspace_root_var: ContextVar[str] = ContextVar("workspace_root", default="")
 _pseudonym_store_var: ContextVar[PseudonymStore | None] = ContextVar("pseudonym_store", default=None)
 _session_key_var: ContextVar[str] = ContextVar("approval_session_key", default="")
+_active_message_id_var: ContextVar[str | None] = ContextVar("active_message_id", default=None)
 _agent_id_var: ContextVar[str] = ContextVar("agent_id", default="")
 _user_id_var: ContextVar[str] = ContextVar("approval_user_id", default="")
 _event_logger_var: ContextVar[EventLogger | None] = ContextVar("event_logger", default=None)
@@ -98,6 +99,16 @@ def set_approval_session(session_key: str) -> None:
 def get_approval_session() -> str:
     """Get the session key for the current async context."""
     return _session_key_var.get()
+
+
+def set_active_message_id(message_id: str | None) -> None:
+    """Bind the current assistant turn message id for tool/UI side effects."""
+    _active_message_id_var.set(message_id)
+
+
+def get_active_message_id() -> str | None:
+    """Return the bound assistant turn message id when set in this async context."""
+    return _active_message_id_var.get()
 
 
 def set_agent_id(agent_id: str) -> None:

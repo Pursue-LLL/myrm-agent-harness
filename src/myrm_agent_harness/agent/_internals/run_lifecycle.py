@@ -301,6 +301,10 @@ def cleanup_run(
         )
 
         set_security_config(None)
+        from myrm_agent_harness.agent.artifacts.ui_registry import pop_run_message_id
+        from myrm_agent_harness.agent.middlewares._session_context import get_approval_session
+
+        pop_run_message_id(get_approval_session())
         set_workspace_root("")
         set_event_logger(None)
 

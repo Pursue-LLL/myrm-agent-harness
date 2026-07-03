@@ -172,7 +172,16 @@ async def run_agent_loop(
             set_user_timezone(timezone)
 
         set_security_config(agent_state.config.security_config)
+        from myrm_agent_harness.agent.middlewares._session_context import (
+            set_active_message_id,
+        )
+
+        set_active_message_id(message_id)
         session_key = str(context.get("approval_session_key") or context.get("session_id") or "") if context else ""
+        from myrm_agent_harness.agent.artifacts.ui_registry import bind_run_message_id
+
+        if session_key:
+            bind_run_message_id(session_key, message_id)
         set_approval_session(session_key)
 
         # Make sure agent_id is populated from config

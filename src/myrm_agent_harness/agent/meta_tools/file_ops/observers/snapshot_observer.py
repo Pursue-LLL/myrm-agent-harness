@@ -271,6 +271,11 @@ def get_current_message_id() -> str:
     return val
 
 
+def get_bound_message_id() -> str | None:
+    """Return the assistant turn message id when explicitly bound; no auto-generation."""
+    return _current_message_id.get()
+
+
 class SnapshotObserver(FileOperationObserver):
     """Captures pre-modification file content for undo support.
 

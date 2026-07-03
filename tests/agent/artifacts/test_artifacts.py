@@ -699,6 +699,22 @@ class TestUIRegistry:
         assert stashed[0].title == "Stashed"
         assert pop_pending_ui_events_for_message("msg_cross_task") == []
 
+    def test_register_ui_artifact_without_artifact_context_uses_bound_message_id(self):
+        from myrm_agent_harness.agent.artifacts.ui_registry import (
+            bind_run_message_id,
+            pop_pending_ui_events_for_message,
+            pop_run_message_id,
+            register_ui_artifact,
+        )
+
+        bind_run_message_id("chat_test", "msg_bound_turn")
+        ui = UIArtifact(title="Bound", components=[], root_ids=[], data={})
+        assert register_ui_artifact(ui) is True
+        stashed = pop_pending_ui_events_for_message("msg_bound_turn")
+        assert len(stashed) == 1
+        assert stashed[0].title == "Bound"
+        pop_run_message_id("chat_test")
+
 
 class TestUIComponentType:
     """Tests for UIComponentType enum completeness."""

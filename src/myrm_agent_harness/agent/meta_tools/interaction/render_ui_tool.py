@@ -19,7 +19,7 @@ from typing import Literal
 
 from langchain_core.tools import tool
 
-from myrm_agent_harness.agent.artifacts import UIArtifact, get_ui_registry
+from myrm_agent_harness.agent.artifacts import UIArtifact, register_ui_artifact
 from myrm_agent_harness.agent.artifacts.ui_artifact import (
     UIAction,
     UIComponent,
@@ -30,12 +30,30 @@ from myrm_agent_harness.agent.meta_tools.interaction.a2ui_spec import (
     format_adjacency_error,
     format_allowed_types_line,
     format_validation_error,
+    normalize_component_dicts,
     validate_ui_adjacency,
 )
 
 logger = logging.getLogger(__name__)
 
 _ALLOWED_TYPES_LINE = format_allowed_types_line()
+
+
+def _dispatch_ui_update_event(ui_artifact: UIArtifact) -> None:
+    """Push ui_update during tool execution so SSE clients see UI before post_run."""
+    try:
+        from langchain_core.callbacks.manager import dispatch_custom_event
+
+        dispatch_custom_event(
+            "ui_update",
+            {
+                "subtype": "ui_artifact",
+                "data": [ui_artifact.to_dict()],
+            },
+        )
+    except Exception as exc:
+        logger.warning("Failed to dispatch ui_update event: %s", exc)
+
 
 _RENDER_UI_DOC = f"""Render an interactive UI (forms, tables, charts) in chat.
 
@@ -74,6 +92,8 @@ def render_ui(
             "Failed to render UI: components must not be empty. "
             f"Allowed types: {_ALLOWED_TYPES_LINE}."
         )
+
+    components = normalize_component_dicts(components)
 
     adjacency_errors = validate_ui_adjacency(components, root_ids)
     if adjacency_errors:
@@ -149,19 +169,18 @@ def render_ui(
             actions=parsed_actions,
         )
 
-        registry = get_ui_registry()
-        if registry is None:
+        if not register_ui_artifact(ui_artifact):
             return (
                 "Failed to render UI: UI registry is not initialized. "
                 "Call render_ui only within an active artifact context."
             )
 
-        registry.add_ui(ui_artifact)
         logger.warning(
             "UI artifact registered: %s (surface_id=%s)",
             title,
             ui_artifact.surface_id,
         )
+        _dispatch_ui_update_event(ui_artifact)
 
         return f"已向用户展示交互式界面：「{title}」。用户可以在界面上进行操作，操作结果将自动反馈给我。"
 
@@ -173,4 +192,3 @@ def render_ui(
 
 render_ui.__doc__ = _RENDER_UI_DOC
 render_ui_tool = tool("render_ui_tool")(render_ui)
-render_ui_tool.tags = ["interactive"]

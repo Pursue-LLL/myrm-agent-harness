@@ -137,6 +137,14 @@ async def run_pre_call_guards(
     """Execute all pre-call guards. Returns ToolMessage if blocked, PreCallResult to proceed."""
     from myrm_agent_harness.agent.hooks.executor import fire_hook
     from myrm_agent_harness.agent.hooks.types import HookEvent
+    from myrm_agent_harness.agent.middlewares._session_context import get_active_message_id
+    from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer import (
+        set_current_message_id,
+    )
+
+    active_message_id = get_active_message_id()
+    if active_message_id:
+        set_current_message_id(active_message_id)
 
     if get_loop_guard_fn is None:
         from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (

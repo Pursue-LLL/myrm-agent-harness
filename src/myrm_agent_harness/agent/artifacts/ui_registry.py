@@ -21,6 +21,70 @@ from .ui_artifact import UIArtifact, UIDataUpdate
 # mutate a child ContextVar copy. Parent post_run must collect by message_id.
 _PENDING_BY_MESSAGE_ID: dict[str, list[UIArtifact | UIDataUpdate]] = {}
 
+# Process-scoped fallback when ContextVars do not propagate into LangGraph tool tasks.
+_RUN_MESSAGE_ID_BY_SESSION: dict[str, str] = {}
+_CURRENT_RUN_UI_MESSAGE_ID: str | None = None
+
+
+def bind_run_message_id(session_key: str, message_id: str) -> None:
+    """Bind assistant message id to a session for cross-task UI delivery."""
+    global _CURRENT_RUN_UI_MESSAGE_ID
+    _CURRENT_RUN_UI_MESSAGE_ID = message_id
+    if session_key:
+        _RUN_MESSAGE_ID_BY_SESSION[session_key] = message_id
+
+
+def pop_run_message_id(session_key: str) -> None:
+    """Clear process-scoped message binding after a run completes."""
+    global _CURRENT_RUN_UI_MESSAGE_ID
+    _CURRENT_RUN_UI_MESSAGE_ID = None
+    if session_key:
+        _RUN_MESSAGE_ID_BY_SESSION.pop(session_key, None)
+
+
+def _resolve_stash_message_id() -> str | None:
+    """Resolve message_id for cross-task UI stash (artifact ctx or bound turn id)."""
+    from .context import get_artifact_context
+
+    ctx = get_artifact_context()
+    if ctx is not None and ctx.message_id:
+        return ctx.message_id
+
+    try:
+        from myrm_agent_harness.agent.middlewares._session_context import (
+            get_active_message_id,
+        )
+
+        active_message_id = get_active_message_id()
+        if active_message_id:
+            return active_message_id
+    except Exception:
+        pass
+
+    global _CURRENT_RUN_UI_MESSAGE_ID
+    if _CURRENT_RUN_UI_MESSAGE_ID:
+        return _CURRENT_RUN_UI_MESSAGE_ID
+
+    try:
+        from myrm_agent_harness.agent.middlewares._session_context import get_approval_session
+
+        session_key = get_approval_session()
+        if session_key:
+            bound = _RUN_MESSAGE_ID_BY_SESSION.get(session_key)
+            if bound:
+                return bound
+    except Exception:
+        pass
+
+    try:
+        from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer import (
+            get_bound_message_id,
+        )
+
+        return get_bound_message_id()
+    except Exception:
+        return None
+
 
 def pop_pending_ui_events_for_message(message_id: str) -> list[UIArtifact | UIDataUpdate]:
     """Pop UI events stashed for a message (cross-task safe)."""
@@ -35,6 +99,24 @@ def has_pending_ui_events_for_message(message_id: str) -> bool:
     if ctx is not None and ctx.ui_registry.has_pending_events():
         return True
     return bool(_PENDING_BY_MESSAGE_ID.get(message_id))
+
+
+def register_ui_artifact(ui: UIArtifact) -> bool:
+    """Register a UI artifact for SSE/post_run delivery.
+
+    Returns False when no message_id is available (fail-closed).
+    """
+    registry = get_ui_registry()
+    if registry is not None:
+        registry.add_ui(ui)
+        return True
+
+    message_id = _resolve_stash_message_id()
+    if not message_id:
+        return False
+
+    _PENDING_BY_MESSAGE_ID.setdefault(message_id, []).append(ui)
+    return True
 
 
 @dataclass
@@ -53,10 +135,7 @@ class UIRegistry:
 
     def add_ui(self, ui: UIArtifact) -> None:
         """添加 UI 工件"""
-        from .context import get_artifact_context
-
-        ctx = get_artifact_context()
-        message_id = ctx.message_id if ctx is not None else None
+        message_id = _resolve_stash_message_id()
         if message_id:
             _PENDING_BY_MESSAGE_ID.setdefault(message_id, []).append(ui)
             return
@@ -64,10 +143,7 @@ class UIRegistry:
 
     def add_data_update(self, update: UIDataUpdate) -> None:
         """添加数据增量更新"""
-        from .context import get_artifact_context
-
-        ctx = get_artifact_context()
-        message_id = ctx.message_id if ctx is not None else None
+        message_id = _resolve_stash_message_id()
         if message_id:
             _PENDING_BY_MESSAGE_ID.setdefault(message_id, []).append(update)
             return

@@ -267,6 +267,16 @@ class StreamDispatcherMixin:
                     ctx,
                 )
 
+        elif event_name == "ui_update":
+            event_data = data.get("data", {})
+            if isinstance(event_data, dict):
+                event_dict_ui: dict[str, object] = {
+                    "type": AgentEventType.UI_UPDATE.value,
+                    "messageId": ctx.message_id,
+                }
+                event_dict_ui.update(event_data)
+                await self._emit_event(event_dict_ui, ctx)
+
         elif event_name == "tasks_steps":
             event_data = data.get("data", {})
             if isinstance(event_data, dict):

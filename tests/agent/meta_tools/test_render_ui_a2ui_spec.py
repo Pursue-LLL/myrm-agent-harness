@@ -9,6 +9,7 @@ import tiktoken
 
 from myrm_agent_harness.agent.artifacts.context import ArtifactContextManager
 from myrm_agent_harness.agent.artifacts.ui_registry import get_ui_registry
+from myrm_agent_harness.agent.artifacts.ui_artifact import UIComponentType
 from myrm_agent_harness.agent.meta_tools.interaction.a2ui_spec import (
     A2UI_REFERENCE_FILENAME,
     allowed_component_type_names,
@@ -16,6 +17,7 @@ from myrm_agent_harness.agent.meta_tools.interaction.a2ui_spec import (
     format_allowed_types_line,
     format_validation_error,
     get_bundled_reference_content,
+    normalize_component_dicts,
     parse_reference_allowed_types,
     seed_reference_to_workspace,
     validate_ui_adjacency,
@@ -125,18 +127,34 @@ class TestRenderUiSuccessAndEdges:
             assert events[0].data == {"form": {"name": ""}}
             assert len(events[0].actions) == 1
 
-    def test_missing_component_type_fail_closed(self) -> None:
+    def test_missing_component_type_inferred_from_props(self) -> None:
+        inferred = normalize_component_dicts([{"id": "t1", "props": {"text": "hello"}}])
+        assert inferred[0]["type"] == "text"
+
         with ArtifactContextManager():
             result = render_ui(
-                title="Bad",
+                title="Inferred",
+                components=[{"id": "t1", "props": {"text": "hello"}}],
+                root_ids=["t1"],
+            )
+            assert "Inferred" in result
+            registry = get_ui_registry()
+            assert registry is not None
+            events = registry.pop_pending_events()
+            assert len(events) == 1
+            assert events[0].components[0].type == UIComponentType.TEXT
+
+    def test_empty_props_without_type_defaults_to_text(self) -> None:
+        with ArtifactContextManager():
+            result = render_ui(
+                title="DefaultText",
                 components=[{"id": "x", "props": {}}],
                 root_ids=["x"],
             )
-            assert result.startswith("Failed to render UI")
-            assert "<missing>" in result
+            assert "DefaultText" in result
             registry = get_ui_registry()
             assert registry is not None
-            assert not registry.has_pending_events()
+            assert registry.has_pending_events()
 
     def test_invalid_action_type_defaults_to_custom(self) -> None:
         with ArtifactContextManager():
@@ -166,6 +184,9 @@ class TestRenderUiSuccessAndEdges:
             assert not registry.has_pending_events()
 
     def test_render_outside_artifact_context_returns_error(self) -> None:
+        from myrm_agent_harness.agent.artifacts.ui_registry import pop_run_message_id
+
+        pop_run_message_id("")
         result = render_ui(
             title="No Context",
             components=[{"id": "t", "type": "text", "props": {"text": "x"}}],

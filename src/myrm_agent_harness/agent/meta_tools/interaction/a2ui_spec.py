@@ -75,6 +75,32 @@ def format_validation_error(invalid_types: list[str]) -> str:
     )
 
 
+def normalize_component_dicts(components: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Infer missing component types from props/events (LLMs often omit type)."""
+    normalized: list[dict[str, object]] = []
+    for raw in components:
+        if not isinstance(raw, dict):
+            normalized.append(raw)
+            continue
+        comp = dict(raw)
+        type_str = str(comp.get("type", "")).strip()
+        if type_str:
+            normalized.append(comp)
+            continue
+        props = comp.get("props") if isinstance(comp.get("props"), dict) else {}
+        events = comp.get("events") if isinstance(comp.get("events"), dict) else {}
+        if events:
+            comp["type"] = "button"
+        elif isinstance(props, dict) and "label" in props and "text" not in props:
+            comp["type"] = "text_field"
+        elif isinstance(props, dict) and "text" in props:
+            comp["type"] = "text"
+        else:
+            comp["type"] = "text"
+        normalized.append(comp)
+    return normalized
+
+
 def validate_ui_adjacency(
     components: list[dict[str, object]],
     root_ids: list[str],
