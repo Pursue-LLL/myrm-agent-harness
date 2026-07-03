@@ -126,9 +126,6 @@ class TestBrowserToolMapping:
     def test_manage_download_resolves(self):
         assert resolve_permission_type("browser_manage_tool", {"action": "download_url"}) == "browser_download"
 
-    def test_local_search_resolves(self):
-        assert resolve_permission_type("browser_local_search_tool") == "browser_local_data"
-
     def test_interact_without_input_falls_to_builtin(self):
         assert resolve_permission_type("browser_interact_tool") == "browser_interact_tool"
 
@@ -181,12 +178,6 @@ class TestSafetyMetadata:
             meta = resolve_safety_metadata(tool)
             assert meta.is_read_only is True
             assert meta.is_concurrent_safe is True
-
-    def test_local_browser_search_declared_safe(self):
-        meta = resolve_safety_metadata("browser_local_search_tool")
-        assert meta.is_read_only is True
-        assert meta.is_concurrent_safe is True
-        assert meta.is_destructive is False
 
     def test_all_builtins_have_safety_metadata(self):
         """Every built-in tool must have explicit safety metadata."""

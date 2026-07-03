@@ -42,7 +42,7 @@ class ToolLayer(IntEnum):
 # 2. 默认开启但可关的工具放 COMMON,在中间
 # 3. 按需加载的工具放 EXTENDED,在最后,变化只影响自己
 #
-# 排序规则:按层级排序,同层级内按名称字母序
+# 排序规则:按层级排序; COMMON 层内 memory 组优先于 web_search，其余按名称字母序
 # 缓存原理:Prompt Cache 是前缀匹配,CORE 工具放最前面可保证永远被缓存
 #
 # 工具名称必须与 @tool() 装饰器中声明的名称完全一致

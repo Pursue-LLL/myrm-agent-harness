@@ -15,7 +15,6 @@ _VENDOR_TOOL_NAMES = frozenset(
 
 _SERVER_BUSINESS_TOOL_NAMES = frozenset(
     {
-        "browser_local_search_tool",
         "canvas_get_state",
         "canvas_get_selection",
         "canvas_insert_element",

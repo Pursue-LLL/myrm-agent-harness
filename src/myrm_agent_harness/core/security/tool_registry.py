@@ -93,7 +93,6 @@ TOOL_PERMISSION_MAP: dict[str, str] = {
     "batch_delegate_tasks_tool": "delegate_agent",
     "cron_manage_tool": "cron_manage",
     "skill_manage_tool": "skill_manage",
-    "browser_local_search_tool": "browser_local_data",
     "desktop_inspect_tool": "desktop_capture",
     "desktop_snapshot_tool": "desktop_capture",
     "desktop_interact_tool": "desktop_control",
@@ -148,7 +147,6 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
             "browser_snapshot_tool",
             "browser_extract_tool",
             "browser_inspect_tool",
-            "browser_local_search_tool",
             "browser_execute_script_tool",
             "browser_ask_human_tool",
         }
@@ -271,7 +269,6 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
     "memory_manage_tool": ["action"],
     "skill_select_tool": ["skill_ids"],
     "skill_discovery_tool": ["query"],
-    "browser_local_search_tool": ["keywords", "source", "since"],
     "desktop_inspect_tool": [],
     "desktop_snapshot_tool": ["scope", "window_title", "include_screenshot"],
     "desktop_interact_tool": ["ref", "action", "text"],
@@ -464,7 +461,6 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "discover_capability_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "skill_discovery_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "skill_select_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "browser_local_search_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "request_answer_user_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "render_ui_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     # Concurrent-safe but not read-only (independent execution contexts)
