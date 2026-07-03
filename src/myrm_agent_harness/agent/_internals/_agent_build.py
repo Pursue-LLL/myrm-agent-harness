@@ -8,7 +8,7 @@
 - build_middlewares: Build the full middleware chain for a BaseAgent.
 - create_registry: Create a fresh ToolRegistry for one build cycle.
 - build_tools: Build the resolved tool list via ToolRegistry.
-- emit_tools_snapshot: Return a serialisable tools snapshot or ``None`` if empty.
+- emit_tools_snapshot: Return Turn1-bound tools for GUI availability view.
 
 [POS]
 Agent build utilities — middleware chain construction, tool registry, tool building.
@@ -215,14 +215,21 @@ async def build_tools(
 
 
 def emit_tools_snapshot(registry: ToolRegistry) -> list[dict[str, object]] | None:
-    """Return a serialisable tools snapshot or ``None`` if empty."""
+    """Return Turn1-bound tools for GUI availability view.
+
+    Excludes DISCOVERABLE and RUNTIME_ONLY entries so the panel matches
+    ``registry.resolve()`` (what the model can call on the current turn).
+    """
     try:
         snapshots = registry.snapshot()
-        if not snapshots:
+        turn1_snapshots = [
+            s for s in snapshots if s.bind_mode == ToolBindMode.TURN1.value
+        ]
+        if not turn1_snapshots:
             return None
         from dataclasses import asdict
 
-        return [asdict(s) for s in snapshots]
+        return [asdict(s) for s in turn1_snapshots]
     except Exception as exc:
         logger.warning("Failed to serialize tools snapshot: %s", exc)
         return None

@@ -308,12 +308,14 @@ class TestToolRegistryBindMode:
             bind_mode=ToolBindMode.DISCOVERABLE,
         )
         snaps = reg.snapshot()
-        deferred_snaps = [s for s in snaps if s.deferred]
-        active_snaps = [s for s in snaps if not s.deferred]
-        assert len(deferred_snaps) == 1
-        assert deferred_snaps[0].name == "lazy"
-        assert deferred_snaps[0].bind_mode == ToolBindMode.DISCOVERABLE.value
-        assert len(active_snaps) == 1
+        non_turn1_snaps = [
+            s for s in snaps if s.bind_mode != ToolBindMode.TURN1.value
+        ]
+        turn1_snaps = [s for s in snaps if s.bind_mode == ToolBindMode.TURN1.value]
+        assert len(non_turn1_snaps) == 1
+        assert non_turn1_snaps[0].name == "lazy"
+        assert non_turn1_snaps[0].bind_mode == ToolBindMode.DISCOVERABLE.value
+        assert len(turn1_snaps) == 1
 
 
 class TestToolRegistryHasTool:

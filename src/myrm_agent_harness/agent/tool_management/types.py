@@ -88,8 +88,3 @@ class ToolSnapshot:
     layer: str
     parameters_schema: dict[str, object] | None
     bind_mode: str = field(default=ToolBindMode.TURN1.value)
-
-    @property
-    def deferred(self) -> bool:
-        """True when the tool is not bound on Turn1 (discoverable or runtime-only)."""
-        return self.bind_mode != ToolBindMode.TURN1.value

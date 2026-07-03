@@ -46,12 +46,7 @@ if TYPE_CHECKING:
 
 # Agent 专属工具(本模块)
 from .answer_user_tool import request_answer_user_tool
-from .bash import (
-    create_bash_process_kill_tool,
-    create_bash_process_list_tool,
-    create_bash_process_output_tool,
-    create_bash_code_execute_tool,
-)
+from .bash import create_bash_code_execute_tool, create_bash_process_tool
 
 from .file_ops import (
     create_file_edit_tool,
@@ -114,7 +109,7 @@ def get_meta_tools(
     Args:
         skills: 可用的技能列表
         skill_backend: 技能后端(用于 skill_select_tool)
-        registry: ToolRegistry（必填；deferred 工具与 discover 索引 SSOT）
+        registry: ToolRegistry（必填；DISCOVERABLE 工具与 discover 索引 SSOT）
         discovery_backend: 技能发现后端(用于 skill_discovery_tool)
         write_backend: 技能写入后端(用于 skill_manage_tool, ScanningSkillWriteBackend)
         embedding_config: Embedding 配置(可选, 用于语义搜索)
@@ -132,7 +127,7 @@ def get_meta_tools(
 
     if registry is None:
         raise TypeError(
-            "get_meta_tools requires a ToolRegistry instance; deferred tools and "
+            "get_meta_tools requires a ToolRegistry instance; discoverable tools and "
             "discover_capability_tool register exclusively via registry."
         )
 
@@ -231,7 +226,7 @@ def get_meta_tools(
             install_from_url_fn=install_url_fn,
             uninstall_fn=uninstall_fn,
         )
-        logger.info(" skill_discovery_tool registered as deferred")
+        logger.info(" skill_discovery_tool registered as DISCOVERABLE")
 
     if has_manage_tool:
         assert write_backend is not None  # narrowed by has_manage_tool
@@ -261,8 +256,8 @@ def get_meta_tools(
     else:
         logger.info("File tools disabled by caller configuration")
 
-    # Low-frequency utility tools → deferred via registry (discoverable
-    # through discover_capability_tool, auto-mounted on first use).
+    # Low-frequency utility tools → DISCOVERABLE via registry (indexed by
+    # discover_capability_tool, auto-mounted on first use).
     _discoverable_tools: list = []
 
     # Mutable container: filled after all tools are built so that
@@ -277,24 +272,18 @@ def get_meta_tools(
             ptc_tools=_ptc_tools_ref,
         )
         tools.append(bash_code_execute)
-        _discoverable_tools.extend(
-            [
-                create_bash_process_list_tool(),
-                create_bash_process_output_tool(),
-                create_bash_process_kill_tool(),
-            ]
-        )
+        _discoverable_tools.append(create_bash_process_tool())
     else:
         logger.info("Bash tool disabled by caller configuration")
 
-    # Skill quality analysis: deferred (Curator/WebUI is primary cleanup path).
+    # Skill quality analysis: DISCOVERABLE (Curator/WebUI is primary cleanup path).
     # Mount via discover_capability when the user asks in chat.
     if skills:
         skills_snapshot = list(skills)
         _discoverable_tools.append(
             create_skill_analyze_tool(get_all_skills_fn=lambda: skills_snapshot)
         )
-        logger.info(" skill_analyze_tool registered as deferred")
+        logger.info(" skill_analyze_tool registered as DISCOVERABLE")
 
     if skill_discovery_pending is not None:
         _discoverable_tools.append(skill_discovery_pending)
@@ -313,18 +302,18 @@ def get_meta_tools(
         )
 
     # discover_capability_tool SSOT: SkillAgent calls sync_discover_capability_tool()
-    # after all deferred/middleware tools register.
+    # after all discoverable/middleware tools register.
     discoverable_skills = [s for s in skills if s.model_invocable] if skills else []
-    deferred_count = len(registry.get_discoverable_tools())
-    if discoverable_skills or deferred_count:
+    discoverable_count = len(registry.get_discoverable_tools())
+    if discoverable_skills or discoverable_count:
         logger.info(
             " discover_capability_tool deferred to sync_discover_capability_tool "
-            "(deferred工具: %d, 可搜索技能: %d)",
-            deferred_count,
+            "(discoverable工具: %d, 可搜索技能: %d)",
+            discoverable_count,
             len(discoverable_skills),
         )
     else:
-        logger.info(" discover_capability_tool 未加载(无可搜索技能且无deferred工具)")
+        logger.info(" discover_capability_tool 未加载(无可搜索技能且无 discoverable 工具)")
 
     # PTC tools for bash Python execution — fill the mutable ref so that
     # BashExecutor.ptc_tools is populated before any actual execution.
@@ -340,9 +329,7 @@ def get_meta_tools(
 __all__ = [
     "SKILL_CORE_MAX",
     "SKILL_INLINE_THRESHOLD",
-    "create_bash_process_kill_tool",
-    "create_bash_process_list_tool",
-    "create_bash_process_output_tool",
+    "create_bash_process_tool",
     "create_bash_code_execute_tool",
     "create_batch_delegate_tasks_tool",
     "create_cancel_subagent_tool",

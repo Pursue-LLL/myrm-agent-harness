@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -45,6 +46,31 @@ _DOC_TARGETS = (
 
 _BLOCK_BEGIN = "<!-- TOOL_COUNT_BEGIN -->"
 _BLOCK_END = "<!-- TOOL_COUNT_END -->"
+
+_FORBIDDEN_BINDMODE_PATTERNS = (
+    re.compile(r"\bget_deferred_tools\b"),
+    re.compile(r"\bdeferred_tools\b"),
+)
+_FORBIDDEN_TERM_SCAN_ROOTS = (
+    HARNESS_SRC / "agent",
+    _harness_root / "tests" / "agent",
+)
+_FORBIDDEN_TERM_PATH_EXCLUDES = ("context_management",)
+
+
+def _scan_forbidden_bindmode_terms() -> list[tuple[Path, int, str]]:
+    """Detect legacy deferred API names in agent tool-management code paths."""
+    violations: list[tuple[Path, int, str]] = []
+    for root in _FORBIDDEN_TERM_SCAN_ROOTS:
+        if not root.is_dir():
+            continue
+        for path in sorted(root.rglob("*.py")):
+            if any(part in _FORBIDDEN_TERM_PATH_EXCLUDES for part in path.parts):
+                continue
+            for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if any(pat.search(line) for pat in _FORBIDDEN_BINDMODE_PATTERNS):
+                    violations.append((path, line_no, line.strip()))
+    return violations
 
 
 def _load_registry_metadata_keys() -> set[str]:
@@ -262,7 +288,8 @@ def main() -> int:
         if args.incremental
         else report.ghost_registry_metadata_keys(_load_registry_metadata_keys())
     )
-    fail = bool(missing or ghosts or orphans or duplicates or metadata_ghosts)
+    bindmode_violations = [] if args.incremental else _scan_forbidden_bindmode_terms()
+    fail = bool(missing or ghosts or orphans or duplicates or metadata_ghosts or bindmode_violations)
 
     if args.json:
         payload = {
@@ -289,6 +316,15 @@ def main() -> int:
                 metadata_ghosts=metadata_ghosts,
             )
         )
+        if bindmode_violations:
+            print(f"FAIL - {len(bindmode_violations)} forbidden ToolBindMode legacy term(s):")
+            for path, line_no, line in bindmode_violations:
+                try:
+                    display = path.relative_to(_repo_root)
+                except ValueError:
+                    display = path
+                print(f"  - {display}:{line_no}: {line}")
+            print("  Fix: use discoverable_tools / get_discoverable_tools / get_runtime_tools.")
 
     return 1 if fail else 0
 

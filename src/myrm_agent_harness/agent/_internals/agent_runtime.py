@@ -21,7 +21,7 @@ and helper functions that ``BaseAgent`` delegates to.
 - utils.runtime.cancellation::CancellationToken (POS: Agent  ContextVar  BaseAgent)
 - utils.runtime.steering::SteeringToken (POS: Steering  Agent  Agent)
 - agent.middlewares.replan_middleware::ReplanMiddleware (POS: Dynamic Replan Loop Middleware.)
-- agent.meta_tools.discover_capability.discover_capability_tool::create_discover_capability_tool (POS: Unified Capability Discovery meta-tool. Facade pattern that searches BOTH native deferred tools (ToolRegistry) and external skills (SkillSearchEngine).)
+- agent.meta_tools.discover_capability.discover_capability_tool::create_discover_capability_tool (POS: Unified Capability Discovery meta-tool. Facade pattern that searches BOTH native discoverable tools (ToolRegistry) and external skills (SkillSearchEngine).)
 - agent.tool_management.types::ToolSnapshot (POS: Core types for the tool management subsystem. ToolSource tracks provenance; ToolEntry bundles a tool with its source and layer. ToolSnapshot provides a serializable view of resolved tools for API exposure.)
 - utils.token_economics.usage_ledger::UsageLedger (POS: LLM  JSONL)
 

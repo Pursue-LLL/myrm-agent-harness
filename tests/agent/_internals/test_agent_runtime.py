@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 from langchain_core.tools import tool
 
-from myrm_agent_harness.agent.tool_management.types import ToolSource
+from myrm_agent_harness.agent.tool_management.types import ToolBindMode, ToolSource
 
 
 class TestExtractQueryText:
@@ -210,6 +210,43 @@ class TestEmitToolsSnapshot:
         assert len(result) == 1
         assert result[0]["name"] == "bash_code_execute_tool"
         assert result[0]["source"] == "meta"
+
+    def test_emit_excludes_discoverable_and_runtime_only(self) -> None:
+        from myrm_agent_harness.agent._internals.agent_runtime import (
+            create_registry,
+            emit_tools_snapshot,
+        )
+
+        @tool("visible_turn1_tool")
+        def visible_turn1_tool(query: str) -> str:
+            """Turn1 visible tool."""
+            return query
+
+        @tool("cron_manage_tool")
+        def cron_manage_tool(expr: str) -> str:
+            """Discoverable cron tool."""
+            return expr
+
+        registry = create_registry()
+        registry.register(visible_turn1_tool, source=ToolSource.META)
+        registry.register(
+            cron_manage_tool,
+            source=ToolSource.USER,
+            bind_mode=ToolBindMode.DISCOVERABLE,
+        )
+        hook = MagicMock()
+        hook.name = "_completion_check"
+        hook.description = "Internal completion hook"
+        registry.register(
+            hook,
+            source=ToolSource.MIDDLEWARE,
+            bind_mode=ToolBindMode.RUNTIME_ONLY,
+        )
+
+        result = emit_tools_snapshot(registry)
+        assert result is not None
+        names = {row["name"] for row in result}
+        assert names == {"visible_turn1_tool"}
 
 
 class TestInitUsageLedger:

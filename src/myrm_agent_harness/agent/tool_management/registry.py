@@ -215,11 +215,9 @@ class ToolRegistry:
         return [e.tool for e in entries if e.bind_mode != ToolBindMode.TURN1]
 
     def snapshot(self) -> list[ToolSnapshot]:
-        """Return a serializable snapshot of the resolved tool set.
+        """Return a serializable snapshot of all registered tools (internal/debug).
 
-        Each ``ToolSnapshot`` contains the tool name, description summary,
-        full description, source, provider, layer, and parameter schema —
-        everything the frontend needs for the runtime availability view.
+        For GUI exposure use ``emit_tools_snapshot`` which filters to Turn1 only.
         """
         snapshots: list[ToolSnapshot] = []
         for entry in self._resolve_entries():

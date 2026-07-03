@@ -109,8 +109,8 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
 """
 
     if native_skills:
-        deferred_names = ", ".join(s.name for s in native_skills[:20])
-        tool_description += f"\n**Discoverable native tools**: {deferred_names}\n"
+        discoverable_names = ", ".join(s.name for s in native_skills[:20])
+        tool_description += f"\n**Discoverable native tools**: {discoverable_names}\n"
 
     active_groups = active_tool_groups or frozenset()
     bound_names = bound_skill_names or frozenset()
@@ -244,10 +244,10 @@ def sync_discover_capability_tool(
     bound_skill_names: frozenset[str] | None = None,
     library_skill_names: frozenset[str] | None = None,
 ) -> BaseTool | None:
-    """Rebuild discover_capability_tool after deferred registry mutations.
+    """Rebuild discover_capability_tool after discoverable registry mutations.
 
     Must run after all discoverable tools (framework + server) are registered
-    so the search index includes the full agent-scoped deferred set.
+    so the search index includes the full agent-scoped discoverable set.
     """
     from myrm_agent_harness.agent.tool_management.registry import ToolSource
 
