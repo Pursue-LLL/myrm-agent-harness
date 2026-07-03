@@ -5,9 +5,10 @@
 - myrm_agent_harness.agent._internals.memory_extraction (POS: session memory extraction helpers)
 - myrm_agent_harness.agent.middlewares._session_context (POS: middleware session ContextVar registry)
 - myrm_agent_harness.agent.meta_tools.bash._background_registry (POS: background bash job registry)
+- myrm_agent_harness.utils.runtime.background_job_finish_registry (POS: bash job finish hook registry)
 
 [OUTPUT]
-- Session, skill-agent context, task intent, memory-extraction, and bash-registry hook callables for server integration.
+- Session, skill-agent context, task intent, memory-extraction, bash-registry, and background-job-finish hook callables for server integration.
 
 [POS]
 Public re-export facade. Product code imports hooks here instead of private ``agent._*`` modules.
@@ -34,17 +35,27 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     get_terminal_errors,
     set_approval_user_id,
 )
+from myrm_agent_harness.utils.runtime.background_job_finish_registry import (
+    BackgroundJobFinishHandler,
+    BackgroundJobFinishResult,
+    get_global_background_job_finish_handler,
+    set_global_background_job_finish_handler,
+)
 
 __all__ = [
+    "BackgroundJobFinishHandler",
+    "BackgroundJobFinishResult",
     "create_extraction_llm_func",
     "get_background_registry",
     "get_event_logger",
+    "get_global_background_job_finish_handler",
     "get_memory_manager",
     "get_task_intent",
     "get_terminal_errors",
     "invalidate_permissions",
     "persist_extracted_memories",
     "set_approval_user_id",
+    "set_global_background_job_finish_handler",
     "set_permission_invalidation_callback",
     "set_task_intent",
 ]
