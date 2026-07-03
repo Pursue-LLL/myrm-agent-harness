@@ -106,7 +106,7 @@ class TestFileSearchEager:
         description = discover.description or ""
         assert "glob_tool" not in description
         assert "grep_tool" not in description
-        assert "skill_analyze_tool" in description
+        assert "skill_analyze_tool" not in description
 
     def test_bash_process_tools_deferred_when_bash_enabled(
         self,

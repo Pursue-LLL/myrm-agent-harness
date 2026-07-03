@@ -54,7 +54,6 @@ from .file_ops import (
     create_file_write_tool,
 )
 from .file_search import create_glob_tool, create_grep_tool
-from .skills.analyze import create_skill_analyze_tool
 from .skills.discovery import create_skill_discovery_tool
 from .skills.manage import create_skill_manage_tool
 from .skills.select import create_select_skill_tool
@@ -276,15 +275,6 @@ def get_meta_tools(
     else:
         logger.info("Bash tool disabled by caller configuration")
 
-    # Skill quality analysis: DISCOVERABLE (Curator/WebUI is primary cleanup path).
-    # Mount via discover_capability when the user asks in chat.
-    if skills:
-        skills_snapshot = list(skills)
-        _discoverable_tools.append(
-            create_skill_analyze_tool(get_all_skills_fn=lambda: skills_snapshot)
-        )
-        logger.info(" skill_analyze_tool registered as DISCOVERABLE")
-
     if skill_discovery_pending is not None:
         _discoverable_tools.append(skill_discovery_pending)
 
@@ -340,7 +330,6 @@ __all__ = [
     "create_glob_tool",
     "create_grep_tool",
     "create_select_skill_tool",
-    "create_skill_analyze_tool",
     "create_skill_discovery_tool",
     "create_skill_manage_tool",
     "create_steer_subagent_tool",

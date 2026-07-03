@@ -109,7 +109,6 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
         "memory_manage_tool",
         "skill_select_tool",
         "skill_discovery_tool",
-        "skill_analyze_tool",
         "discover_capability_tool",
         "browser_interact_tool",
         "browser_manage_tool",
@@ -491,7 +490,6 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "desktop_interact_tool": SafetyMetadata(is_destructive=True),
     "desktop_vision_tool": SafetyMetadata(is_destructive=True),
     "ask_question_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "skill_analyze_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
 }
 
 

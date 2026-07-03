@@ -107,17 +107,17 @@ class ToolLayer(IntEnum):
 | 子类 | 加载条件 | 典型工具 | Token 消耗 |
 |------|---------|---------|----------:|
 | 默认加载的 EXTENDED 辅助（**TURN1**） | enable_file_tools | glob_tool, grep_tool, discover_capability_tool | ~819 |
-| Discoverable 工具 | discover / spawn AutoMount | bash_process_tool, skill_analyze_tool, cron_manage_tool | 0（默认） / ~120+（挂载后） |
+| Discoverable 工具 | discover / spawn AutoMount | bash_process_tool, cron_manage_tool | 0（默认） / ~120+（挂载后） |
 | 文件搜索中间件 | 显式启用 FilesystemFileSearchMiddleware | glob_tool, grep_tool | - |
 | 记忆工具（COMMON） | 启用记忆系统 | memory_recall_tool, memory_save_tool, memory_manage_tool（COMMON 层，组内优先） | ~840 |
 | 会话搜索（EXTENDED，opt-in） | `memoryEnableConversationSearch=true` 且非无痕 | conversation_search_tool | ~67 |
 | 技能工具（Turn1 常驻） | 有技能后端 | skill_select, skill_manage, discover_capability_tool | ~343 |
-| 技能工具（Discoverable） | discover 挂载 | skill_analyze_tool, skill_discovery_tool | 0（默认） / ~269（挂载后） |
+| 技能工具（Discoverable） | discover 挂载 | skill_discovery_tool | 0（默认） / ~192（挂载后） |
 | 浏览器工具 | 启用浏览器 | browser_navigate_tool, browser_snapshot_tool, ... (8个) | ~535 |
 | 定时任务工具 | 启用 Cron | cron_manage_tool | ~827 |
 | Wiki 工具 | 有 Wiki 目录 | wiki_query, wiki_ingest, ... (4个) | ~250 |
 | 子 Agent 工具 | 有子 Agent 配置 | delegate_task_tool, batch_delegate_tasks_tool, send_teammate_message_tool, steer_subagent_tool, ... (8个) | ~411 |
-| UI 渲染工具 | enable_render_ui | render_ui_tool | ~400 |
+| UI 渲染工具 | enable_render_ui | render_ui_tool | 223 |
 | Goal 工具 | Goal 模式 | get_goal_status_tool, update_goal_status_tool | ~247 |
 | 看板工具 | 启用看板 | kanban_show, kanban_complete, kanban_add_task, ... (15个) | - |
 
@@ -302,7 +302,7 @@ const staleCoreSkills = useMemo(() => {
 | 定时任务工具 | 启用 Cron | 1 | ~827 |
 | Wiki 工具 | 有 Wiki 目录 | 4 | ~250 |
 | 子 Agent 工具 | 有子 Agent 配置 | 8 | ~411 |
-| UI 渲染工具 | enable_render_ui | 1 | ~400 |
+| UI 渲染工具 | enable_render_ui | 1 | 223 |
 | 看板工具 | 启用看板 | 15 | - |
 
 ### 7.3 按需加载 (On-Demand Load)

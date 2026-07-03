@@ -89,7 +89,7 @@ def a(): pass
 @tool("literal_name")
 def b(): pass
 
-@tool(TOOL_NAME)
+@tool(CONVERSATION_SEARCH_TOOL_NAME)
 def c(): pass
 
 @tool
@@ -104,7 +104,7 @@ def fallback(): pass
     }
     assert _tool_name_from_decorator(decorators["a"], "a", constants) == "local_name"
     assert _tool_name_from_decorator(decorators["b"], "b", constants) == "literal_name"
-    assert _tool_name_from_decorator(decorators["c"], "c", constants) == "skill_analyze_tool"
+    assert _tool_name_from_decorator(decorators["c"], "c", constants) == "conversation_search_tool"
     assert _tool_name_from_decorator(decorators["fallback"], "fallback", constants) == "fallback"
 
 

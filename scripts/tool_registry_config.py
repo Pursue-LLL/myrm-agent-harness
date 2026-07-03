@@ -46,7 +46,6 @@ SCHEMA_ONLY_TOOL_NAMES: frozenset[str] = frozenset({
 
 CROSS_MODULE_CONSTANTS: dict[str, str] = {
     "CONVERSATION_SEARCH_TOOL_NAME": "conversation_search_tool",
-    "TOOL_NAME": "skill_analyze_tool",
 }
 
 # Each whitelisted factory ships as an opt-in toolkit: the harness exports it
