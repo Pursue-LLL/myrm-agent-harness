@@ -101,17 +101,13 @@ async def collect_ui_artifacts(message_id: str) -> AsyncGenerator[dict[str, obje
         if not pending_events:
             return
         ui_artifacts_data: list[dict[str, object]] = []
+        data_update_events: list[UIDataUpdate] = []
 
         for event in pending_events:
             if isinstance(event, UIArtifact):
                 ui_artifacts_data.append(event.to_dict())
             elif isinstance(event, UIDataUpdate):
-                yield {
-                    "type": AgentEventType.UI_UPDATE.value,
-                    "subtype": "data_update",
-                    "data": event.model_dump(),
-                    "messageId": message_id,
-                }
+                data_update_events.append(event)
 
         if ui_artifacts_data:
             yield {
@@ -121,6 +117,14 @@ async def collect_ui_artifacts(message_id: str) -> AsyncGenerator[dict[str, obje
                 "messageId": message_id,
             }
             logger.warning(" Sending %d UI artifacts", len(ui_artifacts_data))
+
+        for update in data_update_events:
+            yield {
+                "type": AgentEventType.UI_UPDATE.value,
+                "subtype": "data_update",
+                "data": update.model_dump(),
+                "messageId": message_id,
+            }
     except Exception as e:
         logger.warning("Failed to send UI artifacts: %s", e)
 
