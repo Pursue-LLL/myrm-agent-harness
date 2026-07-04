@@ -184,8 +184,19 @@ target-version = "py313"
 extend-exclude = []
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "RUF"]
-ignore = ["E501", "B008", "SIM108", "RUF001", "RUF002", "RUF003"]
+select = ["E", "F", "I", "N", "W", "UP", "B", "S", "SIM", "RUF"]
+ignore = [
+  "E501", "B008", "SIM108", "RUF001", "RUF002", "RUF003",
+  # S 规则噪音抑制：LangChain/subprocess/pickle 等场景在 agent 框架中是刚需，逐条评估后排除误报。
+  "S101",  # assert — 运行时不变量检查
+  "S105", "S106", "S107",  # hardcoded-password — 变量名含 SECRET/TOKEN 但非真实密码
+  "S108",  # hardcoded-temp-file — /tmp 路径在沙箱内是安全的
+  "S110", "S112",  # try-except-pass/continue — best-effort 模式是框架设计选择
+  "S311",  # non-cryptographic-random — 用于采样/ID 而非安全场景
+  "S324",  # hashlib-insecure — 用于内容哈希而非加密
+  "S603", "S607",  # subprocess — 代码执行工具必须用 subprocess
+  "S608",  # hardcoded-sql — SQLite 本地文件非网络注入风险
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
