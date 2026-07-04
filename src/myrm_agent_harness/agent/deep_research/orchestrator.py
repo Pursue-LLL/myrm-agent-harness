@@ -81,6 +81,7 @@ if TYPE_CHECKING:
     ClarifyCallback = Callable[[AskQuestionInput], Awaitable[str | list[str] | dict[str, str | list[str]] | None]]
     PlanCallback = Callable[[str], Awaitable[str | None]]
     CycleCallback = Callable[[int, list[dict[str, str]]], Awaitable[PhaseGuidance | None]]
+    ReportReadyCallback = Callable[["DeepResearchResult"], Awaitable[None]]
 
 logger = get_agent_logger(__name__)
 
@@ -106,6 +107,7 @@ class DeepResearchOrchestrator(DeepResearchPhasesMixin):
         on_clarify: ClarifyCallback | None = None,
         on_plan_ready: PlanCallback | None = None,
         on_cycle_complete: CycleCallback | None = None,
+        on_report_ready: ReportReadyCallback | None = None,
         research_agent_llm: BaseChatModel | None = None,
     ) -> None:
         self._llm = llm
@@ -118,6 +120,7 @@ class DeepResearchOrchestrator(DeepResearchPhasesMixin):
         self._on_clarify = on_clarify
         self._on_plan_ready = on_plan_ready
         self._on_cycle_complete = on_cycle_complete
+        self._on_report_ready = on_report_ready
         self._is_reasoning = detect_reasoning_model(llm)
         self._result = DeepResearchResult()
         self._source_tracker = SourceTracker()
@@ -371,6 +374,11 @@ class DeepResearchOrchestrator(DeepResearchPhasesMixin):
                 self._result.estimated_cost_usd,
                 self._result.error,
             )
+            if self._on_report_ready and self._result.report and not self._result.error:
+                try:
+                    await self._on_report_ready(self._result)
+                except Exception:
+                    logger.warning("[deep-research] on_report_ready callback failed", exc_info=True)
 
     # =========================================================================
     # Phase implementations

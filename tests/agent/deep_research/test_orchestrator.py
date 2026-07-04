@@ -1156,6 +1156,126 @@ class TestOrchestratorRun:
         assert source_events[0]["data"][1]["index"] == 2
 
     @pytest.mark.asyncio
+    async def test_on_report_ready_called_on_success(self):
+        """on_report_ready callback is invoked when report is generated successfully."""
+        plan_response = AIMessage(content="1. Plan")
+        plan_response.usage_metadata = {"input_tokens": 10, "output_tokens": 5}
+
+        finalize_response = AIMessage(
+            content="",
+            tool_calls=[{"id": "tc1", "name": "finalize_report", "args": {}}],
+        )
+
+        llm = self._make_llm([finalize_response])
+        llm.ainvoke = AsyncMock(return_value=plan_response)
+
+        async def mock_astream(messages: list[BaseMessage]):
+            chunk = MagicMock()
+            chunk.content = "Final report content"
+            chunk.usage_metadata = None
+            yield chunk
+
+        llm.astream = mock_astream
+
+        callback_result: list[DeepResearchResult] = []
+
+        async def on_report_ready(result: DeepResearchResult) -> None:
+            callback_result.append(result)
+
+        orch = DeepResearchOrchestrator(
+            llm=llm,
+            config=DeepResearchConfig(enable_clarification=False, max_cycles=1),
+            on_report_ready=on_report_ready,
+        )
+
+        _ = [e async for e in orch.run("test query")]
+        assert len(callback_result) == 1
+        assert callback_result[0].report == "Final report content"
+
+    @pytest.mark.asyncio
+    async def test_on_report_ready_not_called_on_error(self):
+        """on_report_ready callback is NOT invoked when orchestrator errors."""
+        llm = MagicMock()
+        llm.model_name = "gpt-4o"
+        llm.n_ctx = 10_000  # Too small → triggers ContextTooSmall error
+
+        callback_called = False
+
+        async def on_report_ready(result: DeepResearchResult) -> None:
+            nonlocal callback_called
+            callback_called = True
+
+        orch = DeepResearchOrchestrator(llm=llm, on_report_ready=on_report_ready)
+        _ = [e async for e in orch.run("query")]
+        assert callback_called is False
+
+    @pytest.mark.asyncio
+    async def test_on_report_ready_failure_does_not_affect_result(self):
+        """on_report_ready callback failure does not alter the research result."""
+        plan_response = AIMessage(content="1. Plan")
+        plan_response.usage_metadata = {"input_tokens": 10, "output_tokens": 5}
+
+        finalize_response = AIMessage(
+            content="",
+            tool_calls=[{"id": "tc1", "name": "finalize_report", "args": {}}],
+        )
+
+        llm = self._make_llm([finalize_response])
+        llm.ainvoke = AsyncMock(return_value=plan_response)
+
+        async def mock_astream(messages: list[BaseMessage]):
+            chunk = MagicMock()
+            chunk.content = "Good report"
+            chunk.usage_metadata = None
+            yield chunk
+
+        llm.astream = mock_astream
+
+        async def on_report_ready(result: DeepResearchResult) -> None:
+            raise RuntimeError("Callback exploded")
+
+        orch = DeepResearchOrchestrator(
+            llm=llm,
+            config=DeepResearchConfig(enable_clarification=False, max_cycles=1),
+            on_report_ready=on_report_ready,
+        )
+
+        _ = [e async for e in orch.run("test query")]
+        assert orch.result.report == "Good report"
+        assert orch.result.error is None
+
+    @pytest.mark.asyncio
+    async def test_on_report_ready_not_called_when_none(self):
+        """No error when on_report_ready is None (default)."""
+        plan_response = AIMessage(content="1. Plan")
+        plan_response.usage_metadata = {"input_tokens": 10, "output_tokens": 5}
+
+        finalize_response = AIMessage(
+            content="",
+            tool_calls=[{"id": "tc1", "name": "finalize_report", "args": {}}],
+        )
+
+        llm = self._make_llm([finalize_response])
+        llm.ainvoke = AsyncMock(return_value=plan_response)
+
+        async def mock_astream(messages: list[BaseMessage]):
+            chunk = MagicMock()
+            chunk.content = "Report"
+            chunk.usage_metadata = None
+            yield chunk
+
+        llm.astream = mock_astream
+
+        orch = DeepResearchOrchestrator(
+            llm=llm,
+            config=DeepResearchConfig(enable_clarification=False, max_cycles=1),
+        )
+
+        events = [e async for e in orch.run("test query")]
+        assert orch.result.report == "Report"
+        assert any(e.get("type") == "message_end" for e in events)
+
+    @pytest.mark.asyncio
     async def test_dispatch_deduplicates_sources_across_agents(self):
         """Same URL from different sub-agents should be deduplicated."""
         import asyncio

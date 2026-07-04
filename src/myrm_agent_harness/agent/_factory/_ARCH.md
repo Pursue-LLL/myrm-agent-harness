@@ -8,7 +8,7 @@ Internal SkillAgent factory assembly — MCP routing and runtime wiring.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | `mcp_routing.py` | Core | MCP hybrid direct vs PTC routing by schema token cost + aggregate budget guard | ✅ |
-| `builder.py` | Core | `create_skill_agent` assembly pipeline | ✅ |
+| `builder.py` | Core | `create_skill_agent` assembly pipeline; accepts `on_loaded_skills_persist` hook for server-layer session skill SSOT | ✅ |
 | `__init__.py` | Package | Re-exports `create_skill_agent` | ✅ |
 
 ## Import Conventions

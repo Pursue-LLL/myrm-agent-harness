@@ -51,6 +51,22 @@ DeepResearchOrchestrator (orchestrator.py)
 
 ---
 
+## Callback 机制
+
+Orchestrator 支持 4 个可选回调，由业务层注入：
+
+| Callback | 触发时机 | 签名 |
+|----------|----------|------|
+| `on_clarify` | CLARIFY 阶段需要用户输入 | `(AskQuestionInput) -> ClarificationAnswer \| None` |
+| `on_plan_ready` | 研究计划生成后 | `(str) -> str \| None` |
+| `on_cycle_complete` | 每个研究循环结束 | `(int, list[dict]) -> PhaseGuidance \| None` |
+| `on_report_ready` | 最终报告生成成功后 | `(DeepResearchResult) -> None` |
+
+`on_report_ready` 仅在 `result.report` 非空且无 error 时触发（在 `finally` 块中），
+用于后处理如 wiki 入库、通知等。回调失败不影响研究结果。
+
+---
+
 ## 扩展指南
 
 1. 新阶段 → `_orchestrator_phases.py` mixin 方法 + prompts
