@@ -189,6 +189,24 @@ class WikiIngestionQueue:
             )
             return cursor.rowcount
 
+    def reset_stale_processing(self, stale_seconds: int = 300) -> int:
+        """Reset items stuck in 'processing' state back to 'pending'.
+
+        Items remain in 'processing' if a worker crashes mid-flight.
+        This method recovers them based on a staleness threshold.
+        """
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE ingestion_queue
+                SET status = 'pending', updated_at = CURRENT_TIMESTAMP
+                WHERE status = 'processing'
+                  AND updated_at < datetime('now', ? || ' seconds')
+                """,
+                (f"-{stale_seconds}",),
+            )
+            return cursor.rowcount
+
     def get_stats(self) -> dict[str, int]:
         """Get queue statistics."""
         with self._get_conn() as conn:

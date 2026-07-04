@@ -14,11 +14,14 @@ WikiCompiler: LLM-Wiki compilation engine
 [POS]
 Wiki compilation core engine. Uses LLM to compile raw documents into structured wiki articles:
 concept extraction, article generation, index building, and backlink creation. Supports incremental
-compilation and SQLite-based persistent controlled batch processing for enterprise-grade reliability.
+compilation, Semaphore-limited parallel batch ingestion, and SQLite-based persistent controlled
+batch processing for enterprise-grade reliability.
 """
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import hashlib
 import json
 import re
@@ -33,10 +36,7 @@ from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, Wiki
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
-    import asyncio
-
     from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
-import contextlib
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import CompileResult, ConceptInfo, WikiMetadata
@@ -53,7 +53,8 @@ class WikiCompiler:
     Converts raw documents into structured, interconnected wiki articles.
 
     Features:
-    - Incremental compilation (10x faster, only process new/changed docs)
+    - Incremental compilation (only process new/changed docs)
+    - Parallel batch ingestion with Semaphore-limited concurrency
     - Persistent SQLite queue (prevents OOM and rate limit crashes)
     - Concept extraction and article generation with folder path context
     - Automatic index and Obsidian-compatible backlink generation
@@ -76,6 +77,10 @@ class WikiCompiler:
         self._indexer = indexer
         self._queue = WikiIngestionQueue(structure)
         self._structure.ensure_structure()
+        self._parallel = config.parallel_compilation
+        self._semaphore: asyncio.Semaphore | None = (
+            asyncio.Semaphore(config.max_parallel_workers) if self._parallel else None
+        )
 
     def enqueue_file(self, file_path: Path) -> None:
         """Enqueue a raw file for compilation and ensure the background worker is running.
@@ -97,7 +102,6 @@ class WikiCompiler:
 
     def start_background_worker(self) -> None:
         """Start a background worker to continuously drain the ingestion queue."""
-        import asyncio
 
         user_key = str(self._structure.base_dir)
 
@@ -118,10 +122,14 @@ class WikiCompiler:
         logger.info(f"Started background wiki worker for {user_key}")
 
     async def _worker_loop(self) -> None:
-        import asyncio
 
         user_key = str(self._structure.base_dir)
         consecutive_empty = 0
+
+        recovered = self._queue.reset_stale_processing()
+        if recovered:
+            logger.info(f"Recovered {recovered} stale processing items back to pending")
+
         try:
             while consecutive_empty < 3:  # Exit after 3 empty checks (15s idle)
                 pending_items = self._queue.get_pending_items(limit=5)
@@ -249,38 +257,53 @@ class WikiCompiler:
         return changed
 
     async def _extract_concepts_batch(self, queue_items: list[dict]) -> list[ConceptInfo]:
-        """Extract concepts from queue items sequentially to prevent rate limits."""
-        all_concepts: dict[str, ConceptInfo] = {}
+        """Extract concepts from queue items with configurable parallelism."""
 
-        for item in queue_items:
+        async def _process_single_item(item: dict) -> list[ConceptInfo]:
             item_id = item["id"]
             raw_file = Path(item["file_path"])
-
             self._queue.mark_processing(item_id)
-
             try:
                 if not raw_file.exists():
                     self._queue.mark_failed(item_id, "File not found")
-                    continue
-
-                concepts = await self._extract_concepts_from_doc(raw_file)
-                for concept in concepts:
-                    if concept.name in all_concepts:
-                        existing = all_concepts[concept.name]
-                        all_concepts[concept.name] = ConceptInfo(
-                            name=concept.name,
-                            definition=concept.definition,
-                            mentions=existing.mentions + concept.mentions,
-                            source_files=list(set(existing.source_files + concept.source_files)),
-                            related_concepts=list(set(existing.related_concepts + concept.related_concepts)),
-                        )
-                    else:
-                        all_concepts[concept.name] = concept
-
+                    return []
+                if self._semaphore:
+                    async with self._semaphore:
+                        concepts = await self._extract_concepts_from_doc(raw_file)
+                else:
+                    concepts = await self._extract_concepts_from_doc(raw_file)
                 self._queue.mark_completed(item_id)
+                return concepts
             except Exception as e:
                 logger.error(f"Failed to extract concepts from {raw_file}: {e}")
                 self._queue.mark_failed(item_id, str(e))
+                return []
+
+        if self._parallel:
+            results = await asyncio.gather(
+                *[_process_single_item(item) for item in queue_items],
+                return_exceptions=True,
+            )
+        else:
+            results = [await _process_single_item(item) for item in queue_items]
+
+        all_concepts: dict[str, ConceptInfo] = {}
+        for result in results:
+            if isinstance(result, BaseException):
+                logger.error(f"Unexpected error in concept extraction: {result}")
+                continue
+            for concept in result:
+                if concept.name in all_concepts:
+                    existing = all_concepts[concept.name]
+                    all_concepts[concept.name] = ConceptInfo(
+                        name=concept.name,
+                        definition=concept.definition,
+                        mentions=existing.mentions + concept.mentions,
+                        source_files=list(set(existing.source_files + concept.source_files)),
+                        related_concepts=list(set(existing.related_concepts + concept.related_concepts)),
+                    )
+                else:
+                    all_concepts[concept.name] = concept
 
         return list(all_concepts.values())
 
@@ -370,18 +393,31 @@ class WikiCompiler:
         return concepts
 
     async def _generate_articles_batch(self, concepts: list[ConceptInfo]) -> int:
-        """Generate wiki articles for all concepts sequentially."""
+        """Generate wiki articles with configurable parallelism."""
         filtered = [c for c in concepts if c.mentions >= self._compile_config.min_concept_mentions]
         logger.info(f"Generating articles for {len(filtered)} concepts")
 
-        success_count = 0
-        for concept in filtered:
+        async def _gen_one(concept: ConceptInfo) -> bool:
             try:
-                await self._generate_article(concept)
-                success_count += 1
+                if self._semaphore:
+                    async with self._semaphore:
+                        await self._generate_article(concept)
+                else:
+                    await self._generate_article(concept)
+                return True
             except Exception as e:
                 logger.error(f"Failed to generate article for {concept.name}: {e}")
-        return success_count
+                return False
+
+        if self._parallel:
+            results = await asyncio.gather(
+                *[_gen_one(c) for c in filtered],
+                return_exceptions=True,
+            )
+        else:
+            results = [await _gen_one(c) for c in filtered]
+
+        return sum(1 for r in results if r is True)
 
     async def _generate_article(self, concept: ConceptInfo) -> None:
         """Generate wiki article for a concept in Obsidian format."""
