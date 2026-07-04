@@ -10,6 +10,7 @@ Skill execution runtime: registry, loader, env prep, trust attenuation. **`get_m
 |------|------|-------------|-------|
 | __init__.py | Package | Runtime — skill execution runtime. | — |
 | attenuator.py | Core | Trust attenuator. Three-layer filtering for skill permission management. | ✅ |
+| session_skills_rehydrate.py | Core | Rebuild `loaded_skills` from chat history ∪ `context.session_loaded_skill_names` SSOT at `SkillAgent.run()` start. | ✅ |
 | env.py | Core | Skill execution environment preparer before sandbox execution. | ✅ |
 | loader.py | Core | Skill document loader and trap injection. | ✅ |
 | registry.py | Core | SkillRegistry + get_metadata_summary (XML for tool descriptions, not SystemMessage). | ✅ |

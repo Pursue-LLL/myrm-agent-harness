@@ -137,7 +137,7 @@ class CrawlTaskExecutor:
         try:
             await self._rate_limiter.acquire(domain)
             try:
-                doc = await self._engine.crawl(task.url)
+                doc = await self._engine.crawl(task.url, allow_escalation=False)
             finally:
                 self._rate_limiter.release(domain)
 

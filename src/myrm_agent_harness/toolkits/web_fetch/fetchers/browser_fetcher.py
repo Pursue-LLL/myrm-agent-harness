@@ -28,6 +28,8 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.browser.pool import GlobalBrowserPool
     from myrm_agent_harness.toolkits.browser.session_vault import SessionVault
 
+from myrm_agent_harness.toolkits.browser.pool.config import LaunchMode
+
 logger = logging.getLogger(__name__)
 
 
@@ -46,6 +48,7 @@ class BrowserFetcher:
         *,
         allow_private_networks: bool = False,
         session_vault: SessionVault | None = None,
+        launch_mode_preference: LaunchMode | None = None,
     ):
         """Initialize BrowserFetcher
 
@@ -59,6 +62,11 @@ class BrowserFetcher:
         self._pool = browser_pool or get_global_browser_pool()
         self._allow_private_networks = allow_private_networks
         self._session_vault = session_vault
+        self._launch_mode_preference = launch_mode_preference
+
+    def set_launch_mode_preference(self, launch_mode: LaunchMode | None) -> None:
+        """Override browser launch mode (e.g. EXTENSION for user Chrome sessions)."""
+        self._launch_mode_preference = launch_mode
 
     async def fetch(self, url: str) -> FetchResult | None:
         """抓取 URL Content（复用 Navigator，Auto获得限流 and Domain学习能力）
@@ -97,7 +105,10 @@ class BrowserFetcher:
                     logger.warning(f"BrowserFetcher failed to load session for {url}: {exc}")
 
             page, context_key = await self._pool.acquire_page(
-                ContextType.CRAWL, context_key=context_key, context_kwargs=context_kwargs
+                ContextType.CRAWL,
+                context_key=context_key,
+                context_kwargs=context_kwargs,
+                launch_mode_preference=self._launch_mode_preference,
             )
 
             navigator = Navigator(

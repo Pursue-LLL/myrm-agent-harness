@@ -277,6 +277,7 @@ class SkillAgentReviewMixin:
         chat_history: ChatHistoryReq | list[BaseMessage] | None,
         assistant_chunks: list[str],
         active_skills: list[str] | None = None,
+        run_chat_id: str | None = None,
     ) -> None:
         """Session-end cleanup: memory flush, auto-extraction, wiki archive, skill review.
 
@@ -284,11 +285,12 @@ class SkillAgentReviewMixin:
         All background tasks (memory extraction, wiki archive, skill review) run async.
         """
         memory_manager: MemoryManager | None = getattr(self, "memory_manager", None)
-        session_chat_id: str | None = None
+        session_chat_id: str | None = run_chat_id
 
         if memory_manager is not None:
             session = memory_manager.active_session
-            session_chat_id = session.chat_id if session else None
+            if session and session.chat_id:
+                session_chat_id = session.chat_id
             try:
                 persisted = await memory_manager.end_session()
                 if persisted:
@@ -350,6 +352,19 @@ class SkillAgentReviewMixin:
 
             cleanup_task = asyncio.create_task(_run_session_cleanup())
             track_background_task(cleanup_task)
+
+        on_loaded_skills_persist = getattr(self, "_on_loaded_skills_persist", None)
+        if on_loaded_skills_persist is not None and session_chat_id:
+            skill_names = active_skills or []
+
+            async def _run_loaded_skills_persist() -> None:
+                try:
+                    await on_loaded_skills_persist(skill_names, session_chat_id)
+                except Exception as e:
+                    logger.warning("Loaded skills persist hook failed: %s", e)
+
+            persist_task = asyncio.create_task(_run_loaded_skills_persist())
+            track_background_task(persist_task)
 
         self._maybe_archive_to_wiki(query, assistant_chunks)
 

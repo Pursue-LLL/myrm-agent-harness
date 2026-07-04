@@ -381,3 +381,58 @@ async def test_awrap_tool_call_falls_through_when_tool_missing(
 
     assert result == "fallback"
     handler.assert_awaited_once_with(request)
+
+
+@pytest.mark.asyncio
+async def test_deferred_tool_middleware_schema_filter_with_loaded_skills(
+    registry: ToolRegistry,
+) -> None:
+    """Loaded skills with allowed_tools should filter request.tools before model call."""
+    from myrm_agent_harness.agent._skill_agent_context import reset_loaded_skills, set_loaded_skills
+    from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillTrust
+
+    class AllowedTool(BaseTool):
+        name: str = "file_write_tool"
+        description: str = "write files"
+
+        def _run(self, *args: object, **kwargs: object) -> str:
+            return "ok"
+
+    class BlockedTool(BaseTool):
+        name: str = "bash_code_execute_tool"
+        description: str = "run bash"
+
+        def _run(self, *args: object, **kwargs: object) -> str:
+            return "ok"
+
+    middleware = DeferredToolMiddleware(registry)
+    request = MagicMock()
+    request.messages = []
+    request.tools = [AllowedTool(), BlockedTool(), DummyTool()]
+
+    reset_loaded_skills()
+    set_loaded_skills(
+        [
+            SkillMetadata(
+                name="demo_skill",
+                description="demo",
+                trust=SkillTrust.INSTALLED,
+                scanner_clean=True,
+                allowed_tools=["file_write_tool"],
+            )
+        ]
+    )
+
+    try:
+        async def next_call(req: object) -> str:
+            return "response"
+
+        response = await middleware.awrap_model_call(request, next_call)
+
+        assert response == "response"
+        remaining = {t.name for t in request.tools}
+        assert "file_write_tool" in remaining
+        assert "bash_code_execute_tool" not in remaining
+        assert "dummy_tool" not in remaining
+    finally:
+        reset_loaded_skills()

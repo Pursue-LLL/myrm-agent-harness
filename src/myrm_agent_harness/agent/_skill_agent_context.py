@@ -6,7 +6,7 @@
 - toolkits.storage.base::StorageProvider (POS: Storage provider)
 
 [OUTPUT]
-- ContextVar getters/setters for storage_backend, memory_manager, loaded_skills, task_intent
+- ContextVar getters/setters for storage_backend, memory_manager, loaded_skills (get/add/set/reset), task_intent
 - Permission invalidation callback management
 - Background task tracking and graceful shutdown
 
@@ -115,6 +115,11 @@ def add_loaded_skill(skill: SkillMetadata) -> None:
     """Record a skill loaded during the current session (for trust attenuation)."""
     current = get_loaded_skills()
     _loaded_skills_var.set([*current, skill])
+
+
+def set_loaded_skills(skills: list[SkillMetadata]) -> None:
+    """Replace the loaded-skills list (used when rehydrating from chat history)."""
+    _loaded_skills_var.set(list(skills))
 
 
 def reset_loaded_skills() -> None:

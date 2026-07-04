@@ -83,7 +83,7 @@ def attenuate_tools(tool_names: list[str], active_skills: list[SkillMetadata]) -
     1. Trust attenuation: min(trust) determines the baseline ceiling
     2. Scanner-gated widening: clean INSTALLED skills with allowed_tools
        get (allowed_tools ∩ CEILING) ∪ READ_ONLY instead of just READ_ONLY
-    3. allowed_tools restriction: union of declared allowed_tools narrows scope
+    3. allowed_tools restriction: union of explicitly declared allowed_tools narrows scope
 
     Args:
         tool_names: All available tool names
@@ -147,20 +147,21 @@ def _apply_trust_filter(tool_names: list[str], min_trust: SkillTrust, active_ski
 
 
 def _apply_allowed_tools_filter(tools: list[str], active_skills: list[SkillMetadata]) -> tuple[list[str], list[str]]:
-    """Further restrict tools by the union of skills' allowed_tools declarations.
+    """Further restrict tools by the union of declared allowed_tools.
 
-    Only applies when ALL active skills declare allowed_tools. If any skill
-    has no declaration (None or empty), it may need any tool, so the filter
-    is skipped entirely.
+    Only skills that explicitly declare ``allowed_tools`` contribute to the union.
+    Skills without a declaration are treated as unconstrained for this layer and do
+    not disable the filter for other skills.
 
     Returns:
         (kept_tools, removed_by_allowed_tools)
     """
-    allowed_union: set[str] = set()
+    declaring_skills = [s for s in active_skills if s.allowed_tools]
+    if not declaring_skills:
+        return tools, []
 
-    for skill in active_skills:
-        if not skill.allowed_tools:
-            return tools, []
+    allowed_union: set[str] = set()
+    for skill in declaring_skills:
         allowed_union.update(skill.allowed_tools)
 
     kept: list[str] = []

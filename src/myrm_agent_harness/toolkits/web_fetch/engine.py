@@ -65,6 +65,10 @@ from .pipeline import ContentPipeline
 from .router.adaptive_router import AdaptiveRouter, RouterStats
 from .youtube_extractor import extract_youtube_transcript, is_youtube_url
 
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.browser.pool.config import LaunchMode
+    from myrm_agent_harness.toolkits.web_fetch.escalation.protocols import FetchEscalationProvider
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -197,10 +201,88 @@ class CrawlEngine:
         # Lazy initialization flag
         self._workers_started = False
 
+        self._escalation_providers: list[FetchEscalationProvider] | None = None
+        self._browser_launch_mode: LaunchMode | None = None
+
     def set_session_vault(self, session_vault: SessionVault) -> None:
         """Inject SessionVault dynamically (e.g. from server layer)."""
         self._http_fetcher._session_vault = session_vault
         self._browser_fetcher._session_vault = session_vault
+
+    def set_escalation_providers(self, providers: list[FetchEscalationProvider] | None) -> None:
+        """Inject optional L4 remote fetch providers (server layer implements httpx vendors)."""
+        self._escalation_providers = providers
+
+    def set_browser_launch_mode(self, launch_mode: LaunchMode | None) -> None:
+        """Set browser launch mode for L2 fetches (e.g. EXTENSION for logged-in pages)."""
+        self._browser_launch_mode = launch_mode
+        self._browser_fetcher.set_launch_mode_preference(launch_mode)
+
+    async def _try_escalation(self, url: str, *, max_chars: int = 0) -> tuple[Document | None, FetchResult | None]:
+        """Try injected remote providers after local L1-L3 exhaustion."""
+        from .escalation.context import get_bound_escalation_providers
+
+        providers = get_bound_escalation_providers() or self._escalation_providers
+        if not providers:
+            return None, None
+
+        from .escalation.metrics import web_fetch_escalation_metrics
+
+        web_fetch_escalation_metrics.record_triggered()
+        try:
+            from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
+            await dispatch_custom_event(
+                "agent_status",
+                {
+                    "event": "tool_fallback",
+                    "tool": "web_fetch_tool",
+                    "fallback_type": "remote_fetch",
+                    "message": "Local fetch exhausted, trying remote reader fallback...",
+                },
+            )
+        except Exception:
+            pass
+
+        for provider in providers:
+            try:
+                escalation_result = await provider.fetch_url(url, max_chars=max_chars)
+            except Exception as exc:
+                logger.warning("Escalation provider %s failed for %s: %s", provider.provider_id, url, exc)
+                continue
+
+            if escalation_result is None or not escalation_result.content.strip():
+                continue
+
+            if escalation_result.is_markdown:
+                content = escalation_result.content
+                if max_chars > 0 and len(content) > max_chars:
+                    content = content[:max_chars]
+                doc = Document(
+                    page_content=content,
+                    metadata={
+                        "url": escalation_result.url or url,
+                        "title": escalation_result.title,
+                        "escalation_provider": provider.provider_id,
+                    },
+                )
+            else:
+                remote_fetch = FetchResult(
+                    html=escalation_result.content,
+                    url=escalation_result.url or url,
+                    fetcher_type=FetcherType.HTTP,
+                )
+                doc = self._pipeline.process(remote_fetch, max_chars=max_chars)
+                if doc is None:
+                    continue
+                doc.metadata["escalation_provider"] = provider.provider_id
+
+            web_fetch_escalation_metrics.record_success()
+            logger.info("Escalation provider %s succeeded for %s", provider.provider_id, url)
+            return doc, None
+
+        web_fetch_escalation_metrics.record_failure()
+        return None, None
 
     def _ensure_workers_started(self) -> None:
         """Lazy start background workers (idempotent, thread-safe)."""
@@ -257,6 +339,14 @@ class CrawlEngine:
             FetcherType.STEALTH: self._stealth_fetcher,
         }
         fetcher = fetcher_map[fetcher_type]
+
+        if fetcher_type == FetcherType.BROWSER:
+            from .escalation.context import get_bound_browser_launch_mode
+
+            launch_mode = get_bound_browser_launch_mode()
+            if launch_mode is None:
+                launch_mode = self._browser_launch_mode
+            self._browser_fetcher.set_launch_mode_preference(launch_mode)
 
         if _PSUTIL_AVAILABLE:
             process = psutil.Process()
@@ -356,7 +446,13 @@ class CrawlEngine:
         return doc, degradable, latency, cpu, mem, fetch_result
 
     async def _crawl_with_degradation(
-        self, url: str, *, etag: str | None = None, last_modified: str | None = None, max_chars: int = 0
+        self,
+        url: str,
+        *,
+        etag: str | None = None,
+        last_modified: str | None = None,
+        max_chars: int = 0,
+        allow_escalation: bool = True,
     ) -> tuple[Document | None, FetchResult | None]:
         """Smart degradation: select starting tier from routing result, degrade tier by tier.
 
@@ -373,6 +469,12 @@ class CrawlEngine:
 
             logger.warning(f"Stealth failed, trying browser: {url}")
             doc, _, _, _, _, result = await self._try_and_report(url, FetcherType.BROWSER, max_chars=max_chars)
+            if doc:
+                return doc, result
+            if allow_escalation:
+                esc_doc, esc_result = await self._try_escalation(url, max_chars=max_chars)
+                if esc_doc:
+                    return esc_doc, esc_result
             return doc, result
 
         if start_type == FetcherType.BROWSER:
@@ -382,6 +484,12 @@ class CrawlEngine:
 
             logger.warning(f"Browser failed, trying stealth: {url}")
             doc, _, _, _, _, result = await self._try_and_report(url, FetcherType.STEALTH, max_chars=max_chars)
+            if doc:
+                return doc, result
+            if allow_escalation:
+                esc_doc, esc_result = await self._try_escalation(url, max_chars=max_chars)
+                if esc_doc:
+                    return esc_doc, esc_result
             return doc, result
 
         doc, degradable, _, _, _, result = await self._try_and_report(
@@ -427,6 +535,14 @@ class CrawlEngine:
             pass
 
         doc, _, _, _, _, result = await self._try_and_report(url, FetcherType.STEALTH, max_chars=max_chars)
+        if doc:
+            return doc, result
+
+        if allow_escalation:
+            esc_doc, esc_result = await self._try_escalation(url, max_chars=max_chars)
+            if esc_doc:
+                return esc_doc, esc_result
+
         return doc, result
 
     def _report_feedback(
@@ -498,7 +614,9 @@ class CrawlEngine:
                 future.set_exception(error)
             raise
 
-    async def crawl(self, url: str, *, force_refresh: bool = False, max_chars: int = 0) -> Document | None:
+    async def crawl(
+        self, url: str, *, force_refresh: bool = False, max_chars: int = 0, allow_escalation: bool = True
+    ) -> Document | None:
         """Crawl a single URL, return Document or None.
 
         Args:
@@ -580,12 +698,20 @@ class CrawlEngine:
                 else:
                     async with asyncio.timeout(self._crawl_timeout):
                         doc, fetch_result = await self._crawl_with_degradation(
-                            url, etag=etag, last_modified=last_modified, max_chars=max_chars
+                            url,
+                            etag=etag,
+                            last_modified=last_modified,
+                            max_chars=max_chars,
+                            allow_escalation=allow_escalation,
                         )
             else:
                 async with asyncio.timeout(self._crawl_timeout):
                     doc, fetch_result = await self._crawl_with_degradation(
-                        url, etag=etag, last_modified=last_modified, max_chars=max_chars
+                        url,
+                        etag=etag,
+                        last_modified=last_modified,
+                        max_chars=max_chars,
+                        allow_escalation=allow_escalation,
                     )
 
             if fetch_result and fetch_result.status_code == 304 and cached_item:
@@ -614,7 +740,13 @@ class CrawlEngine:
             self._pending_requests.pop(cache_key, None)
 
     async def crawl_many(
-        self, urls: list[str], *, max_concurrency: int = 10, force_refresh: bool = False, max_chars: int = 0
+        self,
+        urls: list[str],
+        *,
+        max_concurrency: int = 10,
+        force_refresh: bool = False,
+        max_chars: int = 0,
+        allow_escalation: bool = True,
     ) -> tuple[SuccessResult, FailedResult]:
         """Batch-crawl multiple URLs in parallel with global concurrency cap.
 
@@ -632,7 +764,9 @@ class CrawlEngine:
 
         async def process(url: str) -> None:
             async with sem:
-                doc = await self.crawl(url, force_refresh=force_refresh, max_chars=max_chars)
+                doc = await self.crawl(
+                    url, force_refresh=force_refresh, max_chars=max_chars, allow_escalation=allow_escalation
+                )
             if doc is not None:
                 success_results.append((url, doc))
             else:

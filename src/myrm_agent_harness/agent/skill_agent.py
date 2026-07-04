@@ -33,6 +33,7 @@ from myrm_agent_harness.agent._skill_agent_context import (
     add_loaded_skill,
     get_loaded_skills,
     reset_loaded_skills,
+    set_loaded_skills,
     set_memory_manager,
     set_storage_backend,
     track_background_task,
@@ -134,6 +135,7 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, SkillAgentContextM
         wiki_search_fn: "SemanticSearchFn | None" = None,
         similarity_checker: "SkillSimilarityChecker | None" = None,
         on_session_cleanup: "Callable[[Sequence[dict[str, str]], str | None], Awaitable[None]] | None" = None,
+        on_loaded_skills_persist: "Callable[[list[str], str | None], Awaitable[None]] | None" = None,
         enable_file_tools: bool = True,
         enable_bash: bool = True,
         enable_answer_tool: bool = False,
@@ -186,6 +188,7 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, SkillAgentContextM
         self._wiki_compiler: WikiCompiler | None = None
         self._wiki_structure: WikiStructure | None = None
         self._on_session_cleanup = on_session_cleanup
+        self._on_loaded_skills_persist = on_loaded_skills_persist
         self._enable_file_tools = enable_file_tools
         self._enable_bash = enable_bash
         self._enable_answer_tool = enable_answer_tool
@@ -487,8 +490,28 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, SkillAgentContextM
         reset_turn_usage_dedupe()
         self._active_skill = active_skill
         reset_loaded_skills()
+        cached_skills = await self._get_cached_skills()
+        from myrm_agent_harness.agent.skills.runtime.session_skills_rehydrate import (
+            SESSION_LOADED_SKILL_NAMES_CONTEXT_KEY,
+            rehydrate_loaded_skills_from_history,
+        )
+
+        session_skill_names: list[str] | None = None
+        if context:
+            raw_names = context.get(SESSION_LOADED_SKILL_NAMES_CONTEXT_KEY)
+            if isinstance(raw_names, list):
+                session_skill_names = [str(name) for name in raw_names if name]
+
+        rehydrated = rehydrate_loaded_skills_from_history(
+            chat_history,
+            cached_skills,
+            session_skill_names,
+        )
+        if rehydrated:
+            set_loaded_skills(rehydrated)
         if active_skill:
-            add_loaded_skill(active_skill)
+            if not any(s.name == active_skill.name for s in get_loaded_skills()):
+                add_loaded_skill(active_skill)
         await self._init_hook_lifecycle(active_skill, message_id, query)
         self._begin_memory_session(context, message_id)
 
@@ -513,17 +536,28 @@ class SkillAgent(SkillAgentToolsMixin, SkillAgentReviewMixin, SkillAgentContextM
         finally:
             # Capture loaded skills BEFORE resetting context vars
             active_skills_list = [s.name for s in get_loaded_skills()]
+            run_chat_id: str | None = None
+            if context:
+                raw_chat_id = context.get("chat_id")
+                if raw_chat_id:
+                    run_chat_id = str(raw_chat_id)
 
             # Create a background task for cleanup to ensure zero blocking of the UI thread
-            async def _background_cleanup(active_skills: list[str]) -> None:
+            async def _background_cleanup(active_skills: list[str], chat_id: str | None) -> None:
                 logger.info("_background_cleanup executing for skills: %s", active_skills)
                 try:
-                    await self._cleanup_session(query, chat_history, assistant_chunks, active_skills)
+                    await self._cleanup_session(
+                        query,
+                        chat_history,
+                        assistant_chunks,
+                        active_skills,
+                        run_chat_id=chat_id,
+                    )
                 except Exception as e:
                     logger.error("Background session cleanup failed: %s", e, exc_info=True)
 
             logger.info("Creating _background_cleanup task")
-            task = asyncio.create_task(_background_cleanup(active_skills_list))
+            task = asyncio.create_task(_background_cleanup(active_skills_list, run_chat_id))
             track_background_task(task)
 
             try:

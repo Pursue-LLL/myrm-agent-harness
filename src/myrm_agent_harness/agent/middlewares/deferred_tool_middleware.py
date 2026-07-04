@@ -143,6 +143,31 @@ class DeferredToolMiddleware(AgentMiddleware[Any, Any, Any]):
                     sorted(activated_tool_names),
                 )
 
+        from myrm_agent_harness.agent._skill_agent_context import get_loaded_skills
+        from myrm_agent_harness.agent.skills.runtime.attenuator import attenuate_tools
+
+        loaded_skills = get_loaded_skills()
+        if loaded_skills and request.tools:
+            tool_names: list[str] = []
+            for tool in request.tools:
+                name = tool.name if hasattr(tool, "name") else tool.get("name")
+                if name:
+                    tool_names.append(str(name))
+
+            attenuation = attenuate_tools(tool_names, loaded_skills)
+            allowed_names = frozenset(attenuation.tool_names)
+            if attenuation.removed_tools:
+                request.tools = [
+                    tool
+                    for tool in request.tools
+                    if (tool.name if hasattr(tool, "name") else tool.get("name")) in allowed_names
+                ]
+                logger.info(
+                    " DeferredToolMiddleware schema filter removed %d tool(s): %s",
+                    len(attenuation.removed_tools),
+                    attenuation.removed_tools,
+                )
+
         return await handler(request)
 
     def wrap_tool_call(

@@ -29,6 +29,16 @@ Layered web crawl engine with L1 HTTP / L2 Browser / L3 Stealth fallback, adapti
 |-----------|-------------|
 | fetchers/ | L1/L2/L3 fetcher implementations (HTTP, Browser, Stealth). |
 | router/ | AdaptiveRouter — self-learning fetcher selection with cost/latency optimization. |
+| escalation/ | L4 remote fetch hook — Protocol, ContextVar binding, metrics; vendors in server layer. |
+
+## L4 Escalation (WFEL)
+
+After local L1-L3 failure, `CrawlEngine._try_escalation` tries injected `FetchEscalationProvider`
+chain (Jina then Firecrawl when enabled in server config). Providers bind per agent run via
+`escalation/context.py` ContextVar — **not** global singleton mutation.
+
+- `deep_crawl` / `CrawlTaskExecutor` calls `crawl(..., allow_escalation=False)` to block L4 cost.
+- L2 Browser respects `get_bound_browser_launch_mode()` for extension CDP pages.
 
 ## Architecture: Deep Crawl Pipeline
 

@@ -324,6 +324,17 @@ class TestAttenuatorScannerGating:
         assert set(result.tool_names) == set(ALL_TOOLS)
         assert result.min_trust == SkillTrust.TRUSTED
 
+    def test_mixed_trusted_and_installed_partial_allowed_tools_union(self):
+        """TRUSTED without allowed_tools + INSTALLED with allowed_tools → union from declaring skill only."""
+        trusted = _make_skill(SkillTrust.TRUSTED, allowed_tools=None)
+        installed = _make_skill(
+            SkillTrust.INSTALLED, scanner_clean=True, allowed_tools=["file_write_tool", "web_search_tool"]
+        )
+        result = attenuate_tools(ALL_TOOLS, [trusted, installed])
+
+        assert set(result.tool_names) == {"file_write_tool", "web_search_tool"}
+        assert result.min_trust == SkillTrust.INSTALLED
+
 
 # ---------------------------------------------------------------------------
 # User trust override in SkillAgent._get_cached_skills
