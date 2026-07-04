@@ -38,7 +38,7 @@ myrm_agent_harness/toolkits/llms/adapters/tool_call_parsers.py	631
 myrm_agent_harness/toolkits/mcp/agent.py	663
 myrm_agent_harness/agent/skills/evolution/pipeline/screener.py	629
 myrm_agent_harness/agent/sub_agents/orchestrator.py	625
-myrm_agent_harness/agent/_internals/agent_runtime.py	615
+myrm_agent_harness/agent/_internals/agent_runtime.py	618
 myrm_agent_harness/toolkits/llms/fallback/manager.py	614
 myrm_agent_harness/agent/deep_research/orchestrator.py	613
 myrm_agent_harness/agent/skills/evolution/infra/monitor.py	609
@@ -46,7 +46,7 @@ myrm_agent_harness/agent/skill_agent.py	605
 myrm_agent_harness/infra/delivery/queue.py	604
 myrm_agent_harness/toolkits/cron/engine/executor.py	621
 myrm_agent_harness/toolkits/cron/manager.py	601
-myrm_agent_harness/agent/_internals/run_lifecycle.py	601
+myrm_agent_harness/agent/_internals/run_lifecycle.py	605
 myrm_agent_harness/toolkits/wiki/retrieval/indexer.py	618
 myrm_agent_harness/toolkits/memory/strategies/deduplicator.py	595
 myrm_agent_harness/agent/goals/manager.py	594
@@ -88,12 +88,12 @@ myrm_agent_harness/toolkits/llms/video/video_engine.py	528
 myrm_agent_harness/agent/skills/optimization/in_memory_storage.py	524
 myrm_agent_harness/toolkits/memory/ephemeral.py	522
 myrm_agent_harness/toolkits/wiki/maintenance/linter.py	509
-myrm_agent_harness/toolkits/wiki/pipeline/compiler.py	523
+myrm_agent_harness/toolkits/wiki/pipeline/compiler.py	531
 myrm_agent_harness/agent/sub_agents/prompts.py	520
 myrm_agent_harness/agent/sub_agents/planner/schemas.py	518
 myrm_agent_harness/agent/meta_tools/spawn_subagent/delegate_task_tool.py	515
 myrm_agent_harness/agent/event_log/logger.py	514
-myrm_agent_harness/agent/middlewares/_tool_guards.py	513
+myrm_agent_harness/agent/middlewares/_tool_guards.py	521
 myrm_agent_harness/toolkits/browser/checkpoint/orchestrator.py	509
 myrm_agent_harness/agent/security/guards/_loop_detectors.py	509
 myrm_agent_harness/agent/context_management/pipeline/processors/summarize_processor.py	507
