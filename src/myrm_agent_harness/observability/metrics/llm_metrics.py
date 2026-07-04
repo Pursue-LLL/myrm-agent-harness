@@ -40,7 +40,7 @@ llm_call_failed_total = create_counter(
 llm_token_usage_total = create_counter(
     "llm_token_usage_total",
     "Total number of tokens consumed",
-    ("model", "type"),  # type: input/output
+    ("model", "type"),  # token type: input/output
 )
 
 # LLM call duration

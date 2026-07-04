@@ -276,15 +276,10 @@ async def run_agent_loop(
         # Emit USER_TURN hook for auto-capture
         from myrm_agent_harness.agent.hooks.types import HookEvent
 
-        if existing_executor:
+        hook_exec = existing_executor or get_hook_executor()
+        if hook_exec is not None:
             _fire_and_forget(
-                existing_executor.execute(
-                    HookEvent.USER_TURN, {"user_input": str(query_text), "session_id": session_key or message_id}
-                )
-            )
-        else:
-            _fire_and_forget(
-                get_hook_executor().execute(
+                hook_exec.execute(
                     HookEvent.USER_TURN, {"user_input": str(query_text), "session_id": session_key or message_id}
                 )
             )
