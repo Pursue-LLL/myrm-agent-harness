@@ -25,7 +25,7 @@ Bound skills → get_metadata_summary() → XML in skill_select_tool.description
 
 **Loaded-skill deduplication**: Uses `get_loaded_skills()` ContextVar to detect already-loaded skills. Returns a concise summary via `_build_reload_summary()` (tool names from `MCPSkillData.tools` + usage hint, ~200 tokens) instead of the full SOP, preventing the select → compact → re-select token waste loop.
 
-**Cross-turn persistence**: `SkillAgent.run()` calls `rehydrate_loaded_skills_from_history()` (`agent/skills/runtime/session_skills_rehydrate.py`) before the first model call, restoring skills selected in prior turns from `chat_history` tool-call records.
+**Cross-turn persistence**: `SkillAgent.run()` calls `rehydrate_loaded_skills_from_history()` (`agent/skills/runtime/session_skills_rehydrate.py`) before the first model call. It merges prior `skill_select_tool` evidence from `chat_history` with `context.session_loaded_skill_names` (server SSOT on `Chat.session_loaded_skill_names`, survives compaction and the 50-message history window).
 
 **Usage stats**: First load / file read records via `backends.skills.usage_recorder.record_skill_selection()` → `{skill_dir}/.stats.json` for Curator. Reload summaries do not re-record. Turn-level dedupe prevents double-count within one agent run.
 

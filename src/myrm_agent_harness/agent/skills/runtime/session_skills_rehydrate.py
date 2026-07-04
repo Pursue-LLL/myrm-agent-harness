@@ -6,10 +6,12 @@
 - utils.chat_utils::ChatHistoryReq (POS: Raw chat history entries)
 
 [OUTPUT]
-- rehydrate_loaded_skills_from_history(): Restore ContextVar loaded_skills from prior turns
+- SESSION_LOADED_SKILL_NAMES_CONTEXT_KEY: Context key for chat-level loaded-skill SSOT
+- merge_loaded_skill_name_sources(): Union history-derived and SSOT skill names
+- rehydrate_loaded_skills_from_history(): Restore ContextVar loaded_skills from history ∪ SSOT
 
 [POS]
-Session skill contract persistence without a separate checkpoint store.
+Session skill contract: merge chat history tool-call evidence with server-persisted skill names at run() start.
 """
 
 from __future__ import annotations
