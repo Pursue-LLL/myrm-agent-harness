@@ -210,6 +210,36 @@ class TestRenderUiSuccessAndEdges:
             )
             assert result.startswith("Failed to render UI: RuntimeError: registry exploded")
 
+    def test_render_ui_dispatches_realtime_ui_update_custom_event(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """render_ui must emit LangGraph custom ui_update for stream_dispatcher realtime path."""
+        captured: list[tuple[str, object]] = []
+
+        def _capture(name: str, payload: object) -> None:
+            captured.append((name, payload))
+
+        monkeypatch.setattr(
+            "langchain_core.callbacks.manager.dispatch_custom_event",
+            _capture,
+        )
+
+        with ArtifactContextManager():
+            result = render_ui(
+                title="Realtime",
+                components=[{"id": "t1", "type": "text", "props": {"text": "live"}}],
+                root_ids=["t1"],
+            )
+
+        assert "Realtime" in result
+        assert len(captured) == 1
+        assert captured[0][0] == "ui_update"
+        payload = captured[0][1]
+        assert isinstance(payload, dict)
+        assert payload.get("subtype") == "ui_artifact"
+        data = payload.get("data")
+        assert isinstance(data, list) and data[0]["title"] == "Realtime"
+
 
 class TestRenderUiFailClosed:
     def test_unknown_component_type_returns_error(self) -> None:

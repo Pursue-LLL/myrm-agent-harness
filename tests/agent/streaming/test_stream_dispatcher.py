@@ -121,6 +121,41 @@ async def test_dispatch_custom_agent_status(ctx):
 
 
 @pytest.mark.asyncio
+async def test_dispatch_custom_ui_update(ctx):
+    """Custom event with name='ui_update' dispatches UI_UPDATE (render_ui realtime path)."""
+    executor = _make_executor(ctx)
+    artifact_payload = {
+        "surface_id": "form_realtime",
+        "title": "Realtime UI",
+        "components": [{"id": "t1", "type": "text", "props": {"text": "ok"}}],
+        "root_ids": ["t1"],
+        "data": {},
+        "actions": [],
+    }
+    data = {
+        "name": "ui_update",
+        "data": {
+            "subtype": "ui_artifact",
+            "data": [artifact_payload],
+        },
+    }
+    chunk = ("custom", data)
+
+    await executor._dispatch_chunk(chunk, ctx, [])
+
+    events = executor._compactor.events
+    ui_events = [
+        event
+        for event in events
+        if isinstance(event, AgentStreamEvent) and event.type == AgentEventType.UI_UPDATE
+    ]
+    assert len(ui_events) == 1
+    assert ui_events[0].messageId == "disp_test"
+    assert ui_events[0].extra_data.get("subtype") == "ui_artifact"
+    assert ui_events[0].data == [artifact_payload]
+
+
+@pytest.mark.asyncio
 async def test_dispatch_custom_capability_gap(ctx):
     """Custom event with name='capability_gap' dispatches CAPABILITY_GAP."""
     executor = _make_executor(ctx)
