@@ -33,6 +33,12 @@ class ConsensusConfig:
         timeout_per_model: per-model timeout in seconds.
         timeout_total: global timeout in seconds for the entire run.
         max_retries_per_model: retry attempts per reference model.
+        reference_max_tokens: optional cap on reference model output length.
+            ``None`` (default) = uncapped, preserving prior behavior.  Set a
+            value (e.g. 600) to make references give concise advice — the
+            aggregator only needs the gist, so a cap measurably cuts per-turn
+            wall time without meaningful quality loss.  Does NOT cap the
+            aggregator (its output is the user-visible answer).
     """
 
     reference_temperature: float = 0.6
@@ -41,6 +47,7 @@ class ConsensusConfig:
     timeout_per_model: float = 120.0
     timeout_total: float = 300.0
     max_retries_per_model: int = 2
+    reference_max_tokens: int | None = None
 
 
 @dataclass(slots=True)

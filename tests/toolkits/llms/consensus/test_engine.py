@@ -628,6 +628,73 @@ class TestTemperatureSeparation:
 
 
 # -----------------------------------------------------------------------
+# reference_max_tokens — output cap for reference models only
+# -----------------------------------------------------------------------
+
+
+class TestReferenceMaxTokens:
+    """``reference_max_tokens`` must reach references via ``bind(max_tokens=…)``
+    but must NOT leak to the aggregator (whose output is user-visible and
+    should not be truncated).
+    """
+
+    async def test_batch_binds_max_tokens_to_refs_only(self):
+        ref_a = _make_llm("ref-a", "reference answer a")
+        ref_b = _make_llm("ref-b", "reference answer b")
+        agg = _make_llm("agg", "synthesis")
+        cfg = ConsensusConfig(
+            reference_temperature=0.7,
+            aggregator_temperature=0.3,
+            reference_max_tokens=600,
+        )
+
+        engine = ConsensusEngine(
+            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
+        )
+        result = await engine.run("q")
+
+        assert result.success
+        ref_a.bind.assert_called_with(temperature=0.7, max_tokens=600)
+        ref_b.bind.assert_called_with(temperature=0.7, max_tokens=600)
+        agg.bind.assert_called_with(temperature=0.3)
+
+    async def test_stream_binds_max_tokens_to_refs_only(self):
+        ref_a = _make_llm("ref-a", "reference answer a")
+        ref_b = _make_llm("ref-b", "reference answer b")
+        agg = _make_llm("agg", "synthesis")
+        cfg = ConsensusConfig(
+            reference_temperature=0.8,
+            aggregator_temperature=0.2,
+            reference_max_tokens=400,
+        )
+
+        engine = ConsensusEngine(
+            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
+        )
+        async for _ in engine.run_stream("q"):
+            pass
+
+        ref_a.bind.assert_called_with(temperature=0.8, max_tokens=400)
+        ref_b.bind.assert_called_with(temperature=0.8, max_tokens=400)
+        agg.bind.assert_called_with(temperature=0.2)
+
+    async def test_none_omits_max_tokens_from_bind(self):
+        """Default ``None`` must not inject ``max_tokens`` at all."""
+        ref = _make_llm("ref", "reference answer")
+        agg = _make_llm("agg", "synthesis")
+        cfg = ConsensusConfig(reference_max_tokens=None)
+
+        engine = ConsensusEngine(
+            reference_llms=[ref], aggregator_llm=agg, config=cfg
+        )
+        result = await engine.run("q")
+
+        assert result.success
+        ref.bind.assert_called_with(temperature=cfg.reference_temperature)
+        agg.bind.assert_not_called()
+
+
+# -----------------------------------------------------------------------
 # Reasoning-content fallback — robustness for reasoning models
 # -----------------------------------------------------------------------
 

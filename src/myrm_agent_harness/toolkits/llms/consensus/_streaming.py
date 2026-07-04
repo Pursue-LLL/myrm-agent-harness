@@ -25,6 +25,7 @@ async def collect_stream(
     llm: BaseChatModel,
     messages: list[BaseMessage],
     temperature: float,
+    max_tokens: int | None = None,
 ) -> str:
     """Stream a model's answer into a single string.
 
@@ -37,12 +38,19 @@ async def collect_stream(
     model instance; ``litellm.drop_params`` ignores it for models that do not
     accept a custom temperature.
 
+    ``max_tokens``, when set, caps the output length.  Used by reference calls
+    to limit advisor verbosity (the aggregator only needs concise advice).
+    ``None`` (default) omits the parameter, preserving prior uncapped behavior.
+
     Falls back to ``reasoning_content`` when a reasoning model (e.g.
     DeepSeek-R1, GLM) streams its answer there with an empty ``content``.
     """
+    bind_kwargs: dict[str, object] = {"temperature": temperature}
+    if max_tokens is not None:
+        bind_kwargs["max_tokens"] = max_tokens
     content_parts: list[str] = []
     reasoning_parts: list[str] = []
-    async for chunk in llm.bind(temperature=temperature).astream(messages):
+    async for chunk in llm.bind(**bind_kwargs).astream(messages):
         if chunk.content:
             content_parts.append(str(chunk.content))
             continue

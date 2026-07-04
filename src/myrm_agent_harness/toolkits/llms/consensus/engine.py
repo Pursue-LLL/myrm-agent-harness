@@ -357,7 +357,7 @@ class ConsensusEngine:
             t0 = time.monotonic()
             try:
                 streamed = await asyncio.wait_for(
-                    collect_stream(llm, messages, cfg.reference_temperature),
+                    collect_stream(llm, messages, cfg.reference_temperature, cfg.reference_max_tokens),
                     timeout=cfg.timeout_per_model,
                 )
                 content = streamed.strip()
