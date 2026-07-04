@@ -224,9 +224,25 @@ venv = ".venv"
 reportMissingImports = false
 reportMissingTypeStubs = false
 reportMissingModuleSource = false
-reportGeneralTypeIssues = false
 reportUnsupportedDunderAll = false
-reportUnnecessaryTypeIgnoreComment = true
+# pyright 1.1.348+ 将 reportGeneralTypeIssues 拆分为细粒度规则。
+# LangChain/LiteLLM 等第三方库类型定义不完善产生大量噪音，逐个抑制（与 OpenAI Agents SDK 同等策略）。
+reportGeneralTypeIssues = false
+reportAttributeAccessIssue = false
+reportArgumentType = false
+reportCallIssue = false
+reportReturnType = false
+reportAssignmentType = false
+reportOperatorIssue = false
+reportInvalidTypeForm = false
+reportPrivateImportUsage = false
+reportInvalidTypeVarUse = false
+reportInvalidTypeArguments = false
+reportIndexIssue = false
+reportTypedDictNotRequiredAccess = false
+reportRedeclaration = false
+# 保留有价值的规则（默认 error）：Optional 家族 + UndefinedVariable 已证明能发现真实 bug。
+reportUnnecessaryTypeIgnoreComment = "warning"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
