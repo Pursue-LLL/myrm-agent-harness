@@ -5,6 +5,7 @@
 
 [OUTPUT]
 - SessionEntry: Immutable record of a saved browser session.
+- SessionSummary: Lightweight metadata without sensitive storage_state.
 - VaultMetrics: Runtime metrics for SessionVault operations.
 
 [POS]
@@ -26,6 +27,21 @@ class SessionEntry:
     storage_state: Any
     created_at: float
     expires_at: float | None
+
+    @property
+    def is_expired(self) -> bool:
+        return self.expires_at is not None and time.time() > self.expires_at
+
+
+@dataclass(frozen=True, slots=True)
+class SessionSummary:
+    """Lightweight session metadata — excludes sensitive storage_state."""
+
+    domain: str
+    created_at: float
+    expires_at: float | None
+    cookie_count: int
+    local_storage_count: int
 
     @property
     def is_expired(self) -> bool:

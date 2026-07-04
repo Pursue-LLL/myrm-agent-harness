@@ -199,6 +199,32 @@ async def test_generate_backlinks(wiki_structure: WikiStructure, mock_llm: Async
     assert "[[Related]]" in content
 
 
+@pytest.mark.asyncio
+async def test_generate_backlinks_idempotent(
+    wiki_structure: WikiStructure, mock_llm: AsyncMock, mock_indexer: AsyncMock
+) -> None:
+    """Calling _generate_backlinks twice must not duplicate the section."""
+    from myrm_agent_harness.toolkits.wiki.core.types import ConceptInfo
+
+    config = WikiConfig(enable_backlinks=True)
+    compile_config = WikiCompileConfig(require_approval=False)
+    compiler = WikiCompiler(mock_llm, wiki_structure, config, compile_config, indexer=mock_indexer)
+
+    concept_path = wiki_structure.get_concept_file_path("Test")
+    concept_path.write_text("## Compiled Truth\nContent.")
+
+    concepts = [
+        ConceptInfo(name="Test", definition="def", mentions=2, source_files=["a.md"], related_concepts=["Related"]),
+    ]
+
+    await compiler._generate_backlinks(concepts)
+    await compiler._generate_backlinks(concepts)
+
+    content = concept_path.read_text()
+    assert content.count("## Related Concepts") == 1, "Section duplicated after second call"
+    assert content.count("[[Related]]") == 1, "Wikilink duplicated after second call"
+
+
 # --- compile_all with queue ---
 
 

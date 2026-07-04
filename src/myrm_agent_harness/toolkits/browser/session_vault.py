@@ -58,7 +58,7 @@ from .session_vault_exceptions import (
     EncryptionError,
     InvalidDomainError,
 )
-from .session_vault_types import SessionEntry, VaultMetrics
+from .session_vault_types import SessionEntry, SessionSummary, VaultMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -418,6 +418,41 @@ class SessionVault:
     async def list_domains(self) -> list[str]:
         """Return all domains that have a saved session."""
         return await self._backend.list_all()
+
+    async def list_summaries(self) -> list[SessionSummary]:
+        """Return lightweight metadata for all saved sessions.
+
+        Decrypts each entry to extract metadata but does NOT cache the
+        full storage_state, avoiding unnecessary memory consumption.
+        Corrupted or unreadable entries are silently skipped.
+        """
+        domains = await self._backend.list_all()
+        if not domains:
+            return []
+
+        summaries: list[SessionSummary] = []
+        for domain in domains:
+            data = await self._backend.read(domain)
+            if data is None:
+                continue
+            try:
+                plaintext = self._decrypt(data)
+                raw = orjson.loads(plaintext)
+                storage_state = raw.get("storage_state", {})
+                cookies = storage_state.get("cookies", [])
+                origins = storage_state.get("origins", [])
+                ls_count = sum(len(o.get("localStorage", [])) for o in origins)
+                summary = SessionSummary(
+                    domain=raw["domain"],
+                    created_at=raw["created_at"],
+                    expires_at=raw.get("expires_at"),
+                    cookie_count=len(cookies),
+                    local_storage_count=ls_count,
+                )
+                summaries.append(summary)
+            except Exception:
+                logger.warning("Failed to read session summary for %s, skipping", domain)
+        return summaries
 
     async def _check_and_remove_if_expired(self, domain: str) -> bool:
         """Check if session is expired/corrupted and remove it.

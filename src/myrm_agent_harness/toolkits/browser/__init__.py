@@ -13,6 +13,7 @@ Reuses the existing ``ManagedBrowser`` (Patchright) infrastructure.
 - screenshot_diff::DiffResult (POS: immutable screenshot comparison result)
 - session_vault::SessionVault (POS: AES-256-GCM encrypted session storage)
 - session_vault::SessionEntry (POS: immutable session record)
+- session_vault_types::SessionSummary (POS: lightweight session metadata without sensitive data)
 - exceptions::BrowserError (POS: browser toolkit root exception)
 - retry_policy::RetryPolicy (POS: retry policy framework)
 - observability::BrowserObservability (POS: browser observability manager)
@@ -25,6 +26,7 @@ Reuses the existing ``ManagedBrowser`` (Patchright) infrastructure.
 - DiffResult: immutable screenshot comparison result (re-export)
 - SessionVault: AES-256-GCM encrypted session storage (re-export)
 - SessionEntry: immutable session record (re-export)
+- SessionSummary: lightweight session metadata without sensitive data (re-export)
 - EmulationConfig: type-safe browser environment emulation config (re-export)
 - BrowserError + 12 subclasses: exception type hierarchy (re-export)
 - RetryPolicy + 3 subclasses: retry policy classes (re-export)
@@ -113,7 +115,7 @@ if TYPE_CHECKING:
         InvalidDomainError,
         SessionVaultError,
     )
-    from .session_vault_types import SessionEntry, VaultMetrics
+    from .session_vault_types import SessionEntry, SessionSummary, VaultMetrics
 
 __all__ = [
     "ActionCaptureEngine",
@@ -158,6 +160,7 @@ __all__ = [
     "RefNotFoundError",
     "RetryPolicy",
     "SessionEntry",
+    "SessionSummary",
     "SessionVault",
     "SessionVaultBackend",
     "SessionVaultError",
@@ -205,7 +208,7 @@ _LAZY_MODULES = {
         "cleanup_orphan_processes",
     ],
     "session_vault": ["SessionVault"],
-    "session_vault_types": ["SessionEntry", "VaultMetrics"],
+    "session_vault_types": ["SessionEntry", "SessionSummary", "VaultMetrics"],
     "backends.file_backend": ["FileVaultBackend"],
     "backends.protocol": ["SessionVaultBackend"],
     "backends.storage_backend": ["StorageVaultBackend"],

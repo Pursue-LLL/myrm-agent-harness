@@ -456,8 +456,15 @@ class WikiCompiler:
         index_path.write_text(index_content, encoding="utf-8")
         logger.info(f"Built index: {index_path}")
 
+    _RELATED_SECTION_RE: ClassVar[re.Pattern[str]] = re.compile(
+        r"\n+## Related Concepts\n.*", re.DOTALL
+    )
+
     async def _generate_backlinks(self, concepts: list[ConceptInfo]) -> int:
-        """Generate backlinks between related concepts (Obsidian format)."""
+        """Generate backlinks between related concepts (Obsidian format).
+
+        Idempotent: replaces existing Related Concepts section if present.
+        """
         backlinks_count = 0
 
         for concept in concepts:
@@ -470,13 +477,14 @@ class WikiCompiler:
 
             try:
                 content = article_path.read_text(encoding="utf-8")
-                # Append related concepts if not already explicitly embedded in the text
+
                 backlinks_section = "\n\n## Related Concepts\n\n"
                 for related in concept.related_concepts:
-                    # Using Obsidian Wikilinks style
                     backlinks_section += f"- [[{related}]]\n"
                     backlinks_count += 1
 
+                # Idempotent: strip existing section before appending
+                content = self._RELATED_SECTION_RE.sub("", content)
                 content += backlinks_section
                 article_path.write_text(content, encoding="utf-8")
 
