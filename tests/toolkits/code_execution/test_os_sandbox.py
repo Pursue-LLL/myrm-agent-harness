@@ -377,16 +377,40 @@ class TestDetector:
         assert status.enabled is True
         assert status.provider_name == "seatbelt"
 
-    def test_windows_null(self) -> None:
-        provider, status = detect_sandbox_provider(
-            SandboxMode.AUTO, _windows_platform()
+    def test_windows_null_when_unavailable(self) -> None:
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (
+            AppContainerProvider,
         )
+
+        with patch.object(AppContainerProvider, "is_available", return_value=False):
+            provider, status = detect_sandbox_provider(
+                SandboxMode.AUTO, _windows_platform()
+            )
         assert isinstance(provider, NullProvider)
         assert status.enabled is False
+        assert "AppContainer unavailable" in status.reason
 
-    def test_enable_windows_raises(self) -> None:
-        with pytest.raises(RuntimeError, match="not supported on Windows"):
-            detect_sandbox_provider(SandboxMode.ENABLE, _windows_platform())
+    def test_enable_windows_raises_when_unavailable(self) -> None:
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (
+            AppContainerProvider,
+        )
+
+        with patch.object(AppContainerProvider, "is_available", return_value=False):
+            with pytest.raises(RuntimeError, match="AppContainer not available"):
+                detect_sandbox_provider(SandboxMode.ENABLE, _windows_platform())
+
+    def test_windows_appcontainer_when_available(self) -> None:
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (
+            AppContainerProvider,
+        )
+
+        with patch.object(AppContainerProvider, "is_available", return_value=True):
+            provider, status = detect_sandbox_provider(
+                SandboxMode.AUTO, _windows_platform()
+            )
+        assert isinstance(provider, AppContainerProvider)
+        assert status.enabled is True
+        assert status.provider_name == "appcontainer"
 
     @patch(
         "myrm_agent_harness.toolkits.code_execution.sandbox.detector._is_inside_container",
@@ -407,6 +431,170 @@ class TestDetector:
         assert isinstance(provider, NullProvider)
         assert status.enabled is False
         assert "no sandbox tool" in status.reason
+
+
+# ---------------------------------------------------------------------------
+# AppContainerProvider
+# ---------------------------------------------------------------------------
+
+
+class TestAppContainerProvider:
+    def test_name(self) -> None:
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (
+            AppContainerProvider,
+        )
+
+        assert AppContainerProvider().name == "appcontainer"
+
+    @patch("sys.platform", "win32")
+    @patch(
+        "myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer._get_win_build",
+        return_value=22000,
+    )
+    @patch("shutil.which", return_value="C:\\Windows\\System32\\icacls.exe")
+    def test_available_on_win10(self, _a: object, _b: object) -> None:
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (
+            AppContainerProvider,
+        )
+
+        assert AppContainerProvider().is_available() is True
+
+    @patch("sys.platform", "darwin")
+    def test_unavailable_on_non_windows(self) -> None:
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (
+            AppContainerProvider,
+        )
+
+        assert AppContainerProvider().is_available() is False
+
+    @patch("sys.platform", "win32")
+    @patch(
+        "myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer._get_win_build",
+        return_value=9600,
+    )
+    def test_unavailable_on_old_windows(self, _mock: object) -> None:
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (
+            AppContainerProvider,
+        )
+
+        assert AppContainerProvider().is_available() is False
+
+    def test_wrap_command_passthrough(self) -> None:
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (
+            AppContainerProvider,
+        )
+
+        provider = AppContainerProvider()
+        exe, args = provider.wrap_command(
+            "cmd.exe", ("/Q",), "C:\\workspace", SandboxPolicy()
+        )
+        assert exe == "cmd.exe"
+        assert args == ("/Q",)
+
+    @pytest.mark.asyncio
+    async def test_create_process_returns_none_on_failure(self) -> None:
+        """Verify create_process returns None when _ensure_container raises."""
+        from unittest.mock import AsyncMock
+
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (
+            AppContainerProvider,
+        )
+
+        provider = AppContainerProvider()
+        provider._ensure_container = AsyncMock(side_effect=OSError("test"))
+
+        with patch(
+            "myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer.sys.platform",
+            "win32",
+        ):
+            result = await provider.create_process(
+                "cmd.exe", ("/Q",), "C:\\workspace", SandboxPolicy(), {}
+            )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_create_process_returns_none_on_non_windows(self) -> None:
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (
+            AppContainerProvider,
+        )
+
+        provider = AppContainerProvider()
+        result = await provider.create_process(
+            "bash", ("-l",), "/tmp", SandboxPolicy(), {}
+        )
+        assert result is None
+
+    def test_policy_fingerprint_deterministic(self) -> None:
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (
+            _compute_policy_fingerprint,
+        )
+
+        p1 = SandboxPolicy(writable_paths=("/a", "/b"), allow_network=True)
+        p2 = SandboxPolicy(writable_paths=("/a", "/b"), allow_network=True)
+        assert _compute_policy_fingerprint(p1, "/work") == _compute_policy_fingerprint(p2, "/work")
+
+    def test_policy_fingerprint_differs(self) -> None:
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (
+            _compute_policy_fingerprint,
+        )
+
+        p1 = SandboxPolicy(allow_network=True)
+        p2 = SandboxPolicy(allow_network=False)
+        assert _compute_policy_fingerprint(p1, "/work") != _compute_policy_fingerprint(p2, "/work")
+
+    def test_cleanup_noop_when_no_container(self) -> None:
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (
+            AppContainerProvider,
+        )
+
+        provider = AppContainerProvider()
+        provider.cleanup()  # should not raise
+
+
+class TestAppContainerProcess:
+    def test_process_attributes(self) -> None:
+        from unittest.mock import MagicMock
+
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (
+            AppContainerProcess,
+        )
+
+        mock_handle = MagicMock()
+        mock_stdin = MagicMock()
+        mock_stdout = MagicMock()
+        mock_kernel32 = MagicMock()
+
+        proc = AppContainerProcess(mock_handle, 12345, mock_stdin, mock_stdout, mock_kernel32)
+        assert proc.pid == 12345
+        assert proc.stdin is mock_stdin
+        assert proc.stdout is mock_stdout
+        assert proc.stderr is None
+        assert proc.returncode is None
+
+    def test_terminate_calls_terminate_process(self) -> None:
+        from unittest.mock import MagicMock
+
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (
+            AppContainerProcess,
+        )
+
+        mock_kernel32 = MagicMock()
+        mock_handle = MagicMock()
+        proc = AppContainerProcess(mock_handle, 1, MagicMock(), MagicMock(), mock_kernel32)
+        proc.terminate()
+        mock_kernel32.TerminateProcess.assert_called_once_with(mock_handle, 1)
+
+
+class TestSandboxProviderProtocol:
+    """Verify create_process Protocol default behavior."""
+
+    @pytest.mark.asyncio
+    async def test_null_provider_create_process_returns_none(self) -> None:
+        provider = NullProvider()
+        result = await provider.create_process(
+            "/bin/bash", ("--norc",), "/workspace", SandboxPolicy(), {}
+        )
+        assert result is None
 
 
 # ---------------------------------------------------------------------------

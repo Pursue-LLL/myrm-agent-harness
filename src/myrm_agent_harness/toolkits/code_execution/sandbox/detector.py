@@ -87,12 +87,25 @@ def detect_sandbox_provider(
         )
 
     if p.is_windows:
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (
+            AppContainerProvider,
+        )
+
+        candidate = AppContainerProvider()
+        if candidate.is_available():
+            logger.info(" OS-level sandbox: AppContainer (Windows)")
+            return candidate, SandboxStatus(enabled=True, provider_name="appcontainer")
+
         if mode == SandboxMode.ENABLE:
-            raise RuntimeError("OS-level sandbox not supported on Windows")
+            raise RuntimeError(
+                "OS-level sandbox required but AppContainer not available. "
+                "Requires Windows 10+ with icacls.exe."
+            )
+        logger.warning(" Windows: AppContainer unavailable — running without sandbox")
         return NullProvider(), SandboxStatus(
             enabled=False,
             provider_name="null",
-            reason="Windows: no OS-level sandbox available",
+            reason="Windows: AppContainer unavailable (requires Windows 10+)",
         )
 
     if p.os_type == "linux":

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol, runtime_checkable
@@ -91,3 +92,22 @@ class SandboxProvider(Protocol):
     def is_available(self) -> bool:
         """Check whether this provider can run on the current system."""
         ...
+
+    async def create_process(
+        self,
+        shell_path: str,
+        shell_args: tuple[str, ...],
+        work_dir: str,
+        policy: SandboxPolicy,
+        env: dict[str, str],
+    ) -> asyncio.subprocess.Process | None:
+        """Create a sandboxed process using native OS APIs.
+
+        Providers that require direct OS API access (e.g. Windows AppContainer)
+        override this to bypass ``asyncio.create_subprocess_exec`` which cannot
+        pass platform-specific security attributes.
+
+        Returns None to indicate the caller should fall back to
+        ``wrap_command()`` + ``create_subprocess_exec()``.
+        """
+        return None

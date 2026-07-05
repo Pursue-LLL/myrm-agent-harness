@@ -25,6 +25,7 @@ Linux bubblewrap (bwrap) sandbox provider.
 
 from __future__ import annotations
 
+import asyncio
 import shutil
 
 from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import (
@@ -126,3 +127,14 @@ class BwrapProvider:
         )
 
         return _BWRAP_BIN, tuple(args)
+
+    async def create_process(
+        self,
+        shell_path: str,
+        shell_args: tuple[str, ...],
+        work_dir: str,
+        policy: SandboxPolicy,
+        env: dict[str, str],
+    ) -> asyncio.subprocess.Process | None:
+        """Bwrap uses wrap_command path; no native process creation needed."""
+        return None

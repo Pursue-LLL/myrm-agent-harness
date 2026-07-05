@@ -2,15 +2,15 @@
 
 [INPUT]
 session.persistent_session::PersistentSession (POS: Abstract persistent shell session base)
-sandbox::detect_sandbox_provider (POS: Sandbox detection and wrapping)
+sandbox::detect_sandbox_provider (POS: Sandbox detection and provider selection)
 
 [OUTPUT]
-LocalPersistentSession: Concrete local shell session with bwrap sandbox support.
+LocalPersistentSession: Concrete local shell session with OS-level sandbox support.
 create_persistent_session: Factory function for creating sessions.
 
 [POS]
-Concrete PersistentSession for local execution. Integrates bwrap sandbox wrapping
-and manages the actual shell subprocess creation.
+Concrete PersistentSession for local execution. Integrates OS-level sandbox
+(bwrap/seatbelt/AppContainer) and manages the actual shell subprocess creation.
 """
 
 from __future__ import annotations
@@ -70,11 +70,28 @@ class LocalPersistentSession(PersistentSession):
     def is_sandboxed(self) -> bool:
         return self._sandbox_status is not None and self._sandbox_status.enabled
 
+    async def close(self) -> None:
+        await super().close()
+        if hasattr(self._sandbox_provider, "cleanup"):
+            self._sandbox_provider.cleanup()
+
     async def _create_process(self) -> asyncio.subprocess.Process:
         p = self._platform
         shell_path, shell_args = p.shell_path, p.shell_args
+        merged_env = {**os.environ, **self.config.env}
 
         if self._sandbox_status and self._sandbox_status.enabled and self._sandbox_policy:
+            native_proc = await self._sandbox_provider.create_process(
+                shell_path=shell_path,
+                shell_args=shell_args,
+                work_dir=self.config.work_dir,
+                policy=self._sandbox_policy,
+                env=merged_env,
+            )
+            if native_proc is not None:
+                logger.info(f" Shell launch (native sandbox): {self._sandbox_provider.name}")
+                return native_proc
+
             shell_path, shell_args = self._sandbox_provider.wrap_command(
                 shell_path=shell_path,
                 shell_args=shell_args,
@@ -87,7 +104,7 @@ class LocalPersistentSession(PersistentSession):
             "stdout": asyncio.subprocess.PIPE,
             "stderr": asyncio.subprocess.STDOUT,
             "cwd": self.config.work_dir,
-            "env": {**os.environ, **self.config.env},
+            "env": merged_env,
         }
         if p.is_windows:
             kwargs["creationflags"] = p.process_group_creation_flag

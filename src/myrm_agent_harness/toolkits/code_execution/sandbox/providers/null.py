@@ -17,6 +17,8 @@ No-op sandbox provider — transparent passthrough.
 
 from __future__ import annotations
 
+import asyncio
+
 from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import (
     SandboxPolicy,
 )
@@ -40,3 +42,13 @@ class NullProvider:
 
     def is_available(self) -> bool:
         return True
+
+    async def create_process(
+        self,
+        shell_path: str,
+        shell_args: tuple[str, ...],
+        work_dir: str,
+        policy: SandboxPolicy,
+        env: dict[str, str],
+    ) -> asyncio.subprocess.Process | None:
+        return None

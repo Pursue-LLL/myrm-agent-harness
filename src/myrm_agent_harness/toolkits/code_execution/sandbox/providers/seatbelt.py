@@ -19,6 +19,7 @@ macOS sandbox-exec (Seatbelt) sandbox provider.
 
 from __future__ import annotations
 
+import asyncio
 import os
 
 from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import (
@@ -139,3 +140,14 @@ class SeatbeltProvider:
         profile = _generate_sbpl_profile(policy, work_dir)
         args = ("-p", profile, shell_path, *shell_args)
         return _SANDBOX_EXEC, args
+
+    async def create_process(
+        self,
+        shell_path: str,
+        shell_args: tuple[str, ...],
+        work_dir: str,
+        policy: SandboxPolicy,
+        env: dict[str, str],
+    ) -> asyncio.subprocess.Process | None:
+        """Seatbelt uses wrap_command path; no native process creation needed."""
+        return None
