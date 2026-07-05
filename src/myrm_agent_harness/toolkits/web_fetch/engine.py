@@ -63,6 +63,7 @@ from .fetchers.stealth_fetcher import StealthFetcher
 from .http3_probe import get_http3_retry_metrics
 from .pipeline import ContentPipeline
 from .router.adaptive_router import AdaptiveRouter, RouterStats
+from .bilibili_extractor import extract_bilibili_subtitle, is_bilibili_url
 from .youtube_extractor import extract_youtube_transcript, is_youtube_url
 
 if TYPE_CHECKING:
@@ -217,6 +218,19 @@ class CrawlEngine:
         """Set browser launch mode for L2 fetches (e.g. EXTENSION for logged-in pages)."""
         self._browser_launch_mode = launch_mode
         self._browser_fetcher.set_launch_mode_preference(launch_mode)
+
+    async def _load_bilibili_cookies(self) -> dict[str, str] | None:
+        """Load bilibili.com cookies from SessionVault for subtitle API access."""
+        vault = self._http_fetcher._session_vault
+        if not vault:
+            return None
+        try:
+            entry = await vault.load("bilibili.com")
+            if not entry or not entry.storage_state or "cookies" not in entry.storage_state:
+                return None
+            return {c["name"]: c["value"] for c in entry.storage_state["cookies"] if "name" in c and "value" in c}
+        except Exception:
+            return None
 
     async def _try_escalation(self, url: str, *, max_chars: int = 0) -> tuple[Document | None, FetchResult | None]:
         """Try injected remote providers after local L1-L3 exhaustion."""
@@ -691,6 +705,25 @@ class CrawlEngine:
                     doc = await extract_youtube_transcript(
                         url,
                         preferred_languages=self._youtube_languages,
+                        proxy_pool=self._http_fetcher._proxy_pool,
+                    )
+                if doc is not None:
+                    fetch_result = None
+                else:
+                    async with asyncio.timeout(self._crawl_timeout):
+                        doc, fetch_result = await self._crawl_with_degradation(
+                            url,
+                            etag=etag,
+                            last_modified=last_modified,
+                            max_chars=max_chars,
+                            allow_escalation=allow_escalation,
+                        )
+            elif is_bilibili_url(url):
+                async with asyncio.timeout(self._crawl_timeout):
+                    bilibili_cookies = await self._load_bilibili_cookies()
+                    doc = await extract_bilibili_subtitle(
+                        url,
+                        cookies=bilibili_cookies,
                         proxy_pool=self._http_fetcher._proxy_pool,
                     )
                 if doc is not None:

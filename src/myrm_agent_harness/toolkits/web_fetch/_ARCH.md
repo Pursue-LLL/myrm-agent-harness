@@ -23,6 +23,7 @@ Layered web crawl engine with L1 HTTP / L2 Browser / L3 Stealth fallback, adapti
 | antibot_detector.py | Util | Anti-bot detection heuristics. | ✅ |
 | binary_router.py | Util | Binary content type routing. | ✅ |
 | youtube_extractor.py | Util | YouTube transcript fast-path via `[web]` optional `youtube-transcript-api` + oEmbed metadata (title/author); HTML fallback when missing. | ✅ |
+| bilibili_extractor.py | Util | Bilibili subtitle fast-path via public API + SessionVault cookie for AI subtitles; Browser fallback when unavailable. | ✅ |
 | http3_probe.py | Util | HTTP/3 protocol probe. | ✅ |
 
 | Submodule | Description |
