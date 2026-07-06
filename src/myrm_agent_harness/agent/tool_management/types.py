@@ -7,7 +7,7 @@
 [OUTPUT]
 - ToolSource: enum of tool origins (META, USER, MIDDLEWARE)
 - ToolEntry: dataclass wrapping a tool with source metadata
-- ToolSnapshot: lightweight tool info for runtime availability view
+- ToolSnapshot: lightweight tool info for runtime availability view; ``builtin_tool_id`` maps GUI togglable products when applicable.
 
 [POS]
 Core types for the tool management subsystem.
