@@ -54,6 +54,12 @@ _SAFE_SQL_KEYWORDS: frozenset[str] = frozenset({
     "SET", "BEGIN", "COMMIT", "ROLLBACK",
 })
 
+# Write/destructive DML keywords scanned in WITH CTE bodies.
+_WRITE_DML_RE = re.compile(
+    r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE|REPLACE|MERGE)\b",
+    re.IGNORECASE,
+)
+
 # Regex to extract content from quoted strings.
 _SINGLE_QUOTED_RE = re.compile(r"'([^']*)'")
 _DOUBLE_QUOTED_RE = re.compile(r'"([^"]*)"')
@@ -93,18 +99,37 @@ def _extract_first_sql_keyword(sql: str) -> str | None:
 
 
 def _is_destructive_sql(sql: str) -> bool:
-    """Return True if the SQL statement begins with a destructive keyword.
+    """Return True if any statement in a (possibly multi-statement) SQL is destructive.
 
-    Conservative policy: unknown keywords (not in safe or destructive sets) are
-    treated as destructive to force human review.
+    Handles two bypass vectors:
+    1. Multi-statement: ``SELECT 1; DROP TABLE x`` — split by semicolons
+    2. WITH CTE: ``WITH x AS (...) DELETE FROM y`` — scan body for write DML
     """
-    keyword = _extract_first_sql_keyword(sql)
-    if not keyword:
-        return False
-    if keyword in _SAFE_SQL_KEYWORDS:
-        return False
-    # Anything not explicitly safe (including unknown keywords) is destructive
-    return True
+    for statement in sql.split(";"):
+        keyword = _extract_first_sql_keyword(statement)
+        if not keyword:
+            continue
+        if keyword == "WITH":
+            if _WRITE_DML_RE.search(statement):
+                return True
+        elif keyword not in _SAFE_SQL_KEYWORDS:
+            return True
+    return False
+
+
+def _find_destructive_keyword(sql: str) -> str:
+    """Find the first destructive keyword in a SQL string for threat reporting."""
+    for statement in sql.split(";"):
+        keyword = _extract_first_sql_keyword(statement)
+        if not keyword:
+            continue
+        if keyword == "WITH":
+            match = _WRITE_DML_RE.search(statement)
+            if match:
+                return match.group(1).upper()
+        elif keyword not in _SAFE_SQL_KEYWORDS:
+            return keyword
+    return "UNKNOWN"
 
 
 def _get_base_command(token: str) -> str:
@@ -203,7 +228,7 @@ def check_sql_threats(command: str) -> list[CommandThreat]:
         if not sql.strip():
             continue
         if _is_destructive_sql(sql):
-            keyword = _extract_first_sql_keyword(sql)
+            keyword = _find_destructive_keyword(sql)
             threats.append(CommandThreat(
                 level=ThreatLevel.ESCALATE,
                 category="destructive_sql",

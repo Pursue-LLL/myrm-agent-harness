@@ -164,6 +164,64 @@ class TestEdgeCases:
         assert len(threats) >= 1
 
 
+class TestMultiStatementBypass:
+    """Verify multi-statement injection is detected."""
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "psql -c 'SELECT 1; DROP TABLE users'",
+            "mysql -e 'SELECT count(*) FROM x; TRUNCATE TABLE x'",
+            "psql -c 'BEGIN; DELETE FROM users; COMMIT'",
+            "psql -c 'SELECT 1; INSERT INTO logs VALUES (1)'",
+        ],
+    )
+    def test_multi_statement_destructive(self, cmd: str) -> None:
+        threats = check_sql_threats(cmd)
+        assert len(threats) >= 1
+        assert threats[0].level == ThreatLevel.ESCALATE
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "psql -c 'SELECT 1; SELECT 2'",
+            "psql -c 'BEGIN; SELECT 1; COMMIT'",
+            "mysql -e 'SET search_path = public; SHOW tables'",
+        ],
+    )
+    def test_multi_statement_safe(self, cmd: str) -> None:
+        threats = check_sql_threats(cmd)
+        assert len(threats) == 0
+
+
+class TestWithCTEBypass:
+    """Verify WITH CTE wrapping destructive DML is detected."""
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "psql -c 'WITH x AS (SELECT 1) DELETE FROM users'",
+            "psql -c 'WITH cte AS (SELECT id FROM old) INSERT INTO archive SELECT * FROM cte'",
+            "mysql -e 'WITH t AS (SELECT 1) UPDATE users SET active=0'",
+        ],
+    )
+    def test_with_cte_destructive(self, cmd: str) -> None:
+        threats = check_sql_threats(cmd)
+        assert len(threats) >= 1
+        assert threats[0].level == ThreatLevel.ESCALATE
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "psql -c 'WITH x AS (SELECT 1) SELECT * FROM x'",
+            "psql -c 'WITH cte AS (SELECT count(*) FROM users) SELECT * FROM cte'",
+        ],
+    )
+    def test_with_cte_safe(self, cmd: str) -> None:
+        threats = check_sql_threats(cmd)
+        assert len(threats) == 0
+
+
 class TestIntegrationWithAnalyzeCommand:
     """Verify integration with shell_command_analyzer.analyze_command()."""
 
