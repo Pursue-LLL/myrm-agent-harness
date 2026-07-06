@@ -89,7 +89,6 @@ _MUTATION_TOOLS: frozenset[str] = frozenset(
         "browser_type_tool",
         "skill_manage_tool",
         "kanban_manage_tool",
-        "canvas_tool",
         "cron_manage_tool",
     }
 )
