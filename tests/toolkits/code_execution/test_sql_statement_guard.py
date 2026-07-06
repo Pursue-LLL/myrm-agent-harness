@@ -238,8 +238,7 @@ class TestIntegrationWithAnalyzeCommand:
         assert threat.category == "destructive_sql"
 
     def test_safe_sql_no_escalate(self) -> None:
-        threat = has_escalate_threat("psql -c 'SELECT 1'")
-        # Should not trigger SQL escalation (may have other escalations)
+        assert has_escalate_threat("psql -c 'SELECT 1'") is None
         threats = analyze_command("psql -c 'SELECT 1'")
         sql_threats = [t for t in threats if t.category == "destructive_sql"]
         assert len(sql_threats) == 0
@@ -255,3 +254,61 @@ class TestIntegrationWithAnalyzeCommand:
         assert analyze_command("ls -la") == ()
         assert analyze_command("git status") == ()
         assert analyze_command("echo hello") == ()
+
+
+class TestCoverageEdgeCases:
+    """Tests targeting uncovered lines for ≥90% coverage."""
+
+    def test_comment_only_no_newline(self) -> None:
+        """Line 83: SQL that is just a line comment without newline."""
+        threats = check_sql_threats("psql -c '-- just a comment'")
+        assert len(threats) == 0
+
+    def test_block_comment_unterminated(self) -> None:
+        """Line 86-89: Unterminated block comment returns None keyword."""
+        threats = check_sql_threats("psql -c '/* unterminated block comment'")
+        assert len(threats) == 0
+
+    def test_only_comments_then_empty(self) -> None:
+        """Line 94: SQL with only comments, nothing left after stripping."""
+        threats = check_sql_threats("psql -c '-- line comment\n'")
+        assert len(threats) == 0
+
+    def test_semicolons_only(self) -> None:
+        """Lines 111/125: Statements that are just whitespace between semicolons."""
+        threats = check_sql_threats("psql -c ';;;'")
+        assert len(threats) == 0
+
+    def test_find_destructive_keyword_unknown(self) -> None:
+        """Line 132: _find_destructive_keyword returns UNKNOWN for edge case."""
+        from myrm_agent_harness.toolkits.code_execution.security.sql_statement_guard import (
+            _find_destructive_keyword,
+        )
+        assert _find_destructive_keyword("  ;  ;  ") == "UNKNOWN"
+
+    def test_empty_tokens_in_flag_args(self) -> None:
+        """Line 145: command.split() is empty."""
+        from myrm_agent_harness.toolkits.code_execution.security.sql_statement_guard import (
+            _extract_sql_from_flag_args,
+        )
+        assert _extract_sql_from_flag_args("") == []
+
+    def test_pipe_with_empty_last_segment(self) -> None:
+        """Line 184: pipe where last segment is empty tokens."""
+        from myrm_agent_harness.toolkits.code_execution.security.sql_statement_guard import (
+            _extract_sql_from_pipe,
+        )
+        assert _extract_sql_from_pipe("echo 'DROP TABLE x' |   ") == []
+
+    def test_pipe_to_non_db_client(self) -> None:
+        """Line 188: pipe to a non-DB-client command."""
+        threats = check_sql_threats("echo 'DROP TABLE users' | grep DROP")
+        sql_threats = [t for t in threats if t.category == "destructive_sql"]
+        assert len(sql_threats) == 0
+
+    def test_pipe_with_empty_preceding_segment(self) -> None:
+        """Line 195: pipe where preceding segment has empty tokens."""
+        from myrm_agent_harness.toolkits.code_execution.security.sql_statement_guard import (
+            _extract_sql_from_pipe,
+        )
+        assert _extract_sql_from_pipe("   | psql") == []

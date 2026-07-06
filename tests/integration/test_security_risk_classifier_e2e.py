@@ -225,3 +225,113 @@ class TestMixedPipelineAndOperators:
     )
     def test_cross_tool_mixed_chains(self, cmd: str) -> None:
         assert _eval_shell(cmd) == PermissionAction.ASK
+
+
+class TestSqlGuardE2E:
+    """SQL Guard integration: destructive SQL in DB clients triggers ASK even with auto-allow.
+
+    Verifies Layer 2.5 (sql_statement_guard) integrated into shell_command_analyzer
+    correctly escalates through the full evaluate_tool_call pipeline.
+    """
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "psql -c 'DROP TABLE users'",
+            "mysql -e 'DELETE FROM sessions'",
+            "psql -c 'TRUNCATE TABLE logs'",
+            "sqlite3 test.db 'DROP TABLE data'",
+            'psql -c "ALTER TABLE users DROP COLUMN email"',
+            'mysql -e "INSERT INTO admin VALUES (1, \'hacker\')"',
+        ],
+    )
+    def test_destructive_sql_triggers_ask(self, cmd: str) -> None:
+        """Destructive SQL in DB client commands must trigger ASK."""
+        assert _eval_shell(cmd) == PermissionAction.ASK
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "echo 'DROP TABLE users' | psql",
+            "echo 'DELETE FROM sessions' | mysql",
+            "printf 'TRUNCATE TABLE logs' | psql -d mydb",
+        ],
+    )
+    def test_pipe_destructive_sql_triggers_ask(self, cmd: str) -> None:
+        """Piped destructive SQL to DB clients must trigger ASK."""
+        assert _eval_shell(cmd) == PermissionAction.ASK
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "psql -c 'SELECT 1; DROP TABLE users'",
+            "mysql -e 'BEGIN; DELETE FROM users; COMMIT'",
+            "psql -c 'SELECT count(*) FROM x; TRUNCATE TABLE x'",
+        ],
+    )
+    def test_multi_statement_bypass_blocked(self, cmd: str) -> None:
+        """Multi-statement SQL injection bypass must be blocked."""
+        assert _eval_shell(cmd) == PermissionAction.ASK
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "psql -c 'WITH x AS (SELECT 1) DELETE FROM users'",
+            "mysql -e 'WITH cte AS (SELECT id FROM old) INSERT INTO archive SELECT * FROM cte'",
+        ],
+    )
+    def test_with_cte_bypass_blocked(self, cmd: str) -> None:
+        """WITH CTE wrapping destructive DML must be blocked."""
+        assert _eval_shell(cmd) == PermissionAction.ASK
+
+    def test_safe_sql_not_escalated(self) -> None:
+        """Safe SQL queries (SELECT, SHOW, etc.) should NOT produce SQL escalation."""
+        from myrm_agent_harness.toolkits.code_execution.security.sql_statement_guard import (
+            check_sql_threats,
+        )
+
+        threats = check_sql_threats("psql -c 'SELECT * FROM users'")
+        assert len(threats) == 0
+
+    def test_auto_allow_ruleset_overridden_by_sql_guard(self) -> None:
+        """Even with an explicit auto-allow rule for shell_exec, SQL Guard still blocks."""
+        from myrm_agent_harness.core.security.types import PermissionRule
+
+        auto_allow_config = SecurityConfig(
+            ruleset=(PermissionRule("shell_exec", "*", PermissionAction.ALLOW),),
+        )
+        action, reason = evaluate_tool_call(
+            "shell_exec",
+            {"command": "psql -c 'DROP TABLE users'"},
+            auto_allow_config,
+        )
+        assert action == PermissionAction.ASK
+        assert "SQL" in reason or "sql" in reason.lower()
+
+    def test_auto_allow_with_multi_statement_bypass(self) -> None:
+        """Auto-allow + multi-statement SQL bypass = still blocked."""
+        from myrm_agent_harness.core.security.types import PermissionRule
+
+        auto_allow_config = SecurityConfig(
+            ruleset=(PermissionRule("shell_exec", "*", PermissionAction.ALLOW),),
+        )
+        action, _ = evaluate_tool_call(
+            "shell_exec",
+            {"command": "psql -c 'SELECT 1; DROP TABLE users'"},
+            auto_allow_config,
+        )
+        assert action == PermissionAction.ASK
+
+    def test_auto_allow_safe_sql_passes_through(self) -> None:
+        """Auto-allow + safe SQL = ALLOW (no false positive)."""
+        from myrm_agent_harness.core.security.types import PermissionRule
+
+        auto_allow_config = SecurityConfig(
+            ruleset=(PermissionRule("shell_exec", "*", PermissionAction.ALLOW),),
+        )
+        action, _ = evaluate_tool_call(
+            "shell_exec",
+            {"command": "psql -c 'SELECT 1'"},
+            auto_allow_config,
+        )
+        assert action == PermissionAction.ALLOW
