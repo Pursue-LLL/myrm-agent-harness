@@ -220,6 +220,7 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
             "canvas_get_state",
             "canvas_get_selection",
             "canvas_insert_element",
+            "canvas_batch_layout",
         }
     ),
     "render_ui": frozenset({"render_ui_tool"}),

@@ -87,6 +87,12 @@ _MUTATION_TOOLS: frozenset[str] = frozenset(
     }
 )
 
+
+def is_mutating_tool(tool_name: str) -> bool:
+    """Return True when the tool may mutate workspace or external state."""
+    return tool_name in _MUTATION_TOOLS
+
+
 _rejection_count: int = 0
 
 

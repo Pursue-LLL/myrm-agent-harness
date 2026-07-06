@@ -1,4 +1,4 @@
-"""LLM tool catalog metadata — role, load condition, product ID mapping.
+"""LLM tool catalog metadata — role, load condition, derived product ID.
 
 [INPUT]
 - .tool_layers::ToolLayer (POS: CORE/COMMON/EXTENDED priority)
@@ -14,9 +14,10 @@
 - build_tool_catalog_rows(): sorted rows for doc generation
 
 [POS]
-Single SSOT for *LLM Tool* semantics (ToolRegistry entries only).
-Agent runtime engines/middleware/skills are NOT catalogued here — they are
-ordinary code, not LLM tools.
+Catalog metadata for *LLM Tool* doc generation and CI (ToolRegistry entries only).
+`ToolCatalogRole` / load overrides are owned here; `product_id` is derived from
+`TOOL_TO_GROUP` + `BUILTIN_TOOL_ID_TO_GROUP` (not a separate runtime SSOT).
+Agent runtime engines/middleware/skills are ordinary code, not LLM tools.
 """
 
 from __future__ import annotations
@@ -53,10 +54,9 @@ _GROUP_TO_PRODUCT_ID: dict[str, str] = {
 
 _BASELINE_TOOL_GROUPS: frozenset[str] = frozenset({"file_ops", "shell"})
 
-# Doc-only overrides when group bridge does not apply (baseline web_fetch, server-only tools).
+# Doc-only override: conversation_history group has no GUI togglable product ID.
 _PRODUCT_ID_TOOL_OVERRIDES: dict[str, str] = {
     "conversation_search_tool": "memory",
-    "canvas_batch_layout": "canvas",
 }
 
 _LOAD_CONDITION_OVERRIDES: dict[str, str] = {

@@ -34,7 +34,7 @@ action_space.py — ASCS _profiler
 | 文件 | 职责 |
 |------|------|
 | `tool_layers.py` | 三层优先级注册表；未注册工具 WARNING |
-| `tool_catalog.py` | LLM Tool 角色/加载条件 SSOT（`ToolCatalogRole`） |
+| `tool_catalog.py` | LLM Tool 角色/加载条件；Product ID 由 `TOOL_TO_GROUP` + `BUILTIN_TOOL_ID_TO_GROUP` 派生 |
 | `registry.py` | 去重、排序、`ToolBindMode` 三分绑定 |
 | `lifecycle_manager.py` | 工具 init/cleanup 编排 |
 | `lifecycle_protocol.py` | `LifecycleAwareTool` Protocol |
@@ -66,7 +66,7 @@ Server `_tool_layer_bootstrap.py` 扩展 EXTENDED 层业务工具。
 
 **只有 LLM Tool 使用 CORE / COMMON / EXTENDED 三层。** Runtime 模块禁止称作「工具」。
 
-`tool_catalog.py` 为每个 `_TOOL_LAYERS` 登记项标注 `ToolCatalogRole`：
+`tool_catalog.py` 为每个 `_TOOL_LAYERS` 登记项标注 `ToolCatalogRole`；**Product ID 列**由 `TOOL_TO_GROUP`（`core/security/tool_registry.py`）与 `BUILTIN_TOOL_ID_TO_GROUP`（`capability_gap.py`）自动派生，无需手工维护 per-tool 映射。
 
 | Role | 含义 |
 |------|------|
@@ -176,7 +176,7 @@ python scripts/validate_tool_registry.py --generate-docs  # 刷新 TOOL_COUNT + 
 
 ## 扩展指南
 
-1. 新 harness LLM Tool → `register_tool_layer()` + meta_tools 或 toolkits 实现 + `tool_catalog.py` load/role 条目
+1. 新 harness LLM Tool → `register_tool_layer()` + meta_tools 或 toolkits 实现 + `tool_catalog.py` load/role 条目；若属 togglable 能力族，同步 `TOOL_GROUP_MAP`（product ID 自动派生）
 2. 更新 token inventory（`python scripts/measure_turn1_token_inventory.py` + 同步 `DEFAULT_AGENT_TOKEN_INVENTORY.md`）
 3. 运行 `python scripts/validate_tool_registry.py --generate-docs`
 

@@ -32,3 +32,11 @@ def test_baseline_web_fetch_has_no_product_id() -> None:
 @pytest.mark.architecture
 def test_conversation_search_override_maps_to_memory() -> None:
     assert get_tool_product_id("conversation_search_tool") == "memory"
+
+
+@pytest.mark.architecture
+def test_canvas_batch_layout_in_canvas_group() -> None:
+    from myrm_agent_harness.core.security.tool_registry import TOOL_GROUP_MAP
+
+    assert "canvas_batch_layout" in TOOL_GROUP_MAP["canvas"]
+    assert get_tool_product_id("canvas_batch_layout") == "canvas"
