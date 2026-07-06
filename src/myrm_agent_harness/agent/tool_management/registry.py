@@ -21,6 +21,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.orchestration.hooks import is_runtime_hook
+from myrm_agent_harness.agent.tool_management.tool_catalog import get_tool_product_id
 from myrm_agent_harness.agent.tool_management.tool_layers import (
     _TOOL_LAYERS,
     ToolLayer,
@@ -251,6 +252,7 @@ class ToolRegistry:
                     layer=str((entry.layer or ToolLayer.EXTENDED).value),
                     parameters_schema=params,
                     bind_mode=entry.bind_mode.value,
+                    builtin_tool_id=get_tool_product_id(tool.name),
                 )
             )
         return snapshots

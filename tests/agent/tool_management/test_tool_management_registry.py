@@ -171,6 +171,13 @@ class TestToolRegistrySnapshot:
         reg = ToolRegistry()
         assert reg.snapshot() == []
 
+    def test_snapshot_includes_builtin_tool_id(self) -> None:
+        reg = ToolRegistry()
+        reg.register(_make_tool("cron_manage_tool", "Manage cron jobs"), source=ToolSource.USER)
+        snaps = reg.snapshot()
+        assert len(snaps) == 1
+        assert snaps[0].builtin_tool_id == "cron"
+
 
 class TestToolRegistryDiagnostics:
     def test_entries_by_source(self) -> None:

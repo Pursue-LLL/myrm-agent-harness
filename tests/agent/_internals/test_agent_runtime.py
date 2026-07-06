@@ -210,6 +210,25 @@ class TestEmitToolsSnapshot:
         assert len(result) == 1
         assert result[0]["name"] == "bash_code_execute_tool"
         assert result[0]["source"] == "meta"
+        assert result[0]["builtin_tool_id"] is None
+
+    def test_emit_includes_builtin_tool_id_for_togglable_tools(self) -> None:
+        from myrm_agent_harness.agent._internals.agent_runtime import (
+            create_registry,
+            emit_tools_snapshot,
+        )
+
+        @tool("cron_manage_tool")
+        def cron_manage_tool(expr: str) -> str:
+            """Manage scheduled tasks."""
+            return expr
+
+        registry = create_registry()
+        registry.register(cron_manage_tool, source=ToolSource.USER)
+
+        result = emit_tools_snapshot(registry)
+        assert result is not None
+        assert result[0]["builtin_tool_id"] == "cron"
 
     def test_emit_excludes_discoverable_and_runtime_only(self) -> None:
         from myrm_agent_harness.agent._internals.agent_runtime import (

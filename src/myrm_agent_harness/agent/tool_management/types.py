@@ -88,3 +88,4 @@ class ToolSnapshot:
     layer: str
     parameters_schema: dict[str, object] | None
     bind_mode: str = field(default=ToolBindMode.TURN1.value)
+    builtin_tool_id: str | None = field(default=None)
