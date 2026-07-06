@@ -15,6 +15,7 @@ by any consumer, without requiring the Agent runtime.
 | **Optional — LangChain adapter** | `*_agent_tools.py` (or legacy `tool.py`) | Thin `create_*_tools()` → `list[BaseTool]` wrapper so an LLM agent can call the toolkit without re-wiring |
 
 **Agent-callable LangChain tools are one consumption form, not the identity of `toolkits/`.**
+In external docs, **tool** means an LLM tool (`BaseTool` in `ToolRegistry`); toolkit engines are not tools.
 Most packages lead with engine + Protocol in `__init__.py`; the LangChain adapter is a
 convenience layer for “drop into an agent tool list”. Do **not** describe a toolkit package
 as an “agent tool module” in overview docs — describe the **capability**, then note the

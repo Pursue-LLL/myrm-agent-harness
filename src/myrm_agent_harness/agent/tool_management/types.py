@@ -88,4 +88,5 @@ class ToolSnapshot:
     layer: str
     parameters_schema: dict[str, object] | None
     bind_mode: str = field(default=ToolBindMode.TURN1.value)
+    # GUI togglable product id from get_tool_product_id(); null for baseline/MCP/skill tools.
     builtin_tool_id: str | None = field(default=None)

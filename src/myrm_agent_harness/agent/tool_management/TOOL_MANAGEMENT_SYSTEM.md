@@ -1,6 +1,18 @@
 # Tool Management System Design
 
-> Agent 工具注册、分层、去重、排序与生命周期管理 SSOT。控制 LLM 动作空间复杂度（ASCS）与 token 预算。
+> LLM 工具（Action Tool）注册、分层、去重、排序与生命周期管理 SSOT。控制 LLM 动作空间复杂度（ASCS）与 token 预算。
+
+---
+
+## 术语（对外沟通）
+
+| 对外说法 | 含义 | 当前规模 |
+|----------|------|----------|
+| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **69**（CORE 7 + COMMON 6 + EXTENDED 56） |
+
+对外文档与沟通中，**「工具」仅指 LLM 工具**。编排信号、runtime hook、toolkits 引擎、Skill 文档、PTC 等实现细节属于代码层，**不称为工具**。
+
+下文 **Action Tool** 与 **LLM 工具** 同义（代码与 `validate_tool_registry.py` 沿用 Action Tool 命名）。
 
 ---
 
@@ -57,25 +69,24 @@ Server `_tool_layer_bootstrap.py` 扩展 EXTENDED 层业务工具。
 
 ---
 
-## Action Tool vs Control Plane vs Runtime（术语 SSOT）
+## 内部分类（实现 / token 会计，非产品术语）
 
-| 术语 | 含义 | SSOT | 示例 |
-|------|------|------|------|
-| **Action Tool** | `BaseTool` → `ToolRegistry` → `_TOOL_LAYERS`，可执行 | `tool_management/` | `web_search_tool`, `bash_code_execute_tool` |
-| **Orchestration Signal** | JSON schema；orchestrator 截获 tool_call，不进 `_TOOL_LAYERS` | `agent/orchestration/signals/` | `dispatch_research`, `submit_verdict` |
-| **Runtime Hook** | middleware 注入的 RUNTIME_ONLY 伪 tool_call | `agent/orchestration/hooks.py` | `_completion_check` |
-| **Agent Runtime** | 普通 Python：引擎、Skill 文档、Mermaid | — | `KanbanService`, `SKILL.md` |
+以下三类**不计入 LLM 工具 69 个**，仅用于实现与 Turn1 token 隔离：
 
-**只有 Action Tool 使用 CORE / COMMON / EXTENDED 三层。** 控制面与 Runtime 禁止计入 action-tool 计数。
+| 内部术语 | 含义 | SSOT |
+|----------|------|------|
+| **Orchestration Signal** | 专用 orchestrator 会话中的 JSON schema；Python 截获 tool_call | `agent/orchestration/signals/` |
+| **Runtime Hook** | 中间件注入的 RUNTIME_ONLY 伪 tool_call | `agent/orchestration/hooks.py` |
+| **非 LLM 实现** | 引擎、Skill 文档、PTC、REST 等普通代码 | `toolkits/`、`app/services/` 等 |
 
-`tool_catalog.py` 仅服务 Action Tools（`user_capability`）。**Product ID 列**由 `TOOL_TO_GROUP` + `BUILTIN_TOOL_ID_TO_GROUP` 派生。
+**只有 LLM 工具（Action Tool）使用 CORE / COMMON / EXTENDED 三层。**
 
-PTC 桥接（`spawn_subagent` / `notify`）属于 Runtime，零 Turn1 schema。
+`tool_catalog.py` 仅服务 LLM 工具（`user_capability`）。**Product ID 列**由 `TOOL_TO_GROUP` + `BUILTIN_TOOL_ID_TO_GROUP` 派生。
 
 <!-- TOOL_CATALOG_BEGIN -->
-### Action Tool Catalog (auto-generated)
+### LLM Tool Catalog (auto-generated)
 
-Only **Action Tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration signals and runtime hooks live under `agent/orchestration/`.
+Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration signals and runtime hooks live under `agent/orchestration/`.
 
 | Tool | Layer | Role | Product ID | Load condition |
 |------|-------|------|------------|----------------|
@@ -167,7 +178,7 @@ python scripts/validate_tool_registry.py --generate-docs  # 刷新 TOOL_COUNT + 
 2. 更新 token inventory（`python scripts/measure_turn1_token_inventory.py` + 同步 `DEFAULT_AGENT_TOKEN_INVENTORY.md`）
 3. 运行 `python scripts/validate_tool_registry.py --generate-docs`
 
-编排信号与 runtime hook 见 `agent/orchestration/`（不在下方 Action Tool Catalog 表内）。
+编排信号与 runtime hook 见 `agent/orchestration/`（不在下方 LLM Tool Catalog 表内）。
 
 ## ToolBindMode 绑定契约
 
@@ -192,7 +203,7 @@ python scripts/validate_tool_registry.py --generate-docs  # 刷新 TOOL_COUNT + 
 
 **禁止**：`get_deferred_tools()` 已删除；新代码不得混用 `deferred_tools` 变量名，统一使用 `discoverable_tools`（构造参数）与上述三个 registry 方法。
 
-**GUI 暴露**（`emit_tools_snapshot`）：仅序列化 `TURN1` 工具，与 `resolve()` 一致；`DISCOVERABLE` / `RUNTIME_ONLY` 不进 `tools_snapshot` SSE。
+**GUI 暴露**（`emit_tools_snapshot`）：仅序列化 `TURN1` 工具，与 `resolve()` 一致；`DISCOVERABLE` / `RUNTIME_ONLY` 不进 `tools_snapshot` SSE。每条 snapshot 含可选 `builtin_tool_id`（Harness 内由 `get_tool_product_id()` 派生，无 i18n）；WebUI wrench 与 gap toast 共用 `builtinTools.ts` 中的本地化 capability 标签。
 
 ---
 

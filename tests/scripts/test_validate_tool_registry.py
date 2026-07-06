@@ -281,5 +281,5 @@ def test_main_generate_docs_rewrites_existing_marker_block(
     assert rc == 0
     assert "Updated TOOL_COUNT blocks" in out
     refreshed = good_doc.read_text()
-    assert "Tools registered:" in refreshed
+    assert "LLM tools:" in refreshed
     assert "old body" not in refreshed
