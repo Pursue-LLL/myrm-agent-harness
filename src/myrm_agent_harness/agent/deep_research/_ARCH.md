@@ -15,9 +15,11 @@ Detailed design: [DEEP_RESEARCH_SYSTEM.md](DEEP_RESEARCH_SYSTEM.md)
 | orchestrator.py | Core | Multi-phase orchestrator for Deep Research; drives the main event loop, planning, and parallel research. Inherits clarification/report phases from `_orchestrator_phases`. | ✅ |
 | _orchestrator_phases.py | Internal | Phase implementation mixin — clarification, research agent dispatch, and report generation. | ✅ |
 | prompts.py | Core | All prompt templates for the Deep Research system. | ✅ |
-| tools.py | Core | 3 orchestrator meta-tools (JSON schema only; orchestrator intercepts tool_calls). Not loaded by default general Agent (0 Turn-1 token). Token budget: `DEFAULT_AGENT_TOKEN_INVENTORY.md` §4.20. | ✅ |
+
+Orchestration signal schemas: `../orchestration/signals/deep_research.py` (not Action Tools).
 
 ## Key Dependencies
 
 - `utils`
 - `agent/meta_tools/clarification`
+- `agent/orchestration/signals/deep_research`

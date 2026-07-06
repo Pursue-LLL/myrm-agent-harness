@@ -1,4 +1,4 @@
-"""LLM tool catalog metadata — role, load condition, derived product ID.
+"""LLM Action Tool catalog metadata — load condition and derived product ID.
 
 [INPUT]
 - .tool_layers::ToolLayer (POS: CORE/COMMON/EXTENDED priority)
@@ -6,18 +6,14 @@
 - meta_tools.discover_capability.capability_gap::BUILTIN_TOOL_ID_TO_GROUP (POS: GUI togglable product ID → group)
 
 [OUTPUT]
-- ToolCatalogRole: user_capability | orchestration_signal | runtime_hook
-- get_tool_catalog_role(): resolve role for a registered tool name
 - get_tool_load_condition(): human-readable load gate
 - get_tool_product_id(): enabled_builtin_tools ID when applicable
-- validate_tool_catalog(): role consistency checks for registered tool names
+- validate_tool_catalog(): consistency checks for Action Tool names in _TOOL_LAYERS
 - build_tool_catalog_rows(): sorted rows for doc generation
 
 [POS]
-Catalog metadata for *LLM Tool* doc generation and CI (ToolRegistry entries only).
-`ToolCatalogRole` / load overrides are owned here; `product_id` is derived from
-`TOOL_TO_GROUP` + `BUILTIN_TOOL_ID_TO_GROUP` (not a separate runtime SSOT).
-Agent runtime engines/middleware/skills are ordinary code, not LLM tools.
+Catalog metadata for Action Tools only (``_TOOL_LAYERS`` entries).
+Orchestration signals and runtime hooks live under ``agent/orchestration/``.
 """
 
 from __future__ import annotations
@@ -33,20 +29,10 @@ from myrm_agent_harness.core.security.tool_registry import TOOL_TO_GROUP
 
 
 class ToolCatalogRole(StrEnum):
-    """How an LLM-facing tool participates in the product vs framework."""
+    """Action Tool catalog role (product-facing capabilities only)."""
 
     USER_CAPABILITY = "user_capability"
-    ORCHESTRATION_SIGNAL = "orchestration_signal"
-    RUNTIME_HOOK = "runtime_hook"
 
-
-_ROLE_OVERRIDES: dict[str, ToolCatalogRole] = {
-    "dispatch_research": ToolCatalogRole.ORCHESTRATION_SIGNAL,
-    "think": ToolCatalogRole.ORCHESTRATION_SIGNAL,
-    "finalize_report": ToolCatalogRole.ORCHESTRATION_SIGNAL,
-    "submit_verdict": ToolCatalogRole.ORCHESTRATION_SIGNAL,
-    "_completion_check": ToolCatalogRole.RUNTIME_HOOK,
-}
 
 _GROUP_TO_PRODUCT_ID: dict[str, str] = {
     group: product_id for product_id, group in BUILTIN_TOOL_ID_TO_GROUP.items()
@@ -54,7 +40,6 @@ _GROUP_TO_PRODUCT_ID: dict[str, str] = {
 
 _BASELINE_TOOL_GROUPS: frozenset[str] = frozenset({"file_ops", "shell"})
 
-# Doc-only override: conversation_history group has no GUI togglable product ID.
 _PRODUCT_ID_TOOL_OVERRIDES: dict[str, str] = {
     "conversation_search_tool": "memory",
 }
@@ -79,11 +64,6 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
     "discover_capability_tool": "Turn1 when discoverable pool non-empty",
     "skill_select_tool": "skill_backend present",
     "skill_manage_tool": "write_backend present",
-    "dispatch_research": "Deep Research orchestrator session only; intercepted",
-    "think": "Deep Research orchestrator session only; intercepted",
-    "finalize_report": "Deep Research orchestrator session only; intercepted",
-    "submit_verdict": "Verifier sub-agent session only",
-    "_completion_check": "CompletionGuard RUNTIME_ONLY inject",
     "delegate_task_tool": "SubagentManagementExtension + entitlements",
     "batch_delegate_tasks_tool": "SubagentManagementExtension + entitlements",
     "delegate_parallel_tasks_tool": "SubagentManagementExtension + entitlements",
@@ -113,7 +93,7 @@ _DEFAULT_LOAD_BY_LAYER: dict[ToolLayer, str] = {
 
 @dataclass(frozen=True, slots=True)
 class ToolCatalogRow:
-    """One registered LLM tool row for docs and validation."""
+    """One Action Tool row for docs and validation."""
 
     name: str
     layer: ToolLayer
@@ -123,8 +103,8 @@ class ToolCatalogRow:
 
 
 def get_tool_catalog_role(tool_name: str) -> ToolCatalogRole:
-    """Return catalog role; defaults to USER_CAPABILITY."""
-    return _ROLE_OVERRIDES.get(tool_name, ToolCatalogRole.USER_CAPABILITY)
+    """Return catalog role; Action Tools are always user_capability."""
+    return ToolCatalogRole.USER_CAPABILITY
 
 
 def get_tool_product_id(tool_name: str) -> str | None:
@@ -156,7 +136,7 @@ def get_tool_load_condition(tool_name: str, *, layer: ToolLayer | None = None) -
 
 
 def build_tool_catalog_row(tool_name: str, *, layer: ToolLayer | None = None) -> ToolCatalogRow:
-    """Build a catalog row for one registered tool name."""
+    """Build a catalog row for one Action Tool name."""
     resolved_layer = layer if layer is not None else get_tool_layer(tool_name)
     return ToolCatalogRow(
         name=tool_name,
@@ -174,32 +154,26 @@ def _coerce_layer(layer: ToolLayer | str) -> ToolLayer:
 
 
 def build_tool_catalog_rows(registered: dict[str, ToolLayer | str]) -> list[ToolCatalogRow]:
-    """Sorted catalog rows for all registered tool names."""
+    """Sorted catalog rows for all Action Tool names in _TOOL_LAYERS."""
     rows = [
         build_tool_catalog_row(name, layer=_coerce_layer(layer))
         for name, layer in registered.items()
     ]
-    rows.sort(key=lambda row: (int(row.layer), row.role.value, row.name))
+    rows.sort(key=lambda row: (int(row.layer), row.name))
     return rows
 
 
 def validate_tool_catalog(registered: dict[str, ToolLayer | str]) -> list[str]:
-    """Return error strings when catalog metadata is inconsistent."""
+    """Return error strings when Action Tool catalog metadata is inconsistent."""
     errors: list[str] = []
     for name in registered:
-        role = get_tool_catalog_role(name)
-        if role is ToolCatalogRole.USER_CAPABILITY and name.startswith("_"):
-            errors.append(f"{name}: underscore prefix requires RUNTIME_HOOK role override")
-        if name == "_completion_check" and role is not ToolCatalogRole.RUNTIME_HOOK:
-            errors.append(f"{name}: must use ToolCatalogRole.RUNTIME_HOOK")
-        if name in {"dispatch_research", "think", "finalize_report", "submit_verdict"}:
-            if role is not ToolCatalogRole.ORCHESTRATION_SIGNAL:
-                errors.append(f"{name}: must use ToolCatalogRole.ORCHESTRATION_SIGNAL")
+        if name.startswith("_"):
+            errors.append(f"{name}: Action Tools must not use underscore prefix")
     return errors
 
 
 def format_tool_catalog_markdown(rows: list[ToolCatalogRow]) -> str:
-    """Render the auto-generated LLM tool catalog table."""
+    """Render the auto-generated Action Tool catalog table."""
     lines = [
         "| Tool | Layer | Role | Product ID | Load condition |",
         "|------|-------|------|------------|----------------|",

@@ -1,7 +1,7 @@
-"""Default Agent must not bind control-plane orchestrator tools.
+"""Default Agent must not bind control-plane orchestration signals or hooks.
 
-These names are listed in ``tool_layers.py`` for registry accounting only.
-They must not inflate Turn-1 ``bind_tools`` (Prefix Cache protection).
+Control-plane names live under ``agent/orchestration/`` and are excluded from
+``_TOOL_LAYERS``. They must not inflate Turn-1 ``bind_tools`` (Prefix Cache protection).
 """
 
 from __future__ import annotations
@@ -9,24 +9,16 @@ from __future__ import annotations
 import pytest
 
 from myrm_agent_harness.agent.middlewares.completion_guard import COMPLETION_CHECK_TOOL_NAME
+from myrm_agent_harness.agent.orchestration.hooks import RUNTIME_HOOK_NAMES
+from myrm_agent_harness.agent.orchestration.signals.catalog import ORCHESTRATION_SIGNAL_NAMES
+from myrm_agent_harness.agent.tool_management.tool_layers import _TOOL_LAYERS
 
 CONTROL_PLANE_TOOL_NAMES: frozenset[str] = frozenset(
-    {
-        "dispatch_research",
-        "think",
-        "finalize_report",
-        "submit_verdict",
-        "_completion_check",
-    }
+    ORCHESTRATION_SIGNAL_NAMES | RUNTIME_HOOK_NAMES
 )
 
 SCHEMA_ONLY_CONTROL_PLANE_TOOL_NAMES: frozenset[str] = frozenset(
-    {
-        "dispatch_research",
-        "think",
-        "finalize_report",
-        "submit_verdict",
-    }
+    name for name in ORCHESTRATION_SIGNAL_NAMES if name != "submit_verdict"
 )
 
 PTC_RUNTIME_TOOL_NAMES: frozenset[str] = frozenset({"spawn_subagent", "notify"})
@@ -81,7 +73,7 @@ async def test_completion_check_is_runtime_only_not_turn1() -> None:
 
 @pytest.mark.asyncio
 async def test_schema_only_tools_not_registered_in_default_build() -> None:
-    """DR / verifier signal tools are not registered unless their subsystems run."""
+    """DR signal schemas are not registered unless their subsystems run."""
     from myrm_agent_harness.agent._internals._agent_build import (
         build_middlewares,
         build_tools,
@@ -99,7 +91,11 @@ async def test_schema_only_tools_not_registered_in_default_build() -> None:
 
 def test_ptc_runtime_tools_not_in_tool_layers_registry() -> None:
     """DW PTC bridge tools are runtime-only; must not inflate _TOOL_LAYERS."""
-    from myrm_agent_harness.agent.tool_management.tool_layers import _TOOL_LAYERS
-
     overlap = set(_TOOL_LAYERS) & PTC_RUNTIME_TOOL_NAMES
     assert not overlap, f"PTC runtime tools must not be in _TOOL_LAYERS: {sorted(overlap)}"
+
+
+def test_control_plane_not_in_tool_layers_registry() -> None:
+    """Orchestration signals and runtime hooks must not appear in _TOOL_LAYERS."""
+    overlap = set(_TOOL_LAYERS) & CONTROL_PLANE_TOOL_NAMES
+    assert not overlap, f"Control-plane names must not be in _TOOL_LAYERS: {sorted(overlap)}"

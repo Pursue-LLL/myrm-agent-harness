@@ -138,14 +138,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "wiki_ingest_tool": ToolLayer.EXTENDED,
     "wiki_maintain_tool": ToolLayer.EXTENDED,
     "wiki_query_tool": ToolLayer.EXTENDED,
-    # --- Deep Research orchestrator signals (ToolCatalogRole.ORCHESTRATION_SIGNAL) ---
-    "dispatch_research": ToolLayer.EXTENDED,
-    "finalize_report": ToolLayer.EXTENDED,
-    "think": ToolLayer.EXTENDED,
-    # --- Verifier sub-agent orchestration signal ---
-    "submit_verdict": ToolLayer.EXTENDED,
-    # --- CompletionGuard runtime hook (ToolCatalogRole.RUNTIME_HOOK) ---
-    "_completion_check": ToolLayer.EXTENDED,
 }
 
 

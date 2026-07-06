@@ -66,26 +66,9 @@ def _build_verifier_tool_registry_getter(
 
             safe_tools.append(t)
 
-        from langchain_core.tools import tool
+        from myrm_agent_harness.agent.orchestration.signals.verifier import create_submit_verdict_tool
 
-        @tool("submit_verdict")
-        def submit_verdict(
-            passed: bool,
-            summary: str,
-            findings: list[dict[str, str]],
-            confidence: str = "HIGH",
-        ) -> str:
-            """Submit the final verification verdict. You MUST call this tool to complete your task."""
-            context["_verifier_verdict"] = VerificationVerdict(
-                passed=passed,
-                summary=summary,
-                confidence=confidence,
-                findings=findings,
-                raw="[Submitted via Tool Call]",
-            )
-            return "Verdict submitted successfully. Please complete your response."
-
-        safe_tools.append(submit_verdict)
+        safe_tools.append(create_submit_verdict_tool(context))
         return safe_tools
 
     return verifier_tool_registry_getter

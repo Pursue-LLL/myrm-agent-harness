@@ -34,7 +34,11 @@ from .helpers import (
     extract_tool_calls,
 )
 from .prompts import CLARIFICATION_PROMPT
-from .tools import FINALIZE_TOOL_NAME, _build_tool_schema, build_orchestrator_tools
+from myrm_agent_harness.agent.orchestration.signals.deep_research import (
+    FINALIZE_TOOL_NAME,
+    build_orchestrator_tools,
+    build_signal_schema,
+)
 
 if TYPE_CHECKING:
     pass
@@ -128,7 +132,7 @@ class DeepResearchPhasesMixin:
             t for t in build_orchestrator_tools(include_think=False) if t["function"]["name"] == FINALIZE_TOOL_NAME
         ]  # type: ignore[index]
 
-        ask_question_schema = _build_tool_schema(
+        ask_question_schema = build_signal_schema(
             "ask_question_tool",
             "Ask the user one or more clarifying questions using a structured form.",
             AskQuestionInput,

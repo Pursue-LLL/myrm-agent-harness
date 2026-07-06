@@ -9,7 +9,7 @@
 1. **阶段化编排**：orchestrator 驱动主事件循环，阶段实现分离在 mixin
 2. **结构化澄清**：复用 `meta_tools/clarification/` 的 ask_question 能力
 3. **并行研究**：多 research agent 分派，结果聚合为最终报告
-4. **元工具注入**：orchestrator LLM 上下文注入 3 个 fake/meta tools（`tools.py`）
+4. **编排信号**：orchestrator 通过 `agent/orchestration/signals/deep_research.py` 注入 3 个 JSON schema（非 Action Tool）
 
 ---
 
@@ -39,7 +39,7 @@ DeepResearchOrchestrator (orchestrator.py)
 | `_orchestrator_phases.py` | 澄清 / research dispatch / 报告生成 mixin |
 | `config.py` | 配置与类型定义 |
 | `prompts.py` | 全阶段 prompt 模板 |
-| `tools.py` | Orchestrator 用 3 个 meta tools |
+| `../orchestration/signals/deep_research.py` | Orchestrator 用 3 个编排信号 schema |
 | `helpers.py` | 无状态辅助函数（从 orchestrator 抽出） |
 
 ---

@@ -1,33 +1,31 @@
-"""Deep Research orchestrator meta-tools.
-
-[INPUT]
+"""Deep Research orchestration signals — JSON schemas only, not Action Tools.
 
 [OUTPUT]
-- DISPATCH_TOOL_NAME / THINK_TOOL_NAME / FINALIZE_TOOL_NAME: tool name constants
-- build_orchestrator_tools(): factory returning the 3 orchestrator tools
+- DISPATCH_TOOL_NAME / THINK_TOOL_NAME / FINALIZE_TOOL_NAME: signal name constants
+- build_orchestrator_tools(): OpenAI function schemas for DR orchestrator bind_tools
 
 [POS]
-Defines the 3 orchestrator meta-tools (JSON schema only) for Deep Research mode.
-Not registered in the default general Agent tool list (0 Turn-1 prompt token).
-The orchestrator intercepts tool_call outputs and drives state machine transitions;
-no ToolNode execution occurs for these names.
-
-- dispatch_research: dispatches a research sub-run with a task description
-- think: chain-of-thought scratchpad (non-reasoning models only)
-- finalize_report: signals the orchestrator to transition to the report phase
+Control-plane contracts for Deep Research. The orchestrator intercepts tool_calls
+and drives state transitions; no ToolNode execution occurs for these names.
 """
 
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-DISPATCH_TOOL_NAME = "dispatch_research"
-THINK_TOOL_NAME = "think"
-FINALIZE_TOOL_NAME = "finalize_report"
+from .catalog import (
+    DISPATCH_RESEARCH_SIGNAL,
+    FINALIZE_REPORT_SIGNAL,
+    THINK_SIGNAL,
+)
+
+DISPATCH_TOOL_NAME = DISPATCH_RESEARCH_SIGNAL
+THINK_TOOL_NAME = THINK_SIGNAL
+FINALIZE_TOOL_NAME = FINALIZE_REPORT_SIGNAL
 
 
 class DispatchResearchInput(BaseModel):
-    """Input schema for dispatch_research tool."""
+    """Input schema for dispatch_research signal."""
 
     task: str = Field(
         description=(
@@ -39,7 +37,7 @@ class DispatchResearchInput(BaseModel):
 
 
 class ThinkInput(BaseModel):
-    """Input schema for think (chain-of-thought) tool."""
+    """Input schema for think (chain-of-thought) signal."""
 
     reasoning: str = Field(
         description=(
@@ -50,13 +48,16 @@ class ThinkInput(BaseModel):
 
 
 class FinalizeReportInput(BaseModel):
-    """Input schema for finalize_report tool."""
+    """Input schema for finalize_report signal."""
 
-    summary: str = Field(default="", description="Optional brief summary of key findings before report generation.")
+    summary: str = Field(
+        default="",
+        description="Optional brief summary of key findings before report generation.",
+    )
 
 
-def _build_tool_schema(name: str, description: str, input_model: type[BaseModel]) -> dict[str, object]:
-    """Build an OpenAI-compatible function tool schema."""
+def build_signal_schema(name: str, description: str, input_model: type[BaseModel]) -> dict[str, object]:
+    """Build an OpenAI-compatible function schema for orchestration bind_tools."""
     schema = input_model.model_json_schema()
     schema.pop("title", None)
     return {
@@ -70,14 +71,9 @@ def _build_tool_schema(name: str, description: str, input_model: type[BaseModel]
 
 
 def build_orchestrator_tools(include_think: bool = True) -> list[dict[str, object]]:
-    """Build the orchestrator's tool definitions.
-
-    Args:
-        include_think: Whether to include the think tool.
-                       Set False for reasoning models that have native CoT.
-    """
+    """Build Deep Research orchestrator signal schemas for ``llm.bind_tools()``."""
     tools: list[dict[str, object]] = [
-        _build_tool_schema(
+        build_signal_schema(
             DISPATCH_TOOL_NAME,
             (
                 "Dispatch a research sub-agent to investigate a specific topic. "
@@ -90,7 +86,7 @@ def build_orchestrator_tools(include_think: bool = True) -> list[dict[str, objec
 
     if include_think:
         tools.append(
-            _build_tool_schema(
+            build_signal_schema(
                 THINK_TOOL_NAME,
                 (
                     "Chain-of-thought reasoning scratchpad. "
@@ -103,7 +99,7 @@ def build_orchestrator_tools(include_think: bool = True) -> list[dict[str, objec
         )
 
     tools.append(
-        _build_tool_schema(
+        build_signal_schema(
             FINALIZE_TOOL_NAME,
             (
                 "Signal that research is complete and the final report "

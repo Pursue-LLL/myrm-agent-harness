@@ -3,9 +3,8 @@
 Centralizes scan roots, whitelists, and exemption rules used by
 `tool_registry_engine` and `validate_tool_registry` CLI.
 
-Design principle: Explicit allow-list over implicit guesswork. Every tool
-exemption MUST carry a justification in this module so reviewers can audit
-the boundary without spelunking the codebase.
+Must stay aligned with ``agent/orchestration/signals/catalog.py`` and
+``agent/orchestration/hooks.py`` (orchestration signals + runtime hooks).
 """
 
 from __future__ import annotations
@@ -20,8 +19,6 @@ SERVER_SRC = SERVER_ROOT / "app"
 
 SCAN_ROOTS: tuple[Path, ...] = (HARNESS_SRC, SERVER_SRC)
 
-# Dynamic Workflow PTC bridge — instantiated per DW run into myrm_tools.py stubs;
-# not registered in _TOOL_LAYERS (see DEFAULT_AGENT_TOKEN_INVENTORY.md §4.25).
 PTC_RUNTIME_TOOL_NAMES: frozenset[str] = frozenset({
     "spawn_subagent",
     "notify",
@@ -29,15 +26,13 @@ PTC_RUNTIME_TOOL_NAMES: frozenset[str] = frozenset({
 
 INTERNAL_TOOL_PREFIXES: tuple[str, ...] = ("_",)
 
-# LLM tools with ToolCatalogRole.RUNTIME_HOOK or ORCHESTRATION_SIGNAL — registered
-# for layer/token accounting but not default GeneralAgent Turn1 bind.
+# Orchestration signals + runtime hooks — excluded from _TOOL_LAYERS (see agent/orchestration/).
 INTERNAL_TOOL_NAMES: frozenset[str] = frozenset({
-    "_completion_check",  # ToolCatalogRole.RUNTIME_HOOK; CompletionGuard injects tool_call
-    "submit_verdict",  # ToolCatalogRole.ORCHESTRATION_SIGNAL; verifier sub-agent only
+    "_completion_check",
+    "submit_verdict",
 })
 
-# ToolCatalogRole.ORCHESTRATION_SIGNAL — raw JSON schemas (not @tool/@BaseTool).
-# AST scanner will not find declarations; exempt from ghost detection.
+# JSON schema signals (no @tool AST) — DR orchestrator bind_tools only.
 SCHEMA_ONLY_TOOL_NAMES: frozenset[str] = frozenset({
     "dispatch_research",
     "finalize_report",
@@ -48,20 +43,17 @@ CROSS_MODULE_CONSTANTS: dict[str, str] = {
     "CONVERSATION_SEARCH_TOOL_NAME": "conversation_search_tool",
 }
 
-# Each whitelisted factory ships as an opt-in toolkit: the harness exports it
-# via `myrm_agent_harness.toolkits.<name>` (or lazy `__getattr__`), and business
-# code wires it in only when needed. Static grep cannot follow lazy imports,
-# so they look like orphans without this allow-list.
 ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset({
-    "create_desktop_tools",     # Desktop / computer-use opt-in toolkit
-    "create_browser_tools",          # Browser automation opt-in toolkit
-    "create_skill_select_tool",      # Built dynamically by SkillAgent depending on skill count
-    "create_kanban_tools",           # Optional kanban toolkit
+    "create_desktop_tools",
+    "create_browser_tools",
+    "create_skill_select_tool",
+    "create_kanban_tools",
     "create_conversation_search_tool",
     "create_cron_tools",
     "create_delegate_to_agent_tool",
     "create_goal_tools",
     "create_memory_tools",
+    "create_submit_verdict_tool",
 })
 
 BOOTSTRAP_FILES: frozenset[str] = frozenset({

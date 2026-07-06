@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent.meta_tools import get_meta_tools
+from myrm_agent_harness.agent.orchestration.hooks import is_runtime_hook
 from myrm_agent_harness.agent.tool_management import ToolBindMode, ToolSnapshot, ToolSource
 from myrm_agent_harness.toolkits.storage import storage_config
 from myrm_agent_harness.utils.logger_utils import get_agent_logger

@@ -3,19 +3,16 @@
 1. agent/context_management/PROMPT_CACHE_PRACTICE.md §2.1 工具分层排序
 
 [INPUT]
-- langchain_core.tools::BaseTool (POS: Defines the 3 fake/meta tools injected into the orchestrator LLM context. These tools are never executed by a real runtime — the orchestrator intercepts their tool_call outputs and drives the state machine transitions. dispatch_research: dispatches a research sub-run with a task description think: chain-of-thought scratchpad (non-reasoning models only) finalize_report: signals the orchestrator to transition to the report phase)
-- .types::ToolEntry, (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
-- .tool_layers::ToolLayer, (POS: CORE COMMON EXTENDED)
+- langchain_core.tools::BaseTool (POS: LangChain tool instances)
+- .types::ToolEntry (POS: tool entry with bind mode and source)
+- .tool_layers::ToolLayer (POS: CORE COMMON EXTENDED cache ordering)
 
 [OUTPUT]
-- ToolRegistry: register → resolve / snapshot pipeline
+- ToolRegistry: register / register_runtime_hook → resolve / snapshot pipeline
 
 [POS]
-Replaces the scattered ``_deduplicate_tools()`` + ``sort_tools()`` calls in
-``BaseAgent`` and ``SkillAgent``.  One ``resolve()`` call does
-dedup-by-priority + cache-friendly layer ordering.
-``snapshot()`` returns a serializable view of the resolved tools for the
-runtime availability API.
+Replaces scattered ``_deduplicate_tools()`` + ``sort_tools()`` in BaseAgent/SkillAgent.
+Orchestration signals (DR/Verifier) are **not** registered here — see ``agent/orchestration/``.
 """
 
 from __future__ import annotations
@@ -23,6 +20,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.agent.orchestration.hooks import is_runtime_hook
 from myrm_agent_harness.agent.tool_management.tool_layers import (
     _TOOL_LAYERS,
     ToolLayer,
@@ -112,7 +110,7 @@ class ToolRegistry:
         """
         resolved_layer = layer if layer is not None else get_tool_layer(tool.name)
 
-        if tool.name not in _TOOL_LAYERS and layer is None and provider is None:
+        if tool.name not in _TOOL_LAYERS and layer is None and provider is None and not is_runtime_hook(tool.name):
             logger.warning(
                 "Tool '%s' (source=%s) not in _TOOL_LAYERS registry, "
                 "defaulting to EXTENDED. Add it to tool_layers.py for explicit ordering.",
@@ -130,6 +128,18 @@ class ToolRegistry:
                 bind_mode=bind_mode,
             )
         )
+
+    def register_runtime_hook(
+        self,
+        tool: BaseTool,
+        *,
+        source: ToolSource = ToolSource.MIDDLEWARE,
+    ) -> None:
+        """Register a middleware runtime hook (RUNTIME_ONLY, excluded from action-tool layers)."""
+        if not is_runtime_hook(tool.name):
+            msg = f"register_runtime_hook: '{tool.name}' is not in RUNTIME_HOOK_NAMES SSOT"
+            raise ValueError(msg)
+        self.register(tool, source=source, bind_mode=ToolBindMode.RUNTIME_ONLY)
 
     def register_many(
         self,

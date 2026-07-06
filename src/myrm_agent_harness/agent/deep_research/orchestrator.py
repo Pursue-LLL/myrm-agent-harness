@@ -61,7 +61,7 @@ from .prompts import (
     build_orchestrator_prompt,
     build_orchestrator_reminder,
 )
-from .tools import (
+from myrm_agent_harness.agent.orchestration.signals.deep_research import (
     DISPATCH_TOOL_NAME,
     FINALIZE_TOOL_NAME,
     THINK_TOOL_NAME,

@@ -5,7 +5,7 @@ this protocol to execute specific task types (image generation, audio transcript
 
 
 [INPUT]
-- tasks.protocol::Task (POS: core task data model)
+- tasks.protocols::Task (POS: core task data model)
 
 [OUTPUT]
 - AsyncTaskExecutor: protocol defining execute/cancel/can_execute for business-layer task executors

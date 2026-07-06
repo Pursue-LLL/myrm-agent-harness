@@ -58,7 +58,7 @@
 | `file_ops/` | 读写编辑、validators、observers；`file_read_tool` 支持 `vault://` 恢复 auto-vault 大结果 | `file_read_tool`, `file_write_tool`, `file_edit_tool` |
 | `file_search/` | glob/grep（Claude Code 兼容） | `glob_tool`, `grep_tool` |
 | `spawn_subagent/` | delegate/batch/steer/cancel/teammate | `delegate_task_tool`, `batch_delegate_tasks_tool` |
-| `skills/` | analyze/select/search/manage/discovery 技能工具 | `create_skill_*_tool` 系列（见各子目录） |
+| `skills/` | select/manage/discovery 技能工具 | `create_skill_*_tool` 系列（见各子目录） |
 | `goals/` | Goal 引擎 LLM 工具面（域逻辑在 `agent/goals/`） | `create_goal_tools` |
 | `progress/` | 主 Agent 多步 todo 进度（workspace SSOT + SSE） | `create_todo_write_tool` |
 | `clarification/` | 结构化 HITL 澄清 | `ask_question_tool` |

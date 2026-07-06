@@ -55,12 +55,11 @@ from myrm_agent_harness.agent.middlewares.completion_guard_checklist import (
     build_checklist,
     classify_verification,
 )
+from myrm_agent_harness.agent.orchestration.hooks import COMPLETION_CHECK_TOOL_NAME
 
 _build_checklist = build_checklist
 
 logger = logging.getLogger(__name__)
-
-COMPLETION_CHECK_TOOL_NAME = "_completion_check"
 
 _MUTATION_TOOLS: frozenset[str] = frozenset(
     {

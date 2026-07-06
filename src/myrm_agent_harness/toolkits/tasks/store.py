@@ -10,7 +10,7 @@ This module provides a SQLite-based task store with support for:
 
 
 [INPUT]
-- tasks.protocol::Task, TaskStatus, TaskError, RetryPolicy, ErrorRecoverability (POS: core task data models)
+- tasks.protocols::Task, TaskStatus, TaskError, RetryPolicy, ErrorRecoverability (POS: core task data models)
 
 [OUTPUT]
 - TaskFilters: query filter builder for task listing

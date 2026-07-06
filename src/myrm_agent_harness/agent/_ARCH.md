@@ -37,7 +37,7 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 |-------|------------|------|
 | **Runtime Core** | `base_agent`, `skill_agent`, `_factory`, `_internals`, `streaming`, `types` | Agent 执行循环、流式事件、装配 |
 | **Pipeline** | `middlewares`, `hooks`, `context_management`, `security`, `file_snapshot`, `artifacts` | 安全/上下文/快照/工件 |
-| **Tool Surface** | `meta_tools`, `skills`, `sub_agents`, `parallel`, `goals`, `tool_management` | LLM 工具与编排 |
+| **Tool Surface** | `meta_tools`, `skills`, `sub_agents`, `parallel`, `goals`, `tool_management`, `orchestration` | Action Tools + 控制面信号 |
 
 **Extension point**: `extensions/` (Harness `AgentExtension` Protocol) · `acp/` (standalone ACP entry)
 
@@ -86,6 +86,7 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 | `coordination/` | Subagent P2P mailbox (TeammateMailbox) | [coordination/_ARCH.md](coordination/_ARCH.md) |
 | `dynamic_workflow/` | LLM-generated PTC orchestration scripts | [DYNAMIC_WORKFLOW_SYSTEM.md](dynamic_workflow/DYNAMIC_WORKFLOW_SYSTEM.md) |
 | `deep_research/` | Multi-phase deep research orchestrator | [DEEP_RESEARCH_SYSTEM.md](deep_research/DEEP_RESEARCH_SYSTEM.md) |
+| `orchestration/` | Control-plane signals + runtime hooks (not Action Tools) | [orchestration/_ARCH.md](orchestration/_ARCH.md) |
 | `errors/` | Execution errors + diagnostics | [ERROR_SYSTEM.md](errors/ERROR_SYSTEM.md) |
 | `event_log/` | Full event history (complements checkpointer) | [EVENT_LOG_SYSTEM.md](event_log/EVENT_LOG_SYSTEM.md) |
 | `extensions/` | Harness `AgentExtension` Protocol | [extensions/_ARCH.md](extensions/_ARCH.md) |

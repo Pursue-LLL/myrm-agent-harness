@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import pytest
 
+from myrm_agent_harness.agent.orchestration.hooks import RUNTIME_HOOK_NAMES
+from myrm_agent_harness.agent.orchestration.signals.catalog import ORCHESTRATION_SIGNAL_NAMES
 from myrm_agent_harness.agent.tool_management.tool_catalog import (
     ToolCatalogRole,
     build_tool_catalog_row,
@@ -14,16 +16,12 @@ from myrm_agent_harness.agent.tool_management.tool_catalog import (
     get_tool_product_id,
     validate_tool_catalog,
 )
-from myrm_agent_harness.agent.tool_management.tool_layers import ToolLayer
+from myrm_agent_harness.agent.tool_management.tool_layers import ToolLayer, _TOOL_LAYERS
 
 
-def test_orchestration_signal_roles() -> None:
-    assert get_tool_catalog_role("dispatch_research") is ToolCatalogRole.ORCHESTRATION_SIGNAL
-    assert get_tool_catalog_role("submit_verdict") is ToolCatalogRole.ORCHESTRATION_SIGNAL
-
-
-def test_runtime_hook_role() -> None:
-    assert get_tool_catalog_role("_completion_check") is ToolCatalogRole.RUNTIME_HOOK
+def test_action_tools_only_in_tool_layers() -> None:
+    overlap = set(_TOOL_LAYERS) & (ORCHESTRATION_SIGNAL_NAMES | RUNTIME_HOOK_NAMES)
+    assert not overlap
 
 
 def test_default_user_capability_role() -> None:
@@ -43,9 +41,9 @@ def test_load_condition_override() -> None:
 
 
 def test_build_tool_catalog_row() -> None:
-    row = build_tool_catalog_row("think", layer=ToolLayer.EXTENDED)
-    assert row.role is ToolCatalogRole.ORCHESTRATION_SIGNAL
-    assert row.layer is ToolLayer.EXTENDED
+    row = build_tool_catalog_row("web_search_tool", layer=ToolLayer.COMMON)
+    assert row.role is ToolCatalogRole.USER_CAPABILITY
+    assert row.layer is ToolLayer.COMMON
 
 
 def test_load_condition_uses_product_id_fallback() -> None:
@@ -53,17 +51,9 @@ def test_load_condition_uses_product_id_fallback() -> None:
     assert condition == "enabled_builtin_tools: browser"
 
 
-def test_validate_rejects_wrong_orchestration_role() -> None:
-    from myrm_agent_harness.agent.tool_management import tool_catalog as catalog_module
-
-    original = dict(catalog_module._ROLE_OVERRIDES)
-    try:
-        catalog_module._ROLE_OVERRIDES["dispatch_research"] = ToolCatalogRole.USER_CAPABILITY
-        errors = validate_tool_catalog({"dispatch_research": ToolLayer.EXTENDED})
-        assert any("dispatch_research" in err for err in errors)
-    finally:
-        catalog_module._ROLE_OVERRIDES.clear()
-        catalog_module._ROLE_OVERRIDES.update(original)
+def test_validate_rejects_underscore_action_tool_names() -> None:
+    errors = validate_tool_catalog({"_ghost_tool": ToolLayer.EXTENDED})
+    assert any("_ghost_tool" in err for err in errors)
 
 
 def test_conversation_history_group_without_override_returns_none(
@@ -94,24 +84,6 @@ def test_build_tool_catalog_rows_sorts_and_coerces_str_layer() -> None:
     assert rows[0].name == "bash_code_execute_tool"
     assert rows[0].layer is ToolLayer.CORE
     assert rows[-1].name == "web_search_tool"
-
-
-def test_validate_rejects_underscore_user_capability() -> None:
-    errors = validate_tool_catalog({"_ghost_tool": ToolLayer.EXTENDED})
-    assert any("_ghost_tool" in err for err in errors)
-
-
-def test_validate_rejects_wrong_completion_check_role() -> None:
-    from myrm_agent_harness.agent.tool_management import tool_catalog as catalog_module
-
-    original = dict(catalog_module._ROLE_OVERRIDES)
-    try:
-        catalog_module._ROLE_OVERRIDES["_completion_check"] = ToolCatalogRole.USER_CAPABILITY
-        errors = validate_tool_catalog({"_completion_check": ToolLayer.EXTENDED})
-        assert any("_completion_check" in err for err in errors)
-    finally:
-        catalog_module._ROLE_OVERRIDES.clear()
-        catalog_module._ROLE_OVERRIDES.update(original)
 
 
 def test_format_tool_catalog_markdown_renders_table() -> None:

@@ -89,7 +89,7 @@ Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
 | **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP |
 | **Workspace** | `browser/`, `computer_use/`, `filesystem_suggest/`, `context_bundle/`, `file_parsers/`, `wiki/` | Files, browser, desktop, @-mention path suggest |
 | **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/` | External APIs, agent protocols |
-| **Collaboration & Media** | `kanban/`, `tasks/`, `cron/` | Scheduling (incl. event/webhook triggers), tasks |
+| **Collaboration & Media** | `kanban/`, `tasks/`, `cron/` | Scheduling (incl. event/webhook triggers); `tasks/` = generic async job queue (media DTOs in `llms/media_task_types.py`) |
 | **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |
 
 Agent runtime-bound tool wrappers (e.g. `ask_question_tool`, `render_ui_tool`, `todo_write`) live in `agent/meta_tools/`, not here. Optional LangChain adapters (`*_agent_tools.py`) that do not import `agent/` may stay in `toolkits/` as a secondary export — see § `*_agent_tools.py` naming convention.

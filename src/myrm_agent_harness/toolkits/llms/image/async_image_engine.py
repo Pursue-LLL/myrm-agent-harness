@@ -4,7 +4,8 @@
 - generator::ImageGenerator (POS: Core generation/editing engine)
 - models::{ImageGenerationConfig, ImageGenerationError} (POS: Data types)
 - validator::ImageValidator (POS: Pre-call validation)
-- tasks::TaskStore (POS: Task persistence)
+- tasks::SQLiteTaskStore, Task, TaskStatus (POS: generic async job queue)
+- media_task_types::TASK_TYPE_IMAGE_GENERATE (POS: media async job type SSOT)
 
 [OUTPUT]
 - AsyncImageGenerationTools: Non-blocking LangChain tool for Agent integration
@@ -22,6 +23,7 @@ import json
 import logging
 import uuid
 
+from myrm_agent_harness.toolkits.llms.media_task_types import TASK_TYPE_IMAGE_GENERATE
 from myrm_agent_harness.toolkits.tasks import SQLiteTaskStore, Task, TaskStatus
 
 from .models import ImageGenerationConfig
@@ -51,6 +53,24 @@ class AsyncImageGenerationTools:
         self._task_store = task_store
         self._validator = ImageValidator(ssrf_protection=ssrf_protection)
 
+    def _execution_config_payload(self) -> dict[str, object]:
+        """Serialize non-callback execution fields for the worker snapshot."""
+        cfg = self._config
+        gateway_raw = cfg.gateway_config.model_dump(by_alias=False) if cfg.gateway_config else None
+        api_key: str | None = None
+        if cfg.api_key is not None:
+            api_key = cfg.api_key.get_secret_value()
+        return {
+            "model": cfg.model,
+            "fallback_models": list(cfg.fallback_models),
+            "default_size": cfg.default_size,
+            "default_quality": cfg.default_quality,
+            "timeout_seconds": cfg.timeout_seconds,
+            "max_retries": cfg.max_retries,
+            "gateway_config": gateway_raw,
+            "api_key": api_key,
+        }
+
     async def generate_image(
         self,
         prompt: str,
@@ -61,6 +81,8 @@ class AsyncImageGenerationTools:
         n: int = 1,
         reference_image_urls: list[str] | None = None,
         user_id: str = "local",
+        agent_id: str | None = None,
+        chat_id: str | None = None,
     ) -> str:
         """Generate an image asynchronously.
 
@@ -72,6 +94,8 @@ class AsyncImageGenerationTools:
             n: Number of images to generate.
             reference_image_urls: Optional URLs of reference images.
             user_id: User who owns this task (for multi-tenant isolation).
+            agent_id: Agent that enqueued the task (opaque metadata for server resolver).
+            chat_id: Chat session id for media library persistence.
 
         Returns:
             JSON string with task_id for frontend monitoring:
@@ -87,19 +111,25 @@ class AsyncImageGenerationTools:
 
         # Create task
         task_id = f"img-{uuid.uuid4().hex[:8]}"
+        payload: dict[str, object] = {
+            "prompt": prompt,
+            "size": size,
+            "quality": quality,
+            "style": style,
+            "count": n,
+            "reference_image_urls": reference_image_urls,
+            **self._execution_config_payload(),
+        }
+        if agent_id:
+            payload["agent_id"] = agent_id
+        if chat_id:
+            payload["chat_id"] = chat_id
         task = Task(
             task_id=task_id,
-            task_type="image_generate",
+            task_type=TASK_TYPE_IMAGE_GENERATE,
             user_id=user_id,
             status=TaskStatus.PENDING,
-            payload={
-                "prompt": prompt,
-                "size": size,
-                "quality": quality,
-                "style": style,
-                "count": n,
-                "reference_image_urls": reference_image_urls,
-            },
+            payload=payload,
             priority=5,
             timeout=300,
         )

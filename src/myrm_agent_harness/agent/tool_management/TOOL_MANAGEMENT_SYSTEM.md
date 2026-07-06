@@ -57,29 +57,25 @@ Server `_tool_layer_bootstrap.py` 扩展 EXTENDED 层业务工具。
 
 ---
 
-## LLM Tool vs Agent Runtime（术语 SSOT）
+## Action Tool vs Control Plane vs Runtime（术语 SSOT）
 
-| 术语 | 含义 | 示例 |
-|------|------|------|
-| **LLM Tool** | `BaseTool` 注册进 `ToolRegistry`，占 action space / token | `web_search_tool`, `bash_code_execute_tool` |
-| **Agent Runtime** | 普通 Python 代码：引擎、中间件、编排状态机、Skill 文档体 | `KanbanService`, `CompletionGuard`, `SKILL.md` |
+| 术语 | 含义 | SSOT | 示例 |
+|------|------|------|------|
+| **Action Tool** | `BaseTool` → `ToolRegistry` → `_TOOL_LAYERS`，可执行 | `tool_management/` | `web_search_tool`, `bash_code_execute_tool` |
+| **Orchestration Signal** | JSON schema；orchestrator 截获 tool_call，不进 `_TOOL_LAYERS` | `agent/orchestration/signals/` | `dispatch_research`, `submit_verdict` |
+| **Runtime Hook** | middleware 注入的 RUNTIME_ONLY 伪 tool_call | `agent/orchestration/hooks.py` | `_completion_check` |
+| **Agent Runtime** | 普通 Python：引擎、Skill 文档、Mermaid | — | `KanbanService`, `SKILL.md` |
 
-**只有 LLM Tool 使用 CORE / COMMON / EXTENDED 三层。** Runtime 模块禁止称作「工具」。
+**只有 Action Tool 使用 CORE / COMMON / EXTENDED 三层。** 控制面与 Runtime 禁止计入 action-tool 计数。
 
-`tool_catalog.py` 为每个 `_TOOL_LAYERS` 登记项标注 `ToolCatalogRole`；**Product ID 列**由 `TOOL_TO_GROUP`（`core/security/tool_registry.py`）与 `BUILTIN_TOOL_ID_TO_GROUP`（`capability_gap.py`）自动派生，无需手工维护 per-tool 映射。
+`tool_catalog.py` 仅服务 Action Tools（`user_capability`）。**Product ID 列**由 `TOOL_TO_GROUP` + `BUILTIN_TOOL_ID_TO_GROUP` 派生。
 
-| Role | 含义 |
-|------|------|
-| `user_capability` | 产品能力（默认 GeneralAgent 路径） |
-| `orchestration_signal` | 专用编排会话 LLM 信号（DR / Verifier；常由 Python 截获） |
-| `runtime_hook` | 中间件注入（如 `_completion_check`） |
-
-PTC 桥接（`myrm_tools.spawn_subagent` / `notify`）不在 `_TOOL_LAYERS` — 属于 Runtime，零 Turn1 schema。
+PTC 桥接（`spawn_subagent` / `notify`）属于 Runtime，零 Turn1 schema。
 
 <!-- TOOL_CATALOG_BEGIN -->
-### LLM Tool Catalog (auto-generated)
+### Action Tool Catalog (auto-generated)
 
-Only **ToolRegistry** entries appear here. Agent runtime engines, middleware, skill documents, and PTC bridges are ordinary code — not LLM tools.
+Only **Action Tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration signals and runtime hooks live under `agent/orchestration/`.
 
 | Tool | Layer | Role | Product ID | Load condition |
 |------|-------|------|------------|----------------|
@@ -96,11 +92,6 @@ Only **ToolRegistry** entries appear here. Agent runtime engines, middleware, sk
 | `request_answer_user_tool` | COMMON | user_capability | answer_tool | enabled_builtin_tools: answer_tool |
 | `todo_write` | COMMON | user_capability | planning | planning or existing workspace todos |
 | `web_search_tool` | COMMON | user_capability | web_search | enabled_builtin_tools: web_search (default on) |
-| `dispatch_research` | EXTENDED | orchestration_signal | — | Deep Research orchestrator session only; intercepted |
-| `finalize_report` | EXTENDED | orchestration_signal | — | Deep Research orchestrator session only; intercepted |
-| `submit_verdict` | EXTENDED | orchestration_signal | — | Verifier sub-agent session only |
-| `think` | EXTENDED | orchestration_signal | — | Deep Research orchestrator session only; intercepted |
-| `_completion_check` | EXTENDED | runtime_hook | — | CompletionGuard RUNTIME_ONLY inject |
 | `ask_question_tool` | EXTENDED | user_capability | — | clarification wiring in factory |
 | `bash_process_tool` | EXTENDED | user_capability | — | DISCOVERABLE; discover_capability AutoMount |
 | `batch_delegate_tasks_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
@@ -176,7 +167,7 @@ python scripts/validate_tool_registry.py --generate-docs  # 刷新 TOOL_COUNT + 
 2. 更新 token inventory（`python scripts/measure_turn1_token_inventory.py` + 同步 `DEFAULT_AGENT_TOKEN_INVENTORY.md`）
 3. 运行 `python scripts/validate_tool_registry.py --generate-docs`
 
-编排信号与 runtime hook 的 role 见 `tool_catalog.py` 与下方 **LLM Tool Catalog** 生成表。
+编排信号与 runtime hook 见 `agent/orchestration/`（不在下方 Action Tool Catalog 表内）。
 
 ## ToolBindMode 绑定契约
 

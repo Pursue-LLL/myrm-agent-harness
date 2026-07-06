@@ -20,7 +20,7 @@ Reasoning-model variants are handled via conditional rendering,
 avoiding duplicate templates.
 """
 
-# Tool name constants (kept in sync with tools.py)
+# Tool name constants (kept in sync with orchestration/signals/deep_research.py)
 _DISPATCH = "dispatch_research"
 _THINK = "think"
 _FINALIZE = "finalize_report"
