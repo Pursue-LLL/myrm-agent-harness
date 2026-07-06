@@ -1,6 +1,6 @@
 """Extended tests for WikiCompiler - covering _filter_changed_files, compile_all,
-_extract_concepts_from_doc, _parse_concepts_response, _build_index, _generate_backlinks,
-_save_metadata, purpose injection, parallel batch ingestion, worker loop, and edge cases."""
+_extract_concepts_from_doc, parse_concepts_response, build_index, generate_backlinks,
+save_metadata, purpose injection, parallel batch ingestion, worker loop, and edge cases."""
 
 import asyncio
 import json
@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage
+
+from myrm_agent_harness.toolkits.wiki.core.parsers import parse_concepts_response
 
 from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
@@ -43,8 +45,7 @@ def mock_indexer() -> AsyncMock:
 
 
 def test_parse_json_response(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
-    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
-    concepts = compiler._parse_concepts_response(
+    concepts = parse_concepts_response(
         '[{"name": "ML", "definition": "Machine Learning"}]', "test.md"
     )
     assert len(concepts) == 1
@@ -53,8 +54,7 @@ def test_parse_json_response(wiki_structure: WikiStructure, mock_llm: AsyncMock)
 
 
 def test_parse_json_with_code_block(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
-    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
-    concepts = compiler._parse_concepts_response(
+    concepts = parse_concepts_response(
         '```json\n[{"name": "AI", "definition": "Artificial Intelligence"}]\n```', "test.md"
     )
     assert len(concepts) == 1
@@ -62,8 +62,7 @@ def test_parse_json_with_code_block(wiki_structure: WikiStructure, mock_llm: Asy
 
 
 def test_parse_bullet_response(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
-    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
-    concepts = compiler._parse_concepts_response(
+    concepts = parse_concepts_response(
         "1. **Neural Network** - A computing system\n- **Gradient** - A derivative vector", "test.md"
     )
     assert len(concepts) == 2
@@ -72,8 +71,7 @@ def test_parse_bullet_response(wiki_structure: WikiStructure, mock_llm: AsyncMoc
 
 
 def test_parse_empty_response(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
-    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
-    concepts = compiler._parse_concepts_response("No concepts found.", "test.md")
+    concepts = parse_concepts_response("No concepts found.", "test.md")
     assert concepts == []
 
 
@@ -689,9 +687,8 @@ async def test_extract_concepts_from_doc_external_path(
 def test_parse_concepts_response_plain_code_block(
     wiki_structure: WikiStructure, mock_llm: AsyncMock
 ) -> None:
-    """Test parsing response wrapped in plain ``` (lines 350-354)."""
-    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
-    concepts = compiler._parse_concepts_response(
+    """Test parsing response wrapped in plain ``` code block."""
+    concepts = parse_concepts_response(
         '```\n[{"name": "Wrapped", "definition": "In plain code block"}]\n```',
         "test.md",
     )

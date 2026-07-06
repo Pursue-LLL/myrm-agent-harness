@@ -4,7 +4,8 @@ import pytest
 
 from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
-from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer, _tokenize_for_fts
+from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
+from myrm_agent_harness.toolkits.wiki.retrieval.tokenizer import tokenize_for_fts
 
 
 @pytest.fixture
@@ -202,47 +203,47 @@ def test_edge_weight_calculation(wiki_structure):
 # --- CJK Tokenizer Tests ---
 
 
-def test_tokenize_for_fts_pure_english():
+def testtokenize_for_fts_pure_english():
     """Pure English query produces quoted tokens."""
-    result = _tokenize_for_fts("machine learning algorithm")
+    result = tokenize_for_fts("machine learning algorithm")
     assert '"machine"' in result
     assert '"learning"' in result
     assert '"algorithm"' in result
 
 
-def test_tokenize_for_fts_pure_cjk():
+def testtokenize_for_fts_pure_cjk():
     """CJK text is split into bigrams."""
-    result = _tokenize_for_fts("深度学习")
+    result = tokenize_for_fts("深度学习")
     assert '"深度"' in result
     assert '"度学"' in result
     assert '"学习"' in result
 
 
-def test_tokenize_for_fts_mixed():
+def testtokenize_for_fts_mixed():
     """Mixed CJK and English produces both types of tokens."""
-    result = _tokenize_for_fts("LLM架构设计")
+    result = tokenize_for_fts("LLM架构设计")
     assert '"LLM"' in result
     assert '"架构"' in result
     assert '"构设"' in result
     assert '"设计"' in result
 
 
-def test_tokenize_for_fts_single_cjk_char():
+def testtokenize_for_fts_single_cjk_char():
     """Single CJK character is quoted directly (no bigram possible)."""
-    result = _tokenize_for_fts("AI是")
+    result = tokenize_for_fts("AI是")
     assert '"AI"' in result
     assert '"是"' in result
 
 
-def test_tokenize_for_fts_empty():
+def testtokenize_for_fts_empty():
     """Empty input returns empty string."""
-    assert _tokenize_for_fts("") == ""
-    assert _tokenize_for_fts("   ") == ""
+    assert tokenize_for_fts("") == ""
+    assert tokenize_for_fts("   ") == ""
 
 
-def test_tokenize_for_fts_stop_words_removed():
+def testtokenize_for_fts_stop_words_removed():
     """Common English stop words are excluded."""
-    result = _tokenize_for_fts("the is a an of")
+    result = tokenize_for_fts("the is a an of")
     assert result.strip() == ""
 
 

@@ -5,7 +5,9 @@ langchain_core.language_models::BaseChatModel (POS: LangChain LLM base class)
 langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message types)
 ..core.config::WikiConfig, WikiCompileConfig (POS: Wiki configuration center)
 ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
-..core.types::ConceptInfo, WikiArticle, CompileResult, WikiMetadata (POS: Wiki toolkit type definition center)
+..core.types::ConceptInfo, CompileResult (POS: Wiki toolkit type definitions)
+..core.parsers::parse_concepts_response (POS: LLM response parser)
+.postprocess::build_index, generate_backlinks, save_metadata (POS: post-compilation steps)
 .queue::WikiIngestionQueue (POS: persistent ingestion queue)
 
 [OUTPUT]
@@ -13,18 +15,16 @@ WikiCompiler: LLM-Wiki compilation engine
 
 [POS]
 Wiki compilation core engine. Uses LLM to compile raw documents into structured wiki articles:
-concept extraction, article generation, index building, and backlink creation. Supports incremental
-compilation, Semaphore-limited parallel batch ingestion, and SQLite-based persistent controlled
-batch processing for enterprise-grade reliability.
+concept extraction and article generation. Post-compilation steps (index, backlinks, metadata)
+are delegated to postprocess module. Supports incremental compilation, Semaphore-limited
+parallel batch ingestion, and SQLite-based persistent controlled batch processing.
 """
 
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import hashlib
 import json
-import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
@@ -33,14 +33,16 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, WikiConfig
+from myrm_agent_harness.toolkits.wiki.core.parsers import parse_concepts_response
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
-from myrm_agent_harness.toolkits.wiki.core.types import CompileResult, ConceptInfo, WikiMetadata
+from myrm_agent_harness.toolkits.wiki.core.types import CompileResult, ConceptInfo
 
+from .postprocess import build_index, generate_backlinks, save_metadata
 from .queue import WikiIngestionQueue
 
 logger = get_agent_logger(__name__)
@@ -330,67 +332,11 @@ class WikiCompiler:
         try:
             response = await self._llm.ainvoke([system_msg, human_msg])
             logger.info(f"LLM extraction response for {doc_path}: {response.content}")
-            concepts = self._parse_concepts_response(response.content, str(relative_path))
+            concepts = parse_concepts_response(response.content, str(relative_path))
             return concepts
         except Exception as e:
             logger.error(f"LLM extraction failed for {doc_path}: {e}")
             return []
-
-    def _parse_concepts_response(self, response: str, source_file: str) -> list[ConceptInfo]:
-        """Parse LLM response into ConceptInfo list (supports JSON and bullet points)."""
-        concepts = []
-        response_clean = response.strip()
-
-        # Remove markdown code blocks if present
-        if response_clean.startswith("```json"):
-            response_clean = response_clean[7:]
-            if response_clean.endswith("```"):
-                response_clean = response_clean[:-3]
-            response_clean = response_clean.strip()
-        elif response_clean.startswith("```"):
-            response_clean = response_clean[3:]
-            if response_clean.endswith("```"):
-                response_clean = response_clean[:-3]
-            response_clean = response_clean.strip()
-
-        try:
-            json_data = json.loads(response_clean)
-            if isinstance(json_data, list):
-                for item in json_data:
-                    if isinstance(item, dict) and "name" in item and "definition" in item:
-                        raw_related = item.get("related_concepts", [])
-                        related = [str(r) for r in raw_related] if isinstance(raw_related, list) else []
-                        concepts.append(
-                            ConceptInfo(
-                                name=item["name"],
-                                definition=item["definition"],
-                                mentions=1,
-                                source_files=[source_file],
-                                related_concepts=related,
-                            )
-                        )
-                return concepts
-        except (json.JSONDecodeError, KeyError):
-            pass
-
-        for line in response_clean.split("\n"):
-            line = line.strip()
-            # Match formats like: "1. **Concept** - Definition", "- Concept: Definition", "* Concept – Definition"
-            match = re.match(r"^(?:\d+\.|\-|\*)\s+(.*?)\s*(?:-|:|–)\s+(.*)", line)
-            if match:
-                name = match.group(1).replace("**", "").replace("*", "").strip()
-                definition = match.group(2).strip()
-                if name and definition:
-                    concepts.append(
-                        ConceptInfo(
-                            name=name,
-                            definition=definition,
-                            mentions=1,
-                            source_files=[source_file],
-                        )
-                    )
-
-        return concepts
 
     async def _generate_articles_batch(self, concepts: list[ConceptInfo]) -> int:
         """Generate wiki articles with configurable parallelism."""
@@ -480,88 +426,13 @@ class WikiCompiler:
             raise
 
     async def _build_index(self, concepts: list[ConceptInfo]) -> None:
-        """Build main index file."""
-        index_content = "# Wiki Index\n\n"
-        index_content += f"*Last updated: {datetime.now(UTC).isoformat()}*\n\n"
-        index_content += "## Concepts\n\n"
-
-        for concept in sorted(concepts, key=lambda c: c.name):
-            index_content += f"- [[{concept.name}]]\n"
-
-        index_path = self._structure.get_index_file_path()
-        index_path.write_text(index_content, encoding="utf-8")
-        logger.info(f"Built index: {index_path}")
-
-    _RELATED_SECTION_RE: ClassVar[re.Pattern[str]] = re.compile(
-        r"\n+## Related Concepts\n.*", re.DOTALL
-    )
+        """Delegate to postprocess.build_index."""
+        await build_index(self._structure, concepts)
 
     async def _generate_backlinks(self, concepts: list[ConceptInfo]) -> int:
-        """Generate backlinks between related concepts (Obsidian format).
-
-        Idempotent: replaces existing Related Concepts section if present.
-        """
-        backlinks_count = 0
-
-        for concept in concepts:
-            if not concept.related_concepts:
-                continue
-
-            article_path = self._structure.get_concept_file_path(concept.name)
-            if not article_path.exists():
-                continue
-
-            try:
-                content = article_path.read_text(encoding="utf-8")
-
-                backlinks_section = "\n\n## Related Concepts\n\n"
-                for related in concept.related_concepts:
-                    backlinks_section += f"- [[{related}]]\n"
-                    backlinks_count += 1
-
-                # Idempotent: strip existing section before appending
-                content = self._RELATED_SECTION_RE.sub("", content)
-                content += backlinks_section
-                article_path.write_text(content, encoding="utf-8")
-
-                # Update graph edges for O(1) retrieval
-                if self._indexer:
-                    self._indexer.extract_and_upsert_edges(concept.name, content)
-                else:
-                    from ..retrieval.indexer import WikiIndexer
-
-                    indexer = WikiIndexer(self._structure, self._config)
-                    indexer.extract_and_upsert_edges(concept.name, content)
-
-            except Exception as e:
-                logger.error(f"Failed to add backlinks for {concept.name}: {e}")
-
-        return backlinks_count
+        """Delegate to postprocess.generate_backlinks."""
+        return await generate_backlinks(self._structure, self._config, concepts, self._indexer)
 
     async def _save_metadata(self, concepts_count: int, articles_count: int) -> None:
-        """Save wiki metadata including SHA256 file hashes for incremental compilation."""
-        raw_files = self._structure.list_raw_files()
-        file_hashes: dict[str, str] = {}
-        for f in raw_files:
-            with contextlib.suppress(OSError):
-                file_hashes[str(f)] = hashlib.sha256(f.read_bytes()).hexdigest()
-
-        metadata = WikiMetadata(
-            last_compile_time=datetime.now(UTC),
-            total_concepts=concepts_count,
-            total_articles=articles_count,
-            total_raw_files=len(raw_files),
-        )
-
-        metadata_path = self._structure.get_wiki_metadata_path()
-        metadata_dict = {
-            "last_compile_time": metadata.last_compile_time.isoformat(),
-            "total_concepts": metadata.total_concepts,
-            "total_articles": metadata.total_articles,
-            "total_raw_files": metadata.total_raw_files,
-            "version": metadata.version,
-            "file_hashes": file_hashes,
-        }
-
-        metadata_path.write_text(json.dumps(metadata_dict, indent=2), encoding="utf-8")
-        logger.info(f"Saved metadata: {metadata_path}")
+        """Delegate to postprocess.save_metadata."""
+        await save_metadata(self._structure, concepts_count, articles_count)

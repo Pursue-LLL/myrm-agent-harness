@@ -11,6 +11,7 @@ with provenance, HITL pending edits.
 |------|------|-------------|-------|
 | __init__.py | Package | Init | — |
 | compiler.py | Core | LLM compiler: parallel batch ingestion, SHA256 incremental cache, purpose injection, auto-retry worker | ✅ |
+| postprocess.py | Core | Post-compilation steps: index building, backlink generation, metadata persistence | ✅ |
 | pending.py | Core | HITL pending edits manager | ✅ |
 | queue.py | Core | SQLite persistent ingestion queue with retry + stale recovery | ✅ |
 

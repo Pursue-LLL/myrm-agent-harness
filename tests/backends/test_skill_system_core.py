@@ -178,11 +178,11 @@ class TestAttenuateTools:
         allowed = {"memory_search", "echo_tool", "write_file"}
         assert set(result.tool_names) == allowed & set(self.ALL_TOOLS)
 
-    def test_allowed_tools_partial_declaration_skips_filter(self) -> None:
+    def test_allowed_tools_partial_declaration_applies_filter(self) -> None:
         skill_with = _make_skill(name="s1", allowed_tools=["echo_tool"])
         skill_without = _make_skill(name="s2", allowed_tools=None)
         result = attenuate_tools(self.ALL_TOOLS, [skill_with, skill_without])
-        assert set(result.tool_names) == set(self.ALL_TOOLS)
+        assert set(result.tool_names) == {"echo_tool"}
 
     def test_explanation_content(self) -> None:
         skill = _make_skill(trust=SkillTrust.INSTALLED)

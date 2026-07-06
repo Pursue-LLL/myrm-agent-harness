@@ -7,6 +7,8 @@ re (POS: standard library regex)
 ..core.config::WikiConfig (POS: Wiki configuration)
 myrm_agent_harness.toolkits.vector.base::VectorDocument (POS: vector document)
 myrm_agent_harness.toolkits.retriever.fusion_strategies::rrf_fusion (POS: result fusion strategy)
+.tokenizer::tokenize_for_fts (POS: FTS5 query tokenizer)
+.graph_store::WikiGraphStore (POS: knowledge graph storage)
 
 [OUTPUT]
 WikiIndexer: high-performance hybrid search engine based on FTS5 + Qdrant
@@ -31,113 +33,14 @@ from myrm_agent_harness.utils.db.fts5 import fts5_auto_heal, fts5_integrity_chec
 
 from ..core.config import WikiConfig
 from ..core.structure import WikiStructure
-from .graph_analysis import compute_graph_insights, enrich_graph_with_communities
+from .graph_store import WikiGraphStore
+from .tokenizer import tokenize_for_fts
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.protocols.embedding import EmbeddingProtocol
     from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
 
 logger = logging.getLogger(__name__)
-
-_STOP_WORDS = frozenset(
-    {
-        "a",
-        "an",
-        "and",
-        "are",
-        "as",
-        "at",
-        "be",
-        "but",
-        "by",
-        "for",
-        "if",
-        "in",
-        "into",
-        "is",
-        "it",
-        "no",
-        "not",
-        "of",
-        "on",
-        "or",
-        "such",
-        "that",
-        "the",
-        "their",
-        "then",
-        "there",
-        "these",
-        "they",
-        "this",
-        "to",
-        "was",
-        "will",
-        "with",
-        "what",
-        "how",
-        "why",
-        "who",
-        "where",
-        "when",
-        "does",
-        "do",
-        "did",
-        "can",
-        "could",
-        "should",
-        "would",
-        "的",
-        "了",
-        "和",
-        "是",
-        "就",
-        "都",
-        "而",
-        "及",
-        "与",
-        "着",
-        "或",
-        "一个",
-        "没有",
-        "我们",
-        "你们",
-        "他们",
-        "它",
-        "它们",
-        "什么",
-        "怎么",
-        "如何",
-        "为什么",
-        "谁",
-        "在哪",
-        "何时",
-    }
-)
-
-_CJK_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF]+")
-
-
-def _tokenize_for_fts(query: str) -> str:
-    """Build FTS5 query with CJK bigram support for proper Chinese/Japanese/Korean search."""
-    tokens: list[str] = []
-
-    # Extract CJK segments and create bigrams
-    cjk_segments = _CJK_RE.findall(query)
-    for seg in cjk_segments:
-        if len(seg) == 1:
-            tokens.append(f'"{seg}"')
-        else:
-            for i in range(len(seg) - 1):
-                tokens.append(f'"{seg[i]}{seg[i + 1]}"')
-
-    # Extract non-CJK Latin words
-    latin_text = _CJK_RE.sub(" ", query)
-    for word in latin_text.split():
-        if word.lower() not in _STOP_WORDS and word.strip():
-            tokens.append(f'"{word}"')
-
-    return " ".join(tokens)
 
 
 class WikiIndexer:
@@ -163,6 +66,7 @@ class WikiIndexer:
         self._collection_name = "wiki_concepts"
         self._collection_ready = False
         self._init_db()
+        self._graph_store = WikiGraphStore(self._get_conn, structure)
 
     @contextlib.contextmanager
     def _get_conn(self):
@@ -217,111 +121,15 @@ class WikiIndexer:
                 logger.warning("FTS5 index corrupted on startup, rebuilding: wiki_fts")
                 fts5_rebuild(conn, "wiki_fts")
 
-    def get_knowledge_graph(self, center_node: str | None = None, depth: int = 1, limit: int = 1000) -> dict[str, list]:
-        """Fetch the full topology graph in O(1) DB read time, with progressive BFS support across federated databases."""
-        nodes = []
-        edges = []
-        node_ids = set()
-
-        with self._get_conn() as conn:
-            # Build federated UNION queries
-            fts_tables = ["wiki_fts"]
-            edges_tables = ["wiki_edges"]
-            for idx, p_dir in enumerate(self._structure.public_dirs):
-                if (p_dir / ".wiki_index.db").exists():
-                    fts_tables.append(f"pub_{idx}.wiki_fts")
-                    edges_tables.append(f"pub_{idx}.wiki_edges")
-
-            fts_union = " UNION ALL ".join(f"SELECT concept_name FROM {t}" for t in fts_tables)
-            edges_union = " UNION ALL ".join(f"SELECT source, target, weight FROM {t}" for t in edges_tables)
-
-            if not center_node:
-                # Global fetch with hard limit to prevent OOM
-                cursor = conn.execute(f"SELECT concept_name FROM ({fts_union}) LIMIT ?", (limit,))
-                for row in cursor.fetchall():
-                    node_id = row["concept_name"]
-                    nodes.append({"id": node_id, "name": node_id.replace("-", " "), "group": 1})
-                    node_ids.add(node_id)
-
-                if node_ids:
-                    cursor = conn.execute(f"SELECT source, target, weight FROM ({edges_union})")
-                    for row in cursor.fetchall():
-                        src = row["source"]
-                        tgt = row["target"]
-                        if src in node_ids and tgt in node_ids:
-                            edges.append({"source": src, "target": tgt, "weight": row["weight"] or 1.0})
-            else:
-                # BFS starting from center_node
-                current_level = {center_node}
-                visited_nodes = {center_node}
-                all_edges = []
-
-                # Check if center node exists
-                cursor = conn.execute(f"SELECT concept_name FROM ({fts_union}) WHERE concept_name = ?", (center_node,))
-                if cursor.fetchone():
-                    nodes.append({"id": center_node, "name": center_node.replace("-", " "), "group": 1})
-
-                for _ in range(depth):
-                    if not current_level:
-                        break
-                    next_level = set()
-
-                    placeholders = ",".join(["?"] * len(current_level))
-                    params = tuple(current_level)
-
-                    # Outgoing edges
-                    cursor = conn.execute(
-                        f"SELECT source, target, weight FROM ({edges_union}) WHERE source IN ({placeholders})", params
-                    )
-                    for row in cursor.fetchall():
-                        src, tgt = row["source"], row["target"]
-                        all_edges.append({"source": src, "target": tgt, "weight": row["weight"] or 1.0})
-                        if tgt not in visited_nodes:
-                            next_level.add(tgt)
-
-                    # Incoming edges (Fast due to idx_wiki_edges_target)
-                    cursor = conn.execute(
-                        f"SELECT source, target, weight FROM ({edges_union}) WHERE target IN ({placeholders})", params
-                    )
-                    for row in cursor.fetchall():
-                        src, tgt = row["source"], row["target"]
-                        all_edges.append({"source": src, "target": tgt, "weight": row["weight"] or 1.0})
-                        if src not in visited_nodes:
-                            next_level.add(src)
-
-                    # Fetch nodes info for next_level
-                    if next_level:
-                        np_placeholders = ",".join(["?"] * len(next_level))
-                        np_params = tuple(next_level)
-                        cursor = conn.execute(
-                            f"SELECT concept_name FROM ({fts_union}) WHERE concept_name IN ({np_placeholders})",
-                            np_params,
-                        )
-                        for row in cursor.fetchall():
-                            nid = row["concept_name"]
-                            if nid not in visited_nodes:
-                                nodes.append({"id": nid, "name": nid.replace("-", " "), "group": 1})
-                                visited_nodes.add(nid)
-
-                    current_level = next_level
-                    if len(visited_nodes) >= limit:
-                        break
-
-                # Dedup edges
-                unique_edges = {}
-                for e in all_edges:
-                    if e["source"] in visited_nodes and e["target"] in visited_nodes:
-                        unique_edges[(e["source"], e["target"])] = e
-                edges = list(unique_edges.values())
-
-        enrich_graph_with_communities(nodes, edges)
-
-        return {"nodes": nodes, "edges": edges}
+    def get_knowledge_graph(
+        self, center_node: str | None = None, depth: int = 1, limit: int = 1000
+    ) -> dict[str, list]:
+        """Delegate to WikiGraphStore for BFS graph traversal."""
+        return self._graph_store.get_knowledge_graph(center_node, depth, limit)
 
     def graph_insights(self) -> dict[str, list[dict]]:
-        """Analyze graph structure for unexpected connections, knowledge gaps, and communities."""
-        with self._get_conn() as conn:
-            return compute_graph_insights(conn)
+        """Delegate to WikiGraphStore for graph structural analysis."""
+        return self._graph_store.graph_insights()
 
     def upsert_edges(self, source: str, targets: list[str], source_files: list[str] | None = None) -> None:
         """Upsert directional edges with multi-dimensional weight calculation."""
@@ -506,7 +314,7 @@ class WikiIndexer:
                         if (p_dir / ".wiki_index.db").exists():
                             fts_tables.append(f"pub_{idx}.wiki_fts")
 
-                    fts_query = _tokenize_for_fts(safe_query)
+                    fts_query = tokenize_for_fts(safe_query)
 
                     if fts_query:
                         # In SQLite FTS5, the MATCH operator can be used on the table name.

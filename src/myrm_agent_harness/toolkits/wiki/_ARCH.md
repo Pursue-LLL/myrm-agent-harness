@@ -15,10 +15,10 @@ LLM-driven wikilink enrichment.
 
 | Submodule | Description |
 |-----------|-------------|
-| core/ | Config (purpose, compile strategy), types, file structure (incl. scan_folder with auto-ignore for .git/node_modules/etc) |
+| core/ | Config (purpose, compile strategy), types, file structure (incl. scan_folder with auto-ignore for .git/node_modules/etc), parsers (LLM response → ConceptInfo) |
 | maintenance/ | Linter: health checks, drift/stale detection, knowledge-gap analysis, LLM link enrichment |
-| pipeline/ | Compiler (parallel batch ingestion, SHA256 cache, auto-retry queue, raw text FTS5 pre-indexing on enqueue), pending edits (HITL) |
-| retrieval/ | Indexer (FTS5+CJK with raw text interim indexing, edges with weight, LPA, graph insights), query engine (graph expansion) |
+| pipeline/ | Compiler (parallel batch ingestion, SHA256 cache, auto-retry queue, raw text FTS5 pre-indexing on enqueue), postprocess (index building, backlink generation, metadata persistence), pending edits (HITL) |
+| retrieval/ | Indexer (FTS5 hybrid search, vector upsert/delete), tokenizer (CJK bigram FTS5 query builder), graph_store (BFS traversal, federated graph queries, insights), query engine (graph expansion) |
 
 ## Key Dependencies
 
