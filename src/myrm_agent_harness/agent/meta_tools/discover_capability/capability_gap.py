@@ -116,6 +116,18 @@ CAPABILITY_GAP_REGISTRY: tuple[CapabilityGapEntry, ...] = (
         ("multi-step plan", "task plan", "规划步骤", "任务规划"),
     ),
     CapabilityGapEntry(
+        "cron",
+        "cron",
+        (
+            "schedule task",
+            "cron job",
+            "scheduled reminder",
+            "定时任务",
+            "定时提醒",
+            "每天",
+        ),
+    ),
+    CapabilityGapEntry(
         "image_generation",
         "image_generation",
         (

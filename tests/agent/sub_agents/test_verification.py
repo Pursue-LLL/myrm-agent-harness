@@ -538,3 +538,29 @@ class TestRunWithVerification:
         )
         assert "Verification: FAIL after 1 round(s)" in result.result
         assert result.success is False, "Verification failure must set success=False"
+
+
+class TestVerifyWorkerOutput:
+    @pytest.mark.asyncio
+    async def test_returns_fail_when_verifier_subagent_fails(self):
+        from myrm_agent_harness.agent.sub_agents._verifier_round import verify_worker_output
+
+        mgr = MagicMock()
+
+        async def _spawn(**kwargs):
+            return _fail(kwargs["task_id"], kwargs["agent_type"], "verifier crashed")
+
+        mgr.spawn_child = _spawn
+        v_cfg = SubagentConfig(system_prompt="verifier")
+
+        verdict = await verify_worker_output(
+            mgr,
+            worker_output="worker output",
+            worker_type="worker",
+            verifier_type="adversarial-reviewer",
+            verifier_config=v_cfg,
+            context={},
+            tool_registry_getter=lambda: [],
+        )
+        assert verdict.passed is False
+        assert "failed to complete" in verdict.summary

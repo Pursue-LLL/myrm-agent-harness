@@ -224,6 +224,7 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
         }
     ),
     "render_ui": frozenset({"render_ui_tool"}),
+    "cron": frozenset({"cron_manage_tool"}),
     "image_generation": frozenset({"image_tool"}),
     "video_generation": frozenset({"video_tool"}),
     "tts": frozenset({"tts_generate"}),

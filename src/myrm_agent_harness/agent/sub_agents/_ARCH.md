@@ -27,7 +27,9 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | SUBAGENT_NOTIFICATION_STRATEGY.md | L2 | Subagent push notification strategy and context injection design | — |
 | orchestrator.py | Core | Subagent composition patterns — chain, batch, alternatives, council, and DAG execution (with Declarative Dependency Context Filtering, Auto-Vaulting, Swarm Fission yield-resume, Optional Path Guard via `allow_failure` on PlanStep, `run_alternatives` for parallel multi-solution generation with deferred workspace merge, and `run_council` for multi-expert cross-review). Delegates verification to `_orchestrator_verification` and council to `_orchestrator_council`. | ✅ |
 | _orchestrator_council.py | Internal | Council orchestration — multi-expert parallel analysis with cross-review debate and chair synthesis, COUNCIL_PHASE event emission. | ✅ |
-| _orchestrator_verification.py | Internal | Adversarial verification orchestration — Worker -> Verifier -> Retry loop. Injects `submit_verdict` (verifier-only; 0 default Agent token) for structured verdict; ReadonlyExecutorProxy sandboxing; VERIFICATION_VERDICT events. | ✅ |
+| _orchestrator_verification.py | Internal | Adversarial verification retry loop (`run_with_verification`). Delegates single-round verifier spawn to `_verifier_round.py`. | ✅ |
+| _verifier_round.py | Internal | Single-round verifier spawn + `verify_worker_output()` (Cron post-run and delegate paths). | ✅ |
+| _verification_parsing.py | Internal | `VerificationVerdict` parsing + VERIFICATION_VERDICT SSE emission. | ✅ |
 | _workspace_diff.py | Internal | Lightweight stat-based workspace file change detection for adversarial verification diff injection. | ✅ |
 | prompts.py | Core | Default prompt templates for multi-agent coordination. | ✅ |
 | registry.py | Core | Subagent configuration registry and loader. Provides global config registration and lookup. | ✅ |

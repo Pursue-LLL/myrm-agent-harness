@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool
 
-from myrm_agent_harness.agent.sub_agents._verification_parsing import VerificationVerdict
+from myrm_agent_harness.agent.sub_agents._verification_parsing import VerificationVerdict, _parse_verdict
 from myrm_agent_harness.agent.sub_agents._verifier_round import (
     _execute_verifier_round,
     verify_worker_output,
