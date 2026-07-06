@@ -40,6 +40,7 @@ class ShellCriterion(BaseCriterion):
         if not executor:
             return VerificationResult(
                 passed=False,
+                criterion_label=self.command,
                 reason="System Error: Sandbox executor not found. Cannot verify.",
                 error_logs="Missing execution environment.",
             )
@@ -52,7 +53,7 @@ class ShellCriterion(BaseCriterion):
         try:
             result = await executor.execute_bash(context)
             if result.exit_code == 0:
-                return VerificationResult(passed=True)
+                return VerificationResult(passed=True, criterion_label=self.command)
 
             error_msg = f"Command failed with exit code {result.exit_code}.\n"
             if result.stdout:
@@ -62,16 +63,18 @@ class ShellCriterion(BaseCriterion):
 
             return VerificationResult(
                 passed=False,
+                criterion_label=self.command,
                 reason=f"Shell command failed: {self.command}",
                 error_logs=error_msg,
             )
         except Exception as e:
             return VerificationResult(
                 passed=False,
+                criterion_label=self.command,
                 reason=f"Failed to execute verification command: {self.command}",
                 error_logs=str(e),
             )
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> ShellCriterion:
-        return cls(command=data["command"], timeout_seconds=data.get("timeout_seconds", 60))
+        return cls(command=str(data["command"]), timeout_seconds=int(data.get("timeout_seconds", 60)))

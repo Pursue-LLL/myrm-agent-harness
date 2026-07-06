@@ -522,6 +522,33 @@ class GoalManager(GoalProvider):
         logger.info("Updated objective for goal %s", goal_id)
         return goal
 
+    async def record_acceptance_results(
+        self, goal_id: str, results: list[dict[str, object]]
+    ) -> Goal:
+        """Persist per-criterion acceptance verification results."""
+        goal = await self._storage.get_goal(goal_id)
+        if not goal:
+            raise ValueError(f"Goal {goal_id} not found")
+
+        goal.metadata["acceptance_results"] = results
+
+        history: list[dict[str, object]] = goal.metadata.get("acceptance_history", [])  # type: ignore[assignment]
+        history.append({
+            "timestamp": datetime.now(UTC).isoformat(),
+            "results": results,
+        })
+        goal.metadata["acceptance_history"] = history
+
+        goal.updated_at = datetime.now(UTC)
+        await self._storage.save_goal(goal)
+        logger.info(
+            "Recorded acceptance results for goal %s (%d criteria, %d passed)",
+            goal_id,
+            len(results),
+            sum(1 for r in results if r.get("passed")),
+        )
+        return goal
+
     async def reorder_queue(self, session_id: str, ordered_goal_ids: list[str]) -> None:
         """Reorder the goal queue by the provided ordered goal IDs."""
         await self._storage.reorder_queue(session_id, ordered_goal_ids)

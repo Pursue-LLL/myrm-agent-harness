@@ -160,7 +160,8 @@ async def test_browser_fetcher_storage_state_injection():
     mock_pool.acquire_page.assert_called_once_with(
         ContextType.CRAWL,
         context_key="crawl_example.com",
-        context_kwargs={"storage_state": mock_storage_state}
+        context_kwargs={"storage_state": mock_storage_state},
+        launch_mode_preference=None,
     )
 
 """Fetchers 核心功能测试"""

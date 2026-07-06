@@ -13,7 +13,7 @@ from myrm_agent_harness.agent.goals.continuation import (
     check_continuation,
 )
 from myrm_agent_harness.agent.goals.types import ContinuationDecision, Goal, GoalBudget, GoalStatus
-from myrm_agent_harness.agent.goals.verification.base import VerificationResult
+from myrm_agent_harness.agent.goals.verification.base import AggregatedVerificationResult, VerificationResult
 
 
 @pytest.fixture
@@ -1138,12 +1138,15 @@ async def test_acceptance_verification_pass():
         acceptance_criteria=[{"type": "shell", "command": "echo ok"}],
     )
     mock_gk = MagicMock()
-    mock_gk.verify_all = AsyncMock(return_value=VerificationResult(passed=True))
+    mock_gk.verify_all = AsyncMock(return_value=AggregatedVerificationResult(passed=True, per_criterion=[
+        VerificationResult(passed=True, criterion_label="echo ok"),
+    ]))
     with patch(
         "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
         return_value=mock_gk,
     ):
         assert await _run_acceptance_verification(provider, goal) is True
+    provider.record_acceptance_results.assert_called_once()
     provider.increment_verification_retries.assert_not_called()
 
 
@@ -1163,12 +1166,15 @@ async def test_acceptance_verification_fail_increments_retries():
         acceptance_criteria=[{"type": "shell", "command": "false"}],
     )
     mock_gk = MagicMock()
-    mock_gk.verify_all = AsyncMock(return_value=VerificationResult(passed=False, reason="cmd failed"))
+    mock_gk.verify_all = AsyncMock(return_value=AggregatedVerificationResult(passed=False, per_criterion=[
+        VerificationResult(passed=False, criterion_label="false", reason="cmd failed"),
+    ]))
     with patch(
         "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
         return_value=mock_gk,
     ):
         assert await _run_acceptance_verification(provider, goal) is False
+    provider.record_acceptance_results.assert_called_once()
     provider.increment_verification_retries.assert_called_once_with("g1")
     provider.update_status.assert_not_called()
 
@@ -1189,12 +1195,15 @@ async def test_acceptance_verification_fail_fuse_pauses():
         acceptance_criteria=[{"type": "shell", "command": "false"}],
     )
     mock_gk = MagicMock()
-    mock_gk.verify_all = AsyncMock(return_value=VerificationResult(passed=False, reason="still failing"))
+    mock_gk.verify_all = AsyncMock(return_value=AggregatedVerificationResult(passed=False, per_criterion=[
+        VerificationResult(passed=False, criterion_label="false", reason="still failing"),
+    ]))
     with patch(
         "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
         return_value=mock_gk,
     ):
         assert await _run_acceptance_verification(provider, goal) is False
+    provider.record_acceptance_results.assert_called_once()
     provider.update_status.assert_called_once_with("g1", GoalStatus.PAUSED)
 
 

@@ -194,3 +194,13 @@ class GoalProvider(Protocol):
     async def update_objective(self, goal_id: str, new_objective: str) -> Goal:
         """Update the objective text of a goal (runtime hot-edit)."""
         ...
+
+    async def record_acceptance_results(
+        self, goal_id: str, results: list[dict[str, object]]
+    ) -> Goal:
+        """Persist per-criterion acceptance verification results.
+
+        Writes to metadata['acceptance_results'] (latest snapshot) and
+        appends to metadata['acceptance_history'] (timestamped history).
+        """
+        ...

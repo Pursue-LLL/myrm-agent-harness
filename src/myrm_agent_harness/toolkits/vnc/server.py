@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 _VNC_PORT = 5900
 _WEBSOCKIFY_PORT = 6080
 _HEALTH_CHECK_INTERVAL_S = 30
+_MAX_RESTART_ATTEMPTS = 5
 
 _ENV_HINT_LOCK = threading.Lock()
 _ENV_HINT_CACHE: str | None = None
@@ -210,6 +211,7 @@ class VncServer:
     async def _create_passwd_file(self) -> None:
         tmp = NamedTemporaryFile(suffix=".vnc_passwd", delete=False)
         tmp.close()
+        os.chmod(tmp.name, 0o600)
         self._passwd_file = Path(tmp.name)
         proc = await asyncio.create_subprocess_exec(
             "x11vnc", "-storepasswd", self._password, str(self._passwd_file),
@@ -268,14 +270,17 @@ class VncServer:
                     await asyncio.wait_for(proc.wait(), timeout=5)
                 except asyncio.TimeoutError:
                     proc.kill()
+                    await proc.wait()
         self._x11vnc_proc = None
         self._websockify_proc = None
 
     async def _health_loop(self) -> None:
         """Periodically check if x11vnc and websockify are still alive."""
+        consecutive_failures = 0
         try:
             while True:
-                await asyncio.sleep(_HEALTH_CHECK_INTERVAL_S)
+                backoff = _HEALTH_CHECK_INTERVAL_S * (2 ** min(consecutive_failures, 4))
+                await asyncio.sleep(backoff)
                 for name, proc in [("x11vnc", self._x11vnc_proc), ("websockify", self._websockify_proc)]:
                     if proc and proc.returncode is not None:
                         logger.warning("%s exited unexpectedly (code %d), restarting VNC", name, proc.returncode)
@@ -285,9 +290,22 @@ class VncServer:
                                 await self._start_x11vnc()
                                 await self._start_websockify()
                                 self._status = VncStatus.RUNNING
+                                consecutive_failures = 0
                             except Exception as exc:
+                                consecutive_failures += 1
                                 self._status = VncStatus.ERROR
-                                logger.error("VNC restart failed: %s", exc)
+                                if consecutive_failures >= _MAX_RESTART_ATTEMPTS:
+                                    logger.error(
+                                        "VNC restart failed %d times, giving up: %s",
+                                        consecutive_failures, exc,
+                                    )
+                                    return
+                                logger.warning(
+                                    "VNC restart failed (%d/%d), next retry in %ds: %s",
+                                    consecutive_failures, _MAX_RESTART_ATTEMPTS,
+                                    _HEALTH_CHECK_INTERVAL_S * (2 ** min(consecutive_failures, 4)),
+                                    exc,
+                                )
                         break
         except asyncio.CancelledError:
             pass

@@ -36,6 +36,7 @@ class SemanticCriterion(BaseCriterion):
         if not goal_provider:
             return VerificationResult(
                 passed=False,
+                criterion_label=self.criteria,
                 reason="System Error: GoalProvider not injected. Cannot run semantic evaluation.",
                 error_logs="Missing GoalProvider reference.",
             )
@@ -52,6 +53,7 @@ class SemanticCriterion(BaseCriterion):
                 if not exists:
                     return VerificationResult(
                         passed=False,
+                        criterion_label=self.criteria,
                         reason=f"Semantic check failed: Target file {self.target_file} does not exist.",
                         error_logs=f"File {self.target_file} not found in workspace.",
                     )
@@ -59,6 +61,7 @@ class SemanticCriterion(BaseCriterion):
             else:
                 return VerificationResult(
                     passed=False,
+                    criterion_label=self.criteria,
                     reason="System Error: Sandbox executor not found. Cannot read target file.",
                     error_logs="Missing execution environment.",
                 )
@@ -67,10 +70,13 @@ class SemanticCriterion(BaseCriterion):
             content_to_verify = "(No specific file content provided. Evaluate based on general goal outcome.)"
 
         try:
-            return await goal_provider.evaluate_semantic(self.criteria, content_to_verify)
+            result = await goal_provider.evaluate_semantic(self.criteria, content_to_verify)
+            result.criterion_label = self.criteria
+            return result
         except Exception as e:
             return VerificationResult(
                 passed=False,
+                criterion_label=self.criteria,
                 reason="Failed to execute semantic evaluation in Server.",
                 error_logs=str(e),
             )

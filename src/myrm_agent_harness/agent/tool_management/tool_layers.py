@@ -138,15 +138,13 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "wiki_ingest_tool": ToolLayer.EXTENDED,
     "wiki_maintain_tool": ToolLayer.EXTENDED,
     "wiki_query_tool": ToolLayer.EXTENDED,
-    # --- Deep Research 编排器控制面工具（登记供 registry/token 统计；
-    #     默认通用 Agent 不加载。仅 DR 编排器 LLM 注入 JSON schema；
-    #     编排器截获 tool_call 驱动状态机，不经过 ToolNode 执行）---
+    # --- Deep Research orchestrator signals (ToolCatalogRole.ORCHESTRATION_SIGNAL) ---
     "dispatch_research": ToolLayer.EXTENDED,
     "finalize_report": ToolLayer.EXTENDED,
     "think": ToolLayer.EXTENDED,
-    # --- 编排器验证子 Agent 内部工具（仅 verifier 子会话注入）---
+    # --- Verifier sub-agent orchestration signal ---
     "submit_verdict": ToolLayer.EXTENDED,
-    # --- 框架内部工具（runtime-only；CompletionGuard 注入，不进 bind_tools / discover）---
+    # --- CompletionGuard runtime hook (ToolCatalogRole.RUNTIME_HOOK) ---
     "_completion_check": ToolLayer.EXTENDED,
 }
 

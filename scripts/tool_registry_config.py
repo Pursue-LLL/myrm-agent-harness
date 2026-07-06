@@ -29,19 +29,19 @@ PTC_RUNTIME_TOOL_NAMES: frozenset[str] = frozenset({
 
 INTERNAL_TOOL_PREFIXES: tuple[str, ...] = ("_",)
 
+# LLM tools with ToolCatalogRole.RUNTIME_HOOK or ORCHESTRATION_SIGNAL — registered
+# for layer/token accounting but not default GeneralAgent Turn1 bind.
 INTERNAL_TOOL_NAMES: frozenset[str] = frozenset({
-    "_completion_check",  # runtime-only; CompletionGuard injects tool_call — not in Turn1 bind or discover
-    "submit_verdict",  # verifier sub-agent only
+    "_completion_check",  # ToolCatalogRole.RUNTIME_HOOK; CompletionGuard injects tool_call
+    "submit_verdict",  # ToolCatalogRole.ORCHESTRATION_SIGNAL; verifier sub-agent only
 })
 
-# Tools registered in _TOOL_LAYERS but injected as raw JSON schemas (not via
-# @tool/@BaseTool).  The AST scanner will never find a source declaration for
-# these, so they appear as "ghost" entries without this exemption.
-# None of these appear in the default general Agent Turn 1 tool list (0 token).
+# ToolCatalogRole.ORCHESTRATION_SIGNAL — raw JSON schemas (not @tool/@BaseTool).
+# AST scanner will not find declarations; exempt from ghost detection.
 SCHEMA_ONLY_TOOL_NAMES: frozenset[str] = frozenset({
-    "dispatch_research",   # Deep Research orchestrator state-machine signal
-    "finalize_report",     # Deep Research orchestrator state-machine signal
-    "think",               # Deep Research orchestrator state-machine signal
+    "dispatch_research",
+    "finalize_report",
+    "think",
 })
 
 CROSS_MODULE_CONSTANTS: dict[str, str] = {

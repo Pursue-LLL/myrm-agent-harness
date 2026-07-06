@@ -23,6 +23,8 @@ Tools registered: **78** (CORE 7 + COMMON 6 + EXTENDED 65). Source of truth: `to
 
 ### 1.2 框架能力 vs 业务扩展（边界红线）
 
+**术语**：仅 `ToolRegistry` 中的 `BaseTool` 称为 **LLM Tool**（CORE/COMMON/EXTENDED）。`toolkits/` 能力包、中间件、Skill 文档、编排状态机属于 **Agent Runtime**（普通代码），禁止称作工具。见 `tool_catalog.py` · `TOOL_MANAGEMENT_SYSTEM.md`。
+
 **Harness 是 Agent 框架，不是业务集成大杂烩。** 混淆层级会导致 toolkits 膨胀、定位模糊、维护成本失控。
 
 | 层级 | 路径 | 放什么 | 禁止放什么 |

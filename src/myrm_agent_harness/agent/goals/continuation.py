@@ -57,6 +57,7 @@ async def _run_acceptance_verification(
     """Run VerificationGatekeeper if acceptance_criteria are configured.
 
     Returns True if no criteria or all passed, False if any failed.
+    Persists per-criterion results via record_acceptance_results.
     When verification fails, increments verification_retries on the goal.
     When retries exceed the threshold, pauses the goal to prevent infinite loops.
     """
@@ -80,6 +81,8 @@ async def _run_acceptance_verification(
             await goal_provider.update_status(goal.goal_id, GoalStatus.PAUSED)
         return False
 
+    await goal_provider.record_acceptance_results(goal.goal_id, result.to_dicts())
+
     if result.passed:
         logger.info("Goal %s: acceptance criteria verification passed", goal.goal_id)
         return True
@@ -97,11 +100,12 @@ async def _run_acceptance_verification(
         return False
 
     logger.info(
-        "Goal %s: verification failed (retry %d/%d): %s",
+        "Goal %s: verification failed (retry %d/%d, %d/%d passed)",
         goal.goal_id,
         new_retries,
         _MAX_VERIFICATION_RETRIES,
-        result.reason,
+        len(result.per_criterion) - result.failed_count,
+        len(result.per_criterion),
     )
     return False
 

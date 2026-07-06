@@ -58,6 +58,7 @@ myrm-agent-server/
 .benchmarks/
 scratch/
 .myrm/
+.agent/  # harness workspace runtime ({MYRM_DATA_DIR}/.agent/docs|vault); do not commit
 node_modules/
 package-lock.json
 test_output.txt
@@ -77,4 +78,5 @@ embeddings.db
 
 # Build / bootstrap artifacts
 .pypi-bootstrap/
+# Ignore nested clone copy when harness lives inside a monorepo checkout
 myrm-agent-harness/

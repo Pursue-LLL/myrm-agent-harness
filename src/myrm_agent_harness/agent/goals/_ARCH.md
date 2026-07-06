@@ -15,7 +15,7 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 - **resume_goal**: 恢复暂停/预算受限的 goal，可选重置 turns_used，同时重置 no_progress_streak、loop_restarts、consecutive_judge_parse_failures 和 verification_retries 以防止立即再次收敛或验证熔断
 - **Dynamic Subgoals**: 运行时动态追加的子目标，注入 Agent 的 Prompt 和 Semantic Judge 判断标准中，并享有最高优先级。
 - **Constraints**: 硬约束列表 `constraints: list[str]`，每轮 continuation prompt 中以 "CONSTRAINTS (MUST NOT VIOLATE)" 区块醒目注入，judge criteria 中同步注入用于完成判定。
-- **Acceptance Criteria**: 验收条件列表 `acceptance_criteria: list[dict]`，支持 shell（命令执行验证）和 semantic（LLM 语义判断）两种类型。每轮 continuation prompt 以 "ACCEPTANCE CRITERIA (MUST be verified)" 区块注入，judge criteria 中同步注入。Judge 判 DONE 后触发 VerificationGatekeeper 程序化验证（ShellCriterion + SemanticCriterion），失败则继续工作。`verification_retries` 熔断保护防止无限循环（3 次失败后 PAUSE）。
+- **Acceptance Criteria**: 验收条件列表 `acceptance_criteria: list[dict]`，支持 shell（命令执行验证）和 semantic（LLM 语义判断）两种类型。每轮 continuation prompt 以 "ACCEPTANCE CRITERIA (MUST be verified)" 区块注入，judge criteria 中同步注入。Judge 判 DONE 后触发 VerificationGatekeeper 程序化验证（ShellCriterion + SemanticCriterion），返回逐条 pass/fail 结果（含 criterion_label、duration_ms、error_logs），通过 `record_acceptance_results` 持久化至 Goal metadata（`acceptance_results` 最新快照 + `acceptance_history` 时间线），自动随 SSE GOAL_STATUS 事件推送至前端可视化。`verification_retries` 熔断保护防止无限循环（3 次失败后 PAUSE）。
 - **Priority Queue**: 当已有 ACTIVE goal 时，新 goal 自动进入 QUEUED 状态。当前 goal 终止后自动 dequeue 并启动下一个。支持拖拽排序和取消。
 - **auto_approve**: 从队列 dequeue 出的 goal 跳过 PENDING_APPROVAL 人工审批阶段，实现无人值守串行执行。
 - **Objective Hot-Edit**: 运行时修改 goal objective 文本，通过 SteeringToken 注入 `<untrusted_objective>` 标记的 steering 消息，agent 实时调整方向而不丢失进度。
@@ -27,11 +27,11 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 |------|------|------|-------|
 | __init__.py | 辅助 | 模块导出 | ✅ |
 | types.py | 核心 | Goal, GoalBudget, GoalStatus(含 QUEUED), ContinuationDecision(含 convergence/loop_restart), GoalExecutionSummary 等核心数据类型（含 priority, auto_approve, constraints, no_progress_streak, loop_restarts 字段） | ✅ |
-| protocols.py | 核心 | GoalProvider protocol — 含 account_usage(turn_delta), resume_goal, dequeue_next, get_queued_goals, create_goal(constraints), update_objective, record_progress, record_loop_restart | ✅ |
-| manager.py | 核心 | GoalManager 状态机 — 4 维预算检查、resume_goal、create_goal(自动入队)、dequeue_next、cancel_queued_goal、reorder_queue、update_constraints、update_objective、record_progress、record_loop_restart、Prometheus metrics 记录 (goal_metrics) | ✅ |
+| protocols.py | 核心 | GoalProvider protocol — 含 account_usage(turn_delta), resume_goal, dequeue_next, get_queued_goals, create_goal(constraints), update_objective, record_progress, record_loop_restart, record_acceptance_results | ✅ |
+| manager.py | 核心 | GoalManager 状态机 — 4 维预算检查、resume_goal、create_goal(自动入队)、dequeue_next、cancel_queued_goal、reorder_queue、update_constraints、update_objective、record_progress、record_loop_restart、record_acceptance_results、Prometheus metrics 记录 (goal_metrics) | ✅ |
 | steering_prompts.py | 核心 | Goal 运行时 steering prompt 模板 — build_objective_updated_steering_message() 构建 objective 变更时注入的引导消息 | ✅ |
 | storage.py | 核心 | SQLite 持久化 — 序列化/反序列化含 turns_used / max_turns / priority / auto_approve / constraints / no_progress_streak / loop_restarts / convergence_window / loop_on_pause / max_loop_restarts + 队列索引 | ✅ |
-| continuation.py | 核心 | guard chain → 返回 ContinuationDecision（含 convergence/loop_restart verdict）。支持收敛检测（no_progress_streak ≥ convergence_window → COMPLETE）、循环重启（loop_on_pause → 触发 trigger_goal_stream）和预算耗尽优雅收尾（Budget Wrap-up Turn） | ✅ |
+| continuation.py | 核心 | guard chain → 返回 ContinuationDecision（含 convergence/loop_restart verdict）。支持收敛检测、循环重启、预算耗尽 Wrap-up Turn、验收条件逐条验证（调用 record_acceptance_results 持久化结果） | ✅ |
 | audit.py | 核心 | 三段式 judge criteria + 行为引导 continuation prompt（含 Fidelity 防目标缩水、Evidence-based 防历史幻觉、Progress visibility 激活 todo_write 进度推送、8 步 audit protocol、历史 learnings 注入、收敛引导指令）+ budget wrap-up prompt | ✅ |
 | goal_interceptor.py | 核心 | Goal 拦截器：执行前发布 protected_paths / invariant snapshot；进度由主 Agent `todo_write` 负责 | ✅ |
 | invariant_snapshot.py | 核心 | Post-hoc tamper detection: SHA-256 snapshot of Goal protected_paths at activation; verify integrity before completion (bash_code_execute_tool bypass safety net). | ✅ |

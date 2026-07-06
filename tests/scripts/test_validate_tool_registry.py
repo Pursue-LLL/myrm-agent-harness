@@ -61,7 +61,7 @@ def test_update_doc_block_returns_error_on_missing_marker(tmp_path: Path) -> Non
     doc.write_text("no markers here\n")
     changed, err = _update_doc_block(doc, "anything")
     assert changed is False
-    assert err is not None and "TOOL_COUNT markers" in err
+    assert err is not None and "TOOL_COUNT_BEGIN" in err
 
 
 def test_update_doc_block_returns_error_on_missing_file(tmp_path: Path) -> None:
@@ -247,7 +247,10 @@ def test_main_generate_docs_exit_1_when_marker_missing(
 
     bad_doc = tmp_path / "no_markers.md"
     bad_doc.write_text("just text, no markers\n")
-    monkeypatch.setattr(cli, "_DOC_TARGETS", (bad_doc,))
+    bad_catalog = tmp_path / "no_catalog_markers.md"
+    bad_catalog.write_text("just text\n")
+    monkeypatch.setattr(cli, "_COUNT_DOC_TARGETS", (bad_doc,))
+    monkeypatch.setattr(cli, "_CATALOG_DOC_TARGET", bad_catalog)
     rc, _, err = _run_main(
         monkeypatch,
         ["--generate-docs"],
@@ -255,7 +258,7 @@ def test_main_generate_docs_exit_1_when_marker_missing(
         capsys=capsys,
     )
     assert rc == 1
-    assert "missing TOOL_COUNT markers" in err
+    assert "TOOL_COUNT_BEGIN" in err or "TOOL_CATALOG_BEGIN" in err
 
 
 def test_main_generate_docs_rewrites_existing_marker_block(
@@ -265,7 +268,10 @@ def test_main_generate_docs_rewrites_existing_marker_block(
 
     good_doc = tmp_path / "good.md"
     good_doc.write_text(f"intro\n{_BLOCK_BEGIN}\nold body\n{_BLOCK_END}\noutro\n")
-    monkeypatch.setattr(cli, "_DOC_TARGETS", (good_doc,))
+    monkeypatch.setattr(cli, "_COUNT_DOC_TARGETS", (good_doc,))
+    catalog_doc = tmp_path / "catalog.md"
+    catalog_doc.write_text("intro\n<!-- TOOL_CATALOG_BEGIN -->\nold\n<!-- TOOL_CATALOG_END -->\n")
+    monkeypatch.setattr(cli, "_CATALOG_DOC_TARGET", catalog_doc)
     rc, out, _ = _run_main(
         monkeypatch,
         ["--generate-docs"],

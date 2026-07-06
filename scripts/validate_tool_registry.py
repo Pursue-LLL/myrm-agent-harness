@@ -38,14 +38,17 @@ from scripts.tool_registry_engine import (  # noqa: E402
     scan,
 )
 
-_DOC_TARGETS = (
+_COUNT_DOC_TARGETS = (
     HARNESS_SRC / "agent" / "tool_management" / "_ARCH.md",
     HARNESS_SRC / "agent" / "tool_management" / "DEFAULT_AGENT_TOKEN_INVENTORY.md",
     HARNESS_SRC / "agent" / "tool_management" / "TOOL_DESIGN_STRATEGY.md",
 )
+_CATALOG_DOC_TARGET = HARNESS_SRC / "agent" / "tool_management" / "TOOL_MANAGEMENT_SYSTEM.md"
 
 _BLOCK_BEGIN = "<!-- TOOL_COUNT_BEGIN -->"
 _BLOCK_END = "<!-- TOOL_COUNT_END -->"
+_CATALOG_BEGIN = "<!-- TOOL_CATALOG_BEGIN -->"
+_CATALOG_END = "<!-- TOOL_CATALOG_END -->"
 
 _FORBIDDEN_BINDMODE_PATTERNS = (
     re.compile(r"\bget_deferred_tools\b"),
@@ -195,21 +198,56 @@ def _build_doc_block(report: ScanReport) -> str:
     )
 
 
-def _update_doc_block(doc_path: Path, block: str) -> tuple[bool, str | None]:
-    """Update the count block. Returns (changed, error_message_if_any)."""
+def _build_catalog_block() -> str:
+    from myrm_agent_harness.agent.tool_management.tool_catalog import (
+        build_tool_catalog_rows,
+        format_tool_catalog_markdown,
+    )
+
+    registered = load_registered_layers()
+    rows = build_tool_catalog_rows(registered)
+    table = format_tool_catalog_markdown(rows)
+    return (
+        f"{_CATALOG_BEGIN}\n"
+        "### LLM Tool Catalog (auto-generated)\n\n"
+        "Only **ToolRegistry** entries appear here. Agent runtime engines, middleware, "
+        "skill documents, and PTC bridges are ordinary code — not LLM tools.\n\n"
+        f"{table}\n"
+        f"{_CATALOG_END}"
+    )
+
+
+def _update_doc_blocks(doc_path: Path, blocks: dict[str, str]) -> tuple[bool, str | None]:
+    """Update marker blocks. Returns (changed, error_message_if_any)."""
     if not doc_path.exists():
         return False, f"doc target missing: {doc_path}"
     text = doc_path.read_text(encoding="utf-8")
-    if _BLOCK_BEGIN not in text or _BLOCK_END not in text:
-        return False, f"{doc_path} missing TOOL_COUNT markers"
+    new_text = text
+    changed = False
 
-    start = text.index(_BLOCK_BEGIN)
-    end = text.index(_BLOCK_END) + len(_BLOCK_END)
-    new_text = text[:start] + block + text[end:]
-    if new_text == text:
-        return False, None
-    doc_path.write_text(new_text, encoding="utf-8")
-    return True, None
+    for begin, end, block in (
+        (_BLOCK_BEGIN, _BLOCK_END, blocks.get("count")),
+        (_CATALOG_BEGIN, _CATALOG_END, blocks.get("catalog")),
+    ):
+        if block is None:
+            continue
+        if begin not in new_text or end not in new_text:
+            return False, f"{doc_path} missing {begin} markers"
+        start = new_text.index(begin)
+        end_idx = new_text.index(end) + len(end)
+        replacement = block
+        if new_text[start:end_idx] != replacement:
+            new_text = new_text[:start] + replacement + new_text[end_idx:]
+            changed = True
+
+    if changed:
+        doc_path.write_text(new_text, encoding="utf-8")
+    return changed, None
+
+
+def _update_doc_block(doc_path: Path, block: str) -> tuple[bool, str | None]:
+    """Update the count block. Returns (changed, error_message_if_any)."""
+    return _update_doc_blocks(doc_path, {"count": block})
 
 
 def _filter_report_to_files(report: ScanReport, files: set[Path]) -> ScanReport:
@@ -251,15 +289,21 @@ def main() -> int:
             report = _filter_report_to_files(full_report, set(changed))
 
     if args.generate_docs:
-        block = _build_doc_block(full_report)
+        count_block = _build_doc_block(full_report)
+        catalog_block = _build_catalog_block()
         modified: list[Path] = []
         doc_errors: list[str] = []
-        for target in _DOC_TARGETS:
-            changed, err = _update_doc_block(target, block)
+        for target in _COUNT_DOC_TARGETS:
+            changed, err = _update_doc_blocks(target, {"count": count_block})
             if changed:
                 modified.append(target)
             if err:
                 doc_errors.append(err)
+        changed, err = _update_doc_blocks(_CATALOG_DOC_TARGET, {"catalog": catalog_block})
+        if changed:
+            modified.append(_CATALOG_DOC_TARGET)
+        if err:
+            doc_errors.append(err)
         if doc_errors:
             print("ERROR: --generate-docs cannot update docs:", file=sys.stderr)
             for err in doc_errors:
@@ -289,7 +333,20 @@ def main() -> int:
         else report.ghost_registry_metadata_keys(_load_registry_metadata_keys())
     )
     bindmode_violations = [] if args.incremental else _scan_forbidden_bindmode_terms()
-    fail = bool(missing or ghosts or orphans or duplicates or metadata_ghosts or bindmode_violations)
+    catalog_errors: list[str] = []
+    if not args.incremental:
+        from myrm_agent_harness.agent.tool_management.tool_catalog import validate_tool_catalog
+
+        catalog_errors = validate_tool_catalog(load_registered_layers())
+    fail = bool(
+        missing
+        or ghosts
+        or orphans
+        or duplicates
+        or metadata_ghosts
+        or bindmode_violations
+        or catalog_errors
+    )
 
     if args.json:
         payload = {
@@ -325,6 +382,11 @@ def main() -> int:
                     display = path
                 print(f"  - {display}:{line_no}: {line}")
             print("  Fix: use discoverable_tools / get_discoverable_tools / get_runtime_tools.")
+        if catalog_errors:
+            print(f"FAIL - {len(catalog_errors)} tool catalog metadata issue(s):")
+            for err in catalog_errors:
+                print(f"  - {err}")
+            print("  Fix: update tool_catalog.py role/load overrides.")
 
     return 1 if fail else 0
 

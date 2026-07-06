@@ -34,7 +34,8 @@ TakeoverCoordinator:
 1. **Lazy loading**: VNC processes only start when frontend requests a connection. Zero cost when idle.
 2. **Linux-only**: Requires X11 DISPLAY (Xvfb). macOS/Windows fall back to existing screenshot mode.
 3. **Reuse existing Xvfb**: No new display server — captures the same DISPLAY used by browser and computer_use toolkits.
-4. **Random one-time password**: x11vnc uses a fresh password per session, passed securely to the business layer.
+4. **Random one-time password**: x11vnc uses a fresh password per session, stored in a 0600-permission temp file to prevent other processes from reading it.
 5. **Auto-revert timeout**: Takeover automatically returns control to Agent after 5 minutes (configurable).
 6. **Environment awareness**: `get_environment_hint()` detects VNC availability and Xvfb resolution, returning a prompt string for system prompt injection. Process-level cached for deterministic output (KV-cache safe). Called by `platform.py`'s `environment_prompt_line`.
 7. **Lifecycle hooks**: `on_takeover_start` / `on_takeover_end` are Optional async callbacks. Business layer registers them to capture page snapshots (ARIA tree) before/after human intervention, enabling skill evolution to learn from human demonstrations. Zero cost when unregistered.
+8. **Health check with exponential backoff**: On VNC process crash, the health loop retries with exponential backoff (30s → 60s → 120s → 240s → 480s). After 5 consecutive failures it stops retrying and sets ERROR status, preventing log explosion when Xvfb is permanently unavailable.

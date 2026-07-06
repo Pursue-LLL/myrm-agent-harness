@@ -41,7 +41,7 @@ from myrm_agent_harness.agent.sub_agents.types import (
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from ._orchestrator_council import run_council
-from ._orchestrator_verification import VerificationVerdict, run_with_verification
+from ._orchestrator_verification import VerificationVerdict, run_with_verification, verify_worker_output
 
 if TYPE_CHECKING:
     from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
@@ -621,5 +621,6 @@ __all__ = [
     "run_chain",
     "run_council",
     "run_with_verification",
+    "verify_worker_output",
     "wait_children",
 ]

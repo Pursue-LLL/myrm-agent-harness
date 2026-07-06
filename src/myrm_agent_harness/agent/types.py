@@ -171,7 +171,6 @@ class EngineParams:
     enable_context_compression: bool = field(default=True)
     enable_parallel_tool_calls: bool | None = field(default=None)
     timeout_seconds: int | None = field(default=None)
-    adversarial_verification: bool = field(default=False)
 
 
 @dataclass(frozen=True, slots=True)

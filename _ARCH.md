@@ -36,3 +36,4 @@
 - 框架层禁止 import `app.*` 或任何 server 业务模块
 - 公开 API 变更须同步 `tests/api/` 与 [DISTRIBUTION_SYSTEM.md](harness_packaging/DISTRIBUTION_SYSTEM.md)
 - 性能基准仅放在 `benchmarks/`，禁止在 vortexai 开发壳根目录创建 `benchmarks/`
+- 运行时目录 `.myrm/`、`.agent/` 仅本地/workspace，已 gitignore，禁止提交

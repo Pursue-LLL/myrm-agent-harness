@@ -17,7 +17,7 @@ Harness test suite: unit, integration, architecture gates, and performance bench
 | `scripts/` | 单元 | `scripts/` 维护脚本单测（tool registry）· [scripts/_ARCH.md](scripts/_ARCH.md) |
 | `features/` | 单元 | Feature Flag 引擎 · [features/_ARCH.md](features/_ARCH.md) |
 | `performance/` | 性能 | 子进程 import 热点与 lazy-loading 回归（`performance` marker） |
-| `toolkits/browser/` | 集成 | 浏览器单元 + e2e/integration；真实 Chromium 用例带 `integration`/`e2e` |
+| `toolkits/` | 单元/集成 | 镜像 `src/.../toolkits/<name>/`；禁止空壳目录 · [toolkits/_ARCH.md](toolkits/_ARCH.md) |
 | `architecture/` | 门禁 | 边界与打包一致性检测 — 见 [architecture/_ARCH.md](architecture/_ARCH.md) |
 | `eval/` | 单元 | Eval 框架断言/runner/reporter · [eval/_ARCH.md](eval/_ARCH.md) |
 | `observability/` | 单元 | 顶层 metrics/diagnostics/tracing · [observability/_ARCH.md](observability/_ARCH.md) |
