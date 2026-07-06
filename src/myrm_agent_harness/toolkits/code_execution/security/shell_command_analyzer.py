@@ -473,6 +473,13 @@ def analyze_command(command: str) -> tuple[CommandThreat, ...]:
                 )
             )
 
+    # Layer 2.5: SQL statement guard (uses ORIGINAL command for DB client extraction)
+    from myrm_agent_harness.toolkits.code_execution.security.sql_statement_guard import (
+        check_sql_threats,
+    )
+
+    threats.extend(check_sql_threats(command))
+
     for pattern, desc in _SUSPICIOUS_PATTERNS_COMPILED:
         match = pattern.search(normalized)
         if match:
