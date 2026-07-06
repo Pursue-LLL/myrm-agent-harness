@@ -16,7 +16,7 @@ Design:
   unrelated commands.
 
 [INPUT]
-- (none)
+- shell_command_analyzer::CommandThreat, ThreatLevel (POS: Shell Command Analyzer — unified security analysis for shell commands.)
 
 [OUTPUT]
 - check_sql_threats: Detect destructive SQL in DB client shell commands.
@@ -46,24 +46,17 @@ _DB_CLIENT_SQL_FLAGS: dict[str, tuple[str, ...]] = {
     "mongo": ("--eval",),
 }
 
-# First SQL keyword that indicates a write/destructive operation.
-_DESTRUCTIVE_SQL_KEYWORDS: frozenset[str] = frozenset({
-    "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE",
-    "CREATE", "REPLACE", "MERGE", "UPSERT",
-    "GRANT", "REVOKE",
-    "EXEC", "EXECUTE", "CALL",
-    "LOAD", "COPY",
-})
-
-# First SQL keyword that indicates a safe read-only operation.
+# Safe read-only SQL keywords (whitelist). Anything NOT in this set triggers
+# ESCALATE — conservative by design (unknown operations require human approval).
 _SAFE_SQL_KEYWORDS: frozenset[str] = frozenset({
     "SELECT", "SHOW", "EXPLAIN", "DESCRIBE", "DESC",
     "PRAGMA", "WITH", "VALUES",
     "SET", "BEGIN", "COMMIT", "ROLLBACK",
 })
 
-# Regex to extract content from single-quoted strings.
+# Regex to extract content from quoted strings.
 _SINGLE_QUOTED_RE = re.compile(r"'([^']*)'")
+_DOUBLE_QUOTED_RE = re.compile(r'"([^"]*)"')
 
 # Regex to detect pipe target: last segment after |
 _PIPE_SPLIT_RE = re.compile(r"\|(?![|])")
@@ -100,14 +93,18 @@ def _extract_first_sql_keyword(sql: str) -> str | None:
 
 
 def _is_destructive_sql(sql: str) -> bool:
-    """Return True if the SQL statement begins with a destructive keyword."""
+    """Return True if the SQL statement begins with a destructive keyword.
+
+    Conservative policy: unknown keywords (not in safe or destructive sets) are
+    treated as destructive to force human review.
+    """
     keyword = _extract_first_sql_keyword(sql)
     if not keyword:
         return False
     if keyword in _SAFE_SQL_KEYWORDS:
         return False
-    # Unknown keywords are treated as potentially destructive (conservative)
-    return keyword in _DESTRUCTIVE_SQL_KEYWORDS or keyword not in _SAFE_SQL_KEYWORDS
+    # Anything not explicitly safe (including unknown keywords) is destructive
+    return True
 
 
 def _get_base_command(token: str) -> str:
@@ -130,18 +127,20 @@ def _extract_sql_from_flag_args(command: str) -> list[str]:
     if flags:
         # Flag-based extraction: find -c/-e/--eval followed by quoted content
         for flag in flags:
-            # Search for flag in the original command
-            flag_pattern = re.compile(
-                re.escape(flag) + r"""\s+'([^']*)'""",
-            )
-            for match in flag_pattern.finditer(command):
-                sqls.append(match.group(1))
+            escaped = re.escape(flag)
+            for quote_re in (
+                re.compile(escaped + r"""\s+'([^']*)'"""),
+                re.compile(escaped + r'''\s+"([^"]*)"'''),
+            ):
+                for match in quote_re.finditer(command):
+                    sqls.append(match.group(1))
     else:
-        # Positional: sqlite3 <db_file> '<SQL>'
-        # Find the last single-quoted string as SQL
-        quoted_matches = list(_SINGLE_QUOTED_RE.finditer(command))
-        if quoted_matches:
-            sqls.append(quoted_matches[-1].group(1))
+        # Positional: sqlite3 <db_file> '<SQL>' or "<SQL>"
+        for regex in (_SINGLE_QUOTED_RE, _DOUBLE_QUOTED_RE):
+            quoted_matches = list(regex.finditer(command))
+            if quoted_matches:
+                sqls.append(quoted_matches[-1].group(1))
+                break
 
     return sqls
 
@@ -171,8 +170,9 @@ def _extract_sql_from_pipe(command: str) -> list[str]:
             continue
         base = _get_base_command(tokens[0])
         if base in ("echo", "printf", "cat"):
-            for match in _SINGLE_QUOTED_RE.finditer(segment_stripped):
-                sqls.append(match.group(1))
+            for regex in (_SINGLE_QUOTED_RE, _DOUBLE_QUOTED_RE):
+                for match in regex.finditer(segment_stripped):
+                    sqls.append(match.group(1))
 
     return sqls
 

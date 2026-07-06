@@ -149,6 +149,20 @@ class TestEdgeCases:
         threats = check_sql_threats("/usr/bin/psql -c 'DROP TABLE users'")
         assert len(threats) >= 1
 
+    def test_double_quoted_destructive(self) -> None:
+        """Double-quoted SQL must also be detected."""
+        threats = check_sql_threats('psql -c "DROP TABLE users"')
+        assert len(threats) >= 1
+        assert threats[0].level == ThreatLevel.ESCALATE
+
+    def test_double_quoted_safe(self) -> None:
+        threats = check_sql_threats('psql -c "SELECT 1"')
+        assert len(threats) == 0
+
+    def test_double_quoted_pipe(self) -> None:
+        threats = check_sql_threats('echo "INSERT INTO x VALUES (1)" | psql')
+        assert len(threats) >= 1
+
 
 class TestIntegrationWithAnalyzeCommand:
     """Verify integration with shell_command_analyzer.analyze_command()."""

@@ -16,6 +16,12 @@ Layer 2 (quote-stripped, BLOCK):
   Runs on quote-stripped input so ``echo "rm -rf /"`` won't false-positive.
   Includes ``find -exec {} \\;`` exemption for the escaped semicolon.
 
+Layer 2.5 (ORIGINAL command, ESCALATE):
+  SQL statement guard — detects destructive SQL in DB client commands
+  (psql/mysql/sqlite3/sqlcmd/mongosh). Runs on the original command before
+  quote stripping to catch SQL inside single quotes.
+  See: sql_statement_guard.py
+
 Layer 3 (quote-stripped, ESCALATE):
   Suspicious but potentially legitimate patterns (curl|sh, eval, base64 -d,
   kill/pkill/killall). Forces ASK regardless of permission ruleset.
