@@ -215,14 +215,6 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
     ),
     "planning": frozenset({"todo_write"}),
     "answer_tool": frozenset({"request_answer_user_tool"}),
-    "canvas": frozenset(
-        {
-            "canvas_get_state",
-            "canvas_get_selection",
-            "canvas_insert_element",
-            "canvas_batch_layout",
-        }
-    ),
     "render_ui": frozenset({"render_ui_tool"}),
     "cron": frozenset({"cron_manage_tool"}),
     "image_generation": frozenset({"image_tool"}),

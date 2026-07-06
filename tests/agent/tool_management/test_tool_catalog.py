@@ -34,7 +34,6 @@ def test_product_id_mapping() -> None:
     assert get_tool_product_id("web_search_tool") == "web_search"
     assert get_tool_product_id("bash_code_execute_tool") is None
     assert get_tool_product_id("web_fetch_tool") is None
-    assert get_tool_product_id("canvas_batch_layout") == "canvas"
     assert get_tool_product_id("cron_manage_tool") == "cron"
 
 

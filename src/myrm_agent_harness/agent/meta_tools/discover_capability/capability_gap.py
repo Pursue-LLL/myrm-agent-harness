@@ -92,7 +92,6 @@ CAPABILITY_GAP_REGISTRY: tuple[CapabilityGapEntry, ...] = (
     ),
     CapabilityGapEntry("wiki", "wiki", ("wiki", "知识库", "personal wiki")),
     CapabilityGapEntry("kanban", "kanban", ("kanban", "看板", "task board")),
-    CapabilityGapEntry("canvas", "canvas", ("canvas", "画布", "whiteboard")),
     CapabilityGapEntry(
         "render_ui",
         "render_ui",

@@ -68,7 +68,6 @@ def test_detect_capability_gap_none_when_computer_use_enabled() -> None:
     [
         ("wiki", "search my personal wiki", "wiki"),
         ("kanban", "move card on kanban board", "kanban"),
-        ("canvas", "draw on canvas whiteboard", "canvas"),
         ("cron", "create a cron job every day", "cron"),
         ("planning", "create multi-step plan for launch", "planning"),
         ("video_generation", "generate video from text prompt", "video_generation"),
@@ -92,7 +91,6 @@ def test_detect_capability_gap_all_triggers_when_group_disabled(
     [
         ("wiki", "search my personal wiki"),
         ("kanban", "move card on kanban board"),
-        ("canvas", "draw on canvas whiteboard"),
         ("cron", "create a cron job every day"),
         ("planning", "create multi-step plan for launch"),
         ("video_generation", "generate video from text prompt"),

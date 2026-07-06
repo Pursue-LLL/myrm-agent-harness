@@ -113,10 +113,6 @@ Only **ToolRegistry** entries appear here. Agent runtime engines, middleware, sk
 | `browser_navigate_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `browser_snapshot_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `cancel_subagent_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
-| `canvas_batch_layout` | EXTENDED | user_capability | canvas | enabled_builtin_tools: canvas |
-| `canvas_get_selection` | EXTENDED | user_capability | canvas | enabled_builtin_tools: canvas |
-| `canvas_get_state` | EXTENDED | user_capability | canvas | enabled_builtin_tools: canvas |
-| `canvas_insert_element` | EXTENDED | user_capability | canvas | enabled_builtin_tools: canvas |
 | `channel_notify_tool` | EXTENDED | user_capability | — | Agent notify_targets configured |
 | `conversation_search_tool` | EXTENDED | user_capability | memory | memoryEnableConversationSearch opt-in |
 | `cron_manage_tool` | EXTENDED | user_capability | cron | user cron capability wired |
