@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from typing import TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.browser.pool.config import LaunchMode
@@ -40,5 +43,15 @@ def bind_web_fetch_escalation_context(
     try:
         yield
     finally:
-        _providers_ctx.reset(provider_token)
-        _launch_mode_ctx.reset(launch_token)
+        for ctx_var, token in (
+            (_providers_ctx, provider_token),
+            (_launch_mode_ctx, launch_token),
+        ):
+            try:
+                ctx_var.reset(token)
+            except ValueError:
+                # Token was created in a different async context (LangGraph cancel / TestClient).
+                logger.warning(
+                    "Context variable reset skipped: token created in different context (%s)",
+                    ctx_var.name,
+                )
