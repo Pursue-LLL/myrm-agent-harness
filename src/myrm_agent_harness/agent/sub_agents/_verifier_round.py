@@ -1,4 +1,18 @@
-"""Single-round verifier spawn and verify_worker_output entry point."""
+"""Single-round verifier spawn and verify_worker_output entry point.
+
+[INPUT]
+- agent.sub_agents._verification_parsing::VerificationVerdict, _parse_verdict, _emit_verification_verdict
+- agent.sub_agents._workspace_diff::take_workspace_snapshot, diff_snapshots
+- agent.sub_agents.types::SubagentConfig, SubAgentResult, SubAgentStatus
+- toolkits.code_execution.executors (POS: ReadonlyExecutorProxy for verifier sandbox)
+
+[OUTPUT]
+- verify_worker_output: Verify existing worker output without re-running worker
+- _execute_verifier_round: Internal single-round verifier spawn
+
+[POS]
+Verifier-only round execution used by Cron post-run delivery assurance and orchestration.
+"""
 
 from __future__ import annotations
 

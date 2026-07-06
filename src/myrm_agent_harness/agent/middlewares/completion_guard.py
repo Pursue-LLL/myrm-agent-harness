@@ -84,6 +84,13 @@ _MUTATION_TOOLS: frozenset[str] = frozenset(
         "answer_user",
         "finish",
         "complete_task",
+        "browser_navigate_tool",
+        "browser_click_tool",
+        "browser_type_tool",
+        "skill_manage_tool",
+        "kanban_manage_tool",
+        "canvas_tool",
+        "cron_manage_tool",
     }
 )
 

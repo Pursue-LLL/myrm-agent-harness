@@ -119,7 +119,7 @@ Only **ToolRegistry** entries appear here. Agent runtime engines, middleware, sk
 | `canvas_insert_element` | EXTENDED | user_capability | canvas | enabled_builtin_tools: canvas |
 | `channel_notify_tool` | EXTENDED | user_capability | — | Agent notify_targets configured |
 | `conversation_search_tool` | EXTENDED | user_capability | memory | memoryEnableConversationSearch opt-in |
-| `cron_manage_tool` | EXTENDED | user_capability | — | user cron capability wired |
+| `cron_manage_tool` | EXTENDED | user_capability | cron | user cron capability wired |
 | `delegate_parallel_tasks_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `delegate_task_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `delegate_to_agent_tool` | EXTENDED | user_capability | — | external ACP agent configured |

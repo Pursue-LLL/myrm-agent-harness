@@ -1,4 +1,16 @@
-"""Structured verdict parsing and SSE emission for adversarial verification."""
+"""Structured verdict parsing and SSE emission for adversarial verification.
+
+[INPUT]
+- core.events.types::AgentEventType (POS: VERIFICATION_VERDICT event type)
+- utils.runtime.progress_sink::get_tool_progress_sink (POS: SSE emission sink)
+
+[OUTPUT]
+- VerificationVerdict: Parsed verdict from verifier output
+- _parse_verdict, _emit_verification_verdict: Parsing and event helpers
+
+[POS]
+Shared verification parsing for sub_agents verifier rounds and delegate verification.
+"""
 
 from __future__ import annotations
 
