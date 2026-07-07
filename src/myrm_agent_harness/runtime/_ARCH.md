@@ -1,7 +1,11 @@
 # runtime/
 
 ## Overview
-Agent runtime infrastructure for single-instance execution.
+
+Single Agent **instance** survival layer — checkpoint, context lifecycle, quota, doctor, memory
+pressure. **Not** the Agent reasoning loop (`agent/`) and **not** generic job queues (`toolkits/tasks/`).
+
+Layer cheatsheet: [ARCHITECTURE.md](../../../ARCHITECTURE.md) §Harness 五层落点.
 
 Detailed design: [CONVERSATION_FORK_SYSTEM.md](CONVERSATION_FORK_SYSTEM.md)
 

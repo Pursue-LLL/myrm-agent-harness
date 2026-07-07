@@ -1,7 +1,10 @@
 # image/
 
 ## Overview
-Toolkits Llms Image module.
+
+Image generation and editing. Sync path: `generator.py` / `image_engine.py`. Async path:
+`async_image_engine.py` enqueues via `toolkits/tasks/` — full chain in
+[TASK_QUEUE_SYSTEM.md](../../tasks/TASK_QUEUE_SYSTEM.md).
 
 ## File & Submodule Index
 

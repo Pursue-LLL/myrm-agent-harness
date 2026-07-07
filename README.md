@@ -290,7 +290,7 @@ myrm-agent-harness/          # 本仓库根（示意）
 │       ├── api/                     # 对外公开 API（推荐 import 路径）
 │       ├── core/                    # 框架无关基础层（security, events, hooks, config）
 │       ├── agent/                   # Agent 核心（BaseAgent, SkillAgent, 技能, 中间件, 元工具）
-│       ├── runtime/                 # 单实例运行时（消息构建、流式执行、事件、checkpoint）
+│       ├── runtime/                 # 单实例守护（checkpoint、context 生命周期、quota、doctor）
 │       ├── infra/                   # 基础设施（文件锁、消息投递、链路追踪）
 │       ├── observability/           # 全局监控与诊断（Prometheus, Diagnostic Protocol）
 │       ├── backends/                # 后端抽象（skills, storage, profiles, secrets）
@@ -304,6 +304,9 @@ myrm-agent-harness/          # 本仓库根（示意）
 │       │   ├── web_search/          # 网络搜索
 │       │   ├── web_fetch/           # 网页抓取
 │       │   ├── context_bundle/      # ContextBundle 统一上下文卷
+│       │   ├── tasks/               # 异步作业队列（异步入图等）
+│       │   ├── cron/                # 定时任务
+│       │   ├── kanban/              # 多任务看板
 │       │   └── llms/                # LLM 管理（工厂、适配器）
 │       ├── eval/                    # Agent 行为评估框架
 │       └── utils/                   # 通用工具函数

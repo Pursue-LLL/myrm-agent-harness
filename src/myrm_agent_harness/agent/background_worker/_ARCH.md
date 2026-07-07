@@ -1,7 +1,17 @@
 # background_worker/
 
 ## Overview
-Background worker module for agent.
+
+Agent idle maintenance — runs when the agent has no active user turn. **Not** `toolkits/tasks/`.
+
+| | `agent/background_worker/` | `toolkits/tasks/` |
+|--|------------------------------|-------------------|
+| Trigger | Agent idle window | User chat tool call (slow media) |
+| Examples | Memory consolidation, context compaction | Async image generation |
+| User artifact | None | `task_id` + ImageTaskCard |
+| Persistence | `IdleTaskRegistry` | `SQLiteTaskStore` |
+
+See [../../toolkits/tasks/TASK_QUEUE_SYSTEM.md](../../toolkits/tasks/TASK_QUEUE_SYSTEM.md).
 
 ## File & Submodule Index
 

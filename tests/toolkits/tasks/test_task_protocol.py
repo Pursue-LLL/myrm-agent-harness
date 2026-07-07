@@ -173,6 +173,68 @@ def test_task_can_retry():
     assert not task_no_policy.can_retry()
 
 
+def test_task_is_active():
+    """Test Task.is_active()."""
+    queued = Task("t1", "test", "u1", TaskStatus.QUEUED, {})
+    running = Task("t2", "test", "u1", TaskStatus.RUNNING, {})
+    pending = Task("t3", "test", "u1", TaskStatus.PENDING, {})
+    assert queued.is_active()
+    assert running.is_active()
+    assert not pending.is_active()
+
+
+def test_task_can_retry_requires_failed_status():
+    """can_retry() is False unless status is FAILED."""
+    task = Task(
+        task_id="t1",
+        task_type="test",
+        user_id="u1",
+        status=TaskStatus.RUNNING,
+        payload={},
+        retry_policy=RetryPolicy(max_retries=3),
+        retry_count=0,
+    )
+    assert not task.can_retry()
+
+
+def test_task_can_retry_permanent_error():
+    """Permanent errors are not retryable."""
+    task = Task(
+        task_id="t1",
+        task_type="test",
+        user_id="u1",
+        status=TaskStatus.FAILED,
+        payload={},
+        retry_policy=RetryPolicy(max_retries=3),
+        retry_count=0,
+        error=TaskError(
+            error_type="validation_error",
+            message="bad prompt",
+            recoverable=ErrorRecoverability.PERMANENT,
+        ),
+    )
+    assert not task.can_retry()
+
+
+def test_task_update_progress_clamps():
+    """update_progress() clamps to [0, 1] and stores message."""
+    task = Task("t1", "test", "u1", TaskStatus.RUNNING, {})
+    task.update_progress(1.5, message="almost")
+    assert task.progress == 1.0
+    assert task.progress_message == "almost"
+    task.update_progress(-0.2)
+    assert task.progress == 0.0
+
+
+def test_task_heartbeat_updates_timestamp():
+    """heartbeat() refreshes worker heartbeat fields."""
+    task = Task("t1", "test", "u1", TaskStatus.RUNNING, {})
+    assert task.worker_heartbeat_at is None
+    task.heartbeat()
+    assert task.worker_heartbeat_at is not None
+    assert task.updated_at == task.worker_heartbeat_at
+
+
 def test_task_cancellation_event():
     """Test Task cancellation event."""
     event = asyncio.Event()

@@ -3,6 +3,20 @@
 ## Overview
 Myrm Agent Harness — a production-grade framework for building, deploying, and managing AI agents with skill systems, context management, security, and observability.
 
+## Harness layer cheatsheet
+
+| Layer | One line | Memory hook |
+|-------|----------|-------------|
+| `core/` | Foundation types (security, config, events) — no domain engines | Brick |
+| `toolkits/` | Self-contained capability packages — usable without Agent runtime | Plugin |
+| `agent/` | LLM turn logic, session, streaming, HITL, meta_tools | Brain |
+| `runtime/` | Single Agent **instance** survival (checkpoint, memory pressure, doctor) | Instance caretaker |
+| `infra/` | Atomic primitives (locks, pubsub, delivery) | Plumbing |
+
+**Code placement:** import `agent/` or need current session at definition time → `agent/` or host server; complete reusable capability → `toolkits/`; instance health → `runtime/`; pure types → `core/` or `infra/`. Async media queue → `toolkits/tasks/` ([tasks/TASK_QUEUE_SYSTEM.md](toolkits/tasks/TASK_QUEUE_SYSTEM.md)).
+
+Full cross-layer map: [ARCHITECTURE.md](../../ARCHITECTURE.md) §跨层概念映射.
+
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |

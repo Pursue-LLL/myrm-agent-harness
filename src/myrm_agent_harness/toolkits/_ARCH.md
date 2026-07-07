@@ -90,7 +90,16 @@ Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
 | **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP |
 | **Workspace** | `browser/`, `computer_use/`, `filesystem_suggest/`, `context_bundle/`, `file_parsers/`, `wiki/` | Files, browser, desktop, @-mention path suggest |
 | **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/` | External APIs, agent protocols |
-| **Collaboration & Media** | `kanban/`, `tasks/`, `cron/` | Scheduling (incl. event/webhook triggers); `tasks/` = generic async job queue (media DTOs in `llms/media_task_types.py`) |
+| **Collaboration & Media** | `kanban/`, `tasks/`, `cron/` | Job-like systems — see matrix below; `tasks/` = chat-bound async media queue ([TASK_QUEUE_SYSTEM.md](tasks/TASK_QUEUE_SYSTEM.md)) |
+
+### Job-like module selection
+
+| Module | Trigger | User sees |
+|--------|---------|-----------|
+| `tasks/` | Agent tool during chat (slow media) | `task_id` + progress card (e.g. ImageTaskCard) |
+| `cron/` | Schedule / webhook / poll | Cron job history |
+| `kanban/` | Planner / board | Kanban card + SSE |
+| `web_fetch/task_store.py` | Deep crawl only | Crawl group status — **not** a substitute for `tasks/` |
 | **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |
 
 Agent runtime-bound tool wrappers (e.g. `ask_question_tool`, `render_ui_tool`, `todo_write`) live in `agent/meta_tools/`, not here. Optional LangChain adapters (`*_agent_tools.py`) that do not import `agent/` may stay in `toolkits/` as a secondary export — see § `*_agent_tools.py` naming convention.
@@ -170,7 +179,7 @@ Does your code need to import anything from agent/?
 | openapi_bridge/ | OpenAPI Bridge — zero-code REST API integration via OpenAPI 3.x / Swagger 2.0 specs. |
 | retriever/ | Retrieval and reranking — multi-source document retrieval with scoring pipeline. |
 | storage/ | Storage abstraction layer — Protocol + local filesystem implementation. |
-| tasks/ | Task management — task models, executor protocol, persistence layer. |
+| tasks/ | Async job queue — models, SQLite store, executor protocol. See [TASK_QUEUE_SYSTEM.md](tasks/TASK_QUEUE_SYSTEM.md). |
 | vector/ | Vector Store — unified async vector storage and retrieval. |
 | vnc/ | VNC visual desktop streaming — x11vnc + websockify + human takeover coordination. |
 | web_fetch/ | Web content crawling — layered engine with HTTP/Browser/Stealth fallback; `[web]` extra for scrapling + YouTube transcripts. |
