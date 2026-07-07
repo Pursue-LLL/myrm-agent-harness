@@ -43,7 +43,7 @@
 | **代码执行** | `bash`, `python`, `code_execution` | 用户自己的代码输出（已用 `wrap_with_tool_output_tag` 防注入） |
 | **文件操作** | `file_read`, `file_write`, `file_list` | 用户自己的文件（已用 `wrap_with_tool_output_tag` 防注入） |
 | **记忆系统** | `memory_recall_tool`, `memory_save_tool` | 记忆数据已经过审核和存储，是可信的 |
-| **Agent 委托** | `delegate_task_tool`, `spawn_subagent` | Agent 之间的内部通信，是可信的 |
+| **Agent 委托** | `delegate_task_tool`, PTC `spawn_subagent`（Dynamic Workflow） | Agent 之间的内部通信，是可信的 |
 | **系统工具** | `goals`, `cron`, `tasks` | 系统内部数据，是可信的 |
 
 ---

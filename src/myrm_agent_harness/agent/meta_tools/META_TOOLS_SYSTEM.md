@@ -9,7 +9,7 @@
 1. **框架绑定 vs 通用工具分离**：`toolkits/` 可独立 import；`meta_tools/` 必须绑定 Agent 会话/运行时
 2. **Claude Code 兼容**：bash、file_ops、file_search 等工具接口与 Claude Code 对齐，降低迁移成本
 3. **条件加载**：通过 `tool_management/tool_layers.py` 三层（CORE/COMMON/EXTENDED）控制 token 开销
-4. **单一委派入口**：子 Agent 创建统一走 `spawn_subagent/`，并行路径复用 `parallel/`
+4. **LLM 委派入口**：子 Agent 创建走 `meta_tools/spawn_subagent/`（`delegate_task_tool` 等 7 个 LLM 工具）；Dynamic Workflow 的 PTC `spawn_subagent` 在 `agent/dynamic_workflow/tools.py`，不进 `_TOOL_LAYERS`；并行路径复用 `parallel/`
 
 ---
 

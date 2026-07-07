@@ -51,6 +51,7 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 | `api/hooks.py` | `core/hooks/` | Integration callables for product code vs **HookEvent / HookResult type definitions** |
 | `coordination/` | `workspace_coordination/` | **P2P 邮箱** (TeammateMailbox, JSONL) vs **并行写隔离 + batch merge** |
 | `parallel/` | `sub_agents/` | **共享 spawn 路径** (batch/swarm semaphore) vs **子 Agent 生命周期全栈** |
+| `meta_tools/spawn_subagent/` | `dynamic_workflow/tools.py` | **LLM** `delegate_task_tool` 等 7 工具 vs **PTC** `myrm_tools.spawn_subagent()`（同名不同层，共用 `_spawn_child()`） |
 | `agent/artifacts/` | `core/artifacts/` | **运行时生命周期** (registry/vault/UI) vs **类型常量 + 路径 SSOT** |
 | `agent/extensions.AgentExtension` | `toolkits/a2a.AgentExtension` | **Harness 插件 Protocol** vs **Google A2A Pydantic 模型**（同名，import 时注意包路径） |
 | `agent/streaming/broadcast/` | `observability/` (top-level) | **ToolBroadcastBus side-channel** (chat UI via EventLogger→SSE) vs **Prometheus + Doctor** |

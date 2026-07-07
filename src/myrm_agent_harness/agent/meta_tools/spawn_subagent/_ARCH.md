@@ -1,8 +1,10 @@
 # spawn_subagent/
 
 ## Overview
-Spawn subagent meta-tool module.
-Provides subagent spawning, batch delegation, and catalog-driven prompt shaping with readonly, control-scope, memory-isolation, and complexity-tier routing.
+
+LLM 子 Agent 委派元工具（`delegate_task_tool` 等）。与 Dynamic Workflow PTC `spawn_subagent`（`agent/dynamic_workflow/tools.py`）共用 `_spawn_child()` 下游，但不在 `_TOOL_LAYERS` 登记 PTC 名。
+
+Detailed design: [SUB_AGENT_SYSTEM.md](../../sub_agents/SUB_AGENT_SYSTEM.md) · [META_TOOLS_SYSTEM.md](../META_TOOLS_SYSTEM.md)
 
 ## File & Submodule Index
 

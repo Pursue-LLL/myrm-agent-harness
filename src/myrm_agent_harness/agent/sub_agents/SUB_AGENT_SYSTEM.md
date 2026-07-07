@@ -59,6 +59,7 @@
 | `agent/base_agent.py` | 委托入口 + `_last_context` 保存 + 父取消传播 |
 | `agent/meta_tools/spawn_subagent/delegate_task_tool.py` | LLM delegate_task/batch_delegate_tasks_tool 工具（动态描述 + session 隔离缓存 + 结构化委派契约 + 预算安全并发） |
 | `agent/meta_tools/spawn_subagent/agent_manage_tool.py` | LLM list/cancel/steer 工具 |
+| `agent/dynamic_workflow/tools.py` | PTC `spawn_subagent` / `notify`（`use_workflow=True`；不进 `_TOOL_LAYERS`；下游同 `_spawn_child()`） |
 | `sub_agents/dag_plan.py` | Orchestrator DAG 内部 Plan/PlanStep 类型（非用户面工具） |
 | `configs/subagents/` | 外部 YAML 配置文件（core 核心配置 + custom 自定义配置） |
 

@@ -45,6 +45,9 @@ def test_build_doc_block_emits_canonical_markers_and_breakdown(monkeypatch: pyte
     assert block.endswith(_BLOCK_END)
     assert "**79**" in block
     assert "CORE 2 + COMMON 6 + EXTENDED 71" in block
+    assert "PTC runtime tools: **2**" in block
+    assert "`notify`" in block
+    assert "`spawn_subagent`" in block
 
 
 def test_update_doc_block_writes_when_markers_present(tmp_path: Path) -> None:

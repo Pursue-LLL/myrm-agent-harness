@@ -3,6 +3,8 @@
 ## Overview
 The Dynamic Workflow Engine is the third-generation orchestration layer in Harness. It breaks the context limits of single-agent execution by dynamically generating Python orchestration scripts. These scripts run in the PTC (Programmatic Tool Calling) sandbox and spawn multiple sub-agents concurrently through the delegate path.
 
+PTC tool classification SSOT: [../tool_management/TOOL_MANAGEMENT_SYSTEM.md](../tool_management/TOOL_MANAGEMENT_SYSTEM.md) §内部分类.
+
 Detailed design: [DYNAMIC_WORKFLOW_SYSTEM.md](DYNAMIC_WORKFLOW_SYSTEM.md)
 
 ## Architecture
@@ -47,7 +49,7 @@ SSE events (message / message_end / status)
 |------|------|-------------|
 | `__init__.py` | Engine | Core entry point (`run_dynamic_workflow_stream`). Dynamically discovers available subagent types via `_build_available_types_hint(catalog)` using the SubagentCatalog protocol, prompts the LLM to generate the orchestration script, executes via PTC, then summarizes results. |
 | `store.py` | Persistence | `WorkflowEventStore` provides SQLite-based Event Sourcing for durable execution and crash recovery. Uses the Harness unified SQLite hardening profile (`CACHE`). |
-| `tools.py` | PTC Tools | `SpawnSubagentTool` / `NotifyProgressTool` — runtime-only PTC bridge (`PTC_RUNTIME_TOOL_NAMES` in `scripts/tool_registry_config.py`; not in `tool_layers`) |
+| `tools.py` | PTC Tools | `SpawnSubagentTool` / `NotifyProgressTool` — PTC-only bridge（`PTC_RUNTIME_TOOL_NAMES`；不在 `_TOOL_LAYERS`；≠ LLM `delegate_task_tool`） |
 | `notify_stream.py` | Streaming | `iter_notify_events_while_task_runs` concurrently drains the notify queue while PTC execution runs; honors `cancel_token` cancellation. |
 | `_ARCH.md` | Doc | This architecture document. |
 

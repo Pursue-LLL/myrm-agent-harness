@@ -54,6 +54,15 @@ Summarization LLM → 用户可读 Markdown
 | 编排 | LLM 生成 Python | 固定并发 runner | manager/builder/executor |
 | 持久化 | WorkflowEventStore | resume_compact | checkpoint |
 
+### PTC Runtime Tools（不计入 LLM 69）
+
+| 名称 | 暴露名 | 职责 | 与 LLM 工具关系 |
+|------|--------|------|----------------|
+| `SpawnSubagentTool` | `myrm_tools.spawn_subagent()` | PTC 脚本内阻塞 spawn 子 Agent | 下游同 `_spawn_child()`；≠ LLM `delegate_task_tool` |
+| `NotifyProgressTool` | `myrm_tools.notify()` | PTC 脚本阶段进度 → SSE `workflow_stage` | 零 Turn1 bind |
+
+登记：`scripts/tool_registry_config.py` `PTC_RUNTIME_TOOL_NAMES`。完整分类见 [TOOL_MANAGEMENT_SYSTEM.md](../tool_management/TOOL_MANAGEMENT_SYSTEM.md) §内部分类。
+
 ---
 
 ## 关键设计决策

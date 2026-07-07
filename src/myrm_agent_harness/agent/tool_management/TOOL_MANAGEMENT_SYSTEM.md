@@ -71,22 +71,25 @@ Server `_tool_layer_bootstrap.py` 扩展 EXTENDED 层业务工具。
 
 ## 内部分类（实现 / token 会计，非产品术语）
 
-以下三类**不计入 LLM 工具 69 个**，仅用于实现与 Turn1 token 隔离：
+以下四类**不计入 LLM 工具 69 个**，仅用于实现与 Turn1 token 隔离：
 
 | 内部术语 | 含义 | SSOT |
 |----------|------|------|
 | **Orchestration Signal** | 专用 orchestrator 会话中的 JSON schema；Python 截获 tool_call | `agent/orchestration/signals/` |
 | **Runtime Hook** | 中间件注入的 RUNTIME_ONLY 伪 tool_call | `agent/orchestration/hooks.py` |
-| **非 LLM 实现** | 引擎、Skill 文档、PTC、REST 等普通代码 | `toolkits/`、`app/services/` 等 |
+| **PTC Runtime Tool** | Dynamic Workflow PTC 沙箱内 `myrm_tools.spawn_subagent` / `myrm_tools.notify`；零 Turn1 bind | `agent/dynamic_workflow/tools.py` · `scripts/tool_registry_config.py` `PTC_RUNTIME_TOOL_NAMES` |
+| **非 LLM 实现** | 引擎、Skill 文档、REST 等普通代码 | `toolkits/`、`app/services/` 等 |
 
 **只有 LLM 工具（Action Tool）使用 CORE / COMMON / EXTENDED 三层。**
+
+PTC `spawn_subagent` 与 LLM `delegate_task_tool` 共用 `_spawn_child()` 下游，但调用者不同（Python 编排脚本 vs 主 Agent tool_call）。详见 [DYNAMIC_WORKFLOW_SYSTEM.md](../dynamic_workflow/DYNAMIC_WORKFLOW_SYSTEM.md)。
 
 `tool_catalog.py` 仅服务 LLM 工具（`user_capability`）。**Product ID 列**由 `TOOL_TO_GROUP` + `BUILTIN_TOOL_ID_TO_GROUP` 派生。
 
 <!-- TOOL_CATALOG_BEGIN -->
 ### LLM Tool Catalog (auto-generated)
 
-Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration signals and runtime hooks live under `agent/orchestration/`.
+Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration signals, runtime hooks, and PTC runtime tools (`spawn_subagent`, `notify`) are documented in §内部分类 above.
 
 | Tool | Layer | Role | Product ID | Load condition |
 |------|-------|------|------------|----------------|

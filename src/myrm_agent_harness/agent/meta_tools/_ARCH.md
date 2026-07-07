@@ -23,7 +23,7 @@ Detailed design: [META_TOOLS_SYSTEM.md](META_TOOLS_SYSTEM.md)
 | clarification/ | Structured HITL clarification (`ask_question_tool`) — schemas + LangChain adapter. |
 | interaction/ | UI rendering (`render_ui_tool`) — UIArtifact context; v3.1 progressive spec + fail-closed type/graph/action/registry validation. |
 | skills/ | Skills submodule (`skill_discovery_tool` DISCOVERABLE when ToolRegistry is used). |
-| spawn_subagent/ | Spawn subagent meta-tool module. |
+| spawn_subagent/ | LLM 子 Agent 委派（`delegate_task_tool` 等；≠ PTC `dynamic_workflow/tools.py`） |
 
 ## Key Dependencies
 
