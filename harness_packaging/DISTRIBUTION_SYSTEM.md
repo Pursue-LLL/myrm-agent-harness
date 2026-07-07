@@ -67,6 +67,8 @@ Editable dev: `pip install -e /path/to/myrm-agent-harness[...]` when harness sou
 
 Editable install ships all `.py` source. `_distribution.get_distribution_mode()` returns `source`.
 
+**Monorepo dev** (sibling `myrm-agent-harness`): `myrm-agent/scripts/dev/setup.sh` delegates to `install_harness.sh`; `myrm dev` / `myrm start` exit 1 when the server venv is not editable (set `MYRM_SKIP_HARNESS_EDITABLE_CHECK=1` for PyPI consumer testing). OSS-only clones still use `uv sync` + PyPI wheels. See `myrm-agent/scripts/_ARCH.md`.
+
 ## Docker (Server Runtime)
 
 | File | Audience | Harness source |
