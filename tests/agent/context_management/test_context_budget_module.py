@@ -137,7 +137,7 @@ class TestCalculateContextBudget:
     def test_with_custom_config(self, config: ContextConfig) -> None:
         budget = calculate_context_budget([HumanMessage(content="Hello")], config=config)
         assert budget.compress_threshold == CT
-        assert budget.summarize_threshold == int(100_000 * 0.8)
+        assert budget.summarize_threshold == ST  # 100_000 * 0.9 = 90_000
 
     def test_with_default_config(self) -> None:
         budget = calculate_context_budget([HumanMessage(content="Test")])

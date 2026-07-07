@@ -30,7 +30,7 @@ class TestContextConfigDefaultBehavior:
         assert config.proactive_reset_threshold == 51200  # 128000 * 0.4
         assert config.compress_threshold == 64000  # 128000 * 0.5
         assert config.compress_force_threshold == 89600  # 128000 * 0.7
-        assert config.summarize_trigger_threshold == 108000  # min(128000*0.9, max(64000, 108000))
+        assert config.summarize_trigger_threshold == 115200  # 128000 * 0.9
 
     def test_default_thresholds_200k(self) -> None:
         config = ContextConfig(max_context_tokens=200000)
@@ -282,22 +282,40 @@ class TestBuildDefaultProcessorsIntegration:
         assert summarize_proc.config.proactive_reset_threshold == 80000  # type: ignore[attr-defined]
 
 
-class TestMinimumFloorGuarantees:
-    """Test that minimum floors protect against extremely small windows."""
+class TestPureRatioScaling:
+    """Test that thresholds scale purely by ratio, never exceeding max_context_tokens.
 
-    def test_small_window_20k_with_ratio(self) -> None:
+    Pure ratio scaling ensures correct behavior for any context window size,
+    from 8K edge models (Ollama) to 1M+ large-window models.
+    """
+
+    def test_small_window_8k_thresholds_within_bounds(self) -> None:
+        """8K model: all thresholds must be < max_context_tokens."""
+        config = ContextConfig(max_context_tokens=8192)
+        assert config.proactive_reset_threshold == 3276  # 8192 * 0.4
+        assert config.compress_threshold == 4096  # 8192 * 0.5
+        assert config.compress_force_threshold == 5734  # 8192 * 0.7
+        assert config.summarize_trigger_threshold == 7372  # 8192 * 0.9
+        assert config.proactive_reset_threshold < config.compress_threshold
+        assert config.compress_threshold < config.compress_force_threshold
+        assert config.compress_force_threshold < config.summarize_trigger_threshold
+        assert config.summarize_trigger_threshold < 8192
+
+    def test_small_window_with_ratio(self) -> None:
+        """Small window + compress_start_ratio: thresholds scale proportionally."""
         config = ContextConfig(max_context_tokens=30000, compress_start_ratio=0.20)
-        assert config.proactive_reset_threshold >= 20000
-        assert config.compress_threshold >= 25000
-        assert config.compress_force_threshold >= 35000
+        assert config.proactive_reset_threshold == 6000  # 30000 * 0.20
+        assert config.proactive_reset_threshold < config.compress_threshold
+        assert config.compress_threshold < config.compress_force_threshold
+        assert config.compress_force_threshold < config.summarize_trigger_threshold
+        assert config.summarize_trigger_threshold < 30000
 
     def test_small_window_50k_default(self) -> None:
         config = ContextConfig(max_context_tokens=50000)
-        assert config.proactive_reset_threshold == 20000
-        assert config.compress_threshold == 25000
-        assert config.compress_force_threshold == 35000
-        # min(50000*0.9=45000, max(50000*0.5=25000, 50000-20000=30000)) = min(45000, 30000) = 30000
-        assert config.summarize_trigger_threshold == 30000
+        assert config.proactive_reset_threshold == 20000  # 50000 * 0.4
+        assert config.compress_threshold == 25000  # 50000 * 0.5
+        assert config.compress_force_threshold == 35000  # 50000 * 0.7
+        assert config.summarize_trigger_threshold == 45000  # 50000 * 0.9
 
 
 class TestCoercionDefensiveness:

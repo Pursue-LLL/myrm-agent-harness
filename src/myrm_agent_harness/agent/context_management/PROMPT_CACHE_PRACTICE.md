@@ -520,7 +520,7 @@ META: tokens_saved=5000 time=2024-12-20T15:30:00
 摘要（Summarize）和 Session Notes 是改变消息结构的操作，作为**缓存重置事件**。框架在阈值触发时执行 **上下文压缩 (Context Compaction)**，包含 U 型记忆保护与显式界定。
 
 **触发机制**：
-- **主动拦截**：到达主动健康阈值 `proactive_reset_threshold`（默认 Max 的 40%，最小 2万 Token；可通过 `ContextConfig.compress_start_ratio` 由 Agent 配置自定义，有效范围 [0.20, 0.85]）时触发。
+- **主动拦截**：到达主动健康阈值 `proactive_reset_threshold`（默认 Max 的 40%；可通过 `ContextConfig.compress_start_ratio` 由 Agent 配置自定义，有效范围 [0.20, 0.85]）时触发。
 - **Session Notes 触发**：当后台异步生成的 Session Notes 达到阈值就绪时，零 API 触发压缩。
 
 **U 型记忆保护与缓存重建（适用于 Summarize 和 Session Notes）**：
