@@ -272,7 +272,6 @@ class ABTestEngine:
             and score_diff > self.config.early_stopping_threshold
             and current_sample_size >= self.config.min_sample_size
         ):
-            # TODO: 添加统计显著性检验（t-test）
             return (True, "early_stopping")
 
         return (False, "")
