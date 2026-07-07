@@ -69,7 +69,7 @@ class NumpyVectorRetriever:
         if self._embedding_computed:
             return
 
-        logger.warning(f"Computing embeddings for {len(self._documents)} documents...")
+        logger.info("Computing embeddings for %d documents...", len(self._documents))
         texts = [doc.page_content for doc in self._documents]
         doc_vectors = await self._embeddings.embed_batch(texts)
 
@@ -78,7 +78,7 @@ class NumpyVectorRetriever:
         self._doc_vectors_normalized = docs_arr / (norms + 1e-8)
 
         self._embedding_computed = True
-        logger.warning(f"Embeddings computed ({self._doc_vectors_normalized.nbytes / 1024 / 1024:.2f} MB)")
+        logger.info("Embeddings computed (%.2f MB)", self._doc_vectors_normalized.nbytes / 1024 / 1024)
 
     async def search(
         self,
@@ -209,7 +209,7 @@ class NumpyVectorRetriever:
 
             results[query] = query_results
 
-        logger.warning(f"Batch search completed: {len(queries)} queries, {len(self._documents)} documents")
+        logger.info("Batch search completed: %d queries, %d documents", len(queries), len(self._documents))
         return results
 
 

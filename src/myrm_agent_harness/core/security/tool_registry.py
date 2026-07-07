@@ -216,6 +216,7 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
     "planning": frozenset({"todo_write"}),
     "answer_tool": frozenset({"request_answer_user_tool"}),
     "render_ui": frozenset({"render_ui_tool"}),
+    "structured_clarify": frozenset({"ask_question_tool"}),
     "cron": frozenset({"cron_manage_tool"}),
     "image_generation": frozenset({"image_tool"}),
     "video_generation": frozenset({"video_tool"}),

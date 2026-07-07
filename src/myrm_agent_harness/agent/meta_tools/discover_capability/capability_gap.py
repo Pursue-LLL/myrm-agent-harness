@@ -98,6 +98,18 @@ CAPABILITY_GAP_REGISTRY: tuple[CapabilityGapEntry, ...] = (
         ("render ui", "interactive ui", "ui artifact", "渲染界面"),
     ),
     CapabilityGapEntry(
+        "structured_clarify",
+        "structured_clarify",
+        (
+            "clarify",
+            "clarification form",
+            "ask me to choose",
+            "澄清",
+            "结构化澄清",
+            "让我选择",
+        ),
+    ),
+    CapabilityGapEntry(
         "answer_tool",
         "answer_tool",
         (

@@ -11,6 +11,9 @@ from myrm_agent_harness.toolkits.code_execution.session import (
     LocalPersistentSession,
     SessionConfig,
 )
+from myrm_agent_harness.toolkits.code_execution.session.persistent_session import (
+    SessionState,
+)
 
 
 def _make_config(timeout: int = 10) -> SessionConfig:
@@ -480,6 +483,272 @@ class TestSmartEnvInjection:
 
         finally:
             await session.execute("rm -f package.json")
+            await session.close()
+
+
+class TestKillProcessTreeEdgeCases:
+    @pytest.mark.asyncio
+    async def test_pid_is_none(self) -> None:
+        """_kill_process_tree should return immediately if pid is None."""
+        from unittest.mock import MagicMock
+
+        from myrm_agent_harness.toolkits.code_execution.session.persistent_session import (
+            _kill_process_tree,
+        )
+
+        mock_process = MagicMock()
+        mock_process.pid = None
+        await _kill_process_tree(mock_process, is_windows=False)
+
+    @pytest.mark.asyncio
+    async def test_windows_taskkill(self) -> None:
+        """Windows path uses taskkill /F /T /PID."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from myrm_agent_harness.toolkits.code_execution.session.persistent_session import (
+            _kill_process_tree,
+        )
+
+        mock_process = MagicMock()
+        mock_process.pid = 12345
+
+        mock_sub = MagicMock()
+        mock_sub.wait = AsyncMock(return_value=0)
+
+        with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_sub) as mock_exec:
+            await _kill_process_tree(mock_process, is_windows=True)
+            mock_exec.assert_called_once()
+            args = mock_exec.call_args[0]
+            assert "taskkill" in args
+            assert "/F" in args
+            assert "/T" in args
+
+    @pytest.mark.asyncio
+    async def test_windows_taskkill_failure_fallback(self) -> None:
+        """Windows path falls back to process.kill() on taskkill failure."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from myrm_agent_harness.toolkits.code_execution.session.persistent_session import (
+            _kill_process_tree,
+        )
+
+        mock_process = MagicMock()
+        mock_process.pid = 12345
+        mock_process.kill = MagicMock()
+
+        with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, side_effect=OSError("fail")):
+            await _kill_process_tree(mock_process, is_windows=True)
+            mock_process.kill.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_shared_pgid_sigterm_timeout_kills(self) -> None:
+        """When shared pgid and SIGTERM times out, falls back to process.kill()."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from myrm_agent_harness.toolkits.code_execution.session.persistent_session import (
+            _kill_process_tree,
+        )
+
+        mock_process = MagicMock()
+        mock_process.pid = 12345
+        mock_process.terminate = MagicMock()
+        mock_process.kill = MagicMock()
+        mock_process.wait = AsyncMock(side_effect=TimeoutError)
+
+        my_pgid = os.getpgid(os.getpid())
+        with patch("os.getpgid", return_value=my_pgid):
+            await _kill_process_tree(mock_process, is_windows=False, grace_period=0.1)
+            mock_process.terminate.assert_called_once()
+            mock_process.kill.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_different_pgid_sigterm_timeout_sigkill(self) -> None:
+        """When different pgid and SIGTERM times out, falls back to SIGKILL on group."""
+        import signal
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from myrm_agent_harness.toolkits.code_execution.session.persistent_session import (
+            _kill_process_tree,
+        )
+
+        mock_process = MagicMock()
+        mock_process.pid = 99999
+        mock_process.wait = AsyncMock(side_effect=TimeoutError)
+
+        real_my_pgid = os.getpgid(os.getpid())
+        fake_child_pgid = 99999
+        with (
+            patch("os.getpgid", side_effect=lambda pid: fake_child_pgid if pid == 99999 else real_my_pgid),
+            patch("os.killpg") as mock_killpg,
+        ):
+            await _kill_process_tree(mock_process, is_windows=False, grace_period=0.1)
+            mock_killpg.assert_any_call(fake_child_pgid, signal.SIGTERM)
+            mock_killpg.assert_any_call(fake_child_pgid, signal.SIGKILL)
+
+
+class TestStateMachine:
+    @pytest.mark.asyncio
+    async def test_transit_same_state_noop(self) -> None:
+        """Transitioning to same state is a no-op."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            assert session.state == SessionState.ACTIVE
+            await session._transit_state(SessionState.ACTIVE)
+            assert session.state == SessionState.ACTIVE
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_start_when_already_alive(self) -> None:
+        """Calling start() on an active session is a no-op."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            pid_before = session.process.pid
+            await session.start()
+            assert session.process.pid == pid_before
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_close_when_already_closing(self) -> None:
+        """_close_unlocked returns immediately when already CLOSING."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            session._state = SessionState.CLOSING
+            await session._close_unlocked()
+            assert session._state == SessionState.CLOSING
+        finally:
+            if session.process and session.process.returncode is None:
+                session.process.kill()
+                await session.process.wait()
+
+    @pytest.mark.asyncio
+    async def test_execute_core_no_process(self) -> None:
+        """_execute_core returns error when process is None."""
+        session = LocalPersistentSession(_make_config())
+        session.process = None
+        result = await session._execute_core("echo x", timeout=5)
+        assert not result.success
+        assert result.error == "Process unavailable"
+
+
+class TestRecoveryPath:
+    @pytest.mark.asyncio
+    async def test_auto_recover_on_process_death(self) -> None:
+        """Execute should auto-recover when process dies mid-flight."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            result = await session.execute("echo alive")
+            assert result.success
+
+            assert session.process is not None
+            session.process.kill()
+            await session.process.wait()
+
+            result = await session.execute("echo recovered")
+            assert result.success
+            assert "recovered" in result.stdout
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_start_failure_transitions_to_terminated(self) -> None:
+        """When _create_process fails, state transitions to TERMINATED."""
+        from unittest.mock import AsyncMock, patch
+
+        session = LocalPersistentSession(_make_config())
+
+        with patch.object(session, "_create_process", new_callable=AsyncMock, side_effect=OSError("spawn fail")):
+            with pytest.raises(OSError, match="spawn fail"):
+                await session.start()
+            assert session.state == SessionState.TERMINATED
+
+    @pytest.mark.asyncio
+    async def test_recover_and_retry_failure(self) -> None:
+        """_recover_and_retry returns error result when recovery itself fails."""
+        from unittest.mock import AsyncMock, patch
+
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            with patch.object(session, "_create_process", new_callable=AsyncMock, side_effect=OSError("fail")):
+                result = await session._recover_and_retry("echo x", timeout=5)
+                assert not result.success
+                assert "Recovery failed" in result.error
+                assert session.state == SessionState.TERMINATED
+        finally:
+            if session.process and session.process.returncode is None:
+                session.process.kill()
+                await session.process.wait()
+
+
+class TestCheckHealthEdge:
+    @pytest.mark.asyncio
+    async def test_check_health_exception(self) -> None:
+        """check_health returns False when execute raises."""
+        from unittest.mock import AsyncMock, patch
+
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            with patch.object(session, "execute", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
+                result = await session.check_health()
+                assert result is False
+        finally:
+            await session.close()
+
+
+class TestInitializeShellEdge:
+    @pytest.mark.asyncio
+    async def test_initialize_shell_no_process(self) -> None:
+        """_initialize_shell returns early when process is None."""
+        session = LocalPersistentSession(_make_config())
+        session.process = None
+        await session._initialize_shell()
+
+    @pytest.mark.asyncio
+    async def test_initialize_shell_with_env(self) -> None:
+        """_initialize_shell injects env vars from config."""
+        config = _make_config()
+        config.env = {"MY_VAR": "test_value"}
+        session = LocalPersistentSession(config)
+        await session.start()
+        try:
+            result = await session.execute("echo $MY_VAR")
+            assert result.success
+            assert "test_value" in result.stdout
+        finally:
+            await session.close()
+
+
+class TestEnsureActiveEdge:
+    @pytest.mark.asyncio
+    async def test_ensure_active_from_idle(self) -> None:
+        """_ensure_active starts session when in IDLE state."""
+        session = LocalPersistentSession(_make_config())
+        assert session.state == SessionState.IDLE
+        await session._ensure_active()
+        try:
+            assert session.state == SessionState.ACTIVE
+            assert session.is_alive
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_ensure_active_from_terminated(self) -> None:
+        """_ensure_active restarts session from TERMINATED state."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        await session.close()
+        assert session.state == SessionState.TERMINATED
+        await session._ensure_active()
+        try:
+            assert session.state == SessionState.ACTIVE
+        finally:
             await session.close()
 
 

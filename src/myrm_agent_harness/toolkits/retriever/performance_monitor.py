@@ -1,6 +1,4 @@
-"""性能监控Tool
-
- for 监控混合检索 and 重Sort过程 性能Metrics
+"""Performance monitor for hybrid retrieval and reranking pipelines.
 
 [INPUT]
 - (none)
@@ -18,63 +16,51 @@ import time
 from contextlib import asynccontextmanager
 from typing import Any
 
-# ConfigureLog
 logger = logging.getLogger(__name__)
 
 
 class PerformanceMonitor:
-    """性能监控器"""
+    """Tracks per-operation latency for retrieval pipelines."""
 
-    def __init__(self):
-        self.metrics = {}
-        self.start_time = None
+    def __init__(self) -> None:
+        self.metrics: dict[str, float] = {}
 
     @asynccontextmanager
     async def track_operation(self, operation_name: str):
-        """跟踪操作性能 context manager"""
-        start_time = time.time()
-        logger.warning(f" BeginExecute {operation_name}")
+        """Track operation latency via async context manager."""
+        start_time = time.perf_counter()
+        logger.debug("Begin %s", operation_name)
 
         try:
             yield
         finally:
-            duration = time.time() - start_time
+            duration = time.perf_counter() - start_time
             self.metrics[operation_name] = duration
-            logger.warning(f" {operation_name} Complete，耗时: {duration:.4f}秒")
+            logger.info("%s completed in %.4fs", operation_name, duration)
 
     def get_performance_summary(self) -> dict[str, Any]:
-        """Get性能摘要"""
+        """Return a performance summary dict."""
         total_time = sum(self.metrics.values())
-
-        summary = {
-            "总耗时": f"{total_time:.4f}秒",
-            "操作耗时详情": {k: f"{v:.4f}秒" for k, v in self.metrics.items()},
+        return {
+            "total_time": f"{total_time:.4f}s",
+            "operations": {k: f"{v:.4f}s" for k, v in self.metrics.items()},
         }
 
-        return summary
-
-    def log_performance_summary(self):
-        """Record性能摘要 to Log"""
+    def log_performance_summary(self) -> None:
+        """Log performance summary at INFO level."""
         summary = self.get_performance_summary()
-
-        logger.warning("=" * 50)
-        logger.warning(" 性能Statistics")
-        logger.warning("=" * 50)
-        logger.warning(f" 总耗时: {summary['总耗时']}")
-
-        logger.warning(" 操作耗时详情:")
-        for op, time_str in summary["操作耗时详情"].items():
-            logger.warning(f" - {op}: {time_str}")
-
-        logger.warning("=" * 50)
+        logger.info(
+            "Performance summary: total=%s | %s",
+            summary["total_time"],
+            ", ".join(f"{k}={v}" for k, v in summary["operations"].items()),
+        )
 
 
-# Global性能监控Instance
 _performance_monitor: PerformanceMonitor | None = None
 
 
 def get_performance_monitor() -> PerformanceMonitor:
-    """GetGlobal性能监控Instance"""
+    """Get the global performance monitor singleton."""
     global _performance_monitor
     if _performance_monitor is None:
         _performance_monitor = PerformanceMonitor()
