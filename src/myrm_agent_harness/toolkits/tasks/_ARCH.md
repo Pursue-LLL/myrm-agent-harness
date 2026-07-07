@@ -23,7 +23,7 @@ Domain-specific media payload DTOs (image async jobs) live in
 |-------|----------|-------|
 | Server worker | `myrm-agent-server/app/tasks/worker.py` | Background task queue processing |
 | Server REST | `myrm-agent-server/app/api/tasks/router.py` | Task status API + SSE |
-| Harness media | `toolkits/llms/image/async_image_engine.py` | Async image jobs via TaskStore |
+| Harness media | `toolkits/llms/image/async_image_engine.py` | Async image jobs via TaskStore; optional `payload_postprocessor` before persist |
 | Media DTOs | `toolkits/llms/media_task_types.py` | Typed payloads for media async jobs |
 
 ## Key Dependencies

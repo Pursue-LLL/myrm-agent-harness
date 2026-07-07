@@ -8,7 +8,8 @@
 - media_task_types::TASK_TYPE_IMAGE_GENERATE (POS: media async job type SSOT)
 
 [OUTPUT]
-- AsyncImageGenerationTools: Non-blocking LangChain tool for Agent integration
+- AsyncImageGenerationTools: Non-blocking enqueue; optional PayloadPostprocessor runs before TaskStore persist
+- PayloadPostprocessor: Callable hook for server-side secret sealing (harness stays crypto-agnostic)
 
 [POS]
 Async version of ImageGenerationTools that creates tasks instead of blocking.
@@ -22,6 +23,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from collections.abc import Callable
 
 from myrm_agent_harness.toolkits.llms.media_task_types import TASK_TYPE_IMAGE_GENERATE
 from myrm_agent_harness.toolkits.tasks import SQLiteTaskStore, Task, TaskStatus
@@ -30,6 +32,8 @@ from .models import ImageGenerationConfig
 from .validator import ImageValidator, ValidationError
 
 logger = logging.getLogger(__name__)
+
+PayloadPostprocessor = Callable[[dict[str, object]], dict[str, object]]
 
 
 class AsyncImageGenerationTools:
@@ -48,10 +52,12 @@ class AsyncImageGenerationTools:
         task_store: SQLiteTaskStore,
         *,
         ssrf_protection: bool = False,
+        payload_postprocessor: PayloadPostprocessor | None = None,
     ) -> None:
         self._config = config
         self._task_store = task_store
         self._validator = ImageValidator(ssrf_protection=ssrf_protection)
+        self._payload_postprocessor = payload_postprocessor
 
     def _execution_config_payload(self) -> dict[str, object]:
         """Serialize non-callback execution fields for the worker snapshot."""
@@ -124,6 +130,8 @@ class AsyncImageGenerationTools:
             payload["agent_id"] = agent_id
         if chat_id:
             payload["chat_id"] = chat_id
+        if self._payload_postprocessor is not None:
+            payload = self._payload_postprocessor(payload)
         task = Task(
             task_id=task_id,
             task_type=TASK_TYPE_IMAGE_GENERATE,
@@ -159,4 +167,4 @@ class AsyncImageGenerationTools:
         )
 
 
-__all__ = ["AsyncImageGenerationTools"]
+__all__ = ["AsyncImageGenerationTools", "PayloadPostprocessor"]
