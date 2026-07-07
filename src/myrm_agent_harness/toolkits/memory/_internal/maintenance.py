@@ -28,7 +28,6 @@ task digest evaporation, and blob GC. Delegates claim graph and enrichment to si
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -52,12 +51,11 @@ from myrm_agent_harness.toolkits.memory.types import (
     MemoryTier,
     SemanticMemory,
 )
-from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_compile import compile_claim_graph
+from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_compile import compile_claim_graph  # noqa: F401 — re-export
 from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support import (
-    _QUERY_TOKEN_PATTERN,
-    search_claim_graph as _search_claim_graph,
+    search_claim_graph as _search_claim_graph,  # noqa: F401 — re-export
 )
-from myrm_agent_harness.toolkits.memory._internal.maintenance_enrichment import enrich_with_graph
+from myrm_agent_harness.toolkits.memory._internal.maintenance_enrichment import enrich_with_graph  # noqa: F401 — re-export
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import MemoryConfig
@@ -70,7 +68,7 @@ if TYPE_CHECKING:
         RelationalStoreProtocol,
     )
     from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
-    from myrm_agent_harness.toolkits.memory.strategies.forgetting import (
+    from myrm_agent_harness.toolkits.memory.strategies.forgetting import (  # noqa: F401
         ForgettingConfig,
         ForgettingResult,
         ForgettingStrategy,
@@ -141,7 +139,7 @@ async def run_forgetting(
     protected by ForgettingStrategy.
     """
     from myrm_agent_harness.toolkits.memory.strategies.forgetting import (
-        ForgettingConfig,
+        ForgettingConfig,  # noqa: F401
         ForgettingMode,
         ForgettingResult,
         ForgettingStrategy,

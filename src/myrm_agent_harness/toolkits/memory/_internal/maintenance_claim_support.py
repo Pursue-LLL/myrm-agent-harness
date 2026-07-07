@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.protocols.graph import GraphNode, GraphStoreProtocol
+    from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 
 logger = logging.getLogger(__name__)
 
