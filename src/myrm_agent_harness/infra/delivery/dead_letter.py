@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.storage.base import StorageProvider
+    from myrm_agent_harness.infra.delivery.notification_ledger import PermanentFailureNotificationLedger
 
 import contextlib
 
@@ -66,6 +67,7 @@ class DeadLetterQueue:
         retry_intervals_ms: list[int] | None = None,
         ttl_days: int = 30,
         on_permanent_failure: Callable[[QueuedDelivery, str], Awaitable[None]] | None = None,
+        notification_ledger: PermanentFailureNotificationLedger | None = None,
     ) -> None:
         if base_dir is None and storage_provider is None:
             raise ValueError("Either base_dir or storage_provider must be provided")
@@ -76,6 +78,7 @@ class DeadLetterQueue:
         self.max_retries = max_retries
         self.ttl_days = ttl_days
         self.on_permanent_failure = on_permanent_failure
+        self._notification_ledger = notification_ledger
         self.retry_intervals_ms = retry_intervals_ms or [
             5 * 60 * 1000,  # 5 minutes (for transient failures)
             60 * 60 * 1000,  # 1 hour
@@ -89,6 +92,16 @@ class DeadLetterQueue:
     def mark_permanent_failure_notified(self, delivery_id: str) -> None:
         """Record that permanent-failure callback already ran for this delivery."""
         self._permanent_failure_notified_ids.add(delivery_id)
+        if self._notification_ledger is not None:
+            self._notification_ledger.mark_notified(delivery_id)
+
+    def _is_permanent_failure_already_notified(self, delivery_id: str) -> bool:
+        if delivery_id in self._permanent_failure_notified_ids:
+            return True
+        if self._notification_ledger is not None and self._notification_ledger.was_notified(delivery_id):
+            self._permanent_failure_notified_ids.add(delivery_id)
+            return True
+        return False
 
     async def start(self) -> None:
         """Start dead letter queue retry loop."""
@@ -150,24 +163,27 @@ class DeadLetterQueue:
 
             # 2. Permanent failure — notify once, then skip retries
             if delivery.retry_count >= self.max_retries:
-                if delivery.id not in self._permanent_failure_notified_ids:
-                    self._permanent_failure_notified_ids.add(delivery.id)
-                    error_reason = delivery.last_error or f"max retries ({self.max_retries}) exceeded"
-                    logger.warning(
-                        "Delivery %s permanently failed on channel %s: %s",
-                        delivery.id,
-                        delivery.channel,
-                        error_reason,
-                    )
-                    if self.on_permanent_failure is not None:
-                        try:
-                            await self.on_permanent_failure(delivery, error_reason)
-                        except Exception as cb_exc:
-                            logger.error(
-                                "Error in on_permanent_failure callback for delivery %s: %s",
-                                delivery.id,
-                                cb_exc,
-                            )
+                if self._is_permanent_failure_already_notified(delivery.id):
+                    continue
+                error_reason = delivery.last_error or f"max retries ({self.max_retries}) exceeded"
+                logger.warning(
+                    "Delivery %s permanently failed on channel %s: %s",
+                    delivery.id,
+                    delivery.channel,
+                    error_reason,
+                )
+                if self.on_permanent_failure is not None:
+                    try:
+                        await self.on_permanent_failure(delivery, error_reason)
+                        self.mark_permanent_failure_notified(delivery.id)
+                    except Exception as cb_exc:
+                        logger.error(
+                            "Error in on_permanent_failure callback for delivery %s: %s",
+                            delivery.id,
+                            cb_exc,
+                        )
+                else:
+                    self.mark_permanent_failure_notified(delivery.id)
                 continue
 
             # Calculate next retry time based on when it failed
