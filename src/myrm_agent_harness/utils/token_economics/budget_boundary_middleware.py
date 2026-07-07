@@ -25,15 +25,24 @@ from .budget_guard import BudgetStatus
 
 logger = logging.getLogger(__name__)
 
-_BUDGET_LOW_HINT = (
-    " Budget is running low. Prioritize completing your current task efficiently. "
-    "Provide a concise final answer with your findings so far."
-)
+_HINT_PREFIX = "[BUDGET_HINT]"
 
-_BUDGET_FINALIZE_HINT = (
-    " Budget limit reached. You MUST provide your final answer NOW. "
-    "Do NOT call any more tools. Summarize your work and deliver results immediately."
-)
+
+def _build_warning_hint(remaining: float | None) -> str:
+    budget_info = f" Approximately ${remaining:.2f} remaining." if remaining is not None else ""
+    return (
+        f"Budget is running low.{budget_info} "
+        "Prioritize completing your current task efficiently. "
+        "Provide a concise final answer with your findings so far."
+    )
+
+
+def _build_finalize_hint(remaining: float | None) -> str:
+    budget_info = f" (${remaining:.2f} remaining)" if remaining is not None else ""
+    return (
+        f"Budget limit reached{budget_info}. You MUST provide your final answer NOW. "
+        "Do NOT call any more tools. Summarize your work and deliver results immediately."
+    )
 
 
 class BudgetBoundaryMiddleware(AgentMiddleware):  # type: ignore[type-arg]
@@ -44,6 +53,7 @@ class BudgetBoundaryMiddleware(AgentMiddleware):  # type: ignore[type-arg]
 
     - WARNING: Appends a budget-aware HumanMessage hint at the end of messages
       (uses HumanMessage to preserve SystemMessage hash stability → no cache break).
+      Includes dynamic remaining budget amount for informed LLM decision-making.
     - FINALIZATION/EXCEEDED: Strips pending tool_calls from the last AI message,
       forcing the agent to produce a text-only final response next turn.
     """
@@ -63,18 +73,21 @@ class BudgetBoundaryMiddleware(AgentMiddleware):  # type: ignore[type-arg]
             return None
 
         status = tracker.last_budget_status
+        remaining = tracker.budget_checker.get_remaining_budget()
 
         if status == BudgetStatus.WARNING:
             messages = list(state.get("messages", []))
-            if not self._has_budget_hint(messages):
-                messages.append(HumanMessage(content=f"[SYSTEM INSTRUCTION]\n{_BUDGET_LOW_HINT}"))
+            if not _has_budget_hint(messages):
+                hint = _build_warning_hint(remaining)
+                messages.append(HumanMessage(content=f"[SYSTEM INSTRUCTION] {_HINT_PREFIX}\n{hint}"))
                 return {"messages": messages}
 
         elif status in (BudgetStatus.FINALIZATION, BudgetStatus.EXCEEDED):
             if not self._finalization_injected:
                 self._finalization_injected = True
                 messages = list(state.get("messages", []))
-                messages.append(HumanMessage(content=f"[SYSTEM INSTRUCTION]\n{_BUDGET_FINALIZE_HINT}"))
+                hint = _build_finalize_hint(remaining)
+                messages.append(HumanMessage(content=f"[SYSTEM INSTRUCTION] {_HINT_PREFIX}\n{hint}"))
                 return {"messages": messages}
 
         return None
@@ -123,14 +136,10 @@ class BudgetBoundaryMiddleware(AgentMiddleware):  # type: ignore[type-arg]
         new_messages.append(patched_msg)
         return {"messages": new_messages}
 
-    @staticmethod
-    def _has_budget_hint(messages: list[Any]) -> bool:
-        """Check if budget hint is already present (idempotency)."""
-        for msg in reversed(messages[-3:]):
-            if (
-                isinstance(msg, HumanMessage)
-                and isinstance(msg.content, str)
-                and ("Budget is running low" in msg.content or "Budget limit reached" in msg.content)
-            ):
-                return True
-        return False
+
+def _has_budget_hint(messages: list[Any]) -> bool:
+    """Check if budget hint is already present (idempotency)."""
+    for msg in reversed(messages[-3:]):
+        if isinstance(msg, HumanMessage) and isinstance(msg.content, str) and _HINT_PREFIX in msg.content:
+            return True
+    return False

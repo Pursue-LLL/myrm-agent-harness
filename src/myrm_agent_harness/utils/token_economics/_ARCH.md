@@ -44,7 +44,8 @@ LLM call full-chain economic metrics: token usage tracking (7 token types), cost
                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  Harness: BudgetBoundaryMiddleware (in agent loop)              │
-│  before_model: inject budget-aware HumanMessage hint (cache-safe)│
+│  before_model: inject dynamic budget hint with remaining USD    │
+│                (HumanMessage → cache-safe, no SystemMessage break)│
 │  after_model: strip tool_calls on FINALIZATION/EXCEEDED         │
 └─────────────────────────────────────────────────────────────────┘
 ```
