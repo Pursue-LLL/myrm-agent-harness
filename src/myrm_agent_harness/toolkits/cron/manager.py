@@ -264,6 +264,8 @@ class CronManager:
                     webhooks=tuple(WebhookTrigger() for _ in triggers.webhooks),
                     events=triggers.events,
                     system_events=triggers.system_events,
+                    polls=triggers.polls,
+                    streams=triggers.streams,
                 ),
             )
 
@@ -598,4 +600,6 @@ class CronManager:
             webhooks=tuple(updated),
             events=tc.events,
             system_events=tc.system_events,
+            polls=tc.polls,
+            streams=tc.streams,
         )
