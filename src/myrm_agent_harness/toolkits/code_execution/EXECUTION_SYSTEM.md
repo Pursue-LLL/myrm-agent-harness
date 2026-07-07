@@ -107,6 +107,7 @@ Python wrapper 在用户代码运行前注入一个 import 钩子，惰性拦截
 - 通过 stdin 发送命令，stdout 使用唯一标记分隔输出
 - 进程意外退出时自动重启并重试
 - POSIX 进程组隔离 / Windows 进程树终止
+- `asyncio.shield()` 保护子进程清理，防止异步取消导致僵尸进程
 - `check_health()` 健康检查
 
 ### 4. Security（安全框架）
