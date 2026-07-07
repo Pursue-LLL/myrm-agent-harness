@@ -33,9 +33,11 @@ class AgentExtension(Protocol):
         ...
 
     async def on_agent_init(self, agent: "BaseAgent") -> None:
-        """Hook called when the extension is registered or during agent initialization.
+        """Hook called during ``_ensure_initialized``, before the first ``create_agent``.
 
-        Use this to inject shared state or configure the agent.
+        Register dynamic tools on ``agent._tool_registry`` (or call ``agent.add_tools`` during
+        this phase). ``BaseAgent`` resolves the registry once, then builds the agent graph a
+        single time. Do not assume ``agent._agent`` exists yet.
         """
         ...
 
@@ -47,7 +49,7 @@ class AgentExtension(Protocol):
         ...
 
     def get_tools(self) -> list["BaseTool"] | None:
-        """Provide a list of tools to inject into the agent."""
+        """Provide static tools registered before ``on_agent_init``."""
         ...
 
     def get_middlewares(self) -> list["AgentMiddleware[Any, Any]"] | None:

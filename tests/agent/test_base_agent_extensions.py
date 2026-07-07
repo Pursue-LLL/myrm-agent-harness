@@ -3,7 +3,7 @@
 Covers:
 - AgentExtension Protocol (runtime_checkable, structural subtyping)
 - register_extension (name conflict, timing guard)
-- _ensure_initialized (static tools/middlewares collection, on_agent_init lifecycle)
+- _ensure_initialized (static tools/middlewares collection, on_agent_init before create_agent)
 - cleanup_tools (on_agent_shutdown lifecycle)
 - ToolLayer sorting after extension static tools
 - Error isolation (extension failure doesn't crash agent)
@@ -347,7 +347,7 @@ class TestExtensionEdgeCases:
 
     @pytest.mark.asyncio
     async def test_on_agent_init_can_call_add_tools(self):
-        """Extensions can dynamically inject tools via agent.add_tools() in on_agent_init."""
+        """Extensions can register tools in on_agent_init before the first create_agent call."""
 
         class DynamicToolExtension:
             @property
@@ -374,8 +374,7 @@ class TestExtensionEdgeCases:
             await agent._ensure_initialized()
 
         assert any(t.name == "dynamic_injected_tool" for t in agent._cached_tools)
-        # add_tools triggers rebuild, so create_agent should be called twice
-        assert mock_create.call_count == 2
+        assert mock_create.call_count == 1
 
     @pytest.mark.asyncio
     async def test_on_agent_init_receives_correct_agent_reference(self):

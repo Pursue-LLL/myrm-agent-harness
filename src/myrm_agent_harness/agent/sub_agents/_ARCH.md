@@ -11,7 +11,8 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 |------|------|-------------|-------|
 | __init__.py | Package | Sub-agent subsystem — lifecycle management and configuration loading. | — |
 | budget.py | Core | Delegation budget guard. Tracks descendant spawn count for one root run. | ✅ |
-| builder.py | Core | Subagent construction helpers — tool filtering via DelegationCapabilityManifest, model resolution, token merge. | ✅ |
+| builder.py | Core | Subagent construction helpers — tool filtering via DelegationCapabilityManifest + delegation_policy, model resolution, token merge. | ✅ |
+| delegation_policy.py | Core | Server-extensible L1 leaf blocklist (`register_leaf_blocked_tools`). | ✅ |
 | config_loader.py | Config | External config loader. Loads subagent configurations from YAML files with strict validation. | ✅ |
 | event_forwarder.py | Core | Subagent event forwarder. Translates subagent events into progress and log events. | ✅ |
 | executor.py | Core | SubagentExecutor aggregate root (mixin MRO: Retry → Attempt → Delegation). Re-exports helper functions for tests and notifications. | ✅ |

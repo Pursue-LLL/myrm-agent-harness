@@ -180,22 +180,26 @@ class BaseAgent:
         self._cached_middlewares = self._build_middlewares()
         self._cached_tools = await self._build_tools()
 
-        from myrm_agent_harness.agent.middlewares._session_context import (
-            set_active_resolved_tools,
-            set_active_tool_registry,
-        )
-
-        set_active_tool_registry(self._tool_registry)
-        if self._cached_tools is not None:
-            set_active_resolved_tools(self._cached_tools)
+        from myrm_agent_harness.agent.tool_management.types import ToolSource
 
         for ext in self._extensions:
             ext_tools = ext.get_tools()
             if ext_tools:
-                self._cached_tools.extend(ext_tools)
+                for tool in ext_tools:
+                    self._tool_registry.register(tool, source=ToolSource.USER)
             ext_mws = ext.get_middlewares()
             if ext_mws:
                 self._cached_middlewares.extend(ext_mws)
+
+        for ext in self._extensions:
+            try:
+                await ext.on_agent_init(self)
+            except Exception:
+                logger.exception("Extension '%s' on_agent_init failed", ext.name)
+
+        from myrm_agent_harness.agent._internals._agent_build import _weave_dynamic_schemas
+
+        self._cached_tools = _weave_dynamic_schemas(self._tool_registry.resolve())
 
         if self._extensions:
             from myrm_agent_harness.agent.tool_management.tool_layers import (
@@ -207,6 +211,14 @@ class BaseAgent:
 
         logger.debug("BaseAgent: final tools=%s", [t.name for t in self._cached_tools])
 
+        from myrm_agent_harness.agent.middlewares._session_context import (
+            set_active_resolved_tools,
+            set_active_tool_registry,
+        )
+
+        set_active_tool_registry(self._tool_registry)
+        set_active_resolved_tools(self._cached_tools)
+
         llm = self._apply_parallel_tool_calls(self.llm)
 
         self._agent = create_agent(
@@ -217,12 +229,6 @@ class BaseAgent:
             context_schema=self.context_schema,
             checkpointer=self.checkpointer,
         )
-
-        for ext in self._extensions:
-            try:
-                await ext.on_agent_init(self)
-            except Exception:
-                logger.exception("Extension '%s' on_agent_init failed", ext.name)
 
         # Fire-and-forget: pre-warm Anthropic/Qwen server-side prefix cache
         # while the user is still typing their first message.
@@ -238,10 +244,12 @@ class BaseAgent:
         rebuild_agent_with_llm(self, new_llm)
 
     def add_tools(self, tools: list[BaseTool]) -> None:
-        """Dynamically add tools after initialization and rebuild the agent graph.
+        """Register tools on the registry and rebuild the agent graph when already initialized.
 
-        Use for tools that require a fully initialized agent instance
-        (e.g. delegate_task needs a reference to the parent agent).
+        During ``_ensure_initialized`` (before the first ``create_agent``), this only registers
+        tools; the graph is built once after all extensions finish ``on_agent_init``.
+
+        After initialization, this registers tools and rebuilds the agent graph immediately.
 
         Note:
             If any of the new tools are lifecycle-aware (have ainit/acleanup),
@@ -258,9 +266,10 @@ class BaseAgent:
         for tool in normalized:
             self._tool_registry.register(tool, source=ToolSource.USER)
 
-        if self._cached_tools is None:
-            self.user_tools.extend(normalized)
-            self.user_tools.sort(key=lambda t: (get_tool_layer(t.name) or ToolLayer.EXTENDED, t.name))
+        if self._agent is None:
+            if self._cached_tools is None:
+                self.user_tools.extend(normalized)
+                self.user_tools.sort(key=lambda t: (get_tool_layer(t.name) or ToolLayer.EXTENDED, t.name))
             return
 
         self._cached_tools.extend(normalized)

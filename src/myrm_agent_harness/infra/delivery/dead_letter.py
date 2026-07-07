@@ -8,7 +8,8 @@ Supports both local file system and cloud storage via StorageProvider.
 - myrm_agent_harness.toolkits.storage.base::StorageProvider (POS: 云存储抽象)
 
 [OUTPUT]
-- DeadLetterQueue: 死信队列类
+- DeadLetterQueue: 死信队列类，max retries 超限时调用 on_permanent_failure
+- mark_permanent_failure_notified(): 标记已通知的 delivery id，避免重复 callback
 
 [POS]
 Dead letter queue. Failed messages are retryable with manual re-queue support.
@@ -83,6 +84,11 @@ class DeadLetterQueue:
         ]
         self._running = False
         self._retry_task: asyncio.Task[None] | None = None
+        self._permanent_failure_notified_ids: set[str] = set()
+
+    def mark_permanent_failure_notified(self, delivery_id: str) -> None:
+        """Record that permanent-failure callback already ran for this delivery."""
+        self._permanent_failure_notified_ids.add(delivery_id)
 
     async def start(self) -> None:
         """Start dead letter queue retry loop."""
@@ -137,13 +143,31 @@ class DeadLetterQueue:
                             delivery.id, base_dir=self.base_dir, storage_provider=self.storage_provider
                         )
                         deleted_count += 1
+                        self._permanent_failure_notified_ids.discard(delivery.id)
                     except Exception as e:
                         logger.error(f"Failed to delete expired delivery {delivery.id}: {e}")
                     continue
 
-            # 2. Retry Eligibility Check
+            # 2. Permanent failure — notify once, then skip retries
             if delivery.retry_count >= self.max_retries:
-                logger.debug(f"Delivery {delivery.id} exceeded max retries ({self.max_retries}), skipping")
+                if delivery.id not in self._permanent_failure_notified_ids:
+                    self._permanent_failure_notified_ids.add(delivery.id)
+                    error_reason = delivery.last_error or f"max retries ({self.max_retries}) exceeded"
+                    logger.warning(
+                        "Delivery %s permanently failed on channel %s: %s",
+                        delivery.id,
+                        delivery.channel,
+                        error_reason,
+                    )
+                    if self.on_permanent_failure is not None:
+                        try:
+                            await self.on_permanent_failure(delivery, error_reason)
+                        except Exception as cb_exc:
+                            logger.error(
+                                "Error in on_permanent_failure callback for delivery %s: %s",
+                                delivery.id,
+                                cb_exc,
+                            )
                 continue
 
             # Calculate next retry time based on when it failed

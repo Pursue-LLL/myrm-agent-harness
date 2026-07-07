@@ -28,6 +28,7 @@ from langchain_core.tools import BaseTool
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .budget import DelegationBudgetState
+from .delegation_policy import get_effective_leaf_blocked_tools
 from .types import DELEGATION_CAPABILITY_MANIFEST, SubagentConfig
 
 if TYPE_CHECKING:
@@ -59,7 +60,7 @@ def filter_tools(config: SubagentConfig, parent_tools: list[BaseTool]) -> list[B
     L3: child ⊆ parent intersection
     """
     parent_tool_names = {t.name for t in parent_tools}
-    leaf_blocked_tools = DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools
+    leaf_blocked_tools = get_effective_leaf_blocked_tools(DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools)
     blocked = leaf_blocked_tools | config.disallowed_tools
 
     blocked_by_l1: list[str] = []
