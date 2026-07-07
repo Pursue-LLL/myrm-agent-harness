@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -261,3 +262,197 @@ async def test_manual_retry_missing_delivery_returns_false(tmp_path) -> None:
     dlq_dir.mkdir()
     dlq = DeadLetterQueue(enqueue_fn=AsyncMock(), base_dir=dlq_dir)
     assert await dlq.manual_retry("missing") is False
+
+
+@pytest.mark.asyncio
+async def test_mark_permanent_failure_notified_persists_to_ledger(tmp_path) -> None:
+    from myrm_agent_harness.infra.delivery.notification_ledger import InMemoryPermanentFailureNotificationLedger
+
+    dlq_dir = tmp_path / "dlq"
+    dlq_dir.mkdir()
+    ledger = InMemoryPermanentFailureNotificationLedger()
+    dlq = DeadLetterQueue(enqueue_fn=AsyncMock(), base_dir=dlq_dir, notification_ledger=ledger)
+
+    dlq.mark_permanent_failure_notified("delivery-ledger")
+    assert ledger.was_notified("delivery-ledger")
+
+
+@pytest.mark.asyncio
+async def test_dlq_start_and_stop(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    dlq_dir = tmp_path / "dlq"
+    dlq_dir.mkdir()
+    dlq = DeadLetterQueue(enqueue_fn=AsyncMock(), base_dir=dlq_dir)
+
+    async def _cancel_sleep(_seconds: float) -> None:
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr("myrm_agent_harness.infra.delivery.dead_letter.asyncio.sleep", _cancel_sleep)
+    await dlq.start()
+    assert dlq._running is True
+    assert dlq._retry_task is not None
+    await dlq.stop()
+    assert dlq._running is False
+
+
+@pytest.mark.asyncio
+async def test_process_failed_messages_noop_when_empty(tmp_path) -> None:
+    dlq_dir = tmp_path / "dlq"
+    dlq_dir.mkdir()
+    dlq = DeadLetterQueue(enqueue_fn=AsyncMock(), base_dir=dlq_dir)
+    await dlq._process_failed_messages()
+    assert await dlq.get_failed_count() == 0
+
+
+@pytest.mark.asyncio
+async def test_dlq_permanent_failure_without_callback_marks_notified(tmp_path) -> None:
+    dlq_dir = tmp_path / "dlq"
+    dlq_dir.mkdir()
+    dlq = DeadLetterQueue(enqueue_fn=AsyncMock(), base_dir=dlq_dir, max_retries=1)
+
+    exhausted = QueuedDelivery(
+        id="no_callback",
+        channel="telegram",
+        recipient="user1",
+        content={"content": "hello"},
+        enqueued_at=time.time(),
+        priority=2,
+        retry_count=1,
+        last_error="send failed",
+        failed_at=time.time(),
+    )
+    await move_to_failed(exhausted, base_dir=dlq_dir)
+    await dlq._process_failed_messages()
+
+    assert "no_callback" in dlq._permanent_failure_notified_ids
+
+
+@pytest.mark.asyncio
+async def test_dlq_retry_enqueue_failure_is_logged(tmp_path) -> None:
+    dlq_dir = tmp_path / "dlq"
+    dlq_dir.mkdir()
+    enqueue_mock = AsyncMock(side_effect=RuntimeError("enqueue down"))
+
+    dlq = DeadLetterQueue(
+        enqueue_fn=enqueue_mock,
+        base_dir=dlq_dir,
+        max_retries=3,
+        retry_intervals_ms=[0],
+    )
+
+    failed = QueuedDelivery(
+        id="retry_fail",
+        channel="telegram",
+        recipient="user1",
+        content={"content": "hello"},
+        enqueued_at=time.time(),
+        priority=2,
+        retry_count=0,
+        failed_at=time.time(),
+    )
+    await move_to_failed(failed, base_dir=dlq_dir)
+    await dlq._process_failed_messages()
+
+    assert await dlq.get_failed_count() == 1
+
+
+@pytest.mark.asyncio
+async def test_manual_retry_enqueue_failure_returns_false(tmp_path) -> None:
+    dlq_dir = tmp_path / "dlq"
+    dlq_dir.mkdir()
+    enqueue_mock = AsyncMock(side_effect=RuntimeError("enqueue down"))
+    dlq = DeadLetterQueue(enqueue_fn=enqueue_mock, base_dir=dlq_dir, max_retries=3)
+
+    failed = QueuedDelivery(
+        id="manual_fail",
+        channel="telegram",
+        recipient="user1",
+        content={"content": "hello"},
+        enqueued_at=time.time(),
+        priority=2,
+        retry_count=0,
+        failed_at=time.time(),
+    )
+    await move_to_failed(failed, base_dir=dlq_dir)
+    assert await dlq.manual_retry("manual_fail") is False
+
+
+@pytest.mark.asyncio
+async def test_manual_retry_all_continues_after_single_failure(tmp_path) -> None:
+    dlq_dir = tmp_path / "dlq"
+    dlq_dir.mkdir()
+    enqueue_mock = AsyncMock(side_effect=[RuntimeError("first"), None])
+
+    dlq = DeadLetterQueue(enqueue_fn=enqueue_mock, base_dir=dlq_dir, max_retries=3)
+
+    for delivery_id in ("fail_one", "ok_one"):
+        await move_to_failed(
+            QueuedDelivery(
+                id=delivery_id,
+                channel="telegram",
+                recipient="user1",
+                content={"content": delivery_id},
+                enqueued_at=time.time(),
+                priority=2,
+                retry_count=0,
+                failed_at=time.time(),
+            ),
+            base_dir=dlq_dir,
+        )
+
+    retried = await dlq.manual_retry_all()
+    assert retried == 1
+    assert await dlq.get_failed_count() == 1
+
+
+@pytest.mark.asyncio
+async def test_dlq_retry_loop_logs_processing_errors(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    dlq_dir = tmp_path / "dlq"
+    dlq_dir.mkdir()
+    dlq = DeadLetterQueue(enqueue_fn=AsyncMock(), base_dir=dlq_dir)
+    dlq._running = True
+
+    calls = 0
+
+    async def _fail_once() -> None:
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("process boom")
+
+    monkeypatch.setattr(dlq, "_process_failed_messages", _fail_once)
+
+    async def _instant_sleep(_seconds: float) -> None:
+        dlq._running = False
+
+    monkeypatch.setattr("myrm_agent_harness.infra.delivery.dead_letter.asyncio.sleep", _instant_sleep)
+    await dlq._retry_loop()
+    assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_dlq_ttl_delete_failure_keeps_delivery(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    dlq_dir = tmp_path / "dlq"
+    dlq_dir.mkdir()
+    dlq = DeadLetterQueue(enqueue_fn=AsyncMock(), base_dir=dlq_dir, ttl_days=1, max_retries=1)
+
+    expired = QueuedDelivery(
+        id="ttl_delete_fail",
+        channel="telegram",
+        recipient="user1",
+        content={"content": "old"},
+        enqueued_at=time.time() - (2 * 24 * 3600),
+        priority=2,
+        retry_count=1,
+        failed_at=time.time() - (2 * 24 * 3600),
+    )
+    await move_to_failed(expired, base_dir=dlq_dir)
+
+    async def _raise_delete(*_args: object, **_kwargs: object) -> None:
+        raise OSError("delete failed")
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.infra.delivery.dead_letter.delete_failed_delivery",
+        _raise_delete,
+    )
+    await dlq._process_failed_messages()
+    assert await dlq.get_failed_count() == 1
+
