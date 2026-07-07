@@ -426,7 +426,12 @@ class PersistentSession(ABC):
     async def _kill_process_group(self, grace_period: float = 2.0) -> None:
         if not self.process or self.process.pid is None:
             return
-        await _kill_process_tree(self.process, self._platform.is_windows, grace_period)
+        try:
+            await asyncio.shield(
+                _kill_process_tree(self.process, self._platform.is_windows, grace_period)
+            )
+        except asyncio.CancelledError:
+            pass
 
     async def close(self) -> None:
         async with self._lock:

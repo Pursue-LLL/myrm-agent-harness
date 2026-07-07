@@ -145,6 +145,53 @@ class TestProcessGroupKill:
                 await session.close()
 
     @pytest.mark.asyncio
+    async def test_cancel_during_close_still_kills_child(self) -> None:
+        """Shield ensures _kill_process_group completes even under cancellation."""
+        from unittest.mock import AsyncMock, patch
+
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+
+        kill_completed = False
+        original_kill = session._kill_process_group
+
+        async def slow_kill(grace_period: float = 2.0) -> None:
+            nonlocal kill_completed
+            await original_kill(grace_period)
+            kill_completed = True
+
+        try:
+            result = await session.execute(
+                "python3 -c 'import time,os; print(os.getpid()); time.sleep(300)' &\nsleep 0.3 && jobs -p"
+            )
+            if not result.success:
+                pytest.skip("fork not available in test environment")
+            lines = result.stdout.strip().splitlines()
+            pids = [int(p) for p in lines if p.strip().isdigit()]
+            if not pids:
+                pytest.skip("could not capture child PID")
+
+            child_pid = pids[0]
+            assert _pid_exists(child_pid)
+
+            with patch.object(session, "_kill_process_group", side_effect=slow_kill):
+                close_task = asyncio.create_task(session.close())
+                await asyncio.sleep(0.05)
+                close_task.cancel()
+                try:
+                    await close_task
+                except asyncio.CancelledError:
+                    pass
+
+            await asyncio.sleep(0.5)
+            assert kill_completed, "shield must let _kill_process_group finish"
+            assert not _pid_exists(child_pid), "child process must be dead"
+        finally:
+            if session.process and session.process.returncode is None:
+                session.process.kill()
+                await session.process.wait()
+
+    @pytest.mark.asyncio
     async def test_kill_process_group_already_dead(self) -> None:
         """_kill_process_group should not raise if process already exited."""
         session = LocalPersistentSession(_make_config())
