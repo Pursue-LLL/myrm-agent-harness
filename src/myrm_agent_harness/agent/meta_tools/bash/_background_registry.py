@@ -323,7 +323,7 @@ class BackgroundProcessRegistry:
         return killed
 
     def _maybe_clear_session_deferred_tools(self, session_id: str | None) -> None:
-        """Drop deferred AutoMount when a session has no running shell jobs."""
+        """Drop spawn lifecycle markers when a session has no running shell jobs."""
         if not session_id:
             return
         with self._lock:

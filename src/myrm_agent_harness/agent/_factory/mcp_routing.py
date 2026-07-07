@@ -6,7 +6,7 @@
 
 [OUTPUT]
 - route_mcp_servers(): split MCP servers into direct tools vs PTC skills
-- apply_aggregate_threshold(): cap aggregate direct-tool token budget, overflow → deferred
+- demote_direct_servers_over_budget(): whole-server Skill demotion when aggregate direct budget exceeded
 - PTC_OVERHEAD_MULTIPLIER, FALLBACK_PTC_BRIDGE_TOKENS, _compute_direct_threshold, _estimate_schema_tokens
 
 [POS]
@@ -18,14 +18,16 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
+
+from myrm_agent_harness.toolkits.mcp.config import MCPConfig
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
     from myrm_agent_harness.agent.skills import SkillMetadata
     from myrm_agent_harness.toolkits.mcp.client import MCPServerConfigProtocol
-    from myrm_agent_harness.toolkits.mcp.config import MCPConfig
 
 logger = logging.getLogger(__name__)
 
@@ -43,12 +45,43 @@ AGGREGATE_DIRECT_TOKEN_BUDGET = 2700
 """Maximum total schema tokens for all MCP direct tools combined.
 
 When multiple lightweight MCP servers individually pass the per-server threshold
-but their aggregate schema exceeds this budget, the excess tools are deferred
-(sorted by per-tool schema size descending — largest tools deferred first).
-
-Value rationale: ~3x per-server threshold (900) accommodates 3-4 typical lightweight
-servers without deferral, while preventing 10+ servers from bloating the prompt.
+but their aggregate schema exceeds this budget, whole servers (largest first) are
+demoted to PTC/Skill until the remaining direct pool fits within budget.
 """
+
+
+@dataclass(frozen=True, slots=True)
+class _DirectServerBundle:
+    config: MCPConfig
+    tools: tuple[BaseTool, ...]
+    schema_tokens: int
+
+
+def demote_direct_servers_over_budget(
+    bundles: list[_DirectServerBundle],
+    budget: int = AGGREGATE_DIRECT_TOKEN_BUDGET,
+) -> tuple[list[_DirectServerBundle], list[MCPConfig]]:
+    """Demote largest direct MCP servers to Skill until aggregate schema fits budget."""
+    if not bundles:
+        return [], []
+
+    remaining = list(bundles)
+    demoted: list[MCPConfig] = []
+
+    def _total_tokens(items: list[_DirectServerBundle]) -> int:
+        return sum(b.schema_tokens for b in items)
+
+    while remaining and _total_tokens(remaining) > budget:
+        largest = max(remaining, key=lambda b: b.schema_tokens)
+        remaining.remove(largest)
+        demoted.append(largest.config)
+        logger.info(
+            "MCP aggregate demotion: server '%s' (~%d tokens) → PTC/Skill",
+            largest.config.name,
+            largest.schema_tokens,
+        )
+
+    return remaining, demoted
 
 
 def _compute_direct_threshold(bridge_tools: Sequence[BaseTool] | None = None) -> int:
@@ -83,47 +116,32 @@ def _estimate_single_tool_tokens(tool: BaseTool) -> int:
     return int(len(json.dumps(entry, ensure_ascii=False, separators=(",", ":"))) / CHARS_PER_TOKEN + 0.5)
 
 
-def apply_aggregate_threshold(
-    mcp_direct_tools: list[BaseTool],
-    budget: int = AGGREGATE_DIRECT_TOKEN_BUDGET,
-) -> tuple[list[BaseTool], list[BaseTool]]:
-    """Cap aggregate direct MCP tools within a token budget.
+async def _generate_mcp_skills(
+    ptc_servers: list[MCPConfig],
+) -> list[SkillMetadata]:
+    from myrm_agent_harness.agent.skills.mcp.core_generator import mcp_skill_generator
+    from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
 
-    When the combined schema of all direct MCP tools exceeds *budget*,
-    the largest tools (by schema token cost) are moved to the deferred list
-    until the remaining tools fit within budget.
-
-    Returns:
-        (kept_direct, overflow_deferred) — tools to bind directly and tools to defer.
-    """
-    total_tokens = _estimate_schema_tokens(mcp_direct_tools)
-    if total_tokens <= budget:
-        return mcp_direct_tools, []
-
-    scored = [(t, _estimate_single_tool_tokens(t)) for t in mcp_direct_tools]
-    scored.sort(key=lambda x: x[1], reverse=True)
-
-    kept: list[BaseTool] = []
-    deferred: list[BaseTool] = []
-    running_tokens = 0
-
-    remaining = list(reversed(scored))
-    for t, tokens in remaining:
-        if running_tokens + tokens <= budget:
-            kept.append(t)
-            running_tokens += tokens
-        else:
-            deferred.append(t)
+    if not ptc_servers:
+        return []
 
     logger.info(
-        "MCP aggregate threshold: %d tokens total > %d budget → kept %d tools (%d tokens), deferred %d tools",
-        total_tokens,
-        budget,
-        len(kept),
-        running_tokens,
-        len(deferred),
+        "MCP PTC skill generation: %d server(s): %s",
+        len(ptc_servers),
+        [s.name for s in ptc_servers],
     )
-    return kept, deferred
+    mcp_skills = await mcp_skill_generator.generate_metadata_only(ptc_servers)
+    logger.info("MCP PTC skill generation: produced %d skill(s)", len(mcp_skills))
+
+    for skill in mcp_skills:
+        if skill.mcp:
+            server_configs = [cfg for cfg in ptc_servers if cfg.name == skill.mcp.server]
+            if server_configs:
+                skill.mcp.config = [_config_to_dict(cfg) for cfg in server_configs]
+            else:
+                skill.mcp.config = [_config_to_dict(cfg) for cfg in ptc_servers]
+        skill_registry.register(skill)
+    return mcp_skills
 
 
 def _config_to_dict(cfg: MCPServerConfigProtocol) -> dict[str, object]:
@@ -148,8 +166,7 @@ async def route_mcp_servers(
     )
 
     ptc_servers: list[MCPConfig] = []
-    mcp_skills: list[SkillMetadata] = []
-    mcp_direct_tools: list[BaseTool] = []
+    direct_bundles: list[_DirectServerBundle] = []
     direct_threshold = _compute_direct_threshold()
 
     all_mcp_configs = cast("list[MCPConfig]", list(mcp_servers))
@@ -171,9 +188,15 @@ async def route_mcp_servers(
 
         schema_tokens = _estimate_schema_tokens(server_tools)
         if schema_tokens <= direct_threshold:
-            mcp_direct_tools.extend(server_tools)
+            direct_bundles.append(
+                _DirectServerBundle(
+                    config=cfg,
+                    tools=tuple(server_tools),
+                    schema_tokens=schema_tokens,
+                )
+            )
             logger.info(
-                "MCP hybrid: server '%s' (%d tools, ~%d tokens, threshold=%d) → direct",
+                "MCP hybrid: server '%s' (%d tools, ~%d tokens, threshold=%d) → direct candidate",
                 cfg.name,
                 len(server_tools),
                 schema_tokens,
@@ -189,28 +212,14 @@ async def route_mcp_servers(
                 direct_threshold,
             )
 
-    if ptc_servers:
-        from myrm_agent_harness.agent.skills.mcp.core_generator import (
-            mcp_skill_generator,
-        )
-        from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
+    kept_bundles, demoted_configs = demote_direct_servers_over_budget(direct_bundles)
+    ptc_servers.extend(demoted_configs)
 
-        logger.info(
-            "MCP PTC skill generation: %d server(s): %s",
-            len(ptc_servers),
-            [s.name for s in ptc_servers],
-        )
-        mcp_skills = await mcp_skill_generator.generate_metadata_only(ptc_servers)
-        logger.info("MCP PTC skill generation: produced %d skill(s)", len(mcp_skills))
+    mcp_direct_tools: list[BaseTool] = []
+    for bundle in kept_bundles:
+        mcp_direct_tools.extend(bundle.tools)
 
-        for skill in mcp_skills:
-            if skill.mcp:
-                server_configs = [cfg for cfg in ptc_servers if cfg.name == skill.mcp.server]
-                if server_configs:
-                    skill.mcp.config = [_config_to_dict(cfg) for cfg in server_configs]
-                else:
-                    skill.mcp.config = [_config_to_dict(cfg) for cfg in ptc_servers]
-            skill_registry.register(skill)
+    mcp_skills = await _generate_mcp_skills(ptc_servers)
 
     logger.info(
         "MCP hybrid summary: %d direct tools, %d PTC skills",

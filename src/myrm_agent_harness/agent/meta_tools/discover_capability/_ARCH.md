@@ -1,7 +1,7 @@
 # discover_capability/
 
 ## Overview
-Unified Capability Discovery gateway. Indexes **DISCOVERABLE** native tools (``ToolBindMode.DISCOVERABLE``; excludes ``RUNTIME_ONLY`` hooks like ``_completion_check``) and bound external skills; AutoMount via ``DeferredToolMiddleware``. After all lazy-bound tools register, ``sync_discover_capability_tool()`` rebuilds the search index (SSOT when ``ToolRegistry`` is used).
+Unified Capability Discovery gateway. Indexes **DISCOVERABLE** native tools and external skills; activation via ``invoke_deferred_tool``. After lazy-bound tools register, ``sync_discover_capability_tool()`` rebuilds index and applies DeferEconomics.
 
 ## File & Submodule Index
 

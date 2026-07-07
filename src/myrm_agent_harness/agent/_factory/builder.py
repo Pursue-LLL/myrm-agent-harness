@@ -50,10 +50,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.storage.base import StorageProvider
     from myrm_agent_harness.toolkits.wiki import SemanticSearchFn
 
-from myrm_agent_harness.agent._factory.mcp_routing import (
-    apply_aggregate_threshold,
-    route_mcp_servers,
-)
+from myrm_agent_harness.agent._factory.mcp_routing import route_mcp_servers
 
 logger = logging.getLogger(__name__)
 
@@ -185,13 +182,10 @@ async def create_skill_agent(
 
     if tools is None:
         tools = []
-    mcp_kept, mcp_overflow = apply_aggregate_threshold(mcp_direct_tools)
-    tools = list(tools) + openapi_tools + mcp_kept
+    tools = list(tools) + openapi_tools + mcp_direct_tools
 
     if discoverable_tools is None:
         discoverable_tools = []
-    if mcp_overflow:
-        discoverable_tools = list(discoverable_tools) + mcp_overflow
 
     final_skill_backend: SkillBackendProtocol | None = skill_backend
     if mcp_skills:

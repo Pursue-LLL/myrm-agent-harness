@@ -6,22 +6,18 @@
 - langgraph.prebuilt.tool_node::ToolCallRequest (POS: Tool execution request for interceptors)
 
 [OUTPUT]
-- DeferredToolMiddleware: AutoMount discoverable tools into model bind_tools
-  and supplies BaseTool instances at ToolNode execution via awrap_tool_call.
+- DeferredToolMiddleware: supplies DISCOVERABLE tools at ToolNode execution via awrap_tool_call;
+  skill schema attenuation on model requests.
 
 [POS]
-Middleware that scans chat history for discover_capability outputs and dynamically
-activates discoverable tools (``ToolBindMode.DISCOVERABLE``): augments ModelRequest.tools
-for the LLM and uses ToolCallRequest.override(tool=...) so LangGraph ToolNode can execute
-tools not present at graph compile time (see LangChain DYNAMIC_TOOL_ERROR_TEMPLATE).
-``RUNTIME_ONLY`` tools are executable via awrap_tool_call but never AutoMount.
+Middleware for deferred native tools. Does not mutate ``request.tools`` (prefix-cache safe).
+``invoke_deferred_tool`` is the primary activation path; awrap_tool_call still resolves
+direct deferred tool names dynamically for ToolNode.
 """
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -30,78 +26,17 @@ from langchain.agents.middleware import (
     ModelRequest,
     ModelResponse,
 )
-from langchain_core.messages import AnyMessage, ToolMessage
+from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
-from myrm_agent_harness.agent.meta_tools.bash.background_deferred_activation import (
-    get_session_deferred_tool_names,
-)
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
-_DISCOVER_TOOL_MESSAGE_NAMES = frozenset(
-    {"discover_capability", "discover_capability_tool"}
-)  # TODO(2026-Q3): remove "discover_capability" legacy alias after migration settles
-
-
-def _is_discover_capability_tool_message(name: str | None) -> bool:
-    """Match ToolMessage.name for the discovery meta-tool (raw and _tool-suffixed)."""
-    return bool(name) and name in _DISCOVER_TOOL_MESSAGE_NAMES
-
-
-def _messages_from_agent_state(state: object) -> list[AnyMessage]:
-    if isinstance(state, dict):
-        raw = state.get("messages")
-        if isinstance(raw, list):
-            return list(raw)
-        return []
-    messages_attr = getattr(state, "messages", None)
-    if isinstance(messages_attr, list):
-        return list(messages_attr)
-    return []
-
-
-def collect_activated_native_tool_names(
-    messages: list[AnyMessage],
-    *,
-    session_id: str = "",
-) -> set[str]:
-    """Parse discover_capability ToolMessages and session spawn AutoMount names."""
-    activated: set[str] = set()
-    if session_id:
-        activated |= set(get_session_deferred_tool_names(session_id))
-    for msg in messages:
-        if not isinstance(msg, ToolMessage) or not _is_discover_capability_tool_message(msg.name):
-            continue
-        try:
-            content = str(msg.content)
-            match = re.search(
-                r"<AutoMountTools>\s*(\[.*?\])\s*</AutoMountTools>",
-                content,
-                re.DOTALL,
-            )
-            if not match:
-                continue
-            json_str = match.group(1)
-            matches = json.loads(json_str)
-            for m in matches:
-                if isinstance(m, dict) and "name" in m:
-                    activated.add(str(m["name"]))
-        except Exception as e:
-            logger.debug("Failed to parse discover_capability output: %s", e)
-    return activated
-
 
 class DeferredToolMiddleware(AgentMiddleware[Any, Any, Any]):
-    """Activates discoverable tools after discover_capability exposes <AutoMountTools>.
-
-    - ``awrap_model_call``: appends activated discoverable ``BaseTool`` instances to
-      ``request.tools`` so the model can emit tool_calls for them.
-    - ``awrap_tool_call``: when ToolNode has no ``BaseTool`` for that name (dynamic tool),
-      supplies discoverable or runtime-only tools via ``request.override(tool=...)``.
-    """
+    """Runtime resolution for DISCOVERABLE tools without bind_tools schema injection."""
 
     def __init__(self, registry: ToolRegistry) -> None:
         self.registry = registry
@@ -118,31 +53,6 @@ class DeferredToolMiddleware(AgentMiddleware[Any, Any, Any]):
         request: ModelRequest[Any],
         handler: Callable[[ModelRequest[Any]], Awaitable[ModelResponse[Any]]],
     ) -> ModelResponse[Any]:
-        discoverable_tools = self.registry.get_discoverable_tools()
-        from myrm_agent_harness.agent.middlewares._session_context import get_approval_session
-
-        session_id = get_approval_session()
-        activated_tool_names = collect_activated_native_tool_names(
-            request.messages,
-            session_id=session_id,
-        )
-
-        if activated_tool_names:
-            existing_tool_names = {t.name if hasattr(t, "name") else t.get("name") for t in request.tools}
-
-            added_count = 0
-            for tool in discoverable_tools:
-                if tool.name in activated_tool_names and tool.name not in existing_tool_names:
-                    request.tools.append(tool)
-                    added_count += 1
-
-            if added_count > 0:
-                logger.info(
-                    " DeferredToolMiddleware dynamically activated %d tools: %s",
-                    added_count,
-                    sorted(activated_tool_names),
-                )
-
         from myrm_agent_harness.agent._skill_agent_context import get_loaded_skills
         from myrm_agent_harness.agent.skills.runtime.attenuator import attenuate_tools
 
@@ -194,11 +104,6 @@ class DeferredToolMiddleware(AgentMiddleware[Any, Any, Any]):
         registry = get_active_tool_registry() or self.registry
         resolved_tools = get_active_resolved_tools()
 
-        messages = _messages_from_agent_state(request.state)
-        from myrm_agent_harness.agent.middlewares._session_context import get_approval_session
-
-        session_id = get_approval_session()
-        activated = collect_activated_native_tool_names(messages, session_id=session_id)
         call_name = str(request.tool_call.get("name", ""))
         candidate_names = {call_name}
         if not call_name.endswith("_tool"):
@@ -212,17 +117,14 @@ class DeferredToolMiddleware(AgentMiddleware[Any, Any, Any]):
         search_pool.extend(registry.resolve())
         search_pool.extend(registry.get_runtime_tools())
 
-        if call_name not in activated:
-            seen: set[str] = set()
-            for resolved_tool in search_pool:
-                name = getattr(resolved_tool, "name", None)
-                if not isinstance(name, str) or name in seen:
-                    continue
-                seen.add(name)
-                if name in candidate_names:
-                    return await handler(request.override(tool=resolved_tool))
-
-            return await handler(request)
+        seen: set[str] = set()
+        for resolved_tool in search_pool:
+            name = getattr(resolved_tool, "name", None)
+            if not isinstance(name, str) or name in seen:
+                continue
+            seen.add(name)
+            if name in candidate_names:
+                return await handler(request.override(tool=resolved_tool))
 
         for dt in registry.get_discoverable_tools():
             if dt.name in candidate_names:

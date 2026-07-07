@@ -3,7 +3,7 @@
 
 Builds the harness-side default product profile:
   web_search + web_fetch + file_ops (5) + bash + memory (3, COMMON)
-  + skill_select + skill_manage + discover_capability
+  + skill_select + skill_manage + invoke_deferred_tool (DeferEconomics; discover gateway when net-positive)
   (conversation_search opt-in via server; excluded from default Turn1)
   (TSM v1: no request_answer_user_tool, no todo_write)
 

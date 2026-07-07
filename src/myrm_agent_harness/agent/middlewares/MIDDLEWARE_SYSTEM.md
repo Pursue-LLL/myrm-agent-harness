@@ -28,7 +28,8 @@
 │ security_*_middleware                   │  ← 安全边界/护栏
 │ subagent_limit / concurrency_limiter    │  ← 委派 fan-out 限制
 │ dangling_tool_call_middleware           │  ← 悬空 tool_call 修复
-│ deferred_tool_middleware                │  ← AutoMount 延迟工具
+│ deferred_index_middleware               │  ← stable deferred tool names (system)
+│ deferred_tool_middleware                │  ← DISCOVERABLE ToolNode resolve
 │ filesystem_search_middleware            │  ← glob/grep 注入
 │ tool_interceptor_middleware             │  ← ★ 工具执行主拦截点
 │   └─ tool_executor (timeout/retry)      │
@@ -70,7 +71,8 @@
 | `security_guardrail_middleware.py` | 安全护栏 |
 | `subagent_limit_middleware.py` | 单轮 delegate 上限 |
 | `dangling_tool_call_middleware.py` | 修复 strict provider 400 |
-| `deferred_tool_middleware.py` | discover_capability AutoMount |
+| `deferred_index_middleware.py` | stable `<available-deferred-tools>` injection |
+| `deferred_tool_middleware.py` | DISCOVERABLE ToolNode resolve (no bind_tools mutation) |
 | `filesystem_search_middleware.py` | 工作区搜索工具注入 |
 | `memory_context_middleware.py` | 记忆上下文注入 |
 | `progress_middleware.py` | 活跃 todo 焦点注入（末位 HumanMessage） |

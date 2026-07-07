@@ -70,6 +70,9 @@ def build_middlewares(
     from myrm_agent_harness.agent.middlewares.deferred_tool_middleware import (
         DeferredToolMiddleware,
     )
+    from myrm_agent_harness.agent.middlewares.deferred_index_middleware import (
+        DeferredIndexMiddleware,
+    )
     from myrm_agent_harness.agent.middlewares.progress_middleware import (
         progress_middleware,
     )
@@ -83,6 +86,7 @@ def build_middlewares(
 
     middlewares: list[object] = [
         DeferredToolMiddleware(registry),
+        DeferredIndexMiddleware(registry),
         tool_call_dedup_middleware,
         dangling_tool_call_middleware,
         subagent_limit_middleware,

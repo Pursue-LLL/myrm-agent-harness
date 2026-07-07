@@ -55,7 +55,7 @@ async def test_discover_native_tool(mock_registry):
     tool = create_discover_capability_tool(registry=mock_registry)
     result = await tool.ainvoke({"query": ".*", "mode": "regex"})
     assert "Found Native Tools" in result
-    assert "<AutoMountTools>" in result
+    assert "<DeferredToolHits>" in result
     assert "dummy_native_tool" in result
 
 
@@ -146,28 +146,15 @@ async def test_gap_dispatch_events_on_miss(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 @pytest.mark.asyncio
-async def test_description_includes_discoverable_tool_names():
-    """Verify dynamic description lists discoverable native tool names."""
+async def test_description_is_stable_without_dynamic_tool_names():
+    """Stable index: discover description must not embed per-tool names (prefix cache)."""
     registry = MagicMock(spec=ToolRegistry)
     registry.get_discoverable_tools.return_value = [DummyTool()]
 
-    with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(
-            "myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool.SkillSearchEngine",
-            MagicMock,
-            raising=False,
-        )
-        # Patch the import path to avoid rank_bm25 dependency
-        import sys
-        mock_engine_mod = MagicMock()
-        mock_engine_mod.SkillSearchEngine = MagicMock()
-        sys.modules.setdefault(
-            "myrm_agent_harness.agent.meta_tools.skills.search.engine", mock_engine_mod
-        )
-        tool = create_discover_capability_tool(registry=registry)
-
-    assert "Discoverable native tools" in tool.description
-    assert "dummy_native_tool" in tool.description
+    tool = create_discover_capability_tool(registry=registry)
+    assert "Discoverable native tools" not in tool.description
+    assert "dummy_native_tool" not in tool.description
+    assert "invoke_deferred_tool" in tool.description
 
 
 def test_discover_index_excludes_runtime_only_tools() -> None:
@@ -190,7 +177,7 @@ def test_discover_index_excludes_runtime_only_tools() -> None:
     tool = create_discover_capability_tool(registry=registry)
 
     assert "_completion_check" not in (tool.description or "")
-    assert "dummy_native_tool" in (tool.description or "")
+    assert "dummy_native_tool" not in (tool.description or "")
 
 
 @pytest.mark.asyncio
@@ -229,11 +216,12 @@ async def test_bm25_mode_default(mock_skills):
 
 @pytest.mark.asyncio
 async def test_native_tool_schema_in_output(mock_registry):
-    """Verify native tool output includes schema."""
+    """Verify native tool output includes schema in DeferredToolHit."""
     tool = create_discover_capability_tool(registry=mock_registry)
     result = await tool.ainvoke({"query": ".*", "mode": "regex"})
-    assert '"schema"' in result
-    assert '"arg1"' in result
+    assert "<DeferredToolHit" in result
+    assert "schema_hint" in result
+    assert "arg1" in result
 
 
 @pytest.mark.asyncio

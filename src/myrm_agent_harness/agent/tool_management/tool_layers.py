@@ -64,7 +64,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # ============================================================
     # COMMON - 默认开启但用户可在 GUI 关闭（放中间；组内 memory 优先于 web_search）
     # ============================================================
-    "request_answer_user_tool": ToolLayer.COMMON,
     "todo_write": ToolLayer.COMMON,
     "web_search_tool": ToolLayer.COMMON,
     "memory_recall_tool": ToolLayer.COMMON,
@@ -75,7 +74,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # ============================================================
     # --- ACP（Agent Communication Protocol）---
     "delegate_to_agent_tool": ToolLayer.EXTENDED,
-    # --- Bash 后台进程（discoverable；spawn 后 session AutoMount）---
+    # --- Bash 后台进程（discoverable；stable index + invoke）---
     "bash_process_tool": ToolLayer.EXTENDED,
     # --- 浏览器工具 ---
     "browser_extract_tool": ToolLayer.EXTENDED,
@@ -99,6 +98,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # --- 交互工具 ---
     "ask_question_tool": ToolLayer.EXTENDED,
     "render_ui_tool": ToolLayer.EXTENDED,
+    "request_answer_user_tool": ToolLayer.EXTENDED,
     # --- 看板 (Worker tools) ---
     "kanban_show": ToolLayer.EXTENDED,
     "kanban_complete": ToolLayer.EXTENDED,
@@ -122,6 +122,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "conversation_search_tool": ToolLayer.EXTENDED,
     # --- 技能工具 ---
     "discover_capability_tool": ToolLayer.EXTENDED,
+    "invoke_deferred_tool": ToolLayer.EXTENDED,
     "skill_discovery_tool": ToolLayer.EXTENDED,
     "skill_manage_tool": ToolLayer.EXTENDED,
     "skill_select_tool": ToolLayer.EXTENDED,
@@ -147,7 +148,6 @@ _COMMON_LAYER_SORT_RANK: dict[str, int] = {
     "memory_recall_tool": 1,
     "memory_save_tool": 2,
     "web_search_tool": 10,
-    "request_answer_user_tool": 20,
     "todo_write": 30,
 }
 

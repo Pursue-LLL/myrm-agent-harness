@@ -102,15 +102,11 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
 - Use query="*" to list all available external skills.
 
 **What happens next**:
-- If a **Native Tool** is found, the system will automatically mount it for you, and you can use it in the NEXT turn.
+- If a **Native Tool** is found, use `invoke_deferred_tool(name, arguments)` with the schema_hint from the hit.
 - If an **External Skill** is found, you MUST use `skill_select_tool` to load its SOP documentation before using it.
 
 **Examples**: cron jobs, video generation, bash process management.
 """
-
-    if native_skills:
-        discoverable_names = ", ".join(s.name for s in native_skills[:20])
-        tool_description += f"\n**Discoverable native tools**: {discoverable_names}\n"
 
     active_groups = active_tool_groups or frozenset()
     bound_names = bound_skill_names or frozenset()
@@ -213,11 +209,19 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
         results = []
 
         if native_matches:
-            # We output JSON array for native matches wrapped in XML tags for robust parsing
-            native_json = json.dumps(native_matches, ensure_ascii=False, indent=2)
+            from myrm_agent_harness.agent.tool_management.defer.activation import (
+                format_deferred_tool_hit,
+            )
+
+            hit_lines = [
+                format_deferred_tool_hit(str(m["name"]), m.get("schema") or {})
+                for m in native_matches
+                if isinstance(m, dict) and "name" in m
+            ]
+            hits_body = "\n".join(hit_lines)
             results.append(
-                f"###  Found Native Tools (System will AUTO-MOUNT these for the next turn):\n"
-                f"<AutoMountTools>\n{native_json}\n</AutoMountTools>"
+                "### Found Native Tools (use invoke_deferred_tool with name and arguments):\n"
+                f"<DeferredToolHits>\n{hits_body}\n</DeferredToolHits>"
             )
 
         if external_matches:
@@ -244,19 +248,33 @@ def sync_discover_capability_tool(
     bound_skill_names: frozenset[str] | None = None,
     library_skill_names: frozenset[str] | None = None,
 ) -> BaseTool | None:
-    """Rebuild discover_capability_tool after discoverable registry mutations.
+    """Rebuild defer tooling after discoverable registry mutations.
 
-    Must run after all discoverable tools (framework + server) are registered
-    so the search index includes the full agent-scoped discoverable set.
+    Registers ``invoke_deferred_tool`` when the discoverable pool is non-empty.
+    Registers ``discover_capability_tool`` only when DeferEconomics says the
+    gateway is net-positive (searchable skills or large/multi defer pool).
+
+    Must run after all discoverable tools (framework + server) are registered.
     """
+    from myrm_agent_harness.agent.meta_tools.defer.invoke_deferred_tool import (
+        INVOKE_DEFERRED_TOOL_NAME,
+        create_invoke_deferred_tool,
+    )
+    from myrm_agent_harness.agent.tool_management.defer.economics import (
+        should_bind_discover_gateway,
+    )
     from myrm_agent_harness.agent.tool_management.registry import ToolSource
 
     discoverable_skills = [s for s in (skills or []) if s.model_invocable]
-    has_discoverable = bool(registry.get_discoverable_tools())
+    discoverable_tools = registry.get_discoverable_tools()
 
     registry.remove_tool("discover_capability_tool")
+    registry.remove_tool(INVOKE_DEFERRED_TOOL_NAME)
 
-    if not discoverable_skills and not has_discoverable:
+    if discoverable_tools:
+        registry.register(create_invoke_deferred_tool(registry), source=ToolSource.META)
+
+    if not should_bind_discover_gateway(len(discoverable_skills), discoverable_tools):
         return None
 
     tool = create_discover_capability_tool(

@@ -105,7 +105,7 @@ class ToolRegistry:
             built-in tools.
         bind_mode:
             ``TURN1``: bound on first model turn.
-            ``DISCOVERABLE``: lazy-load via discover_capability + AutoMount.
+            ``DISCOVERABLE``: lazy-load via stable index + invoke_deferred_tool + discover search.
             ``RUNTIME_ONLY``: internal hooks (e.g. ``_completion_check``);
             not in discover index; executable when middleware injects tool_calls.
         """

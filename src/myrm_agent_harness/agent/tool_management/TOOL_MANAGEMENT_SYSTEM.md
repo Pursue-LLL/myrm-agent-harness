@@ -8,7 +8,7 @@
 
 | 对外说法 | 含义 | 当前规模 |
 |----------|------|----------|
-| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **69**（CORE 7 + COMMON 6 + EXTENDED 56） |
+| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **69**（CORE 7 + COMMON 5 + EXTENDED 57） |
 
 对外文档与沟通中，**「工具」仅指 LLM 工具**。编排信号、runtime hook、toolkits 引擎、Skill 文档、PTC 等实现细节属于代码层，**不称为工具**。
 
@@ -103,11 +103,10 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `memory_manage_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
 | `memory_recall_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
 | `memory_save_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
-| `request_answer_user_tool` | COMMON | user_capability | answer_tool | enabled_builtin_tools: answer_tool |
 | `todo_write` | COMMON | user_capability | planning | planning or existing workspace todos |
 | `web_search_tool` | COMMON | user_capability | web_search | enabled_builtin_tools: web_search (default on) |
-| `ask_question_tool` | EXTENDED | user_capability | — | clarification wiring in factory |
-| `bash_process_tool` | EXTENDED | user_capability | — | DISCOVERABLE; discover_capability AutoMount |
+| `ask_question_tool` | EXTENDED | server_policy | — | server `tool_setup._should_mount_ask_question_tool`（interactive `web_chat` only） |
+| `bash_process_tool` | EXTENDED | user_capability | — | DISCOVERABLE; stable index + invoke_deferred_tool |
 | `batch_delegate_tasks_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `browser_ask_human_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `browser_execute_script_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
@@ -131,6 +130,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `discover_capability_tool` | EXTENDED | user_capability | — | Turn1 when discoverable pool non-empty |
 | `get_goal_status_tool` | EXTENDED | user_capability | — | active Goal on chat |
 | `image_tool` | EXTENDED | user_capability | image_generation | enabled_builtin_tools: image_generation |
+| `invoke_deferred_tool` | EXTENDED | user_capability | — | Opt-in Turn1 or DISCOVERABLE; see product switch |
 | `kanban_add_dependency` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_add_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_block` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
@@ -149,6 +149,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `kanban_update_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `list_subagents_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `render_ui_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
+| `request_answer_user_tool` | EXTENDED | user_capability | answer_tool | enabled_builtin_tools: answer_tool |
 | `send_teammate_message_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `skill_discovery_tool` | EXTENDED | user_capability | — | DISCOVERABLE; skill marketplace |
 | `skill_manage_tool` | EXTENDED | user_capability | — | write_backend present |
@@ -190,18 +191,18 @@ python scripts/validate_tool_registry.py --generate-docs  # 刷新 TOOL_COUNT + 
 | 模式 | Turn1 schema | discover_capability 索引 | 执行池（ToolNode / dynamic resolve） |
 |------|--------------|--------------------------|--------------------------------------|
 | `TURN1` | ✅ 绑定 | ❌ | ❌（已在 Turn1） |
-| `DISCOVERABLE` | ❌ | ✅ | ✅（AutoMount 后） |
+| `DISCOVERABLE` | ❌ | ✅ | ✅（invoke_deferred_tool / ToolNode resolve） |
 | `RUNTIME_ONLY` | ❌ | ❌ | ✅（中间件注入，用户无感） |
 
 **API 契约**（`registry.py`）：
 
 - `resolve()` — 仅返回 `TURN1` 工具（LLM 首回合可见 schema）
-- `get_discoverable_tools()` — 仅 `DISCOVERABLE`（discover 搜索 + AutoMount 候选）
+- `get_discoverable_tools()` — 仅 `DISCOVERABLE`（discover 索引 + invoke 执行池）
 - `get_runtime_tools()` — `DISCOVERABLE` + `RUNTIME_ONLY`（延迟执行与中间件钩子）
 
 **典型映射**：
 
-- MCP aggregate overflow、bash 后台进程、skill_discovery、cron → `DISCOVERABLE`
+- bash 后台进程、skill_discovery、cron（GUI OFF）→ `DISCOVERABLE`（MCP 无 DISCOVERABLE；超标整服变 Skill）
 - `_completion_check`（CompletionGuard）→ `RUNTIME_ONLY`（名称 `_` 前缀自动推断）
 
 **禁止**：`get_deferred_tools()` 已删除；新代码不得混用 `deferred_tools` 变量名，统一使用 `discoverable_tools`（构造参数）与上述三个 registry 方法。

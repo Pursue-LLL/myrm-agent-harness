@@ -2,7 +2,7 @@
 
 ## Overview
 
-Agent meta-tools for structured HITL clarification (`ask_question_tool`). Schemas and LangChain adapter live here; LangGraph interrupt binding is injected by server `tool_setup.py`.
+Agent meta-tools for structured HITL clarification (`ask_question_tool`). Schemas and LangChain adapter live here; LangGraph interrupt binding is injected by server `tool_setup.py` when `_should_mount_ask_question_tool` returns true (interactive `web_chat` sessions only).
 
 ## File Index
 
@@ -14,5 +14,5 @@ Agent meta-tools for structured HITL clarification (`ask_question_tool`). Schema
 
 ## Key Dependencies
 
-- Server: `tool_setup._setup_clarification_tools` injects interrupt callback
+- Server: `tool_setup._setup_clarification_tools` injects interrupt callback when mount policy allows (`web_chat`, not unattended, not fast search)
 - Frontend: `clarification_required` SSE → clarification form UI

@@ -1,20 +1,20 @@
-"""Session-scoped deferred tool activation for background bash spawn.
+"""Session-scoped bash spawn lifecycle tracking.
 
-When ``bash_code_execute_tool`` spawns a background job, ``bash_process_tool``
-must appear in the model's bind_tools on subsequent turns without requiring
-``discover_capability``. Activations are keyed by ``session_id`` and merged
-into ``DeferredToolMiddleware`` alongside discover AutoMount names.
+When ``bash_code_execute_tool`` spawns a background job, the session records
+``bash_process_tool`` so ``BackgroundProcessRegistry`` can auto-clear when all
+shell jobs exit. Deferred tool names are also listed in ``<available-deferred-tools>``
+(stable system index); invoke uses that index, not this store.
 
 [INPUT]
 - None (in-process session → tool-name set)
 
 [OUTPUT]
-- activate_session_deferred_tool: Record a deferred tool for a chat session
-- get_session_deferred_tool_names: Read activations for middleware AutoMount
-- clear_session_deferred_tools: Drop activations (e.g. session cleanup)
+- activate_session_deferred_tool: Record spawn for session lifecycle cleanup
+- get_session_deferred_tool_names: Read session spawn markers
+- clear_session_deferred_tools: Drop markers (session cleanup)
 
 [POS]
-PTC-adjacent runtime helper. Bash-tool package only; thread-safe in-process store.
+Bash-tool runtime helper. Thread-safe in-process store for spawn/cleanup coordination.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ _session_activations: dict[str, set[str]] = {}
 
 
 def activate_session_deferred_tool(session_id: str, tool_name: str) -> None:
-    """Mark ``tool_name`` as AutoMount-eligible for ``session_id``."""
+    """Record ``tool_name`` spawn for ``session_id`` (auto-clear when jobs exit)."""
     if not session_id or not tool_name:
         return
     with _lock:
@@ -35,7 +35,7 @@ def activate_session_deferred_tool(session_id: str, tool_name: str) -> None:
 
 
 def get_session_deferred_tool_names(session_id: str) -> frozenset[str]:
-    """Return deferred tool names activated for ``session_id`` (empty if none)."""
+    """Return spawn-marked tool names for ``session_id`` (empty if none)."""
     if not session_id:
         return frozenset()
     with _lock:
@@ -43,7 +43,7 @@ def get_session_deferred_tool_names(session_id: str) -> frozenset[str]:
 
 
 def clear_session_deferred_tools(session_id: str) -> None:
-    """Remove all deferred activations for ``session_id``."""
+    """Remove all spawn markers for ``session_id``."""
     if not session_id:
         return
     with _lock:

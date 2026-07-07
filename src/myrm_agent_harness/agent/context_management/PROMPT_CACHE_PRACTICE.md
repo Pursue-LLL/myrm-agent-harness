@@ -106,6 +106,21 @@ sorted_entries = sorted(
 
 即使 EXTENDED 层工具变化，CORE + COMMON 的缓存仍然有效。
 
+### 2.1.1 延迟工具（UnifiedCapabilityDefer）
+
+**原则（框架 11.1）**：严禁在 `awrap_model_call` 中 append DISCOVERABLE 工具 schema 到 `bind_tools`。
+
+**实现**：
+
+| 组件 | 路径 | 作用 |
+|------|------|------|
+| DeferEconomics | `tool_management/defer/economics.py` | 小 defer 池 + 无外部技能 → 不绑 `discover_capability_tool` |
+| StableDeferredIndex | `defer/stable_index.py` + `middlewares/deferred_index_middleware.py` | `<available-deferred-tools>` 名字清单注入冻结 system（一次/thread） |
+| Invoke proxy | `meta_tools/defer/invoke_deferred_tool.py` | Turn1 固定 ~150tok schema；执行 defer 工具 |
+| ToolNode resolve | `middlewares/deferred_tool_middleware.py` | 动态解析 DISCOVERABLE，不 mutate `request.tools` |
+
+**缓存效果**：Tools 前缀在长对话中保持稳定；discover 网关 description 无动态工具名嵌入。
+
 ### 2.2 System Prompt 冻结 + 时间戳注入到 HumanMessage
 
 **理论依据**：在 System Prompt 中放入 `datetime.now()` 是最常见的缓存破坏原因。
