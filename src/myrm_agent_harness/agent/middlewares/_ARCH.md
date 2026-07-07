@@ -27,7 +27,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `deferred_tool_middleware.py` | Core | AutoMount `DISCOVERABLE` tools from discover_capability; schema-filter `request.tools` via `attenuate_tools` when skills are loaded. | ✅ |
 | `debug_logger_middleware.py` | Core | Full message list debug logging. | ✅ |
 | `filesystem_search_middleware.py` | Core | Inject glob/grep workspace search tools. | ✅ |
-| `memory_context_middleware.py` | Core | `<user_memory_context>` + untrusted data wrapping. | ✅ |
+| `memory_context_middleware.py` | Core | `<user_memory_context>` + scope boundary + untrusted data wrapping. | ✅ |
 | `progress_middleware.py` | Core | Active todo focus injection into last HumanMessage. | ✅ |
 | `rate_limit.py` | Core | Proactive provider 429 throttling. | ✅ |
 | `replan_middleware.py` | Core | Dynamic replan loop on tool errors. | ✅ |

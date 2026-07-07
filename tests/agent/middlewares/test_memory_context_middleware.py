@@ -811,5 +811,64 @@ class TestInjectMemoryContext:
         assert "I am a response" in ai_msg.content
 
 
+# ---------------------------------------------------------------------------
+# Scope Boundary — agent instruction vs global memory precedence
+# ---------------------------------------------------------------------------
+
+
+class TestScopeBoundary:
+    """Scope boundary declaration in <user_memory_context>."""
+
+    def test_scope_boundary_present_when_stable_body_exists(self):
+        ctx = {"global_profile": {"name": "Alice"}}
+        stable, _ = _format_memory_context(ctx, _EMPTY_LEARNED)
+        assert stable is not None
+        assert "Scope Boundary" in stable
+        assert "Agent instructions ALWAYS take precedence" in stable
+        assert "<user_instructions>" in stable
+
+    def test_scope_boundary_appears_before_user_context_header(self):
+        ctx = {"global_profile": {"name": "Bob"}}
+        stable, _ = _format_memory_context(ctx, _EMPTY_LEARNED)
+        assert stable is not None
+        sb_idx = stable.index("Scope Boundary")
+        uc_idx = stable.index("# User Context (stable)")
+        assert sb_idx < uc_idx
+
+    def test_scope_boundary_absent_in_cold_start(self):
+        stable, _ = _format_memory_context({}, _EMPTY_LEARNED)
+        assert stable is not None
+        assert "Scope Boundary" not in stable
+        assert "Discovery Mode" in stable
+
+    def test_scope_boundary_absent_when_only_untrusted(self):
+        learned = {
+            "learned_rules": [{"trigger": "t", "action": "a", "content": "x"}],
+            "learned_preferences": [],
+        }
+        stable, untrusted = _format_memory_context({}, learned)
+        assert stable is None
+        assert untrusted is not None
+        assert "Scope Boundary" not in untrusted
+
+    def test_scope_boundary_with_mixed_stable_and_learned(self):
+        ctx = {"global_profile": {"name": "Carol"}, "agent_instructions": [{"instruction": "Be verbose"}]}
+        learned = {
+            "learned_rules": [],
+            "learned_preferences": [{"content": "user likes brief replies"}],
+        }
+        stable, untrusted = _format_memory_context(ctx, learned)
+        assert stable is not None
+        assert untrusted is not None
+        assert "Scope Boundary" in stable
+        assert "Scope Boundary" not in untrusted
+
+    def test_scope_boundary_is_blockquote_format(self):
+        ctx = {"global_profile": {"name": "Dave"}}
+        stable, _ = _format_memory_context(ctx, _EMPTY_LEARNED)
+        assert stable is not None
+        assert "> **Scope Boundary**:" in stable
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
