@@ -9,6 +9,7 @@ Pure functions and utilities used by SubagentManager to prepare child agents.
 - agent.sub_agents.types::DelegationCapabilityManifest (POS: Subagent subsystem core type definitions. Defines all subagent-related data types, enums, and protocols.)
 
 [OUTPUT]
+- build_parent_delegatable_toolkit: Parent tools eligible for L3 child ⊆ parent delegation.
 - filter_tools: Apply tool safety isolation after catalog admission.
 - resolve_llm: Resolve child LLM with optional complexity-tier routing.
 - truncate_result: Truncate text to approximate token limit (4 chars per token).
@@ -50,6 +51,33 @@ _HANDOVER_PROTOCOL_PROMPT = (
     "}\n"
     "</handover>"
 )
+
+
+def build_parent_delegatable_toolkit(parent_agent: BaseAgent) -> list[BaseTool]:
+    """Return tools the parent may delegate to children (L3 child ⊆ parent).
+
+    Prefer ``_cached_tools`` (Turn1-bound runtime set), then registry resolve(),
+    then ``user_tools`` so session-bound capabilities (e.g. browser_*_tool) remain
+    delegatable even when not yet in the Turn1 resolve snapshot.
+    """
+    by_name: dict[str, BaseTool] = {}
+
+    cached = getattr(parent_agent, "_cached_tools", None)
+    if cached:
+        for tool in cached:
+            by_name[tool.name] = tool
+
+    registry = getattr(parent_agent, "_tool_registry", None)
+    if registry is not None:
+        for tool in registry.resolve():
+            by_name.setdefault(tool.name, tool)
+
+    for tool in getattr(parent_agent, "user_tools", []) or []:
+        name = getattr(tool, "name", None)
+        if isinstance(name, str):
+            by_name.setdefault(name, tool)
+
+    return list(by_name.values())
 
 
 def filter_tools(config: SubagentConfig, parent_tools: list[BaseTool]) -> list[BaseTool]:

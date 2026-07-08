@@ -12,7 +12,10 @@ from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent.base_agent import BaseAgent
-from myrm_agent_harness.agent.sub_agents.builder import filter_tools
+from myrm_agent_harness.agent.sub_agents.builder import (
+    build_parent_delegatable_toolkit,
+    filter_tools,
+)
 from myrm_agent_harness.agent.sub_agents.manager import SubagentManager
 from myrm_agent_harness.agent.sub_agents.registry import SUBAGENT_CONFIGS, register_subagent_configs
 from myrm_agent_harness.agent.sub_agents.types import (
@@ -531,6 +534,33 @@ class FakeBatchDelegateTool(BaseTool):
 
     def _run(self) -> str:
         return "spawned"
+
+
+def test_build_parent_delegatable_toolkit_includes_user_tools_not_in_resolve() -> None:
+    """L3: session-bound browser tools in user_tools must be delegatable."""
+    from unittest.mock import MagicMock
+
+    from langchain_core.tools import BaseTool
+
+    from myrm_agent_harness.agent.tool_management import ToolRegistry
+
+    browser_tool = MagicMock(spec=BaseTool)
+    browser_tool.name = "browser_navigate_tool"
+
+    agent = BaseAgent(llm=FakeLLM())
+    agent.user_tools = [browser_tool]
+    agent._cached_tools = []
+    agent._tool_registry = ToolRegistry()
+
+    toolkit = build_parent_delegatable_toolkit(agent)
+    assert "browser_navigate_tool" in {tool.name for tool in toolkit}
+
+    browser_config = SubagentConfig(
+        system_prompt="browser worker",
+        tools=("browser_navigate_tool",),
+    )
+    filtered = filter_tools(browser_config, toolkit)
+    assert any(tool.name == "browser_navigate_tool" for tool in filtered)
 
 
 def test_filter_tools_blocks_all_global_blacklisted_tools() -> None:
