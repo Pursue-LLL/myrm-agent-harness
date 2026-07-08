@@ -27,8 +27,8 @@ def valid_config_yaml():
 name: test_agent
 description: Test agent for unit tests
 tools:
-  - tool_a
-  - tool_b
+  - web_search_tool
+  - web_fetch_tool
 system_prompt: |
   You are a test agent.
   Be helpful and accurate.
@@ -82,7 +82,7 @@ class TestSubagentConfigLoader:
         assert config is not None
         assert isinstance(config, SubagentConfig)
         assert config.description == "Test agent for unit tests"
-        assert config.tools == ("tool_a", "tool_b")
+        assert config.tools == ("web_search_tool", "web_fetch_tool")
         assert "test agent" in config.system_prompt.lower()
         assert config.timeout_seconds == 60
         assert config.concurrency_limit == 5
@@ -141,9 +141,27 @@ class TestSubagentConfigLoader:
 name: test
 description: Test
 tools:
-  - valid_tool
+  - web_search_tool
   - invalid-tool-name!  # Invalid: contains !
 system_prompt: Test
+config: {}
+"""
+        config_file = temp_config_dir / "test.yaml"
+        config_file.write_text(config_yaml)
+
+        loader = SubagentConfigLoader()
+        config = loader.load_from_yaml(config_file)
+
+        assert config is None
+
+    def test_rejects_unknown_ssot_tool_name(self, temp_config_dir):
+        """Test config with syntactically valid but unregistered tool names is rejected."""
+        config_yaml = """
+name: test
+description: Test
+tools:
+  - browser_click
+system_prompt: Test prompt here.
 config: {}
 """
         config_file = temp_config_dir / "test.yaml"
@@ -214,10 +232,10 @@ config: {}
 name: test
 description: Test agent with disallowed tools
 tools:
-  - tool_a
+  - web_search_tool
 disallowed_tools:
-  - tool_b
-  - tool_c
+  - skill_manage_tool
+  - skill_discovery_tool
 system_prompt: |
   You are a test agent.
 config: {}
@@ -229,7 +247,7 @@ config: {}
         config = loader.load_from_yaml(config_file)
 
         assert config is not None
-        assert config.disallowed_tools == frozenset({"tool_b", "tool_c"})
+        assert config.disallowed_tools == frozenset({"skill_manage_tool", "skill_discovery_tool"})
 
     def test_load_model_and_display_name(self, temp_config_dir):
         """Test that model and display_name fields are parsed from YAML."""
@@ -239,7 +257,7 @@ description: Research agent
 display_name: "研究助手"
 model: "openai/gpt-4o-mini"
 tools:
-  - web_search
+  - web_search_tool
 system_prompt: |
   You are a research agent.
 config:
@@ -275,7 +293,7 @@ description: Agent with theme color
 display_name: "Colored Agent"
 theme_color: "cyan"
 tools:
-  - tool_a
+  - web_search_tool
 system_prompt: |
   You are a colored agent.
 config:
@@ -337,6 +355,70 @@ config: {{}}
 
         assert config is None
 
+    def test_invalid_config_name_characters_rejected(self, temp_config_dir):
+        """Test schema rejects non-alphanumeric config names."""
+        config_yaml = """
+name: bad name!
+description: Test
+tools: []
+system_prompt: Valid prompt here.
+config: {}
+"""
+        config_file = temp_config_dir / "test.yaml"
+        config_file.write_text(config_yaml)
+
+        loader = SubagentConfigLoader()
+        assert loader.load_from_yaml(config_file) is None
+
+    def test_yaml_root_not_dict_rejected(self, temp_config_dir):
+        config_file = temp_config_dir / "test.yaml"
+        config_file.write_text("- not_a_dict\n")
+
+        loader = SubagentConfigLoader()
+        assert loader.load_from_yaml(config_file) is None
+
+    def test_expected_name_mismatch_rejected(self, temp_config_dir, valid_config_yaml):
+        config_file = temp_config_dir / "test_agent.yaml"
+        config_file.write_text(valid_config_yaml)
+
+        loader = SubagentConfigLoader()
+        assert loader.load_from_yaml(config_file, expected_name="other_agent") is None
+
+    def test_invalid_enum_and_context_mode_rejected(self, temp_config_dir):
+        config_yaml = """
+name: enum_test
+description: Test enum validation
+tools:
+  - web_search_tool
+system_prompt: Valid prompt here.
+config:
+  cancellation_strategy: not_a_strategy
+"""
+        config_file = temp_config_dir / "enum_test.yaml"
+        config_file.write_text(config_yaml)
+
+        loader = SubagentConfigLoader()
+        assert loader.load_from_yaml(config_file) is None
+
+        config_yaml_invalid_context = """
+name: ctx_test
+description: Test context mode validation
+tools:
+  - web_search_tool
+system_prompt: Valid prompt here.
+config:
+  context_mode: invalid_mode
+"""
+        config_file2 = temp_config_dir / "ctx_test.yaml"
+        config_file2.write_text(config_yaml_invalid_context)
+        assert loader.load_from_yaml(config_file2) is None
+
+    def test_load_from_file_path_instead_of_directory(self, temp_config_dir, valid_config_yaml):
+        config_file = temp_config_dir / "test_agent.yaml"
+        config_file.write_text(valid_config_yaml)
+
+        loader = SubagentConfigLoader()
+        assert loader.load_from_directory(config_file) == {}
 
 def test_convenience_function(temp_config_dir, valid_config_yaml):
     """Test convenience function load_subagent_configs_from_directory"""

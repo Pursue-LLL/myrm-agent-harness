@@ -963,3 +963,94 @@ class TestCompactErrorMessage:
         assert "truncated" in compact
         assert len(compact) < len(raw)
 
+
+class TestEmptyToolAllowlist:
+    """Subagent must fail fast when allowlist yields zero tools."""
+
+    @pytest.mark.asyncio
+    async def test_run_single_attempt_fails_when_allowlist_matches_nothing(self, executor) -> None:
+        from langchain_core.tools import StructuredTool
+
+        parent_agent = MagicMock()
+        parent_agent._subagent_manager = None
+        parent_agent._last_context = {}
+
+        web_tool = StructuredTool.from_function(
+            func=lambda: "ok",
+            name="web_search_tool",
+            description="search",
+        )
+        config = SubagentConfig(
+            system_prompt="Search specialist",
+            tools=("browser_click",),
+        )
+
+        async def noop_hook(*args, **kwargs):
+            return None
+
+        result = await executor._run_single_attempt(
+            task_id="dead-browser",
+            agent_type="browser",
+            task_description="Open page",
+            config=config,
+            context={},
+            tool_registry_getter=lambda: [web_tool],
+            start_time=0.0,
+            parent_tracker=MagicMock(),
+            parent_taint=MagicMock(),
+            parent_agent=parent_agent,
+            cancel_flags={},
+            children_agents={},
+            fire_hook=noop_hook,
+            hook_event_cls=MagicMock(),
+        )
+
+        assert result.success is False
+        assert result.status == SubAgentStatus.FAILED
+        assert "no tools after filtering" in result.error.lower()
+        assert "browser_click" in result.error
+
+    @pytest.mark.asyncio
+    async def test_run_single_attempt_fails_when_policy_blocks_all_tools(self, executor) -> None:
+        from langchain_core.tools import StructuredTool
+
+        parent_agent = MagicMock()
+        parent_agent._subagent_manager = None
+        parent_agent._last_context = {}
+
+        browser_tool = StructuredTool.from_function(
+            func=lambda: "ok",
+            name="browser_interact_tool",
+            description="interact",
+        )
+        config = SubagentConfig(
+            system_prompt="Browser specialist",
+            tools=("browser_interact_tool",),
+            disallowed_tools=frozenset({"browser_interact_tool"}),
+        )
+
+        async def noop_hook(*args, **kwargs):
+            return None
+
+        result = await executor._run_single_attempt(
+            task_id="blocked-browser",
+            agent_type="browser",
+            task_description="Open page",
+            config=config,
+            context={},
+            tool_registry_getter=lambda: [browser_tool],
+            start_time=0.0,
+            parent_tracker=MagicMock(),
+            parent_taint=MagicMock(),
+            parent_agent=parent_agent,
+            cancel_flags={},
+            children_agents={},
+            fire_hook=noop_hook,
+            hook_event_cls=MagicMock(),
+        )
+
+        assert result.success is False
+        assert result.status == SubAgentStatus.FAILED
+        assert "no tools after filtering" in result.error.lower()
+        assert "blocked by delegation policy" in result.error.lower()
+

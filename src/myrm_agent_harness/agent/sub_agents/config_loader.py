@@ -4,10 +4,11 @@ Loads subagent configurations from YAML files with strict validation.
 Supports directory-level batch loading and graceful error handling.
 
 [INPUT]
+- agent.tool_management.tool_layers::is_registered_action_tool (POS: Tool layer priority registry. Defines CORE/COMMON/EXTENDED three-tier tool priorities used by ToolRegistry for ordering.)
 - agent.types::SubagentConfig (POS: Subagent subsystem core type definitions. Defines all subagent-related data types, enums, and protocols.)
 
 [OUTPUT]
-- SubagentConfigLoader: YAML configuration loader with typed enum validation.
+- SubagentConfigLoader: YAML configuration loader with typed enum validation and Action Tool SSOT checks.
 - load_subagent_configs_from_directory(): Convenience function for directory-level loading.
 
 [POS]
@@ -25,6 +26,7 @@ from typing import Literal, cast
 import yaml
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
+from myrm_agent_harness.agent.tool_management.tool_layers import is_registered_action_tool
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .types import (
@@ -40,6 +42,19 @@ logger = get_agent_logger(__name__)
 _TOOL_NAME_PATTERN = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*$")
 _MAX_CONFIG_FILE_SIZE = 100 * 1024  # 100 KB
 _MAX_SYSTEM_PROMPT_LENGTH = 10000  # 10K chars
+
+
+def _validate_tools_against_ssot(tool_names: list[str], file_path: Path) -> bool:
+    """Reject tool names that are not registered in the Action Tool SSOT (_TOOL_LAYERS)."""
+    unknown = sorted({name for name in tool_names if not is_registered_action_tool(name)})
+    if not unknown:
+        return True
+    logger.error(
+        "Unknown tool name(s) in %s: %s. Register tools in tool_layers._TOOL_LAYERS before use.",
+        file_path,
+        unknown,
+    )
+    return False
 
 
 def _enum_from_config[EnumT: StrEnum](
@@ -168,6 +183,10 @@ class SubagentConfigLoader:
                     validated.name,
                     expected_name,
                 )
+                return None
+
+            all_tool_refs = list(validated.tools) + list(validated.disallowed_tools)
+            if not _validate_tools_against_ssot(all_tool_refs, file_path):
                 return None
 
             # Convert to SubagentConfig dataclass

@@ -10,6 +10,7 @@
 - ToolLayer: 工具层级枚举(CORE=1, COMMON=2, EXTENDED=3)
 - register_tool_layer(): 注册工具到指定层级
 - get_tool_layer(): 获取工具的层级
+- is_registered_action_tool(): 判断工具名是否在 Action Tool SSOT 中
 
 [POS]
 Tool layer priority registry. Defines CORE/COMMON/EXTENDED three-tier tool priorities used by ToolRegistry for ordering.
@@ -175,6 +176,11 @@ def get_tool_layer(tool_name: str) -> ToolLayer:
         工具层级,未注册的工具(含所有 MCP 工具)默认为 EXTENDED(放在最后)
     """
     return _TOOL_LAYERS.get(tool_name, ToolLayer.EXTENDED)
+
+
+def is_registered_action_tool(tool_name: str) -> bool:
+    """Return True when *tool_name* is registered in the Action Tool SSOT."""
+    return tool_name in _TOOL_LAYERS
 
 
 def register_tool_layer(tool_name: str, layer: ToolLayer) -> None:

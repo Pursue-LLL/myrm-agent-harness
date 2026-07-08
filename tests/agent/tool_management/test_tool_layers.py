@@ -5,6 +5,7 @@ from myrm_agent_harness.agent.tool_management.tool_layers import (
     _TOOL_LAYERS,
     ToolLayer,
     get_tool_layer,
+    is_registered_action_tool,
     register_tool_layer,
 )
 
@@ -57,6 +58,10 @@ class TestGetToolLayer:
     def test_unknown_tool_defaults_to_extended(self):
         assert get_tool_layer("totally_unknown_tool") == ToolLayer.EXTENDED
         assert get_tool_layer("some_custom_mcp_tool") == ToolLayer.EXTENDED
+
+    def test_is_registered_action_tool(self):
+        assert is_registered_action_tool("web_search_tool") is True
+        assert is_registered_action_tool("browser_click") is False
 
     def test_knowledge_tool_not_registered(self):
         assert "knowledge_tool" not in _TOOL_LAYERS

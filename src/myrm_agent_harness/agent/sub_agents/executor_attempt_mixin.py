@@ -95,7 +95,26 @@ class SubagentExecutorAttemptMixin:
         parent_tools = tool_registry_getter()
         filtered_tools = filter_tools(config, parent_tools)
         if not filtered_tools and config.tools:
-            logger.warning("[subagent:%s] No tools after filtering for '%s'", task_id, agent_type)
+            parent_tool_names = {tool.name for tool in parent_tools}
+            unavailable = sorted(set(config.tools) - parent_tool_names)
+            error_msg = (
+                f"Subagent '{agent_type}' has no tools after filtering. "
+                f"Allowlist: {sorted(config.tools)}."
+            )
+            if unavailable:
+                error_msg += f" Not in parent toolkit: {unavailable}."
+            else:
+                error_msg += " All allowlisted tools were blocked by delegation policy or disallowed_tools."
+            logger.error("[subagent:%s] %s", task_id, error_msg)
+            return SubAgentResult(
+                success=False,
+                task_id=task_id,
+                agent_type=agent_type,
+                error=error_msg,
+                completed_at=time.time(),
+                duration_seconds=time.time() - start_time,
+                status=SubAgentStatus.FAILED,
+            )
 
         parent_manager = getattr(parent_agent, "_subagent_manager", None)
         current_depth = int(getattr(parent_manager, "current_depth", 0))

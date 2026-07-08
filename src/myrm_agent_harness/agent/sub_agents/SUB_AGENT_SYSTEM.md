@@ -325,10 +325,13 @@ configs/subagents/
 ```
 
 配置加载：
-- `auto_register_subagent_configs()` 自动扫描并加载 YAML 文件
-- `SubagentConfigLoader` 提供严格的 Pydantic 验证
+- `SubagentConfigLoader` 提供 Pydantic 验证 + Action Tool SSOT 校验（`tools`/`disallowed_tools` 必须在 `tool_layers._TOOL_LAYERS` 注册）
 - 安全特性：文件大小限制、工具名称正则验证、system_prompt 长度限制
-- 错误处理：配置加载失败不阻塞应用启动（优雅降级）
+- 错误处理：单文件加载失败跳过该文件；`filter_tools` 后 allowlist 为空则子 Agent 立即 `FAILED`（不空跑）
+
+内置 preset 工具名必须与 `@tool()` 注册名一致（SSOT：`tool_layers.py`）。例如 browser preset 使用 `browser_interact_tool`，analysis preset 使用 `memory_recall_tool`。
+
+当 Agent 启用 browser 内置工具时，server 层在 `AgentFactory.create_general_agent` 自动 peripheral 绑定 prebuilt `browser-automation` skill（`is_core:false`，不占 Turn1 schema）。
 
 优势：
 - 扩展新 subagent 类型无需修改代码
