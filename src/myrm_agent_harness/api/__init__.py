@@ -23,6 +23,7 @@ __all__ = [
     "AgentRuntimeConfig",
     "AgentRuntimeSpec",
     "AgentStreamEvent",
+    "build_parent_delegatable_toolkit",
     "CompletionStatus",
     "ConfigIncompleteError",
     "HookEvent",
@@ -43,6 +44,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "AgentRuntimeConfig": ("myrm_agent_harness.api.types", "AgentRuntimeConfig"),
     "AgentRuntimeSpec": ("myrm_agent_harness.api.types", "AgentRuntimeSpec"),
     "AgentStreamEvent": ("myrm_agent_harness.api.types", "AgentStreamEvent"),
+    "build_parent_delegatable_toolkit": (
+        "myrm_agent_harness.api.subagents",
+        "build_parent_delegatable_toolkit",
+    ),
     "CompletionStatus": ("myrm_agent_harness.api.types", "CompletionStatus"),
     "ConfigIncompleteError": ("myrm_agent_harness.api.config", "ConfigIncompleteError"),
     "AgentProfileBackend": ("myrm_agent_harness.api.protocols", "AgentProfileBackend"),
