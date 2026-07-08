@@ -203,20 +203,20 @@ class TestBudgetBoundaryIdempotency:
 
     def test_has_budget_hint_detects_existing(self) -> None:
         from myrm_agent_harness.utils.token_economics.budget_boundary_middleware import (
-            BudgetBoundaryMiddleware,
+            _has_budget_hint,
         )
 
         messages: list[Any] = [
             SystemMessage(content="system"),
             HumanMessage(content="user msg"),
-            HumanMessage(content="[SYSTEM INSTRUCTION]\n Budget is running low. Prioritize..."),
+            HumanMessage(content="[SYSTEM INSTRUCTION] [BUDGET_HINT]\nBudget is running low. Prioritize..."),
         ]
 
-        assert BudgetBoundaryMiddleware._has_budget_hint(messages) is True
+        assert _has_budget_hint(messages) is True
 
     def test_has_budget_hint_no_false_positive(self) -> None:
         from myrm_agent_harness.utils.token_economics.budget_boundary_middleware import (
-            BudgetBoundaryMiddleware,
+            _has_budget_hint,
         )
 
         messages: list[Any] = [
@@ -224,6 +224,6 @@ class TestBudgetBoundaryIdempotency:
             HumanMessage(content="user question about budget"),
         ]
 
-        assert BudgetBoundaryMiddleware._has_budget_hint(messages) is False
+        assert _has_budget_hint(messages) is False
 
 
