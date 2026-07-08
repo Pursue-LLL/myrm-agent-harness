@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 from myrm_agent_harness.agent._factory.mcp_routing import (
     AGGREGATE_DIRECT_TOKEN_BUDGET,
     _DirectServerBundle,
-    _estimate_schema_tokens,
-    _estimate_single_tool_tokens,
+    estimate_schema_tokens,
+    estimate_single_tool_tokens,
     demote_direct_servers_over_budget,
 )
 from myrm_agent_harness.toolkits.mcp.config import MCPConfig
@@ -31,7 +31,7 @@ def _make_mock_tool(name: str, desc_size: int = 50, n_params: int = 2) -> MagicM
 
 def _bundle(name: str, tools: list[MagicMock]) -> _DirectServerBundle:
     cfg = MCPConfig(name=name, type="stdio", command="python", args=["-m", name])
-    tokens = _estimate_schema_tokens(tools)
+    tokens = estimate_schema_tokens(tools)
     return _DirectServerBundle(config=cfg, tools=tuple(tools), schema_tokens=tokens)
 
 
@@ -67,19 +67,19 @@ class TestDemoteDirectServersOverBudget:
         assert kept_tokens <= 1500
 
 
-class TestEstimateSchemaTokens:
+class TestEstimateSingleToolTokens:
     def test_returns_positive_for_valid_tool(self) -> None:
         tool = _make_mock_tool("test", desc_size=100, n_params=2)
-        assert _estimate_single_tool_tokens(tool) > 0
+        assert estimate_single_tool_tokens(tool) > 0
 
     def test_consistent_with_batch_estimate(self) -> None:
         tool = _make_mock_tool("consistency_check", desc_size=150, n_params=3)
-        assert _estimate_single_tool_tokens(tool) == _estimate_schema_tokens([tool])
+        assert estimate_single_tool_tokens(tool) == estimate_schema_tokens([tool])
 
 
 class TestEstimateSchemaTokens:
     def test_empty_list_returns_zero(self) -> None:
-        assert _estimate_schema_tokens([]) == 0
+        assert estimate_schema_tokens([]) == 0
 
     def test_default_budget_constant(self) -> None:
         assert AGGREGATE_DIRECT_TOKEN_BUDGET == 2700

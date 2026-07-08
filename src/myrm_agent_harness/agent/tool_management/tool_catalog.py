@@ -78,7 +78,7 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
     "cron_manage_tool": "user cron capability wired",
     "delegate_to_agent_tool": "external ACP agent configured",
     "render_ui_tool": "enabled_builtin_tools: render_ui",
-    "ask_question_tool": "server tool_setup mount policy (interactive web_chat)",
+    "ask_question_tool": "server mount policy (interactive web_chat); requires_confirmation WebUI emphasis; ClarificationGuardMiddleware one call/turn",
     "image_tool": "enabled_builtin_tools: image_generation",
     "video_tool": "enabled_builtin_tools: video_generation",
     "tts_generate": "enabled_builtin_tools: tts",

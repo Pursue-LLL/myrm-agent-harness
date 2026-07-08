@@ -105,7 +105,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `memory_save_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
 | `todo_write` | COMMON | user_capability | planning | planning or existing workspace todos |
 | `web_search_tool` | COMMON | user_capability | web_search | enabled_builtin_tools: web_search (default on) |
-| `ask_question_tool` | EXTENDED | server_policy | — | server `tool_setup._should_mount_ask_question_tool`（interactive `web_chat` only） |
+| `ask_question_tool` | EXTENDED | server_policy | — | server mount policy + `requires_confirmation` WebUI emphasis + `ClarificationGuardMiddleware` one call/turn |
 | `bash_process_tool` | EXTENDED | user_capability | — | DISCOVERABLE; stable index + invoke_deferred_tool |
 | `batch_delegate_tasks_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `browser_ask_human_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |

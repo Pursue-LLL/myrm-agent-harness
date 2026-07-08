@@ -11,8 +11,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from myrm_agent_harness.agent._factory.mcp_routing import (
-    _compute_direct_threshold,
-    _estimate_schema_tokens,
+    compute_direct_threshold,
+    estimate_schema_tokens,
 )
 
 
@@ -29,13 +29,13 @@ def _make_mock_tool(name: str, schema_size: int = 50) -> MagicMock:
 @pytest.mark.asyncio
 async def test_factory_hybrid_splits_direct_and_ptc() -> None:
     """Low-token server → direct, high-token server → PTC."""
-    threshold = _compute_direct_threshold()  # fallback = 450 * 2 = 900
+    threshold = compute_direct_threshold()  # fallback = 450 * 2 = 900
 
     small_tools = [_make_mock_tool(f"small_tool_{i}", schema_size=20) for i in range(3)]
     large_tools = [_make_mock_tool(f"large_tool_{i}", schema_size=400) for i in range(30)]
 
-    small_tokens = _estimate_schema_tokens(small_tools)
-    large_tokens = _estimate_schema_tokens(large_tools)
+    small_tokens = estimate_schema_tokens(small_tools)
+    large_tokens = estimate_schema_tokens(large_tools)
 
     assert small_tokens <= threshold
     assert large_tokens > threshold
@@ -44,14 +44,14 @@ async def test_factory_hybrid_splits_direct_and_ptc() -> None:
 @pytest.mark.asyncio
 async def test_factory_empty_mcp_server_no_crash() -> None:
     """Empty tool list produces 0 tokens."""
-    tokens = _estimate_schema_tokens([])
+    tokens = estimate_schema_tokens([])
     assert tokens == 0
 
 
 @pytest.mark.asyncio
 async def test_threshold_correctly_routes_mixed_servers() -> None:
     """Mixed server tool sets are correctly classified."""
-    threshold = _compute_direct_threshold()
+    threshold = compute_direct_threshold()
 
     tools_by_server = {
         "small": [_make_mock_tool(f"s_{i}", schema_size=20) for i in range(3)],
@@ -62,7 +62,7 @@ async def test_threshold_correctly_routes_mixed_servers() -> None:
     ptc_servers: list[str] = []
 
     for server_name, tools in tools_by_server.items():
-        tokens = _estimate_schema_tokens(tools)
+        tokens = estimate_schema_tokens(tools)
         if tokens <= threshold:
             direct_servers.append(server_name)
         else:

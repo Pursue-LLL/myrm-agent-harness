@@ -18,6 +18,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `_tool_guards.py` | Internal | Guard modules orchestrated by tool_interceptor. | ✅ |
 | `_tool_helpers.py` | Internal | Stateless helpers for tool_interceptor_middleware. | ✅ |
 | `completion_guard.py` | Core | Finish gate + Mixed Message Guard for code tasks. Exports `is_mutating_tool()` SSOT for side-effect tool detection (Cron post-run verify, completion gate). | ✅ |
+| `clarification_guard_middleware.py` | Core | Enforces single `ask_question_tool` call per turn; blocks coexisting tool calls with synthetic errors. | ✅ |
 | `completion_guard_checklist.py` | Internal | Verification command classification + checklist builder for CompletionGuard. | ✅ |
 | `concurrency_limiter.py` | Core | Subagent Semaphore by agent_type. | ✅ |
 | `concurrency_router.py` | Core | Smart concurrency routing with safety_dispatcher. | ✅ |

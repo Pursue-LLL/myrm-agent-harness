@@ -8,7 +8,7 @@ Unified Capability Discovery gateway. Indexes **DISCOVERABLE** native tools and 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | discover_capability_tool.py | Core | Unified discovery meta-tool, index sync, XML output. | ✅ |
-| capability_gap.py | Core | Disabled builtin tool / unbound skill gap detection. | ✅ |
+| capability_gap.py | Core | Disabled builtin tool / unbound skill gap detection; CAPABILITY_GAP_REGISTRY triggers; consumed by discover miss + stream preflight. | ✅ |
 
 ## Key Dependencies
 

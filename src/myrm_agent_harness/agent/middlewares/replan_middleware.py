@@ -68,6 +68,11 @@ class ReplanMiddleware(AgentMiddleware[Any, Any]):
                 _per_tool_errors_var.set(counters)
             return result
         except Exception as e:
+            from langgraph.errors import GraphInterrupt
+
+            if isinstance(e, (GraphInterrupt, InterruptedError)):
+                raise
+
             counters = (_per_tool_errors_var.get() or {}).copy()
             attempts = counters.get(tool_name, 0) + 1
             counters[tool_name] = attempts

@@ -255,8 +255,8 @@ def get_meta_tools(
     else:
         logger.info("File tools disabled by caller configuration")
 
-    # Low-frequency utility tools → DISCOVERABLE via registry (indexed by
-    # discover_capability_tool, auto-mounted on first use).
+    # Low-frequency utility tools → DISCOVERABLE via registry (stable index +
+    # invoke_deferred_tool; discover_capability_tool when DeferEconomics binds it).
     _discoverable_tools: list = []
 
     # Mutable container: filled after all tools are built so that

@@ -29,11 +29,12 @@ class AskQuestionTool(BaseTool):
     description: str = (
         "Ask the user one or more clarifying questions. Use this when the request is ambiguous, "
         "or when you need to confirm intent, choose between options, or gather missing details "
-        "before proceeding. You can provide predefined options with descriptions, or leave options "
+        "before proceeding. Set requires_confirmation=true before destructive or irreversible work. "
+        "You can provide predefined options with descriptions, or leave options "
         "empty for open-ended questions.\n"
         "CRITICAL: You can only call this tool ONCE per turn. If you have multiple questions, "
         "put ALL of them in the `questions` list of a SINGLE tool call. Do NOT call this tool "
-        "multiple times in parallel."
+        "multiple times in parallel or alongside other tools in the same turn."
     )
     args_schema: type[BaseModel] = AskQuestionInput
 

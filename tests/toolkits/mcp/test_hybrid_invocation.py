@@ -1,7 +1,7 @@
 """Tests for MCP Hybrid Invocation routing.
 
 Verifies:
-- _estimate_schema_tokens correctly estimates token count from tool schemas
+- estimate_schema_tokens correctly estimates token count from tool schemas
 - Auto routing decision: ≤threshold → direct, >threshold → PTC
 - MCPAgent._normalize_mcp_result handles all langchain_mcp_adapters formats
 """
@@ -13,8 +13,8 @@ from unittest.mock import MagicMock
 from myrm_agent_harness.agent._factory.mcp_routing import (
     FALLBACK_PTC_BRIDGE_TOKENS,
     PTC_OVERHEAD_MULTIPLIER,
-    _compute_direct_threshold,
-    _estimate_schema_tokens,
+    compute_direct_threshold,
+    estimate_schema_tokens,
 )
 from myrm_agent_harness.toolkits.mcp.config import MCPConfig
 
@@ -30,48 +30,48 @@ def _make_mock_tool(name: str, schema_size: int = 50) -> MagicMock:
 
 
 class TestEstimateSchemaTokens:
-    """Test _estimate_schema_tokens utility."""
+    """Test estimate_schema_tokens utility."""
 
     def test_returns_positive_integer(self) -> None:
         tools = [_make_mock_tool(f"t{i}") for i in range(3)]
-        tokens = _estimate_schema_tokens(tools)
+        tokens = estimate_schema_tokens(tools)
         assert tokens > 0
         assert isinstance(tokens, int)
 
     def test_scales_with_tool_count(self) -> None:
         tools_3 = [_make_mock_tool(f"t{i}") for i in range(3)]
         tools_10 = [_make_mock_tool(f"t{i}") for i in range(10)]
-        assert _estimate_schema_tokens(tools_10) > _estimate_schema_tokens(tools_3)
+        assert estimate_schema_tokens(tools_10) > estimate_schema_tokens(tools_3)
 
     def test_scales_with_schema_size(self) -> None:
         small = [_make_mock_tool("s", schema_size=10)]
         large = [_make_mock_tool("l", schema_size=500)]
-        assert _estimate_schema_tokens(large) > _estimate_schema_tokens(small)
+        assert estimate_schema_tokens(large) > estimate_schema_tokens(small)
 
     def test_empty_tools_returns_zero(self) -> None:
-        assert _estimate_schema_tokens([]) == 0
+        assert estimate_schema_tokens([]) == 0
 
     def test_handles_tool_without_get_input_schema(self) -> None:
         tool = MagicMock()
         tool.name = "broken"
         tool.description = "no schema"
         del tool.get_input_schema
-        tokens = _estimate_schema_tokens([tool])
+        tokens = estimate_schema_tokens([tool])
         assert tokens > 0
 
 
 class TestDynamicThreshold:
-    """Test _compute_direct_threshold based on PTC bridge overhead."""
+    """Test compute_direct_threshold based on PTC bridge overhead."""
 
     def test_fallback_without_bridge_tools(self) -> None:
-        threshold = _compute_direct_threshold()
+        threshold = compute_direct_threshold()
         assert threshold == FALLBACK_PTC_BRIDGE_TOKENS * PTC_OVERHEAD_MULTIPLIER
 
     def test_with_actual_bridge_tools(self) -> None:
         bridge = [_make_mock_tool("skill_select_tool", schema_size=200),
                   _make_mock_tool("discover_capability_tool", schema_size=100)]
-        threshold = _compute_direct_threshold(bridge_tools=bridge)
-        expected = _estimate_schema_tokens(bridge) * PTC_OVERHEAD_MULTIPLIER
+        threshold = compute_direct_threshold(bridge_tools=bridge)
+        expected = estimate_schema_tokens(bridge) * PTC_OVERHEAD_MULTIPLIER
         assert threshold == expected
 
     def test_multiplier_is_2(self) -> None:
@@ -84,8 +84,8 @@ class TestDynamicThreshold:
         small_bridge = [_make_mock_tool("b1", schema_size=50)]
         large_bridge = [_make_mock_tool("b1", schema_size=500),
                         _make_mock_tool("b2", schema_size=300)]
-        t_small = _compute_direct_threshold(bridge_tools=small_bridge)
-        t_large = _compute_direct_threshold(bridge_tools=large_bridge)
+        t_small = compute_direct_threshold(bridge_tools=small_bridge)
+        t_large = compute_direct_threshold(bridge_tools=large_bridge)
         assert t_large > t_small
 
 

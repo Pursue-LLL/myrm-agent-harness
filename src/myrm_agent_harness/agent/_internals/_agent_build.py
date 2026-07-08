@@ -65,8 +65,11 @@ def build_middlewares(
     """Build the full middleware chain for a BaseAgent.
 
     The ordering matters: dedup -> dangling -> subagent-limit -> interceptor ->
-    approval -> completion -> replan -> call-limits -> budget -> security -> user -> safety -> debug.
+    clarification-guard -> approval -> completion -> replan -> call-limits -> budget -> security -> user -> safety -> debug.
     """
+    from myrm_agent_harness.agent.middlewares.clarification_guard_middleware import (
+        ClarificationGuardMiddleware,
+    )
     from myrm_agent_harness.agent.middlewares.deferred_tool_middleware import (
         DeferredToolMiddleware,
     )
@@ -91,6 +94,7 @@ def build_middlewares(
         dangling_tool_call_middleware,
         subagent_limit_middleware,
         tool_interceptor_middleware,
+        ClarificationGuardMiddleware(),
         ToolApprovalMiddleware(),
         CompletionGuard(),
     ]

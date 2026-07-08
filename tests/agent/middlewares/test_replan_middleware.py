@@ -46,6 +46,25 @@ async def test_awrap_tool_call_success(middleware):
 
 
 @pytest.mark.asyncio
+async def test_awrap_tool_call_propagates_graph_interrupt(middleware):
+    """GraphInterrupt from HITL tools (e.g. ask_question_tool) must not be swallowed."""
+    from langgraph.errors import GraphInterrupt
+
+    request = ToolCallRequest(
+        tool_call={"name": "ask_question_tool", "args": {}, "id": "call_clarify"},
+        tool=MagicMock(),
+        state={},
+        runtime=MagicMock(),
+    )
+
+    async def handler(req):
+        raise GraphInterrupt("clarification")
+
+    with pytest.raises(GraphInterrupt):
+        await middleware.awrap_tool_call(request, handler)
+
+
+@pytest.mark.asyncio
 @patch(
     "myrm_agent_harness.agent.security.guards.loop_suggestions.core.get_tool_suggestion"
 )

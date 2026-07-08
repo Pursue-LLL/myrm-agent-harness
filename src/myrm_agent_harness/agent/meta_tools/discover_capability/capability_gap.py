@@ -1,4 +1,4 @@
-"""Capability gap detection for discover_capability_tool.
+"""Capability gap detection for discover_capability_tool and stream entitlement preflight.
 
 [INPUT]
 - core.security.tool_registry::TOOL_GROUP_MAP (POS: harness tool group SSOT)
@@ -11,9 +11,10 @@
 
 [POS]
 Detects when a user query needs a **GUI-togglable** builtin tool group or skill that is not
-enabled on the current Agent profile, so discover can surface structured gap hints instead of
-bare misses. ``AGENT_BASELINE_BUILTIN_TOOLS`` (file_ops, code_execute) are forced at runtime
-and omitted from ``CAPABILITY_GAP_REGISTRY`` — they must never emit entitlement gaps.
+enabled on the current Agent profile. Consumed by ``discover_capability_tool`` (XML + SSE on miss)
+and server ``entitlement_gap_preflight`` (early SSE before Agent run).
+``AGENT_BASELINE_BUILTIN_TOOLS`` (file_ops, code_execute) are forced at runtime and omitted from
+``CAPABILITY_GAP_REGISTRY`` — they must never emit entitlement gaps.
 """
 
 from __future__ import annotations
@@ -95,7 +96,21 @@ CAPABILITY_GAP_REGISTRY: tuple[CapabilityGapEntry, ...] = (
     CapabilityGapEntry(
         "render_ui",
         "render_ui",
-        ("render ui", "interactive ui", "ui artifact", "渲染界面"),
+        (
+            "render ui",
+            "interactive ui",
+            "ui artifact",
+            "渲染界面",
+            "interactive form",
+            "multi-field form",
+            "fill out",
+            "fill in",
+            "填表",
+            "表单",
+            "填写",
+            "部署配置",
+            "配置表单",
+        ),
     ),
     CapabilityGapEntry(
         "structured_clarify",

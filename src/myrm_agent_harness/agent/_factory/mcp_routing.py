@@ -7,7 +7,7 @@
 [OUTPUT]
 - route_mcp_servers(): split MCP servers into direct tools vs PTC skills
 - demote_direct_servers_over_budget(): whole-server Skill demotion when aggregate direct budget exceeded
-- PTC_OVERHEAD_MULTIPLIER, FALLBACK_PTC_BRIDGE_TOKENS, _compute_direct_threshold, _estimate_schema_tokens
+- PTC_OVERHEAD_MULTIPLIER, FALLBACK_PTC_BRIDGE_TOKENS, compute_direct_threshold, estimate_schema_tokens
 
 [POS]
 MCP schema-token routing for SkillAgent factory. Keeps hybrid direct/PTC decision isolated from assembly.
@@ -84,16 +84,16 @@ def demote_direct_servers_over_budget(
     return remaining, demoted
 
 
-def _compute_direct_threshold(bridge_tools: Sequence[BaseTool] | None = None) -> int:
+def compute_direct_threshold(bridge_tools: Sequence[BaseTool] | None = None) -> int:
     """Compute the schema token threshold for direct-vs-PTC routing."""
     if bridge_tools:
-        bridge_tokens = _estimate_schema_tokens(bridge_tools)
+        bridge_tokens = estimate_schema_tokens(bridge_tools)
     else:
         bridge_tokens = FALLBACK_PTC_BRIDGE_TOKENS
     return bridge_tokens * PTC_OVERHEAD_MULTIPLIER
 
 
-def _estimate_schema_tokens(tools: Sequence[BaseTool]) -> int:
+def estimate_schema_tokens(tools: Sequence[BaseTool]) -> int:
     """Estimate schema tokens for a list of tools via chars/4 rule."""
     total_chars = 0
     for tool in tools:
@@ -106,7 +106,7 @@ def _estimate_schema_tokens(tools: Sequence[BaseTool]) -> int:
     return int(total_chars / CHARS_PER_TOKEN + 0.5)
 
 
-def _estimate_single_tool_tokens(tool: BaseTool) -> int:
+def estimate_single_tool_tokens(tool: BaseTool) -> int:
     """Estimate schema tokens for a single tool."""
     try:
         schema = tool.get_input_schema().schema() if hasattr(tool, "get_input_schema") else {}
@@ -167,7 +167,7 @@ async def route_mcp_servers(
 
     ptc_servers: list[MCPConfig] = []
     direct_bundles: list[_DirectServerBundle] = []
-    direct_threshold = _compute_direct_threshold()
+    direct_threshold = compute_direct_threshold()
 
     all_mcp_configs = cast("list[MCPConfig]", list(mcp_servers))
     manager = await get_mcp_connection_manager()
@@ -186,7 +186,7 @@ async def route_mcp_servers(
             logger.warning("MCP server '%s' exposed no tools, skipping", cfg.name)
             continue
 
-        schema_tokens = _estimate_schema_tokens(server_tools)
+        schema_tokens = estimate_schema_tokens(server_tools)
         if schema_tokens <= direct_threshold:
             direct_bundles.append(
                 _DirectServerBundle(

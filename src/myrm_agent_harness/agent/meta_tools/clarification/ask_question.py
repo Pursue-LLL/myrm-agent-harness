@@ -43,6 +43,17 @@ class AskQuestionInput(BaseModel):
     """Input schema for the ask_question tool."""
 
     title: str | None = Field(default=None, description="Optional title for the clarification form.")
+    requires_confirmation: bool = Field(
+        default=False,
+        description=(
+            "Set to true before irreversible or destructive actions so the WebUI shows a prominent "
+            "confirmation emphasis."
+        ),
+    )
+    context: str | None = Field(
+        default=None,
+        description="Optional background explaining why clarification is needed.",
+    )
     questions: list[QuestionItem] = Field(
         min_length=1,
         description="A list of one or more clarifying questions to ask the user.",

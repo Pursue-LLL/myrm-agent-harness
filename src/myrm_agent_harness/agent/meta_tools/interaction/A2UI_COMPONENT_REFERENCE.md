@@ -45,7 +45,7 @@ Validation in `props`: `required`, `minLength`, `maxLength`, `pattern`, `min`, `
 
 ## Data display
 
-- **table**: `props.columns: [{key, title}]`, bind rows via `bindings`
+- **table**: `props.columns: [{key, title}]`, bind rows via `bindings.data`; optional `props.selectable` + `bindings.selected` (string[] row ids) + `props.rowIdKey` (default `id`)
 - **chart**: `type` (bar|line|pie|donut), `title`, `showLegend`, `showValues`
 - **image**: `src`, `alt`, `caption`, `objectFit` (cover|contain)
 - **progress**: `value`, `max`, `showLabel`

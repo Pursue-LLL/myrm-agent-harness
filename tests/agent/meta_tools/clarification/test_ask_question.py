@@ -8,7 +8,17 @@ from myrm_agent_harness.agent.meta_tools.clarification.ask_question import (
 )
 from myrm_agent_harness.agent.meta_tools.clarification.clarification_agent_tools import (
     AskQuestionTool,
+    create_ask_question_tool,
 )
+
+
+def test_create_ask_question_tool_factory() -> None:
+    async def mock_callback(form: AskQuestionInput) -> str:
+        return "ok"
+
+    tool = create_ask_question_tool(mock_callback)
+    assert isinstance(tool, AskQuestionTool)
+    assert tool.name == "ask_question_tool"
 
 
 @pytest.mark.asyncio
@@ -170,8 +180,29 @@ def test_pydantic_models_direct():
     assert q.prompt == "Hello?"
     assert len(q.options) == 1
 
-    form = AskQuestionInput(title="Test Form", questions=[q])
+    form = AskQuestionInput(
+        title="Test Form",
+        requires_confirmation=True,
+        context="This will delete files.",
+        questions=[q],
+    )
     assert form.title == "Test Form"
+    assert form.requires_confirmation is True
+    assert form.context == "This will delete files."
 
     form_no_title = AskQuestionInput(questions=[q])
     assert form_no_title.title is None
+    assert form_no_title.requires_confirmation is False
+
+
+def test_ask_question_input_model_dump_contract() -> None:
+    """Interrupt SSE payload uses model_dump(); requires_confirmation must be present."""
+    form = AskQuestionInput(
+        requires_confirmation=True,
+        context="Irreversible delete",
+        questions=[QuestionItem(id="confirm", prompt="Proceed?")],
+    )
+    dumped = form.model_dump()
+    assert dumped["requires_confirmation"] is True
+    assert dumped["context"] == "Irreversible delete"
+    assert "clarification_type" not in dumped

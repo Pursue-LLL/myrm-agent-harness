@@ -484,7 +484,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "desktop_snapshot_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "desktop_interact_tool": SafetyMetadata(is_destructive=True),
     "desktop_vision_tool": SafetyMetadata(is_destructive=True),
-    "ask_question_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "ask_question_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=False, is_idempotent=True),
 }
 
 

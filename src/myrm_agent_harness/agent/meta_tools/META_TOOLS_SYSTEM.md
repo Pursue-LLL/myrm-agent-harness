@@ -61,7 +61,7 @@
 | `skills/` | select/manage/discovery 技能工具 | `create_skill_*_tool` 系列（见各子目录） |
 | `goals/` | Goal 引擎 LLM 工具面（域逻辑在 `agent/goals/`） | `create_goal_tools` |
 | `progress/` | 主 Agent 多步 todo 进度（workspace SSOT + SSE） | `create_todo_write_tool` |
-| `clarification/` | 结构化 HITL 澄清 | `ask_question_tool` |
+| `clarification/` | 结构化 HITL 澄清；`requires_confirmation` 驱动危险强调 UI；`ClarificationGuardMiddleware` 强制单轮单次 | `ask_question_tool` |
 | `interaction/` | UI artifact 渲染 | `render_ui_tool` |
 | `discover_capability/` | 统一能力发现网关 | `discover_capability_tool` |
 
@@ -90,7 +90,7 @@ Server 层通过 `factory.py` 的 `_setup_*_tools()` 注入 store/dispatcher 等
 - `agent/sub_agents/` — 委派执行
 - `agent/parallel/` — batch/swarm 并行 spawn
 - `agent/artifacts/` — `@file_*` 短 ID、vault、UI registry
-- `agent/middlewares/` — completion_guard、tool_interceptor、deferred_tool
+- `agent/middlewares/` — completion_guard、clarification_guard、tool_interceptor、deferred_tool
 - `toolkits/` — 底层执行（browser、code_execution、kanban 等）
 
 ---

@@ -6,7 +6,7 @@ Unified deferred-tool activation: economics, stable index, invoke gateway.
 | --- | --- | --- | --- |
 | `economics.py` | Core | `should_bind_discover_gateway` — Turn1 discover binding when net-positive (skills / >2 defer / large schema). | ✅ |
 | `stable_index.py` | Core | `<available-deferred-tools>` stable system prompt section; sorted names only. | ✅ |
-| `activation.py` | Core | Parse `<DeferredToolHits>` from discover output. | ✅ |
+| `activation.py` | Core | Format `<DeferredToolHit>` lines for discover_capability ToolMessage output. | ✅ |
 
 **Related (not in this folder):**
 
