@@ -205,7 +205,7 @@ class SkillEvolutionEngine:
 
         # 4.5 Persist learning: record successful fix as evolution constraint
         if proposal and score >= 0.7:
-            constraint = f"FIX succeeded (score={score:.2f}): {error_message[:100]} → {reason[:100]}"
+            constraint = f"FIX succeeded (score={score:.2f}): {error_message[:200]} → {reason[:200]}"
             try:
                 await self._store.add_evolution_constraint(skill_id, constraint)
             except Exception as e:
@@ -248,7 +248,7 @@ class SkillEvolutionEngine:
             trajectory=trajectory,
         )
 
-        return self._proposal_builder.build_proposal(
+        proposal = self._proposal_builder.build_proposal(
             skill=old_skill,
             evolution_type=EvolutionType.DERIVED,
             best_variant=best_variant,
@@ -258,6 +258,15 @@ class SkillEvolutionEngine:
             trajectory=trajectory,
             is_general=is_general,
         )
+
+        if proposal and score >= 0.7:
+            constraint = f"DERIVED succeeded (score={score:.2f}): {user_feedback[:200]} → {reason[:200]}"
+            try:
+                await self._store.add_evolution_constraint(skill_id, constraint)
+            except Exception as e:
+                logger.debug("Failed to persist DERIVED constraint for %s: %s", skill_id, e)
+
+        return proposal
 
     async def evolve_from_evidence(
         self,
@@ -356,7 +365,7 @@ class SkillEvolutionEngine:
             trajectory="Evidence-based analysis (aggregated across multiple executions).",
         )
 
-        return self._proposal_builder.build_proposal(
+        proposal = self._proposal_builder.build_proposal(
             skill=old_skill,
             evolution_type=EvolutionType.FIX,
             best_variant=best_variant,
@@ -367,6 +376,15 @@ class SkillEvolutionEngine:
             f"success_rate={evidence.evidence_success_rate:.1%}",
             is_general=is_general,
         )
+
+        if proposal and score >= 0.7:
+            constraint = f"EVIDENCE-FIX succeeded (score={score:.2f}): {feedback_summary[:200]} → {reason[:200]}"
+            try:
+                await self._store.add_evolution_constraint(evidence.skill_id, constraint)
+            except Exception as e:
+                logger.debug("Failed to persist EVIDENCE constraint for %s: %s", evidence.skill_id, e)
+
+        return proposal
 
     async def optimize_description(
         self,
