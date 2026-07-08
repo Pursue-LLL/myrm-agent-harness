@@ -171,6 +171,20 @@ CAPABILITY_GAP_REGISTRY: tuple[CapabilityGapEntry, ...] = (
         ("generate video", "text to video", "生成视频", "文生视频"),
     ),
     CapabilityGapEntry("tts", "tts", ("text to speech", "tts", "语音合成", "朗读")),
+    CapabilityGapEntry(
+        "external_cli",
+        "external_cli",
+        (
+            "claude code",
+            "codex cli",
+            "gemini cli",
+            "external cli",
+            "delegate to agent",
+            "外部 cli",
+            "委派给",
+            "claude code 写代码",
+        ),
+    ),
 )
 
 BUILTIN_TOOL_ID_TO_GROUP: dict[str, str] = {

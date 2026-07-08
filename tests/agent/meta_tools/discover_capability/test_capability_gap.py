@@ -16,6 +16,16 @@ def test_detect_capability_gap_browser_when_disabled() -> None:
     assert hit.tool_id == "browser"
 
 
+def test_detect_capability_gap_external_cli_when_disabled() -> None:
+    hit = detect_capability_gap(
+        "use claude code to refactor auth module",
+        frozenset({"web", "memory", "file_ops", "shell"}),
+    )
+    assert hit is not None
+    assert hit.tool_id == "external_cli"
+    assert hit.tool_group == "external_cli"
+
+
 def test_detect_capability_gap_none_when_enabled() -> None:
     groups = frozenset({"web", "memory", "file_ops", "shell", "browser"})
     assert detect_capability_gap("open the website", groups) is None

@@ -221,6 +221,7 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
     "image_generation": frozenset({"image_tool"}),
     "video_generation": frozenset({"video_tool"}),
     "tts": frozenset({"tts_generate"}),
+    "external_cli": frozenset({"delegate_to_agent_tool"}),
 }
 
 TOOL_TO_GROUP: dict[str, str] = {tool: group for group, tools in TOOL_GROUP_MAP.items() for tool in tools}
