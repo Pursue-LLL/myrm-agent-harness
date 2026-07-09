@@ -41,7 +41,6 @@ import asyncio
 import logging
 import time
 from collections import OrderedDict
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
@@ -55,15 +54,23 @@ if TYPE_CHECKING:
 
 from myrm_agent_harness.utils.lru_cache import LRUCache
 
-from .antibot_detector import is_blocked as detect_antibot
+from .bilibili_extractor import extract_bilibili_subtitle, is_bilibili_url
+from .engine_cache_mixin import CrawlEngineCacheMixin
+from .engine_escalation_mixin import CrawlEngineEscalationMixin
+from .engine_fetch_mixin import CrawlEngineFetchMixin
+from .engine_types import (
+    AccessStats,
+    BackgroundTask,
+    CachedDocument,
+    FailedResult,
+    SuccessResult,
+)
 from .fetchers.browser_fetcher import BrowserFetcher
 from .fetchers.http_fetcher import HttpFetcher
-from .fetchers.protocols import FetcherType, FetchResult
 from .fetchers.stealth_fetcher import StealthFetcher
 from .http3_probe import get_http3_retry_metrics
 from .pipeline import ContentPipeline
 from .router.adaptive_router import AdaptiveRouter, RouterStats
-from .bilibili_extractor import extract_bilibili_subtitle, is_bilibili_url
 from .youtube_extractor import extract_youtube_transcript, is_youtube_url
 
 if TYPE_CHECKING:
@@ -72,66 +79,22 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-try:
-    import psutil
-
-    _PSUTIL_AVAILABLE = True
-except (ImportError, TypeError):
-    _PSUTIL_AVAILABLE = False
-    logger.warning("psutil not available, resource tracking disabled")
-
-SuccessResult = list[tuple[str, Document]]
-FailedResult = list[tuple[str, None]]
-
-# 403 anti-crawl / 429 rate-limit can be bypassed via browser layer, allow degradation
-_DEGRADABLE_4XX = frozenset({403, 429})
+__all__ = [
+    "AccessStats",
+    "BackgroundTask",
+    "CachedDocument",
+    "CrawlEngine",
+    "FailedResult",
+    "SuccessResult",
+]
 
 
-@dataclass(slots=True)
-class CachedDocument:
-    """Cached Document with HTTP validation metadata."""
-
-    doc: Document
-    etag: str | None = None
-    last_modified: str | None = None
-    cached_at: float = 0.0
-
-
-@dataclass(slots=True)
-class AccessStats:
-    """URL access statistics (for priority calculation)."""
-
-    count: int
-    last_access: float
-
-
-@dataclass(slots=True, order=True)
-class BackgroundTask:
-    """Background refresh task (supports priority sorting)."""
-
-    priority: int
-    url: str = ""
-    cache_key: str = ""
-    cached_item: CachedDocument | None = None
-
-
-class CrawlEngine:
-    """Tiered crawl engine: L1 HTTP -> L2 Browser -> L3 Stealth.
-
-    Router: AdaptiveRouter (zero-config, self-learning, self-healing)
-    Browser: GlobalBrowserPool (resource reuse)
-    Cache: In-memory LRU (default 1h TTL, 500 entries, memory cap, request coalescing, SWR, HTTP conditional requests)
-    Security: SSRF protection + optional domain allowlist (DomainAllowlist injection)
-    Boundary: single-process semantics, no cross-process/cross-tenant consistency
-
-    Core optimizations:
-    - Request coalescing: 30s timeout protection, avoids slow-request blocking
-    - Stale-While-Revalidate: priority queue + worker pool (30s timeout, time-decayed priority)
-    - HTTP conditional requests: ETag/Last-Modified validation, 304 cache reuse
-    - URL normalization: removes 35+ tracking parameters, improves hit rate
-    - Cache warmup: concurrent warmup + exponential backoff retry (9.4x speedup)
-    - Cache metrics: hits/stale_hits/misses + background task success rate/latency/timeout/skip/queue/worker count
-    """
+class CrawlEngine(
+    CrawlEngineEscalationMixin,
+    CrawlEngineFetchMixin,
+    CrawlEngineCacheMixin,
+):
+    """Tiered crawl engine: L1 HTTP -> L2 Browser -> L3 Stealth."""
 
     _DEFAULT_CRAWL_TIMEOUT: float = 45.0
 
@@ -166,7 +129,6 @@ class CrawlEngine:
         self._router = AdaptiveRouter(rules_file=adaptive_router_rules_file)
 
         def _doc_size(cached: CachedDocument) -> int:
-            """Estimate CachedDocument byte size (page_content + metadata)."""
             content_size = len(cached.doc.page_content.encode("utf-8"))
             metadata_size = sum(
                 len(str(k).encode("utf-8")) + len(str(v).encode("utf-8")) for k, v in cached.doc.metadata.items()
@@ -192,14 +154,12 @@ class CrawlEngine:
         self._url_access_stats: OrderedDict[str, AccessStats] = OrderedDict()
         self._max_access_stats_size = 10_000
 
-        # Background revalidation metrics
         self._bg_revalidations_success = 0
         self._bg_revalidations_failed = 0
         self._bg_revalidations_timeout = 0
         self._bg_revalidations_total_ms = 0.0
         self._bg_revalidations_skipped = 0
 
-        # Lazy initialization flag
         self._workers_started = False
 
         self._escalation_providers: list[FetchEscalationProvider] | None = None
@@ -219,427 +179,10 @@ class CrawlEngine:
         self._browser_launch_mode = launch_mode
         self._browser_fetcher.set_launch_mode_preference(launch_mode)
 
-    async def _load_bilibili_cookies(self) -> dict[str, str] | None:
-        """Load bilibili.com cookies from SessionVault for subtitle API access."""
-        vault = self._http_fetcher._session_vault
-        if not vault:
-            return None
-        try:
-            entry = await vault.load("bilibili.com")
-            if not entry or not entry.storage_state or "cookies" not in entry.storage_state:
-                return None
-            return {c["name"]: c["value"] for c in entry.storage_state["cookies"] if "name" in c and "value" in c}
-        except Exception:
-            return None
-
-    async def _try_escalation(self, url: str, *, max_chars: int = 0) -> tuple[Document | None, FetchResult | None]:
-        """Try injected remote providers after local L1-L3 exhaustion."""
-        from .escalation.context import get_bound_escalation_providers
-
-        providers = get_bound_escalation_providers() or self._escalation_providers
-        if not providers:
-            return None, None
-
-        from .escalation.metrics import web_fetch_escalation_metrics
-
-        web_fetch_escalation_metrics.record_triggered()
-        try:
-            from myrm_agent_harness.utils.event_utils import dispatch_custom_event
-
-            await dispatch_custom_event(
-                "agent_status",
-                {
-                    "event": "tool_fallback",
-                    "tool": "web_fetch_tool",
-                    "fallback_type": "remote_fetch",
-                    "message": "Local fetch exhausted, trying remote reader fallback...",
-                },
-            )
-        except Exception:
-            pass
-
-        for provider in providers:
-            try:
-                escalation_result = await provider.fetch_url(url, max_chars=max_chars)
-            except Exception as exc:
-                logger.warning("Escalation provider %s failed for %s: %s", provider.provider_id, url, exc)
-                continue
-
-            if escalation_result is None or not escalation_result.content.strip():
-                continue
-
-            if escalation_result.is_markdown:
-                content = escalation_result.content
-                if max_chars > 0 and len(content) > max_chars:
-                    content = content[:max_chars]
-                doc = Document(
-                    page_content=content,
-                    metadata={
-                        "url": escalation_result.url or url,
-                        "title": escalation_result.title,
-                        "escalation_provider": provider.provider_id,
-                    },
-                )
-            else:
-                remote_fetch = FetchResult(
-                    html=escalation_result.content,
-                    url=escalation_result.url or url,
-                    fetcher_type=FetcherType.HTTP,
-                )
-                doc = self._pipeline.process(remote_fetch, max_chars=max_chars)
-                if doc is None:
-                    continue
-                doc.metadata["escalation_provider"] = provider.provider_id
-
-            web_fetch_escalation_metrics.record_success()
-            logger.info("Escalation provider %s succeeded for %s", provider.provider_id, url)
-            return doc, None
-
-        web_fetch_escalation_metrics.record_failure()
-        return None, None
-
-    def _ensure_workers_started(self) -> None:
-        """Lazy start background workers (idempotent, thread-safe)."""
-        if self._workers_started:
-            return
-
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            return
-
-        if not self._workers_started:
-            for _ in range(self._max_background_tasks):
-                worker = asyncio.create_task(self._background_worker())
-                self._background_workers.append(worker)
-            self._workers_started = True
-
-    def _calculate_priority(self, cache_key: str) -> int:
-        """Compute background task priority (time decay + access frequency).
-
-        Returns:
-            Negative number (lower = higher priority)
-        """
-        stats = self._url_access_stats.get(cache_key)
-        if not stats:
-            return 0
-
-        # Time decay: 50% decay per 24h
-        age_hours = (time.time() - stats.last_access) / 3600
-        decay_factor = 0.5 ** (age_hours / 24)
-
-        # Effective access count = raw count * decay factor
-        effective_count = stats.count * decay_factor
-
-        return -round(effective_count)
-
-    async def _try_fetch_and_process(
-        self,
-        url: str,
-        fetcher_type: FetcherType,
-        *,
-        etag: str | None = None,
-        last_modified: str | None = None,
-        max_chars: int = 0,
-    ) -> tuple[Document | None, bool, float, float | None, float | None, FetchResult | None]:
-        """Fetch with a specified fetcher and process through the pipeline.
-
-        Returns:
-            (doc, degradable, latency_ms, cpu_percent, memory_mb, fetch_result)
-        """
-        fetcher_map = {
-            FetcherType.HTTP: self._http_fetcher,
-            FetcherType.BROWSER: self._browser_fetcher,
-            FetcherType.STEALTH: self._stealth_fetcher,
-        }
-        fetcher = fetcher_map[fetcher_type]
-
-        if fetcher_type == FetcherType.BROWSER:
-            from .escalation.context import get_bound_browser_launch_mode
-
-            launch_mode = get_bound_browser_launch_mode()
-            if launch_mode is None:
-                launch_mode = self._browser_launch_mode
-            self._browser_fetcher.set_launch_mode_preference(launch_mode)
-
-        if _PSUTIL_AVAILABLE:
-            process = psutil.Process()
-            cpu_times_start = process.cpu_times()
-            mem_start_mb = process.memory_info().rss / 1024 / 1024
-        else:
-            cpu_times_start = None
-            mem_start_mb = None
-
-        start_time = time.time()
-        if fetcher_type == FetcherType.HTTP and (etag or last_modified):
-            fetch_result: FetchResult | None = await fetcher.fetch(url, etag=etag, last_modified=last_modified)
-        else:
-            fetch_result: FetchResult | None = await fetcher.fetch(url)
-        elapsed = time.time() - start_time
-        latency_ms = elapsed * 1000.0
-
-        if _PSUTIL_AVAILABLE and cpu_times_start is not None and mem_start_mb is not None:
-            cpu_times_end = process.cpu_times()
-            cpu_used = (cpu_times_end.user - cpu_times_start.user) + (cpu_times_end.system - cpu_times_start.system)
-            cpu_percent = (cpu_used / elapsed * 100.0) if elapsed > 0 else 0.0
-            mem_delta_mb = (process.memory_info().rss / 1024 / 1024) - mem_start_mb
-            cpu_percent = max(0.0, cpu_percent)
-            memory_mb = max(0.0, mem_delta_mb)
-        else:
-            cpu_percent = None
-            memory_mb = None
-
-        if fetch_result is None:
-            return None, True, latency_ms, cpu_percent, memory_mb, None
-
-        if fetch_result.status_code == 304:
-            logger.info(f"HTTP 304 Not Modified: {url}")
-            return None, False, latency_ms, cpu_percent, memory_mb, fetch_result
-
-        if (
-            fetcher_type == FetcherType.HTTP
-            and 400 <= fetch_result.status_code < 500
-            and fetch_result.status_code not in _DEGRADABLE_4XX
-        ):
-            logger.warning(f"HTTP {fetch_result.status_code} not degradable, abort: {url}")
-            return None, False, latency_ms, cpu_percent, memory_mb, None
-
-        if fetcher_type == FetcherType.HTTP and not fetch_result.has_content:
-            logger.warning(f"L1 HTTP returned empty shell, will degrade: {url}")
-            return None, True, latency_ms, cpu_percent, memory_mb, None
-
-        if fetch_result.raw_body is not None:
-            from .binary_router import route_binary_content
-
-            doc = await route_binary_content(fetch_result.raw_body, fetch_result.headers, url)
-            return doc, False, latency_ms, cpu_percent, memory_mb, fetch_result
-
-        blocked, reason = detect_antibot(fetch_result.status_code, fetch_result.html)
-        if blocked:
-            logger.warning(f"Anti-bot detected ({reason}): {url}")
-            return None, True, latency_ms, cpu_percent, memory_mb, None
-
-        doc = self._pipeline.process(fetch_result, max_chars=max_chars)
-
-        if doc and doc.metadata.get("was_truncated"):
-            try:
-                from myrm_agent_harness.utils.event_utils import dispatch_custom_event
-
-                await dispatch_custom_event(
-                    "agent_status",
-                    {
-                        "step_key": "ux_warning_truncated",
-                        "status": "warning",
-                        "items": [
-                            {
-                                "text": f"Warning: Content from {url} was intelligently truncated to fit within context limits."
-                            }
-                        ],
-                        "metadata": {"type": "html_truncation", "url": url},
-                    },
-                )
-            except Exception as e:
-                logger.warning(f"Failed to dispatch truncation event: {e}")
-
-        return doc, True, latency_ms, cpu_percent, memory_mb, fetch_result
-
-    async def _try_and_report(
-        self,
-        url: str,
-        fetcher_type: FetcherType,
-        *,
-        etag: str | None = None,
-        last_modified: str | None = None,
-        max_chars: int = 0,
-    ) -> tuple[Document | None, bool, float, float | None, float | None, FetchResult | None]:
-        """Attempt fetch and auto-report result to router."""
-        doc, degradable, latency, cpu, mem, fetch_result = await self._try_fetch_and_process(
-            url, fetcher_type, etag=etag, last_modified=last_modified, max_chars=max_chars
-        )
-        self._report_feedback(url, fetcher_type, success=(doc is not None), latency_ms=latency, cpu=cpu, memory=mem)
-        return doc, degradable, latency, cpu, mem, fetch_result
-
-    async def _crawl_with_degradation(
-        self,
-        url: str,
-        *,
-        etag: str | None = None,
-        last_modified: str | None = None,
-        max_chars: int = 0,
-        allow_escalation: bool = True,
-    ) -> tuple[Document | None, FetchResult | None]:
-        """Smart degradation: select starting tier from routing result, degrade tier by tier.
-
-        Returns:
-            (doc, fetch_result): fetch_result used to extract ETag/Last-Modified
-        """
-        decision = self._router.select(url)
-        start_type = decision.fetcher_type
-
-        if start_type == FetcherType.STEALTH:
-            doc, _, _, _, _, result = await self._try_and_report(url, FetcherType.STEALTH, max_chars=max_chars)
-            if doc:
-                return doc, result
-
-            logger.warning(f"Stealth failed, trying browser: {url}")
-            doc, _, _, _, _, result = await self._try_and_report(url, FetcherType.BROWSER, max_chars=max_chars)
-            if doc:
-                return doc, result
-            if allow_escalation:
-                esc_doc, esc_result = await self._try_escalation(url, max_chars=max_chars)
-                if esc_doc:
-                    return esc_doc, esc_result
-            return doc, result
-
-        if start_type == FetcherType.BROWSER:
-            doc, _, _, _, _, result = await self._try_and_report(url, FetcherType.BROWSER, max_chars=max_chars)
-            if doc:
-                return doc, result
-
-            logger.warning(f"Browser failed, trying stealth: {url}")
-            doc, _, _, _, _, result = await self._try_and_report(url, FetcherType.STEALTH, max_chars=max_chars)
-            if doc:
-                return doc, result
-            if allow_escalation:
-                esc_doc, esc_result = await self._try_escalation(url, max_chars=max_chars)
-                if esc_doc:
-                    return esc_doc, esc_result
-            return doc, result
-
-        doc, degradable, _, _, _, result = await self._try_and_report(
-            url, FetcherType.HTTP, etag=etag, last_modified=last_modified, max_chars=max_chars
-        )
-        if doc or not degradable:
-            return doc, result
-
-        logger.warning(f"HTTP insufficient, degrading to browser: {url}")
-        try:
-            from myrm_agent_harness.utils.event_utils import dispatch_custom_event
-
-            await dispatch_custom_event(
-                "agent_status",
-                {
-                    "event": "tool_fallback",
-                    "tool": "web_fetch_tool",
-                    "fallback_type": "antibot_bypass",
-                    "message": "触发反爬防御，正在切换至无头浏览器模拟模式...",
-                },
-            )
-        except Exception:
-            pass
-
-        doc, _, _, _, _, result = await self._try_and_report(url, FetcherType.BROWSER, max_chars=max_chars)
-        if doc:
-            return doc, result
-
-        logger.warning(f"Browser failed, degrading to stealth: {url}")
-        try:
-            from myrm_agent_harness.utils.event_utils import dispatch_custom_event
-
-            await dispatch_custom_event(
-                "agent_status",
-                {
-                    "event": "tool_fallback",
-                    "tool": "web_fetch_tool",
-                    "fallback_type": "stealth_bypass",
-                    "message": "浏览器模式受阻，正在切换至深度隐身模式...",
-                },
-            )
-        except Exception:
-            pass
-
-        doc, _, _, _, _, result = await self._try_and_report(url, FetcherType.STEALTH, max_chars=max_chars)
-        if doc:
-            return doc, result
-
-        if allow_escalation:
-            esc_doc, esc_result = await self._try_escalation(url, max_chars=max_chars)
-            if esc_doc:
-                return esc_doc, esc_result
-
-        return doc, result
-
-    def _report_feedback(
-        self,
-        url: str,
-        fetcher_type: FetcherType,
-        success: bool,
-        latency_ms: float | None = None,
-        cpu: float | None = None,
-        memory: float | None = None,
-    ) -> None:
-        """Report fetch result to router (with multi-dimensional resource cost)."""
-        self._router.report_result(url, fetcher_type, success, latency_ms, cpu, memory)
-
-    def _handle_cache_hit(
-        self, cached_item: CachedDocument, is_expired: bool, url: str, cache_key: str
-    ) -> Document | None:
-        """Handle cache hit logic (fresh / stale-while-revalidate / stale).
-
-        Returns:
-            Document if cache can be served immediately, None if need network fetch
-        """
-        cache_age = time.time() - cached_item.cached_at
-
-        if not is_expired:
-            logger.info(f"Cache hit (fresh, age={cache_age:.1f}s): {url}")
-            return cached_item.doc
-
-        if self._stale_while_revalidate:
-            if self._background_queue.qsize() >= self._max_background_tasks:
-                logger.warning(f"Background queue full ({self._max_background_tasks}), skipping revalidation: {url}")
-                self._bg_revalidations_skipped += 1
-            else:
-                logger.info(f"Serving stale while revalidating (age={cache_age:.1f}s): {url}")
-                priority = self._calculate_priority(cache_key)
-                task = BackgroundTask(priority=priority, url=url, cache_key=cache_key, cached_item=cached_item)
-                self._background_queue.put_nowait(task)
-            return cached_item.doc
-
-        if self._enable_http_validation and (cached_item.etag or cached_item.last_modified):
-            logger.info(f"Cache expired (age={cache_age:.1f}s), sending conditional request: {url}")
-            return None
-
-        logger.info(f"Cache hit (stale, age={cache_age:.1f}s, no validation headers): {url}")
-        return cached_item.doc
-
-    async def _handle_fetch_error(
-        self, url: str, cache_key: str, future: asyncio.Future[Document | None], error: Exception
-    ) -> Document | None:
-        """Unified fetch error handling.
-
-        Note: For unexpected exceptions, sets fail_cache then re-raises to ensure callers see the error
-        """
-        self._fail_cache.set(cache_key, True)
-
-        if isinstance(error, asyncio.TimeoutError):
-            logger.warning(f"Crawl timeout: {url}")
-            if not future.done():
-                future.set_result(None)
-            return None
-        elif isinstance(error, (ConnectionError, OSError)):
-            logger.warning(f"Network error: {url} — {error}")
-            if not future.done():
-                future.set_result(None)
-            return None
-        else:
-            logger.error(f"Unexpected error during crawl: {url}", exc_info=True)
-            if not future.done():
-                future.set_exception(error)
-            raise
-
     async def crawl(
         self, url: str, *, force_refresh: bool = False, max_chars: int = 0, allow_escalation: bool = True
     ) -> Document | None:
-        """Crawl a single URL, return Document or None.
-
-        Args:
-            url: Target URL
-            force_refresh: Force refresh, bypass cache (for page update scenarios)
-            max_chars: Token budget (in characters) to truncate the document intelligently.
-
-        Concurrency: when multiple coroutines crawl the same URL, only one network request is issued; others await the result
-        """
+        """Crawl a single URL, return Document or None."""
         self._ensure_workers_started()
 
         from .url_normalizer import normalize_url
@@ -660,7 +203,6 @@ class CrawlEngine:
 
         cache_key = normalize_url(url)
 
-        # Track access frequency (for background task priority, LRU eviction prevents memory leaks)
         if cache_key in self._url_access_stats:
             self._url_access_stats[cache_key].count += 1
         else:
@@ -781,14 +323,7 @@ class CrawlEngine:
         max_chars: int = 0,
         allow_escalation: bool = True,
     ) -> tuple[SuccessResult, FailedResult]:
-        """Batch-crawl multiple URLs in parallel with global concurrency cap.
-
-        Args:
-            urls: Target URL list
-            max_concurrency: Maximum concurrency
-            force_refresh: Force refresh all URLs, bypass cache
-            max_chars: Token budget (in characters) to truncate the document intelligently.
-        """
+        """Batch-crawl multiple URLs in parallel with global concurrency cap."""
         self._ensure_workers_started()
 
         success_results: SuccessResult = []
@@ -816,17 +351,7 @@ class CrawlEngine:
         initial_backoff: float = 1.0,
         max_concurrency: int = 10,
     ) -> tuple[SuccessResult, FailedResult]:
-        """Warm up cache (concurrent + auto-retry on failure + exponential backoff).
-
-        Args:
-            urls: URLs to warm up
-            max_retries: Maximum retry count (default 3)
-            initial_backoff: Initial backoff time (seconds, default 1.0s)
-            max_concurrency: Maximum concurrency (default 10)
-
-        Returns:
-            (success_list, failure_list)
-        """
+        """Warm up cache (concurrent + auto-retry on failure + exponential backoff)."""
         self._ensure_workers_started()
 
         success_results: SuccessResult = []
@@ -835,7 +360,6 @@ class CrawlEngine:
         sem = asyncio.Semaphore(max_concurrency)
 
         async def retry_one(url: str) -> None:
-            """Single URL retry logic."""
             async with sem:
                 retry_count = 0
                 backoff = initial_backoff
@@ -849,11 +373,10 @@ class CrawlEngine:
                             async with results_lock:
                                 success_results.append((url, doc))
                             return
-                        else:
-                            last_error = "Crawl returned None"
-                            logger.warning(
-                                f"Prefetch failed (attempt {retry_count + 1}/{max_retries + 1}): {url} — {last_error}"
-                            )
+                        last_error = "Crawl returned None"
+                        logger.warning(
+                            f"Prefetch failed (attempt {retry_count + 1}/{max_retries + 1}): {url} — {last_error}"
+                        )
                     except Exception as e:
                         last_error = str(e)
                         logger.warning(f"Prefetch failed (attempt {retry_count + 1}/{max_retries + 1}): {url} — {e}")
@@ -870,78 +393,8 @@ class CrawlEngine:
         await asyncio.gather(*(retry_one(u) for u in urls))
         return success_results, failed_results
 
-    async def _background_worker(self) -> None:
-        """Background worker: dequeue tasks from priority queue and execute."""
-        while True:
-            try:
-                task = await self._background_queue.get()
-                if task.cached_item is None:
-                    break
-
-                await self._background_revalidate(task.url, task.cache_key, task.cached_item)
-                self._background_queue.task_done()
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Background worker error: {e}", exc_info=True)
-
-    async def _background_revalidate(self, url: str, cache_key: str, cached_item: CachedDocument) -> None:
-        """Background async refresh of stale cache (Stale-While-Revalidate + 30s timeout).
-
-        Args:
-            url: Original URL
-            cache_key: Normalized cache key
-            cached_item: Currently cached document
-        """
-        start = time.perf_counter()
-        try:
-            async with asyncio.timeout(30):
-                etag = cached_item.etag if self._enable_http_validation else None
-                last_modified = cached_item.last_modified if self._enable_http_validation else None
-
-                doc, fetch_result = await self._crawl_with_degradation(url, etag=etag, last_modified=last_modified)
-
-                if fetch_result and fetch_result.status_code == 304:
-                    logger.info(f"Background revalidation: 304 (cache still valid): {url}")
-                    cached_item.cached_at = time.time()
-                    self._crawl_cache.set(cache_key, cached_item)
-                    self._bg_revalidations_success += 1
-                elif doc is not None:
-                    logger.info(f"Background revalidation: 200 (cache updated): {url}")
-                    new_etag = fetch_result.etag if fetch_result else None
-                    new_last_modified = fetch_result.last_modified if fetch_result else None
-                    cached = CachedDocument(
-                        doc=doc, etag=new_etag, last_modified=new_last_modified, cached_at=time.time()
-                    )
-                    self._crawl_cache.set(cache_key, cached)
-                    self._bg_revalidations_success += 1
-                else:
-                    logger.warning(f"Background revalidation failed: {url}")
-                    self._fail_cache.set(cache_key, True)
-                    self._bg_revalidations_failed += 1
-        except TimeoutError:
-            logger.warning(f"Background revalidation timeout (30s): {url}")
-            self._bg_revalidations_timeout += 1
-        except Exception as e:
-            logger.warning(f"Background revalidation error: {url} — {e}")
-            self._bg_revalidations_failed += 1
-        finally:
-            elapsed_ms = (time.perf_counter() - start) * 1000
-            self._bg_revalidations_total_ms += elapsed_ms
-
     async def prefetch(self, urls: list[str], *, max_concurrency: int = 5) -> None:
-        """Cache warmup: background async load URLs into cache.
-
-        Use cases:
-        - Known-upcoming URL list (e.g. search results)
-        - Preload popular pages on startup
-
-        Args:
-            urls: URLs to warm up
-            max_concurrency: Maximum concurrency (default 5, avoids impacting foreground requests)
-
-        Note: This method returns nothing; failures are silently recorded in fail_cache
-        """
+        """Cache warmup: background async load URLs into cache."""
         self._ensure_workers_started()
 
         sem = asyncio.Semaphore(max_concurrency)
@@ -956,13 +409,10 @@ class CrawlEngine:
         await asyncio.gather(*(prefetch_one(u) for u in urls), return_exceptions=True)
 
     async def shutdown(self) -> None:
-        # Stop background worker pool
         if self._background_workers:
             logger.info(f"Stopping {len(self._background_workers)} background workers")
-            # Send stop signals
             for _ in self._background_workers:
                 self._background_queue.put_nowait(BackgroundTask(priority=0, url="", cache_key="", cached_item=None))
-            # Wait for workers to exit
             await asyncio.gather(*self._background_workers, return_exceptions=True)
             self._background_workers.clear()
 
@@ -980,11 +430,7 @@ class CrawlEngine:
         return self._router.get_stats()
 
     def get_cache_metrics(self) -> dict[str, dict[str, int | float]]:
-        """Get cache metrics (for monitoring and tuning).
-
-        Returns:
-            Metrics dict covering success cache, fail cache, and background tasks
-        """
+        """Get cache metrics (for monitoring and tuning)."""
         total_bg = self._bg_revalidations_success + self._bg_revalidations_failed + self._bg_revalidations_timeout
         avg_latency = self._bg_revalidations_total_ms / total_bg if total_bg > 0 else 0.0
 

@@ -1,4 +1,8 @@
-"""Format discover_capability deferred hits for invoke_deferred_tool."""
+"""Format discover_capability deferred hits for invoke_deferred_tool.
+
+[POS]
+Formats ``DeferredToolHit`` lines for discover_capability ToolMessage output.
+"""
 
 from __future__ import annotations
 

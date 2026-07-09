@@ -1,8 +1,8 @@
 """Push-based notification formatting for subagent completion events.
 
-SubagentManager appends notifications when child tasks complete or fail.
-StreamExecutor drains them via ``drain_notifications()`` and injects
-the formatted text into the parent Agent's context as HumanMessage.
+SubagentManager queues formatted completion text via ``NotificationManager``.
+``StreamRecoveryContinuation`` drains notifications and emits SSE only (no message injection).
+Background async wakeup appends user/HumanMessage via ``ServerWakeupHandler`` (server layer).
 
 [INPUT]
 - (none)

@@ -1,4 +1,9 @@
-"""invoke_deferred_tool — cache-safe proxy for DISCOVERABLE native tools."""
+"""invoke_deferred_tool — cache-safe proxy for DISCOVERABLE native tools.
+
+[POS]
+Turn1-bound gateway for DISCOVERABLE native tools; resolves via ToolRegistry without
+appending deferred schemas to bind_tools (see tool_management/defer/_ARCH.md).
+"""
 
 from __future__ import annotations
 

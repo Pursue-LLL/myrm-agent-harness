@@ -1,4 +1,9 @@
-"""Deferred tools stable index injection middleware."""
+"""Deferred tools stable index injection middleware.
+
+[POS]
+Injects ``<available-deferred-tools>`` once per thread via stable_index helpers;
+does not mutate ``request.tools`` (see tool_management/defer/_ARCH.md).
+"""
 
 from __future__ import annotations
 

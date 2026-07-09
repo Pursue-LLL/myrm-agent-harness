@@ -1,4 +1,8 @@
-"""In-process counters for web fetch remote escalation (thread-safe)."""
+"""In-process counters for web fetch remote escalation (thread-safe).
+
+[POS]
+Thread-safe escalation counters for logging or export during remote fetch escalation.
+"""
 
 from __future__ import annotations
 

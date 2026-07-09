@@ -1,4 +1,8 @@
-"""DeferEconomics — when to bind discover_capability_tool on Turn1."""
+"""DeferEconomics — when to bind discover_capability_tool on Turn1.
+
+[POS]
+Turn1 discover_gateway binding economics for deferred native tools and skills.
+"""
 
 from __future__ import annotations
 

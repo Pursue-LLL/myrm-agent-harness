@@ -1,4 +1,8 @@
-"""Fetch escalation Protocol and result types (server implements providers)."""
+"""Fetch escalation Protocol and result types (server implements providers).
+
+[POS]
+Protocol and DTOs for optional L4 remote fetch escalation injected by business layer.
+"""
 
 from __future__ import annotations
 

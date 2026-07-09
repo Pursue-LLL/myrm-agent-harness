@@ -579,9 +579,9 @@ LLM provider 将请求体序列化为 prompt 时，各部分的**确定性顺序
 ```
 
 **验证来源**：
-- **Anthropic Claude**：官方文档明确 cache breakpoint 顺序为 `tools → system → messages`。开源项目 opencode PR #14743 验证了通过稳定 tools 排序 + 拆分 system prompt，缓存命中率从 0% 提升到 97.6%
-- **OpenAI**：文档指出 "structured output schema serves as a prefix to the system message"，`tools` 与 `response_format` 同属于 system-level 前缀
-- **Claude Code 团队实践**：Claude Code 工程师 Thariq 将 prompt caching 称为"整个产品围绕的架构约束"，cache hit rate 下降会触发 SEV
+- **Anthropic Claude**：[Prompt Caching 官方文档](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching) 明确前缀顺序为 `tools → system → messages`
+- **OpenAI**：[Prompt Caching 指南](https://platform.openai.com/docs/guides/prompt-caching) 与 [Prompt Caching 201 Cookbook](https://developers.openai.com/cookbook/examples/prompt_caching_201)：`tools` 与 schema 注入在 developer/system instructions **之前**，构成可缓存前缀
+- **Claude Code 团队实践**：Codex agent loop 将 system instructions、tool definitions 保持相同顺序以维持 prefix cache 命中
 
 #### Token 级前缀匹配的精确语义
 
@@ -735,31 +735,31 @@ Logits Masking（解码阶段）:
 
 | 层级 | 稳定性 | 变化频率 | 缓存价值 | 工具示例 |
 |------|--------|---------|---------|---------|
-| **CORE** | 极高 | 几乎不变 | 最高 | `web_fetch_tool` |
-| **COMMON** | 高 | 很少变 | 高 | `bash_code_execute_tool`, `file_read_tool`, `file_write_tool`, `file_edit_tool`, `todo_write`, `web_search_tool`, `request_answer_user_tool` |
-| **EXTENDED** | 中 | 偶尔变 | 中 | `skill_select_tool`, `memory_recall_tool`, 浏览器/MCP 动态工具 |
+| **CORE** | 极高 | 几乎不变 | 最高 | `web_fetch_tool`, `bash_code_execute_tool`, `file_*`, `glob_tool`, `grep_tool` |
+| **COMMON** | 高 | 很少变 | 高 | `memory_*`, `web_search_tool`, `todo_write` |
+| **EXTENDED** | 中 | 偶尔变 | 中 | `skill_select_tool`, `request_answer_user_tool`, 浏览器/MCP 动态工具 |
 
 #### 分层结构示例
 
+API 序列化顺序为 `Tools → System → Messages`（Tools 段内按 CORE → COMMON → EXTENDED 排序）：
+
 ```text
-[System Prompt]           ← 完全稳定，永远缓存
-[Layer 1: CORE 工具定义]   ← 高度稳定 (web_fetch_tool)
-[Layer 2: COMMON 工具定义] ← 相对稳定 (bash/file/planner/web_search/request_answer_user)
-[Layer 3: EXTENDED 工具]   ← 易变区 (skill/memory/browser/MCP 等)
-[对话历史]                 ← 增量增长
+[Layer 1: CORE 工具定义]    ← web_fetch + file/bash + glob/grep
+[Layer 2: COMMON 工具定义]  ← memory×3 + web_search + todo_write
+[Layer 3: EXTENDED 工具]    ← skill/browser/MCP/request_answer 等
+[System Prompt 链]          ← 冻结的 system + user_instructions + memory stable
+[对话历史]                  ← 增量增长
 ```
 
 #### 效果
 
 ```text
-第 1 轮: [System][CORE: web_fetch][COMMON: bash,file_*,planner,web_search,request_answer_user][EXTENDED: skill_select][History 1]
-第 2 轮: [System][CORE: web_fetch][COMMON: bash,file_*,planner,web_search,request_answer_user][EXTENDED: memory_recall][History 1-2]
-                 |<----- 这部分可缓存 ----->|
-
-虽然 EXTENDED 工具变了，但：
-- System Prompt + CORE 工具部分仍然命中缓存
-- 只有 EXTENDED 及之后需要重新计算
+第 1 轮: [CORE: web_fetch,bash,file_*,glob,grep][COMMON: memory_*,web_search][EXTENDED: skill_select][System…][History 1]
+第 2 轮: [CORE: web_fetch,bash,file_*,glob,grep][COMMON: memory_*,web_search][EXTENDED: +browser…][System…][History 1-2]
+         |<─────────────── Tools 前缀中 CORE+COMMON 仍可缓存 ───────────────>|
 ```
+
+虽然 EXTENDED 工具变了，CORE + COMMON 的 Tools 前缀段仍然命中缓存；System 链与 Messages 独立在其后。
 
 ### 4.4 避免 Prompt 顺序陷阱
 

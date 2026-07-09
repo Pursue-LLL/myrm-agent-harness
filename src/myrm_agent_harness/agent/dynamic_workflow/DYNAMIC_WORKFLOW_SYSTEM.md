@@ -54,7 +54,7 @@ Summarization LLM → 用户可读 Markdown
 | 编排 | LLM 生成 Python | 固定并发 runner | manager/builder/executor |
 | 持久化 | WorkflowEventStore | resume_compact | checkpoint |
 
-### PTC Runtime Tools（不计入 LLM 69）
+### PTC Runtime Tools（不计入 LLM 71）
 
 | 名称 | 暴露名 | 职责 | 与 LLM 工具关系 |
 |------|--------|------|----------------|

@@ -1,4 +1,9 @@
-"""Orchestration signal schemas — control plane, not Action Tools."""
+"""Orchestration signal schemas — control plane, not Action Tools.
+
+[POS]
+Re-exports orchestration signal names and schema builders for DR / Verifier
+orchestrators (see signals/_ARCH.md).
+"""
 
 from .catalog import (
     DEEP_RESEARCH_SIGNAL_NAMES,

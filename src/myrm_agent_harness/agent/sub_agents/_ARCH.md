@@ -25,7 +25,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | _manager_control.py | Internal | Control plane mixin for SubagentManager (`cancel_child`, `steer_child`, `list_children`, `wait_children`, `drain_notifications`, `run_alternatives`, `run_chain`, `run_council`, `run_with_verification`). | ✅ |
 | session_tree.py | Core | Merge gateway + ACTIVE_SUBAGENTS rows; match REST uuid against `chat_` / `chat_chat_` session ids; registry cancel-all helper. | ✅ |
 | notifications.py | Core | Push-based notification formatting for subagent completion events and active subagent context injection. | ✅ |
-| SUBAGENT_NOTIFICATION_STRATEGY.md | L2 | Subagent push notification strategy and context injection design | — |
+| SUBAGENT_NOTIFICATION_STRATEGY.md | L2 | Cache-safe subagent notification delivery (SSE + wakeup user message) | — |
 | orchestrator.py | Core | Subagent composition patterns — chain, batch, alternatives, council, and DAG execution (with Declarative Dependency Context Filtering, Auto-Vaulting, Swarm Fission yield-resume, Optional Path Guard via `allow_failure` on PlanStep, `run_alternatives` for parallel multi-solution generation with deferred workspace merge, and `run_council` for multi-expert cross-review). Delegates verification to `_orchestrator_verification` and council to `_orchestrator_council`. | ✅ |
 | _orchestrator_council.py | Internal | Council orchestration — multi-expert parallel analysis with cross-review debate and chair synthesis, COUNCIL_PHASE event emission. | ✅ |
 | _orchestrator_verification.py | Internal | Adversarial verification retry loop (`run_with_verification`). Delegates single-round verifier spawn to `_verifier_round.py`. | ✅ |

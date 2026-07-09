@@ -1,4 +1,8 @@
-"""StableDeferredIndex — sorted deferred tool names for frozen system prompt."""
+"""StableDeferredIndex — sorted deferred tool names for frozen system prompt.
+
+[POS]
+Builds ``<available-deferred-tools>`` stable system prompt section (sorted names only).
+"""
 
 from __future__ import annotations
 

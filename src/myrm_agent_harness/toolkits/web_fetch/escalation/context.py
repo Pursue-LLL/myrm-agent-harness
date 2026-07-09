@@ -1,4 +1,8 @@
-"""Request-scoped escalation bindings (server sets per agent run; harness reads)."""
+"""Request-scoped escalation bindings (server sets per agent run; harness reads).
+
+[POS]
+ContextVar bindings for optional L4 fetch escalation providers and browser launch mode.
+"""
 
 from __future__ import annotations
 
