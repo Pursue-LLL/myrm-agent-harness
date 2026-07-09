@@ -96,15 +96,17 @@ sorted_entries = sorted(
 
 排序规则：先按层级（CORE → COMMON → EXTENDED）；COMMON 层内按工具组优先级（memory → web_search → 其余），同组内按名称字母序；EXTENDED 层按名称字母序。
 
-**缓存效果**：
+**缓存效果**（API 顺序：`Tools → System → Messages`）：
 
 ```
-第 1 轮: [CORE: web_fetch,bash,file_*,glob,grep][COMMON: memory_*,web_search][EXTENDED: skill_*…][Messages...]
-第 2 轮: [CORE: web_fetch,bash,file_*,glob,grep][COMMON: memory_*,web_search][EXTENDED: +browser…][Messages...]
-         |<────────────────────────────────── 这部分始终缓存命中 ──────────────────────────────────>|
+第 1 轮: [CORE][COMMON][EXT: skill_select][System A][Messages…]
+第 2 轮: [CORE][COMMON][EXT: skill_select+browser][System A][Messages…]
+          |← CORE+COMMON Tools 仍命中 →| |browser 新算| |System A 重算|
 ```
 
-即使 EXTENDED 层工具变化，CORE + COMMON 的缓存仍然有效。
+**Tools 变化对 System 的影响**：Tools 位于 System **之前**，前缀为一条连续 token 链。EXTENDED 尾部增删/改 schema 时，变化点之后的 **System Prompt 无法复用旧 KV cache**（必须重算），即使 System 文本本身未改。ToolLayer 的价值是保护 **Tools 段内部**不变的前缀（CORE+COMMON），而非让 System 在 Tools 变化时仍命中。
+
+仅当 **Tools 段字节级完全一致** 且 System 链未变时，Tools + System 前缀才可同时命中；仅 Messages 追加时最常见。
 
 ### 2.1.1 延迟工具（UnifiedCapabilityDefer）
 
@@ -118,8 +120,9 @@ sorted_entries = sorted(
 | StableDeferredIndex | `defer/stable_index.py` + `middlewares/deferred_index_middleware.py` | `<available-deferred-tools>` 名字清单注入冻结 system（一次/thread） |
 | Invoke proxy | `meta_tools/defer/invoke_deferred_tool.py` | Turn1 固定 ~150tok schema；执行 defer 工具 |
 | ToolNode resolve | `middlewares/deferred_tool_middleware.py` | 动态解析 DISCOVERABLE，不 mutate `request.tools` |
+| Skill attenuation | `middlewares/_skill_tool_choice.py` + `deferred_tool_middleware.py` | 技能加载后通过 `tool_choice.allowed_tools` 收窄可调用工具；**不**修改 bind_tools 前缀；执行层 `check_trust_attenuation` 兜底 |
 
-**缓存效果**：Tools 前缀在长对话中保持稳定；discover 网关 description 无动态工具名嵌入。
+**缓存效果**：Tools 前缀在长对话中保持稳定；discover 网关 description 无动态工具名嵌入；skill 加载后仍保持 Tools+System 前缀命中（`tool_choice` 变化仅影响 Messages 段，见 CONTEXT_ENGINEERING §6.2）。
 
 ### 2.2 System Prompt 冻结 + 时间戳注入到 HumanMessage
 

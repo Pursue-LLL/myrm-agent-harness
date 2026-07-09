@@ -609,11 +609,6 @@ async def wait_children(
     }
 
 
-# ---------------------------------------------------------------------------
-# Verification orchestration — Worker → Verifier → retry loop
-# ---------------------------------------------------------------------------
-
-
 __all__ = [
     "VerificationVerdict",
     "execute_dag_plan",

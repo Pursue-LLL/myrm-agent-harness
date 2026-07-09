@@ -26,10 +26,12 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `context_pipeline_middleware.py` | Core | `create_context_pipeline_middleware` factory. | ✅ |
 | `dangling_tool_call_middleware.py` | Core | Repair dangling tool_calls for strict providers. | ✅ |
 | `deferred_index_middleware.py` | Core | Inject `<available-deferred-tools>` stable system index once per thread. | ✅ |
-| `deferred_tool_middleware.py` | Core | ToolNode resolution for DISCOVERABLE tools; schema-filter via `attenuate_tools` when skills loaded. Does not mutate `request.tools`. | ✅ |
+| `_skill_tool_choice.py` | Internal | Build OpenAI ``allowed_tools`` tool_choice for skill attenuation (cache-safe). | ✅ |
+| `deferred_tool_middleware.py` | Core | ToolNode resolution for DISCOVERABLE tools; skill attenuation via ``tool_choice.allowed_tools``. Does not mutate `request.tools`. | ✅ |
 | `debug_logger_middleware.py` | Core | Full message list debug logging. | ✅ |
 | `filesystem_search_middleware.py` | Core | Inject glob/grep workspace search tools. | ✅ |
 | `memory_context_middleware.py` | Core | `<user_memory_context>` + scope boundary + untrusted data wrapping. | ✅ |
+| `memory_context_format.py` | Core | Formatting helpers for memory context injection | ✅ |
 | `progress_middleware.py` | Core | Active todo focus injection into last HumanMessage. | ✅ |
 | `rate_limit.py` | Core | Proactive provider 429 throttling. | ✅ |
 | `replan_middleware.py` | Core | Dynamic replan loop on tool errors. | ✅ |

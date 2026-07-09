@@ -11,6 +11,7 @@
 | `ARCHITECTURE.md` | L1：整体架构、模块导航、文档索引 |
 | `FRAMEWORK_DESIGN_PRINCIPLES.md` | 框架设计原则与边界约束 |
 | `pyproject.toml` / `uv.lock` | 包元数据与依赖锁 |
+| `Dockerfile` | Agent-in-Sandbox 镜像构建（多阶段；需 control-plane build-context） |
 | `LICENSE` | Proprietary 许可 |
 | `README.md` | PyPI / GitHub 入口（安装与快速开始） |
 | `_ARCH.md` | 本文件：子目录职责表 |

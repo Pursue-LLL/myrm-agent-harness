@@ -34,6 +34,7 @@ dependencies = [
   "PyYAML>=6.0.3",    # YAML 配置解析
   # --- HTTP 与异步 I/O ---
   "httpx>=0.28.1",        # 异步 HTTP 客户端（SOCKS 由 server/渠道层按需安装）
+  "aiohttp>=3.14.1",      # llms/image/generator.py + wiki/wiki_agent_tools.py
   "aiofiles>=25.1.0",     # 异步文件 I/O
   # --- 图片处理 (7 模块跨 4 层使用) ---
   "Pillow>=12.3.0",       # 图片读写/resize/压缩 (image_reader + image_compressor + browser/diff + file_parsers + computer_use)

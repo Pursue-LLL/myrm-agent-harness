@@ -8,7 +8,11 @@ Layered web crawl engine with L1 HTTP / L2 Browser / L3 Stealth fallback, adapti
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Entry point. Re-exports CrawlEngine, result types, and global instance. | ✅ |
-| engine.py | Core | CrawlEngine — tiered fetcher pool with AdaptiveRouter, caching, and concurrent crawl_many. | ✅ |
+| engine.py | Core | CrawlEngine — tiered fetcher pool entry (mixins: cache / fetch / escalation) | ✅ |
+| engine_types.py | Core | CachedDocument, AccessStats, BackgroundTask, result aliases | ✅ |
+| engine_cache_mixin.py | Core | Cache, coalescing, SWR background revalidation mixin | ✅ |
+| engine_fetch_mixin.py | Core | L1/L2/L3 fetch, degradation, router feedback mixin | ✅ |
+| engine_escalation_mixin.py | Core | L4 remote escalation + bilibili cookie loader mixin | ✅ |
 | pipeline.py | Core | ContentPipeline — HTML to clean Markdown conversion. | ✅ |
 | web_fetch_agent_tools.py | Core | LangChain @tool factory. Routes fetch_full_content / fetch_and_extract / deep_crawl / check_crawl_status / cancel_crawl. | ✅ |
 | deep_crawl.py | Core | DeepCrawlPipeline — recursive site crawl via sitemap/link discovery, robots.txt compliance; sitemap fetch via `secure_get`. | ✅ |

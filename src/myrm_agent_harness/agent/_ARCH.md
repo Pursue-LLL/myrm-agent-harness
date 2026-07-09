@@ -68,7 +68,9 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 |------|------|-------------|-------|
 | `__init__.py` | Package | Agent core module — public API. | — |
 | `base_agent.py` | Core | Base Agent — streaming, token tracking, artifacts. | ✅ |
+| `base_agent_modes_mixin.py` | Core | Deep research + consensus entrypoints mixin for BaseAgent | ✅ |
 | `skill_agent.py` | Core | SkillAgent — skills, hooks, session lifecycle. | ✅ |
+| `skill_agent_preload_mixin.py` | Core | `[use skill]` explicit SOP preload mixin for SkillAgent | ✅ |
 | `_skill_agent_context.py` | Internal | ContextVar, background tasks, SkillAgentContextMixin (_prepare_context). | ✅ |
 | `_skill_agent_review.py` | Internal | Session-end review mixin. | ✅ |
 | `_skill_agent_tools.py` | Internal | Meta-tools / todo_write / wiki assembly mixin. | ✅ |

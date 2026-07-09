@@ -11,9 +11,10 @@ Detailed design: [DEEP_RESEARCH_SYSTEM.md](DEEP_RESEARCH_SYSTEM.md)
 |------|------|-------------|-------|
 | __init__.py | Package | Public API for the Deep Research system. Import everything from here. | ✅ |
 | config.py | Config | Configuration and type definitions for the Deep Research system. | ✅ |
-| helpers.py | Core | Stateless helper functions extracted from orchestrator.py to keep | ✅ |
-| orchestrator.py | Core | Multi-phase orchestrator for Deep Research; drives the main event loop, planning, and parallel research. Inherits clarification/report phases from `_orchestrator_phases`. | ✅ |
-| _orchestrator_phases.py | Internal | Phase implementation mixin — clarification, research agent dispatch, and report generation. | ✅ |
+| helpers.py | Core | Stateless helper functions for orchestrator phases and cost estimation | ✅ |
+| orchestrator.py | Core | Multi-phase orchestrator event loop; composes plan/research + phase mixins | ✅ |
+| _orchestrator_phases.py | Internal | Clarification, research dispatch, and report generation mixin | ✅ |
+| _orchestrator_plan_research.py | Internal | Plan + research-loop phase mixin (`_phase_plan`, `_phase_research`) | ✅ |
 | prompts.py | Core | All prompt templates for the Deep Research system. | ✅ |
 
 Orchestration signal schemas: `../orchestration/signals/deep_research.py` (not Action Tools).

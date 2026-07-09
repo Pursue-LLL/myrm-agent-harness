@@ -35,6 +35,7 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from ._internals.langgraph_guard import (
     apply_langgraph_tool_args_guard as _apply_langgraph_tool_args_guard,
 )
+from .base_agent_modes_mixin import BaseAgentModesMixin
 from .streaming.channel_output_hints import resolve_channel_output_hint
 from .streaming.message_builder import build_messages
 from .streaming.model_discipline import resolve_escalation_contract, resolve_execution_discipline
@@ -69,7 +70,7 @@ logger = get_agent_logger(__name__)
 _apply_langgraph_tool_args_guard()
 
 
-class BaseAgent:
+class BaseAgent(BaseAgentModesMixin):
     """Lightweight agent base class with streaming events, token tracking, and artifacts.
 
     Template-method hooks for subclass customization:
@@ -546,104 +547,6 @@ class BaseAgent:
                 )
             except Exception as e:
                 logger.error(f"Failed to emit ASYNC_WAKEUP: {e}")
-
-    async def run_deep_research(
-        self,
-        query: str,
-        chat_history: ChatHistoryReq | list["BaseMessage"] | None = None,
-        message_id: str | None = None,
-        context: dict[str, Any] | None = None,
-        cancel_token: "CancellationToken | None" = None,
-        config: "DeepResearchConfig | None" = None,
-        on_clarify: "ClarifyCallback | None" = None,
-        on_plan_ready: "PlanCallback | None" = None,
-        on_cycle_complete: "CycleCallback | None" = None,
-    ) -> AsyncGenerator[dict[str, object]]:
-        """Run Deep Research mode — multi-phase orchestrated research.
-
-        Delegates to DeepResearchOrchestrator, sharing this agent's LLM and tools.
-        The orchestrator manages its own lifecycle (clarify → plan → research → report)
-        independently from the normal LangGraph agent loop.
-
-        Args:
-            on_clarify: Async callback for clarification (``AskQuestionInput`` → answer string/list/dict | None).
-            on_plan_ready: Async callback to review/modify the research plan (str → str | None).
-            on_cycle_complete: Async callback after each research cycle (cycle, results → PhaseGuidance | None).
-        """
-        from myrm_agent_harness.agent.deep_research import (
-            DeepResearchConfig,
-            DeepResearchOrchestrator,
-        )
-
-        await self._ensure_initialized()
-        message_id = message_id or str(uuid4())
-
-        merged_context = await self._setup_workspace(context, message_id)
-
-        from langchain_core.messages import BaseMessage as LCBaseMessage
-
-        lc_history: list[LCBaseMessage] | None = None
-        if chat_history:
-            lc_history = build_messages("", chat_history)[:-1] if chat_history else None
-
-        orchestrator = DeepResearchOrchestrator(
-            llm=self.llm,
-            config=config or DeepResearchConfig(),
-            parent_tools=self._cached_tools if self._cached_tools else self.user_tools,
-            cancel_token=cancel_token,
-            context=merged_context,
-            executor=self.executor,
-            on_clarify=on_clarify,
-            on_plan_ready=on_plan_ready,
-            on_cycle_complete=on_cycle_complete,
-        )
-
-        async for event in orchestrator.run(
-            query=query,
-            chat_history=lc_history,
-            message_id=message_id,
-            context=merged_context,
-        ):
-            yield event
-
-    async def run_consensus(
-        self,
-        query: str,
-        reference_llms: list[BaseChatModel] | None = None,
-        aggregator_llm: BaseChatModel | None = None,
-        config: "ConsensusConfig | None" = None,
-        cancel_token: "CancellationToken | None" = None,
-    ) -> "ConsensusResult":
-        """Run Mixture-of-Agents consensus inference.
-
-        Queries multiple reference LLMs in parallel, then synthesises all
-        responses through an aggregator LLM.  Falls back to a single-model
-        answer when consensus requirements are not met.
-
-        When *reference_llms* is ``None``, the main ``self.llm`` is used as a
-        single reference (effectively a no-op pass-through).  The business
-        layer is expected to supply real reference models.
-
-        Args:
-            query: the user question.
-            reference_llms: LLM instances to query in parallel.
-            aggregator_llm: LLM used to synthesise all answers.
-            config: optional ``ConsensusConfig`` override.
-            cancel_token: optional cancellation token to abort early.
-        """
-        from myrm_agent_harness.toolkits.llms.consensus import (
-            ConsensusConfig,
-            ConsensusEngine,
-        )
-
-        refs = reference_llms or [self.llm]
-        agg = aggregator_llm or self.llm
-        engine = ConsensusEngine(
-            reference_llms=refs,
-            aggregator_llm=agg,
-            config=config or ConsensusConfig(),
-        )
-        return await engine.run(query, system_prompt=self.system_prompt, cancel_token=cancel_token)
 
     async def get_checkpoint_state(self, thread_id: str) -> dict[str, object]:
         """Extract complete execution state for checkpoint save.

@@ -377,7 +377,7 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
         self,
         tools: Sequence[dict[str, Any] | type | BaseTool | Any],
         *,
-        tool_choice: str | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
         parallel_tool_calls: bool | None = None,
         **kwargs: Any,
     ) -> Runnable[LanguageModelInput, AIMessage]:
@@ -408,6 +408,8 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
         elif isinstance(tool_choice, str):
             # Specific tool name requested
             tool_choice_param = {"type": "function", "function": {"name": tool_choice}}
+        elif isinstance(tool_choice, dict):
+            tool_choice_param = tool_choice
 
         bind_kwargs: dict[str, Any] = {"tools": openai_tools}
         if not openai_tools:

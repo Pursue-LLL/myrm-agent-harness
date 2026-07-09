@@ -29,6 +29,7 @@ LAZY_DEPS: dict[str, tuple[str, ...]] = {
         "aiohttp-socks>=0.11.0",
     ),
     "platform.matrix-e2ee": ("mautrix[encryption]>=0.21.0",),
+    "platform.wechat-silk": ("pilk>=0.2.4",),
 }
 
 _SAFE_SPEC = re.compile(

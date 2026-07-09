@@ -148,10 +148,98 @@ async def test_awrap_tool_call_falls_through_when_tool_missing(
 
 
 @pytest.mark.asyncio
-async def test_deferred_tool_middleware_schema_filter_with_loaded_skills(
+async def test_awrap_tool_call_resolves_from_active_resolved_tools(
     registry: ToolRegistry,
 ) -> None:
-    """Loaded skills with allowed_tools should filter request.tools before model call."""
+    middleware = DeferredToolMiddleware(registry)
+    request = MagicMock()
+    request.tool = None
+    request.tool_call = {"name": "dummy_tool"}
+    request.override = MagicMock(side_effect=lambda **kwargs: MagicMock(tool=kwargs.get("tool")))
+
+    captured: list[object] = []
+
+    async def handler(req: object) -> str:
+        captured.append(req)
+        return "from_session"
+
+    with patch(
+        "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
+        return_value=[DummyTool()],
+    ), patch(
+        "myrm_agent_harness.agent.middlewares._session_context.get_active_tool_registry",
+        return_value=None,
+    ):
+        result = await middleware.awrap_tool_call(request, handler)
+
+    assert result == "from_session"
+    assert captured[0].tool.name == "dummy_tool"
+
+
+@pytest.mark.asyncio
+async def test_awrap_tool_call_skips_non_string_tool_names(
+    registry: ToolRegistry,
+) -> None:
+    middleware = DeferredToolMiddleware(registry)
+    request = MagicMock()
+    request.tool = None
+    request.tool_call = {"name": "dummy_tool"}
+    request.override = MagicMock(side_effect=lambda **kwargs: MagicMock(tool=kwargs.get("tool")))
+
+    class BadNameTool:
+        name = 123
+
+    async def handler(req: object) -> str:
+        return "ok"
+
+    with patch(
+        "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
+        return_value=[BadNameTool(), DummyTool()],
+    ), patch(
+        "myrm_agent_harness.agent.middlewares._session_context.get_active_tool_registry",
+        return_value=None,
+    ):
+        result = await middleware.awrap_tool_call(request, handler)
+
+    assert result == "ok"
+
+
+@pytest.mark.asyncio
+async def test_awrap_tool_call_resolves_discoverable_only_pool(registry: ToolRegistry) -> None:
+    middleware = DeferredToolMiddleware(registry)
+    request = MagicMock()
+    request.tool = None
+    request.tool_call = {"name": "dummy_tool"}
+    request.override = MagicMock(side_effect=lambda **kwargs: MagicMock(tool=kwargs.get("tool")))
+
+    captured: list[object] = []
+
+    async def handler(req: object) -> str:
+        captured.append(req)
+        return "discoverable"
+
+    with patch.object(registry, "resolve", return_value=[]), patch.object(
+        registry, "get_runtime_tools", return_value=[]
+    ), patch(
+        "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
+        return_value=[],
+    ), patch(
+        "myrm_agent_harness.agent.middlewares._session_context.get_active_tool_registry",
+        return_value=None,
+    ):
+        result = await middleware.awrap_tool_call(request, handler)
+
+    assert result == "discoverable"
+    assert captured[0].tool.name == "dummy_tool"
+
+
+@pytest.mark.asyncio
+async def test_deferred_tool_middleware_allowed_tools_with_loaded_skills(
+    registry: ToolRegistry,
+) -> None:
+    """Loaded skills restrict via tool_choice.allowed_tools; request.tools stays intact."""
+    from langchain.agents.middleware import ModelRequest
+
     from myrm_agent_harness.agent._skill_agent_context import reset_loaded_skills, set_loaded_skills
     from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillTrust
 
@@ -170,9 +258,12 @@ async def test_deferred_tool_middleware_schema_filter_with_loaded_skills(
             return "ok"
 
     middleware = DeferredToolMiddleware(registry)
-    request = MagicMock()
-    request.messages = []
-    request.tools = [AllowedTool(), BlockedTool(), DummyTool()]
+    request = ModelRequest(
+        model=MagicMock(),
+        messages=[],
+        tools=[AllowedTool(), BlockedTool(), DummyTool()],
+    )
+    original_tool_names = [tool.name for tool in request.tools or []]
 
     reset_loaded_skills()
     set_loaded_skills(
@@ -187,16 +278,24 @@ async def test_deferred_tool_middleware_schema_filter_with_loaded_skills(
         ]
     )
 
+    captured_request: ModelRequest | None = None
+
     try:
-        async def next_call(req: object) -> str:
+        async def next_call(req: ModelRequest) -> str:
+            nonlocal captured_request
+            captured_request = req
             return "response"
 
         response = await middleware.awrap_model_call(request, next_call)
 
         assert response == "response"
-        remaining = {t.name for t in request.tools}
-        assert "file_write_tool" in remaining
-        assert "bash_code_execute_tool" not in remaining
-        assert "dummy_tool" not in remaining
+        assert [tool.name for tool in request.tools or []] == original_tool_names
+        assert captured_request is not None
+        tool_choice = captured_request.tool_choice
+        assert isinstance(tool_choice, dict)
+        assert tool_choice["type"] == "allowed_tools"
+        assert tool_choice["mode"] == "auto"
+        allowed = {entry["name"] for entry in tool_choice["tools"]}
+        assert allowed == {"file_write_tool"}
     finally:
         reset_loaded_skills()

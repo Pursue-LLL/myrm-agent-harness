@@ -35,12 +35,13 @@ DeepResearchOrchestrator (orchestrator.py)
 
 | 文件 | 职责 |
 |------|------|
-| `orchestrator.py` | 主事件循环、规划、并行研究调度 |
+| `orchestrator.py` | 主事件循环与阶段编排入口 |
 | `_orchestrator_phases.py` | 澄清 / research dispatch / 报告生成 mixin |
+| `_orchestrator_plan_research.py` | 规划 + 研究循环 mixin（`_phase_plan` / `_phase_research`） |
 | `config.py` | 配置与类型定义 |
 | `prompts.py` | 全阶段 prompt 模板 |
 | `../orchestration/signals/deep_research.py` | Orchestrator 用 3 个编排信号 schema |
-| `helpers.py` | 无状态辅助函数（从 orchestrator 抽出） |
+| `helpers.py` | 无状态辅助函数 |
 
 ---
 
@@ -69,7 +70,7 @@ Orchestrator 支持 4 个可选回调，由业务层注入：
 
 ## 扩展指南
 
-1. 新阶段 → `_orchestrator_phases.py` mixin 方法 + prompts
+1. 新阶段 → 对应 phase mixin（`_orchestrator_phases.py` 或 `_orchestrator_plan_research.py`）+ prompts
 2. 公开 API 仅通过 `deep_research/__init__.py` 导出
 3. 更新 [deep_research/_ARCH.md](_ARCH.md)
 

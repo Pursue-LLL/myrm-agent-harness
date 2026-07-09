@@ -592,6 +592,9 @@ python3.13 -m venv .venv
 source .venv/bin/activate
 uv sync --all-extras
 
+# 源码开发请用 `.venv/bin/python` / `pytest`（勿裸 `uv run`：默认 extras 含 compiled-core，
+# 本地未发布平台 wheel 时 `uv run` 会解析失败）
+
 # ⚠️ 重要：安装 pre-commit（自动化边界检测）
 pip install pre-commit
 pre-commit install

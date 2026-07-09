@@ -72,7 +72,7 @@
 | `subagent_limit_middleware.py` | 单轮 delegate 上限 |
 | `dangling_tool_call_middleware.py` | 修复 strict provider 400 |
 | `deferred_index_middleware.py` | stable `<available-deferred-tools>` injection |
-| `deferred_tool_middleware.py` | DISCOVERABLE ToolNode resolve (no bind_tools mutation) |
+| `deferred_tool_middleware.py` | DISCOVERABLE ToolNode resolve; skill attenuation via `tool_choice.allowed_tools` (no `request.tools` mutation) |
 | `filesystem_search_middleware.py` | 工作区搜索工具注入 |
 | `memory_context_middleware.py` | 记忆上下文注入 |
 | `progress_middleware.py` | 活跃 todo 焦点注入（末位 HumanMessage） |

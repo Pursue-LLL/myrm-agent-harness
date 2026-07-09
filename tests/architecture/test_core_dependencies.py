@@ -99,10 +99,10 @@ def test_optional_only_packages_live_in_expected_extras_or_dev() -> None:
 
 @pytest.mark.architecture
 def test_core_dependency_count_is_stable() -> None:
-    """Lock core footprint: 24 runtime packages in [project].dependencies."""
+    """Lock core footprint: 25 runtime packages in [project].dependencies."""
     data = _load_pyproject()
     core = _core_dependency_names(data)
-    assert len(core) == 24
+    assert len(core) == 25
 
 
 @pytest.mark.architecture

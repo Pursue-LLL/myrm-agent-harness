@@ -29,6 +29,7 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 | types.py | 核心 | Goal, GoalBudget, GoalStatus(含 QUEUED), ContinuationDecision(含 convergence/loop_restart), GoalExecutionSummary 等核心数据类型（含 priority, auto_approve, constraints, no_progress_streak, loop_restarts 字段） | ✅ |
 | protocols.py | 核心 | GoalProvider protocol — 含 account_usage(turn_delta), resume_goal, dequeue_next, get_queued_goals, create_goal(constraints), update_objective, record_progress, record_loop_restart, record_acceptance_results | ✅ |
 | manager.py | 核心 | GoalManager 状态机 — 4 维预算检查、resume_goal、create_goal(自动入队)、dequeue_next、cancel_queued_goal、reorder_queue、update_constraints、update_objective、record_progress、record_loop_restart、record_acceptance_results、Prometheus metrics 记录 (goal_metrics) | ✅ |
+| manager_queue_mixin.py | 核心 | Subgoal/queue/stash 操作 mixin | ✅ |
 | steering_prompts.py | 核心 | Goal 运行时 steering prompt 模板 — build_objective_updated_steering_message() 构建 objective 变更时注入的引导消息 | ✅ |
 | storage.py | 核心 | SQLite 持久化 — 序列化/反序列化含 turns_used / max_turns / priority / auto_approve / constraints / no_progress_streak / loop_restarts / convergence_window / loop_on_pause / max_loop_restarts + 队列索引 | ✅ |
 | continuation.py | 核心 | guard chain → 返回 ContinuationDecision（含 convergence/loop_restart verdict）。支持收敛检测、循环重启、预算耗尽 Wrap-up Turn、验收条件逐条验证（调用 record_acceptance_results 持久化结果） | ✅ |

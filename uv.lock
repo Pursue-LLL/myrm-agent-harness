@@ -1842,6 +1842,7 @@ version = "0.1.0rc5"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles", marker = "python_full_version < '3.14'" },
+    { name = "aiohttp", marker = "python_full_version < '3.14'" },
     { name = "aiosqlite", marker = "python_full_version < '3.14'" },
     { name = "beautifulsoup4", marker = "python_full_version < '3.14'" },
     { name = "croniter", marker = "python_full_version < '3.14'" },

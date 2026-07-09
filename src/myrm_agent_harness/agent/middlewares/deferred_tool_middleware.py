@@ -2,15 +2,19 @@
 
 [INPUT]
 - agent.tool_management.registry::ToolRegistry (POS: Tool registry)
+- agent.middlewares._skill_tool_choice (POS: Skill attenuation request metadata builder)
 - langchain.agents.middleware::AgentMiddleware (POS: Middleware base)
 - langgraph.prebuilt.tool_node::ToolCallRequest (POS: Tool execution request for interceptors)
 
 [OUTPUT]
 - DeferredToolMiddleware: supplies DISCOVERABLE tools at ToolNode execution via awrap_tool_call;
-  skill schema attenuation on model requests.
+  skill attenuation via ``tool_choice.allowed_tools`` on model requests.
 
 [POS]
 Middleware for deferred native tools. Does not mutate ``request.tools`` (prefix-cache safe).
+Skill attenuation uses per-turn ``tool_choice`` (OpenAI ``allowed_tools`` mode) so the
+bound tools prefix stays cache-stable. Execution-layer enforcement remains in
+``check_trust_attenuation`` via tool_interceptor.
 ``invoke_deferred_tool`` is the primary activation path; awrap_tool_call still resolves
 direct deferred tool names dynamically for ToolNode.
 """
@@ -54,26 +58,23 @@ class DeferredToolMiddleware(AgentMiddleware[Any, Any, Any]):
         handler: Callable[[ModelRequest[Any]], Awaitable[ModelResponse[Any]]],
     ) -> ModelResponse[Any]:
         from myrm_agent_harness.agent._skill_agent_context import get_loaded_skills
+        from myrm_agent_harness.agent.middlewares._skill_tool_choice import (
+            build_allowed_tools_tool_choice,
+            extract_bound_tool_names,
+        )
         from myrm_agent_harness.agent.skills.runtime.attenuator import attenuate_tools
 
         loaded_skills = get_loaded_skills()
         if loaded_skills and request.tools:
-            tool_names: list[str] = []
-            for tool in request.tools:
-                name = tool.name if hasattr(tool, "name") else tool.get("name")
-                if name:
-                    tool_names.append(str(name))
-
+            tool_names = extract_bound_tool_names(list(request.tools))
             attenuation = attenuate_tools(tool_names, loaded_skills)
-            allowed_names = frozenset(attenuation.tool_names)
             if attenuation.removed_tools:
-                request.tools = [
-                    tool
-                    for tool in request.tools
-                    if (tool.name if hasattr(tool, "name") else tool.get("name")) in allowed_names
-                ]
+                allowed_names = frozenset(attenuation.tool_names)
+                request = request.override(
+                    tool_choice=build_allowed_tools_tool_choice(allowed_names),
+                )
                 logger.info(
-                    " DeferredToolMiddleware schema filter removed %d tool(s): %s",
+                    " DeferredToolMiddleware allowed_tools restricted %d tool(s): %s",
                     len(attenuation.removed_tools),
                     attenuation.removed_tools,
                 )
