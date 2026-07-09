@@ -74,6 +74,14 @@ def test_core_ip_manifest_matches_yaml() -> None:
     assert yaml_names == CORE_IP_IMPORTS
 
 
+def _write_minimal_wheel(zf: zipfile.ZipFile, *, entries: dict[str, str]) -> None:
+    """Write wheel payload plus a PEP 427 RECORD stub required by release.py."""
+    record_path = "myrm_agent_harness-0.1.0.dist-info/RECORD"
+    for path, content in entries.items():
+        zf.writestr(path, content)
+    zf.writestr(record_path, "")
+
+
 @pytest.mark.architecture
 def test_strip_manifest_sources_from_wheel(tmp_path: Path) -> None:
     manifest_paths = manifest_source_paths()
@@ -81,9 +89,14 @@ def test_strip_manifest_sources_from_wheel(tmp_path: Path) -> None:
     release_path = tmp_path / "out.whl"
 
     with zipfile.ZipFile(wheel_path, "w") as zf:
-        zf.writestr("myrm_agent_harness/api/__init__.py", "# public")
-        zf.writestr(manifest_paths[0], "# secret")
-        zf.writestr("myrm_agent_harness/agent/other.py", "# ok")
+        _write_minimal_wheel(
+            zf,
+            entries={
+                "myrm_agent_harness/api/__init__.py": "# public",
+                manifest_paths[0]: "# secret",
+                "myrm_agent_harness/agent/other.py": "# ok",
+            },
+        )
 
     result = strip_manifest_sources_from_wheel(wheel_path, release_path)
     assert result == release_path
@@ -101,8 +114,13 @@ def test_strip_manifest_in_place_preserves_pep427_name(tmp_path: Path) -> None:
     wheel_path = tmp_path / "myrm_agent_harness-0.1.0-py3-none-any.whl"
 
     with zipfile.ZipFile(wheel_path, "w") as zf:
-        zf.writestr("myrm_agent_harness/api/__init__.py", "# public")
-        zf.writestr(manifest_paths[0], "# secret")
+        _write_minimal_wheel(
+            zf,
+            entries={
+                "myrm_agent_harness/api/__init__.py": "# public",
+                manifest_paths[0]: "# secret",
+            },
+        )
 
     result = strip_manifest_sources_from_wheel(wheel_path, in_place=True)
     assert result.name == "myrm_agent_harness-0.1.0-py3-none-any.whl"

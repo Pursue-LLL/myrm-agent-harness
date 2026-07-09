@@ -8,6 +8,7 @@ Message delivery queue. Disk-persistent with automatic retry on failure and pend
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Message delivery queue. Disk-persistent with automatic retry on failure and pending delivery recover | ✅ |
+| deduplication.py | Core | `MessageDeduplicator` — content-hash LRU window for idempotent delivery | ✅ |
 | dead_letter.py | Core | Dead letter queue. Failed messages retry with backoff; invokes `on_permanent_failure` when max retries exceeded; optional `notification_ledger` for persistent notify dedupe; `mark_permanent_failure_notified` dedupes sync-path callbacks. | ✅ |
 | `notification_ledger.py` | Core | `PermanentFailureNotificationLedger` protocol + in-memory test double | ✅ |
 | file_lock.py | Core | Delivery module file lock wrapper. Prevents duplicate processing during concurrent multi-worker exec | ✅ |

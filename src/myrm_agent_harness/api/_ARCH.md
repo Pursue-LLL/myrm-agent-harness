@@ -22,6 +22,7 @@ Stable public import surface for external consumers (`myrm-agent-server`, third-
 | protocols.py | Core | Extension-point Protocol definitions | ✅ |
 | hooks.py | Core | Session / skill-agent / memory / bash integration hooks (incl. task intent) | ✅ |
 | skills.py | Core | Skill frontmatter parse and metadata builders | ✅ |
+| subagents.py | Core | `build_parent_delegatable_toolkit` — public subagent delegation helper for server wiring | ✅ |
 
 ## SDK convenience (non-stable)
 

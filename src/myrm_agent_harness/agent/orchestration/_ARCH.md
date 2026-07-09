@@ -13,11 +13,15 @@ PTC runtime tools (`spawn_subagent`, `notify`) live in [../dynamic_workflow/_ARC
 
 Action Tools SSOT: [../tool_management/_ARCH.md](../tool_management/_ARCH.md)
 
+## File Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Core | Public re-exports: `ORCHESTRATION_SIGNAL_NAMES`, `RUNTIME_HOOK_NAMES`, `is_runtime_hook` | ✅ |
+| hooks.py | Core | `RUNTIME_HOOK_NAMES` SSOT; `is_runtime_hook` for CompletionGuard | ✅ |
+
 ## Submodule Index
 
 | Path | Description |
 |------|-------------|
-| `signals/catalog.py` | Signal name SSOT (`ORCHESTRATION_SIGNAL_NAMES`) |
-| `signals/deep_research.py` | DR dispatch/think/finalize schemas |
-| `signals/verifier.py` | Verifier `submit_verdict` session factory |
-| `hooks.py` | `RUNTIME_HOOK_NAMES` SSOT |
+| `signals/` | Orchestration signal schemas · [signals/_ARCH.md](signals/_ARCH.md) |

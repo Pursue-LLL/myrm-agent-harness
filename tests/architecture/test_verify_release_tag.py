@@ -20,7 +20,11 @@ def test_tag_gate_skips_non_tag_ref(monkeypatch) -> None:
 
 
 def test_tag_gate_passes_when_versions_match(monkeypatch) -> None:
-    monkeypatch.setenv("GITHUB_REF", "refs/tags/v0.1.0rc5")
+    import tomllib
+
+    pyproject = tomllib.loads((_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    version = pyproject["project"]["version"]
+    monkeypatch.setenv("GITHUB_REF", f"refs/tags/v{version}")
     assert main() == 0
 
 
