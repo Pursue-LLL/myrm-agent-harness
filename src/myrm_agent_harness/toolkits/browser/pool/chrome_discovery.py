@@ -158,14 +158,26 @@ def probe_cdp_endpoint(endpoint: str) -> bool:
     """Return True when a CDP endpoint is likely attachable.
 
     HTTP endpoints require /json/version (full remote-debugging API).
-    WebSocket endpoints (inspect-only mode) require an open local TCP port.
+    WebSocket endpoints (inspect-only mode) require TCP plus DevToolsActivePort path match.
     """
     port = _parse_local_port(endpoint)
     if port is None:
         return False
     if endpoint.startswith("ws://"):
-        return _port_is_open(port)
+        return _probe_ws_endpoint(endpoint, port)
     return _probe_http_version(port) is not None
+
+
+def _probe_ws_endpoint(endpoint: str, port: int) -> bool:
+    """Validate inspect-mode WebSocket endpoint (TCP + DevToolsActivePort path)."""
+    if not _port_is_open(port):
+        return False
+    for data_dir in get_chromium_data_dirs():
+        result = _read_devtools_active_port(data_dir)
+        if result is None or result[0] != port:
+            continue
+        return _build_ws_endpoint(port, result[1]) == endpoint
+    return True
 
 
 def _port_is_open(port: int) -> bool:

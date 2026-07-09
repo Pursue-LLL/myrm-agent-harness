@@ -249,10 +249,23 @@ class TestProbeCdpEndpoint:
         assert probe_cdp_endpoint("http://127.0.0.1:9222") is False
 
     @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._port_is_open")
-    def test_ws_endpoint_uses_tcp(self, mock_tcp: MagicMock) -> None:
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._read_devtools_active_port")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.get_chromium_data_dirs")
+    def test_ws_endpoint_requires_matching_devtools_path(
+        self, mock_dirs: MagicMock, mock_read: MagicMock, mock_tcp: MagicMock
+    ) -> None:
+        mock_dirs.return_value = iter([Path("/fake/chrome")])
+        mock_read.return_value = (9222, "/devtools/browser/abc")
         mock_tcp.return_value = True
-        assert probe_cdp_endpoint("ws://127.0.0.1:9222/devtools/browser/abc") is True
-        mock_tcp.assert_called_once_with(9222)
+        assert (
+            probe_cdp_endpoint("ws://127.0.0.1:9222/devtools/browser/abc") is True
+        )
+        assert probe_cdp_endpoint("ws://127.0.0.1:9222/devtools/browser/stale") is False
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._port_is_open")
+    def test_ws_endpoint_tcp_closed(self, mock_tcp: MagicMock) -> None:
+        mock_tcp.return_value = False
+        assert probe_cdp_endpoint("ws://127.0.0.1:9222/devtools/browser/abc") is False
 
     def test_invalid_endpoint(self) -> None:
         assert probe_cdp_endpoint("ftp://127.0.0.1:9222") is False
