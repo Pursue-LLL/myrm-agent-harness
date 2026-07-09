@@ -15,5 +15,5 @@ Artifacts system — artifact lifecycle management.
 | registry.py | Core | Provides GeneratedFile, ArtifactRegistry, RealtimeContentEvent. | ✅ |
 | types.py | Config | Provides ArtifactInfo, infer_language, infer_artifact_type. | ✅ |
 | ui_artifact.py | Core | Provides UIComponentType, UIComponent, UIAction. | ✅ |
-| ui_registry.py | Core | Provides UIRegistry, get_ui_registry. | ✅ |
+| ui_registry.py | Core | Provides UIRegistry, get_ui_registry, register_ui_artifact, register_ui_data_update. | ✅ |
 | vault.py | Core | Shared Artifact Vault — `vault://` store under `{workspace}/.agent/vault`; consumed by subagent auto-vault, file_read_tool, artifact listener, Kanban content_ref | ✅ |

@@ -149,6 +149,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `kanban_update_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `list_subagents_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `render_ui_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
+| `update_ui_data_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
 | `request_answer_user_tool` | EXTENDED | user_capability | answer_tool | enabled_builtin_tools: answer_tool |
 | `send_teammate_message_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `skill_discovery_tool` | EXTENDED | user_capability | — | DISCOVERABLE; skill marketplace |

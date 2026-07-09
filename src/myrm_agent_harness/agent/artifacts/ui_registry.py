@@ -8,9 +8,11 @@
 [OUTPUT]
 - UIRegistry: class — U I Registry
 - get_ui_registry: Returns:
+- register_ui_artifact: Register UIArtifact for SSE/post_run delivery
+- register_ui_data_update: Register UIDataUpdate for SSE/post_run delivery
 
 [POS]
-Provides UIRegistry, get_ui_registry.
+Provides UIRegistry, get_ui_registry, register_ui_artifact, register_ui_data_update.
 """
 
 from dataclasses import dataclass, field
@@ -99,6 +101,24 @@ def has_pending_ui_events_for_message(message_id: str) -> bool:
     if ctx is not None and ctx.ui_registry.has_pending_events():
         return True
     return bool(_PENDING_BY_MESSAGE_ID.get(message_id))
+
+
+def register_ui_data_update(update: UIDataUpdate) -> bool:
+    """Register a UI data update for SSE/post_run delivery.
+
+    Returns False when no message_id is available (fail-closed).
+    """
+    registry = get_ui_registry()
+    if registry is not None:
+        registry.add_data_update(update)
+        return True
+
+    message_id = _resolve_stash_message_id()
+    if not message_id:
+        return False
+
+    _PENDING_BY_MESSAGE_ID.setdefault(message_id, []).append(update)
+    return True
 
 
 def register_ui_artifact(ui: UIArtifact) -> bool:

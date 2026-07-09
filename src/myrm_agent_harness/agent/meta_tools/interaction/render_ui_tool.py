@@ -67,6 +67,8 @@ Minimal example (text + text_field + button) needs no extra spec.
 
 CRITICAL: Before table/chart/tabs or 3+ component UIs, file_read_tool `{A2UI_REFERENCE_REL_PATH}` for full props.
 
+After the UI is shown, use update_ui_data_tool to patch data fields without re-sending the full component graph.
+
 Args:
     title: UI title
     components: Flat component list

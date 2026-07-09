@@ -99,6 +99,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # --- 交互工具 ---
     "ask_question_tool": ToolLayer.EXTENDED,
     "render_ui_tool": ToolLayer.EXTENDED,
+    "update_ui_data_tool": ToolLayer.EXTENDED,
     "request_answer_user_tool": ToolLayer.EXTENDED,
     # --- 看板 (Worker tools) ---
     "kanban_show": ToolLayer.EXTENDED,

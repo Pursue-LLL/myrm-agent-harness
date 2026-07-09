@@ -55,6 +55,7 @@ _DEFAULT_EXEMPTED_TOOLS: frozenset[str] = frozenset(
         "knowledge_tool",
         # UI rendering (pure display)
         "render_ui_tool",
+        "update_ui_data_tool",
         # Browser readonly operations
         "browser_snapshot_tool",
         "browser_extract_tool",

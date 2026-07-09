@@ -132,7 +132,10 @@ class UIDataUpdate(BaseModel):
     """
 
     surface_id: str = Field(..., description="目标 Surface 的标识符")
-    updates: dict[str, JsonValue] = Field(..., description="数据更新（JSON Patch 风格的路径 -> 值映射）")
+    updates: dict[str, JsonValue] = Field(
+        ...,
+        description="顶层 data 补丁；嵌套 plain object 递归合并，数组与标量按 key 整键替换",
+    )
 
 
 class UIActionEvent(BaseModel):

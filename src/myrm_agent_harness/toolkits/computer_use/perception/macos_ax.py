@@ -20,8 +20,61 @@ logger = logging.getLogger(__name__)
 
 _MAX_ELEMENTS = 500
 
-_AX_SNAPSHOT_SCRIPT = (
-    """
+# System Events reports AX-prefixed and human-readable role strings depending on macOS version.
+_SNAPSHOT_ROLE_FILTER: tuple[str, ...] = tuple(
+    sorted(
+        set(INTERACTIVE_AX_ROLES)
+        | {
+            "button",
+            "checkbox",
+            "combo box",
+            "pop up button",
+            "radio button",
+            "slider",
+            "tab group",
+            "text field",
+            "text area",
+            "static text",
+            "menu item",
+            "link",
+        },
+        key=str.lower,
+    )
+)
+
+_SNAPSHOT_ALWAYS_EMIT_ROLES: tuple[str, ...] = tuple(
+    sorted(
+        {
+            "AXButton",
+            "AXCheckBox",
+            "AXTextField",
+            "AXTextArea",
+            "AXPopUpButton",
+            "AXRadioButton",
+            "Button",
+            "CheckBox",
+            "EditControl",
+            "RadioButtonControl",
+            "button",
+            "checkbox",
+            "text field",
+            "text area",
+            "pop up button",
+            "radio button",
+        },
+        key=str.lower,
+    )
+)
+
+
+def _applescript_string_list(values: tuple[str, ...]) -> str:
+    return ", ".join(f'"{value}"' for value in values)
+
+
+def _build_ax_snapshot_script() -> str:
+    role_filter = _applescript_string_list(_SNAPSHOT_ROLE_FILTER)
+    always_emit_roles = _applescript_string_list(_SNAPSHOT_ALWAYS_EMIT_ROLES)
+    return f"""
 on serializeElement(idx, elemRole, elemName, elemValue, posX, posY, sizeW, sizeH)
     set safeName to my escapeText(elemName)
     set safeValue to my escapeText(elemValue)
@@ -31,7 +84,8 @@ end serializeElement
 on escapeText(t)
     if t is missing value then return ""
     set s to t as string
-    set s to my replaceText(s, "\\", "\\\\")
+    set bs to ASCII character 92
+    set s to my replaceText(s, bs, bs & bs)
     set s to my replaceText(s, "|||", "/")
     return s
 end escapeText
@@ -53,22 +107,18 @@ tell application "System Events"
         set winTitle to name of window 1 of frontApp
     end try
 
-    set lines to {}
-    set end of lines to appName & "|||META|||" & winTitle
+    set outputLines to {{}}
+    set end of outputLines to appName & "|||META|||" & winTitle
 
     try
         set uiElements to entire contents of window 1 of frontApp
         set maxElements to count of uiElements
-        if maxElements > """
-    + str(_MAX_ELEMENTS)
-    + """ then set maxElements to """
-    + str(_MAX_ELEMENTS)
-    + """
+        if maxElements > {_MAX_ELEMENTS} then set maxElements to {_MAX_ELEMENTS}
         repeat with i from 1 to maxElements
             set elem to item i of uiElements
             try
                 set elemRole to role of elem
-                if elemRole is in {"AXButton", "AXCheckBox", "AXComboBox", "AXLink", "AXMenuItem", "AXPopUpButton", "AXRadioButton", "AXSlider", "AXTabGroup", "AXTextField", "AXTextArea", "AXStaticText"} then
+                if elemRole is in {{{role_filter}}} then
                     set elemName to ""
                     set elemValue to ""
                     try
@@ -79,10 +129,10 @@ tell application "System Events"
                     end try
                     if elemName is missing value then set elemName to ""
                     if elemValue is missing value then set elemValue to ""
-                    if elemName is not "" or elemValue is not "" or elemRole is in {"AXButton", "AXCheckBox", "AXTextField", "AXTextArea", "AXPopUpButton", "AXRadioButton"} then
+                    if elemName is not "" or elemValue is not "" or elemRole is in {{{always_emit_roles}}} then
                         set elemPos to position of elem
                         set elemSize to size of elem
-                        set end of lines to my serializeElement(i, elemRole, elemName, elemValue, item 1 of elemPos, item 2 of elemPos, item 1 of elemSize, item 2 of elemSize)
+                        set end of outputLines to my serializeElement(i, elemRole, elemName, elemValue, item 1 of elemPos, item 2 of elemPos, item 1 of elemSize, item 2 of elemSize)
                     end if
                 end if
             end try
@@ -90,10 +140,42 @@ tell application "System Events"
     end try
 
     set AppleScript's text item delimiters to linefeed
-    return lines as string
+    return outputLines as string
 end tell
 """
-)
+
+
+_AX_SNAPSHOT_SCRIPT = _build_ax_snapshot_script()
+
+_AX_FOREGROUND_META_SCRIPT = """
+tell application "System Events"
+    set frontApp to first application process whose frontmost is true
+    set appName to name of frontApp
+    set winTitle to ""
+    try
+        set winTitle to name of window 1 of frontApp
+    end try
+    return appName & "|||" & winTitle
+end tell
+"""
+
+
+def _read_foreground_meta() -> tuple[str, str]:
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", _AX_FOREGROUND_META_SCRIPT],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except subprocess.TimeoutExpired:
+        return "", ""
+    if result.returncode != 0:
+        return "", ""
+    parts = result.stdout.strip().split("|||")
+    app_name = parts[0] if parts else ""
+    window_title = parts[1] if len(parts) > 1 else ""
+    return app_name, window_title
 
 
 @dataclass(frozen=True)
@@ -136,20 +218,7 @@ def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -
         if len(parts) < 8:
             continue
         backend_index, role, name, value, x_s, y_s, w_s, h_s = parts[:8]
-        if role not in INTERACTIVE_AX_ROLES and role not in {
-            "AXButton",
-            "AXCheckBox",
-            "AXComboBox",
-            "AXLink",
-            "AXMenuItem",
-            "AXPopUpButton",
-            "AXRadioButton",
-            "AXSlider",
-            "AXTabGroup",
-            "AXTextField",
-            "AXTextArea",
-            "AXStaticText",
-        }:
+        if role not in INTERACTIVE_AX_ROLES and role not in set(_SNAPSHOT_ROLE_FILTER):
             continue
         try:
             bbox = BBox(int(float(x_s)), int(float(y_s)), int(float(w_s)), int(float(h_s)))
@@ -187,8 +256,10 @@ _AX_INVOKE_SCRIPT = """
 on escapeText(t)
     if t is missing value then return ""
     set s to t as string
-    set s to my replaceText(s, "\\", "\\\\")
-    set s to my replaceText(s, "\"", "\\\"")
+    set bs to ASCII character 92
+    set dq to ASCII character 34
+    set s to my replaceText(s, bs, bs & bs)
+    set s to my replaceText(s, dq, bs & dq)
     return s
 end escapeText
 
@@ -298,6 +369,19 @@ def inspect_foreground() -> dict[str, str | int | bool]:
             "recommendation": "Grant macOS Accessibility permission, then call desktop_snapshot_tool.",
         }
     except AXTreeEmptyError as exc:
+        app_name, window_title = _read_foreground_meta()
+        if not app_name and "(" in str(exc) and str(exc).endswith(")"):
+            app_name = str(exc).rsplit("(", 1)[-1].rstrip(")").strip()
+        base_rec = "Call desktop_snapshot_tool(scope='foreground') before desktop_interact_tool."
+        if app_name:
+            native_hint = _native_api_hint(app_name)
+            return {
+                "app_name": app_name,
+                "window_title": window_title,
+                "interactive_estimate": 0,
+                "needs_permission": False,
+                "recommendation": f"{base_rec} AX tree had no interactive nodes ({exc}).{native_hint} Use desktop_vision_tool for canvas/custom-rendered UI.",
+            }
         return {
             "app_name": "",
             "window_title": "",

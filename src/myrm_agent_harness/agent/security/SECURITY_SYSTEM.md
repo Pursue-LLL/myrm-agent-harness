@@ -795,6 +795,7 @@ _DEFAULT_EXEMPTED_TOOLS = {
     "knowledge_tool",
     # UI rendering (pure display)
     "render_ui_tool",
+    "update_ui_data_tool",
     # Browser readonly operations
     "browser_snapshot_tool",
     "browser_extract_tool",
@@ -1139,6 +1140,7 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 | `browser_interact_tool` / `browser_manage_tool` | 浏览器操作（通过动态解析细分权限） |
 | `request_answer_user_tool` | 内部控制工具，触发回答阶段 |
 | `render_ui_tool` | UI 渲染，纯展示 |
+| `update_ui_data_tool` | UI 数据增量更新，纯展示 |
 | `knowledge_tool` | 知识库查询，纯读取 |
 
 ### 动态解析

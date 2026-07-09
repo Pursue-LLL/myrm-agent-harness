@@ -50,7 +50,7 @@ Validation in `props`: `required`, `minLength`, `maxLength`, `pattern`, `min`, `
 - **image**: `src`, `alt`, `caption`, `objectFit` (cover|contain)
 - **progress**: `value`, `max`, `showLabel`
 - **badge**: `text`, `variant` (default|success|warning|error)
-- **list**: list display props per frontend renderer
+- **list**: bind rows via `bindings.data` (`{id?, title, subtitle?, description?}[]`); optional `props.bordered`, `props.compact`, `props.emptyText`, `props.className`; or use `children` for adjacency-list items
 
 ## Bindings and visibility
 
