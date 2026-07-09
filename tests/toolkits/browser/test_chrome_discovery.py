@@ -257,9 +257,8 @@ class TestProbeCdpEndpoint:
         mock_dirs.return_value = iter([Path("/fake/chrome")])
         mock_read.return_value = (9222, "/devtools/browser/abc")
         mock_tcp.return_value = True
-        assert (
-            probe_cdp_endpoint("ws://127.0.0.1:9222/devtools/browser/abc") is True
-        )
+        assert probe_cdp_endpoint("ws://127.0.0.1:9222/devtools/browser/abc") is True
+        mock_dirs.return_value = iter([Path("/fake/chrome")])
         assert probe_cdp_endpoint("ws://127.0.0.1:9222/devtools/browser/stale") is False
 
     @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._port_is_open")

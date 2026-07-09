@@ -21,7 +21,8 @@
     ▼
 ┌─────────────────────────────────────────┐
 │ context_pipeline_middleware             │  ← 上下文压缩/摘要链
-│ memory_context_middleware               │  ← 用户记忆注入
+│ memory_context_middleware               │  ← 用户记忆注入（编排）
+│   └─ memory_context_format.py         │  ← stable/learned 格式化纯函数
 │ progress_middleware / replan_middleware   │  ← todo 焦点/重规划
 │ task_adaptive_middleware                │  ← Trace 自适应约束
 │ GuardrailMiddleware (guardrails/)       │  ← 技能边界等
@@ -74,7 +75,8 @@
 | `deferred_index_middleware.py` | stable `<available-deferred-tools>` injection |
 | `deferred_tool_middleware.py` | DISCOVERABLE ToolNode resolve; skill attenuation via `tool_choice.allowed_tools` (no `request.tools` mutation) |
 | `filesystem_search_middleware.py` | 工作区搜索工具注入 |
-| `memory_context_middleware.py` | 记忆上下文注入 |
+| `memory_context_middleware.py` | 记忆上下文注入编排（首轮 LLM 前 idempotent 注入） |
+| `memory_context_format.py` | 记忆注入格式化纯函数（stable SystemMessage / learned UNTRUSTED HumanMessage） |
 | `progress_middleware.py` | 活跃 todo 焦点注入（末位 HumanMessage） |
 | `replan_middleware.py` | 动态重规划循环 |
 | `task_adaptive_middleware.py` | Trace 分析 JIT 约束 |

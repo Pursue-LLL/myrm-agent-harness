@@ -15,7 +15,7 @@
 - process_text_paths: streaming/preview/all text path reads
 
 [POS]
-Heavy read logic extracted from file_read_tool to keep the tool factory under 500 lines.
+Multimodal and text read execution handlers for file_read_tool.
 """
 
 from __future__ import annotations

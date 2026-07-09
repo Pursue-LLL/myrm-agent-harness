@@ -8,7 +8,7 @@ SECURITY_BOUNDARY_SYSTEM_RULES — both layers are injected transiently for the 
 import pytest
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
-from myrm_agent_harness.agent.middlewares.memory_context_middleware import (
+from myrm_agent_harness.agent.middlewares.memory_context_format import (
     MEMORY_CONTEXT_MARKER,
     MEMORY_UNTRUSTED_OPEN_MARKER,
 )

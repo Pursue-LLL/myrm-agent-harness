@@ -24,9 +24,11 @@ async def verify_ephemeral_memory_context():
     print("=" * 80)
 
     # Import after path setup
-    from myrm_agent_harness.agent.middlewares.memory_context_middleware import (
+    from myrm_agent_harness.agent.middlewares.memory_context_format import (
         MEMORY_CONTEXT_MARKER,
         MEMORY_UNTRUSTED_OPEN_MARKER,
+    )
+    from myrm_agent_harness.agent.middlewares.memory_context_middleware import (
         MemoryContextMiddleware,
     )
 

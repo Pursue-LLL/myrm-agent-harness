@@ -177,7 +177,7 @@ def _probe_ws_endpoint(endpoint: str, port: int) -> bool:
         if result is None or result[0] != port:
             continue
         return _build_ws_endpoint(port, result[1]) == endpoint
-    return True
+    return False
 
 
 def _port_is_open(port: int) -> bool:
