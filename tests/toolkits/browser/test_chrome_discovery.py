@@ -15,9 +15,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.browser.pool.chrome_discovery import (
+    _build_ws_endpoint,
     _read_devtools_active_port,
     discover_chrome_cdp_endpoint,
     get_chromium_data_dirs,
+    probe_cdp_endpoint,
 )
 
 
@@ -174,7 +176,7 @@ class TestDiscoverChromeEndpoint:
         mock_tcp.return_value = True
 
         result = discover_chrome_cdp_endpoint()
-        assert result == "http://127.0.0.1:54321"
+        assert result == "ws://127.0.0.1:54321/devtools/browser/abc"
 
     @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
     @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.get_chromium_data_dirs")
@@ -224,3 +226,33 @@ class TestDiscoverChromeEndpoint:
         result = discover_chrome_cdp_endpoint()
         assert result == "http://127.0.0.1:9333"
         assert mock_read.call_count == 2
+
+
+class TestBuildWsEndpoint:
+    def test_normalizes_path(self) -> None:
+        assert _build_ws_endpoint(9222, "/devtools/browser/abc") == "ws://127.0.0.1:9222/devtools/browser/abc"
+
+    def test_adds_leading_slash(self) -> None:
+        assert _build_ws_endpoint(9222, "devtools/browser/abc") == "ws://127.0.0.1:9222/devtools/browser/abc"
+
+
+class TestProbeCdpEndpoint:
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
+    def test_http_endpoint_success(self, mock_probe: MagicMock) -> None:
+        mock_probe.return_value = "ws://127.0.0.1:9222/devtools/browser"
+        assert probe_cdp_endpoint("http://127.0.0.1:9222") is True
+        mock_probe.assert_called_once_with(9222)
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
+    def test_http_endpoint_failure(self, mock_probe: MagicMock) -> None:
+        mock_probe.return_value = None
+        assert probe_cdp_endpoint("http://127.0.0.1:9222") is False
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._port_is_open")
+    def test_ws_endpoint_uses_tcp(self, mock_tcp: MagicMock) -> None:
+        mock_tcp.return_value = True
+        assert probe_cdp_endpoint("ws://127.0.0.1:9222/devtools/browser/abc") is True
+        mock_tcp.assert_called_once_with(9222)
+
+    def test_invalid_endpoint(self) -> None:
+        assert probe_cdp_endpoint("ftp://127.0.0.1:9222") is False

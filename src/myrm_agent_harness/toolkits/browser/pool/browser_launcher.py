@@ -310,22 +310,11 @@ class BrowserLauncher:
         return await loop.run_in_executor(None, discover_chrome_cdp_endpoint)
 
     async def _probe_cdp(self, endpoint: str) -> bool:
-        """Probe CDP endpoint availability via HTTP GET /json/version."""
-        import urllib.error
-        import urllib.request
-
-        version_url = f"{endpoint}/json/version"
-
-        def _sync_probe() -> bool:
-            try:
-                req = urllib.request.Request(version_url, method="GET")
-                with urllib.request.urlopen(req, timeout=_CDP_PROBE_TIMEOUT_S) as resp:
-                    return resp.status == 200
-            except Exception:
-                return False
+        """Probe CDP endpoint availability (HTTP /json/version or inspect WebSocket port)."""
+        from .chrome_discovery import probe_cdp_endpoint
 
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, _sync_probe)
+        return await loop.run_in_executor(None, probe_cdp_endpoint, endpoint)
 
     async def _connect_existing(self, endpoint: str, headers: dict[str, str] | None = None) -> BrowserInstance:
         """Connect to an existing Chrome instance via CDP with retry.

@@ -13,9 +13,9 @@ Scans known Chromium-based browser user-data directories for DevToolsActivePort 
 which Chrome writes when remote debugging is enabled (via chrome://inspect toggle or
 --remote-debugging-port flag). Provides 4-phase discovery:
   1. DevToolsActivePort file scan (5 browsers × 3 platforms)
-  2. HTTP probe (/json/version) to validate port and get canonical WebSocket URL
-  3. TCP port liveness check (fallback for Chrome M144+ where HTTP may not respond)
-  4. Fixed port 9222 fallback
+  2. HTTP probe (/json/version) to validate port (full CDP API)
+  3. TCP + DevToolsActivePort WebSocket path (chrome://inspect mode on Chrome M144+)
+  4. Fixed port 9222 HTTP probe fallback
 Priority: Chrome > Edge > Chromium > Brave > Canary (most common → least common).
 """
 
@@ -124,6 +124,50 @@ def _probe_http_version(port: int) -> str | None:
         return None
 
 
+def _build_ws_endpoint(port: int, ws_path: str) -> str:
+    """Build a browser-level WebSocket CDP endpoint from DevToolsActivePort fields."""
+    path = ws_path if ws_path.startswith("/") else f"/{ws_path}"
+    return f"ws://127.0.0.1:{port}{path}"
+
+
+def _parse_local_port(endpoint: str) -> int | None:
+    """Extract localhost port from http:// or ws:// CDP endpoint."""
+    if endpoint.startswith("http://"):
+        remainder = endpoint.removeprefix("http://")
+    elif endpoint.startswith("ws://"):
+        remainder = endpoint.removeprefix("ws://")
+    else:
+        return None
+    host_port = remainder.split("/", 1)[0]
+    try:
+        host, port_str = host_port.rsplit(":", 1)
+    except ValueError:
+        return None
+    if host not in ("127.0.0.1", "localhost", "[::1]"):
+        return None
+    try:
+        port = int(port_str)
+    except ValueError:
+        return None
+    if not (1 <= port <= 65535):
+        return None
+    return port
+
+
+def probe_cdp_endpoint(endpoint: str) -> bool:
+    """Return True when a CDP endpoint is likely attachable.
+
+    HTTP endpoints require /json/version (full remote-debugging API).
+    WebSocket endpoints (inspect-only mode) require an open local TCP port.
+    """
+    port = _parse_local_port(endpoint)
+    if port is None:
+        return False
+    if endpoint.startswith("ws://"):
+        return _port_is_open(port)
+    return _probe_http_version(port) is not None
+
+
 def _port_is_open(port: int) -> bool:
     """TCP connect check — fallback for Chrome M144+ where HTTP may not respond."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -142,21 +186,20 @@ def discover_chrome_cdp_endpoint() -> str | None:
 
     Strategy (ordered by reliability):
       1. Scan DevToolsActivePort files from known browser data dirs
-      2. For each found port: HTTP probe → TCP fallback
-      3. Fallback: probe well-known port 9222
+      2. For each found port: HTTP probe → WebSocket path + TCP (inspect-only mode)
+      3. Fallback: probe well-known port 9222 via HTTP
 
-    Returns a CDP endpoint URL (http:// for connect_over_cdp) or None.
+    Returns a CDP endpoint URL (http:// or ws:// for connect_over_cdp) or None.
     """
     for data_dir in get_chromium_data_dirs():
         result = _read_devtools_active_port(data_dir)
         if result is None:
             continue
 
-        port, _ws_path = result
+        port, ws_path = result
         logger.debug("DevToolsActivePort found: %s (port=%d)", data_dir.name, port)
 
-        ws_url = _probe_http_version(port)
-        if ws_url:
+        if _probe_http_version(port):
             logger.info(
                 "Chrome discovery: connected via HTTP probe (port=%d, browser=%s)",
                 port,
@@ -165,12 +208,13 @@ def discover_chrome_cdp_endpoint() -> str | None:
             return f"http://127.0.0.1:{port}"
 
         if _port_is_open(port):
+            ws_endpoint = _build_ws_endpoint(port, ws_path)
             logger.info(
-                "Chrome discovery: connected via TCP fallback (port=%d, browser=%s)",
+                "Chrome discovery: connected via inspect WebSocket path (port=%d, browser=%s)",
                 port,
                 data_dir.name,
             )
-            return f"http://127.0.0.1:{port}"
+            return ws_endpoint
 
         logger.debug("DevToolsActivePort stale (port=%d not reachable): %s", port, data_dir.name)
 

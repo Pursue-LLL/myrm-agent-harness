@@ -84,42 +84,43 @@ class TestProbeCdp:
     @pytest.mark.asyncio
     async def test_probe_success(self) -> None:
         launcher = _make_launcher(launch_mode=LaunchMode.AUTO)
-        with patch("urllib.request.urlopen") as mock_urlopen:
-            mock_resp = MagicMock()
-            mock_resp.status = 200
-            mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-            mock_resp.__exit__ = MagicMock(return_value=False)
-            mock_urlopen.return_value = mock_resp
-
+        with patch(
+            "myrm_agent_harness.toolkits.browser.pool.chrome_discovery.probe_cdp_endpoint",
+            return_value=True,
+        ):
             result = await launcher._probe_cdp("http://127.0.0.1:9222")
             assert result is True
 
     @pytest.mark.asyncio
     async def test_probe_failure_connection_refused(self) -> None:
         launcher = _make_launcher(launch_mode=LaunchMode.AUTO)
-        with patch("urllib.request.urlopen", side_effect=ConnectionRefusedError):
+        with patch(
+            "myrm_agent_harness.toolkits.browser.pool.chrome_discovery.probe_cdp_endpoint",
+            return_value=False,
+        ):
             result = await launcher._probe_cdp("http://127.0.0.1:9222")
             assert result is False
 
     @pytest.mark.asyncio
     async def test_probe_failure_timeout(self) -> None:
         launcher = _make_launcher(launch_mode=LaunchMode.AUTO)
-        with patch("urllib.request.urlopen", side_effect=TimeoutError):
+        with patch(
+            "myrm_agent_harness.toolkits.browser.pool.chrome_discovery.probe_cdp_endpoint",
+            return_value=False,
+        ):
             result = await launcher._probe_cdp("http://127.0.0.1:9222")
             assert result is False
 
     @pytest.mark.asyncio
-    async def test_probe_failure_non_200_status(self) -> None:
+    async def test_probe_ws_endpoint_uses_tcp(self) -> None:
         launcher = _make_launcher(launch_mode=LaunchMode.AUTO)
-        with patch("urllib.request.urlopen") as mock_urlopen:
-            mock_resp = MagicMock()
-            mock_resp.status = 500
-            mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-            mock_resp.__exit__ = MagicMock(return_value=False)
-            mock_urlopen.return_value = mock_resp
-
-            result = await launcher._probe_cdp("http://127.0.0.1:9222")
-            assert result is False
+        with patch(
+            "myrm_agent_harness.toolkits.browser.pool.chrome_discovery.probe_cdp_endpoint",
+            return_value=True,
+        ) as mock_probe:
+            result = await launcher._probe_cdp("ws://127.0.0.1:9222/devtools/browser/abc")
+            assert result is True
+            mock_probe.assert_called_once_with("ws://127.0.0.1:9222/devtools/browser/abc")
 
 
 # ---------------------------------------------------------------------------
