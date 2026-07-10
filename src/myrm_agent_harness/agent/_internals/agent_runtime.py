@@ -86,7 +86,7 @@ from ._agent_helpers import (
     reset_all_guards,
     schedule_post_run_idle_tasks,
 )
-from .run_lifecycle import cleanup_run, compute_context_budget_snapshot, post_run_events
+from .run_lifecycle import cleanup_run, collect_tracker_stats, compute_context_budget_snapshot, post_run_events
 
 if TYPE_CHECKING:
     from langchain.agents.middleware.types import AgentState
@@ -158,7 +158,7 @@ async def run_agent_loop(
         artifact_ctx_manager = nullcontext()
 
     async with artifact_ctx_manager:
-        init_token_tracker(budget_checker=agent_state.budget_checker)
+        _run_tracker = init_token_tracker(budget_checker=agent_state.budget_checker)
 
         from myrm_agent_harness.agent.context_management.infra.cache_break_detector import (
             init_cache_break_detector,
@@ -578,6 +578,9 @@ async def run_agent_loop(
 
             stats.context_budget = compute_context_budget_snapshot(stats, int(max_ctx) if max_ctx is not None else None)
             agent_state._last_run_stats = stats
+
+        # Collect token stats BEFORE post_run_events so message_end includes usage.
+        collect_tracker_stats(stats, tracker=_run_tracker)
 
         # Artifacts must be collected before cleanup_run clears the executor.
         async for event in post_run_events(

@@ -336,7 +336,7 @@ def cleanup_run(
             if cleanup_session_id:
                 clear_stashed_executor(cleanup_session_id)
 
-        _collect_tracker_stats(stats)
+        collect_tracker_stats(stats)
 
         # Record Prometheus metrics
         from myrm_agent_harness.observability.metrics.registry import metrics_registry
@@ -367,9 +367,16 @@ def cleanup_run(
         logger.error(f"Error during cleanup: {cleanup_error}", exc_info=True)
 
 
-def _collect_tracker_stats(stats: AgentRunStatistics) -> None:
-    """Extract token usage and cost from the current TokenTracker into stats."""
-    tracker = get_token_tracker()
+def collect_tracker_stats(stats: AgentRunStatistics, *, tracker: "TokenTracker | None" = None) -> None:
+    """Extract token usage and cost from the current TokenTracker into stats.
+
+    Args:
+        stats: Mutable stats object to populate.
+        tracker: Explicit tracker reference. Falls back to ContextVar lookup if None.
+                 Needed because async generators lose ContextVar state across yields.
+    """
+    if tracker is None:
+        tracker = get_token_tracker()
     if not tracker:
         return
 
