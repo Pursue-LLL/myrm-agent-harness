@@ -26,6 +26,10 @@ from myrm_agent_harness.toolkits.computer_use.perception.ax_dispatch import (
 )
 from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import refs_for_view_update
 from myrm_agent_harness.toolkits.computer_use.perception.renderer import render_snapshot_tree
+from myrm_agent_harness.toolkits.computer_use.som_overlay import (
+    apply_som_overlay_to_jpeg_base64,
+    build_som_index_map,
+)
 from myrm_agent_harness.toolkits.computer_use.session import ComputerSession, create_computer_session
 from myrm_agent_harness.toolkits.computer_use.types import (
     ActionResult,
@@ -43,7 +47,7 @@ from myrm_agent_harness.toolkits.computer_use.dref.errors import (
     DRefStaleError,
 )
 from myrm_agent_harness.toolkits.computer_use.dref.registry import DRefRegistry
-from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotScope
+from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef, SnapshotScope
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +85,21 @@ class DesktopSession(ComputerSession):
             "dpi_scale": info.dpi_scale,
         }
 
+    def _annotate_screenshot_som(
+        self,
+        screenshot_b64: str,
+        refs: dict[str, ElementRef],
+        som_index_map: dict[str, int] | None,
+    ) -> str:
+        if not screenshot_b64 or not som_index_map or self.scaler is None:
+            return screenshot_b64
+        return apply_som_overlay_to_jpeg_base64(
+            screenshot_b64,
+            refs,
+            self.scaler,
+            som_index_map,
+        )
+
     async def desktop_inspect(self) -> str:
         info = inspect_backend(self._backend)
         lines = [
@@ -114,7 +133,8 @@ class DesktopSession(ComputerSession):
             return f"Safety: {blocked}"
 
         self._refs.replace(refs, meta)
-        tree_text, enriched_meta = render_snapshot_tree(meta, refs)
+        som_index_map = build_som_index_map(refs) if include_screenshot else None
+        tree_text, enriched_meta = render_snapshot_tree(meta, refs, som_index_map=som_index_map)
         self._last_tree_text = tree_text
         self._last_snapshot_time = time.time()
 
@@ -122,7 +142,11 @@ class DesktopSession(ComputerSession):
         screenshot_size = (0, 0)
         if include_screenshot:
             shot = await self.take_screenshot()
-            screenshot_b64 = shot.screenshot_base64
+            screenshot_b64 = self._annotate_screenshot_som(
+                shot.screenshot_base64,
+                refs,
+                som_index_map,
+            )
             screenshot_size = shot.screenshot_size
 
         await self._emit_view_update(
@@ -130,6 +154,7 @@ class DesktopSession(ComputerSession):
             screenshot_size=screenshot_size,
             refs=refs,
             meta=enriched_meta,
+            som_index_map=som_index_map,
         )
 
         header = f"Desktop snapshot ready ({enriched_meta.ref_count} refs, ~{enriched_meta.token_estimate} tokens)."
@@ -361,6 +386,7 @@ class DesktopSession(ComputerSession):
         screenshot_size: tuple[int, int],
         refs: dict[str, object],
         meta: object,
+        som_index_map: dict[str, int] | None = None,
     ) -> None:
         from myrm_agent_harness.core.events.types import AgentEventType
         from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef, SnapshotMeta
@@ -377,6 +403,7 @@ class DesktopSession(ComputerSession):
                 element_refs,
                 viewport_width=viewport_width,
                 viewport_height=viewport_height,
+                som_index_map=som_index_map,
             ),
             "app_name": meta.app_name,
             "window_title": meta.window_title,
@@ -442,10 +469,13 @@ class DesktopSession(ComputerSession):
             }
 
         self._refs.replace(refs, meta)
+        som_index_map = build_som_index_map(refs)
         shot = await self.take_screenshot()
         screenshot_b64 = shot.screenshot_base64 if shot.success else ""
         screenshot_size = shot.screenshot_size if shot.success else (0, 0)
         element_refs = {key: value for key, value in refs.items() if isinstance(value, ElementRef)}
+        if screenshot_b64:
+            screenshot_b64 = self._annotate_screenshot_som(screenshot_b64, element_refs, som_index_map)
         viewport_width = screenshot_size[0] or self.screen_info.width
         viewport_height = screenshot_size[1] or self.screen_info.height
 
@@ -454,6 +484,7 @@ class DesktopSession(ComputerSession):
             screenshot_size=screenshot_size,
             refs=refs,
             meta=meta,
+            som_index_map=som_index_map,
         )
 
         return {
@@ -463,6 +494,7 @@ class DesktopSession(ComputerSession):
                 element_refs,
                 viewport_width=viewport_width,
                 viewport_height=viewport_height,
+                som_index_map=som_index_map,
             ),
             "app_name": meta.app_name,
             "window_title": meta.window_title,

@@ -440,13 +440,17 @@ def refs_for_view_update(
     *,
     viewport_width: int,
     viewport_height: int,
+    som_index_map: dict[str, int] | None = None,
 ) -> dict[str, dict[str, object]]:
     payload: dict[str, dict[str, object]] = {}
     for ref_id, element in refs.items():
+        nth: int | None = None
+        if som_index_map is not None:
+            nth = som_index_map.get(ref_id)
         payload[ref_id] = {
             "role": normalize_desktop_role(element.role),
             "name": element.name,
-            "nth": None,
+            "nth": nth,
             "bbox": {
                 "x": element.bbox.x,
                 "y": element.bbox.y,
