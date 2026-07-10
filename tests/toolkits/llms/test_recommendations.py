@@ -13,7 +13,7 @@ from myrm_agent_harness.toolkits.llms.fallback.recommendations import (
 
 class TestRecommendFallback:
     def test_known_model(self) -> None:
-        recs = recommend_fallback("gpt-4")
+        recs = recommend_fallback("gpt-4o")
         assert len(recs) >= 1
         assert all(isinstance(r, FallbackRecommendation) for r in recs)
 
@@ -22,18 +22,18 @@ class TestRecommendFallback:
         assert recs == []
 
     def test_primary_only(self) -> None:
-        recs = recommend_fallback("gpt-4", include_secondary=False)
+        recs = recommend_fallback("gpt-4o", include_secondary=False)
         assert all(r.is_primary for r in recs)
 
     def test_includes_secondary(self) -> None:
-        recs = recommend_fallback("gpt-4", include_secondary=True)
+        recs = recommend_fallback("gpt-4o", include_secondary=True)
         has_secondary = any(not r.is_primary for r in recs)
         assert has_secondary
 
 
 class TestGetPrimaryRecommendation:
     def test_known_model(self) -> None:
-        rec = get_primary_recommendation("gpt-4")
+        rec = get_primary_recommendation("gpt-4o")
         assert rec is not None
         assert rec.is_primary
 
