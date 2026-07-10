@@ -74,6 +74,7 @@ class TestDeepResearchConfig:
 
     def test_phase_enum(self):
         assert DeepResearchPhase.CLARIFY == "clarify"
+        assert DeepResearchPhase.EXPLORE == "explore"
         assert DeepResearchPhase.REPORT == "report"
 
 
@@ -414,6 +415,7 @@ class TestDeepResearchResult:
     def test_defaults(self):
         r = DeepResearchResult()
         assert r.report == ""
+        assert r.local_context == ""
         assert r.cycle_count == 0
         assert r.total_input_tokens == 0
         assert r.estimated_cost_usd == 0.0
@@ -711,7 +713,10 @@ class TestOrchestratorRun:
         assert orch._estimate_progress() == 3
 
         orch._phase = DeepResearchPhase.PLAN
-        assert orch._estimate_progress() == 10
+        assert orch._estimate_progress() == 8
+
+        orch._phase = DeepResearchPhase.EXPLORE
+        assert orch._estimate_progress() == 13
 
         orch._phase = DeepResearchPhase.RESEARCH
         orch._result.cycle_count = 0
@@ -1359,3 +1364,209 @@ class TestOrchestratorRun:
         assert "https://shared.com" in urls
         assert "https://a.com" in urls
         assert "https://b.com" in urls
+
+    @pytest.mark.asyncio
+    async def test_on_explore_callback_invoked(self):
+        """on_explore callback is invoked with the research plan after PLAN phase."""
+        plan_response = AIMessage(content="1. Research AI")
+        plan_response.usage_metadata = {"input_tokens": 10, "output_tokens": 5}
+
+        finalize_response = AIMessage(
+            content="",
+            tool_calls=[{"id": "tc1", "name": "finalize_report", "args": {}}],
+        )
+
+        llm = self._make_llm([finalize_response])
+        llm.ainvoke = AsyncMock(return_value=plan_response)
+
+        async def mock_astream(messages: list[BaseMessage]):
+            chunk = MagicMock()
+            chunk.content = "Report"
+            chunk.usage_metadata = None
+            yield chunk
+
+        llm.astream = mock_astream
+
+        explore_called_with: list[str] = []
+
+        async def on_explore(plan: str) -> str | None:
+            explore_called_with.append(plan)
+            return "### Existing Article\n\nWe already know about AI."
+
+        orch = DeepResearchOrchestrator(
+            llm=llm,
+            config=DeepResearchConfig(enable_clarification=False, max_cycles=1),
+            on_explore=on_explore,
+        )
+
+        events = [e async for e in orch.run("query")]
+        assert len(explore_called_with) == 1
+        assert explore_called_with[0] == "1. Research AI"
+        assert orch.result.local_context == "### Existing Article\n\nWe already know about AI."
+
+        explore_events = [
+            e for e in events
+            if e.get("type") == "status" and isinstance(e.get("data"), dict) and e["data"].get("phase") == "explore"
+        ]
+        assert len(explore_events) == 1
+        assert explore_events[0]["data"]["has_context"] is True
+
+    @pytest.mark.asyncio
+    async def test_on_explore_returns_none(self):
+        """on_explore returning None means no local context is stored."""
+        plan_response = AIMessage(content="1. Plan")
+        plan_response.usage_metadata = {"input_tokens": 10, "output_tokens": 5}
+
+        finalize_response = AIMessage(
+            content="",
+            tool_calls=[{"id": "tc1", "name": "finalize_report", "args": {}}],
+        )
+
+        llm = self._make_llm([finalize_response])
+        llm.ainvoke = AsyncMock(return_value=plan_response)
+
+        async def mock_astream(messages: list[BaseMessage]):
+            chunk = MagicMock()
+            chunk.content = "Report"
+            chunk.usage_metadata = None
+            yield chunk
+
+        llm.astream = mock_astream
+
+        async def on_explore(plan: str) -> str | None:
+            return None
+
+        orch = DeepResearchOrchestrator(
+            llm=llm,
+            config=DeepResearchConfig(enable_clarification=False, max_cycles=1),
+            on_explore=on_explore,
+        )
+
+        _ = [e async for e in orch.run("query")]
+        assert orch.result.local_context == ""
+
+    @pytest.mark.asyncio
+    async def test_on_explore_failure_graceful(self):
+        """on_explore callback failure does not stop the orchestrator."""
+        plan_response = AIMessage(content="1. Plan")
+        plan_response.usage_metadata = {"input_tokens": 10, "output_tokens": 5}
+
+        finalize_response = AIMessage(
+            content="",
+            tool_calls=[{"id": "tc1", "name": "finalize_report", "args": {}}],
+        )
+
+        llm = self._make_llm([finalize_response])
+        llm.ainvoke = AsyncMock(return_value=plan_response)
+
+        async def mock_astream(messages: list[BaseMessage]):
+            chunk = MagicMock()
+            chunk.content = "Report"
+            chunk.usage_metadata = None
+            yield chunk
+
+        llm.astream = mock_astream
+
+        async def on_explore(plan: str) -> str | None:
+            raise RuntimeError("Wiki is down")
+
+        orch = DeepResearchOrchestrator(
+            llm=llm,
+            config=DeepResearchConfig(enable_clarification=False, max_cycles=1),
+            on_explore=on_explore,
+        )
+
+        events = [e async for e in orch.run("query")]
+        assert orch.result.report == "Report"
+        assert orch.result.error is None
+
+    @pytest.mark.asyncio
+    async def test_on_explore_not_called_without_plan(self):
+        """on_explore is not called if research plan is empty."""
+        plan_response = AIMessage(content="")
+        plan_response.usage_metadata = {"input_tokens": 10, "output_tokens": 5}
+
+        finalize_response = AIMessage(
+            content="",
+            tool_calls=[{"id": "tc1", "name": "finalize_report", "args": {}}],
+        )
+
+        llm = self._make_llm([finalize_response])
+        llm.ainvoke = AsyncMock(return_value=plan_response)
+
+        async def mock_astream(messages: list[BaseMessage]):
+            chunk = MagicMock()
+            chunk.content = "Report"
+            chunk.usage_metadata = None
+            yield chunk
+
+        llm.astream = mock_astream
+
+        explore_called = False
+
+        async def on_explore(plan: str) -> str | None:
+            nonlocal explore_called
+            explore_called = True
+            return "context"
+
+        orch = DeepResearchOrchestrator(
+            llm=llm,
+            config=DeepResearchConfig(enable_clarification=False, max_cycles=1),
+            on_explore=on_explore,
+        )
+
+        _ = [e async for e in orch.run("query")]
+        assert explore_called is False
+
+
+# =========================================================================
+# Prompt template content tests
+# =========================================================================
+
+
+class TestPromptComparativeGuidance:
+    """Verify comparative evaluation guidance is present in prompt templates."""
+
+    def test_plan_prompt_contains_comparative_guidance(self):
+        from myrm_agent_harness.agent.deep_research.prompts import RESEARCH_PLAN_PROMPT
+
+        assert "compare" in RESEARCH_PLAN_PROMPT.lower()
+        assert "consistent evaluation dimensions" in RESEARCH_PLAN_PROMPT
+        assert "comparison matrix" in RESEARCH_PLAN_PROMPT
+
+    def test_report_prompt_contains_comparative_guidance(self):
+        from myrm_agent_harness.agent.deep_research.prompts import FINAL_REPORT_PROMPT
+
+        assert "Comparative Query Guidelines" in FINAL_REPORT_PROMPT
+        assert "comparison table" in FINAL_REPORT_PROMPT
+        assert "consistent" in FINAL_REPORT_PROMPT.lower()
+
+    def test_plan_prompt_preserves_existing_content(self):
+        from myrm_agent_harness.agent.deep_research.prompts import RESEARCH_PLAN_PROMPT
+
+        assert "research planner" in RESEARCH_PLAN_PROMPT
+        assert "≤ 6 steps" in RESEARCH_PLAN_PROMPT
+        assert "{current_datetime}" in RESEARCH_PLAN_PROMPT
+        assert "standalone exploration topic" in RESEARCH_PLAN_PROMPT
+
+    def test_report_prompt_preserves_existing_content(self):
+        from myrm_agent_harness.agent.deep_research.prompts import FINAL_REPORT_PROMPT
+
+        assert "final report generator" in FINAL_REPORT_PROMPT
+        assert "Information Integrity Rules" in FINAL_REPORT_PROMPT
+        assert "【1】" in FINAL_REPORT_PROMPT
+        assert "Limitations" in FINAL_REPORT_PROMPT
+
+    def test_plan_prompt_format_still_works(self):
+        from myrm_agent_harness.agent.deep_research.prompts import RESEARCH_PLAN_PROMPT
+
+        formatted = RESEARCH_PLAN_PROMPT.format(current_datetime="2026-07-10")
+        assert "2026-07-10" in formatted
+        assert "comparison matrix" in formatted
+
+    def test_report_prompt_format_still_works(self):
+        from myrm_agent_harness.agent.deep_research.prompts import FINAL_REPORT_PROMPT
+
+        formatted = FINAL_REPORT_PROMPT.format(current_datetime="2026-07-10")
+        assert "2026-07-10" in formatted
+        assert "Comparative Query Guidelines" in formatted

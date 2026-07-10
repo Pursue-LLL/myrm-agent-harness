@@ -61,7 +61,12 @@ Current date: {current_datetime}.
 
 Each step should be a standalone exploration topic that can be researched independently. \
 Emphasize up-to-date information where the topic is time-sensitive. \
-Respond in the same language as the user's query.\
+Respond in the same language as the user's query.
+
+If the query asks to compare, evaluate, or choose between multiple options (tools, frameworks, \
+products, approaches, etc.), ensure each step uses consistent evaluation dimensions across all \
+options — e.g., performance, ecosystem, learning curve, community, production readiness. \
+This ensures the final report can present a balanced comparison matrix.\
 """
 
 RESEARCH_PLAN_REMINDER = """\
@@ -117,7 +122,21 @@ Identify knowledge gaps, evaluate findings, and plan new directions using paragr
 """
 
 
-def build_orchestrator_prompt(is_reasoning_model: bool) -> str:
+_LOCAL_CONTEXT_SECTION = """
+
+# Known Information (from local knowledge base)
+
+The user's knowledge base already contains information relevant to this research. \
+Do NOT dispatch research tasks for topics already covered below — focus on gaps and new information.
+
+When calling `{dispatch}`, include relevant known-information summaries in the task description \
+so research agents avoid redundant searches.
+
+{local_context}\
+"""
+
+
+def build_orchestrator_prompt(is_reasoning_model: bool, has_local_context: bool = False) -> str:
     """Build orchestrator system prompt, adapting for reasoning model capability."""
     base = _ORCHESTRATOR_COMMON
     if is_reasoning_model:
@@ -125,6 +144,8 @@ def build_orchestrator_prompt(is_reasoning_model: bool) -> str:
     else:
         base += _THINK_SECTION
     base += "\n\n# Research Plan\n{research_plan}"
+    if has_local_context:
+        base += _LOCAL_CONTEXT_SECTION.replace("{dispatch}", _DISPATCH)
     return base
 
 
@@ -169,7 +190,14 @@ information from your training data unless explicitly marking it as "[unverified
 - If certain aspects of the user's query could not be answered by the research findings, \
 explicitly state what information was not found at the end of the relevant section.
 - End the report with a brief "Limitations" or "Information Gaps" note listing any \
-dimensions that the research did not cover.\
+dimensions that the research did not cover.
+
+## Comparative Query Guidelines
+
+When the user's query compares, evaluates, or selects between multiple options, include a \
+summary comparison table (markdown) that scores or describes each option across consistent \
+dimensions (e.g., performance, ecosystem, learning curve, maturity). Place the table after \
+the detailed analysis sections so readers can quickly reference the comparison.\
 """
 
 FINAL_REPORT_QUERY = """\

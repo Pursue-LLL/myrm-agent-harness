@@ -1,6 +1,6 @@
 # Deep Research System Design
 
-> 多阶段深度研究编排器。规划 → 澄清（可选）→ 并行 research agents → 报告合成。
+> 多阶段深度研究编排器。澄清（可选）→ 规划 → 本地探索（可选）→ 并行 research agents → 报告合成。
 
 ---
 
@@ -54,16 +54,19 @@ DeepResearchOrchestrator (orchestrator.py)
 
 ## Callback 机制
 
-Orchestrator 支持 4 个可选回调，由业务层（`streaming.py`）注入：
+Orchestrator 支持 5 个可选回调，由业务层（`streaming.py`）注入：
 
 | Callback | 触发时机 | Server 层接入状态 | 签名 |
 |----------|----------|------------------|------|
 | `on_clarify` | CLARIFY 阶段需要用户输入 | ✅ `PhaseWaiter` + SSE `phase=clarify` + `/agents/clarify-response` | `(AskQuestionInput) -> ClarificationAnswer \| None` |
 | `on_plan_ready` | 研究计划生成后 | ✅ `PhaseWaiter` + SSE `phase=plan_confirm` + `/agents/plan-confirm-response` | `(str) -> str \| None` |
+| `on_explore` | PLAN 完成后，RESEARCH 前 | ✅ Wiki FTS5 搜索（零 LLM 成本） | `(str) -> str \| None` |
 | `on_cycle_complete` | 每个研究循环结束 | ⏳ Harness hook 就绪，Server 层未接入 | `(int, list[dict]) -> PhaseGuidance \| None` |
 | `on_report_ready` | 最终报告生成成功后 | ✅ Wiki Vault 归档 | `(DeepResearchResult) -> None` |
 
 Server 层通过 `PhaseWaiter`（通用阶段暂停/恢复门控）实现 Clarification 和 Plan Confirmation 两个 HITL 闭环。前端通过 `ClarificationInput.tsx` 和 `PlanConfirmationCard.tsx` 分别渲染对应的交互 UI。
+
+`on_explore` 在 PLAN 和 RESEARCH 之间执行，使用 Wiki FTS5 全文搜索（零 LLM 调用成本）检索本地知识库中与研究计划相关的已有内容。检索结果作为 `local_context` 注入 orchestrator 系统提示词，引导子代理跳过已知信息、聚焦新发现。回调失败静默降级，不影响后续研究。
 
 `on_report_ready` 仅在 `result.report` 非空且无 error 时触发（在 `finally` 块中），
 用于后处理如 wiki 入库、通知等。回调失败不影响研究结果。

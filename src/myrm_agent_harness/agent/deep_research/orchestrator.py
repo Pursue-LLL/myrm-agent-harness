@@ -18,7 +18,7 @@
 [POS]
 Multi-phase orchestrator for Deep Research:
 
-  CLARIFY → PLAN → RESEARCH (cycles) → REPORT
+  CLARIFY → PLAN → EXPLORE → RESEARCH (cycles) → REPORT
 
 Each phase uses direct LLM calls (not a full LangGraph agent) for tighter
 control over tool-call interception and state transitions. Research sub-agents
@@ -62,6 +62,7 @@ if TYPE_CHECKING:
 
     ClarifyCallback = Callable[[AskQuestionInput], Awaitable[str | list[str] | dict[str, str | list[str]] | None]]
     PlanCallback = Callable[[str], Awaitable[str | None]]
+    ExploreCallback = Callable[[str], Awaitable[str | None]]
     CycleCallback = Callable[[int, list[dict[str, str]]], Awaitable[PhaseGuidance | None]]
     ReportReadyCallback = Callable[["DeepResearchResult"], Awaitable[None]]
 
@@ -88,6 +89,7 @@ class DeepResearchOrchestrator(DeepResearchPlanResearchMixin, DeepResearchPhases
         executor: object | None = None,
         on_clarify: ClarifyCallback | None = None,
         on_plan_ready: PlanCallback | None = None,
+        on_explore: ExploreCallback | None = None,
         on_cycle_complete: CycleCallback | None = None,
         on_report_ready: ReportReadyCallback | None = None,
         research_agent_llm: BaseChatModel | None = None,
@@ -101,6 +103,7 @@ class DeepResearchOrchestrator(DeepResearchPlanResearchMixin, DeepResearchPhases
         self._executor = executor
         self._on_clarify = on_clarify
         self._on_plan_ready = on_plan_ready
+        self._on_explore = on_explore
         self._on_cycle_complete = on_cycle_complete
         self._on_report_ready = on_report_ready
         self._is_reasoning = detect_reasoning_model(llm)
@@ -149,14 +152,16 @@ class DeepResearchOrchestrator(DeepResearchPlanResearchMixin, DeepResearchPhases
     def _estimate_progress(self) -> int:
         """Estimate overall progress as a percentage (0-100).
 
-        Phase weights: CLARIFY=5%, PLAN=10%, RESEARCH=70%, REPORT=15%.
+        Phase weights: CLARIFY=3%, PLAN=7%, EXPLORE=5%, RESEARCH=70%, REPORT=15%.
         Within RESEARCH, progress scales linearly with cycle_count/max_cycles.
         """
         phase = self._phase
         if phase == DeepResearchPhase.CLARIFY:
             return 3
         if phase == DeepResearchPhase.PLAN:
-            return 10
+            return 8
+        if phase == DeepResearchPhase.EXPLORE:
+            return 13
         if phase == DeepResearchPhase.RESEARCH:
             max_cycles = self._config.max_cycles_reasoning if self._is_reasoning else self._config.max_cycles
             cycle_progress = min(self._result.cycle_count / max(max_cycles, 1), 1.0)
@@ -263,6 +268,55 @@ class DeepResearchOrchestrator(DeepResearchPlanResearchMixin, DeepResearchPhases
                 tool_name=None,
                 progress_percent=self._estimate_progress(),
             )
+
+            # Phase 2.5: Explore local knowledge (optional callback)
+            if self._on_explore and self._result.research_plan:
+                self._phase = DeepResearchPhase.EXPLORE
+                yield self._make_event(
+                    AgentEventType.TASKS_STEPS,
+                    message_id,
+                    step_key="deep_research_exploring",
+                    parent_step_key="deep_research_root",
+                    is_plan=True,
+                    status="running",
+                    data=[{"text": "Searching Local Knowledge"}],
+                    tool_name=None,
+                    progress_percent=self._estimate_progress(),
+                )
+                try:
+                    local_context = await self._on_explore(self._result.research_plan)
+                    if local_context:
+                        self._result.local_context = local_context
+                        logger.info(
+                            "[deep-research] Explore found local context: %d chars",
+                            len(local_context),
+                        )
+                    yield self._make_event(
+                        AgentEventType.STATUS,
+                        message_id,
+                        data={
+                            "phase": "explore",
+                            "status": "complete",
+                            "has_context": bool(local_context),
+                            "context_chars": len(local_context) if local_context else 0,
+                        },
+                    )
+                except Exception:
+                    logger.warning(
+                        "[deep-research] on_explore callback failed, continuing without local context",
+                        exc_info=True,
+                    )
+                yield self._make_event(
+                    AgentEventType.TASKS_STEPS,
+                    message_id,
+                    step_key="deep_research_exploring",
+                    parent_step_key="deep_research_root",
+                    is_plan=True,
+                    status="success",
+                    data=[{"text": "Searching Local Knowledge"}],
+                    tool_name=None,
+                    progress_percent=self._estimate_progress(),
+                )
 
             # Phase 3: Research cycles
             yield self._make_event(

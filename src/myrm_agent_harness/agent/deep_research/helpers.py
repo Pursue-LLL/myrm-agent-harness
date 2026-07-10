@@ -39,6 +39,7 @@ class DeepResearchResult:
 
     report: str = ""
     research_plan: str = ""
+    local_context: str = ""
     cycle_count: int = 0
     total_duration_seconds: float = 0.0
     agent_results: list[dict[str, object]] = field(default_factory=list)

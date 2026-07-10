@@ -39,289 +39,250 @@ class FallbackRecommendation:
     quality_factor: float = 1.0
 
 
-# Pre-defined fallback recommendations
-# Format: main_model -> [recommendations]
 FALLBACK_RECOMMENDATIONS: dict[str, list[FallbackRecommendation]] = {
-    # GPT-4 family
-    "gpt-4": [
-        FallbackRecommendation(
-            model_name="claude-3-opus-20240229",
-            reason="Similar capabilities, alternative provider reduces rate limit impact",
-            is_primary=True,
-            cost_factor=1.0,
-            latency_factor=1.0,
-            quality_factor=0.95,
-        ),
-        FallbackRecommendation(
-            model_name="gpt-3.5-turbo",
-            reason="Same provider, significantly lower cost, good for fallback scenarios",
-            is_primary=False,
-            cost_factor=0.1,
-            latency_factor=0.8,
-            quality_factor=0.7,
-        ),
-    ],
-    "gpt-4-turbo": [
-        FallbackRecommendation(
-            model_name="claude-3-opus-20240229",
-            reason="Similar capabilities, alternative provider",
-            is_primary=True,
-            cost_factor=1.0,
-            latency_factor=1.1,
-            quality_factor=0.95,
-        ),
-        FallbackRecommendation(
-            model_name="gpt-4",
-            reason="Same family, slightly lower cost",
-            is_primary=False,
-            cost_factor=0.9,
-            latency_factor=1.0,
-            quality_factor=0.98,
-        ),
-    ],
+    # --- OpenAI flagship ---
     "gpt-4o": [
         FallbackRecommendation(
-            model_name="claude-3-5-sonnet-20241022",
-            reason="Similar performance, alternative provider",
+            model_name="claude-sonnet-4-20250514",
+            reason="Similar performance, alternative provider reduces rate limit impact",
+            is_primary=True,
+            cost_factor=1.0,
+            latency_factor=0.9,
+            quality_factor=0.95,
+        ),
+        FallbackRecommendation(
+            model_name="gemini-2.5-flash",
+            reason="Lower cost, fast alternative",
+            is_primary=False,
+            cost_factor=0.3,
+            latency_factor=0.7,
+            quality_factor=0.9,
+        ),
+    ],
+    "gpt-4.1": [
+        FallbackRecommendation(
+            model_name="claude-sonnet-4-20250514",
+            reason="Similar capabilities, alternative provider",
             is_primary=True,
             cost_factor=0.8,
             latency_factor=0.9,
             quality_factor=0.95,
         ),
         FallbackRecommendation(
-            model_name="gpt-4-turbo",
+            model_name="gpt-4o",
+            reason="Same family, proven reliability",
+            is_primary=False,
+            cost_factor=0.6,
+            latency_factor=0.9,
+            quality_factor=0.93,
+        ),
+    ],
+    "gpt-4o-mini": [
+        FallbackRecommendation(
+            model_name="claude-3-5-haiku-20241022",
+            reason="Similar cost and speed, alternative provider",
+            is_primary=True,
+            cost_factor=1.0,
+            latency_factor=1.0,
+            quality_factor=0.95,
+        ),
+        FallbackRecommendation(
+            model_name="gemini-2.5-flash",
+            reason="Fast and cost-effective alternative",
+            is_primary=False,
+            cost_factor=0.8,
+            latency_factor=0.8,
+            quality_factor=0.95,
+        ),
+    ],
+    "gpt-4.1-mini": [
+        FallbackRecommendation(
+            model_name="claude-3-5-haiku-20241022",
+            reason="Similar speed tier, alternative provider",
+            is_primary=True,
+            cost_factor=1.0,
+            latency_factor=1.0,
+            quality_factor=0.95,
+        ),
+        FallbackRecommendation(
+            model_name="gpt-4o-mini",
             reason="Same family, proven reliability",
             is_primary=False,
             cost_factor=1.0,
             latency_factor=1.0,
-            quality_factor=0.95,
+            quality_factor=0.9,
         ),
     ],
-    # GPT-3.5 family
-    "gpt-3.5-turbo": [
+    # --- OpenAI reasoning ---
+    "o3": [
         FallbackRecommendation(
-            model_name="claude-3-haiku-20240307",
-            reason="Similar speed and cost, alternative provider",
+            model_name="claude-sonnet-4-20250514",
+            reason="Strong reasoning, alternative provider",
             is_primary=True,
-            cost_factor=1.0,
-            latency_factor=1.0,
-            quality_factor=1.0,
+            cost_factor=0.3,
+            latency_factor=0.5,
+            quality_factor=0.9,
         ),
         FallbackRecommendation(
-            model_name="gpt-4o-mini",
-            reason="Better quality, similar cost",
+            model_name="gpt-4o",
+            reason="Same provider, much faster for non-reasoning tasks",
             is_primary=False,
-            cost_factor=1.2,
-            latency_factor=1.0,
-            quality_factor=1.3,
-        ),
-    ],
-    # Claude 3 family
-    "claude-3-opus-20240229": [
-        FallbackRecommendation(
-            model_name="gpt-4",
-            reason="Similar capabilities, alternative provider",
-            is_primary=True,
-            cost_factor=1.0,
-            latency_factor=1.0,
-            quality_factor=0.95,
-        ),
-        FallbackRecommendation(
-            model_name="claude-3-sonnet-20240229",
-            reason="Same family, lower cost and faster",
-            is_primary=False,
-            cost_factor=0.2,
-            latency_factor=0.7,
-            quality_factor=0.85,
-        ),
-    ],
-    "claude-3-sonnet-20240229": [
-        FallbackRecommendation(
-            model_name="gpt-4",
-            reason="Similar quality, alternative provider",
-            is_primary=True,
-            cost_factor=5.0,
-            latency_factor=1.0,
-            quality_factor=1.05,
-        ),
-        FallbackRecommendation(
-            model_name="claude-3-haiku-20240307",
-            reason="Same family, much lower cost",
-            is_primary=False,
-            cost_factor=0.2,
-            latency_factor=0.8,
+            cost_factor=0.1,
+            latency_factor=0.3,
             quality_factor=0.8,
         ),
     ],
-    "claude-3-5-sonnet-20241022": [
+    "o4-mini": [
+        FallbackRecommendation(
+            model_name="gemini-2.5-flash",
+            reason="Similar speed tier, alternative provider",
+            is_primary=True,
+            cost_factor=0.5,
+            latency_factor=0.8,
+            quality_factor=0.9,
+        ),
+        FallbackRecommendation(
+            model_name="gpt-4o-mini",
+            reason="Same provider, lower cost for simpler tasks",
+            is_primary=False,
+            cost_factor=0.3,
+            latency_factor=0.5,
+            quality_factor=0.8,
+        ),
+    ],
+    # --- Anthropic ---
+    "claude-sonnet-4-20250514": [
         FallbackRecommendation(
             model_name="gpt-4o",
             reason="Similar performance, alternative provider",
             is_primary=True,
-            cost_factor=1.25,
+            cost_factor=1.0,
             latency_factor=1.1,
             quality_factor=1.0,
         ),
         FallbackRecommendation(
-            model_name="claude-3-sonnet-20240229",
-            reason="Same family, proven stability",
-            is_primary=False,
-            cost_factor=1.0,
-            latency_factor=1.0,
-            quality_factor=0.95,
-        ),
-    ],
-    "claude-3-haiku-20240307": [
-        FallbackRecommendation(
-            model_name="gpt-3.5-turbo",
-            reason="Similar speed, alternative provider",
-            is_primary=True,
-            cost_factor=1.0,
-            latency_factor=1.0,
-            quality_factor=1.0,
-        ),
-        FallbackRecommendation(
-            model_name="gpt-4o-mini",
-            reason="Similar cost, better quality",
-            is_primary=False,
-            cost_factor=1.2,
-            latency_factor=1.0,
-            quality_factor=1.2,
-        ),
-    ],
-    # GPT-4o mini
-    "gpt-4o-mini": [
-        FallbackRecommendation(
-            model_name="claude-3-haiku-20240307",
-            reason="Similar cost and speed, alternative provider",
-            is_primary=True,
-            cost_factor=0.8,
-            latency_factor=1.0,
-            quality_factor=0.9,
-        ),
-        FallbackRecommendation(
-            model_name="gpt-3.5-turbo",
-            reason="Same provider, similar capabilities",
+            model_name="gemini-2.5-pro",
+            reason="Strong reasoning alternative",
             is_primary=False,
             cost_factor=0.8,
             latency_factor=1.0,
-            quality_factor=0.8,
-        ),
-    ],
-    # Gemini family
-    "gemini-1.5-pro": [
-        FallbackRecommendation(
-            model_name="gpt-4-turbo",
-            reason="Similar capabilities, alternative provider for rate limit resilience",
-            is_primary=True,
-            cost_factor=1.0,
-            latency_factor=0.9,
-            quality_factor=0.95,
-        ),
-        FallbackRecommendation(
-            model_name="claude-3-opus-20240229",
-            reason="Similar quality, alternative provider",
-            is_primary=False,
-            cost_factor=1.0,
-            latency_factor=1.0,
-            quality_factor=0.95,
-        ),
-    ],
-    "gemini-1.5-flash": [
-        FallbackRecommendation(
-            model_name="claude-3-haiku-20240307",
-            reason="Similar speed and cost, alternative provider",
-            is_primary=True,
-            cost_factor=1.0,
-            latency_factor=1.0,
-            quality_factor=1.0,
-        ),
-        FallbackRecommendation(
-            model_name="gpt-4o-mini",
-            reason="Similar capabilities, alternative provider",
-            is_primary=False,
-            cost_factor=1.2,
-            latency_factor=1.0,
-            quality_factor=1.1,
-        ),
-    ],
-    "gemini-2.0-flash-exp": [
-        FallbackRecommendation(
-            model_name="gpt-4o",
-            reason="Similar speed, alternative provider with proven reliability",
-            is_primary=True,
-            cost_factor=1.5,
-            latency_factor=1.0,
-            quality_factor=1.0,
-        ),
-        FallbackRecommendation(
-            model_name="claude-3-5-sonnet-20241022",
-            reason="Similar quality, alternative provider",
-            is_primary=False,
-            cost_factor=1.2,
-            latency_factor=0.9,
             quality_factor=0.98,
         ),
     ],
-    # Mistral family
-    "mistral-large": [
+    "claude-opus-4-20250514": [
         FallbackRecommendation(
-            model_name="gpt-4",
-            reason="Similar capabilities, alternative provider for rate limit resilience",
+            model_name="o3",
+            reason="Top-tier reasoning, alternative provider",
             is_primary=True,
-            cost_factor=1.25,
-            latency_factor=0.9,
-            quality_factor=1.0,
+            cost_factor=1.0,
+            latency_factor=1.0,
+            quality_factor=0.95,
         ),
         FallbackRecommendation(
-            model_name="claude-3-opus-20240229",
-            reason="Similar quality, alternative provider",
+            model_name="claude-sonnet-4-20250514",
+            reason="Same family, faster and cheaper",
             is_primary=False,
-            cost_factor=1.25,
-            latency_factor=1.0,
-            quality_factor=1.0,
+            cost_factor=0.2,
+            latency_factor=0.5,
+            quality_factor=0.9,
         ),
     ],
-    "mistral-medium": [
+    "claude-3-5-haiku-20241022": [
         FallbackRecommendation(
-            model_name="gpt-4-turbo",
-            reason="Slightly higher quality, alternative provider",
-            is_primary=True,
-            cost_factor=1.5,
-            latency_factor=1.0,
-            quality_factor=1.1,
-        ),
-        FallbackRecommendation(
-            model_name="claude-3-sonnet-20240229",
-            reason="Similar capabilities, alternative provider",
-            is_primary=False,
-            cost_factor=1.3,
-            latency_factor=0.9,
-            quality_factor=1.0,
-        ),
-    ],
-    "mistral-small": [
-        FallbackRecommendation(
-            model_name="gpt-3.5-turbo",
+            model_name="gpt-4o-mini",
             reason="Similar speed and cost, alternative provider",
             is_primary=True,
             cost_factor=1.0,
             latency_factor=1.0,
-            quality_factor=0.9,
+            quality_factor=1.0,
         ),
         FallbackRecommendation(
-            model_name="claude-3-haiku-20240307",
+            model_name="gemini-2.5-flash",
+            reason="Fast alternative, competitive quality",
+            is_primary=False,
+            cost_factor=0.8,
+            latency_factor=0.8,
+            quality_factor=1.0,
+        ),
+    ],
+    # --- Google Gemini ---
+    "gemini-2.5-pro": [
+        FallbackRecommendation(
+            model_name="claude-sonnet-4-20250514",
             reason="Similar capabilities, alternative provider",
+            is_primary=True,
+            cost_factor=1.0,
+            latency_factor=0.9,
+            quality_factor=0.95,
+        ),
+        FallbackRecommendation(
+            model_name="gpt-4o",
+            reason="Proven reliability, alternative provider",
+            is_primary=False,
+            cost_factor=1.0,
+            latency_factor=1.0,
+            quality_factor=0.95,
+        ),
+    ],
+    "gemini-2.5-flash": [
+        FallbackRecommendation(
+            model_name="gpt-4o-mini",
+            reason="Similar speed and cost, alternative provider",
+            is_primary=True,
+            cost_factor=1.2,
+            latency_factor=1.0,
+            quality_factor=1.0,
+        ),
+        FallbackRecommendation(
+            model_name="claude-3-5-haiku-20241022",
+            reason="Fast alternative, alternative provider",
             is_primary=False,
             cost_factor=1.0,
             latency_factor=1.0,
             quality_factor=1.0,
         ),
     ],
-    # Volcengine Ark Coding Plan
+    # --- DeepSeek ---
+    "deepseek-chat": [
+        FallbackRecommendation(
+            model_name="gpt-4o",
+            reason="Higher quality alternative, different provider",
+            is_primary=True,
+            cost_factor=5.0,
+            latency_factor=1.0,
+            quality_factor=1.1,
+        ),
+        FallbackRecommendation(
+            model_name="gemini-2.5-flash",
+            reason="Fast and cheap alternative",
+            is_primary=False,
+            cost_factor=1.5,
+            latency_factor=0.8,
+            quality_factor=1.0,
+        ),
+    ],
+    "deepseek-reasoner": [
+        FallbackRecommendation(
+            model_name="o4-mini",
+            reason="Reasoning-capable alternative, different provider",
+            is_primary=True,
+            cost_factor=2.0,
+            latency_factor=1.0,
+            quality_factor=1.0,
+        ),
+        FallbackRecommendation(
+            model_name="gemini-2.5-pro",
+            reason="Strong reasoning alternative",
+            is_primary=False,
+            cost_factor=1.5,
+            latency_factor=1.0,
+            quality_factor=0.95,
+        ),
+    ],
+    # --- Volcengine / Doubao ---
     "doubao-seed-2.0-code": [
         FallbackRecommendation(
-            model_name="deepseek-v3.2",
+            model_name="deepseek-chat",
             reason="Similar coding capabilities, alternative provider",
             is_primary=True,
             cost_factor=1.0,
@@ -332,27 +293,46 @@ FALLBACK_RECOMMENDATIONS: dict[str, list[FallbackRecommendation]] = {
             model_name="gpt-4o",
             reason="Higher coding quality, alternative provider",
             is_primary=False,
-            cost_factor=2.0,
+            cost_factor=5.0,
             latency_factor=1.0,
             quality_factor=1.2,
         ),
     ],
-    "deepseek-v3.2": [
+    # --- Mistral ---
+    "mistral-large-latest": [
         FallbackRecommendation(
-            model_name="doubao-seed-2.0-code",
-            reason="Alternative coding model in Ark plan",
+            model_name="gpt-4o",
+            reason="Similar capabilities, alternative provider",
             is_primary=True,
             cost_factor=1.0,
             latency_factor=1.0,
             quality_factor=1.0,
         ),
         FallbackRecommendation(
-            model_name="claude-3-5-sonnet-20241022",
-            reason="Top tier coding model",
+            model_name="claude-sonnet-4-20250514",
+            reason="Strong alternative, different provider",
             is_primary=False,
-            cost_factor=2.0,
+            cost_factor=1.0,
+            latency_factor=0.9,
+            quality_factor=1.0,
+        ),
+    ],
+    "mistral-small-latest": [
+        FallbackRecommendation(
+            model_name="gpt-4o-mini",
+            reason="Similar speed and cost, alternative provider",
+            is_primary=True,
+            cost_factor=1.0,
             latency_factor=1.0,
-            quality_factor=1.2,
+            quality_factor=1.0,
+        ),
+        FallbackRecommendation(
+            model_name="claude-3-5-haiku-20241022",
+            reason="Similar capabilities, alternative provider",
+            is_primary=False,
+            cost_factor=1.0,
+            latency_factor=1.0,
+            quality_factor=1.0,
         ),
     ],
 }
@@ -373,11 +353,11 @@ def recommend_fallback(
         List of recommended fallback models, ordered by recommendation priority
 
     Example:
-        >>> recommendations = recommend_fallback("gpt-4")
+        >>> recommendations = recommend_fallback("gpt-4o")
         >>> for rec in recommendations:
         ...     print(f"{rec.model_name}: {rec.reason}")
-        claude-3-opus-20240229: Similar capabilities, alternative provider
-        gpt-3.5-turbo: Same provider, lower cost
+        claude-sonnet-4-20250514: Similar performance, alternative provider ...
+        gemini-2.5-flash: Lower cost, fast alternative
     """
     recommendations = FALLBACK_RECOMMENDATIONS.get(main_model, [])
 
@@ -397,9 +377,9 @@ def get_primary_recommendation(main_model: str) -> FallbackRecommendation | None
         Primary recommendation, or None if no recommendations exist
 
     Example:
-        >>> rec = get_primary_recommendation("gpt-4")
+        >>> rec = get_primary_recommendation("gpt-4o")
         >>> print(rec.model_name if rec else "No recommendation")
-        claude-3-opus-20240229
+        claude-sonnet-4-20250514
     """
     recommendations = recommend_fallback(main_model, include_secondary=False)
     return recommendations[0] if recommendations else None

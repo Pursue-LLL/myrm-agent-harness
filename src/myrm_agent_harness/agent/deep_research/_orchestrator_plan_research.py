@@ -93,12 +93,22 @@ class DeepResearchPlanResearchMixin:
         include_think = not self._is_reasoning  # type: ignore[attr-defined]
         tool_schemas = build_orchestrator_tools(include_think=include_think)
 
-        system_prompt = build_orchestrator_prompt(self._is_reasoning).format(  # type: ignore[attr-defined]
-            current_datetime=datetime_str,
-            current_cycle="0",
-            max_cycles=str(max_cycles),
-            research_plan=self._result.research_plan,  # type: ignore[attr-defined]
-        )
+        local_ctx = self._result.local_context  # type: ignore[attr-defined]
+        has_local_ctx = bool(local_ctx)
+
+        format_kwargs: dict[str, str] = {
+            "current_datetime": datetime_str,
+            "current_cycle": "0",
+            "max_cycles": str(max_cycles),
+            "research_plan": self._result.research_plan,  # type: ignore[attr-defined]
+        }
+        if has_local_ctx:
+            format_kwargs["local_context"] = local_ctx
+
+        system_prompt = build_orchestrator_prompt(
+            self._is_reasoning,  # type: ignore[attr-defined]
+            has_local_context=has_local_ctx,
+        ).format(**format_kwargs)
         reminder = build_orchestrator_reminder(self._is_reasoning)  # type: ignore[attr-defined]
 
         orch_messages: list[BaseMessage] = [
@@ -271,13 +281,19 @@ class DeepResearchPlanResearchMixin:
                 if cycle == 1:
                     orch_messages.append(HumanMessage(content=FIRST_CYCLE_REMINDER))
 
+                cycle_format_kwargs: dict[str, str] = {
+                    "current_datetime": datetime_str,
+                    "current_cycle": str(cycle),
+                    "max_cycles": str(max_cycles),
+                    "research_plan": self._result.research_plan,  # type: ignore[attr-defined]
+                }
+                if has_local_ctx:
+                    cycle_format_kwargs["local_context"] = local_ctx
                 orch_messages[0] = SystemMessage(
-                    content=build_orchestrator_prompt(self._is_reasoning).format(  # type: ignore[attr-defined]
-                        current_datetime=datetime_str,
-                        current_cycle=str(cycle),
-                        max_cycles=str(max_cycles),
-                        research_plan=self._result.research_plan,  # type: ignore[attr-defined]
-                    )
+                    content=build_orchestrator_prompt(
+                        self._is_reasoning,  # type: ignore[attr-defined]
+                        has_local_context=has_local_ctx,
+                    ).format(**cycle_format_kwargs)
                 )
 
                 compact_orch_messages(orch_messages)
