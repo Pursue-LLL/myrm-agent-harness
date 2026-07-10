@@ -12,8 +12,11 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING
 
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+import pytest
+
+sklearn = pytest.importorskip("sklearn", reason="sklearn required for TF-IDF baseline tests")
+from sklearn.feature_extraction.text import TfidfVectorizer  # noqa: E402
+from sklearn.metrics.pairwise import cosine_similarity  # noqa: E402
 
 from myrm_agent_harness.agent.meta_tools.skills.search.types import SkillSearchResult
 

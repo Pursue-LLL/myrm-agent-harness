@@ -7,7 +7,10 @@ from pathlib import Path
 import pytest
 import tiktoken
 
-from myrm_agent_harness.agent.artifacts.context import ArtifactContextManager
+from myrm_agent_harness.agent.artifacts.context import (
+    ArtifactContextManager,
+    _artifact_context_var,
+)
 from myrm_agent_harness.agent.artifacts.ui_registry import get_ui_registry
 from myrm_agent_harness.agent.artifacts.ui_artifact import UIComponentType
 from myrm_agent_harness.agent.meta_tools.interaction.a2ui_spec import (
@@ -23,6 +26,14 @@ from myrm_agent_harness.agent.meta_tools.interaction.a2ui_spec import (
     validate_ui_adjacency,
 )
 from myrm_agent_harness.agent.meta_tools.interaction.render_ui_tool import render_ui, render_ui_tool
+
+
+@pytest.fixture(autouse=True)
+def _clean_artifact_context():
+    """Ensure artifact ContextVar is clean before each test."""
+    token = _artifact_context_var.set(None)
+    yield
+    _artifact_context_var.reset(token)
 
 
 class TestA2uiSpec:

@@ -24,6 +24,7 @@ class DeepResearchPhase(StrEnum):
 
     CLARIFY = "clarify"
     PLAN = "plan"
+    EXPLORE = "explore"
     RESEARCH = "research"
     REPORT = "report"
 

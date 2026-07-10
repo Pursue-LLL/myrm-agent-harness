@@ -34,21 +34,21 @@ _AUTO_STRATEGY_THRESHOLD = 800 * 600
 
 
 class ScreenshotComparator:
-    """统一 Screenshot对比管理器
+    """Unified screenshot comparison manager.
 
-    职责:
-    1. provides统一 对比Interface
-    2. SupportAutoStrategy选择
-    3. ParameterValidate and default value管理
+    Responsibilities:
+    1. Unified comparison interface (fast / accurate / auto)
+    2. Automatic strategy selection based on image dimensions
+    3. Parameter validation and defaults
 
-     not 涉 and :ScreenshotExtract、Page操作 etc.。
+    Does NOT handle screenshot capture or page operations.
     """
 
     def __init__(self, context: BrowserContext):
-        """Initialize ScreenshotComparator
+        """Initialize ScreenshotComparator.
 
         Args:
-            context: Patchright BrowserContext Instance
+            context: Patchright BrowserContext instance for accurate comparison.
         """
         self._context = context
 
@@ -62,26 +62,26 @@ class ScreenshotComparator:
         mismatch_threshold: float = 5.0,
         include_aa: bool = True,
     ) -> FastComparisonResult | AccurateComparisonResult:
-        """对比两张Screenshot
+        """Compare two screenshots.
 
         Args:
-            baseline: Base64 Encoding 基准Screenshot
-            current: Base64 Encoding CurrentScreenshot
-            strategy: 对比Strategy
-                - 'auto': Auto选择( based on ImageSize,<800x600 用 accurate,Otherwise用 fast)
-                - 'fast': dHash fast检测(~2ms),Return相似度
-                - 'accurate': Canvas API 像素级对比(~100ms),Return diff 图
-            similarity_threshold: Fast Strategy 相似度阈Value (0.0-1.0, Default 0.9)
-            color_tolerance: Accurate Strategy 颜色容忍度 (0.0-1.0, Default 0.1)
-            mismatch_threshold: Accurate Strategy  not Match阈Value (0-100, Default 5.0)
-            include_aa: Accurate StrategyWhether启用抗锯齿检测 (Default True)
+            baseline: Base64-encoded baseline screenshot.
+            current: Base64-encoded current screenshot.
+            strategy: Comparison strategy.
+                - 'auto': auto-select based on image size (<800x600 → accurate, else → fast)
+                - 'fast': dHash perceptual hash (~2ms), returns similarity score
+                - 'accurate': Canvas API pixel-level diff (~100ms), returns diff image
+            similarity_threshold: Similarity threshold for fast strategy (0.0-1.0, default 0.9).
+            color_tolerance: Color tolerance for accurate strategy (0.0-1.0, default 0.1).
+            mismatch_threshold: Mismatch threshold for accurate strategy (0-100, default 5.0).
+            include_aa: Enable anti-aliasing detection for accurate strategy (default True).
 
         Returns:
-            FastComparisonResult: strategy='fast'  or  auto 选择 fast 时
-            AccurateComparisonResult: strategy='accurate'  or  auto 选择 accurate 时
+            FastComparisonResult when strategy is 'fast' or auto selects fast.
+            AccurateComparisonResult when strategy is 'accurate' or auto selects accurate.
 
         Raises:
-            ValueError: If strategy  not 是 'fast', 'accurate',  or  'auto'
+            ValueError: If strategy is not 'fast', 'accurate', or 'auto'.
         """
         actual_strategy = strategy
 
@@ -102,17 +102,17 @@ class ScreenshotComparator:
             raise ValueError(f"Invalid strategy: {strategy}. Must be 'fast', 'accurate', or 'auto'.")
 
     def _select_strategy(self, screenshot_b64: str) -> Literal["fast", "accurate"]:
-        """Auto选择对比Strategy
+        """Auto-select comparison strategy based on image dimensions.
 
         Strategy:
-        - Image < 800x600 (480K 像素) → 'accurate' (exact对比成本可接受)
-        - Image >= 800x600 → 'fast' (大图用fast检测)
+        - Image < 800x600 (480K pixels) → 'accurate' (pixel-level cost is acceptable)
+        - Image >= 800x600 → 'fast' (perceptual hash for large images)
 
         Args:
-            screenshot_b64: Base64 Encoding Screenshot
+            screenshot_b64: Base64-encoded screenshot.
 
         Returns:
-            'fast'  or  'accurate'
+            'fast' or 'accurate'.
         """
         try:
             from PIL import Image
