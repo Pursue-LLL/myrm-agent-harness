@@ -370,7 +370,6 @@ dev = [
   "ruff>=0.15.18",                   # Linter + Formatter
   "mypy>=2.1.0",                    # 静态类型检查
   "pyright>=1.1.408",                # 双重类型检查（互补 mypy）
-  "aiosqlite>=0.22.1",               # SQLite async driver (for checkpoint tests)
   "sqlalchemy>=2.0.51",              # migration_engine unit tests
   "greenlet>=3.5.1",                 # sqlalchemy async engine (dev/tests)
   "respx>=0.23.1",                   # HTTPX mock
