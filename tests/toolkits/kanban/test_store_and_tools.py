@@ -447,6 +447,78 @@ class TestAgentToolsAgentFilter:
         data = json.loads(result)
         assert "error" in data
 
+    @pytest.mark.asyncio
+    async def test_list_tasks_not_truncated_when_under_limit(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        for i in range(3):
+            await _make_task(store, f"t{i}")
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        list_tasks = self._get_tool(tools, "kanban_list_tasks")
+        result = await list_tasks.ainvoke({})
+        data = json.loads(result)
+        assert data["count"] == 3
+        assert data["limit"] == 50
+        assert data["truncated"] is False
+
+    @pytest.mark.asyncio
+    async def test_list_tasks_default_limit_truncates(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        for i in range(55):
+            await _make_task(store, f"t{i:02d}")
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        list_tasks = self._get_tool(tools, "kanban_list_tasks")
+        result = await list_tasks.ainvoke({})
+        data = json.loads(result)
+        assert data["count"] == 50
+        assert data["limit"] == 50
+        assert data["truncated"] is True
+
+    @pytest.mark.asyncio
+    async def test_list_tasks_custom_limit(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        for i in range(12):
+            await _make_task(store, f"t{i:02d}")
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        list_tasks = self._get_tool(tools, "kanban_list_tasks")
+        result = await list_tasks.ainvoke({"limit": 10})
+        data = json.loads(result)
+        assert data["count"] == 10
+        assert data["limit"] == 10
+        assert data["truncated"] is True
+
+    @pytest.mark.asyncio
+    async def test_list_tasks_invalid_limit(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        list_tasks = self._get_tool(tools, "kanban_list_tasks")
+        for bad_limit in (0, 201):
+            result = await list_tasks.ainvoke({"limit": bad_limit})
+            data = json.loads(result)
+            assert "error" in data
+
+    @pytest.mark.asyncio
+    async def test_list_tasks_by_task_id_ignores_board_limit(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        for i in range(55):
+            await _make_task(store, f"t{i:02d}")
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        list_tasks = self._get_tool(tools, "kanban_list_tasks")
+        result = await list_tasks.ainvoke({"task_id": "t00", "limit": 1})
+        data = json.loads(result)
+        assert data["count"] == 1
+        assert data["tasks"][0]["task_id"] == "t00"
+        assert "truncated" not in data
+
 
 # ===========================================================================
 # Agent tools — assign_agent_id via update_task

@@ -114,7 +114,8 @@ Protocol-first architecture with strict framework-business separation.
       propagation, and accepts optional `metadata` JSON for structured machine-readable
       handoff data stored at `task.metadata["handoff"]`.
     - `orchestrator` (7 tools): kanban_add_task, kanban_list_tasks (board list or
-      single-task read via `task_id`), kanban_update_task,
+      single-task read via `task_id`; board list defaults to 50 rows, max 200, with
+      `truncated` metadata), kanban_update_task,
       kanban_move_task, kanban_delete_task, kanban_board_summary, kanban_link.
     - `full` (12 tools): worker + orchestrator. Board CRUD uses server REST/GUI only.
       Opt-in via explicit `kanban_tool_mode=full` on GeneralAgentParams.

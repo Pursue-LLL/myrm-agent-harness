@@ -44,6 +44,9 @@ logger = get_agent_logger(__name__)
 
 KanbanToolMode = Literal["worker", "orchestrator", "full"]
 
+KANBAN_LIST_DEFAULT_LIMIT = 50
+KANBAN_LIST_MAX_LIMIT = 200
+
 _DURATION_RE = re.compile(
     r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$",
     re.IGNORECASE,
@@ -512,11 +515,16 @@ def _build_orchestrator_tools(
         status_filter: str = "",
         agent_id_filter: str = "",
         task_id: str = "",
+        limit: int = KANBAN_LIST_DEFAULT_LIMIT,
     ) -> str:
         """List tasks on a board, optionally filtered by status or agent.
 
         When ``task_id`` is set, returns that single task (read-only) with
         parent/child dependency IDs and ``dependencies_met`` status.
+
+        Board listings default to 50 tasks (max 200). When truncated, the
+        response includes ``truncated: true`` — use ``status_filter`` or raise
+        ``limit`` to see more.
         """
         resolved_task_id = task_id.strip()
         if resolved_task_id:
@@ -540,6 +548,11 @@ def _build_orchestrator_tools(
         if not resolved_board_id:
             return json.dumps({"error": "board_id is required"})
 
+        if limit < 1:
+            return json.dumps({"error": "limit must be >= 1"})
+        if limit > KANBAN_LIST_MAX_LIMIT:
+            return json.dumps({"error": f"limit must be <= {KANBAN_LIST_MAX_LIMIT}"})
+
         status: TaskStatus | None = None
         if status_filter:
             try:
@@ -547,12 +560,22 @@ def _build_orchestrator_tools(
             except ValueError:
                 return json.dumps({"error": f"Invalid status_filter: {status_filter}"})
 
-        tasks = await store.list_tasks(
+        rows = await store.list_tasks(
             resolved_board_id,
             status=status,
             agent_id=agent_id_filter or None,
+            limit=limit + 1,
         )
-        return json.dumps({"tasks": [t.to_dict() for t in tasks], "count": len(tasks)})
+        truncated = len(rows) > limit
+        tasks = rows[:limit]
+        return json.dumps(
+            {
+                "tasks": [t.to_dict() for t in tasks],
+                "count": len(tasks),
+                "limit": limit,
+                "truncated": truncated,
+            }
+        )
 
     @tool("kanban_update_task")
     async def kanban_update_task(
