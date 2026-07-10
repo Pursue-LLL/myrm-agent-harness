@@ -26,12 +26,11 @@ Workspace service for code execution sessions.
 
 import json
 import logging
+import secrets
 import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
-
-from nanoid import generate as nanoid
 
 from myrm_agent_harness.toolkits.code_execution.workspace.models import (
     Workspace,
@@ -106,7 +105,7 @@ class WorkspaceService:
         Returns:
             Newly created workspace.
         """
-        workspace_id = f"workspace_{nanoid(size=12)}"
+        workspace_id = f"workspace_{secrets.token_urlsafe(9)}"
         now = datetime.now()
 
         workspace = Workspace(

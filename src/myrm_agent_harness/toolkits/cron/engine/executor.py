@@ -25,11 +25,10 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import secrets
 from dataclasses import replace as dc_replace
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
-
-from nanoid import generate as nanoid
 
 from myrm_agent_harness.infra.incremental.manager import IncrementalMonitorManager
 from myrm_agent_harness.observability.tracing import TracingContext
@@ -183,7 +182,7 @@ class JobExecutor:
         prev_hash = await self._store.get_latest_integrity_hash(job.id) or GENESIS_HASH
 
         run = CronRunRecord(
-            id=nanoid(size=16),
+            id=secrets.token_urlsafe(12),
             job_id=job.id,
             started_at=started,
             finished_at=finished,
@@ -537,7 +536,7 @@ class JobExecutor:
         """
         now = datetime.now(UTC)
         run = CronRunRecord(
-            id=nanoid(size=16),
+            id=secrets.token_urlsafe(12),
             job_id=job.id,
             trigger_source=self._current_trigger_source,
             status=RunStatus.SKIPPED,

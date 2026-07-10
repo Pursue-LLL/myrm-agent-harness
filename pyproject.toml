@@ -40,8 +40,6 @@ dependencies = [
   "Pillow>=12.3.0",       # 图片读写/resize/压缩 (image_reader + image_compressor + browser/diff + file_parsers + computer_use)
   # --- Token 计数 ---
   "tiktoken>=0.13.0", # OpenAI tokenizer (上下文窗口管理)
-  # --- ID 生成 ---
-  "nanoid>=2.0.0", # 短唯一 ID (workspace / cron job)
   # --- 系统监控 (健康诊断核心依赖) ---
   "psutil>=7.2.2", # 进程与系统监控 (CPU/Memory health probes)
   # --- 监控与可观测性 (仅保留轻量级 API，SDK 移至 optional) ---

@@ -23,10 +23,9 @@ and notifies CronScheduler of mutations. Used by both agent tools and API routes
 from __future__ import annotations
 
 import logging
+import secrets
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
-
-from nanoid import generate as nanoid
 
 from myrm_agent_harness.toolkits.cron.engine.parser import (
     compute_next_run,
@@ -192,7 +191,7 @@ class CronManager:
         # Handle name conflicts: auto-append (2), (3), etc. if name exists
         final_name = await self._resolve_name_conflict(user_id, name)
 
-        job_id = nanoid(size=16)
+        job_id = secrets.token_urlsafe(12)
         if context_from:
             await self._validate_context_from(job_id, context_from)
 
@@ -272,7 +271,7 @@ class CronManager:
         copy_name = f"{source.name} (Copy)"
         final_name = await self._resolve_name_conflict(user_id, copy_name)
 
-        new_id = nanoid(size=16)
+        new_id = secrets.token_urlsafe(12)
         now = datetime.now(UTC)
         cloned = CronJob(
             id=new_id,
