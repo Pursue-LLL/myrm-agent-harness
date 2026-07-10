@@ -9,6 +9,7 @@ Platform AX/UIA/AT-SPI snapshot capture, tree rendering, element invoke dispatch
 |------|------|-------------|-------|
 | __init__.py | Package | Platform AX/UIA/AT-SPI perception package | — |
 | ax_dispatch.py | Core | Platform routing: capture_snapshot, inspect_backend, invoke_element | ✅ |
+| overlay_roles.py | Core | Cross-platform overlay role SSOT for SOM + Inspector | ✅ |
 | renderer.py | Core | AX tree text rendering for agent context; optional `[N]` SOM line prefixes | ✅ |
 | macos_ax.py | Platform | macOS Accessibility API snapshot + invoke + native API routing hints; `refs_for_view_update` fills `nth` from SOM map | ✅ |
 | windows_ax.py | Platform | Windows UI Automation snapshot + invoke + COM/PowerShell routing hints | ✅ |

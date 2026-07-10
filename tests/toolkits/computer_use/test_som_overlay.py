@@ -40,8 +40,8 @@ def test_build_som_index_map_stable_sorted_interactive_only() -> None:
 
 def test_build_som_index_map_respects_max_elements() -> None:
     refs = {
-        f"d{i}": ElementRef(
-            ref_id=f"d{i}",
+        f"r{i:03d}": ElementRef(
+            ref_id=f"r{i:03d}",
             role="AXButton",
             name=f"B{i}",
             bbox=BBox(i, i, 10, 10),
@@ -53,9 +53,9 @@ def test_build_som_index_map_respects_max_elements() -> None:
     index_map = build_som_index_map(refs)
 
     assert len(index_map) == MAX_SOM_OVERLAY_ELEMENTS
-    assert index_map["d0"] == 1
-    assert f"d{MAX_SOM_OVERLAY_ELEMENTS - 1}" in index_map
-    assert f"d{MAX_SOM_OVERLAY_ELEMENTS}" not in index_map
+    assert index_map["r000"] == 1
+    assert "r079" in index_map
+    assert "r080" not in index_map
 
 
 def test_apply_som_overlay_returns_modified_jpeg() -> None:
@@ -80,6 +80,53 @@ def test_apply_som_overlay_returns_modified_jpeg() -> None:
     assert image.size == (400, 300)
 
 
+def test_apply_som_overlay_returns_original_when_index_map_empty() -> None:
+    original = _make_jpeg_base64(400, 300)
+    scaler = CoordinateScaler(800, 600, 400, 300, 1.0)
+    assert apply_som_overlay_to_jpeg_base64(original, {}, scaler, {}) == original
+
+
+def test_apply_som_overlay_returns_original_on_invalid_jpeg() -> None:
+    scaler = CoordinateScaler(800, 600, 400, 300, 1.0)
+    refs = {
+        "d1": ElementRef(ref_id="d1", role="AXButton", name="OK", bbox=BBox(1, 1, 10, 10), backend_key="k1"),
+    }
+    assert apply_som_overlay_to_jpeg_base64("not-a-jpeg", refs, scaler, {"d1": 1}) == "not-a-jpeg"
+
+
+def test_apply_som_overlay_skips_missing_ref() -> None:
+    refs = {
+        "d1": ElementRef(ref_id="d1", role="AXButton", name="OK", bbox=BBox(10, 10, 40, 30), backend_key="k1"),
+    }
+    scaler = CoordinateScaler(800, 600, 400, 300, 1.0)
+    original = _make_jpeg_base64(400, 300)
+    overlaid = apply_som_overlay_to_jpeg_base64(original, refs, scaler, {"d1": 1, "missing": 2})
+    assert overlaid != original
+
+
+def test_apply_som_overlay_skips_tiny_bbox() -> None:
+    refs = {
+        "d1": ElementRef(ref_id="d1", role="AXButton", name="Tiny", bbox=BBox(0, 0, 1, 1), backend_key="k1"),
+    }
+    scaler = CoordinateScaler(800, 600, 400, 300, 1.0)
+    original = _make_jpeg_base64(400, 300)
+    assert apply_som_overlay_to_jpeg_base64(original, refs, scaler, {"d1": 1}) == original
+
+
+def test_render_snapshot_tree_marks_truncated_and_permission() -> None:
+    meta = SnapshotMeta(
+        ref_count=0,
+        app_name="",
+        window_title="",
+        scope="foreground",
+        truncated=True,
+        needs_permission=True,
+    )
+    body, _ = render_snapshot_tree(meta, {})
+    assert "truncated" in body
+    assert "permission_required" in body
+
+
 def test_render_snapshot_tree_adds_som_prefix() -> None:
     meta = SnapshotMeta(
         ref_count=2,
@@ -99,6 +146,27 @@ def test_render_snapshot_tree_adds_som_prefix() -> None:
     assert "@d2" in body
     assert "[N] labels match numbered regions" in body
     assert enriched.ref_count == 2
+
+
+def test_is_interactive_for_overlay_excludes_static_text_fallback() -> None:
+    from myrm_agent_harness.toolkits.computer_use.perception.overlay_roles import is_interactive_for_overlay
+
+    static = ElementRef(
+        ref_id="d2",
+        role="AXStaticText",
+        name="Label",
+        bbox=BBox(0, 0, 10, 10),
+        backend_key="k",
+    )
+    button = ElementRef(
+        ref_id="d1",
+        role="AXButton",
+        name="OK",
+        bbox=BBox(0, 0, 10, 10),
+        backend_key="k",
+    )
+    assert is_interactive_for_overlay(button) is True
+    assert is_interactive_for_overlay(static) is False
 
 
 def test_refs_for_view_update_fills_nth_from_som_map() -> None:

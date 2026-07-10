@@ -7,7 +7,8 @@ coordinate scaling as vision actions (CoordinateScaler.screen_to_api).
 [INPUT]
 - coordinate_scaler::CoordinateScaler (POS: screen ↔ sent-image coordinate map)
 - dref.types::ElementRef, BBox (POS: @dref element metadata)
-- perception.macos_ax::normalize_desktop_role (POS: AX role → overlay role)
+- perception.overlay_roles::is_interactive_for_overlay (POS: cross-platform overlay role SSOT)
+- types::DEFAULT_IMAGE_CONSTRAINTS (POS: shared JPEG encode settings)
 - PIL.Image (POS: image draw primitives)
 
 [OUTPUT]
@@ -28,40 +29,16 @@ from PIL import Image, ImageDraw, ImageFont
 
 from myrm_agent_harness.toolkits.computer_use.coordinate_scaler import CoordinateScaler
 from myrm_agent_harness.toolkits.computer_use.dref.types import BBox, ElementRef
-from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import normalize_desktop_role
+from myrm_agent_harness.toolkits.computer_use.perception.overlay_roles import is_interactive_for_overlay
+from myrm_agent_harness.toolkits.computer_use.types import DEFAULT_IMAGE_CONSTRAINTS
 
 logger = logging.getLogger(__name__)
 
 MAX_SOM_OVERLAY_ELEMENTS = 80
 
-_INTERACTIVE_OVERLAY_ROLES: frozenset[str] = frozenset(
-    {
-        "button",
-        "link",
-        "textbox",
-        "checkbox",
-        "radio",
-        "combobox",
-        "menuitem",
-        "tab",
-        "switch",
-        "slider",
-        "spinbutton",
-        "searchbox",
-        "option",
-        "listbox",
-        "clickable",
-        "focusable",
-    }
-)
-
 _LABEL_FILL = (37, 99, 235, 220)
 _LABEL_TEXT = (255, 255, 255, 255)
 _BOX_OUTLINE = (37, 99, 235, 180)
-
-
-def _is_interactive_element(element: ElementRef) -> bool:
-    return normalize_desktop_role(element.role) in _INTERACTIVE_OVERLAY_ROLES
 
 
 def build_som_index_map(
@@ -70,7 +47,7 @@ def build_som_index_map(
     max_elements: int = MAX_SOM_OVERLAY_ELEMENTS,
 ) -> dict[str, int]:
     """Assign stable 1-based indices to interactive @dref entries (sorted by ref_id)."""
-    interactive_ids = sorted(ref_id for ref_id, element in refs.items() if _is_interactive_element(element))
+    interactive_ids = sorted(ref_id for ref_id, element in refs.items() if is_interactive_for_overlay(element))
     if max_elements > 0:
         interactive_ids = interactive_ids[:max_elements]
     return {ref_id: index for index, ref_id in enumerate(interactive_ids, start=1)}
@@ -143,5 +120,5 @@ def apply_som_overlay_to_jpeg_base64(
 
     composed = Image.alpha_composite(image, overlay).convert("RGB")
     buf = io.BytesIO()
-    composed.save(buf, format="JPEG", quality=75)
+    composed.save(buf, format="JPEG", quality=DEFAULT_IMAGE_CONSTRAINTS.jpeg_quality)
     return base64.standard_b64encode(buf.getvalue()).decode("ascii")

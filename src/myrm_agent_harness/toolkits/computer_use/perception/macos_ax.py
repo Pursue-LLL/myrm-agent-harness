@@ -15,6 +15,7 @@ from myrm_agent_harness.toolkits.computer_use.dref.types import (
     SnapshotMeta,
     SnapshotScope,
 )
+from myrm_agent_harness.toolkits.computer_use.perception.overlay_roles import normalize_desktop_role
 
 logger = logging.getLogger(__name__)
 
@@ -399,40 +400,6 @@ def inspect_foreground() -> dict[str, str | int | bool]:
         "needs_permission": False,
         "recommendation": base_rec + native_hint,
     }
-
-
-_AX_ROLE_TO_OVERLAY_ROLE: dict[str, str] = {
-    "AXButton": "button",
-    "Button": "button",
-    "ButtonControl": "button",
-    "AXTextField": "textbox",
-    "AXTextArea": "textbox",
-    "EditControl": "textbox",
-    "AXCheckBox": "checkbox",
-    "CheckBox": "checkbox",
-    "CheckBoxControl": "checkbox",
-    "AXLink": "link",
-    "HyperlinkControl": "link",
-    "AXComboBox": "combobox",
-    "ComboBox": "combobox",
-    "ComboBoxControl": "combobox",
-    "AXMenuItem": "menuitem",
-    "MenuItemControl": "menuitem",
-    "AXRadioButton": "radio",
-    "RadioButtonControl": "radio",
-    "AXSlider": "slider",
-    "AXPopUpButton": "combobox",
-    "AXTabGroup": "tab",
-    "TabItemControl": "tab",
-    "ListItemControl": "option",
-}
-
-
-def normalize_desktop_role(role: str) -> str:
-    mapped = _AX_ROLE_TO_OVERLAY_ROLE.get(role)
-    if mapped:
-        return mapped
-    return "clickable"
 
 
 def refs_for_view_update(
