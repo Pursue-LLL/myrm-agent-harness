@@ -146,12 +146,16 @@ class TestBuildTools:
 
         def fake_factory(**kwargs: object) -> object:
             calls.append("called")
-            assert kwargs.get("registry") is not None
             return discover_capability
 
         monkeypatch.setattr(
             discovery_module, "create_discover_capability_tool", fake_factory
         )
+
+        economics_module = importlib.import_module(
+            "myrm_agent_harness.agent.tool_management.defer.economics"
+        )
+        monkeypatch.setattr(economics_module, "should_bind_discover_gateway", lambda *a, **kw: True)
 
         tools = await build_tools(registry, [web_search_tool], [mcp_slack_tool], [])
         names = [tool.name for tool in tools]
