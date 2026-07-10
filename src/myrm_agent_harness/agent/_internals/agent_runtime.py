@@ -512,6 +512,7 @@ async def run_agent_loop(
             on_loop_restart=on_loop_restart,
             escalation_target_llm=getattr(agent_state, "escalation_target_llm", None),
             llm=agent_state.llm,
+            token_tracker=_run_tracker,
         )
         executor = StreamExecutor(
             ctx,

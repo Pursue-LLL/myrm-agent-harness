@@ -62,6 +62,7 @@ if TYPE_CHECKING:
 
     from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
     from myrm_agent_harness.utils.runtime.steering import SteeringToken
+    from myrm_agent_harness.utils.token_economics.tracker import TokenTracker
 
 logger = get_agent_logger(__name__)
 

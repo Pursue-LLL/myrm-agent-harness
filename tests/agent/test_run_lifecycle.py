@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.agent._internals.run_lifecycle import (
-    _collect_tracker_stats,
+    collect_tracker_stats,
     cleanup_run,
     compute_context_budget_snapshot,
     post_run_events,
@@ -109,7 +109,7 @@ class TestCleanupRun:
             patch(f"{_MOD}.set_tool_progress_sink"),
             patch(f"{_MOD}.set_cancel_token"),
             patch(f"{_MOD}.set_workspace_root"),
-            patch(f"{_MOD}._collect_tracker_stats"),
+            patch(f"{_MOD}.collect_tracker_stats"),
             patch(f"{_MOD}.reset_token_tracker"),
             patch(f"{_MOD}.clear_pending_explicit_cache_snapshot"),
             patch("myrm_agent_harness.agent.middlewares.approval.set_security_config"),
@@ -134,7 +134,7 @@ class TestCleanupRun:
             patch(f"{_MOD}.set_tool_progress_sink"),
             patch(f"{_MOD}.set_cancel_token"),
             patch(f"{_MOD}.set_workspace_root"),
-            patch(f"{_MOD}._collect_tracker_stats"),
+            patch(f"{_MOD}.collect_tracker_stats"),
             patch(f"{_MOD}.reset_token_tracker"),
             patch(f"{_MOD}.clear_pending_explicit_cache_snapshot"),
             patch("myrm_agent_harness.agent.middlewares.approval.set_security_config"),
@@ -155,7 +155,7 @@ class TestCleanupRun:
             patch(f"{_MOD}.set_tool_progress_sink"),
             patch(f"{_MOD}.set_cancel_token"),
             patch(f"{_MOD}.set_workspace_root"),
-            patch(f"{_MOD}._collect_tracker_stats"),
+            patch(f"{_MOD}.collect_tracker_stats"),
             patch(f"{_MOD}.reset_token_tracker"),
             patch(f"{_MOD}.clear_pending_explicit_cache_snapshot"),
             patch("myrm_agent_harness.agent.middlewares.approval.set_security_config"),
@@ -184,7 +184,7 @@ class TestCollectTrackerStats:
     def test_no_tracker(self) -> None:
         stats = AgentRunStatistics()
         with patch(f"{_MOD}.get_token_tracker", return_value=None):
-            _collect_tracker_stats(stats)
+            collect_tracker_stats(stats)
         assert stats.token_usage is None
 
     def test_with_tracker(self) -> None:
@@ -203,7 +203,7 @@ class TestCollectTrackerStats:
         mock_tracker.usage = mock_usage
 
         with patch(f"{_MOD}.get_token_tracker", return_value=mock_tracker):
-            _collect_tracker_stats(stats)
+            collect_tracker_stats(stats)
 
         assert stats.token_usage is mock_usage
         assert stats.cost_usd == 0.001
@@ -236,7 +236,7 @@ class TestCollectTrackerStats:
         mock_tracker.error_count = 0
 
         with patch(f"{_MOD}.get_token_tracker", return_value=mock_tracker):
-            _collect_tracker_stats(stats)
+            collect_tracker_stats(stats)
 
         assert stats.model_usage is not None
         assert "claude-3" in stats.model_usage

@@ -36,6 +36,7 @@ __all__ = [
     "create_skill_agent",
     "get_distribution_mode",
     "is_compiled_distribution",
+    "track_background_task",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
@@ -61,6 +62,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "create_skill_agent": ("myrm_agent_harness.api.factory", "create_skill_agent"),
     "get_distribution_mode": ("myrm_agent_harness._distribution", "get_distribution_mode"),
     "is_compiled_distribution": ("myrm_agent_harness._distribution", "is_compiled_distribution"),
+    "track_background_task": ("myrm_agent_harness.agent._skill_agent_context", "track_background_task"),
 }
 
 

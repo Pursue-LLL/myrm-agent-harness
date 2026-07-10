@@ -58,6 +58,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.agent.goals.types import Goal, GoalExecutionSummary
     from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
     from myrm_agent_harness.utils.runtime.steering import SteeringToken
+    from myrm_agent_harness.utils.token_economics.tracker import TokenTracker
 
 logger = get_agent_logger(__name__)
 
@@ -95,6 +96,7 @@ class StreamContext:
     on_loop_restart: Callable[[str, Goal], Awaitable[None]] | None = None
     escalation_target_llm: BaseChatModel | None = None
     llm: BaseChatModel | None = None
+    token_tracker: "TokenTracker | None" = None
 
 
 class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
@@ -178,6 +180,13 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
         )
 
         try:
+            if ctx.token_tracker is not None:
+                from myrm_agent_harness.utils.token_economics.tracker import (
+                    _current_tracker,
+                )
+
+                _current_tracker.set(ctx.token_tracker)
+
             while True:
                 from myrm_agent_harness.utils.token_economics.tracker import (
                     get_token_tracker,
