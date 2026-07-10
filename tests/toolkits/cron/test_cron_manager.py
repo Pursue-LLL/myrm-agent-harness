@@ -504,12 +504,12 @@ class TestPauseResumeTrigger:
 class TestValidation:
     def test_agent_requires_prompt(self) -> None:
         mgr = _make_manager()
-        with pytest.raises(ValueError, match="agent job requires a prompt"):
+        with pytest.raises(ValueError, match="(?i)agent job requires a non-empty"):
             mgr._validate_create(JobType.AGENT, _make_schedule(), None, None)
 
     def test_shell_requires_command(self) -> None:
         mgr = _make_manager()
-        with pytest.raises(ValueError, match="shell job requires a command"):
+        with pytest.raises(ValueError, match="(?i)shell job requires a non-empty"):
             mgr._validate_create(JobType.SHELL, _make_schedule(), None, None)
 
     def test_shell_disabled(self) -> None:

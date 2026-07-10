@@ -534,8 +534,8 @@ class CronManager:
     # Validation & Helpers
     # ------------------------------------------------------------------
 
-    @staticmethod
     def _validate_create(
+        self,
         job_type: JobType,
         schedule: Schedule,
         prompt: str | None,
@@ -543,10 +543,33 @@ class CronManager:
     ) -> None:
         """Validate required fields by job type before persisting."""
         if job_type == JobType.SHELL:
+            if not self._shell_enabled:
+                raise ValueError("shell jobs are not enabled")
             if not command:
                 raise ValueError("SHELL job requires a non-empty 'command'")
         elif not prompt:
             raise ValueError(f"{job_type.value.upper()} job requires a non-empty 'prompt'")
+
+        if schedule.kind == ScheduleKind.CRON and not validate_cron_expr(schedule.expr):
+            raise ValueError(f"invalid cron expression: {schedule.expr!r}")
+        if schedule.tz and not validate_timezone(schedule.tz):
+            raise ValueError(f"unknown timezone: {schedule.tz!r}")
+
+    def _validate_schedule(self, schedule: Schedule) -> None:
+        """Validate schedule cron expression and timezone."""
+        if schedule.kind == ScheduleKind.CRON and not validate_cron_expr(schedule.expr):
+            raise ValueError(f"invalid cron expression: {schedule.expr!r}")
+        if schedule.tz and not validate_timezone(schedule.tz):
+            raise ValueError(f"unknown timezone: {schedule.tz!r}")
+
+    async def _validate_context_from(self, job_id: str, context_from: tuple[str, ...]) -> None:
+        """Ensure context_from references are valid and non-circular."""
+        for ref_id in context_from:
+            if ref_id == job_id:
+                raise ValueError(f"context_from must not reference the job itself: {ref_id!r}")
+            ref_job = await self._store.get_job(ref_id)
+            if ref_job is None:
+                raise ValueError(f"context_from references non-existent job: {ref_id!r}")
 
     @staticmethod
     def _ensure_webhook_credentials(triggers: TriggerConfig) -> TriggerConfig:
