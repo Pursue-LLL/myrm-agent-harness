@@ -798,7 +798,7 @@ class MCPSessionActor:
                 item = self._queue.get_nowait()
             except asyncio.QueueEmpty:
                 break
-            if isinstance(item, _ToolCall) and not item.future.done():
+            if isinstance(item, (_ToolCall, _ResourceRead)) and not item.future.done():
                 item.future.set_exception(error)
 
 

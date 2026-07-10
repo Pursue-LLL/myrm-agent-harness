@@ -1148,6 +1148,41 @@ class TestFailPendingMixedQueue:
         assert done_future.result() == "already done"
         loop.close()
 
+    def test_resource_read_futures_failed_on_drain(self) -> None:
+        """_ResourceRead futures must also be failed when the owner task ends."""
+        from myrm_agent_harness.toolkits.mcp.session_actor import _ResourceRead, _ToolCall
+
+        actor = MCPSessionActor("srv", {"transport": "stdio"})
+        loop = asyncio.new_event_loop()
+        tool_future: asyncio.Future[object] = loop.create_future()
+        res_future: asyncio.Future[object] = loop.create_future()
+
+        actor._queue.put_nowait(_ToolCall("tool_a", {}, tool_future))
+        actor._queue.put_nowait(_ResourceRead("resource://test", res_future))
+
+        error = RuntimeError("session ended")
+        actor._fail_pending(error)
+
+        assert actor._queue.empty()
+        assert tool_future.exception() is error
+        assert res_future.exception() is error
+        loop.close()
+
+    def test_resource_read_already_done_not_overridden(self) -> None:
+        """A _ResourceRead whose future is already resolved must not be overwritten."""
+        from myrm_agent_harness.toolkits.mcp.session_actor import _ResourceRead
+
+        actor = MCPSessionActor("srv", {"transport": "stdio"})
+        loop = asyncio.new_event_loop()
+        done_future: asyncio.Future[object] = loop.create_future()
+        done_future.set_result(b"some data")
+
+        actor._queue.put_nowait(_ResourceRead("resource://done", done_future))
+
+        actor._fail_pending(RuntimeError("should not override"))
+        assert done_future.result() == b"some data"
+        loop.close()
+
 
 # ────────── Custom init params: tool_include / tool_exclude ──────────
 
