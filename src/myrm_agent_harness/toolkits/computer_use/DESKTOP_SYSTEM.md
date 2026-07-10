@@ -89,7 +89,7 @@ desktop_vision_tool (only when AX empty or interact failed)
 
 | Channel | Payload |
 |---------|---------|
-| SSE `DESKTOP_VIEW_UPDATE` | screenshot_base64, refs (BBox overlay + optional `nth` SOM index), needs_permission |
+| SSE `DESKTOP_VIEW_UPDATE` | screenshot_base64 (SOM-labeled when multimodal agent snapshot or inspector refresh), refs (BBox overlay + `nth` when SOM active), needs_permission |
 | REST `GET /webui/desktop/snapshot` | Same shape; called on `desktop_*` TOOL_END + manual refresh |
 | Desktop Inspector | `DesktopLiveView` + `ElementOverlay` (mirrors browser-inspector); toggle visible when `computer_use` tool enabled |
 

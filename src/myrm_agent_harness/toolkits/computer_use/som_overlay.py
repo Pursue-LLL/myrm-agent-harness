@@ -15,7 +15,7 @@ coordinate scaling as vision actions (CoordinateScaler.screen_to_api).
 - apply_som_overlay_to_jpeg_base64(): return JPEG base64 with [N] badges drawn
 
 [POS]
-Optional SOM annotation layer for desktop_snapshot when include_screenshot=True.
+Optional SOM annotation for multimodal desktop_snapshot (`include_screenshot=True`) and Desktop Inspector screenshot refresh.
 """
 
 from __future__ import annotations

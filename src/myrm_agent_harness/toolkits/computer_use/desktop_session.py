@@ -1,7 +1,7 @@
 """DesktopSession — semantic desktop control with @dref registry.
 
 [INPUT]
-- dref, perception, execution.healer, session, types, security.credential_vault modules
+- dref, perception, execution.healer, session, som_overlay, types, security.credential_vault modules
 
 [OUTPUT]
 - DesktopSession: AX snapshot, @dref registry, interact/vision, permissions, inspector export

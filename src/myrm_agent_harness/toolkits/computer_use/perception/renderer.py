@@ -4,7 +4,7 @@
 - dref.types::ElementRef, SnapshotMeta (POS: @dref snapshot metadata)
 
 [OUTPUT]
-- render_snapshot_tree(): formatted text tree + enriched SnapshotMeta
+- render_snapshot_tree(): formatted text tree (+ optional `[N]` SOM prefixes) + enriched SnapshotMeta
 
 [POS]
 Text serialization for desktop_snapshot_tool AX trees.

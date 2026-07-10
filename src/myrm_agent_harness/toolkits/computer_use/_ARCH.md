@@ -13,7 +13,7 @@ with native desktop applications via accessibility trees (@dref) with coordinate
 | safety.py | Core | Blocked key combos, dangerous type-text guardrails, sensitive app guard, and foreground permission classification | ✅ |
 | screenshot_processor.py | Core | Binary-search downsampling pipeline | ✅ |
 | coordinate_scaler.py | Core | DPI-aware coordinate transformer | ✅ |
-| som_overlay.py | Core | SOM numbered overlay on JPEG when `include_screenshot=True`; stable [N]↔@dref map (cap 80) | ✅ |
+| som_overlay.py | Core | SOM numbered overlay on JPEG; agent path when `include_screenshot=True`, inspector refresh when screenshot captured; stable [N]↔@dref map (cap 80) | ✅ |
 | session.py | Core | ComputerSession orchestrator (coordinate I/O) | ✅ |
 | desktop_session.py | Core | DesktopSession: AX snapshot, @dref registry, DESKTOP_VIEW_UPDATE, export_inspector_snapshot | ✅ |
 | desktop_agent_tools.py | Core | 4 LangChain tools: inspect / snapshot / interact / vision | ✅ |
