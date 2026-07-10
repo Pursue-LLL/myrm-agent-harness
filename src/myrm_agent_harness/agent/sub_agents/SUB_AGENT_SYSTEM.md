@@ -108,7 +108,7 @@ Layer 4: Fine-grained Sandboxing (readonly)
 | **MemoryIsolationPolicy** | `EPHEMERAL_SESSION` | 临时会话 | 默认，独立记忆空间 |
 |  | `READ_ONLY_GLOBAL` | 只读全局 | 阻止 memory write tools（memory_save/memory_manage_tool） |
 | **WorkspacePolicy** | `INHERIT` | 继承 | 默认，共享父工作空间 |
-|  | `ISOLATED_COPY` | 隔离副本 | hardlink 克隆工作空间 + 执行后 git diff 收集 |
+|  | `ISOLATED_COPY` | 隔离副本 | `shutil.copytree` COW 克隆工作空间 + `_sync_tree` 完美镜像同步 |
 
 ### 2. Token 用量追踪与预算
 
