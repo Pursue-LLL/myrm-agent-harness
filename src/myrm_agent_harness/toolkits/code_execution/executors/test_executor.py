@@ -127,7 +127,10 @@ class SubprocessCodeExecutor:
 
             parent_pythonpath = str(WorkspacePathResolver.resolve_workspace_root())
             existing_pythonpath = env.get("PYTHONPATH", "")
-            env["PYTHONPATH"] = os.pathsep.join(part for part in (parent_pythonpath, existing_pythonpath) if part)
+            harness_src = str(Path(__file__).resolve().parents[4])
+            env["PYTHONPATH"] = os.pathsep.join(
+                part for part in (parent_pythonpath, harness_src, existing_pythonpath) if part
+            )
 
             # Build the pytest command wrapped with PEP 578 audit sandbox
             pytest_cmd_args = [

@@ -15,7 +15,7 @@
 - _is_escalation_marker_message: module-level helper function
 
 [POS]
-StreamRecoveryMixin composes overflow, failover, escalation, transient retry, iteration-limit (with grace-call summary), empty-response, truncation, steering, subagent, and goal continuation recovery strategies.
+StreamRecoveryMixin composes overflow, deferred failover (429 never failover; 529 after 3 consecutive), escalation, transient retry, iteration-limit (with grace-call summary), empty-response, truncation, steering, subagent, and goal continuation recovery strategies.
 
 """
 
@@ -63,6 +63,7 @@ if TYPE_CHECKING:
 logger = get_agent_logger(__name__)
 
 _MAX_OVERFLOW_RETRIES = 2
+_MAX_CONSECUTIVE_OVERLOADED_BEFORE_FAILOVER = 3
 _RETRY_AFTER_RE = re.compile(r"retry.*?after.*?(\d+).*?second", re.IGNORECASE)
 
 
@@ -101,7 +102,7 @@ class StreamRecoveryMixin(
 
     All methods access StreamExecutor attributes via self:
     _ctx, _compactor, _fallback_llm, _safety_fallback_llm,
-    _rebuild_agent_fn, failover_used, streaming_final_answer
+    _rebuild_agent_fn, failover_used, _consecutive_overloaded, streaming_final_answer
     """
 
     _fallback_llm: BaseChatModel | None
@@ -111,6 +112,7 @@ class StreamRecoveryMixin(
     _compactor: StreamCompactor
     failover_used: bool
     _escalation_used: bool
+    _consecutive_overloaded: int
 
     async def _handle_overflow(self, exc: Exception, retries: int) -> bool:
         """Progressive overflow recovery. Returns True to retry.
@@ -174,6 +176,20 @@ class StreamRecoveryMixin(
 
         if not error_kind.is_failoverable or target_fallback_llm is None or self.failover_used:
             return False
+
+        if error_kind == ErrorKind.RATE_LIMIT:
+            logger.warning(" Rate limit: deferring to transient retry (failover skipped)")
+            return False
+
+        if error_kind == ErrorKind.OVERLOADED:
+            self._consecutive_overloaded += 1
+            if self._consecutive_overloaded < _MAX_CONSECUTIVE_OVERLOADED_BEFORE_FAILOVER:
+                logger.warning(
+                    " Overloaded (%d/%d): deferring to transient retry",
+                    self._consecutive_overloaded,
+                    _MAX_CONSECUTIVE_OVERLOADED_BEFORE_FAILOVER,
+                )
+                return False
 
         self.failover_used = True
         rebuild_fn = cast("Callable[[BaseChatModel], None]", self._rebuild_agent_fn)

@@ -159,7 +159,7 @@ class DeepResearchOrchestrator(DeepResearchPlanResearchMixin, DeepResearchPhases
         if phase == DeepResearchPhase.CLARIFY:
             return 3
         if phase == DeepResearchPhase.PLAN:
-            return 8
+            return 10
         if phase == DeepResearchPhase.EXPLORE:
             return 13
         if phase == DeepResearchPhase.RESEARCH:

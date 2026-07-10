@@ -23,7 +23,7 @@ Detailed design: [STREAMING_SYSTEM.md](STREAMING_SYSTEM.md)
 | stream_compactor.py | Core | Provides StreamCompactor. | ✅ |
 | stream_dispatcher.py | Core | StreamDispatcherMixin dispatches astream chunks to the output_queue; routes `swarm_fission` GraphInterrupt to dedicated SSE event (not approval). | ✅ |
 | stream_executor.py | Core | Stream execution engine. Encapsulates the complete lifecycle of Agent.astream(). | ✅ |
-| stream_recovery.py | Core | StreamRecoveryMixin composes overflow, failover, escalation, transient retry, iteration-limit (with grace-call summary), empty-response, truncation, steering, subagent, and goal continuation recovery strategies. | ✅ |
+| stream_recovery.py | Core | StreamRecoveryMixin composes overflow, deferred failover (429 never failover; 529 after 3 consecutive), escalation, transient retry, iteration-limit (with grace-call summary), empty-response, truncation, steering, subagent, and goal continuation recovery strategies. | ✅ |
 | stream_recovery_continuation.py | Core | StreamContinuationRecoveryMixin handles steering injection, subagent completion events, goal continuation status, and background goal terminal callbacks. | ✅ |
 | stream_recovery_oneshot.py | Core | OneshotRecoveryMixin — targeted one-shot recovery for THINKING_SIGNATURE, IMAGE_TOO_LARGE, MEDIA_REJECTED, LONG_CONTEXT_TIER. | ✅ |
 | stream_recovery_truncation.py | Core | StreamTruncationRecoveryMixin handles length/max-token continuation with progressive output budget boosting (ContextVar ephemeral_max_output_tokens), truncated tool-call auto-retry, and structured truncation warnings. | ✅ |

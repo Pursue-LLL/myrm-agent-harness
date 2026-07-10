@@ -82,7 +82,8 @@ class TestReadDocumentAsText:
     @pytest.mark.asyncio
     async def test_docx_parsing(self) -> None:
         """Test .docx file is parsed to markdown via DocxParser"""
-        from docx import Document
+        docx_mod = pytest.importorskip("docx", reason="python-docx not installed")
+        Document = docx_mod.Document
 
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
             doc = Document()
@@ -103,7 +104,8 @@ class TestReadDocumentAsText:
     @pytest.mark.asyncio
     async def test_xlsx_parsing(self) -> None:
         """Test .xlsx file is parsed to markdown table via ExcelParser"""
-        from openpyxl import Workbook
+        openpyxl = pytest.importorskip("openpyxl", reason="openpyxl not installed")
+        Workbook = openpyxl.Workbook
 
         wb = Workbook()
         ws = wb.active
@@ -148,7 +150,8 @@ class TestReadDocumentAsText:
     @pytest.mark.asyncio
     async def test_empty_docx(self) -> None:
         """Test empty document returns appropriate message"""
-        from docx import Document
+        docx_mod = pytest.importorskip("docx", reason="python-docx not installed")
+        Document = docx_mod.Document
 
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
             doc = Document()
@@ -171,7 +174,8 @@ class TestReadDocumentAsText:
     @pytest.mark.asyncio
     async def test_pptx_parsing(self) -> None:
         """Test .pptx file is parsed to markdown via PptxParser"""
-        from pptx import Presentation
+        pptx_mod = pytest.importorskip("pptx", reason="python-pptx not installed")
+        Presentation = pptx_mod.Presentation
 
         with tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as f:
             prs = Presentation()
@@ -193,7 +197,8 @@ class TestReadDocumentAsText:
     @pytest.mark.asyncio
     async def test_truncation_protection(self) -> None:
         """Test large documents are truncated at _FALLBACK_MAX_CHARS"""
-        from docx import Document
+        docx_mod = pytest.importorskip("docx", reason="python-docx not installed")
+        Document = docx_mod.Document
 
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
             doc = Document()
@@ -211,7 +216,8 @@ class TestReadDocumentAsText:
     @pytest.mark.asyncio
     async def test_temp_file_cleanup(self) -> None:
         """Test temp files are cleaned up after parsing"""
-        from docx import Document
+        docx_mod = pytest.importorskip("docx", reason="python-docx not installed")
+        Document = docx_mod.Document
 
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
             doc = Document()

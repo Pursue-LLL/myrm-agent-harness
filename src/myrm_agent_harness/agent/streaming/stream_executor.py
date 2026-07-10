@@ -124,6 +124,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
         self._rebuild_agent_fn = rebuild_agent_fn
         self.failover_used = failover_used
         self._escalation_used = False
+        self._consecutive_overloaded = 0
         self.streaming_final_answer = False
         self._tool_truncation_retries = 0
         self._compactor = StreamCompactor(ctx.output_queue)
@@ -280,6 +281,8 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                             continue
 
                         raise
+
+                self._consecutive_overloaded = 0
 
                 if await self._handle_subagent_notifications(collected_messages):
                     continue

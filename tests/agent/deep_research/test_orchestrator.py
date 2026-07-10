@@ -713,7 +713,7 @@ class TestOrchestratorRun:
         assert orch._estimate_progress() == 3
 
         orch._phase = DeepResearchPhase.PLAN
-        assert orch._estimate_progress() == 8
+        assert orch._estimate_progress() == 10
 
         orch._phase = DeepResearchPhase.EXPLORE
         assert orch._estimate_progress() == 13

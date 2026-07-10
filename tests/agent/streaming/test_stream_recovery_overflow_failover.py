@@ -201,7 +201,7 @@ async def test_failover_no_fallback(ctx):
 
 @pytest.mark.asyncio
 async def test_failover_success(ctx):
-    """Failover with available fallback LLM succeeds."""
+    """Failover with available fallback LLM succeeds (using TIMEOUT, a non-deferred kind)."""
     fallback_llm = MagicMock()
     fallback_llm.model_name = "gpt-4o-mini"
     rebuild_fn = MagicMock()
@@ -217,7 +217,7 @@ async def test_failover_success(ctx):
 
     with patch(
         "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
-        return_value=ErrorKind.RATE_LIMIT,
+        return_value=ErrorKind.TIMEOUT,
     ):
         result = await executor._handle_failover(exc)
 
@@ -245,7 +245,7 @@ async def test_failover_already_used(ctx):
 
     with patch(
         "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
-        return_value=ErrorKind.RATE_LIMIT,
+        return_value=ErrorKind.TIMEOUT,
     ):
         result = await executor._handle_failover(RuntimeError("error"))
 
@@ -395,3 +395,118 @@ async def test_emit_recovery_event(ctx):
     assert events[0]["type"] == AgentEventType.STATUS.value
     assert events[0]["step_key"] == "test_step"
     assert events[0]["extra_field"] == "value"
+
+
+# ─── Rate-limit / Overloaded deferred failover ───────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_never_failovers(ctx):
+    """RATE_LIMIT always defers to transient retry, even with fallback available."""
+    fallback_llm = MagicMock()
+    fallback_llm.model_name = "gpt-4o-mini"
+
+    executor = StreamExecutor(
+        ctx=ctx, fallback_llm=fallback_llm, safety_fallback_llm=None, rebuild_agent_fn=MagicMock()
+    )
+    executor._compactor = FakeCompactor()
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        return_value=ErrorKind.RATE_LIMIT,
+    ):
+        result = await executor._handle_failover(RuntimeError("429"))
+
+    assert result is False
+    assert executor.failover_used is False
+
+
+@pytest.mark.asyncio
+async def test_overloaded_defers_below_threshold(ctx):
+    """OVERLOADED defers to transient retry when consecutive count < 3."""
+    fallback_llm = MagicMock()
+    fallback_llm.model_name = "gpt-4o-mini"
+
+    executor = StreamExecutor(
+        ctx=ctx, fallback_llm=fallback_llm, safety_fallback_llm=None, rebuild_agent_fn=MagicMock()
+    )
+    executor._compactor = FakeCompactor()
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        return_value=ErrorKind.OVERLOADED,
+    ):
+        for i in range(2):
+            result = await executor._handle_failover(RuntimeError("529"))
+            assert result is False, f"iteration {i}: should defer"
+            assert executor.failover_used is False
+
+    assert executor._consecutive_overloaded == 2
+
+
+@pytest.mark.asyncio
+async def test_overloaded_failovers_at_threshold(ctx):
+    """OVERLOADED triggers failover after 3 consecutive errors."""
+    fallback_llm = MagicMock()
+    fallback_llm.model_name = "gpt-4o-mini"
+    rebuild_fn = MagicMock()
+
+    executor = StreamExecutor(
+        ctx=ctx, fallback_llm=fallback_llm, safety_fallback_llm=None, rebuild_agent_fn=rebuild_fn
+    )
+    executor._compactor = FakeCompactor()
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        return_value=ErrorKind.OVERLOADED,
+    ):
+        for _ in range(2):
+            assert await executor._handle_failover(RuntimeError("529")) is False
+
+        result = await executor._handle_failover(RuntimeError("529"))
+
+    assert result is True
+    assert executor.failover_used is True
+    assert executor._consecutive_overloaded == 3
+    rebuild_fn.assert_called_once_with(fallback_llm)
+
+
+@pytest.mark.asyncio
+async def test_consecutive_overloaded_resets_on_success(ctx):
+    """_consecutive_overloaded resets when set to 0 (simulating successful astream)."""
+    fallback_llm = MagicMock()
+
+    executor = StreamExecutor(
+        ctx=ctx, fallback_llm=fallback_llm, safety_fallback_llm=None, rebuild_agent_fn=MagicMock()
+    )
+    executor._compactor = FakeCompactor()
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        return_value=ErrorKind.OVERLOADED,
+    ):
+        await executor._handle_failover(RuntimeError("529"))
+        await executor._handle_failover(RuntimeError("529"))
+
+    assert executor._consecutive_overloaded == 2
+
+    executor._consecutive_overloaded = 0
+
+    from myrm_agent_harness.agent.streaming.stream_recovery import _MAX_CONSECUTIVE_OVERLOADED_BEFORE_FAILOVER
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        return_value=ErrorKind.OVERLOADED,
+    ):
+        result = await executor._handle_failover(RuntimeError("529"))
+
+    assert result is False
+    assert executor._consecutive_overloaded == 1
