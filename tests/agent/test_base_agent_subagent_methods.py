@@ -40,6 +40,21 @@ def setup_configs():
 from myrm_agent_harness.agent.sub_agents.types import SubAgentResult, SubAgentStatus
 
 
+class FakeTool:
+    """Minimal tool stub for subagent filtering tests."""
+
+    def __init__(self, name: str):
+        self.name = name
+        self.description = f"Fake {name}"
+        self.metadata = {}
+
+
+def _make_tool_registry_getter():
+    """Return a tool_registry_getter that provides tools needed by SUBAGENT_CONFIGS."""
+    tools = [FakeTool("web_search_tool"), FakeTool("browser_navigate_tool")]
+    return lambda: tools
+
+
 class FakeLLM:
     """Fake LLM for testing."""
 
@@ -81,7 +96,7 @@ async def test_spawn_child_nesting_forbidden():
         task_description="test task",
         config=browser_config,
         context={"session_id": "test_session", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp"},
-        tool_registry_getter=lambda: [],
+        tool_registry_getter=_make_tool_registry_getter(),
         wait=True,
         parent_type="browser",
     )
@@ -104,7 +119,7 @@ async def test_spawn_child_nesting_allowed():
         task_description="test search task",
         config=search_config,
         context={"session_id": "test_session", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp"},
-        tool_registry_getter=lambda: [],
+        tool_registry_getter=_make_tool_registry_getter(),
         wait=True,
         parent_type="search",
     )
@@ -128,7 +143,7 @@ async def test_spawn_child_wait_true():
         task_description="同步任务",
         config=config,
         context={"session_id": "test_session", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp"},
-        tool_registry_getter=lambda: [],
+        tool_registry_getter=_make_tool_registry_getter(),
         wait=True,
     )
 
@@ -153,7 +168,7 @@ async def test_spawn_child_wait_false():
         task_description="异步任务",
         config=config,
         context={"session_id": "test_session", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp"},
-        tool_registry_getter=lambda: [],
+        tool_registry_getter=_make_tool_registry_getter(),
         wait=False,
     )
 
@@ -188,7 +203,7 @@ async def test_list_children_with_running_tasks():
         task_description="运行中任务",
         config=config,
         context={"session_id": "test", "workspace_path": "/tmp"},
-        tool_registry_getter=lambda: [],
+        tool_registry_getter=_make_tool_registry_getter(),
         wait=False,
     )
 
@@ -387,7 +402,7 @@ async def test_children_cleanup_after_completion():
         task_description="测试清理",
         config=config,
         context={"session_id": "test", "workspace_path": "/tmp"},
-        tool_registry_getter=lambda: [],
+        tool_registry_getter=_make_tool_registry_getter(),
         wait=True,
     )
 

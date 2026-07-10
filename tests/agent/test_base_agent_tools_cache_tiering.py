@@ -26,6 +26,7 @@ def mock_agent():
     agent.user_tools = []
     agent._cached_tools = None
     agent._tools_initialized = False
+    agent._agent = None
 
     # Mock LLM and config
     agent.llm = MagicMock()

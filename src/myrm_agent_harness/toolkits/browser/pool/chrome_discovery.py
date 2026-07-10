@@ -11,8 +11,9 @@
 [POS]
 Scans known Chromium-based browser user-data directories for DevToolsActivePort files,
 which Chrome writes when remote debugging is enabled (via chrome://inspect toggle or
---remote-debugging-port flag). Provides 4-phase discovery:
-  1. DevToolsActivePort file scan (5 browsers × 3 platforms)
+--remote-debugging-port flag). Provides 5-phase discovery:
+  0. Myrm E2E fixed port (MYRM_CHROME_E2E_PORT, default 9333) via HTTP /json/version
+  1. DevToolsActivePort file scan (Myrm E2E + 5 browsers × 3 platforms)
   2. HTTP probe (/json/version) to validate port (full CDP API)
   3. TCP + DevToolsActivePort WebSocket path (chrome://inspect mode on Chrome M144+)
   4. Fixed port 9222 HTTP probe fallback
@@ -35,6 +36,18 @@ logger = logging.getLogger(__name__)
 _HTTP_PROBE_TIMEOUT_S = 2.0
 _TCP_PROBE_TIMEOUT_S = 1.0
 _FALLBACK_PORT = 9222
+_MYRM_E2E_DEFAULT_PORT = 9333
+
+
+def _myrm_e2e_port() -> int:
+    raw = os.environ.get("MYRM_CHROME_E2E_PORT", str(_MYRM_E2E_DEFAULT_PORT)).strip()
+    try:
+        port = int(raw)
+    except ValueError:
+        return _MYRM_E2E_DEFAULT_PORT
+    if 1 <= port <= 65535:
+        return port
+    return _MYRM_E2E_DEFAULT_PORT
 
 
 def _get_home() -> Path:
@@ -53,6 +66,7 @@ def get_chromium_data_dirs() -> Iterator[Path]:
     if system == "Darwin":
         base = home / "Library" / "Application Support"
         candidates = [
+            base / "Myrm" / "ChromeE2E",
             base / "Google" / "Chrome",
             base / "Microsoft Edge",
             base / "Chromium",
@@ -62,6 +76,7 @@ def get_chromium_data_dirs() -> Iterator[Path]:
     elif system == "Linux":
         base = home / ".config"
         candidates = [
+            home / ".local" / "share" / "myrm" / "chrome-e2e",
             base / "google-chrome",
             base / "microsoft-edge",
             base / "chromium",
@@ -72,6 +87,7 @@ def get_chromium_data_dirs() -> Iterator[Path]:
         local_app_data = os.environ.get("LOCALAPPDATA", str(home / "AppData" / "Local"))
         base = Path(local_app_data)
         candidates = [
+            base / "Myrm" / "ChromeE2E",
             base / "Google" / "Chrome" / "User Data",
             base / "Microsoft" / "Edge" / "User Data",
             base / "Chromium" / "User Data",
@@ -197,12 +213,18 @@ def discover_chrome_cdp_endpoint() -> str | None:
     """Auto-discover a local Chromium-based browser's CDP endpoint.
 
     Strategy (ordered by reliability):
+      0. Myrm E2E Chrome fixed port (MYRM_CHROME_E2E_PORT, default 9333) via HTTP
       1. Scan DevToolsActivePort files from known browser data dirs
       2. For each found port: HTTP probe → WebSocket path + TCP (inspect-only mode)
       3. Fallback: probe well-known port 9222 via HTTP
 
     Returns a CDP endpoint URL (http:// or ws:// for connect_over_cdp) or None.
     """
+    myrm_port = _myrm_e2e_port()
+    if _probe_http_version(myrm_port):
+        logger.info("Chrome discovery: connected via Myrm E2E port %d", myrm_port)
+        return f"http://127.0.0.1:{myrm_port}"
+
     for data_dir in get_chromium_data_dirs():
         result = _read_devtools_active_port(data_dir)
         if result is None:

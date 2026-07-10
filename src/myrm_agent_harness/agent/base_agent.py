@@ -271,6 +271,9 @@ class BaseAgent(BaseAgentModesMixin):
             if self._cached_tools is None:
                 self.user_tools.extend(normalized)
                 self.user_tools.sort(key=lambda t: (get_tool_layer(t.name) or ToolLayer.EXTENDED, t.name))
+            else:
+                self._cached_tools.extend(normalized)
+                self._cached_tools.sort(key=lambda t: (get_tool_layer(t.name) or ToolLayer.EXTENDED, t.name))
             return
 
         self._cached_tools.extend(normalized)

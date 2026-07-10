@@ -157,11 +157,20 @@ class TestDiscoverChromeEndpoint:
     ) -> None:
         mock_dirs.return_value = iter([Path("/fake/chrome")])
         mock_read.return_value = (54321, "/devtools/browser/abc")
-        mock_probe.return_value = "ws://127.0.0.1:54321/devtools/browser/abc"
+        mock_probe.side_effect = [None, "ws://127.0.0.1:54321/devtools/browser/abc"]
 
         result = discover_chrome_cdp_endpoint()
         assert result == "http://127.0.0.1:54321"
-        mock_probe.assert_called_once_with(54321)
+        assert mock_probe.call_args_list[-1] == ((54321,),)
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
+    def test_myrm_e2e_port_priority(self, mock_probe: MagicMock) -> None:
+        mock_probe.return_value = "ws://127.0.0.1:9333/devtools/browser/abc"
+
+        result = discover_chrome_cdp_endpoint()
+
+        assert result == "http://127.0.0.1:9333"
+        mock_probe.assert_called_once_with(9333)
 
     @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._port_is_open")
     @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
@@ -172,7 +181,7 @@ class TestDiscoverChromeEndpoint:
     ) -> None:
         mock_dirs.return_value = iter([Path("/fake/chrome")])
         mock_read.return_value = (54321, "/devtools/browser/abc")
-        mock_probe.return_value = None
+        mock_probe.side_effect = [None, None]
         mock_tcp.return_value = True
 
         result = discover_chrome_cdp_endpoint()
@@ -182,7 +191,7 @@ class TestDiscoverChromeEndpoint:
     @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.get_chromium_data_dirs")
     def test_fallback_to_9222(self, mock_dirs: MagicMock, mock_probe: MagicMock) -> None:
         mock_dirs.return_value = iter([])
-        mock_probe.return_value = "ws://127.0.0.1:9222/devtools/browser"
+        mock_probe.side_effect = [None, "ws://127.0.0.1:9222/devtools/browser"]
 
         result = discover_chrome_cdp_endpoint()
         assert result == "http://127.0.0.1:9222"
@@ -205,7 +214,7 @@ class TestDiscoverChromeEndpoint:
     ) -> None:
         mock_dirs.return_value = iter([Path("/fake/chrome")])
         mock_read.return_value = (54321, "/devtools/browser/abc")
-        mock_probe.side_effect = [None, None]
+        mock_probe.side_effect = [None, None, None]
         mock_tcp.return_value = False
 
         result = discover_chrome_cdp_endpoint()
@@ -221,7 +230,7 @@ class TestDiscoverChromeEndpoint:
         edge_dir = Path("/fake/edge")
         mock_dirs.return_value = iter([chrome_dir, edge_dir])
         mock_read.side_effect = [None, (9333, "/devtools/browser/xyz")]
-        mock_probe.return_value = "ws://127.0.0.1:9333/devtools/browser/xyz"
+        mock_probe.side_effect = [None, "ws://127.0.0.1:9333/devtools/browser/xyz"]
 
         result = discover_chrome_cdp_endpoint()
         assert result == "http://127.0.0.1:9333"
