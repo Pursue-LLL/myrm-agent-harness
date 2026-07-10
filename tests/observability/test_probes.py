@@ -3,6 +3,7 @@
 Covers:
 - check_workspace_storage_health: workspace path resolution and skills.db path
 - check_database_health: database path resolution (data.db)
+- check_hook_health: hook system registration status diagnostics
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ import os
 import sqlite3
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -144,3 +145,75 @@ class TestCheckDatabaseHealth:
             with patch.dict(os.environ, {"MYRM_DATA_DIR": str(tmpdir)}):
                 report = await check_database_health()
                 assert report.status == "pass"
+
+
+class TestCheckHookHealth:
+    """Tests for check_hook_health diagnostic probe."""
+
+    @pytest.mark.asyncio
+    async def test_no_executor_returns_pass_idle(self):
+        from myrm_agent_harness.agent.hooks.executor import set_hook_executor
+        from myrm_agent_harness.observability.diagnostics.probes import check_hook_health
+
+        set_hook_executor(None)
+        report = await check_hook_health()
+        assert report.component_name == "HookSystem"
+        assert report.status == "pass"
+        assert "idle" in report.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_executor_with_no_hooks_returns_pass(self):
+        from myrm_agent_harness.agent.hooks import HookExecutor, HookRegistry, set_hook_executor
+        from myrm_agent_harness.observability.diagnostics.probes import check_hook_health
+
+        registry = HookRegistry()
+        executor = HookExecutor(registry)
+        set_hook_executor(executor)
+        try:
+            report = await check_hook_health()
+            assert report.status == "pass"
+            assert "no hooks configured" in report.message.lower()
+        finally:
+            set_hook_executor(None)
+
+    @pytest.mark.asyncio
+    async def test_executor_with_hooks_returns_pass_healthy(self):
+        from myrm_agent_harness.agent.hooks import (
+            CommandHookDefinition,
+            HookEvent,
+            HookExecutor,
+            HookRegistry,
+            set_hook_executor,
+        )
+        from myrm_agent_harness.observability.diagnostics.probes import check_hook_health
+
+        registry = HookRegistry()
+        registry.register(HookEvent.PRE_TOOL_USE, CommandHookDefinition(command="echo check"))
+        registry.register(HookEvent.SESSION_START, CommandHookDefinition(command="echo init"))
+        executor = HookExecutor(registry)
+        set_hook_executor(executor)
+        try:
+            report = await check_hook_health()
+            assert report.status == "pass"
+            assert "healthy" in report.message.lower()
+            assert "2 hook(s) active" in report.message
+            assert report.detail is not None
+            assert "500ms" in report.detail
+        finally:
+            set_hook_executor(None)
+
+    @pytest.mark.asyncio
+    async def test_import_error_returns_fail(self):
+        from myrm_agent_harness.observability.diagnostics.probes import check_hook_health
+
+        with patch.dict("sys.modules", {"myrm_agent_harness.agent.hooks.executor": None}):
+            report = await check_hook_health()
+            assert report.status == "fail"
+            assert "failed" in report.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_hook_health_registered_in_diagnostics(self):
+        from myrm_agent_harness.observability.diagnostics.manager import _diagnostic_hooks
+
+        names = [fn.__name__ for fn in _diagnostic_hooks]
+        assert "check_hook_health" in names

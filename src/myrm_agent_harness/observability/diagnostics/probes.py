@@ -9,6 +9,7 @@
 - check_qdrant_health: Check Qdrant vector database reachability.
 - check_system_resources: Monitor CPU and memory usage via psutil.
 - check_tokenizer_health: Verify tokenizer backend and CJK quality gate.
+- check_hook_health: Check hook system registration status and configuration.
 
 [POS]
 Health diagnostic probes. Registered into the global diagnostic manager and executed
@@ -434,9 +435,57 @@ async def check_tokenizer_health() -> HealthReport:
         )
 
 
+async def check_hook_health() -> HealthReport:
+    """Check hook system registration status and configuration.
+
+    Reports pass when executor is active with hooks registered,
+    or when no hooks are configured (no overhead).
+    Actual per-invocation timing is logged by the executor itself.
+    """
+    try:
+        from myrm_agent_harness.agent.hooks.executor import (
+            _SLOW_HOOK_THRESHOLD_MS,
+            get_hook_executor,
+        )
+
+        executor = get_hook_executor()
+        if executor is None:
+            return HealthReport(
+                component_name="HookSystem",
+                status="pass",
+                message="Hook system is idle.",
+            )
+
+        registry = executor.registry
+        total = registry.total_count
+        if total == 0:
+            return HealthReport(
+                component_name="HookSystem",
+                status="pass",
+                message="Hook system is active, no hooks configured.",
+            )
+
+        summary = registry.summary()
+        return HealthReport(
+            component_name="HookSystem",
+            status="pass",
+            message=f"Hook system is healthy ({total} hook(s) active).",
+            detail=f"Slow threshold: {_SLOW_HOOK_THRESHOLD_MS:.0f}ms. {summary}",
+        )
+    except Exception as exc:
+        return HealthReport(
+            component_name="HookSystem",
+            status="fail",
+            message="Hook system health check failed.",
+            detail=str(exc),
+            fix_suggestion="Check hook configuration and executor initialization.",
+        )
+
+
 register_diagnostic(check_network_health)
 register_diagnostic(check_workspace_storage_health)
 register_diagnostic(check_database_health)
 register_diagnostic(check_qdrant_health)
 register_diagnostic(check_system_resources)
 register_diagnostic(check_tokenizer_health)
+register_diagnostic(check_hook_health)

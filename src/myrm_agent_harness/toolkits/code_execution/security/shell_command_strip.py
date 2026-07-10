@@ -6,7 +6,7 @@ _strip_quoted_content helper for shell_command_analyzer threat detection.
 
 from __future__ import annotations
 
-import re
+_PLACEHOLDER = "\x01"
 
 def _strip_quoted_content(command: str) -> str:
     """Replace single-quoted string content with placeholders using a state machine.

@@ -7,8 +7,9 @@
 
 [OUTPUT]
 - HookRegistry: 钩子注册管理器
-- HookExecutor: 钩子执行引擎 (4 种执行器)
+- HookExecutor: 钩子执行引擎 (4 种执行器, elapsed_ms 计时)
 - get_hook_executor, set_hook_executor: ContextVar 访问器
+- _SLOW_HOOK_THRESHOLD_MS: 慢 Hook 日志阈值 (500ms)
 
 [POS]
 Hook execution layer. Manages hook registration and execution with ContextVar-based session isolation.
@@ -22,6 +23,7 @@ import fnmatch
 import json
 import os
 import shlex
+import time
 from collections import defaultdict
 from contextvars import ContextVar
 from dataclasses import asdict, replace
@@ -39,6 +41,8 @@ from myrm_agent_harness.agent.hooks.types import (
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 logger = get_agent_logger(__name__)
+
+_SLOW_HOOK_THRESHOLD_MS = 500.0
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +132,7 @@ class HookExecutor:
         for hook in hooks:
             if not _matches_hook(hook, payload):
                 continue
+            t0 = time.monotonic()
             try:
                 result = await self._dispatch(hook, event, payload)
             except Exception as exc:
@@ -137,6 +142,13 @@ class HookExecutor:
                     success=False,
                     blocked=hook.block_on_failure,
                     reason=f"{type(exc).__name__}: {exc}",
+                )
+            elapsed_ms = (time.monotonic() - t0) * 1000
+            result = replace(result, elapsed_ms=elapsed_ms)
+            if elapsed_ms > _SLOW_HOOK_THRESHOLD_MS:
+                logger.warning(
+                    "Slow hook [%s] %s took %.0fms (>%.0fms)",
+                    event, hook.type, elapsed_ms, _SLOW_HOOK_THRESHOLD_MS,
                 )
             results.append(result)
             if result.blocked:

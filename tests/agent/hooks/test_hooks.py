@@ -1,6 +1,7 @@
 """Hook 系统单元测试 — 新 API"""
 
 import json
+import unittest.mock
 
 import pytest
 
@@ -1082,3 +1083,134 @@ def test_bootstrap_hook_registry():
     # Second call returns the same
     registry2 = bootstrap_hook_registry()
     assert registry1 is registry2
+
+
+class TestElapsedMs:
+    """Verify elapsed_ms timing is recorded on every HookResult."""
+
+    @pytest.mark.asyncio
+    async def test_callable_hook_records_elapsed_ms(self):
+        async def fast_hook(event: str, payload: dict[str, object]) -> HookResult:
+            return HookResult(hook_type="callable", success=True)
+
+        registry = HookRegistry()
+        registry.register(HookEvent.SESSION_START, CallableHookDefinition(fn=fast_hook))
+        executor = HookExecutor(registry)
+
+        result = await executor.execute(HookEvent.SESSION_START, {})
+        assert len(result.results) == 1
+        assert result.results[0].elapsed_ms > 0
+
+    @pytest.mark.asyncio
+    async def test_elapsed_ms_default_is_zero(self):
+        r = HookResult(hook_type="test", success=True)
+        assert r.elapsed_ms == 0.0
+
+    @pytest.mark.asyncio
+    async def test_exception_hook_still_records_elapsed_ms(self):
+        async def bad_hook(event: str, payload: dict[str, object]) -> HookResult:
+            raise RuntimeError("boom")
+
+        registry = HookRegistry()
+        registry.register(HookEvent.SESSION_START, CallableHookDefinition(fn=bad_hook))
+        executor = HookExecutor(registry)
+
+        result = await executor.execute(HookEvent.SESSION_START, {})
+        assert len(result.results) == 1
+        assert not result.results[0].success
+        assert result.results[0].elapsed_ms > 0
+
+    @pytest.mark.asyncio
+    async def test_multiple_hooks_each_have_elapsed_ms(self):
+        async def hook_a(event: str, payload: dict[str, object]) -> HookResult:
+            return HookResult(hook_type="callable", success=True)
+
+        async def hook_b(event: str, payload: dict[str, object]) -> HookResult:
+            return HookResult(hook_type="callable", success=True)
+
+        registry = HookRegistry()
+        registry.register(HookEvent.SESSION_START, CallableHookDefinition(fn=hook_a))
+        registry.register(HookEvent.SESSION_START, CallableHookDefinition(fn=hook_b))
+        executor = HookExecutor(registry)
+
+        result = await executor.execute(HookEvent.SESSION_START, {})
+        assert len(result.results) == 2
+        for r in result.results:
+            assert r.elapsed_ms >= 0
+
+    @pytest.mark.asyncio
+    async def test_command_hook_records_elapsed_ms(self, tmp_path):
+        script = tmp_path / "fast.sh"
+        script.write_text('#!/bin/bash\necho "ok"')
+        script.chmod(0o755)
+
+        registry = HookRegistry()
+        registry.register(HookEvent.SESSION_START, CommandHookDefinition(command=str(script)))
+        executor = HookExecutor(registry)
+
+        result = await executor.execute(HookEvent.SESSION_START, {})
+        assert len(result.results) == 1
+        assert result.results[0].elapsed_ms > 0
+
+
+class TestSlowHookWarning:
+    """Verify slow hook warning is logged when elapsed_ms > threshold."""
+
+    @pytest.mark.asyncio
+    async def test_slow_hook_logs_warning(self):
+        import asyncio as _asyncio
+        import logging
+
+        from myrm_agent_harness.agent.hooks.executor import _SLOW_HOOK_THRESHOLD_MS
+
+        async def slow_hook(event: str, payload: dict[str, object]) -> HookResult:
+            await _asyncio.sleep(0.01)
+            return HookResult(hook_type="callable", success=True)
+
+        registry = HookRegistry()
+        registry.register(HookEvent.SESSION_START, CallableHookDefinition(fn=slow_hook))
+        executor = HookExecutor(registry)
+
+        with unittest.mock.patch.object(
+            __import__("myrm_agent_harness.agent.hooks.executor", fromlist=["logger"]),
+            "logger",
+        ) as mock_logger:
+            mock_logger.warning = unittest.mock.MagicMock()
+            # Temporarily lower threshold to trigger warning
+            import myrm_agent_harness.agent.hooks.executor as exec_mod
+
+            original = exec_mod._SLOW_HOOK_THRESHOLD_MS
+            exec_mod._SLOW_HOOK_THRESHOLD_MS = 0.001
+            try:
+                result = await executor.execute(HookEvent.SESSION_START, {})
+                assert result.results[0].elapsed_ms > 0
+                mock_logger.warning.assert_any_call(
+                    unittest.mock.ANY,
+                    unittest.mock.ANY,
+                    unittest.mock.ANY,
+                    unittest.mock.ANY,
+                    unittest.mock.ANY,
+                )
+            finally:
+                exec_mod._SLOW_HOOK_THRESHOLD_MS = original
+
+    @pytest.mark.asyncio
+    async def test_fast_hook_no_slow_warning(self):
+        async def fast_hook(event: str, payload: dict[str, object]) -> HookResult:
+            return HookResult(hook_type="callable", success=True)
+
+        registry = HookRegistry()
+        registry.register(HookEvent.SESSION_START, CallableHookDefinition(fn=fast_hook))
+        executor = HookExecutor(registry)
+
+        with unittest.mock.patch.object(
+            __import__("myrm_agent_harness.agent.hooks.executor", fromlist=["logger"]),
+            "logger",
+        ) as mock_logger:
+            mock_logger.warning = unittest.mock.MagicMock()
+            result = await executor.execute(HookEvent.SESSION_START, {})
+            slow_calls = [
+                call for call in mock_logger.warning.call_args_list
+                if "Slow hook" in str(call)
+            ]
+            assert len(slow_calls) == 0

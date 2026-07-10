@@ -535,6 +535,40 @@ class CronManager:
     # Validation & Helpers
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _validate_create(
+        job_type: JobType,
+        schedule: Schedule,
+        prompt: str | None,
+        command: str | None,
+    ) -> None:
+        """Validate required fields by job type before persisting."""
+        if job_type == JobType.SHELL:
+            if not command:
+                raise ValueError("SHELL job requires a non-empty 'command'")
+        elif not prompt:
+            raise ValueError(f"{job_type.value.upper()} job requires a non-empty 'prompt'")
+
+    @staticmethod
+    def _ensure_webhook_credentials(triggers: TriggerConfig) -> TriggerConfig:
+        """Fill in missing path/secret for each webhook trigger."""
+        if not triggers.webhooks:
+            return triggers
+        patched = tuple(
+            WebhookTrigger(
+                path=wh.path or generate_webhook_path(),
+                secret=wh.secret or generate_webhook_secret(),
+            )
+            for wh in triggers.webhooks
+        )
+        return TriggerConfig(
+            webhooks=patched,
+            events=triggers.events,
+            system_events=triggers.system_events,
+            polls=triggers.polls,
+            streams=triggers.streams,
+        )
+
     async def _resolve_name_conflict(self, user_id: str, name: str) -> str:
         """Auto-append (2), (3), etc. if name already exists for this user.
 
