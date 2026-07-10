@@ -402,6 +402,51 @@ class TestAgentToolsAgentFilter:
         assert data["count"] == 1
         assert data["tasks"][0]["task_id"] == "t1"
 
+    @pytest.mark.asyncio
+    async def test_list_tasks_by_task_id_returns_single_task(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "t1")
+        await _make_task(store, "t2")
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        list_tasks = self._get_tool(tools, "kanban_list_tasks")
+        result = await list_tasks.ainvoke({"task_id": "t1"})
+        data = json.loads(result)
+        assert data["count"] == 1
+        assert data["tasks"][0]["task_id"] == "t1"
+        assert data["tasks"][0]["title"] == "Task t1"
+        assert data["dependencies_met"] is True
+        assert data["parents"] == []
+        assert data["children"] == []
+
+    @pytest.mark.asyncio
+    async def test_list_tasks_by_task_id_includes_dependencies(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "parent", status=TaskStatus.READY)
+        await _make_task(store, "child", status=TaskStatus.BACKLOG)
+        await store.add_edge("parent", "child")
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        list_tasks = self._get_tool(tools, "kanban_list_tasks")
+        result = await list_tasks.ainvoke({"task_id": "child"})
+        data = json.loads(result)
+        assert data["count"] == 1
+        assert data["parents"] == ["parent"]
+        assert data["dependencies_met"] is False
+
+    @pytest.mark.asyncio
+    async def test_list_tasks_by_task_id_not_found(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        list_tasks = self._get_tool(tools, "kanban_list_tasks")
+        result = await list_tasks.ainvoke({"task_id": "missing"})
+        data = json.loads(result)
+        assert "error" in data
+
 
 # ===========================================================================
 # Agent tools — assign_agent_id via update_task

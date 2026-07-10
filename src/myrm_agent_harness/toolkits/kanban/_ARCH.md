@@ -113,7 +113,8 @@ Protocol-first architecture with strict framework-business separation.
       `kanban_complete` writes `summary` to `task.result` for downstream context
       propagation, and accepts optional `metadata` JSON for structured machine-readable
       handoff data stored at `task.metadata["handoff"]`.
-    - `orchestrator` (7 tools): kanban_add_task, kanban_list_tasks, kanban_update_task,
+    - `orchestrator` (7 tools): kanban_add_task, kanban_list_tasks (board list or
+      single-task read via `task_id`), kanban_update_task,
       kanban_move_task, kanban_delete_task, kanban_board_summary, kanban_link.
     - `full` (12 tools): worker + orchestrator. Board CRUD uses server REST/GUI only.
       Opt-in via explicit `kanban_tool_mode=full` on GeneralAgentParams.
@@ -129,7 +130,7 @@ Protocol-first architecture with strict framework-business separation.
     (`DEFAULT_ENABLED_BUILTIN_TOOLS` = `web_search` + `memory` only). The server's `profile_resolver`
     maps `"kanban" in enabled_builtin_tools` to `enable_kanban=True`. Binding is
     resolved by `myrm-agent-server/app/ai_agents/general_agent/kanban_tool_mode.py`:
-    chat orchestrators default to 8-tool `orchestrator` mode; `KanbanTaskRunner` binds
+    chat orchestrators default to 7-tool `orchestrator` mode; `KanbanTaskRunner` binds
     5-tool `worker` mode when `kanban_current_task_id` is set; board management uses
     REST/GUI unless `kanban_tool_mode=full` is explicitly passed.
 

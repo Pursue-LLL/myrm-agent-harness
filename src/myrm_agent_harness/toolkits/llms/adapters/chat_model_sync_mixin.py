@@ -232,7 +232,15 @@ class ChatLiteLLMSyncMixin:
         )
 
         if not usage:
+            logger.warning("[TOKEN_DEBUG] _record_stream_usage called with empty usage")
             return
+
+        from myrm_agent_harness.utils.token_economics.tracker import _current_tracker
+        tracker_val = _current_tracker.get()
+        logger.warning(
+            "[TOKEN_DEBUG] _record_stream_usage: usage=%s, tracker=%s",
+            type(usage).__name__, "SET" if tracker_val else "NONE"
+        )
 
         usage_dict = normalize_usage(usage)
         resolved_model = model_name or None

@@ -33,7 +33,7 @@ if "search" not in SUBAGENT_CONFIGS:
         "search": SubagentConfig(
             description="Search subagent",
             system_prompt="You are a search subagent.",
-            tools=("search",),
+            tools=("web_search_tool",),
         ),
     })
 
@@ -168,7 +168,7 @@ async def test_spawn_child_wait_true_returns_result_and_cleans_up() -> None:
         config=SubagentConfig(
             description="General purpose subagent",
             system_prompt="You are a general purpose subagent.",
-            tools=("search",),
+            tools=("web_search_tool",),
         ),
         context={"session_id": "test", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
         tool_registry_getter=lambda: [FakeSearchTool()],
@@ -199,7 +199,7 @@ async def test_spawn_child_wait_false_populates_completed_results(tmp_path) -> N
         config=SubagentConfig(
             description="Search subagent",
             system_prompt="You are a search subagent.",
-            tools=("search",),
+            tools=("web_search_tool",),
         ),
         context={
             "session_id": "test",
@@ -1455,7 +1455,7 @@ class TestAgentManageTools:
             task_description="long running",
             config=SUBAGENT_CONFIGS["search"],
             context={},
-            tool_registry_getter=lambda: [],
+            tool_registry_getter=lambda: [FakeSearchTool()],
             wait=False,
         )
 
@@ -2307,7 +2307,7 @@ class TestHardTimeoutSemaphoreRelease:
             task_description="timeout test",
             config=config,
             context={"session_id": "s", "workspace_path": "/tmp", "workspaces_storage_root": "/tmp"},
-            tool_registry_getter=lambda: [],
+            tool_registry_getter=lambda: [FakeSearchTool()],
             wait=True,
         )
 
@@ -2412,7 +2412,7 @@ class TestTraceId:
             task_description="test",
             config=config,
             context={"session_id": "s", "trace_id": "timeout_trace_123", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
-            tool_registry_getter=lambda: [],
+            tool_registry_getter=lambda: [FakeSearchTool()],
             wait=True,
         )
 
@@ -3066,7 +3066,7 @@ class TestCancellationStrategy:
             task_description="long task",
             config=config,
             context={"session_id": "test_session", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
-            tool_registry_getter=lambda: [],
+            tool_registry_getter=lambda: [FakeSearchTool()],
             wait=False,
         )
 
@@ -3099,7 +3099,7 @@ class TestCancellationStrategy:
             task_description="long task",
             config=config,
             context={"session_id": "test_session", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
-            tool_registry_getter=lambda: [],
+            tool_registry_getter=lambda: [FakeSearchTool()],
             wait=False,
         )
 
@@ -3135,7 +3135,7 @@ class TestCancellationStrategy:
             task_description="long task",
             config=config,
             context={"session_id": "test_session", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
-            tool_registry_getter=lambda: [],
+            tool_registry_getter=lambda: [FakeSearchTool()],
             wait=False,
         )
 

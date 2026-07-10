@@ -95,7 +95,7 @@ class ToolLayer(IntEnum):
 #### 2.2.3 EXTENDED 层 (Layer 3)
 - **特征**: 按需 Turn1 或 DISCOVERABLE / RUNTIME_ONLY 绑定
 - **缓存**: 放最后使其变化不影响 CORE/COMMON 的缓存
-- **工具数量**: 登记 **57** EXTENDED（harness 静态 52 + server bootstrap 5；见 TOOL_COUNT 块）
+- **工具数量**: 登记 **55** EXTENDED（harness 静态 + server bootstrap 5；见 TOOL_COUNT 块）
 - **Token 消耗**: 典型 ~2,246 tokens，满载 ~7,290+ tokens
 
 **子分类**:
@@ -114,7 +114,7 @@ class ToolLayer(IntEnum):
 | UI 渲染工具 | `enabled_builtin_tools: render_ui` | render_ui_tool | 223 |
 | 答案自审工具 | `enabled_builtin_tools: answer_tool` | request_answer_user_tool | ~120 |
 | Goal 工具 | chat 有 active Goal | get_goal_status_tool, update_goal_status_tool | ~247 |
-| 看板工具 | `enabled_builtin_tools: kanban` | kanban_show, kanban_complete, kanban_add_task, ... (15个) | - |
+| 看板工具 | `enabled_builtin_tools: kanban` | worker 5 + orchestrator 7（`kanban_link` 合并依赖）；board CRUD 走 REST/GUI | -
 | Server 业务工具 | skill/凭证/notify 配置 | x_search_tool, channel_notify_tool, image_tool, video_tool, tts_generate (5个) | 按凭证 |
 
 ### 2.3 排序规则

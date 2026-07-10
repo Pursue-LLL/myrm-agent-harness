@@ -199,7 +199,7 @@ def _build_worker_tools(
 
     @tool("kanban_show")
     async def kanban_show(task_id: str = "") -> str:
-        """Show details of your current task including description, dependencies, and history."""
+        """Show your current task fields (title, description, status, result, errors, metadata)."""
         resolved_id = task_id or current_task_id or ""
         if not resolved_id:
             return json.dumps({"error": "task_id is required"})
@@ -400,7 +400,7 @@ def _build_orchestrator_tools(
     default_board_id: str | None = None,
     agent_id: str | None = None,
 ) -> list[BaseTool]:
-    """Build orchestrator-scoped tools (8 tools)."""
+    """Build orchestrator-scoped tools (7 tools)."""
 
     @tool("kanban_add_task")
     async def kanban_add_task(
@@ -511,8 +511,31 @@ def _build_orchestrator_tools(
         board_id: str = "",
         status_filter: str = "",
         agent_id_filter: str = "",
+        task_id: str = "",
     ) -> str:
-        """List tasks on a board, optionally filtered by status or agent."""
+        """List tasks on a board, optionally filtered by status or agent.
+
+        When ``task_id`` is set, returns that single task (read-only) with
+        parent/child dependency IDs and ``dependencies_met`` status.
+        """
+        resolved_task_id = task_id.strip()
+        if resolved_task_id:
+            task = await store.get_task(resolved_task_id)
+            if task is None:
+                return json.dumps({"error": f"Task {resolved_task_id} not found"})
+            parents = await store.list_parents(resolved_task_id)
+            children = await store.list_children(resolved_task_id)
+            deps_met = await store.are_dependencies_met(resolved_task_id)
+            return json.dumps(
+                {
+                    "tasks": [task.to_dict()],
+                    "count": 1,
+                    "parents": parents,
+                    "children": children,
+                    "dependencies_met": deps_met,
+                }
+            )
+
         resolved_board_id = board_id or default_board_id or ""
         if not resolved_board_id:
             return json.dumps({"error": "board_id is required"})
