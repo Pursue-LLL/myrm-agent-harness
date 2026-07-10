@@ -114,12 +114,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "kanban_move_task": ToolLayer.EXTENDED,
     "kanban_delete_task": ToolLayer.EXTENDED,
     "kanban_board_summary": ToolLayer.EXTENDED,
-    "kanban_add_dependency": ToolLayer.EXTENDED,
-    "kanban_remove_dependency": ToolLayer.EXTENDED,
-    # --- 看板 (Management tools) ---
-    "kanban_create_board": ToolLayer.EXTENDED,
-    "kanban_list_boards": ToolLayer.EXTENDED,
-    "kanban_get_task": ToolLayer.EXTENDED,
+    "kanban_link": ToolLayer.EXTENDED,
     # --- 记忆工具（recall/save/manage → COMMON；conversation_search → EXTENDED opt-in）---
     "conversation_search_tool": ToolLayer.EXTENDED,
     # --- 技能工具 ---

@@ -113,11 +113,10 @@ Protocol-first architecture with strict framework-business separation.
       `kanban_complete` writes `summary` to `task.result` for downstream context
       propagation, and accepts optional `metadata` JSON for structured machine-readable
       handoff data stored at `task.metadata["handoff"]`.
-    - `orchestrator` (8 tools): kanban_add_task, kanban_list_tasks, kanban_update_task,
-      kanban_move_task, kanban_delete_task, kanban_board_summary, kanban_add_dependency,
-      kanban_remove_dependency.
-    - `full` (16 tools): All worker + orchestrator + kanban_create_board, kanban_list_boards,
-      kanban_get_task. Opt-in via explicit `kanban_tool_mode=full` on GeneralAgentParams.
+    - `orchestrator` (7 tools): kanban_add_task, kanban_list_tasks, kanban_update_task,
+      kanban_move_task, kanban_delete_task, kanban_board_summary, kanban_link.
+    - `full` (12 tools): worker + orchestrator. Board CRUD uses server REST/GUI only.
+      Opt-in via explicit `kanban_tool_mode=full` on GeneralAgentParams.
 
 12. **Dispatcher-only status guard**: Agents cannot move tasks to RUNNING — only the
     dispatcher sets that status when claiming a task. Prevents status drift.

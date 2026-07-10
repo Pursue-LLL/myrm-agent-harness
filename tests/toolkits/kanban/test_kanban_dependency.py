@@ -376,7 +376,7 @@ class TestEdgeBoundary:
 
 
 class TestAgentToolDependencyActions:
-    """Test kanban_add_dependency / kanban_remove_dependency / kanban_add_task via new modular tools."""
+    """Test kanban_link / kanban_add_task via modular orchestrator tools."""
 
     def _get_tool(self, tools: list, name: str):
         return next(t for t in tools if t.name == name)
@@ -389,11 +389,13 @@ class TestAgentToolDependencyActions:
         from myrm_agent_harness.toolkits.kanban import create_kanban_tools
 
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id=board.board_id)
-        add_dep = self._get_tool(tools, "kanban_add_dependency")
+        link_tool = self._get_tool(tools, "kanban_link")
 
         await _create_task(store, "parent", status=TaskStatus.READY)
         await _create_task(store, "child", status=TaskStatus.READY)
-        result = await add_dep.ainvoke({"task_id": "child", "dependency_task_id": "parent"})
+        result = await link_tool.ainvoke(
+            {"task_id": "child", "dependency_task_id": "parent", "action": "add"}
+        )
         assert '"dependency_added"' in result
 
         child = await store.get_task("child")
@@ -408,13 +410,15 @@ class TestAgentToolDependencyActions:
         from myrm_agent_harness.toolkits.kanban import create_kanban_tools
 
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id=board.board_id)
-        rm_dep = self._get_tool(tools, "kanban_remove_dependency")
+        link_tool = self._get_tool(tools, "kanban_link")
 
         p = await _create_task(store, "parent", status=TaskStatus.COMPLETED)
         c = await _create_task(store, "child", status=TaskStatus.BACKLOG)
         await store.add_edge(p.task_id, c.task_id)
 
-        result = await rm_dep.ainvoke({"task_id": c.task_id, "dependency_task_id": p.task_id})
+        result = await link_tool.ainvoke(
+            {"task_id": c.task_id, "dependency_task_id": p.task_id, "action": "remove"}
+        )
         assert '"dependency_removed"' in result
 
         child = await store.get_task(c.task_id)
@@ -429,9 +433,9 @@ class TestAgentToolDependencyActions:
         from myrm_agent_harness.toolkits.kanban import create_kanban_tools
 
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id=board.board_id)
-        add_dep = self._get_tool(tools, "kanban_add_dependency")
+        link_tool = self._get_tool(tools, "kanban_link")
 
-        result = await add_dep.ainvoke({"task_id": "", "dependency_task_id": "parent"})
+        result = await link_tool.ainvoke({"task_id": "", "dependency_task_id": "parent", "action": "add"})
         assert '"error"' in result
 
     async def test_remove_dependency_missing_params(
@@ -442,9 +446,9 @@ class TestAgentToolDependencyActions:
         from myrm_agent_harness.toolkits.kanban import create_kanban_tools
 
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id=board.board_id)
-        rm_dep = self._get_tool(tools, "kanban_remove_dependency")
+        link_tool = self._get_tool(tools, "kanban_link")
 
-        result = await rm_dep.ainvoke({"task_id": "", "dependency_task_id": "parent"})
+        result = await link_tool.ainvoke({"task_id": "", "dependency_task_id": "parent", "action": "remove"})
         assert '"error"' in result
 
     async def test_add_task_with_depends_on(
@@ -525,12 +529,14 @@ class TestAgentToolDependencyActions:
         from myrm_agent_harness.toolkits.kanban import create_kanban_tools
 
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id=board.board_id)
-        add_dep = self._get_tool(tools, "kanban_add_dependency")
+        add_dep = self._get_tool(tools, "kanban_link")
 
         await _create_task(store, "a")
         await _create_task(store, "b")
         await store.add_edge("a", "b")
-        result = await add_dep.ainvoke({"task_id": "a", "dependency_task_id": "b"})
+        result = await add_dep.ainvoke(
+            {"task_id": "a", "dependency_task_id": "b", "action": "add"}
+        )
         assert '"error"' in result
         assert "cycle" in result.lower()
 

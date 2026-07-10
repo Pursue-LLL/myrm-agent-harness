@@ -513,24 +513,15 @@ class TestAgentToolsErrors:
         assert "error" in data
 
     @pytest.mark.asyncio
-    async def test_get_task_not_found(self) -> None:
-        store = InMemoryKanbanStore()
-        tools = create_kanban_tools(store, mode="full", default_board_id="b1")
-        get_task = self._get_tool(tools, "kanban_get_task")
-        result = await get_task.ainvoke({"task_id": "missing"})
-        data = json.loads(result)
-        assert "error" in data
-
-    @pytest.mark.asyncio
     async def test_modular_tools_have_correct_count(self) -> None:
         """Verify tool mode returns expected tool counts."""
         store = InMemoryKanbanStore()
         worker_tools = create_kanban_tools(store, mode="worker", current_task_id="t1")
         assert len(worker_tools) == 5
         orch_tools = create_kanban_tools(store, mode="orchestrator")
-        assert len(orch_tools) == 8
+        assert len(orch_tools) == 7
         full_tools = create_kanban_tools(store, mode="full")
-        assert len(full_tools) == 16
+        assert len(full_tools) == 12
 
 
 # ===========================================================================
@@ -543,37 +534,26 @@ class TestAgentToolsMisc:
         return next(t for t in tools if t.name == name)
 
     @pytest.mark.asyncio
-    async def test_create_board(self) -> None:
+    async def test_create_board_via_store(self) -> None:
         store = InMemoryKanbanStore()
-        tools = create_kanban_tools(store, mode="full")
-        create_board = self._get_tool(tools, "kanban_create_board")
-        result = await create_board.ainvoke({
-            "board_name": "New Board",
-            "board_description": "Test",
-        })
-        data = json.loads(result)
-        assert data["status"] == "created"
-        assert data["board"]["name"] == "New Board"
+        from myrm_agent_harness.toolkits.kanban.types import BoardSettings, KanbanBoard
+
+        board = KanbanBoard(
+            board_id="new-board",
+            name="New Board",
+            description="Test",
+            settings=BoardSettings(),
+        )
+        saved = await store.save_board(board)
+        assert saved.name == "New Board"
 
     @pytest.mark.asyncio
-    async def test_create_board_no_name(self) -> None:
-        store = InMemoryKanbanStore()
-        tools = create_kanban_tools(store, mode="full")
-        create_board = self._get_tool(tools, "kanban_create_board")
-        result = await create_board.ainvoke({"board_name": ""})
-        data = json.loads(result)
-        assert "error" in data
-
-    @pytest.mark.asyncio
-    async def test_list_boards(self) -> None:
+    async def test_list_boards_via_store(self) -> None:
         store = InMemoryKanbanStore()
         await _make_board(store, "b1")
         await _make_board(store, "b2")
-        tools = create_kanban_tools(store, mode="full")
-        list_boards = self._get_tool(tools, "kanban_list_boards")
-        result = await list_boards.ainvoke({})
-        data = json.loads(result)
-        assert data["count"] == 2
+        boards = await store.list_boards()
+        assert len(boards) == 2
 
     @pytest.mark.asyncio
     async def test_delete_task_via_tool(self) -> None:
@@ -588,15 +568,13 @@ class TestAgentToolsMisc:
         assert await store.get_task("t1") is None
 
     @pytest.mark.asyncio
-    async def test_get_task_via_tool(self) -> None:
+    async def test_get_task_via_store(self) -> None:
         store = InMemoryKanbanStore()
         await _make_board(store)
         await _make_task(store, "t1", agent_id="agent-x")
-        tools = create_kanban_tools(store, mode="full", default_board_id="b1")
-        get_task = self._get_tool(tools, "kanban_get_task")
-        result = await get_task.ainvoke({"task_id": "t1"})
-        data = json.loads(result)
-        assert data["task"]["agent_id"] == "agent-x"
+        task = await store.get_task("t1")
+        assert task is not None
+        assert task.agent_id == "agent-x"
 
     @pytest.mark.asyncio
     async def test_update_task_fields(self) -> None:
@@ -1447,10 +1425,11 @@ class TestDependencyAutoTransitions:
         await _make_task(store, "child", status=TaskStatus.READY)
 
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        add_dep = self._get_tool(tools, "kanban_add_dependency")
-        result = json.loads(await add_dep.ainvoke({
+        link_tool = self._get_tool(tools, "kanban_link")
+        result = json.loads(await link_tool.ainvoke({
             "task_id": "child",
             "dependency_task_id": "parent",
+            "action": "add",
         }))
         assert result["status"] == "dependency_added"
 
@@ -1467,10 +1446,11 @@ class TestDependencyAutoTransitions:
         await store.add_edge("parent", "child")
 
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        remove_dep = self._get_tool(tools, "kanban_remove_dependency")
-        result = json.loads(await remove_dep.ainvoke({
+        link_tool = self._get_tool(tools, "kanban_link")
+        result = json.loads(await link_tool.ainvoke({
             "task_id": "child",
             "dependency_task_id": "parent",
+            "action": "remove",
         }))
         assert result["status"] == "dependency_removed"
 

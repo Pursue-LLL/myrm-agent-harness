@@ -8,7 +8,7 @@
 
 | 对外说法 | 含义 | 当前规模 |
 |----------|------|----------|
-| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **71**（CORE 7 + COMMON 5 + EXTENDED 59） |
+| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **67**（CORE 7 + COMMON 5 + EXTENDED 55） |
 
 对外文档与沟通中，**「工具」仅指 LLM 工具**。编排信号、runtime hook、toolkits 引擎、Skill 文档、PTC 等实现细节属于代码层，**不称为工具**。
 
@@ -71,7 +71,7 @@ Server `_tool_layer_bootstrap.py` 扩展 EXTENDED 层业务工具。
 
 ## 内部分类（实现 / token 会计，非产品术语）
 
-以下四类**不计入 LLM 工具 71 个**，仅用于实现与 Turn1 token 隔离：
+以下四类**不计入 LLM 工具 67 个**，仅用于实现与 Turn1 token 隔离：
 
 | 内部术语 | 含义 | SSOT |
 |----------|------|------|
@@ -105,7 +105,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `memory_save_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
 | `todo_write` | COMMON | user_capability | planning | planning or existing workspace todos |
 | `web_search_tool` | COMMON | user_capability | web_search | enabled_builtin_tools: web_search (default on) |
-| `ask_question_tool` | EXTENDED | server_policy | — | server mount policy + `requires_confirmation` WebUI emphasis + `ClarificationGuardMiddleware` one call/turn |
+| `ask_question_tool` | EXTENDED | user_capability | structured_clarify | server mount policy (interactive web_chat); requires_confirmation WebUI emphasis; ClarificationGuardMiddleware one call/turn |
 | `bash_process_tool` | EXTENDED | user_capability | — | DISCOVERABLE; stable index + invoke_deferred_tool |
 | `batch_delegate_tasks_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `browser_ask_human_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
@@ -122,7 +122,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `cron_manage_tool` | EXTENDED | user_capability | cron | user cron capability wired |
 | `delegate_parallel_tasks_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `delegate_task_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
-| `delegate_to_agent_tool` | EXTENDED | user_capability | — | external ACP agent configured |
+| `delegate_to_agent_tool` | EXTENDED | user_capability | external_cli | external ACP agent configured |
 | `desktop_inspect_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_interact_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_snapshot_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
@@ -131,25 +131,20 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `get_goal_status_tool` | EXTENDED | user_capability | — | active Goal on chat |
 | `image_tool` | EXTENDED | user_capability | image_generation | enabled_builtin_tools: image_generation |
 | `invoke_deferred_tool` | EXTENDED | user_capability | — | Opt-in Turn1 or DISCOVERABLE; see product switch |
-| `kanban_add_dependency` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_add_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_block` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_board_summary` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_comment` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_complete` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
-| `kanban_create_board` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_delete_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
-| `kanban_get_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_heartbeat` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
-| `kanban_list_boards` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
+| `kanban_link` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_list_tasks` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_move_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
-| `kanban_remove_dependency` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_show` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_update_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `list_subagents_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `render_ui_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
-| `update_ui_data_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
 | `request_answer_user_tool` | EXTENDED | user_capability | answer_tool | enabled_builtin_tools: answer_tool |
 | `send_teammate_message_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `skill_discovery_tool` | EXTENDED | user_capability | — | DISCOVERABLE; skill marketplace |
@@ -158,6 +153,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `steer_subagent_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `tts_generate` | EXTENDED | user_capability | tts | enabled_builtin_tools: tts |
 | `update_goal_status_tool` | EXTENDED | user_capability | — | active Goal on chat |
+| `update_ui_data_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
 | `video_tool` | EXTENDED | user_capability | video_generation | enabled_builtin_tools: video_generation |
 | `wiki_compile_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
 | `wiki_ingest_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |

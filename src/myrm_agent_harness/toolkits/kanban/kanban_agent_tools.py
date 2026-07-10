@@ -29,8 +29,6 @@ from langchain_core.tools import BaseTool, tool
 
 from myrm_agent_harness.toolkits.kanban.types import (
     BlockKind,
-    BoardSettings,
-    KanbanBoard,
     KanbanTask,
     TaskEventKind,
     TaskPriority,
@@ -143,9 +141,9 @@ def create_kanban_tools(
 
     Modes:
         worker: 5 tools (show/complete/block/heartbeat/comment) — bound to current_task_id.
-        orchestrator: 8 tools (add_task/list_tasks/update_task/move_task/
-                     delete_task/board_summary/add_dependency/remove_dependency).
-        full: All 16 tools (worker + orchestrator + create_board/list_boards/get_task).
+        orchestrator: 7 tools (add_task/list_tasks/update_task/move_task/
+                     delete_task/board_summary/link).
+        full: worker + orchestrator (12 tools). Board CRUD uses REST/GUI, not LLM tools.
 
     When mode='worker', tools auto-bind to ``current_task_id`` and enforce
     ownership — the agent cannot operate on other tasks (except comments,
@@ -172,9 +170,6 @@ def create_kanban_tools(
                 agent_id=agent_id,
             )
         )
-
-    if mode == "full":
-        tools.extend(_build_management_tools(store, default_board_id=default_board_id))
 
     return tools
 
@@ -685,48 +680,54 @@ def _build_orchestrator_tools(
             }
         )
 
-    @tool("kanban_add_dependency")
-    async def kanban_add_dependency(task_id: str, dependency_task_id: str) -> str:
-        """Add a dependency: task_id depends on dependency_task_id (must complete first)."""
-        if not task_id or not dependency_task_id:
-            return json.dumps({"error": "task_id and dependency_task_id are required"})
-        try:
-            edge = await store.add_edge(dependency_task_id, task_id)
-        except ValueError as exc:
-            return json.dumps({"error": str(exc)})
+    @tool("kanban_link")
+    async def kanban_link(task_id: str, dependency_task_id: str, action: str = "add") -> str:
+        """Add or remove a DAG dependency edge (parent must complete before child).
 
-        child = await store.get_task(task_id)
-        if child and child.status == TaskStatus.READY:
-            deps_met = await store.are_dependencies_met(task_id)
-            if not deps_met:
-                child.status = TaskStatus.BACKLOG
-                await store.save_task(child)
-
-        return json.dumps({"status": "dependency_added", "edge": edge.to_dict()})
-
-    @tool("kanban_remove_dependency")
-    async def kanban_remove_dependency(task_id: str, dependency_task_id: str) -> str:
-        """Remove a dependency between two tasks."""
+        Args:
+            task_id: Child task that depends on the parent.
+            dependency_task_id: Parent task that must complete first.
+            action: ``add`` to create the edge, ``remove`` to delete it.
+        """
         if not task_id or not dependency_task_id:
             return json.dumps({"error": "task_id and dependency_task_id are required"})
 
-        removed = await store.remove_edge(dependency_task_id, task_id)
-        if not removed:
-            return json.dumps({"error": "Dependency not found"})
+        normalized_action = action.strip().lower()
+        if normalized_action == "add":
+            try:
+                edge = await store.add_edge(dependency_task_id, task_id)
+            except ValueError as exc:
+                return json.dumps({"error": str(exc)})
 
-        child = await store.get_task(task_id)
-        if child and child.status == TaskStatus.BACKLOG:
-            deps_met = await store.are_dependencies_met(task_id)
-            if deps_met:
-                child.status = TaskStatus.READY
-                await store.save_task(child)
-                await store.append_event(
-                    task_id,
-                    TaskEventKind.PROMOTED,
-                    payload={"reason": "all_dependencies_met"},
-                )
+            child = await store.get_task(task_id)
+            if child and child.status == TaskStatus.READY:
+                deps_met = await store.are_dependencies_met(task_id)
+                if not deps_met:
+                    child.status = TaskStatus.BACKLOG
+                    await store.save_task(child)
 
-        return json.dumps({"status": "dependency_removed", "task_id": task_id})
+            return json.dumps({"status": "dependency_added", "edge": edge.to_dict()})
+
+        if normalized_action == "remove":
+            removed = await store.remove_edge(dependency_task_id, task_id)
+            if not removed:
+                return json.dumps({"error": "Dependency not found"})
+
+            child = await store.get_task(task_id)
+            if child and child.status == TaskStatus.BACKLOG:
+                deps_met = await store.are_dependencies_met(task_id)
+                if deps_met:
+                    child.status = TaskStatus.READY
+                    await store.save_task(child)
+                    await store.append_event(
+                        task_id,
+                        TaskEventKind.PROMOTED,
+                        payload={"reason": "all_dependencies_met"},
+                    )
+
+            return json.dumps({"status": "dependency_removed", "task_id": task_id})
+
+        return json.dumps({"error": f"Invalid action: {action}. Use 'add' or 'remove'."})
 
     return [
         kanban_add_task,
@@ -735,54 +736,8 @@ def _build_orchestrator_tools(
         kanban_move_task,
         kanban_delete_task,
         kanban_board_summary,
-        kanban_add_dependency,
-        kanban_remove_dependency,
+        kanban_link,
     ]
-
-
-# ---------------------------------------------------------------------------
-# Management tools — board-level operations (full mode only)
-# ---------------------------------------------------------------------------
-
-
-def _build_management_tools(
-    store: KanbanStore,
-    *,
-    default_board_id: str | None = None,
-) -> list[BaseTool]:
-    """Build management tools (create_board, list_boards, get_task)."""
-
-    @tool("kanban_create_board")
-    async def kanban_create_board(board_name: str, board_description: str = "") -> str:
-        """Create a new kanban board."""
-        if not board_name:
-            return json.dumps({"error": "board_name is required"})
-        board = KanbanBoard(
-            board_id=uuid.uuid4().hex[:12],
-            name=board_name,
-            description=board_description,
-            settings=BoardSettings(),
-        )
-        saved = await store.save_board(board)
-        return json.dumps({"status": "created", "board": saved.to_dict()})
-
-    @tool("kanban_list_boards")
-    async def kanban_list_boards() -> str:
-        """List all kanban boards."""
-        boards = await store.list_boards()
-        return json.dumps({"boards": [b.to_dict() for b in boards], "count": len(boards)})
-
-    @tool("kanban_get_task")
-    async def kanban_get_task(task_id: str) -> str:
-        """Get detailed info about any task by ID."""
-        if not task_id:
-            return json.dumps({"error": "task_id is required"})
-        task = await store.get_task(task_id)
-        if task is None:
-            return json.dumps({"error": f"Task {task_id} not found"})
-        return json.dumps({"task": task.to_dict()})
-
-    return [kanban_create_board, kanban_list_boards, kanban_get_task]
 
 
 # ---------------------------------------------------------------------------

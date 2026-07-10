@@ -199,11 +199,7 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
             "kanban_move_task",
             "kanban_delete_task",
             "kanban_board_summary",
-            "kanban_add_dependency",
-            "kanban_remove_dependency",
-            "kanban_create_board",
-            "kanban_list_boards",
-            "kanban_get_task",
+            "kanban_link",
         }
     ),
     "wiki": frozenset(
