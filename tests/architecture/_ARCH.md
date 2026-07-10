@@ -34,7 +34,7 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | `test_verify_pypi_publish.py` | Gate | PyPI 发布后索引校验 | — |
 | `test_validate_pypi_wheels.py` | Gate | wheel 产物数量/版本 + zip 内容 artifact 校验 | — |
 | `test_check_fractal_docs.py` | Gate | 分形 `_ARCH.md` + strict IOP 头（`fractal_header_baseline.txt`）+ api/ 无 stub | — |
-| `test_file_line_limit.py` | Gate | 单文件行数 baseline（>500 行须登记且不可增长） | — |
+| `test_file_line_limit.py` | Gate | 单文件行数 baseline grandfather（新文件≤500；legacy 登记只许瘦） | — |
 | `test_mixin_mro.py` | Gate | BrowserSession / ChatLiteLLM / OptimizationScheduler / SubagentExecutor / BashExecutor mixin MRO 顺序锁 | — |
 | `test_executor_reexport.py` | Gate | `sub_agents/executor.py` `__all__` 聚合 re-export 完整性 | — |
 | `test_bash_executor_reexport.py` | Gate | `meta_tools/bash/bash_executor.py` `__all__` 聚合 re-export 完整性 | — |

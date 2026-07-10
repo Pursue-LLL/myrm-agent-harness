@@ -27,7 +27,7 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `validate_arch_inventory.py` | 辅助 | `_ARCH.md` 文件清单表格 vs 同级 `.py` 一致性校验（仅解析表格行） | ✅ |
 | `check_fractal_docs.py` | 辅助 | 分形 `_ARCH.md` 目录覆盖 + IOP 头 baseline 门禁（`fractal_header_baseline.txt`） | ✅ |
 | `check_file_line_limit.py` | 辅助 | 单文件行数 baseline 门禁（>500 行须登记且不可增长） | ✅ |
-| `file_line_baseline.txt` | 辅助 | 允许超过 500 行的 legacy 路径清单（相对 `src/`，含当前行数上限） | — |
+| `file_line_baseline.txt` | 辅助 | legacy 大文件 grandfather 清单：允许 >500 行但不得超过登记行数；拆分至 ≤500 后移除 | — |
 | `fractal_header_baseline.txt` | 辅助 | 允许暂缺 IOP 头的 legacy 路径清单（相对 `src/`）；新文件不得加入 | — |
 | `detect_blocking_io.py` | 辅助 | 阻塞 I/O 检测 | ✅ |
 
@@ -44,6 +44,18 @@ python scripts/validate_arch_inventory.py --root src/myrm_agent_harness
 ```
 
 Pre-commit runs `validate_arch_inventory.py` via hook `harness-arch-inventory-check` (see `.pre-commit-config.yaml`).
+
+## File line grandfather 策略
+
+`check_file_line_limit.py` 与 `file_line_baseline.txt` 配合实现**渐进式行数治理**：
+
+| 文件类型 | 规则 |
+|----------|------|
+| 未登记的新 `.py` | 不得超过 500 行 |
+| baseline 登记的 legacy `.py` | 不得超过 baseline 中的行数上限（禁止变胖） |
+| 拆分后 ≤500 行 | 从 baseline 移除条目 |
+
+登记格式：`myrm_agent_harness/.../module.py<TAB>当前行数`（路径相对 `src/`）。CI 见 `tests/architecture/test_file_line_limit.py`。
 
 性能基线见 `benchmarks/bench_boundary_detection.py`。
 

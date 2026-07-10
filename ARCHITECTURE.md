@@ -553,7 +553,14 @@ class UserService:
 3. **接口契约**：OUTPUT 声明对外能力，形成清晰的接口契约
 4. **影响分析**：通过 INPUT/POS 链接快速定位变更影响范围
 5. **变更影响分析**：借助 INPUT/POS 链接定位依赖面，配合评审与测试降低回归风险
-6. **自动化门禁**：`check_fractal_docs.py` + `boundary_check.py` + `validate_arch_inventory.py`（`_ARCH.md` 文件表 vs 磁盘 `.py`）+ `test_core_dependencies.py`（core 24 项与 uv.lock 对齐）在 pre-commit 与 CI 阻断文档/层边界/依赖分层回归；inventory scope 为 `src/myrm_agent_harness/` 全包；wheel 打包慢测在 `distribution-packaging-slow` job（`-m "architecture and slow"`）
+6. **自动化门禁**：`check_fractal_docs.py` + `boundary_check.py` + `validate_arch_inventory.py`（`_ARCH.md` 文件表 vs 磁盘 `.py`）+ `check_file_line_limit.py`（单文件行数 + `file_line_baseline.txt` grandfather）+ `test_core_dependencies.py`（core 24 项与 uv.lock 对齐）在 pre-commit 与 CI 阻断文档/层边界/依赖分层回归；inventory scope 为 `src/myrm_agent_harness/` 全包；wheel 打包慢测在 `distribution-packaging-slow` job（`-m "architecture and slow"`）
+
+**File line grandfather（`scripts/file_line_baseline.txt`）**：
+
+- **新文件**：`src/myrm_agent_harness/**/*.py` 默认不得超过 **500 行**（`check_file_line_limit.py --max-lines 500`）。
+- **legacy 大文件**：登记在 baseline 中的路径允许超过 500 行，但行数**不得超过 baseline 登记值**（只许瘦不许胖）。
+- **拆分后**：文件降至 500 行以下时，从 baseline **移除**该条目，回归常态规则。
+- **目的**：避免一次性拆光 100+ legacy 文件的巨大 PR；同时禁止屎山继续膨胀，改动时渐进还债。
 
 **实践约定**：
 

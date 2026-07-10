@@ -336,6 +336,12 @@ class ChatLiteLLMAsyncMixin:
                     if run_manager:
                         await run_manager.on_llm_new_token("", chunk=result.final_tool_chunk)
                     yield result.final_tool_chunk
+                else:
+                    # Yield an empty chunk so LangGraph's messages stream triggers
+                    # one more dispatch cycle, allowing get_pending_token_events()
+                    # to capture the usage recorded by finalize_stream above.
+                    sentinel = ChatGenerationChunk(message=AIMessageChunk(content=""))
+                    yield sentinel
 
                 if attempt > 0:
                     self._retry_metrics.stream_success_after_retry += 1

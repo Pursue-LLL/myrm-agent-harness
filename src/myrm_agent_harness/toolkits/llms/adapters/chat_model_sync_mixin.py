@@ -352,6 +352,9 @@ class ChatLiteLLMSyncMixin:
                     if run_manager:
                         run_manager.on_llm_new_token("", chunk=result.final_tool_chunk)
                     yield result.final_tool_chunk
+                else:
+                    sentinel = ChatGenerationChunk(message=AIMessageChunk(content=""))
+                    yield sentinel
 
                 if attempt > 0:
                     self._retry_metrics.stream_success_after_retry += 1
