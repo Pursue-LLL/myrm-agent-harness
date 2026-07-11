@@ -173,12 +173,6 @@ def classify_verification(tool_args: dict[str, object]) -> VerificationCategory 
     return None
 
 
-def reset_completion_guard() -> None:
-    """Reset guard state — call at the start of each agent run."""
-    global _rejection_count
-    _rejection_count = 0
-
-
 def build_checklist(records: list[CallRecord], workspace_root: str | None = None) -> tuple[str, bool]:
     """Generate a verification checklist from LoopGuard CallRecords.
 
