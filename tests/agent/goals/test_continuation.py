@@ -8,10 +8,12 @@ from myrm_agent_harness.agent.goals.continuation import (
     _WRAPUP_SENTINEL,
     _extract_last_ai_response,
     _judge_completion,
+    _make_tamper_decision,
     _run_acceptance_verification,
     _wrapup_already_injected,
     check_continuation,
 )
+from myrm_agent_harness.agent.goals.invariant_snapshot import ProtectedFileViolation
 from myrm_agent_harness.agent.goals.types import ContinuationDecision, Goal, GoalBudget, GoalStatus
 from myrm_agent_harness.agent.goals.verification.base import AggregatedVerificationResult, VerificationResult
 
@@ -1253,3 +1255,121 @@ async def test_acceptance_verification_crash_fuse_pauses():
         assert await _run_acceptance_verification(provider, goal) is False
     provider.increment_verification_retries.assert_called_once_with("g1")
     provider.update_status.assert_called_once_with("g1", GoalStatus.PAUSED)
+
+
+# ── Protected file tamper detection ──────────────────────────────────────
+
+
+def test_make_tamper_decision_builds_continue():
+    """_make_tamper_decision returns a continue decision with violation details."""
+    goal = Goal(
+        goal_id="g1", session_id="s1", objective="o",
+        status=GoalStatus.ACTIVE, turns_used=5,
+        budget=GoalBudget(max_turns=10),
+    )
+    violations = [
+        ProtectedFileViolation(path="tests/a.py", pattern="tests/**", kind="modified"),
+        ProtectedFileViolation(path="tests/b.py", pattern="tests/**", kind="deleted"),
+    ]
+    decision = _make_tamper_decision(goal, violations)
+    assert decision.should_continue is True
+    assert decision.verdict == "continue"
+    assert "BLOCKED" in decision.message
+    assert "tests/a.py (modified)" in decision.message
+    assert "tests/b.py (deleted)" in decision.message
+    assert decision.turns_used == 5
+    assert decision.max_turns == 10
+
+
+@pytest.mark.asyncio
+async def test_convergence_blocked_by_tamper():
+    """Convergence path must block when protected files are tampered."""
+    provider = AsyncMock()
+    goal = Goal(
+        goal_id="conv-tamper",
+        session_id="s1",
+        objective="Find bugs",
+        status=GoalStatus.ACTIVE,
+        budget=GoalBudget(max_turns=20, convergence_window=3),
+        turns_used=8,
+        no_progress_streak=2,
+    )
+    converged_goal = Goal(
+        goal_id="conv-tamper",
+        session_id="s1",
+        objective="Find bugs",
+        status=GoalStatus.ACTIVE,
+        budget=GoalBudget(max_turns=20, convergence_window=3),
+        turns_used=8,
+        no_progress_streak=3,
+    )
+    provider.get_active_goal.return_value = goal
+    provider.get_goal.return_value = goal
+    provider.is_continuation_suppressed.return_value = True
+    provider.record_progress.return_value = converged_goal
+
+    fake_violations = [ProtectedFileViolation(path="tests/x.py", pattern="tests/**", kind="modified")]
+    with patch(
+        "myrm_agent_harness.agent.goals.continuation._check_protected_integrity",
+        return_value=fake_violations,
+    ):
+        decision = await check_continuation(
+            goal_provider=provider,
+            session_id="s1",
+            cancel_token=None,
+            steering_token=None,
+            collected_messages=[],
+            tools_called_this_turn=False,
+            net_tokens_this_turn=10,
+            cost_this_turn=0.0,
+            time_this_turn_seconds=1,
+        )
+
+    assert decision.should_continue is True
+    assert decision.verdict == "continue"
+    assert "BLOCKED" in decision.message
+    provider.update_status.assert_not_called()
+    provider.reset_suppression.assert_called_once_with("s1")
+
+
+@pytest.mark.asyncio
+async def test_semantic_judge_blocked_by_tamper():
+    """Semantic judge completion path must block when protected files are tampered."""
+    provider = AsyncMock()
+    goal = Goal(
+        goal_id="judge-tamper",
+        session_id="s1",
+        objective="Fix the issue",
+        status=GoalStatus.ACTIVE,
+        tokens_used=100,
+        turns_used=3,
+    )
+    provider.get_active_goal.return_value = goal
+    provider.get_goal.return_value = goal
+    provider.is_continuation_suppressed.return_value = False
+    provider.evaluate_semantic.return_value = VerificationResult(passed=True, reason="done")
+    provider.record_progress.return_value = goal
+
+    messages = [AIMessage(content="I have completed the task.")]
+    fake_violations = [ProtectedFileViolation(path="src/main.py", pattern="src/**", kind="deleted")]
+    with patch(
+        "myrm_agent_harness.agent.goals.continuation._check_protected_integrity",
+        return_value=fake_violations,
+    ):
+        decision = await check_continuation(
+            goal_provider=provider,
+            session_id="s1",
+            cancel_token=None,
+            steering_token=None,
+            collected_messages=messages,
+            tools_called_this_turn=True,
+            net_tokens_this_turn=10,
+            cost_this_turn=0.0,
+            time_this_turn_seconds=1,
+        )
+
+    assert decision.should_continue is True
+    assert decision.verdict == "continue"
+    assert "BLOCKED" in decision.message
+    assert "src/main.py (deleted)" in decision.message
+    provider.update_status.assert_not_called()

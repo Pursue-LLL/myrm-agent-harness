@@ -96,9 +96,9 @@ def verify_protected_integrity(goal_id: str) -> list[ProtectedFileViolation]:
 
     Call this before marking a Goal as complete.
     Returns a list of violations (empty = all intact).
-    Automatically clears the snapshot after verification.
+    Non-destructive: snapshot remains until explicitly cleared via clear_snapshot().
     """
-    entry = _snapshots.pop(goal_id, None)
+    entry = _snapshots.get(goal_id)
     if entry is None:
         return []
 

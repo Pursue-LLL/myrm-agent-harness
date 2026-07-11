@@ -62,7 +62,7 @@ class TestVerifyProtectedIntegrity:
         capture_protected_snapshot("g1", ["tests/**"], workspace)
         violations = verify_protected_integrity("g1")
         assert violations == []
-        assert "g1" not in _snapshots  # auto-cleared
+        assert "g1" in _snapshots  # non-destructive: snapshot preserved for repeated verify
 
     def test_detects_modified_file(self, workspace: str):
         capture_protected_snapshot("g1", ["tests/**"], workspace)
@@ -98,10 +98,19 @@ class TestVerifyProtectedIntegrity:
         kinds = {v.kind for v in violations}
         assert kinds == {"modified", "deleted"}
 
-    def test_clears_snapshot_after_verify(self, workspace: str):
+    def test_verify_preserves_snapshot(self, workspace: str):
         capture_protected_snapshot("g1", ["tests/**"], workspace)
         verify_protected_integrity("g1")
-        assert "g1" not in _snapshots
+        assert "g1" in _snapshots  # non-destructive; clear_snapshot handles cleanup
+
+    def test_repeated_verify_detects_tamper(self, workspace: str):
+        capture_protected_snapshot("g1", ["tests/**"], workspace)
+        assert verify_protected_integrity("g1") == []
+        with open(os.path.join(workspace, "tests", "test_a.py"), "w") as f:
+            f.write("TAMPERED")
+        violations = verify_protected_integrity("g1")
+        assert len(violations) == 1
+        assert violations[0].kind == "modified"
 
 
 class TestClearSnapshot:
