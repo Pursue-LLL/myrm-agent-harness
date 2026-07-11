@@ -1,6 +1,7 @@
 """Extended tests for WikiCompiler - covering _filter_changed_files, compile_all,
 _extract_concepts_from_doc, parse_concepts_response, build_index, generate_backlinks,
-save_metadata, purpose injection, parallel batch ingestion, worker loop, and edge cases."""
+save_metadata, purpose injection, visual element prompt guidance, parallel batch ingestion,
+worker loop, and edge cases."""
 
 import asyncio
 import json
@@ -326,6 +327,38 @@ async def test_purpose_injection(wiki_structure: WikiStructure, mock_llm: AsyncM
     call_args = mock_llm.ainvoke.call_args[0][0]
     human_msg_content = call_args[1].content
     assert "Focus on AI/ML" in human_msg_content
+
+
+# --- Visual element prompt guidance ---
+
+
+def test_default_prompt_contains_visual_element_guidance() -> None:
+    """Verify the default generate_article_prompt_template includes Mermaid, GFM tables,
+    and fenced code block guidance for rich visual output."""
+    config = WikiCompileConfig()
+    tmpl = config.generate_article_prompt_template
+    assert "Mermaid" in tmpl, "Prompt must guide LLM to use Mermaid diagrams"
+    assert "GFM tables" in tmpl, "Prompt must guide LLM to use GFM tables"
+    assert "fenced code blocks" in tmpl, "Prompt must guide LLM to use fenced code blocks"
+
+
+@pytest.mark.asyncio
+async def test_visual_guidance_reaches_llm(
+    wiki_structure: WikiStructure, mock_llm: AsyncMock, mock_indexer: AsyncMock
+) -> None:
+    """Verify the visual element guidance is present in the prompt sent to the LLM."""
+    compile_config = WikiCompileConfig(require_approval=False)
+    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig(), compile_config, indexer=mock_indexer)
+
+    mock_llm.ainvoke.return_value = AIMessage(content="## Compiled Truth\nArticle with Mermaid.")
+
+    concept = ConceptInfo(name="VisualTest", definition="Def", mentions=2, source_files=["a.md"])
+    await compiler._generate_article(concept)
+
+    call_args = mock_llm.ainvoke.call_args[0][0]
+    human_msg_content = call_args[1].content
+    assert "Mermaid" in human_msg_content, "LLM prompt must contain Mermaid guidance"
+    assert "GFM tables" in human_msg_content, "LLM prompt must contain GFM tables guidance"
 
 
 # --- Parallel batch ingestion ---

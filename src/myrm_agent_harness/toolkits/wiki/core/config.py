@@ -107,6 +107,10 @@ class WikiCompileConfig:
             "5. NEVER paraphrase numbers, percentages, dates, or proper nouns from sources. "
             "Quote them exactly as they appear.\n"
             "6. For key facts, annotate provenance inline: (source: filename.md L42-45).\n"
+            "7. Where appropriate, use rich visual elements to maximize information density:\n"
+            "   - Use Mermaid diagrams (```mermaid) for workflows, architectures, and relationships.\n"
+            "   - Use GFM tables for comparisons, feature matrices, and structured data.\n"
+            "   - Use fenced code blocks with language tags for code examples.\n"
             "Do not output any reasoning, only the final markdown file content."
         )
     )
