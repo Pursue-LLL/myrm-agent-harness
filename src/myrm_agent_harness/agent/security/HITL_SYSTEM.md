@@ -279,6 +279,14 @@ const resumeValue = { decisions };
 4. **TaintTracking** - 数据流污染检测
 5. **ToolApproval** - 人类审批
 
+### 工具级AST安全门禁
+`browser_execute_script_tool` 在脚本执行前进行AST静态分析，检测绕过域名过滤/HITL守卫的特权API：
+- `page.request.*` (bypasses context.route())
+- `page.evaluate()` / `page.evaluate_handle()` (bypasses enforce_js_eval_guard)
+- `page.context` / `page.new_page()` / `page.new_context()` (unprotected context access)
+
+命中时触发独立 `interrupt(action_type="script_privileged_api")`，用户可审查脚本内容后批准或拒绝。
+
 ### 三态决策模型
 - **APPROVE**: 原样执行
 - **EDIT**: 修改参数后执行

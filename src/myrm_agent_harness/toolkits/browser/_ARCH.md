@@ -40,7 +40,7 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 | pool/ | Global browser resource pool. Manages Browser/Context/Page three-layer resources, implementing zero- |
 | session/ | Browser session components. |
 | snapshot/ | Snapshot module. Provides comprehensive snapshot capabilities, ARIA tree enhancements, and O(1) Self-Healing Locators. |
-| tools/ | API layer of the browser toolkit. Maps BrowserSession capabilities to 7 LangChain @tool functions, |
+| tools/ | API layer of the browser toolkit. Maps BrowserSession capabilities to 8 LangChain @tool functions (incl. AST-gated execute_script), |
 | utils/ | Shared utilities and constants (e.g., selectors, proxy error detection). |
 
 ## Key Dependencies

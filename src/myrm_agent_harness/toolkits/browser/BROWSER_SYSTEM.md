@@ -591,7 +591,7 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 | `browser_interact_tool` | 13 种交互 | click, dblclick, type, fill, press, hover, focus, select, scroll, upload_file, drag, check, uncheck |
 | `browser_extract_tool` | 文本 + 截图 + 媒体URL + 结构化提取 + diff | text / screenshot / media / diff_fast / diff_accurate + extraction_schema |
 | `browser_manage_tool` | Tab + JS + 历史 + 对话框 + Session + Network + HITL | 21 种 action（含 network_detail/network_replay + save/restore/list/delete_session + wait_for_user） |
-| `browser_execute_script_tool` | **Code-as-Action 批量执行** | _(单一职责，执行 Python 脚本)_ |
+| `browser_execute_script_tool` | **Code-as-Action 批量执行** + AST 特权API门禁 | _(执行 Python 脚本，AST 扫描 page.request/evaluate/context 等特权API → HITL 审批)_ |
 | `browser_ask_human_tool` | **人类接管请求** | _(单一职责，Agent 触发 HITL interrupt + VNC 自动弹出)_ |
 
 **Token 成本**：~65 tokens（相比独立工具方案节省 86%）
@@ -974,7 +974,7 @@ browser/
 │   ├── interact.py — browser_interact_tool（含 Semantic DOM Guard）
 │   ├── extract.py — browser_extract_tool
 │   ├── manage.py — browser_manage_tool
-│   ├── execute_script.py — browser_execute_script_tool
+│   ├── execute_script.py — browser_execute_script_tool（含 AST 特权API Scanner + HITL 门禁）
 │   ├── takeover.py — browser_ask_human_tool（人类接管，LangGraph interrupt + VNC 自动弹出）
 │   ├── inspect.py — browser_inspect_tool
 │   ├── _semantic_risk.py — 语义 DOM 风险分类（纯函数）

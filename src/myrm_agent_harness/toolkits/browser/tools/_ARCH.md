@@ -11,7 +11,7 @@ API layer of the browser toolkit. Maps BrowserSession capabilities to 8 LangChai
 | _semantic_risk.py | Internal | Semantic DOM risk classification (ARIA role+name + JS eval patterns). Consumed by semantic_dom_hitl.py. | ✅ |
 | semantic_dom_hitl.py | Internal | Shared LangGraph HITL gate for session.interact, browser_interact_tool, and evaluate paths. | ✅ |
 | common.py | Core | Shared utilities for browser tools. | ✅ |
-| execute_script.py | Core | browser_execute_script_tool: Code-as-Action batch execution. | ✅ |
+| execute_script.py | Core | browser_execute_script_tool: Code-as-Action batch execution with AST privileged-API scanner + HITL gating. | ✅ |
 | extract.py | Core | browser_extract_tool: content extraction. | ✅ |
 | inspect.py | Core | browser_inspect_tool: quick page structure analysis. | ✅ |
 | interact.py | Core | browser_interact_tool: element interactions with semantic DOM risk check (HITL for destructive/financial/admin actions). | ✅ |

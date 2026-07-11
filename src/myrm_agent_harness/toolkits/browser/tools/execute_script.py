@@ -35,6 +35,76 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+_PRIVILEGED_API_METHODS = frozenset({"get", "post", "put", "delete", "patch", "fetch", "head"})
+_PRIVILEGED_API_ATTRS = frozenset({"request", "context", "evaluate", "evaluate_handle", "new_page", "new_context"})
+
+
+class _PrivilegedAPIScanner(ast.NodeVisitor):
+    """Detect Playwright privileged API access that bypasses domain filter / HITL guards.
+
+    page.request.* bypasses context.route() entirely (Playwright official behavior).
+    page.evaluate() bypasses enforce_js_eval_guard (only triggered via browser_manage).
+    page.context gives access to unprotected context operations.
+    """
+
+    def __init__(self) -> None:
+        self.violations: list[str] = []
+
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        if isinstance(node.value, ast.Attribute):
+            parent_attr = node.value.attr
+            if parent_attr == "request" and node.attr in _PRIVILEGED_API_METHODS:
+                self.violations.append(f".request.{node.attr}()")
+        if node.attr in _PRIVILEGED_API_ATTRS:
+            if isinstance(node.ctx, ast.Load):
+                if isinstance(node.value, ast.Name) and node.value.id in ("session", "refs"):
+                    pass
+                else:
+                    self.violations.append(f".{node.attr}")
+        self.generic_visit(node)
+
+
+async def _require_privileged_api_approval(
+    session: BrowserSession, violations: list[str], script_preview: str
+) -> str | None:
+    """Trigger HITL approval when script uses APIs that bypass domain filter."""
+    from langgraph.types import interrupt
+
+    from myrm_agent_harness.core.security.audit import record_decision
+
+    apis = ", ".join(violations)
+    logger.warning(
+        "[SCRIPT_PRIVILEGED_API] Detected privileged API access: %s", apis
+    )
+    record_decision("browser_execute_script_tool", "ASK", f"Privileged API: {apis}")
+
+    user_response = interrupt({
+        "action_type": "script_privileged_api",
+        "tool_name": "browser_execute_script_tool",
+        "reason": f"Script accesses privileged APIs that bypass network policy: {apis}",
+        "violations": violations,
+        "script_preview": script_preview[:500],
+    })
+
+    if isinstance(user_response, dict) and user_response.get("decision") == "approve":
+        record_decision("browser_execute_script_tool", "USER_APPROVED", f"Privileged API approved: {apis}")
+        return None
+    if isinstance(user_response, str) and user_response.lower() in ("approve", "allow", "yes", "y"):
+        record_decision("browser_execute_script_tool", "USER_APPROVED", f"Privileged API approved: {apis}")
+        return None
+
+    record_decision("browser_execute_script_tool", "USER_REJECTED", f"Privileged API rejected: {apis}")
+    feedback = ""
+    if isinstance(user_response, dict):
+        feedback = str(user_response.get("feedback", "") or "")
+    return (
+        f"[BLOCKED] Script uses privileged APIs ({apis}) that bypass network security policy. "
+        f"User rejected execution."
+        + (f" Feedback: {feedback}" if feedback else "")
+        + " Rewrite the script using session.interact() instead."
+    )
+
+
 class _AsyncYieldInjector(ast.NodeTransformer):
     """Injects `await asyncio.sleep(0)` into every loop to prevent event loop blocking."""
 
@@ -136,19 +206,40 @@ def create_execute_script_tool(session: BrowserSession):
         except Exception as e:
             return f"Failed to parse script: {e}"
 
+        # 3.5. Scan for privileged Playwright API access that bypasses network policy
+        scanner = _PrivilegedAPIScanner()
+        scanner.visit(tree)
+        if scanner.violations:
+            unique = sorted(set(scanner.violations))
+            blocked = await _require_privileged_api_approval(session, unique, script)
+            if blocked:
+                return blocked
+
         # 4. Prepare safe globals
         import builtins
 
         safe_builtins = {
             k: getattr(builtins, k)
             for k in dir(builtins)
-            if k not in ("__import__", "eval", "exec", "open", "exit", "quit", "compile")
+            if k
+            not in (
+                "__import__",
+                "eval",
+                "exec",
+                "open",
+                "exit",
+                "quit",
+                "compile",
+                "getattr",
+                "setattr",
+                "delattr",
+            )
         }
 
         output_buffer = io.StringIO()
         print_queue = asyncio.Queue()
 
-        def custom_print(*args, **kwargs):
+        def custom_print(*args: object, **_kwargs: object) -> None:
             text = " ".join(str(a) for a in args)
             output_buffer.write(text + "\n")
             print_queue.put_nowait(text)
