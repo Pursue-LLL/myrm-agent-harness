@@ -197,6 +197,11 @@ class GoalManager(GoalManagerQueueMixin, GoalProvider):
             duration_s = (goal.updated_at - goal.created_at).total_seconds()
             record_goal_terminal(status.value, duration_s, goal.tokens_used, goal.cost_usd)
 
+        if status in (GoalStatus.CANCELLED, GoalStatus.COMPLETE):
+            from .invariant_snapshot import clear_snapshot
+
+            clear_snapshot(goal_id)
+
         logger.info("Goal %s status changed: %s -> %s", goal_id, old_status.value, status.value)
         return goal
 

@@ -3,6 +3,7 @@
 [INPUT]
 - .protocols::GoalProvider (POS: Goal provider protocol)
 - .audit::build_continuation_prompt, build_judge_criteria, build_wrapup_prompt (POS: Prompt/criteria builders)
+- .invariant_snapshot::ProtectedFileViolation, verify_protected_integrity (POS: Post-hoc tamper detection)
 - .types::ContinuationDecision, GoalStatus (POS: Guard chain result)
 - langchain_core.messages::HumanMessage, AIMessage (POS: Message types)
 - utils.runtime.cancellation::CancellationToken (POS: Cancellation state)
@@ -14,7 +15,7 @@
 [POS]
 Core logic for determining if a goal should automatically continue to the next turn.
 Evaluates budget, suppression, cancellation, steering, convergence, loop restart,
-and semantic completion.
+semantic completion, and protected file integrity (InvariantSnapshot tamper detection).
 Returns a structured ContinuationDecision with verdict/reason for downstream consumers.
 """
 
@@ -26,6 +27,7 @@ from typing import TYPE_CHECKING
 from langchain_core.messages import AIMessage, HumanMessage
 
 from .audit import build_continuation_prompt, build_judge_criteria, build_wrapup_prompt
+from .invariant_snapshot import ProtectedFileViolation, verify_protected_integrity
 from .types import ContinuationDecision, GoalStatus
 
 if TYPE_CHECKING:
@@ -193,6 +195,29 @@ async def _judge_completion(
         return "", False
 
 
+def _check_protected_integrity(goal_id: str) -> list[ProtectedFileViolation]:
+    """Verify protected files were not tampered with via bash bypass."""
+    return verify_protected_integrity(goal_id)
+
+
+def _make_tamper_decision(goal: Goal, violations: list[ProtectedFileViolation]) -> ContinuationDecision:
+    """Build a 'continue' decision with tamper violation details for the agent to fix."""
+    detail = ", ".join(f"{v.path} ({v.kind})" for v in violations)
+    msg = (
+        f"BLOCKED: {len(violations)} protected file(s) were tampered with during this Goal.\n"
+        f"Violations: {detail}\n"
+        f"You MUST restore these files before the Goal can be marked complete."
+    )
+    return ContinuationDecision(
+        should_continue=True,
+        verdict="continue",  # type: ignore[arg-type]
+        reason=f"Protected file tamper detected: {detail}",
+        turns_used=goal.turns_used,
+        max_turns=goal.budget.max_turns if goal.budget else None,
+        message=msg,
+    )
+
+
 def _make_decision(
     verdict: str,
     reason: str,
@@ -292,6 +317,16 @@ async def check_continuation(
 
         # 6a. Convergence reached: no progress for K consecutive turns → COMPLETE
         if convergence_window and goal.no_progress_streak >= convergence_window:
+            violations = _check_protected_integrity(goal.goal_id)
+            if violations:
+                logger.warning(
+                    "Goal %s convergence blocked: %d protected file violation(s)",
+                    goal.goal_id,
+                    len(violations),
+                )
+                await goal_provider.reset_suppression(session_id)
+                return _make_tamper_decision(goal, violations)
+
             logger.info(
                 "Goal %s completed by convergence (streak=%d, window=%d)",
                 goal.goal_id,
@@ -338,6 +373,15 @@ async def check_continuation(
         if judge_reason is None:
             verification_passed = await _run_acceptance_verification(goal_provider, goal)
             if verification_passed:
+                violations = _check_protected_integrity(goal.goal_id)
+                if violations:
+                    logger.warning(
+                        "Goal %s completion blocked: %d protected file violation(s)",
+                        goal.goal_id,
+                        len(violations),
+                    )
+                    return _make_tamper_decision(goal, violations)
+
                 logger.info("Goal %s completed by semantic judge (verification passed)", goal.goal_id)
                 await goal_provider.update_status(goal.goal_id, GoalStatus.COMPLETE)
                 return _make_decision("done", "Semantic judge determined goal is complete", goal)
