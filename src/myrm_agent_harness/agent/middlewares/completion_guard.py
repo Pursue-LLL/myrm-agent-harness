@@ -10,6 +10,10 @@ Task-type-aware strictness:
     mode, up to max_rejections before forced finish.
   - **Query/non-code tasks**: no intervention — the Agent finishes immediately.
 
+Temporal ordering enforcement: when code is modified AFTER the last successful
+verification, the guard independently re-runs the verification command in the
+sandbox before allowing completion — zero LLM cost, no agent trust required.
+
 Also implements the **Mixed Message Guard**: when an LLM outputs both a
 substantive final response AND read-only tool_calls in the same message,
 strips the tool_calls to let the agent terminate immediately — saving
@@ -26,10 +30,10 @@ persisting across ReAct cycles.
 - langchain.agents.middleware::AgentMiddleware (POS: LangChain middleware base)
 - langchain_core.tools::tool (POS: tool decorator)
 - agent.middlewares.tool_interceptor_middleware::get_loop_guard (POS: LoopGuard accessor)
-- agent.middlewares.completion_guard_checklist::build_checklist, classify_verification (POS: Verification command classification and checklist generation for CompletionGuard.)
+- agent.middlewares.completion_guard_checklist::build_checklist, classify_verification, find_last_successful_verification_command (POS: Verification command classification, checklist generation, and temporal-order verification command extraction for CompletionGuard.)
 
 [OUTPUT]
-- CompletionGuard: aafter_model middleware for critical completion verification
+- CompletionGuard: aafter_model middleware for critical completion verification + independent re-run
 - classify_verification(): detect verification commands in bash tool args
 - reset_completion_guard(): reset session state for new run
 
@@ -37,8 +41,10 @@ persisting across ReAct cycles.
 Fills the "Agent finishing" gap in the guard chain. Existing guards cover
 tool-call loops (LoopGuard), context overflow (ContextBudgetGuard), and
 emergency stops (EStop). CompletionGuard ensures code modifications are
-verified before delivery, and the Mixed Message Guard prevents wasted
-token/time when LLM already produced a complete answer.
+verified before delivery via temporal ordering analysis and independent
+sandbox re-run when code changes occur after the last successful verification.
+The Mixed Message Guard prevents wasted token/time when LLM already produced
+a complete answer.
 """
 
 from __future__ import annotations
@@ -52,12 +58,21 @@ from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool, tool
 
 from myrm_agent_harness.agent.middlewares.completion_guard_checklist import (
+    _CODE_EXTENSIONS,
+    _has_post_verification_code_write,
+    _is_code_file,
     build_checklist,
     classify_verification,
+    find_last_successful_verification_command,
 )
 from myrm_agent_harness.agent.orchestration.hooks import COMPLETION_CHECK_TOOL_NAME
+from myrm_agent_harness.agent.security.guards.loop_guard_types import (
+    ToolGroup,
+    get_tool_group,
+)
 
 _build_checklist = build_checklist
+_find_last_verification_cmd = find_last_successful_verification_command
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +147,41 @@ def _completion_check_tool(workspace_root: str = "", force_fail: bool = False) -
     records = list(guard._window)
     checklist_str, _ = _build_checklist(records, workspace_root=workspace_root)
     return checklist_str
+
+
+_RERUN_TIMEOUT_SECONDS: int = 120
+
+
+async def _rerun_verification_in_sandbox(command: str) -> bool:
+    """Execute a verification command independently in the sandbox.
+
+    Returns True only when the command exits with code 0. Any executor
+    unavailability or execution failure returns False (fail-closed).
+    """
+    try:
+        from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
+        from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionContext
+
+        executor = get_executor()
+        if not executor:
+            logger.warning("[CompletionGuard] Sandbox executor unavailable — skipping independent re-run.")
+            return False
+
+        context = ExecutionContext(code=command, timeout=_RERUN_TIMEOUT_SECONDS)
+        result = await executor.execute_bash(context)
+
+        if result.exit_code == 0:
+            return True
+
+        logger.warning(
+            "[CompletionGuard] Independent re-run failed (exit_code=%d): %s",
+            result.exit_code,
+            (result.stderr or result.stdout or "")[:500],
+        )
+        return False
+    except Exception:
+        logger.warning("[CompletionGuard] Independent re-run raised exception.", exc_info=True)
+        return False
 
 
 _UNFINISHED_MARKERS: tuple[str, ...] = (
@@ -265,6 +315,27 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
 
         if not has_critical_errors:
             return None
+
+        # --- INDEPENDENT RE-RUN (temporal violation only) ---
+        # Only triggered when the critical error is a temporal violation: code was
+        # modified AFTER the last successful verification. Other critical errors
+        # (no verification, failed verification, empty tests, execution failures)
+        # must NOT be bypassed by independent re-run.
+        filtered_records = [r for r in records if not r.tool_name.startswith("_")]
+        has_code_writes = any(
+            get_tool_group(r.tool_name) == ToolGroup.WRITE and _is_code_file(str(r.args.get("path", "")))
+            for r in filtered_records
+        )
+        if has_code_writes and _has_post_verification_code_write(filtered_records, _CODE_EXTENSIONS):
+            rerun_cmd = _find_last_verification_cmd(filtered_records)
+            if rerun_cmd:
+                rerun_passed = await _rerun_verification_in_sandbox(rerun_cmd)
+                if rerun_passed:
+                    logger.info(
+                        "[CompletionGuard] Independent re-run of '%s' passed — allowing completion.",
+                        rerun_cmd,
+                    )
+                    return None
 
         # --- CRITICAL BLOCKING MODE ---
         current_rejections = _rejection_count

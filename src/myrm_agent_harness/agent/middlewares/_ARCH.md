@@ -17,9 +17,9 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `_tool_execution_lifecycle.py` | Internal | Tool execution lifecycle hooks. | ✅ |
 | `_tool_guards.py` | Internal | Guard modules orchestrated by tool_interceptor. | ✅ |
 | `_tool_helpers.py` | Internal | Stateless helpers for tool_interceptor_middleware. | ✅ |
-| `completion_guard.py` | Core | Finish gate + Mixed Message Guard for code tasks. Exports `is_mutating_tool()` SSOT for side-effect tool detection (Cron post-run verify, completion gate). | ✅ |
+| `completion_guard.py` | Core | Finish gate + Mixed Message Guard + Independent Re-run for code tasks. Temporal ordering enforcement: blocks completion when code is modified after last verification, independently re-runs the verification command in the sandbox before allowing completion. Exports `is_mutating_tool()` SSOT for side-effect tool detection. | ✅ |
 | `clarification_guard_middleware.py` | Core | Enforces single `ask_question_tool` call per turn; blocks coexisting tool calls with synthetic errors. | ✅ |
-| `completion_guard_checklist.py` | Internal | Verification command classification + checklist builder for CompletionGuard. | ✅ |
+| `completion_guard_checklist.py` | Internal | Verification command classification + checklist builder + temporal ordering analysis + verification command extraction for CompletionGuard. | ✅ |
 | `concurrency_limiter.py` | Core | Subagent Semaphore by agent_type. | ✅ |
 | `concurrency_router.py` | Core | Smart concurrency routing with safety_dispatcher. | ✅ |
 | `context_pipeline_helpers.py` | Internal | Compression intent, cache feedback, schema fingerprint. | ✅ |

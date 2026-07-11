@@ -146,7 +146,7 @@ class ConversationForkManager:
 ```python
 # POST /api/v1/chats/{chat_id}/fork
 {
-    "message_index": 5,
+    "message_index": 5,  # 0-based index, or -1 for last message
     "new_title": "Alternative Path"  # Optional, auto-generated if omitted
 }
 

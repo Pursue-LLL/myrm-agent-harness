@@ -6,9 +6,12 @@
 [OUTPUT]
 - classify_verification(): detect verification commands in bash tool args
 - build_checklist(): generate task-aware verification checklist from CallRecords
+- find_last_successful_verification_command(): extract the last successful verification bash command from records
 
 [POS]
 Verification command classification and task-aware checklist generation for CompletionGuard.
+Includes temporal ordering analysis: detects when code files are modified AFTER the
+last successful verification, requiring re-verification before completion.
 """
 
 from __future__ import annotations
@@ -83,6 +86,64 @@ _VERIFICATION_PATTERNS: dict[str, VerificationCategory] = {
 }
 
 
+_CODE_EXTENSIONS: frozenset[str] = frozenset({
+    ".py", ".js", ".ts", ".jsx", ".tsx", ".rs", ".go", ".java",
+    ".cpp", ".c", ".h", ".hpp", ".cs", ".php", ".rb", ".swift",
+})
+
+
+def _is_code_file(path: str) -> bool:
+    return any(path.lower().endswith(ext) for ext in _CODE_EXTENSIONS)
+
+
+def _has_post_verification_code_write(
+    records: list[CallRecord],
+    code_extensions: frozenset[str],
+) -> bool:
+    """Return True when a code WRITE appears after the last successful verification.
+
+    Records in the deque are append-ordered (oldest first), so we scan from
+    the end to find the last successful verification, then check if any code
+    write appears after it.
+    """
+    last_verified_idx = -1
+    for i in range(len(records) - 1, -1, -1):
+        rec = records[i]
+        if (
+            rec.verification_type is not None
+            and rec.success_level not in (SuccessLevel.FAILURE, SuccessLevel.EMPTY_OK)
+        ):
+            last_verified_idx = i
+            break
+
+    if last_verified_idx < 0:
+        return False
+
+    for rec in records[last_verified_idx + 1 :]:
+        grp = get_tool_group(rec.tool_name)
+        if grp != ToolGroup.WRITE:
+            continue
+        path = str(rec.args.get("path", "")).lower()
+        if any(path.endswith(ext) for ext in code_extensions):
+            return True
+    return False
+
+
+def find_last_successful_verification_command(records: list[CallRecord]) -> str | None:
+    """Extract the bash command string from the most recent successful verification.
+
+    Returns None if no successful verification exists. Used by CompletionGuard
+    to independently re-run the verification command in the sandbox.
+    """
+    for rec in reversed(records):
+        if (
+            rec.verification_type is not None
+            and rec.success_level not in (SuccessLevel.FAILURE, SuccessLevel.EMPTY_OK)
+        ):
+            return str(rec.args.get("command", "")).strip() or None
+    return None
+
+
 def _is_command_at_boundary(cmd: str, pattern: str) -> bool:
     """Check if pattern matches at a word boundary (followed by space or end-of-string)."""
     return cmd == pattern or cmd.startswith(pattern + " ")
@@ -149,31 +210,7 @@ def build_checklist(records: list[CallRecord], workspace_root: str | None = None
         write_records = groups[ToolGroup.WRITE]
         write_tools = {r.tool_name for r in write_records}
 
-        # Check if any written file is a code file that requires testing
-        has_code_writes = False
-        code_extensions = {
-            ".py",
-            ".js",
-            ".ts",
-            ".jsx",
-            ".tsx",
-            ".rs",
-            ".go",
-            ".java",
-            ".cpp",
-            ".c",
-            ".h",
-            ".hpp",
-            ".cs",
-            ".php",
-            ".rb",
-            ".swift",
-        }
-        for rec in write_records:
-            path = str(rec.args.get("path", "")).lower()
-            if any(path.endswith(ext) for ext in code_extensions):
-                has_code_writes = True
-                break
+        has_code_writes = any(_is_code_file(str(rec.args.get("path", ""))) for rec in write_records)
 
         if not verifications:
             if has_code_writes:
@@ -202,11 +239,20 @@ def build_checklist(records: list[CallRecord], workspace_root: str | None = None
                 "You MUST ensure tests actually run before finishing."
             )
         else:
-            verified_types = {r.verification_type.value for r in verifications if r.verification_type}
-            items.append(
-                f"File modifications ({', '.join(sorted(write_tools))}) verified via "
-                f"{', '.join(sorted(verified_types))} — confirm results match expectations."
-            )
+            # Temporal order check: code writes AFTER the last successful verification
+            # invalidate the verification — the agent must re-verify.
+            if has_code_writes and _has_post_verification_code_write(records, _CODE_EXTENSIONS):
+                has_critical_errors = True
+                items.append(
+                    "CRITICAL: Code files were modified AFTER the last successful verification. "
+                    "You MUST re-run tests/lint/type-check to verify the latest changes."
+                )
+            else:
+                verified_types = {r.verification_type.value for r in verifications if r.verification_type}
+                items.append(
+                    f"File modifications ({', '.join(sorted(write_tools))}) verified via "
+                    f"{', '.join(sorted(verified_types))} — confirm results match expectations."
+                )
 
     if ToolGroup.BROWSER in groups:
         browser_tools = {r.tool_name for r in groups[ToolGroup.BROWSER]}
