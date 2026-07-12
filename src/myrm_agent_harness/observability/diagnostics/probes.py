@@ -17,6 +17,7 @@ by /health/doctor to produce the system health dashboard.
 """
 
 import logging
+import asyncio
 import os
 import sqlite3
 from pathlib import Path
@@ -310,7 +311,7 @@ async def check_system_resources() -> HealthReport:
         )
 
     try:
-        cpu_percent = psutil.cpu_percent(interval=1)
+        cpu_percent = await asyncio.to_thread(psutil.cpu_percent, 0.0)
         memory = psutil.virtual_memory()
         memory_percent = memory.percent
         memory_used_gb = memory.used / (1024**3)

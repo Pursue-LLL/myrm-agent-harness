@@ -18,5 +18,6 @@ Composable `MemoryManager` implementation. External code imports `MemoryManager`
 | `mutations.py` | Mixin | Rate, correct, pin, update | ✅ |
 | `storage.py` | Mixin | Backend accessors and private store paths | ✅ |
 | `import_export.py` | Mixin | Bulk export (JSON + Markdown), import | ✅ |
+| `reindex.py` | Mixin | Orphan collection detection and re-embedding after model switch | ✅ |
 | `helpers.py` | Internal | `_memory_ref`, `_infer_preference_category` | — |
 | `__init__.py` | Facade | Composes `MemoryManager` | ✅ |

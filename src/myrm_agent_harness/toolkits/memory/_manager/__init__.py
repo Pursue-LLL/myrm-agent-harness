@@ -24,6 +24,7 @@ from myrm_agent_harness.toolkits.memory._manager.listing_maintenance import (
     MemoryManagerListingMaintenanceMixin,
 )
 from myrm_agent_harness.toolkits.memory._manager.mutations import MemoryManagerMutationsMixin
+from myrm_agent_harness.toolkits.memory._manager.reindex import MemoryManagerReindexMixin
 from myrm_agent_harness.toolkits.memory._manager.retrieval_write import MemoryManagerRetrievalWriteMixin
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     MemoryError,
@@ -43,6 +44,7 @@ class MemoryManager(
     MemoryManagerMutationsMixin,
     MemoryManagerStorageMixin,
     MemoryManagerImportExportMixin,
+    MemoryManagerReindexMixin,
 ):
     """Orchestrates all memory operations. Bound to a single user via ``user_id``."""
 
