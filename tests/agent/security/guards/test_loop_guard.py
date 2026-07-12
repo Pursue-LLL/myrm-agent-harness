@@ -10,7 +10,7 @@ Covers all 6 detection modes:
 
 Plus: ToolStuckException, iteration budget warning,
 suggestion quality tracking, metrics, phase inference,
-threshold relaxation, and reset behavior.
+threshold relaxation, reset behavior, and post-compaction guard reset.
 """
 
 import pytest
@@ -879,3 +879,94 @@ class TestCompetitorScenarioComparison:
         # Now a DIFFERENT tool should still be ALLOWED
         verdict = fresh_guard.pre_check("file_read_tool", {"path": "/tmp/x"})
         assert verdict.action == LoopAction.ALLOW
+
+
+# ---------------------------------------------------------------------------
+# Post-compaction guard reset
+# ---------------------------------------------------------------------------
+
+
+class TestNotifyCompaction:
+    """Verify that notify_compaction resets iteration budget while preserving error signatures."""
+
+    def test_total_calls_reset_after_compaction(self) -> None:
+        """After compaction, total_calls resets to 0 so the agent can continue."""
+        guard = LoopGuard(graph_recursion_limit=30)
+        budget_stuck = guard._budget_stuck
+
+        for i in range(budget_stuck - 1):
+            guard.pre_check(f"tool_{i}", {"x": i})
+            guard.record_result(f"tool_{i}", {"x": i}, f"result_{i}")
+
+        assert guard._metrics.total_calls == budget_stuck - 1
+
+        guard.notify_compaction()
+        assert guard._metrics.total_calls == 0
+
+        verdict = guard.pre_check("new_tool", {"y": 1})
+        assert verdict.action == LoopAction.ALLOW
+
+    def test_compaction_prevents_premature_stuck_exception(self) -> None:
+        """Without compaction the agent would be terminated; with it, it continues."""
+        guard = LoopGuard(graph_recursion_limit=30)
+        budget_stuck = guard._budget_stuck
+
+        for i in range(budget_stuck - 1):
+            guard.pre_check(f"tool_{i}", {"x": i})
+            guard.record_result(f"tool_{i}", {"x": i}, f"result_{i}")
+
+        guard.notify_compaction()
+
+        for i in range(budget_stuck - 1):
+            v = guard.pre_check(f"post_{i}", {"z": i})
+            guard.record_result(f"post_{i}", {"z": i}, f"post_result_{i}")
+            if v.action == LoopAction.WARN:
+                continue
+        assert guard._metrics.total_calls == budget_stuck - 1
+
+    def test_error_signatures_preserved_across_compaction(self) -> None:
+        """Error signatures survive compaction so recurring failures are still tracked."""
+        guard = LoopGuard(graph_recursion_limit=60, error_signature_threshold=5)
+
+        guard.pre_check("bash_a", {"cmd": "bad"})
+        guard.record_result("bash_a", {"cmd": "bad"}, "ToolExecutionError: SyntaxError in script")
+
+        guard.pre_check("bash_b", {"cmd": "bad2"})
+        guard.record_result("bash_b", {"cmd": "bad2"}, "ToolExecutionError: SyntaxError in script")
+
+        assert len(guard._error_signatures) > 0
+        sigs_before = dict(guard._error_signatures)
+
+        guard.notify_compaction()
+
+        assert guard._error_signatures == sigs_before
+        assert guard._metrics.total_calls == 0
+
+    def test_window_cleared_after_compaction(self) -> None:
+        """Tool call history window is cleared so old patterns don't trigger false positives."""
+        guard = LoopGuard()
+
+        for i in range(5):
+            guard.pre_check("tool_a", {"x": 1})
+            guard.record_result("tool_a", {"x": 1}, f"result_{i}")
+
+        assert len(guard._window) == 5
+
+        guard.notify_compaction()
+
+        assert len(guard._window) == 0
+        assert len(guard._output_history) == 0
+
+    def test_output_history_cleared_after_compaction(self) -> None:
+        """Output token history is cleared so diminishing detection starts fresh."""
+        guard = LoopGuard()
+
+        for i in range(3):
+            guard.feed_output_tokens(i, 100)
+
+        assert len(guard._output_history) > 0
+
+        guard.notify_compaction()
+
+        assert len(guard._output_history) == 0
+        assert guard._last_recorded_call_index == -1

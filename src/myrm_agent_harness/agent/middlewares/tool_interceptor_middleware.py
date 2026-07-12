@@ -33,6 +33,7 @@ POST-CALL:
 - tool_interceptor_middleware: unified tool interception middleware
 - get_loop_guard(): Get or create the session-scoped LoopGuard
 - reset_loop_guard(): Reset loop guard state
+- notify_loop_guard_compaction(): Reset iteration budget after context compaction
 
 [POS]
 Single interception point for all tool calls. This module is a thin
@@ -110,6 +111,23 @@ def reset_loop_guard(*, is_resume: bool = False, graph_recursion_limit: int = 10
     except LookupError:
         guard = LoopGuard(graph_recursion_limit=graph_recursion_limit)
         _loop_guard_var.set(guard)
+
+
+def notify_loop_guard_compaction() -> None:
+    """Notify the loop guard that context compaction occurred.
+
+    Resets the iteration budget counter so the agent is not prematurely
+    terminated after compaction.  Error signatures are preserved so that
+    recurring failures are still tracked across compaction boundaries.
+    """
+    try:
+        guard = _loop_guard_var.get()
+        prev_calls = guard._metrics.total_calls
+        guard.notify_compaction()
+        if prev_calls > 0:
+            logger.debug("LoopGuard compaction reset: total_calls %d → 0", prev_calls)
+    except LookupError:
+        pass
 
 
 # ---------------------------------------------------------------------------

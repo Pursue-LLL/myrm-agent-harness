@@ -74,6 +74,7 @@ from myrm_agent_harness.agent.middlewares.subagent_limit_middleware import (
     subagent_limit_middleware,
 )
 from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+    notify_loop_guard_compaction,
     reset_loop_guard,
     tool_interceptor_middleware,
 )
@@ -106,6 +107,7 @@ __all__ = [
     "get_subagent_semaphore",
     "progress_middleware",
     "reset_completion_guard",
+    "notify_loop_guard_compaction",
     "reset_frequency_guard",
     "reset_loop_guard",
     "subagent_limit_middleware",

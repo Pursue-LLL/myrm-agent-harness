@@ -378,6 +378,12 @@ def create_context_pipeline_middleware(
                     for guard in _staleness_guards.values():
                         guard.clear()
 
+                    from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+                        notify_loop_guard_compaction,
+                    )
+
+                    notify_loop_guard_compaction()
+
             detector = get_cache_break_detector()
             if detector is not None:
                 detector.record_prompt_state(

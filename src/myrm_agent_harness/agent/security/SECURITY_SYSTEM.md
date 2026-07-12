@@ -1294,6 +1294,7 @@ if session_key.startswith("cron:"):
 - `reset_audit_log()` — 清除审计日志
 - `reset_denial_counter()` — 清除拒绝计数
 - `reset_loop_guard()` — 清除循环检测窗口
+- `notify_loop_guard_compaction()` — 压缩后重置迭代预算（保留 error_signatures）
 
 ---
 
