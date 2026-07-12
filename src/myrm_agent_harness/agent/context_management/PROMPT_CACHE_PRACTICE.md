@@ -565,7 +565,7 @@ META: tokens_saved=5000 time=2024-12-20T15:30:00
 `ToolProtectionConfig`（`schemas.py`）定义哪些工具的输出不可被**过滤**：
 
 ```python
-BUILTIN_PROTECTED_TOOLS = frozenset({"skill_select_tool", "todo_write"})
+BUILTIN_PROTECTED_TOOLS = frozenset({"skill_select_tool", "todo_write", "file_read_tool"})
 ```
 
 注意：保护只针对 Filter（不可逆），不针对 Compress（可逆）。压缩后 Agent 可以通过 `cat` 恢复原始内容。

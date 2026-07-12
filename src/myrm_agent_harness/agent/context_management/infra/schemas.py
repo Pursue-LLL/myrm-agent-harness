@@ -207,6 +207,7 @@ BUILTIN_PROTECTED_TOOLS: frozenset[str] = frozenset(
     {
         "skill_select_tool",
         "todo_write",
+        "file_read_tool",
     }
 )
 
@@ -226,7 +227,7 @@ class ToolProtectionConfig:
     """Tool protection configuration.
 
     Architecture: built-in + business tool protection.
-    - Built-in: framework-level tools (skill_select_tool, todo_write) are always protected
+    - Built-in: framework-level tools (skill_select_tool, todo_write, file_read_tool) are always protected
     - Business: application-level tools (memory_search, etc.) are user-configurable
     - Soft-only: tools that can be trimmed but should not be fully archived
     - Final protected set = built-in tools union business tools
