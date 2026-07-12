@@ -18,6 +18,11 @@ SSOT: `{workspace_root}/.myrm/progress/todos.json`
 | events.py | Core | Emit `tasks_steps` for ProgressSteps UI |
 | todo_write_tool.py | Core | LangChain `todo_write` factory (main agent, no sub-agent LLM) |
 
+## Constraints
+
+- **MAX_TODOS = 20**: Rejects writes that would exceed 20 items (returns error with guidance to merge or simplify).
+- **Single in_progress**: When multiple items are set to `in_progress`, only the last one is kept; others are auto-corrected to `pending` with a `note` field in the response.
+
 ## Bind conditions
 
 - `enable_planning=True`, or resume when `.myrm/progress/todos.json` exists in workspace

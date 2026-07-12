@@ -17,6 +17,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+MAX_TODOS = 20
+
 
 class TodoStatus(StrEnum):
     """Lifecycle states for a single todo item."""

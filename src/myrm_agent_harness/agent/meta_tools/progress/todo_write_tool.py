@@ -1,6 +1,7 @@
-"""Main-agent todo_write tool — deer-flow/Hermes-style progress without sub-agent LLM.
+"""Main-agent todo_write tool — workspace-backed progress with hard constraints.
 
 [INPUT]
+- progress.schemas::MAX_TODOS, TodoItem, TodoStatus, TodoStore (POS: todo data models and limits)
 - progress.storage::read/write/merge todos (POS: workspace SSOT)
 - progress.events::emit_todo_progress_events (POS: SSE UI)
 - langchain_core.tools::tool (POS: LangChain tool decorator)
@@ -10,6 +11,7 @@
 
 [POS]
 Opt-in planning meta-tool; bound when enable_planning or existing todos file.
+Enforces MAX_TODOS upper limit and single in_progress concurrency.
 """
 
 from __future__ import annotations
@@ -21,7 +23,7 @@ from typing import Any
 from langchain_core.tools import BaseTool, tool
 
 from myrm_agent_harness.agent.meta_tools.progress.events import emit_todo_progress_events
-from myrm_agent_harness.agent.meta_tools.progress.schemas import TodoStore
+from myrm_agent_harness.agent.meta_tools.progress.schemas import MAX_TODOS, TodoItem, TodoStatus, TodoStore
 from myrm_agent_harness.agent.meta_tools.progress.storage import (
     merge_todo_items,
     parse_todo_payload,
@@ -30,6 +32,19 @@ from myrm_agent_harness.agent.meta_tools.progress.storage import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _enforce_single_in_progress(items: list[TodoItem]) -> int:
+    """Keep only the last in_progress item; revert earlier ones to pending.
+
+    Returns the number of items corrected.
+    """
+    in_progress_indices = [i for i, item in enumerate(items) if item.status == TodoStatus.IN_PROGRESS]
+    if len(in_progress_indices) <= 1:
+        return 0
+    for idx in in_progress_indices[:-1]:
+        items[idx].status = TodoStatus.PENDING
+    return len(in_progress_indices) - 1
 
 
 def create_todo_write_tool(workspace_root: str | None) -> BaseTool:
@@ -44,6 +59,7 @@ def create_todo_write_tool(workspace_root: str | None) -> BaseTool:
         """Create or update a structured task list for multi-step work.
 
         Use for complex objectives (typically 3+ steps). Skip for trivial single-step tasks.
+        Maximum 20 items. Only one task may be in_progress at a time.
 
         Args:
             todos: List of items with ``id``, ``content``, and optional ``status``
@@ -65,6 +81,15 @@ def create_todo_write_tool(workspace_root: str | None) -> BaseTool:
 
         current = read_todos_sync_from_workspace(root)
         merged_items = merge_todo_items(current.todos if current else [], incoming, merge=merge)
+
+        if len(merged_items) > MAX_TODOS:
+            return json.dumps({
+                "error": f"Maximum {MAX_TODOS} todos exceeded ({len(merged_items)} given). "
+                "Merge or simplify your plan.",
+            })
+
+        corrected_count = _enforce_single_in_progress(merged_items)
+
         store = TodoStore(
             goal=goal if goal is not None else (current.goal if current else None),
             todos=merged_items,
@@ -72,22 +97,26 @@ def create_todo_write_tool(workspace_root: str | None) -> BaseTool:
         write_todos_sync_to_workspace(root, store)
         emit_todo_progress_events(store)
 
-        pending = sum(1 for item in store.todos if item.status.value == "pending")
-        in_progress = sum(1 for item in store.todos if item.status.value == "in_progress")
-        completed = sum(1 for item in store.todos if item.status.value == "completed")
-        cancelled = sum(1 for item in store.todos if item.status.value == "cancelled")
+        pending = sum(1 for item in store.todos if item.status == TodoStatus.PENDING)
+        in_progress = sum(1 for item in store.todos if item.status == TodoStatus.IN_PROGRESS)
+        completed = sum(1 for item in store.todos if item.status == TodoStatus.COMPLETED)
+        cancelled = sum(1 for item in store.todos if item.status == TodoStatus.CANCELLED)
+
+        summary: dict[str, object] = {
+            "total": len(store.todos),
+            "pending": pending,
+            "in_progress": in_progress,
+            "completed": completed,
+            "cancelled": cancelled,
+        }
+        if corrected_count > 0:
+            summary["note"] = (
+                f"Auto-corrected: {corrected_count} extra in_progress item(s) "
+                "reverted to pending. Keep only 1 in_progress at a time."
+            )
 
         return json.dumps(
-            {
-                "todos": [item.model_dump() for item in store.todos],
-                "summary": {
-                    "total": len(store.todos),
-                    "pending": pending,
-                    "in_progress": in_progress,
-                    "completed": completed,
-                    "cancelled": cancelled,
-                },
-            },
+            {"todos": [item.model_dump() for item in store.todos], "summary": summary},
             ensure_ascii=False,
         )
 
