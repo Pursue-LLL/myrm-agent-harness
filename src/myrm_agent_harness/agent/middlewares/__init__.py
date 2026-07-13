@@ -15,6 +15,8 @@
   (POS: 审批子系统，含速率限制器)
 - plan_confirm_middleware::PlanConfirmMiddleware (POS: Plan-phase HITL gate)
   (POS: Plan-phase HITL: intercept first todo_write plan for user review via interrupt())
+- goal_focus_middleware::goal_focus_middleware (POS: Active goal objective injection)
+  (POS: 用户发起轮在末位 HumanMessage 注入 ACTIVE goal objective；continuation/wrap-up 轮跳过)
 - concurrency_limiter::create_concurrency_limiter, (POS: Subagent  Semaphore  SUBAGENT_CONFIGS)
   (POS: Subagent 并发限制器，根据 agent_type 限制并发)
 - safety_dispatcher::create_safety_dispatcher (POS: TOOL_SAFETY_METADATA  ToolNode  Lock)
