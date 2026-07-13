@@ -37,6 +37,7 @@
 - get_subagent_semaphore(): 获取特定 agent_type 的 semaphore
 - PlanConfirmMiddleware: Plan-phase HITL 中间件类
 - reset_plan_confirm_state(): 重置 plan confirm 状态
+- goal_focus_middleware(): Active goal objective 注入中间件工厂
 - ValidationResult: 验证结果数据类（security 模块的再导出）
 - validate_tool_result(): 工具结果验证函数（security 模块的再导出）
 
