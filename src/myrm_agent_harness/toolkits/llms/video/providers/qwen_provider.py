@@ -251,23 +251,24 @@ class QwenVideoProvider(VideoGenerationProvider):
             raise ValueError("Qwen completed without output video URLs")
 
         videos: list[VideoAsset] = []
-        dl_timeout = httpx.Timeout(config.timeout_seconds, connect=30.0)
-        async with create_httpx_client(timeout=dl_timeout) as dl_client:
-            for i, url in enumerate(urls):
-                resp = await dl_client.get(url)
-                resp.raise_for_status()
-                data = resp.content
-                if len(data) > config.max_download_bytes:
-                    raise ValueError("Video exceeds max download size")
-                mime = resp.headers.get("content-type", "video/mp4").strip()
-                videos.append(
-                    VideoAsset(
-                        data=data,
-                        mime_type=mime,
-                        filename=f"video-{i + 1}.mp4",
-                        metadata={"source_url": url},
-                    )
+        dl_timeout = config.timeout_seconds
+        from myrm_agent_harness.core.security.http.secure_fetch import secure_get
+
+        for i, url in enumerate(urls):
+            resp = await secure_get(url, timeout=dl_timeout)
+            resp.raise_for_status()
+            data = resp.content
+            if len(data) > config.max_download_bytes:
+                raise ValueError("Video exceeds max download size")
+            mime = resp.headers.get("content-type", "video/mp4").strip()
+            videos.append(
+                VideoAsset(
+                    data=data,
+                    mime_type=mime,
+                    filename=f"video-{i + 1}.mp4",
+                    metadata={"source_url": url},
                 )
+            )
         return videos
 
     async def health_check(self, config: VideoGenerationConfig) -> bool:

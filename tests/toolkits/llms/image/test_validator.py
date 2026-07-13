@@ -1,4 +1,4 @@
-"""Tests for 4-layer image generation request validator."""
+"""Tests for 3-layer image generation request validator."""
 
 import pytest
 
@@ -31,7 +31,7 @@ _GEN_ONLY_PROFILE = ModelProfile(
 
 @pytest.fixture()
 def validator() -> ImageValidator:
-    return ImageValidator(ssrf_protection=True)
+    return ImageValidator()
 
 
 class TestL1Prompt:
@@ -124,35 +124,4 @@ class TestL3Input:
             "test",
             profile=None,
             image_size_bytes=MAX_INPUT_IMAGE_BYTES,
-        )
-
-
-class TestL4SSRF:
-    """L4: SSRF protection."""
-
-    def test_localhost_blocked(self, validator: ImageValidator) -> None:
-        with pytest.raises(ValidationError, match="not allowed"):
-            validator.validate_edit("test", profile=None, image_url="http://localhost/img.png")
-
-    def test_private_ip_blocked(self, validator: ImageValidator) -> None:
-        with pytest.raises(ValidationError, match="private"):
-            validator.validate_edit("test", profile=None, image_url="http://192.168.1.1/img.png")
-
-    def test_loopback_blocked(self, validator: ImageValidator) -> None:
-        with pytest.raises(ValidationError, match="private"):
-            validator.validate_edit("test", profile=None, image_url="http://127.0.0.1/img.png")
-
-    def test_public_url_allowed(self, validator: ImageValidator) -> None:
-        validator.validate_edit(
-            "test",
-            profile=None,
-            image_url="https://example.com/image.png",
-        )
-
-    def test_ssrf_disabled(self) -> None:
-        v = ImageValidator(ssrf_protection=False)
-        v.validate_edit(
-            "test",
-            profile=None,
-            image_url="http://localhost/img.png",
         )

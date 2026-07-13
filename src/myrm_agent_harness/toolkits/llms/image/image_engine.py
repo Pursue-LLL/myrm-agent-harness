@@ -15,7 +15,7 @@ Provides three actions:
   - generate: Text-to-Image generation
   - edit: Image editing with optional mask
   - list: Discover available models and their capabilities
-Pre-validates every request through the 4-layer ImageValidator.
+Pre-validates every request through the 3-layer ImageValidator.
 """
 
 from __future__ import annotations
@@ -60,12 +60,13 @@ class ImageGenerationTools:
         self,
         config: ImageGenerationConfig,
         *,
-        ssrf_protection: bool = False,
+        allow_private_networks: bool = False,
         on_artifact_created: ArtifactPushFn | None = None,
     ) -> None:
         self._generator = ImageGenerator(config)
         self._config = config
-        self._validator = ImageValidator(ssrf_protection=ssrf_protection)
+        self._allow_private_networks = allow_private_networks
+        self._validator = ImageValidator()
         self._on_artifact_created = on_artifact_created
 
     @property
@@ -100,13 +101,6 @@ class ImageGenerationTools:
         Returns:
             JSON string with image URL/data and metadata.
         """
-        if reference_image_urls:
-            for url in reference_image_urls:
-                try:
-                    self._validator.validate_reference_url(url)
-                except ValidationError as e:
-                    return json.dumps({"error": str(e)}, ensure_ascii=False)
-
         profile = get_profile(self._config.model)
         try:
             self._validator.validate_generate(
@@ -127,6 +121,7 @@ class ImageGenerationTools:
                 n=n,
                 reference_image_urls=reference_image_urls,
                 cancellation_event=cancellation_event,
+                allow_private_networks=self._allow_private_networks,
             )
             self._push_artifact(result)
             return _format_result(result)

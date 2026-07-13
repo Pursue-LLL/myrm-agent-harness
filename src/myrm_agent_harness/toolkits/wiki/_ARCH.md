@@ -22,6 +22,7 @@ LLM-driven wikilink enrichment.
 
 ## Key Dependencies
 
+- `core.security.http.secure_fetch` (secure_get for SSRF-protected wiki URL ingestion)
 - `utils` (logger, context_format)
 - `web_fetch` (MarkdownGenerator for URL→Markdown conversion)
 - `web_search` (deep research integration)

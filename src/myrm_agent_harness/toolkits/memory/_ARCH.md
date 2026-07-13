@@ -59,7 +59,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 
 | File (additional) | Role | Description | I/O/P |
 | --- | --- | --- | --- |
-| mcp_server.py | Core | MCP server adapter: wraps MemoryManager as 3 MCP tools (memory_recall_tool, memory_store, memory_manage_tool) for external agent access via Streamable HTTP. Feature-equivalent with internal agent tools: recall supports categories/time/profile, store supports 5 categories, manage supports update/delete/correct/rate. | ✅ |
+| mcp_server.py | Core | MCP server adapter: wraps MemoryManager as 4 MCP tools (memory_recall, memory_list, memory_store, memory_manage) for external agent access via Streamable HTTP. recall supports categories/time/profile, list supports overview + paginated enumeration, store supports 5 categories, manage supports update/delete/correct/rate. | ✅ |
 
 ## Key Dependencies
 

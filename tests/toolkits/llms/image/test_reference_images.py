@@ -14,10 +14,6 @@ from myrm_agent_harness.toolkits.llms.image.generator import (
     _download_reference_images,
 )
 from myrm_agent_harness.toolkits.llms.image.models import ImageResult
-from myrm_agent_harness.toolkits.llms.image.validator import (
-    ImageValidator,
-    ValidationError,
-)
 
 
 @dataclass
@@ -36,18 +32,15 @@ class TestDownloadReferenceImages:
     @pytest.mark.asyncio()
     async def test_successful_download(self) -> None:
         fake_data = b"PNG-image-content"
-        mock_resp = AsyncMock()
-        mock_resp.read = AsyncMock(return_value=fake_data)
+        mock_resp = MagicMock()
+        mock_resp.content = fake_data
         mock_resp.raise_for_status = MagicMock()
-        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-        mock_resp.__aexit__ = AsyncMock()
 
-        mock_session = AsyncMock()
-        mock_session.get = MagicMock(return_value=mock_resp)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock()
-
-        with patch("aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
+            new_callable=AsyncMock,
+            return_value=mock_resp,
+        ):
             result = await _download_reference_images(["https://example.com/ref.png"])
 
         assert len(result) == 1
@@ -56,19 +49,16 @@ class TestDownloadReferenceImages:
     @pytest.mark.asyncio()
     async def test_oversized_image_skipped(self, caplog: pytest.LogCaptureFixture) -> None:
         huge_data = b"x" * (11 * 1024 * 1024)
-        mock_resp = AsyncMock()
-        mock_resp.read = AsyncMock(return_value=huge_data)
+        mock_resp = MagicMock()
+        mock_resp.content = huge_data
         mock_resp.raise_for_status = MagicMock()
-        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-        mock_resp.__aexit__ = AsyncMock()
-
-        mock_session = AsyncMock()
-        mock_session.get = MagicMock(return_value=mock_resp)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock()
 
         with (
-            patch("aiohttp.ClientSession", return_value=mock_session),
+            patch(
+                "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
+                new_callable=AsyncMock,
+                return_value=mock_resp,
+            ),
             caplog.at_level(logging.WARNING, logger="myrm_agent_harness.toolkits.llms.image.generator"),
         ):
             result = await _download_reference_images(["https://example.com/huge.png"])
@@ -78,14 +68,13 @@ class TestDownloadReferenceImages:
 
     @pytest.mark.asyncio()
     async def test_download_failure_skipped(self, caplog: pytest.LogCaptureFixture) -> None:
-        """session.get raises on context entry → logged and skipped."""
-        mock_session = AsyncMock()
-        mock_session.get = MagicMock(side_effect=Exception("Connection refused"))
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock()
-
+        """secure_get raises → logged and skipped."""
         with (
-            patch("aiohttp.ClientSession", return_value=mock_session),
+            patch(
+                "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
+                new_callable=AsyncMock,
+                side_effect=Exception("Connection refused"),
+            ),
             caplog.at_level(logging.WARNING, logger="myrm_agent_harness.toolkits.llms.image.generator"),
         ):
             result = await _download_reference_images(["https://example.com/missing.png"])
@@ -95,11 +84,7 @@ class TestDownloadReferenceImages:
 
     @pytest.mark.asyncio()
     async def test_empty_urls_returns_empty(self) -> None:
-        mock_session = AsyncMock()
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock()
-        with patch("aiohttp.ClientSession", return_value=mock_session):
-            result = await _download_reference_images([])
+        result = await _download_reference_images([])
         assert result == []
 
 
@@ -190,23 +175,3 @@ class TestGenerateWithReferences:
 
         assert result.url == "https://example.com/result.png"
         mock_gen.assert_called_once()
-
-
-class TestValidateReferenceUrl:
-    def test_ssrf_blocks_localhost(self) -> None:
-        validator = ImageValidator(ssrf_protection=True)
-        with pytest.raises(ValidationError, match="not allowed"):
-            validator.validate_reference_url("http://localhost/image.png")
-
-    def test_ssrf_blocks_private_ip(self) -> None:
-        validator = ImageValidator(ssrf_protection=True)
-        with pytest.raises(ValidationError, match="private"):
-            validator.validate_reference_url("http://192.168.1.1/image.png")
-
-    def test_ssrf_allows_public(self) -> None:
-        validator = ImageValidator(ssrf_protection=True)
-        validator.validate_reference_url("https://example.com/image.png")
-
-    def test_ssrf_disabled_allows_anything(self) -> None:
-        validator = ImageValidator(ssrf_protection=False)
-        validator.validate_reference_url("http://localhost/image.png")

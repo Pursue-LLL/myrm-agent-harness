@@ -1,4 +1,4 @@
-"""Four-layer image generation request validator.
+"""Three-layer image generation request validator.
 
 [INPUT]
 - types::ModelProfile, get_profile (POS: Model capability lookup)
@@ -9,19 +9,20 @@
 
 [POS]
 Pre-call validation that rejects invalid image generation requests
-before they reach the remote API.  Four defence layers:
+before they reach the remote API.  Three defence layers:
   L1 Prompt   — empty/length/control-char checks
   L2 Capability — request params vs ModelProfile constraints
   L3 Input    — MIME allowlist + file size limit for edit images
-  L4 SSRF     — block private/internal host URLs (optional)
+
+Outbound URL SSRF for reference/result downloads is enforced in
+``generator._download_reference_images`` and ``models._download_url``
+via ``core.security.http.secure_fetch.secure_get``.
 """
 
 from __future__ import annotations
 
-import ipaddress
 import re
 from typing import TYPE_CHECKING
-from urllib.parse import urlparse
 
 if TYPE_CHECKING:
     from .types import ModelProfile
@@ -39,27 +40,13 @@ ALLOWED_MIME_TYPES = frozenset(
 
 MAX_INPUT_IMAGE_BYTES = 10 * 1024 * 1024  # 10 MB
 
-_PRIVATE_TLDS = frozenset({"localhost", "internal", "local"})
-
 
 class ValidationError(Exception):
     """Raised when image generation request validation fails."""
 
 
 class ImageValidator:
-    """Stateless four-layer image generation request validator.
-
-    Instantiate once, call ``validate_generate`` or ``validate_edit``
-    per request.  Pass ``ssrf_protection=True`` to enable L4 checks.
-    """
-
-    def __init__(self, *, ssrf_protection: bool = False, allow_private_networks: bool = False) -> None:
-        self._ssrf = ssrf_protection
-        self._allow_private_networks = allow_private_networks
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
+    """Stateless three-layer image generation request validator."""
 
     def validate_generate(
         self,
@@ -86,16 +73,11 @@ class ImageValidator:
         size: str | None = None,
     ) -> None:
         """Validate an edit request.  Raises ``ValidationError``."""
+        del image_url  # URL SSRF is enforced at secure_get download time
         self._l1_prompt(prompt, profile)
         if profile:
             self._l2_capability_edit(profile, n=n, size=size)
         self._l3_input(image_mime, image_size_bytes)
-        if image_url:
-            self._l4_ssrf(image_url)
-
-    # ------------------------------------------------------------------
-    # L1: Prompt validation
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _l1_prompt(prompt: str, profile: ModelProfile | None) -> None:
@@ -108,10 +90,6 @@ class ImageValidator:
 
         if _CONTROL_CHAR_RE.search(prompt):
             raise ValidationError("Prompt contains invalid control characters")
-
-    # ------------------------------------------------------------------
-    # L2: Capability validation
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _l2_capability_generate(
@@ -146,10 +124,6 @@ class ImageValidator:
             raise ValidationError(f"Model {profile.name} does not support image editing")
         ImageValidator._l2_capability_generate(profile, n=n, size=size)
 
-    # ------------------------------------------------------------------
-    # L3: Input media validation
-    # ------------------------------------------------------------------
-
     @staticmethod
     def _l3_input(
         mime_type: str | None,
@@ -161,35 +135,3 @@ class ImageValidator:
             max_mb = MAX_INPUT_IMAGE_BYTES / (1024 * 1024)
             actual_mb = size_bytes / (1024 * 1024)
             raise ValidationError(f"Input image {actual_mb:.1f}MB exceeds limit of {max_mb:.0f}MB")
-
-    # ------------------------------------------------------------------
-    # L4: SSRF protection (optional)
-    # ------------------------------------------------------------------
-
-    def validate_reference_url(self, url: str) -> None:
-        """Validate a reference image URL (always applies SSRF check)."""
-        self._l4_ssrf(url)
-
-    def _l4_ssrf(self, url: str) -> None:
-        if not self._ssrf or self._allow_private_networks:
-            return
-
-        try:
-            parsed = urlparse(url)
-        except Exception:
-            raise ValidationError(f"Malformed URL: {url[:100]}") from None
-
-        hostname = (parsed.hostname or "").lower()
-        if not hostname:
-            raise ValidationError("URL has no hostname")
-
-        for tld in _PRIVATE_TLDS:
-            if hostname == tld or hostname.endswith(f".{tld}"):
-                raise ValidationError(f"URL hostname '{hostname}' is not allowed")
-
-        try:
-            addr = ipaddress.ip_address(hostname)
-            if addr.is_private or addr.is_loopback or addr.is_link_local:
-                raise ValidationError(f"URL resolves to private/loopback address: {hostname}")
-        except ValueError:
-            pass

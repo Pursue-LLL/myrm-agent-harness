@@ -1,13 +1,12 @@
 """Memory MCP Server Adapter.
 
 Wraps MemoryManager as an MCP server exposing memory tools
-(recall, store, manage) to external agents (Claude Code, Cursor, etc.)
+(recall, list, store, manage) to external agents (Claude Code, Cursor, etc.)
 via the Model Context Protocol.
 
-Tools are 1:1 feature-equivalent with the internal agent tools in
-``memory_agent_tools.py``, so external agents have the same capabilities
-as our built-in agent — including category filtering, time bounds,
-profile attribute lookup, full CRUD management, and drift defense.
+Tools extend the internal agent tools in ``memory_agent_tools.py`` with a
+dedicated ``memory_list`` enumeration tool for browsing and auditing memories
+without a search query.
 
 [INPUT]
 - myrm_agent_harness.toolkits.memory.manager::MemoryManager (POS: Unified memory manager)
@@ -21,9 +20,9 @@ profile attribute lookup, full CRUD management, and drift defense.
 
 [POS]
 MCP server adapter that lets external AI agents (Claude Code, Cursor, Codex)
-access the memory system via standard MCP protocol. Feature-equivalent with
-the internal agent tools: recall (with categories/time/profile), store (with
-5 categories), and manage (update/delete/correct/rate).
+access the memory system via standard MCP protocol. Four MCP tools:
+recall (semantic search with categories/time/profile), list (enumeration
+and audit), store (5 categories), and manage (update/delete/correct/rate).
 """
 
 from __future__ import annotations
@@ -102,9 +101,8 @@ def _parse_string_list(val: list[str] | str | None) -> list[str]:
 class MemoryMCPServer:
     """MCP server adapter exposing MemoryManager as MCP tools.
 
-    Provides memory_recall, memory_store, and memory_manage tools that
-    external agents can invoke via MCP protocol. Feature-equivalent with
-    the internal agent tools defined in ``memory_agent_tools.py``.
+    Provides memory_recall, memory_list, memory_store, and memory_manage
+    tools that external agents can invoke via MCP protocol.
 
     Usage:
         manager = MemoryManager(...)
@@ -122,9 +120,10 @@ class MemoryMCPServer:
         self._mcp = FastMCP(
             server_name,
             instructions=(
-                "Memory service for storing, recalling, and managing user knowledge, "
-                "preferences, and project context. Use memory_recall before making "
-                "assumptions. Use memory_store to save important facts. Use "
+                "Memory service for storing, recalling, listing, and managing user "
+                "knowledge, preferences, and project context. Use memory_recall to "
+                "search by query. Use memory_list to browse or audit memories by "
+                "category. Use memory_store to save important facts. Use "
                 "memory_manage to correct, rate, update, or delete memories."
             ),
         )
@@ -135,6 +134,7 @@ class MemoryMCPServer:
     def _register_tools(self) -> None:
         """Register memory tools on the MCP server."""
         self._register_recall()
+        self._register_list()
         self._register_store()
         self._register_manage()
 
@@ -260,6 +260,138 @@ class MemoryMCPServer:
             text = "\n".join(output)
             text += _DRIFT_DEFENSE_FOOTER
             return text
+
+    def _register_list(self) -> None:
+        mgr = self._manager
+
+        @self._mcp.tool(
+            name="memory_list",
+            description=(
+                "Browse and audit stored memories by category. Unlike memory_recall "
+                "(which requires a search query), memory_list enumerates memories "
+                "without any query — useful for auditing, cleanup, or exploring what "
+                "the memory system contains.\n\n"
+                "Modes:\n"
+                "- No category: returns an overview with per-category counts and a "
+                "preview of the most recent items in each category\n"
+                "- With category: returns paginated memories of that specific type\n\n"
+                "Categories: knowledge, claim, event, preference, rule"
+            ),
+        )
+        async def memory_list(
+            category: str | None = None,
+            page: int = 1,
+            page_size: int = 20,
+            include_archived: bool = False,
+        ) -> str:
+            """List memories by category or get an overview of all categories.
+
+            Args:
+                category: Filter to one category (knowledge, claim, event,
+                    preference, rule). None = overview of all categories.
+                page: Page number (1-based, default 1). Only used with category.
+                page_size: Items per page (1-50, default 20). Only used with category.
+                include_archived: Include archived/disabled memories (default False).
+            """
+            page_size = max(1, min(page_size, 50))
+            page = max(1, page)
+
+            if category is not None:
+                mem_type = _CATEGORY_TO_TYPE.get(category)
+                if mem_type is None:
+                    valid = ", ".join(_CATEGORY_TO_TYPE)
+                    return f"Error: invalid category '{category}'. Valid: {valid}"
+                return await self._list_category(
+                    mgr, mem_type, category, page=page, page_size=page_size,
+                    include_archived=include_archived,
+                )
+
+            return await self._list_overview(mgr, include_archived=include_archived)
+
+    async def _list_overview(
+        self,
+        mgr: MemoryManager,
+        *,
+        include_archived: bool,
+    ) -> str:
+        """Build a statistical overview with top-N preview per category."""
+        lines: list[str] = ["# Memory Overview", ""]
+        total = 0
+        preview_limit = 3
+
+        for cat, mem_type in _CATEGORY_TO_TYPE.items():
+            if cat == "instruction":
+                continue
+            count = await mgr.count_memories(mem_type)
+            total += count
+            lines.append(f"## {cat} ({count})")
+            if count == 0:
+                lines.append("  (empty)")
+                continue
+            items = await mgr.list_memories(
+                mem_type, limit=preview_limit, include_archived=include_archived,
+            )
+            for mem in items:
+                age = memory_age_label(mem.created_at)
+                snippet = mem.content[:80] + ("…" if len(mem.content) > 80 else "")
+                lines.append(f"  - [{age}] (id: {mem.id}) {snippet}")
+            if count > preview_limit:
+                lines.append(f"  ... and {count - preview_limit} more — use memory_list(category=\"{cat}\") to browse")
+
+        lines.insert(1, f"Total memories: {total}")
+        lines.append("")
+        lines.append(_DRIFT_DEFENSE_FOOTER)
+        return "\n".join(lines)
+
+    async def _list_category(
+        self,
+        mgr: MemoryManager,
+        mem_type: MemoryType,
+        category: str,
+        *,
+        page: int,
+        page_size: int,
+        include_archived: bool,
+    ) -> str:
+        """Paginated listing for a single category."""
+        count = await mgr.count_memories(mem_type)
+        offset = (page - 1) * page_size
+        total_pages = max(1, (count + page_size - 1) // page_size)
+
+        if offset >= count and count > 0:
+            return f"Page {page} is beyond the last page ({total_pages}). Use page=1..{total_pages}."
+
+        items = await mgr.list_memories(
+            mem_type, limit=page_size, offset=offset, include_archived=include_archived,
+        )
+
+        lines: list[str] = [f"# {category} — page {page}/{total_pages} ({count} total)", ""]
+        max_body = MAX_RECALL_OUTPUT_CHARS - len(_DRIFT_DEFENSE_FOOTER)
+        char_count = sum(line_cost(ln) for ln in lines)
+        truncated = False
+
+        for mem in items:
+            age = memory_age_label(mem.created_at)
+            prefix = f"[{age}] (id: {mem.id}) "
+            budgeted = budget_recall_line(
+                prefix=prefix, content=mem.content, suffix="",
+                output_chars=char_count, max_body_chars=max_body,
+            )
+            if budgeted.line is None:
+                truncated = True
+                break
+            lines.append(budgeted.line)
+            char_count = budgeted.next_chars
+            truncated = truncated or budgeted.truncated
+
+        if truncated:
+            lines.append("[list_budget] Some entries truncated. Reduce page_size for full content.")
+
+        if page < total_pages:
+            lines.append(f"\nNext: memory_list(category=\"{category}\", page={page + 1})")
+
+        lines.append(_DRIFT_DEFENSE_FOOTER)
+        return "\n".join(lines)
 
     def _register_store(self) -> None:
         mgr = self._manager

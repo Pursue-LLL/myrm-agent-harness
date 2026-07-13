@@ -19,22 +19,21 @@ classifiers = [
 
 dependencies = [
   # --- LangChain 生态 (Agent 框架基础) ---
-  "langchain>=1.3.11",                  # Agent 编排核心
-  "langchain-core>=1.4.8",              # LangChain 基础抽象
-  "langgraph>=1.2.7",                  # 图状态机 Agent 运行时
+  "langchain>=1.3.13",                  # Agent 编排核心
+  "langchain-core>=1.4.9",              # LangChain 基础抽象
+  "langgraph>=1.2.9",                  # 图状态机 Agent 运行时
   "langgraph-checkpoint-sqlite>=3.1.0", # SQLite 状态持久化 (checkpoint factory)
   "aiosqlite>=0.22.1",                  # async SQLite (memory stores + checkpointer)
   "dill>=0.4.1",                        # checkpoint serde (ChatLiteLLM / complex objects)
   # --- LLM 多供应商适配 ---
-  "litellm>=1.90.2", # 统一 LLM API 代理 (100+ 供应商)
+  "litellm>=1.92.0", # 统一 LLM API 代理 (100+ 供应商)
   # --- MCP 协议支持 ---
   "langchain-mcp-adapters>=0.3.0", # MCP 工具/服务适配器
   # --- 数据验证与序列化 ---
   "pydantic>=2.13.4", # 数据模型验证
   "PyYAML>=6.0.3",    # YAML 配置解析
   # --- HTTP 与异步 I/O ---
-  "httpx>=0.28.1",        # 异步 HTTP 客户端（SOCKS 由 server/渠道层按需安装）
-  "aiohttp>=3.14.1",      # llms/image/generator.py + wiki/wiki_agent_tools.py
+  "httpx>=0.28.1",        # 异步 HTTP 客户端（统一网络栈；SOCKS 由 server/渠道层按需安装）
   "aiofiles>=25.1.0",     # 异步文件 I/O
   # --- 图片处理 (7 模块跨 4 层使用) ---
   "Pillow>=12.3.0",       # 图片读写/resize/压缩 (image_reader + image_compressor + browser/diff + file_parsers + computer_use)
@@ -45,12 +44,12 @@ dependencies = [
   # --- 监控与可观测性 (仅保留轻量级 API，SDK 移至 optional) ---
   "opentelemetry-api>=1.43.0",
   # --- Cron 定时任务 ---
-  "croniter>=6.2.3", # Cron 表达式解析与计算
+  "croniter>=6.2.4", # Cron 表达式解析与计算
   # --- 网页爬取与内容提取（基础） ---
   "beautifulsoup4>=4.15.0", # HTML DOM 解析与清洗（ContentPruningFilter）
   "lxml>=6.1.1",            # bs4 lxml parser (content_pruning + tree_truncator)
   # --- Agent 协议与基础设施 ---
-  "filelock>=3.29.5",  # 跨进程文件锁 (Skill 并发控制)
+  "filelock>=3.29.7",  # 跨进程文件锁 (Skill 并发控制)
   "mcp>=1.28.1",       # MCP 协议 SDK (Server transport)
   "watchdog>=6.0.0",   # 文件系统变更监控 (backends/skills/watcher.py)
   "pdfplumber>=0.11.10", # PDF 文本+表格提取 (file_read_tool CORE; pypdfium2 由 pdfplumber 传递依赖)
@@ -65,7 +64,7 @@ verify-harness-distribution = "myrm_agent_harness._verify_distribution:main"
 [project.optional-dependencies]
 # toolkits/browser/ - 浏览器自动化（需要 Patchright）
 browser = [
-  "patchright>=1.61.1",   # CDP 泄露修补浏览器引擎
+  "patchright>=1.61.2",   # CDP 泄露修补浏览器引擎
   "camoufox>=0.4.11", # Firefox stealth fallback (auto-upgrade ladder)
   "orjson>=3.11.9",       # session vault / persistence JSON (browser toolkit only)
 ]
@@ -76,7 +75,7 @@ qdrant = [
 # toolkits/retriever/ - 高级检索功能（中文分词、向量检索、稀疏检索）
 retrieval = [
   "langchain-text-splitters>=1.1.2", # 代码感知文本分块 (retriever/splitter/code_utils.py)
-  "numpy>=2.5.0",     # embedding 序列化 + BM25 数值计算
+  "numpy>=2.5.1",     # embedding 序列化 + BM25 数值计算
   "tenacity>=9.1.4",  # cloud embedding retries
   "jieba>=0.42.1",    # 中文分词 (BM25 tokenizer)
   "nltk>=3.9.4",      # 英文分词/词干提取/停用词
@@ -84,7 +83,7 @@ retrieval = [
 ]
 # toolkits/acp/ - ACP 协议（外部 Agent 委托 + ACP Server）
 acp = [
-  "agent-client-protocol>=0.10.1",
+  "agent-client-protocol>=0.11.0",
 ]
 # utils/media/image_compressor - PNG 量化压缩（延迟导入，失败回退 Pillow）
 image-processing = [
@@ -96,7 +95,7 @@ computer-use = [
 ]
 # toolkits/web_fetch/ - L1 HTTP / L3 stealth 爬取 + YouTube 字幕快路径
 web = [
-  "scrapling[fetchers]>=0.4.9",      # L1: curl_cffi TLS 指纹 HTTP / L3: Patchright+BrowserForge 反检测
+  "scrapling[fetchers]>=0.4.11",      # L1: curl_cffi TLS 指纹 HTTP / L3: Patchright+BrowserForge 反检测
   "youtube-transcript-api>=1.2.4",   # YouTube 字幕提取 (youtube_extractor; HTML fallback when missing)
 ]
 
@@ -144,8 +143,7 @@ environments = ["python_full_version >= '3.13' and python_full_version < '3.14'"
 override-dependencies = [
   "click>=8.4.2",
   "patchright>=1.59.1",
-  "openai>=2.44.0",
-  "aiohttp>=3.14.1",
+  "openai>=2.45.0",
   "opentelemetry-semantic-conventions>=0.61b0",
   "mcp>=1.28.0,<2",               # langchain-mcp-adapters needs RequestContext (removed in mcp 2.0 alpha)
 ]

@@ -16,8 +16,9 @@ Image generation and editing. Sync path: `generator.py` / `image_engine.py`. Asy
 | image_engine.py | Core | Image generation/editing engine class used by server media_tools adapter. | ✅ |
 | models.py | Core | Pure data types: ImageResult, ImageGenerationConfig (with gateway_config support), errors. | — |
 | types.py | Config | Defines the capability schema for image generation models. | — |
-| validator.py | Core | Pre-call validation that rejects invalid image generation requests | ✅ |
+| validator.py | Core | 3-layer pre-call validation (L1 prompt, L2 capability, L3 input MIME/size). URL SSRF at `secure_get` download time | ✅ |
 
 ## Key Dependencies
 
+- `core.security.http.secure_fetch` (secure_get for reference image and result URL downloads)
 - `core`

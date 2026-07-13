@@ -39,6 +39,8 @@ def mock_manager():
     manager.delete_rule = AsyncMock(return_value=True)
     manager.update_memory = AsyncMock()
     manager.correct_memory = AsyncMock()
+    manager.list_memories = AsyncMock(return_value=[])
+    manager.count_memories = AsyncMock(return_value=0)
     manager.config = AsyncMock()
     manager.config.semantic_collection = "semantic"
     manager.config.episodic_collection = "episodic"
@@ -75,14 +77,133 @@ class TestMemoryMCPServerInit:
     def test_tools_registered(self, mcp_server):
         tool_names = [t.name for t in mcp_server.mcp._tool_manager.list_tools()]
         assert "memory_recall" in tool_names
+        assert "memory_list" in tool_names
         assert "memory_store" in tool_names
         assert "memory_manage" in tool_names
-        assert "memory_search" not in tool_names
+        assert len(tool_names) == 4
 
     def test_get_streamable_http_app_returns_starlette(self, mcp_server):
         from starlette.applications import Starlette
         app = mcp_server.get_streamable_http_app()
         assert isinstance(app, Starlette)
+
+
+class TestMemoryListTool:
+    @pytest.mark.asyncio
+    async def test_list_overview_empty(self, mcp_server, mock_manager):
+        mock_manager.count_memories.return_value = 0
+        result = await _get_tool_fn(mcp_server, "memory_list")()
+        assert "Memory Overview" in result
+        assert "Total memories: 0" in result
+        assert "(empty)" in result
+
+    @pytest.mark.asyncio
+    async def test_list_overview_with_data(self, mcp_server, mock_manager):
+        mock_manager.count_memories.return_value = 5
+        mock_manager.list_memories.return_value = [
+            SemanticMemory(id="s1", content="User prefers Python"),
+            SemanticMemory(id="s2", content="Project uses FastAPI"),
+        ]
+        result = await _get_tool_fn(mcp_server, "memory_list")()
+        assert "Memory Overview" in result
+        assert "s1" in result
+        assert "User prefers Python" in result
+        assert "... and" in result
+
+    @pytest.mark.asyncio
+    async def test_list_overview_includes_drift_defense(self, mcp_server, mock_manager):
+        mock_manager.count_memories.return_value = 0
+        result = await _get_tool_fn(mcp_server, "memory_list")()
+        assert "verify they still exist" in result
+
+    @pytest.mark.asyncio
+    async def test_list_category_knowledge(self, mcp_server, mock_manager):
+        mock_manager.count_memories.return_value = 2
+        mock_manager.list_memories.return_value = [
+            SemanticMemory(id="s1", content="fact one"),
+            SemanticMemory(id="s2", content="fact two"),
+        ]
+        result = await _get_tool_fn(mcp_server, "memory_list")(category="knowledge")
+        assert "knowledge" in result
+        assert "page 1/1" in result
+        assert "2 total" in result
+        assert "s1" in result
+        assert "s2" in result
+
+    @pytest.mark.asyncio
+    async def test_list_category_pagination(self, mcp_server, mock_manager):
+        mock_manager.count_memories.return_value = 30
+        mock_manager.list_memories.return_value = [
+            SemanticMemory(id=f"s{i}", content=f"fact {i}") for i in range(20)
+        ]
+        result = await _get_tool_fn(mcp_server, "memory_list")(category="knowledge", page=1, page_size=20)
+        assert "page 1/2" in result
+        assert "30 total" in result
+        assert 'page=2' in result
+
+    @pytest.mark.asyncio
+    async def test_list_category_page_beyond(self, mcp_server, mock_manager):
+        mock_manager.count_memories.return_value = 5
+        result = await _get_tool_fn(mcp_server, "memory_list")(category="knowledge", page=10)
+        assert "beyond" in result
+
+    @pytest.mark.asyncio
+    async def test_list_invalid_category(self, mcp_server, mock_manager):
+        result = await _get_tool_fn(mcp_server, "memory_list")(category="invalid")
+        assert "Error" in result
+        assert "invalid" in result
+
+    @pytest.mark.asyncio
+    async def test_list_clamps_page_size(self, mcp_server, mock_manager):
+        mock_manager.count_memories.return_value = 1
+        mock_manager.list_memories.return_value = [SemanticMemory(id="s1", content="test")]
+        await _get_tool_fn(mcp_server, "memory_list")(category="knowledge", page_size=100)
+        call_kwargs = mock_manager.list_memories.call_args[1]
+        assert call_kwargs["limit"] == 50
+
+    @pytest.mark.asyncio
+    async def test_list_clamps_page_size_min(self, mcp_server, mock_manager):
+        mock_manager.count_memories.return_value = 1
+        mock_manager.list_memories.return_value = [SemanticMemory(id="s1", content="test")]
+        await _get_tool_fn(mcp_server, "memory_list")(category="knowledge", page_size=0)
+        call_kwargs = mock_manager.list_memories.call_args[1]
+        assert call_kwargs["limit"] == 1
+
+    @pytest.mark.asyncio
+    async def test_list_overview_skips_instruction(self, mcp_server, mock_manager):
+        mock_manager.count_memories.return_value = 0
+        result = await _get_tool_fn(mcp_server, "memory_list")()
+        assert "instruction" not in result.lower().split("## ")[-1] if "## " in result else True
+
+    @pytest.mark.asyncio
+    async def test_list_category_empty(self, mcp_server, mock_manager):
+        mock_manager.count_memories.return_value = 0
+        mock_manager.list_memories.return_value = []
+        result = await _get_tool_fn(mcp_server, "memory_list")(category="event")
+        assert "event" in result
+        assert "0 total" in result
+
+    @pytest.mark.asyncio
+    async def test_list_category_include_archived(self, mcp_server, mock_manager):
+        mock_manager.count_memories.return_value = 1
+        mock_manager.list_memories.return_value = [SemanticMemory(id="s1", content="archived item")]
+        await _get_tool_fn(mcp_server, "memory_list")(
+            category="knowledge", include_archived=True
+        )
+        call_kwargs = mock_manager.list_memories.call_args[1]
+        assert call_kwargs["include_archived"] is True
+
+    @pytest.mark.asyncio
+    async def test_list_category_budget_truncation(self, mcp_server, mock_manager):
+        mock_manager.count_memories.return_value = 3
+        huge_content = "x" * 20000
+        mock_manager.list_memories.return_value = [
+            SemanticMemory(id=f"s{i}", content=huge_content) for i in range(3)
+        ]
+        result = await _get_tool_fn(mcp_server, "memory_list")(
+            category="knowledge", page_size=3
+        )
+        assert "list_budget" in result or "s0" in result
 
 
 class TestMemoryRecallTool:

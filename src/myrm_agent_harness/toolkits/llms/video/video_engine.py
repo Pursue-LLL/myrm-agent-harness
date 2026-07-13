@@ -464,11 +464,12 @@ async def _resolve_media_sources(
     """Resolve media source strings (file path / URL / data URL) to raw bytes.
 
     Shared resolver for both video and image inputs.
-    SSRF validation is performed before any HTTP download.
+    HTTP downloads use secure_get (DNS pin + per-hop redirect SSRF checks).
     """
     from pathlib import Path
 
-    from myrm_agent_harness.toolkits.llms._media_shared.security import validate_media_url
+    from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
+    from myrm_agent_harness.core.security.http.secure_fetch import secure_get
 
     results: list[bytes] = []
     for src in sources:
@@ -484,17 +485,12 @@ async def _resolve_media_sources(
                 raise ValueError("Invalid data URL: missing comma separator")
             data = base64.b64decode(src[header_end + 1 :])
         elif src.startswith(("http://", "https://")):
-            verdict = validate_media_url(src)
-            if not verdict.allowed:
-                raise ValueError(f"URL blocked by SSRF protection: {verdict.reason} ({src[:80]})")
-            import httpx
-
-            from myrm_agent_harness.infra.tls_compat import create_httpx_client
-
-            async with create_httpx_client(timeout=httpx.Timeout(timeout_seconds)) as client:
-                resp = await client.get(src)
+            try:
+                resp = await secure_get(src, timeout=timeout_seconds)
                 resp.raise_for_status()
                 data = resp.content
+            except SSRFSecurityError as exc:
+                raise ValueError(f"URL blocked by SSRF protection: {exc} ({src[:80]})") from exc
         else:
             path = Path(src)
             if not path.is_file():

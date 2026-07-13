@@ -7,6 +7,7 @@ langchain_core.tools::tool (POS: LangChain tool decorator)
 .retrieval.query::WikiQueryEngine (POS: Wiki query and enhancement engine)
 .core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 myrm_agent_harness.toolkits.web_fetch.markdown_generator::MarkdownGenerator (POS: HTML to Markdown converter)
+core.security.http.secure_fetch::secure_get (POS: SSRF-protected outbound HTTP)
 
 [OUTPUT]
 create_wiki_tools(): creates 4 LangChain tools (ingest, compile, query, maintain)
@@ -305,18 +306,14 @@ def _split_if_large(
 
 async def _fetch_url_as_markdown(url: str) -> str:
     """Fetch URL and convert HTML to clean Markdown using the web_fetch toolkit's MarkdownGenerator."""
-    import aiohttp
-
+    from myrm_agent_harness.core.security.http.secure_fetch import secure_get
     from myrm_agent_harness.toolkits.web_fetch.markdown_generator import MarkdownGenerator
 
     headers = {"User-Agent": "Myrm-Agent-Wiki/1.0 (knowledge-ingestion)"}
-    async with (
-        aiohttp.ClientSession(headers=headers) as session,
-        session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as response,
-    ):
-        if response.status != 200:
-            raise ValueError(f"Failed to fetch {url}: HTTP {response.status}")
-        html = await response.text()
+    response = await secure_get(url, timeout=30.0, headers=headers)
+    if response.status_code != 200:
+        raise ValueError(f"Failed to fetch {url}: HTTP {response.status_code}")
+    html = response.text
 
     generator = MarkdownGenerator()
     result = generator.generate_markdown(html, base_url=url, citations=False)

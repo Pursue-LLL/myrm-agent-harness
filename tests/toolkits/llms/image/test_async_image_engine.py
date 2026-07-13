@@ -89,13 +89,16 @@ async def test_generate_image_applies_payload_postprocessor_before_persist(
 
 
 @pytest.mark.asyncio
-async def test_generate_image_rejects_invalid_reference_url(temp_store: SQLiteTaskStore) -> None:
+async def test_generate_image_persists_allow_private_networks_flag(temp_store: SQLiteTaskStore) -> None:
     config = ImageGenerationConfig(model="dall-e-3")
-    engine = AsyncImageGenerationTools(config, temp_store, ssrf_protection=True)
+    engine = AsyncImageGenerationTools(config, temp_store, allow_private_networks=False)
 
     raw = await engine.generate_image(
         "style transfer",
-        reference_image_urls=["http://127.0.0.1/secret.png"],
+        reference_image_urls=["https://example.com/ref.png"],
     )
-    payload = json.loads(raw)
-    assert "error" in payload
+    task_id = json.loads(raw)["task_id"]
+
+    task = await temp_store.get_task(task_id)
+    assert task is not None
+    assert task.payload["allow_private_networks"] is False

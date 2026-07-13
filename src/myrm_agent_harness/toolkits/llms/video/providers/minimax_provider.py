@@ -228,7 +228,9 @@ class MiniMaxVideoProvider(VideoGenerationProvider):
         url: str,
         config: VideoGenerationConfig,
     ) -> VideoAsset:
-        resp = await client.get(url)
+        from myrm_agent_harness.core.security.http.secure_fetch import secure_get
+
+        resp = await secure_get(url, timeout=config.timeout_seconds)
         resp.raise_for_status()
         data = resp.content
         if len(data) > config.max_download_bytes:

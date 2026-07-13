@@ -4,7 +4,7 @@
 - litellm::aimage_generation (POS: LiteLLM unified async image generation function)
 - litellm::aimage_edit (POS: LiteLLM unified async image editing function)
 - litellm::{AuthenticationError, BadRequestError, NotFoundError} (POS: Non-retryable exceptions)
-- aiohttp::ClientSession (POS: Async HTTP client for downloading URL-based image results)
+- core.security.http.secure_fetch::secure_get (POS: SSRF-protected outbound HTTP for URL-based image downloads)
 - models::{ImageGenerationConfig, (POS: Pydantic models for DingTalk robot callback payloads.)
 
 [OUTPUT]
@@ -118,6 +118,7 @@ class ImageGenerator:
         n: int = 1,
         reference_image_urls: list[str] | None = None,
         cancellation_event: asyncio.Event | None = None,
+        allow_private_networks: bool = False,
     ) -> ImageResult:
         """Generate an image from a text prompt with failover.
 
@@ -141,7 +142,10 @@ class ImageGenerator:
             ImageGenerationError: If generation fails across all models.
         """
         if reference_image_urls:
-            ref_bytes = await _download_reference_images(reference_image_urls)
+            ref_bytes = await _download_reference_images(
+                reference_image_urls,
+                allow_private_networks=allow_private_networks,
+            )
             if ref_bytes:
                 return await self._generate_with_references(
                     prompt=prompt,
@@ -496,35 +500,41 @@ _REF_DOWNLOAD_TIMEOUT_S = 30
 _REF_MAX_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
-async def _download_reference_images(urls: list[str]) -> list[bytes]:
+async def _download_reference_images(
+    urls: list[str],
+    *,
+    allow_private_networks: bool = False,
+) -> list[bytes]:
     """Download reference images from URLs.
 
-    Silently skips URLs that fail (timeout, 4xx/5xx, oversized).
+    Silently skips URLs that fail (timeout, 4xx/5xx, oversized, SSRF blocked).
     Returns empty list if all downloads fail.
     """
-    import aiohttp
+    from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
+    from myrm_agent_harness.core.security.http.secure_fetch import secure_get
 
     results: list[bytes] = []
-    timeout = aiohttp.ClientTimeout(total=_REF_DOWNLOAD_TIMEOUT_S)
-    try:
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            for url in urls:
-                try:
-                    async with session.get(url) as resp:
-                        resp.raise_for_status()
-                        data = await resp.read()
-                        if len(data) <= _REF_MAX_SIZE_BYTES:
-                            results.append(data)
-                        else:
-                            logger.warning(
-                                "Reference image too large (%d bytes), skipping: %s",
-                                len(data),
-                                url[:100],
-                            )
-                except Exception as e:
-                    logger.warning("Failed to download reference image %s: %s", url[:100], e)
-    except Exception as e:
-        logger.warning("Reference image download session failed: %s", e)
+    for url in urls:
+        try:
+            resp = await secure_get(
+                url,
+                timeout=_REF_DOWNLOAD_TIMEOUT_S,
+                enable_ssrf_shield=not allow_private_networks,
+            )
+            resp.raise_for_status()
+            data = resp.content
+            if len(data) <= _REF_MAX_SIZE_BYTES:
+                results.append(data)
+            else:
+                logger.warning(
+                    "Reference image too large (%d bytes), skipping: %s",
+                    len(data),
+                    url[:100],
+                )
+        except SSRFSecurityError as exc:
+            logger.warning("Reference image blocked by SSRF protection %s: %s", url[:100], exc)
+        except Exception as e:
+            logger.warning("Failed to download reference image %s: %s", url[:100], e)
     return results
 
 

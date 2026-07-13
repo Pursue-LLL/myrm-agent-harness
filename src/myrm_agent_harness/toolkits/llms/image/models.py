@@ -1,5 +1,9 @@
 """Data types for the image generation module.
 
+[INPUT]
+- core.security.http.secure_fetch::secure_get (POS: SSRF-protected outbound HTTP for result URL download)
+- pydantic (POS: Config and result schema validation)
+
 [OUTPUT]
 - ImageGenerationConfig: Image generation/editing service configuration
 - ImageResult: Structured result from a generation/editing request
@@ -138,32 +142,33 @@ class ImageGenerationError(Exception):
 async def _download_url(url: str) -> bytes | None:
     """Download image bytes from *url* with size guard.
 
-    Returns ``None`` on HTTP errors, empty responses, or payloads
+    Returns ``None`` on HTTP errors, empty responses, SSRF blocks, or payloads
     exceeding :data:`_MAX_DOWNLOAD_BYTES`.
     """
-    import aiohttp
+    from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
+    from myrm_agent_harness.core.security.http.secure_fetch import secure_get
 
     try:
-        async with (
-            aiohttp.ClientSession() as session,
-            session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp,
-        ):
-            if resp.status != 200:
-                logger.warning("Image download returned HTTP %d for %s", resp.status, url[:120])
-                return None
-            data = await resp.read()
-            if not data:
-                logger.warning("Image download returned 0 bytes for %s", url[:120])
-                return None
-            if len(data) > _MAX_DOWNLOAD_BYTES:
-                logger.warning(
-                    "Image download too large (%d bytes, cap %d) for %s",
-                    len(data),
-                    _MAX_DOWNLOAD_BYTES,
-                    url[:120],
-                )
-                return None
-            return data
+        resp = await secure_get(url, timeout=30.0)
+        if resp.status_code != 200:
+            logger.warning("Image download returned HTTP %d for %s", resp.status_code, url[:120])
+            return None
+        data = resp.content
+        if not data:
+            logger.warning("Image download returned 0 bytes for %s", url[:120])
+            return None
+        if len(data) > _MAX_DOWNLOAD_BYTES:
+            logger.warning(
+                "Image download too large (%d bytes, cap %d) for %s",
+                len(data),
+                _MAX_DOWNLOAD_BYTES,
+                url[:120],
+            )
+            return None
+        return data
+    except SSRFSecurityError:
+        logger.warning("Image download blocked by SSRF protection for %s", url[:120])
+        return None
     except Exception:
         logger.warning("Image download failed for %s", url[:120], exc_info=True)
         return None

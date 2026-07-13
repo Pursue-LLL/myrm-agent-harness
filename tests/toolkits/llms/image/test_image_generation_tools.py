@@ -56,17 +56,29 @@ class TestGenerateImage:
         assert "empty" in result["error"].lower()
 
     @pytest.mark.asyncio()
-    async def test_reference_url_ssrf_rejected(self) -> None:
+    async def test_reference_urls_passed_to_generator(self) -> None:
         config = ImageGenerationConfig(model="dall-e-3")
-        tools = ImageGenerationTools(config, ssrf_protection=True)
-
-        result_str = await tools.generate_image(
-            "a cat",
-            reference_image_urls=["http://localhost/evil.png"],
+        tools = ImageGenerationTools(config)
+        mock_result = ImageResult(
+            url="https://example.com/img.png",
+            b64_json=None,
+            revised_prompt=None,
+            model="dall-e-3",
         )
-        result = json.loads(result_str)
-        assert "error" in result
-        assert "not allowed" in result["error"]
+
+        with patch.object(
+            tools._generator,
+            "generate",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ) as mock_gen:
+            await tools.generate_image(
+                "a cat",
+                reference_image_urls=["https://example.com/ref.png"],
+            )
+
+        mock_gen.assert_awaited_once()
+        assert mock_gen.await_args.kwargs["reference_image_urls"] == ["https://example.com/ref.png"]
 
     @pytest.mark.asyncio()
     async def test_generation_error_handled(self) -> None:

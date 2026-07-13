@@ -51,12 +51,13 @@ class AsyncImageGenerationTools:
         config: ImageGenerationConfig,
         task_store: SQLiteTaskStore,
         *,
-        ssrf_protection: bool = False,
+        allow_private_networks: bool = False,
         payload_postprocessor: PayloadPostprocessor | None = None,
     ) -> None:
         self._config = config
         self._task_store = task_store
-        self._validator = ImageValidator(ssrf_protection=ssrf_protection)
+        self._allow_private_networks = allow_private_networks
+        self._validator = ImageValidator()
         self._payload_postprocessor = payload_postprocessor
 
     def _execution_config_payload(self) -> dict[str, object]:
@@ -107,15 +108,6 @@ class AsyncImageGenerationTools:
             JSON string with task_id for frontend monitoring:
             {"task_id": "img-12345", "status": "pending"}
         """
-        # Validate inputs
-        if reference_image_urls:
-            for url in reference_image_urls:
-                try:
-                    self._validator.validate_reference_url(url)
-                except ValidationError as e:
-                    return json.dumps({"error": str(e)})
-
-        # Create task
         task_id = f"img-{uuid.uuid4().hex[:8]}"
         payload: dict[str, object] = {
             "prompt": prompt,
@@ -124,6 +116,7 @@ class AsyncImageGenerationTools:
             "style": style,
             "count": n,
             "reference_image_urls": reference_image_urls,
+            "allow_private_networks": self._allow_private_networks,
             **self._execution_config_payload(),
         }
         if agent_id:

@@ -34,6 +34,7 @@ class ImageGenerationPayload:
     style: str | None = None
     count: int = 1
     reference_image_urls: list[str] | None = None
+    allow_private_networks: bool = False
     model: str | None = None
     provider: str | None = None
     usage: str | None = None

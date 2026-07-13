@@ -242,7 +242,9 @@ class GoogleVeoProvider(VideoGenerationProvider):
             else:
                 uri = video.get("uri")
                 if uri:
-                    resp = await client.get(str(uri))
+                    from myrm_agent_harness.core.security.http.secure_fetch import secure_get
+
+                    resp = await secure_get(str(uri), timeout=config.timeout_seconds)
                     resp.raise_for_status()
                     data = resp.content
                     if len(data) > config.max_download_bytes:

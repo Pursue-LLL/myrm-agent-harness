@@ -386,31 +386,15 @@ class TestFetchUrlAsMarkdown:
 
         html_content = "<html><body><h1>Title</h1><p>Paragraph.</p></body></html>"
 
-        class MockResponse:
-            status = 200
+        from unittest.mock import AsyncMock, patch
 
-            async def text(self) -> str:
-                return html_content
+        mock_response = type("MockResponse", (), {"status_code": 200, "text": html_content})()
 
-            async def __aenter__(self):
-                return self
-
-            async def __aexit__(self, *args):
-                pass
-
-        class MockSession:
-            def get(self, url, **kwargs):
-                return MockResponse()
-
-            async def __aenter__(self):
-                return self
-
-            async def __aexit__(self, *args):
-                pass
-
-        from unittest.mock import patch
-
-        with patch("aiohttp.ClientSession", return_value=MockSession()):
+        with patch(
+            "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ):
             result = await _fetch_url_as_markdown("http://example.com/test")
 
         assert "# Title" in result
@@ -422,31 +406,15 @@ class TestFetchUrlAsMarkdown:
         """Test that non-200 status raises ValueError."""
         from myrm_agent_harness.toolkits.wiki.wiki_agent_tools import _fetch_url_as_markdown
 
-        class MockResponse:
-            status = 404
+        from unittest.mock import AsyncMock, patch
 
-            async def text(self) -> str:
-                return ""
+        mock_response = type("MockResponse", (), {"status_code": 404, "text": ""})()
 
-            async def __aenter__(self):
-                return self
-
-            async def __aexit__(self, *args):
-                pass
-
-        class MockSession:
-            def get(self, url, **kwargs):
-                return MockResponse()
-
-            async def __aenter__(self):
-                return self
-
-            async def __aexit__(self, *args):
-                pass
-
-        from unittest.mock import patch
-
-        with patch("aiohttp.ClientSession", return_value=MockSession()):
+        with patch(
+            "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ):
             with pytest.raises(ValueError, match="HTTP 404"):
                 await _fetch_url_as_markdown("http://example.com/missing")
 

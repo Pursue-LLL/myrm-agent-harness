@@ -10,7 +10,6 @@ supported-markers = [
 
 [manifest]
 overrides = [
-    { name = "aiohttp", specifier = ">=3.14.1" },
     { name = "click", specifier = ">=8.4.2" },
     { name = "mcp", specifier = ">=1.28.0,<2" },
     { name = "openai", specifier = ">=2.44.0" },
@@ -1838,11 +1837,10 @@ wheels = [
 
 [[package]]
 name = "myrm-agent-harness"
-version = "0.1.0rc5"
+version = "0.1.0rc6"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles", marker = "python_full_version < '3.14'" },
-    { name = "aiohttp", marker = "python_full_version < '3.14'" },
     { name = "aiosqlite", marker = "python_full_version < '3.14'" },
     { name = "beautifulsoup4", marker = "python_full_version < '3.14'" },
     { name = "croniter", marker = "python_full_version < '3.14'" },
@@ -1857,7 +1855,6 @@ dependencies = [
     { name = "litellm", marker = "python_full_version < '3.14'" },
     { name = "lxml", marker = "python_full_version < '3.14'" },
     { name = "mcp", marker = "python_full_version < '3.14'" },
-    { name = "nanoid", marker = "python_full_version < '3.14'" },
     { name = "opentelemetry-api", marker = "python_full_version < '3.14'" },
     { name = "pdfplumber", marker = "python_full_version < '3.14'" },
     { name = "pillow", marker = "python_full_version < '3.14'" },

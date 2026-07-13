@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-_HARNESS_SRC = Path(__file__).resolve().parents[3] / "src" / "myrm_agent_harness"
+_HARNESS_SRC = Path(__file__).resolve().parents[2] / "src" / "myrm_agent_harness"
 
 _FORBIDDEN_SSRF_PATTERNS = (
     "validate_url_for_ssrf",
@@ -101,3 +101,45 @@ def test_no_unprotected_follow_redirects_in_agent_toolkits() -> None:
 def test_toolkits_network_package_removed() -> None:
     network_dir = _HARNESS_SRC / "toolkits" / "network"
     assert not network_dir.exists(), "toolkits/network/ must not exist — use core/security/guards/ssrf.py"
+
+
+def test_wiki_url_fetch_uses_secure_get() -> None:
+    """Wiki URL ingestion must use secure_get — not bare httpx client.get."""
+    wiki_tools = _HARNESS_SRC / "toolkits" / "wiki" / "wiki_agent_tools.py"
+    source = wiki_tools.read_text(encoding="utf-8")
+    assert "async def _fetch_url_as_markdown" in source
+    start = source.index("async def _fetch_url_as_markdown")
+    next_def = source.find("\nasync def ", start + 1)
+    next_at = source.find("\n    @tool", start + 1)
+    candidates = [x for x in (next_def, next_at) if x != -1]
+    end = min(candidates) if candidates else len(source)
+    body = source[start:end]
+    assert "secure_get" in body, "wiki _fetch_url_as_markdown must call secure_get"
+    assert "create_httpx_client" not in body, "wiki _fetch_url_as_markdown must not use bare httpx client"
+
+
+def test_image_reference_download_uses_secure_get() -> None:
+    """Image reference URL download must use secure_get."""
+    generator = _HARNESS_SRC / "toolkits" / "llms" / "image" / "generator.py"
+    source = generator.read_text(encoding="utf-8")
+    start = source.index("async def _download_reference_images")
+    next_def = source.find("\nasync def ", start + 1)
+    next_sync = source.find("\ndef ", start + 1)
+    candidates = [x for x in (next_def, next_sync) if x != -1]
+    end = min(candidates) if candidates else len(source)
+    body = source[start:end]
+    assert "secure_get" in body
+    assert "create_httpx_client" not in body
+
+
+def test_video_media_resolve_uses_secure_get() -> None:
+    """Video/image input URL resolution must use secure_get."""
+    engine = _HARNESS_SRC / "toolkits" / "llms" / "video" / "video_engine.py"
+    source = engine.read_text(encoding="utf-8")
+    start = source.index("async def _resolve_media_sources")
+    next_def = source.find("\nasync def ", start + 1)
+    end = next_def if next_def != -1 else len(source)
+    body = source[start:end]
+    assert "secure_get" in body
+    assert "validate_media_url" not in body
+    assert "create_httpx_client" not in body
