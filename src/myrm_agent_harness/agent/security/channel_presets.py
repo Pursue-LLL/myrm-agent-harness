@@ -219,6 +219,7 @@ def build_channel_security_config(
     auto_mode_enabled = False
     auto_review_model: str | None = None
     auto_review_timeout: float = 3.0
+    plan_confirm_enabled = False
     yolo_mode_enabled = False
     yolo_mode_enabled_at: float | None = None
     yolo_mode_timeout: int | None = None
@@ -228,9 +229,13 @@ def build_channel_security_config(
         auto_mode_enabled = effective.auto_mode_enabled
         auto_review_model = effective.auto_review_model
         auto_review_timeout = effective.auto_review_timeout_seconds
+        plan_confirm_enabled = effective.plan_confirm_enabled
         yolo_mode_enabled = effective.yolo_mode_enabled
         yolo_mode_enabled_at = effective.yolo_mode_enabled_at
         yolo_mode_timeout = effective.yolo_mode_timeout
+
+    if channel_type == ChannelType.CRON:
+        plan_confirm_enabled = False
 
     result = SecurityConfig(
         capabilities=capabilities,
@@ -243,6 +248,7 @@ def build_channel_security_config(
         auto_mode_enabled=auto_mode_enabled,
         auto_review_model=auto_review_model,
         auto_review_timeout_seconds=auto_review_timeout,
+        plan_confirm_enabled=plan_confirm_enabled,
         yolo_mode_enabled=yolo_mode_enabled,
         yolo_mode_enabled_at=yolo_mode_enabled_at,
         yolo_mode_timeout=yolo_mode_timeout,

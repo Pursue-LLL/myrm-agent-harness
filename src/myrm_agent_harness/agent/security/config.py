@@ -163,6 +163,8 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
     transcript_window_raw = raw.get("transcriptWindowSize", 20)
     transcript_window_size = parse_int(transcript_window_raw, 20, min_val=1, max_val=200)
 
+    plan_confirm_enabled = bool(raw.get("planConfirmEnabled") or raw.get("plan_confirm_enabled", False))
+
     yolo_mode_enabled = bool(raw.get("yoloModeEnabled") or raw.get("yolo_mode_enabled", False))
     yolo_mode_enabled_at_raw = raw.get("yolo_mode_enabled_at")
     yolo_mode_enabled_at = parse_float(yolo_mode_enabled_at_raw, 0.0) if yolo_mode_enabled_at_raw is not None else None
@@ -181,6 +183,7 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
         auto_review_model=auto_review_model,
         auto_review_timeout_seconds=auto_review_timeout,
         transcript_window_size=transcript_window_size,
+        plan_confirm_enabled=plan_confirm_enabled,
         yolo_mode_enabled=yolo_mode_enabled,
         yolo_mode_enabled_at=yolo_mode_enabled_at,
         yolo_mode_timeout=yolo_mode_timeout,

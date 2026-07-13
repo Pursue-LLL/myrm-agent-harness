@@ -65,7 +65,8 @@ def build_middlewares(
     """Build the full middleware chain for a BaseAgent.
 
     The ordering matters: dedup -> dangling -> subagent-limit -> interceptor ->
-    clarification-guard -> approval -> completion -> replan -> call-limits -> budget -> security -> user -> safety -> debug.
+    clarification-guard -> approval -> completion -> progress -> goal-focus -> replan ->
+    call-limits -> budget -> security -> user -> safety -> debug.
     """
     from myrm_agent_harness.agent.middlewares.clarification_guard_middleware import (
         ClarificationGuardMiddleware,
@@ -75,6 +76,9 @@ def build_middlewares(
     )
     from myrm_agent_harness.agent.middlewares.deferred_index_middleware import (
         DeferredIndexMiddleware,
+    )
+    from myrm_agent_harness.agent.middlewares.goal_focus_middleware import (
+        goal_focus_middleware,
     )
     from myrm_agent_harness.agent.middlewares.progress_middleware import (
         progress_middleware,
@@ -111,6 +115,7 @@ def build_middlewares(
             return None
 
     middlewares.append(progress_middleware(get_current_todos))
+    middlewares.append(goal_focus_middleware())
 
     if params.enable_replan:
         middlewares.append(ReplanMiddleware(max_attempts=params.max_replan_attempts))

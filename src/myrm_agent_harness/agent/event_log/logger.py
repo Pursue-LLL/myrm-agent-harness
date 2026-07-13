@@ -189,38 +189,6 @@ class EventLogger:
                 logger.warning("Failed final flush", exc_info=True)
             self._buffer.clear()
 
-        # Trigger JIT Context Extraction (Task-Adaptive) immediately after session ends
-        try:
-
-            async def _extract_bg() -> None:
-                try:
-                    from myrm_agent_harness.agent.event_log.evidence_extractor import SessionEvidenceExtractor
-
-                    extractor = SessionEvidenceExtractor(self._backend)
-                    digest = await extractor.extract_digest(self._session_id)
-                    if digest:
-                        # Append the digest as a final event
-                        await self._backend.append(
-                            [
-                                StructuredEvent(
-                                    sequence=self._sequence + 1,
-                                    timestamp=time.time(),
-                                    event_type="trace_run_digest",
-                                    session_id=self._session_id,
-                                    data=EventPayload(**digest.to_dict()),
-                                )
-                            ]
-                        )
-                        logger.info("Immediate JIT Evidence Extraction completed for %s", self._session_id)
-                except Exception as e:
-                    logger.warning("Immediate JIT Evidence Extraction failed: %s", e)
-
-            extract_task = asyncio.create_task(_extract_bg())
-            self._bg_tasks.add(extract_task)
-            extract_task.add_done_callback(self._bg_tasks.discard)
-        except Exception:
-            pass
-
         try:
             await self._backend.close()
         except Exception:

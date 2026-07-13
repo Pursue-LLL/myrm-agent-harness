@@ -5,13 +5,13 @@
 - agent.goals.types::GoalStatus (POS: Goal status enum)
 
 [OUTPUT]
-- get_goal_tool: Tool to get current goal status.
 - update_goal_tool: Tool to mark goal as complete.
 - create_goal_tools: Factory function to create goal tools.
 
 [POS]
-Provides tools for the LLM to interact with the Goal engine.
-Crucially, update_goal only allows marking the goal as COMPLETE.
+Provides the LLM completion tool for the Goal engine. Objective reminders are
+handled by goal_focus_middleware on user-initiated turns; continuation prompts
+cover auto-continue turns.
 """
 
 from __future__ import annotations
@@ -29,34 +29,6 @@ logger = logging.getLogger(__name__)
 
 def create_goal_tools(goal_provider: GoalProvider, session_id: str) -> list[BaseTool]:
     """Create goal tools bound to a specific session and provider."""
-
-    @tool("get_goal_status_tool")
-    async def get_goal_status() -> str:
-        """Get the current active goal for this session, including its objective, budget, and usage.
-
-        Use this to remind yourself of the overall objective and check how much budget remains.
-        """
-        goal = await goal_provider.get_active_goal(session_id)
-        if not goal:
-            return "No active goal for this session."
-
-        budget_info = []
-        if goal.budget:
-            if goal.budget.max_tokens is not None:
-                budget_info.append(f"Tokens: {goal.tokens_used} / {goal.budget.max_tokens}")
-            if goal.budget.max_usd is not None:
-                budget_info.append(f"Cost: ${goal.cost_usd:.4f} / ${goal.budget.max_usd:.4f}")
-            if goal.budget.max_time_seconds is not None:
-                budget_info.append(f"Time: {goal.time_used_seconds}s / {goal.budget.max_time_seconds}s")
-
-        budget_str = ", ".join(budget_info) if budget_info else "No budget limits"
-
-        return f"""Active Goal:
-ID: {goal.goal_id}
-Objective: {goal.objective}
-Status: {goal.status.value}
-Budget/Usage: {budget_str}
-"""
 
     @tool("update_goal_status_tool")
     async def update_goal_status(status: str) -> str:
@@ -98,4 +70,4 @@ Budget/Usage: {budget_str}
         except Exception as e:
             return f"Error updating goal: {e}"
 
-    return [get_goal_status, update_goal_status]
+    return [update_goal_status]

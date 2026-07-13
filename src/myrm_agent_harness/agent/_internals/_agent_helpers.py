@@ -63,6 +63,9 @@ def reset_all_guards(*, is_resume: bool = False, graph_recursion_limit: int = 10
     from myrm_agent_harness.agent.middlewares.completion_guard import (
         reset_completion_guard,
     )
+    from myrm_agent_harness.agent.middlewares.plan_confirm_middleware import (
+        reset_plan_confirm_state,
+    )
     from myrm_agent_harness.agent.middlewares.replan_middleware import (
         reset_replan_attempts,
     )
@@ -86,6 +89,7 @@ def reset_all_guards(*, is_resume: bool = False, graph_recursion_limit: int = 10
     )
     reset_frequency_guard()
     reset_replan_attempts()
+    reset_plan_confirm_state()
     reset_terminal_errors()
     reset_denial_counter()
     reset_completion_guard()

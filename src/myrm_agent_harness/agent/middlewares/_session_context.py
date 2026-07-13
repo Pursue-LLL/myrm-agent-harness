@@ -16,6 +16,7 @@ ContextVars so they are not owned by any single middleware.
 - set_security_config: Set the active SecurityConfig for the current async context.
 - get_security_config: Get the active SecurityConfig for the current async context.
 - set_workspace_root: Set the workspace root for PathPolicy evaluation in the current async context.
+- set_goal_provider / get_goal_provider: Per-run GoalProvider for goal_focus_middleware.
 - set_canary_token / get_canary_token: Session-scoped canary token for output-side injection detection.
 - set_is_shadow_agent / reset_is_shadow_agent / get_is_shadow_agent: Background shadow-agent bulkhead flag.
 
@@ -35,6 +36,7 @@ if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
     from myrm_agent_harness.agent.event_log.logger import EventLogger
+    from myrm_agent_harness.agent.goals.protocols import GoalProvider
     from myrm_agent_harness.agent.security.detection.pseudonym_store import PseudonymStore
     from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 
@@ -53,6 +55,17 @@ _is_subagent_var: ContextVar[bool] = ContextVar("is_subagent", default=False)
 _subagent_task_id_var: ContextVar[str | None] = ContextVar("subagent_task_id", default=None)
 _is_shadow_agent_var: ContextVar[bool] = ContextVar("is_shadow_agent", default=False)
 _canary_token_var: ContextVar[str] = ContextVar("canary_token", default="")
+_goal_provider_var: ContextVar[GoalProvider | None] = ContextVar("goal_provider", default=None)
+
+
+def set_goal_provider(provider: GoalProvider | None) -> None:
+    """Set the GoalProvider for the current async context."""
+    _goal_provider_var.set(provider)
+
+
+def get_goal_provider() -> GoalProvider | None:
+    """Get the GoalProvider for the current async context."""
+    return _goal_provider_var.get()
 
 
 def set_allowed_domains_map(domains_map: dict[str, list[str] | None]) -> None:

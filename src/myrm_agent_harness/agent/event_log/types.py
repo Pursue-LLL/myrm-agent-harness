@@ -340,7 +340,7 @@ class SessionAnalytics:
     token_economics: dict[str, object] | None = None
 
 
-# --- Trace Evidence & Task-Adaptive Analytics (C1) ---
+# --- Trace Evidence (skill evolution input) ---
 
 
 @dataclass(frozen=True, slots=True)
@@ -383,7 +383,7 @@ class AntiPattern:
 
 @dataclass(frozen=True, slots=True)
 class TraceRunDigest:
-    """Extracted evidence from a trace for Task-Adaptive Context Hydration."""
+    """Extracted evidence from a trace for skill evolution and analytics."""
 
     session_id: str
     task_intent: str | None

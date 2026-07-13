@@ -13,7 +13,7 @@ Detailed design: [EVENT_LOG_SYSTEM.md](EVENT_LOG_SYSTEM.md)
 | analytics.py | Core | Designed for separation of concerns: | ✅ |
 | analytics_queries.py | Core | Read-side analytics helpers for ``EventLogger``. | ✅ |
 | cli_summary.py | Core | Provides generate_cli_summary. | ✅ |
-| evidence_extractor.py | Core | Data mining engine for Task-Adaptive Context. Runs periodically in idle_tasks | ✅ |
+| evidence_extractor.py | Core | Data mining engine for trace evidence. Runs periodically in idle_tasks to feed skill evolution. | ✅ |
 | logger.py | Core | Integration façade. Injected into BaseAgent via ``event_log_backend`` param. | ✅ |
 | protocols.py | Core | Protocol contract. Framework provides FileEventLogBackend; | ✅ |
 | trace_builder.py | Core | Read-side aggregation logic. Merges llm_request + token_usage into LLMCallRecord with start/end times and prompt_preview. | ✅ |

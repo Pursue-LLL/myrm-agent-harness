@@ -71,7 +71,6 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
     "cancel_subagent_tool": "SubagentManagementExtension + entitlements",
     "steer_subagent_tool": "SubagentManagementExtension + entitlements",
     "send_teammate_message_tool": "SubagentManagementExtension + entitlements",
-    "get_goal_status_tool": "active Goal on chat",
     "update_goal_status_tool": "active Goal on chat",
     "x_search_tool": "x-live-search prebuilt skill bound",
     "channel_notify_tool": "Agent notify_targets configured",

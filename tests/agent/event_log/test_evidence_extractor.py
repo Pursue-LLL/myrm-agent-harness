@@ -299,86 +299,23 @@ async def test_extract_digest_with_late_user_interruption():
     assert digest.anti_patterns[0].user_correction is None
 
 
-class MultiSessionMockBackend(EventLogBackend):
-    """Mock backend with multiple sessions for testing extract_for_recent_sessions."""
-
-    def __init__(self, sessions: dict[str, list[StructuredEvent]]):
-        self._sessions = sessions
-
-    async def log_event(self, session_id: str, event: StructuredEvent) -> None:
-        pass
-
-    async def get_events(self, session_id: str, filter: EventFilter | None = None) -> list[StructuredEvent]:
-        return self._sessions.get(session_id, [])
-
-    async def get_all_session_ids(self) -> list[str]:
-        return list(self._sessions.keys())
-
-
 @pytest.mark.asyncio
-async def test_extract_for_recent_sessions_basic():
-    """Test extract_for_recent_sessions returns digests for all sessions."""
-    sessions = {
-        "s1": [
-            StructuredEvent(sequence=0, timestamp=1.0, event_type="session_start", session_id="s1", data={"query": "Task A"}),
-            StructuredEvent(sequence=1, timestamp=2.0, event_type="session_end", session_id="s1", data={}),
-        ],
-        "s2": [
-            StructuredEvent(sequence=0, timestamp=3.0, event_type="session_start", session_id="s2", data={"query": "Task B"}),
-            StructuredEvent(sequence=1, timestamp=5.0, event_type="session_end", session_id="s2", data={}),
-        ],
-    }
-    backend = MultiSessionMockBackend(sessions)
+async def test_extract_digest_hotspots_use_canonical_path_field():
+    """Test hotspots resolve workspace paths from canonical 'path' tool args."""
+    events = [
+        make_event(0, 1.0, "session_start", {"query": "Refactor auth"}),
+        make_event(1, 2.0, "tool_start", {"tool_name": "file_read_tool", "path": "src/auth.py"}),
+        make_event(2, 3.0, "tool_start", {"tool_name": "grep_tool", "path": "src/auth.py", "pattern": "token"}),
+        make_event(3, 4.0, "session_end", {}),
+    ]
+
+    backend = MockEventLogBackend(events)
     extractor = SessionEvidenceExtractor(backend)
 
-    digests = await extractor.extract_for_recent_sessions(limit=50)
+    digest = await extractor.extract_digest("test")
 
-    assert len(digests) == 2
-    intents = {d.task_intent for d in digests}
-    assert "Task A" in intents
-    assert "Task B" in intents
-
-
-@pytest.mark.asyncio
-async def test_extract_for_recent_sessions_respects_limit():
-    """Test that limit parameter caps the number of sessions processed."""
-    sessions = {f"s{i}": [
-        StructuredEvent(sequence=0, timestamp=float(i), event_type="session_start", session_id=f"s{i}", data={"query": f"Task {i}"}),
-        StructuredEvent(sequence=1, timestamp=float(i) + 1, event_type="session_end", session_id=f"s{i}", data={}),
-    ] for i in range(10)}
-    backend = MultiSessionMockBackend(sessions)
-    extractor = SessionEvidenceExtractor(backend)
-
-    digests = await extractor.extract_for_recent_sessions(limit=3)
-
-    assert len(digests) == 3
-
-
-@pytest.mark.asyncio
-async def test_extract_for_recent_sessions_skips_empty():
-    """Test that sessions with no events are skipped (return None from extract_digest)."""
-    sessions = {
-        "s1": [
-            StructuredEvent(sequence=0, timestamp=1.0, event_type="session_start", session_id="s1", data={"query": "Real"}),
-            StructuredEvent(sequence=1, timestamp=2.0, event_type="session_end", session_id="s1", data={}),
-        ],
-        "s2": [],
-    }
-    backend = MultiSessionMockBackend(sessions)
-    extractor = SessionEvidenceExtractor(backend)
-
-    digests = await extractor.extract_for_recent_sessions(limit=50)
-
-    assert len(digests) == 1
-    assert digests[0].task_intent == "Real"
-
-
-@pytest.mark.asyncio
-async def test_extract_for_recent_sessions_no_sessions():
-    """Test with no sessions at all."""
-    backend = MultiSessionMockBackend({})
-    extractor = SessionEvidenceExtractor(backend)
-
-    digests = await extractor.extract_for_recent_sessions()
-
-    assert digests == []
+    assert digest is not None
+    assert len(digest.hotspots) == 1
+    assert digest.hotspots[0].file_path == "src/auth.py"
+    assert digest.hotspots[0].read_count == 2
+    assert digest.hotspots[0].write_count == 0

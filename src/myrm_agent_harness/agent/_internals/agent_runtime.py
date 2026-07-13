@@ -415,6 +415,9 @@ async def run_agent_loop(
         goal_provider = merged_context.pop("goal_provider", None)
         on_goal_terminal = merged_context.pop("on_goal_terminal", None)
         on_loop_restart = merged_context.pop("on_loop_restart", None)
+        from myrm_agent_harness.agent.middlewares._session_context import set_goal_provider
+
+        set_goal_provider(goal_provider)
 
         # --- Goal Planning Interception ---
         if goal_provider and not is_resume:

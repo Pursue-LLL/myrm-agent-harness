@@ -74,6 +74,22 @@ async def process_updates_chunk(
                 for item in node_output:
                     if isinstance(item, Interrupt) and hasattr(item, "value"):
                         payload = item.value
+
+                        if isinstance(payload, dict) and payload.get("action_type") == "plan_confirm":
+                            logger.info("LangGraph plan_confirm interrupt triggered")
+                            yield {
+                                "type": AgentEventType.STATUS.value,
+                                "data": {
+                                    "phase": "plan_confirm",
+                                    "status": "waiting",
+                                    "plan_items": payload.get("plan_items", []),
+                                    "total_items": payload.get("total_items", 0),
+                                    "goal": payload.get("goal"),
+                                },
+                                "messageId": message_id,
+                            }
+                            continue
+
                         action_requests = payload.get("actionRequests", []) if isinstance(payload, dict) else []
                         tool_names = [str(r.get("action", "?")) for r in action_requests if isinstance(r, dict)] or [
                             "unknown"

@@ -6,7 +6,7 @@
 - runtime.events.bus::EventBus (POS: In-process publish/subscribe event bus.)
 - runtime.maintenance.protocols::CapacityDenial, (POS: Maintenance scheduling protocols and data types.)
 - toolkits.memory.cognitive.consolidator::CognitiveConsolidator (POS: @input: MemoryManager)
-- agent.event_log.evidence_extractor::SessionEvidenceExtractor (POS: Data mining engine for Task-Adaptive Context. Runs periodically in idle_tasks to analyze failed tool calls and user interruptions, generating evidence.)
+- agent.event_log.evidence_extractor::SessionEvidenceExtractor (POS: Data mining engine for trace evidence. Runs periodically in idle_tasks to analyze failed tool calls and user interruptions for skill evolution.)
 - agent.event_log.types::EventPayload, StructuredEvent (POS: Single source of truth for event log data structures.)
 - agent.context_management.preheat::preheat_prefix_cache (POS: Prefix cache preheat utility for idle compression pipeline.)
 - agent.background_worker.shadow_context::restricted_shadow_context (POS: Execution-layer bulkhead isolation for background shadow workloads.)
@@ -241,22 +241,6 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                         digest = await extractor.extract_digest(session_id)
                         proposal_dict = None
                         if digest:
-                            import time
-
-                            from myrm_agent_harness.agent.event_log.types import EventPayload, StructuredEvent
-
-                            await event_logger._backend.append(
-                                [
-                                    StructuredEvent(
-                                        sequence=999999,
-                                        timestamp=time.time(),
-                                        event_type="trace_run_digest",
-                                        session_id=session_id,
-                                        data=EventPayload(**digest.to_dict()),
-                                    )
-                                ]
-                            )
-
                             # Trigger CAPTURED evolution if there are anti-patterns (failures/corrections)
                             if digest.anti_patterns:
                                 logger.info(

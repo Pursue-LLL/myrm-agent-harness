@@ -94,7 +94,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # --- Cron 定时任务 ---
     "cron_manage_tool": ToolLayer.EXTENDED,
     # --- Goal 工具 ---
-    "get_goal_status_tool": ToolLayer.EXTENDED,
     "update_goal_status_tool": ToolLayer.EXTENDED,
     # --- 交互工具 ---
     "ask_question_tool": ToolLayer.EXTENDED,

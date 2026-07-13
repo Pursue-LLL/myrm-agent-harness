@@ -31,15 +31,16 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `debug_logger_middleware.py` | Core | Full message list debug logging. | ✅ |
 | `filesystem_search_middleware.py` | Core | Inject glob/grep workspace search tools. | ✅ |
 | `memory_context_middleware.py` | Core | `<user_memory_context>` + scope boundary + untrusted data wrapping. | ✅ |
+| `plan_confirm_middleware.py` | Core | Plan-phase HITL: intercept first `todo_write(merge=False)` with 3+ items for user review via `interrupt()`. | ✅ |
 | `memory_context_format.py` | Core | Formatting helpers for memory context injection | ✅ |
 | `progress_middleware.py` | Core | Active todo focus injection into last HumanMessage. | ✅ |
+| `goal_focus_middleware.py` | Core | Active goal objective injection into last HumanMessage. | ✅ |
 | `rate_limit.py` | Core | Proactive provider 429 throttling. | ✅ |
 | `replan_middleware.py` | Core | Dynamic replan loop on tool errors. | ✅ |
 | `safety_dispatcher.py` | Core | safe→concurrent / unsafe→serial tool routing. | ✅ |
 | `security_boundary_middleware.py` | Core | Security boundary enforcement. | ✅ |
 | `security_guardrail_middleware.py` | Core | Security guardrail enforcement. | ✅ |
 | `subagent_limit_middleware.py` | Core | Max concurrent subagents per turn. | ✅ |
-| `task_adaptive_middleware.py` | Core | Trace-analytics JIT execution constraints. | ✅ |
 | `tool_call_dedup_middleware.py` | Core | tool_call_id deduplication. | ✅ |
 | `tool_executor.py` | Core | Tool execution with timeout/retry/backoff. | ✅ |
 | `tool_interceptor_middleware.py` | Core | Single interception point for all tool calls. | ✅ |

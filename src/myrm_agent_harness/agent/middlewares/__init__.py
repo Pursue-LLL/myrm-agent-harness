@@ -13,6 +13,8 @@
   (POS: 工具拦截中间件，异常捕获和验证)
 - approval::ApprovalRateLimiter, (POS: Approval queue helpers. Handles AnyMemory ↔ PendingRecord conversion for the approval pipeline. Internal only — not part of the public API.)
   (POS: 审批子系统，含速率限制器)
+- plan_confirm_middleware::PlanConfirmMiddleware (POS: Plan-phase HITL gate)
+  (POS: Plan-phase HITL: intercept first todo_write plan for user review via interrupt())
 - concurrency_limiter::create_concurrency_limiter, (POS: Subagent  Semaphore  SUBAGENT_CONFIGS)
   (POS: Subagent 并发限制器，根据 agent_type 限制并发)
 - safety_dispatcher::create_safety_dispatcher (POS: TOOL_SAFETY_METADATA  ToolNode  Lock)
@@ -31,6 +33,8 @@
 - create_concurrency_limiter(): Subagent 并发限制中间件工厂函数
 - create_safety_dispatcher(): 工具并发安全分层调度中间件工厂函数
 - get_subagent_semaphore(): 获取特定 agent_type 的 semaphore
+- PlanConfirmMiddleware: Plan-phase HITL 中间件类
+- reset_plan_confirm_state(): 重置 plan confirm 状态
 - ValidationResult: 验证结果数据类（security 模块的再导出）
 - validate_tool_result(): 工具结果验证函数（security 模块的再导出）
 
@@ -50,6 +54,10 @@ from myrm_agent_harness.agent.middlewares.completion_guard import (
 from myrm_agent_harness.agent.middlewares.concurrency_limiter import (
     create_concurrency_limiter,
     get_subagent_semaphore,
+)
+from myrm_agent_harness.agent.middlewares.plan_confirm_middleware import (
+    PlanConfirmMiddleware,
+    reset_plan_confirm_state,
 )
 from myrm_agent_harness.agent.middlewares.context_pipeline_middleware import (
     create_context_pipeline_middleware,
@@ -87,16 +95,13 @@ from myrm_agent_harness.agent.security.guards.frequency_guard import (
 )
 
 __all__ = [
-    # 速率限制
     "ApprovalRateLimiter",
-    # 中间件
     "CompletionGuard",
     "FilesystemFileSearchMiddleware",
-    # 权限检查
     "GuardrailMiddleware",
+    "PlanConfirmMiddleware",
     "RateLimitMiddleware",
     "SkillBoundaryProvider",
-    # 验证工具
     "ValidationResult",
     "create_concurrency_limiter",
     "create_context_pipeline_middleware",
@@ -105,11 +110,12 @@ __all__ = [
     "debug_logger_middleware",
     "get_approval_rate_limiter",
     "get_subagent_semaphore",
+    "notify_loop_guard_compaction",
     "progress_middleware",
     "reset_completion_guard",
-    "notify_loop_guard_compaction",
     "reset_frequency_guard",
     "reset_loop_guard",
+    "reset_plan_confirm_state",
     "subagent_limit_middleware",
     "tool_interceptor_middleware",
     "validate_tool_result",

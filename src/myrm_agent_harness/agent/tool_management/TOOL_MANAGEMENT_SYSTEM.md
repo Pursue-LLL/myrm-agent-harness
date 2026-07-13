@@ -128,7 +128,6 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `desktop_snapshot_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_vision_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `discover_capability_tool` | EXTENDED | user_capability | — | Turn1 when discoverable pool non-empty |
-| `get_goal_status_tool` | EXTENDED | user_capability | — | active Goal on chat |
 | `image_tool` | EXTENDED | user_capability | image_generation | enabled_builtin_tools: image_generation |
 | `invoke_deferred_tool` | EXTENDED | user_capability | — | Opt-in Turn1 or DISCOVERABLE; see product switch |
 | `kanban_add_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |

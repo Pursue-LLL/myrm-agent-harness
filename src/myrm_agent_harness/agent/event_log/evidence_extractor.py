@@ -8,8 +8,8 @@
 - SessionEvidenceExtractor: Background analyzer to mine hotspots and anti-patterns.
 
 [POS]
-Data mining engine for Task-Adaptive Context. Runs periodically in idle_tasks
-to analyze failed tool calls and user interruptions, generating evidence.
+Data mining engine for trace evidence. Runs periodically in idle_tasks
+to analyze failed tool calls and user interruptions for skill evolution.
 """
 
 from __future__ import annotations
@@ -25,9 +25,21 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_FILE_READ_TOOLS = frozenset({"file_read_tool"})
+_FILE_WRITE_TOOLS = frozenset({"file_write_tool", "file_edit_tool"})
+_PATH_HOTSPOT_TOOLS = _FILE_READ_TOOLS | _FILE_WRITE_TOOLS | frozenset({"grep_tool"})
+
+
+def _resolve_tool_path(data: dict[str, object]) -> str:
+    for key in ("path", "file_path"):
+        value = data.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return ""
+
 
 class SessionEvidenceExtractor:
-    """Extracts Task-Adaptive evidence (hotspots and anti-patterns) from raw traces."""
+    """Extracts trace evidence (hotspots and anti-patterns) from raw traces."""
 
     def __init__(self, backend: EventLogBackend) -> None:
         self._backend = backend
@@ -74,12 +86,11 @@ class SessionEvidenceExtractor:
             elif et == "tool_start":
                 total_tools += 1
                 tool_name = data.get("tool_name")
-                # Record read/write for file ops
-                if tool_name in ("file_read_tool", "file_write_tool", "file_edit_tool"):
-                    file_path = str(data.get("file_path", ""))
+                if isinstance(tool_name, str) and tool_name in _PATH_HOTSPOT_TOOLS:
+                    file_path = _resolve_tool_path(data)
                     if file_path:
                         hs = hotspots[file_path]
-                        if tool_name == "file_read_tool":
+                        if tool_name in _FILE_READ_TOOLS or tool_name == "grep_tool":
                             hs["read_count"] = int(hs["read_count"]) + 1
                         else:
                             hs["write_count"] = int(hs["write_count"]) + 1
@@ -150,18 +161,3 @@ class SessionEvidenceExtractor:
             success_rate=success_rate,
             duration_ms=duration_ms,
         )
-
-    async def extract_for_recent_sessions(self, limit: int = 50) -> list[TraceRunDigest]:
-        """Extract digests for the most recent sessions."""
-        session_ids = await self._backend.get_all_session_ids()
-        # In a real impl, we might want to sort session_ids by time if the backend supports it,
-        # but file_backend usually returns them in a standard order.
-        # For simplicity, we process the last N.
-        target_sids = session_ids[-limit:] if session_ids else []
-
-        digests: list[TraceRunDigest] = []
-        for sid in target_sids:
-            digest = await self.extract_digest(sid)
-            if digest:
-                digests.append(digest)
-        return digests

@@ -120,7 +120,6 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
         "desktop_snapshot_tool",
         "desktop_interact_tool",
         "desktop_vision_tool",
-        "get_goal_status_tool",
         "update_goal_status_tool",
         "ask_question_tool",
     }
@@ -477,7 +476,6 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "skill_manage_tool": SafetyMetadata(),
     "memory_save_tool": SafetyMetadata(is_idempotent=True),
     "memory_manage_tool": SafetyMetadata(),
-    "get_goal_status_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "update_goal_status_tool": SafetyMetadata(),
     "desktop_inspect_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "desktop_snapshot_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),

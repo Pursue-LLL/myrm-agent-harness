@@ -23,8 +23,8 @@
 │ context_pipeline_middleware             │  ← 上下文压缩/摘要链
 │ memory_context_middleware               │  ← 用户记忆注入（编排）
 │   └─ memory_context_format.py         │  ← stable/learned 格式化纯函数
-│ progress_middleware / replan_middleware   │  ← todo 焦点/重规划
-│ task_adaptive_middleware                │  ← Trace 自适应约束
+│ progress_middleware / goal_focus_middleware │  ← todo 焦点 / active goal 提醒
+│ replan_middleware                         │  ← 动态重规划
 │ GuardrailMiddleware (guardrails/)       │  ← 技能边界等
 │ security_*_middleware                   │  ← 安全边界/护栏
 │ subagent_limit / concurrency_limiter    │  ← 委派 fan-out 限制
@@ -78,8 +78,8 @@
 | `memory_context_middleware.py` | 记忆上下文注入编排（首轮 LLM 前 idempotent 注入） |
 | `memory_context_format.py` | 记忆注入格式化纯函数（stable SystemMessage / learned UNTRUSTED HumanMessage） |
 | `progress_middleware.py` | 活跃 todo 焦点注入（末位 HumanMessage） |
+| `goal_focus_middleware.py` | ACTIVE goal objective 注入（末位 HumanMessage；跳过 continuation/wrap-up 轮） |
 | `replan_middleware.py` | 动态重规划循环 |
-| `task_adaptive_middleware.py` | Trace 分析 JIT 约束 |
 | `tool_call_dedup_middleware.py` | tool_call_id 去重 |
 | `rate_limit.py` | Provider 级主动 sleep |
 | `debug_logger_middleware.py` | 完整消息 debug 日志 |

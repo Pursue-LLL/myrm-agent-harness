@@ -308,6 +308,9 @@ def cleanup_run(
         pop_run_message_id(get_approval_session())
         set_workspace_root("")
         set_event_logger(None)
+        from myrm_agent_harness.agent.middlewares._session_context import set_goal_provider
+
+        set_goal_provider(None)
 
         from myrm_agent_harness.agent.workspace_rules.tracker import (
             reset_subdirectory_tracker,
