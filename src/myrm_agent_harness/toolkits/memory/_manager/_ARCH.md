@@ -11,7 +11,7 @@ Composable `MemoryManager` implementation. External code imports `MemoryManager`
 | `shared.py` | Barrel | Shared imports, errors, background-task logger | — |
 | `core.py` | Mixin | Initialization, properties, backend flags, `on_conflict` callback slot | ✅ |
 | `governance_session.py` | Mixin | Approval workflow and session lifecycle | ✅ |
-| `retrieval_write.py` | Mixin | Store, search, context, citations | ✅ |
+| `retrieval_write.py` | Mixin | Store, search (with access tracking), context, tool rules | ✅ |
 | `convenience.py` | Mixin | Profile and typed add helpers | ✅ |
 | `deletion.py` | Mixin | Delete by id, metadata, and type | ✅ |
 | `listing_maintenance.py` | Mixin | List, health, archive, backup, maintenance | ✅ |

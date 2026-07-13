@@ -88,7 +88,8 @@ async def find_subsumed_memories(
 
     # 1. Search for top-K semantically similar old memories
     search_results = await manager.search(
-        query=new_knowledge, memory_types=[MemoryType.SEMANTIC, MemoryType.PROCEDURAL], limit=max_candidates
+        query=new_knowledge, memory_types=[MemoryType.SEMANTIC, MemoryType.PROCEDURAL], limit=max_candidates,
+        track_access=False,
     )
 
     if not search_results:

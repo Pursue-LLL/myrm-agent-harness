@@ -344,7 +344,7 @@ async def _enrich_with_similar(memory: AnyMemory, manager: MemoryManager, max_si
     When no candidates are found the original memory is returned alone.
     """
     try:
-        results = await manager.search(memory.content, limit=max_similar + 1)
+        results = await manager.search(memory.content, limit=max_similar + 1, track_access=False)
         similar = [r.memory for r in results if r.memory.id != memory.id][:max_similar]
         if not similar:
             return [memory]

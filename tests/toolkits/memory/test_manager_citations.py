@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -6,43 +6,6 @@ from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
 
-
-@pytest.mark.asyncio
-async def test_record_citations_success():
-    mock_rel = AsyncMock()
-    mock_vec = AsyncMock()
-    mock_emb = AsyncMock()
-    config = MemoryConfig(embedding_model="test")
-    manager = MemoryManager(config, user_id="test_user", relational=mock_rel, vector=mock_vec, embedding=mock_emb)
-
-    doc1 = MagicMock()
-    doc1.id = "mem-1"
-    doc1.content = "abc"
-    doc1.metadata = {"user_id": "test_user"}
-
-    doc2 = MagicMock()
-    doc2.id = "mem-2"
-    doc2.content = "def"
-    doc2.metadata = {"user_id": "test_user"}
-
-    async def mock_get(coll, ids):
-        if "mem-1" in ids: return [doc1]
-        if "mem-2" in ids: return [doc2]
-        return []
-
-    mock_vec.get.side_effect = mock_get
-
-    count = await manager.record_citations(["mem-1", "mem-2"])
-    assert count == 2
-    assert mock_vec.upsert.call_count >= 2
-
-@pytest.mark.asyncio
-async def test_record_citations_empty():
-    mock_rel = AsyncMock()
-    config = MemoryConfig(embedding_model="test")
-    manager = MemoryManager(config, user_id="test_user", relational=mock_rel)
-    count = await manager.record_citations([])
-    assert count == 0
 
 @pytest.mark.asyncio
 async def test_update_procedural_memory_reasoning_application():

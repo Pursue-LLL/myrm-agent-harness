@@ -206,6 +206,7 @@ async def _collect_insights(manager: MemoryManager, limit: int = 30) -> list[str
         results = await manager.search(
             "consolidation insight pattern observation",
             limit=limit,
+            track_access=False,
         )
         return [r.memory.content for r in results if "consolidation-insight" in getattr(r.memory, "tags", [])]
     except Exception as exc:

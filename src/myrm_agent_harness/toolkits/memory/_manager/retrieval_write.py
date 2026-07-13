@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import datetime
 
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     AnyMemory,
-    EpisodicMemory,
     MemorySearchResult,
     MemoryType,
     ProceduralMemory,
@@ -16,7 +15,6 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     doc_to_semantic,
     load_context,
     logger,
-    update_vector_memory,
 )
 
 
@@ -52,9 +50,10 @@ class MemoryManagerRetrievalWriteMixin:
         include_raw: bool = False,
         since: datetime | None = None,
         until: datetime | None = None,
+        track_access: bool = True,
     ) -> list[MemorySearchResult]:
         session_chat_id = self._active_session.chat_id if self._active_session else None
-        return await self._search_service.search(
+        results = await self._search_service.search(
             query,
             memory_types=memory_types or self.get_enabled_types(),
             memory_types_unspecified=memory_types is None,
@@ -65,6 +64,14 @@ class MemoryManagerRetrievalWriteMixin:
             until=until,
             current_chat_id=session_chat_id,
         )
+        if track_access and results and self._vector:
+            from myrm_agent_harness.toolkits.memory._internal.maintenance import bump_access_counts
+
+            asyncio.create_task(
+                bump_access_counts(results, self._vector, self._config, self._relational),
+                name="bump_access_counts",
+            )
+        return results
 
     async def get_context(
         self,
@@ -237,42 +244,3 @@ class MemoryManagerRetrievalWriteMixin:
             logger.warning("get_tool_rules failed for %s: %s", tool_name, e)
             return []
 
-    async def record_citations(self, memory_ids: list[str]) -> int:
-        """Explicitly record LLM citations for lifecycle decay tracking.
-
-        Bumps the access_count and last_accessed_at for the cited memories.
-        Returns the number of successfully updated memories.
-        """
-        if not memory_ids:
-            return 0
-
-        updated_count = 0
-        now = datetime.now(UTC)
-        for mem_id in memory_ids:
-            try:
-                mem = await self.get_memory(mem_id)
-                if not mem:
-                    continue
-                mem.access_count += 1
-                mem.last_accessed_at = now
-                if hasattr(mem, "memory_type"):
-                    await self.update_memory(mem.id)  # Update just saves it via model_copy
-                    # Actually update_memory does not take access_count as kwarg.
-                    # Let's bypass update_memory and use the writer directly for this internal bump.
-                    if isinstance(mem, (SemanticMemory, EpisodicMemory)):
-                        v, e = self._vec()
-                        await update_vector_memory(
-                            self._bind_scope(mem),
-                            False,
-                            v,
-                            self._config,
-                            e,
-                            self._cache,
-                        )
-                    elif isinstance(mem, ProceduralMemory):
-                        await self._rel().update_rule(mem.id, mem)
-                    updated_count += 1
-            except Exception as e:
-                logger.warning("Failed to record citation for memory %s: %s", mem_id, e)
-
-        return updated_count

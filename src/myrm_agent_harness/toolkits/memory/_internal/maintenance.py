@@ -49,6 +49,7 @@ from myrm_agent_harness.toolkits.memory.types import (
     EvaporationState,
     MemorySearchResult,
     MemoryTier,
+    ProceduralMemory,
     SemanticMemory,
 )
 from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_compile import compile_claim_graph  # noqa: F401 — re-export
@@ -353,6 +354,7 @@ async def bump_access_counts(
     results: list[MemorySearchResult],
     vector: VectorStoreProtocol,
     config: MemoryConfig,
+    relational: RelationalStoreProtocol | None = None,
 ) -> None:
     """Fire-and-forget: increment access_count for retrieved memories."""
     try:
@@ -368,6 +370,16 @@ async def bump_access_counts(
             await vector.upsert(config.semantic_collection, sem_docs)
         if epi_docs:
             await vector.upsert(config.episodic_collection, epi_docs)
+        if relational:
+            for r in results:
+                mem = r.memory
+                if isinstance(mem, ProceduralMemory):
+                    mem.access_count += 1
+                    mem.last_accessed_at = now
+                    try:
+                        await relational.update_rule(mem.id, mem)
+                    except Exception as exc:
+                        logger.debug("Procedural access count update skipped for %s: %s", mem.id, exc)
     except Exception as e:
         logger.warning("Access count update failed (non-fatal): %s", e)
 
