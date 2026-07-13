@@ -76,8 +76,10 @@ class SkillStatsCollector:
             stats.success_count += 1
         else:
             stats.failure_count += 1
-        stats.last_used_at = datetime.now(UTC)
+        now = datetime.now(UTC)
+        stats.last_used_at = now
         stats.total_duration_ms += duration_ms
+        stats.append_usage(timestamp=now.isoformat(), success=success, duration_ms=duration_ms)
 
         if stats.lifecycle_status == SkillLifecycleStatus.STALE:
             stats.lifecycle_status = SkillLifecycleStatus.ACTIVE

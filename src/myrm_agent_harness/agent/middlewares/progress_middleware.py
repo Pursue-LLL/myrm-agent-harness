@@ -30,7 +30,7 @@ def progress_middleware(
 ) -> Any:
     """Inject active todo focus into the last HumanMessage (non-persistent)."""
 
-    @wrap_model_call  # type: ignore[arg-type]
+    @wrap_model_call(name="progress_middleware")  # type: ignore[arg-type]
     async def _middleware(
         request: ModelRequest,
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],

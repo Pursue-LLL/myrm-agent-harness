@@ -37,7 +37,7 @@ Skill backend implementations — read/write/discovery protocols, local/memory/s
 | types.py | Core | Aggregate re-exports for skill types; import path unchanged. | ✅ |
 | types_coercion.py | Core | Safe list coercion for type deserialization. | ✅ |
 | types_enums.py | Core | SkillTrust, SkillLifecycleStatus, SkillPermission enums. | ✅ |
-| types_usage.py | Core | SkillUsageStats for curator / forgetting persistence. | ✅ |
+| types_usage.py | Core | SkillUsageStats, SkillUsageRecord — per-skill usage statistics and invocation history for curator / forgetting / trend analysis. | ✅ |
 | types_requires.py | Core | SkillRequires and MCPSkillData dependency types. | ✅ |
 | types_contract.py | Core | SkillContract* structured frontmatter contract types. | ✅ |
 | types_security.py | Core | SecurityFindingDetail and SecurityScanSummary. | ✅ |

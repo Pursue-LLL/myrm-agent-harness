@@ -32,7 +32,8 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 | manager_queue_mixin.py | 核心 | Subgoal/queue/stash 操作 mixin | ✅ |
 | steering_prompts.py | 核心 | Goal 运行时 steering prompt 模板 — build_objective_updated_steering_message() 构建 objective 变更时注入的引导消息 | ✅ |
 | storage.py | 核心 | SQLite 持久化 — 序列化/反序列化含 turns_used / max_turns / priority / auto_approve / constraints / no_progress_streak / loop_restarts / convergence_window / loop_on_pause / max_loop_restarts + 队列索引 | ✅ |
-| continuation.py | 核心 | guard chain → 返回 ContinuationDecision（含 convergence/loop_restart verdict）。支持收敛检测、循环重启、预算耗尽 Wrap-up Turn、验收条件逐条验证（调用 record_acceptance_results 持久化结果）、COMPLETE 前 InvariantSnapshot 篡改检测（发现违规则阻断完成并要求 agent 修复） | ✅ |
+| goal_prompt_prefixes.py | Core | `GOAL_CONTINUATION_PREFIX` / `GOAL_WRAPUP_PREFIX` SSOT（audit + goal_focus skip） | ✅ |
+| continuation.py | 核心 | guard chain → ContinuationDecision；wrap-up 检测使用 `GOAL_WRAPUP_PREFIX` | ✅ |
 | audit.py | 核心 | 三段式 judge criteria + 行为引导 continuation prompt（含 Fidelity 防目标缩水、Evidence-based 防历史幻觉、Progress visibility 激活 todo_write 进度推送、8 步 audit protocol、历史 learnings 注入、收敛引导指令）+ budget wrap-up prompt | ✅ |
 | goal_interceptor.py | 核心 | Goal 拦截器：执行前发布 protected_paths / invariant snapshot；进度由主 Agent `todo_write` 负责 | ✅ |
 | invariant_snapshot.py | 核心 | Post-hoc tamper detection: SHA-256 snapshot of Goal protected_paths at activation; verify integrity before completion (bash_code_execute_tool bypass safety net). 生命周期: goal_interceptor capture → continuation verify → manager clear | ✅ |

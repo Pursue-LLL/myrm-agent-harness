@@ -4,7 +4,8 @@
 - types_enums.SkillLifecycleStatus (POS: lifecycle state enum)
 
 [OUTPUT]
-- SkillUsageStats: call/success/failure counts, lifecycle fields, serialization
+- SkillUsageRecord: single skill invocation record for trend analysis
+- SkillUsageStats: call/success/failure counts, lifecycle fields, usage history, serialization
 
 [POS]
 Usage stats persisted in {skill_dir}/.stats.json for curator / forgetting mechanism.
@@ -13,10 +14,21 @@ Usage stats persisted in {skill_dir}/.stats.json for curator / forgetting mechan
 from __future__ import annotations
 
 import contextlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from myrm_agent_harness.backends.skills.types_enums import SkillLifecycleStatus
+
+_MAX_HISTORY_ENTRIES = 200
+
+
+@dataclass
+class SkillUsageRecord:
+    """Single skill invocation record for trend analysis."""
+
+    timestamp: str
+    success: bool
+    duration_ms: float
 
 
 @dataclass
@@ -64,6 +76,10 @@ class SkillUsageStats:
     """Timestamp when this stats record was first created.
     Used by the grace_period check to protect newly-discovered skills."""
 
+    usage_history: list[SkillUsageRecord] = field(default_factory=list)
+    """Rolling window of recent invocation records for trend analysis.
+    Capped at _MAX_HISTORY_ENTRIES to bound disk usage."""
+
     @property
     def success_rate(self) -> float:
         """Success rate as a percentage (0.0-1.0)"""
@@ -103,7 +119,17 @@ class SkillUsageStats:
             "pinned": self.pinned,
             "merged_into": self.merged_into,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "usage_history": [
+                {"timestamp": r.timestamp, "success": r.success, "duration_ms": r.duration_ms}
+                for r in self.usage_history
+            ],
         }
+
+    def append_usage(self, timestamp: str, success: bool, duration_ms: float) -> None:
+        """Append a usage record and trim to rolling window."""
+        self.usage_history.append(SkillUsageRecord(timestamp=timestamp, success=success, duration_ms=duration_ms))
+        if len(self.usage_history) > _MAX_HISTORY_ENTRIES:
+            self.usage_history = self.usage_history[-_MAX_HISTORY_ENTRIES:]
 
     @classmethod
     def from_dict(cls, data: dict[str, object] | None) -> SkillUsageStats:
@@ -144,6 +170,20 @@ class SkillUsageStats:
             except (ValueError, TypeError):
                 return default
 
+        history: list[SkillUsageRecord] = []
+        raw_history = data.get("usage_history")
+        if isinstance(raw_history, list):
+            for entry in raw_history[-_MAX_HISTORY_ENTRIES:]:
+                if isinstance(entry, dict):
+                    with contextlib.suppress(KeyError, TypeError, ValueError):
+                        history.append(
+                            SkillUsageRecord(
+                                timestamp=str(entry["timestamp"]),
+                                success=bool(entry["success"]),
+                                duration_ms=_safe_float(entry.get("duration_ms", 0.0)),
+                            )
+                        )
+
         return cls(
             call_count=_safe_int(data.get("call_count", 0)),
             success_count=_safe_int(data.get("success_count", 0)),
@@ -154,4 +194,5 @@ class SkillUsageStats:
             pinned=bool(data.get("pinned", False)),
             merged_into=str(data["merged_into"]) if data.get("merged_into") else None,
             created_at=created_at,
+            usage_history=history,
         )

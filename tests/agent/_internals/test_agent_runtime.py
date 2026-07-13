@@ -108,8 +108,16 @@ class TestBuildMiddlewares:
         assert "SecurityBoundaryMiddleware" in class_names
         assert "SecurityGuardrailMiddleware" in class_names
 
+    def test_goal_focus_middleware_in_chain(self):
+        from myrm_agent_harness.agent._internals.agent_runtime import (
+            build_middlewares,
+            create_registry,
+        )
 
-class TestBuildTools:
+        result = build_middlewares(create_registry(), [])
+        names = {mw.name for mw in result}
+        assert "progress_middleware" in names
+        assert "goal_focus_middleware" in names
     """Tests for build_tools — resolves user, deferred, and discovery tools."""
 
     @pytest.mark.asyncio

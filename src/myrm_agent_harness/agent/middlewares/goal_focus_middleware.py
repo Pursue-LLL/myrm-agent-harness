@@ -1,7 +1,7 @@
 """Goal focus middleware — inject active goal objective into last HumanMessage.
 
 [INPUT]
-- agent.goals.continuation::GOAL_CONTINUATION_PREFIX, GOAL_WRAPUP_PREFIX (POS: skip-detection SSOT)
+- agent.goals.goal_prompt_prefixes::GOAL_CONTINUATION_PREFIX, GOAL_WRAPUP_PREFIX (POS: skip-detection SSOT)
 - agent.goals.types::Goal, GoalStatus (POS: ACTIVE gate + focus line fields)
 - agent.middlewares._session_context::get_goal_provider (POS: per-run GoalProvider ContextVar)
 - langchain.agents.middleware::ModelRequest, wrap_model_call (POS: LC middleware)
@@ -23,7 +23,7 @@ from typing import Any
 from langchain.agents.middleware import ModelRequest, ModelResponse, wrap_model_call
 from langchain_core.messages import HumanMessage
 
-from myrm_agent_harness.agent.goals.continuation import (
+from myrm_agent_harness.agent.goals.goal_prompt_prefixes import (
     GOAL_CONTINUATION_PREFIX,
     GOAL_WRAPUP_PREFIX,
 )
@@ -115,7 +115,7 @@ def _append_to_last_human_message(
 def goal_focus_middleware() -> Any:
     """Inject active goal focus into the last HumanMessage (non-persistent)."""
 
-    @wrap_model_call  # type: ignore[arg-type]
+    @wrap_model_call(name="goal_focus_middleware")  # type: ignore[arg-type]
     async def _middleware(
         request: ModelRequest,
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],

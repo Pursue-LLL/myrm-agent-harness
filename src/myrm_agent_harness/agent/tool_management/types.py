@@ -42,9 +42,15 @@ class ToolSource(Enum):
 class ToolBindMode(str, Enum):
     """How a tool participates in Turn1 bind_tools and discover_capability.
 
-    TURN1: bound on first model turn (default).
-    DISCOVERABLE: excluded from Turn1; indexed by discover_capability; executed via invoke_deferred_tool.
-    RUNTIME_ONLY: excluded from Turn1 and discover; executable when middleware injects tool_calls.
+    LLM Action Tool modes (visible to the model):
+        TURN1: bound on first model turn (default). LLM sees and can call directly.
+        DISCOVERABLE: excluded from Turn1; indexed by discover_capability;
+            executed via invoke_deferred_tool. LLM discovers then calls.
+
+    Internal mode (invisible to the model — NOT an LLM Action Tool):
+        RUNTIME_ONLY: excluded from Turn1 and discover index; only executable
+            when middleware injects tool_calls. Used for framework hooks
+            (e.g. ``_completion_check``). Not counted in action-tool metrics.
     """
 
     TURN1 = "turn1"

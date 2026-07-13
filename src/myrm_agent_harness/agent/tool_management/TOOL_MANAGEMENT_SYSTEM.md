@@ -32,7 +32,7 @@ SkillAgent / Server factory
         ↓
 tool_layers.py — CORE/COMMON/EXTENDED SSOT
         ↓
-registry.py — dedup + sort + ToolBindMode (TURN1 / DISCOVERABLE / RUNTIME_ONLY)
+registry.py — dedup + sort + ToolBindMode (TURN1 / DISCOVERABLE = LLM tools; RUNTIME_ONLY = internal hooks)
         ↓
 lifecycle_manager.py — init_tools / cleanup_tools
         ↓

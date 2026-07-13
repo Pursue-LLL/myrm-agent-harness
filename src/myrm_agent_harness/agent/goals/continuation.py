@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING
 from langchain_core.messages import AIMessage, HumanMessage
 
 from .audit import build_continuation_prompt, build_judge_criteria, build_wrapup_prompt
+from .goal_prompt_prefixes import GOAL_WRAPUP_PREFIX
 from .invariant_snapshot import ProtectedFileViolation, verify_protected_integrity
 from .types import ContinuationDecision, GoalStatus
 
@@ -47,10 +48,7 @@ _JUDGE_RESPONSE_MAX_CHARS = 4000
 
 _MAX_CONSECUTIVE_JUDGE_PARSE_FAILURES = 3
 
-_GOAL_CONTINUATION_PREFIX = "[Continuing toward your standing goal]"
-_WRAPUP_SENTINEL = "[Budget reached — wrap-up turn]"
-GOAL_CONTINUATION_PREFIX = _GOAL_CONTINUATION_PREFIX
-GOAL_WRAPUP_PREFIX = _WRAPUP_SENTINEL
+_WRAPUP_SENTINEL = GOAL_WRAPUP_PREFIX
 
 _MAX_VERIFICATION_RETRIES = 3
 

@@ -17,6 +17,7 @@ and the judge criteria for autonomous completion detection.
 
 from __future__ import annotations
 
+from .goal_prompt_prefixes import GOAL_CONTINUATION_PREFIX, GOAL_WRAPUP_PREFIX
 from .types import Goal
 
 
@@ -125,7 +126,7 @@ def build_continuation_prompt(goal: Goal, *, last_judge_reason: str | None = Non
         )
 
     return (
-        "[Continuing toward your standing goal]\n\n"
+        f"{GOAL_CONTINUATION_PREFIX}\n\n"
         f"<untrusted_objective>\n{goal.objective}\n</untrusted_objective>\n"
         f"{learnings_block}"
         f"{subgoals_block}"
@@ -175,7 +176,7 @@ def build_wrapup_prompt(goal: Goal) -> str:
     budget_text = "\n".join(budget_lines)
 
     return (
-        "[Budget reached — wrap-up turn]\n\n"
+        f"{GOAL_WRAPUP_PREFIX}\n\n"
         f"<untrusted_objective>\n{goal.objective}\n</untrusted_objective>\n\n"
         f"Budget:\n{budget_text}\n\n"
         "The system has marked this goal as budget_limited. "
