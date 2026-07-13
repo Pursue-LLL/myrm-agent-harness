@@ -17,6 +17,7 @@ from myrm_agent_harness.runtime import lazy_deps
         ("platform.matrix", ("mautrix>=0.21.0", "aiohttp-socks>=0.11.0")),
         ("platform.matrix-e2ee", ("mautrix[encryption]>=0.21.0",)),
         ("platform.wechat-silk", ("pilk>=0.2.4",)),
+        ("platform.voice-tts", ("edge-tts>=7.2.8",)),
     ],
 )
 def test_feature_specs_known(feature: str, specs: tuple[str, ...]) -> None:

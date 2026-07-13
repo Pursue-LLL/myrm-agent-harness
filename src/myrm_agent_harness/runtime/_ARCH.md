@@ -24,7 +24,7 @@ Detailed design: [CONVERSATION_FORK_SYSTEM.md](CONVERSATION_FORK_SYSTEM.md)
 | memory_pressure.py | Core | Global memory pressure coordination. Framework provides the monitor and hooks; | ✅ |
 | resource_monitor.py | Core | High-fidelity resource monitor with history sampling, adaptive heap profiling, and production-visible [MEMORY] INFO logging. | ✅ |
 | startup.py | Core | Optional toolkit for monitoring application startup performance. | ✅ |
-| lazy_deps.py | Core | Allowlisted venv-scoped lazy install for optional platform extras (Matrix, Discord, Feishu, WeChat SILK). | ✅ |
+| lazy_deps.py | Core | Allowlisted venv-scoped lazy install for optional platform extras (Matrix, Discord, Feishu, WeChat SILK, Edge TTS). | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

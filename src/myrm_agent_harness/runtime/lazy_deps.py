@@ -1,8 +1,8 @@
 """Lazy dependency installer for optional platform backends.
 
 Installs allowlisted packages into the active venv on demand (uv pip, then pip).
-Used by myrm-agent-server channel management so GUI users need not run terminal
-commands for optional extras such as Matrix (mautrix).
+Used by myrm-agent-server channel and voice management so GUI users need not run terminal
+commands for optional extras such as Matrix (mautrix) or Edge TTS (edge-tts).
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ LAZY_DEPS: dict[str, tuple[str, ...]] = {
     ),
     "platform.matrix-e2ee": ("mautrix[encryption]>=0.21.0",),
     "platform.wechat-silk": ("pilk>=0.2.4",),
+    "platform.voice-tts": ("edge-tts>=7.2.8",),
 }
 
 _SAFE_SPEC = re.compile(
