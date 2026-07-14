@@ -78,7 +78,7 @@ retrieval = [
   "numpy>=2.5.1",     # embedding 序列化 + BM25 数值计算
   "tenacity>=9.1.4",  # cloud embedding retries
   "jieba>=0.42.1",    # 中文分词 (BM25 tokenizer)
-  "nltk>=3.9.4",      # 英文分词/词干提取/停用词
+  "nltk>=3.10.0",      # 英文分词/词干提取/停用词
   "rank-bm25>=0.2.2", # BM25 稀疏检索算法
 ]
 # toolkits/acp/ - ACP 协议（外部 Agent 委托 + ACP Server）
