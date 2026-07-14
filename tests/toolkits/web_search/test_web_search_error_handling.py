@@ -210,7 +210,7 @@ class TestLiteLLMSearchEdgeCases:
         }
 
         result = SearchResult.from_dict(result_dict)
-        assert result.title == " no Heading"
+        assert result.title == "Untitled"
         assert result.link == ""
         assert result.snippet == ""
 
@@ -246,7 +246,7 @@ class TestSearchResultEdgeCases:
             "snippet": "Test snippet",
         }
         result = SearchResult.from_dict(data)
-        assert result.title == " no Heading"
+        assert result.title == "Untitled"
 
     def test_from_dict_with_date(self):
         """测试带日期的结果"""

@@ -275,20 +275,31 @@ class TestCombineSearchResultsUnified:
         urls, docs = combine_search_results_unified(data)
         assert len(docs) == 1
 
-    def test_dedup_same_url_different_content(self) -> None:
-        doc1 = _search_doc("https://example.com/page1", content="content A")
-        doc2 = _search_doc("https://example.com/page1", content="content B")
+    def test_dedup_same_url_different_content_keeps_longest(self) -> None:
+        """Same URL with different content: URL arbitration keeps the longest."""
+        doc1 = _search_doc("https://example.com/page1", content="short")
+        doc2 = _search_doc("https://example.com/page1", content="much longer content here")
         data = [("q1", [doc1], None), ("q2", [doc2], None)]
         urls, docs = combine_search_results_unified(data)
-        assert len(docs) <= 2
+        assert len(docs) == 1
+        assert "much longer" in docs[0].page_content
 
-    def test_different_urls_both_kept(self) -> None:
-        doc1 = _search_doc("https://a.com/page1")
-        doc2 = _search_doc("https://b.com/page2")
+    def test_different_urls_different_content_both_kept(self) -> None:
+        """Different URLs with different content are both kept."""
+        doc1 = _search_doc("https://a.com/page1", content="unique content A")
+        doc2 = _search_doc("https://b.com/page2", content="unique content B")
         data = [("q1", [doc1, doc2], None)]
         urls, docs = combine_search_results_unified(data)
         assert len(docs) == 2
         assert len(urls) == 2
+
+    def test_different_urls_same_content_mirror_dedup(self) -> None:
+        """Different URLs with identical content (mirror sites) are deduplicated."""
+        doc1 = _search_doc("https://a.com/page1", content="same content")
+        doc2 = _search_doc("https://b.com/page2", content="same content")
+        data = [("q1", [doc1, doc2], None)]
+        urls, docs = combine_search_results_unified(data)
+        assert len(docs) == 1
 
     def test_mixed_success_and_failure(self) -> None:
         doc = _search_doc("https://ok.com/page")
@@ -319,9 +330,9 @@ class TestCombineSearchResultsUnified:
         assert "#fragment" in docs[0].metadata["url"]
 
     def test_multiple_queries_merge(self) -> None:
-        doc1 = _search_doc("https://a.com/1")
-        doc2 = _search_doc("https://b.com/2")
-        doc3 = _search_doc("https://c.com/3")
+        doc1 = _search_doc("https://a.com/1", content="content for a.com")
+        doc2 = _search_doc("https://b.com/2", content="content for b.com")
+        doc3 = _search_doc("https://c.com/3", content="content for c.com")
         data = [
             ("q1", [doc1, doc2], None),
             ("q2", [doc3], None),

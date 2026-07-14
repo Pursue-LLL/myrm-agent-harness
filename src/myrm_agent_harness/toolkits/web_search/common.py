@@ -2,10 +2,11 @@
 - (none)
 
 [OUTPUT]
-- SearchResult: Vector similarity search result.
+- SearchResult: Unified search engine result model.
+- Citation: Inline citation with positional info.
 
 [POS]
-Provides SearchResult.
+Shared data models for web search results, used across the search toolkit.
 """
 
 from typing import Any
@@ -29,57 +30,39 @@ class Citation(BaseModel):
 
 
 class SearchResult(BaseModel):
-    """统一 Search引擎Result模型"""
+    """Unified search engine result model."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    title: str = Field(..., description="SearchResultHeading")
-    link: str = Field(..., description="SearchResultLink")
-    snippet: str = Field(..., description="SearchResult摘要")
-    date: str | None = Field(default=None, description="发布 or 最后Update日期")
-    is_error: bool = Field(default=False, description="标记SearchResultWhether is Errorinformation")
-    engines: list[str] = Field(default_factory=list, description="来源Search引擎List")
+    title: str = Field(..., description="Result heading")
+    link: str = Field(..., description="Result URL")
+    snippet: str = Field(..., description="Result summary snippet")
+    date: str | None = Field(default=None, description="Published or last-updated date")
+    is_error: bool = Field(default=False, description="Whether this result represents an error entry")
+    engines: list[str] = Field(default_factory=list, description="Source search engines that returned this result")
     citations: list[Citation] = Field(default_factory=list, description="Inline citations with positional info")
 
     @property
     def url(self) -> str:
-        """GetURL， for compatible性
-
-        Returns:
-            LinkURL
-        """
+        """Alias for ``link`` for downstream API consistency."""
         return self.link
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "SearchResult":
-        """from DictCreateSearchResultInstance，应用智能ContentClean up
-
-        Args:
-            data: ContainsSearchResultData Dict
-
-        Returns:
-            SearchResultInstance
-        """
-        # GetsnippetContent
+        """Build a SearchResult from a raw API response dict, applying content cleaning."""
         snippet = data.get("snippet", "") or data.get("content", "") or data.get("text", "")
-
-        # 应用智能ContentClean up
         cleaned_snippet = clean_text(snippet)
+        title = data.get("title") or "Untitled"
 
-        #  ensure title not  is None，保持originalHeading
-        title = data.get("title") or " no Heading"
-
-        # Extract基本Field
         result: dict[str, Any] = {
             "title": title,
             "link": data.get("link", "") or data.get("url", ""),
             "snippet": cleaned_snippet,
-            "date": data.get("date"),  # Extract日期Field（IfExists）
+            "date": data.get("date"),
             "is_error": data.get("is_error", False),
             "engines": data.get("engines", []),
         }
 
-        # Parse citations if present
         raw_citations = data.get("citations")
         if raw_citations and isinstance(raw_citations, list):
             parsed: list[Citation] = []

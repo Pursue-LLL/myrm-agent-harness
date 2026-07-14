@@ -12,8 +12,8 @@ utils.text_cleaner::clean_search_snippet (POS: Search snippet cleaning)
 utils.url_utils::normalize_url, extract_domain (POS: URL normalisation and domain extraction)
 
 [OUTPUT]
-search_results_to_documents: Converts SearchResult list to deduplicated Document list
-process_search_response: Parses raw API responses into SearchResult objects
+search_results_to_documents: Converts SearchResult list to Document list
+combine_search_results_unified: Merges multi-query results with two-layer deduplication (URL arbitration + content hash)
 apply_domain_diversity_sort: Reorders documents with same-domain decay to improve source diversity
 
 [POS]
@@ -38,28 +38,30 @@ logger = logging.getLogger(__name__)
 
 
 def search_results_to_documents(results: list[SearchResult]) -> list[Document]:
-    """将SearchResultConvert is DocumentObject
+    """Convert SearchResult objects into LangChain Document objects.
 
     Args:
-        results: SearchResultList
+        results: List of SearchResult from search providers.
 
     Returns:
-        DocumentList
+        List of Document with cleaned snippet as page_content.
     """
     documents = []
 
     for result in results:
-        # 对snippetPerform基本Clean up
         cleaned_snippet = clean_search_snippet(result.snippet)
 
-        # Set元Data
         metadata: dict[str, object] = {
             "title": result.title,
             "url": result.url,
             "description": cleaned_snippet,
         }
 
-        # Include citations in metadata when present
+        if result.date:
+            metadata["date"] = result.date
+        if result.engines:
+            metadata["engines"] = result.engines
+
         if result.citations:
             metadata["citations"] = [
                 {
@@ -80,97 +82,84 @@ def search_results_to_documents(results: list[SearchResult]) -> list[Document]:
 def combine_search_results_unified(
     search_results: list[tuple[str, list[Document], Exception | None]],
 ) -> tuple[list[dict[str, str]], list[Document]]:
-    """Merge多QuerySearchResult并做Global去重。
+    """Merge multi-query search results with two-layer deduplication.
 
-    行 is Description：
-    - 单次遍历input： in 同一循环内CompleteFailure/EmptyResultStatistics、去重 and 目标ListBuild。
-    - 去重Key：规范化 URL（去 fragment） and 正文前 500 Characters 哈希（更长正文则Truncate后哈希）。
-    -  via Query 文档 in 进入去重分支前累计 ``total_docs``， no 额外全量预扫描。
+    Deduplication strategy:
+    - Layer 1 (URL arbitration): Same normalized URL keeps only the version with
+      the longest page_content (information density proxy).
+    - Layer 2 (Content hash): Different URLs with identical content_hash (mirror sites)
+      keep only the first encountered.
 
     Args:
-        search_results: originalSearchResultList [(Query, 文档List, 可能 Exception), ...]
+        search_results: Raw search results [(query, documents, optional exception), ...]
 
     Returns:
-        (GlobalURL元DataList, Global去重后 文档List)
+        (url_metadata_list, deduplicated_documents)
     """
     if not search_results:
         return [], []
 
-    # 统一文档池，Global去重（ using  URL+Content哈希 作 is 去重Key）
-    seen_keys = set()  # Storage (normalized_url_dedup, content_hash) 元组
-    unified_docs = []
-    url_metadata_list = []
+    # Layer 1: URL → best candidate (longest content wins)
+    url_best: dict[str, tuple[int, Document, str]] = {}  # url → (content_len, doc, semantic_url)
+    # Layer 2: content_hash → first seen URL (for mirror site dedup)
+    content_hash_seen: dict[str, str] = {}  # hash → normalized_url
+
     total_docs = 0
     failed_queries = 0
-    zero_result_queries = 0  # 没 has ReturnResult Query数
+    zero_result_queries = 0
 
     for query, documents, error in search_results:
-        # SkipFailure Query（Exception）
         if error is not None:
             failed_queries += 1
-            logger.warning(f"Query '{query}' Failure: {error}")
+            logger.debug(f"Query '{query}' failed: {error}")
             continue
 
-        # Statistics文档数
         doc_count = len(documents)
         total_docs += doc_count
 
-        # ProcessReturn0Result Query
         if doc_count == 0:
             zero_result_queries += 1
             continue
 
-        # 只Record has Result Query
-        logger.warning(f"Query '{query}' Return了 {doc_count} 个文档")
+        logger.debug(f"Query '{query}' returned {doc_count} documents")
 
-        # Process文档
         for doc in documents:
             metadata = doc.metadata
             original_url = metadata.get("url", "")
             if not original_url:
-                logger.warning(f"Query '{query}'  某个文档缺少URL， already Skip")
                 continue
 
             page_content = doc.page_content
 
             normalized_url_dedup, normalized_url_semantic = normalize_url(original_url)
             if not normalized_url_dedup:
-                logger.warning(f"Query '{query}'  URLstandard化Failure: {original_url}")
                 continue
 
             content_len = len(page_content)
             content_prefix = page_content if content_len <= 500 else page_content[:500]
             content_hash = get_content_hash(content_prefix, strategy="builtin", use_cache=True)
 
-            dedup_key = (normalized_url_dedup, content_hash)
-            if dedup_key in seen_keys:
+            # Layer 2: mirror site dedup (different URL, same content)
+            existing_url = content_hash_seen.get(content_hash)
+            if existing_url is not None and existing_url != normalized_url_dedup:
                 continue
+            content_hash_seen.setdefault(content_hash, normalized_url_dedup)
 
-            seen_keys.add(dedup_key)
-
-            doc.metadata["url"] = normalized_url_semantic
-
-            enhanced_content = enhance_document_content(doc)
-
-            new_metadata = {
-                "title": metadata.get("title", ""),
-                "url": normalized_url_semantic,
-                "description": metadata.get("description", ""),
-            }
-
-            unified_docs.append(Document(page_content=enhanced_content, metadata=new_metadata))
-
-            url_metadata_list.append({"url": normalized_url_semantic, "title": new_metadata["title"]})
+            # Layer 1: URL arbitration (same URL, keep longest content)
+            prev = url_best.get(normalized_url_dedup)
+            if prev is not None:
+                if content_len <= prev[0]:
+                    continue
+            url_best[normalized_url_dedup] = (content_len, doc, normalized_url_semantic)
 
     total_queries = len(search_results)
     successful_queries = total_queries - failed_queries - zero_result_queries
 
     if total_docs == 0:
-        logger.warning(
-            f"统一文档池: original0个文档 "
-            f"(总Query{total_queries}: {successful_queries}个 has Result, {zero_result_queries}个 no Result, {failed_queries}个Failure)"
+        logger.debug(
+            f"Document pool: 0 docs "
+            f"(queries={total_queries}: success={successful_queries}, empty={zero_result_queries}, failed={failed_queries})"
         )
-        logger.warning("Search failed: All queries returned 0 results")
         raise SearchAPIError(
             "Search API is unavailable: all queries returned 0 results",
             context=ErrorContext(
@@ -183,9 +172,26 @@ def combine_search_results_unified(
             ),
         )
 
-    logger.warning(
-        f"统一文档池: original{total_docs}个文档 -> 去重后{len(unified_docs)}个文档 "
-        f"(总Query{total_queries}: {successful_queries}个 has Result, {zero_result_queries}个 no Result, {failed_queries}个Failure)"
+    # Build final document list preserving insertion order
+    unified_docs: list[Document] = []
+    url_metadata_list: list[dict[str, str]] = []
+
+    for _content_len, doc, semantic_url in url_best.values():
+        doc.metadata["url"] = semantic_url
+        enhanced_content = enhance_document_content(doc)
+
+        new_metadata = {
+            "title": doc.metadata.get("title", ""),
+            "url": semantic_url,
+            "description": doc.metadata.get("description", ""),
+        }
+
+        unified_docs.append(Document(page_content=enhanced_content, metadata=new_metadata))
+        url_metadata_list.append({"url": semantic_url, "title": new_metadata["title"]})
+
+    logger.debug(
+        f"Document pool: {total_docs} raw -> {len(unified_docs)} deduplicated "
+        f"(queries={total_queries}: success={successful_queries}, empty={zero_result_queries}, failed={failed_queries})"
     )
 
     return url_metadata_list, unified_docs
@@ -195,19 +201,19 @@ def apply_domain_diversity_sort(
     docs: list[Document],
     decay_factor: float = 0.8,
 ) -> list[Document]:
-    """对去重后的文档列表施加同源衰减排序，防止单一域名刷屏。
+    """Reorder documents with same-domain decay to improve source diversity.
 
-    算法：遍历文档列表，为每篇文档计算 decay_score = base_score × decay_factor^(n-1)，
-    其中 base_score = 1/(rank+1) 保留搜索引擎原始排序权重，n 为该域名已出现次数。
-    最终按 decay_score 降序重排。
+    Algorithm: For each document, compute decay_score = base_score × decay_factor^(n-1),
+    where base_score = 1/(rank+1) preserves original search ranking weight, and n is the
+    number of times that domain has appeared. Final ordering is by decay_score descending.
 
     Args:
-        docs: 去重后的文档列表（保留搜索引擎原始排序）
-        decay_factor: 同源衰减系数，每多出现一次乘以此系数。0.8 意味着同域名第2篇
-                      得分 ×0.8，第3篇 ×0.64，第4篇 ×0.512，迅速降权。
+        docs: Deduplicated document list (preserving original search order).
+        decay_factor: Same-domain decay coefficient. 0.8 means the 2nd doc from the
+                      same domain gets ×0.8, 3rd ×0.64, 4th ×0.512, rapidly deprioritized.
 
     Returns:
-        按 decay_score 降序排列的新文档列表
+        Documents reordered by decay_score descending.
     """
     if len(docs) <= 1:
         return docs
