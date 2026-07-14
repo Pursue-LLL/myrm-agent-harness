@@ -327,10 +327,15 @@ class BrowserSessionLifecycleMixin:
             self._download_manager.attach(page)
 
         self._dialog_manager.attach(page)
+        self._tab_controller.attach_popup_listener(page)
 
     async def _ensure_components(self) -> None:
-        """ensure Component already Initialize"""
+        """Ensure components are initialized and bound to the current active page."""
         if self._navigator is None:
+            await self._initialize_components()
+            return
+        current_page = self._tab_controller.get_active_page()
+        if self._navigator._page is not current_page:
             await self._initialize_components()
 
     def _require_navigator(self) -> Navigator:

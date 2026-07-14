@@ -33,7 +33,7 @@ Browser session components.
 | snapshot_manager.py | Core | Snapshot generation manager. Responsibilities: | ✅ |
 | snapshot_result.py | Core | Immutable snapshot result type for browser ARIA snapshots. | ✅ |
 | snapshot_suggestion.py | Core | Heuristic token / scope suggestions for large ARIA snapshots. | ✅ |
-| tab_controller.py | Core | Tab lifecycle manager. Responsibilities: create/close tabs, switch active tab, LRU eviction, origin-based tab routing (find_tab_by_origin), domain-aware tab listing (list_tabs_with_info). | ✅ |
+| tab_controller.py | Core | Tab lifecycle manager. Responsibilities: create/close tabs, switch active tab, LRU eviction, automatic popup capture (window.open / OAuth / target=_blank) with parent-child tracking and close auto-recovery, origin-based tab routing (find_tab_by_origin), domain-aware tab listing (list_tabs_with_info). | ✅ |
 | vision_verifier.py | Core | 3-Layer Vision Verifier for Action-Verification Fusion. | ✅ |
 | structured_extractor.py | Core | LLM-based structured data extraction using JSON Schema → Pydantic validation. | ✅ |
 

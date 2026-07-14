@@ -828,7 +828,7 @@ def mock_vision_llm() -> AsyncMock:
 @pytest.fixture
 def browser_session_vision(mock_vision_llm: AsyncMock) -> BrowserSession:
     pool = _FakePoolEmptyText()
-    return BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm)
+    return BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm, allow_private_networks=True)
 
 
 @pytest.mark.asyncio
@@ -863,7 +863,7 @@ async def test_extract_text_no_vision_fallback_when_sufficient_text() -> None:
             self._pages = [_FakePageLongText()]
 
     llm = AsyncMock()
-    session = BrowserSession(_FakePoolLong(), ContextType.AGENT, vision_llm=llm)
+    session = BrowserSession(_FakePoolLong(), ContextType.AGENT, vision_llm=llm, allow_private_networks=True)
     await session.new_tab("https://text-site.com")
     text = await session.extract_text()
     assert "[Vision Extracted]" not in text
@@ -873,7 +873,7 @@ async def test_extract_text_no_vision_fallback_when_sufficient_text() -> None:
 @pytest.mark.asyncio
 async def test_extract_text_no_vision_fallback_without_llm(mock_pool: _FakePool) -> None:
     """When no vision_llm is configured, no fallback attempt."""
-    session = BrowserSession(mock_pool, ContextType.AGENT, vision_llm=None)
+    session = BrowserSession(mock_pool, ContextType.AGENT, vision_llm=None, allow_private_networks=True)
     await session.new_tab("https://example.com")
     text = await session.extract_text()
     assert "[Vision Extracted]" not in text
@@ -886,7 +886,7 @@ async def test_vision_extract_text_error_handling(
     """When vision LLM raises, we fall back gracefully to empty DOM text."""
     mock_vision_llm.ainvoke = AsyncMock(side_effect=RuntimeError("LLM timeout"))
     pool = _FakePoolEmptyText()
-    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm)
+    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm, allow_private_networks=True)
     await session.new_tab("https://error-site.com")
     text = await session.extract_text()
     assert "[Vision Extracted]" not in text
@@ -904,7 +904,7 @@ async def test_extract_structured_vision_fallback(
     mock_vision_llm.ainvoke = AsyncMock(return_value=mock_response)
 
     pool = _FakePoolEmptyText()
-    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm)
+    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm, allow_private_networks=True)
     await session.new_tab("https://dashboard.com")
 
     schema = json.dumps({"type": "object", "properties": {"revenue": {"type": "number"}}})
@@ -923,7 +923,7 @@ async def test_extract_structured_vision_fallback_error(
 
     mock_vision_llm.ainvoke = AsyncMock(side_effect=ConnectionError("Network error"))
     pool = _FakePoolEmptyText()
-    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm)
+    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm, allow_private_networks=True)
     await session.new_tab("https://broken.com")
 
     schema = json.dumps({"type": "object", "properties": {"x": {"type": "string"}}})
@@ -937,7 +937,7 @@ async def test_extract_structured_no_vision_llm_returns_error() -> None:
     import json
 
     pool = _FakePoolEmptyText()
-    session = BrowserSession(pool, ContextType.AGENT, vision_llm=None)
+    session = BrowserSession(pool, ContextType.AGENT, vision_llm=None, allow_private_networks=True)
     await session.new_tab("https://empty.com")
 
     schema = json.dumps({"type": "object", "properties": {"a": {"type": "string"}}})
@@ -958,7 +958,7 @@ async def test_extract_structured_vision_strips_code_fences(
     mock_vision_llm.ainvoke = AsyncMock(return_value=mock_response)
 
     pool = _FakePoolEmptyText()
-    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm)
+    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm, allow_private_networks=True)
     await session.new_tab("https://fenced.com")
 
     schema = json.dumps({"type": "object", "properties": {"score": {"type": "number"}}})
@@ -977,7 +977,7 @@ async def test_extract_structured_vision_invalid_json(
     mock_vision_llm.ainvoke = AsyncMock(return_value=mock_response)
 
     pool = _FakePoolEmptyText()
-    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm)
+    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm, allow_private_networks=True)
     await session.new_tab("https://garbled.com")
 
     import json
@@ -999,7 +999,7 @@ async def test_extract_structured_vision_with_already_collected(
     mock_vision_llm.ainvoke = AsyncMock(return_value=mock_response)
 
     pool = _FakePoolEmptyText()
-    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm)
+    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm, allow_private_networks=True)
     await session.new_tab("https://paginated.com")
 
     schema = json.dumps({"type": "object", "properties": {"item": {"type": "string"}}})
@@ -1017,7 +1017,7 @@ async def test_extract_text_vision_not_triggered_with_resume_cursor(
 ) -> None:
     """When resume_cursor > 0, vision fallback should NOT be triggered even if text < 50."""
     pool = _FakePoolEmptyText()
-    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm)
+    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm, allow_private_networks=True)
     await session.new_tab("https://paged.com")
     # First call populates snapshot, second call with cursor should not re-trigger
     await session.extract_text()
@@ -1049,7 +1049,7 @@ async def test_extract_text_vision_not_triggered_when_detect_false(
             self._pages = [_FakePageEmptyNoVisual()]
 
     pool = _FakePoolNoVisual()
-    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm)
+    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm, allow_private_networks=True)
     await session.new_tab("https://empty-no-visual.com")
     text = await session.extract_text()
     assert "[Vision Extracted]" not in text
@@ -1066,7 +1066,7 @@ async def test_extract_text_vision_returns_empty_uses_dom_text(
     mock_vision_llm.ainvoke = AsyncMock(return_value=mock_response)
 
     pool = _FakePoolEmptyText()
-    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm)
+    session = BrowserSession(pool, ContextType.AGENT, vision_llm=mock_vision_llm, allow_private_networks=True)
     await session.new_tab("https://empty-vision.com")
     text = await session.extract_text()
     assert "[Vision Extracted]" not in text
