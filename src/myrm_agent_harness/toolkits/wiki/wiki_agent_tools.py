@@ -6,8 +6,9 @@ langchain_core.tools::tool (POS: LangChain tool decorator)
 .maintenance.linter::WikiLinter (POS: Wiki health maintenance core engine)
 .retrieval.query::WikiQueryEngine (POS: Wiki query and enhancement engine)
 .core.structure::WikiStructure (POS: Wiki file system abstraction layer)
-myrm_agent_harness.toolkits.web_fetch.markdown_generator::MarkdownGenerator (POS: HTML to Markdown converter)
-core.security.http.secure_fetch::secure_get (POS: SSRF-protected outbound HTTP)
+toolkits.web_fetch::web_fetch_tools (POS: Global CrawlEngine singleton — YouTube/Bilibili subtitle extraction, multi-tier fallback)
+toolkits.web_fetch.markdown_generator::MarkdownGenerator (POS: HTML to Markdown converter, fallback path)
+core.security.http.secure_fetch::secure_get (POS: SSRF-protected outbound HTTP, fallback path)
 
 [OUTPUT]
 create_wiki_tools(): creates 4 LangChain tools (ingest, compile, query, maintain)
@@ -16,7 +17,7 @@ create_wiki_tools(): creates 4 LangChain tools (ingest, compile, query, maintain
 LangChain tool integration layer for Wiki toolkit. Wraps WikiCompiler, WikiQueryEngine,
 and WikiLinter into 4 LangChain StructuredTools for Agent use. Provides end-to-end
 automation: ingest triggers compilation, query archives high-value results for knowledge
-compounding, and URL fetching uses proper HTML-to-Markdown conversion.
+compounding, and URL fetching uses CrawlEngine (YouTube/Bilibili subtitle extraction, multi-tier fallback).
 """
 
 from __future__ import annotations
@@ -312,7 +313,17 @@ def _split_if_large(
 
 
 async def _fetch_url_as_markdown(url: str) -> str:
-    """Fetch URL and convert HTML to clean Markdown using the web_fetch toolkit's MarkdownGenerator."""
+    """Fetch URL via CrawlEngine (YouTube/Bilibili subtitle extraction, multi-tier fallback)."""
+    try:
+        from myrm_agent_harness.toolkits.web_fetch import web_fetch_tools
+
+        doc = await web_fetch_tools.crawl(url)
+        if doc and doc.page_content:
+            return doc.page_content
+        logger.debug("CrawlEngine returned empty for %s, falling back to secure_get", url)
+    except Exception:
+        logger.debug("CrawlEngine failed for %s, falling back to secure_get", url)
+
     from myrm_agent_harness.core.security.http.secure_fetch import secure_get
     from myrm_agent_harness.toolkits.web_fetch.markdown_generator import MarkdownGenerator
 
@@ -320,8 +331,7 @@ async def _fetch_url_as_markdown(url: str) -> str:
     response = await secure_get(url, timeout=30.0, headers=headers)
     if response.status_code != 200:
         raise ValueError(f"Failed to fetch {url}: HTTP {response.status_code}")
-    html = response.text
 
     generator = MarkdownGenerator()
-    result = generator.generate_markdown(html, base_url=url, citations=False)
+    result = generator.generate_markdown(response.text, base_url=url, citations=False)
     return result.raw_markdown or f"# {url}\n\n(empty page)"
