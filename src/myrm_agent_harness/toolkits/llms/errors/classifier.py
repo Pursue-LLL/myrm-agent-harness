@@ -16,6 +16,7 @@ identify specific local/remote edge cases.
 - normalize_provider_error: function — normalize_provider_error
 - classify_error: Classify an LLM exception into an ``ErrorKind`` using mul...
 - classify_failover_reason: Classify an LLM exception into a ``FailoverReason`` using...
+- parse_available_output_tokens_from_error: Extract available output tokens from 5 provider formats.
 
 [POS]
 LLM error classifier for failover decisions.
@@ -495,21 +496,96 @@ def extract_retry_after(exc: Exception) -> float | None:
 
 _AVAILABLE_TOKENS_RE = re.compile(r"available\s*_?tokens\s*:\s*(\d+)", re.IGNORECASE)
 
+_OPENROUTER_BREAKDOWN_RE = re.compile(
+    r"\((\d+)\s+of text input,\s*(\d+)\s+of tool input,\s*\d+\s+in the output\)",
+    re.IGNORECASE,
+)
+
+_MAX_CTX_LENGTH_RE = re.compile(
+    r"maximum context length is (\d+)\s*token", re.IGNORECASE
+)
+
+_CHAR_PROMPT_RE = re.compile(r"prompt contains (\d+)\s*character", re.IGNORECASE)
+
+_INPUT_TOKENS_RE = re.compile(
+    r"prompt contains (?:at least )?(\d+)\s*input tokens", re.IGNORECASE
+)
+
+_DASHSCOPE_RANGE_RE = re.compile(
+    r"range of max_tokens should be\s*\[\s*\d+\s*,\s*(\d+)\s*\]", re.IGNORECASE
+)
+
+_IS_OUTPUT_CAP_KEYWORDS = (
+    ("max_tokens", "available_tokens"),
+    ("max_tokens", "available tokens"),
+    ("in the output", "maximum context length"),
+    ("maximum context length", "requested", "output tokens"),
+)
+
+
+def _looks_like_output_cap_error(msg: str) -> bool:
+    for keywords in _IS_OUTPUT_CAP_KEYWORDS:
+        if all(kw in msg for kw in keywords):
+            return True
+    return "range of max_tokens should be" in msg
+
 
 def parse_available_output_tokens_from_error(exc: Exception) -> int | None:
-    """Extract available output tokens from a ContextWindowExceeded error.
+    """Extract available output tokens from an output-cap error.
 
-    If the API explicitly reports how many tokens are still available (e.g.
-    Anthropic's 'max_tokens: 32768 > 200000 - 190000 = available_tokens: 10000'),
-    return that number to allow ephemeral overriding without breaking cache.
+    Covers 5 provider error formats:
+    1. Anthropic: ``available_tokens: 10000``
+    2. OpenRouter/Nous: ``(A of text input, B of tool input, C in the output)``
+    3. LM Studio/llama.cpp (chars): ``prompt contains N characters``
+    4. vLLM: ``prompt contains at least N input tokens``
+    5. DashScope/Alibaba: ``Range of max_tokens should be [1, 65536]``
     """
     normalized = normalize_provider_error(exc)
-    match = _AVAILABLE_TOKENS_RE.search(normalized.message)
-    if match:
+    msg = normalized.message
+
+    if not _looks_like_output_cap_error(msg):
+        return None
+
+    # DashScope: "Range of max_tokens should be [1, 65536]"
+    m_range = _DASHSCOPE_RANGE_RE.search(msg)
+    if m_range:
+        cap = int(m_range.group(1))
+        if cap >= 1:
+            return cap
+
+    # Anthropic: "available_tokens: 10000" or "available tokens: 10000"
+    m_avail = _AVAILABLE_TOKENS_RE.search(msg)
+    if m_avail:
         try:
-            return int(match.group(1))
+            tokens = int(m_avail.group(1))
+            if tokens >= 1:
+                return tokens
         except (ValueError, TypeError):
-            return None
+            pass
+
+    # OpenRouter: "(150000 of text input, 40000 of tool input, 5000 in the output)"
+    m_ctx = _MAX_CTX_LENGTH_RE.search(msg)
+    m_parts = _OPENROUTER_BREAKDOWN_RE.search(msg)
+    if m_ctx and m_parts:
+        available = int(m_ctx.group(1)) - int(m_parts.group(1)) - int(m_parts.group(2))
+        if available >= 1:
+            return available
+
+    # vLLM: "prompt contains at least 65537 input tokens"
+    m_vllm = _INPUT_TOKENS_RE.search(msg)
+    if m_ctx and m_vllm:
+        available = int(m_ctx.group(1)) - int(m_vllm.group(1))
+        if available >= 1:
+            return available
+
+    # LM Studio/llama.cpp: "prompt contains 77409 characters"
+    m_chars = _CHAR_PROMPT_RE.search(msg)
+    if m_ctx and m_chars:
+        est_input = (int(m_chars.group(1)) + 2) // 3
+        available = int(m_ctx.group(1)) - est_input
+        if available >= 1:
+            return available
+
     return None
 
 

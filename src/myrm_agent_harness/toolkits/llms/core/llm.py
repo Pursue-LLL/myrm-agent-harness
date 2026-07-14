@@ -27,6 +27,7 @@ from typing import Any
 from myrm_agent_harness.toolkits.llms import providers  # noqa: F401
 from myrm_agent_harness.infra.tls_compat import build_httpx_verify, tls_strict_disabled
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM, clean_model_kwargs
+from myrm_agent_harness.toolkits.llms.core.reasoning_timeout import get_reasoning_timeout_floor
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +161,12 @@ def create_litellm_model(
         verify = build_httpx_verify()
         if verify is not True:
             llm_kwargs["ssl_verify"] = verify
+
+    # Apply reasoning model timeout floor (e.g. o3 needs 600s for thinking phase)
+    if "request_timeout" not in llm_kwargs:
+        floor = get_reasoning_timeout_floor(model)
+        if floor is not None:
+            llm_kwargs["request_timeout"] = floor
 
     llm_kwargs = clean_model_kwargs(llm_kwargs, model)
 
