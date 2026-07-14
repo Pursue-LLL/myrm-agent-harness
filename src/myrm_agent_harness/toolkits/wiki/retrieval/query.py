@@ -28,7 +28,7 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from ..core.config import WikiConfig, WikiQueryConfig
 from ..core.structure import WikiStructure
-from ..core.types import QueryResult
+from ..core.types import QueryResult, SourceSnippet
 from .indexer import WikiIndexer
 
 logger = get_agent_logger(__name__)
@@ -87,8 +87,8 @@ class WikiQueryEngine:
                 confidence_score=0.0,
             )
 
-        # Step 2: Load article context
-        context = await self._load_articles_context(related_articles)
+        # Step 2: Load article context and extract citation snippets
+        context, snippets = await self._load_articles_context(related_articles)
 
         # Step 3: Determine if should archive
         confidence = 1.0
@@ -102,6 +102,7 @@ class WikiQueryEngine:
             related_articles=[str(a) for a in related_articles],
             should_archive=should_archive,
             confidence_score=confidence,
+            source_snippets=snippets,
         )
 
     async def _search_concepts(self, query: str) -> list[Path]:
@@ -185,9 +186,14 @@ class WikiQueryEngine:
         scored.sort(key=lambda x: x[1], reverse=True)
         return [path for path, _ in scored[:top_n]]
 
-    async def _load_articles_context(self, article_paths: list[Path]) -> str:
-        """Load article content as context (optimized to only extract Compiled Truth for caching)."""
-        context_parts = []
+    async def _load_articles_context(self, article_paths: list[Path]) -> tuple[str, list[SourceSnippet]]:
+        """Load article content as context and extract citation snippets.
+
+        Returns:
+            Tuple of (context_string, list_of_source_snippets).
+        """
+        context_parts: list[str] = []
+        snippets: list[SourceSnippet] = []
 
         for path in article_paths:
             try:
@@ -206,11 +212,58 @@ class WikiQueryEngine:
                 if truth_match:
                     truth_content += truth_match.group(1).strip()
                 else:
-                    # Fallback to full content if the section doesn't exist
                     truth_content = content
 
                 context_parts.append(f"# {path.stem}\n\n{truth_content}")
+
+                # 3. Extract snippet: first meaningful section or paragraph (≤500 chars)
+                snippet_text, section_name = self._extract_snippet(truth_content)
+                snippets.append(
+                    SourceSnippet(
+                        article_path=str(path),
+                        article_name=path.stem,
+                        snippet=snippet_text,
+                        section=section_name,
+                    )
+                )
             except Exception as e:
                 logger.warning(f"Failed to load {path}: {e}")
 
-        return "\n\n---\n\n".join(context_parts)
+        return "\n\n---\n\n".join(context_parts), snippets
+
+    @staticmethod
+    def _extract_snippet(content: str, max_chars: int = 500) -> tuple[str, str]:
+        """Extract the first meaningful paragraph as a citation snippet.
+
+        Returns:
+            Tuple of (snippet_text, section_heading).
+        """
+        section_name = ""
+
+        # Strip YAML frontmatter
+        stripped = re.sub(r"^---\n.*?\n---\n*", "", content, count=1, flags=re.DOTALL)
+
+        # Find the first section heading (## ...)
+        section_match = re.search(r"^(#{1,3})\s+(.+)$", stripped, re.MULTILINE)
+        if section_match:
+            section_name = section_match.group(2).strip()
+
+        # Collect non-empty, non-heading lines as the snippet
+        lines: list[str] = []
+        total = 0
+        for line in stripped.split("\n"):
+            line_stripped = line.strip()
+            if not line_stripped or line_stripped.startswith("#"):
+                if lines:
+                    break
+                continue
+            lines.append(line_stripped)
+            total += len(line_stripped)
+            if total >= max_chars:
+                break
+
+        snippet = " ".join(lines)
+        if len(snippet) > max_chars:
+            snippet = snippet[:max_chars].rsplit(" ", 1)[0] + "…"
+
+        return snippet, section_name

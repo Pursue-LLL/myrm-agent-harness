@@ -171,17 +171,24 @@ def create_wiki_tools(
 
             wrapped_context = wrap_with_external_sources_tag(result.answer, source="LLM-Wiki")
 
+            snippet_by_path = {s.article_path: s for s in result.source_snippets}
+
             sources = []
             for path_str in result.related_articles:
                 p = Path(path_str)
-                sources.append(
-                    {
-                        "type": "knowledge",
-                        "kb_name": "LLM-Wiki",
-                        "filename": p.stem,
-                        "score": result.confidence_score,
-                    }
-                )
+                entry: dict[str, object] = {
+                    "type": "knowledge",
+                    "kb_name": "LLM-Wiki",
+                    "filename": p.stem,
+                    "score": result.confidence_score,
+                }
+                snip = snippet_by_path.get(path_str)
+                if snip:
+                    if snip.snippet:
+                        entry["snippet"] = snip.snippet
+                    if snip.section:
+                        entry["section"] = snip.section
+                sources.append(entry)
 
             if result.should_archive:
                 try:

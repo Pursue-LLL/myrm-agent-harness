@@ -9,6 +9,7 @@ pathlib::Path (POS: standard library file path operations)
 ConceptInfo: concept information dataclass
 WikiArticle: Wiki article dataclass
 CompileResult: compilation result dataclass
+SourceSnippet: chunk-level snippet for citation linking
 QueryResult: query result dataclass
 LintIssue: lint issue dataclass
 LintResult: lint result dataclass
@@ -61,6 +62,16 @@ class CompileResult:
 
 
 @dataclass(frozen=True, slots=True)
+class SourceSnippet:
+    """Chunk-level snippet extracted from a wiki article for citation linking."""
+
+    article_path: str
+    article_name: str
+    snippet: str
+    section: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class QueryResult:
     """Result of wiki query."""
 
@@ -69,6 +80,7 @@ class QueryResult:
     related_articles: list[str]
     should_archive: bool = False
     confidence_score: float = 0.0
+    source_snippets: list[SourceSnippet] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
