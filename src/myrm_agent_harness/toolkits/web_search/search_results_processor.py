@@ -9,19 +9,21 @@ web_search.exceptions::ErrorContext, SearchAPIError (POS: Search exception types
 utils.document_utils::enhance_document_content (POS: Document content enhancement)
 utils.hash_utils::get_content_hash (POS: Content hashing for deduplication)
 utils.text_cleaner::clean_search_snippet (POS: Search snippet cleaning)
-utils.url_utils::normalize_url (POS: URL normalisation)
+utils.url_utils::normalize_url, extract_domain (POS: URL normalisation and domain extraction)
 
 [OUTPUT]
 search_results_to_documents: Converts SearchResult list to deduplicated Document list
 process_search_response: Parses raw API responses into SearchResult objects
+apply_domain_diversity_sort: Reorders documents with same-domain decay to improve source diversity
 
 [POS]
 Search result post-processor. Sits between raw search API responses and the consumer
-layer, handling cleaning, deduplication, and Document construction.
+layer, handling cleaning, deduplication, domain diversity sorting, and Document construction.
 
 """
 
 import logging
+from collections import Counter
 
 from langchain_core.documents import Document
 
@@ -30,7 +32,7 @@ from myrm_agent_harness.toolkits.web_search.exceptions import ErrorContext, Sear
 from myrm_agent_harness.utils.document_utils import enhance_document_content
 from myrm_agent_harness.utils.hash_utils import get_content_hash
 from myrm_agent_harness.utils.text_cleaner import clean_search_snippet
-from myrm_agent_harness.utils.url_utils import normalize_url
+from myrm_agent_harness.utils.url_utils import extract_domain, normalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -187,3 +189,52 @@ def combine_search_results_unified(
     )
 
     return url_metadata_list, unified_docs
+
+
+def apply_domain_diversity_sort(
+    docs: list[Document],
+    decay_factor: float = 0.8,
+) -> list[Document]:
+    """对去重后的文档列表施加同源衰减排序，防止单一域名刷屏。
+
+    算法：遍历文档列表，为每篇文档计算 decay_score = base_score × decay_factor^(n-1)，
+    其中 base_score = 1/(rank+1) 保留搜索引擎原始排序权重，n 为该域名已出现次数。
+    最终按 decay_score 降序重排。
+
+    Args:
+        docs: 去重后的文档列表（保留搜索引擎原始排序）
+        decay_factor: 同源衰减系数，每多出现一次乘以此系数。0.8 意味着同域名第2篇
+                      得分 ×0.8，第3篇 ×0.64，第4篇 ×0.512，迅速降权。
+
+    Returns:
+        按 decay_score 降序排列的新文档列表
+    """
+    if len(docs) <= 1:
+        return docs
+
+    domain_counter: Counter[str] = Counter()
+    scored: list[tuple[float, int, Document]] = []
+
+    for rank, doc in enumerate(docs):
+        url = doc.metadata.get("url", "")
+        domain = extract_domain(url) if url else ""
+
+        domain_counter[domain] += 1
+        n = domain_counter[domain]
+
+        base_score = 1.0 / (rank + 1)
+        decay_score = base_score * (decay_factor ** (n - 1))
+
+        scored.append((decay_score, rank, doc))
+
+    scored.sort(key=lambda x: (-x[0], x[1]))
+
+    top_domain = domain_counter.most_common(1)
+    if top_domain and top_domain[0][1] > 1:
+        logger.info(
+            f"Domain diversity: {len(docs)} docs, "
+            f"top_domain={top_domain[0][0]}({top_domain[0][1]}), "
+            f"unique_domains={len(domain_counter)}"
+        )
+
+    return [doc for _, _, doc in scored]

@@ -5,7 +5,7 @@
 - retriever.autocut::AutocutConfig (POS: score-discontinuity autocut configuration)
 - retriever_tools::RetrieverManager, RetrieverConfig (POS: retrieval tools providing BM25 / Reranker with index cache)
 - web_search.common::SearchResult (POS: search result type)
-- web_search.search_results_processor::combine_search_results_unified (POS: search result merger)
+- web_search.search_results_processor::combine_search_results_unified, apply_domain_diversity_sort (POS: search result merger and domain diversity sorting)
 - web_search.web_searcher::WebSearcher, SearchServiceConfig, SearchServiceType (POS: web searcher supporting multiple engines)
 - utils.context_format::format_documents_with_metadata (POS: document formatting utility)
 - utils.text_utils::get_token_count (POS: token counting utility)
@@ -38,7 +38,10 @@ from myrm_agent_harness.toolkits.retriever.autocut import AutocutConfig
 from myrm_agent_harness.toolkits.retriever.splitter.splitter import TextChunker
 from myrm_agent_harness.toolkits.web_search.common import SearchResult
 from myrm_agent_harness.toolkits.web_search.metrics import web_search_metrics
-from myrm_agent_harness.toolkits.web_search.search_results_processor import combine_search_results_unified
+from myrm_agent_harness.toolkits.web_search.search_results_processor import (
+    apply_domain_diversity_sort,
+    combine_search_results_unified,
+)
 from myrm_agent_harness.toolkits.web_search.web_searcher import SearchServiceConfig, SearchServiceType, WebSearcher
 from myrm_agent_harness.utils.context_format import format_documents_with_metadata
 from myrm_agent_harness.utils.text_utils import get_token_count
@@ -155,6 +158,7 @@ class WebSearchTools:
             questions, search_results_per_query, per_query_overrides
         )
         _, unified_docs = combine_search_results_unified(search_results)
+        unified_docs = apply_domain_diversity_sort(unified_docs)
         search_time_ms = (time.perf_counter() - start_time) * 1000
 
         # Evaluate document characteristics to decide precision mode

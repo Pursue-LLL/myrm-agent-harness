@@ -16,7 +16,7 @@ and the intent-aware search parameter optimizer.
 | intent_optimizer.py | Core | Search intent detection and parameter optimization. Zero-LLM-cost keyword-based intent classifier that dynamically adjusts SearxNG/Tavily/Exa search parameters per query. | ✅ |
 | litellm_search.py | Core | LiteLLM search adapter. Translates provider-agnostic search requests into LiteLLM API calls. | ✅ |
 | metrics.py | Core | In-process counters for web search operations (thread-safe, optional observability hook). | ✅ |
-| search_results_processor.py | Core | Search result post-processor. Sits between raw search API responses and the consumer. | ✅ |
+| search_results_processor.py | Core | Search result post-processor. Deduplication + domain diversity sorting (same-domain decay). | ✅ |
 | web_search_agent_tools.py | Core | Web search meta-tool. Integrates web search capability as a meta-tool (high frequency, 80%+ queries). | ✅ |
 | web_searcher.py | Core | Web search orchestrator. Unified interface for querying multiple search providers with caching, retry, per-query parameter override, and Try-Catch Flexible Fallback. | ✅ |
 | constants.py | Core | Canonical SearXNG URLs and region presets for self-hosted search. | ✅ |
@@ -36,6 +36,9 @@ User query → LLM Query Rewriting → questions: list[str]
     → intent_optimizer.resolve_search_params(intent, provider)
     → WebSearcher.search(query, extra_params_override=override)
     → LiteLLM → SearxNG API (with dynamic engines/categories/time_range)
+    → combine_search_results_unified()  [dedup]
+    → apply_domain_diversity_sort()     [same-domain decay]
+    → BM25 / Precision mode selection
 ```
 
 When intent confidence is below threshold (0.6), no adjustment is made and

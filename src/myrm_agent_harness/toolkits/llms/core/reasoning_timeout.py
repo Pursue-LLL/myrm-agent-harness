@@ -37,6 +37,8 @@ _REASONING_TIMEOUT_FLOORS: dict[str, float] = {
     "qwq": 450.0,
     # Google Gemini thinking
     "gemini-2.5": 450.0,
+    # Anthropic extended thinking
+    "claude-opus-4": 450.0,
     # xAI Grok reasoning
     "grok-4-fast-reasoning": 450.0,
     "grok-4.20-reasoning": 450.0,
