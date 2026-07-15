@@ -52,6 +52,7 @@ MemoryImportSource = Literal[
     "windsurf",
     "trae",
     "mem0",
+    "chatgpt",
     "unknown",
 ]
 MemoryImportMappingStatus = Literal["mapped", "partially_mapped", "unsupported", "dropped"]
