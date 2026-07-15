@@ -248,6 +248,11 @@ _IMPORT_TO_PYPI: dict[str, str] = {
     "Crypto": "pycryptodome",
     "jwt": "PyJWT",
     "magic": "python-magic",
+    "docx": "python-docx",
+    "pptx": "python-pptx",
+    "fitz": "PyMuPDF",
+    "telegram": "python-telegram-bot",
+    "lark": "lark-parser",
 }
 
 
