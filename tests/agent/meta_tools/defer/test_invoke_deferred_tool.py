@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from langchain.tools import tool
 
@@ -19,13 +21,17 @@ def _target_defer_tool(value: str = "ok") -> str:
 
 
 @pytest.mark.asyncio
-async def test_invoke_resolves_and_runs_discoverable_tool() -> None:
+async def test_direct_invoke_refuses_to_bypass_runtime_normalization() -> None:
     registry = ToolRegistry()
     registry.register(_target_defer_tool, source=ToolSource.META, bind_mode=ToolBindMode.DISCOVERABLE)
     invoke = create_invoke_deferred_tool(registry)
 
-    result = await invoke.ainvoke({"name": "target_defer_tool", "arguments": {"value": "x"}})
-    assert result == "ran:x"
+    target_invoke = AsyncMock(return_value="ran:x")
+    with patch.object(_target_defer_tool, "ainvoke", target_invoke):
+        result = await invoke.ainvoke({"name": "target_defer_tool", "arguments": {"value": "x"}})
+
+    assert "runtime safety normalization" in result
+    target_invoke.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -45,43 +51,10 @@ def test_invoke_tool_name_constant() -> None:
 
 
 @pytest.mark.asyncio
-async def test_invoke_resolves_name_with_tool_suffix() -> None:
+async def test_invoke_requires_canonical_catalog_name() -> None:
     registry = ToolRegistry()
     registry.register(_target_defer_tool, source=ToolSource.META, bind_mode=ToolBindMode.DISCOVERABLE)
     invoke = create_invoke_deferred_tool(registry)
 
     result = await invoke.ainvoke({"name": "target_defer", "arguments": {"value": "y"}})
-    assert result == "ran:y"
-
-
-@pytest.mark.asyncio
-async def test_invoke_returns_json_for_non_string_result() -> None:
-    from langchain.tools import tool
-
-    @tool("dict_defer_tool", description="returns dict")
-    def _dict_tool() -> dict[str, str]:
-        return {"status": "ok"}
-
-    registry = ToolRegistry()
-    registry.register(_dict_tool, source=ToolSource.META, bind_mode=ToolBindMode.DISCOVERABLE)
-    invoke = create_invoke_deferred_tool(registry)
-
-    result = await invoke.ainvoke({"name": "dict_defer_tool", "arguments": {}})
-    assert '"status"' in result
-
-
-@pytest.mark.asyncio
-async def test_invoke_surfaces_target_errors() -> None:
-    from langchain.tools import tool
-
-    @tool("broken_defer_tool", description="raises")
-    def _broken_tool() -> str:
-        raise RuntimeError("boom")
-
-    registry = ToolRegistry()
-    registry.register(_broken_tool, source=ToolSource.META, bind_mode=ToolBindMode.DISCOVERABLE)
-    invoke = create_invoke_deferred_tool(registry)
-
-    result = await invoke.ainvoke({"name": "broken_defer_tool", "arguments": {}})
-    assert "Error invoking" in result
-    assert "boom" in result
+    assert "not a deferred native tool" in result

@@ -30,7 +30,7 @@
 │ subagent_limit / concurrency_limiter    │  ← 委派 fan-out 限制
 │ dangling_tool_call_middleware           │  ← 悬空 tool_call 修复
 │ deferred_index_middleware               │  ← stable deferred tool names (system)
-│ deferred_tool_middleware                │  ← DISCOVERABLE ToolNode resolve
+│ deferred_tool_middleware                │  ← effective-call normalization + DISCOVERABLE resolve
 │ filesystem_search_middleware            │  ← glob/grep 注入
 │ tool_interceptor_middleware             │  ← ★ 工具执行主拦截点
 │   └─ tool_executor (timeout/retry)      │
@@ -73,7 +73,7 @@
 | `subagent_limit_middleware.py` | 单轮 delegate 上限 |
 | `dangling_tool_call_middleware.py` | 修复 strict provider 400 |
 | `deferred_index_middleware.py` | stable `<available-deferred-tools>` injection |
-| `deferred_tool_middleware.py` | DISCOVERABLE ToolNode resolve; skill attenuation via `tool_choice.allowed_tools` (no `request.tools` mutation) |
+| `deferred_tool_middleware.py` | `invoke_deferred_tool` effective-call normalization before approval; DISCOVERABLE ToolNode resolve; skill attenuation via `tool_choice.allowed_tools` (no `request.tools` mutation) |
 | `filesystem_search_middleware.py` | 工作区搜索工具注入 |
 | `memory_context_middleware.py` | 记忆上下文注入编排（首轮 LLM 前 idempotent 注入） |
 | `memory_context_format.py` | 记忆注入格式化纯函数（stable SystemMessage / learned UNTRUSTED HumanMessage） |

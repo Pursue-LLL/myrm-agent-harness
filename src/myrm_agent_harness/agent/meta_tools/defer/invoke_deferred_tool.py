@@ -1,13 +1,13 @@
-"""invoke_deferred_tool — cache-safe proxy for DISCOVERABLE native tools.
+"""invoke_deferred_tool — cache-stable schema gateway for deferred tools.
 
 [POS]
-Turn1-bound gateway for DISCOVERABLE native tools; resolves via ToolRegistry without
-appending deferred schemas to bind_tools (see tool_management/defer/_ARCH.md).
+Turn1-bound schema gateway for DISCOVERABLE native tools. The runtime middleware
+normalizes gateway calls to their effective tool identity before approval and
+execution; this fallback never executes a target directly.
 """
 
 from __future__ import annotations
 
-import json
 from typing import TYPE_CHECKING
 
 from langchain.tools import tool
@@ -24,8 +24,7 @@ INVOKE_DEFERRED_TOOL_NAME = "invoke_deferred_tool"
 class InvokeDeferredInput(BaseModel):
     name: str = Field(
         description=(
-            "Deferred native tool name from <available-deferred-tools> "
-            "or discover_capability_tool DeferredToolHit."
+            "Deferred native tool name from <available-deferred-tools> or discover_capability_tool DeferredToolHit."
         )
     )
     arguments: dict[str, object] = Field(
@@ -34,20 +33,8 @@ class InvokeDeferredInput(BaseModel):
     )
 
 
-def _resolve_discoverable_tool(registry: ToolRegistry, name: str) -> BaseTool | None:
-    candidates = {name}
-    if not name.endswith("_tool"):
-        candidates.add(f"{name}_tool")
-    else:
-        candidates.add(name.removesuffix("_tool"))
-    for tool in registry.get_discoverable_tools():
-        if tool.name in candidates:
-            return tool
-    return None
-
-
 def create_invoke_deferred_tool(registry: ToolRegistry) -> BaseTool:
-    """Create Turn1 proxy that executes DISCOVERABLE tools without mutating bind_tools."""
+    """Create the Turn1 schema gateway consumed by DeferredToolMiddleware."""
 
     @tool(
         INVOKE_DEFERRED_TOOL_NAME,
@@ -62,19 +49,16 @@ def create_invoke_deferred_tool(registry: ToolRegistry) -> BaseTool:
         name: str,
         arguments: dict[str, object] | None = None,
     ) -> str:
-        target = _resolve_discoverable_tool(registry, name)
-        if target is None:
+        available_names = {tool.name for tool in registry.get_discoverable_tools()}
+        if name not in available_names:
             return (
                 f"Error: '{name}' is not a deferred native tool. "
                 "Check <available-deferred-tools> or use discover_capability_tool."
             )
-        payload = arguments if arguments is not None else {}
-        try:
-            result = await target.ainvoke(payload)
-        except Exception as exc:
-            return f"Error invoking deferred tool '{target.name}': {exc}"
-        if isinstance(result, str):
-            return result
-        return json.dumps(result, ensure_ascii=False, default=str)
+        argument_count = len(arguments) if arguments is not None else 0
+        return (
+            "Error: deferred tool execution was refused because the call did not pass "
+            f"through runtime safety normalization (target='{name}', arguments={argument_count})."
+        )
 
     return invoke_deferred_func

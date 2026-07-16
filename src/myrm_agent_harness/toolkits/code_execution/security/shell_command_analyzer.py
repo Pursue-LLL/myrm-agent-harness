@@ -26,6 +26,11 @@ Layer 3 (quote-stripped, ESCALATE):
   Suspicious but potentially legitimate patterns (curl|sh, eval, base64 -d,
   kill/pkill/killall). Forces ASK regardless of permission ruleset.
 
+Layer 4 (recursive, BLOCK/ESCALATE):
+  Extracts commands from shell wrappers that hide payloads in single quotes
+  (bash -c '...', sh -c '...', trap '...' SIGNAL) and recursively analyzes
+  them. Depth-limited to prevent DoS.
+
 Consumers:
 - execution/security/validator.validate_command() — defense-in-depth check
 - agent/security/engine.evaluate_tool_call() — primary check
@@ -133,6 +138,17 @@ _DANGEROUS_COMMANDS: tuple[tuple[str, str], ...] = (
     (r"\brm\s+(-[a-zA-Z]*[rf][a-zA-Z]*\s+)*~(/|\s|$)", "Deleting home directory"),
     (r"\brm\s+(-[a-zA-Z]*[rf][a-zA-Z]*\s+)*\$HOME\b", "Deleting home directory"),
     (r"\brm\s+-rf\s+/(?!\w)", "Recursive force delete from root"),
+    # Long-form options: --force, --recursive, --no-preserve-root
+    (r"\brm\s+(\S+\s+)*--no-preserve-root\b", "Bypassing rm safety with --no-preserve-root"),
+    (r"\brm\s+(\S+\s+)*(--force|--recursive)\s+(\S+\s+)*/\s*$", "Deleting root (long-form options)"),
+    (r"\brm\s+(\S+\s+)*(--force|--recursive)\s+(\S+\s+)*/\*", "Deleting root files (long-form options)"),
+    (r"\brm\s+(\S+\s+)*(--force|--recursive)\s+(\S+\s+)*~(/|\s|$)", "Deleting home (long-form options)"),
+    (r"\brm\s+(\S+\s+)*(--force|--recursive)\s+(\S+\s+)*\$HOME\b", "Deleting home (long-form options)"),
+    # Options-after-operand: rm /path -rf, rm ~ -rf
+    (r"\brm\s+/\s+-[a-zA-Z]*[rf][a-zA-Z]*", "Deleting root (options after path)"),
+    (r"\brm\s+/\*\s+-[a-zA-Z]*[rf][a-zA-Z]*", "Deleting root files (options after path)"),
+    (r"\brm\s+~\s+-[a-zA-Z]*[rf][a-zA-Z]*", "Deleting home (options after path)"),
+    (r"\brm\s+\$HOME\s+-[a-zA-Z]*[rf][a-zA-Z]*", "Deleting home (options after path)"),
     (r"\bmkfs\.\w+", "Formatting filesystem"),
     (r"\bdd\s+.*\bof=/dev/", "Direct disk write"),
     (r">\s*/dev/sd[a-z]", "Overwriting disk device"),
@@ -270,13 +286,42 @@ def _integration_write_patterns_compiled() -> tuple[tuple[re.Pattern[str], str],
 
 
 # ---------------------------------------------------------------------------
-# Quote-aware preprocessing — character-level state machine
+# Quote-aware preprocessing & recursive shell wrapper analysis
 # ---------------------------------------------------------------------------
 
-_PLACEHOLDER = "\x01"
-
-
 from .shell_command_strip import _strip_quoted_content
+
+_MAX_RECURSIVE_DEPTH = 8
+
+_SHELL_EXEC_SINGLE_QUOTE_RE = re.compile(
+    r"\b(?:ba|da|z|k)?sh\s+-[a-zA-Z]*c\s+'([^']+)'"
+)
+_TRAP_SINGLE_QUOTE_RE = re.compile(
+    r"\btrap\s+'([^']+)'\s+\w+"
+)
+
+
+def _extract_embedded_commands(command: str) -> list[str]:
+    """Extract commands hidden inside single-quoted shell wrappers."""
+    embedded: list[str] = []
+    for match in _SHELL_EXEC_SINGLE_QUOTE_RE.finditer(command):
+        embedded.append(match.group(1))
+    for match in _TRAP_SINGLE_QUOTE_RE.finditer(command):
+        embedded.append(match.group(1))
+    return embedded
+
+
+def _analyze_recursive(command: str, depth: int) -> list[CommandThreat]:
+    """Recursively analyze embedded commands up to MAX_RECURSIVE_DEPTH."""
+    if depth >= _MAX_RECURSIVE_DEPTH:
+        return []
+
+    embedded = _extract_embedded_commands(command)
+    threats: list[CommandThreat] = []
+    for cmd in embedded:
+        threats.extend(analyze_command(cmd, _depth=depth + 1))
+    return threats
+
 
 def is_destructive_command(command: str) -> bool:
     """Check if a command is destructive (modifies files/state significantly).
@@ -308,7 +353,7 @@ def is_destructive_command(command: str) -> bool:
     return False
 
 
-def analyze_command(command: str) -> tuple[CommandThreat, ...]:
+def analyze_command(command: str, *, _depth: int = 0) -> tuple[CommandThreat, ...]:
     """Analyze a shell command for security threats.
 
     Returns all detected threats sorted by severity (BLOCK first, then ESCALATE).
@@ -317,6 +362,8 @@ def analyze_command(command: str) -> tuple[CommandThreat, ...]:
     Layer 1 (binary/Unicode) checks run on the raw string.
     Layer 2/3 (injection vectors, dangerous commands, suspicious patterns) run
     on the quote-stripped string so ``echo "rm -rf /"`` won't false-positive.
+    Layer 4 (recursive) extracts commands from `bash -c '...'` and `trap '...'`
+    wrappers and recursively analyzes them.
     """
     if not command or not command.strip():
         return ()
@@ -427,6 +474,10 @@ def analyze_command(command: str) -> tuple[CommandThreat, ...]:
                     evidence=match.group(0),
                 )
             )
+
+    # Layer 4: Recursive analysis of embedded commands in shell wrappers
+    if _depth < _MAX_RECURSIVE_DEPTH:
+        threats.extend(_analyze_recursive(command, _depth))
 
     threats.sort(key=lambda t: 0 if t.level == ThreatLevel.BLOCK else 1)
     return tuple(threats)

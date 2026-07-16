@@ -13,6 +13,6 @@ Unified deferred-tool activation: economics, stable index, invoke gateway.
 
 - `meta_tools/defer/invoke_deferred_tool.py` — Turn1-bound gateway for DISCOVERABLE native tools.
 - `middlewares/deferred_index_middleware.py` — injects stable index once per thread.
-- `middlewares/deferred_tool_middleware.py` — ToolNode resolution only; no `request.tools` mutation.
+- `middlewares/deferred_tool_middleware.py` — effective-call normalization before approval + ToolNode resolution; no `request.tools` mutation.
 
 **Design:** Framework 11.1 — never append deferred schemas to `bind_tools`; use `invoke_deferred_tool` + stable index.

@@ -66,16 +66,18 @@ def build_middlewares(
 
     The ordering matters: dedup -> dangling -> subagent-limit -> interceptor ->
     clarification-guard -> approval -> completion -> progress -> goal-focus -> replan ->
-    call-limits -> budget -> security -> user -> safety -> debug.
+    call-limits -> budget -> security -> user -> safety -> deferred-normalization -> debug.
+    DeferredToolMiddleware is intentionally the last after-model middleware so its
+    effective-call normalization runs before approval (after-model hooks run in reverse).
     """
     from myrm_agent_harness.agent.middlewares.clarification_guard_middleware import (
         ClarificationGuardMiddleware,
     )
-    from myrm_agent_harness.agent.middlewares.deferred_tool_middleware import (
-        DeferredToolMiddleware,
-    )
     from myrm_agent_harness.agent.middlewares.deferred_index_middleware import (
         DeferredIndexMiddleware,
+    )
+    from myrm_agent_harness.agent.middlewares.deferred_tool_middleware import (
+        DeferredToolMiddleware,
     )
     from myrm_agent_harness.agent.middlewares.goal_focus_middleware import (
         goal_focus_middleware,
@@ -92,7 +94,6 @@ def build_middlewares(
     params = engine_params or _EngineParams()
 
     middlewares: list[object] = [
-        DeferredToolMiddleware(registry),
         DeferredIndexMiddleware(registry),
         tool_call_dedup_middleware,
         dangling_tool_call_middleware,
@@ -136,6 +137,7 @@ def build_middlewares(
 
     middlewares.extend(user_middlewares)
     middlewares.append(create_safety_dispatcher())
+    middlewares.append(DeferredToolMiddleware(registry))
     middlewares.append(debug_logger_middleware)
 
     return middlewares
@@ -235,9 +237,7 @@ def emit_tools_snapshot(registry: ToolRegistry) -> list[dict[str, object]] | Non
     """
     try:
         snapshots = registry.snapshot()
-        turn1_snapshots = [
-            s for s in snapshots if s.bind_mode == ToolBindMode.TURN1.value
-        ]
+        turn1_snapshots = [s for s in snapshots if s.bind_mode == ToolBindMode.TURN1.value]
         if not turn1_snapshots:
             return None
         from dataclasses import asdict

@@ -27,7 +27,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `dangling_tool_call_middleware.py` | Core | Repair dangling tool_calls for strict providers. | ✅ |
 | `deferred_index_middleware.py` | Core | Inject `<available-deferred-tools>` stable system index once per thread. | ✅ |
 | `_skill_tool_choice.py` | Internal | Build OpenAI ``allowed_tools`` tool_choice for skill attenuation (cache-safe). | ✅ |
-| `deferred_tool_middleware.py` | Core | ToolNode resolution for DISCOVERABLE tools; skill attenuation via ``tool_choice.allowed_tools``. Does not mutate `request.tools`. | ✅ |
+| `deferred_tool_middleware.py` | Core | Normalizes deferred gateway calls to effective tool identity before approval; ToolNode resolution for DISCOVERABLE tools; skill attenuation via ``tool_choice.allowed_tools``. Does not mutate `request.tools`. | ✅ |
 | `debug_logger_middleware.py` | Core | Full message list debug logging. | ✅ |
 | `filesystem_search_middleware.py` | Core | Inject glob/grep workspace search tools. | ✅ |
 | `memory_context_middleware.py` | Core | `<user_memory_context>` + scope boundary + untrusted data wrapping. | ✅ |

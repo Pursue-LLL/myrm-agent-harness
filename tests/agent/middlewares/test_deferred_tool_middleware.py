@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from langchain_core.messages import AIMessage, ToolCall
 from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent.middlewares.deferred_tool_middleware import (
@@ -43,6 +44,68 @@ async def test_awrap_model_call_does_not_mutate_tools(registry: ToolRegistry) ->
     response = await middleware.awrap_model_call(request, next_call)
     assert response == "response"
     assert request.tools == []
+
+
+@pytest.mark.asyncio
+async def test_aafter_model_normalizes_gateway_to_effective_tool(registry: ToolRegistry) -> None:
+    middleware = DeferredToolMiddleware(registry)
+    message = AIMessage(
+        content="",
+        tool_calls=[
+            ToolCall(
+                name="invoke_deferred_tool",
+                args={"name": "dummy_tool", "arguments": {"value": "x"}},
+                id="call-1",
+                type="tool_call",
+            )
+        ],
+    )
+
+    result = await middleware.aafter_model({"messages": [message]}, MagicMock())
+
+    assert result == {"messages": [message]}
+    assert message.tool_calls == [ToolCall(name="dummy_tool", args={"value": "x"}, id="call-1", type="tool_call")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "gateway_args",
+    [
+        {"name": "missing_tool", "arguments": {}},
+        {"name": "invoke_deferred_tool", "arguments": {}},
+        {"name": "dummy_tool", "arguments": "invalid"},
+        {"arguments": {}},
+    ],
+)
+async def test_aafter_model_leaves_invalid_gateway_calls_for_fail_closed_fallback(
+    registry: ToolRegistry,
+    gateway_args: dict[str, object],
+) -> None:
+    middleware = DeferredToolMiddleware(registry)
+    original_call = ToolCall(
+        name="invoke_deferred_tool",
+        args=gateway_args,
+        id="call-invalid",
+        type="tool_call",
+    )
+    message = AIMessage(content="", tool_calls=[original_call])
+
+    result = await middleware.aafter_model({"messages": [message]}, MagicMock())
+
+    assert result is None
+    assert message.tool_calls == [original_call]
+
+
+@pytest.mark.asyncio
+async def test_aafter_model_preserves_non_gateway_calls(registry: ToolRegistry) -> None:
+    middleware = DeferredToolMiddleware(registry)
+    direct_call = ToolCall(name="direct_tool", args={"value": "x"}, id="call-direct", type="tool_call")
+    message = AIMessage(content="", tool_calls=[direct_call])
+
+    result = await middleware.aafter_model({"messages": [message]}, MagicMock())
+
+    assert result is None
+    assert message.tool_calls == [direct_call]
 
 
 def test_wrap_model_call_sync_raises() -> None:
@@ -111,12 +174,15 @@ async def test_awrap_tool_call_resolves_from_registry_when_turn1_bound(
         captured.append(req)
         return "resolved"
 
-    with patch(
-        "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
-        return_value=[],
-    ), patch(
-        "myrm_agent_harness.agent.middlewares._session_context.get_active_tool_registry",
-        return_value=None,
+    with (
+        patch(
+            "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
+            return_value=[],
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares._session_context.get_active_tool_registry",
+            return_value=None,
+        ),
     ):
         result = await middleware.awrap_tool_call(request, handler)
 
@@ -134,12 +200,15 @@ async def test_awrap_tool_call_falls_through_when_tool_missing(
     request.tool_call = {"name": "missing_tool"}
     handler = AsyncMock(return_value="fallback")
 
-    with patch(
-        "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
-        return_value=[],
-    ), patch(
-        "myrm_agent_harness.agent.middlewares._session_context.get_active_tool_registry",
-        return_value=None,
+    with (
+        patch(
+            "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
+            return_value=[],
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares._session_context.get_active_tool_registry",
+            return_value=None,
+        ),
     ):
         result = await middleware.awrap_tool_call(request, handler)
 
@@ -163,12 +232,15 @@ async def test_awrap_tool_call_resolves_from_active_resolved_tools(
         captured.append(req)
         return "from_session"
 
-    with patch(
-        "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
-        return_value=[DummyTool()],
-    ), patch(
-        "myrm_agent_harness.agent.middlewares._session_context.get_active_tool_registry",
-        return_value=None,
+    with (
+        patch(
+            "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
+            return_value=[DummyTool()],
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares._session_context.get_active_tool_registry",
+            return_value=None,
+        ),
     ):
         result = await middleware.awrap_tool_call(request, handler)
 
@@ -192,12 +264,15 @@ async def test_awrap_tool_call_skips_non_string_tool_names(
     async def handler(req: object) -> str:
         return "ok"
 
-    with patch(
-        "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
-        return_value=[BadNameTool(), DummyTool()],
-    ), patch(
-        "myrm_agent_harness.agent.middlewares._session_context.get_active_tool_registry",
-        return_value=None,
+    with (
+        patch(
+            "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
+            return_value=[BadNameTool(), DummyTool()],
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares._session_context.get_active_tool_registry",
+            return_value=None,
+        ),
     ):
         result = await middleware.awrap_tool_call(request, handler)
 
@@ -218,14 +293,17 @@ async def test_awrap_tool_call_resolves_discoverable_only_pool(registry: ToolReg
         captured.append(req)
         return "discoverable"
 
-    with patch.object(registry, "resolve", return_value=[]), patch.object(
-        registry, "get_runtime_tools", return_value=[]
-    ), patch(
-        "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
-        return_value=[],
-    ), patch(
-        "myrm_agent_harness.agent.middlewares._session_context.get_active_tool_registry",
-        return_value=None,
+    with (
+        patch.object(registry, "resolve", return_value=[]),
+        patch.object(registry, "get_runtime_tools", return_value=[]),
+        patch(
+            "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
+            return_value=[],
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares._session_context.get_active_tool_registry",
+            return_value=None,
+        ),
     ):
         result = await middleware.awrap_tool_call(request, handler)
 
@@ -281,6 +359,7 @@ async def test_deferred_tool_middleware_allowed_tools_with_loaded_skills(
     captured_request: ModelRequest | None = None
 
     try:
+
         async def next_call(req: ModelRequest) -> str:
             nonlocal captured_request
             captured_request = req

@@ -95,6 +95,17 @@ class TestBuildMiddlewares:
         result = build_middlewares(create_registry(), [])
         assert result[-1] is debug_logger_middleware
 
+    def test_deferred_normalizer_runs_before_after_model_policies(self):
+        from myrm_agent_harness.agent._internals.agent_runtime import (
+            build_middlewares,
+            create_registry,
+        )
+
+        result = build_middlewares(create_registry(), [])
+        class_names = [type(middleware).__name__ for middleware in result]
+        assert class_names[-2] == "DeferredToolMiddleware"
+        assert class_names.index("DeferredToolMiddleware") > class_names.index("ToolApprovalMiddleware")
+
     def test_contains_core_middlewares(self):
         from myrm_agent_harness.agent._internals.agent_runtime import (
             build_middlewares,
@@ -118,12 +129,11 @@ class TestBuildMiddlewares:
         names = {mw.name for mw in result}
         assert "progress_middleware" in names
         assert "goal_focus_middleware" in names
+
     """Tests for build_tools — resolves user, deferred, and discovery tools."""
 
     @pytest.mark.asyncio
-    async def test_registers_discover_capability_for_discoverable_tools(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_registers_discover_capability_for_discoverable_tools(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from myrm_agent_harness.agent._internals.agent_runtime import (
             build_tools,
             create_registry,
@@ -156,13 +166,9 @@ class TestBuildMiddlewares:
             calls.append("called")
             return discover_capability
 
-        monkeypatch.setattr(
-            discovery_module, "create_discover_capability_tool", fake_factory
-        )
+        monkeypatch.setattr(discovery_module, "create_discover_capability_tool", fake_factory)
 
-        economics_module = importlib.import_module(
-            "myrm_agent_harness.agent.tool_management.defer.economics"
-        )
+        economics_module = importlib.import_module("myrm_agent_harness.agent.tool_management.defer.economics")
         monkeypatch.setattr(economics_module, "should_bind_discover_gateway", lambda *a, **kw: True)
 
         tools = await build_tools(registry, [web_search_tool], [mcp_slack_tool], [])
