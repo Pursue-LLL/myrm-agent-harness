@@ -354,3 +354,35 @@ class TestEmbedSingleCacheMiss:
 
         assert result == [0.9] * 768
         mock_embedding.embed.assert_awaited_once_with("test text")
+
+
+class TestExpectedValidDaysRoundTrip:
+    """Test expected_valid_days survives serialize → deserialize cycle."""
+
+    def test_evd_with_value(self):
+        mem = SemanticMemory(content="User lives in Tokyo", expected_valid_days=365)
+        doc = semantic_to_doc(mem)
+        assert doc.metadata["expected_valid_days"] == 365
+
+        restored = doc_to_semantic(doc)
+        assert restored.expected_valid_days == 365
+
+    def test_evd_none_serializes_as_zero(self):
+        mem = SemanticMemory(content="Generic fact", expected_valid_days=None)
+        doc = semantic_to_doc(mem)
+        assert doc.metadata["expected_valid_days"] == 0
+
+        restored = doc_to_semantic(doc)
+        assert restored.expected_valid_days is None
+
+    def test_evd_zero_treated_as_none(self):
+        mem = SemanticMemory(content="Test", expected_valid_days=0)
+        doc = semantic_to_doc(mem)
+        restored = doc_to_semantic(doc)
+        assert restored.expected_valid_days is None
+
+    def test_evd_not_in_extra_metadata(self):
+        mem = SemanticMemory(content="Test", expected_valid_days=90)
+        doc = semantic_to_doc(mem)
+        restored = doc_to_semantic(doc)
+        assert "expected_valid_days" not in restored.metadata
