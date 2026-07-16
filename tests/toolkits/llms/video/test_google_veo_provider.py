@@ -8,7 +8,8 @@ from unittest.mock import AsyncMock
 
 import httpx
 import pytest
-import respx
+
+respx = pytest.importorskip("respx")
 from pydantic import SecretStr
 
 from myrm_agent_harness.toolkits.llms.video.models import VideoGenerationConfig
