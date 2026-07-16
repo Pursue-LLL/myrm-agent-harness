@@ -93,14 +93,20 @@ def compute_direct_threshold(bridge_tools: Sequence[BaseTool] | None = None) -> 
     return bridge_tokens * PTC_OVERHEAD_MULTIPLIER
 
 
+def _input_schema(tool: BaseTool) -> dict[str, object]:
+    """Return a Pydantic v2 JSON schema, falling back for malformed tools."""
+    try:
+        schema_model = tool.get_input_schema()
+        return cast("dict[str, object]", schema_model.model_json_schema())
+    except Exception:
+        return {}
+
+
 def estimate_schema_tokens(tools: Sequence[BaseTool]) -> int:
     """Estimate schema tokens for a list of tools via chars/4 rule."""
     total_chars = 0
     for tool in tools:
-        try:
-            schema = tool.get_input_schema().schema() if hasattr(tool, "get_input_schema") else {}
-        except Exception:
-            schema = {}
+        schema = _input_schema(tool)
         entry = {"name": tool.name, "description": tool.description or "", "parameters": schema}
         total_chars += len(json.dumps(entry, ensure_ascii=False, separators=(",", ":")))
     return int(total_chars / CHARS_PER_TOKEN + 0.5)
@@ -108,10 +114,7 @@ def estimate_schema_tokens(tools: Sequence[BaseTool]) -> int:
 
 def estimate_single_tool_tokens(tool: BaseTool) -> int:
     """Estimate schema tokens for a single tool."""
-    try:
-        schema = tool.get_input_schema().schema() if hasattr(tool, "get_input_schema") else {}
-    except Exception:
-        schema = {}
+    schema = _input_schema(tool)
     entry = {"name": tool.name, "description": tool.description or "", "parameters": schema}
     return int(len(json.dumps(entry, ensure_ascii=False, separators=(",", ":"))) / CHARS_PER_TOKEN + 0.5)
 

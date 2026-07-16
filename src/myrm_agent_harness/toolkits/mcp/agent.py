@@ -410,8 +410,6 @@ class MCPAgent:
                 schema_for_coercion = (
                     raw_schema
                     if isinstance(raw_schema, dict)
-                    else getattr(raw_schema, "schema", lambda: {})()
-                    if raw_schema is not None and hasattr(raw_schema, "schema")
                     else getattr(raw_schema, "model_json_schema", lambda: {})()
                     if raw_schema is not None and hasattr(raw_schema, "model_json_schema")
                     else {}

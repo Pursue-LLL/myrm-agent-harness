@@ -8,9 +8,8 @@ production is safely handled end-to-end.
 """
 
 import asyncio
-import json
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 from langchain_core.tools import StructuredTool
@@ -247,7 +246,6 @@ class TestAudioContentUpstreamFault:
     async def test_audio_content_returns_error_not_crash(self):
         """Simulates an MCP tool that returns AudioContent — adapters raise
         NotImplementedError, which _timeout_wrapper must catch."""
-        from mcp.types import AudioContent
 
         async def _raise_not_impl(*a: object, **kw: object) -> None:
             raise NotImplementedError(

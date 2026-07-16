@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from myrm_agent_harness.core.security.guards.ssrf import SSRFResult
 from myrm_agent_harness.toolkits.mcp.security import (
     MCPResponseError,
     MCPResponseValidator,
@@ -13,7 +14,6 @@ from myrm_agent_harness.toolkits.mcp.security import (
     ResolvedURL,
     URLValidationError,
 )
-from myrm_agent_harness.core.security.guards.ssrf import SSRFResult
 
 # ============================================================================
 # MCPURLValidator

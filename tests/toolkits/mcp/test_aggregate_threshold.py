@@ -7,9 +7,9 @@ from unittest.mock import MagicMock
 from myrm_agent_harness.agent._factory.mcp_routing import (
     AGGREGATE_DIRECT_TOKEN_BUDGET,
     _DirectServerBundle,
+    demote_direct_servers_over_budget,
     estimate_schema_tokens,
     estimate_single_tool_tokens,
-    demote_direct_servers_over_budget,
 )
 from myrm_agent_harness.toolkits.mcp.config import MCPConfig
 
@@ -20,7 +20,7 @@ def _make_mock_tool(name: str, desc_size: int = 50, n_params: int = 2) -> MagicM
     tool.description = f"Tool: {name}" + "x" * desc_size
     props = {f"param_{i}": {"type": "string", "description": "y" * 30} for i in range(n_params)}
     mock_schema = MagicMock()
-    mock_schema.schema.return_value = {
+    mock_schema.model_json_schema.return_value = {
         "type": "object",
         "properties": props,
         "required": list(props.keys())[:1],

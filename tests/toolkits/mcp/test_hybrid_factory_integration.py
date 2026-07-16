@@ -21,7 +21,10 @@ def _make_mock_tool(name: str, schema_size: int = 50) -> MagicMock:
     tool.name = name
     tool.description = f"Tool: {name}" + "x" * schema_size
     mock_schema = MagicMock()
-    mock_schema.schema.return_value = {"type": "object", "properties": {"q": {"type": "string"}}}
+    mock_schema.model_json_schema.return_value = {
+        "type": "object",
+        "properties": {"q": {"type": "string"}},
+    }
     tool.get_input_schema = MagicMock(return_value=mock_schema)
     return tool
 
