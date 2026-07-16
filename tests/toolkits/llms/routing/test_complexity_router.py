@@ -6,6 +6,7 @@ Covers:
 - Session momentum (MR-17)
 - PenaltyTracker (MR-14) with decay
 - Content dedup (MR-18)
+- Min-tier floor enforcement and dedup bypass
 - Model selection per tier with graceful degradation
 - LLM judge (Phase 2) with caching
 - Empty/multimodal query handling
@@ -496,6 +497,53 @@ class TestRouteTask:
             reasoning_model_cfg=REASON_CFG,
         )
         assert result.tier == RoutingTier.REASONING
+
+    @pytest.mark.asyncio
+    async def test_min_tier_escalates_simple_to_standard(self) -> None:
+        result = await route_task(
+            "hello",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            min_tier=RoutingTier.STANDARD,
+        )
+        assert result.tier == RoutingTier.STANDARD
+        assert "min_tier_escalation" in result.reason
+
+    @pytest.mark.asyncio
+    async def test_min_tier_none_preserves_original(self) -> None:
+        result = await route_task(
+            "hello",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            min_tier=None,
+        )
+        assert result.tier == RoutingTier.SIMPLE
+
+    @pytest.mark.asyncio
+    async def test_min_tier_bypasses_content_dedup(self) -> None:
+        await route_task("debug this specific error", STD_CFG, light_model_cfg=LIGHT_CFG)
+        result = await route_task(
+            "debug this specific error",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            min_tier=RoutingTier.REASONING,
+        )
+        assert result.tier == RoutingTier.REASONING
+        assert result.reason != "content_dedup"
+
+    @pytest.mark.asyncio
+    async def test_min_tier_no_effect_when_tier_already_higher(self) -> None:
+        result = await route_task(
+            "prove the theorem and derive the equation step by step",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            min_tier=RoutingTier.SIMPLE,
+        )
+        assert result.tier == RoutingTier.REASONING
+        assert "min_tier_escalation" not in result.reason
 
 
 # ─── RoutingResult dataclass ─────────────────────────────────────────

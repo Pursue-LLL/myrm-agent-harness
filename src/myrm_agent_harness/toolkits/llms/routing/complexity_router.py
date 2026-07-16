@@ -176,6 +176,9 @@ class RoutingTier(StrEnum):
     REASONING = "reasoning"
 
 
+_TIER_RANK: dict[RoutingTier, int] = {RoutingTier.SIMPLE: 0, RoutingTier.STANDARD: 1, RoutingTier.REASONING: 2}
+
+
 @dataclass(frozen=True)
 class RoutingResult:
     tier: RoutingTier
@@ -715,6 +718,7 @@ async def route_task(
     judge_llm: BaseChatModel | None = None,
     *,
     recent_tiers: list[RoutingTier] | None = None,
+    min_tier: RoutingTier | None = None,
     standard_keywords: frozenset[str] | None = None,
     reasoning_keywords: frozenset[str] | None = None,
     simple_indicators: frozenset[str] | None = None,
@@ -736,6 +740,7 @@ async def route_task(
         reasoning_fallback_cfg: Fallback for REASONING tier
         judge_llm: Optional LLM for Phase 2 classification
         recent_tiers: Recent routing tiers from conversation history (for momentum)
+        min_tier: Minimum tier floor — result will not be lower than this (e.g. for regenerate escalation)
         standard_keywords: Custom standard-tier keywords (defaults provided)
         reasoning_keywords: Custom reasoning-tier keywords (defaults provided)
         simple_indicators: Custom simple greeting indicators (defaults provided)
@@ -772,56 +777,46 @@ async def route_task(
 
     rule_result = _rule_based_classify(text, has_image, std_kw, reason_kw, simple_ind)
     if rule_result is not None:
-        # MR-18: Content dedup — skip momentum for identical rule-based queries
-        deduped = _dedup_check(text)
-        if deduped is not None:
-            cfg, fallback = _select_model_for_tier(deduped, *select_args)
-            return RoutingResult(
-                tier=deduped,
-                model_cfg=cfg,
-                fallback_model_cfg=fallback,
-                reason="content_dedup",
-            )
+        if not min_tier:
+            deduped = _dedup_check(text)
+            if deduped is not None:
+                cfg, fallback = _select_model_for_tier(deduped, *select_args)
+                return RoutingResult(
+                    tier=deduped,
+                    model_cfg=cfg,
+                    fallback_model_cfg=fallback,
+                    reason="content_dedup",
+                )
 
         final_tier, overridden = _apply_momentum(rule_result, text, recent_tiers)
         reason = "momentum_override" if overridden else "rule_based"
-        cfg, fallback = _select_model_for_tier(final_tier, *select_args)
-        logger.info(
-            "Routing decision: tier=%s model=%s reason=%s",
-            final_tier.value,
-            cfg.model,
-            reason,
-        )
-        _dedup_store(text, final_tier)
-        return RoutingResult(tier=final_tier, model_cfg=cfg, fallback_model_cfg=fallback, reason=reason)
-
-    if judge_llm is not None:
+    elif judge_llm is not None:
         text_hash = _hash_text(text)
         cached_tier = _cache_get(text_hash)
         if cached_tier is not None:
-            cfg, fallback = _select_model_for_tier(cached_tier, *select_args)
-            return RoutingResult(
-                tier=cached_tier, model_cfg=cfg, fallback_model_cfg=fallback, reason="llm_judge_cached"
-            )
+            final_tier = cached_tier
+            reason = "llm_judge_cached"
+        else:
+            final_tier = await _llm_judge_classify(text, judge_llm, judge_prompt)
+            _cache_put(text_hash, final_tier)
+            reason = "llm_judge"
+    else:
+        final_tier = RoutingTier.STANDARD
+        reason = "default_standard"
 
-        tier = await _llm_judge_classify(text, judge_llm, judge_prompt)
-        _cache_put(text_hash, tier)
+    if min_tier and _TIER_RANK.get(final_tier, 1) < _TIER_RANK.get(min_tier, 1):
+        final_tier = min_tier
+        reason = f"min_tier_escalation({reason})"
 
-        cfg, fallback = _select_model_for_tier(tier, *select_args)
-        logger.info(
-            "Routing decision: tier=%s model=%s reason=llm_judge",
-            tier.value,
-            cfg.model,
-        )
-        return RoutingResult(tier=tier, model_cfg=cfg, fallback_model_cfg=fallback, reason="llm_judge")
-
-    cfg, fallback = _select_model_for_tier(RoutingTier.STANDARD, *select_args)
-    return RoutingResult(
-        tier=RoutingTier.STANDARD,
-        model_cfg=cfg,
-        fallback_model_cfg=fallback,
-        reason="default_standard",
+    cfg, fallback = _select_model_for_tier(final_tier, *select_args)
+    logger.info(
+        "Routing decision: tier=%s model=%s reason=%s",
+        final_tier.value,
+        cfg.model,
+        reason,
     )
+    _dedup_store(text, final_tier)
+    return RoutingResult(tier=final_tier, model_cfg=cfg, fallback_model_cfg=fallback, reason=reason)
 
 
 def record_misroute(tier: RoutingTier) -> None:
