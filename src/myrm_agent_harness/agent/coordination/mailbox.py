@@ -239,8 +239,17 @@ async def emit_teammate_message_sse(message: TeammateMessage) -> None:
         logger.warning("Failed to emit teammate_message SSE: %s", exc)
 
 
-def drain_teammate_messages_for_task(session_id: str, task_id: str) -> str | None:
-    """Sync drain hook for StreamExecutor (subagent turn boundary)."""
+def drain_teammate_messages_for_task(
+    session_id: str,
+    task_id: str,
+    *,
+    include_roster: bool = False,
+) -> str | None:
+    """Sync drain hook for StreamExecutor (subagent turn boundary).
+
+    When *include_roster* is True the active sibling roster is appended so
+    that the LLM knows whom it can message via ``send_teammate_message``.
+    """
     if not session_id or not task_id:
         return None
     mailbox = _MAILBOX_CACHE.get(session_id)
@@ -249,7 +258,19 @@ def drain_teammate_messages_for_task(session_id: str, task_id: str) -> str | Non
     result = mailbox.drain_unread_sync(task_id)
     if result.messages:
         _LAST_DRAINED_BY_TASK[task_id] = list(result.messages)
-    return format_teammate_injection(result.messages)
+
+    parts: list[str] = []
+    msg_injection = format_teammate_injection(result.messages)
+    if msg_injection:
+        parts.append(msg_injection)
+
+    if include_roster:
+        roster = mailbox.list_active_roster(exclude_task_id=task_id)
+        roster_text = format_roster_prompt(roster)
+        if roster_text:
+            parts.append(roster_text)
+
+    return "\n".join(parts) if parts else None
 
 
 def group_history_by_task(

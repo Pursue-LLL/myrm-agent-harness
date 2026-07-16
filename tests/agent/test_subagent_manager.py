@@ -250,7 +250,7 @@ async def test_spawn_child_retries_after_transient_failure() -> None:
         agent_type="search",
         task_description="recover after failure",
         config=config,
-        context={"session_id": "test", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
+        context={"session_id": "test-retry-isolation", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
         tool_registry_getter=lambda: [FakeSearchTool()],
         wait=True,
     )

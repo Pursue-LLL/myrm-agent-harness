@@ -219,7 +219,13 @@ class SubagentExecutorAttemptMixin:
                     content = event.get("data", "")
                     messages.append(content if isinstance(content, str) else str(content))
                 elif event_type == AgentEventType.ERROR.value:
-                    raise RuntimeError(f"Subagent error: {event.get('error', 'Unknown error')}")
+                    from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
+                    from myrm_agent_harness.toolkits.llms.errors.exceptions import MyrmLLMError
+
+                    raise MyrmLLMError(
+                        error_code=FailoverReason.UNKNOWN,
+                        default_msg=f"Subagent error: {event.get('error', 'Unknown error')}",
+                    )
                 else:
                     await event_forwarder.handle_event(event)
 

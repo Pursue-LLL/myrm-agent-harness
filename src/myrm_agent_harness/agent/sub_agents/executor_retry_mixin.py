@@ -27,6 +27,8 @@ from myrm_agent_harness.utils.runtime.progress_sink import ToolProgressSink
 from myrm_agent_harness.utils.runtime.steering import SteeringToken
 from myrm_agent_harness.utils.token_economics.tracker import get_token_tracker
 
+from myrm_agent_harness.toolkits.llms.errors.exceptions import MyrmLLMError
+
 from .executor_helpers import _cascade_cancel_descendants, _compact_error_message
 from .types import (
     SubagentBudgetExceededError,
@@ -172,6 +174,17 @@ class SubagentExecutorRetryMixin:
                         status=SubAgentStatus.TIMED_OUT,
                         trace_id=trace_id,
                     )
+                except MyrmLLMError as llm_exc:
+                    retries_left -= 1
+                    logger.warning(
+                        "[subagent:%s] LLM error, retries_left=%d",
+                        task_id, retries_left,
+                    )
+                    if retries_left > 0:
+                        await asyncio.sleep(backoff_seconds)
+                        backoff_seconds *= 2
+                        continue
+                    raise
                 except SubagentBudgetExceededError as error:
                     now = time.time()
                     return SubAgentResult(

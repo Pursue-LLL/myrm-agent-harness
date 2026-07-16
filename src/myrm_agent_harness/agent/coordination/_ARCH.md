@@ -8,6 +8,7 @@ Session-scoped in-memory queues with optional workspace JSONL persistence (`team
 - **Target validation**: `send_teammate_message_tool` rejects unknown `target_task_id` (not in active roster).
 - **JSONL retention**: trim file to last 1000 lines after persist.
 - **GUI SSE (M1)**: `send_teammate_message_tool` success → `emit_teammate_message_sse` via `ToolProgressSink`; drain path still emits for recipient turn.
+- **Roster injection**: `drain_teammate_messages_for_task(include_roster=True)` appends `<active_teammates>` XML so the LLM knows sibling task IDs for P2P messaging. The `_drain_teammate_messages` closure in `agent_runtime.py` uses a `_roster_injected` flag to inject roster on the first turn and refresh it only when new messages arrive.
 
 ## 文件清单
 

@@ -11,7 +11,9 @@ import pytest
 from myrm_agent_harness.agent.coordination.mailbox import (
     _RATE_LIMIT_WINDOW_SEC,
     TeammateMailbox,
+    drain_teammate_messages_for_task,
     emit_teammate_message_sse,
+    format_roster_prompt,
     format_teammate_injection,
     get_teammate_mailbox,
     group_history_by_task,
@@ -201,3 +203,219 @@ def test_jsonl_trim_keeps_tail(tmp_path: Path) -> None:
     mailbox._persist(msg)
     lines = path.read_text(encoding="utf-8").splitlines()
     assert len(lines) <= _MAX_JSONL_LINES
+
+
+# ── Roster injection tests ──────────────────────────────────────────────
+
+
+def test_format_roster_prompt_returns_xml_for_non_empty() -> None:
+    roster = [
+        {"task_id": "task_001", "agent_type": "researcher"},
+        {"task_id": "task_002", "agent_type": "coder"},
+    ]
+    result = format_roster_prompt(roster)
+    assert result is not None
+    assert "<active_teammates>" in result
+    assert "task_001: researcher" in result
+    assert "task_002: coder" in result
+    assert "</active_teammates>" in result
+
+
+def test_format_roster_prompt_returns_none_for_empty() -> None:
+    assert format_roster_prompt([]) is None
+
+
+@pytest.mark.asyncio
+async def test_drain_with_include_roster_injects_roster() -> None:
+    """drain_teammate_messages_for_task with include_roster=True appends roster."""
+    from myrm_agent_harness.agent.coordination.mailbox import (
+        _MAILBOX_CACHE,
+        register_active_teammate,
+    )
+
+    sid = "sess-roster-inject"
+    await register_active_teammate(sid, None, "worker-a", "coder")
+    await register_active_teammate(sid, None, "worker-b", "researcher")
+
+    result = drain_teammate_messages_for_task(sid, "worker-a", include_roster=True)
+    assert result is not None
+    assert "<active_teammates>" in result
+    assert "worker-b: researcher" in result
+    assert "worker-a" not in result.split("<active_teammates>")[1]
+
+    _MAILBOX_CACHE.pop(sid, None)
+
+
+@pytest.mark.asyncio
+async def test_drain_without_roster_flag_excludes_roster() -> None:
+    """Default drain (include_roster=False) does not inject roster."""
+    from myrm_agent_harness.agent.coordination.mailbox import (
+        _MAILBOX_CACHE,
+        register_active_teammate,
+    )
+
+    sid = "sess-no-roster"
+    await register_active_teammate(sid, None, "worker-a", "coder")
+    await register_active_teammate(sid, None, "worker-b", "researcher")
+
+    result = drain_teammate_messages_for_task(sid, "worker-a", include_roster=False)
+    assert result is None
+
+    _MAILBOX_CACHE.pop(sid, None)
+
+
+@pytest.mark.asyncio
+async def test_drain_with_messages_and_roster() -> None:
+    """Both messages and roster are included when both exist."""
+    from myrm_agent_harness.agent.coordination.mailbox import (
+        _MAILBOX_CACHE,
+        register_active_teammate,
+    )
+
+    sid = "sess-both"
+    await register_active_teammate(sid, None, "worker-a", "coder")
+    await register_active_teammate(sid, None, "worker-b", "researcher")
+
+    mailbox = await get_teammate_mailbox(sid, None)
+    msg = TeammateMessage(
+        message_id="m-both-1",
+        session_id=sid,
+        from_task_id="worker-b",
+        to_task_id="worker-a",
+        from_agent_type="researcher",
+        body="found a lead",
+        created_at=1.0,
+    )
+    mailbox.send_sync(msg)
+
+    result = drain_teammate_messages_for_task(sid, "worker-a", include_roster=True)
+    assert result is not None
+    assert "<teammate-message>" in result
+    assert "found a lead" in result
+    assert "<active_teammates>" in result
+    assert "worker-b: researcher" in result
+
+    _MAILBOX_CACHE.pop(sid, None)
+
+
+def test_drain_returns_none_for_unknown_session() -> None:
+    result = drain_teammate_messages_for_task("unknown-sid", "unknown-task")
+    assert result is None
+
+
+def test_drain_returns_none_for_empty_ids() -> None:
+    assert drain_teammate_messages_for_task("", "task-1") is None
+    assert drain_teammate_messages_for_task("sess-1", "") is None
+
+
+# ── Edge-case / boundary tests ──────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_roster_excludes_self_only_teammate() -> None:
+    """When the only registered teammate is the drainer itself, roster is empty."""
+    from myrm_agent_harness.agent.coordination.mailbox import (
+        _MAILBOX_CACHE,
+        register_active_teammate,
+    )
+
+    sid = "sess-self-only"
+    await register_active_teammate(sid, None, "solo-agent", "coder")
+
+    result = drain_teammate_messages_for_task(sid, "solo-agent", include_roster=True)
+    assert result is None
+
+    _MAILBOX_CACHE.pop(sid, None)
+
+
+@pytest.mark.asyncio
+async def test_roster_refreshes_after_teammate_join() -> None:
+    """Roster reflects newly joined teammates after initial drain."""
+    from myrm_agent_harness.agent.coordination.mailbox import (
+        _MAILBOX_CACHE,
+        register_active_teammate,
+    )
+
+    sid = "sess-dynamic-roster"
+    await register_active_teammate(sid, None, "worker-a", "coder")
+
+    r1 = drain_teammate_messages_for_task(sid, "worker-a", include_roster=True)
+    assert r1 is None
+
+    await register_active_teammate(sid, None, "worker-b", "researcher")
+    r2 = drain_teammate_messages_for_task(sid, "worker-a", include_roster=True)
+    assert r2 is not None
+    assert "worker-b: researcher" in r2
+
+    _MAILBOX_CACHE.pop(sid, None)
+
+
+@pytest.mark.asyncio
+async def test_roster_refreshes_after_teammate_leave() -> None:
+    """Roster reflects teammate departure."""
+    from myrm_agent_harness.agent.coordination.mailbox import (
+        _MAILBOX_CACHE,
+        register_active_teammate,
+        unregister_active_teammate,
+    )
+
+    sid = "sess-leave-roster"
+    await register_active_teammate(sid, None, "worker-a", "coder")
+    await register_active_teammate(sid, None, "worker-b", "researcher")
+
+    r1 = drain_teammate_messages_for_task(sid, "worker-a", include_roster=True)
+    assert r1 is not None
+    assert "worker-b" in r1
+
+    unregister_active_teammate(sid, "worker-b")
+    r2 = drain_teammate_messages_for_task(sid, "worker-a", include_roster=True)
+    assert r2 is None
+
+    _MAILBOX_CACHE.pop(sid, None)
+
+
+@pytest.mark.asyncio
+async def test_concurrent_drain_does_not_duplicate_messages() -> None:
+    """Two sequential drains on the same task should not return duplicates."""
+    from myrm_agent_harness.agent.coordination.mailbox import (
+        _MAILBOX_CACHE,
+        register_active_teammate,
+    )
+
+    sid = "sess-concurrent-drain"
+    await register_active_teammate(sid, None, "worker-a", "coder")
+    await register_active_teammate(sid, None, "worker-b", "researcher")
+
+    mailbox = await get_teammate_mailbox(sid, None)
+    msg = TeammateMessage(
+        message_id="m-conc-1",
+        session_id=sid,
+        from_task_id="worker-b",
+        to_task_id="worker-a",
+        from_agent_type="researcher",
+        body="important data",
+        created_at=1.0,
+    )
+    mailbox.send_sync(msg)
+
+    r1 = drain_teammate_messages_for_task(sid, "worker-a", include_roster=True)
+    r2 = drain_teammate_messages_for_task(sid, "worker-a", include_roster=False)
+
+    assert r1 is not None
+    assert "important data" in r1
+    assert r2 is None
+
+    _MAILBOX_CACHE.pop(sid, None)
+
+
+def test_many_teammates_roster_performance() -> None:
+    """Roster with 50 teammates still renders correctly."""
+    roster = [
+        {"task_id": f"task_{i:03d}", "agent_type": f"type_{i % 5}"}
+        for i in range(50)
+    ]
+    result = format_roster_prompt(roster)
+    assert result is not None
+    assert result.count("- task_") == 50
+    assert "<active_teammates>" in result
+    assert "</active_teammates>" in result

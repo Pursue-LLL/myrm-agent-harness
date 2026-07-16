@@ -481,7 +481,10 @@ async def run_agent_loop(
                     "base_url": str(base_url) if base_url else None,
                 }
 
+        _roster_injected = False
+
         def _drain_teammate_messages() -> str | None:
+            nonlocal _roster_injected
             from myrm_agent_harness.agent.coordination.mailbox import (
                 drain_teammate_messages_for_task,
             )
@@ -493,7 +496,13 @@ async def run_agent_loop(
             if not task_id:
                 return None
             sid = str(merged_context.get("session_id") or session_id or "")
-            return drain_teammate_messages_for_task(sid, task_id)
+            need_roster = not _roster_injected
+            result = drain_teammate_messages_for_task(
+                sid, task_id, include_roster=need_roster,
+            )
+            if result is not None and need_roster:
+                _roster_injected = True
+            return result
 
         ctx = StreamContext(
             agent=agent_state._agent,
