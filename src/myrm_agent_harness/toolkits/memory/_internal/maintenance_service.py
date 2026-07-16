@@ -185,6 +185,7 @@ class MaintenanceService:
         scroll_all_memories_func: ScrollAllFunc,
         run_consolidation_func: Callable[[ConsolidationConfig, bool], Awaitable[MaintenanceConsolidationResult]],
         preference_rebuild_func: Callable[[], Awaitable[tuple[int, int, int]]] | None = None,
+        staleness_review_llm: Callable[[str, str], Awaitable[str]] | None = None,
     ) -> MaintenanceReport:
         if lock.locked():
             return MaintenanceReport(skipped=True, skip_reason="already running")
@@ -243,6 +244,16 @@ class MaintenanceService:
                 except Exception as exc:
                     logger.warning("Maintenance forgetting failed: %s", exc)
 
+            staleness_reviewed, staleness_removed, staleness_extended = 0, 0, 0
+            if staleness_review_llm is not None and self._vector is not None:
+                try:
+                    all_for_staleness = await scroll_all_memories_func()
+                    staleness_reviewed, staleness_removed, staleness_extended = await self._run_staleness_review(
+                        all_for_staleness, staleness_review_llm
+                    )
+                except Exception as exc:
+                    logger.warning("Maintenance staleness review failed: %s", exc)
+
             pref_promoted, pref_demoted, pref_dropped = 0, 0, 0
             if preference_rebuild_func is not None:
                 try:
@@ -288,6 +299,9 @@ class MaintenanceService:
                 claims_compiled=claims_compiled,
                 forgotten_count=forgotten_count,
                 archived_count=archived_count,
+                staleness_reviewed=staleness_reviewed,
+                staleness_removed=staleness_removed,
+                staleness_extended=staleness_extended,
                 blobs_swept=blobs_swept,
                 neglected_memories=neglected,
                 insights=consolidation_insights,
@@ -297,7 +311,7 @@ class MaintenanceService:
                 duration_ms=elapsed_ms,
             )
             logger.info(
-                "Maintenance complete: before=%s after=%s merged=%d corrected=%d updated=%d evaporated=%d claims=%d forgotten=%d archived=%d blobs_swept=%d neglected=%d insights=%d health=%s (%.0fms)",
+                "Maintenance complete: before=%s after=%s merged=%d corrected=%d updated=%d evaporated=%d claims=%d forgotten=%d archived=%d staleness=%d/%d/%d blobs_swept=%d neglected=%d insights=%d health=%s (%.0fms)",
                 before.total if before else "N/A",
                 after.total if after else "N/A",
                 consolidation_merged,
@@ -307,6 +321,9 @@ class MaintenanceService:
                 claims_compiled,
                 forgotten_count,
                 archived_count,
+                staleness_reviewed,
+                staleness_removed,
+                staleness_extended,
                 blobs_swept,
                 len(neglected),
                 len(consolidation_insights),
@@ -314,3 +331,83 @@ class MaintenanceService:
                 elapsed_ms,
             )
             return report
+
+    async def _run_staleness_review(
+        self,
+        all_memories: list[AnyMemory],
+        llm_func: Callable[[str, str], Awaitable[str]],
+    ) -> tuple[int, int, int]:
+        """Run staleness review on memories that exceeded their TTL.
+
+        Returns (reviewed_count, removed_count, extended_count).
+        """
+        from myrm_agent_harness.toolkits.memory.strategies.forgetting import ForgettableMemory
+        from myrm_agent_harness.toolkits.memory.strategies.staleness_review import (
+            StalenessReviewer,
+            StalenessReviewConfig,
+            select_stale_candidates,
+        )
+        from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, MemoryStatus, SemanticMemory
+        from myrm_agent_harness.toolkits.vector.base import VectorDocument
+
+        forgettable = [m for m in all_memories if isinstance(m, (SemanticMemory, EpisodicMemory))]
+        config = StalenessReviewConfig()
+        candidates = select_stale_candidates(forgettable, config)  # type: ignore[arg-type]
+
+        if len(candidates) < config.min_candidates:
+            return (0, 0, 0)
+
+        reviewer = StalenessReviewer(llm_func, config)
+        result = await reviewer.review(candidates)
+
+        id_to_type: dict[str, type] = {m.id: type(m) for m in candidates}
+
+        async def _update_metadata(mid: str, meta_patch: dict[str, object]) -> None:
+            mem_cls = id_to_type.get(mid)
+            coll = (
+                self._config.episodic_collection
+                if mem_cls is EpisodicMemory
+                else self._config.semantic_collection
+            )
+            docs = await self._vector.get(coll, [mid])  # type: ignore[union-attr]
+            if not docs:
+                return
+            doc = docs[0]
+            meta = dict(doc.metadata)
+            meta.update(meta_patch)
+            await self._vector.upsert(coll, [VectorDocument(  # type: ignore[union-attr]
+                id=doc.id, vector=doc.vector, content=doc.content, metadata=meta,
+            )])
+
+        if self._vector is not None:
+            for mid in result.removed_ids:
+                try:
+                    await _update_metadata(mid, {
+                        "status": MemoryStatus.ARCHIVED.value,
+                        "archive_reason": "staleness_review",
+                    })
+                except Exception as exc:
+                    logger.warning("Staleness review: failed to archive %s: %s", mid, exc)
+
+            for mid, new_evd in result.extended_updates:
+                try:
+                    await _update_metadata(mid, {"expected_valid_days": new_evd})
+                except Exception as exc:
+                    logger.warning("Staleness review: failed to extend %s: %s", mid, exc)
+
+            for mid, new_evd in result.keep_cooldown_updates:
+                try:
+                    await _update_metadata(mid, {"expected_valid_days": new_evd})
+                except Exception as exc:
+                    logger.warning("Staleness review: failed to cooldown %s: %s", mid, exc)
+
+        if result.removed_count > 0 or result.extended_count > 0:
+            logger.info(
+                "Staleness review: reviewed=%d removed=%d extended=%d kept=%d",
+                result.reviewed_count,
+                result.removed_count,
+                result.extended_count,
+                result.kept_count,
+            )
+
+        return (result.reviewed_count, result.removed_count, result.extended_count)

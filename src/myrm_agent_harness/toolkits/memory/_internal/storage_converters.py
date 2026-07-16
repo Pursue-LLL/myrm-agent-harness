@@ -211,6 +211,7 @@ _SEMANTIC_KNOWN_KEYS = frozenset(
         "archived",
         "archived_at",
         "archive_reason",
+        "expected_valid_days",
         "created_at",
         "updated_at",
         "primary_namespace",
@@ -242,6 +243,8 @@ def doc_to_semantic(doc: VectorDocument) -> SemanticMemory:
     for k, v in meta.items():
         if k not in _SEMANTIC_KNOWN_KEYS and isinstance(v, (str, int, float, bool)):
             extra[k] = v
+    raw_evd = _safe_int(meta.get("expected_valid_days", 0))
+    evd: int | None = raw_evd if raw_evd > 0 else None
     return SemanticMemory(
         id=doc.id,
         user_id=str(meta.get("user_id", "")),
@@ -257,6 +260,7 @@ def doc_to_semantic(doc: VectorDocument) -> SemanticMemory:
         access_count=_safe_int(meta.get("access_count", 0)),
         user_rating=_safe_float(meta.get("user_rating", 0.5), 0.5),
         pinned=bool(meta.get("pinned", False)),
+        expected_valid_days=evd,
         metadata=extra,
         created_at=doc.created_at,
         updated_at=doc.updated_at,
@@ -285,6 +289,7 @@ _EPISODIC_KNOWN_KEYS = frozenset(
         "archived",
         "archived_at",
         "archive_reason",
+        "expected_valid_days",
         "created_at",
         "updated_at",
         "primary_namespace",
@@ -313,6 +318,8 @@ def doc_to_episodic(doc: VectorDocument) -> EpisodicMemory:
     for k, v in meta.items():
         if k not in _EPISODIC_KNOWN_KEYS and isinstance(v, (str, int, float, bool)):
             extra[k] = v
+    raw_evd = _safe_int(meta.get("expected_valid_days", 0))
+    evd: int | None = raw_evd if raw_evd > 0 else None
     return EpisodicMemory(
         id=doc.id,
         user_id=str(meta.get("user_id", "")),
@@ -324,6 +331,7 @@ def doc_to_episodic(doc: VectorDocument) -> EpisodicMemory:
         access_count=_safe_int(meta.get("access_count", 0)),
         user_rating=_safe_float(meta.get("user_rating", 0.5), 0.5),
         pinned=bool(meta.get("pinned", False)),
+        expected_valid_days=evd,
         metadata=extra,
         created_at=doc.created_at,
         updated_at=doc.updated_at,
@@ -481,6 +489,7 @@ def semantic_to_doc(m: SemanticMemory) -> VectorDocument:
         "pinned": m.pinned,
         "status": m.status,
         "archived": m.status == "archived",
+        "expected_valid_days": m.expected_valid_days if m.expected_valid_days is not None else 0,
         "created_at": m.created_at.isoformat(),
         "updated_at": m.updated_at.isoformat(),
         **_scope_payload(m.scope),
@@ -513,6 +522,7 @@ def episodic_to_doc(m: EpisodicMemory) -> VectorDocument:
         "pinned": m.pinned,
         "status": m.status,
         "archived": m.status == "archived",
+        "expected_valid_days": m.expected_valid_days if m.expected_valid_days is not None else 0,
         "created_at": m.created_at.isoformat(),
         "updated_at": m.updated_at.isoformat(),
         **_scope_payload(m.scope),

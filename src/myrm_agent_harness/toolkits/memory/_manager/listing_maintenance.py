@@ -254,7 +254,7 @@ class MemoryManagerListingMaintenanceMixin:
         return await strategy.delete_backup(backup_id=backup_id)
 
     async def run_maintenance_cycle(self, *, force: bool = False) -> MaintenanceReport:
-        """Execute a full maintenance cycle: consolidation → forgetting → health check.
+        """Execute a full maintenance cycle: consolidation → forgetting → staleness review → health check.
 
         Args:
             force: Skip consolidation time gate (should_consolidate check).
@@ -274,6 +274,7 @@ class MemoryManagerListingMaintenanceMixin:
             scroll_all_memories_func=self._scroll_all_memories,
             run_consolidation_func=self._run_consolidation_cycle,
             preference_rebuild_func=self._run_preference_rebuild,
+            staleness_review_llm=self._consolidation_llm,
         )
 
     async def _run_consolidation_cycle(self, cfg: ConsolidationConfig, force: bool) -> MaintenanceConsolidationResult:

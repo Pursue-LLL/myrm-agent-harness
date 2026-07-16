@@ -205,6 +205,10 @@ class ExtractedMemory(BaseModel):
     content: str
     confidence: float = Field(ge=0.0, le=1.0)
     importance: float = Field(ge=0.0, le=1.0, default=0.5)
+    expected_valid_days: int | None = Field(
+        default=None,
+        description="Estimated validity window in days. None = stable/unknown.",
+    )
     profile_key: str | None = None
     profile_value: str | None = None
     trigger: str | None = None
@@ -309,6 +313,18 @@ Pay special attention to what the agent got wrong, what the user corrected,
 and record the correct approach with confidence ≥ 0.95 and "source_error"
 describing the prior mistake."""
 
+_VALIDITY_SECTION = """
+## Fact Validity Estimation
+
+For semantic and episodic memories, estimate how long the fact will likely remain true:
+- **expected_valid_days**: integer or null
+  - Transient states (learning X, current project, temporary setup): 30-90
+  - Project/tool info (using framework X, working at company Y): 90-180
+  - Work habits and preferences (coding style, workflow): 180-365
+  - Stable identity facts (native language, education): null (omit field — permanent)
+  - Corrections of prior mistakes: null (permanent)
+  - If uncertain, omit the field (defaults to global decay)"""
+
 _GUIDELINES = """
 ## Guidelines
 
@@ -322,6 +338,8 @@ _OUTPUT_FORMAT = """
 
 JSON array. Examples:
 [{"memory_type":"semantic","content":"Prefers Python for backend","confidence":0.9,"importance":0.7}]
+With validity estimation (transient fact):
+[{"memory_type":"semantic","content":"Currently learning Rust","confidence":0.9,"importance":0.7,"expected_valid_days":60}]
 Profile example:
 [{"memory_type":"profile","content":"User job title","profile_key":"job_title","profile_value":"Senior Backend Engineer","confidence":0.95,"importance":0.8}]
 Procedural with tool_name (when rule targets a specific tool):
@@ -415,6 +433,9 @@ def _build_system_prompt(
     parts.append(_REFLECTION_SECTION)
     if correction_detected:
         parts.append(_CORRECTION_HINT)
+
+    if config.extract_semantic or config.extract_episodic:
+        parts.append(_VALIDITY_SECTION)
 
     parts.append(_GUIDELINES)
     parts.append(_OUTPUT_FORMAT)
@@ -541,6 +562,7 @@ class MemoryExtractor:
                         preference_strength=pref_strength,
                         source_error=m.source_error,
                         language=language,
+                        expected_valid_days=m.expected_valid_days,
                     )
                 )
             elif m.memory_type == MemoryType.EPISODIC:
@@ -551,6 +573,7 @@ class MemoryExtractor:
                         importance=m.importance,
                         source_chat_id=source_chat_id,
                         language=language,
+                        expected_valid_days=m.expected_valid_days,
                     )
                 )
             elif m.memory_type == MemoryType.PROCEDURAL and m.trigger and m.action:
@@ -623,12 +646,17 @@ def _parse_response(raw: str) -> list[ExtractedMemory]:
             raw_tool_name = item.get("tool_name")
             raw_tool_priority = item.get("tool_rule_priority")
             tool_priority = str(raw_tool_priority) if raw_tool_priority in ("critical", "high", "normal") else None
+            raw_evd = item.get("expected_valid_days")
+            evd: int | None = None
+            if isinstance(raw_evd, (int, float)) and not isinstance(raw_evd, bool) and raw_evd > 0:
+                evd = min(int(raw_evd), 730)
             result.append(
                 ExtractedMemory(
                     memory_type=MemoryType(item.get("memory_type", "semantic")),
                     content=item.get("content", ""),
                     confidence=float(item.get("confidence", 0.5)),
                     importance=float(item.get("importance", 0.5)),
+                    expected_valid_days=evd,
                     profile_key=item.get("profile_key"),
                     profile_value=item.get("profile_value"),
                     trigger=item.get("trigger"),

@@ -579,13 +579,13 @@ final = semantic^w0 × recency^w1 × frequency^w2 × importance^w3 × preference
 
 ### 7.2 遗忘策略 (`strategies/forgetting.py`)
 
-四维保留分数计算：
+五维保留分数计算：
 
 ```
-retention = 0.4 × time_score + 0.3 × access_score + 0.2 × importance_score + 0.1 × relation_score
+retention = 0.35 × time_score + 0.25 × access_score + 0.15 × importance_score + 0.10 × relation_score + 0.15 × rating_score
 ```
 
-- `time_score`：基于半衰期 90 天的指数衰减
+- `time_score`：若记忆有 `expected_valid_days`，使用线性衰减 `max(0, 1 - age/evd)`；否则基于半衰期 90 天的指数衰减
 - `access_score`：`min(1.0, access_count / 20)`
 - `importance_score`：记忆重要性（0-1）
 - `relation_score`：向量邻居数近似（sim > 0.8），零额外写入
@@ -600,6 +600,27 @@ retention = 0.4 × time_score + 0.3 × access_score + 0.2 × importance_score + 
 - importance ≥ 0.9 的记忆受保护
 - 最近 7 天内访问过的记忆受保护
 
+### 7.2.1 Staleness Review (`strategies/staleness_review.py`)
+
+LLM 驱动的事实过期审查。与遗忘策略互补：遗忘靠数值衰减，staleness review 靠 LLM 语义判断。
+
+**工作流程**：
+
+1. **候选筛选** (`select_stale_candidates`)：从所有 Semantic/Episodic 记忆中筛出 `expected_valid_days` 已过期的（排除 pinned、archived、correction 链、7 天内访问过的），按过期严重度（`age_days - evd`）降序排列，取前 `max_candidates_per_cycle` 条
+2. **LLM 审查** (`StalenessReviewer.review`)：将候选事实批量发送给 LLM，LLM 对每条返回 KEEP/EXTEND/REMOVE 决策
+3. **执行决策**：REMOVE → archive（metadata 标记 `status=archived, archive_reason=staleness_review`）；EXTEND → 更新 `expected_valid_days`；KEEP → `evd += keep_cooldown_days`（冷却期，避免下次立即再审）
+
+**安全边界**：
+
+- 每次周期最多审查 20 条候选（`max_candidates_per_cycle`），按严重度优先
+- 每次周期最多移除 5 条（`max_removals_per_cycle`）
+- 候选不足 3 条时不触发（避免 LLM 成本浪费）
+- KEEP 冷却期 30 天（`keep_cooldown_days`），被 KEEP 的记忆至少 30 天内不再成为候选
+- 扩展上限 730 天（`max_extension_days`）
+- 保守策略：不确定时 LLM 应倾向 KEEP
+
+**触发时机**：在 maintenance cycle 中，forgetting 之后、preference rebuild 之前执行。复用 consolidation LLM。
+
 ### 7.3 自动提取 (`strategies/extractor.py`)
 
 `MemoryExtractor` 使用 LLM 从对话中自动提取结构化记忆。
@@ -610,6 +631,7 @@ retention = 0.4 × time_score + 0.3 × access_score + 0.2 × importance_score + 
 - **No-Op Default (严格精度门控)**：彻底颠覆传统的高召回倾向，向大模型施加极其严厉的 `Strict Precision` 惩罚指令。默认返回空数组 `[]`，仅在存在高杠杆价值知识、明确用户约束时才允许提取。从源头阻断日常闲聊产生的碎片垃圾入库，保护长期上下文纯净度。
 - **主体归属隔离 (Attribution)**：严格区分用户本人与第三方（家人、朋友、同事等），禁止将第三方的特征、疾病或偏好归因于用户本人。
 - **瞬态情绪过滤 (Transient State Filter)**：过滤掉短暂的情绪和心理状态（如“今天很焦虑”、“感觉很抑郁”），除非明确说明是慢性疾病，防止 AI 永久存储瞬态情绪。
+- **Per-Fact TTL**：提取时 LLM 为每条记忆预估有效期 `expected_valid_days`（瞬态 30-90d、项目 90-180d、习惯 180-365d、永久 null），供遗忘策略和 staleness review 使用
 - **动态提示词**：根据 `ExtractionConfig` 动态生成，仅包含启用的记忆类型
 - **Token 优化**：337 tokens（全类型）→ 229 tokens（最小配置），节省 32%
 

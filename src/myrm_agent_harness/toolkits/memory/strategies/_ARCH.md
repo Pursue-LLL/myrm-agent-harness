@@ -1,7 +1,7 @@
 # strategies/
 
 ## Overview
-Optional memory strategies: forgetting, extraction, deduplication, consolidation, preference stability, pattern discovery.
+Optional memory strategies: forgetting, extraction, deduplication, consolidation, preference stability, pattern discovery, staleness review.
 
 ## File & Submodule Index
 
@@ -18,6 +18,7 @@ Optional memory strategies: forgetting, extraction, deduplication, consolidation
 | preference_stability.py | Core | Preference stability detection strategy. Manages user preference lifecycle through evidence accumulation, time decay, and category-aware half-lives. | ✅ |
 | preference_stability_store.py | Core | Preference facet store — Protocol and SQLite implementation for persistent storage of preference metadata. | ✅ |
 | recurrence.py | Core | Recurrence-triggered memory consolidation. Detects topics that appear repeatedly across sessions via embedding similarity, then triggers LLM refinement to produce high-quality long-term memories. Includes importance-preemption bypass for safety/health/identity signals. | ✅ |
+| staleness_review.py | Core | LLM-driven staleness review. Identifies memories past their per-fact TTL (expected_valid_days) and submits for LLM semantic judgment (KEEP/EXTEND/REMOVE). Conservative: protects pinned, recently-accessed, and correction-chain memories. | ✅ |
 | subsumption.py | Core | Cognitive consolidation engine. Identifies and safely soft-deletes old semantic memories | ✅ |
 
 ## Key Dependencies

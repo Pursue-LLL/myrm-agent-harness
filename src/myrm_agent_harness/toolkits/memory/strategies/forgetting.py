@@ -92,7 +92,11 @@ class ForgettingStrategy:
             created = created.replace(tzinfo=UTC)
         age_days = (now - created).days
 
-        time_score = 0.5 ** (age_days / cfg.time_decay_half_life_days)
+        evd = getattr(memory, "expected_valid_days", None)
+        if isinstance(evd, int) and evd > 0:
+            time_score = max(0.0, 1.0 - age_days / evd) if age_days < evd else 0.0
+        else:
+            time_score = 0.5 ** (age_days / cfg.time_decay_half_life_days)
         access_score = min(1.0, memory.access_count / cfg.max_access_score)
         importance_score = memory.importance
         rel_score = min(1.0, relation_count / cfg.max_relation_score)

@@ -294,6 +294,9 @@ class MaintenanceReport:
     claims_compiled: int = 0
     forgotten_count: int = 0
     archived_count: int = 0
+    staleness_reviewed: int = 0
+    staleness_removed: int = 0
+    staleness_extended: int = 0
     blobs_swept: int = 0
     neglected_memories: tuple[NeglectedMemory, ...] = ()
     insights: tuple[str, ...] = ()
@@ -323,6 +326,11 @@ class MaintenanceReport:
             "forgetting": {
                 "forgotten": self.forgotten_count,
                 "archived": self.archived_count,
+            },
+            "staleness_review": {
+                "reviewed": self.staleness_reviewed,
+                "removed": self.staleness_removed,
+                "extended": self.staleness_extended,
             },
             "blob_gc": {
                 "swept": self.blobs_swept,

@@ -231,6 +231,10 @@ class BaseMemory(BaseModel):
         description="User feedback rating [0,1]. 0.5 = neutral (no feedback yet). Updated via EMA.",
     )
     pinned: bool = Field(default=False, description="User-pinned: immune to forgetting")
+    expected_valid_days: int | None = Field(
+        default=None,
+        description="LLM-estimated validity window in days. None = use global half-life fallback.",
+    )
     status: MemoryStatus = Field(default=MemoryStatus.ACTIVE, description="Unified lifecycle status")
     scope: MemoryScope = Field(default_factory=MemoryScope)
     lifecycle: MemoryLifecycle | None = None
