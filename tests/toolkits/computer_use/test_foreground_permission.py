@@ -158,4 +158,58 @@ class TestCallbackInvocation:
             reason="AX invoke failed",
             operation="bbox_click(320, 480)",
             estimated_duration_seconds=3.0,
+            app_name="",
+            window_title="",
+            require_app_approval=False,
         )
+
+
+class TestCheckAppApproval:
+    """check_app_approval: per-app gate with inspect_backend fallback."""
+
+    @pytest.mark.asyncio
+    async def test_inspect_fallback_when_app_name_empty(self, backend: MagicMock) -> None:
+        from unittest.mock import patch
+
+        callback = AsyncMock(
+            return_value=ForegroundPermissionResult(granted=True, scope=ForegroundPermissionScope.once)
+        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
+        session = ComputerSession(backend=backend, config=config, permission_callback=callback)
+
+        with patch(
+            "myrm_agent_harness.toolkits.computer_use.perception.ax_dispatch.inspect_backend",
+            return_value={"app_name": "Finder", "window_title": "Desktop"},
+        ):
+            result = await session.check_app_approval(
+                app_name="",
+                window_title="",
+                operation="desktop_interact(click, @d1)",
+            )
+
+        assert result is None
+        callback.assert_called_once()
+        assert callback.call_args.kwargs["app_name"] == "Finder"
+        assert callback.call_args.kwargs["window_title"] == "Desktop"
+
+    @pytest.mark.asyncio
+    async def test_fail_closed_when_foreground_unknown(self, backend: MagicMock) -> None:
+        from unittest.mock import patch
+
+        callback = AsyncMock(return_value=ForegroundPermissionResult(granted=True))
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
+        session = ComputerSession(backend=backend, config=config, permission_callback=callback)
+
+        with patch(
+            "myrm_agent_harness.toolkits.computer_use.perception.ax_dispatch.inspect_backend",
+            return_value={"app_name": "", "window_title": ""},
+        ):
+            result = await session.check_app_approval(
+                app_name="",
+                window_title="",
+                operation="desktop_interact(click, @d1)",
+            )
+
+        assert result is not None
+        assert result.success is False
+        callback.assert_not_called()

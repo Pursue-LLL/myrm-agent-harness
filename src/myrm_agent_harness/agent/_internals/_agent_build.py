@@ -176,28 +176,20 @@ def _weave_dynamic_schemas(resolved_tools: list[BaseTool]) -> list[BaseTool]:
 async def build_tools(
     registry: ToolRegistry,
     user_tools: list[BaseTool],
-    discoverable_tools: list[BaseTool],
     cached_middlewares: list[object],
 ) -> list[BaseTool]:
     """Build the resolved tool list via ToolRegistry.
 
     Registers user tools first, then collects any tools exposed by
     middlewares (e.g. ``get_tools()``).
-
-    ``discoverable_tools`` is accepted for backward compatibility but no longer
-    registers them as DISCOVERABLE — they are added as regular Turn1 tools.
     """
     from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
         sync_discover_capability_tool,
     )
     from myrm_agent_harness.agent.tool_management import ToolBindMode
 
-    all_user_tools = list(user_tools)
-    if discoverable_tools:
-        all_user_tools.extend(discoverable_tools)
-
     registry.register_many(
-        normalize_tool_names(all_user_tools),
+        normalize_tool_names(user_tools),
         source=ToolSource.USER,
     )
 

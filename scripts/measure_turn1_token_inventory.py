@@ -120,7 +120,7 @@ async def _build_default_turn1_tools() -> list[BaseTool]:
 
     user_tools = list(meta_tools) + web_tools + list(memory_tools)
     middlewares = build_middlewares(registry, [])
-    return await build_tools(registry, user_tools, [], middlewares)
+    return await build_tools(registry, user_tools, middlewares)
 
 
 async def measure_turn1_inventory() -> dict[str, object]:

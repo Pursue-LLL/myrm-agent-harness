@@ -90,7 +90,6 @@ def _make_bare_agent() -> BaseAgent:
     agent.user_middlewares = []
     agent.system_prompt = "test"
     agent.user_tools = []
-    agent.discoverable_tools = []
     agent.context_schema = None
     agent.config = MagicMock()
     agent.config.parallel_tool_calls = None

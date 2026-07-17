@@ -18,9 +18,8 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    LangChain Tools (4)                      │
-│  desktop_inspect | desktop_snapshot | desktop_interact      │
-│  desktop_vision                                             │
+│                    LangChain Tools (3)                      │
+│  desktop_snapshot | desktop_interact | desktop_vision       │
 └──────────────────────────┬──────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -49,14 +48,12 @@
 ## Workflow
 
 ```
-desktop_inspect_tool
-    ↓ foreground app/window metadata + permission hint + native API routing hint
 desktop_snapshot_tool
-    ↓ AX tree with @dref IDs (+ optional screenshot with [N] SOM labels) + browser soft-routing hint
+    ↓ AX tree with @dref IDs, app/window header (+ optional screenshot with [N] SOM labels) + browser soft-routing hint
 desktop_interact_tool(ref=@dref, action=...)
-    ↓ AX invoke → bbox healer fallback → text-only follow-up snapshot
+    ↓ per-app approval gate → AX invoke → bbox healer fallback → text-only follow-up snapshot
 desktop_vision_tool (only when AX empty or interact failed)
-    ↓ explicit screenshot + coordinate actions
+    ↓ foreground permission gate → explicit screenshot + coordinate actions
 ```
 
 ---
@@ -90,8 +87,10 @@ desktop_vision_tool (only when AX empty or interact failed)
 | Channel | Payload |
 |---------|---------|
 | SSE `DESKTOP_VIEW_UPDATE` | screenshot_base64 (SOM-labeled when multimodal agent snapshot or inspector refresh), refs (BBox overlay + `nth` when SOM active), needs_permission |
+| SSE `DESKTOP_CONTROL_APPROVAL_REQUEST` | Per-app / foreground approval card in Desktop Inspector |
 | REST `GET /webui/desktop/snapshot` | Same shape; called on `desktop_*` TOOL_END + manual refresh |
-| Desktop Inspector | `DesktopLiveView` + `ElementOverlay` (mirrors browser-inspector); toggle visible when `computer_use` tool enabled |
+| REST `POST /webui/desktop/approval/resolve` | Resolve pending desktop control approval |
+| Desktop Inspector | `DesktopLiveView` auto-opens on approval SSE; `DesktopControlApprovalBanner` for Allow/Deny |
 
 Server wiring: `agent._desktop_session` → `AgentGateway.get_active_desktop_session()`.
 
@@ -101,22 +100,23 @@ Server wiring: `agent._desktop_session` → `AgentGateway.get_active_desktop_ses
 
 Injected via `DESKTOP_CONTROL_RULES` in `shared_rules.py` when `enable_computer_use`:
 
-- Workflow order: inspect → snapshot → interact
-- Prefer @dref; use vision only when AX is empty or interact failed
+- Workflow order: snapshot → interact
+- Prefer @dref; use `set_value` for atomic field replacement; use vision only when AX is empty or interact failed
 - macOS permission: ask user to grant Accessibility before retry
-- Native API routing: when inspect detects a scriptable app, prefer `bash_code_execute_tool` with native commands for data-heavy tasks
+- Per-app first approval via Web UI (`DesktopControlApprovalBanner`)
+- Native API routing: snapshot recommendation may suggest `bash_code_execute_tool` for scriptable apps
 
 ---
 
 ## Known Limits (Roadmap Scope)
 
-| Item | Status | Roadmap |
-|------|--------|---------|
-| Linux AT-SPI invoke | ✅ implemented (pyatspi doAction/EditableText/grabFocus) | platform parity |
-| `verify_goal` post-condition | field only | #7 |
-| Stream E2E tests | not covered | future |
+| Item | Status |
+|------|--------|
+| Linux AT-SPI invoke | ✅ implemented (pyatspi doAction/EditableText/grabFocus) |
+| Desktop control gate (server) | ✅ `DesktopControlGate` + SSE approval card |
+| Stream E2E tests | not covered |
 | Onboarding hint when computer_use enabled | implemented (toggle + tooltip + empty state) |
-| Native API routing hints | implemented (macOS/Windows/Linux) | #2 done |
+| Native API routing hints | implemented (macOS/Windows/Linux) |
 
 ---
 

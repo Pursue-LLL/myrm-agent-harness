@@ -75,6 +75,10 @@ _SENSITIVE_APPS: frozenset[str] = frozenset(
         # Password managers
         "1password", "bitwarden", "lastpass", "keepass", "dashlane",
         "keychain access", "\u94a5\u5319\u4e32\u8bbf\u95ee",
+        # Terminal / shell — block GUI automation to prevent command injection
+        "terminal", "iterm", "iterm2", "warp",
+        "cmd", "powershell", "windows terminal", "wt",
+        "konsole", "gnome-terminal", "xterm", "alacritty", "kitty", "hyper",
     }
 )
 

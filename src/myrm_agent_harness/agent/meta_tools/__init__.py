@@ -106,7 +106,7 @@ def get_meta_tools(
     Args:
         skills: 可用的技能列表
         skill_backend: 技能后端(用于 skill_select_tool)
-        registry: ToolRegistry（必填；DISCOVERABLE 工具与 discover 索引 SSOT）
+        registry: ToolRegistry（必填；discover_capability_tool 由 SkillAgent 末尾 sync 注册）
         discovery_backend: 技能发现后端(用于 skill_discovery_tool)
         write_backend: 技能写入后端(用于 skill_manage_tool, ScanningSkillWriteBackend)
         embedding_config: Embedding 配置(可选, 用于语义搜索)

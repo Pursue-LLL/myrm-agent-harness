@@ -53,6 +53,10 @@ _CATALOG_END = "<!-- TOOL_CATALOG_END -->"
 _FORBIDDEN_BINDMODE_PATTERNS = (
     re.compile(r"\bget_deferred_tools\b"),
     re.compile(r"\bdeferred_tools\b"),
+    re.compile(r"\bdiscoverable_tools\b"),
+    re.compile(r"\bget_discoverable_tools\b"),
+    re.compile(r"\bToolBindMode\.DISCOVERABLE\b"),
+    re.compile(r'\bDISCOVERABLE\s*='),
 )
 _FORBIDDEN_TERM_SCAN_ROOTS = (
     HARNESS_SRC / "agent",
@@ -392,7 +396,7 @@ def main() -> int:
                 except ValueError:
                     display = path
                 print(f"  - {display}:{line_no}: {line}")
-            print("  Fix: use discoverable_tools / get_discoverable_tools / get_runtime_tools.")
+            print("  Fix: use Turn1 registration + get_runtime_tools() for RUNTIME_ONLY hooks.")
         if catalog_errors:
             print(f"FAIL - {len(catalog_errors)} tool catalog metadata issue(s):")
             for err in catalog_errors:

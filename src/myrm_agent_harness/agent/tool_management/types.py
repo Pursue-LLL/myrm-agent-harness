@@ -42,9 +42,8 @@ class ToolSource(Enum):
 class ToolBindMode(str, Enum):
     """How a tool participates in Turn1 bind_tools.
 
-    LLM Action Tool modes (visible to the model):
+    LLM Action Tool mode:
         TURN1: bound on first model turn (default). LLM sees and can call directly.
-        DISCOVERABLE: reserved for future use. Currently all built-in tools use TURN1.
 
     Internal mode (invisible to the model — NOT an LLM Action Tool):
         RUNTIME_ONLY: excluded from Turn1; only executable when middleware injects
@@ -52,7 +51,6 @@ class ToolBindMode(str, Enum):
     """
 
     TURN1 = "turn1"
-    DISCOVERABLE = "discoverable"
     RUNTIME_ONLY = "runtime_only"
 
 

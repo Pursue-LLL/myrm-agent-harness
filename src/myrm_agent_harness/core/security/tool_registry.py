@@ -93,7 +93,6 @@ TOOL_PERMISSION_MAP: dict[str, str] = {
     "batch_delegate_tasks_tool": "delegate_agent",
     "cron_manage_tool": "cron_manage",
     "skill_manage_tool": "skill_manage",
-    "desktop_inspect_tool": "desktop_capture",
     "desktop_snapshot_tool": "desktop_capture",
     "desktop_interact_tool": "desktop_control",
     "desktop_vision_tool": "desktop_control",
@@ -116,7 +115,6 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
         "render_ui_tool",
         "update_ui_data_tool",
         "todo_write",
-        "desktop_inspect_tool",
         "desktop_snapshot_tool",
         "desktop_interact_tool",
         "desktop_vision_tool",
@@ -167,7 +165,6 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
     ),
     "computer_use": frozenset(
         {
-            "desktop_inspect_tool",
             "desktop_snapshot_tool",
             "desktop_interact_tool",
             "desktop_vision_tool",
@@ -260,7 +257,6 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
     "memory_manage_tool": ["action"],
     "skill_select_tool": ["skill_ids"],
     "skill_discovery_tool": ["query"],
-    "desktop_inspect_tool": [],
     "desktop_snapshot_tool": ["scope", "window_title", "include_screenshot"],
     "desktop_interact_tool": ["ref", "action", "text"],
     "desktop_vision_tool": ["action", "coordinate", "text", "scroll_direction", "start_coordinate"],
@@ -321,8 +317,6 @@ def resolve_permission_type(tool_name: str, tool_input: dict[str, object] | None
         return "desktop_control"
     if tool_name == "desktop_interact_tool":
         return "desktop_control"
-    if tool_name == "desktop_inspect_tool":
-        return "desktop_capture"
     if tool_name == "desktop_snapshot_tool":
         return "desktop_capture"
 
@@ -477,7 +471,6 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "memory_save_tool": SafetyMetadata(is_idempotent=True),
     "memory_manage_tool": SafetyMetadata(),
     "update_goal_status_tool": SafetyMetadata(),
-    "desktop_inspect_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "desktop_snapshot_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "desktop_interact_tool": SafetyMetadata(is_destructive=True),
     "desktop_vision_tool": SafetyMetadata(is_destructive=True),

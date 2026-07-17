@@ -150,7 +150,7 @@ class TestBuildMiddlewares:
             """Run bash commands."""
             return command
 
-        tools = await build_tools(registry, [web_search_tool], [bash_process_tool], [])
+        tools = await build_tools(registry, [web_search_tool, bash_process_tool], [])
         names = [t.name for t in tools]
 
         assert "web_search_tool" in names
@@ -243,11 +243,6 @@ class TestEmitToolsSnapshot:
 
         registry = create_registry()
         registry.register(visible_turn1_tool, source=ToolSource.META)
-        registry.register(
-            cron_manage_tool,
-            source=ToolSource.USER,
-            bind_mode=ToolBindMode.DISCOVERABLE,
-        )
         hook = MagicMock()
         hook.name = "_completion_check"
         hook.description = "Internal completion hook"

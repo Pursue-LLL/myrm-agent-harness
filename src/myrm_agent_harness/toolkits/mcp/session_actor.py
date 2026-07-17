@@ -157,6 +157,7 @@ class MCPSessionActor:
         tool_include: list[str] | None = None,
         tool_exclude: list[str] | None = None,
         auth_provider: object | None = None,
+        oversized_result_handler: object | None = None,
     ) -> None:
         self.server_name = server_name
         self._connection = connection
@@ -166,6 +167,7 @@ class MCPSessionActor:
         self._tool_include = tool_include
         self._tool_exclude = tool_exclude
         self._auth_provider = auth_provider
+        self._oversized_result_handler = oversized_result_handler
         # Idle keepalive only matters for remote transports that sit behind LBs /
         # NAT; a local stdio pipe never idle-disconnects (interval 0 = disabled).
         transport = str(connection.get("transport", "")).lower()
@@ -537,6 +539,7 @@ class MCPSessionActor:
             self._tool_exclude,
             self._execute_timeout,
             self._max_output_chars,
+            self._oversized_result_handler,
         )
         instructions: str | None = None
         if not self._ready.is_set():
@@ -619,6 +622,7 @@ class MCPSessionActor:
                 self._tool_exclude,
                 self._execute_timeout,
                 self._max_output_chars,
+                self._oversized_result_handler,
             )
             new_names = {tool.name for tool in processed}
             added = new_names - old_names

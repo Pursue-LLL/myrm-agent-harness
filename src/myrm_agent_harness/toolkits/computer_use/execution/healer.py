@@ -23,10 +23,15 @@ async def try_bbox_click(
     text: str,
     modifiers: list[ModifierKey] | None,
 ) -> ActionResult:
+    meta = getattr(getattr(session, "_refs", None), "meta", None)
+    app_name = meta.app_name if meta else ""
+    window_title = meta.window_title if meta else ""
     permission_denied = await session.check_foreground_permission(
         reason=f"AX invoke failed for @{element.ref_id}; falling back to coordinate click",
         operation=f"bbox_click({element.bbox.center_x}, {element.bbox.center_y})",
         estimated_duration_seconds=3.0,
+        app_name=app_name,
+        window_title=window_title,
     )
     if permission_denied is not None:
         return permission_denied
@@ -36,7 +41,7 @@ async def try_bbox_click(
     x = element.bbox.center_x
     y = element.bbox.center_y
 
-    if normalized in {"fill", "type"}:
+    if normalized in {"fill", "type", "set_value"}:
         click_result = await backend.click(x, y, modifiers=modifiers)
         if not click_result.success:
             return click_result

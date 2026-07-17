@@ -19,24 +19,14 @@ def session() -> DesktopSession:
     return DesktopSession(backend=backend, config=config)
 
 
-def test_create_desktop_tools_returns_four_tools(session: DesktopSession) -> None:
+def test_create_desktop_tools_returns_three_tools(session: DesktopSession) -> None:
     tools = create_desktop_tools(session)
     names = {tool.name for tool in tools}
     assert names == {
-        "desktop_inspect_tool",
         "desktop_snapshot_tool",
         "desktop_interact_tool",
         "desktop_vision_tool",
     }
-
-
-@pytest.mark.asyncio
-async def test_desktop_inspect_tool_delegates(session: DesktopSession) -> None:
-    session.desktop_inspect = AsyncMock(return_value="App: Safari")
-    tools = create_desktop_tools(session)
-    inspect_tool = next(t for t in tools if t.name == "desktop_inspect_tool")
-    result = await inspect_tool.ainvoke({})
-    assert result == "App: Safari"
 
 
 @pytest.mark.asyncio

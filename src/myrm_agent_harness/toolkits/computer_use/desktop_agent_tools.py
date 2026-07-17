@@ -6,8 +6,7 @@
 - dref.types::SnapshotScope (POS: snapshot scope enum)
 
 [OUTPUT]
-- create_desktop_tools(session) -> list[Tool]: 4 LangChain tools
-  - desktop_inspect_tool
+- create_desktop_tools(session) -> list[Tool]: 3 LangChain tools
   - desktop_snapshot_tool
   - desktop_interact_tool
   - desktop_vision_tool
@@ -32,24 +31,13 @@ from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotScope
 
 
 def create_desktop_tools(session: DesktopSession) -> list[object]:
-    """Create 4 semantic desktop tools bound to *session*."""
+    """Create 3 semantic desktop tools bound to *session*."""
 
     from myrm_agent_harness.core.security.credential_vault import get_global_credential_vault
 
     vault = get_global_credential_vault()
     labels = vault.list_labels()
     labels_str = ", ".join([f"'{lbl}'" for lbl in labels]) if labels else "none available"
-
-    class InspectInput(BaseModel):
-        pass
-
-    @tool("desktop_inspect_tool", args_schema=InspectInput)
-    async def desktop_inspect() -> str:
-        """Quickly inspect the foreground desktop app before taking a snapshot.
-
-        Returns app/window metadata and a recommendation for desktop_snapshot_tool.
-        """
-        return await session.desktop_inspect()
 
     class SnapshotInput(BaseModel):
         scope: SnapshotScope = Field(
@@ -73,8 +61,8 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
     ) -> str | list[object]:
         """Capture the desktop accessibility tree with @dref element IDs.
 
-        Workflow: desktop_inspect → desktop_snapshot → desktop_interact(ref=...).
-        Use desktop_vision_tool only when the AX tree is empty.
+        Workflow: desktop_snapshot_tool → desktop_interact_tool(ref=...).
+        The snapshot header includes app/window metadata. Use desktop_vision_tool only when the AX tree is empty.
         """
         result = await session.desktop_snapshot(
             scope=scope,
@@ -82,7 +70,6 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
             include_screenshot=include_screenshot,
         )
 
-        # Context-Aware Soft Routing: Check if the active window is a web browser
         warning_msg = ""
         try:
             is_browser = await session._backend.is_browser_active()
@@ -98,9 +85,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
         if warning_msg:
             if isinstance(result, str):
                 return warning_msg + result
-            elif isinstance(result, list):
-                # result is a list of content blocks (text + image)
-                # We inject the warning into the first text block
+            if isinstance(result, list):
                 for block in result:
                     if isinstance(block, dict) and block.get("type") == "text":
                         block["text"] = warning_msg + str(block.get("text", ""))
@@ -112,15 +97,11 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
     class InteractInput(BaseModel):
         ref: str = Field(description="Element @dref from desktop_snapshot (e.g. 'd3').")
         action: DesktopInteractAction = Field(
-            description="One of: click, dblclick, fill, type, fill_credential, press, hover, focus, scroll.",
+            description="One of: click, dblclick, fill, set_value, type, fill_credential, press, hover, focus, scroll.",
         )
         text: str = Field(
             default="",
-            description=f"Text for fill/type actions, or credential label for fill_credential (available labels: {labels_str}). Append '-totp' to label for TOTP token.",
-        )
-        verify_goal: str | None = Field(
-            default=None,
-            description="Optional post-condition description (reserved; not yet enforced).",
+            description=f"Text for fill/set_value/type actions, or credential label for fill_credential (available labels: {labels_str}). Append '-totp' to label for TOTP token.",
         )
         modifiers: list[ModifierKey] | None = Field(
             default=None,
@@ -132,7 +113,6 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
         ref: str,
         action: DesktopInteractAction,
         text: str = "",
-        verify_goal: str | None = None,
         modifiers: list[ModifierKey] | None = None,
     ) -> str | list[object]:
         """Perform an action on a desktop element identified by @dref."""
@@ -140,7 +120,6 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
             ref=ref,
             action=action,
             text=text,
-            verify_goal=verify_goal,
             modifiers=modifiers,
         )
 
@@ -187,4 +166,4 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
             modifiers=modifiers,
         )
 
-    return [desktop_inspect, desktop_snapshot, desktop_interact, desktop_vision]
+    return [desktop_snapshot, desktop_interact, desktop_vision]

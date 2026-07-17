@@ -70,7 +70,6 @@ async def create_skill_agent(
     extraction_llm: BaseChatModel | None = None,
     middlewares: list[AgentMiddleware[Any, Any]] | None = None,
     tools: list[BaseTool] | None = None,
-    discoverable_tools: list[BaseTool] | None = None,
     context_schema: type | None = None,
     collect_artifacts: bool = False,
     on_artifacts_ready: BaseAgent.ArtifactReadyHandler | None = None,
@@ -183,9 +182,6 @@ async def create_skill_agent(
     if tools is None:
         tools = []
     tools = list(tools) + openapi_tools + mcp_direct_tools
-
-    if discoverable_tools is None:
-        discoverable_tools = []
 
     final_skill_backend: SkillBackendProtocol | None = skill_backend
     if mcp_skills:
@@ -316,7 +312,6 @@ async def create_skill_agent(
         middlewares=final_middlewares,
         system_prompt=spec.system_prompt,
         tools=tools or [],
-        discoverable_tools=discoverable_tools or [],
         context_schema=context_schema,
         config=config,
         on_artifacts_ready=on_artifacts_ready,

@@ -17,6 +17,7 @@ Provides MCP client integration with:
 
 [OUTPUT]
 - MCPAgent, MCPClientManager, MCPConfig, MCPConnectionManager, MCPServerConfigProtocol: core MCP types
+- OversizedResultHandler: callback type for vault-spilling oversized MCP tool outputs
 - MCPResponseError, MCPResponseValidator, MCPURLValidator, ResolvedURL, URLValidationError: security types
 - get_mcp_connection, get_mcp_connection_manager: connection pool accessors
 
@@ -25,7 +26,7 @@ MCP toolkit entry point. Aggregates client management, agent tool fetching, conn
 configuration, and security validation for unified MCP protocol support.
 """
 
-from .agent import MCPAgent
+from .agent import MCPAgent, OversizedResultHandler
 from .client import MCPClientManager, MCPServerConfigProtocol
 from .config import MCPConfig
 from .connection_manager import (
@@ -51,6 +52,7 @@ from .security import (
 
 __all__ = [
     "MCPAgent",
+    "OversizedResultHandler",
     "MCPClientManager",
     "MCPConfig",
     "MCPConnectionManager",

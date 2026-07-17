@@ -20,6 +20,7 @@ DesktopInteractAction = Literal[
     "click",
     "dblclick",
     "fill",
+    "set_value",
     "type",
     "fill_credential",
     "press",
@@ -230,14 +231,20 @@ class ForegroundPermissionCallback(Protocol):
         operation: str,
         estimated_duration_seconds: float,
         timeout_seconds: float = 30.0,
+        app_name: str = "",
+        window_title: str = "",
+        require_app_approval: bool = True,
     ) -> ForegroundPermissionResult:
-        """Request foreground permission from the user.
+        """Request desktop control permission from the user.
 
         Args:
-            reason: Human-readable explanation of why foreground is needed.
+            reason: Human-readable explanation of why control is needed.
             operation: The specific action being attempted (e.g. "click at (320, 480)").
-            estimated_duration_seconds: How long the foreground operation will take.
+            estimated_duration_seconds: How long the operation will take.
             timeout_seconds: Max time to wait for user response before auto-denying.
+            app_name: Foreground application name for per-app first approval.
+            window_title: Foreground window title for display context.
+            require_app_approval: When False, only foreground/coordinate approval is requested.
         """
         ...
 

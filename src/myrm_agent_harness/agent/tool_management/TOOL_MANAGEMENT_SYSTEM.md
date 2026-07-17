@@ -32,7 +32,7 @@ SkillAgent / Server factory
         ↓
 tool_layers.py — CORE/COMMON/EXTENDED SSOT
         ↓
-registry.py — dedup + sort + ToolBindMode (TURN1 / DISCOVERABLE = LLM tools; RUNTIME_ONLY = internal hooks)
+registry.py — dedup + sort + ToolBindMode (TURN1 LLM tools; RUNTIME_ONLY internal hooks)
         ↓
 lifecycle_manager.py — init_tools / cleanup_tools
         ↓
@@ -123,11 +123,10 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `delegate_parallel_tasks_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `delegate_task_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `delegate_to_agent_tool` | EXTENDED | user_capability | external_cli | external ACP agent configured |
-| `desktop_inspect_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_interact_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_snapshot_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_vision_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
-| `discover_capability_tool` | EXTENDED | user_capability | — | Turn1 when discoverable pool non-empty |
+| `discover_capability_tool` | EXTENDED | user_capability | — | Turn1 when searchable skill index non-empty |
 | `image_tool` | EXTENDED | user_capability | image_generation | enabled_builtin_tools: image_generation |
 | `kanban_add_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_block` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
@@ -145,7 +144,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `render_ui_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
 | `request_answer_user_tool` | EXTENDED | user_capability | answer_tool | enabled_builtin_tools: answer_tool |
 | `send_teammate_message_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
-| `skill_discovery_tool` | EXTENDED | user_capability | — | DISCOVERABLE; skill marketplace |
+| `skill_discovery_tool` | EXTENDED | user_capability | — | Turn1 when discovery_backend present |
 | `skill_manage_tool` | EXTENDED | user_capability | — | write_backend present |
 | `skill_select_tool` | EXTENDED | user_capability | — | skill_backend present |
 | `steer_subagent_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
@@ -181,28 +180,28 @@ python scripts/validate_tool_registry.py --generate-docs  # 刷新 TOOL_COUNT + 
 
 ## ToolBindMode 绑定契约
 
-`ToolBindMode`（`types.py`）三分绑定语义如下：
+`ToolBindMode`（`types.py`）两分绑定语义如下：
 
-| 模式 | Turn1 schema | discover_capability 索引 | 执行池（ToolNode / dynamic resolve） |
-|------|--------------|--------------------------|--------------------------------------|
-| `TURN1` | ✅ 绑定 | ❌ | ❌（已在 Turn1） |
-| `DISCOVERABLE` | ❌ | ✅ | ✅（reserved for future use） |
-| `RUNTIME_ONLY` | ❌ | ❌ | ✅（中间件注入，用户无感） |
+| 模式 | Turn1 schema | 执行池（ToolNode / dynamic resolve） |
+|------|--------------|--------------------------------------|
+| `TURN1` | ✅ 绑定 | ❌（已在 Turn1） |
+| `RUNTIME_ONLY` | ❌ | ✅（中间件注入，用户无感） |
 
 **API 契约**（`registry.py`）：
 
 - `resolve()` — 仅返回 `TURN1` 工具（LLM 首回合可见 schema）
-- `get_discoverable_tools()` — 仅 `DISCOVERABLE`（discover 索引 + invoke 执行池）
-- `get_runtime_tools()` — `DISCOVERABLE` + `RUNTIME_ONLY`（延迟执行与中间件钩子）
+- `get_runtime_tools()` — 仅 `RUNTIME_ONLY`（中间件注入的延迟执行钩子）
 
 **典型映射**：
 
-- bash 后台进程、skill_discovery、cron（GUI OFF）→ `DISCOVERABLE`（MCP 无 DISCOVERABLE；超标整服变 Skill）
+- 所有 LLM Action Tool → `TURN1`（按 profile 条件装配；MCP 超标整服降级 PTC Skill）
 - `_completion_check`（CompletionGuard）→ `RUNTIME_ONLY`（名称 `_` 前缀自动推断）
 
-**禁止**：`get_deferred_tools()` 已删除；新代码不得混用 `deferred_tools` 变量名，统一使用 `discoverable_tools`（构造参数）与上述三个 registry 方法。
+**已删除**：`ToolBindMode.DISCOVERABLE`、`get_discoverable_tools()`、`discoverable_tools` 构造参数。低频能力改由 profile 开关 + MCP PTC 路由 + `discover_capability_tool`（搜索 external skills）承担。
 
-**GUI 暴露**（`emit_tools_snapshot`）：仅序列化 `TURN1` 工具，与 `resolve()` 一致；`DISCOVERABLE` / `RUNTIME_ONLY` 不进 `tools_snapshot` SSE。每条 snapshot 含可选 `builtin_tool_id`（Harness 内由 `get_tool_product_id()` 派生，无 i18n）；WebUI wrench 与 gap toast 共用 `builtinTools.ts` 中的本地化 capability 标签。
+**禁止**：`get_deferred_tools()` 已删除；新代码不得混用 `deferred_tools` / `discoverable_tools` 变量名。
+
+**GUI 暴露**（`emit_tools_snapshot`）：仅序列化 `TURN1` 工具，与 `resolve()` 一致；`RUNTIME_ONLY` 不进 `tools_snapshot` SSE。每条 snapshot 含可选 `builtin_tool_id`（Harness 内由 `get_tool_product_id()` 派生，无 i18n）；WebUI wrench 与 gap toast 共用 `builtinTools.ts` 中的本地化 capability 标签。
 
 ---
 

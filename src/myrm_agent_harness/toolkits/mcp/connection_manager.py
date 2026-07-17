@@ -400,6 +400,7 @@ class MCPConnectionManager:
                 tool_include=getattr(cfg, "tool_include", None),
                 tool_exclude=getattr(cfg, "tool_exclude", None),
                 auth_provider=getattr(cfg, "auth_provider", None),
+                oversized_result_handler=getattr(cfg, "oversized_result_handler", None),
             )
             await actor.start()
             return cfg.name, actor

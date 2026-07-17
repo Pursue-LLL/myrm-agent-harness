@@ -295,41 +295,35 @@ class TestToolLayerFunctions:
 
 
 class TestToolRegistryBindMode:
-    def test_discoverable_tool_not_in_resolve(self) -> None:
+    def test_runtime_only_not_in_resolve(self) -> None:
         reg = ToolRegistry()
         reg.register(_make_tool("visible"), source=ToolSource.META)
         reg.register(
-            _make_tool("hidden"),
-            source=ToolSource.META,
-            bind_mode=ToolBindMode.DISCOVERABLE,
+            _make_tool("_internal_hook"),
+            source=ToolSource.MIDDLEWARE,
+            bind_mode=ToolBindMode.RUNTIME_ONLY,
         )
         resolved = reg.resolve()
         names = [t.name for t in resolved]
-        assert "visible" in names
-        assert "hidden" not in names
+        assert names == ["visible"]
 
-    def test_runtime_only_not_in_discoverable(self) -> None:
+    def test_runtime_only_in_get_runtime_tools(self) -> None:
         reg = ToolRegistry()
         reg.register(
             _make_tool("_internal_hook"),
             source=ToolSource.MIDDLEWARE,
             bind_mode=ToolBindMode.RUNTIME_ONLY,
         )
-        reg.register(
-            _make_tool("cron_manage_tool"),
-            source=ToolSource.USER,
-            bind_mode=ToolBindMode.DISCOVERABLE,
-        )
-        assert {t.name for t in reg.get_discoverable_tools()} == {"cron_manage_tool"}
-        assert {t.name for t in reg.get_runtime_tools()} == {"_internal_hook", "cron_manage_tool"}
+        reg.register(_make_tool("visible"), source=ToolSource.META)
+        assert {t.name for t in reg.get_runtime_tools()} == {"_internal_hook"}
 
-    def test_lazy_tools_in_snapshot(self) -> None:
+    def test_runtime_only_in_snapshot(self) -> None:
         reg = ToolRegistry()
         reg.register(_make_tool("active"), source=ToolSource.META)
         reg.register(
-            _make_tool("lazy"),
+            _make_tool("_internal_hook"),
             source=ToolSource.META,
-            bind_mode=ToolBindMode.DISCOVERABLE,
+            bind_mode=ToolBindMode.RUNTIME_ONLY,
         )
         snaps = reg.snapshot()
         non_turn1_snaps = [
@@ -337,8 +331,8 @@ class TestToolRegistryBindMode:
         ]
         turn1_snaps = [s for s in snaps if s.bind_mode == ToolBindMode.TURN1.value]
         assert len(non_turn1_snaps) == 1
-        assert non_turn1_snaps[0].name == "lazy"
-        assert non_turn1_snaps[0].bind_mode == ToolBindMode.DISCOVERABLE.value
+        assert non_turn1_snaps[0].name == "_internal_hook"
+        assert non_turn1_snaps[0].bind_mode == ToolBindMode.RUNTIME_ONLY.value
         assert len(turn1_snaps) == 1
 
 
@@ -352,14 +346,14 @@ class TestToolRegistryHasTool:
         reg = ToolRegistry()
         assert reg.has_tool("nonexistent") is False
 
-    def test_has_tool_deferred(self) -> None:
+    def test_has_tool_runtime_only(self) -> None:
         reg = ToolRegistry()
         reg.register(
-            _make_tool("deferred_one"),
+            _make_tool("runtime_one"),
             source=ToolSource.META,
-            bind_mode=ToolBindMode.DISCOVERABLE,
+            bind_mode=ToolBindMode.RUNTIME_ONLY,
         )
-        assert reg.has_tool("deferred_one") is True
+        assert reg.has_tool("runtime_one") is True
 
     def test_has_tool_after_duplicate_registration(self) -> None:
         reg = ToolRegistry()

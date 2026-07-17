@@ -176,7 +176,7 @@ def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionRe
     target = interactive[index]
     normalized = action.lower()
     try:
-        if normalized in {"fill", "type"}:
+        if normalized in {"fill", "type", "set_value"}:
             try:
                 editable = target.queryEditableText()  # type: ignore[attr-defined]
                 editable.setTextContents(text)  # type: ignore[attr-defined]

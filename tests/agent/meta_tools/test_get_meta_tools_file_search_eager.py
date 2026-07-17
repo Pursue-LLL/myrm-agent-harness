@@ -44,7 +44,7 @@ class TestFileSearchEager:
         assert {"glob_tool", "grep_tool"}.issubset(returned_names)
         assert {"file_read_tool", "file_write_tool", "file_edit_tool"}.issubset(returned_names)
 
-    def test_glob_grep_not_in_deferred_registry(
+    def test_glob_grep_not_runtime_only_registry(
         self,
         skill_backend: MagicMock,
     ) -> None:
@@ -58,9 +58,9 @@ class TestFileSearchEager:
             enable_answer_tool=False,
         )
 
-        discoverable_names = {t.name for t in registry.get_discoverable_tools()}
-        assert "glob_tool" not in discoverable_names
-        assert "grep_tool" not in discoverable_names
+        runtime_names = {t.name for t in registry.get_runtime_tools()}
+        assert "glob_tool" not in runtime_names
+        assert "grep_tool" not in runtime_names
 
     def test_glob_grep_absent_when_file_ops_disabled(
         self,
@@ -126,7 +126,7 @@ class TestFileSearchEager:
         assert "bash_code_execute_tool" in returned_names
         assert "bash_process_tool" in returned_names
 
-        discoverable_names = {t.name for t in registry.get_discoverable_tools()}
+        discoverable_names = {t.name for t in registry.get_runtime_tools()}
         assert "bash_process_tool" not in discoverable_names
 
     def test_answer_tool_eager_when_enabled(

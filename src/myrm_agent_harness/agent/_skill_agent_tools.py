@@ -11,7 +11,7 @@
 
 [POS]
 Tool building mixin for SkillAgent. Assembles meta-tools, todo_write (when
-enable_planning or workspace todos exist), wiki tools, and deferred tool registration.
+enable_planning or workspace todos exist), wiki tools, and RUNTIME_ONLY hooks.
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ class SkillAgentToolsMixin:
     - storage_backend, llm, config
     - _task_workspace_root (chat sandbox path for progress persistence)
     - _wiki_base_dir, _wiki_search_fn
-    - _tool_registry, user_tools, discoverable_tools, user_middlewares
+    - _tool_registry, user_tools, user_middlewares
     """
 
     async def _build_tools(self) -> list[BaseTool]:
@@ -105,10 +105,6 @@ class SkillAgentToolsMixin:
             normalize_tool_names(self.user_tools),
             source=ToolSource.USER,  # type: ignore[attr-defined]
         )
-
-        if self.discoverable_tools:  # type: ignore[attr-defined]
-            for tool in normalize_tool_names(self.discoverable_tools):  # type: ignore[attr-defined]
-                registry.register(tool, source=ToolSource.USER, bind_mode=ToolBindMode.DISCOVERABLE)
 
         all_middlewares: list[object] = list(self.user_middlewares)  # type: ignore[attr-defined]
         cached_mws = getattr(self, "_cached_middlewares", None)

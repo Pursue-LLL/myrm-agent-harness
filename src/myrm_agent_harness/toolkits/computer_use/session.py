@@ -82,6 +82,8 @@ class ComputerSession:
         reason: str,
         operation: str,
         estimated_duration_seconds: float = 5.0,
+        app_name: str = "",
+        window_title: str = "",
     ) -> ActionResult | None:
         """Gate foreground-stealing operations behind user permission.
 
@@ -109,6 +111,9 @@ class ComputerSession:
             reason=reason,
             operation=operation,
             estimated_duration_seconds=estimated_duration_seconds,
+            app_name=app_name,
+            window_title=window_title,
+            require_app_approval=False,
         )
 
         if not result.granted:
@@ -123,6 +128,61 @@ class ComputerSession:
             self._always_permission_granted = True
 
         logger.info("Foreground permission granted (scope=%s): %s", result.scope.value, reason)
+        return None
+
+    async def check_app_approval(
+        self,
+        *,
+        app_name: str,
+        window_title: str,
+        operation: str,
+        estimated_duration_seconds: float = 5.0,
+    ) -> ActionResult | None:
+        """Gate first-time per-app desktop interaction behind user approval."""
+        resolved_app = app_name.strip()
+        resolved_title = window_title.strip()
+
+        if not resolved_app:
+            from myrm_agent_harness.toolkits.computer_use.perception.ax_dispatch import inspect_backend
+
+            fg_info = inspect_backend(self._backend)
+            resolved_app = str(fg_info.get("app_name", "") or "").strip()
+            if not resolved_title:
+                resolved_title = str(fg_info.get("window_title", "") or "").strip()
+
+        if not resolved_app:
+            if self._permission_callback is not None or self._config.execution_mode == ExecutionMode.background_strict:
+                return ActionResult(
+                    success=False,
+                    error=(
+                        "Desktop control blocked: could not identify the foreground application "
+                        "for approval. Call desktop_snapshot_tool first or grant Accessibility access."
+                    ),
+                )
+            return None
+
+        if self._permission_callback is None:
+            if self._config.execution_mode == ExecutionMode.background_strict:
+                return ActionResult(
+                    success=False,
+                    error="Desktop app control blocked: no permission callback is configured.",
+                )
+            return None
+
+        result = await self._permission_callback(
+            reason=f"Agent wants to control application '{resolved_app}'",
+            operation=operation,
+            estimated_duration_seconds=estimated_duration_seconds,
+            app_name=resolved_app,
+            window_title=resolved_title,
+            require_app_approval=True,
+        )
+
+        if not result.granted:
+            return ActionResult(
+                success=False,
+                error=f"Desktop control denied for application '{resolved_app}'.",
+            )
         return None
 
     async def take_screenshot(self) -> ActionResult:

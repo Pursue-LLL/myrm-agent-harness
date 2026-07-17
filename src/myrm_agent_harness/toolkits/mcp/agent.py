@@ -31,7 +31,8 @@ Provides MCP tool fetching capabilities:
 - langchain_mcp_adapters (POS: MCP adapter library)
 
 [OUTPUT]
-- MCPAgent: MCP tool fetching, server mapping, content block coercion (file/audio/unknown→text), multimodal result normalization, content boundary defense (wrap_untrusted for all string outputs), upstream fault tolerance, auth error detection (401→MCPAuthExpiredEvent), ext-apps metadata emission, and safety annotation registration
+- MCPAgent: MCP tool fetching, server mapping, content block coercion (file/audio/unknown→text), multimodal result normalization, content boundary defense (wrap_untrusted for all string outputs), upstream fault tolerance, auth error detection (401→MCPAuthExpiredEvent), ext-apps metadata emission, safety annotation registration, and oversized output vault spill (via injectable OversizedResultHandler callback)
+- OversizedResultHandler: type alias for the vault-spill callback signature
 
 [POS]
 MCP tool discovery layer (not harness Agent runtime). Orchestrates multi-server tool discovery with parallel fetching,
@@ -52,7 +53,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -76,6 +77,14 @@ from .schema_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+OversizedResultHandler = Callable[[str, str], str | None]
+"""``(content, tool_name) -> summary_with_pointer | None``.
+
+Invoked when an MCP tool result exceeds ``max_output_chars``.  The handler
+should persist the full content (e.g. into ArtifactVault) and return a
+compact summary containing a retrieval pointer.  Return ``None`` to fall
+back to the default head-truncation."""
 
 
 def _is_mcp_auth_error(exc: Exception) -> bool:
@@ -282,8 +291,57 @@ class MCPAgent:
         return str(result)
 
     @staticmethod
-    def _wrap_tools_with_timeout(tools: list[BaseTool], timeout: float, max_output_chars: int = 100_000) -> None:
-        """Wrap MCP tool execution with asyncio.timeout, normalize, and guard output size."""
+    def _handle_oversized_output(
+        content: str,
+        tool_name: str,
+        max_chars: int,
+        handler: OversizedResultHandler | None,
+    ) -> str:
+        """Persist oversized output via *handler*, falling back to head-truncation."""
+        original_len = len(content)
+
+        if handler is not None:
+            try:
+                summary = handler(content, tool_name)
+                if summary is not None:
+                    logger.info(
+                        "MCP tool '%s' output vaulted via handler: %d chars",
+                        tool_name, original_len,
+                    )
+                    return summary
+            except Exception:
+                logger.warning(
+                    "MCP tool '%s' oversized handler failed, falling back to truncation",
+                    tool_name,
+                    exc_info=True,
+                )
+
+        discarded = original_len - max_chars
+        logger.warning(
+            "MCP tool '%s' output truncated: %d → %d chars",
+            tool_name, original_len, max_chars,
+        )
+        return (
+            f"{content[:max_chars]}\n\n"
+            f"[Output truncated: showing first {max_chars:,} of {original_len:,} chars. "
+            f"Remaining {discarded:,} chars were discarded to fit context budget.]"
+        )
+
+    @staticmethod
+    def _wrap_tools_with_timeout(
+        tools: list[BaseTool],
+        timeout: float,
+        max_output_chars: int = 100_000,
+        oversized_result_handler: OversizedResultHandler | None = None,
+    ) -> None:
+        """Wrap MCP tool execution with asyncio.timeout, normalize, and guard output size.
+
+        When *oversized_result_handler* is provided and a tool result exceeds
+        *max_output_chars*, the handler is called first to persist the full
+        content (e.g. into ArtifactVault).  If the handler returns a summary
+        string it replaces the truncated output; if it returns ``None`` or
+        raises, the existing head-truncation logic is used as fallback.
+        """
         from myrm_agent_harness.core.security.detection.content_boundary import wrap_untrusted
 
         for tool in tools:
@@ -299,6 +357,7 @@ class MCPAgent:
                 _name: str = tool_name,
                 _timeout: float = timeout,
                 _max_chars: int = max_output_chars,
+                _handler: OversizedResultHandler | None = oversized_result_handler,
                 **kwargs: object,
             ) -> str | list[dict[str, object]]:
                 try:
@@ -307,16 +366,8 @@ class MCPAgent:
                         normalized = MCPAgent._normalize_mcp_result(raw)
                         await MCPAgent._emit_mcp_app_event(raw, _name)
                         if isinstance(normalized, str) and len(normalized) > _max_chars:
-                            original_len = len(normalized)
-                            discarded = original_len - _max_chars
-                            normalized = (
-                                f"{normalized[:_max_chars]}\n\n"
-                                f"[Output truncated: showing first {_max_chars:,} of {original_len:,} chars. "
-                                f"Remaining {discarded:,} chars were discarded to fit context budget.]"
-                            )
-                            logger.warning(
-                                "MCP tool '%s' output truncated: %d → %d chars",
-                                _name, original_len, _max_chars,
+                            normalized = MCPAgent._handle_oversized_output(
+                                normalized, _name, _max_chars, _handler,
                             )
                         if isinstance(normalized, str):
                             normalized = wrap_untrusted(normalized, source=f"mcp:{_name}")
@@ -490,6 +541,7 @@ class MCPAgent:
         tool_exclude: list[str] | None,
         execute_timeout: float,
         max_output_chars: int = 100_000,
+        oversized_result_handler: OversizedResultHandler | None = None,
     ) -> list[BaseTool]:
         """Apply the full post-processing chain to tools bound to a live session.
 
@@ -500,13 +552,13 @@ class MCPAgent:
 
         Pipeline order:
         filter (uses original names) → prefix → description limit →
-        sanitize (schema) → timeout + output guard → annotations.
+        sanitize (schema) → timeout + output guard (with optional vault spill) → annotations.
         """
         tools = MCPAgent._apply_tool_filter(tools, server_name, tool_include, tool_exclude)
         MCPAgent._prefix_tool_names(tools, server_name)
         MCPAgent._enforce_description_limits(tools)
         MCPAgent._sanitize_tools(tools)
-        MCPAgent._wrap_tools_with_timeout(tools, execute_timeout, max_output_chars)
+        MCPAgent._wrap_tools_with_timeout(tools, execute_timeout, max_output_chars, oversized_result_handler)
         MCPAgent._register_tool_annotations(tools, server_name)
         return tools
 

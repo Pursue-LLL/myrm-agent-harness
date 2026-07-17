@@ -65,6 +65,13 @@ class TestIsSensitiveApp:
 
     def test_password_manager_keychain(self) -> None:
         assert is_sensitive_app("Keychain Access") is not None
+
+    def test_terminal_apps_blocked(self) -> None:
+        assert is_sensitive_app("Terminal") is not None
+        assert is_sensitive_app("iTerm2") is not None
+        assert is_sensitive_app("Windows Terminal") is not None
+        assert is_sensitive_app("powershell") is not None
+        assert is_sensitive_app("GNOME Terminal") is not None
         assert is_sensitive_app("钥匙串访问") is not None
 
     def test_safe_apps(self) -> None:

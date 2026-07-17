@@ -36,7 +36,7 @@ async def test_default_resolve_excludes_internal_pseudo_tools() -> None:
     registry = create_registry()
     middlewares = build_middlewares(registry, [])
 
-    resolved = await build_tools(registry, [], [], middlewares)
+    resolved = await build_tools(registry, [], middlewares)
     resolved_names = {tool.name for tool in resolved}
 
     overlap = resolved_names & CONTROL_PLANE_TOOL_NAMES
@@ -56,13 +56,10 @@ async def test_completion_check_is_runtime_only_not_turn1() -> None:
     registry = create_registry()
     middlewares = build_middlewares(registry, [])
 
-    await build_tools(registry, [], [], middlewares)
+    await build_tools(registry, [], middlewares)
 
     runtime_names = {tool.name for tool in registry.get_runtime_tools()}
     assert COMPLETION_CHECK_TOOL_NAME in runtime_names
-
-    discoverable_names = {tool.name for tool in registry.get_discoverable_tools()}
-    assert COMPLETION_CHECK_TOOL_NAME not in discoverable_names
 
     active_names = {tool.name for tool in registry.resolve()}
     assert COMPLETION_CHECK_TOOL_NAME not in active_names
@@ -83,7 +80,7 @@ async def test_schema_only_tools_not_registered_in_default_build() -> None:
     registry = create_registry()
     middlewares = build_middlewares(registry, [])
 
-    await build_tools(registry, [], [], middlewares)
+    await build_tools(registry, [], middlewares)
 
     for name in SCHEMA_ONLY_CONTROL_PLANE_TOOL_NAMES:
         assert not registry.has_tool(name), f"{name} must not be in default registry"

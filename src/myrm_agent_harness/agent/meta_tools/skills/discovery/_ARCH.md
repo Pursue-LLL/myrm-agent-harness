@@ -1,7 +1,7 @@
 # discovery/
 
 ## Overview
-Skill discovery meta-tool (marketplace search/install). Registered as **DISCOVERABLE** in `get_meta_tools()` when `discovery_backend` is provided; mount via `discover_capability_tool`.
+Skill discovery meta-tool (marketplace search/install). Turn1 eager when `discovery_backend` is provided.
 
 ## File & Submodule Index
 

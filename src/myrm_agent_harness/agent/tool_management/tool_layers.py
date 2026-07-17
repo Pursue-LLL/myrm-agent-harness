@@ -87,7 +87,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "browser_ask_human_tool": ToolLayer.EXTENDED,
     "browser_snapshot_tool": ToolLayer.EXTENDED,
     # --- 计算机操作工具 ---
-    "desktop_inspect_tool": ToolLayer.EXTENDED,
     "desktop_snapshot_tool": ToolLayer.EXTENDED,
     "desktop_interact_tool": ToolLayer.EXTENDED,
     "desktop_vision_tool": ToolLayer.EXTENDED,

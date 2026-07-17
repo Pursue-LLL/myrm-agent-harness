@@ -133,7 +133,7 @@ def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionRe
     target = interactive[index]
     normalized = action.lower()
     try:
-        if normalized in {"fill", "type"}:
+        if normalized in {"fill", "type", "set_value"}:
             target.SendKeys(text)  # type: ignore[attr-defined]
         elif normalized in {"click", "press", "hover", "focus", "dblclick", "double_click"}:
             target.Click()  # type: ignore[attr-defined]

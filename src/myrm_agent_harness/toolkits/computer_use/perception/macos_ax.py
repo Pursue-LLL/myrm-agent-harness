@@ -286,6 +286,10 @@ on run argv
             set value of elem to inputText
             return "OK"
         end if
+        if actionName is "set_value" then
+            set value of elem to inputText
+            return "OK"
+        end if
         if actionName is "click" then
             try
                 perform action "AXPress" of elem
@@ -309,10 +313,10 @@ def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionRe
     normalized_action = action.lower()
     if normalized_action in {"dblclick", "double_click"}:
         normalized_action = "click"
-    if normalized_action not in {"click", "fill", "press", "focus", "hover"}:
+    if normalized_action not in {"click", "fill", "set_value", "press", "focus", "hover"}:
         return ActionResult(success=False, error=f"Unsupported AX action: {action}")
 
-    ax_action = "fill" if normalized_action in {"fill", "type"} else "click"
+    ax_action = "fill" if normalized_action in {"fill", "type", "set_value"} else "click"
     try:
         result = subprocess.run(
             ["osascript", "-e", _AX_INVOKE_SCRIPT, ax_action, backend_key, text],

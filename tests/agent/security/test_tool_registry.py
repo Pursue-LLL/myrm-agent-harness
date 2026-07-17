@@ -243,9 +243,6 @@ class TestSafetyMetadata:
 class TestComputerToolMapping:
     """Desktop control tools: permission resolution and safety metadata."""
 
-    def test_desktop_inspect_maps_to_desktop_capture(self):
-        assert resolve_permission_type("desktop_inspect_tool") == "desktop_capture"
-
     def test_desktop_snapshot_maps_to_desktop_capture(self):
         assert resolve_permission_type("desktop_snapshot_tool") == "desktop_capture"
 
@@ -268,10 +265,10 @@ class TestComputerToolMapping:
         assert resolve_permission_type("desktop_vision_tool") == "desktop_control"
 
     def test_desktop_tools_in_builtins(self):
-        assert "desktop_inspect_tool" in BUILTIN_TOOL_NAMES
         assert "desktop_snapshot_tool" in BUILTIN_TOOL_NAMES
         assert "desktop_interact_tool" in BUILTIN_TOOL_NAMES
         assert "desktop_vision_tool" in BUILTIN_TOOL_NAMES
+        assert "desktop_inspect_tool" not in BUILTIN_TOOL_NAMES
 
     def test_desktop_snapshot_safety_metadata(self):
         meta = resolve_safety_metadata("desktop_snapshot_tool")

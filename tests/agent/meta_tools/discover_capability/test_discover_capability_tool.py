@@ -28,9 +28,7 @@ class DummyTool(BaseTool):
 
 @pytest.fixture
 def mock_registry():
-    registry = MagicMock(spec=ToolRegistry)
-    registry.get_discoverable_tools.return_value = [DummyTool()]
-    return registry
+    return MagicMock(spec=ToolRegistry)
 
 
 @pytest.fixture

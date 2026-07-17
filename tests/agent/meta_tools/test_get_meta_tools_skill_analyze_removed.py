@@ -51,11 +51,11 @@ class TestSkillAnalyzeRemoved:
 
         resolved_names = {t.name for t in registry.resolve()}
         returned_names = {t.name for t in tools}
-        discoverable_names = {t.name for t in registry.get_discoverable_tools()}
+        runtime_names = {t.name for t in registry.get_runtime_tools()}
 
         assert "skill_analyze_tool" not in resolved_names
         assert "skill_analyze_tool" not in returned_names
-        assert "skill_analyze_tool" not in discoverable_names
+        assert "skill_analyze_tool" not in runtime_names
 
     def test_discover_description_omits_skill_analyze(
         self,

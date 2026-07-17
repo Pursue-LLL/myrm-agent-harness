@@ -105,9 +105,8 @@ class ToolRegistry:
             built-in tools.
         bind_mode:
             ``TURN1``: bound on first model turn.
-            ``DISCOVERABLE``: reserved for future use (currently unused).
             ``RUNTIME_ONLY``: internal hooks (e.g. ``_completion_check``);
-            not in discover index; executable when middleware injects tool_calls.
+            excluded from Turn1; executable when middleware injects tool_calls.
         """
         resolved_layer = layer if layer is not None else get_tool_layer(tool.name)
 
@@ -221,15 +220,10 @@ class ToolRegistry:
 
         return final_tools
 
-    def get_discoverable_tools(self) -> list[BaseTool]:
-        """Return tools indexed by discover_capability (excludes runtime-only hooks)."""
-        entries = self._resolve_entries()
-        return [e.tool for e in entries if e.bind_mode == ToolBindMode.DISCOVERABLE]
-
     def get_runtime_tools(self) -> list[BaseTool]:
-        """Return tools executable outside Turn1 bind (discoverable + runtime-only)."""
+        """Return RUNTIME_ONLY tools executable when middleware injects tool_calls."""
         entries = self._resolve_entries()
-        return [e.tool for e in entries if e.bind_mode != ToolBindMode.TURN1]
+        return [e.tool for e in entries if e.bind_mode == ToolBindMode.RUNTIME_ONLY]
 
     def snapshot(self) -> list[ToolSnapshot]:
         """Return a serializable snapshot of all registered tools (internal/debug).

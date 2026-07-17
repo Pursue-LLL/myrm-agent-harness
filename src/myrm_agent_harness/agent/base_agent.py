@@ -86,7 +86,6 @@ class BaseAgent(BaseAgentModesMixin):
         middlewares: "list[AgentMiddleware[Any, Any]] | None" = None,
         system_prompt: str | None = None,
         tools: list[BaseTool] | None = None,
-        discoverable_tools: list[BaseTool] | None = None,
         context_schema: type | None = None,
         config: AgentRuntimeConfig | None = None,
         on_artifacts_ready: "ArtifactReadyHandler | None" = None,
@@ -105,7 +104,6 @@ class BaseAgent(BaseAgentModesMixin):
         self.user_middlewares = middlewares or []
         self.system_prompt = system_prompt
         self.user_tools = tools or []
-        self.discoverable_tools = discoverable_tools or []
         self.context_schema = context_schema
         self.config = config or AgentRuntimeConfig()
         self.on_artifacts_ready = on_artifacts_ready
@@ -344,7 +342,6 @@ class BaseAgent(BaseAgentModesMixin):
         return await build_tools(
             self._tool_registry,
             self.user_tools,
-            self.discoverable_tools,
             self._cached_middlewares,
         )
 

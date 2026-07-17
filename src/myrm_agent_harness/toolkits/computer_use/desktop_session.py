@@ -100,17 +100,6 @@ class DesktopSession(ComputerSession):
             som_index_map,
         )
 
-    async def desktop_inspect(self) -> str:
-        info = inspect_backend(self._backend)
-        lines = [
-            f"App: {info.get('app_name', '') or 'unknown'}",
-            f"Window: {info.get('window_title', '') or 'unknown'}",
-            f"Interactive estimate: {info.get('interactive_estimate', 0)}",
-            f"Needs permission: {info.get('needs_permission', False)}",
-            f"Recommendation: {info.get('recommendation', '')}",
-        ]
-        return "\n".join(lines)
-
     async def desktop_snapshot(
         self,
         scope: SnapshotScope = "foreground",
@@ -173,12 +162,21 @@ class DesktopSession(ComputerSession):
         ref: str,
         action: DesktopInteractAction,
         text: str = "",
-        verify_goal: str | None = None,
         modifiers: list[ModifierKey] | None = None,
     ) -> str | list[object]:
         from myrm_agent_harness.toolkits.computer_use import safety
 
-        del verify_goal  # reserved for roadmap #7
+        meta = self._refs.meta
+        app_name = meta.app_name if meta else ""
+        window_title = meta.window_title if meta else ""
+
+        app_denied = await self.check_app_approval(
+            app_name=app_name,
+            window_title=window_title,
+            operation=f"desktop_interact({action}, @{ref})",
+        )
+        if app_denied is not None:
+            return f"Control denied: {app_denied.error}"
 
         # [SECURITY] Re-validation: If it's been > 5 seconds since the last snapshot,
         # it's highly likely the execution was delayed (e.g., human-in-the-loop approval).
@@ -223,6 +221,8 @@ class DesktopSession(ComputerSession):
             except Exception as e:
                 return f"Failed to retrieve credential for label '{text}': {e}"
             effective_action = "fill"
+        elif action == "set_value":
+            effective_action = "set_value"
 
         ax_result = invoke_element(self._backend, element, effective_action, effective_text)
         if not ax_result.success:
@@ -277,11 +277,15 @@ class DesktopSession(ComputerSession):
             return f"Safety: {blocked}"
 
         # [SECURITY] Foreground permission gate for coordinate-based actions.
+        fg_app = str(fg_info.get("app_name", "") or "")
+        fg_title = str(fg_info.get("window_title", "") or "")
         if safety.is_foreground_required(action):
             permission_denied = await self.check_foreground_permission(
                 reason=f"Vision action '{action}' requires foreground mouse/keyboard control",
                 operation=f"desktop_vision_action({action})",
                 estimated_duration_seconds=5.0,
+                app_name=fg_app,
+                window_title=fg_title,
             )
             if permission_denied is not None:
                 return f"Permission denied: {permission_denied.error}"

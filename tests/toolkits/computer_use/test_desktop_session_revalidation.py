@@ -79,24 +79,6 @@ async def test_desktop_vision_action_success(mock_backend, mock_config):
 
 
 @pytest.mark.asyncio
-async def test_desktop_inspect_returns_metadata(mock_backend, mock_config):
-    session = DesktopSession(backend=mock_backend, config=mock_config)
-    with patch(
-        "myrm_agent_harness.toolkits.computer_use.desktop_session.inspect_backend",
-        return_value={
-            "app_name": "Finder",
-            "window_title": "Desktop",
-            "interactive_estimate": 12,
-            "needs_permission": False,
-            "recommendation": "Use desktop_snapshot",
-        },
-    ):
-        result = await session.desktop_inspect()
-    assert "App: Finder" in result
-    assert "Recommendation: Use desktop_snapshot" in result
-
-
-@pytest.mark.asyncio
 async def test_desktop_interact_revalidation_capture_error(mock_backend, mock_config):
     session = DesktopSession(backend=mock_backend, config=mock_config)
     session._last_snapshot_time = time.time() - 10.0

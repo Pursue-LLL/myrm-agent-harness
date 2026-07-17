@@ -93,7 +93,7 @@ class ToolLayer(IntEnum):
 | todo_write | opt-in（planning） |
 
 #### 2.2.3 EXTENDED 层 (Layer 3)
-- **特征**: 按需 Turn1 或 DISCOVERABLE / RUNTIME_ONLY 绑定
+- **特征**: 按需 Turn1 或 RUNTIME_ONLY 绑定
 - **缓存**: 放最后使其变化不影响 CORE/COMMON 的缓存
 - **工具数量**: 登记 **55** EXTENDED（harness 静态 + server bootstrap 5；见 TOOL_COUNT 块）
 - **Token 消耗**: 典型 ~2,246 tokens，满载 ~7,290+ tokens
@@ -404,7 +404,7 @@ def get_tool_layer(tool_name: str) -> ToolLayer:
 **效果**:
 - DeferEconomics：小 defer 池 + 无外部技能 → 不绑 discover 网关（省 ~238 tok/Turn1）
 - Agent 通过 discover 命中外部技能 → `skill_select_tool` 加载 SOP 后执行
-- 严禁 append DISCOVERABLE schema 到 bind_tools（框架 11.1 prefix cache 底线）
+- 严禁 append 非 Turn1 schema 到 bind_tools（框架 11.1 prefix cache 底线）
 
 ### 11.3 工具推荐系统 ✅ 已实现
 

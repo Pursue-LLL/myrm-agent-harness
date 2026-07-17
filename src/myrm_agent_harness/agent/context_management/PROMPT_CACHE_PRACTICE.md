@@ -81,7 +81,7 @@ class ToolLayer(IntEnum):
 |------|------|---------|
 | **CORE** | web_fetch + file×3 + bash + glob/grep | 7 登记 | 通用 Agent 基线 | 不依赖搜索 API |
 | **COMMON** | memory×3 + web_search + todo_write | 5 登记 | 默认 bind memory×3 + web_search | memory 组内优先排序 |
-| **EXTENDED** | 59 登记（harness 54 + server 5）+ 未注册 MCP 动态工具 | 按需 Turn1 或 DISCOVERABLE | conversation_search **默认不 bind** |
+| **EXTENDED** | 59 登记（harness 54 + server 5）+ 未注册 MCP 动态工具 | 按需 Turn1（profile 开关） | conversation_search **默认不 bind** |
 
 `ToolRegistry.resolve()` 执行去重 + 排序：
 
@@ -110,7 +110,7 @@ sorted_entries = sorted(
 
 ### 2.1.1 延迟工具（UnifiedCapabilityDefer）
 
-**原则（框架 11.1）**：严禁在 `awrap_model_call` 中 append DISCOVERABLE 工具 schema 到 `bind_tools`。
+**原则（框架 11.1）**：严禁在 `awrap_model_call` 中 append 非 Turn1 工具 schema 到 `bind_tools`。
 
 **实现**：
 

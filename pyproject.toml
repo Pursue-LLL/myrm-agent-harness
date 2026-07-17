@@ -19,7 +19,7 @@ classifiers = [
 
 dependencies = [
   # --- LangChain 生态 (Agent 框架基础) ---
-  "langchain>=1.3.13",                  # Agent 编排核心
+  "langchain>=1.3.14",                  # Agent 编排核心
   "langchain-core>=1.4.9",              # LangChain 基础抽象
   "langgraph>=1.2.9",                  # 图状态机 Agent 运行时
   "langgraph-checkpoint-sqlite>=3.1.0", # SQLite 状态持久化 (checkpoint factory)
@@ -65,7 +65,7 @@ verify-harness-distribution = "myrm_agent_harness._verify_distribution:main"
 # toolkits/browser/ - 浏览器自动化（需要 Patchright）
 browser = [
   "patchright>=1.61.2",   # CDP 泄露修补浏览器引擎
-  "camoufox>=0.4.11", # Firefox stealth fallback (auto-upgrade ladder)
+  "camoufox>=0.5.4", # Firefox stealth fallback (auto-upgrade ladder)
   "orjson>=3.11.9",       # session vault / persistence JSON (browser toolkit only)
 ]
 # toolkits/vector/ - 向量存储（Qdrant 嵌入式/远程）
@@ -107,14 +107,14 @@ file-parsers = [
 ]
 # infra/security/signature.py - FastAPI webhook signature verification
 fastapi = [
-  "fastapi>=0.139.0",
+  "fastapi>=0.139.2",
 ]
 
 # 全链路追踪与指标 (SaaS 级监控)
 observability = [
   "prometheus-client>=0.25.0",
-  "opentelemetry-sdk>=1.43.0",
-  "opentelemetry-exporter-otlp-proto-grpc>=1.43.0",
+  "opentelemetry-sdk>=1.44.0",
+  "opentelemetry-exporter-otlp-proto-grpc>=1.44.0",
   "openinference-instrumentation-langchain>=0.1.67",
 ]
 compiled-core = [

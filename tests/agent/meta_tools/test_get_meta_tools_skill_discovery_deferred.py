@@ -43,7 +43,7 @@ class TestSkillDiscoveryEager:
         returned_names = {t.name for t in tools}
         assert "skill_discovery_tool" in returned_names
 
-    def test_skill_discovery_not_in_discoverable_registry(
+    def test_skill_discovery_not_runtime_only(
         self,
         discovery_backend: MagicMock,
         skill_backend: MagicMock,
@@ -59,5 +59,5 @@ class TestSkillDiscoveryEager:
             enable_answer_tool=False,
         )
 
-        discoverable_names = {t.name for t in registry.get_discoverable_tools()}
-        assert "skill_discovery_tool" not in discoverable_names
+        runtime_names = {t.name for t in registry.get_runtime_tools()}
+        assert "skill_discovery_tool" not in runtime_names
