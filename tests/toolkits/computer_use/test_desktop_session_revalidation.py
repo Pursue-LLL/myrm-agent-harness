@@ -55,14 +55,55 @@ async def test_desktop_interact_revalidation_failure_ref_missing(mock_backend, m
         assert "is no longer found" in result
 
 @pytest.mark.asyncio
-async def test_desktop_vision_action_timeout(mock_backend, mock_config):
+async def test_desktop_vision_action_refreshes_stale_screenshot(mock_backend, mock_config):
     session = DesktopSession(backend=mock_backend, config=mock_config)
-    session._last_snapshot_time = time.time() - 6.0  # Force timeout
+    session._last_snapshot_time = time.time() - 6.0
 
-    result = await session.desktop_vision_action(action="left_click", coordinate=[100, 100])
+    with patch(
+        "myrm_agent_harness.toolkits.computer_use.desktop_session.inspect_backend",
+        return_value={"app_name": "Test", "window_title": "Test"},
+    ):
+        with patch.object(session, "take_screenshot", new_callable=AsyncMock) as mock_shot:
+            shot = MagicMock()
+            shot.success = True
+            mock_shot.return_value = shot
+            with patch.object(session, "click_at", new_callable=AsyncMock) as mock_click:
+                mock_click.return_value.success = True
+                mock_click.return_value.screenshot_base64 = ""
+                result = await session.desktop_vision_action(action="left_click", coordinate=[100, 100])
 
-    assert "Safety Re-validation failed" in result
-    assert "pixel coordinates are now considered stale and unsafe" in result
+    mock_shot.assert_called_once()
+    assert "completed" in result
+
+@pytest.mark.asyncio
+async def test_desktop_vision_action_requires_app_approval(mock_backend, mock_config):
+    from myrm_agent_harness.toolkits.computer_use.types import (
+        ComputerUseConfig,
+        ExecutionMode,
+        ForegroundPermissionResult,
+        ForegroundPermissionScope,
+    )
+
+    callback = AsyncMock(
+        return_value=ForegroundPermissionResult(granted=True, scope=ForegroundPermissionScope.once)
+    )
+    config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
+    session = DesktopSession(backend=mock_backend, config=config, permission_callback=callback)
+    session._last_snapshot_time = time.time()
+
+    with patch(
+        "myrm_agent_harness.toolkits.computer_use.desktop_session.inspect_backend",
+        return_value={"app_name": "Safari", "window_title": "Example"},
+    ):
+        with patch.object(session, "click_at", new_callable=AsyncMock) as mock_click:
+            mock_click.return_value.success = True
+            mock_click.return_value.screenshot_base64 = ""
+            await session.desktop_vision_action(action="left_click", coordinate=[100, 100])
+
+    assert callback.call_count == 1
+    assert callback.call_args.kwargs["app_name"] == "Safari"
+    assert callback.call_args.kwargs["require_app_approval"] is True
+
 
 @pytest.mark.asyncio
 async def test_desktop_vision_action_success(mock_backend, mock_config):

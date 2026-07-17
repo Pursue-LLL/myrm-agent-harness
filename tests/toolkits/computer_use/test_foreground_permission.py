@@ -213,3 +213,39 @@ class TestCheckAppApproval:
         assert result is not None
         assert result.success is False
         callback.assert_not_called()
+
+
+class TestOperationForegroundWaiver:
+    """App approval grants a one-shot foreground waiver for bbox/healer in the same tool call."""
+
+    @pytest.mark.asyncio
+    async def test_app_approval_waives_immediate_foreground_check(self, backend: MagicMock) -> None:
+        callback = AsyncMock(
+            return_value=ForegroundPermissionResult(granted=True, scope=ForegroundPermissionScope.once),
+        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
+        session = ComputerSession(backend=backend, config=config, permission_callback=callback)
+
+        app_result = await session.check_app_approval(
+            app_name="Finder",
+            window_title="Desktop",
+            operation="desktop_interact(click, @d1)",
+        )
+        assert app_result is None
+        assert callback.call_count == 1
+
+        fg_result = await session.check_foreground_permission(
+            reason="bbox fallback",
+            operation="bbox_click(100, 200)",
+            app_name="Finder",
+            window_title="Desktop",
+        )
+        assert fg_result is None
+        assert callback.call_count == 1
+
+        session.clear_operation_foreground_waiver()
+        await session.check_foreground_permission(
+            reason="bbox fallback again",
+            operation="bbox_click(100, 200)",
+        )
+        assert callback.call_count == 2

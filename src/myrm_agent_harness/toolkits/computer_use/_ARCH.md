@@ -14,8 +14,8 @@ with native desktop applications via accessibility trees (@dref) with coordinate
 | screenshot_processor.py | Core | Binary-search downsampling pipeline | ✅ |
 | coordinate_scaler.py | Core | DPI-aware coordinate transformer | ✅ |
 | som_overlay.py | Core | SOM numbered overlay on JPEG; agent path when `include_screenshot=True`, inspector refresh when screenshot captured; stable [N]↔@dref map (cap 80) | ✅ |
-| session.py | Core | ComputerSession orchestrator (coordinate I/O, app + foreground gates) | ✅ |
-| desktop_session.py | Core | DesktopSession: AX snapshot, @dref registry, DESKTOP_VIEW_UPDATE, export_inspector_snapshot | ✅ |
+| session.py | Core | ComputerSession orchestrator (coordinate I/O, app + foreground gates, operation-scoped foreground waiver) | ✅ |
+| desktop_session.py | Core | DesktopSession: AX snapshot, @dref registry, shared approval revalidation, DESKTOP_VIEW_UPDATE, export_inspector_snapshot | ✅ |
 | desktop_agent_tools.py | Core | 3 LangChain tools: snapshot / interact / vision | ✅ |
 
 | Submodule | Description |
@@ -54,12 +54,12 @@ Agent → desktop_agent_tools (3 tools)
 3. **Safety in session**: Blocked key combos, dangerous type-text patterns, sensitive application guard (`is_sensitive_app`, including terminal/shell apps). Enforced in `desktop_snapshot`, `desktop_interact`, and `desktop_vision_action`
 4. **Multimodal responses**: Vision capture/actions return text + JPEG image blocks
 5. **Platform auto-detection**: reuses `detect_platform()` from code_execution
-6. **Security & Re-validation**: TOCTOU revalidation on delayed interact and vision coordinate fuse (>5s)
+6. **Security & Re-validation**: shared `_revalidate_if_stale_after_approval()` after approval delay — interact verifies @dref; vision refreshes screenshot/scaler
 7. **Credential Vault integration**: `fill_credential` resolves secrets without exposing them in LLM context
 8. **Permission probing**: `DesktopSession.check_permissions()` + server `GET /webui/desktop/permissions`
 9. **Native API routing hints**: `inspect_foreground()` appends AppleScript/COM/D-Bus hints in snapshot recommendation text
 10. **Background input (cua-driver)**: optional focus-free input proxy
-11. **Desktop control gate**: `check_app_approval` uses snapshot meta or `inspect_backend()` fallback; `check_foreground_permission` for coordinate ops. Server `DesktopControlGate` via `ForegroundPermissionCallback`. LOCAL `background_strict`; sandbox auto-grants. SSE `desktop_control_approval_request` opens Desktop Inspector; resolve `POST /webui/desktop/approval/resolve`. Persist `{workspace}/.agent/desktop_control/approved_apps.json`
+11. **Desktop control gate**: `check_app_approval` on interact and vision mutating actions; uses snapshot meta or `inspect_backend()` fallback; `check_foreground_permission` for coordinate/healer paths with operation-scoped waiver after app approval. Server `DesktopControlGate` via `ForegroundPermissionCallback` (empty app fail-closed). LOCAL `background_strict`; sandbox auto-grants. SSE `desktop_control_approval_request` opens Desktop Inspector; resolve `POST /webui/desktop/approval/resolve`. Persist `{workspace}/.agent/desktop_control/approved_apps.json`
 12. **Session lifecycle**: `ComputerSession.close()` on agent session end
 
 ## Key Dependencies

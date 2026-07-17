@@ -61,6 +61,7 @@ class ComputerSession:
         self._permission_callback = permission_callback
         self._session_permission_granted: bool = False
         self._always_permission_granted: bool = False
+        self._operation_foreground_waived: bool = False
 
     @property
     def screen_info(self) -> ScreenInfo:
@@ -96,6 +97,9 @@ class ComputerSession:
             return None
 
         if self._always_permission_granted or self._session_permission_granted:
+            return None
+
+        if self._operation_foreground_waived:
             return None
 
         if self._permission_callback is None:
@@ -183,7 +187,13 @@ class ComputerSession:
                 success=False,
                 error=f"Desktop control denied for application '{resolved_app}'.",
             )
+
+        self._operation_foreground_waived = True
         return None
+
+    def clear_operation_foreground_waiver(self) -> None:
+        """Clear one-shot foreground waiver after the current desktop tool call finishes."""
+        self._operation_foreground_waived = False
 
     async def take_screenshot(self) -> ActionResult:
         """Capture screen, preprocess, and return as base64 JPEG with screen metadata."""

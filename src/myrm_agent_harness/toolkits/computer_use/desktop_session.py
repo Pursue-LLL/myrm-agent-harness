@@ -51,6 +51,8 @@ from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef, Snap
 
 logger = logging.getLogger(__name__)
 
+_APPROVAL_REVALIDATION_THRESHOLD_SEC = 5.0
+
 ViewUpdateCallback = Callable[[dict[str, object]], None]
 
 
@@ -76,6 +78,47 @@ class DesktopSession(ComputerSession):
 
     def set_view_update_callback(self, callback: ViewUpdateCallback | None) -> None:
         self._view_update_callback = callback
+
+    async def _revalidate_if_stale_after_approval(
+        self,
+        *,
+        interact_ref: str | None = None,
+    ) -> str | None:
+        """Refresh desktop state when user approval delayed the operation."""
+        elapsed = time.time() - self._last_snapshot_time
+        if elapsed <= _APPROVAL_REVALIDATION_THRESHOLD_SEC:
+            return None
+
+        from myrm_agent_harness.toolkits.computer_use import safety
+
+        logger.info(
+            "[SECURITY] Re-validating desktop state after approval delay (delayed %.1fs)",
+            elapsed,
+        )
+        try:
+            if interact_ref is not None:
+                meta, refs = capture_snapshot(self._backend, "foreground", None)
+                blocked = safety.is_sensitive_app(meta.app_name, meta.window_title)
+                if blocked:
+                    logger.warning("[SECURITY] Sensitive app guard (interact): %s", blocked)
+                    return f"Safety: {blocked}"
+                if interact_ref not in refs:
+                    return (
+                        "Safety Re-validation failed: The screen has changed significantly during approval. "
+                        f"The target element '@{interact_ref}' is no longer found. "
+                        "Please take a new snapshot to refresh the view and try again."
+                    )
+                self._refs.replace(refs, meta)
+                self._last_snapshot_time = time.time()
+                return None
+
+            shot = await self.take_screenshot()
+            if not shot.success:
+                return f"Safety Re-validation failed: Could not refresh screen state ({shot.error})."
+            self._last_snapshot_time = time.time()
+            return None
+        except Exception as exc:
+            return f"Safety Re-validation failed: Could not re-verify screen state ({exc!s})."
 
     def _snapshot_screen_fields(self) -> dict[str, int | float]:
         info = self.screen_info
@@ -164,8 +207,6 @@ class DesktopSession(ComputerSession):
         text: str = "",
         modifiers: list[ModifierKey] | None = None,
     ) -> str | list[object]:
-        from myrm_agent_harness.toolkits.computer_use import safety
-
         meta = self._refs.meta
         app_name = meta.app_name if meta else ""
         window_title = meta.window_title if meta else ""
@@ -178,75 +219,58 @@ class DesktopSession(ComputerSession):
         if app_denied is not None:
             return f"Control denied: {app_denied.error}"
 
-        # [SECURITY] Re-validation: If it's been > 5 seconds since the last snapshot,
-        # it's highly likely the execution was delayed (e.g., human-in-the-loop approval).
-        # The screen might have changed, causing a stale coordinate click. Re-verify silently.
-        revalidation_threshold = 5.0
-        if time.time() - self._last_snapshot_time > revalidation_threshold:
-            logger.info(
-                "[SECURITY] Re-validating desktop state before interaction (delayed %.1fs)",
-                time.time() - self._last_snapshot_time,
-            )
-            try:
-                meta, refs = capture_snapshot(self._backend, "foreground", None)
-                blocked = safety.is_sensitive_app(meta.app_name, meta.window_title)
-                if blocked:
-                    logger.warning("[SECURITY] Sensitive app guard (interact): %s", blocked)
-                    return f"Safety: {blocked}"
-                if ref not in refs:
-                    return f"Safety Re-validation failed: The screen has changed significantly during approval. The target element '@{ref}' is no longer found. Please take a new snapshot to refresh the view and try again."
-                self._refs.replace(refs, meta)
-                self._last_snapshot_time = time.time()
-            except Exception as e:
-                return f"Safety Re-validation failed: Could not re-verify screen state ({e!s})."
-
         try:
-            element = self._refs.get(ref)
-        except DRefStaleError as exc:
-            return str(exc)
+            stale_error = await self._revalidate_if_stale_after_approval(interact_ref=ref)
+            if stale_error is not None:
+                return stale_error
 
-        effective_action = action
-        effective_text = text
-
-        if action == "fill_credential":
-            from myrm_agent_harness.core.security.credential_vault import get_global_credential_vault
-
-            vault = get_global_credential_vault()
-            is_totp = text.endswith("-totp")
             try:
-                if is_totp:
-                    effective_text = vault.get_totp_token(text)
-                else:
-                    effective_text = vault.get_password(text)
-            except Exception as e:
-                return f"Failed to retrieve credential for label '{text}': {e}"
-            effective_action = "fill"
-        elif action == "set_value":
-            effective_action = "set_value"
+                element = self._refs.get(ref)
+            except DRefStaleError as exc:
+                return str(exc)
 
-        ax_result = invoke_element(self._backend, element, effective_action, effective_text)
-        if not ax_result.success:
-            bbox_result = await try_bbox_click(self, element, effective_action, effective_text, modifiers)
-            if not bbox_result.success:
-                return (
-                    f"desktop_interact failed for @{element.ref_id}: "
-                    f"{ax_result.error}; bbox fallback: {bbox_result.error}"
-                )
-        else:
-            pass
+            effective_action = action
+            effective_text = text
 
-        await asyncio.sleep(self._config.screenshot_delay)
-        follow_up = await self.desktop_snapshot(scope="foreground", include_screenshot=False)
-        if action == "fill_credential":
-            result_prefix = f"Filled credential '{text}' into @{element.ref_id} [CREDENTIAL_FILLED]\n\n"
-        else:
-            result_prefix = f"Action '{action}' on @{element.ref_id} succeeded.\n\n"
-        if isinstance(follow_up, list):
-            first = follow_up[0]
-            if hasattr(first, "text"):
-                first.text = result_prefix + getattr(first, "text", "")
-            return follow_up
-        return f"{result_prefix}{follow_up}"
+            if action == "fill_credential":
+                from myrm_agent_harness.core.security.credential_vault import get_global_credential_vault
+
+                vault = get_global_credential_vault()
+                is_totp = text.endswith("-totp")
+                try:
+                    if is_totp:
+                        effective_text = vault.get_totp_token(text)
+                    else:
+                        effective_text = vault.get_password(text)
+                except Exception as e:
+                    return f"Failed to retrieve credential for label '{text}': {e}"
+                effective_action = "fill"
+            elif action == "set_value":
+                effective_action = "set_value"
+
+            ax_result = invoke_element(self._backend, element, effective_action, effective_text)
+            if not ax_result.success:
+                bbox_result = await try_bbox_click(self, element, effective_action, effective_text, modifiers)
+                if not bbox_result.success:
+                    return (
+                        f"desktop_interact failed for @{element.ref_id}: "
+                        f"{ax_result.error}; bbox fallback: {bbox_result.error}"
+                    )
+
+            await asyncio.sleep(self._config.screenshot_delay)
+            follow_up = await self.desktop_snapshot(scope="foreground", include_screenshot=False)
+            if action == "fill_credential":
+                result_prefix = f"Filled credential '{text}' into @{element.ref_id} [CREDENTIAL_FILLED]\n\n"
+            else:
+                result_prefix = f"Action '{action}' on @{element.ref_id} succeeded.\n\n"
+            if isinstance(follow_up, list):
+                first = follow_up[0]
+                if hasattr(first, "text"):
+                    first.text = result_prefix + getattr(first, "text", "")
+                return follow_up
+            return f"{result_prefix}{follow_up}"
+        finally:
+            self.clear_operation_foreground_waiver()
 
     async def desktop_vision_capture(self) -> str | list[object]:
         result = await self.take_screenshot()
@@ -279,25 +303,32 @@ class DesktopSession(ComputerSession):
         # [SECURITY] Foreground permission gate for coordinate-based actions.
         fg_app = str(fg_info.get("app_name", "") or "")
         fg_title = str(fg_info.get("window_title", "") or "")
+
         if safety.is_foreground_required(action):
-            permission_denied = await self.check_foreground_permission(
-                reason=f"Vision action '{action}' requires foreground mouse/keyboard control",
-                operation=f"desktop_vision_action({action})",
-                estimated_duration_seconds=5.0,
+            app_denied = await self.check_app_approval(
                 app_name=fg_app,
                 window_title=fg_title,
+                operation=f"desktop_vision_action({action})",
             )
-            if permission_denied is not None:
-                return f"Permission denied: {permission_denied.error}"
+            if app_denied is not None:
+                return f"Control denied: {app_denied.error}"
 
-        # [SECURITY] Hard fuse for coordinate-based actions
-        revalidation_threshold = 5.0
-        if time.time() - self._last_snapshot_time > revalidation_threshold:
-            logger.warning(
-                "[SECURITY] Coordinate action blocked due to timeout (delayed %.1fs)",
-                time.time() - self._last_snapshot_time,
-            )
-            return "Safety Re-validation failed: The action was delayed (likely by approval) and pixel coordinates are now considered stale and unsafe. Please use 'desktop_snapshot_tool' to take a new screenshot and replan the coordinate."
+            try:
+                permission_denied = await self.check_foreground_permission(
+                    reason=f"Vision action '{action}' requires foreground mouse/keyboard control",
+                    operation=f"desktop_vision_action({action})",
+                    estimated_duration_seconds=5.0,
+                    app_name=fg_app,
+                    window_title=fg_title,
+                )
+                if permission_denied is not None:
+                    return f"Permission denied: {permission_denied.error}"
+
+                stale_error = await self._revalidate_if_stale_after_approval()
+                if stale_error is not None:
+                    return stale_error
+            finally:
+                self.clear_operation_foreground_waiver()
 
         if action in ("left_click", "right_click", "middle_click", "double_click", "triple_click"):
             if coordinate is None or len(coordinate) != 2:

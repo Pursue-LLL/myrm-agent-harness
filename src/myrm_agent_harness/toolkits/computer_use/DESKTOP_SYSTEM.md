@@ -53,7 +53,7 @@ desktop_snapshot_tool
 desktop_interact_tool(ref=@dref, action=...)
     ↓ per-app approval gate → AX invoke → bbox healer fallback → text-only follow-up snapshot
 desktop_vision_tool (only when AX empty or interact failed)
-    ↓ foreground permission gate → explicit screenshot + coordinate actions
+    ↓ per-app approval gate → foreground permission gate → stale refresh → coordinate actions
 ```
 
 ---
@@ -113,7 +113,7 @@ Injected via `DESKTOP_CONTROL_RULES` in `shared_rules.py` when `enable_computer_
 | Item | Status |
 |------|--------|
 | Linux AT-SPI invoke | ✅ implemented (pyatspi doAction/EditableText/grabFocus) |
-| Desktop control gate (server) | ✅ `DesktopControlGate` + SSE approval card |
+| Desktop control gate (server) | ✅ `DesktopControlGate` + SSE approval card; harness rc6 pin (publish + `uv.lock` before CI `--frozen`) |
 | Stream E2E tests | not covered |
 | Onboarding hint when computer_use enabled | implemented (toggle + tooltip + empty state) |
 | Native API routing hints | implemented (macOS/Windows/Linux) |
