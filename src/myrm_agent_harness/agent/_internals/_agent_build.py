@@ -46,7 +46,7 @@ from myrm_agent_harness.agent.middlewares.tool_call_dedup_middleware import (
     tool_call_dedup_middleware,
 )
 from myrm_agent_harness.agent.streaming.utils import normalize_tool_names
-from myrm_agent_harness.agent.tool_management import ToolBindMode, ToolRegistry, ToolSource
+from myrm_agent_harness.agent.tool_management import ToolRegistry, ToolSource
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -66,18 +66,11 @@ def build_middlewares(
 
     The ordering matters: dedup -> dangling -> subagent-limit -> interceptor ->
     clarification-guard -> approval -> completion -> progress -> goal-focus -> replan ->
-    call-limits -> budget -> security -> user -> safety -> deferred-normalization -> debug.
-    DeferredToolMiddleware is intentionally the last after-model middleware so its
-    effective-call normalization runs before approval (after-model hooks run in reverse).
+    call-limits -> budget -> security -> user -> safety -> skill-attenuation -> debug.
+    SkillAttenuationMiddleware is last so its awrap_tool_call can resolve dynamic tools.
     """
     from myrm_agent_harness.agent.middlewares.clarification_guard_middleware import (
         ClarificationGuardMiddleware,
-    )
-    from myrm_agent_harness.agent.middlewares.deferred_index_middleware import (
-        DeferredIndexMiddleware,
-    )
-    from myrm_agent_harness.agent.middlewares.deferred_tool_middleware import (
-        DeferredToolMiddleware,
     )
     from myrm_agent_harness.agent.middlewares.goal_focus_middleware import (
         goal_focus_middleware,
@@ -86,6 +79,9 @@ def build_middlewares(
         progress_middleware,
     )
     from myrm_agent_harness.agent.middlewares.replan_middleware import ReplanMiddleware
+    from myrm_agent_harness.agent.middlewares.skill_attenuation_middleware import (
+        SkillAttenuationMiddleware,
+    )
     from myrm_agent_harness.agent.types import EngineParams as _EngineParams
     from myrm_agent_harness.utils.token_economics.budget_boundary_middleware import (
         BudgetBoundaryMiddleware,
@@ -94,7 +90,6 @@ def build_middlewares(
     params = engine_params or _EngineParams()
 
     middlewares: list[object] = [
-        DeferredIndexMiddleware(registry),
         tool_call_dedup_middleware,
         dangling_tool_call_middleware,
         subagent_limit_middleware,
@@ -137,7 +132,7 @@ def build_middlewares(
 
     middlewares.extend(user_middlewares)
     middlewares.append(create_safety_dispatcher())
-    middlewares.append(DeferredToolMiddleware(registry))
+    middlewares.append(SkillAttenuationMiddleware(registry))
     middlewares.append(debug_logger_middleware)
 
     return middlewares
@@ -188,19 +183,23 @@ async def build_tools(
 
     Registers user tools first, then collects any tools exposed by
     middlewares (e.g. ``get_tools()``).
+
+    ``discoverable_tools`` is accepted for backward compatibility but no longer
+    registers them as DISCOVERABLE — they are added as regular Turn1 tools.
     """
     from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
         sync_discover_capability_tool,
     )
+    from myrm_agent_harness.agent.tool_management import ToolBindMode
+
+    all_user_tools = list(user_tools)
+    if discoverable_tools:
+        all_user_tools.extend(discoverable_tools)
 
     registry.register_many(
-        normalize_tool_names(user_tools),
+        normalize_tool_names(all_user_tools),
         source=ToolSource.USER,
     )
-
-    if discoverable_tools:
-        for tool in normalize_tool_names(discoverable_tools):
-            registry.register(tool, source=ToolSource.USER, bind_mode=ToolBindMode.DISCOVERABLE)
 
     for mw in cached_middlewares:
         if hasattr(mw, "get_tools") and callable(mw.get_tools):  # type: ignore[attr-defined]
@@ -232,10 +231,12 @@ async def build_tools(
 def emit_tools_snapshot(registry: ToolRegistry) -> list[dict[str, object]] | None:
     """Return Turn1-bound tools for GUI availability view.
 
-    Excludes DISCOVERABLE and RUNTIME_ONLY entries so the panel matches
+    Excludes RUNTIME_ONLY entries so the panel matches
     ``registry.resolve()`` (what the model can call on the current turn).
     """
     try:
+        from myrm_agent_harness.agent.tool_management import ToolBindMode
+
         snapshots = registry.snapshot()
         turn1_snapshots = [s for s in snapshots if s.bind_mode == ToolBindMode.TURN1.value]
         if not turn1_snapshots:

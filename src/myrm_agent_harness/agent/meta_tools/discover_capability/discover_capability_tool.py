@@ -1,7 +1,5 @@
 """统一能力发现元工具 (Unified Capability Discovery)
 
-1. 本文件的 INPUT/OUTPUT/POS 注释
-
 [INPUT]
 - backends.skills.types::SkillMetadata (POS: 技能元数据定义)
 - langchain.tools::tool (POS: LangChain 工具装饰器)
@@ -10,19 +8,21 @@
 - .hybrid_engine::HybridSkillSearchEngine (POS: 混合搜索引擎, 可选)
 - toolkits.retriever.embedding.factory::EmbeddingConfig (POS: Embedding 配置, 可选)
 - toolkits.memory.protocols.cache::EmbeddingCacheProtocol (POS: Embedding 缓存协议, 可选)
-- agent.tool_management.registry::ToolRegistry (POS: 原生工具注册表)
+- agent.tool_management.registry::ToolRegistry (POS: 工具注册表)
 
 [OUTPUT]
 - create_discover_capability_tool: 创建统一能力发现工具的工厂函数
+- sync_discover_capability_tool: 注册 discover_capability_tool（当有可搜索技能时）
 
 [POS]
-Unified Capability Discovery meta-tool. Indexes ``ToolBindMode.DISCOVERABLE`` native tools and external skills (SkillSearchEngine) into a single semantic index with XML-based middleware interception. ``RUNTIME_ONLY`` hooks (e.g. ``_completion_check``) are excluded from the index.
+Unified Capability Discovery meta-tool. Indexes external skills (MCP PTC + user skills)
+via SkillSearchEngine into a semantic search index. Capability gap detection provides
+hints when tools/skills are disabled or not installed.
 """
 
 from __future__ import annotations
 
 import inspect
-import json
 from typing import TYPE_CHECKING, Literal
 
 from langchain.tools import tool
@@ -51,7 +51,7 @@ def create_discover_capability_tool(
     """创建统一能力发现工具
 
     Args:
-        registry: 原生工具注册表 (用于搜索 Deferred Native Tools)
+        registry: 工具注册表 (reserved for future use)
         skills: 全部可用技能列表 (用于构建外部技能搜索索引)
         embedding_config: Embedding 模型配置(可选)
         cache: Embedding 缓存实例(可选)
@@ -60,23 +60,7 @@ def create_discover_capability_tool(
         discover_capability 工具函数
     """
     skills = skills or []
-
-    # 1. Prepare Native Tools as SkillMetadata for unified indexing
-    native_tool_map = {}
-    native_skills = []
-    if registry is not None:
-        from myrm_agent_harness.backends.skills.types import SkillMetadata
-
-        for t in registry.get_discoverable_tools():
-            native_tool_map[t.name] = t
-            native_skills.append(
-                SkillMetadata(
-                    name=t.name,
-                    description=t.description or "",
-                )
-            )
-
-    all_skills = skills + native_skills
+    all_skills = list(skills)
 
     if embedding_config is not None and all_skills:
         from myrm_agent_harness.agent.meta_tools.skills.search.hybrid_engine import (
@@ -93,8 +77,8 @@ def create_discover_capability_tool(
     else:
         engine = None
 
-    tool_description = """Search for missing capabilities (both internal native tools and external skills/plugins).
-IMPORTANT: You MUST search here BEFORE declining any user request due to missing capability. Never tell the user you cannot do something without first checking if a skill or tool exists (e.g., drawing, video generation, cron jobs, Github, Jira, etc.).
+    tool_description = """Search for missing capabilities (external skills/plugins).
+IMPORTANT: You MUST search here BEFORE declining any user request due to missing capability. Never tell the user you cannot do something without first checking if a skill exists (e.g., drawing, video generation, Github, Jira, etc.).
 
 **How to query**:
 - Query naturally in any language.
@@ -102,10 +86,9 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
 - Use query="*" to list all available external skills.
 
 **What happens next**:
-- If a **Native Tool** is found, use `invoke_deferred_tool(name, arguments)` with the schema_hint from the hit.
 - If an **External Skill** is found, you MUST use `skill_select_tool` to load its SOP documentation before using it.
 
-**Examples**: cron jobs, video generation, bash process management.
+**Examples**: video generation, GitHub integration, database operations.
 """
 
     active_groups = active_tool_groups or frozenset()
@@ -130,12 +113,11 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
         return "\n\n".join(parts)
 
     async def _emit_gap_events(search_query: str) -> None:
-        from myrm_agent_harness.utils.event_utils import dispatch_custom_event
-
         from myrm_agent_harness.agent.meta_tools.discover_capability.capability_gap import (
             detect_capability_gap,
             detect_skill_gap,
         )
+        from myrm_agent_harness.utils.event_utils import dispatch_custom_event
 
         cap_gap = detect_capability_gap(search_query, active_groups)
         if cap_gap is not None:
@@ -187,51 +169,12 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
             await _emit_gap_events(query)
             return message
 
-        native_matches = []
-        external_matches = []
+        skill_text = "\n".join(f"- **{s.name}**: {s.description}" for s in matches)
+        result_body = (
+            "### Found Skills (You MUST use `skill_select_tool` to load their SOPs before using):\n"
+            f"<ExternalSkills>\n{skill_text}\n</ExternalSkills>"
+        )
 
-        # Split results back into native and external
-        for m in matches:
-            if m.name in native_tool_map:
-                t = native_tool_map[m.name]
-                schema = getattr(t, "args_schema", None)
-                schema_dict = schema.model_json_schema() if schema else {}
-                native_matches.append(
-                    {
-                        "name": t.name,
-                        "description": t.description,
-                        "schema": schema_dict,
-                    }
-                )
-            else:
-                external_matches.append(m)
-
-        results = []
-
-        if native_matches:
-            from myrm_agent_harness.agent.tool_management.defer.activation import (
-                format_deferred_tool_hit,
-            )
-
-            hit_lines = [
-                format_deferred_tool_hit(str(m["name"]), m.get("schema") or {})
-                for m in native_matches
-                if isinstance(m, dict) and "name" in m
-            ]
-            hits_body = "\n".join(hit_lines)
-            results.append(
-                "### Found Native Tools (use invoke_deferred_tool with name and arguments):\n"
-                f"<DeferredToolHits>\n{hits_body}\n</DeferredToolHits>"
-            )
-
-        if external_matches:
-            skill_text = "\n".join(f"- **{s.name}**: {s.description}" for s in external_matches)
-            results.append(
-                f"###  Found External Skills (You MUST use `skill_select_tool` to load their SOPs before using):\n"
-                f"<ExternalSkills>\n{skill_text}\n</ExternalSkills>"
-            )
-
-        result_body = "\n\n".join(results)
         await _emit_gap_events(query)
         return _resolve_gap_hints(query, result_body)
 
@@ -248,38 +191,22 @@ def sync_discover_capability_tool(
     bound_skill_names: frozenset[str] | None = None,
     library_skill_names: frozenset[str] | None = None,
 ) -> BaseTool | None:
-    """Rebuild defer tooling after discoverable registry mutations.
+    """Register discover_capability_tool when searchable skills exist.
 
-    Registers ``invoke_deferred_tool`` when the discoverable pool is non-empty.
-    Registers ``discover_capability_tool`` only when DeferEconomics says the
-    gateway is net-positive (searchable skills or large/multi defer pool).
-
-    Must run after all discoverable tools (framework + server) are registered.
+    Must run after all tools (framework + server) are registered.
     """
-    from myrm_agent_harness.agent.meta_tools.defer.invoke_deferred_tool import (
-        INVOKE_DEFERRED_TOOL_NAME,
-        create_invoke_deferred_tool,
-    )
-    from myrm_agent_harness.agent.tool_management.defer.economics import (
-        should_bind_discover_gateway,
-    )
     from myrm_agent_harness.agent.tool_management.registry import ToolSource
 
     discoverable_skills = [s for s in (skills or []) if s.model_invocable]
-    discoverable_tools = registry.get_discoverable_tools()
 
     registry.remove_tool("discover_capability_tool")
-    registry.remove_tool(INVOKE_DEFERRED_TOOL_NAME)
 
-    if discoverable_tools:
-        registry.register(create_invoke_deferred_tool(registry), source=ToolSource.META)
-
-    if not should_bind_discover_gateway(len(discoverable_skills), discoverable_tools):
+    if not discoverable_skills:
         return None
 
     tool = create_discover_capability_tool(
         registry=registry,
-        skills=discoverable_skills or None,
+        skills=discoverable_skills,
         embedding_config=embedding_config,
         cache=embedding_cache,
         active_tool_groups=active_tool_groups,

@@ -9,7 +9,7 @@
 
 [POS]
 Skill attenuation request metadata builder. Keeps bind_tools prefix stable while
-DeferredToolMiddleware restricts per-turn callable tools via tool_choice.
+SkillAttenuationMiddleware restricts per-turn callable tools via tool_choice.
 """
 
 from __future__ import annotations

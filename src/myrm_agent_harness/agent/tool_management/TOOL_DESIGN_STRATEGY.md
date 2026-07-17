@@ -103,7 +103,7 @@ class ToolLayer(IntEnum):
 | 子类 | 加载条件 | 典型工具 | Token 消耗 |
 |------|---------|---------|----------:|
 | 能力发现网关（**TURN1**，DeferEconomics 判定） | searchable skills / 大 defer 池 | discover_capability_tool | ~819（条件绑定） |
-| Discoverable 工具 | stable index + invoke_deferred_tool | bash_process_tool, skill_discovery_tool, cron_manage_tool（cron 未勾选时） | 0 Turn1 schema；invoke ~150 tok |
+| bash_process_tool | bash 启用时 Turn1 | bash_process_tool | ~200 |
 | 记忆工具（COMMON） | 启用记忆系统 | memory_recall_tool, memory_save_tool, memory_manage_tool | ~840 |
 | 会话搜索（EXTENDED，opt-in） | `memoryEnableConversationSearch=true` 且非无痕 | conversation_search_tool | ~67 |
 | 技能工具（Turn1） | 有技能后端 | skill_select_tool, skill_manage_tool | ~343 |
@@ -399,11 +399,11 @@ def get_tool_layer(tool_name: str) -> ToolLayer:
 
 ### 11.2 自适应工具加载 ✅ 已实现
 
-**实现**: `discover_capability_tool` (BM25+Embedding) + `invoke_deferred_tool` (cache-safe proxy) + `DeferredIndexMiddleware` (`<available-deferred-tools>` stable system index)
+**实现**: `discover_capability_tool` (BM25+Embedding) — indexes external skills for unified search
 
 **效果**:
 - DeferEconomics：小 defer 池 + 无外部技能 → 不绑 discover 网关（省 ~238 tok/Turn1）
-- Agent 通过 stable index 或 discover 命中 → `invoke_deferred_tool(name, arguments)` 执行
+- Agent 通过 discover 命中外部技能 → `skill_select_tool` 加载 SOP 后执行
 - 严禁 append DISCOVERABLE schema 到 bind_tools（框架 11.1 prefix cache 底线）
 
 ### 11.3 工具推荐系统 ✅ 已实现
@@ -413,7 +413,7 @@ def get_tool_layer(tool_name: str) -> ToolLayer:
 **效果**:
 - BM25 + Embedding 混合语义搜索
 - 跨语言查询支持 ("火车票/railway ticket/train booking")
-- 自动区分 Native (`invoke_deferred_tool`) vs External (需 `skill_select_tool` 加载 SOP)
+- 搜索命中后必须用 `skill_select_tool` 加载 SOP
 
 ### 11.4 动态 Schema 修正 (Dynamic Schema Modification) ✅ 已实现
 

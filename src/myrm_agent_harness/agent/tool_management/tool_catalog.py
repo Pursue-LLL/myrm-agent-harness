@@ -59,9 +59,9 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
     "conversation_search_tool": "memoryEnableConversationSearch opt-in",
     "request_answer_user_tool": "enabled_builtin_tools: answer_tool",
     "todo_write": "planning or existing workspace todos",
-    "bash_process_tool": "DISCOVERABLE; stable index + invoke_deferred_tool",
-    "skill_discovery_tool": "DISCOVERABLE; skill marketplace",
-    "discover_capability_tool": "Turn1 when discoverable pool non-empty",
+    "bash_process_tool": "Turn1 when bash enabled",
+    "skill_discovery_tool": "Turn1 when discovery_backend present",
+    "discover_capability_tool": "Turn1 when searchable skills exist",
     "skill_select_tool": "skill_backend present",
     "skill_manage_tool": "write_backend present",
     "delegate_task_tool": "SubagentManagementExtension + entitlements",
@@ -87,7 +87,7 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
 _DEFAULT_LOAD_BY_LAYER: dict[ToolLayer, str] = {
     ToolLayer.CORE: "Agent baseline; Turn1 eager",
     ToolLayer.COMMON: "Profile togglable; Turn1 when enabled",
-    ToolLayer.EXTENDED: "Opt-in Turn1 or DISCOVERABLE; see product switch",
+    ToolLayer.EXTENDED: "Opt-in Turn1; see product switch",
 }
 
 

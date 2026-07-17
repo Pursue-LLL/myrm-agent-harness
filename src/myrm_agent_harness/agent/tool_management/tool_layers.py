@@ -118,7 +118,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "conversation_search_tool": ToolLayer.EXTENDED,
     # --- 技能工具 ---
     "discover_capability_tool": ToolLayer.EXTENDED,
-    "invoke_deferred_tool": ToolLayer.EXTENDED,
     "skill_discovery_tool": ToolLayer.EXTENDED,
     "skill_manage_tool": ToolLayer.EXTENDED,
     "skill_select_tool": ToolLayer.EXTENDED,

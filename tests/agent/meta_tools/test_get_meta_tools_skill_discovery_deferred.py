@@ -1,4 +1,4 @@
-"""Tests that skill_discovery_tool is deferred via ToolRegistry in get_meta_tools."""
+"""Tests that skill_discovery_tool is Turn1 eager when discovery_backend is provided."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ import pytest
 
 from myrm_agent_harness.agent.meta_tools import get_meta_tools
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
-from myrm_agent_harness.backends.skills.types import SkillMetadata
 
 
 @pytest.fixture
@@ -24,8 +23,8 @@ def skill_backend() -> MagicMock:
     return MagicMock()
 
 
-class TestSkillDiscoveryDeferred:
-    def test_skill_discovery_not_in_resolved_tools(
+class TestSkillDiscoveryEager:
+    def test_skill_discovery_in_resolved_tools(
         self,
         discovery_backend: MagicMock,
         skill_backend: MagicMock,
@@ -41,13 +40,10 @@ class TestSkillDiscoveryDeferred:
             enable_answer_tool=False,
         )
 
-        resolved_names = {t.name for t in registry.resolve()}
-        assert "skill_discovery_tool" not in resolved_names
-
         returned_names = {t.name for t in tools}
-        assert "skill_discovery_tool" not in returned_names
+        assert "skill_discovery_tool" in returned_names
 
-    def test_skill_discovery_in_deferred_registry(
+    def test_skill_discovery_not_in_discoverable_registry(
         self,
         discovery_backend: MagicMock,
         skill_backend: MagicMock,
@@ -64,4 +60,4 @@ class TestSkillDiscoveryDeferred:
         )
 
         discoverable_names = {t.name for t in registry.get_discoverable_tools()}
-        assert "skill_discovery_tool" in discoverable_names
+        assert "skill_discovery_tool" not in discoverable_names

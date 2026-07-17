@@ -20,9 +20,15 @@ class TestArtifactType:
         assert ArtifactType.CODE == "code"
 
     def test_key_types_exist(self) -> None:
-        required = {"CODE", "DOCUMENT", "HTML", "IMAGE", "SVG", "PDF", "BINARY"}
+        required = {"CODE", "DOCUMENT", "HTML", "IMAGE", "SVG", "PDF", "BINARY", "PRESENTATION", "WORD_DOCUMENT"}
         actual = {t.name for t in ArtifactType}
         assert required.issubset(actual)
+
+    def test_presentation_type(self) -> None:
+        assert ArtifactType.PRESENTATION == "presentation"
+
+    def test_word_document_type(self) -> None:
+        assert ArtifactType.WORD_DOCUMENT == "word_document"
 
 
 class TestExtensionMappings:
@@ -60,6 +66,28 @@ class TestInferFunctions:
         assert infer_artifact_type_from_extension("data.csv") == ArtifactType.SPREADSHEET
         assert infer_artifact_type_from_extension("data.tsv") == ArtifactType.SPREADSHEET
         assert infer_artifact_type_from_extension("data.xlsx") == ArtifactType.SPREADSHEET
+
+    def test_infer_type_from_extension_presentation(self) -> None:
+        assert infer_artifact_type_from_extension("slides.pptx") == ArtifactType.PRESENTATION
+
+    def test_infer_type_from_extension_word_document(self) -> None:
+        assert infer_artifact_type_from_extension("report.docx") == ArtifactType.WORD_DOCUMENT
+
+    def test_old_office_formats_fallback_to_binary(self) -> None:
+        assert infer_artifact_type_from_extension("old.doc") == ArtifactType.BINARY
+        assert infer_artifact_type_from_extension("old.ppt") == ArtifactType.BINARY
+
+    def test_infer_type_from_mime_presentation(self) -> None:
+        mime = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        assert infer_artifact_type_from_mime(mime) == ArtifactType.PRESENTATION
+
+    def test_infer_type_from_mime_word_document(self) -> None:
+        mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        assert infer_artifact_type_from_mime(mime) == ArtifactType.WORD_DOCUMENT
+
+    def test_old_office_mime_fallback_to_binary(self) -> None:
+        assert infer_artifact_type_from_mime("application/msword") == ArtifactType.BINARY
+        assert infer_artifact_type_from_mime("application/vnd.ms-powerpoint") == ArtifactType.BINARY
 
     def test_infer_type_from_extension_extra_binary(self) -> None:
         assert infer_artifact_type_from_extension("archive.zip") == ArtifactType.BINARY
@@ -108,6 +136,8 @@ class TestGetAllMappings:
         m = get_all_mappings()
         assert "code" in m["artifactTypes"]
         assert "document" in m["artifactTypes"]
+        assert "presentation" in m["artifactTypes"]
+        assert "word_document" in m["artifactTypes"]
 
     def test_extension_mappings_present(self) -> None:
         m = get_all_mappings()

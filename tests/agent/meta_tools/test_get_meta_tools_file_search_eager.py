@@ -108,7 +108,7 @@ class TestFileSearchEager:
         assert "grep_tool" not in description
         assert "skill_analyze_tool" not in description
 
-    def test_bash_process_tools_deferred_when_bash_enabled(
+    def test_bash_process_tools_eager_when_bash_enabled(
         self,
         skill_backend: MagicMock,
     ) -> None:
@@ -124,10 +124,10 @@ class TestFileSearchEager:
 
         returned_names = {t.name for t in tools}
         assert "bash_code_execute_tool" in returned_names
-        assert "bash_process_tool" not in returned_names
+        assert "bash_process_tool" in returned_names
 
         discoverable_names = {t.name for t in registry.get_discoverable_tools()}
-        assert "bash_process_tool" in discoverable_names
+        assert "bash_process_tool" not in discoverable_names
 
     def test_answer_tool_eager_when_enabled(
         self,

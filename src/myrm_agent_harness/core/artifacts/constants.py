@@ -22,6 +22,8 @@ class ArtifactType(StrEnum):
     MERMAID = "mermaid"
     PDF = "pdf"
     SPREADSHEET = "spreadsheet"
+    PRESENTATION = "presentation"
+    WORD_DOCUMENT = "word_document"
     BINARY = "binary"
     REACT = "react"
 
@@ -170,14 +172,14 @@ EXTENSION_TO_ARTIFACT_TYPE: dict[str, ArtifactType] = {
     ".tsv": ArtifactType.SPREADSHEET,
     ".xlsx": ArtifactType.SPREADSHEET,
     ".xls": ArtifactType.SPREADSHEET,
+    ".pptx": ArtifactType.PRESENTATION,
+    ".docx": ArtifactType.WORD_DOCUMENT,
 }
 
 _EXTRA_DOCUMENT_EXTENSIONS: frozenset[str] = frozenset({".log"})
 
 _EXTRA_BINARY_EXTENSIONS: frozenset[str] = frozenset(
     {
-        ".pptx",
-        ".docx",
         ".zip",
         ".tar",
         ".gz",
@@ -237,6 +239,8 @@ MIME_TO_ARTIFACT_TYPE: dict[str, ArtifactType] = {
     "text/tab-separated-values": ArtifactType.SPREADSHEET,
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ArtifactType.SPREADSHEET,
     "application/vnd.ms-excel": ArtifactType.SPREADSHEET,
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": ArtifactType.PRESENTATION,
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ArtifactType.WORD_DOCUMENT,
     "application/octet-stream": ArtifactType.BINARY,
 }
 

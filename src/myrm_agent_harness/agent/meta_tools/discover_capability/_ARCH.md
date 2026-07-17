@@ -1,7 +1,7 @@
 # discover_capability/
 
 ## Overview
-Unified Capability Discovery gateway. Indexes **DISCOVERABLE** native tools and external skills; activation via ``invoke_deferred_tool``. After lazy-bound tools register, ``sync_discover_capability_tool()`` rebuilds index and applies DeferEconomics.
+Unified Capability Discovery gateway. Indexes external skills (MCP PTC + user skills) into a semantic search index. When searchable skills exist, ``sync_discover_capability_tool()`` registers the discovery tool.
 
 ## File & Submodule Index
 
@@ -15,4 +15,3 @@ Unified Capability Discovery gateway. Indexes **DISCOVERABLE** native tools and 
 - `backends`
 - `toolkits`
 - `agent.tool_management`
-- `agent.middlewares.deferred_tool_middleware`

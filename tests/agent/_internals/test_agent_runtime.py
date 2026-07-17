@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
 from unittest.mock import MagicMock
 
 import pytest
@@ -103,8 +102,8 @@ class TestBuildMiddlewares:
 
         result = build_middlewares(create_registry(), [])
         class_names = [type(middleware).__name__ for middleware in result]
-        assert class_names[-2] == "DeferredToolMiddleware"
-        assert class_names.index("DeferredToolMiddleware") > class_names.index("ToolApprovalMiddleware")
+        assert class_names[-2] == "SkillAttenuationMiddleware"
+        assert class_names.index("SkillAttenuationMiddleware") > class_names.index("ToolApprovalMiddleware")
 
     def test_contains_core_middlewares(self):
         from myrm_agent_harness.agent._internals.agent_runtime import (
@@ -130,10 +129,10 @@ class TestBuildMiddlewares:
         assert "progress_middleware" in names
         assert "goal_focus_middleware" in names
 
-    """Tests for build_tools — resolves user, deferred, and discovery tools."""
+    """Tests for build_tools — resolves user and discoverable tools."""
 
     @pytest.mark.asyncio
-    async def test_registers_discover_capability_for_discoverable_tools(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_build_tools_merges_discoverable_into_user(self) -> None:
         from myrm_agent_harness.agent._internals.agent_runtime import (
             build_tools,
             create_registry,
@@ -146,38 +145,16 @@ class TestBuildMiddlewares:
             """Search the web."""
             return query
 
-        @tool("mcp_slack_tool")
-        def mcp_slack_tool(message: str) -> str:
-            """Send Slack messages."""
-            return message
+        @tool("bash_process_tool")
+        def bash_process_tool(command: str) -> str:
+            """Run bash commands."""
+            return command
 
-        @tool("discover_capability_tool")
-        def discover_capability(query: str) -> str:
-            """Unified capability discovery."""
-            return query
+        tools = await build_tools(registry, [web_search_tool], [bash_process_tool], [])
+        names = [t.name for t in tools]
 
-        discovery_module = importlib.import_module(
-            "myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool"
-        )
-
-        calls: list[str] = []
-
-        def fake_factory(**kwargs: object) -> object:
-            calls.append("called")
-            return discover_capability
-
-        monkeypatch.setattr(discovery_module, "create_discover_capability_tool", fake_factory)
-
-        economics_module = importlib.import_module("myrm_agent_harness.agent.tool_management.defer.economics")
-        monkeypatch.setattr(economics_module, "should_bind_discover_gateway", lambda *a, **kw: True)
-
-        tools = await build_tools(registry, [web_search_tool], [mcp_slack_tool], [])
-        names = [tool.name for tool in tools]
-
-        assert calls == ["called"]
-        assert "discover_capability_tool" in names
         assert "web_search_tool" in names
-        assert "mcp_slack_tool" not in names
+        assert "bash_process_tool" in names
 
 
 class TestCreateRegistry:

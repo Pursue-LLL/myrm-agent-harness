@@ -10,7 +10,6 @@ from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability
     create_discover_capability_tool,
 )
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
-from myrm_agent_harness.agent.tool_management.types import ToolBindMode, ToolSource
 from myrm_agent_harness.backends.skills.types import SkillMetadata
 
 
@@ -51,31 +50,11 @@ async def test_create_tool_no_engines():
 
 
 @pytest.mark.asyncio
-async def test_discover_native_tool(mock_registry):
-    tool = create_discover_capability_tool(registry=mock_registry)
-    result = await tool.ainvoke({"query": ".*", "mode": "regex"})
-    assert "Found Native Tools" in result
-    assert "<DeferredToolHits>" in result
-    assert "dummy_native_tool" in result
-
-
-@pytest.mark.asyncio
 async def test_discover_external_skill(mock_skills):
     tool = create_discover_capability_tool(skills=mock_skills)
     result = await tool.ainvoke({"query": ".*", "mode": "regex"})
-    assert "Found External Skills" in result
+    assert "Found Skills" in result
     assert "<ExternalSkills>" in result
-    assert "external_skill_1" in result
-
-
-@pytest.mark.asyncio
-async def test_discover_both(mock_registry, mock_skills):
-    tool = create_discover_capability_tool(registry=mock_registry, skills=mock_skills)
-    # Search for something that matches both or use regex .*
-    result = await tool.ainvoke({"query": ".*", "mode": "regex"})
-    assert "Found Native Tools" in result
-    assert "Found External Skills" in result
-    assert "dummy_native_tool" in result
     assert "external_skill_1" in result
 
 
@@ -98,15 +77,18 @@ async def test_capability_gap_block_on_miss() -> None:
 
 
 @pytest.mark.asyncio
-async def test_capability_gap_block_on_hit(mock_registry, mock_skills) -> None:
+async def test_capability_gap_block_on_hit() -> None:
     """Search hits must still append browser gap when browser group is disabled."""
+    skills = [
+        SkillMetadata(name="browse_helper_skill", description="Browse websites and extract content"),
+        SkillMetadata(name="other_skill", description="Another skill"),
+    ]
     tool = create_discover_capability_tool(
-        registry=mock_registry,
-        skills=mock_skills,
+        skills=skills,
         active_tool_groups=frozenset({"web", "memory", "file_ops", "shell"}),
     )
-    result = await tool.ainvoke({"query": "website", "mode": "regex"})
-    assert "Found Native Tools" in result or "Found External Skills" in result
+    result = await tool.ainvoke({"query": "browse", "mode": "regex"})
+    assert "Found Skills" in result
     assert "<CapabilityGap>" in result
     assert "browser" in result
 
@@ -148,36 +130,8 @@ async def test_gap_dispatch_events_on_miss(monkeypatch: pytest.MonkeyPatch) -> N
 @pytest.mark.asyncio
 async def test_description_is_stable_without_dynamic_tool_names():
     """Stable index: discover description must not embed per-tool names (prefix cache)."""
-    registry = MagicMock(spec=ToolRegistry)
-    registry.get_discoverable_tools.return_value = [DummyTool()]
-
-    tool = create_discover_capability_tool(registry=registry)
-    assert "Discoverable native tools" not in tool.description
+    tool = create_discover_capability_tool()
     assert "dummy_native_tool" not in tool.description
-    assert "invoke_deferred_tool" in tool.description
-
-
-def test_discover_index_excludes_runtime_only_tools() -> None:
-    """RUNTIME_ONLY hooks (e.g. _completion_check) must not appear in discover index."""
-    registry = ToolRegistry()
-    hook = DummyTool()
-    hook.name = "_completion_check"
-    hook.description = "Internal completion guard hook"
-    registry.register(
-        hook,
-        source=ToolSource.MIDDLEWARE,
-        bind_mode=ToolBindMode.RUNTIME_ONLY,
-    )
-    registry.register(
-        DummyTool(),
-        source=ToolSource.META,
-        bind_mode=ToolBindMode.DISCOVERABLE,
-    )
-
-    tool = create_discover_capability_tool(registry=registry)
-
-    assert "_completion_check" not in (tool.description or "")
-    assert "dummy_native_tool" not in (tool.description or "")
 
 
 @pytest.mark.asyncio
@@ -215,13 +169,12 @@ async def test_bm25_mode_default(mock_skills):
 
 
 @pytest.mark.asyncio
-async def test_native_tool_schema_in_output(mock_registry):
-    """Verify native tool output includes schema in DeferredToolHit."""
-    tool = create_discover_capability_tool(registry=mock_registry)
+async def test_skill_output_format(mock_skills):
+    """Verify skill output uses ExternalSkills XML format."""
+    tool = create_discover_capability_tool(skills=mock_skills)
     result = await tool.ainvoke({"query": ".*", "mode": "regex"})
-    assert "<DeferredToolHit" in result
-    assert "schema_hint" in result
-    assert "arg1" in result
+    assert "<ExternalSkills>" in result
+    assert "external_skill_1" in result
 
 
 @pytest.mark.asyncio
@@ -242,7 +195,8 @@ async def test_wildcard_query(mock_skills):
 @pytest.mark.asyncio
 async def test_hybrid_engine_path(mock_skills):
     """Cover HybridSkillSearchEngine initialization path (lines 79-83) and await path (line 141)."""
-    from unittest.mock import patch, AsyncMock
+    from unittest.mock import AsyncMock, patch
+
     from myrm_agent_harness.agent.meta_tools.skills.search.types import SkillSearchResult
 
     mock_engine_instance = MagicMock()

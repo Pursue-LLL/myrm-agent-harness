@@ -47,7 +47,6 @@ if TYPE_CHECKING:
 # Agent 专属工具(本模块)
 from .answer_user_tool import request_answer_user_tool
 from .bash import create_bash_code_execute_tool, create_bash_process_tool
-
 from .file_ops import (
     create_file_edit_tool,
     create_file_read_tool,
@@ -64,7 +63,6 @@ from .spawn_subagent import (
     create_list_subagents_tool,
     create_steer_subagent_tool,
 )
-
 
 SKILL_INLINE_THRESHOLD = 15
 SKILL_CORE_MAX = 10
@@ -225,7 +223,7 @@ def get_meta_tools(
             install_from_url_fn=install_url_fn,
             uninstall_fn=uninstall_fn,
         )
-        logger.info(" skill_discovery_tool registered as DISCOVERABLE")
+        logger.info(" skill_discovery_tool registered (Turn1)")
 
     if has_manage_tool:
         assert write_backend is not None  # narrowed by has_manage_tool
@@ -255,10 +253,6 @@ def get_meta_tools(
     else:
         logger.info("File tools disabled by caller configuration")
 
-    # Low-frequency utility tools → DISCOVERABLE via registry (stable index +
-    # invoke_deferred_tool; discover_capability_tool when DeferEconomics binds it).
-    _discoverable_tools: list = []
-
     # Mutable container: filled after all tools are built so that
     # bash Python PTC can access the full tool list via closure.
     _ptc_tools_ref: list = []
@@ -271,39 +265,24 @@ def get_meta_tools(
             ptc_tools=_ptc_tools_ref,
         )
         tools.append(bash_code_execute)
-        _discoverable_tools.append(create_bash_process_tool())
+        tools.append(create_bash_process_tool())
     else:
         logger.info("Bash tool disabled by caller configuration")
 
     if skill_discovery_pending is not None:
-        _discoverable_tools.append(skill_discovery_pending)
-
-    from myrm_agent_harness.agent.tool_management.types import ToolSource
-
-    for dt in _discoverable_tools:
-        from myrm_agent_harness.agent.tool_management.types import ToolBindMode
-
-        registry.register(dt, source=ToolSource.META, bind_mode=ToolBindMode.DISCOVERABLE)
-    if _discoverable_tools:
-        logger.info(
-            " %d discoverable tools registered: %s",
-            len(_discoverable_tools),
-            [t.name for t in _discoverable_tools],
-        )
+        tools.append(skill_discovery_pending)
 
     # discover_capability_tool SSOT: SkillAgent calls sync_discover_capability_tool()
-    # after all discoverable/middleware tools register.
+    # after all skills are registered.
     discoverable_skills = [s for s in skills if s.model_invocable] if skills else []
-    discoverable_count = len(registry.get_discoverable_tools())
-    if discoverable_skills or discoverable_count:
+    if discoverable_skills:
         logger.info(
             " discover_capability_tool deferred to sync_discover_capability_tool "
-            "(discoverable工具: %d, 可搜索技能: %d)",
-            discoverable_count,
+            "(可搜索技能: %d)",
             len(discoverable_skills),
         )
     else:
-        logger.info(" discover_capability_tool 未加载(无可搜索技能且无 discoverable 工具)")
+        logger.info(" discover_capability_tool 未加载(无可搜索技能)")
 
     # PTC tools for bash Python execution — fill the mutable ref so that
     # BashExecutor.ptc_tools is populated before any actual execution.
@@ -319,8 +298,8 @@ def get_meta_tools(
 __all__ = [
     "SKILL_CORE_MAX",
     "SKILL_INLINE_THRESHOLD",
-    "create_bash_process_tool",
     "create_bash_code_execute_tool",
+    "create_bash_process_tool",
     "create_batch_delegate_tasks_tool",
     "create_cancel_subagent_tool",
     "create_delegate_task_tool",
@@ -329,6 +308,7 @@ __all__ = [
     "create_file_write_tool",
     "create_glob_tool",
     "create_grep_tool",
+    "create_list_subagents_tool",
     "create_select_skill_tool",
     "create_skill_discovery_tool",
     "create_skill_manage_tool",

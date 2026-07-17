@@ -106,7 +106,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `todo_write` | COMMON | user_capability | planning | planning or existing workspace todos |
 | `web_search_tool` | COMMON | user_capability | web_search | enabled_builtin_tools: web_search (default on) |
 | `ask_question_tool` | EXTENDED | user_capability | structured_clarify | server mount policy (interactive web_chat); requires_confirmation WebUI emphasis; ClarificationGuardMiddleware one call/turn |
-| `bash_process_tool` | EXTENDED | user_capability | — | DISCOVERABLE; stable index + invoke_deferred_tool |
+| `bash_process_tool` | EXTENDED | user_capability | — | Turn1 when bash enabled |
 | `batch_delegate_tasks_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `browser_ask_human_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `browser_execute_script_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
@@ -129,7 +129,6 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `desktop_vision_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `discover_capability_tool` | EXTENDED | user_capability | — | Turn1 when discoverable pool non-empty |
 | `image_tool` | EXTENDED | user_capability | image_generation | enabled_builtin_tools: image_generation |
-| `invoke_deferred_tool` | EXTENDED | user_capability | — | Opt-in Turn1 or DISCOVERABLE; see product switch |
 | `kanban_add_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_block` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_board_summary` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
@@ -187,7 +186,7 @@ python scripts/validate_tool_registry.py --generate-docs  # 刷新 TOOL_COUNT + 
 | 模式 | Turn1 schema | discover_capability 索引 | 执行池（ToolNode / dynamic resolve） |
 |------|--------------|--------------------------|--------------------------------------|
 | `TURN1` | ✅ 绑定 | ❌ | ❌（已在 Turn1） |
-| `DISCOVERABLE` | ❌ | ✅ | ✅（invoke_deferred_tool / ToolNode resolve） |
+| `DISCOVERABLE` | ❌ | ✅ | ✅（reserved for future use） |
 | `RUNTIME_ONLY` | ❌ | ❌ | ✅（中间件注入，用户无感） |
 
 **API 契约**（`registry.py`）：
