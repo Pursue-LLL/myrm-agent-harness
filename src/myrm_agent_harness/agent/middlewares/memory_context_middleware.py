@@ -41,7 +41,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -58,6 +58,30 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
 logger = logging.getLogger(__name__)
+
+
+def _set_memory_injection_status(
+    _manager: "MemoryManager",
+    *,
+    state: str,
+    source: str | None = None,
+    reason: str | None = None,
+) -> None:
+    from myrm_agent_harness.agent._skill_agent_context import (
+        set_memory_runtime_budget,
+        set_memory_runtime_injection,
+    )
+
+    payload: dict[str, str] = {"state": state}
+    if source is not None:
+        payload["source"] = source
+    if reason is not None:
+        payload["reason"] = reason
+    if state != "applied":
+        # Prevent stale budget from previous turns leaking into current message_end.
+        set_memory_runtime_budget(None)
+    set_memory_runtime_injection(payload)
+
 
 class MemoryContextMiddleware(AgentMiddleware):
     """Inject user memory context on first LLM call.
@@ -121,24 +145,53 @@ class MemoryContextMiddleware(AgentMiddleware):
         state = request.state
         state_extra = cast(dict[str, object], state)
         state_messages = state.get("messages", [])
+        from myrm_agent_harness.agent._skill_agent_context import (
+            set_memory_runtime_budget,
+            set_memory_runtime_injection,
+        )
+
+        # Always clear previous-turn telemetry first to avoid stale carry-over when
+        # this turn exits early (e.g., missing manager/context).
+        set_memory_runtime_budget(None)
+        set_memory_runtime_injection(None)
 
         if _has_memory_context(state_messages) or _has_memory_context(request.messages):
+            from myrm_agent_harness.agent._skill_agent_context import get_memory_manager
+
+            existing_manager: MemoryManager | None = get_memory_manager()
+            if existing_manager:
+                _set_memory_injection_status(
+                    existing_manager,
+                    state="not_applied",
+                    reason="already_present",
+                )
             return await handler(request)
 
         context = getattr(request.runtime, "context", None) if request.runtime else None
-        if not context:
-            return await handler(request)
-
         from myrm_agent_harness.agent._skill_agent_context import get_memory_manager
 
         manager: MemoryManager | None = get_memory_manager()
         if not manager:
             return await handler(request)
 
+        _set_memory_injection_status(
+            manager,
+            state="not_applied",
+            reason="missing_context" if not context else "not_injected",
+        )
+        if not context:
+            return await handler(request)
+
         if manager.recall_mode == RecallMode.TOOLS:
+            _set_memory_injection_status(
+                manager,
+                state="not_applied",
+                reason="recall_mode_tools",
+            )
             return await handler(request)
 
         prefetched_snapshot = context.get("memory_brief_snapshot") if isinstance(context, dict) else None
+        injection_source = "snapshot" if isinstance(prefetched_snapshot, dict) else "fallback"
         static_result: object
         learned_result: object
         if isinstance(prefetched_snapshot, dict):
@@ -156,13 +209,28 @@ class MemoryContextMiddleware(AgentMiddleware):
                 )
             except Exception as e:
                 logger.warning("Failed to load memory context: %s", e)
+                _set_memory_injection_status(
+                    manager,
+                    state="not_applied",
+                    reason="load_error",
+                )
                 return await handler(request)
 
         if isinstance(static_result, BaseException):
             logger.warning("Static memory context failed: %s", static_result)
+            _set_memory_injection_status(
+                manager,
+                state="not_applied",
+                reason="static_error",
+            )
             return await handler(request)
         if not isinstance(static_result, dict):
             logger.warning("Static memory context payload has unexpected type: %s", type(static_result).__name__)
+            _set_memory_injection_status(
+                manager,
+                state="not_applied",
+                reason="invalid_static_payload",
+            )
             return await handler(request)
         memory_ctx: dict[str, object] = static_result
 
@@ -182,6 +250,11 @@ class MemoryContextMiddleware(AgentMiddleware):
             include_conversation_search=include_conversation_search,
         )
         if not stable_formatted and not untrusted_formatted:
+            _set_memory_injection_status(
+                manager,
+                state="not_applied",
+                reason="empty_context",
+            )
             return await handler(request)
 
         new_messages = list(request.messages)
@@ -224,9 +297,12 @@ class MemoryContextMiddleware(AgentMiddleware):
             state_extra["memory_budget_used"] = used_chars
             state_extra["memory_budget_total"] = total_budget
 
-            # Also store it on the manager for easy extraction in finalize_agent_stream_session
-            manager_any = cast(Any, manager)
-            manager_any._last_budget = {"used": used_chars, "total": total_budget}
+            # Store normalized telemetry for server-side SSE/persistence hooks.
+            from myrm_agent_harness.agent._skill_agent_context import (
+                set_memory_runtime_budget,
+            )
+
+            set_memory_runtime_budget({"used": used_chars, "total": total_budget})
 
         logger.info(
             "Memory context injected for user %s: cold=%s, %d learned rules, %d learned preferences",
@@ -234,6 +310,11 @@ class MemoryContextMiddleware(AgentMiddleware):
             is_cold,
             n_rules,
             n_prefs,
+        )
+        _set_memory_injection_status(
+            manager,
+            state="applied",
+            source=injection_source,
         )
 
         return await handler(request.override(messages=new_messages))

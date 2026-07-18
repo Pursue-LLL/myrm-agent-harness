@@ -23,15 +23,22 @@ description: Demo skill for api.skills smoke test.
         (
             "myrm_agent_harness.api.hooks",
             [
+                "BackgroundJobFinishHandler",
+                "BackgroundJobFinishResult",
                 "create_extraction_llm_func",
                 "get_background_registry",
                 "get_event_logger",
+                "get_global_background_job_finish_handler",
                 "get_memory_manager",
+                "get_memory_runtime_budget",
+                "get_memory_runtime_injection_contract",
+                "get_memory_runtime_injection",
                 "get_task_intent",
                 "get_terminal_errors",
                 "invalidate_permissions",
                 "persist_extracted_memories",
                 "set_approval_user_id",
+                "set_global_background_job_finish_handler",
                 "set_permission_invalidation_callback",
                 "set_task_intent",
             ],
@@ -59,7 +66,7 @@ def test_api_hooks_callables_are_functions() -> None:
 
     for name in hooks.__all__:
         value = getattr(hooks, name)
-        assert inspect.isfunction(value), f"{name} should be a function"
+        assert callable(value), f"{name} should be callable"
 
 
 @pytest.mark.api
@@ -67,10 +74,16 @@ def test_api_hooks_session_context_defaults() -> None:
     from myrm_agent_harness.api.hooks import (
         get_event_logger,
         get_memory_manager,
+        get_memory_runtime_budget,
+        get_memory_runtime_injection_contract,
+        get_memory_runtime_injection,
         get_terminal_errors,
     )
 
     assert get_memory_manager() is None
+    assert get_memory_runtime_budget() is None
+    assert get_memory_runtime_injection() is None
+    assert get_memory_runtime_injection_contract()["states"] == ("applied", "not_applied")
     assert get_event_logger() is None
     assert get_terminal_errors() is not None
 

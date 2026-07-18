@@ -13,6 +13,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from myrm_agent_harness.agent._skill_agent_context import (
+    get_memory_runtime_budget,
+    get_memory_runtime_injection,
+    set_memory_runtime_budget,
+    set_memory_runtime_injection,
+)
 from myrm_agent_harness.agent.middlewares.memory_context_format import (
     _COLD_START_CONTEXT,
     MEMORY_CONTEXT_MARKER,
@@ -28,6 +34,15 @@ from myrm_agent_harness.agent.middlewares.memory_context_middleware import (
 from myrm_agent_harness.toolkits.memory.config import RecallMode
 
 _EMPTY_LEARNED: dict[str, list[dict[str, str]]] = {"learned_rules": [], "learned_preferences": []}
+
+
+@pytest.fixture(autouse=True)
+def _reset_runtime_memory_telemetry() -> None:
+    set_memory_runtime_budget(None)
+    set_memory_runtime_injection(None)
+    yield
+    set_memory_runtime_budget(None)
+    set_memory_runtime_injection(None)
 
 
 # ---------------------------------------------------------------------------
@@ -511,8 +526,17 @@ class TestInjectMemoryContext:
             messages=[SystemMessage(content="sys"), HumanMessage(content="hello")],
             state_messages=list(seeded),
         )
-        await _inject_fn(req, handler)
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.HYBRID
+        set_memory_runtime_budget({"used": 99, "total": 999})
+        with patch("myrm_agent_harness.agent._skill_agent_context.get_memory_manager", return_value=mock_manager):
+            await _inject_fn(req, handler)
         handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "already_present",
+        }
+        assert get_memory_runtime_budget() is None
 
     @pytest.mark.asyncio
     async def test_skips_when_marker_already_present(self, _inject_fn):
@@ -524,8 +548,15 @@ class TestInjectMemoryContext:
                 HumanMessage(content="hi"),
             ]
         )
-        await _inject_fn(req, handler)
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.HYBRID
+        with patch("myrm_agent_harness.agent._skill_agent_context.get_memory_manager", return_value=mock_manager):
+            await _inject_fn(req, handler)
         handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "already_present",
+        }
 
     @pytest.mark.asyncio
     async def test_skips_when_no_runtime_context(self, _inject_fn):
@@ -535,12 +566,51 @@ class TestInjectMemoryContext:
         handler.assert_awaited_once_with(req)
 
     @pytest.mark.asyncio
+    async def test_sets_not_applied_reason_when_runtime_context_missing(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request()
+        req.runtime.context = None
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.HYBRID
+        set_memory_runtime_budget({"used": 120, "total": 1024})
+
+        with patch("myrm_agent_harness.agent._skill_agent_context.get_memory_manager", return_value=mock_manager):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "missing_context",
+        }
+        assert get_memory_runtime_budget() is None
+
+    @pytest.mark.asyncio
     async def test_skips_when_no_memory_manager(self, _inject_fn):
         handler = AsyncMock()
         req = _make_request()
+        set_memory_runtime_budget({"used": 7, "total": 70})
+        set_memory_runtime_injection({"state": "applied", "source": "snapshot"})
         with patch("myrm_agent_harness.agent._skill_agent_context.get_memory_manager", return_value=None):
             await _inject_fn(req, handler)
         handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_budget() is None
+        assert get_memory_runtime_injection() is None
+
+    @pytest.mark.asyncio
+    async def test_sets_not_applied_reason_when_tools_recall_mode(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request()
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.TOOLS
+
+        with patch("myrm_agent_harness.agent._skill_agent_context.get_memory_manager", return_value=mock_manager):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "recall_mode_tools",
+        }
 
     @pytest.mark.asyncio
     async def test_injects_context_on_success(self, _inject_fn):
@@ -565,6 +635,14 @@ class TestInjectMemoryContext:
 
         stable_msgs = [m for m in injected_messages if isinstance(m, SystemMessage) and MEMORY_CONTEXT_MARKER in str(m.content)]
         assert len(stable_msgs) == 1
+        assert get_memory_runtime_injection() == {
+            "state": "applied",
+            "source": "fallback",
+        }
+        budget = get_memory_runtime_budget()
+        assert isinstance(budget, dict)
+        assert budget.get("total") == 50000
+        assert isinstance(budget.get("used"), int)
 
     @pytest.mark.asyncio
     async def test_reuses_prefetched_snapshot_without_refetch(self, _inject_fn):
@@ -603,6 +681,10 @@ class TestInjectMemoryContext:
         untrusted_payload = "\n".join(str(m.content) for m in injected_messages if isinstance(m, HumanMessage))
         assert "Snapshot User" in stable_payload
         assert MEMORY_UNTRUSTED_OPEN_MARKER in untrusted_payload
+        assert get_memory_runtime_injection() == {
+            "state": "applied",
+            "source": "snapshot",
+        }
 
     @pytest.mark.asyncio
     async def test_gather_outer_failure_returns_without_leak_warnings(self, _inject_fn):
@@ -640,6 +722,10 @@ class TestInjectMemoryContext:
             await _inject_fn(req, handler)
 
         handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "load_error",
+        }
 
     @pytest.mark.asyncio
     async def test_short_circuits_when_format_returns_both_none(self, _inject_fn):
@@ -664,6 +750,10 @@ class TestInjectMemoryContext:
             await _inject_fn(req, handler)
 
         handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "empty_context",
+        }
 
     @pytest.mark.asyncio
     async def test_handles_static_context_failure(self, _inject_fn):
@@ -683,6 +773,10 @@ class TestInjectMemoryContext:
             await _inject_fn(req, handler)
 
         handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "static_error",
+        }
 
     @pytest.mark.asyncio
     async def test_handles_learned_context_failure_non_fatal(self, _inject_fn):

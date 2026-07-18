@@ -8,7 +8,9 @@
 - myrm_agent_harness.utils.runtime.background_job_finish_registry (POS: bash job finish hook registry)
 
 [OUTPUT]
-- Session, skill-agent context, task intent, memory-extraction, bash-registry, and background-job-finish hook callables for server integration.
+- Session, skill-agent context, task intent, memory telemetry（budget/injection）
+  and injection contract, memory-extraction, bash-registry, and background-job-finish
+  hook callables for server integration.
 
 [POS]
 Public re-export facade. Product code imports hooks here instead of private ``agent._*`` modules.
@@ -22,6 +24,9 @@ from myrm_agent_harness.agent._internals.memory_extraction import (
 )
 from myrm_agent_harness.agent._skill_agent_context import (
     get_memory_manager,
+    get_memory_runtime_budget,
+    get_memory_runtime_injection_contract,
+    get_memory_runtime_injection,
     get_task_intent,
     invalidate_permissions,
     set_permission_invalidation_callback,
@@ -50,6 +55,9 @@ __all__ = [
     "get_event_logger",
     "get_global_background_job_finish_handler",
     "get_memory_manager",
+    "get_memory_runtime_budget",
+    "get_memory_runtime_injection_contract",
+    "get_memory_runtime_injection",
     "get_task_intent",
     "get_terminal_errors",
     "invalidate_permissions",

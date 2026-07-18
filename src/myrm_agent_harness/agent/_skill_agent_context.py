@@ -7,6 +7,7 @@
 
 [OUTPUT]
 - ContextVar getters/setters for storage_backend, memory_manager, loaded_skills (get/add/set/reset), task_intent
+- ContextVar getters/setters for memory runtime telemetry (budget + injection)
 - Permission invalidation callback management
 - Background task tracking and graceful shutdown
 
@@ -20,7 +21,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from contextvars import ContextVar
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, TypedDict
 
 from myrm_agent_harness.agent.skills import SkillMetadata
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
@@ -36,10 +37,64 @@ _background_tasks: set[asyncio.Task[None]] = set()
 _storage_backend_var: ContextVar[StorageProvider | None] = ContextVar("storage_backend", default=None)
 _memory_manager_var: ContextVar[MemoryManager | None] = ContextVar("memory_manager", default=None)
 _loaded_skills_var: ContextVar[list[SkillMetadata] | None] = ContextVar("loaded_skills", default=None)
+_memory_runtime_budget_var: ContextVar[MemoryRuntimeBudget | None] = ContextVar(
+    "memory_runtime_budget",
+    default=None,
+)
+_memory_runtime_injection_var: ContextVar[MemoryRuntimeInjection | None] = ContextVar(
+    "memory_runtime_injection",
+    default=None,
+)
 _permission_invalidation_callback: ContextVar[Callable[[str, str], None] | None] = ContextVar(
     "permission_invalidation_callback", default=None
 )
 _task_intent_var: ContextVar[str] = ContextVar("task_intent", default="")
+
+
+class MemoryRuntimeBudget(TypedDict):
+    used: int
+    total: int
+
+
+MemoryInjectionState = Literal["applied", "not_applied"]
+MemoryInjectionSource = Literal["snapshot", "fallback"]
+MemoryInjectionReason = Literal[
+    "missing_context",
+    "not_injected",
+    "recall_mode_tools",
+    "load_error",
+    "static_error",
+    "invalid_static_payload",
+    "empty_context",
+    "already_present",
+]
+
+
+class MemoryRuntimeInjection(TypedDict, total=False):
+    state: MemoryInjectionState
+    source: MemoryInjectionSource
+    reason: MemoryInjectionReason
+
+
+MEMORY_RUNTIME_INJECTION_STATES: tuple[MemoryInjectionState, ...] = (
+    "applied",
+    "not_applied",
+)
+MEMORY_RUNTIME_INJECTION_SOURCES: tuple[MemoryInjectionSource, ...] = (
+    "snapshot",
+    "fallback",
+)
+MEMORY_RUNTIME_INJECTION_REASONS: tuple[MemoryInjectionReason, ...] = (
+    "missing_context",
+    "not_injected",
+    "recall_mode_tools",
+    "load_error",
+    "static_error",
+    "invalid_static_payload",
+    "empty_context",
+    "already_present",
+)
+_NOT_APPLIED_REASONS: set[MemoryInjectionReason] = set(MEMORY_RUNTIME_INJECTION_REASONS)
 
 
 async def wait_all_background_tasks(timeout_seconds: float = 30.0) -> None:
@@ -104,6 +159,75 @@ def get_memory_manager() -> MemoryManager | None:
 def set_memory_manager(manager: MemoryManager | None) -> None:
     """Set the current memory manager in ContextVar."""
     _memory_manager_var.set(manager)
+
+
+def get_memory_runtime_budget() -> MemoryRuntimeBudget | None:
+    """Get memory budget telemetry emitted by memory context middleware."""
+    payload = _memory_runtime_budget_var.get()
+    if payload is None:
+        return None
+    return {"used": payload["used"], "total": payload["total"]}
+
+
+def set_memory_runtime_budget(payload: MemoryRuntimeBudget | None) -> None:
+    """Set memory budget telemetry for server-side SSE/persistence hooks."""
+    if payload is None:
+        _memory_runtime_budget_var.set(None)
+        return
+    _memory_runtime_budget_var.set(
+        {
+            "used": max(0, int(payload["used"])),
+            "total": max(0, int(payload["total"])),
+        }
+    )
+
+
+def get_memory_runtime_injection() -> MemoryRuntimeInjection | None:
+    """Get memory injection telemetry emitted by memory context middleware."""
+    payload = _memory_runtime_injection_var.get()
+    if payload is None:
+        return None
+    copied: MemoryRuntimeInjection = {"state": payload["state"]}
+    if "source" in payload:
+        copied["source"] = payload["source"]
+    if "reason" in payload:
+        copied["reason"] = payload["reason"]
+    return copied
+
+
+def set_memory_runtime_injection(payload: MemoryRuntimeInjection | None) -> None:
+    """Set normalized memory injection telemetry for server consumption."""
+    if payload is None:
+        _memory_runtime_injection_var.set(None)
+        return
+
+    state = payload.get("state")
+    if state == "applied":
+        normalized: MemoryRuntimeInjection = {"state": "applied"}
+        source = payload.get("source")
+        if source in MEMORY_RUNTIME_INJECTION_SOURCES:
+            normalized["source"] = source
+        _memory_runtime_injection_var.set(normalized)
+        return
+
+    if state == "not_applied":
+        normalized = {"state": "not_applied"}
+        reason = payload.get("reason")
+        if reason in _NOT_APPLIED_REASONS:
+            normalized["reason"] = reason
+        _memory_runtime_injection_var.set(normalized)
+        return
+
+    _memory_runtime_injection_var.set(None)
+
+
+def get_memory_runtime_injection_contract() -> dict[str, tuple[str, ...]]:
+    """Expose stable runtime injection contract for cross-layer parity checks."""
+    return {
+        "states": MEMORY_RUNTIME_INJECTION_STATES,
+        "sources": MEMORY_RUNTIME_INJECTION_SOURCES,
+        "reasons": MEMORY_RUNTIME_INJECTION_REASONS,
+    }
 
 
 def get_loaded_skills() -> list[SkillMetadata]:
