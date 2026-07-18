@@ -41,17 +41,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from myrm_agent_harness.toolkits.memory.config import RecallMode
-
-if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-
-logger = logging.getLogger(__name__)
 
 from .memory_context_format import (
     _conversation_search_tool_bound,
@@ -59,7 +54,12 @@ from .memory_context_format import (
     _has_memory_context,
 )
 
-class MemoryContextMiddleware(AgentMiddleware):  # type: ignore[type-arg]
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+
+logger = logging.getLogger(__name__)
+
+class MemoryContextMiddleware(AgentMiddleware):
     """Inject user memory context on first LLM call.
 
     Stable context is appended as ``SystemMessage`` after leading systems; learned
@@ -78,9 +78,9 @@ class MemoryContextMiddleware(AgentMiddleware):  # type: ignore[type-arg]
 
         from langchain_core.messages import AIMessage
 
-        new_req_messages = []
+        new_req_messages = list(request.messages)
         req_modified = False
-        for msg in request.messages:
+        for idx, msg in enumerate(new_req_messages):
             if isinstance(msg, AIMessage) and getattr(msg, "name", None):
                 prefix = f"[Agent: {msg.name}]\n"
                 if isinstance(msg.content, str) and not msg.content.startswith(prefix):
@@ -91,13 +91,18 @@ class MemoryContextMiddleware(AgentMiddleware):  # type: ignore[type-arg]
                         additional_kwargs=getattr(msg, "additional_kwargs", {}),
                         id=getattr(msg, "id", None),
                     )
-                    new_req_messages.append(new_msg)
+                    new_req_messages[idx] = new_msg
                     req_modified = True
                     continue
-                elif isinstance(msg.content, list) and len(msg.content) > 0 and msg.content[0].get("type") == "text":
-                    first_text = msg.content[0].get("text", "")
-                    if not first_text.startswith(prefix):
+                elif isinstance(msg.content, list) and len(msg.content) > 0:
+                    first_block = msg.content[0]
+                    if not isinstance(first_block, dict) or first_block.get("type") != "text":
+                        continue
+                    first_text = first_block.get("text", "")
+                    if isinstance(first_text, str) and not first_text.startswith(prefix):
                         new_content = copy.deepcopy(msg.content)
+                        if not isinstance(new_content[0], dict):
+                            continue
                         new_content[0]["text"] = f"{prefix}{first_text}"
                         new_msg = AIMessage(
                             content=new_content,
@@ -106,15 +111,15 @@ class MemoryContextMiddleware(AgentMiddleware):  # type: ignore[type-arg]
                             additional_kwargs=getattr(msg, "additional_kwargs", {}),
                             id=getattr(msg, "id", None),
                         )
-                        new_req_messages.append(new_msg)
+                        new_req_messages[idx] = new_msg
                         req_modified = True
                         continue
-            new_req_messages.append(msg)
 
         if req_modified:
             request = request.override(messages=new_req_messages)
 
         state = request.state
+        state_extra = cast(dict[str, object], state)
         state_messages = state.get("messages", [])
 
         if _has_memory_context(state_messages) or _has_memory_context(request.messages):
@@ -133,24 +138,40 @@ class MemoryContextMiddleware(AgentMiddleware):  # type: ignore[type-arg]
         if manager.recall_mode == RecallMode.TOOLS:
             return await handler(request)
 
-        try:
-            static_result, learned_result = await asyncio.gather(
-                manager.get_context(include_profile=True, include_rules=True, include_agent_instructions=True),
-                manager.get_learned_context(),
-                return_exceptions=True,
-            )
-        except Exception as e:
-            logger.warning("Failed to load memory context: %s", e)
-            return await handler(request)
+        prefetched_snapshot = context.get("memory_brief_snapshot") if isinstance(context, dict) else None
+        static_result: object
+        learned_result: object
+        if isinstance(prefetched_snapshot, dict):
+            static_result = prefetched_snapshot.get("memory_ctx", {})
+            learned_result = prefetched_snapshot.get("learned_ctx", {})
+            snapshot_id = prefetched_snapshot.get("snapshot_id")
+            if isinstance(snapshot_id, str) and snapshot_id.strip():
+                state_extra["memory_brief_snapshot_id"] = snapshot_id.strip()
+        else:
+            try:
+                static_result, learned_result = await asyncio.gather(
+                    manager.get_context(include_profile=True, include_rules=True, include_agent_instructions=True),
+                    manager.get_learned_context(),
+                    return_exceptions=True,
+                )
+            except Exception as e:
+                logger.warning("Failed to load memory context: %s", e)
+                return await handler(request)
 
         if isinstance(static_result, BaseException):
             logger.warning("Static memory context failed: %s", static_result)
+            return await handler(request)
+        if not isinstance(static_result, dict):
+            logger.warning("Static memory context payload has unexpected type: %s", type(static_result).__name__)
             return await handler(request)
         memory_ctx: dict[str, object] = static_result
 
         if isinstance(learned_result, BaseException):
             logger.warning("Learned memory context failed (non-fatal): %s", learned_result)
             learned_ctx: dict[str, list[dict[str, str]]] = {"learned_rules": [], "learned_preferences": []}
+        elif not isinstance(learned_result, dict):
+            logger.warning("Learned memory context payload has unexpected type: %s", type(learned_result).__name__)
+            learned_ctx = {"learned_rules": [], "learned_preferences": []}
         else:
             learned_ctx = learned_result
 
@@ -200,11 +221,12 @@ class MemoryContextMiddleware(AgentMiddleware):  # type: ignore[type-arg]
             else:
                 total_budget = base_budget
             used_chars = len(stable_formatted or "") + len(untrusted_formatted or "")
-            state["memory_budget_used"] = used_chars
-            state["memory_budget_total"] = total_budget
+            state_extra["memory_budget_used"] = used_chars
+            state_extra["memory_budget_total"] = total_budget
 
             # Also store it on the manager for easy extraction in finalize_agent_stream_session
-            manager._last_budget = {"used": used_chars, "total": total_budget}
+            manager_any = cast(Any, manager)
+            manager_any._last_budget = {"used": used_chars, "total": total_budget}
 
         logger.info(
             "Memory context injected for user %s: cold=%s, %d learned rules, %d learned preferences",

@@ -188,6 +188,11 @@ class ComputerSession:
                 error=f"Desktop control denied for application '{resolved_app}'.",
             )
 
+        if result.scope == ForegroundPermissionScope.session:
+            self._session_permission_granted = True
+        elif result.scope == ForegroundPermissionScope.always:
+            self._always_permission_granted = True
+
         self._operation_foreground_waived = True
         return None
 

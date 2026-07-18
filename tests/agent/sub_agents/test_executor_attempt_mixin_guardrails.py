@@ -10,6 +10,7 @@ import pytest
 from myrm_agent_harness.agent.sub_agents.executor import SubagentExecutor
 from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, SubAgentStatus
 from myrm_agent_harness.agent.streaming.types import AgentEventType
+from myrm_agent_harness.toolkits.llms.errors.exceptions import MyrmLLMError
 
 
 @pytest.fixture
@@ -77,7 +78,7 @@ async def test_run_single_attempt_raises_on_child_error_event(
         "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
         return_value=child_agent,
     ):
-        with pytest.raises(RuntimeError, match="Subagent error"):
+        with pytest.raises(MyrmLLMError, match="Subagent error"):
             await executor._run_single_attempt(
                 task_id="err",
                 agent_type="browser",

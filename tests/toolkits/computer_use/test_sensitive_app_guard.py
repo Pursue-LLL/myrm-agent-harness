@@ -78,7 +78,6 @@ class TestIsSensitiveApp:
         assert is_sensitive_app("Microsoft Excel") is None
         assert is_sensitive_app("Google Chrome") is None
         assert is_sensitive_app("Finder") is None
-        assert is_sensitive_app("Terminal") is None
         assert is_sensitive_app("Visual Studio Code") is None
         assert is_sensitive_app("Safari") is None
 

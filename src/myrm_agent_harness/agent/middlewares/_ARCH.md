@@ -29,7 +29,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `skill_attenuation_middleware.py` | Core | Skill attenuation via ``tool_choice.allowed_tools``; dynamic tool resolution for ToolNode. Does not mutate `request.tools`. | ✅ |
 | `debug_logger_middleware.py` | Core | Full message list debug logging. | ✅ |
 | `filesystem_search_middleware.py` | Core | Inject glob/grep workspace search tools. | ✅ |
-| `memory_context_middleware.py` | Core | `<user_memory_context>` + scope boundary + untrusted data wrapping. | ✅ |
+| `memory_context_middleware.py` | Core | `<user_memory_context>` + scope boundary + untrusted data wrapping；若存在 `memory_brief_snapshot` 则优先复用同源快照，避免预览/执行漂移。 | ✅ |
 | `plan_confirm_middleware.py` | Core | Plan-phase HITL: intercept first `todo_write(merge=False)` with 3+ items for user review via `interrupt()`. | ✅ |
 | `memory_context_format.py` | Core | Formatting helpers for memory context injection | ✅ |
 | `progress_middleware.py` | Core | Active todo focus injection into last HumanMessage. | ✅ |

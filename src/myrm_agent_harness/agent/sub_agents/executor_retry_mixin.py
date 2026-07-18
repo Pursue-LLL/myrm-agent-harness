@@ -2,8 +2,9 @@
 
 [INPUT]
 - .executor_helpers::_cascade_cancel_descendants, _compact_error_message (POS: Pure helper functions for SubagentExecutor mixins and external callers.)
-- .types::SubagentConfig, SubAgentResult, SubAgentStatus, WorkspacePolicy (POS: Subagent subsystem core type definitions.)
-- agent.hooks.executor::fire_hook (POS: Hook execution layer. Manages hook registration and execution with ContextVar-based session isolatio)
+- .types::SubagentBudgetExceededError, SubagentConfig, SubAgentResult, SubAgentStatus, WorkspacePolicy (POS: Subagent subsystem core type definitions.)
+- toolkits.llms.errors.exceptions::MyrmLLMError (POS: Standardized LLM Error thrown by the Harness framework.)
+- agent.hooks.executor::fire_hook (POS: Hook execution layer. Manages hook registration and execution with ContextVar-based session isolation.)
 
 [OUTPUT]
 - SubagentExecutorRetryMixin.run_with_retry
@@ -156,7 +157,7 @@ class SubagentExecutorRetryMixin:
                                     extra["_isolated_parent_workspace"] = isolated_parent_ws
                                 result = dc_replace(result, result=extra)
                     return result
-                except TimeoutError:
+                except TimeoutError as timeout_exc:
                     retries_left -= 1
                     logger.warning("[subagent:%s] Timeout, retries_left=%d", task_id, retries_left)
                     if retries_left > 0:
@@ -164,10 +165,14 @@ class SubagentExecutorRetryMixin:
                         backoff_seconds *= 2
                         continue
                     now = time.time()
+                    partial = getattr(timeout_exc, "partial_output", "") or ""
+                    if partial and len(partial) > (config.max_error_chars * 2):
+                        partial = partial[: config.max_error_chars * 2] + "\n…[truncated]"
                     return SubAgentResult(
                         success=False,
                         task_id=task_id,
                         agent_type=agent_type,
+                        result=partial,
                         error=f"Timeout after {config.timeout_seconds}s",
                         duration_seconds=now - start_time,
                         completed_at=now,
@@ -184,19 +189,61 @@ class SubagentExecutorRetryMixin:
                         await asyncio.sleep(backoff_seconds)
                         backoff_seconds *= 2
                         continue
-                    raise
-                except SubagentBudgetExceededError as error:
                     now = time.time()
-                    return SubAgentResult(
+                    partial = getattr(llm_exc, "partial_output", "") or ""
+                    if partial and len(partial) > (config.max_error_chars * 2):
+                        partial = partial[: config.max_error_chars * 2] + "\n…[truncated]"
+                    err_result = SubAgentResult(
                         success=False,
                         task_id=task_id,
                         agent_type=agent_type,
+                        result=partial,
+                        error=_compact_error_message(str(llm_exc), config.max_error_chars),
+                        duration_seconds=now - start_time,
+                        completed_at=now,
+                        status=SubAgentStatus.FAILED,
+                        trace_id=trace_id,
+                    )
+                    await fire_hook(
+                        HookEvent.SUBAGENT_STOP,
+                        {
+                            "task_id": task_id,
+                            "agent_type": agent_type,
+                            "success": False,
+                            "error": err_result.error,
+                            "duration_seconds": now - start_time,
+                            "trace_id": trace_id,
+                        },
+                    )
+                    return err_result
+                except SubagentBudgetExceededError as error:
+                    now = time.time()
+                    partial = getattr(error, "partial_output", "") or ""
+                    if partial and len(partial) > (config.max_error_chars * 2):
+                        partial = partial[: config.max_error_chars * 2] + "\n…[truncated]"
+                    err_result = SubAgentResult(
+                        success=False,
+                        task_id=task_id,
+                        agent_type=agent_type,
+                        result=partial,
                         error=str(error),
                         duration_seconds=now - start_time,
                         completed_at=now,
                         status=SubAgentStatus.CANCELLED_BY_BUDGET,
                         trace_id=trace_id,
                     )
+                    await fire_hook(
+                        HookEvent.SUBAGENT_STOP,
+                        {
+                            "task_id": task_id,
+                            "agent_type": agent_type,
+                            "success": False,
+                            "error": err_result.error,
+                            "duration_seconds": now - start_time,
+                            "trace_id": trace_id,
+                        },
+                    )
+                    return err_result
                 except Exception as error:
                     retries_left -= 1
                     logger.error(
@@ -212,10 +259,14 @@ class SubagentExecutorRetryMixin:
                         continue
                     now = time.time()
                     raw_error = f"{type(error).__name__}: {error}"
+                    partial = getattr(error, "partial_output", "") or ""
+                    if partial and len(partial) > (config.max_error_chars * 2):
+                        partial = partial[: config.max_error_chars * 2] + "\n…[truncated]"
                     err_result = SubAgentResult(
                         success=False,
                         task_id=task_id,
                         agent_type=agent_type,
+                        result=partial,
                         error=_compact_error_message(raw_error, config.max_error_chars),
                         duration_seconds=now - start_time,
                         completed_at=now,

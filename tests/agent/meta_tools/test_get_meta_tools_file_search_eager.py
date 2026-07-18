@@ -126,8 +126,8 @@ class TestFileSearchEager:
         assert "bash_code_execute_tool" in returned_names
         assert "bash_process_tool" in returned_names
 
-        discoverable_names = {t.name for t in registry.get_runtime_tools()}
-        assert "bash_process_tool" not in discoverable_names
+        runtime_only_names = {t.name for t in registry.get_runtime_tools()}
+        assert "bash_process_tool" not in runtime_only_names
 
     def test_answer_tool_eager_when_enabled(
         self,

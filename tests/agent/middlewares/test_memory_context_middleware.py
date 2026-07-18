@@ -567,6 +567,44 @@ class TestInjectMemoryContext:
         assert len(stable_msgs) == 1
 
     @pytest.mark.asyncio
+    async def test_reuses_prefetched_snapshot_without_refetch(self, _inject_fn):
+        """When stream preflight already produced a snapshot, middleware reuses it."""
+        handler = AsyncMock()
+        req = _make_request(messages=[SystemMessage(content="sys"), HumanMessage(content="hello")])
+        req.runtime.context = {
+            "memory_brief_snapshot": {
+                "snapshot_id": "snap-prefetched",
+                "memory_ctx": {"global_profile": {"name": "Snapshot User"}},
+                "learned_ctx": {
+                    "learned_rules": [],
+                    "learned_preferences": [{"content": "prefers concise replies", "id": "pref-1"}],
+                },
+            }
+        }
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "Should not be used"}})
+        mock_manager.get_learned_context = AsyncMock(return_value=dict(_EMPTY_LEARNED))
+
+        with patch("myrm_agent_harness.agent._skill_agent_context.get_memory_manager", return_value=mock_manager):
+            await _inject_fn(req, handler)
+
+        mock_manager.get_context.assert_not_called()
+        mock_manager.get_learned_context.assert_not_called()
+        assert req.state.get("memory_brief_snapshot_id") == "snap-prefetched"
+        req.override.assert_called_once()
+        injected_messages = req.override.call_args[1]["messages"]
+        stable_payload = "\n".join(str(m.content) for m in injected_messages if isinstance(m, SystemMessage))
+        untrusted_payload = "\n".join(str(m.content) for m in injected_messages if isinstance(m, HumanMessage))
+        assert "Snapshot User" in stable_payload
+        assert MEMORY_UNTRUSTED_OPEN_MARKER in untrusted_payload
+
+    @pytest.mark.asyncio
     async def test_gather_outer_failure_returns_without_leak_warnings(self, _inject_fn):
         handler = AsyncMock()
         req = _make_request()

@@ -133,8 +133,8 @@ async def test_description_is_stable_without_dynamic_tool_names():
 
 
 @pytest.mark.asyncio
-async def test_description_excludes_discoverable_names_when_empty():
-    """When no registry/discoverable tools, description omits the native tools list."""
+async def test_description_omits_native_tool_list_when_registry_empty():
+    """When registry has no Turn1 tools, description omits the native tools list."""
     tool = create_discover_capability_tool()
     assert "Discoverable native tools" not in tool.description
 

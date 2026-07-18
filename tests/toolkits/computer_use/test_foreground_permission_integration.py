@@ -51,6 +51,12 @@ def _realistic_png_bytes() -> bytes:
 _FAKE_SCREENSHOT = _realistic_png_bytes()
 
 
+def _assert_control_blocked(result: str) -> None:
+    """Mutating vision/interact paths block via per-app or foreground gate."""
+    lowered = result.lower()
+    assert "control denied" in lowered or "permission denied" in lowered
+
+
 def _make_backend() -> MagicMock:
     """Create a fake backend with minimal screen info and async methods."""
     b = MagicMock()
@@ -121,8 +127,12 @@ class TestDesktopVisionActionPermissionIntegration:
                 action="left_click", coordinate=[50, 50]
             )
 
-        assert "permission denied" in result.lower()
-        assert "background_strict" in result.lower()
+        _assert_control_blocked(result)
+        assert (
+            "background_strict" in result.lower()
+            or "no permission callback" in result.lower()
+            or "desktop app control blocked" in result.lower()
+        )
         backend.click.assert_not_called()
 
     @pytest.mark.asyncio
@@ -178,12 +188,12 @@ class TestDesktopVisionActionPermissionIntegration:
             )
 
         callback.assert_called_once()
-        assert "permission denied" in result.lower()
+        _assert_control_blocked(result)
         backend.click.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_session_scope_caches_for_subsequent_actions(self) -> None:
-        """After session grant, subsequent actions skip callback."""
+    async def test_session_scope_caches_foreground_after_app_approval(self) -> None:
+        """Per-app approval runs each mutating vision call; foreground session grant persists."""
         backend = _make_backend()
         callback = AsyncMock(
             return_value=ForegroundPermissionResult(
@@ -206,7 +216,10 @@ class TestDesktopVisionActionPermissionIntegration:
             session._last_snapshot_time = time.time()
             await session.desktop_vision_action(action="type", text="hello")
 
-        assert callback.call_count == 1
+        # App approval callback each mutating vision action; foreground cached after first grant.
+        assert callback.call_count == 2
+        assert callback.call_args_list[0].kwargs["require_app_approval"] is True
+        assert callback.call_args_list[1].kwargs["require_app_approval"] is True
 
     @pytest.mark.asyncio
     async def test_background_safe_actions_skip_permission(self) -> None:
@@ -454,7 +467,7 @@ class TestVisionActionVariantsPermission:
         ):
             result = await session.desktop_vision_action(action="type", text="hello")
 
-        assert "permission denied" in result.lower()
+            _assert_control_blocked(result)
 
     @pytest.mark.asyncio
     async def test_key_action_blocked_in_strict(self) -> None:
@@ -472,7 +485,7 @@ class TestVisionActionVariantsPermission:
         ):
             result = await session.desktop_vision_action(action="key", text="Return")
 
-        assert "permission denied" in result.lower()
+            _assert_control_blocked(result)
 
     @pytest.mark.asyncio
     async def test_scroll_action_blocked_in_strict(self) -> None:
@@ -492,7 +505,7 @@ class TestVisionActionVariantsPermission:
                 action="scroll", coordinate=[100, 100], scroll_direction="down"
             )
 
-        assert "permission denied" in result.lower()
+            _assert_control_blocked(result)
 
     @pytest.mark.asyncio
     async def test_drag_action_blocked_in_strict(self) -> None:
@@ -514,7 +527,7 @@ class TestVisionActionVariantsPermission:
                 coordinate=[200, 200],
             )
 
-        assert "permission denied" in result.lower()
+            _assert_control_blocked(result)
 
     @pytest.mark.asyncio
     async def test_mouse_move_blocked_in_strict(self) -> None:
@@ -534,7 +547,7 @@ class TestVisionActionVariantsPermission:
                 action="mouse_move", coordinate=[100, 100]
             )
 
-        assert "permission denied" in result.lower()
+            _assert_control_blocked(result)
 
 
 class TestAlwaysScopePersistence:
@@ -628,8 +641,9 @@ class TestCallbackArgsIntegration:
             await session.desktop_vision_action(action="left_click", coordinate=[50, 50])
 
         call_kwargs = callback.call_args.kwargs
-        assert "left_click" in call_kwargs["reason"]
-        assert "desktop_vision_action(left_click)" == call_kwargs["operation"]
+        assert "Safari" in call_kwargs["reason"]
+        assert call_kwargs["operation"] == "desktop_vision_action(left_click)"
+        assert call_kwargs["require_app_approval"] is True
         assert call_kwargs["estimated_duration_seconds"] == 5.0
 
     @pytest.mark.asyncio

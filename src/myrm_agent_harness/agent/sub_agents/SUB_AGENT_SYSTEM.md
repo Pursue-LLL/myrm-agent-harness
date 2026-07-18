@@ -374,6 +374,7 @@ Hook 异常不影响主流程（catch + warning 日志）。
 | Chain 可调试性 | 链式编排错误包含 step index/total |
 | 配置管理 | YAML 配置加载、Pydantic 校验和注册表优先级 |
 | 自动进度与日志 | 子 agent 事件转发为统一的进度和日志事件 |
+| 失败 partial 回传 | MyrmLLMError / BudgetExceeded / generic Exception 三条失败路径均返回结构化 `SubAgentResult(result=partial_output)`，截断保护防 context 爆炸，统一触发 `SUBAGENT_STOP` hook |
 
 ### 15. Cooperative Subagent Cancellation
 

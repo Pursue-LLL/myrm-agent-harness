@@ -129,10 +129,12 @@ class TestBuildMiddlewares:
         assert "progress_middleware" in names
         assert "goal_focus_middleware" in names
 
-    """Tests for build_tools — resolves user and discoverable tools."""
+
+class TestBuildTools:
+    """Tests for build_tools — resolves user-supplied Turn1 tools."""
 
     @pytest.mark.asyncio
-    async def test_build_tools_merges_discoverable_into_user(self) -> None:
+    async def test_build_tools_resolves_user_tools(self) -> None:
         from myrm_agent_harness.agent._internals.agent_runtime import (
             build_tools,
             create_registry,
@@ -225,7 +227,7 @@ class TestEmitToolsSnapshot:
         assert result is not None
         assert result[0]["builtin_tool_id"] == "cron"
 
-    def test_emit_excludes_discoverable_and_runtime_only(self) -> None:
+    def test_emit_excludes_runtime_only_hooks(self) -> None:
         from myrm_agent_harness.agent._internals.agent_runtime import (
             create_registry,
             emit_tools_snapshot,
@@ -238,7 +240,7 @@ class TestEmitToolsSnapshot:
 
         @tool("cron_manage_tool")
         def cron_manage_tool(expr: str) -> str:
-            """Discoverable cron tool."""
+            """Runtime-only cron hook."""
             return expr
 
         registry = create_registry()
