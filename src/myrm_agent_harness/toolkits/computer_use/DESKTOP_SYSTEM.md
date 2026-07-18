@@ -114,7 +114,7 @@ Injected via `DESKTOP_CONTROL_RULES` in `shared_rules.py` when `enable_computer_
 |------|--------|
 | Linux AT-SPI invoke | ✅ implemented (pyatspi doAction/EditableText/grabFocus) |
 | Desktop control gate (server) | ✅ `DesktopControlGate` + SSE approval card. Local monorepo: `./myrm ready` (editable harness; no PyPI). Release/CI: harness tag → `./myrm harness sync-lock` → commit `uv.lock` before `--frozen` |
-| Stream E2E tests | not covered |
+| Stream E2E tests | ✅ `test_desktop_control_approval_chrome_e2e.py` — Chrome MCP LIVE_AGENT；`server_pending>0` fail-fast；Banner `data-testid` allow-once/deny；signoff v54 matrix 仍 `--ignore` desktop（macOS 独占 UI）；独立跑法见 `scripts/dev/CHROME_MCP_E2E.md` §Desktop Control |
 | Onboarding hint when computer_use enabled | implemented (toggle + tooltip + empty state) |
 | Native API routing hints | implemented (macOS/Windows/Linux) |
 
