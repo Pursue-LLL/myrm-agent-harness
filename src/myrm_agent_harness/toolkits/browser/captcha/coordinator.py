@@ -72,6 +72,8 @@ class CaptchaCoordinator:
         self,
         captcha_info: CaptchaInfo,
         page: object,
+        *,
+        is_managed: bool = True,
     ) -> CaptchaSolveResult:
         """Handle a detected CAPTCHA: solve it and return the result.
 
@@ -102,6 +104,7 @@ class CaptchaCoordinator:
                 "reason": f"CAPTCHA detected: {captcha_info.reason}",
                 "captcha_type": captcha_info.captcha_type.value,
                 "auto_detect_completion": True,
+                "is_managed": is_managed,
             })
         except Exception:
             pass

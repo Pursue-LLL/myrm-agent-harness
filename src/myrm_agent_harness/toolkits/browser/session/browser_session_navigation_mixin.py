@@ -391,7 +391,11 @@ class BrowserSessionNavigationMixin:
         if captcha_info is None or not captcha_info.blocking:
             return None
 
-        solve_result = await self._captcha_coordinator.handle_captcha(captcha_info, page)
+        solve_result = await self._captcha_coordinator.handle_captcha(
+            captcha_info,
+            page,
+            is_managed=self.is_browser_managed(),
+        )
         self._captcha_coordinator.reset()
 
         if solve_result.success:

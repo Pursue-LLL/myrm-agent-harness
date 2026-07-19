@@ -592,7 +592,7 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 | `browser_extract_tool` | 文本 + 截图 + 媒体URL + 结构化提取 + diff | text / screenshot / media / diff_fast / diff_accurate + extraction_schema |
 | `browser_manage_tool` | Tab + JS + 历史 + 对话框 + Session + Network + HITL | 21 种 action（含 network_detail/network_replay + save/restore/list/delete_session + wait_for_user） |
 | `browser_execute_script_tool` | **Code-as-Action 批量执行** + AST 特权API门禁 | _(执行 Python 脚本，AST 扫描 page.request/evaluate/context 等特权API → HITL 审批)_ |
-| `browser_ask_human_tool` | **人类接管请求** | _(单一职责，Agent 触发 HITL interrupt + VNC 自动弹出)_ |
+| `browser_ask_human_tool` | **人类接管请求** | _(单一职责，Agent 触发 HITL interrupt + extension 横幅 / managed VNC)_ |
 
 **Token 成本**：~65 tokens（相比独立工具方案节省 86%）
 
@@ -869,7 +869,7 @@ ToolError(
 
 ### 17. Human Takeover (人类接管工具)
 
-**设计目标**：当 Agent 遭遇无法自动化的场景（2FA、短信验证、支付网关、手写签名、企业 SSO MFA 推送等）时，主动暂停执行并请求用户通过 VNC/noVNC 直接操控浏览器完成操作。
+**设计目标**：当 Agent 遭遇无法自动化的场景（2FA、短信验证、支付网关、手写签名、企业 SSO MFA 推送等）时，主动暂停执行并请求用户完成浏览器操作。
 
 **架构设计**：
 
@@ -878,12 +878,14 @@ Agent 推理 → browser_ask_human_tool(reason="请输入短信验证码")
   ↓ dispatch_custom_event("browser_takeover_requested", payload)
   ↓ langgraph.types.interrupt(hitl_payload)  ← Agent 暂停
   ...
-Frontend ← SSE: browser_takeover_requested
-  ↓ auto-open VNC/noVNC panel + 显示 reason 通知条
-  ↓ 用户直接操作浏览器（输入验证码/完成支付）
-  ↓ 用户点 "Done" 按钮
+Frontend ← SSE: browser_takeover_requested (includes is_managed from runtime pool)
+  ↓ is_managed=false → in-chat 横幅（引导用户在本地 Chrome 完成）+ Done/Skip
+  ↓ is_managed=true → auto-open VNC/noVNC 面板 + reason 通知条
+  ↓ auto_detect_completion=true → 隐藏 Done/Skip，显示 CAPTCHA 自动处理进度
+  ↓ 用户完成操作后点 "Done"（或 CAPTCHA 自动完成后后端发 completed）
   ...
 Frontend → POST /agents/agent-stream { resume_value: { action: "completed" } }
+  ↓ managed 模式同步 POST /webui/vnc/resume
   ↓ Command(resume=resume_value) → interrupt() 返回 user_response
   ↓ dispatch_custom_event("browser_takeover_completed")
   ↓ Agent 恢复执行，截图观察当前页面状态
@@ -892,8 +894,8 @@ Frontend → POST /agents/agent-stream { resume_value: { action: "completed" } }
 **核心特性**：
 - **Agent 主动触发**：不是被动等待超时，而是 Agent 智能判断何时需要人类介入
 - **统一 HITL 机制**：复用 LangGraph `interrupt()`/`Command(resume=...)` + SSE agent-stream resume，零额外基础设施
-- **VNC 自动弹出**：前端收到 `browser_takeover_requested` SSE 事件后自动打开 VNC 面板（SaaS 通过 VncProxy，Local 连接 localhost:6080）
-- **CAPTCHA 统一体验**：`CaptchaCoordinator` 检测到 CAPTCHA 时触发 `browser_takeover_requested`，无论解决成功或失败均触发 `browser_takeover_completed` 关闭 VNC 面板（载荷含 `success` 字段），前端统一处理
+- **双路径 GUI**：`is_managed=false`（CDP/extension）→ `ExtensionTakeoverBanner`（不 POST VNC）；`is_managed=true`（sandbox launch）→ VNC 面板自动弹出（SaaS VncProxy / Local localhost:6080）
+- **CAPTCHA 统一体验**：`CaptchaCoordinator` 检测到 CAPTCHA 时触发 `browser_takeover_requested`（`auto_detect_completion: true`），无论解决成功或失败均触发 `browser_takeover_completed` 关闭 takeover UI（载荷含 `success` 字段）
 - **零 Prompt Cache 影响**：tool 返回纯文本摘要（用时、URL 变化、页面标题），不影响主模型缓存
 
 **实现位置**：`tools/takeover.py` → `create_takeover_tool(session)`
@@ -975,7 +977,7 @@ browser/
 │   ├── extract.py — browser_extract_tool
 │   ├── manage.py — browser_manage_tool
 │   ├── execute_script.py — browser_execute_script_tool（含 AST 特权API Scanner + HITL 门禁）
-│   ├── takeover.py — browser_ask_human_tool（人类接管，LangGraph interrupt + VNC 自动弹出）
+│   ├── takeover.py — browser_ask_human_tool（人类接管，LangGraph interrupt + extension 横幅 / managed VNC）
 │   ├── inspect.py — browser_inspect_tool
 │   ├── _semantic_risk.py — 语义 DOM 风险分类（纯函数）
 │   └── common.py — 工具共享工具函数

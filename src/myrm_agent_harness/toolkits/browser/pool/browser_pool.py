@@ -622,6 +622,21 @@ class GlobalBrowserPool(CrashWatchdogMixin):
         """Get circuit breaker (used by Navigator)."""
         return self._circuit_breaker
 
+    def is_managed_for_page(self, page: Page) -> bool:
+        """Return True when the page belongs to a sandbox-launched browser (VNC path).
+
+        CDP-attached browsers (connect/auto/extension) return False.
+        """
+        try:
+            browser = page.context.browser
+        except Exception:
+            return True
+
+        for inst in self._browsers:
+            if inst.browser is browser:
+                return inst.is_managed
+        return True
+
     @property
     def stats(self) -> dict[str, object]:
         """Get global statistics (for monitoring)."""

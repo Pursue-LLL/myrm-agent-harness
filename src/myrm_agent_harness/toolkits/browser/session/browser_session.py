@@ -37,6 +37,7 @@
   - get_session_hash(domain: str) -> str | None: get cached session state hash (in-memory read)
   - stats: dict[str, object]: statistics info (includes ref_failures monitoring metrics)
   - notify_progress(message) -> None: push to observability hook and agent SSE via progress_sink
+  - is_browser_managed() -> bool: True when active page is sandbox-launched (VNC path)
 
 [POS]
 Browser session manager. As the aggregate root, composes single-responsibility components:
@@ -458,6 +459,16 @@ class BrowserSession(
         """标记任务ExecuteFailure"""
         if self._observability:
             self._observability.mark_task_status(success=False)
+
+    def is_browser_managed(self) -> bool:
+        """True when the active page runs in a sandbox-launched browser (managed/VNC path)."""
+        try:
+            if not self._tab_controller.list_tabs():
+                return True
+            page = self._tab_controller.get_active_page()
+        except Exception:
+            return True
+        return self._browser_pool.is_managed_for_page(page)
 
     @property
     def stats(self) -> dict[str, object]:

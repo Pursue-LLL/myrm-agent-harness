@@ -5,8 +5,9 @@ payment gateway, corporate SSO MFA push, proprietary CAPTCHA, handwriting
 signature), it calls this tool to pause execution, notify the user via SSE
 event, and wait for the user to complete the action in the browser.
 
-The frontend receives a ``browser_takeover_requested`` event and auto-opens the
-VNC/noVNC panel (SaaS) or displays a notification card (Local/Tauri).
+The frontend receives a ``browser_takeover_requested`` event. Managed browser
+sessions (sandbox VNC) auto-open the VNC panel; extension sessions show an
+in-chat banner guiding the user to complete the step in Chrome.
 
 [INPUT]
 - langgraph.types::interrupt (POS: LangGraph HITL interrupt mechanism)
@@ -58,16 +59,24 @@ def create_takeover_tool(session: BrowserSession):
         - Digital signature pads or handwriting input
         - Any interactive element that requires human judgment or credentials
 
-        The browser will be shown to the user via VNC/remote desktop.
-        Execution pauses until the user signals completion.
+        Managed sandbox sessions open the VNC panel; local Chrome (CDP/extension)
+        shows an in-chat banner. Execution pauses until the user signals completion.
         """
         from langgraph.types import interrupt
 
         from myrm_agent_harness.utils.event_utils import dispatch_custom_event
 
-        page = session.page
+        page = getattr(session, "page", None)
+        if page is None:
+            try:
+                if session._tab_controller.list_tabs():
+                    page = session._tab_controller.get_active_page()
+            except Exception:
+                page = None
         if page is None or page.is_closed():
             return "Error: No active browser page. Navigate to a page first."
+
+        is_managed = session.is_browser_managed()
 
         screenshot_b64: str | None = None
         try:
@@ -87,6 +96,7 @@ def create_takeover_tool(session: BrowserSession):
             "url": current_url,
             "screenshot_base64": screenshot_b64,
             "timeout_seconds": int(_DEFAULT_TIMEOUT_S),
+            "is_managed": is_managed,
         }
 
         await dispatch_custom_event("browser_takeover_requested", event_payload)

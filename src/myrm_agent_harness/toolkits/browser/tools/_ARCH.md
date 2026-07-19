@@ -18,7 +18,7 @@ API layer of the browser toolkit. Maps BrowserSession capabilities to 8 LangChai
 | manage.py | Core | browser_manage_tool: session management. | ✅ |
 | navigate.py | Core | browser_navigate_tool: URL navigation. | ✅ |
 | snapshot.py | Core | browser_snapshot_tool: ARIA tree capture. | ✅ |
-| takeover.py | Core | browser_ask_human_tool: Agent-triggered human takeover via LangGraph interrupt + VNC auto-open. | ✅ |
+| takeover.py | Core | browser_ask_human_tool: Agent-triggered human takeover via LangGraph interrupt; SSE includes runtime `is_managed` (managed→VNC, external/CDP→in-chat banner). | ✅ |
 
 ## Key Dependencies
 

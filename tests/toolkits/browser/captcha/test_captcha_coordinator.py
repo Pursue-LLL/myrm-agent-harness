@@ -124,6 +124,32 @@ class TestCoordinatorHandleCaptcha:
         assert takeover_completed[0]["success"] is True
 
     @pytest.mark.asyncio
+    async def test_takeover_requested_includes_is_managed(self) -> None:
+        solver = _make_solver(success=True)
+        coord = CaptchaCoordinator(solver)
+        page = _make_mock_page()
+
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.browser.captcha.coordinator.CaptchaCoordinator._publish_event",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+                new_callable=AsyncMock,
+            ) as mock_dispatch,
+        ):
+            await coord.handle_captcha(_make_info(), page, is_managed=False)
+
+        requested = [
+            payload
+            for call in mock_dispatch.call_args_list
+            if call.args[0] == "browser_takeover_requested"
+        ]
+        assert len(requested) == 1
+        assert requested[0].args[1]["is_managed"] is False
+
+    @pytest.mark.asyncio
     async def test_failed_solve_dispatches_takeover_completed_with_success_false(self) -> None:
         solver = _make_solver(success=False)
         coord = CaptchaCoordinator(solver)

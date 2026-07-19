@@ -22,6 +22,7 @@ def mock_session():
     page.screenshot = AsyncMock(return_value=b"\xff\xd8\xff\xe0fake_jpeg")
     page.title = AsyncMock(return_value="Checkout - Example Store")
     session.page = page
+    session.is_browser_managed = MagicMock(return_value=True)
     return session
 
 
@@ -112,6 +113,7 @@ class TestTakeoverToolInterruptFlow:
             assert payload["reason"] == "Please complete payment"
             assert payload["url"] == "https://example.com/checkout"
             assert payload["screenshot_base64"] is not None
+            assert payload["is_managed"] is True
 
             second_call = mock_dispatch.call_args_list[1]
             assert second_call[0][0] == "browser_takeover_completed"
@@ -120,6 +122,24 @@ class TestTakeoverToolInterruptFlow:
             interrupt_payload = mock_interrupt.call_args[0][0]
             assert interrupt_payload["action_type"] == "browser_takeover"
             assert interrupt_payload["reason"] == "Please complete payment"
+
+    def test_dispatches_is_managed_false_for_local_browser(self, mock_session):
+        from myrm_agent_harness.toolkits.browser.tools.takeover import create_takeover_tool
+
+        mock_session.is_browser_managed = MagicMock(return_value=False)
+        tool = create_takeover_tool(mock_session)
+
+        with (
+            patch(
+                "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+                new_callable=AsyncMock,
+            ) as mock_dispatch,
+            patch("langgraph.types.interrupt", return_value="done"),
+        ):
+            asyncio.run(tool.ainvoke({"reason": "Enter SMS code"}))
+
+            payload = mock_dispatch.call_args_list[0][0][1]
+            assert payload["is_managed"] is False
 
     def test_result_includes_user_message(self, mock_session):
         from myrm_agent_harness.toolkits.browser.tools.takeover import create_takeover_tool
