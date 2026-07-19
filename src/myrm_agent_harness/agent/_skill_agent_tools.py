@@ -43,7 +43,7 @@ class SkillAgentToolsMixin:
     - _skill_env_map, _default_skill_instances, state_manager
     - storage_backend, llm, config
     - _task_workspace_root (chat sandbox path for progress persistence)
-    - _wiki_base_dir, _wiki_search_fn
+    - _wiki_base_dir, _wiki_public_dirs, _wiki_search_fn
     - _tool_registry, user_tools, user_middlewares
     """
 
@@ -228,7 +228,8 @@ class SkillAgentToolsMixin:
     def _create_wiki_tools(self) -> list[BaseTool]:
         """Auto-create wiki tools if wiki_base_dir is configured.
 
-        Creates 4 LangChain tools: wiki_ingest, wiki_compile, wiki_query, wiki_maintain.
+        Creates 2 LangChain tools for the agent: wiki_ingest, wiki_query.
+        Compile/maintain remain Settings/REST-only operations.
         """
         if self._wiki_base_dir is None:  # type: ignore[attr-defined]
             return []
@@ -243,7 +244,11 @@ class SkillAgentToolsMixin:
                 create_wiki_tools,
             )
 
-            structure = WikiStructure(self._wiki_base_dir)  # type: ignore[attr-defined]
+            public_dirs = getattr(self, "_wiki_public_dirs", None) or []
+            structure = WikiStructure(
+                self._wiki_base_dir,  # type: ignore[attr-defined]
+                public_dirs=public_dirs,
+            )
             structure.ensure_structure()
             config = WikiConfig()
             compiler = WikiCompiler(self.llm, structure, config)  # type: ignore[attr-defined]
@@ -263,8 +268,9 @@ class SkillAgentToolsMixin:
             self._register_large_doc_ingest(structure, compiler)
 
             logger.info(
-                " wiki tools auto-created (4 tools, base_dir=%s)",
+                " wiki tools auto-created (2 tools, base_dir=%s, shared=%d)",
                 self._wiki_base_dir,  # type: ignore[attr-defined]
+                len(public_dirs),
             )
             return tools
         except Exception as e:

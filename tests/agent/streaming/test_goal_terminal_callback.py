@@ -287,3 +287,51 @@ class TestGoalTerminalCallbackTrigger:
 
         assert result is False
         callback.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_callback_fires_on_deferred_tool_complete(self):
+        """Callback fires when complete_goal_tool deferred terminal resolves to done."""
+        from myrm_agent_harness.agent.goals.finalizer import PENDING_TERMINAL_KEY
+
+        callback = AsyncMock()
+        goal = _make_goal(status=GoalStatus.COMPLETE)
+        goal.metadata[PENDING_TERMINAL_KEY] = True
+
+        goal_provider = AsyncMock()
+        goal_provider.get_active_goal.return_value = None
+        goal_provider.get_latest_goal.return_value = goal
+        goal_provider.get_goal.return_value = goal
+        cleared_goal = _make_goal(status=GoalStatus.COMPLETE)
+        cleared_goal.metadata[PENDING_TERMINAL_KEY] = False
+        goal_provider.update_metadata.return_value = cleared_goal
+
+        ctx = _make_ctx(on_goal_terminal=callback, goal_provider=goal_provider)
+
+        from myrm_agent_harness.agent.streaming.stream_recovery import (
+            StreamRecoveryMixin,
+        )
+
+        mixin = StreamRecoveryMixin.__new__(StreamRecoveryMixin)
+        mixin._ctx = ctx
+        mixin._compactor = AsyncMock()
+        mixin.streaming_final_answer = False
+
+        messages: list[BaseMessage] = [
+            HumanMessage(content="Finish the task"),
+            AIMessage(content="Task complete."),
+        ]
+
+        result = await mixin._handle_goal_continuation(
+            collected_messages=messages,
+            tools_called_this_turn=True,
+            net_tokens_this_turn=500,
+            cost_this_turn=0.02,
+            time_this_turn_seconds=5,
+        )
+
+        assert result is False
+        await asyncio.sleep(0.1)
+        callback.assert_called_once()
+        call_args = callback.call_args[0]
+        assert call_args[0].goal_id == "goal-1"
+        assert isinstance(call_args[2], GoalExecutionSummary)

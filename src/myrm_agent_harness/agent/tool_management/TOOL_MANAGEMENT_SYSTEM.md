@@ -149,13 +149,12 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `skill_select_tool` | EXTENDED | user_capability | — | skill_backend present |
 | `steer_subagent_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `tts_generate` | EXTENDED | user_capability | tts | enabled_builtin_tools: tts |
-| `update_goal_status_tool` | EXTENDED | user_capability | — | active Goal on chat |
+| `complete_goal_tool` | EXTENDED | user_capability | — | active Goal on chat |
 | `update_ui_data_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
 | `video_tool` | EXTENDED | user_capability | video_generation | enabled_builtin_tools: video_generation |
-| `wiki_compile_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
 | `wiki_ingest_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
-| `wiki_maintain_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
 | `wiki_query_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
+| `knowledge_recall_tool` | EXTENDED | user_capability | — | enable_wiki + enable_memory (non-incognito); server `_tool_layer_bootstrap` |
 | `x_search_tool` | EXTENDED | user_capability | — | x-live-search prebuilt skill bound |
 <!-- TOOL_CATALOG_END -->
 

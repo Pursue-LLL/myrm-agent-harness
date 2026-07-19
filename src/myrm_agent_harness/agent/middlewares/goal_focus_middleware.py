@@ -60,7 +60,7 @@ def _build_goal_focus_line(goal: Goal) -> str:
     budget_hint = _format_budget_hint(goal)
     return (
         f"Active goal: {objective} ({budget_hint}) — "
-        "advance it or call update_goal_status_tool when fully complete."
+        "advance it; completion is detected by the judge, or call complete_goal_tool when fully done."
     )
 
 

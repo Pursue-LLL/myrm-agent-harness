@@ -34,6 +34,7 @@ class GoalStatus(StrEnum):
     PAUSED = "paused"
     PENDING_APPROVAL = "pending_approval"
     BUDGET_LIMITED = "budget_limited"
+    WAIT = "wait"
     COMPLETE = "complete"
     CANCELLED = "cancelled"
     NEEDS_HUMAN_REVIEW = "needs_human_review"
@@ -211,6 +212,7 @@ ContinuationVerdict = Literal[
     "no_goal",
     "convergence",
     "loop_restart",
+    "wait",
 ]
 
 

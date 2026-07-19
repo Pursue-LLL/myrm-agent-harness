@@ -67,6 +67,24 @@ class GoalProvider(Protocol):
         """Update goal status (e.g., pause, resume, complete)."""
         ...
 
+    async def update_metadata(self, goal_id: str, updates: dict[str, object]) -> Goal:
+        """Merge key/value pairs into goal metadata."""
+        ...
+
+    async def enter_wait(
+        self,
+        goal_id: str,
+        *,
+        reason: str,
+        max_wait_seconds: int | None = None,
+    ) -> Goal:
+        """Transition goal to WAIT — skip judge/continuation until unwait or timeout."""
+        ...
+
+    async def exit_wait(self, goal_id: str) -> Goal:
+        """Transition goal from WAIT back to ACTIVE."""
+        ...
+
     async def increment_verification_retries(self, goal_id: str) -> Goal:
         """Increment the verification retry counter for a goal."""
         ...

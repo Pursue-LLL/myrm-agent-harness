@@ -27,11 +27,11 @@ from myrm_agent_harness.observability.metrics.goal_metrics import (
     record_goal_resumed,
     record_goal_terminal,
 )
-
 from .manager_queue_mixin import GoalManagerQueueMixin
 from .protocols import GoalProvider
 from .storage import GoalStorage
 from .types import Goal, GoalAccountingOutcome, GoalBudget, GoalStatus
+from .wait_background_bash import WAIT_ON_BACKGROUND_PID_KEY
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.goals.verification.types import VerificationResult
@@ -203,6 +203,66 @@ class GoalManager(GoalManagerQueueMixin, GoalProvider):
             clear_snapshot(goal_id)
 
         logger.info("Goal %s status changed: %s -> %s", goal_id, old_status.value, status.value)
+        return goal
+
+    async def update_metadata(self, goal_id: str, updates: dict[str, object]) -> Goal:
+        """Merge key/value pairs into goal metadata."""
+        goal = await self._storage.get_goal(goal_id)
+        if not goal:
+            raise ValueError(f"Goal {goal_id} not found")
+
+        goal.metadata.update(updates)
+        goal.updated_at = datetime.now(UTC)
+        await self._storage.save_goal(goal)
+        return goal
+
+    _DEFAULT_WAIT_MAX_SECONDS = 7200
+
+    async def enter_wait(
+        self,
+        goal_id: str,
+        *,
+        reason: str,
+        max_wait_seconds: int | None = None,
+    ) -> Goal:
+        """Pause autonomous continuation while waiting for an external process."""
+        goal = await self._storage.get_goal(goal_id)
+        if not goal:
+            raise ValueError(f"Goal {goal_id} not found")
+
+        if goal.is_terminal:
+            raise ValueError(f"Cannot enter wait on terminal goal {goal_id} ({goal.status.value})")
+
+        if goal.status not in (GoalStatus.ACTIVE, GoalStatus.WAIT):
+            raise ValueError(f"Cannot enter wait from status {goal.status.value}")
+
+        wait_cap = max_wait_seconds if max_wait_seconds is not None else self._DEFAULT_WAIT_MAX_SECONDS
+        goal.status = GoalStatus.WAIT
+        goal.metadata["wait_reason"] = reason.strip() or "Waiting for external process"
+        goal.metadata["wait_started_at"] = datetime.now(UTC).isoformat()
+        goal.metadata["wait_max_seconds"] = wait_cap
+        goal.updated_at = datetime.now(UTC)
+        await self._storage.save_goal(goal)
+        logger.info("Goal %s entered WAIT (max=%ds): %s", goal_id, wait_cap, reason[:80])
+        return goal
+
+    async def exit_wait(self, goal_id: str) -> Goal:
+        """Resume an ACTIVE goal from WAIT state."""
+        goal = await self._storage.get_goal(goal_id)
+        if not goal:
+            raise ValueError(f"Goal {goal_id} not found")
+
+        if goal.status != GoalStatus.WAIT:
+            raise ValueError(f"Goal {goal_id} is not in WAIT state ({goal.status.value})")
+
+        goal.status = GoalStatus.ACTIVE
+        goal.metadata.pop("wait_reason", None)
+        goal.metadata.pop("wait_started_at", None)
+        goal.metadata.pop("wait_max_seconds", None)
+        goal.metadata.pop(WAIT_ON_BACKGROUND_PID_KEY, None)
+        goal.updated_at = datetime.now(UTC)
+        await self._storage.save_goal(goal)
+        logger.info("Goal %s exited WAIT → ACTIVE", goal_id)
         return goal
 
     async def increment_verification_retries(self, goal_id: str) -> Goal:

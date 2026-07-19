@@ -137,6 +137,7 @@ class SkillAgent(
         global_env: dict[str, str] | None = None,
         on_skill_review_ready: "Callable[[dict[str, object]], None] | None" = None,
         wiki_base_dir: "Path | str | None" = None,
+        wiki_public_dirs: list["Path | str"] | None = None,
         wiki_search_fn: "SemanticSearchFn | None" = None,
         similarity_checker: "SkillSimilarityChecker | None" = None,
         on_session_cleanup: "Callable[[Sequence[dict[str, str]], str | None], Awaitable[None]] | None" = None,
@@ -188,6 +189,7 @@ class SkillAgent(
         self._similarity_checker: SkillSimilarityChecker | None = similarity_checker
         self._global_env = global_env
         self._wiki_base_dir = wiki_base_dir
+        self._wiki_public_dirs = list(wiki_public_dirs) if wiki_public_dirs else []
         self._wiki_search_fn: SemanticSearchFn | None = wiki_search_fn
         self._wiki_compiler: WikiCompiler | None = None
         self._wiki_structure: WikiStructure | None = None

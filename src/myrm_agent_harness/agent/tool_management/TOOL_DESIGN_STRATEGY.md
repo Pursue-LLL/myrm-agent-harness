@@ -109,13 +109,14 @@ class ToolLayer(IntEnum):
 | 技能工具（Turn1） | 有技能后端 | skill_select_tool, skill_manage_tool | ~343 |
 | 浏览器工具 | `enabled_builtin_tools: browser` | browser_navigate_tool, browser_snapshot_tool, ... (8个) | ~535 |
 | 定时任务工具 | cron 能力 wired；勾选 cron 时 Turn1 | cron_manage_tool | ~827 |
-| Wiki 工具 | `enabled_builtin_tools: wiki` | wiki_query_tool, wiki_ingest_tool, ... (4个) | ~250 |
+| Wiki 工具 | `enabled_builtin_tools: wiki` | wiki_query_tool, wiki_ingest_tool (2个) | ~95 |
+| 统一知识检索 | wiki + memory 双开 | knowledge_recall_tool (1个) | ~55 |
 | 子 Agent 工具 | SubagentManagementExtension + entitlements | delegate_task_tool, batch_delegate_tasks_tool, send_teammate_message_tool, steer_subagent_tool, ... (7个) | ~411 |
 | UI 渲染工具 | `enabled_builtin_tools: render_ui` | render_ui_tool | 223 |
 | 答案自审工具 | `enabled_builtin_tools: answer_tool` | request_answer_user_tool | ~120 |
-| Goal 工具 | chat 有 active Goal | update_goal_status_tool | ~132 |
+| Goal 工具 | chat 有 active Goal | complete_goal_tool | ~120 |
 | 看板工具 | `enabled_builtin_tools: kanban` | worker 5 + orchestrator 7（`kanban_link` 合并依赖）；board CRUD 走 REST/GUI | -
-| Server 业务工具 | skill/凭证/notify 配置 | x_search_tool, channel_notify_tool, image_tool, video_tool, tts_generate (5个) | 按凭证 |
+| Server 业务工具 | skill/凭证/notify 配置 | x_search_tool, knowledge_recall_tool, channel_notify_tool, image_tool, video_tool, tts_generate (6个) | 按凭证 |
 
 ### 2.3 排序规则
 

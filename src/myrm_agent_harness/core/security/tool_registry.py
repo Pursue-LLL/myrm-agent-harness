@@ -118,7 +118,7 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
         "desktop_snapshot_tool",
         "desktop_interact_tool",
         "desktop_vision_tool",
-        "update_goal_status_tool",
+        "complete_goal_tool",
         "ask_question_tool",
     }
 )
@@ -201,9 +201,7 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
     "wiki": frozenset(
         {
             "wiki_query_tool",
-            "wiki_compile_tool",
             "wiki_ingest_tool",
-            "wiki_maintain_tool",
         }
     ),
     "planning": frozenset({"todo_write"}),
@@ -470,7 +468,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "skill_manage_tool": SafetyMetadata(),
     "memory_save_tool": SafetyMetadata(is_idempotent=True),
     "memory_manage_tool": SafetyMetadata(),
-    "update_goal_status_tool": SafetyMetadata(),
+    "complete_goal_tool": SafetyMetadata(),
     "desktop_snapshot_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "desktop_interact_tool": SafetyMetadata(is_destructive=True),
     "desktop_vision_tool": SafetyMetadata(is_destructive=True),

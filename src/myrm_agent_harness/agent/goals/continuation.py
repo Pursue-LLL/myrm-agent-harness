@@ -22,14 +22,16 @@ Returns a structured ContinuationDecision with verdict/reason for downstream con
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from langchain_core.messages import AIMessage, HumanMessage
 
 from .audit import build_continuation_prompt, build_judge_criteria, build_wrapup_prompt
+from .finalizer import finalize_goal_complete, resolve_deferred_tool_completion
 from .goal_prompt_prefixes import GOAL_WRAPUP_PREFIX
 from .invariant_snapshot import ProtectedFileViolation, verify_protected_integrity
-from .types import ContinuationDecision, GoalStatus
+from .types import ContinuationDecision, Goal, GoalStatus
 
 if TYPE_CHECKING:
     from langchain_core.messages import BaseMessage
@@ -38,7 +40,6 @@ if TYPE_CHECKING:
     from myrm_agent_harness.utils.runtime.steering import SteeringToken
 
     from .protocols import GoalProvider
-    from .types import Goal
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,23 @@ _MAX_CONSECUTIVE_JUDGE_PARSE_FAILURES = 3
 _WRAPUP_SENTINEL = GOAL_WRAPUP_PREFIX
 
 _MAX_VERIFICATION_RETRIES = 3
+
+_WAIT_TIMEOUT_PAUSE_REASON = "Wait timeout exceeded — goal paused"
+
+
+def _is_wait_expired(goal: Goal) -> bool:
+    started_raw = goal.metadata.get("wait_started_at")
+    max_seconds_raw = goal.metadata.get("wait_max_seconds")
+    if not isinstance(started_raw, str) or not isinstance(max_seconds_raw, int):
+        return False
+    try:
+        started = datetime.fromisoformat(started_raw)
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=UTC)
+        elapsed = (datetime.now(UTC) - started).total_seconds()
+        return elapsed >= max_seconds_raw
+    except (TypeError, ValueError):
+        return False
 
 
 async def _run_acceptance_verification(
@@ -236,6 +254,49 @@ def _make_decision(
     )
 
 
+async def _maybe_auto_enter_wait_for_background_bash(
+    goal_provider: GoalProvider,
+    goal: Goal,
+) -> ContinuationDecision | None:
+    """Park the goal when a whitelisted background bash job was spawned this turn."""
+    if not hasattr(goal_provider, "enter_wait"):
+        return None
+
+    from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import get_loop_guard
+
+    from .wait_background_bash import (
+        WAIT_ON_BACKGROUND_PID_KEY,
+        find_latest_background_spawn_in_window,
+    )
+
+    spawn = find_latest_background_spawn_in_window(list(get_loop_guard()._window))
+    if spawn is None:
+        return None
+
+    existing_pid = goal.metadata.get(WAIT_ON_BACKGROUND_PID_KEY)
+    if existing_pid is not None:
+        try:
+            if int(existing_pid) == spawn.pid:  # type: ignore[arg-type]
+                return None
+        except (TypeError, ValueError):
+            pass
+
+    reason = f"Waiting for background process (pid {spawn.pid})"
+    await goal_provider.enter_wait(goal.goal_id, reason=reason)
+    await goal_provider.update_metadata(
+        goal.goal_id,
+        {WAIT_ON_BACKGROUND_PID_KEY: spawn.pid},
+    )
+    refreshed = await goal_provider.get_goal(goal.goal_id)
+    target = refreshed or goal
+    logger.info(
+        "Goal %s auto-entered WAIT for background pid=%s",
+        goal.goal_id,
+        spawn.pid,
+    )
+    return _make_decision("wait", reason, target)
+
+
 async def check_continuation(
     goal_provider: GoalProvider | None,
     session_id: str,
@@ -259,6 +320,26 @@ async def check_continuation(
     # 2. Active goal exists?
     goal = await goal_provider.get_active_goal(session_id)
     if not goal:
+        latest = await goal_provider.get_latest_goal(session_id)
+        if latest and latest.status == GoalStatus.WAIT:
+            if _is_wait_expired(latest):
+                await goal_provider.update_status(latest.goal_id, GoalStatus.PAUSED)
+                await goal_provider.update_metadata(
+                    latest.goal_id,
+                    {"pause_reason": _WAIT_TIMEOUT_PAUSE_REASON},
+                )
+                return _make_decision(
+                    "suppressed",
+                    _WAIT_TIMEOUT_PAUSE_REASON,
+                    latest,
+                )
+            wait_reason = str(latest.metadata.get("wait_reason") or "Waiting for external process")
+            return _make_decision("wait", wait_reason, latest)
+
+        deferred = await resolve_deferred_tool_completion(goal_provider, session_id)
+        if deferred is not None:
+            return deferred
+
         return _make_decision("no_goal", "No active goal for session")
 
     await goal_provider.account_usage(
@@ -285,6 +366,14 @@ async def check_continuation(
     if not tools_called_this_turn:
         await goal_provider.suppress_continuation(session_id)
     goal = await goal_provider.record_progress(goal.goal_id, made_progress=tools_called_this_turn)
+
+    if goal.status == GoalStatus.ACTIVE and tools_called_this_turn:
+        auto_wait = await _maybe_auto_enter_wait_for_background_bash(
+            goal_provider,
+            goal,
+        )
+        if auto_wait is not None:
+            return auto_wait
 
     # 3. Cancelled?
     if cancel_token and cancel_token.is_cancelled:
@@ -334,7 +423,7 @@ async def check_continuation(
                 goal.no_progress_streak,
                 convergence_window,
             )
-            await goal_provider.update_status(goal.goal_id, GoalStatus.COMPLETE)
+            await finalize_goal_complete(goal_provider, goal, source="convergence")
             await goal_provider.reset_suppression(session_id)
             return _make_decision(
                 "convergence",
@@ -384,7 +473,7 @@ async def check_continuation(
                     return _make_tamper_decision(goal, violations)
 
                 logger.info("Goal %s completed by semantic judge (verification passed)", goal.goal_id)
-                await goal_provider.update_status(goal.goal_id, GoalStatus.COMPLETE)
+                await finalize_goal_complete(goal_provider, goal, source="semantic_judge")
                 return _make_decision("done", "Semantic judge determined goal is complete", goal)
             # Verification failed — check if retries exhausted (goal already PAUSED inside helper)
             refreshed = await goal_provider.get_goal(goal.goal_id)

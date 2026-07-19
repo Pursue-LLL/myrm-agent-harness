@@ -11,7 +11,8 @@ toolkits.web_fetch.markdown_generator::MarkdownGenerator (POS: HTML to Markdown 
 core.security.http.secure_fetch::secure_get (POS: SSRF-protected outbound HTTP, fallback path)
 
 [OUTPUT]
-create_wiki_tools(): creates 4 LangChain tools (ingest, compile, query, maintain)
+create_wiki_tools(): creates 2 LangChain agent tools (ingest, query)
+create_wiki_admin_tools(): creates compile/maintain tools for REST and tests
 
 [POS]
 LangChain tool integration layer for Wiki toolkit. Wraps WikiCompiler, WikiQueryEngine,
@@ -48,17 +49,19 @@ def create_wiki_tools(
     structure: WikiStructure,
 ) -> list:
     """
-    Create all wiki tools.
+    Create agent-facing wiki tools (ingest + query only).
 
-    Args:
-        compiler: WikiCompiler instance
-        query_engine: WikiQueryEngine instance
-        linter: WikiLinter instance
-        structure: WikiStructure instance
-
-    Returns:
-        List of LangChain tools
+    Compile/maintain are Settings/REST operations and are not exposed to the LLM.
     """
+    return create_wiki_agent_tools(compiler, query_engine, structure)
+
+
+def create_wiki_agent_tools(
+    compiler: WikiCompiler,
+    query_engine: WikiQueryEngine,
+    structure: WikiStructure,
+) -> list:
+    """Create LangChain tools exposed to the agent at Turn1."""
 
     @tool("wiki_ingest_tool")
     async def wiki_ingest(
@@ -123,35 +126,6 @@ def create_wiki_tools(
             logger.error(f"Failed to ingest {source}: {e}")
             return f"Failed to ingest document: {e}"
 
-    @tool("wiki_compile_tool")
-    async def wiki_compile() -> str:
-        """
-        Force-compile all pending raw documents into wiki articles.
-
-        Normally compilation runs automatically after ingestion.
-        Use this to manually trigger a full compilation pass, or to
-        recompile after bulk-importing documents outside the wiki tools.
-
-        Generates concept articles, index, and cross-references.
-        Uses incremental compilation (skips unchanged documents).
-        """
-        logger.info("Compiling wiki")
-
-        try:
-            result = await compiler.compile_all()
-
-            return (
-                f"Wiki compilation complete:\n"
-                f"- Concepts: {result.concepts_count}\n"
-                f"- Articles: {result.articles_generated}\n"
-                f"- Backlinks: {result.backlinks_created}\n"
-                f"- Duration: {result.duration_ms}ms"
-            )
-
-        except Exception as e:
-            logger.error(f"Compilation failed: {e}")
-            return f"Compilation failed: {e}"
-
     @tool("wiki_query_tool")
     async def wiki_query(question: Annotated[str, "Question to ask the wiki"]) -> dict | str:
         """
@@ -203,6 +177,44 @@ def create_wiki_tools(
             logger.error(f"Query failed: {e}")
             return f"Query failed: {e}"
 
+    return [wiki_ingest, wiki_query]
+
+
+def create_wiki_admin_tools(
+    compiler: WikiCompiler,
+    linter: WikiLinter,
+) -> list:
+    """Create compile/maintain tools for REST endpoints and unit tests (not Turn1)."""
+
+    @tool("wiki_compile_tool")
+    async def wiki_compile() -> str:
+        """
+        Force-compile all pending raw documents into wiki articles.
+
+        Normally compilation runs automatically after ingestion.
+        Use this to manually trigger a full compilation pass, or to
+        recompile after bulk-importing documents outside the wiki tools.
+
+        Generates concept articles, index, and cross-references.
+        Uses incremental compilation (skips unchanged documents).
+        """
+        logger.info("Compiling wiki")
+
+        try:
+            result = await compiler.compile_all()
+
+            return (
+                f"Wiki compilation complete:\n"
+                f"- Concepts: {result.concepts_count}\n"
+                f"- Articles: {result.articles_generated}\n"
+                f"- Backlinks: {result.backlinks_created}\n"
+                f"- Duration: {result.duration_ms}ms"
+            )
+
+        except Exception as e:
+            logger.error(f"Compilation failed: {e}")
+            return f"Compilation failed: {e}"
+
     @tool("wiki_maintain_tool")
     async def wiki_maintain() -> str:
         """
@@ -243,7 +255,7 @@ def create_wiki_tools(
             logger.error(f"Maintenance failed: {e}")
             return f"Maintenance failed: {e}"
 
-    return [wiki_ingest, wiki_compile, wiki_query, wiki_maintain]
+    return [wiki_compile, wiki_maintain]
 
 
 def _archive_query_result(

@@ -19,6 +19,7 @@ Bundled vs workspace filename mapping: `A2UI_COMPONENT_REFERENCE.md` → `A2UI_R
 | `A2UI_COMPONENT_REFERENCE.md` | Config | Full component props manual (wheel force-include). | — |
 | `render_ui_tool.py` | Core | A2UI declarative UI tool; fail-closed graph/type/action/registry validation. | ✅ |
 | `update_ui_data_tool.py` | Core | Incremental `UIDataUpdate` patches for existing surfaces (SSE `data_update`). | ✅ |
+| `inline_ui_capability.py` | Core | `ClientSurface` + `supports_inline_interactive_ui()` — WEB_CHAT + web/tauri only. | ✅ |
 
 ## Key Dependencies
 

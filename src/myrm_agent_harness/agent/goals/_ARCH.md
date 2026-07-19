@@ -8,7 +8,7 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 - **GoalBudget**: 4 维预算控制 — max_tokens / max_usd / max_time_seconds / max_turns + convergence_window / loop_on_pause / max_loop_restarts 自适应循环控制
 - **turns_used**: 精确的 turn 计数，每次 account_usage(turn_delta=1) 递增
 - **no_progress_streak**: 连续零工具调用轮次计数器，用于收敛检测
-- **ContinuationDecision**: guard chain 的结构化返回值，包含 verdict / reason / turns 指标。verdict 扩展了 `convergence`（收敛完成）和 `loop_restart`（立即重启）两个新判定
+- **ContinuationDecision**: guard chain 的结构化返回值，包含 verdict / reason / turns 指标。verdict 含 `convergence`、`loop_restart`、**`wait`**（外部等待，跳过 judge）及 `done`/`budget` 等
 - **Convergence Mode**: 当 convergence_window 已设置且 no_progress_streak ≥ K 时，标记 Goal 为 COMPLETE(convergence) 而非 BUDGET_LIMITED，节省 token 并改善 UX
 - **Loop-on-Pause**: 当 loop_on_pause=True 且未超过 max_loop_restarts 时，PAUSED 后立即以新 context 重启，而非等待 Cron 分钟级延迟
 - **Semantic Judge**: 使用廉价 LLM 判断目标是否语义完成，三段式 prompt (角色 + DONE 条件 + JSON 输出格式)
@@ -26,14 +26,16 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 | 文件 | 地位 | 职责 | I/O/P |
 |------|------|------|-------|
 | __init__.py | 辅助 | 模块导出 | ✅ |
-| types.py | 核心 | Goal, GoalBudget, GoalStatus(含 QUEUED), ContinuationDecision(含 convergence/loop_restart), GoalExecutionSummary 等核心数据类型（含 priority, auto_approve, constraints, no_progress_streak, loop_restarts 字段） | ✅ |
-| protocols.py | 核心 | GoalProvider protocol — 含 account_usage(turn_delta), resume_goal, dequeue_next, get_queued_goals, create_goal(constraints), update_objective, record_progress, record_loop_restart, record_acceptance_results | ✅ |
-| manager.py | 核心 | GoalManager 状态机 — 4 维预算检查、resume_goal、create_goal(自动入队)、dequeue_next、cancel_queued_goal、reorder_queue、update_constraints、update_objective、record_progress、record_loop_restart、record_acceptance_results、Prometheus metrics 记录 (goal_metrics)、终态(CANCELLED/COMPLETE)时 clear_snapshot 释放内存 | ✅ |
+| types.py | 核心 | Goal, GoalBudget, GoalStatus(含 QUEUED/**WAIT**), ContinuationDecision(含 convergence/loop_restart/**wait**), GoalExecutionSummary 等核心数据类型 | ✅ |
+| protocols.py | 核心 | GoalProvider protocol — 含 update_metadata、enter_wait、exit_wait、account_usage(turn_delta)、resume_goal、dequeue_next 等 | ✅ |
+| manager.py | 核心 | GoalManager 状态机 — 4 维预算、WAIT 屏障、update_metadata、resume_goal、队列与 metrics | ✅ |
 | manager_queue_mixin.py | 核心 | Subgoal/queue/stash 操作 mixin | ✅ |
-| steering_prompts.py | 核心 | Goal 运行时 steering prompt 模板 — build_objective_updated_steering_message() 构建 objective 变更时注入的引导消息 | ✅ |
-| storage.py | 核心 | SQLite 持久化 — 序列化/反序列化含 turns_used / max_turns / priority / auto_approve / constraints / no_progress_streak / loop_restarts / convergence_window / loop_on_pause / max_loop_restarts + 队列索引 | ✅ |
-| goal_prompt_prefixes.py | Core | `GOAL_CONTINUATION_PREFIX` / `GOAL_WRAPUP_PREFIX` SSOT（audit + goal_focus skip） | ✅ |
-| continuation.py | 核心 | guard chain → ContinuationDecision；wrap-up 检测使用 `GOAL_WRAPUP_PREFIX` | ✅ |
+| finalizer.py | 核心 | GoalFinalizer SSOT — 统一 COMPLETE 过渡；tool 路径 deferred terminal | ✅ |
+| steering_prompts.py | 核心 | Goal 运行时 steering prompt 模板 | ✅ |
+| storage.py | 核心 | SQLite 持久化与队列索引 | ✅ |
+| goal_prompt_prefixes.py | Core | `GOAL_CONTINUATION_PREFIX` / `GOAL_WRAPUP_PREFIX` SSOT | ✅ |
+| continuation.py | 核心 | guard chain → ContinuationDecision；WAIT 早退；tool-complete deferred 解析；白名单 background bash 自动 enter_wait | ✅ |
+| wait_background_bash.py | 核心 | 窄域 build/test/CI 白名单 + LoopGuard 窗口解析 background spawn；Server finish 时 exit_wait + trigger_goal_stream 闭环 | ✅ |
 | audit.py | 核心 | 三段式 judge criteria + 行为引导 continuation prompt（含 Fidelity 防目标缩水、Evidence-based 防历史幻觉、Progress visibility 激活 todo_write 进度推送、8 步 audit protocol、历史 learnings 注入、收敛引导指令）+ budget wrap-up prompt | ✅ |
 | goal_interceptor.py | 核心 | Goal 拦截器：执行前发布 protected_paths / invariant snapshot；进度由主 Agent `todo_write` 负责 | ✅ |
 | invariant_snapshot.py | 核心 | Post-hoc tamper detection: SHA-256 snapshot of Goal protected_paths at activation; verify integrity before completion (bash_code_execute_tool bypass safety net). 生命周期: goal_interceptor capture → continuation verify → manager clear | ✅ |

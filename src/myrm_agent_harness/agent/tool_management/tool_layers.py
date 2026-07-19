@@ -93,7 +93,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # --- Cron 定时任务 ---
     "cron_manage_tool": ToolLayer.EXTENDED,
     # --- Goal 工具 ---
-    "update_goal_status_tool": ToolLayer.EXTENDED,
+    "complete_goal_tool": ToolLayer.EXTENDED,
     # --- 交互工具 ---
     "ask_question_tool": ToolLayer.EXTENDED,
     "render_ui_tool": ToolLayer.EXTENDED,
@@ -129,9 +129,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "send_teammate_message_tool": ToolLayer.EXTENDED,
     "steer_subagent_tool": ToolLayer.EXTENDED,
     # --- Wiki 知识库 ---
-    "wiki_compile_tool": ToolLayer.EXTENDED,
     "wiki_ingest_tool": ToolLayer.EXTENDED,
-    "wiki_maintain_tool": ToolLayer.EXTENDED,
     "wiki_query_tool": ToolLayer.EXTENDED,
 }
 

@@ -1,7 +1,7 @@
 """Tests for Wiki LangChain tools."""
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage
@@ -12,6 +12,7 @@ from myrm_agent_harness.toolkits.wiki import (
     WikiLinter,
     WikiQueryEngine,
     WikiStructure,
+    create_wiki_admin_tools,
     create_wiki_tools,
 )
 
@@ -44,7 +45,7 @@ def wiki_tools(
     mock_llm: MagicMock,
     wiki_structure: WikiStructure,
 ) -> list:
-    """Create wiki tools."""
+    """Create agent-facing wiki tools."""
     config = WikiConfig()
     compiler = WikiCompiler(mock_llm, wiki_structure, config)
     query_engine = WikiQueryEngine(mock_llm, wiki_structure, config)
@@ -53,15 +54,27 @@ def wiki_tools(
     return create_wiki_tools(compiler, query_engine, linter, wiki_structure)
 
 
-def test_create_wiki_tools_returns_four_tools(wiki_tools: list) -> None:
-    """Test that create_wiki_tools returns 4 tools."""
-    assert len(wiki_tools) == 4
+@pytest.fixture
+def wiki_admin_tools(
+    mock_llm: MagicMock,
+    wiki_structure: WikiStructure,
+) -> list:
+    """Create compile/maintain wiki tools for admin paths."""
+    config = WikiConfig()
+    compiler = WikiCompiler(mock_llm, wiki_structure, config)
+    linter = WikiLinter(mock_llm, wiki_structure, config)
+    return create_wiki_admin_tools(compiler, linter)
+
+
+def test_create_wiki_tools_returns_two_tools(wiki_tools: list) -> None:
+    """Test that create_wiki_tools returns agent-facing tools only."""
+    assert len(wiki_tools) == 2
 
     tool_names = [tool.name for tool in wiki_tools]
     assert "wiki_ingest_tool" in tool_names
-    assert "wiki_compile_tool" in tool_names
     assert "wiki_query_tool" in tool_names
-    assert "wiki_maintain_tool" in tool_names
+    assert "wiki_compile_tool" not in tool_names
+    assert "wiki_maintain_tool" not in tool_names
 
 
 @pytest.mark.asyncio
@@ -85,12 +98,12 @@ async def test_wiki_ingest_tool(
 
 @pytest.mark.asyncio
 async def test_wiki_compile_tool(
-    wiki_tools: list,
+    wiki_admin_tools: list,
     wiki_structure: WikiStructure,
     mock_llm: MagicMock,
 ) -> None:
     """Test wiki_compile tool."""
-    compile_tool = next(tool for tool in wiki_tools if tool.name == "wiki_compile_tool")
+    compile_tool = next(tool for tool in wiki_admin_tools if tool.name == "wiki_compile_tool")
 
     (wiki_structure.raw_dir / "test.md").write_text("Test content")
 
@@ -153,12 +166,12 @@ async def test_wiki_ingest_error(wiki_tools: list) -> None:
 
 @pytest.mark.asyncio
 async def test_wiki_compile_graceful_degradation(
-    wiki_tools: list,
+    wiki_admin_tools: list,
     wiki_structure: WikiStructure,
     mock_llm: MagicMock,
 ) -> None:
     """Test wiki_compile gracefully handles LLM errors (extracts 0 concepts)."""
-    compile_tool = next(tool for tool in wiki_tools if tool.name == "wiki_compile_tool")
+    compile_tool = next(tool for tool in wiki_admin_tools if tool.name == "wiki_compile_tool")
 
     (wiki_structure.raw_dir / "trigger-error.md").write_text("Content to trigger LLM call")
     mock_llm.ainvoke.side_effect = RuntimeError("LLM unavailable")
@@ -205,9 +218,9 @@ async def test_wiki_query_no_articles(
 
 
 @pytest.mark.asyncio
-async def test_wiki_maintain_tool(wiki_tools: list) -> None:
+async def test_wiki_maintain_tool(wiki_admin_tools: list) -> None:
     """Test wiki_maintain tool."""
-    maintain_tool = next(tool for tool in wiki_tools if tool.name == "wiki_maintain_tool")
+    maintain_tool = next(tool for tool in wiki_admin_tools if tool.name == "wiki_maintain_tool")
 
     result = await maintain_tool.ainvoke({})
 
@@ -216,12 +229,12 @@ async def test_wiki_maintain_tool(wiki_tools: list) -> None:
 
 @pytest.mark.asyncio
 async def test_wiki_maintain_error(
-    wiki_tools: list,
+    wiki_admin_tools: list,
     mock_llm: MagicMock,
     wiki_structure: WikiStructure,
 ) -> None:
     """Test wiki_maintain error handling."""
-    maintain_tool = next(tool for tool in wiki_tools if tool.name == "wiki_maintain_tool")
+    maintain_tool = next(tool for tool in wiki_admin_tools if tool.name == "wiki_maintain_tool")
 
     (wiki_structure.concepts_dir / "broken.md").write_text("# Broken\n\nSee [[nonexistent]]")
     mock_llm.ainvoke.side_effect = RuntimeError("LLM unavailable")
@@ -239,6 +252,7 @@ def direct_mock_tools(wiki_structure: WikiStructure) -> tuple:
     mock_linter = MagicMock(spec=WikiLinter)
 
     tools = create_wiki_tools(mock_compiler, mock_query_engine, mock_linter, wiki_structure)
+    tools.extend(create_wiki_admin_tools(mock_compiler, mock_linter))
     return tools, mock_compiler, mock_query_engine, mock_linter
 
 
@@ -248,16 +262,24 @@ async def test_wiki_ingest_url(
     wiki_structure: WikiStructure,
 ) -> None:
     """Test wiki_ingest with URL source (covers URL branch)."""
+    from unittest.mock import patch
+
     ingest_tool = next(tool for tool in wiki_tools if tool.name == "wiki_ingest_tool")
 
-    result = await ingest_tool.ainvoke(
-        {
-            "source": "http://nonexistent.invalid/test.md",
-            "filename": "url-test.md",
-        }
-    )
+    with patch(
+        "myrm_agent_harness.toolkits.wiki.wiki_agent_tools._fetch_url_as_markdown",
+        new_callable=AsyncMock,
+        return_value="# URL Doc\n\nFetched content.",
+    ):
+        result = await ingest_tool.ainvoke(
+            {
+                "source": "https://example.com/test.md",
+                "filename": "url-test.md",
+            }
+        )
 
-    assert "Failed" in result or "Successfully" in result
+    assert "Successfully ingested" in result
+    assert (wiki_structure.raw_dir / "url-test.md").exists()
 
 
 @pytest.mark.asyncio
@@ -418,6 +440,22 @@ class TestFetchUrlAsMarkdown:
             with pytest.raises(ValueError, match="HTTP 404"):
                 await _fetch_url_as_markdown("http://example.com/missing")
 
+    @pytest.mark.asyncio
+    async def test_uses_crawl_engine_when_available(self) -> None:
+        from myrm_agent_harness.toolkits.wiki.wiki_agent_tools import _fetch_url_as_markdown
+
+        mock_doc = MagicMock()
+        mock_doc.page_content = "# Crawled\n\nFrom engine."
+
+        with patch(
+            "myrm_agent_harness.toolkits.web_fetch.web_fetch_tools.crawl",
+            new_callable=AsyncMock,
+            return_value=mock_doc,
+        ):
+            result = await _fetch_url_as_markdown("https://example.com/page")
+
+        assert "From engine" in result
+
 
 class TestIngestAutoCompile:
     """Tests for wiki_ingest auto-compilation trigger."""
@@ -485,3 +523,140 @@ class TestQueryArchiveNonBlocking:
         assert isinstance(result, dict)
         assert "content" in result
         assert "metadata" in result
+
+
+@pytest.mark.asyncio
+async def test_wiki_ingest_local_txt_with_folder(
+    wiki_tools: list,
+    wiki_structure: WikiStructure,
+    tmp_path: Path,
+) -> None:
+    """Local non-md files get .md suffix and optional folder_path."""
+    ingest_tool = next(tool for tool in wiki_tools if tool.name == "wiki_ingest_tool")
+
+    local_file = tmp_path / "notes.txt"
+    local_file.write_text("Plain notes", encoding="utf-8")
+
+    result = await ingest_tool.ainvoke(
+        {
+            "source": str(local_file),
+            "folder_path": "Research/Notes",
+        }
+    )
+
+    assert "Successfully ingested" in result
+    assert (wiki_structure.raw_dir / "Research" / "Notes" / "notes.md").exists()
+
+
+@pytest.mark.asyncio
+async def test_wiki_ingest_binary_document(
+    wiki_tools: list,
+    wiki_structure: WikiStructure,
+    tmp_path: Path,
+) -> None:
+    """Binary documents route through _parse_binary_document."""
+    from unittest.mock import patch
+
+    ingest_tool = next(tool for tool in wiki_tools if tool.name == "wiki_ingest_tool")
+    pdf_path = tmp_path / "report.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4")
+
+    with patch(
+        "myrm_agent_harness.toolkits.wiki.wiki_agent_tools._parse_binary_document",
+        new_callable=AsyncMock,
+        return_value="# Parsed PDF\n\nBody",
+    ):
+        result = await ingest_tool.ainvoke({"source": str(pdf_path)})
+
+    assert "Successfully ingested" in result
+    assert (wiki_structure.raw_dir / "report.md").exists()
+
+
+@pytest.mark.asyncio
+async def test_wiki_maintain_reports_knowledge_gaps(direct_mock_tools: tuple) -> None:
+    """Maintain tool surfaces knowledge_gap issues when present."""
+    from myrm_agent_harness.toolkits.wiki.core.types import LintIssue, LintResult
+
+    tools, _, _, mock_linter = direct_mock_tools
+    maintain_tool = next(t for t in tools if t.name == "wiki_maintain_tool")
+
+    mock_linter.lint_and_maintain = AsyncMock(
+        return_value=LintResult(
+            issues_found=1,
+            issues_fixed=0,
+            connections_discovered=0,
+            duration_ms=12,
+            issues=[
+                LintIssue(
+                    issue_type="knowledge_gap",
+                    severity="medium",
+                    location="concept-x",
+                    description="Missing bridge to concept-y",
+                )
+            ],
+        )
+    )
+
+    result = await maintain_tool.ainvoke({})
+
+    assert "Knowledge gaps" in result
+    assert "concept-x" in result
+
+
+class TestParseBinaryDocument:
+    """Tests for _parse_binary_document helper."""
+
+    @pytest.mark.asyncio
+    async def test_parses_supported_file(self, tmp_path: Path) -> None:
+        from myrm_agent_harness.toolkits.wiki.wiki_agent_tools import _parse_binary_document
+
+        doc_path = tmp_path / "sheet.txt"
+        doc_path.write_text("tabular data", encoding="utf-8")
+
+        with patch(
+            "myrm_agent_harness.toolkits.file_parsers.is_supported",
+            return_value=True,
+        ), patch(
+            "myrm_agent_harness.toolkits.file_parsers.get_parser",
+        ) as get_parser:
+            parser = MagicMock()
+            parser.parse = AsyncMock(return_value="# Sheet\nData")
+            get_parser.return_value = parser
+            text = await _parse_binary_document(str(doc_path))
+
+        assert "Sheet" in text
+
+    @pytest.mark.asyncio
+    async def test_raises_for_unsupported_or_empty(self, tmp_path: Path) -> None:
+        from myrm_agent_harness.toolkits.wiki.wiki_agent_tools import _parse_binary_document
+
+        bad_path = tmp_path / "unknown.bin"
+        bad_path.write_bytes(b"data")
+
+        with patch(
+            "myrm_agent_harness.toolkits.file_parsers.is_supported",
+            return_value=False,
+        ):
+            with pytest.raises(ValueError, match="Unsupported file type"):
+                await _parse_binary_document(str(bad_path))
+
+
+class TestSplitIfLarge:
+    """Tests for _split_if_large helper."""
+
+    def test_returns_single_chunk_for_small_content(self) -> None:
+        from myrm_agent_harness.toolkits.wiki.wiki_agent_tools import _split_if_large
+
+        chunks = _split_if_large("small doc", "notes.md")
+        assert chunks == [("notes.md", "small doc")]
+
+    def test_splits_large_content_into_multiple_chunks(self) -> None:
+        from myrm_agent_harness.toolkits.wiki.wiki_agent_tools import _split_if_large
+
+        huge = "paragraph\n\n" * 20_000
+        chunks = _split_if_large(huge, "Research/big.md")
+
+        assert len(chunks) > 1
+        assert all(name.endswith(".md") for name, _ in chunks)
+        assert chunks[0][0].startswith("Research/")
+

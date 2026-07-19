@@ -49,7 +49,7 @@ class TestGoalFocusHelpers:
         assert "Active goal: Ship the feature" in line
         assert "tokens 200/1000" in line
         assert "turns 2/10" in line
-        assert "update_goal_status_tool" in line
+        assert "complete_goal_tool" in line
 
     def test_has_goal_continuation_prompt_detects_prefix(self) -> None:
         messages = [

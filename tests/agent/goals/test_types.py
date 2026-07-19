@@ -11,6 +11,7 @@ def test_goal_status_enum():
     assert GoalStatus.ACTIVE == "active"
     assert GoalStatus.PAUSED == "paused"
     assert GoalStatus.BUDGET_LIMITED == "budget_limited"
+    assert GoalStatus.WAIT == "wait"
     assert GoalStatus.COMPLETE == "complete"
     assert GoalStatus.CANCELLED == "cancelled"
 

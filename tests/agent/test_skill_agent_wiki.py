@@ -37,13 +37,13 @@ class TestCreateWikiTools:
         tools = agent._create_wiki_tools()
         assert tools == []
 
-    def test_returns_four_tools_when_wiki_dir_set(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
+    def test_returns_two_tools_when_wiki_dir_set(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
         agent = _make_agent(mock_llm, wiki_base_dir=wiki_dir)
         tools = agent._create_wiki_tools()
 
-        assert len(tools) == 4
+        assert len(tools) == 2
         names = {t.name for t in tools}
-        assert names == {"wiki_ingest_tool", "wiki_compile_tool", "wiki_query_tool", "wiki_maintain_tool"}
+        assert names == {"wiki_ingest_tool", "wiki_query_tool"}
 
     def test_stores_compiler_and_structure(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
         agent = _make_agent(mock_llm, wiki_base_dir=wiki_dir)
@@ -57,7 +57,7 @@ class TestCreateWikiTools:
         agent = _make_agent(mock_llm, wiki_base_dir=str(wiki_dir))
         tools = agent._create_wiki_tools()
 
-        assert len(tools) == 4
+        assert len(tools) == 2
         assert agent._wiki_structure is not None
 
     def test_passes_search_fn_to_query_engine(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
@@ -66,7 +66,7 @@ class TestCreateWikiTools:
         agent = _make_agent(mock_llm, wiki_base_dir=wiki_dir, wiki_search_fn=mock_search)
         tools = agent._create_wiki_tools()
 
-        assert len(tools) == 4
+        assert len(tools) == 2
         assert agent._wiki_search_fn is mock_search
 
     def test_handles_import_error_gracefully(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:

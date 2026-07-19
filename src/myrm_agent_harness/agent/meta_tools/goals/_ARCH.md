@@ -8,7 +8,7 @@ LangChain tool surface for the Goal engine. Domain logic lives in `agent/goals/`
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Re-exports goal tool factories | ✅ |
-| goal_agent_tools.py | Core | update_goal_status_tool, create_goal_tools | ✅ |
+| goal_agent_tools.py | Core | complete_goal_tool, create_goal_tools | ✅ |
 
 ## Module Dependencies
 
