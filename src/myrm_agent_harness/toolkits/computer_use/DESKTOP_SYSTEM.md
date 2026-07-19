@@ -104,6 +104,11 @@ Server wiring: `agent._desktop_session` → `AgentGateway.get_active_desktop_ses
 | `CuPermissionInline` (Agent config) | Inline status when `computer_use` is enabled locally |
 | Settings Doctor `DesktopControl` probe | Same probe via `check_desktop_permissions_health()` in `observability/diagnostics/probes.py` |
 | Server regression | `myrm-agent-server/tests/api/health/test_doctor.py::test_desktop_control_probe_in_doctor`; `tests/api/webui/test_desktop_permissions.py` (probe session close) |
+| Frontend vitest | `DoctorDashboard.desktopControlWarn.test.tsx`; `CuPermissionInline.test.tsx`; `DesktopPermissionsCard.test.tsx`; `DesktopControlApprovalBanner.test.tsx`; `DesktopLiveView.permissionBanner.test.tsx`; `lib/desktop/permissionDeepLink.test.ts` (6 files, 21 cases) |
+| Deeplink SSOT | `myrm-agent-frontend/src/lib/desktop/permissionDeepLink.ts` |
+| Open semantics | Settings `DesktopPermissionsCard` → `openPermissionDeepLink`（deeplink fallback）；Doctor / Agent inline / Inspector → `openPermissionDeepLinkWithGuideFallback(url, platform)`（平台指南 fallback） |
+| Chrome E2E | `tests/e2e/test_desktop_control_approval_chrome_e2e.py` (`chrome_e2e_desktop`, allow_once) |
+| Chrome E2E attach gate | `tests/support/e2e_runtime_guard.py::assert_chrome_attach_health` — shared-attach lane only; item runtimes skip (private preflight already ran) |
 
 Channel security: IM strips `!desktop_*`; Cron denies `desktop_capture` / `desktop_control` (see [SECURITY_SYSTEM.md](../../agent/security/SECURITY_SYSTEM.md)).
 

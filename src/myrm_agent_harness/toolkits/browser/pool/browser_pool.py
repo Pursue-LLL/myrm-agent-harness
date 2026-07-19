@@ -444,7 +444,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
         """
         launcher = self._get_launcher(engine, launch_mode)
         effective_mode = launch_mode or self._config.launch_mode
-        is_extension_request = effective_mode == LaunchMode.EXTENSION
+        prefer_external_browser = effective_mode in (LaunchMode.EXTENSION, LaunchMode.CONNECT)
 
         if not self._browsers:
             inst = await launcher.create_browser()
@@ -454,7 +454,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
 
         engine_browsers = [
             b for b in self._browsers
-            if b.engine == engine.value and b.is_managed != is_extension_request
+            if b.engine == engine.value and b.is_managed != prefer_external_browser
         ]
 
         if not engine_browsers:

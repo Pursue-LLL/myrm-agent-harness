@@ -14,6 +14,7 @@ from myrm_agent_harness.toolkits.browser.pool import (
     ContextType,
     GlobalBrowserPool,
 )
+from myrm_agent_harness.toolkits.browser.pool.config import LaunchMode
 
 _HAS_CHROMIUM = shutil.which("chromium") is not None or shutil.which("google-chrome") is not None
 requires_browser = pytest.mark.skipif(
@@ -246,6 +247,32 @@ async def test_browser_scaling_on_high_load() -> None:
         await pool._get_least_loaded_browser(pool._config.engine)
 
         assert len(pool._browsers) >= 2
+
+    await pool.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_get_least_loaded_browser_connect_skips_managed_warmup() -> None:
+    """CONNECT must not reuse warmup managed browsers (takeover routes to extension banner)."""
+    pool = GlobalBrowserPool(max_browsers=3)
+
+    managed_browser = MagicMock()
+    pool._browsers.append(
+        BrowserInstance(browser=managed_browser, engine="chromium", is_managed=True),
+    )
+
+    external_browser = MagicMock()
+    external_inst = BrowserInstance(browser=external_browser, engine="chromium", is_managed=False)
+
+    launcher = pool._get_launcher(pool._config.engine, LaunchMode.CONNECT)
+    with patch.object(launcher, "create_browser", new_callable=AsyncMock) as mock_create:
+        mock_create.return_value = external_inst
+
+        selected = await pool._get_least_loaded_browser(pool._config.engine, LaunchMode.CONNECT)
+
+    mock_create.assert_awaited_once()
+    assert selected is external_inst
+    assert selected.is_managed is False
 
     await pool.shutdown()
 

@@ -10,7 +10,13 @@ from myrm_agent_harness.agent.security.checks import (
     check_path_policy,
     check_shell_threats,
 )
-from myrm_agent_harness.agent.security.config import from_config, parse_security_config
+from myrm_agent_harness.agent.security.config import (
+    apply_remote_exposed_overlay,
+    from_config,
+    parse_security_config,
+    remote_exposed_permissions,
+    security_config_to_dict,
+)
 from myrm_agent_harness.agent.security.engine import (
     _check_domain_blocklist,
     _check_domain_policy,
@@ -817,3 +823,35 @@ class TestRiskClassificationIntegration:
         config = SecurityConfig()
         action, _ = evaluate_tool_call("code_interpreter", {"command": "echo hello"}, config)
         assert action == PermissionAction.ALLOW
+
+
+class TestSecurityConfigSerialization:
+    def test_security_config_to_dict_exports_permissions_and_yolo(self) -> None:
+        config = SecurityConfig(
+            ruleset=(
+                PermissionRule(permission="shell_exec", pattern="*", action=PermissionAction.ASK),
+            ),
+            yolo_mode_enabled=True,
+        )
+        exported = security_config_to_dict(config)
+        assert exported["permissions"] == {"shell_exec": "ask"}
+        assert exported["yoloModeEnabled"] is True
+        assert exported["yolo_mode_enabled"] is True
+
+    def test_remote_exposed_permissions_returns_deny_map(self) -> None:
+        perms = remote_exposed_permissions()
+        assert isinstance(perms, dict)
+        assert perms.get("skill_manage") == "deny"
+        assert perms.get("cron_manage") == "deny"
+
+    def test_apply_remote_exposed_overlay_merges_deny_rules(self) -> None:
+        base = SecurityConfig(
+            network_blocklist=("blocked.test",),
+            yolo_mode_enabled=True,
+            yolo_mode_timeout=120,
+        )
+        merged = apply_remote_exposed_overlay(base)
+        assert merged.network_blocklist == ("blocked.test",)
+        assert merged.yolo_mode_enabled is False
+        assert merged.yolo_mode_timeout is None
+        assert len(merged.ruleset) >= len(base.ruleset)

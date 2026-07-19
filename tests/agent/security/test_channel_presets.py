@@ -355,3 +355,30 @@ class TestBuildChannelSecurityConfig:
         )
         action, _ = evaluate_tool_call("shell_exec", {"command": "rm -rf /"}, config)
         assert action == PermissionAction.DENY
+
+    def test_user_and_agent_blocklist_union(self) -> None:
+        """Global and per-agent blocklists merge as a sorted union."""
+        config = build_channel_security_config(
+            "web_chat",
+            user_config_raw={"networkBlocklist": ["global-block.test", "shared.test"]},
+            agent_security_raw={"networkBlocklist": ["agent-block.test", "shared.test"]},
+        )
+        assert set(config.network_blocklist) == {
+            "agent-block.test",
+            "global-block.test",
+            "shared.test",
+        }
+
+    def test_merged_blocklist_denies_before_hitl(self) -> None:
+        config = build_channel_security_config(
+            "web_chat",
+            user_config_raw={"networkBlocklist": ["facebook.com"]},
+            agent_security_raw={"networkBlocklist": ["tiktok.com"]},
+        )
+        action, reason = evaluate_tool_call(
+            "browser_navigate",
+            {"url": "https://facebook.com/page"},
+            config,
+        )
+        assert action == PermissionAction.DENY
+        assert "blocked by policy" in reason

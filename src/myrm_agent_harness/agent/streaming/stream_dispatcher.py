@@ -362,6 +362,30 @@ class StreamDispatcherMixin:
                     ctx,
                 )
 
+        elif event_name == AgentEventType.BROWSER_TAKEOVER_REQUESTED.value:
+            event_data = data.get("data", {})
+            if isinstance(event_data, dict):
+                await self._emit_event(
+                    {
+                        "type": AgentEventType.BROWSER_TAKEOVER_REQUESTED.value,
+                        "data": event_data,
+                        "messageId": ctx.message_id,
+                    },
+                    ctx,
+                )
+
+        elif event_name == AgentEventType.BROWSER_TAKEOVER_COMPLETED.value:
+            event_data = data.get("data", {})
+            if isinstance(event_data, dict):
+                await self._emit_event(
+                    {
+                        "type": AgentEventType.BROWSER_TAKEOVER_COMPLETED.value,
+                        "data": event_data,
+                        "messageId": ctx.message_id,
+                    },
+                    ctx,
+                )
+
     def _restore_pseudonyms(self, text: str) -> str:
         """Restore pseudonymized placeholders in streamed text chunks.
 

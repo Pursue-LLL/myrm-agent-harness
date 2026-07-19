@@ -192,6 +192,54 @@ async def test_dispatch_custom_skill_gap(ctx):
 
 
 @pytest.mark.asyncio
+async def test_dispatch_custom_browser_takeover_requested(ctx):
+    """Custom browser_takeover_requested events must reach SSE (in-chat banner)."""
+    executor = _make_executor(ctx)
+    payload = {
+        "reason": "Please click Done",
+        "url": "https://example.com",
+        "is_managed": False,
+        "screenshot_base64": None,
+    }
+    data = {"name": "browser_takeover_requested", "data": payload}
+    chunk = ("custom", data)
+
+    await executor._dispatch_chunk(chunk, ctx, [])
+
+    events = executor._compactor.events
+    takeover_events = [
+        event
+        for event in events
+        if isinstance(event, AgentStreamEvent)
+        and event.type == AgentEventType.BROWSER_TAKEOVER_REQUESTED
+    ]
+    assert len(takeover_events) == 1
+    assert takeover_events[0].data == payload
+    assert takeover_events[0].messageId == "disp_test"
+
+
+@pytest.mark.asyncio
+async def test_dispatch_custom_browser_takeover_completed(ctx):
+    """Custom browser_takeover_completed events must reach SSE."""
+    executor = _make_executor(ctx)
+    payload = {"elapsed_ms": 1200.0, "url": "https://example.com/done"}
+    data = {"name": "browser_takeover_completed", "data": payload}
+    chunk = ("custom", data)
+
+    await executor._dispatch_chunk(chunk, ctx, [])
+
+    events = executor._compactor.events
+    completed_events = [
+        event
+        for event in events
+        if isinstance(event, AgentStreamEvent)
+        and event.type == AgentEventType.BROWSER_TAKEOVER_COMPLETED
+    ]
+    assert len(completed_events) == 1
+    assert completed_events[0].data == payload
+
+
+@pytest.mark.asyncio
 async def test_emit_event_with_event_logger(ctx):
     """_emit_event logs to event_logger when present."""
     mock_logger = AsyncMock()

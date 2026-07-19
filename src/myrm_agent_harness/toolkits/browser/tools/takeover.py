@@ -74,6 +74,12 @@ def create_takeover_tool(session: BrowserSession):
             except Exception:
                 page = None
         if page is None or page.is_closed():
+            try:
+                await session.new_tab()
+                page = session._tab_controller.get_active_page()
+            except Exception:
+                page = None
+        if page is None or page.is_closed():
             return "Error: No active browser page. Navigate to a page first."
 
         is_managed = session.is_browser_managed()
@@ -115,6 +121,7 @@ def create_takeover_tool(session: BrowserSession):
             "reason": reason,
             "url": current_url,
             "screenshot_base64": screenshot_b64,
+            "is_managed": is_managed,
         }
 
         user_response = interrupt(hitl_payload)

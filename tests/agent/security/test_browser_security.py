@@ -7,7 +7,7 @@ Covers:
 - install_domain_filter integration with mock BrowserContext
 - _has_explicit_scheme edge cases (scheme vs hostname:port)
 - check_navigate_scheme full scheme coverage
-- network_allowlist config parsing and channel_presets merge
+- network_allowlist and network_blocklist config parsing
 """
 
 from __future__ import annotations
@@ -294,3 +294,34 @@ class TestNetworkAllowlistConfig:
         action, reason = evaluate_tool_call("browser_navigate", {"url": "file:///etc/passwd"}, config)
         assert action == PermissionAction.DENY
         assert "file" in reason
+
+
+# ============================================================================
+# TestNetworkBlocklistConfig — parsing
+# ============================================================================
+
+
+class TestNetworkBlocklistConfig:
+    def test_parse_security_config_with_blocklist(self):
+        raw = {"networkBlocklist": ["evil.com", ".blocked.net"]}
+        config = parse_security_config(raw)
+        assert config is not None
+        assert set(config.network_blocklist) == {"evil.com", ".blocked.net"}
+
+    def test_parse_security_config_normalizes_case(self):
+        raw = {"networkBlocklist": ["  EVIL.COM  ", ".BLOCKED.Net"]}
+        config = parse_security_config(raw)
+        assert config is not None
+        assert set(config.network_blocklist) == {"evil.com", ".blocked.net"}
+
+    def test_parse_security_config_filters_empty(self):
+        raw = {"networkBlocklist": ["evil.com", "", "  ", "blocked.net"]}
+        config = parse_security_config(raw)
+        assert config is not None
+        assert set(config.network_blocklist) == {"evil.com", "blocked.net"}
+
+    def test_parse_security_config_no_blocklist(self):
+        raw = {"approvalTimeoutSeconds": 60}
+        config = parse_security_config(raw)
+        assert config is not None
+        assert config.network_blocklist == ()
