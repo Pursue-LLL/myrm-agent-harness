@@ -290,7 +290,9 @@ class BrowserLauncher:
             return await self._connect_existing(self._remote_ws_endpoint, headers=merged_headers)
 
         if self._launch_mode == LaunchMode.CONNECT:
-            return await self._connect_existing(self._cdp_endpoint, headers=headers)
+            discovered = await self._discover_local_chrome()
+            endpoint_to_try = discovered or self._cdp_endpoint
+            return await self._connect_existing(endpoint_to_try, headers=headers)
 
         if self._launch_mode == LaunchMode.AUTO:
             discovered = await self._discover_local_chrome()

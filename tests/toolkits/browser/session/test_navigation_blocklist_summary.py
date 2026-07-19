@@ -61,6 +61,10 @@ async def test_append_navigate_interactive_summary_snapshot_failure_returns_base
 async def test_navigate_raises_when_domain_blocked() -> None:
     probe = _NavigationProbe(DomainAllowlist.from_strings(["evil.com"]))
     probe._ensure_components = AsyncMock()
+    tab_ctrl = MagicMock()
+    tab_ctrl.list_tabs.return_value = ["existing-tab"]
+    probe._tab_controller = tab_ctrl
+    probe._terminal_challenges = {}
 
     with pytest.raises(ToolError) as exc_info:
         await probe.navigate("https://evil.com/page")
