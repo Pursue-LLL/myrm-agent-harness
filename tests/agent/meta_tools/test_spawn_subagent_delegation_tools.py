@@ -103,6 +103,102 @@ class TestSendTeammateMessageTool:
         assert result["success"] is False
         assert "subagent context" in result["error"]
 
+    @pytest.mark.asyncio
+    async def test_sends_when_roster_contains_target(self) -> None:
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.send_teammate_tool import (
+            create_send_teammate_message_tool,
+        )
+
+        parent = _make_parent()
+        parent.list_children.return_value = [{"task_id": "self-1", "agent_type": "worker"}]
+        tool = create_send_teammate_message_tool(parent)
+
+        mailbox = MagicMock()
+        mailbox.list_active_roster.return_value = [{"task_id": "peer-1", "agent_type": "worker"}]
+        send_result = MagicMock()
+        send_result.accepted = True
+        send_result.error = None
+        mailbox.send = AsyncMock(return_value=send_result)
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.spawn_subagent.send_teammate_tool.get_subagent_task_id",
+                return_value="self-1",
+            ),
+            patch(
+                "myrm_agent_harness.agent.meta_tools.spawn_subagent.send_teammate_tool.get_approval_session",
+                return_value="chat_test",
+            ),
+            patch(
+                "myrm_agent_harness.agent.meta_tools.spawn_subagent.send_teammate_tool.get_teammate_mailbox",
+                new=AsyncMock(return_value=mailbox),
+            ),
+            patch(
+                "myrm_agent_harness.agent.meta_tools.spawn_subagent.send_teammate_tool.emit_teammate_message_sse",
+                new=AsyncMock(),
+            ) as emit_sse,
+        ):
+            result = await tool.ainvoke({"target_task_id": "peer-1", "body": "hello"})
+
+        assert result["success"] is True
+        emit_sse.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_rejects_missing_session_id(self) -> None:
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.send_teammate_tool import (
+            create_send_teammate_message_tool,
+        )
+
+        tool = create_send_teammate_message_tool(_make_parent())
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.spawn_subagent.send_teammate_tool.get_subagent_task_id",
+                return_value="self-1",
+            ),
+            patch(
+                "myrm_agent_harness.agent.meta_tools.spawn_subagent.send_teammate_tool.get_approval_session",
+                return_value="",
+            ),
+        ):
+            result = await tool.ainvoke({"target_task_id": "peer-1", "body": "hello"})
+        assert result["success"] is False
+        assert "session_id" in result["error"]
+
+
+class TestDelegateTaskPauseGate:
+    @pytest.mark.asyncio
+    async def test_single_mode_blocked_when_paused(self) -> None:
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            create_delegate_task_tool,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegation_pause_gate import (
+            pause_delegation,
+            resume_delegation,
+        )
+
+        parent = _make_parent()
+        pause_delegation("chat_test")
+        try:
+            tool = create_delegate_task_tool(parent, lambda: [], CatalogStub())
+            result = await tool.ainvoke(
+                {"mode": "single", "agent_type": "worker", "objective": "do work", "wait": True}
+            )
+            assert result["success"] is False
+            assert "paused" in str(result["error"]).lower()
+        finally:
+            resume_delegation("chat_test")
+
+    @pytest.mark.asyncio
+    async def test_parallel_mode_empty_tasks(self) -> None:
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            create_delegate_task_tool,
+        )
+
+        tool = create_delegate_task_tool(_make_parent(), lambda: [], CatalogStub())
+        result = await tool.ainvoke({"mode": "parallel", "tasks": []})
+        assert result["success"] is False
+        assert "No tasks" in result["error"]
+
 
 class TestSubagentControlToolFactory:
     @pytest.mark.asyncio
@@ -116,6 +212,58 @@ class TestSubagentControlToolFactory:
         tool = create_subagent_control_tool(parent)
         result = await tool.ainvoke({"action": "cancel", "task_id": "missing"})
         assert result["success"] is False
+
+    @pytest.mark.asyncio
+    async def test_cancel_subagent_success(self) -> None:
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.agent_manage_tool import (
+            create_subagent_control_tool,
+        )
+
+        parent = _make_parent()
+        parent.cancel_child.return_value = True
+        tool = create_subagent_control_tool(parent)
+        result = await tool.ainvoke({"action": "cancel", "task_id": "task-1"})
+        assert result["success"] is True
+        assert result["task_id"] == "task-1"
+
+    @pytest.mark.asyncio
+    async def test_cancel_requires_task_id(self) -> None:
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.agent_manage_tool import (
+            create_subagent_control_tool,
+        )
+
+        tool = create_subagent_control_tool(_make_parent())
+        result = await tool.ainvoke({"action": "cancel"})
+        assert result["success"] is False
+        assert "task_id is required" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_steer_requires_message(self) -> None:
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.agent_manage_tool import (
+            create_subagent_control_tool,
+        )
+
+        tool = create_subagent_control_tool(_make_parent())
+        result = await tool.ainvoke({"action": "steer", "task_id": "task-1", "message": "  "})
+        assert result["success"] is False
+        assert "message is required" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_steer_success_and_failure(self) -> None:
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.agent_manage_tool import (
+            create_subagent_control_tool,
+        )
+
+        parent = _make_parent()
+        tool = create_subagent_control_tool(parent)
+
+        parent.steer_child.return_value = True
+        ok = await tool.ainvoke({"action": "steer", "task_id": "task-1", "message": "fix it"})
+        assert ok["success"] is True
+
+        parent.steer_child.return_value = False
+        bad = await tool.ainvoke({"action": "steer", "task_id": "gone", "message": "fix it"})
+        assert bad["success"] is False
 
     @pytest.mark.asyncio
     async def test_list_subagents(self) -> None:

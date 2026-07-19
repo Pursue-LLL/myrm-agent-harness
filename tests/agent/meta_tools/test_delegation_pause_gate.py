@@ -24,3 +24,10 @@ def test_pause_resume_session_alias() -> None:
     assert status["paused"] is True
     assert resume_delegation(session_id) is True
     assert is_delegation_paused(session_id) is False
+
+
+def test_pause_empty_session_id_is_noop() -> None:
+    assert pause_delegation("") is False
+    assert is_delegation_paused("") is False
+    assert delegation_pause_status("") == {"paused": False, "session_id": ""}
+    assert resume_delegation("") is False
