@@ -445,11 +445,14 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
             budget["max_cost_usd"] = config.max_cost_usd
         if config.budget_tokens is not None:
             budget["budget_tokens"] = config.budget_tokens
-        return {
+        metadata: dict[str, object] = {
             "role": config.delegation_role.value,
             "control_scope": config.control_scope.value,
             "budget": budget,
         }
+        if config.model:
+            metadata["effective_model"] = config.model
+        return metadata
 
     def _child_observability_metadata(self, task_id: str) -> dict[str, object]:
         snapshot = self._children_observability.get(task_id)

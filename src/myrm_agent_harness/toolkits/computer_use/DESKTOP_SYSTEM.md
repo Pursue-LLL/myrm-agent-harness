@@ -96,6 +96,19 @@ Server wiring: `agent._desktop_session` → `AgentGateway.get_active_desktop_ses
 
 ---
 
+## Diagnostics
+
+| Surface | Role |
+|---------|------|
+| `GET /webui/desktop/permissions` | On-demand OS permission probe (Accessibility, Screen Recording); temporary session closed after probe |
+| `CuPermissionInline` (Agent config) | Inline status when `computer_use` is enabled locally |
+| Settings Doctor `DesktopControl` probe | Same probe via `check_desktop_permissions_health()` in `observability/diagnostics/probes.py` |
+| Server regression | `myrm-agent-server/tests/api/health/test_doctor.py::test_desktop_control_probe_in_doctor`; `tests/api/webui/test_desktop_permissions.py` (probe session close) |
+
+Channel security: IM strips `!desktop_*`; Cron denies `desktop_capture` / `desktop_control` (see [SECURITY_SYSTEM.md](../../agent/security/SECURITY_SYSTEM.md)).
+
+---
+
 ## Agent Prompt Rules
 
 Injected via `DESKTOP_CONTROL_RULES` in `shared_rules.py` when `enable_computer_use`:

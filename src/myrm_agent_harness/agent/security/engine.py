@@ -122,6 +122,23 @@ def _extract_url_host(url: str) -> str:
     return host or url
 
 
+def _check_domain_blocklist(
+    permission: str, tool_input: dict[str, object], network_blocklist: tuple[str, ...]
+) -> tuple[PermissionAction | None, str]:
+    """Deny URL-bearing tools when hostname matches network blocklist."""
+    if permission not in _URL_BEARING_PERMISSIONS or not network_blocklist:
+        return None, ""
+    url = str(tool_input.get("url", "")).strip()
+    if not url:
+        return None, ""
+    hostname = _extract_url_host(url)
+    if not hostname:
+        return None, ""
+    if _domain_in_allowlist(hostname, network_blocklist):
+        return PermissionAction.DENY, f"Domain '{hostname}' is blocked by policy"
+    return None, ""
+
+
 def _check_domain_policy(
     permission: str, tool_input: dict[str, object], network_allowlist: tuple[str, ...]
 ) -> tuple[PermissionAction | None, str]:
@@ -213,6 +230,10 @@ def evaluate_tool_call(
     scheme_action, scheme_reason = check_navigate_scheme(permission, tool_input)
     if scheme_action is not None:
         return scheme_action, scheme_reason
+
+    block_action, block_reason = _check_domain_blocklist(permission, tool_input, config.network_blocklist)
+    if block_action is not None:
+        return block_action, block_reason
 
     if config.domain_hitl_enabled:
         domain_action, domain_reason = _check_domain_policy(permission, tool_input, config.network_allowlist)

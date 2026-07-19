@@ -8,17 +8,12 @@
 - pydantic::BaseModel, Field
 
 [OUTPUT]
-- create_delegate_task_tool: Factory function for delegate_task tool
-- create_batch_delegate_tasks_tool: Factory function for budget-aware batch delegate orchestration
-- create_delegate_parallel_tasks_tool: Swarm Fission interrupt tool (yield-resume parallel Map-Reduce)
-- update_delegate_task_description: Async description refresher for catalog-driven prompt injection
+- create_delegate_task_tool: Unified delegate tool (mode=single|batch|parallel)
+- update_delegate_task_description: Async description refresher for catalog roster injection
 
 [POS]
-Unified delegate_task tool. Supports two modes:
-  Mode A (Bound Custom Agent): Pass agent_id to call a pre-configured custom agent.
-  Mode B (Dynamic Ephemeral): Pass instructions + tools to create a one-off subagent.
-Budget admission, policy denial, result caching, and dynamic description generation
-are in _delegate_budget.py. This file contains the tool factories and execution logic.
+Unified delegate_task LLM tool. Single/batch/parallel modes share spawn engine in _delegate_batch.py.
+Budget admission, policy denial, result caching, and dynamic roster live in _delegate_budget.py.
 """
 
 from __future__ import annotations
@@ -26,12 +21,17 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from uuid import uuid4
 
 from langchain.tools import tool
 from pydantic import BaseModel, Field
 
+from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+    TaskRequest,
+    execute_batch_delegation,
+    execute_parallel_delegation,
+)
 from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
     _build_dynamic_description,
     _cache_key,
@@ -83,19 +83,30 @@ def create_delegate_task_tool(
         delegate_task tool function.
     """
 
-    class SpawnSubagentInput(BaseModel):
-        agent_type: str = Field(
-            description="Type of subagent (must match an exact type_id from the <Available_Team_Roster> or context list)"
+    class DelegateTaskInput(BaseModel):
+        mode: Literal["single", "batch", "parallel"] = Field(
+            default="single",
+            description=(
+                "Delegation mode: single=one subagent; batch=concurrent batch with optional race/tournament; "
+                "parallel=Swarm Fission yield-resume Map-Reduce."
+            ),
         )
-        objective: str = Field(description="Clear description of the core objective for the subagent")
+        agent_type: str | None = Field(
+            default=None,
+            description="(single) Type of subagent — must match an entry from Available_Team_Roster",
+        )
+        objective: str | None = Field(
+            default=None,
+            description="(single) Clear description of the core objective for the subagent",
+        )
         context_files: list[str] = Field(
             default_factory=list,
-            description="List of relevant file paths or resources for this task",
+            description="(single/batch tasks) Relevant file paths or resources",
         )
         context: dict[str, object] | None = Field(default=None, description="Optional context data")
-        wait: bool = Field(
-            default=False,
-            description="Wait for result (true) or return task_id (false)",
+        wait: bool | None = Field(
+            default=None,
+            description="Wait for results. Defaults: single=false, batch=true.",
         )
         readonly: bool = Field(
             default=False,
@@ -103,55 +114,120 @@ def create_delegate_task_tool(
         )
         complexity_tier: str | None = Field(
             default=None,
-            description="Optional explicit complexity tier ('simple', 'standard', 'reasoning'). If set to 'simple', routes to a fast/cheap model (good for web scraping, basic bash). If 'reasoning', routes to a powerful reasoning model. If omitted, the system auto-detects based on the task.",
+            description="Optional explicit complexity tier ('simple', 'standard', 'reasoning').",
         )
         role: DelegateRole = Field(
             default=DelegateRole.LEAF,
-            description="Delegation role for the child. 'leaf' cannot delegate further. 'orchestrator' may spawn child workers only when the catalog configuration explicitly allows it.",
+            description="Delegation role for the child. 'leaf' cannot delegate further.",
         )
         verifier_prompt: str | None = Field(
             default=None,
-            description="Optional. If provided, enables adversarial verification. The verifier will use this prompt to critique the result and force a retry if it fails.",
+            description="Optional adversarial verification prompt (single mode, requires wait=true).",
         )
         verifier_agent_type: str | None = Field(
             default=None,
-            description="Optional. The agent type to use for the verifier. If omitted, defaults to the same agent type as the worker.",
+            description="Optional verifier agent type (single mode).",
         )
         max_verification_rounds: int = Field(
             default=2,
-            description="Maximum number of retry rounds if the verifier rejects the output.",
+            description="Maximum verification retry rounds (single mode).",
+        )
+        tasks: list[TaskRequest] | None = Field(
+            default=None,
+            description="(batch/parallel) List of tasks to run concurrently",
+        )
+        race: bool = Field(
+            default=False,
+            description="(batch) Speculative execution: first successful result wins.",
+        )
+        tournament: bool = Field(
+            default=False,
+            description="(batch) Tournament mode with LLM judge selecting the best result.",
+        )
+        judge_criteria: str | None = Field(
+            default=None,
+            description="(batch tournament) Criteria for the judge agent.",
+        )
+        max_concurrent: int | None = Field(
+            default=None,
+            description="(batch) Max parallel workers (default: 3 for race, 1 otherwise).",
         )
 
-    @tool("delegate_task_tool", args_schema=SpawnSubagentInput)
+    _delegate_tool_holder: dict[str, BaseTool] = {}
+
+    @tool("delegate_task_tool", args_schema=DelegateTaskInput)
     async def delegate_task_func(
-        agent_type: str,
-        objective: str,
+        mode: Literal["single", "batch", "parallel"] = "single",
+        agent_type: str | None = None,
+        objective: str | None = None,
         context_files: list[str] | None = None,
         context: dict[str, object] | None = None,
-        wait: bool = False,
+        wait: bool | None = None,
         readonly: bool = False,
         complexity_tier: str | None = None,
         role: DelegateRole = DelegateRole.LEAF,
         verifier_prompt: str | None = None,
         verifier_agent_type: str | None = None,
         max_verification_rounds: int = 2,
+        tasks: list[TaskRequest] | None = None,
+        race: bool = False,
+        tournament: bool = False,
+        judge_criteria: str | None = None,
+        max_concurrent: int | None = None,
     ) -> dict[str, object]:
-        """Spawn a specialized subagent to handle a specific task.
+        """Delegate work to specialized subagents (mode=single|batch|parallel)."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegation_pause_gate import (
+            is_delegation_paused,
+        )
 
-        CRITICAL:
-        1. You MUST check the `<Available_Team_Roster>` (if provided in your messages) or know the available agent types before delegating.
-        2. Parallel execution: spawn with wait=false; check results with list_subagents_tool.
-        3. Synchronous execution: spawn with wait=true for immediate result.
-        4. Do NOT delegate ultra-simple actions or sequential steps.
-        5. If using wait=false, you MUST actively call list_subagents_tool later to get results!
-        """
+        parent_ctx = getattr(parent_agent, "_last_context", None) or {}
+        sid = str(parent_ctx.get("session_id", ""))
+
+        if mode == "parallel":
+            batch_tasks = tasks or []
+            return execute_parallel_delegation(parent_agent, batch_tasks)
+
+        if mode == "batch":
+            batch_tasks = tasks or []
+            bound_tool = _delegate_tool_holder.get("tool")
+            if bound_tool is None:
+                return {"success": False, "error": "Internal error: delegate_task_tool not initialized."}
+            batch_wait = wait if wait is not None else True
+            return await execute_batch_delegation(
+                parent_agent=parent_agent,
+                delegate_tool=bound_tool,
+                catalog=catalog,
+                tasks=batch_tasks,
+                wait=batch_wait,
+                race=race,
+                tournament=tournament,
+                judge_criteria=judge_criteria,
+                max_concurrent=max_concurrent,
+                parent_type=parent_type,
+            )
+
+        if is_delegation_paused(sid):
+            return {
+                "success": False,
+                "error": "Delegation is paused for this session. Resume delegation from the subagent dashboard before spawning new workers.",
+                "session_id": sid,
+            }
+
+        if not agent_type or not objective:
+            return {
+                "success": False,
+                "error": "agent_type and objective are required for mode=single.",
+            }
+
+        single_wait = wait if wait is not None else False
+
         if allowed_types is not None and agent_type not in allowed_types:
             return {
                 "success": False,
                 "error": f"Agent type '{agent_type}' not allowed.",
             }
 
-        if verifier_prompt and not wait:
+        if verifier_prompt and not single_wait:
             return {
                 "success": False,
                 "error": "Adversarial verification requires wait=True. Please set wait=True or remove verifier_prompt.",
@@ -169,7 +245,6 @@ def create_delegate_task_tool(
                 logger.warning("Failed to serialize context dict: %s", e)
                 task += f"\n\nAdditional Context Data:\n{context!s}"
 
-        parent_ctx = getattr(parent_agent, "_last_context", None) or {}
         requested_role = _normalize_role(role)
 
         payload_hash = _compute_payload_hash(agent_type, task, requested_role.value, context)
@@ -327,7 +402,7 @@ def create_delegate_task_tool(
                     ephemeral_mem = EphemeralMemoryManager(global_mem)
                     reset_token = _memory_manager_var.set(ephemeral_mem)
 
-            if verifier_prompt and wait:
+            if verifier_prompt and single_wait:
                 logger.info(f"Running adversarial verification for subagent {task_id}")
                 from myrm_agent_harness.agent.sub_agents.orchestrator import run_with_verification
                 from myrm_agent_harness.agent.sub_agents.types import WorkspacePolicy
@@ -363,7 +438,7 @@ def create_delegate_task_tool(
                     config=config,
                     context=child_context,
                     tool_registry_getter=tool_registry_getter,
-                    wait=wait,
+                    wait=single_wait,
                     parent_type=parent_type,
                     cancel_token=cancel_token,
                     complexity_tier=complexity_tier,
@@ -424,7 +499,7 @@ def create_delegate_task_tool(
                         config=config,
                         context=child_context,
                         tool_registry_getter=tool_registry_getter,
-                        wait=wait,
+                        wait=single_wait,
                         parent_type=parent_type,
                         cancel_token=cancel_token,
                         resume_command=Command(resume=decisions),
@@ -433,7 +508,7 @@ def create_delegate_task_tool(
 
             if isinstance(result, SubAgentResult):
                 result_dict = result.to_dict()
-                if wait:
+                if single_wait:
                     if result_dict.get("success"):
                         _put_cache(key, result_dict.get("result", {}))
                     return _inject_capacity_signal(result_dict, parent_agent)
@@ -481,6 +556,7 @@ def create_delegate_task_tool(
                 except Exception as e:
                     logger.warning("Failed to reset memory manager context var: %s", e)
 
+    _delegate_tool_holder["tool"] = delegate_task_func
     return delegate_task_func
 
 
@@ -500,16 +576,11 @@ async def update_delegate_task_description(
 
 from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (  # noqa: E402
     BatchDelegateInput,
-    TaskRequest,
-    create_batch_delegate_tasks_tool,
-    create_delegate_parallel_tasks_tool,
 )
 
 __all__ = [
     "BatchDelegateInput",
     "TaskRequest",
-    "create_batch_delegate_tasks_tool",
-    "create_delegate_parallel_tasks_tool",
     "create_delegate_task_tool",
     "update_delegate_task_description",
 ]

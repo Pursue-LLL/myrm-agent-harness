@@ -97,7 +97,9 @@ async def test_normal_load(fp_dir: Path) -> None:
 
     _mock_launch_options.assert_not_called()
     _mock_async_camoufox_cls.assert_called_once()
-    assert _mock_async_camoufox_cls.call_args[1]["from_options"] == FAKE_CONFIG
+    launch_opts = _mock_async_camoufox_cls.call_args[1]["from_options"]
+    assert launch_opts["executable_path"] == FAKE_CONFIG["executable_path"]
+    assert launch_opts["env"]["MOZ_HEADLESS"] == "1"
 
 
 @pytest.mark.asyncio

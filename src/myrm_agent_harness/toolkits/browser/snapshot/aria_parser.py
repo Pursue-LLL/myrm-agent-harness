@@ -55,6 +55,13 @@ def parse_aria_yaml(aria_tree: str) -> list[AriaNode]:
     if not data:
         return []
 
+    # Scalar root role (e.g. bare "document" from minimal aria_snapshot on empty pages)
+    if isinstance(data, str):
+        role = data.strip()
+        if role:
+            return [AriaNode(role=role, name="", attributes={}, children=[], indent=0)]
+        return []
+
     # YAML data is a list of dicts, each representing an element
     # Format: [{role: {name: ..., children: [...]}}]
     return _parse_yaml_nodes(data, indent=0)
@@ -136,7 +143,12 @@ def _parse_yaml_nodes(data: list[Any] | dict[str, Any] | str | None, indent: int
             node = AriaNode(role=role, name=name, attributes=attributes, children=[], indent=indent)
             return [node]
 
-        # Fallback: treat entire string as role with empty name
+        # Fallback: bare role token (e.g. "textbox", "document" from minimal YAML children)
+        stripped = data.strip()
+        role_token = stripped.split()[0] if stripped else ""
+        if role_token.isidentifier():
+            return [AriaNode(role=role_token, name="", attributes={}, children=[], indent=indent)]
+
         logger.warning(f"Unexpected string format in YAML data: {data}")
         return []
 

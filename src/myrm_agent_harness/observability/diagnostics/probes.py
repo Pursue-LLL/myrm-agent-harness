@@ -10,6 +10,7 @@
 - check_system_resources: Monitor CPU and memory usage via psutil.
 - check_tokenizer_health: Verify tokenizer backend and CJK quality gate.
 - check_hook_health: Check hook system registration status and configuration.
+- check_desktop_permissions_health: Probe OS-level Accessibility / Screen Recording for desktop control.
 
 [POS]
 Health diagnostic probes. Registered into the global diagnostic manager and executed
@@ -483,6 +484,86 @@ async def check_hook_health() -> HealthReport:
         )
 
 
+async def check_desktop_permissions_health() -> HealthReport:
+    """Probe OS permissions required for semantic desktop control (computer_use).
+
+    Reuses the same backend probe as ``GET /webui/desktop/permissions`` on the
+    server. Skipped on cloud sandbox deploy mode where local OS grants do not apply.
+    """
+    deploy_mode = os.getenv("DEPLOY_MODE", "local").lower()
+    if deploy_mode == "sandbox":
+        visual_desktop = os.getenv("VISUAL_DESKTOP", "0") == "1"
+        if visual_desktop:
+            return HealthReport(
+                component_name="DesktopControl",
+                status="pass",
+                code="OK_DESKTOP_SANDBOX_VNC",
+                message="Cloud sandbox visual desktop is enabled (VNC entitlement).",
+                detail="Local Accessibility/Screen Recording checks apply to local and Tauri modes only.",
+            )
+        return HealthReport(
+            component_name="DesktopControl",
+            status="warn",
+            code="WARN_DESKTOP_SANDBOX_UNAVAILABLE",
+            message="Desktop control is unavailable in this cloud sandbox.",
+            detail="Enable the visual desktop (VNC) entitlement for computer_use in cloud hosting.",
+            fix_suggestion="Upgrade your plan or enable VNC in agent settings before using desktop control.",
+        )
+
+    session = None
+    try:
+        from myrm_agent_harness.toolkits.computer_use.session import create_computer_session
+
+        session = create_computer_session()
+        status = await session.check_permissions()
+    except Exception as exc:
+        logger.warning("Desktop permissions probe failed: %s", exc)
+        return HealthReport(
+            component_name="DesktopControl",
+            status="fail",
+            code="ERR_DESKTOP_PERMISSIONS_PROBE",
+            message="Desktop permission check failed.",
+            detail=str(exc),
+            fix_suggestion="Ensure computer_use dependencies are installed and retry from Settings.",
+        )
+    finally:
+        if session is not None:
+            await session.close()
+
+    missing: list[str] = []
+    if not status.accessibility:
+        missing.append("Accessibility")
+    if not status.screen_recording:
+        missing.append("Screen Recording")
+
+    platform_label = status.platform or "local"
+    if not missing:
+        return HealthReport(
+            component_name="DesktopControl",
+            status="pass",
+            code="OK_DESKTOP_PERMISSIONS",
+            message="Desktop permissions are granted.",
+            detail=f"Platform: {platform_label}. Accessibility and Screen Recording are OK.",
+        )
+
+    missing_text = ", ".join(missing)
+    return HealthReport(
+        component_name="DesktopControl",
+        status="warn",
+        code="WARN_DESKTOP_PERMISSIONS_MISSING",
+        message=f"Missing desktop permissions: {missing_text}.",
+        detail=f"Platform: {platform_label}. Grant {missing_text} before using desktop control.",
+        fix_suggestion="Grant the missing permissions in system settings, then recheck.",
+        meta_data={
+            "missing": missing_text,
+            "accessibility": status.accessibility,
+            "screen_recording": status.screen_recording,
+            "platform": platform_label,
+            "settings_deeplinks": status.settings_deeplinks,
+        },
+    )
+
+
 register_diagnostic(check_network_health)
 register_diagnostic(check_workspace_storage_health)
 register_diagnostic(check_database_health)
@@ -490,3 +571,4 @@ register_diagnostic(check_qdrant_health)
 register_diagnostic(check_system_resources)
 register_diagnostic(check_tokenizer_health)
 register_diagnostic(check_hook_health)
+register_diagnostic(check_desktop_permissions_health)

@@ -152,6 +152,11 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
     if isinstance(allowlist_raw, list):
         network_allowlist = tuple(s.strip().lower() for s in allowlist_raw if isinstance(s, str) and s.strip())
 
+    network_blocklist: tuple[str, ...] = ()
+    blocklist_raw = raw.get("networkBlocklist")
+    if isinstance(blocklist_raw, list):
+        network_blocklist = tuple(s.strip().lower() for s in blocklist_raw if isinstance(s, str) and s.strip())
+
     domain_hitl_enabled = bool(raw.get("domainHitlEnabled", True))
 
     auto_review_enabled = bool(raw.get("autoModeEnabled") or raw.get("autoReviewEnabled", False))
@@ -178,6 +183,7 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
         approval_timeout_behavior=timeout_behavior,
         path_policy=path_policy,
         network_allowlist=network_allowlist,
+        network_blocklist=network_blocklist,
         domain_hitl_enabled=domain_hitl_enabled,
         auto_mode_enabled=auto_review_enabled,
         auto_review_model=auto_review_model,
@@ -208,6 +214,7 @@ def apply_remote_exposed_overlay(base: SecurityConfig) -> SecurityConfig:
         approval_timeout_behavior=base.approval_timeout_behavior,
         path_policy=base.path_policy,
         network_allowlist=base.network_allowlist,
+        network_blocklist=base.network_blocklist,
         domain_hitl_enabled=base.domain_hitl_enabled,
         privacy_policy=base.privacy_policy,
         auto_mode_enabled=base.auto_mode_enabled,

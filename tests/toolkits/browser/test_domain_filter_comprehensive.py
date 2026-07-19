@@ -483,6 +483,37 @@ async def test_http_filter_non_http_document_blocked() -> None:
 
 
 @pytest.mark.asyncio
+async def test_http_filter_blocks_domain_blocklist_before_allowlist() -> None:
+    """Blocklist denies even when hostname would pass allowlist."""
+    from myrm_agent_harness.toolkits.browser.domain_filter import _install_http_filter
+
+    context = MagicMock()
+    route_handler = None
+
+    async def capture_handler(pattern: str, handler: Any) -> None:
+        nonlocal route_handler
+        route_handler = handler
+
+    context.route = capture_handler
+
+    allowlist = DomainAllowlist(patterns=("example.com",))
+    blocklist = DomainAllowlist.from_strings(["blocked.com"])
+    await _install_http_filter(context, allowlist, domain_blocklist=blocklist)
+
+    assert route_handler is not None
+    mock_route = MagicMock()
+    mock_route.request.url = "https://blocked.com/path"
+    mock_route.request.resource_type = "document"
+    mock_route.abort = AsyncMock()
+    mock_route.continue_ = AsyncMock()
+
+    await route_handler(mock_route)
+
+    mock_route.abort.assert_called_once_with("blockedbyclient")
+    mock_route.continue_.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_http_filter_non_http_non_document_allowed() -> None:
     """Test HTTP filter allows non-HTTP non-document resources."""
     from myrm_agent_harness.toolkits.browser.domain_filter import _install_http_filter

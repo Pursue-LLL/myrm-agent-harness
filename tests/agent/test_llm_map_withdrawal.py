@@ -15,8 +15,10 @@ class TestLlmMapWithdrawalHarness:
     def test_llm_map_tool_not_in_tool_layers(self) -> None:
         assert "llm_map_tool" not in _TOOL_LAYERS
 
-    def test_batch_delegate_tasks_tool_still_registered(self) -> None:
-        assert "batch_delegate_tasks_tool" in _TOOL_LAYERS
+    def test_delegation_v2_tools_registered(self) -> None:
+        assert "delegate_task_tool" in _TOOL_LAYERS
+        assert "subagent_control_tool" in _TOOL_LAYERS
+        assert "batch_delegate_tasks_tool" not in _TOOL_LAYERS
 
     def test_create_skill_agent_has_no_enable_llm_map_param(self) -> None:
         from myrm_agent_harness.agent._factory.builder import create_skill_agent

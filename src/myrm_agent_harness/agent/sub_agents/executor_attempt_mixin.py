@@ -150,6 +150,7 @@ class SubagentExecutorAttemptMixin:
             config,
             start_time,
             parent_progress_sink=parent_progress_sink,
+            on_running_token_usage=lambda usage: self.patch_child_running_token_usage(task_id, usage),
         )
 
         # Critical: Mark execution context as subagent to prevent approval deadlocks

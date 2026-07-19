@@ -90,7 +90,7 @@ TOOL_PERMISSION_MAP: dict[str, str] = {
     "browser_extract_tool": "browser_read",
     "delegate_to_agent_tool": "delegate_agent",
     "delegate_task_tool": "delegate_agent",
-    "batch_delegate_tasks_tool": "delegate_agent",
+    "subagent_control_tool": "delegate_agent",
     "cron_manage_tool": "cron_manage",
     "skill_manage_tool": "skill_manage",
     "desktop_snapshot_tool": "desktop_capture",
@@ -189,13 +189,10 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
             "kanban_block",
             "kanban_heartbeat",
             "kanban_comment",
+            "kanban_attach",
             "kanban_add_task",
             "kanban_list_tasks",
-            "kanban_update_task",
-            "kanban_move_task",
-            "kanban_delete_task",
-            "kanban_board_summary",
-            "kanban_link",
+            "kanban_unblock",
         }
     ),
     "wiki": frozenset(
@@ -231,7 +228,6 @@ _MANAGE_ACTION_MAP: dict[str, str] = {
     "save_session": "browser_session",
     "restore_session": "browser_session",
     "delete_session": "browser_session",
-    "wait_for_user": "browser_human_handover",
     "download_url": "browser_download",
 }
 
@@ -449,7 +445,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "update_ui_data_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     # Concurrent-safe but not read-only (independent execution contexts)
     "delegate_task_tool": SafetyMetadata(is_concurrent_safe=True),
-    "batch_delegate_tasks_tool": SafetyMetadata(is_concurrent_safe=True),
+    "subagent_control_tool": SafetyMetadata(is_concurrent_safe=True),
     # CliRuntime uses a single subprocess per backend — parallel turns are unsafe.
     "delegate_to_agent_tool": SafetyMetadata(),
     # Destructive tools (explicit fail-closed: is_concurrent_safe=False)

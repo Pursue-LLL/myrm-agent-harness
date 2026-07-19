@@ -17,7 +17,7 @@ def test_system_prompt_contains_active_query_guidance():
     prompt = DEFAULT_COORDINATOR_PROMPT
 
     # 关键词验证：必须明确告知LLM要主动查询
-    assert "list_subagents_tool" in prompt, "System Prompt must mention list_subagents_tool"
+    assert "subagent_control_tool" in prompt, "System Prompt must mention subagent_control_tool"
     assert "MUST" in prompt or "must" in prompt, "System Prompt must use imperative language"
 
     # 验证关键概念存在
@@ -32,7 +32,7 @@ def test_system_prompt_contains_active_query_guidance():
         assert keyword in prompt, f"System Prompt must contain keyword: {keyword}"
 
     print("\n System Prompt Guidance Validation PASSED:")
-    print("  - Mentions list_subagents_tool ")
+    print("  - Mentions subagent_control_tool ")
     print("  - Uses imperative language (MUST/must) ")
     print("  - Contains key concepts (async, wait=false, NOT injected) ")
 
@@ -68,7 +68,7 @@ def test_system_prompt_token_optimized():
 
     # 核心指导必须保留
     core_guidance = [
-        "list_subagents_tool",
+        "subagent_control_tool",
         "async",
         "wait=false",
     ]

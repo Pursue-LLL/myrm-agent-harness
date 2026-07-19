@@ -95,6 +95,11 @@ class TestChannelPresets:
         negatives = [c for c in preset.capabilities if c.permission.startswith("!")]
         assert any("browser" in c.permission for c in negatives)
 
+    def test_im_blocks_desktop(self) -> None:
+        preset = CHANNEL_PRESETS[ChannelType.IM]
+        negatives = [c for c in preset.capabilities if c.permission.startswith("!")]
+        assert any("desktop" in c.permission for c in negatives)
+
     def test_im_preset_denies_shell(self) -> None:
         """IM preset must have shell_exec DENY rule."""
         preset = CHANNEL_PRESETS[ChannelType.IM]
@@ -134,6 +139,18 @@ class TestChannelPresets:
         preset = CHANNEL_PRESETS[ChannelType.CRON]
         mcp_rules = [r for r in preset.ruleset if r.permission == "mcp_invoke"]
         assert any(r.action == PermissionAction.ALLOW for r in mcp_rules)
+
+    def test_cron_denies_desktop_capture(self) -> None:
+        preset = CHANNEL_PRESETS[ChannelType.CRON]
+        rules = [r for r in preset.ruleset if r.permission == "desktop_capture"]
+        assert len(rules) == 1
+        assert rules[0].action == PermissionAction.DENY
+
+    def test_cron_denies_desktop_control(self) -> None:
+        preset = CHANNEL_PRESETS[ChannelType.CRON]
+        rules = [r for r in preset.ruleset if r.permission == "desktop_control"]
+        assert len(rules) == 1
+        assert rules[0].action == PermissionAction.DENY
 
 
 class TestLocalBrowserRelaxation:
@@ -203,6 +220,30 @@ class TestBuildChannelSecurityConfig:
         """IM channels must deny browser_navigate through the full security chain."""
         config = build_channel_security_config("telegram")
         action, _ = evaluate_tool_call("browser_navigate", {"url": "https://example.com"}, config)
+        assert action == PermissionAction.DENY
+
+    def test_im_channel_denies_desktop_control(self) -> None:
+        """IM channels must deny desktop_control through the capability fence."""
+        config = build_channel_security_config("telegram")
+        action, reason = evaluate_tool_call("desktop_control", {}, config)
+        assert action == PermissionAction.DENY
+        assert "Capability not granted" in reason
+
+    def test_im_channel_denies_desktop_capture(self) -> None:
+        """IM channels must deny desktop_capture through the capability fence."""
+        config = build_channel_security_config("telegram")
+        action, reason = evaluate_tool_call("desktop_capture", {}, config)
+        assert action == PermissionAction.DENY
+        assert "Capability not granted" in reason
+
+    def test_cron_channel_denies_desktop_control(self) -> None:
+        config = build_channel_security_config("cron", declared_capabilities=("shell_exec", "file_read"))
+        action, _ = evaluate_tool_call("desktop_control", {}, config)
+        assert action == PermissionAction.DENY
+
+    def test_cron_channel_denies_desktop_capture(self) -> None:
+        config = build_channel_security_config("cron", declared_capabilities=("shell_exec", "file_read"))
+        action, _ = evaluate_tool_call("desktop_capture", {}, config)
         assert action == PermissionAction.DENY
 
     def test_cron_with_declared_capabilities(self) -> None:

@@ -148,6 +148,7 @@ class ContextFactory:
         """
         ctx_opts = self._build_context_options(context_type, emulation, extra_kwargs, context_key)
         domain_allowlist = extra_kwargs.get("domain_allowlist") if extra_kwargs else None
+        domain_blocklist = extra_kwargs.get("domain_blocklist") if extra_kwargs else None
         resource_block = extra_kwargs.get("resource_block") if extra_kwargs else None
 
         # Try to safely extract permissions, some engines (like Firefox) don't support all Chromium permissions
@@ -187,9 +188,19 @@ class ContextFactory:
         if context_type == _STEALTH_TYPE:
             await self._apply_stealth(context)
 
-        if domain_allowlist:
+        from myrm_agent_harness.toolkits.browser.domain_filter import DomainAllowlist
+
+        empty_allowlist = DomainAllowlist.from_strings(())
+        effective_allowlist = domain_allowlist if domain_allowlist else empty_allowlist
+
+        if domain_allowlist or domain_blocklist:
             try:
-                await self._install_domain_filter(context, domain_allowlist, resource_block)
+                await self._install_domain_filter(
+                    context,
+                    effective_allowlist,
+                    domain_blocklist=domain_blocklist,
+                    resource_block=resource_block,
+                )
             except Exception:
                 await context.close()
                 raise
@@ -251,6 +262,8 @@ class ContextFactory:
     async def _install_domain_filter(
         context: BrowserContext,
         domain_allowlist: object,
+        *,
+        domain_blocklist: object | None = None,
         resource_block: object | None = None,
     ) -> None:
         """Install domain filter and resource blocking on context."""
@@ -261,6 +274,7 @@ class ContextFactory:
         await install_domain_filter(
             context,
             domain_allowlist,  # type: ignore[arg-type]
+            domain_blocklist=domain_blocklist,  # type: ignore[arg-type]
             resource_block=resource_block,  # type: ignore[arg-type]
         )
 

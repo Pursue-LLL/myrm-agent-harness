@@ -393,12 +393,14 @@ async def _admit_race_budget(
 
 
 async def _build_dynamic_description(catalog: SubagentCatalog, allowed_types: list[str] | None) -> str:
-    """Generate tool description including available subagent types."""
+    """Generate compact tool description with available subagent roster only."""
+    from myrm_agent_harness.agent.sub_agents.prompts import DELEGATION_TOOL_GUIDANCE
+
     available_ids = await catalog.list_available()
     visible_ids = [tid for tid in available_ids if tid in allowed_types] if allowed_types is not None else available_ids
 
     lines = [
-        "Delegate tasks to specialized subagents that run asynchronously.",
+        "Delegate tasks to specialized subagents. Use mode=single|batch|parallel.",
         "",
         "## Available agent types",
     ]
@@ -408,44 +410,11 @@ async def _build_dynamic_description(catalog: SubagentCatalog, allowed_types: li
         cfg = await catalog.resolve(type_id)
         if cfg:
             label = f"{cfg.display_name} ({type_id})" if cfg.display_name else type_id
-            desc = cfg.description or cfg.system_prompt[:80]
+            desc = cfg.description or (cfg.system_prompt[:80] if cfg.system_prompt else type_id)
             lines.append(f"- '{type_id}': [{label}] {desc}")
 
     if len(visible_ids) > 50:
         lines.append(f"... and {len(visible_ids) - 50} more custom agents.")
 
-    lines.extend(
-        [
-            "",
-            "## When to delegate",
-            "Only delegate when at least ONE applies:",
-            "1. Parallel gain: 2+ independent sub-tasks with non-trivial integration",
-            "2. Specialized expertise: task requires knowledge/tools you lack",
-            "3. Adversarial breadth: multiple independent approaches needed",
-            "If NONE → do it yourself. Delegation adds orchestration overhead.",
-            "",
-            "## When NOT to delegate",
-            "- Ultra-simple: single file read, quick edit, one command",
-            "- Sequential dependencies: steps must run in order",
-            "- Overhead exceeds task value",
-            "",
-            "## Parameters",
-            "- agent_type: One of the available types above, or any valid custom agent ID",
-            "- objective: Clear description of the core objective for the subagent",
-            "- context_files: List of relevant file paths or resources for this task",
-            "- context: Optional context data (dict) to pass",
-            "- wait: If true, wait for result synchronously; if false, return task_id for later retrieval",
-            "- role: 'leaf' by default. Use 'orchestrator' only for trusted coordinator agents.",
-            "",
-            "## Usage patterns",
-            "1. Parallel: spawn with wait=false; check results with list_subagents_tool",
-            "2. Synchronous: spawn with wait=true for immediate result",
-            "3. Results are cached for 60s to avoid redundant executions",
-            "",
-            "## CRITICAL: Active result retrieval",
-            "Async results (wait=false) stored in memory, NOT auto-injected.",
-            "MUST call list_subagents_tool after spawning to retrieve results.",
-            "Preserves prompt cache (10x cost savings).",
-        ]
-    )
+    lines.extend(["", DELEGATION_TOOL_GUIDANCE])
     return "\n".join(lines)

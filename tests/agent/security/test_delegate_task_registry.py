@@ -24,8 +24,16 @@ class TestToolSafetyMetadata:
         assert meta.is_read_only is False
         assert meta.is_destructive is False
 
-    def test_batch_delegate_registered(self):
-        assert "batch_delegate_tasks_tool" in TOOL_SAFETY_METADATA
+    def test_subagent_control_registered(self):
+        assert "subagent_control_tool" in TOOL_SAFETY_METADATA
+
+    def test_subagent_control_is_concurrent_safe(self):
+        meta = TOOL_SAFETY_METADATA["subagent_control_tool"]
+        assert meta.is_concurrent_safe is True
+        assert meta.is_read_only is False
+
+    def test_legacy_batch_delegate_not_registered(self):
+        assert "batch_delegate_tasks_tool" not in TOOL_SAFETY_METADATA
 
     def test_old_names_removed(self):
         assert "spawn_subagent_tool" not in TOOL_SAFETY_METADATA
@@ -36,9 +44,12 @@ class TestToolPermissionMap:
         assert "delegate_task_tool" in TOOL_PERMISSION_MAP
         assert TOOL_PERMISSION_MAP["delegate_task_tool"] == "delegate_agent"
 
-    def test_batch_delegate_mapped(self):
-        assert "batch_delegate_tasks_tool" in TOOL_PERMISSION_MAP
-        assert TOOL_PERMISSION_MAP["batch_delegate_tasks_tool"] == "delegate_agent"
+    def test_subagent_control_mapped(self):
+        assert "subagent_control_tool" in TOOL_PERMISSION_MAP
+        assert TOOL_PERMISSION_MAP["subagent_control_tool"] == "delegate_agent"
+
+    def test_legacy_batch_delegate_not_mapped(self):
+        assert "batch_delegate_tasks_tool" not in TOOL_PERMISSION_MAP
 
     def test_old_names_removed(self):
         assert "spawn_subagent_tool" not in TOOL_PERMISSION_MAP

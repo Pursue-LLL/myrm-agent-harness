@@ -60,11 +60,7 @@ class DelegationCapabilityManifest:
     def default(cls) -> DelegationCapabilityManifest:
         orchestrator_child_tools = (
             "delegate_task_tool",
-            "batch_delegate_tasks_tool",
-            "delegate_parallel_tasks_tool",
-            "list_subagents_tool",
-            "cancel_subagent_tool",
-            "steer_subagent_tool",
+            "subagent_control_tool",
             "send_teammate_message_tool",
         )
         privileged_skill_tools = frozenset(
@@ -73,8 +69,19 @@ class DelegationCapabilityManifest:
                 "skill_discovery_tool",
             }
         )
+        legacy_delegation_tools = frozenset(
+            {
+                "spawn_subagent_tool",
+                "batch_delegate_tasks_tool",
+                "list_subagents_tool",
+                "cancel_subagent_tool",
+                "steer_subagent_tool",
+            }
+        )
         return cls(
-            leaf_blocked_tools=frozenset(orchestrator_child_tools) | privileged_skill_tools,
+            leaf_blocked_tools=frozenset(orchestrator_child_tools)
+            | privileged_skill_tools
+            | legacy_delegation_tools,
             orchestrator_child_tools=orchestrator_child_tools,
             privileged_skill_tools=privileged_skill_tools,
         )
@@ -398,7 +405,7 @@ class SubagentConfig:
 
     Tool safety: 4-layer isolation
       Layer 0 (type admission): allowed_types on create_delegate_task_tool restricts spawnable agent types
-      Layer 1 (global blacklist): _SUBAGENT_DEFAULT_BLACKLIST — delegate/batch/list/cancel/steer subagent + skill management
+      Layer 1 (global blacklist): _SUBAGENT_DEFAULT_BLACKLIST — orchestrator delegation tools + legacy aliases + skill management
       Layer 2 (per-config): tools (allowlist) + disallowed_tools (blocklist) from this config
       Layer 3 (parent constraint): child ⊆ parent intersection (enforced by SubagentManager._filter_tools)
 

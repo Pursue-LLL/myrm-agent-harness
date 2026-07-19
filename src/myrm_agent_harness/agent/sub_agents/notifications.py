@@ -95,7 +95,7 @@ def format_active_subagent_context(children: list[dict[str, object]]) -> str | N
     lines.append(
         "These tasks are still running. "
         "Do NOT spawn duplicate tasks for the same purpose. "
-        "Use list_subagents_tool to check their results when needed."
+        "Use subagent_control_tool with action=list to check their results when needed."
     )
     return "\n".join(lines)
 

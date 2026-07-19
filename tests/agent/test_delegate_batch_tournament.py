@@ -2,8 +2,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import create_batch_delegate_tasks_tool
-from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import TaskRequest
+from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+    TaskRequest,
+    create_delegate_task_tool,
+)
 
 
 def _make_mock_parent():
@@ -14,6 +16,7 @@ def _make_mock_parent():
     parent._manager = AsyncMock()
     parent._spawn_child = AsyncMock()
     parent.llm = AsyncMock()
+    parent._last_context = {"session_id": "chat_test-session"}
 
     mock_response = MagicMock()
     mock_response.content = "WINNER: 1"
@@ -21,52 +24,57 @@ def _make_mock_parent():
 
     return parent
 
+
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
 @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._run_tournament_bracket")
 @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
-async def test_batch_delegate_tournament(mock_estimate_cost, mock_run_tournament, mock_run_parallel):
+async def test_delegate_task_batch_tournament(mock_estimate_cost, mock_run_tournament, mock_run_parallel):
     from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import _BatchBudgetAdmission
 
     mock_estimate_cost.return_value = _BatchBudgetAdmission(
-        status="unavailable", reason="test_skip",
+        status="unavailable",
+        reason="test_skip",
     )
     parent = _make_mock_parent()
     catalog = AsyncMock()
 
-    tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog)
+    delegate_tool = create_delegate_task_tool(parent, lambda: [], catalog)
 
     tasks = [
         TaskRequest(agent_type="coder", objective="Task 1"),
-        TaskRequest(agent_type="coder", objective="Task 2")
+        TaskRequest(agent_type="coder", objective="Task 2"),
     ]
 
     mock_payload = {
         "success": True,
         "results": [
             {"task_id": "1", "result": "A"},
-            {"task_id": "2", "result": "B"}
-        ]
+            {"task_id": "2", "result": "B"},
+        ],
     }
     mock_run_parallel.return_value = mock_payload
     mock_run_tournament.return_value = {"success": True, "winner": "1"}
 
-    result = await tool.coroutine(
-        tasks=tasks,
-        wait=True,
-        tournament=True,
-        judge_criteria="Best code"
+    result = await delegate_tool.ainvoke(
+        {
+            "mode": "batch",
+            "tasks": tasks,
+            "wait": True,
+            "tournament": True,
+            "judge_criteria": "Best code",
+        }
     )
 
-    # Assert run_parallel was called with skip_merge=True
+    assert result["success"] is True
+
     mock_run_parallel.assert_called_once()
     assert mock_run_parallel.call_args.kwargs["skip_merge"] is True
 
-    # Assert tournament was called
     mock_run_tournament.assert_called_once_with(parent, mock_payload["results"], "Best code")
 
-    # Assert tasks were modified with tournament prompt
     assert "【TOURNAMENT MODE ACTIVE】" in tasks[0].objective
+
 
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
@@ -76,7 +84,7 @@ async def test_run_tournament_bracket(mock_merge):
     parent = _make_mock_parent()
     results = [
         {"task_id": "task-1", "result": "Output A", "status": "COMPLETED", "success": True},
-        {"task_id": "task-2", "result": "Output B", "status": "COMPLETED", "success": True}
+        {"task_id": "task-2", "result": "Output B", "status": "COMPLETED", "success": True},
     ]
 
     mock_merge.return_value = {"merged": True}

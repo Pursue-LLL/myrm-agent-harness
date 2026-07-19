@@ -19,6 +19,7 @@ import pytest
 
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
 from myrm_agent_harness.toolkits.browser.session import BrowserSession
+from myrm_agent_harness.toolkits.browser.snapshot.aria_test_utils import extract_ref_ids
 from myrm_agent_harness.toolkits.browser.tools import create_browser_tools
 
 
@@ -195,9 +196,9 @@ async def test_tool_interact_click(browser_session: BrowserSession) -> None:
     snapshot_result = await browser_snapshot.ainvoke({"scope": "content", "diff": False})
 
     # Extract first button ref (should be e0 or similar)
-    import re
-
-    refs = re.findall(r"\[ref=([^\]]+)\]", snapshot_result)
+    refs = extract_ref_ids(snapshot_result, role_filter="button")
+    if not refs:
+        refs = extract_ref_ids(snapshot_result)
     assert len(refs) > 0, "No refs found in snapshot"
     button_ref = refs[0]
 
@@ -229,9 +230,9 @@ async def test_tool_interact_fill(browser_session: BrowserSession) -> None:
     snapshot_result = await browser_snapshot.ainvoke({"scope": "content", "diff": False})
 
     # Find textbox ref
-    import re
-
-    refs = re.findall(r"\[ref=([^\]]+)\]", snapshot_result)
+    refs = extract_ref_ids(snapshot_result, role_filter="textbox")
+    if not refs:
+        refs = extract_ref_ids(snapshot_result)
     assert len(refs) > 0
     textbox_ref = refs[0]
 
@@ -404,9 +405,9 @@ async def test_tool_full_workflow(browser_session: BrowserSession) -> None:
     assert "button" in snapshot_result.lower()
 
     # Extract button ref
-    import re
-
-    refs = re.findall(r"\[ref=([^\]]+)\]", snapshot_result)
+    refs = extract_ref_ids(snapshot_result, role_filter="button")
+    if not refs:
+        refs = extract_ref_ids(snapshot_result)
     assert len(refs) > 0
     button_ref = refs[0]
 

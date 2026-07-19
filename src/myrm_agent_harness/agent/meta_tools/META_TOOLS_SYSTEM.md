@@ -57,7 +57,7 @@
 | `bash/` | PTY/bash 执行、输出压缩与 eviction | `bash_code_execute_tool`（聚合根）、`bash_executor`（4 mixin 聚合） |
 | `file_ops/` | 读写编辑、validators、observers；`file_read_tool` 支持 `vault://` 恢复 auto-vault 大结果 | `file_read_tool`, `file_write_tool`, `file_edit_tool` |
 | `file_search/` | glob/grep（Claude Code 兼容） | `glob_tool`, `grep_tool` |
-| `spawn_subagent/` | delegate/batch/steer/cancel/teammate | `delegate_task_tool`, `batch_delegate_tasks_tool` |
+| `spawn_subagent/` | delegate/control/teammate (mode=batch|parallel on delegate) | `delegate_task_tool`, `subagent_control_tool` |
 | `skills/` | select/manage/discovery 技能工具 | `create_skill_*_tool` 系列（见各子目录） |
 | `goals/` | Goal 引擎 LLM 工具面（域逻辑在 `agent/goals/`） | `create_goal_tools` |
 | `progress/` | 主 Agent 多步 todo 进度（workspace SSOT + SSE） | `create_todo_write_tool` |

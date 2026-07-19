@@ -119,7 +119,18 @@ class FrameState:
         changes = await self._observer.get_changes()
 
         if not changes:
-            return self._cached_snapshot(total_changes=0)
+            # Never serve a poisoned empty cache (e.g. failed parse on about:blank before DOM updates).
+            if self._cached_refs:
+                return self._cached_snapshot(total_changes=0)
+            return await self._full_update(
+                cursor_interactive=cursor_interactive,
+                selector=selector,
+                scope=scope,
+                compact=compact,
+                max_depth=max_depth,
+                include_bbox=include_bbox,
+                max_tokens=max_tokens,
+            )
 
         # Strategy选择： based on 变更Count决定Update方式
         total_changes = len(changes)

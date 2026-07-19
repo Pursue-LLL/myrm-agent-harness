@@ -31,7 +31,7 @@ def create_manage_tool(session: BrowserSession):
             "back, forward, save_pdf, resize, wait_for_load, console_log, "
             "network_log, network_detail, network_replay, dialog_response, dialog_policy, "
             "save_session, restore_session, list_sessions, delete_session, "
-            "wait_for_user, trace_start, trace_stop, har_start, har_stop, recording_status, "
+            "trace_start, trace_stop, har_start, har_stop, recording_status, "
             "save_site_experience, list_site_experience, delete_site_experience, "
             "download_url, list_downloads",
         )
@@ -42,7 +42,6 @@ def create_manage_tool(session: BrowserSession):
             "'accept'/'dismiss[:prompt]' (dialog_response), "
             "'smart'/'auto_accept'/'auto_dismiss'/'wait_for_agent' (dialog_policy), "
             "domain or 'domain:label' (save_session), domain (restore_session/delete_session), "
-            "prompt text for user (wait_for_user), "
             "request index number (network_detail/network_replay), "
             "JSON for save_site_experience (e.g. "
             '\'{"domain":"example.com","known_traps":["login wall"],"successful_flows":["direct URL"]}\'), '
@@ -62,7 +61,7 @@ def create_manage_tool(session: BrowserSession):
         Control: close, resize, wait_for_load. Dialogs: dialog_response.
         Sessions: save_session, restore_session, list_sessions, delete_session.
         Recording: trace_start, trace_stop, har_start, har_stop, recording_status.
-        Human-in-the-loop: wait_for_user (pause agent, let user operate the browser manually).
+        Human-in-the-loop: use browser_ask_human_tool for 2FA, CAPTCHA, or payment gates.
         Site experience: save_site_experience, list_site_experience, delete_site_experience.
         Downloads: download_url (download file from URL), list_downloads (show download history).
         """
@@ -165,10 +164,6 @@ def create_manage_tool(session: BrowserSession):
                 if not value.strip():
                     return "Error: 'value' must be the domain to delete (e.g. 'github.com')"
                 return await session.delete_session(value.strip())
-            case "wait_for_user":
-                result = await session.snapshot(scope="content", diff=False)
-                aria_tree = result[0] if isinstance(result, tuple) else result
-                return f"User completed their action. Current page state:\n{aria_tree}"
             case "trace_start":
                 return await session.start_trace()
             case "trace_stop":
@@ -212,7 +207,7 @@ def create_manage_tool(session: BrowserSession):
                     "console_log, network_log, network_detail, network_replay, "
                     "dialog_response, dialog_policy, "
                     "save_session, restore_session, list_sessions, delete_session, "
-                    "wait_for_user, trace_start, trace_stop, har_start, har_stop, recording_status, "
+                    "trace_start, trace_stop, har_start, har_stop, recording_status, "
                     "save_site_experience, list_site_experience, delete_site_experience, "
                     "download_url, list_downloads"
                 )

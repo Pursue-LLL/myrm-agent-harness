@@ -104,8 +104,8 @@ Protocol-first architecture with strict framework-business separation.
     atomically and records a `DECOMPOSED` event on the parent.
 
 11. **Role-scoped tool loading**: `create_kanban_tools(mode=...)` loads tools by role:
-    - `worker` (5 tools): kanban_show, kanban_complete, kanban_block, kanban_heartbeat,
-      kanban_comment. Worker tools auto-bind to `current_task_id` via closure and enforce
+    - `worker` (6 tools): kanban_show, kanban_complete, kanban_block, kanban_heartbeat,
+      kanban_comment, kanban_attach. Worker tools auto-bind to `current_task_id` via closure and enforce
       ownership — a worker cannot operate on other agents' tasks (prompt injection defense).
       Exception: `kanban_comment` is intentionally unrestricted — workers can comment on
       any task (own or sibling) for cross-task coordination. Comments are consumed by
@@ -113,12 +113,11 @@ Protocol-first architecture with strict framework-business separation.
       `kanban_complete` writes `summary` to `task.result` for downstream context
       propagation, and accepts optional `metadata` JSON for structured machine-readable
       handoff data stored at `task.metadata["handoff"]`.
-    - `orchestrator` (7 tools): kanban_add_task, kanban_list_tasks (board list or
-      single-task read via `task_id`; board list defaults to 50 rows, max 200, with
-      `truncated` metadata), kanban_update_task,
-      kanban_move_task, kanban_delete_task, kanban_board_summary, kanban_link.
-    - `full` (12 tools): worker + orchestrator. Board CRUD uses server REST/GUI only.
-      Opt-in via explicit `kanban_tool_mode=full` on GeneralAgentParams.
+    - `orchestrator` (3 tools): kanban_add_task, kanban_list_tasks (board list or
+      single-task read via `task_id`; optional `include_stats`; board list defaults to 50 rows,
+      max 200, with `truncated` metadata), kanban_unblock (returns ``dependencies_met``;
+      ``waiting_on_dependencies`` when parents remain open).
+    Board/task field edits and delete use server REST/GUI only — not LLM tools.
 
 12. **Dispatcher-only status guard**: Agents cannot move tasks to RUNNING — only the
     dispatcher sets that status when claiming a task. Prevents status drift.
@@ -131,9 +130,9 @@ Protocol-first architecture with strict framework-business separation.
     (`DEFAULT_ENABLED_BUILTIN_TOOLS` = `web_search` + `memory` only). The server's `profile_resolver`
     maps `"kanban" in enabled_builtin_tools` to `enable_kanban=True`. Binding is
     resolved by `myrm-agent-server/app/ai_agents/general_agent/kanban_tool_mode.py`:
-    chat orchestrators default to 7-tool `orchestrator` mode; `KanbanTaskRunner` binds
-    5-tool `worker` mode when `kanban_current_task_id` is set; board management uses
-    REST/GUI unless `kanban_tool_mode=full` is explicitly passed.
+    chat orchestrators default to 3-tool `orchestrator` mode; `KanbanTaskRunner` binds
+    6-tool `worker` mode when `kanban_current_task_id` is set; board management uses
+    REST/GUI.
 
 15. **Task-level timeout (max_runtime_seconds)**: Each task can declare an optional
     `max_runtime_seconds` limit. The `TaskRunner` enforces this via `asyncio.wait_for`,
@@ -246,6 +245,6 @@ Protocol-first architecture with strict framework-business separation.
 | `dispatcher.py` | Event-driven scheduler with startup orphan rescue/heartbeat/zombie/auto-block/transient error smart backoff/run tracking/dependency promotion/pre-and-post-execution status drift guard |
 | `dispatcher_failure.py` | Failure/timeout/retry pipeline mixin for KanbanDispatcher |
 | `diagnostics.py` | Task diagnostic framework — DTOs, DiagnosticRule Protocol, DiagnosticEngine |
-| `kanban_agent_tools.py` | Modular per-action kanban tools with role-scoped loading (worker/orchestrator/full) + `get_worker_lifecycle_guidance()` for system prompt injection |
+| `kanban_agent_tools.py` | Role-scoped kanban LLM tools (worker 6 / orchestrator 3) + `get_worker_lifecycle_guidance()` for system prompt injection |
 | `context_builder.py` | Worker context assembly helper for TaskRunner implementors — includes parent result + handoff metadata propagation + `build_multimodal_query()` for assembling TaskAttachment objects into LLM-compatible multimodal content blocks |
 | `__init__.py` | Public API re-exports |

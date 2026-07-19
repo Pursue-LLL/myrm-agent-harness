@@ -8,9 +8,7 @@
 - discover_capability::sync_discover_capability_tool (POS: 统一能力发现网关，由 SkillAgent 调用)
 - skills.discovery::create_skill_discovery_tool (POS: 外部技能发现工具创建函数)
 - skills.manage::create_skill_manage_tool (POS: 技能管理工具创建函数)
-- spawn_subagent::create_delegate_task_tool (POS: Subagent 委托工具创建函数)
-- spawn_subagent::create_list_subagents_tool, create_cancel_subagent_tool,
-  create_steer_subagent_tool (POS: Subagent 管理工具)
+- spawn_subagent::create_delegate_task_tool, create_subagent_control_tool (POS: Subagent 委派与控制 LLM 工具)
 [OUTPUT]
 - get_meta_tools: 获取所有元工具的函数(含自适应技能搜索逻辑)
 - 各个工具的 create_xxx_tool 工厂函数
@@ -57,11 +55,8 @@ from .skills.discovery import create_skill_discovery_tool
 from .skills.manage import create_skill_manage_tool
 from .skills.select import create_select_skill_tool
 from .spawn_subagent import (
-    create_batch_delegate_tasks_tool,
-    create_cancel_subagent_tool,
     create_delegate_task_tool,
-    create_list_subagents_tool,
-    create_steer_subagent_tool,
+    create_subagent_control_tool,
 )
 
 SKILL_INLINE_THRESHOLD = 15
@@ -300,19 +295,16 @@ __all__ = [
     "SKILL_INLINE_THRESHOLD",
     "create_bash_code_execute_tool",
     "create_bash_process_tool",
-    "create_batch_delegate_tasks_tool",
-    "create_cancel_subagent_tool",
     "create_delegate_task_tool",
+    "create_subagent_control_tool",
     "create_file_edit_tool",
     "create_file_read_tool",
     "create_file_write_tool",
     "create_glob_tool",
     "create_grep_tool",
-    "create_list_subagents_tool",
     "create_select_skill_tool",
     "create_skill_discovery_tool",
     "create_skill_manage_tool",
-    "create_steer_subagent_tool",
     "get_meta_tools",
     "request_answer_user_tool",
 ]

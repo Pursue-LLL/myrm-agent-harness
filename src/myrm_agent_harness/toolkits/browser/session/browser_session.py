@@ -130,6 +130,7 @@ class BrowserSession(
         observability: BrowserObservability | None = None,
         debug_mode: bool = False,
         domain_allowlist: DomainAllowlist | None = None,
+        domain_blocklist: DomainAllowlist | None = None,
         download_config: DownloadConfig | None = None,
         auto_restore_domains: list[str] | None = None,
         captcha_solver: CaptchaSolver | None = None,
@@ -153,6 +154,7 @@ class BrowserSession(
             observability: Observability configuration
             debug_mode: Enable debug mode
             domain_allowlist: Domain allowlist
+            domain_blocklist: Domain blocklist (blocked domains)
             download_config: Download configuration
             auto_restore_domains: Domains to auto-restore session for
             captcha_solver: CAPTCHA solver
@@ -188,12 +190,15 @@ class BrowserSession(
         self._extension_bridge = extension_bridge
         self._auto_restore_domains = auto_restore_domains or []
         self._auto_restored = False
+        self._domain_blocklist = domain_blocklist
 
         context_kwargs: dict[str, object] = {}
         if observability:
             context_kwargs.update(observability.get_context_kwargs())
         if domain_allowlist:
             context_kwargs["domain_allowlist"] = domain_allowlist
+        if domain_blocklist:
+            context_kwargs["domain_blocklist"] = domain_blocklist
         if download_config is not None:
             context_kwargs["accept_downloads"] = True
         self._tab_controller = TabController(browser_pool, context_type, context_kwargs if context_kwargs else None)

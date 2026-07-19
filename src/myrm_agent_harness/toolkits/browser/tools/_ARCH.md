@@ -14,9 +14,9 @@ API layer of the browser toolkit. Maps BrowserSession capabilities to 8 LangChai
 | execute_script.py | Core | browser_execute_script_tool: Code-as-Action batch execution with AST privileged-API scanner + HITL gating. | ✅ |
 | extract.py | Core | browser_extract_tool: content extraction. | ✅ |
 | inspect.py | Core | browser_inspect_tool: quick page structure analysis. | ✅ |
-| interact.py | Core | browser_interact_tool: element interactions with semantic DOM risk check (HITL for destructive/financial/admin actions). | ✅ |
-| manage.py | Core | browser_manage_tool: session management. | ✅ |
-| navigate.py | Core | browser_navigate_tool: URL navigation. | ✅ |
+| interact.py | Core | browser_interact_tool: element interactions with optional steps[] batch + semantic DOM risk check (HITL for destructive/financial/admin actions). | ✅ |
+| manage.py | Core | browser_manage_tool: session management (HITL via browser_ask_human_tool; no wait_for_user). | ✅ |
+| navigate.py | Core | browser_navigate_tool: URL navigation; success path appends ≤20 compact interactive refs. | ✅ |
 | snapshot.py | Core | browser_snapshot_tool: ARIA tree capture. | ✅ |
 | takeover.py | Core | browser_ask_human_tool: Agent-triggered human takeover via LangGraph interrupt; SSE includes runtime `is_managed` (managed→VNC, external/CDP→in-chat banner). | ✅ |
 

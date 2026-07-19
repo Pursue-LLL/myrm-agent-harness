@@ -8,15 +8,17 @@
 
 [OUTPUT]
 - SubagentEventForwarder: 子agent事件转发器(14种事件类型自动转发及预算拦截)
+- Running token_usage projection via SUBAGENT_PROGRESS + optional observability callback
 
 [POS]
-Subagent event forwarder. Translates 14 subagent event types into SUBAGENT_PROGRESS, SUBAGENT_LOG, UI_UPDATE, and ARTIFACT_CONTENT events.
+Subagent event forwarder. Translates subagent event types into SUBAGENT_PROGRESS (with running token_usage), SUBAGENT_LOG, UI_UPDATE, and ARTIFACT_CONTENT events.
 
 """
 
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.streaming.types import AgentEventType
@@ -40,6 +42,7 @@ class SubagentEventForwarder:
         config: SubagentConfig,
         start_time: float,
         parent_progress_sink: ToolProgressSink | None = None,
+        on_running_token_usage: Callable[[dict[str, object]], None] | None = None,
     ) -> None:
         self.task_id = task_id
         self.agent_type = agent_type
@@ -47,6 +50,7 @@ class SubagentEventForwarder:
         self.start_time = start_time
         # Subagent runs in a child task: ContextVar sink targets the child queue; SSE uses the parent queue.
         self._parent_progress_sink = parent_progress_sink
+        self._on_running_token_usage = on_running_token_usage
 
         # Progress tracking state
         self.cumulative_tokens = 0
@@ -95,16 +99,18 @@ class SubagentEventForwarder:
 
     async def _handle_token_usage(self, event: dict[str, object]) -> None:
         """Handle TOKEN_USAGE event and emit progress updates."""
+        usage_dict: dict[str, object] = {}
         token_data = event.get("data")
         if isinstance(token_data, dict):
-            usage_dict = token_data.get("usage")
-            if isinstance(usage_dict, dict):
-                self.cumulative_tokens = usage_dict.get("total_tokens", self.cumulative_tokens)
-                self.total_cost_usd = usage_dict.get("total_cost_usd", getattr(self, "total_cost_usd", 0.0))
+            raw_usage = token_data.get("usage")
+            if isinstance(raw_usage, dict):
+                usage_dict = raw_usage
+                self.cumulative_tokens = int(raw_usage.get("total_tokens", self.cumulative_tokens) or 0)
+                self.total_cost_usd = raw_usage.get("total_cost_usd", getattr(self, "total_cost_usd", 0.0))
+
+        running_usage = self._build_running_token_usage(usage_dict)
 
         sink = self._active_sink()
-        if not sink:
-            return
 
         current_time = time.time()
         elapsed_seconds = current_time - self.start_time
@@ -133,6 +139,12 @@ class SubagentEventForwarder:
             should_emit = progress_delta >= 0.05 or time_delta >= 1.0
 
         if should_emit or self.last_progress < 0:
+            if running_usage is not None and self._on_running_token_usage is not None:
+                self._on_running_token_usage(running_usage)
+            if not sink:
+                self.last_progress = progress
+                self.last_emit_time = current_time
+                return
             try:
                 event_data = {
                     "task_id": self.task_id,
@@ -140,6 +152,8 @@ class SubagentEventForwarder:
                     "message": f"{int(progress * 100)}%",
                 }
                 event_data.update(progress_data)
+                if running_usage is not None:
+                    event_data["token_usage"] = running_usage
 
                 await sink.emit(
                     {
@@ -151,6 +165,16 @@ class SubagentEventForwarder:
                 self.last_emit_time = current_time
             except Exception as exc:
                 logger.warning("Failed to emit SUBAGENT_PROGRESS for %s: %s", self.task_id, exc)
+
+    def _build_running_token_usage(self, usage_dict: dict[str, object]) -> dict[str, object] | None:
+        if self.cumulative_tokens <= 0:
+            return None
+        payload: dict[str, object] = {"total_tokens": self.cumulative_tokens}
+        for key in ("input_tokens", "output_tokens", "total_cost_usd", "cached_tokens"):
+            value = usage_dict.get(key)
+            if value is not None:
+                payload[key] = value
+        return payload
 
     def _calculate_default_progress(self, elapsed_seconds: float) -> tuple[float, dict[str, object]]:
         """Calculate default progress using token-based or tool-based estimation."""

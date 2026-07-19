@@ -1517,8 +1517,8 @@ class TestOutboundDelegationCheck:
         assert len(approved) == 1
 
     @pytest.mark.asyncio
-    async def test_batch_delegate_tools_also_checked(self):
-        """batch_delegate_tasks also triggers outbound check."""
+    async def test_delegate_task_batch_mode_also_checked(self):
+        """delegate_task_tool mode=batch also triggers outbound check."""
 
         class DenyReviewer:
             async def review(self, command, **kwargs):
@@ -1534,8 +1534,11 @@ class TestOutboundDelegationCheck:
         tool_calls = [
             ToolCall(
                 type="tool_call",
-                name="batch_delegate_tasks_tool",
-                args={"tasks": [{"task": "a"}, {"task": "b"}]},
+                name="delegate_task_tool",
+                args={
+                    "mode": "batch",
+                    "tasks": [{"agent_type": "search", "objective": "a"}],
+                },
                 id="c1",
             ),
         ]

@@ -1,7 +1,7 @@
 """Agent tools for kanban task management — modular per-action design.
 
-Tools are grouped by role (Worker / Orchestrator / Full) for security and token
-efficiency.
+Tools are grouped by role (Worker / Orchestrator) for security and token efficiency.
+Board CRUD and task field edits use REST/GUI only — not LLM tools.
 
 [INPUT]
 - .types::TaskStatus, TaskPriority (POS: Kanban domain types.)
@@ -18,10 +18,10 @@ Agent tools for kanban task management — modular per-action, role-scoped.
 
 from __future__ import annotations
 
-import contextlib
 import json
 import re
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Literal
 
@@ -42,7 +42,12 @@ if TYPE_CHECKING:
 
 logger = get_agent_logger(__name__)
 
-KanbanToolMode = Literal["worker", "orchestrator", "full"]
+KanbanToolMode = Literal["worker", "orchestrator"]
+
+KanbanTaskAttachFn = Callable[
+    [str, Literal["path", "url"], str],
+    Awaitable[dict[str, object]],
+]
 
 KANBAN_LIST_DEFAULT_LIMIT = 50
 KANBAN_LIST_MAX_LIMIT = 200
@@ -77,17 +82,6 @@ def _parse_until(value: str) -> datetime | None:
         return dt
     except ValueError:
         return None
-
-
-_STATUS_TO_EVENT_KIND: dict[TaskStatus, TaskEventKind] = {
-    TaskStatus.BLOCKED: TaskEventKind.BLOCKED,
-    TaskStatus.ARCHIVED: TaskEventKind.ARCHIVED,
-    TaskStatus.COMPLETED: TaskEventKind.COMPLETED,
-    TaskStatus.FAILED: TaskEventKind.FAILED,
-}
-
-# Status values that only the dispatcher should set (not agents)
-_DISPATCHER_ONLY_STATUSES: frozenset[TaskStatus] = frozenset({TaskStatus.RUNNING})
 
 
 def get_worker_lifecycle_guidance(
@@ -135,46 +129,36 @@ def create_kanban_tools(
     store: KanbanStore,
     dispatcher: KanbanDispatcher | None = None,
     *,
-    mode: KanbanToolMode = "full",
+    mode: KanbanToolMode = "orchestrator",
     default_board_id: str | None = None,
     agent_id: str | None = None,
     current_task_id: str | None = None,
+    attach_task_file: KanbanTaskAttachFn | None = None,
 ) -> list[BaseTool]:
     """Create kanban tools scoped by role.
 
     Modes:
-        worker: 5 tools (show/complete/block/heartbeat/comment) — bound to current_task_id.
-        orchestrator: 7 tools (add_task/list_tasks/update_task/move_task/
-                     delete_task/board_summary/link).
-        full: worker + orchestrator (12 tools). Board CRUD uses REST/GUI, not LLM tools.
+        worker: 6 tools (show/complete/block/heartbeat/comment/attach).
+        orchestrator: 3 tools (add_task/list_tasks/unblock).
 
     When mode='worker', tools auto-bind to ``current_task_id`` and enforce
     ownership — the agent cannot operate on other tasks (except comments,
     which are intentionally unrestricted for cross-task coordination).
     """
-    tools: list[BaseTool] = []
-
-    if mode in ("worker", "full"):
-        tools.extend(
-            _build_worker_tools(
-                store,
-                dispatcher,
-                current_task_id=current_task_id,
-                agent_id=agent_id,
-            )
+    if mode == "worker":
+        return _build_worker_tools(
+            store,
+            dispatcher,
+            current_task_id=current_task_id,
+            agent_id=agent_id,
+            attach_task_file=attach_task_file,
         )
-
-    if mode in ("orchestrator", "full"):
-        tools.extend(
-            _build_orchestrator_tools(
-                store,
-                dispatcher,
-                default_board_id=default_board_id,
-                agent_id=agent_id,
-            )
-        )
-
-    return tools
+    return _build_orchestrator_tools(
+        store,
+        dispatcher,
+        default_board_id=default_board_id,
+        agent_id=agent_id,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -188,8 +172,9 @@ def _build_worker_tools(
     *,
     current_task_id: str | None = None,
     agent_id: str | None = None,
+    attach_task_file: KanbanTaskAttachFn | None = None,
 ) -> list[BaseTool]:
-    """Build worker-scoped tools (5 tools: show, complete, block, heartbeat, comment)."""
+    """Build worker-scoped tools (6 tools)."""
 
     async def _validate_task_ownership(task_id: str) -> tuple[KanbanTask | None, str | None]:
         """Validate task exists and worker has ownership."""
@@ -388,7 +373,38 @@ def _build_worker_tools(
             }
         )
 
-    return [kanban_show, kanban_complete, kanban_block, kanban_heartbeat, kanban_comment]
+    @tool("kanban_attach")
+    async def kanban_attach(source: Literal["path", "url"], value: str, task_id: str = "") -> str:
+        """Attach a sandbox file path or HTTPS URL to your task for downstream workers.
+
+        Args:
+            source: ``path`` for a workspace file, ``url`` for a remote HTTPS resource.
+            value: File path or URL (required).
+            task_id: Defaults to your assigned task.
+        """
+        if not value or not value.strip():
+            return json.dumps({"error": "value is required"})
+        if attach_task_file is None:
+            return json.dumps({"error": "Task attachments are not configured for this agent run"})
+        resolved_id = task_id or current_task_id or ""
+        if not resolved_id:
+            return json.dumps({"error": "task_id is required"})
+        task, err = await _validate_task_ownership(resolved_id)
+        if err:
+            return json.dumps({"error": err})
+        assert task is not None
+
+        try:
+            payload = await attach_task_file(resolved_id, source, value.strip())
+        except ValueError as exc:
+            return json.dumps({"error": str(exc)})
+        except Exception:
+            logger.exception("kanban_attach failed for task %s", resolved_id[:8])
+            return json.dumps({"error": "Failed to attach file to task"})
+
+        return json.dumps({"status": "attached", "task_id": resolved_id, **payload})
+
+    return [kanban_show, kanban_complete, kanban_block, kanban_heartbeat, kanban_comment, kanban_attach]
 
 
 # ---------------------------------------------------------------------------
@@ -403,7 +419,7 @@ def _build_orchestrator_tools(
     default_board_id: str | None = None,
     agent_id: str | None = None,
 ) -> list[BaseTool]:
-    """Build orchestrator-scoped tools (7 tools)."""
+    """Build orchestrator-scoped tools (3 tools)."""
 
     @tool("kanban_add_task")
     async def kanban_add_task(
@@ -516,11 +532,14 @@ def _build_orchestrator_tools(
         agent_id_filter: str = "",
         task_id: str = "",
         limit: int = KANBAN_LIST_DEFAULT_LIMIT,
+        include_stats: bool = False,
     ) -> str:
         """List tasks on a board, optionally filtered by status or agent.
 
         When ``task_id`` is set, returns that single task (read-only) with
         parent/child dependency IDs and ``dependencies_met`` status.
+
+        Set ``include_stats=true`` on board listings to include per-status counts.
 
         Board listings default to 50 tasks (max 200). When truncated, the
         response includes ``truncated: true`` — use ``status_filter`` or raise
@@ -568,222 +587,77 @@ def _build_orchestrator_tools(
         )
         truncated = len(rows) > limit
         tasks = rows[:limit]
-        return json.dumps(
-            {
-                "tasks": [t.to_dict() for t in tasks],
-                "count": len(tasks),
-                "limit": limit,
-                "truncated": truncated,
-            }
-        )
+        payload: dict[str, object] = {
+            "tasks": [t.to_dict() for t in tasks],
+            "count": len(tasks),
+            "limit": limit,
+            "truncated": truncated,
+        }
+        if include_stats:
+            board = await store.get_board(resolved_board_id)
+            if board is None:
+                return json.dumps({"error": f"Board {resolved_board_id} not found"})
+            status_counts = await store.count_tasks_grouped(resolved_board_id)
+            payload["board"] = board.to_dict()
+            payload["task_counts"] = status_counts
+            payload["total_tasks"] = sum(status_counts.values())
+        return json.dumps(payload)
 
-    @tool("kanban_update_task")
-    async def kanban_update_task(
-        task_id: str,
-        title: str = "",
-        description: str = "",
-        priority: str = "",
-        max_runtime_seconds: int = -1,
-        assign_agent_id: str = "",
-        skills: str = "",
-    ) -> str:
-        """Update task fields (title, description, priority, timeout, assignment, or skills).
+    @tool("kanban_unblock")
+    async def kanban_unblock(task_id: str, reason: str = "") -> str:
+        """Unblock a BLOCKED task after human approval or external resolution.
 
-        Args:
-            task_id: ID of the task to update (required).
-            title: New title (unchanged if empty).
-            description: New description (unchanged if empty).
-            priority: New priority urgent/high/normal/low (unchanged if empty).
-            max_runtime_seconds: Per-task timeout in seconds. 0 = reset to system default, -1 = unchanged.
-            assign_agent_id: New agent assignment (unchanged if empty).
-            skills: Comma-separated skill names to replace task-level skills. Pass "CLEAR" to remove all task-level skills.
+        Clears block metadata and sets READY when dependencies are met. When
+        dependencies are still open, the task moves to BACKLOG and the response
+        uses ``status: waiting_on_dependencies`` (check ``dependencies_met``).
+
+        For timed blocks, prefer dispatcher auto-unblock when ``scheduled_until`` is set.
         """
         if not task_id:
             return json.dumps({"error": "task_id is required"})
-        task = await store.get_task(task_id)
-        if task is None:
-            return json.dumps({"error": f"Task {task_id} not found"})
-
-        if title:
-            task.title = title
-        if description:
-            task.description = description
-        if priority:
-            with contextlib.suppress(ValueError):
-                task.priority = TaskPriority(priority)
-        if max_runtime_seconds == 0:
-            task.max_runtime_seconds = None
-        elif max_runtime_seconds > 0:
-            task.max_runtime_seconds = max_runtime_seconds
-        if assign_agent_id:
-            task.agent_id = assign_agent_id
-        if skills:
-            if skills.strip().upper() == "CLEAR":
-                task.extra_skill_ids = []
-            else:
-                task.extra_skill_ids = list(dict.fromkeys(s for raw in skills.split(",") if (s := raw.strip())))
-
-        saved = await store.save_task(task)
-        return json.dumps({"status": "updated", "task": saved.to_dict()})
-
-    @tool("kanban_move_task")
-    async def kanban_move_task(task_id: str, status: str) -> str:
-        """Change task status (backlog/ready/blocked/archived). Cannot set to running — that is dispatcher-only."""
-        if not task_id:
-            return json.dumps({"error": "task_id is required"})
-        if not status:
-            return json.dumps({"error": "status is required"})
 
         task = await store.get_task(task_id)
         if task is None:
             return json.dumps({"error": f"Task {task_id} not found"})
-
-        try:
-            new_status = TaskStatus(status)
-        except ValueError:
-            return json.dumps({"error": f"Invalid status: {status}"})
-
-        if new_status in _DISPATCHER_ONLY_STATUSES:
-            return json.dumps({"error": f"Cannot set status to {new_status.value} — managed by dispatcher only"})
-
-        if task.is_terminal and new_status != TaskStatus.ARCHIVED:
-            return json.dumps({"error": f"Cannot move terminal task (status={task.status}) to {new_status}"})
+        if task.status != TaskStatus.BLOCKED:
+            return json.dumps({"error": f"Task is not blocked (status={task.status.value})"})
 
         old_status = task.status
-        task.status = new_status
-        if new_status == TaskStatus.READY:
-            task.blocked_reason = None
-            task.block_kind = None
-            task.scheduled_until = None
-            if old_status == TaskStatus.BLOCKED:
-                task.consecutive_failures = 0
-                task.error = ""
-            if not await store.are_dependencies_met(task_id):
-                task.status = TaskStatus.BACKLOG
-        if new_status == TaskStatus.BLOCKED and task.block_kind is None:
-            task.block_kind = BlockKind.HUMAN
-        if new_status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.ARCHIVED):
-            task.completed_at = datetime.now(UTC)
+        task.status = TaskStatus.READY
+        task.blocked_reason = None
+        task.block_kind = None
+        task.scheduled_until = None
+        task.consecutive_failures = 0
+        task.error = ""
+        if not await store.are_dependencies_met(task_id):
+            task.status = TaskStatus.BACKLOG
 
         saved = await store.save_task(task)
-
-        event_kind = _STATUS_TO_EVENT_KIND.get(saved.status)
-        if old_status == TaskStatus.BLOCKED and saved.status == TaskStatus.READY:
-            event_kind = TaskEventKind.UNBLOCKED
-        if event_kind:
-            payload: dict[str, object] = {"from": old_status.value, "to": new_status.value}
-            if old_status == TaskStatus.BLOCKED and saved.status == TaskStatus.READY:
-                payload["source"] = "manual"
-            await store.append_event(
-                task_id,
-                event_kind,
-                payload=payload,
-            )
+        dependencies_met = await store.are_dependencies_met(task_id)
+        outcome = "unblocked" if saved.status == TaskStatus.READY else "waiting_on_dependencies"
+        event_payload: dict[str, object] = {
+            "from": old_status.value,
+            "to": saved.status.value,
+            "source": "orchestrator",
+            "dependencies_met": dependencies_met,
+            "outcome": outcome,
+        }
+        if reason.strip():
+            event_payload["reason"] = reason.strip()
+        await store.append_event(task_id, TaskEventKind.UNBLOCKED, payload=event_payload)
 
         if dispatcher:
             dispatcher.wake()
-        return json.dumps({"status": "moved", "task": saved.to_dict()})
 
-    @tool("kanban_delete_task")
-    async def kanban_delete_task(task_id: str) -> str:
-        """Delete a task from the board."""
-        if not task_id:
-            return json.dumps({"error": "task_id is required"})
-        children_ids = await store.list_children(task_id)
-        deleted = await store.delete_task(task_id)
-        if deleted and children_ids:
-            for child_id in children_ids:
-                child = await store.get_task(child_id)
-                if child is None or child.status != TaskStatus.BACKLOG:
-                    continue
-                if await store.are_dependencies_met(child_id):
-                    child.status = TaskStatus.READY
-                    await store.save_task(child)
-                    await store.append_event(
-                        child_id,
-                        TaskEventKind.PROMOTED,
-                        payload={"reason": "parent_deleted", "deleted_task_id": task_id},
-                    )
-        return json.dumps({"status": "deleted" if deleted else "not_found", "task_id": task_id})
-
-    @tool("kanban_board_summary")
-    async def kanban_board_summary(board_id: str = "") -> str:
-        """Get board statistics including task counts by status."""
-        resolved_board_id = board_id or default_board_id or ""
-        if not resolved_board_id:
-            return json.dumps({"error": "board_id is required"})
-        board = await store.get_board(resolved_board_id)
-        if board is None:
-            return json.dumps({"error": f"Board {resolved_board_id} not found"})
-
-        status_counts = await store.count_tasks_grouped(resolved_board_id)
-        total = sum(status_counts.values())
         return json.dumps(
             {
-                "board": board.to_dict(),
-                "task_counts": status_counts,
-                "total_tasks": total,
+                "status": outcome,
+                "dependencies_met": dependencies_met,
+                "task": saved.to_dict(),
             }
         )
 
-    @tool("kanban_link")
-    async def kanban_link(task_id: str, dependency_task_id: str, action: str = "add") -> str:
-        """Add or remove a DAG dependency edge (parent must complete before child).
-
-        Args:
-            task_id: Child task that depends on the parent.
-            dependency_task_id: Parent task that must complete first.
-            action: ``add`` to create the edge, ``remove`` to delete it.
-        """
-        if not task_id or not dependency_task_id:
-            return json.dumps({"error": "task_id and dependency_task_id are required"})
-
-        normalized_action = action.strip().lower()
-        if normalized_action == "add":
-            try:
-                edge = await store.add_edge(dependency_task_id, task_id)
-            except ValueError as exc:
-                return json.dumps({"error": str(exc)})
-
-            child = await store.get_task(task_id)
-            if child and child.status == TaskStatus.READY:
-                deps_met = await store.are_dependencies_met(task_id)
-                if not deps_met:
-                    child.status = TaskStatus.BACKLOG
-                    await store.save_task(child)
-
-            return json.dumps({"status": "dependency_added", "edge": edge.to_dict()})
-
-        if normalized_action == "remove":
-            removed = await store.remove_edge(dependency_task_id, task_id)
-            if not removed:
-                return json.dumps({"error": "Dependency not found"})
-
-            child = await store.get_task(task_id)
-            if child and child.status == TaskStatus.BACKLOG:
-                deps_met = await store.are_dependencies_met(task_id)
-                if deps_met:
-                    child.status = TaskStatus.READY
-                    await store.save_task(child)
-                    await store.append_event(
-                        task_id,
-                        TaskEventKind.PROMOTED,
-                        payload={"reason": "all_dependencies_met"},
-                    )
-
-            return json.dumps({"status": "dependency_removed", "task_id": task_id})
-
-        return json.dumps({"error": f"Invalid action: {action}. Use 'add' or 'remove'."})
-
-    return [
-        kanban_add_task,
-        kanban_list_tasks,
-        kanban_update_task,
-        kanban_move_task,
-        kanban_delete_task,
-        kanban_board_summary,
-        kanban_link,
-    ]
+    return [kanban_add_task, kanban_list_tasks, kanban_unblock]
 
 
 # ---------------------------------------------------------------------------

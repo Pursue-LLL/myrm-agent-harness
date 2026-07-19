@@ -586,8 +586,8 @@ def test_filter_tools_blocks_all_global_blacklisted_tools() -> None:
     assert "web_search_tool" in filtered_names
     assert "delegate_task_tool" not in filtered_names
     assert "batch_delegate_tasks_tool" not in filtered_names
-    assert "list_subagents_tool" not in filtered_names
-    assert "cancel_subagent_tool" not in filtered_names
+    assert "subagent_control_tool" not in filtered_names
+    assert "send_teammate_message_tool" not in filtered_names
     assert "skill_manage_tool" not in filtered_names
     assert "skill_discovery_tool" not in filtered_names
 
@@ -707,22 +707,20 @@ async def test_delegate_task_tool_readonly_filters_tools() -> None:
 
 
 @pytest.mark.asyncio
-async def test_batch_delegate_tasks_tool() -> None:
-    """Verify that batch_delegate_tasks_tool calls delegate multiple times concurrently."""
+async def test_delegate_task_tool_batch_mode() -> None:
+    """Verify delegate_task_tool mode=batch runs multiple tasks concurrently."""
     from unittest.mock import patch
 
-    from myrm_agent_harness.agent.meta_tools.spawn_subagent import (
-        create_batch_delegate_tasks_tool,
-    )
+    from myrm_agent_harness.agent.meta_tools.spawn_subagent import create_delegate_task_tool
 
     agent = BaseAgent(llm=FakeLLM())
-    batch_tool = create_batch_delegate_tasks_tool(
+    agent._last_context = {"session_id": "chat_test-session"}
+    delegate_tool = create_delegate_task_tool(
         parent_agent=agent,
         tool_registry_getter=lambda: [FakeSearchTool()],
         catalog=MockCatalog(),
     )
 
-    # Mock parent's spawn_child to return varying tasks
     async def mock_spawn(*args, **kwargs):
         return {"success": True, "result": "ok", "task_id": "mock"}
 
@@ -732,7 +730,7 @@ async def test_batch_delegate_tasks_tool() -> None:
             {"agent_type": "search", "objective": "task 2", "readonly": False},
         ]
 
-        result = await batch_tool.ainvoke({"tasks": tasks, "wait": True})
+        result = await delegate_tool.ainvoke({"mode": "batch", "tasks": tasks, "wait": True})
         assert result["success"] is True
         assert result["all_success"] is True
         assert len(result["results"]) == 2
@@ -1391,17 +1389,17 @@ class TestCostStatusDemotion:
 
 
 class TestAgentManageTools:
-    """Tests for create_list_subagents_tool and create_cancel_subagent_tool."""
+    """Tests for create_subagent_control_tool unified list/cancel/steer surface."""
 
     @pytest.mark.asyncio
     async def test_list_subagents_empty(self) -> None:
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.agent_manage_tool import (
-            create_list_subagents_tool,
+            create_subagent_control_tool,
         )
 
         agent = BaseAgent(llm=FakeLLM())
-        list_tool = create_list_subagents_tool(agent)
-        result = await list_tool.ainvoke({})
+        control_tool = create_subagent_control_tool(agent)
+        result = await control_tool.ainvoke({"action": "list"})
         assert result["total"] == 0
         assert result["running"] == 0
         assert result["completed"] == 0
@@ -1410,7 +1408,7 @@ class TestAgentManageTools:
     @pytest.mark.asyncio
     async def test_list_subagents_with_running_and_completed(self) -> None:
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.agent_manage_tool import (
-            create_list_subagents_tool,
+            create_subagent_control_tool,
         )
 
         agent = BaseAgent(
@@ -1429,8 +1427,8 @@ class TestAgentManageTools:
             wait=False,
         )
 
-        list_tool = create_list_subagents_tool(agent)
-        result = await list_tool.ainvoke({})
+        control_tool = create_subagent_control_tool(agent)
+        result = await control_tool.ainvoke({"action": "list"})
         assert result["total"] >= 1
         assert result["running"] >= 0
 
@@ -1440,7 +1438,7 @@ class TestAgentManageTools:
     @pytest.mark.asyncio
     async def test_cancel_subagent_success(self) -> None:
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.agent_manage_tool import (
-            create_cancel_subagent_tool,
+            create_subagent_control_tool,
         )
 
         agent = BaseAgent(
@@ -1459,8 +1457,8 @@ class TestAgentManageTools:
             wait=False,
         )
 
-        cancel_tool = create_cancel_subagent_tool(agent)
-        result = await cancel_tool.ainvoke({"task_id": "cancel_me"})
+        control_tool = create_subagent_control_tool(agent)
+        result = await control_tool.ainvoke({"action": "cancel", "task_id": "cancel_me"})
         assert result["success"] is True
         assert "cancelled" in result["message"].lower()
 
@@ -1470,12 +1468,12 @@ class TestAgentManageTools:
     @pytest.mark.asyncio
     async def test_cancel_subagent_not_found(self) -> None:
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.agent_manage_tool import (
-            create_cancel_subagent_tool,
+            create_subagent_control_tool,
         )
 
         agent = BaseAgent(llm=FakeLLM())
-        cancel_tool = create_cancel_subagent_tool(agent)
-        result = await cancel_tool.ainvoke({"task_id": "nonexistent"})
+        control_tool = create_subagent_control_tool(agent)
+        result = await control_tool.ainvoke({"action": "cancel", "task_id": "nonexistent"})
         assert result["success"] is False
         assert "could not cancel" in result["message"].lower()
 
@@ -2565,39 +2563,39 @@ class TestSteerChild:
 
 
 class TestSteerSubagentTool:
-    """Verify steer_subagent_tool factory function."""
+    """Verify subagent_control_tool steer action."""
 
     @pytest.mark.asyncio
     async def test_steer_tool_creation(self) -> None:
-        """steer_subagent_tool is created correctly."""
+        """subagent_control_tool is created correctly."""
         from myrm_agent_harness.agent.meta_tools.spawn_subagent import (
-            create_steer_subagent_tool,
+            create_subagent_control_tool,
         )
 
         agent = BaseAgent(llm=FakeLLM())
-        tool = create_steer_subagent_tool(agent)
-        assert tool.name == "steer_subagent_tool"
-        assert "corrective message" in tool.description
+        tool = create_subagent_control_tool(agent)
+        assert tool.name == "subagent_control_tool"
+        assert "steer" in tool.description
 
     @pytest.mark.asyncio
     async def test_steer_tool_returns_failure_for_unknown_task(self) -> None:
-        """steer_subagent_tool returns failure for unknown task_id."""
+        """subagent_control_tool steer returns failure for unknown task_id."""
         from myrm_agent_harness.agent.meta_tools.spawn_subagent import (
-            create_steer_subagent_tool,
+            create_subagent_control_tool,
         )
 
         agent = BaseAgent(llm=FakeLLM())
-        tool = create_steer_subagent_tool(agent)
-        result = await tool.ainvoke({"task_id": "unknown", "message": "fix this"})
+        tool = create_subagent_control_tool(agent)
+        result = await tool.ainvoke({"action": "steer", "task_id": "unknown", "message": "fix this"})
         assert result["success"] is False
 
     @pytest.mark.asyncio
     async def test_steer_tool_success_path(self) -> None:
-        """steer_subagent_tool returns success when child is running."""
+        """subagent_control_tool steer returns success when child is running."""
         from unittest.mock import patch
 
         from myrm_agent_harness.agent.meta_tools.spawn_subagent import (
-            create_steer_subagent_tool,
+            create_subagent_control_tool,
         )
 
         class _SlowChild:
@@ -2634,8 +2632,8 @@ class TestSteerSubagentTool:
                 wait=False,
             )
 
-        tool = create_steer_subagent_tool(agent)
-        result = await tool.ainvoke({"task_id": "steer_ok", "message": "go left"})
+        tool = create_subagent_control_tool(agent)
+        result = await tool.ainvoke({"action": "steer", "task_id": "steer_ok", "message": "go left"})
         assert result["success"] is True
         assert result["task_id"] == "steer_ok"
 

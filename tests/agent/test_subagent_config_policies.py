@@ -115,14 +115,20 @@ class TestSubagentDefaultBlacklist:
         assert "delegate_task" not in _SUBAGENT_DEFAULT_BLACKLIST
         assert "batch_delegate_tasks" not in _SUBAGENT_DEFAULT_BLACKLIST
 
-    def test_list_subagents_in_blacklist(self):
+    def test_subagent_control_in_blacklist(self):
+        assert "subagent_control_tool" in _SUBAGENT_DEFAULT_BLACKLIST
+
+    def test_send_teammate_in_blacklist(self):
+        assert "send_teammate_message_tool" in _SUBAGENT_DEFAULT_BLACKLIST
+
+    def test_subagent_control_in_blacklist(self):
+        assert "subagent_control_tool" in _SUBAGENT_DEFAULT_BLACKLIST
+
+    def test_send_teammate_in_blacklist(self):
+        assert "send_teammate_message_tool" in _SUBAGENT_DEFAULT_BLACKLIST
+
+    def test_legacy_list_subagents_in_blacklist(self):
         assert "list_subagents_tool" in _SUBAGENT_DEFAULT_BLACKLIST
-
-    def test_cancel_subagent_in_blacklist(self):
-        assert "cancel_subagent_tool" in _SUBAGENT_DEFAULT_BLACKLIST
-
-    def test_steer_subagent_in_blacklist(self):
-        assert "steer_subagent_tool" in _SUBAGENT_DEFAULT_BLACKLIST
 
     def test_blacklist_is_frozenset(self):
         assert isinstance(_SUBAGENT_DEFAULT_BLACKLIST, frozenset)

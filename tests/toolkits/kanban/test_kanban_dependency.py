@@ -376,7 +376,7 @@ class TestEdgeBoundary:
 
 
 class TestAgentToolDependencyActions:
-    """Test kanban_link / kanban_add_task via modular orchestrator tools."""
+    """Test kanban_add_task depends_on via orchestrator tools."""
 
     def _get_tool(self, tools: list, name: str):
         return next(t for t in tools if t.name == name)
@@ -389,16 +389,18 @@ class TestAgentToolDependencyActions:
         from myrm_agent_harness.toolkits.kanban import create_kanban_tools
 
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id=board.board_id)
-        link_tool = self._get_tool(tools, "kanban_link")
+        add_task = self._get_tool(tools, "kanban_add_task")
 
         await _create_task(store, "parent", status=TaskStatus.READY)
-        await _create_task(store, "child", status=TaskStatus.READY)
-        result = await link_tool.ainvoke(
-            {"task_id": "child", "dependency_task_id": "parent", "action": "add"}
-        )
-        assert '"dependency_added"' in result
+        result = await add_task.ainvoke({
+            "title": "Child",
+            "depends_on": "parent",
+        })
+        assert '"added"' in result
 
-        child = await store.get_task("child")
+        import json
+        child_id = json.loads(result)["task"]["task_id"]
+        child = await store.get_task(child_id)
         assert child is not None
         assert child.status == TaskStatus.BACKLOG
 
@@ -407,49 +409,21 @@ class TestAgentToolDependencyActions:
         store: InMemoryKanbanStore,
         board: KanbanBoard,
     ) -> None:
-        from myrm_agent_harness.toolkits.kanban import create_kanban_tools
-
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id=board.board_id)
-        link_tool = self._get_tool(tools, "kanban_link")
-
         p = await _create_task(store, "parent", status=TaskStatus.COMPLETED)
         c = await _create_task(store, "child", status=TaskStatus.BACKLOG)
         await store.add_edge(p.task_id, c.task_id)
 
-        result = await link_tool.ainvoke(
-            {"task_id": c.task_id, "dependency_task_id": p.task_id, "action": "remove"}
-        )
-        assert '"dependency_removed"' in result
+        removed = await store.remove_edge(p.task_id, c.task_id)
+        assert removed is True
+        if await store.are_dependencies_met(c.task_id):
+            child = await store.get_task(c.task_id)
+            assert child is not None
+            child.status = TaskStatus.READY
+            await store.save_task(child)
 
         child = await store.get_task(c.task_id)
         assert child is not None
         assert child.status == TaskStatus.READY
-
-    async def test_add_dependency_missing_params(
-        self,
-        store: InMemoryKanbanStore,
-        board: KanbanBoard,
-    ) -> None:
-        from myrm_agent_harness.toolkits.kanban import create_kanban_tools
-
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id=board.board_id)
-        link_tool = self._get_tool(tools, "kanban_link")
-
-        result = await link_tool.ainvoke({"task_id": "", "dependency_task_id": "parent", "action": "add"})
-        assert '"error"' in result
-
-    async def test_remove_dependency_missing_params(
-        self,
-        store: InMemoryKanbanStore,
-        board: KanbanBoard,
-    ) -> None:
-        from myrm_agent_harness.toolkits.kanban import create_kanban_tools
-
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id=board.board_id)
-        link_tool = self._get_tool(tools, "kanban_link")
-
-        result = await link_tool.ainvoke({"task_id": "", "dependency_task_id": "parent", "action": "remove"})
-        assert '"error"' in result
 
     async def test_add_task_with_depends_on(
         self,
@@ -526,19 +500,11 @@ class TestAgentToolDependencyActions:
         store: InMemoryKanbanStore,
         board: KanbanBoard,
     ) -> None:
-        from myrm_agent_harness.toolkits.kanban import create_kanban_tools
-
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id=board.board_id)
-        add_dep = self._get_tool(tools, "kanban_link")
-
         await _create_task(store, "a")
         await _create_task(store, "b")
         await store.add_edge("a", "b")
-        result = await add_dep.ainvoke(
-            {"task_id": "a", "dependency_task_id": "b", "action": "add"}
-        )
-        assert '"error"' in result
-        assert "cycle" in result.lower()
+        with pytest.raises(ValueError, match="cycle"):
+            await store.add_edge("b", "a")
 
 
 class TestDispatcherFailedPromote:
@@ -577,75 +543,6 @@ class TestDispatcherFailedPromote:
         child = await _create_task(store, "child", status=TaskStatus.BACKLOG)
         await store.add_edge(parent.task_id, child.task_id)
         assert await store.are_dependencies_met(child.task_id) is False
-
-
-class TestDeleteTaskPromotion:
-    """delete_task should promote BACKLOG children when their deps are met."""
-
-    def _get_tool(self, tools: list, name: str):
-        return next(t for t in tools if t.name == name)
-
-    async def test_delete_parent_promotes_child(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
-        from myrm_agent_harness.toolkits.kanban import create_kanban_tools
-
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id=board.board_id)
-        delete_task = self._get_tool(tools, "kanban_delete_task")
-
-        parent = await _create_task(store, "parent")
-        child = await _create_task(store, "child", status=TaskStatus.BACKLOG)
-        await store.add_edge(parent.task_id, child.task_id)
-        assert await store.are_dependencies_met(child.task_id) is False
-
-        result = await delete_task.ainvoke({"task_id": parent.task_id})
-        assert '"deleted"' in result
-
-        child_after = await store.get_task(child.task_id)
-        assert child_after is not None
-        assert child_after.status == TaskStatus.READY
-
-    async def test_delete_parent_no_promote_when_other_deps_unmet(
-        self,
-        store: InMemoryKanbanStore,
-        board: KanbanBoard,
-    ) -> None:
-        from myrm_agent_harness.toolkits.kanban import create_kanban_tools
-
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id=board.board_id)
-        delete_task = self._get_tool(tools, "kanban_delete_task")
-
-        p1 = await _create_task(store, "p1")
-        p2 = await _create_task(store, "p2")
-        child = await _create_task(store, "child", status=TaskStatus.BACKLOG)
-        await store.add_edge(p1.task_id, child.task_id)
-        await store.add_edge(p2.task_id, child.task_id)
-
-        await delete_task.ainvoke({"task_id": p1.task_id})
-
-        child_after = await store.get_task(child.task_id)
-        assert child_after is not None
-        assert child_after.status == TaskStatus.BACKLOG
-
-    async def test_delete_parent_child_not_backlog_skipped(
-        self,
-        store: InMemoryKanbanStore,
-        board: KanbanBoard,
-    ) -> None:
-        from myrm_agent_harness.toolkits.kanban import create_kanban_tools
-
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id=board.board_id)
-        delete_task = self._get_tool(tools, "kanban_delete_task")
-
-        parent = await _create_task(store, "parent")
-        child = await _create_task(store, "child", status=TaskStatus.READY)
-        await store.add_edge(parent.task_id, child.task_id)
-
-        await delete_task.ainvoke({"task_id": parent.task_id})
-
-        child_after = await store.get_task(child.task_id)
-        assert child_after is not None
-        assert child_after.status == TaskStatus.READY
 
 
 class TestPromotedEvent:

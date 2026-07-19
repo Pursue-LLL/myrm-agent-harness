@@ -23,7 +23,7 @@ class TestPromptConstants:
 
     def test_coordinator_contains_key_sections(self) -> None:
         assert "delegate_task_tool" in DEFAULT_COORDINATOR_PROMPT
-        assert "list_subagents_tool" in DEFAULT_COORDINATOR_PROMPT
+        assert "subagent_control_tool" in DEFAULT_COORDINATOR_PROMPT
         assert "parallel" in DEFAULT_COORDINATOR_PROMPT.lower()
 
     def test_verifier_contains_anti_laziness(self) -> None:

@@ -201,7 +201,7 @@ class TestSafetyMetadata:
         assert not missing, f"Built-in tools missing TOOL_SAFETY_METADATA: {sorted(missing)}"
 
     def test_concurrent_safe_agents(self):
-        for tool in ("delegate_task_tool", "batch_delegate_tasks_tool"):
+        for tool in ("delegate_task_tool", "subagent_control_tool"):
             meta = resolve_safety_metadata(tool)
             assert meta.is_concurrent_safe is True, f"{tool} should be concurrent-safe"
             assert meta.is_read_only is False, f"{tool} should not be read-only"

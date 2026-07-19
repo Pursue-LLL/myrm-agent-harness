@@ -36,6 +36,13 @@ class TestAriaParser:
         assert parse_aria_yaml("") == []
         assert parse_aria_yaml("   ") == []
 
+    def test_parse_scalar_document_role(self) -> None:
+        """Bare document scalar from minimal aria_snapshot on empty pages."""
+        nodes = parse_aria_yaml("document")
+        assert len(nodes) == 1
+        assert nodes[0].role == "document"
+        assert nodes[0].name == ""
+
     def test_parse_nested_tree(self) -> None:
         """Test parsing deeply nested tree."""
         yaml_str = """

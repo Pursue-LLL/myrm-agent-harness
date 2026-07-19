@@ -530,32 +530,18 @@ class TestAgentToolsAssignAgent:
         return next(t for t in tools if t.name == name)
 
     @pytest.mark.asyncio
-    async def test_assign_agent_via_update(self) -> None:
+    async def test_assign_agent_via_add_task(self) -> None:
         store = InMemoryKanbanStore()
         await _make_board(store)
-        await _make_task(store, "t1")
 
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        update_task = self._get_tool(tools, "kanban_update_task")
-        result = await update_task.ainvoke({"task_id": "t1", "assign_agent_id": "new-agent"})
+        add_task = self._get_tool(tools, "kanban_add_task")
+        result = await add_task.ainvoke({
+            "title": "Assigned Task",
+            "assign_agent_id": "new-agent",
+        })
         data = json.loads(result)
-        assert data["status"] == "updated"
-        assert data["task"]["agent_id"] == "new-agent"
-
-        task = await store.get_task("t1")
-        assert task is not None
-        assert task.agent_id == "new-agent"
-
-    @pytest.mark.asyncio
-    async def test_reassign_agent(self) -> None:
-        store = InMemoryKanbanStore()
-        await _make_board(store)
-        await _make_task(store, "t1", agent_id="old-agent")
-
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        update_task = self._get_tool(tools, "kanban_update_task")
-        result = await update_task.ainvoke({"task_id": "t1", "assign_agent_id": "new-agent"})
-        data = json.loads(result)
+        assert data["status"] == "added"
         assert data["task"]["agent_id"] == "new-agent"
 
     @pytest.mark.asyncio
@@ -579,15 +565,6 @@ class TestAgentToolsAssignAgent:
 class TestAgentToolsErrors:
     def _get_tool(self, tools, name):
         return next(t for t in tools if t.name == name)
-
-    @pytest.mark.asyncio
-    async def test_update_nonexistent_task(self) -> None:
-        store = InMemoryKanbanStore()
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        update_task = self._get_tool(tools, "kanban_update_task")
-        result = await update_task.ainvoke({"task_id": "nonexistent", "title": "New"})
-        data = json.loads(result)
-        assert "error" in data
 
     @pytest.mark.asyncio
     async def test_list_tasks_invalid_status(self) -> None:
@@ -619,26 +596,13 @@ class TestAgentToolsErrors:
         assert "error" in data
 
     @pytest.mark.asyncio
-    async def test_move_task_invalid_status(self) -> None:
-        store = InMemoryKanbanStore()
-        await _make_board(store)
-        await _make_task(store, "t1")
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        move_task = self._get_tool(tools, "kanban_move_task")
-        result = await move_task.ainvoke({"task_id": "t1", "status": "invalid"})
-        data = json.loads(result)
-        assert "error" in data
-
-    @pytest.mark.asyncio
     async def test_modular_tools_have_correct_count(self) -> None:
         """Verify tool mode returns expected tool counts."""
         store = InMemoryKanbanStore()
         worker_tools = create_kanban_tools(store, mode="worker", current_task_id="t1")
-        assert len(worker_tools) == 5
+        assert len(worker_tools) == 6
         orch_tools = create_kanban_tools(store, mode="orchestrator")
-        assert len(orch_tools) == 7
-        full_tools = create_kanban_tools(store, mode="full")
-        assert len(full_tools) == 12
+        assert len(orch_tools) == 3
 
 
 # ===========================================================================
@@ -673,18 +637,6 @@ class TestAgentToolsMisc:
         assert len(boards) == 2
 
     @pytest.mark.asyncio
-    async def test_delete_task_via_tool(self) -> None:
-        store = InMemoryKanbanStore()
-        await _make_board(store)
-        await _make_task(store, "t1")
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        delete_task = self._get_tool(tools, "kanban_delete_task")
-        result = await delete_task.ainvoke({"task_id": "t1"})
-        data = json.loads(result)
-        assert data["status"] == "deleted"
-        assert await store.get_task("t1") is None
-
-    @pytest.mark.asyncio
     async def test_get_task_via_store(self) -> None:
         store = InMemoryKanbanStore()
         await _make_board(store)
@@ -692,44 +644,6 @@ class TestAgentToolsMisc:
         task = await store.get_task("t1")
         assert task is not None
         assert task.agent_id == "agent-x"
-
-    @pytest.mark.asyncio
-    async def test_update_task_fields(self) -> None:
-        store = InMemoryKanbanStore()
-        await _make_board(store)
-        await _make_task(store, "t1")
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        update_task = self._get_tool(tools, "kanban_update_task")
-        result = await update_task.ainvoke({
-            "task_id": "t1",
-            "title": "New Title",
-            "priority": "high",
-        })
-        data = json.loads(result)
-        assert data["task"]["title"] == "New Title"
-        assert data["task"]["priority"] == "high"
-
-    @pytest.mark.asyncio
-    async def test_move_terminal_task_to_archived(self) -> None:
-        store = InMemoryKanbanStore()
-        await _make_board(store)
-        await _make_task(store, "t1", status=TaskStatus.COMPLETED)
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        move_task = self._get_tool(tools, "kanban_move_task")
-        result = await move_task.ainvoke({"task_id": "t1", "status": "archived"})
-        data = json.loads(result)
-        assert data["status"] == "moved"
-
-    @pytest.mark.asyncio
-    async def test_move_terminal_task_rejected(self) -> None:
-        store = InMemoryKanbanStore()
-        await _make_board(store)
-        await _make_task(store, "t1", status=TaskStatus.COMPLETED)
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        move_task = self._get_tool(tools, "kanban_move_task")
-        result = await move_task.ainvoke({"task_id": "t1", "status": "ready"})
-        data = json.loads(result)
-        assert "error" in data
 
 
 # ===========================================================================
@@ -1021,63 +935,6 @@ class TestMaxRuntimeSecondsTools:
         }))
         assert result["status"] == "added"
         assert result["task"]["max_runtime_seconds"] is None
-
-    @pytest.mark.asyncio
-    async def test_update_task_set_max_runtime(self) -> None:
-        store = InMemoryKanbanStore()
-        await _make_board(store)
-        await _make_task(store, "t1")
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        update_task = self._get_tool(tools, "kanban_update_task")
-
-        result = json.loads(await update_task.ainvoke({
-            "task_id": "t1",
-            "max_runtime_seconds": 600,
-        }))
-        assert result["status"] == "updated"
-        assert result["task"]["max_runtime_seconds"] == 600
-
-    @pytest.mark.asyncio
-    async def test_update_task_reset_max_runtime(self) -> None:
-        store = InMemoryKanbanStore()
-        await _make_board(store)
-        await _make_task(store, "t1")
-
-        task = await store.get_task("t1")
-        assert task is not None
-        task.max_runtime_seconds = 300
-        await store.save_task(task)
-
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        update_task = self._get_tool(tools, "kanban_update_task")
-
-        result = json.loads(await update_task.ainvoke({
-            "task_id": "t1",
-            "max_runtime_seconds": 0,
-        }))
-        assert result["status"] == "updated"
-        assert result["task"]["max_runtime_seconds"] is None
-
-    @pytest.mark.asyncio
-    async def test_update_task_unchanged_max_runtime(self) -> None:
-        store = InMemoryKanbanStore()
-        await _make_board(store)
-        await _make_task(store, "t1")
-
-        task = await store.get_task("t1")
-        assert task is not None
-        task.max_runtime_seconds = 120
-        await store.save_task(task)
-
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        update_task = self._get_tool(tools, "kanban_update_task")
-
-        result = json.loads(await update_task.ainvoke({
-            "task_id": "t1",
-            "max_runtime_seconds": -1,
-        }))
-        assert result["status"] == "updated"
-        assert result["task"]["max_runtime_seconds"] == 120
 
 
 # ===========================================================================
@@ -1528,69 +1385,46 @@ class TestHandoffEndToEnd:
 
 
 class TestDependencyAutoTransitions:
-    """Verify add/remove dependency auto-adjusts child task status."""
+    """Verify add_task depends_on auto-adjusts child task status."""
 
     @staticmethod
     def _get_tool(tools: list, name: str):  # type: ignore[type-arg]
         return next(t for t in tools if t.name == name)
 
     @pytest.mark.asyncio
-    async def test_add_dependency_demotes_ready_to_backlog(self) -> None:
+    async def test_add_task_depends_on_demotes_to_backlog(self) -> None:
         store = InMemoryKanbanStore()
         await _make_board(store)
         await _make_task(store, "parent", status=TaskStatus.READY)
-        await _make_task(store, "child", status=TaskStatus.READY)
 
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        link_tool = self._get_tool(tools, "kanban_link")
-        result = json.loads(await link_tool.ainvoke({
-            "task_id": "child",
-            "dependency_task_id": "parent",
-            "action": "add",
+        add_task = self._get_tool(tools, "kanban_add_task")
+        result = json.loads(await add_task.ainvoke({
+            "title": "Child",
+            "depends_on": "parent",
         }))
-        assert result["status"] == "dependency_added"
-
-        child = await store.get_task("child")
-        assert child is not None
-        assert child.status == TaskStatus.BACKLOG
+        assert result["status"] == "added"
+        assert result["task"]["status"] == "backlog"
 
     @pytest.mark.asyncio
-    async def test_remove_dependency_promotes_backlog_to_ready(self) -> None:
+    async def test_remove_edge_promotes_backlog_to_ready(self) -> None:
         store = InMemoryKanbanStore()
         await _make_board(store)
         await _make_task(store, "parent", status=TaskStatus.COMPLETED)
         await _make_task(store, "child", status=TaskStatus.BACKLOG)
         await store.add_edge("parent", "child")
 
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        link_tool = self._get_tool(tools, "kanban_link")
-        result = json.loads(await link_tool.ainvoke({
-            "task_id": "child",
-            "dependency_task_id": "parent",
-            "action": "remove",
-        }))
-        assert result["status"] == "dependency_removed"
-
+        removed = await store.remove_edge("parent", "child")
+        assert removed is True
         child = await store.get_task("child")
         assert child is not None
-        assert child.status == TaskStatus.READY
+        if await store.are_dependencies_met("child"):
+            child.status = TaskStatus.READY
+            await store.save_task(child)
 
-    @pytest.mark.asyncio
-    async def test_delete_task_promotes_dependent_children(self) -> None:
-        store = InMemoryKanbanStore()
-        await _make_board(store)
-        await _make_task(store, "blocker", status=TaskStatus.READY)
-        await _make_task(store, "child", status=TaskStatus.BACKLOG)
-        await store.add_edge("blocker", "child")
-
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        delete = self._get_tool(tools, "kanban_delete_task")
-        result = json.loads(await delete.ainvoke({"task_id": "blocker"}))
-        assert result["status"] == "deleted"
-
-        child = await store.get_task("child")
-        assert child is not None
-        assert child.status == TaskStatus.READY
+        promoted = await store.get_task("child")
+        assert promoted is not None
+        assert promoted.status == TaskStatus.READY
 
 
 # ===========================================================================
@@ -1744,11 +1578,114 @@ class TestKanbanCommentTool:
         tools = create_kanban_tools(store, mode="worker", current_task_id="t1")
         tool_names = [t.name for t in tools]
         assert "kanban_comment" in tool_names
-        assert len(tool_names) == 5
+        assert len(tool_names) == 6
 
     @pytest.mark.asyncio
-    async def test_comment_included_in_full_mode(self) -> None:
+    async def test_orchestrator_tool_names(self) -> None:
         store = InMemoryKanbanStore()
-        tools = create_kanban_tools(store, mode="full")
-        tool_names = [t.name for t in tools]
-        assert "kanban_comment" in tool_names
+        tools = create_kanban_tools(store, mode="orchestrator")
+        tool_names = {t.name for t in tools}
+        assert tool_names == {"kanban_add_task", "kanban_list_tasks", "kanban_unblock"}
+
+
+class TestKanbanConsolidationTools:
+    @staticmethod
+    def _get_tool(tools: list, name: str):  # type: ignore[type-arg]
+        return next(t for t in tools if t.name == name)
+
+    @pytest.mark.asyncio
+    async def test_list_tasks_include_stats(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "t1", status=TaskStatus.READY)
+        await _make_task(store, "t2", status=TaskStatus.BACKLOG)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        list_tool = self._get_tool(tools, "kanban_list_tasks")
+        result = json.loads(await list_tool.ainvoke({"include_stats": True}))
+        assert result["count"] == 2
+        assert result["total_tasks"] == 2
+        assert "task_counts" in result
+        assert result["task_counts"]["ready"] == 1
+        assert result["task_counts"]["backlog"] == 1
+
+    @pytest.mark.asyncio
+    async def test_kanban_attach_invokes_callback(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "t1", status=TaskStatus.RUNNING, agent_id="w1")
+
+        async def attach_task_file(
+            task_id: str,
+            source: str,
+            value: str,
+        ) -> dict[str, object]:
+            assert task_id == "t1"
+            assert source == "path"
+            assert value == "/tmp/out.txt"
+            return {"file_id": "f1", "filename": "out.txt"}
+
+        tools = create_kanban_tools(
+            store,
+            mode="worker",
+            current_task_id="t1",
+            attach_task_file=attach_task_file,
+        )
+        attach = self._get_tool(tools, "kanban_attach")
+        result = json.loads(
+            await attach.ainvoke({"source": "path", "value": "/tmp/out.txt"})
+        )
+        assert result["status"] == "attached"
+        assert result["file_id"] == "f1"
+
+    @pytest.mark.asyncio
+    async def test_kanban_attach_without_callback(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "t1", status=TaskStatus.RUNNING)
+        tools = create_kanban_tools(store, mode="worker", current_task_id="t1")
+        attach = self._get_tool(tools, "kanban_attach")
+        result = json.loads(await attach.ainvoke({"source": "url", "value": "https://x.test/a"}))
+        assert "error" in result
+        assert "not configured" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_kanban_unblock_blocked_task(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        task = await _make_task(store, "t1", status=TaskStatus.BLOCKED)
+        task.blocked_reason = "waiting"
+        await store.save_task(task)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        unblock = self._get_tool(tools, "kanban_unblock")
+        result = json.loads(await unblock.ainvoke({"task_id": "t1", "reason": "approved"}))
+        assert result["status"] == "unblocked"
+        assert result["dependencies_met"] is True
+        assert result["task"]["status"] == "ready"
+
+    @pytest.mark.asyncio
+    async def test_kanban_unblock_waiting_when_dependencies_unmet(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        parent = await _make_task(store, "parent", status=TaskStatus.RUNNING)
+        child = await _make_task(store, "child", status=TaskStatus.BLOCKED)
+        child.blocked_reason = "hold"
+        await store.save_task(child)
+        await store.add_edge(parent.task_id, child.task_id)
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        unblock = self._get_tool(tools, "kanban_unblock")
+        result = json.loads(await unblock.ainvoke({"task_id": child.task_id}))
+
+        assert result["status"] == "waiting_on_dependencies"
+        assert result["dependencies_met"] is False
+        assert result["task"]["status"] == "backlog"
+
+    @pytest.mark.asyncio
+    async def test_kanban_unblock_rejects_non_blocked(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "t1", status=TaskStatus.READY)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        unblock = self._get_tool(tools, "kanban_unblock")
+        result = json.loads(await unblock.ainvoke({"task_id": "t1"}))
+        assert "error" in result

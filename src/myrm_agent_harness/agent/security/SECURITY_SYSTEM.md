@@ -33,6 +33,8 @@
 │   ↓              │
 │ Code Exec Valid. │ ← Layer 2: SSRF防护(DNS Pinning) + 命令/模块黑名单
 │   ↓              │
+│ Domain Blocklist │ ← Layer 2b: URL hostname 命中 network_blocklist → DENY（先于 HITL）
+│   ↓              │
 │ Domain HITL      │ ← Layer 2c: URL域名审批（domain_hitl_enabled 时）
 │   ↓              │
 │ Path Policy      │ ← Layer 2.5: forbidden→allowed_roots→workspace 路径安全
@@ -497,12 +499,15 @@ DEFAULT_RULESET = (
 Step 1:  Capability Fence → 未授权 → DENY
 Step 2a: Shell Command Analyzer → BLOCK → DENY, ESCALATE → ASK
 Step 2b: URL Scheme Check → 非 http/https → DENY
+Step 2b2: Domain Blocklist → hostname 命中 network_blocklist → DENY（无条件，优先于 Step 2c）
 Step 2c: Domain HITL → 域名不在 allowlist → ASK（仅 domain_hitl_enabled=True 时）
 Step 3:  Path Policy → forbidden → DENY, allowed/workspace → pass (file_read/file_write only)
 Step 4:  Permission Ruleset + Target Resolution → last-match-wins
 Step 5:  Fallback → ASK
 Step 6:  Transcript Classifier → 当 auto_mode_enabled 时，对所有 engine 返回 ASK 的操作进行 Reasoning-Blind 分类 → ALLOW / DENY / UNCERTAIN (回退到 ASK)
 ```
+
+**Step 2b2 — Domain Blocklist**：对含 `url` 参数的 URL-bearing 工具（`web_fetch`、`browser_navigate` 等），提取 hostname 并匹配 `SecurityConfig.network_blocklist`（与 allowlist 共用 `_domain_in_allowlist` 模式语法：`example.com`、`.example.com`）。命中则 **DENY**，不进入 HITL。WebUI Settings `DomainBlocklistEditor` 持久化；harness `BrowserSession.navigate()` 与会话 `domain_filter` 同步 enforcement。
 
 **Step 2c — Domain HITL**：当 `SecurityConfig.domain_hitl_enabled=True` 时，对含 URL 参数的工具（`web_fetch`、`browser_navigate_tool`）提取 hostname 并检查是否在 `network_allowlist` 中。不在 allowlist 中的域名触发 ASK，经由批量审批流程呈现给用户。用户可选择：
 - "本次允许" — 正常批准
@@ -1036,6 +1041,7 @@ Source: web_search
 capabilities = frozenset({
     Capability("*", "*"),           # 允许一切...
     Capability("!browser_*", "*"),  # ...但排除所有浏览器操作
+    Capability("!desktop_*", "*"), # ...且排除所有桌面控制操作
 })
 ruleset = (
     PermissionRule("shell_exec", "*", DENY),         # Shell 命令完全禁止
@@ -1044,7 +1050,7 @@ ruleset = (
 )
 ```
 
-IM 渠道中浏览器操作被能力围栏排除（因为 IM 用户无法看到浏览器），Shell 命令被完全禁止（IM 场景风险更高），代码执行和 MCP 需要审批。
+IM 渠道中浏览器操作被能力围栏排除（因为 IM 用户无法看到浏览器），桌面控制同样被能力围栏排除（IM 远程消息不得触发本机 GUI 操作），Shell 命令被完全禁止（IM 场景风险更高），代码执行和 MCP 需要审批。
 
 ### Cron 渠道安全配置
 
@@ -1054,10 +1060,12 @@ ruleset = (
     PermissionRule("shell_exec", "*", ALLOW),         # 自动允许
     PermissionRule("code_interpreter", "*", ALLOW),
     PermissionRule("mcp_invoke", "*", ALLOW),
+    PermissionRule("desktop_capture", "*", DENY),     # 无人值守禁止 GUI 快照
+    PermissionRule("desktop_control", "*", DENY),     # 无人值守禁止 GUI 操作
 )
 ```
 
-Cron 是非交互式的，无人可以审批，因此 ASK 无意义。通过声明式 Capability Fence 在创建时预授权（见 Cron 安全策略章节）。
+Cron 是非交互式的，无人可以审批，因此 ASK 无意义。桌面控制（GUI 快照与操作）在 Cron 渠道一律 DENY，避免无人值守操控本机界面。通过声明式 Capability Fence 在创建时预授权（见 Cron 安全策略章节）。
 
 ### 本地模式浏览器放宽
 
@@ -1155,7 +1163,6 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 | `browser_interact_tool` | 其他 | `browser_click` |
 | `browser_manage_tool` | `evaluate` | `browser_evaluate` |
 | `browser_manage_tool` | `save_session` / `restore_session` / `delete_session` | `browser_session` |
-| `browser_manage_tool` | `wait_for_user` | `browser_human_handover` |
 | `browser_manage_tool` | `download` | `browser_download` |
 | `browser_manage_tool` | 其他 | `browser_manage_tool` |
 
@@ -1320,6 +1327,7 @@ Agent security_overrides
 | allowed_roots | 并集（Agent 可授予额外路径） | 功能性扩展，forbidden_paths 仍不可覆盖 |
 | forbidden_paths | 始终保留默认值 | 安全红线不可被任何层覆盖 |
 | network_allowlist | 并集（Agent 可授予额外域名） | 域名过滤白名单（browser + web_fetch + hooks） |
+| network_blocklist | 并集（Agent 可追加封禁域名） | URL hostname 硬拒绝（DENY，先于 domain HITL） |
 | domain_hitl_enabled | OR（任一方启用则启用） | URL 工具域名级审批开关 |
 | ruleset | Agent merge 到用户上（Agent 优先级更高） | last-match-wins |
 | timeout | Agent 覆盖用户（如果非默认值） | Agent 特化 |

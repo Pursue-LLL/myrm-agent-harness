@@ -77,6 +77,14 @@ class SubagentControlMixin:
 
         return children
 
+    def patch_child_running_token_usage(self, task_id: str, token_usage: dict[str, object]) -> None:
+        """Update running-child observability with cumulative token usage (REST + list)."""
+        if task_id not in self._children_observability:
+            return
+        snapshot = dict(self._children_observability[task_id])
+        snapshot["token_usage"] = token_usage
+        self._children_observability[task_id] = snapshot
+
     async def _graceful_cancel_timeout_handler(self, task_id: str, task: SubagentTask, timeout_seconds: float) -> None:
         """Force-cancel if graceful cancellation exceeds timeout."""
         try:

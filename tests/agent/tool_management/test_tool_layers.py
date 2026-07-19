@@ -71,8 +71,9 @@ class TestGetToolLayer:
         assert "code_search_tool" not in _TOOL_LAYERS
 
     def test_llm_map_tool_not_registered(self):
-        """Batch fan-out uses SubAgent / batch_delegate_tasks_tool, not llm_map."""
+        """Batch fan-out uses delegate_task_tool mode=batch, not llm_map."""
         assert "llm_map_tool" not in _TOOL_LAYERS
+        assert "delegate_task_tool" in _TOOL_LAYERS
 
 
 class TestRegisterToolLayer:

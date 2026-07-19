@@ -24,6 +24,8 @@ from myrm_agent_harness.toolkits.browser.exceptions import BrowserLaunchError
 
 logger = logging.getLogger(__name__)
 
+_NAVIGATE_INTERACTIVE_SUMMARY_MAX_LINES = 20
+
 _CAMOUFOX_INSTALL_HINT = (
     "Camoufox stealth engine is unavailable. "
     "Install the browser stack: pip install 'myrm-agent-harness[browser]' "
@@ -87,9 +89,54 @@ class BrowserSessionNavigationMixin:
 
         return tab_id
 
+    def _hostname_blocked_by_policy(self, url: str) -> str | None:
+        """Return blocked hostname when URL matches configured blocklist."""
+        blocklist = getattr(self, "_domain_blocklist", None)
+        if blocklist is None or blocklist.is_empty:
+            return None
+        from urllib.parse import urlparse
+
+        hostname = (urlparse(url).hostname or "").lower()
+        if hostname and blocklist.is_allowed(hostname):
+            return hostname
+        return None
+
+    async def _append_navigate_interactive_summary(self, result: str) -> str:
+        """Append a compact interactive ref preview to reduce post-nav snapshot round-trips."""
+        try:
+            snap = await self.snapshot(
+                scope="interactive",
+                compact=True,
+                diff=False,
+                max_tokens=2500,
+            )
+            lines = [line for line in snap.aria_tree.splitlines() if line.strip()]
+            if not lines:
+                return result
+            capped = lines[:_NAVIGATE_INTERACTIVE_SUMMARY_MAX_LINES]
+            summary = "\n".join(capped)
+            if len(lines) > len(capped):
+                summary = f"{summary}\n... ({len(lines) - len(capped)} more refs; use browser_snapshot for full tree)"
+            return f"{result}\n\nInteractive refs (compact, max {_NAVIGATE_INTERACTIVE_SUMMARY_MAX_LINES}):\n{summary}"
+        except Exception:
+            logger.debug("Navigate interactive summary failed", exc_info=True)
+            return result
+
     async def navigate(self, url: str, verify_goal: str | None = None) -> str:
         """Navigate to URL (auto-injects site experience, auto-detects CAPTCHA)."""
+        if not self._tab_controller.list_tabs():
+            await self.new_tab()
         await self._ensure_components()
+
+        blocked_host = self._hostname_blocked_by_policy(url)
+        if blocked_host:
+            from myrm_agent_harness.utils.errors import ToolError
+
+            raise ToolError(
+                f"Navigation blocked: domain '{blocked_host}' is on the URL blocklist.",
+                user_hint="This domain is blocked by your security policy. Choose another site or update Settings.",
+                error_code="BROWSER_URL_BLOCKLIST",
+            )
 
         # Fast-fail: skip 240s timeout if domain is already known as terminal challenge
         from urllib.parse import urlparse
@@ -307,6 +354,7 @@ class BrowserSessionNavigationMixin:
             )
             result = f"{result}\n\n{verify_msg}"
 
+        result = await self._append_navigate_interactive_summary(result)
         return result
 
     async def _navigate_via_extension(self, url: str, *, verify_goal: str | None = None) -> str:

@@ -70,6 +70,7 @@ _IM_CAPABILITIES: CapabilitySet = frozenset(
     {
         Capability("*", "*"),
         Capability("!browser_*", "*"),
+        Capability("!desktop_*", "*"),
     }
 )
 
@@ -119,6 +120,8 @@ CHANNEL_PRESETS: dict[ChannelType, ChannelSecurityPreset] = {
             PermissionRule("shell_exec", "*", PermissionAction.ALLOW),
             PermissionRule("code_interpreter", "*", PermissionAction.ALLOW),
             PermissionRule("mcp_invoke", "*", PermissionAction.ALLOW),
+            PermissionRule("desktop_capture", "*", PermissionAction.DENY),
+            PermissionRule("desktop_control", "*", PermissionAction.DENY),
         ),
     ),
 }
@@ -215,6 +218,7 @@ def build_channel_security_config(
         )
 
     network_allowlist: tuple[str, ...] = ()
+    network_blocklist: tuple[str, ...] = ()
     domain_hitl_enabled = False
     auto_mode_enabled = False
     auto_review_model: str | None = None
@@ -225,6 +229,7 @@ def build_channel_security_config(
     yolo_mode_timeout: int | None = None
     if effective:
         network_allowlist = effective.network_allowlist
+        network_blocklist = effective.network_blocklist
         domain_hitl_enabled = effective.domain_hitl_enabled
         auto_mode_enabled = effective.auto_mode_enabled
         auto_review_model = effective.auto_review_model
@@ -244,6 +249,7 @@ def build_channel_security_config(
         approval_timeout_behavior=timeout_behavior,
         path_policy=path_policy,
         network_allowlist=network_allowlist,
+        network_blocklist=network_blocklist,
         domain_hitl_enabled=domain_hitl_enabled,
         auto_mode_enabled=auto_mode_enabled,
         auto_review_model=auto_review_model,
@@ -294,6 +300,7 @@ def _merge_user_and_agent(user: SecurityConfig | None, agent: SecurityConfig | N
     )
 
     network_allowlist = tuple(sorted(set(user.network_allowlist) | set(agent.network_allowlist)))
+    network_blocklist = tuple(sorted(set(user.network_blocklist) | set(agent.network_blocklist)))
     domain_hitl_enabled = user.domain_hitl_enabled or agent.domain_hitl_enabled
     auto_mode_enabled = user.auto_mode_enabled or agent.auto_mode_enabled
     auto_review_model = agent.auto_review_model or user.auto_review_model
@@ -310,6 +317,7 @@ def _merge_user_and_agent(user: SecurityConfig | None, agent: SecurityConfig | N
         approval_timeout_behavior=timeout_behavior,
         path_policy=pp,
         network_allowlist=network_allowlist,
+        network_blocklist=network_blocklist,
         domain_hitl_enabled=domain_hitl_enabled,
         auto_mode_enabled=auto_mode_enabled,
         auto_review_model=auto_review_model,

@@ -33,6 +33,24 @@ Default prompt templates for multi-agent coordination.
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
+# Delegation tool guidance (SSOT for delegate_task_tool description supplement)
+# ---------------------------------------------------------------------------
+
+DELEGATION_TOOL_GUIDANCE = """\
+## When to delegate
+Only when parallel gain, specialized expertise, or adversarial breadth applies.
+If none apply, execute directly.
+
+## Modes
+- single: one subagent (agent_type + objective)
+- batch: concurrent tasks via tasks[]; optional race/tournament
+- parallel: Swarm Fission yield-resume for heavy Map-Reduce workloads
+
+## Result retrieval
+Async results (wait=false) are NOT auto-injected. Use subagent_control_tool action=list.
+Results cached 60s to avoid redundant runs."""
+
+# ---------------------------------------------------------------------------
 # Coordinator Prompt
 # ---------------------------------------------------------------------------
 
@@ -52,9 +70,8 @@ for the user, do not acknowledge or thank them.
 
 ## 2. Tools
 
-- **delegate_task_tool** — Spawn a new worker (set wait=false for parallel, wait=true for sync)
-- **list_subagents_tool** — Check worker status and retrieve results
-- **cancel_subagent_tool** — Stop a running worker
+- **delegate_task_tool** — Spawn workers (mode=single|batch|parallel; wait=false for async)
+- **subagent_control_tool** — action=list|cancel|steer for runtime control
 
 ### When to Delegate vs Act Directly
 
@@ -94,7 +111,7 @@ config = read_file("config.yaml")
 
 ### Spawning Guidelines
 
-- Do not use one worker to check on another — use list_subagents_tool to check status.
+- Do not use one worker to check on another — use subagent_control_tool action=list to check status.
 - After launching workers, briefly tell the user what you launched.
 - Parallel spawn: call delegate_task_tool multiple times in one response.
 
@@ -102,7 +119,7 @@ config = read_file("config.yaml")
 
 **CRITICAL**: Async worker results (wait=false) are stored in memory, NOT injected.
 
-**You MUST call list_subagents_tool**:
+**You MUST call subagent_control_tool with action=list**:
 1. After spawning async workers
 2. Before responding to user
 

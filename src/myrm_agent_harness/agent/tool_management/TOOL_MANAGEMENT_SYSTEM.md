@@ -107,7 +107,6 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `web_search_tool` | COMMON | user_capability | web_search | enabled_builtin_tools: web_search (default on) |
 | `ask_question_tool` | EXTENDED | user_capability | structured_clarify | server mount policy (interactive web_chat); requires_confirmation WebUI emphasis; ClarificationGuardMiddleware one call/turn |
 | `bash_process_tool` | EXTENDED | user_capability | — | Turn1 when bash enabled |
-| `batch_delegate_tasks_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `browser_ask_human_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `browser_execute_script_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `browser_extract_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
@@ -116,45 +115,39 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `browser_manage_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `browser_navigate_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `browser_snapshot_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
-| `cancel_subagent_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `channel_notify_tool` | EXTENDED | user_capability | — | Agent notify_targets configured |
+| `complete_goal_tool` | EXTENDED | user_capability | — | active Goal on chat |
 | `conversation_search_tool` | EXTENDED | user_capability | memory | memoryEnableConversationSearch opt-in |
 | `cron_manage_tool` | EXTENDED | user_capability | cron | user cron capability wired |
-| `delegate_parallel_tasks_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `delegate_task_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `delegate_to_agent_tool` | EXTENDED | user_capability | external_cli | external ACP agent configured |
 | `desktop_interact_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_snapshot_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_vision_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
-| `discover_capability_tool` | EXTENDED | user_capability | — | Turn1 when searchable skill index non-empty |
+| `discover_capability_tool` | EXTENDED | user_capability | — | Turn1 when searchable skills exist |
 | `image_tool` | EXTENDED | user_capability | image_generation | enabled_builtin_tools: image_generation |
 | `kanban_add_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
+| `kanban_attach` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban (worker) |
 | `kanban_block` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
-| `kanban_board_summary` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_comment` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_complete` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
-| `kanban_delete_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_heartbeat` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
-| `kanban_link` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_list_tasks` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
-| `kanban_move_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_show` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
-| `kanban_update_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
-| `list_subagents_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
+| `kanban_unblock` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
+| `knowledge_recall_tool` | EXTENDED | user_capability | — | enable_wiki + enable_memory (non-incognito) |
 | `render_ui_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
 | `request_answer_user_tool` | EXTENDED | user_capability | answer_tool | enabled_builtin_tools: answer_tool |
 | `send_teammate_message_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `skill_discovery_tool` | EXTENDED | user_capability | — | Turn1 when discovery_backend present |
 | `skill_manage_tool` | EXTENDED | user_capability | — | write_backend present |
 | `skill_select_tool` | EXTENDED | user_capability | — | skill_backend present |
-| `steer_subagent_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
+| `subagent_control_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `tts_generate` | EXTENDED | user_capability | tts | enabled_builtin_tools: tts |
-| `complete_goal_tool` | EXTENDED | user_capability | — | active Goal on chat |
 | `update_ui_data_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
 | `video_tool` | EXTENDED | user_capability | video_generation | enabled_builtin_tools: video_generation |
 | `wiki_ingest_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
 | `wiki_query_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
-| `knowledge_recall_tool` | EXTENDED | user_capability | — | enable_wiki + enable_memory (non-incognito); server `_tool_layer_bootstrap` |
 | `x_search_tool` | EXTENDED | user_capability | — | x-live-search prebuilt skill bound |
 <!-- TOOL_CATALOG_END -->
 

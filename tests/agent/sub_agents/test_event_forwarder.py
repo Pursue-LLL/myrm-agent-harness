@@ -145,6 +145,34 @@ class TestEventHandling:
         assert event_forwarder.cumulative_tokens == 1000
 
     @pytest.mark.asyncio
+    async def test_handle_token_usage_invokes_running_usage_callback(self, event_forwarder) -> None:
+        captured: list[dict[str, object]] = []
+        event_forwarder._on_running_token_usage = captured.append
+
+        class FakeSink:
+            async def emit(self, event: dict[str, object]) -> None:
+                return None
+
+        event_forwarder._parent_progress_sink = FakeSink()
+
+        event = {
+            "type": AgentEventType.TOKEN_USAGE.value,
+            "data": {
+                "usage": {
+                    "total_tokens": 1000,
+                    "input_tokens": 700,
+                    "output_tokens": 300,
+                },
+            },
+        }
+
+        await event_forwarder.handle_event(event)
+
+        assert len(captured) == 1
+        assert captured[0]["total_tokens"] == 1000
+        assert captured[0]["input_tokens"] == 700
+
+    @pytest.mark.asyncio
     async def test_handle_tool_start_updates_current_tool_name(self, event_forwarder):
         """Test that TOOL_START event updates current_tool_name."""
         event = {

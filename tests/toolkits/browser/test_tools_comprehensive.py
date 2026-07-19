@@ -679,15 +679,84 @@ async def test_browser_manage_delete_session_no_domain(mock_session: Any) -> Non
 
 
 @pytest.mark.asyncio
-async def test_browser_manage_wait_for_user(mock_session: Any) -> None:
-    """Test browser_manage wait_for_user action."""
+async def test_browser_interact_batch_empty_steps(mock_session: Any) -> None:
+    tools = create_browser_tools(mock_session)
+    interact_tool = next(t for t in tools if t.name == "browser_interact_tool")
+
+    result = await interact_tool.ainvoke({"steps": []})
+
+    assert "at least one action" in result
+
+
+@pytest.mark.asyncio
+async def test_browser_interact_requires_action_without_steps(mock_session: Any) -> None:
+    tools = create_browser_tools(mock_session)
+    interact_tool = next(t for t in tools if t.name == "browser_interact_tool")
+
+    result = await interact_tool.ainvoke({"action": "", "ref": "e0"})
+
+    assert "action is required" in result
+
+
+@pytest.mark.asyncio
+async def test_browser_interact_requires_ref_without_steps(mock_session: Any) -> None:
+    tools = create_browser_tools(mock_session)
+    interact_tool = next(t for t in tools if t.name == "browser_interact_tool")
+
+    result = await interact_tool.ainvoke({"action": "click", "ref": ""})
+
+    assert "ref is required" in result
+
+
+@pytest.mark.asyncio
+async def test_browser_manage_wait_for_user_removed(mock_session: Any) -> None:
+    """wait_for_user was removed; use browser_ask_human_tool instead."""
     tools = create_browser_tools(mock_session)
     manage_tool = next(t for t in tools if t.name == "browser_manage_tool")
 
     result = await manage_tool.ainvoke({"action": "wait_for_user"})
 
-    assert "Current page state" in result
-    mock_session.snapshot.assert_called_once_with(scope="content", diff=False)
+    assert "Unknown action" in result
+    assert "wait_for_user" in result
+
+
+@pytest.mark.asyncio
+async def test_browser_interact_batch_steps(mock_session: Any) -> None:
+    """batch steps[] runs multiple interacts in one tool call."""
+    mock_session.interact = AsyncMock(side_effect=["clicked", "filled"])
+    mock_session.list_downloads = MagicMock(return_value=[])
+    mock_session.download_enabled = False
+
+    tools = create_browser_tools(mock_session)
+    interact_tool = next(t for t in tools if t.name == "browser_interact_tool")
+
+    result = await interact_tool.ainvoke({
+        "steps": [
+            {"action": "click", "ref": "e0"},
+            {"action": "fill", "ref": "e1", "text": "hello"},
+        ],
+    })
+
+    assert "Step 1" in result
+    assert "Step 2" in result
+    assert mock_session.interact.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_browser_interact_click_download_notice(mock_session: Any) -> None:
+    """click in single mode appends download notice when a new file appears."""
+    mock_session.interact = AsyncMock(return_value="Clicked element e0")
+    mock_session.list_downloads = MagicMock(side_effect=[[], ["file.pdf"]])
+    mock_session.download_enabled = True
+    mock_session.last_download = MagicMock(file_name="file.pdf", file_size=42, path="/tmp/file.pdf")
+
+    tools = create_browser_tools(mock_session)
+    interact_tool = next(t for t in tools if t.name == "browser_interact_tool")
+
+    result = await interact_tool.ainvoke({"action": "click", "ref": "e0"})
+
+    assert "File downloaded" in result
+    assert "file.pdf" in result
 
 
 @pytest.mark.asyncio

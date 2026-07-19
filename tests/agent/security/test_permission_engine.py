@@ -12,6 +12,7 @@ from myrm_agent_harness.agent.security.checks import (
 )
 from myrm_agent_harness.agent.security.config import from_config, parse_security_config
 from myrm_agent_harness.agent.security.engine import (
+    _check_domain_blocklist,
     _check_domain_policy,
     _domain_in_allowlist,
     _resolve_target,
@@ -478,6 +479,59 @@ class TestCheckDomainPolicy:
     def test_net_fetch_allowlist_passes(self) -> None:
         action, _ = _check_domain_policy("net_fetch", {"url": "https://example.com/page"}, ("example.com",))
         assert action is None
+
+
+class TestCheckDomainBlocklist:
+    """Tests for _check_domain_blocklist() — deny blocked hostnames before HITL."""
+
+    def test_blocked_domain_denies(self) -> None:
+        action, reason = _check_domain_blocklist(
+            "browser_navigate",
+            {"url": "https://facebook.com/login"},
+            ("facebook.com",),
+        )
+        assert action == PermissionAction.DENY
+        assert "facebook.com" in reason
+
+    def test_non_blocked_passes(self) -> None:
+        action, _ = _check_domain_blocklist(
+            "web_fetch",
+            {"url": "https://example.com/page"},
+            ("facebook.com",),
+        )
+        assert action is None
+
+    def test_empty_blocklist_passes(self) -> None:
+        action, _ = _check_domain_blocklist("web_fetch", {"url": "https://evil.com"}, ())
+        assert action is None
+
+    def test_empty_url_passes(self) -> None:
+        action, _ = _check_domain_blocklist("browser_navigate", {"url": ""}, ("evil.com",))
+        assert action is None
+
+    def test_non_url_permission_ignored(self) -> None:
+        action, _ = _check_domain_blocklist("shell_exec", {"command": "curl evil.com"}, ("evil.com",))
+        assert action is None
+
+    def test_unparseable_url_passes(self) -> None:
+        action, _ = _check_domain_blocklist("web_fetch", {"url": "://bad"}, ("evil.com",))
+        assert action is None
+
+
+class TestEvaluateToolCallBlocklist:
+    """Integration: evaluate_tool_call applies network_blocklist before rules."""
+
+    def test_blocked_browser_navigate_denies(self) -> None:
+        from myrm_agent_harness.agent.security.types import SecurityConfig
+
+        config = SecurityConfig(network_blocklist=("facebook.com",))
+        action, reason = evaluate_tool_call(
+            "browser_navigate",
+            {"url": "https://facebook.com/login"},
+            config,
+        )
+        assert action == PermissionAction.DENY
+        assert "facebook.com" in reason
 
 
 class TestExtractUrlDomains:

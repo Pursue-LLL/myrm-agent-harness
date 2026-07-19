@@ -2,7 +2,7 @@
 
 ## Overview
 
-Shared parallel subagent spawn path for `batch_delegate_tasks_tool` and Swarm Fission. Must **not** use `execute_dag_plan`; reuses the same spawn metadata path as batch delegate.
+Shared parallel subagent spawn path for `delegate_task_tool` (mode=batch|parallel) and Swarm Fission. Must **not** use `execute_dag_plan`; reuses the same spawn metadata path as batch delegate.
 
 Detailed design: see [sub_agents/SUB_AGENT_SYSTEM.md](../sub_agents/SUB_AGENT_SYSTEM.md) (parallel execution section).
 
@@ -21,4 +21,4 @@ Detailed design: see [sub_agents/SUB_AGENT_SYSTEM.md](../sub_agents/SUB_AGENT_SY
 ## Module Dependencies
 
 - `agent/sub_agents/` — spawn/delegate implementation
-- `agent/meta_tools/spawn_subagent/` — batch_delegate_tasks_tool entry
+- `agent/meta_tools/spawn_subagent/` — delegate_task_tool batch/parallel modes

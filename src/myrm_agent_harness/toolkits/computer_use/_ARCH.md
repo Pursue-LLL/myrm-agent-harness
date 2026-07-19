@@ -56,7 +56,7 @@ Agent → desktop_agent_tools (3 tools)
 5. **Platform auto-detection**: reuses `detect_platform()` from code_execution
 6. **Security & Re-validation**: shared `_revalidate_if_stale_after_approval()` after approval delay — interact verifies @dref; vision refreshes screenshot/scaler
 7. **Credential Vault integration**: `fill_credential` resolves secrets without exposing them in LLM context
-8. **Permission probing**: `DesktopSession.check_permissions()` + server `GET /webui/desktop/permissions`
+8. **Permission probing**: `DesktopSession.check_permissions()` + server `GET /webui/desktop/permissions`; Settings Doctor surfaces the same probe via `observability/diagnostics/probes.check_desktop_permissions_health` (`DesktopControl` component).
 9. **Native API routing hints**: `inspect_foreground()` appends AppleScript/COM/D-Bus hints in snapshot recommendation text
 10. **Background input (cua-driver)**: optional focus-free input proxy
 11. **Desktop control gate**: `check_app_approval` on interact and vision mutating actions; uses snapshot meta or `inspect_backend()` fallback; `check_foreground_permission` for coordinate/healer paths with operation-scoped waiver after app approval. Server `DesktopControlGate` via `ForegroundPermissionCallback` (empty app fail-closed). LOCAL `background_strict`; sandbox auto-grants. SSE `desktop_control_approval_request` opens Desktop Inspector; resolve `POST /webui/desktop/approval/resolve`. Persist `{workspace}/.agent/desktop_control/approved_apps.json`

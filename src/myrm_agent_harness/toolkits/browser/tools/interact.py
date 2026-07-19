@@ -26,24 +26,33 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def create_interact_tool(session: BrowserSession):
-    """Create browser_interact tool bound to session."""
+class InteractStep(BaseModel):
+    action: str = Field(
+        description="One of: click, dblclick, type, fill, fill_credential, press, hover, focus, "
+        "select, scroll, scroll_to_bottom, upload_file, drag, check, uncheck",
+    )
+    ref: str = Field(description="Element ref from browser_snapshot")
+    text: str = Field(
+        default="",
+        description="Text/key/path/target ref as required by the action",
+    )
+    verify_goal: str | None = Field(
+        default=None,
+        description="Optional visual verification goal for this step",
+    )
 
-    from myrm_agent_harness.core.security.credential_vault import get_global_credential_vault
 
-    vault = get_global_credential_vault()
-    labels = vault.list_labels()
-    labels_str = ", ".join([f"'{lbl}'" for lbl in labels]) if labels else "none available"
-
+def _build_interact_input_model(*, labels_str: str) -> type[BaseModel]:
     class InteractInput(BaseModel):
         action: str = Field(
-            description="One of: click, dblclick, type (append keystrokes), fill (clear then set value), "
-            "fill_credential (securely fill password/totp), "
+            default="",
+            description="Single action when steps is omitted. One of: click, dblclick, type (append keystrokes), "
+            "fill (clear then set value), fill_credential (securely fill password/totp), "
             "press, hover, focus, select, scroll, scroll_to_bottom (smart infinite scroll with auto-detection), "
-            "upload_file, drag, "
-            "check (idempotent checkbox on), uncheck (idempotent checkbox off)",
+            "upload_file, drag, check (idempotent checkbox on), uncheck (idempotent checkbox off)",
         )
         ref: str = Field(
+            default="",
             description="Element ref from browser_snapshot (e.g. 'e0', 'e3', 'f1_e2' for iframe elements)",
         )
         text: str = Field(
@@ -58,18 +67,27 @@ def create_interact_tool(session: BrowserSession):
             default=None,
             description="Optional. A natural language description of what you expect to see after this action (e.g., 'Flight list is visible', 'Error message disappeared'). If provided, the tool will take screenshots before and after, and use a Vision LLM to verify if the goal was met, returning the visual feedback directly to you.",
         )
+        steps: list[InteractStep] | None = Field(
+            default=None,
+            description="Optional declarative batch: run multiple interact steps in one call (same page, same snapshot refs). "
+            "When provided, omit top-level action/ref/text. Each step still runs Semantic Guard.",
+        )
 
-    @tool("browser_interact_tool", args_schema=InteractInput)
-    async def browser_interact(action: str, ref: str, text: str = "", verify_goal: str | None = None) -> str:
-        """Perform an action on a page element identified by its ref ID.
+    return InteractInput
 
-        Workflow: browser_snapshot -> pick ref -> browser_interact.
-        Works across iframes (refs like 'f1_e2' target iframe elements).
-        If click triggers a file download, it's auto-captured; use list_downloads to check.
-        Use verify_goal to automatically verify the visual result of your action without needing to call a separate vision tool.
-        """
+
+def create_interact_tool(session: BrowserSession):
+    """Create browser_interact tool bound to session."""
+
+    from myrm_agent_harness.core.security.credential_vault import get_global_credential_vault
+
+    vault = get_global_credential_vault()
+    labels = vault.list_labels()
+    labels_str = ", ".join([f"'{lbl}'" for lbl in labels]) if labels else "none available"
+    InteractInput = _build_interact_input_model(labels_str=labels_str)
+
+    async def _run_single(action: str, ref: str, text: str, verify_goal: str | None) -> str:
         count_before = len(session.list_downloads())
-
         result = await session.interact(action, ref, text, verify_goal=verify_goal)
 
         if action in ("click", "dblclick") and session.download_enabled:
@@ -77,8 +95,42 @@ def create_interact_tool(session: BrowserSession):
             if len(session.list_downloads()) > count_before:
                 latest = session.last_download
                 if latest:
-                    result = f"{result}\nFile downloaded: {latest.file_name} ({latest.file_size} bytes)\nPath: {latest.path}"
-
+                    result = (
+                        f"{result}\nFile downloaded: {latest.file_name} ({latest.file_size} bytes)\n"
+                        f"Path: {latest.path}"
+                    )
         return result
+
+    @tool("browser_interact_tool", args_schema=InteractInput)
+    async def browser_interact(
+        action: str = "",
+        ref: str = "",
+        text: str = "",
+        verify_goal: str | None = None,
+        steps: list[InteractStep] | None = None,
+    ) -> str:
+        """Perform an action on a page element identified by its ref ID.
+
+        Workflow: browser_snapshot -> pick ref -> browser_interact.
+        Works across iframes (refs like 'f1_e2' target iframe elements).
+        Use steps[] to batch multiple actions without extra LLM rounds.
+        If click triggers a file download, it's auto-captured; use list_downloads to check.
+        Use verify_goal to automatically verify the visual result of your action without needing to call a separate vision tool.
+        """
+        if steps is not None:
+            if len(steps) == 0:
+                return "Error: steps must contain at least one action when batch mode is used"
+            lines: list[str] = []
+            for index, step in enumerate(steps, start=1):
+                step_result = await _run_single(step.action, step.ref, step.text, step.verify_goal)
+                lines.append(f"Step {index} ({step.action} {step.ref}): {step_result}")
+            return "\n".join(lines)
+
+        if not action.strip():
+            return "Error: action is required when steps is omitted"
+        if not ref.strip():
+            return "Error: ref is required when steps is omitted"
+
+        return await _run_single(action, ref, text, verify_goal)
 
     return browser_interact

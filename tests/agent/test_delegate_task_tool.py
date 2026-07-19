@@ -4,7 +4,7 @@ Covers:
 - _build_dynamic_description with display_name rendering
 - _cache_key / _get_cached / _put_cache
 - create_delegate_task_tool L0 type admission
-- create_batch_delegate_tasks_tool reuse of delegate_tool
+- _create_batch_delegate_tasks_tool reuse of delegate_tool
 - Result cache TTL and eviction
 """
 
@@ -24,6 +24,59 @@ from myrm_agent_harness.agent.sub_agents.types import (
     SubAgentResult,
 )
 from myrm_agent_harness.utils.token_economics.budget_guard import BudgetStatus
+
+
+def _create_batch_delegate_tasks_tool(
+    parent_agent: MagicMock,
+    tool_registry_getter: object,
+    catalog: object,
+    parent_type: str | None = None,
+    allowed_types: list[str] | None = None,
+    *,
+    delegate_tool: object | None = None,
+) -> MagicMock:
+    """Test adapter for unified batch delegation (replaces removed LLM tool factory)."""
+    from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+        execute_batch_delegation,
+    )
+    from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+        create_delegate_task_tool,
+    )
+
+    if delegate_tool is None:
+        delegate_tool = create_delegate_task_tool(
+            parent_agent,
+            tool_registry_getter,  # type: ignore[arg-type]
+            catalog,  # type: ignore[arg-type]
+            parent_type,
+            allowed_types,
+        )
+
+    batch = MagicMock()
+    batch.name = "batch_delegate_tasks_tool"
+
+    async def _invoke(
+        payload: dict[str, object] | None = None,
+        **kwargs: object,
+    ) -> dict[str, object]:
+        data = dict(payload or kwargs)
+        return await execute_batch_delegation(
+            parent_agent=parent_agent,
+            delegate_tool=delegate_tool,  # type: ignore[arg-type]
+            catalog=catalog,  # type: ignore[arg-type]
+            tasks=data.get("tasks") or [],
+            wait=bool(data.get("wait", True)),
+            race=bool(data.get("race", False)),
+            tournament=bool(data.get("tournament", False)),
+            judge_criteria=data.get("judge_criteria"),  # type: ignore[arg-type]
+            max_concurrent=data.get("max_concurrent"),  # type: ignore[arg-type]
+            parent_type=parent_type,
+        )
+
+    batch.ainvoke = _invoke
+    batch.coroutine = _invoke
+    batch.func = lambda **kwargs: _invoke(**kwargs)
+    return batch
 
 
 def _make_mock_parent(**overrides: object) -> MagicMock:
@@ -178,7 +231,7 @@ class TestBuildDynamicDescription:
 
     @pytest.mark.asyncio
     async def test_when_not_to_delegate_section(self):
-        """Verify dynamic description includes anti-abuse guidance."""
+        """Verify dynamic description includes delegation guidance from SSOT."""
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import _build_dynamic_description
 
         catalog = AsyncMock()
@@ -190,12 +243,11 @@ class TestBuildDynamicDescription:
         desc = await _build_dynamic_description(catalog, allowed_types=None)
 
         assert "When to delegate" in desc
-        assert "When NOT to delegate" in desc
-        assert "Parallel gain" in desc
-        assert "Specialized expertise" in desc
-        assert "Adversarial breadth" in desc
-        assert "Ultra-simple" in desc
-        assert "Sequential dependencies" in desc
+        assert "If none apply, execute directly" in desc
+        assert "specialized expertise" in desc
+        assert "adversarial breadth" in desc
+        assert "subagent_control_tool action=list" in desc
+        assert "mode=single|batch|parallel" in desc
 
     @pytest.mark.asyncio
     async def test_system_prompt_fallback_when_no_description(self):
@@ -254,7 +306,6 @@ class TestCreateDelegateTaskTool:
 class TestCreateBatchDelegateTool:
     def test_reuses_delegate_tool(self):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
-            create_batch_delegate_tasks_tool,
             create_delegate_task_tool,
         )
 
@@ -265,26 +316,21 @@ class TestCreateBatchDelegateTool:
         with patch(
             "myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool.create_delegate_task_tool"
         ) as mock_create:
-            batch = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+            batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
             mock_create.assert_not_called()
 
         assert batch.name == "batch_delegate_tasks_tool"
 
     def test_creates_delegate_when_not_provided(self):
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
-            create_batch_delegate_tasks_tool,
-        )
-
         parent = _make_mock_parent()
         catalog = AsyncMock()
-        batch = create_batch_delegate_tasks_tool(parent, lambda: [], catalog)
+        batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog)
         assert batch.name == "batch_delegate_tasks_tool"
 
     @pytest.mark.asyncio
     async def test_batch_propagates_complexity_tier(self):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
-            create_batch_delegate_tasks_tool,
             create_delegate_task_tool,
         )
 
@@ -293,7 +339,7 @@ class TestCreateBatchDelegateTool:
         delegate = create_delegate_task_tool(parent, lambda: [], catalog)
         delegate.coroutine = AsyncMock(return_value={"success": True, "result": "ok"})
 
-        batch = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
 
         tasks = [TaskRequest(agent_type="coder", objective="task", complexity_tier="reasoning")]
         result = await batch.coroutine(tasks=tasks, wait=True)
@@ -304,13 +350,9 @@ class TestCreateBatchDelegateTool:
 
     @pytest.mark.asyncio
     async def test_empty_tasks_returns_error(self):
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
-            create_batch_delegate_tasks_tool,
-        )
-
         parent = _make_mock_parent()
         catalog = AsyncMock()
-        batch = create_batch_delegate_tasks_tool(parent, lambda: [], catalog)
+        batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog)
 
         result = await batch.coroutine(tasks=[], wait=True)
         assert result["success"] is False
@@ -726,7 +768,6 @@ class TestBatchDelegateExecution:
         )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
-            create_batch_delegate_tasks_tool,
             create_delegate_task_tool,
         )
 
@@ -741,7 +782,7 @@ class TestBatchDelegateExecution:
         parent._spawn_child = AsyncMock(return_value={"success": True, "result": "ok"})
 
         delegate = create_delegate_task_tool(parent, lambda: [], catalog)
-        batch = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
 
         tasks = [
             TaskRequest(agent_type="coder", objective="task 1"),
@@ -760,7 +801,6 @@ class TestBatchDelegateExecution:
         )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
-            create_batch_delegate_tasks_tool,
             create_delegate_task_tool,
         )
 
@@ -784,7 +824,7 @@ class TestBatchDelegateExecution:
         parent._spawn_child = AsyncMock(side_effect=_spawn_side_effect)
 
         delegate = create_delegate_task_tool(parent, lambda: [], catalog)
-        batch = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
 
         tasks = [
             TaskRequest(agent_type="worker", objective="fail task"),
@@ -809,7 +849,6 @@ class TestBatchDelegateExecution:
         )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
-            create_batch_delegate_tasks_tool,
             create_delegate_task_tool,
         )
 
@@ -841,7 +880,7 @@ class TestBatchDelegateExecution:
 
         delegate.coroutine = mock_delegate_coroutine
 
-        batch = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
 
         tasks = [
             TaskRequest(agent_type="coder", objective="slow task"),
@@ -863,7 +902,6 @@ class TestBatchDelegateExecution:
         )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
-            create_batch_delegate_tasks_tool,
             create_delegate_task_tool,
         )
 
@@ -884,7 +922,7 @@ class TestBatchDelegateExecution:
         delegate = create_delegate_task_tool(parent, lambda: [], catalog)
         delegate.coroutine = fast_spawn
 
-        batch = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
 
         tasks = [
             TaskRequest(agent_type="coder", objective="fast task"),
@@ -901,7 +939,6 @@ class TestBatchDelegateExecution:
         )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
-            create_batch_delegate_tasks_tool,
             create_delegate_task_tool,
         )
 
@@ -925,7 +962,7 @@ class TestBatchDelegateExecution:
         parent._spawn_child = AsyncMock(side_effect=_spawn_side_effect)
 
         delegate = create_delegate_task_tool(parent, lambda: [], catalog)
-        batch = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
 
         tasks = [
             TaskRequest(agent_type="worker", objective="fail task"),
@@ -945,7 +982,6 @@ class TestBatchDelegateExecution:
         )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
-            create_batch_delegate_tasks_tool,
             create_delegate_task_tool,
         )
 
@@ -967,7 +1003,7 @@ class TestBatchDelegateExecution:
 
         delegate = create_delegate_task_tool(parent, lambda: [], catalog)
         delegate.coroutine = AsyncMock(return_value={"success": True, "result": "ok"})
-        batch = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
 
         tasks = [
             TaskRequest(agent_type="coder", objective="task 1"),
@@ -1781,10 +1817,6 @@ class TestPolicyDenial:
 class TestBatchEmptyTasks:
     @pytest.mark.asyncio
     async def test_empty_tasks_returns_error(self):
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
-            create_batch_delegate_tasks_tool,
-        )
-
         parent = _make_mock_parent()
         parent._last_context = {}
         parent._subagent_manager = MagicMock()
@@ -1799,7 +1831,7 @@ class TestBatchEmptyTasks:
         parent._subagent_manager.get_capacity_snapshot.return_value = snap
 
         catalog = AsyncMock()
-        tool = create_batch_delegate_tasks_tool(
+        tool = _create_batch_delegate_tasks_tool(
             parent_agent=parent,
             tool_registry_getter=lambda: [],
             catalog=catalog,
@@ -2003,7 +2035,6 @@ class TestBatchCostApproval:
     ):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _BatchBudgetAdmission,
-            create_batch_delegate_tasks_tool,
         )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
@@ -2023,7 +2054,7 @@ class TestBatchCostApproval:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
 
         tasks = [
             TaskRequest(agent_type="coder", objective="task 1"),
@@ -2043,7 +2074,6 @@ class TestBatchCostApproval:
     async def test_user_rejection_stops_execution(self, mock_estimate, mock_interrupt):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _BatchBudgetAdmission,
-            create_batch_delegate_tasks_tool,
         )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
@@ -2060,7 +2090,7 @@ class TestBatchCostApproval:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
 
         tasks = [
             TaskRequest(agent_type="coder", objective="expensive 1"),
@@ -2079,7 +2109,6 @@ class TestBatchCostApproval:
     async def test_skips_approval_when_cost_below_threshold(self, mock_estimate, mock_runner):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _BatchBudgetAdmission,
-            create_batch_delegate_tasks_tool,
         )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
@@ -2096,7 +2125,7 @@ class TestBatchCostApproval:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
 
         tasks = [
             TaskRequest(agent_type="coder", objective="cheap 1"),
@@ -2113,7 +2142,6 @@ class TestBatchCostApproval:
     async def test_skips_approval_when_estimation_unavailable(self, mock_estimate, mock_runner):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _BatchBudgetAdmission,
-            create_batch_delegate_tasks_tool,
         )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
@@ -2129,7 +2157,7 @@ class TestBatchCostApproval:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
 
         tasks = [
             TaskRequest(agent_type="coder", objective="task 1"),
@@ -2155,7 +2183,6 @@ class TestBatchCostApprovalEdgeCases:
         """Decision returned as list [{"approved": True}] should proceed."""
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _BatchBudgetAdmission,
-            create_batch_delegate_tasks_tool,
         )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
@@ -2172,7 +2199,7 @@ class TestBatchCostApprovalEdgeCases:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
         tasks = [
             TaskRequest(agent_type="coder", objective="a"),
             TaskRequest(agent_type="coder", objective="b"),
@@ -2189,7 +2216,6 @@ class TestBatchCostApprovalEdgeCases:
         """Decision returned as list [{"approved": False}] should reject."""
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _BatchBudgetAdmission,
-            create_batch_delegate_tasks_tool,
         )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
@@ -2205,7 +2231,7 @@ class TestBatchCostApprovalEdgeCases:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
         tasks = [
             TaskRequest(agent_type="coder", objective="a"),
             TaskRequest(agent_type="coder", objective="b"),
@@ -2220,9 +2246,6 @@ class TestBatchCostApprovalEdgeCases:
     @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
     async def test_single_task_skips_cost_check(self, mock_estimate, mock_runner):
         """A single task should skip cost approval entirely."""
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
-            create_batch_delegate_tasks_tool,
-        )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
         )
@@ -2233,7 +2256,7 @@ class TestBatchCostApprovalEdgeCases:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
         tasks = [TaskRequest(agent_type="coder", objective="solo")]
         result = await tool.coroutine(tasks=tasks, wait=True)
 
@@ -2245,9 +2268,6 @@ class TestBatchCostApprovalEdgeCases:
     @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
     async def test_cost_estimation_exception_proceeds(self, mock_estimate, mock_runner):
         """If _estimate_batch_cost throws, execution continues without approval."""
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
-            create_batch_delegate_tasks_tool,
-        )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
         )
@@ -2259,7 +2279,7 @@ class TestBatchCostApprovalEdgeCases:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
         tasks = [
             TaskRequest(agent_type="coder", objective="a"),
             TaskRequest(agent_type="coder", objective="b"),
@@ -2277,7 +2297,6 @@ class TestBatchCostApprovalEdgeCases:
         """When remaining_budget_usd is None, payload should have null."""
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _BatchBudgetAdmission,
-            create_batch_delegate_tasks_tool,
         )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
@@ -2294,7 +2313,7 @@ class TestBatchCostApprovalEdgeCases:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
         tasks = [
             TaskRequest(agent_type="coder", objective="a"),
             TaskRequest(agent_type="coder", objective="b"),
@@ -2312,7 +2331,6 @@ class TestBatchCostApprovalEdgeCases:
         """Tournament mode should be reflected in interrupt payload."""
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _BatchBudgetAdmission,
-            create_batch_delegate_tasks_tool,
         )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
@@ -2329,7 +2347,7 @@ class TestBatchCostApprovalEdgeCases:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
         tasks = [
             TaskRequest(agent_type="coder", objective="t1"),
             TaskRequest(agent_type="coder", objective="t2"),
@@ -2352,7 +2370,6 @@ class TestBatchSizeExceeded:
     async def test_exceeds_default_max_batch(self, mock_estimate):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _DEFAULT_MAX_BATCH_TASKS,
-            create_batch_delegate_tasks_tool,
         )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
@@ -2362,7 +2379,7 @@ class TestBatchSizeExceeded:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
         tasks = [
             TaskRequest(agent_type="coder", objective=f"task {i}")
             for i in range(_DEFAULT_MAX_BATCH_TASKS + 1)
@@ -2380,7 +2397,6 @@ class TestBatchSizeExceeded:
     async def test_custom_max_batch_from_parent_config(self, mock_estimate, mock_runner):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _BatchBudgetAdmission,
-            create_batch_delegate_tasks_tool,
         )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
@@ -2397,7 +2413,7 @@ class TestBatchSizeExceeded:
         catalog.resolve = AsyncMock(return_value=parent_cfg)
         delegate = MagicMock()
 
-        tool = create_batch_delegate_tasks_tool(
+        tool = _create_batch_delegate_tasks_tool(
             parent, lambda: [], catalog, parent_type="orchestrator", delegate_tool=delegate,
         )
         tasks = [
@@ -2665,7 +2681,6 @@ class TestRaceModeBudgetException:
     ):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _BatchBudgetAdmission,
-            create_batch_delegate_tasks_tool,
         )
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             TaskRequest,
@@ -2681,7 +2696,7 @@ class TestRaceModeBudgetException:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
         tasks = [
             TaskRequest(agent_type="coder", objective="a"),
             TaskRequest(agent_type="coder", objective="b"),

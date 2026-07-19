@@ -588,13 +588,25 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 | `browser_navigate_tool` | 导航 | _(单一职责，无 action)_ |
 | `browser_inspect_tool` | **轻量级页面结构分析** | _(单一职责，无 action)_ |
 | `browser_snapshot_tool` | ARIA 快照 + iframe + Token 优化 + cursor-interactive | `scope`, `compact`, `selector`, `max_tokens`, `diff`, `cursor_interactive` |
-| `browser_interact_tool` | 13 种交互 | click, dblclick, type, fill, press, hover, focus, select, scroll, upload_file, drag, check, uncheck |
+| `browser_interact_tool` | 13 种交互 + 可选 `steps[]` 批量 | click, dblclick, type, fill, press, hover, focus, select, scroll, upload_file, drag, check, uncheck；或 `steps[]` 一次调用多步 |
 | `browser_extract_tool` | 文本 + 截图 + 媒体URL + 结构化提取 + diff | text / screenshot / media / diff_fast / diff_accurate + extraction_schema |
-| `browser_manage_tool` | Tab + JS + 历史 + 对话框 + Session + Network + HITL | 21 种 action（含 network_detail/network_replay + save/restore/list/delete_session + wait_for_user） |
+| `browser_manage_tool` | Tab + JS + 历史 + 对话框 + Session + Network | 20 种 action（含 network_detail/network_replay + save/restore/list/delete_session；HITL 用 browser_ask_human_tool，无 wait_for_user） |
 | `browser_execute_script_tool` | **Code-as-Action 批量执行** + AST 特权API门禁 | _(执行 Python 脚本，AST 扫描 page.request/evaluate/context 等特权API → HITL 审批)_ |
 | `browser_ask_human_tool` | **人类接管请求** | _(单一职责，Agent 触发 HITL interrupt + extension 横幅 / managed VNC)_ |
 
 **Token 成本**：~65 tokens（相比独立工具方案节省 86%）
+
+#### browser_interact_tool — steps[] 批量模式
+
+可选 `steps[]` 在同一页面、同一 snapshot ref 集上顺序执行多步交互，减少 LLM 往返。单步模式仍用 `action` + `ref`；批量模式省略顶层 `action`/`ref`，每步独立指定。语义 DOM HITL 对每一步独立生效。
+
+#### browser_navigate_tool — 导航后 compact refs 摘要
+
+导航成功后自动附加最多 20 行 `scope=interactive` 的 compact ARIA refs（`browser_session_navigation_mixin._append_navigate_interactive_summary`），帮助 Agent 跳过首轮 snapshot。失败时静默降级，不影响导航结果。
+
+#### URL blocklist（Settings → 安全策略）
+
+用户可编辑 `network_blocklist`（Settings `DomainBlocklistEditor` → server `SecurityConfig` → harness `BrowserSession.domain_blocklist`）。评估顺序：**blocklist DENY 优先于 allowlist HITL**。会话层在 `navigate()` 入口硬拦截（`BROWSER_URL_BLOCKLIST`）；`domain_filter` 四层过滤同步注入 blocklist 模式。
 
 #### 两阶段快照架构
 
@@ -673,7 +685,7 @@ browser_interact_tool(action="fill")           → browser_fill      → ASK
 browser_interact_tool(action="upload_file")    → browser_upload    → ASK
 browser_manage_tool(action="evaluate")         → browser_evaluate  → DENY (L1 ToolApproval; L2 Semantic JS Guard on mutating expressions that reach session evaluate)
 browser_manage_tool(action="save_session")     → browser_session   → ASK
-browser_manage_tool(action="wait_for_user")    → browser_human_handover → ASK (handover 模式)
+browser_ask_human_tool(reason=...)              → browser_human_handover → ASK (LangGraph interrupt + SSE)
 ```
 
 ### 语义级 DOM 高危动作拦截 (Semantic DOM Guard)
@@ -983,7 +995,7 @@ browser/
 │   └── common.py — 工具共享工具函数
 ├── pool/
 │   ├── browser_pool.py (716 行) — GlobalBrowserPool（全局调度中枢）
-│   ├── browser_launcher.py (~525 行) — BrowserLauncher（Browser 启动器 + Zero-config Chromium 自动安装 with CDN mirror fallback + Camoufox 指纹持久化 + 损坏自愈）
+│   ├── browser_launcher.py (~525 行) — BrowserLauncher（Chromium + Camoufox 启动前 sanitize_env + Zero-config Chromium 自动安装 with CDN mirror fallback + Camoufox 指纹持久化 + 损坏自愈）
 │   ├── context_factory.py (156 行) — ContextFactory（Context 工厂）
 │   └── page_pool.py (195 行) — PagePool
 ├── diff/
@@ -1022,7 +1034,7 @@ browser/
 │   ├── download_manager.py — 文件下载
 │   └── consent_dismisser.py — Cookie consent 自动 dismiss
 │   （Navigator 位于 `navigation/` 包，BrowserSession 与 BrowserFetcher 共用）
-├── domain_filter.py (317 行) — 四层域名过滤（CSP + HTTP + 主线程硬化 + CDP）
+├── domain_filter.py (317 行) — 四层域名过滤（CSP + HTTP + 主线程硬化 + CDP）；支持 allowlist + 用户 blocklist
 ├── session_vault.py (678 行) — 加密 Session 存储（O(1) LRU + 内存限制 + 并发锁 + Metrics + 批量 API）
 ├── exceptions.py (约 150 行) — 异常类型
 └── retry_policy.py (约 200 行) — 重试策略

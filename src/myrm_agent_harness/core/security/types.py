@@ -356,6 +356,7 @@ class SecurityConfig:
     approval_timeout_behavior: str = "deny"
     path_policy: PathPolicy = field(default_factory=_default_path_policy)
     network_allowlist: tuple[str, ...] = ()
+    network_blocklist: tuple[str, ...] = ()
     domain_hitl_enabled: bool = True
     privacy_policy: PrivacyPolicy = field(default_factory=_default_privacy_policy)
     auto_mode_enabled: bool = False

@@ -101,6 +101,10 @@ class DomainAllowlist:
         return len(self.patterns) == 0
 
 
+# Blocklist uses the same pattern matcher as allowlist; ``is_allowed`` means "matches block rule".
+DomainBlocklist = DomainAllowlist
+
+
 # ---------------------------------------------------------------------------
 # Layer 0: CSP policy generation
 # ---------------------------------------------------------------------------
@@ -237,16 +241,18 @@ async def install_domain_filter(
     context: BrowserContext,
     allowlist: DomainAllowlist,
     *,
+    domain_blocklist: DomainBlocklist | None = None,
     enable_cdp_audit: bool = True,
     resource_block: ResourceBlockConfig | None = None,
 ) -> None:
     """Install four-layer domain filtering on a BrowserContext.
 
-    Does nothing if *allowlist* is empty and no resource blocking is configured.
+    Does nothing if *allowlist* is empty, *domain_blocklist* is empty, and no resource blocking is configured.
 
     Args:
         context: Patchright BrowserContext to protect.
         allowlist: Domains the page is allowed to connect to.
+        domain_blocklist: Domains always blocked (checked before allowlist).
         enable_cdp_audit: Whether to install CDP WebSocket audit monitoring.
         resource_block: Resource blocking configuration (images/css/js/fonts/media/ad-domains).
     """
@@ -262,21 +268,24 @@ async def install_domain_filter(
 
         ad_blocklist = AD_DOMAINS
 
-    if allowlist.is_empty and not has_resource_block and not ad_blocklist:
+    if allowlist.is_empty and not has_resource_block and not ad_blocklist and (
+        domain_blocklist is None or domain_blocklist.is_empty
+    ):
         return
 
     if not allowlist.is_empty:
         await _install_csp_policy(context, allowlist)
         await _install_main_thread_hardening(context)
 
-    await _install_http_filter(context, allowlist, resource_block, ad_blocklist)
+    await _install_http_filter(context, allowlist, resource_block, ad_blocklist, domain_blocklist)
 
     if enable_cdp_audit and not allowlist.is_empty:
         context.on("page", lambda page: _schedule_cdp_audit(page, allowlist))
 
     logger.warning(
-        "Domain filter / Resource block installed: %d patterns, CDP audit=%s, resource_block=%s, ad_blocklist=%d",
+        "Domain filter / Resource block installed: %d allow patterns, %d block patterns, CDP audit=%s, resource_block=%s, ad_blocklist=%d",
         len(allowlist.patterns) if allowlist else 0,
+        len(domain_blocklist.patterns) if domain_blocklist else 0,
         enable_cdp_audit and not allowlist.is_empty,
         resource_block is not None,
         len(ad_blocklist) if ad_blocklist else 0,
@@ -330,6 +339,7 @@ async def _install_http_filter(
     allowlist: DomainAllowlist,
     resource_block: ResourceBlockConfig | None = None,
     ad_blocklist: frozenset[str] | None = None,
+    domain_blocklist: DomainBlocklist | None = None,
 ) -> None:
     """Block HTTP/HTTPS requests to non-allowed domains, ad domains, and unwanted resource types via context.route.
 
@@ -353,6 +363,10 @@ async def _install_http_filter(
         hostname = urlparse(url).hostname or ""
 
         if ad_blocklist and _is_ad_domain(hostname, ad_blocklist):
+            await route.abort("blockedbyclient")
+            return
+
+        if domain_blocklist and not domain_blocklist.is_empty and domain_blocklist.is_allowed(hostname):
             await route.abort("blockedbyclient")
             return
 

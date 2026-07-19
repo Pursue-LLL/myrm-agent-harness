@@ -8,7 +8,7 @@
 - SubagentExecutorDelegationMixin._attach_child_delegation_tools
 
 [POS]
-Orchestrator-role child agents receive scoped delegation meta-tools.
+Orchestrator-role child agents receive scoped delegation meta-tools (2 + teammate).
 """
 
 from __future__ import annotations
@@ -46,13 +46,9 @@ class SubagentExecutorDelegationMixin:
             return
 
         from myrm_agent_harness.agent.meta_tools.spawn_subagent import (
-            create_batch_delegate_tasks_tool,
-            create_cancel_subagent_tool,
-            create_delegate_parallel_tasks_tool,
             create_delegate_task_tool,
-            create_list_subagents_tool,
             create_send_teammate_message_tool,
-            create_steer_subagent_tool,
+            create_subagent_control_tool,
             update_delegate_task_description,
         )
 
@@ -70,24 +66,7 @@ class SubagentExecutorDelegationMixin:
         await update_delegate_task_description(delegate_tool, config.delegation_catalog, allowed_types)
         child_tool_by_name = {
             "delegate_task_tool": delegate_tool,
-            "batch_delegate_tasks_tool": create_batch_delegate_tasks_tool(
-                child_agent,
-                tool_registry_getter=child_tool_registry_getter,
-                catalog=config.delegation_catalog,
-                parent_type=agent_type,
-                allowed_types=allowed_types,
-                delegate_tool=delegate_tool,
-            ),
-            "delegate_parallel_tasks_tool": create_delegate_parallel_tasks_tool(
-                child_agent,
-                tool_registry_getter=child_tool_registry_getter,
-                catalog=config.delegation_catalog,
-                parent_type=agent_type,
-                allowed_types=allowed_types,
-            ),
-            "list_subagents_tool": create_list_subagents_tool(child_agent),
-            "cancel_subagent_tool": create_cancel_subagent_tool(child_agent),
-            "steer_subagent_tool": create_steer_subagent_tool(child_agent),
+            "subagent_control_tool": create_subagent_control_tool(child_agent),
             "send_teammate_message_tool": create_send_teammate_message_tool(child_agent),
         }
         child_agent.add_tools(

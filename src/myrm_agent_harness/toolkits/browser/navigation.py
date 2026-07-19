@@ -166,6 +166,14 @@ class Navigator:
         """Execute实际 导航操作"""
         self._current_domain = self._extract_domain(url)
 
+        parsed = urlparse(url)
+        if parsed.scheme in ("about", "data"):
+            await self._page.goto(url, wait_until="commit", timeout=5_000)
+            title = await self._page.title()
+            final_url = self._page.url
+            logger.info("Navigator: trivial %s: navigation to %s", parsed.scheme, url[:80])
+            return title, final_url, 200
+
         try:
             from .navigation_ssrf_guard import goto_with_ssrf_guard
 

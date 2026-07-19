@@ -8,11 +8,11 @@
 [OUTPUT]
 - TaskRequest: Pydantic model for a single delegation task
 - BatchDelegateInput: Pydantic model for batch delegation input schema
-- create_delegate_parallel_tasks_tool: Swarm Fission interrupt tool (yield-resume)
-- create_batch_delegate_tasks_tool: Budget-aware concurrent batch delegation
+- execute_parallel_delegation: Swarm Fission interrupt path (yield-resume)
+- execute_batch_delegation: Budget-aware concurrent batch delegation core
 
 [POS]
-Batch and parallel delegation tool factories for the delegate_task tool family.
+Batch and parallel delegation execution engines invoked by delegate_task_tool modes.
 """
 
 from __future__ import annotations
@@ -38,6 +38,10 @@ if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
     from myrm_agent_harness.agent.base_agent import BaseAgent
+
+_DELEGATION_PAUSED_ERROR = (
+    "Delegation is paused for this session. Resume delegation from the subagent dashboard before spawning new workers."
+)
 
 logger = get_agent_logger(__name__)
 
@@ -109,227 +113,199 @@ class BatchDelegateInput(BaseModel):
     )
 
 
-def create_delegate_parallel_tasks_tool(
+def _session_id_from_agent(parent_agent: BaseAgent) -> str:
+    parent_ctx = getattr(parent_agent, "_last_context", None) or {}
+    if isinstance(parent_ctx, dict):
+        return str(parent_ctx.get("session_id", "") or "")
+    return ""
+
+
+def _delegation_paused_response(parent_agent: BaseAgent) -> dict[str, object]:
+    return {
+        "success": False,
+        "error": _DELEGATION_PAUSED_ERROR,
+        "session_id": _session_id_from_agent(parent_agent),
+    }
+
+
+def execute_parallel_delegation(
     parent_agent: BaseAgent,
-    tool_registry_getter: Callable[[], list[object]],
+    tasks: list[TaskRequest],
+) -> dict[str, object]:
+    """Swarm Fission: yield-resume parallel Map-Reduce via graph interrupt."""
+    from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegation_pause_gate import (
+        is_delegation_paused,
+    )
+
+    if is_delegation_paused(_session_id_from_agent(parent_agent)):
+        return _delegation_paused_response(parent_agent)
+
+    if not tasks:
+        return {"success": False, "error": "No tasks provided."}
+
+    from langgraph.types import interrupt
+
+    interrupt_payload = {
+        "action_type": "swarm_fission",
+        "tasks": [t.model_dump() for t in tasks],
+    }
+
+    decisions = interrupt(interrupt_payload)
+    return {"success": True, "results": decisions}
+
+
+async def execute_batch_delegation(
+    *,
+    parent_agent: BaseAgent,
+    delegate_tool: BaseTool,
     catalog: SubagentCatalog,
+    tasks: list[TaskRequest],
+    wait: bool = True,
+    race: bool = False,
+    tournament: bool = False,
+    judge_criteria: str | None = None,
+    max_concurrent: int | None = None,
     parent_type: str | None = None,
-    allowed_types: list[str] | None = None,
-) -> BaseTool:
-    """Create a tool for Swarm Fission (Resumable Dynamic Fission)."""
+) -> dict[str, object]:
+    """Budget-aware concurrent batch delegation (mode=batch)."""
+    from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegation_pause_gate import (
+        is_delegation_paused,
+    )
 
-    @tool("delegate_parallel_tasks_tool", args_schema=BatchDelegateInput)
-    def delegate_parallel_tasks_func(
-        tasks: list[TaskRequest],
-        wait: bool = True,
-        race: bool = False,
-        max_concurrent: int | None = None,
-    ) -> dict[str, object]:
-        """Spawn multiple specialized subagents concurrently using Swarm Fission.
+    if is_delegation_paused(_session_id_from_agent(parent_agent)):
+        return _delegation_paused_response(parent_agent)
 
-        Unlike batch_delegate_tasks, this tool uses Yield-Resume semantics.
-        It immediately suspends the current agent, freeing up resources, and delegates
-        the parallel tasks to the DAG orchestrator. Once all tasks complete, this agent
-        will be resumed with the results.
+    if not tasks:
+        return {"success": False, "error": "No tasks provided."}
 
-        Use this for Deep Research, Bulk Code Review, or any heavy Map-Reduce workload
-        to avoid timeouts and context rot.
-        """
-        if not tasks:
-            return {"success": False, "error": "No tasks provided."}
+    if tournament:
+        wait = True
+        race = False
+        for task in tasks:
+            task.objective = (
+                "【TOURNAMENT MODE ACTIVE】\n"
+                "You are competing against other agents. Your output will be judged.\n"
+                "CRITICAL: You MUST NOT perform any irreversible external actions (e.g., sending emails, calling external webhooks, making payments). "
+                "Your execution is speculative and your sandbox may be discarded if you lose the tournament. "
+                "Confine all your work to the local sandbox files.\n\n"
+                f"Original Objective:\n{task.objective}"
+            )
 
-        from langgraph.types import interrupt
-
-        interrupt_payload = {
-            "action_type": "swarm_fission",
-            "tasks": [t.model_dump() for t in tasks],
+    max_batch = _DEFAULT_MAX_BATCH_TASKS
+    if parent_type:
+        try:
+            parent_cfg = await catalog.resolve(parent_type)
+            if parent_cfg and parent_cfg.max_batch_size > 0:
+                max_batch = parent_cfg.max_batch_size
+        except Exception as e:
+            logger.debug("Failed to resolve max_batch_size for %s: %s", parent_type, e)
+    if len(tasks) > max_batch:
+        return {
+            "success": False,
+            "status": "budget_exceeded",
+            "reason": "batch_size_exceeded",
+            "error": (
+                f"Too many batch delegation tasks: {len(tasks)}/{max_batch}. Split the work into smaller batches."
+            ),
         }
 
-        decisions = interrupt(interrupt_payload)
-        return {"success": True, "results": decisions}
-
-    return delegate_parallel_tasks_func
-
-
-def create_batch_delegate_tasks_tool(
-    parent_agent: BaseAgent,
-    tool_registry_getter: Callable[[], list[object]],
-    catalog: SubagentCatalog,
-    parent_type: str | None = None,
-    allowed_types: list[str] | None = None,
-    *,
-    delegate_tool: BaseTool | None = None,
-) -> BaseTool:
-    """Create a tool to spawn multiple subagents concurrently.
-
-    Args:
-        delegate_tool: Pre-built delegate_task tool to reuse. When provided,
-            avoids redundant closure construction on each batch invocation.
-    """
-    if delegate_tool is None:
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
-            create_delegate_task_tool,
-        )
-
-        delegate_tool = create_delegate_task_tool(
-            parent_agent,
-            tool_registry_getter,
-            catalog,
-            parent_type,
-            allowed_types,
-        )
-    _delegate = delegate_tool
-
-    @tool("batch_delegate_tasks_tool", args_schema=BatchDelegateInput)
-    async def batch_delegate_tasks_func(
-        tasks: list[TaskRequest],
-        wait: bool = True,
-        race: bool = False,
-        tournament: bool = False,
-        judge_criteria: str | None = None,
-        max_concurrent: int | None = None,
-    ) -> dict[str, object]:
-        """Spawn multiple specialized subagents concurrently.
-
-        Use wait=true to wait for all results.
-        Use race=true for Speculative Execution: spawn multiple subagents to solve
-        a hard problem in parallel. The first one to succeed wins.
-        Use tournament=true to run tasks in parallel and use an LLM Judge to pick the best result.
-        Use max_concurrent to control parallelism (default: 3 for race, 1 for non-race).
-        """
-        if not tasks:
-            return {"success": False, "error": "No tasks provided."}
-
-        if tournament:
-            wait = True
-            race = False
-            for task in tasks:
-                task.objective = (
-                    "【TOURNAMENT MODE ACTIVE】\n"
-                    "You are competing against other agents. Your output will be judged.\n"
-                    "CRITICAL: You MUST NOT perform any irreversible external actions (e.g., sending emails, calling external webhooks, making payments). "
-                    "Your execution is speculative and your sandbox may be discarded if you lose the tournament. "
-                    "Confine all your work to the local sandbox files.\n\n"
-                    f"Original Objective:\n{task.objective}"
+    budget_admission: _BatchBudgetAdmission | None = None
+    if race:
+        try:
+            budget_admission = await _admit_race_budget(
+                parent_agent=parent_agent,
+                catalog=catalog,
+                tasks=tasks,
+            )
+            if budget_admission.status == "downgraded":
+                logger.warning(
+                    "Race delegation downgraded to sequential mode: reason=%s estimated_cost=%s remaining_budget=%s",
+                    budget_admission.reason,
+                    budget_admission.estimated_cost_usd,
+                    budget_admission.remaining_budget_usd,
                 )
+                race = False
+        except Exception as e:
+            logger.warning("Failed to check budget for race mode: %s", e)
+            budget_admission = _BatchBudgetAdmission(
+                status="unavailable",
+                reason="budget_admission_error",
+            )
 
-        max_batch = _DEFAULT_MAX_BATCH_TASKS
-        if parent_type:
+    if len(tasks) >= 2:
+        cost_estimate = budget_admission
+        if cost_estimate is None:
             try:
-                parent_cfg = await catalog.resolve(parent_type)
-                if parent_cfg and parent_cfg.max_batch_size > 0:
-                    max_batch = parent_cfg.max_batch_size
-            except Exception as e:
-                logger.debug("Failed to resolve max_batch_size for %s: %s", parent_type, e)
-        if len(tasks) > max_batch:
-            return {
-                "success": False,
-                "status": "budget_exceeded",
-                "reason": "batch_size_exceeded",
-                "error": (
-                    f"Too many batch delegation tasks: {len(tasks)}/{max_batch}. Split the work into smaller batches."
-                ),
-            }
-
-        budget_admission: _BatchBudgetAdmission | None = None
-        if race:
-            try:
-                budget_admission = await _admit_race_budget(
+                cost_estimate = await _estimate_batch_cost(
                     parent_agent=parent_agent,
                     catalog=catalog,
                     tasks=tasks,
                 )
-                if budget_admission.status == "downgraded":
-                    logger.warning(
-                        "Race delegation downgraded to sequential mode: reason=%s estimated_cost=%s remaining_budget=%s",
-                        budget_admission.reason,
-                        budget_admission.estimated_cost_usd,
-                        budget_admission.remaining_budget_usd,
-                    )
-                    race = False
             except Exception as e:
-                logger.warning("Failed to check budget for race mode: %s", e)
-                budget_admission = _BatchBudgetAdmission(
-                    status="unavailable",
-                    reason="budget_admission_error",
-                )
+                logger.debug("Pre-flight cost estimation failed: %s", e)
 
-        if len(tasks) >= 2:
-            cost_estimate = budget_admission
-            if cost_estimate is None:
-                try:
-                    cost_estimate = await _estimate_batch_cost(
-                        parent_agent=parent_agent,
-                        catalog=catalog,
-                        tasks=tasks,
-                    )
-                except Exception as e:
-                    logger.debug("Pre-flight cost estimation failed: %s", e)
+        if (
+            cost_estimate is not None
+            and cost_estimate.status != "unavailable"
+            and cost_estimate.estimated_cost_usd is not None
+            and cost_estimate.estimated_cost_usd >= _DEFAULT_COST_APPROVAL_THRESHOLD_USD
+        ):
+            from langgraph.types import interrupt
 
-            if (
-                cost_estimate is not None
-                and cost_estimate.status != "unavailable"
-                and cost_estimate.estimated_cost_usd is not None
-                and cost_estimate.estimated_cost_usd >= _DEFAULT_COST_APPROVAL_THRESHOLD_USD
-            ):
-                from langgraph.types import interrupt
+            task_summaries = [
+                {"agent_type": t.agent_type, "objective": t.objective[:200]}
+                for t in tasks
+            ]
+            interrupt_payload = {
+                "action_type": "batch_cost_approval",
+                "task_count": len(tasks),
+                "estimated_cost_usd": round(cost_estimate.estimated_cost_usd, 4),
+                "remaining_budget_usd": (
+                    round(cost_estimate.remaining_budget_usd, 4)
+                    if cost_estimate.remaining_budget_usd is not None
+                    else None
+                ),
+                "cost_status": cost_estimate.cost_status,
+                "race": race,
+                "tournament": tournament,
+                "tasks": task_summaries,
+            }
+            decision = interrupt(interrupt_payload)
 
-                task_summaries = [
-                    {"agent_type": t.agent_type, "objective": t.objective[:200]}
-                    for t in tasks
-                ]
-                interrupt_payload = {
-                    "action_type": "batch_cost_approval",
-                    "task_count": len(tasks),
-                    "estimated_cost_usd": round(cost_estimate.estimated_cost_usd, 4),
-                    "remaining_budget_usd": (
-                        round(cost_estimate.remaining_budget_usd, 4)
-                        if cost_estimate.remaining_budget_usd is not None
-                        else None
-                    ),
-                    "cost_status": cost_estimate.cost_status,
-                    "race": race,
-                    "tournament": tournament,
-                    "tasks": task_summaries,
+            approved = True
+            if isinstance(decision, dict):
+                approved = decision.get("approved", True)
+            elif isinstance(decision, list) and decision:
+                first = decision[0]
+                approved = first.get("approved", True) if isinstance(first, dict) else bool(first)
+
+            if not approved:
+                return {
+                    "success": False,
+                    "status": "user_rejected",
+                    "reason": "batch_cost_rejected_by_user",
+                    "estimated_cost_usd": cost_estimate.estimated_cost_usd,
                 }
-                decision = interrupt(interrupt_payload)
 
-                approved = True
-                if isinstance(decision, dict):
-                    approved = decision.get("approved", True)
-                elif isinstance(decision, list) and decision:
-                    first = decision[0]
-                    approved = first.get("approved", True) if isinstance(first, dict) else bool(first)
+    from myrm_agent_harness.agent.parallel.runner import run_parallel_task_requests
 
-                if not approved:
-                    return {
-                        "success": False,
-                        "status": "user_rejected",
-                        "reason": "batch_cost_rejected_by_user",
-                        "estimated_cost_usd": cost_estimate.estimated_cost_usd,
-                    }
+    payload = await run_parallel_task_requests(
+        parent_agent=parent_agent,
+        delegate_tool=delegate_tool,
+        tasks=tasks,
+        wait=wait,
+        race=race,
+        skip_merge=tournament,
+        max_concurrent=max_concurrent,
+        budget_admission=budget_admission,
+    )
 
-        from myrm_agent_harness.agent.parallel.runner import run_parallel_task_requests
+    if tournament and payload.get("success") and "results" in payload:
+        results = payload["results"]
+        if isinstance(results, list):
+            payload = await _run_tournament_bracket(parent_agent, results, judge_criteria)
 
-        payload = await run_parallel_task_requests(
-            parent_agent=parent_agent,
-            delegate_tool=_delegate,
-            tasks=tasks,
-            wait=wait,
-            race=race,
-            skip_merge=tournament,
-            max_concurrent=max_concurrent,
-            budget_admission=budget_admission,
-        )
-
-        if tournament and payload.get("success") and "results" in payload:
-            results = payload["results"]
-            if isinstance(results, list):
-                payload = await _run_tournament_bracket(parent_agent, results, judge_criteria)
-
-        return payload
-
-    return batch_delegate_tasks_func
+    return payload
 
 
 async def _run_tournament_bracket(

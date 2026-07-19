@@ -105,14 +105,11 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "kanban_block": ToolLayer.EXTENDED,
     "kanban_heartbeat": ToolLayer.EXTENDED,
     "kanban_comment": ToolLayer.EXTENDED,
+    "kanban_attach": ToolLayer.EXTENDED,
     # --- 看板 (Orchestrator tools) ---
     "kanban_add_task": ToolLayer.EXTENDED,
     "kanban_list_tasks": ToolLayer.EXTENDED,
-    "kanban_update_task": ToolLayer.EXTENDED,
-    "kanban_move_task": ToolLayer.EXTENDED,
-    "kanban_delete_task": ToolLayer.EXTENDED,
-    "kanban_board_summary": ToolLayer.EXTENDED,
-    "kanban_link": ToolLayer.EXTENDED,
+    "kanban_unblock": ToolLayer.EXTENDED,
     # --- 记忆工具（recall/save/manage → COMMON；conversation_search → EXTENDED opt-in）---
     "conversation_search_tool": ToolLayer.EXTENDED,
     # --- 技能工具 ---
@@ -121,13 +118,9 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "skill_manage_tool": ToolLayer.EXTENDED,
     "skill_select_tool": ToolLayer.EXTENDED,
     # --- Sub-Agent 管理 ---
-    "batch_delegate_tasks_tool": ToolLayer.EXTENDED,
-    "cancel_subagent_tool": ToolLayer.EXTENDED,
-    "delegate_parallel_tasks_tool": ToolLayer.EXTENDED,
     "delegate_task_tool": ToolLayer.EXTENDED,
-    "list_subagents_tool": ToolLayer.EXTENDED,
+    "subagent_control_tool": ToolLayer.EXTENDED,
     "send_teammate_message_tool": ToolLayer.EXTENDED,
-    "steer_subagent_tool": ToolLayer.EXTENDED,
     # --- Wiki 知识库 ---
     "wiki_ingest_tool": ToolLayer.EXTENDED,
     "wiki_query_tool": ToolLayer.EXTENDED,

@@ -102,20 +102,21 @@ class TestTruncateDelegateCalls:
         assert result is not None
         assert result.content == "I will delegate these tasks"
 
-    def test_batch_delegate_not_counted_separately(self):
-        """batch_delegate_tasks is not subject to the per-call limit (it manages its own batching)."""
+    def test_batch_mode_delegate_counts_as_single_call(self):
+        """mode=batch is one delegate_task_tool call and respects the per-response limit."""
         tool_calls = [
-            _make_tool_call("delegate_task_tool", "d1", {"task": "a"}),
-            _make_tool_call("batch_delegate_tasks_tool", "b1", {"tasks": []}),
+            _make_tool_call("delegate_task_tool", "d1", {"mode": "single", "task": "a"}),
+            _make_tool_call(
+                "delegate_task_tool",
+                "b1",
+                {"mode": "batch", "tasks": [{"agent_type": "search", "objective": "x"}]},
+            ),
             _make_tool_call("delegate_task_tool", "d2", {"task": "b"}),
             _make_tool_call("delegate_task_tool", "d3", {"task": "c"}),
-            _make_tool_call("delegate_task_tool", "d4", {"task": "d"}),
         ]
         msg = AIMessage(content="", tool_calls=tool_calls)
         result = _truncate_delegate_calls(msg, 2)
 
         assert result is not None
         delegate_calls = [tc for tc in result.tool_calls if tc["name"] == "delegate_task_tool"]
-        batch_calls = [tc for tc in result.tool_calls if tc["name"] == "batch_delegate_tasks_tool"]
         assert len(delegate_calls) == 2
-        assert len(batch_calls) == 1  # batch_delegate_tasks preserved

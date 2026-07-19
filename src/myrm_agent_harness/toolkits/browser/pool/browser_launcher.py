@@ -65,6 +65,18 @@ def _is_executable_missing(error: Exception) -> bool:
     return "executable doesn't exist" in msg or "no such file or directory" in msg
 
 
+def _camoufox_launch_env(fingerprint_env: object | None) -> dict[str, str]:
+    """Build Camoufox subprocess env: sanitize host env, then overlay fingerprint keys."""
+    from myrm_agent_harness.toolkits.code_execution.security.validator import sanitize_env
+
+    merged = sanitize_env(os.environ.copy())
+    if isinstance(fingerprint_env, dict):
+        for key, value in fingerprint_env.items():
+            if isinstance(key, str) and isinstance(value, str):
+                merged[key] = value
+    return merged
+
+
 def _get_install_env() -> dict[str, str]:
     """Build env dict for patchright install with CDN mirror fallback.
 
@@ -391,6 +403,7 @@ class BrowserLauncher:
                         build_kwargs: dict[str, object] = {
                             "headless": self._launch_options.get("headless", True),
                             "fingerprint_preset": True,
+                            "env": _camoufox_launch_env(None),
                         }
                         proxy = self._launch_options.get("proxy")
                         if proxy is not None:
@@ -409,6 +422,10 @@ class BrowserLauncher:
                             )
                             logger.info("Camoufox fingerprint saved to %s", fp_file)
 
+                    if isinstance(camoufox_config, dict):
+                        camoufox_config = dict(camoufox_config)
+                        camoufox_config["env"] = _camoufox_launch_env(camoufox_config.get("env"))
+
                     browser = await AsyncCamoufox(from_options=camoufox_config).start()
 
                     pid = None
@@ -419,7 +436,11 @@ class BrowserLauncher:
                     logger.info(f"Launched new Camoufox Browser instance (attempt {attempt + 1}/3, PID: {pid})")
                 else:
                     pw = await self._ensure_playwright()
-                    browser = await pw.chromium.launch(**self._launch_options)  # type: ignore[arg-type]
+                    from myrm_agent_harness.toolkits.code_execution.security.validator import sanitize_env
+
+                    launch_kwargs = dict(self._launch_options)
+                    launch_kwargs["env"] = sanitize_env(os.environ.copy())
+                    browser = await pw.chromium.launch(**launch_kwargs)  # type: ignore[arg-type]
 
                     pid = None
                     with contextlib.suppress(Exception):

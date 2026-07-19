@@ -390,13 +390,13 @@ class TestAutoBlockSetsHuman:
 
 
 # ---------------------------------------------------------------------------
-# kanban_move_task clears block fields on READY
+# kanban_unblock clears block fields on READY
 # ---------------------------------------------------------------------------
 
 
-class TestMoveTaskClearsBlockFields:
+class TestUnblockClearsBlockFields:
     @pytest.mark.asyncio
-    async def test_move_to_ready_clears_block(self) -> None:
+    async def test_unblock_clears_block(self) -> None:
         store = InMemoryKanbanStore()
         board = _make_board()
         await store.save_board(board)
@@ -408,18 +408,11 @@ class TestMoveTaskClearsBlockFields:
         await store.save_task(task)
 
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        move_tool = None
-        for t in tools:
-            if t.name == "kanban_move_task":
-                move_tool = t
-                break
-        assert move_tool is not None
+        unblock_tool = next(t for t in tools if t.name == "kanban_unblock")
 
-        result = json.loads(await move_tool.ainvoke({
-            "task_id": "t1",
-            "status": "ready",
-        }))
-        assert result["status"] == "moved"
+        result = json.loads(await unblock_tool.ainvoke({"task_id": "t1"}))
+        assert result["status"] == "unblocked"
+        assert result["dependencies_met"] is True
         task_data = result["task"]
         assert task_data["block_kind"] is None
         assert task_data["scheduled_until"] is None

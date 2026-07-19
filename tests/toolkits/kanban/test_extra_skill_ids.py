@@ -1,7 +1,7 @@
 """Tests for task-level extra_skill_ids feature.
 
 Covers: KanbanTask.extra_skill_ids, DecomposeChildSpec.extra_skill_ids,
-kanban_add_task skills parameter, kanban_update_task skills parameter,
+kanban_add_task skills parameter,
 to_dict serialization, and skill parsing logic.
 """
 
@@ -155,76 +155,6 @@ class TestKanbanAddTaskSkills:
         task = await store.get_task(result["task"]["task_id"])
         assert task is not None
         assert task.extra_skill_ids == ["x", "y"]
-
-
-# ---------------------------------------------------------------------------
-# kanban_update_task skills parameter
-# ---------------------------------------------------------------------------
-
-
-class TestKanbanUpdateTaskSkills:
-    @pytest.fixture
-    def store(self) -> InMemoryKanbanStore:
-        return InMemoryKanbanStore()
-
-    @pytest.fixture
-    def tool_map(self, store: InMemoryKanbanStore) -> dict[str, object]:
-        tools = create_kanban_tools(store=store, agent_id="agent-1")
-        return {t.name: t for t in tools}
-
-    @pytest.mark.asyncio
-    async def test_update_task_set_skills(
-        self, store: InMemoryKanbanStore, tool_map: dict,
-    ) -> None:
-        await _make_board(store)
-        add_fn = tool_map["kanban_add_task"]
-        result = json.loads(await add_fn.coroutine(
-            title="Task", board_id="b1",
-        ))
-        task_id = result["task"]["task_id"]
-
-        update_fn = tool_map["kanban_update_task"]
-        update_result = json.loads(await update_fn.coroutine(
-            task_id=task_id, skills="new-skill-a, new-skill-b",
-        ))
-        assert update_result["status"] == "updated"
-        task = await store.get_task(task_id)
-        assert task is not None
-        assert task.extra_skill_ids == ["new-skill-a", "new-skill-b"]
-
-    @pytest.mark.asyncio
-    async def test_update_task_clear_skills(
-        self, store: InMemoryKanbanStore, tool_map: dict,
-    ) -> None:
-        await _make_board(store)
-        add_fn = tool_map["kanban_add_task"]
-        result = json.loads(await add_fn.coroutine(
-            title="Task", board_id="b1", skills="a,b",
-        ))
-        task_id = result["task"]["task_id"]
-
-        update_fn = tool_map["kanban_update_task"]
-        await update_fn.coroutine(task_id=task_id, skills="CLEAR")
-        task = await store.get_task(task_id)
-        assert task is not None
-        assert task.extra_skill_ids == []
-
-    @pytest.mark.asyncio
-    async def test_update_task_no_skills_param_unchanged(
-        self, store: InMemoryKanbanStore, tool_map: dict,
-    ) -> None:
-        await _make_board(store)
-        add_fn = tool_map["kanban_add_task"]
-        result = json.loads(await add_fn.coroutine(
-            title="Task", board_id="b1", skills="original",
-        ))
-        task_id = result["task"]["task_id"]
-
-        update_fn = tool_map["kanban_update_task"]
-        await update_fn.coroutine(task_id=task_id, title="New Title")
-        task = await store.get_task(task_id)
-        assert task is not None
-        assert task.extra_skill_ids == ["original"]
 
 
 # ---------------------------------------------------------------------------

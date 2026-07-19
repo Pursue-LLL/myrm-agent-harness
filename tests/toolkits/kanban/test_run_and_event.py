@@ -336,7 +336,7 @@ class TestAgentToolsUnblockEvent:
         return next(t for t in tools if t.name == name)
 
     @pytest.mark.asyncio
-    async def test_move_blocked_to_ready_generates_unblocked_event(self) -> None:
+    async def test_unblock_generates_unblocked_event(self) -> None:
         from myrm_agent_harness.toolkits.kanban.kanban_agent_tools import (
             create_kanban_tools,
         )
@@ -344,15 +344,18 @@ class TestAgentToolsUnblockEvent:
         store = InMemoryKanbanStore()
         _board, _ = await _setup_board_and_task(store, status=TaskStatus.BLOCKED)
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        move_task = self._get_tool(tools, "kanban_move_task")
+        unblock = self._get_tool(tools, "kanban_unblock")
 
-        result = await move_task.ainvoke({"task_id": "t1", "status": "ready"})
-        assert '"moved"' in result
+        result = await unblock.ainvoke({"task_id": "t1"})
+        assert '"unblocked"' in result
 
         events = await store.list_events("t1")
         assert len(events) == 1
         assert events[0].kind == TaskEventKind.UNBLOCKED
-        assert events[0].payload == {"from": "blocked", "to": "ready", "source": "manual"}
+        assert events[0].payload["from"] == "blocked"
+        assert events[0].payload["source"] == "orchestrator"
+        assert events[0].payload["dependencies_met"] is True
+        assert events[0].payload["outcome"] == "unblocked"
 
     @pytest.mark.asyncio
     async def test_add_task_generates_created_event(self) -> None:
@@ -375,27 +378,6 @@ class TestAgentToolsUnblockEvent:
         events = await store.list_events(task_id)
         assert len(events) == 1
         assert events[0].kind == TaskEventKind.CREATED
-
-    @pytest.mark.asyncio
-    async def test_move_task_emits_status_events(self) -> None:
-        """Agent tools _move_task emits BLOCKED/COMPLETED/FAILED/ARCHIVED events."""
-        from myrm_agent_harness.toolkits.kanban.kanban_agent_tools import (
-            create_kanban_tools,
-        )
-
-        store = InMemoryKanbanStore()
-        _board, _ = await _setup_board_and_task(store, status=TaskStatus.RUNNING)
-        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        move_task = self._get_tool(tools, "kanban_move_task")
-
-        result = await move_task.ainvoke({"task_id": "t1", "status": "completed"})
-        assert '"moved"' in result
-
-        events = await store.list_events("t1")
-        assert len(events) == 1
-        assert events[0].kind == TaskEventKind.COMPLETED
-        assert events[0].payload == {"from": "running", "to": "completed"}
-
 
 # ---------------------------------------------------------------------------
 # InMemory cleanup on delete
@@ -460,9 +442,9 @@ class TestSinceId:
 # ---------------------------------------------------------------------------
 
 
-class TestBoardSummaryPerformance:
+class TestListTasksIncludeStats:
     @pytest.mark.asyncio
-    async def test_board_summary_returns_counts(self) -> None:
+    async def test_list_tasks_include_stats_returns_counts(self) -> None:
         import json
 
         from myrm_agent_harness.toolkits.kanban.kanban_agent_tools import (
@@ -481,8 +463,8 @@ class TestBoardSummaryPerformance:
             await store.save_task(task)
 
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
-        board_summary = next(t for t in tools if t.name == "kanban_board_summary")
-        result = await board_summary.ainvoke({})
+        list_tasks = next(t for t in tools if t.name == "kanban_list_tasks")
+        result = await list_tasks.ainvoke({"include_stats": True})
         data = json.loads(result)
         assert data["total_tasks"] == 3
         assert data["task_counts"]["ready"] == 3
