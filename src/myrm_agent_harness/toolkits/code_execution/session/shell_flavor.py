@@ -52,7 +52,7 @@ class BashFlavor(ShellFlavor):
 
         return [
             "set +o history 2>/dev/null || true",
-            "export PS1='' PS2=''",
+            "export PS1='' PS2='' NO_COLOR=1 FORCE_COLOR=0 TERM=dumb",
             f"cd '{work_dir}' || cd /tmp",
             ulimit_cmd,
         ]

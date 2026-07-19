@@ -17,6 +17,6 @@ state (env vars, cwd) across commands.
 
 ## Key Dependencies
 
-- `utils`
+- `utils.text_utils.strip_ansi` — ANSI escape sequence stripping for clean SSE output
 - `executors.common.exit_classify` — Non-zero exit code semantic classification
 - `executors.models.scrub_sensitive_info` — PII scrubbing for real-time SSE streams

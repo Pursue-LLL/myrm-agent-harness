@@ -1,5 +1,8 @@
 """Unified stream output processor for persistent sessions.
 
+[INPUT]
+utils.text_utils::strip_ansi (POS: ANSI escape sequence stripping, ECMA-48 full spec)
+
 [OUTPUT]
 StreamOutputProcessor: Handles auto-tee writing, SSE flood protection, and disk quota.
 
@@ -16,6 +19,8 @@ import time
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
+
+from myrm_agent_harness.utils.text_utils import strip_ansi
 
 if TYPE_CHECKING:
 
@@ -122,6 +127,7 @@ class StreamOutputProcessor:
 
         Once the valve triggers (>500KB), always returns ``None``.
         """
+        text = strip_ansi(text)
         self._sse_acc_text += text
         self._sse_bytes_sent += len(text.encode("utf-8", errors="replace"))
 
