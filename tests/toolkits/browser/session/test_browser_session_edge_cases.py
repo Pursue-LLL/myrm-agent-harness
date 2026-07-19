@@ -190,3 +190,29 @@ class TestBrowserSessionEdgeCases:
         session = BrowserSession(browser_pool=mock_browser_pool, context_type=ContextType.AGENT)
 
         session.mark_task_failure()
+
+
+class TestBrowserSessionIsManaged:
+    """Tests for is_browser_managed takeover routing."""
+
+    def test_is_browser_managed_delegates_to_pool(self, mock_browser_pool):
+        page = MagicMock()
+        mock_browser_pool.is_managed_for_page = MagicMock(return_value=False)
+        session = BrowserSession(browser_pool=mock_browser_pool, context_type=ContextType.AGENT)
+        session._tab_controller.list_tabs = Mock(return_value=["tab-1"])
+        session._tab_controller.get_active_page = Mock(return_value=page)
+
+        assert session.is_browser_managed() is False
+        mock_browser_pool.is_managed_for_page.assert_called_once_with(page)
+
+    def test_is_browser_managed_defaults_true_when_no_tabs(self, mock_browser_pool):
+        session = BrowserSession(browser_pool=mock_browser_pool, context_type=ContextType.AGENT)
+        session._tab_controller.list_tabs = Mock(return_value=[])
+
+        assert session.is_browser_managed() is True
+
+    def test_is_browser_managed_defaults_true_when_tab_lookup_fails(self, mock_browser_pool):
+        session = BrowserSession(browser_pool=mock_browser_pool, context_type=ContextType.AGENT)
+        session._tab_controller.list_tabs = Mock(side_effect=RuntimeError("tabs unavailable"))
+
+        assert session.is_browser_managed() is True

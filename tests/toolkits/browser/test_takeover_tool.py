@@ -78,6 +78,15 @@ class TestTakeoverToolNoPage:
         assert "Error" in result
         assert "No active browser page" in result
 
+    def test_returns_error_when_tab_controller_lookup_fails(self, mock_session_no_page):
+        from myrm_agent_harness.toolkits.browser.tools.takeover import create_takeover_tool
+
+        mock_session_no_page._tab_controller.list_tabs = MagicMock(side_effect=RuntimeError("tabs unavailable"))
+        tool = create_takeover_tool(mock_session_no_page)
+        result = asyncio.run(tool.ainvoke({"reason": "test"}))
+        assert "Error" in result
+        assert "No active browser page" in result
+
     def test_returns_error_when_page_closed(self, mock_session_closed_page):
         from myrm_agent_harness.toolkits.browser.tools.takeover import create_takeover_tool
 
@@ -212,3 +221,76 @@ class TestTakeoverToolScreenshotFailure:
             first_call = mock_dispatch.call_args_list[0]
             payload = first_call[0][1]
             assert payload["screenshot_base64"] is None
+
+    def test_resolves_page_via_tab_controller_when_session_page_missing(self, mock_session_no_page):
+        from myrm_agent_harness.toolkits.browser.tools.takeover import create_takeover_tool
+
+        page = MagicMock()
+        page.is_closed = MagicMock(return_value=False)
+        page.url = "https://bank.example/login"
+        page.screenshot = AsyncMock(return_value=b"\xff\xd8\xff\xe0fake_jpeg")
+        mock_session_no_page._tab_controller.list_tabs = MagicMock(return_value=["tab-1"])
+        mock_session_no_page._tab_controller.get_active_page = MagicMock(return_value=page)
+        mock_session_no_page.is_browser_managed = MagicMock(return_value=False)
+
+        tool = create_takeover_tool(mock_session_no_page)
+
+        with (
+            patch(
+                "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+                new_callable=AsyncMock,
+            ) as mock_dispatch,
+            patch("langgraph.types.interrupt", return_value="done"),
+        ):
+            result = asyncio.run(tool.ainvoke({"reason": "Enter SMS code"}))
+
+        assert "User completed" in result
+        payload = mock_dispatch.call_args_list[0][0][1]
+        assert payload["url"] == "https://bank.example/login"
+        assert payload["is_managed"] is False
+
+    def test_continues_when_post_interrupt_url_and_title_fail(self, mock_session):
+        from myrm_agent_harness.toolkits.browser.tools.takeover import create_takeover_tool
+
+        url_reads = {"count": 0}
+
+        def _read_url(_self: object) -> str:
+            url_reads["count"] += 1
+            if url_reads["count"] == 1:
+                return "https://example.com/checkout"
+            raise RuntimeError("url gone")
+
+        type(mock_session.page).url = property(_read_url)
+        mock_session.page.title = AsyncMock(side_effect=RuntimeError("title failed"))
+        tool = create_takeover_tool(mock_session)
+
+        with (
+            patch(
+                "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+                new_callable=AsyncMock,
+            ),
+            patch("langgraph.types.interrupt", return_value="done"),
+        ):
+            result = asyncio.run(tool.ainvoke({"reason": "Enter 2FA code"}))
+
+        assert "User completed" in result
+        assert "take a snapshot" in result.lower()
+
+    def test_continues_when_initial_url_read_fails(self, mock_session):
+        from myrm_agent_harness.toolkits.browser.tools.takeover import create_takeover_tool
+
+        type(mock_session.page).url = property(lambda _self: (_ for _ in ()).throw(RuntimeError("url unavailable")))
+        tool = create_takeover_tool(mock_session)
+
+        with (
+            patch(
+                "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+                new_callable=AsyncMock,
+            ) as mock_dispatch,
+            patch("langgraph.types.interrupt", return_value="done"),
+        ):
+            result = asyncio.run(tool.ainvoke({"reason": "Enter SMS code"}))
+
+        assert "User completed" in result
+        payload = mock_dispatch.call_args_list[0][0][1]
+        assert payload["url"] == ""

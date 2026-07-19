@@ -142,7 +142,7 @@ class TestCoordinatorHandleCaptcha:
             await coord.handle_captcha(_make_info(), page, is_managed=False)
 
         requested = [
-            payload
+            call
             for call in mock_dispatch.call_args_list
             if call.args[0] == "browser_takeover_requested"
         ]
