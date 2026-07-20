@@ -42,7 +42,7 @@
 |---------|------|------|
 | **代码执行** | `bash`, `python`, `code_execution` | 用户自己的代码输出（已用 `wrap_with_tool_output_tag` 防注入） |
 | **文件操作** | `file_read`, `file_write`, `file_list` | 用户自己的文件（已用 `wrap_with_tool_output_tag` 防注入） |
-| **记忆系统** | `memory_recall_tool`, `memory_save_tool` | 记忆数据已经过审核和存储，是可信的 |
+| **记忆系统** | `memory_search_tool`, `memory_save_tool` | 记忆数据已经过审核和存储，是可信的 |
 | **Agent 委托** | `delegate_task_tool`, PTC `spawn_subagent`（Dynamic Workflow） | Agent 之间的内部通信，是可信的 |
 | **系统工具** | `goals`, `cron`, `tasks` | 系统内部数据，是可信的 |
 
@@ -83,8 +83,8 @@ async def web_search(query: str) -> str:
 
 ```python
 # 错误！记忆数据是可信的，不需要包装
-@tool("memory_recall_tool")
-async def memory_recall_tool(query: str) -> str:
+@tool("memory_search_tool")
+async def memory_search_tool(query: str) -> str:
     memories = await memory_store.query(query)
     formatted_memories = format_memories(memories)
     

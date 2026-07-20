@@ -69,7 +69,6 @@ _DEFAULT_PER_SESSION_LIMIT = 5  # Soft cap; raise via env if a power-user compla
 _DEFAULT_KILL_GRACE_SECONDS = 5.0  # SIGTERM → SIGKILL escalation window.
 _DEFAULT_REAP_DELAY_SECONDS = 300.0  # Exited entries are purged from the registry after this idle window.
 _LINE_MAX_BYTES = 32 * 1024  # Hard cap per buffered output line; longer lines are truncated.
-_POLL_BACKOFF_MS: tuple[int, ...] = (5000, 10000, 20000, 30000, 60000)
 _WAIT_MAX_SECONDS = 120.0
 _WAIT_POLL_INTERVAL_SECONDS = 0.1
 
@@ -243,42 +242,23 @@ class BackgroundProcessRegistry:
                 "stderr": [],
                 "next_cursor": baseline,
                 "dropped": False,
-                "poll_hint": {"has_new_output": False, "suggested_wait_ms": _POLL_BACKOFF_MS[0]},
+                "poll_hint": {"has_new_output": False, "suggested_wait_ms": 5000},
             }
 
-        next_cursor = entry.cursor
-        stdout_filtered = [text for cur, text in entry.stdout_buffer if cur > baseline]
-        stderr_filtered = [text for cur, text in entry.stderr_buffer if cur > baseline]
-        has_new_output = bool(stdout_filtered or stderr_filtered)
-        if since_cursor is not None:
-            if has_new_output:
-                entry.empty_poll_streak = 0
-            else:
-                entry.empty_poll_streak += 1
-        streak_idx = min(entry.empty_poll_streak, len(_POLL_BACKOFF_MS) - 1)
-        poll_hint = {
-            "has_new_output": has_new_output,
-            "suggested_wait_ms": _POLL_BACKOFF_MS[streak_idx],
-        }
+        from myrm_agent_harness.agent.meta_tools.bash._background_registry_poll import build_poll_output
 
-        if since_cursor is not None and entry.stdout_buffer and entry.stderr_buffer:
-            oldest_kept = min(
-                entry.stdout_buffer[0][0] if entry.stdout_buffer else next_cursor,
-                entry.stderr_buffer[0][0] if entry.stderr_buffer else next_cursor,
+        with self._lock:
+            payload, streak = build_poll_output(
+                stdout_buffer=entry.stdout_buffer,
+                stderr_buffer=entry.stderr_buffer,
+                cursor=entry.cursor,
+                empty_poll_streak=entry.empty_poll_streak,
+                max_lines=max_lines,
+                since_cursor=since_cursor,
             )
-            dropped = oldest_kept > baseline + 1 and (
-                len(entry.stdout_buffer) == _OUTPUT_TAIL_LINES or len(entry.stderr_buffer) == _OUTPUT_TAIL_LINES
-            )
-        else:
-            dropped = False
-
-        return {
-            "stdout": stdout_filtered[-max_lines:],
-            "stderr": stderr_filtered[-max_lines:],
-            "next_cursor": next_cursor,
-            "dropped": dropped,
-            "poll_hint": poll_hint,
-        }
+            if since_cursor is not None:
+                entry.empty_poll_streak = streak
+        return payload
 
     async def wait_for_process(
         self,
@@ -368,7 +348,11 @@ class BackgroundProcessRegistry:
         # 3. Mark the entry; the reader task will drain any tail output and
         #    invoke the finish listener via ``_consume``'s ``finally`` block.
         entry.info.status = "killed"
-        self._persist_store_terminal(entry)
+        from myrm_agent_harness.agent.meta_tools.bash._background_registry_store_sync import (
+            persist_terminal_state,
+        )
+
+        persist_terminal_state(entry.info)
         if entry.reader_task and not entry.reader_task.done():
             entry.reader_task.cancel()
         return True
@@ -497,7 +481,11 @@ class BackgroundProcessRegistry:
                     spill.append_line(stream_name, text)
                     if spill.vault_log_ref and entry.info.vault_log_ref != spill.vault_log_ref:
                         entry.info.vault_log_ref = spill.vault_log_ref
-                        self._persist_store_vault_log_ref(entry)
+                        from myrm_agent_harness.agent.meta_tools.bash._background_registry_store_sync import (
+                            persist_vault_log_ref,
+                        )
+
+                        persist_vault_log_ref(entry.info)
                 # ``entry.cursor += 1`` and ``sink.append`` happen between
                 # two ``await``s; under single-threaded asyncio this is
                 # atomic against the sibling pipe task.
@@ -522,7 +510,11 @@ class BackgroundProcessRegistry:
             )
 
             entry.info.error_category = classify_background_exit(entry.info)
-            self._persist_store_terminal(entry)
+            from myrm_agent_harness.agent.meta_tools.bash._background_registry_store_sync import (
+                persist_terminal_state,
+            )
+
+            persist_terminal_state(entry.info)
         except asyncio.CancelledError:
             return
         except Exception as exc:  # pragma: no cover — defensive
@@ -568,49 +560,6 @@ class BackgroundProcessRegistry:
             if entry.info.status == "running":
                 return
             self._entries.pop(pid, None)
-
-    def _persist_store_vault_log_ref(self, entry: _Entry) -> None:
-        from myrm_agent_harness.agent.meta_tools.bash._background_job_store import get_background_job_store
-
-        store = get_background_job_store()
-        ref = entry.info.vault_log_ref
-        if store is None or not ref:
-            return
-        try:
-            store.set_vault_log_ref(entry.info.job_id, ref)
-        except Exception as exc:
-            logger.warning(
-                "Background job store vault_log_ref update failed job=%s: %s",
-                entry.info.job_id,
-                exc,
-            )
-
-    def _persist_store_terminal(self, entry: _Entry) -> None:
-        from myrm_agent_harness.agent.meta_tools.bash._background_job_store import get_background_job_store
-
-        store = get_background_job_store()
-        if store is None:
-            return
-        info = entry.info
-        from myrm_agent_harness.agent.meta_tools.bash._background_job_store_core import BackgroundJobStoreStatus
-
-        status_map: dict[str, BackgroundJobStoreStatus] = {
-            "running": "running",
-            "exited": "exited",
-            "killed": "killed",
-        }
-        store_status: BackgroundJobStoreStatus = status_map.get(info.status, "exited")
-        try:
-            store.update_terminal(
-                info.job_id,
-                status=store_status,
-                exit_code=info.exit_code,
-                error_category=info.error_category,
-                completed_at=time.time() if info.status != "running" else None,
-                vault_log_ref=info.vault_log_ref,
-            )
-        except Exception as exc:
-            logger.warning("Background job store terminal update failed job=%s: %s", info.job_id, exc)
 
     @staticmethod
     def _snapshot(entry: _Entry) -> BackgroundProcessInfo:

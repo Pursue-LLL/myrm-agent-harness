@@ -242,6 +242,7 @@ def create_bash_code_execute_tool(
                 return {
                     "content": (
                         f"Background process started.\n"
+                        f"  job_id: {info.job_id}\n"
                         f"  pid: {info.pid}\n"
                         f"  command: {info.command}\n"
                         f"  status: {info.status}\n\n"
@@ -250,6 +251,7 @@ def create_bash_code_execute_tool(
                     ),
                     "metadata": {
                         "background": True,
+                        "job_id": info.job_id,
                         "pid": info.pid,
                         "status": info.status,
                     },

@@ -95,3 +95,13 @@ class RouterJobRunner:
             output=context,
             exit_code=0,
         )
+
+
+class NotificationRunner:
+    """Zero-LLM reminder runner — delivers ``job.prompt`` as the notification body."""
+
+    async def run(self, job: CronJob, *, context: str = "") -> JobResult:
+        message = (job.prompt or "").strip()
+        if not message:
+            return JobResult(success=False, error="reminder job requires a non-empty prompt")
+        return JobResult(success=True, output=message, exit_code=1)

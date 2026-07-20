@@ -42,7 +42,7 @@ dependencies = [
   # --- 系统监控 (健康诊断核心依赖) ---
   "psutil>=7.2.2", # 进程与系统监控 (CPU/Memory health probes)
   # --- 监控与可观测性 (仅保留轻量级 API，SDK 移至 optional) ---
-  "opentelemetry-api>=1.43.0",
+  "opentelemetry-api>=1.44.0",
   # --- Cron 定时任务 ---
   "croniter>=6.2.4", # Cron 表达式解析与计算
   # --- 网页爬取与内容提取（基础） ---

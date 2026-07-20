@@ -1,17 +1,18 @@
-"""Agent memory tools: recall, save, manage.
+"""Agent memory tools: search, save, manage.
 
 Framework-level: depends only on MemoryManager (protocol-based).
-All approval logic is handled transparently by MemoryManager.
+Server binds wiki and conversation providers via MemorySearchBackends.
 
 [INPUT]
-- agent.streaming.types::AgentEventType (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
+- toolkits.memory.manager::MemoryManager (POS: memory lifecycle manager)
+- toolkits.memory.memory_search_policy::MemorySearchPolicy (POS: corpus ACL for memory_search_tool)
+- toolkits.memory.memory_search_execution (POS: memory/wiki/sessions search execution helpers)
 
 [OUTPUT]
-- memory_age_label: Human-readable age label for a memory timestamp.
-- create_memory_tools: Create memory tools for the user bound to the manager.
+- create_memory_tools: Create memory_search_tool, memory_save_tool, memory_manage_tool.
 
 [POS]
-Agent memory tools: recall, save, manage.
+Agent memory tools factory. Unified read plane via memory_search_tool(corpus); write plane unchanged.
 """
 
 from __future__ import annotations

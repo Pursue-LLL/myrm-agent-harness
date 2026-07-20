@@ -332,7 +332,7 @@ configs/subagents/
 - 安全特性：文件大小限制、工具名称正则验证、system_prompt 长度限制
 - 错误处理：单文件加载失败跳过该文件；`filter_tools` 后 allowlist 为空则子 Agent 立即 `FAILED`（不空跑）
 
-内置 preset 工具名必须与 `@tool()` 注册名一致（SSOT：`tool_layers.py`）。例如 browser preset 使用 `browser_interact_tool`，analysis preset 使用 `memory_recall_tool`。
+内置 preset 工具名必须与 `@tool()` 注册名一致（SSOT：`tool_layers.py`）。例如 browser preset 使用 `browser_interact_tool`，analysis preset 使用 `memory_search_tool`。
 
 当 Agent 启用 browser 内置工具时，server 层在 `AgentFactory.create_general_agent` 自动 peripheral 绑定 prebuilt `browser-automation` skill（`is_core:false`，不占 Turn1 schema）。
 

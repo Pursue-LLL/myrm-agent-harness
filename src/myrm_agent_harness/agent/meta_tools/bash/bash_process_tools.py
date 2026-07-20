@@ -18,6 +18,7 @@ PTC-adjacent surface tool — bash-tool-package only; no business coupling.
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Literal
 
 from langchain_core.runnables import RunnableConfig
@@ -94,6 +95,12 @@ class _BashProcessInput(BaseModel):
         default=False,
         description="For kill: send SIGKILL when true, else SIGTERM first.",
     )
+    filter: str | None = Field(
+        default=None,
+        description=(
+            "For output: optional regex applied per line — only matching stdout/stderr lines are returned."
+        ),
+    )
 
 
 async def _handle_list(session_id: str) -> dict[str, object]:
@@ -113,6 +120,7 @@ async def _handle_output(
     pid: int,
     max_lines: int,
     since_cursor: int | None,
+    filter_pattern: str | None,
 ) -> dict[str, object]:
     registry = get_background_registry()
     info = registry.get(pid)
@@ -121,9 +129,33 @@ async def _handle_output(
             "content": f"No background process with pid={pid} in this session.",
             "metadata": {"pid": pid, "found": False, "action": "output"},
         }
+    line_filter = None
+    if filter_pattern:
+        from myrm_agent_harness.agent.meta_tools.bash._bash_output_filter_core import (
+            compile_output_filter,
+        )
+
+        try:
+            line_filter = compile_output_filter(filter_pattern)
+        except re.error as exc:
+            return {
+                "content": f"Invalid output filter regex: {exc}",
+                "metadata": {"pid": pid, "found": True, "action": "output", "error": "invalid_filter"},
+            }
+
     streams = registry.get_output(pid, max_lines=max_lines, since_cursor=since_cursor)
+    stdout = streams["stdout"]
+    stderr = streams["stderr"]
+    if line_filter is not None:
+        from myrm_agent_harness.agent.meta_tools.bash._bash_output_filter_core import filter_output_lines
+
+        stdout = filter_output_lines(list(stdout) if isinstance(stdout, list) else [], line_filter)
+        stderr = filter_output_lines(list(stderr) if isinstance(stderr, list) else [], line_filter)
+
     poll_hint = streams.get("poll_hint")
     metadata: dict[str, object] = {"pid": pid, "session_id": session_id, "action": "output"}
+    if filter_pattern:
+        metadata["filter"] = filter_pattern
     if isinstance(poll_hint, dict):
         metadata["poll_hint"] = poll_hint
     return {
@@ -132,8 +164,8 @@ async def _handle_output(
             "status": info.status,
             "exit_code": info.exit_code,
             "error_category": info.error_category,
-            "stdout": streams["stdout"],
-            "stderr": streams["stderr"],
+            "stdout": stdout,
+            "stderr": stderr,
             "next_cursor": streams["next_cursor"],
             "dropped": streams["dropped"],
             "poll_hint": poll_hint,
@@ -215,6 +247,7 @@ def create_bash_process_tool() -> BaseTool:
         since_cursor: int | None = None,
         timeout_seconds: int = _WAIT_DEFAULT_SECONDS,
         force: bool = False,
+        filter: str | None = None,
         *,
         config: RunnableConfig,
     ) -> dict[str, object]:
@@ -231,7 +264,7 @@ def create_bash_process_tool() -> BaseTool:
             }
         if action == "output":
             assert pid is not None
-            return await _handle_output(session_id, pid, max_lines, since_cursor)
+            return await _handle_output(session_id, pid, max_lines, since_cursor, filter)
         if action == "wait":
             assert pid is not None
             return await _handle_wait(session_id, pid, timeout_seconds)

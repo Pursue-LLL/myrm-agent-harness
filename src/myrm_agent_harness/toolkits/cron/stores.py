@@ -51,6 +51,7 @@ class InMemoryCronStore:
         *,
         user_id: str | None = None,
         name_filter: str | None = None,
+        chat_id: str | None = None,
         due_before: datetime | None = None,
         limit: int | None = None,
         offset: int = 0,
@@ -60,6 +61,9 @@ class InMemoryCronStore:
 
         if user_id is not None:
             result = [j for j in result if j.user_id == user_id]
+
+        if chat_id is not None:
+            result = [j for j in result if j.chat_id == chat_id]
 
         if name_filter is not None:
             name_filter_lower = name_filter.lower()
@@ -79,11 +83,23 @@ class InMemoryCronStore:
             result = result[:limit]
         return [deepcopy(j) for j in result]
 
-    async def count_jobs(self, *, user_id: str | None = None) -> int:
+    async def count_jobs(
+        self,
+        *,
+        user_id: str | None = None,
+        name_filter: str | None = None,
+        chat_id: str | None = None,
+    ) -> int:
         async with self._lock:
-            if user_id is None:
-                return len(self._jobs)
-            return sum(1 for j in self._jobs.values() if j.user_id == user_id)
+            jobs = list(self._jobs.values())
+        if user_id is not None:
+            jobs = [j for j in jobs if j.user_id == user_id]
+        if chat_id is not None:
+            jobs = [j for j in jobs if j.chat_id == chat_id]
+        if name_filter is not None:
+            name_filter_lower = name_filter.lower()
+            jobs = [j for j in jobs if name_filter_lower in j.name.lower()]
+        return len(jobs)
 
     async def get_job(self, job_id: str) -> CronJob | None:
         async with self._lock:

@@ -23,7 +23,9 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | health.py                | Core     | Memory system diagnostics — instance-level health and maintenance reports.                                    | ✅    |
 | intent_recognizers.py    | Core     | Query intent recognition for adaptive type weighting.                                                         | ✅    |
 | manager.py               | Core     | Public import path for ``MemoryManager`` and memory error types. | ✅    |
-| memory_agent_tools.py    | Core     | Agent memory tools: recall, save, manage. Includes write-quality guidance (when/what/how to save) in save description, recall context budget enforcement, and citation provenance with retrieval traces. | ✅    |
+| memory_agent_tools.py    | Core     | Agent memory tools: memory_search_tool, save, manage. Unified corpus read plane with server ACL. | ✅    |
+| memory_search_policy.py  | Core     | Corpus ACL and optional wiki/sessions backends for memory_search_tool. | ✅    |
+| memory_search_execution.py | Core   | Memory/wiki/sessions search execution and formatted tool output. | ✅    |
 | memory_citations.py      | Core     | Citation/source bridge that converts recalled memories, retrieval traces, and conversation sources into UI-safe SSE metadata. | ✅    |
 | memory_recall_budget.py      | Core     | Recall budget guardrails: limit normalization, output size accounting, and content truncation helpers.        | ✅    |
 | memory_recall_formatting.py  | Core     | Recall formatting helpers: time filters, age labels, staleness checks, and channel provenance labels.         | ✅    |

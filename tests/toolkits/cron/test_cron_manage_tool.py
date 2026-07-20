@@ -1078,13 +1078,13 @@ class TestAutoName:
 
 
 # ---------------------------------------------------------------------------
-# ContextVar guard — non-mutating actions allowed in cron context
+# ContextVar guard — mutating actions blocked in cron execution context
 # ---------------------------------------------------------------------------
 
 
-class TestCronGuardNonMutating:
+class TestCronGuardMutatingBlocked:
     @pytest.mark.asyncio
-    async def test_pause_allowed_during_cron_execution(self, tool, manager: CronManager) -> None:
+    async def test_pause_blocked_during_cron_execution(self, tool, manager: CronManager) -> None:
         job = await manager.create_job(
             user_id=USER_ID,
             name="test",
@@ -1095,13 +1095,12 @@ class TestCronGuardNonMutating:
         token = enter_cron_execution_context()
         try:
             result = await tool.ainvoke({"action": "pause", "job_id": job.id})
-            parsed = json.loads(result)
-            assert parsed["status"] == "success"
+            assert "cannot create or modify" in result
         finally:
             exit_cron_execution_context(token)
 
     @pytest.mark.asyncio
-    async def test_resume_allowed_during_cron_execution(self, tool, manager: CronManager) -> None:
+    async def test_resume_blocked_during_cron_execution(self, tool, manager: CronManager) -> None:
         job = await manager.create_job(
             user_id=USER_ID,
             name="test",
@@ -1113,13 +1112,12 @@ class TestCronGuardNonMutating:
         token = enter_cron_execution_context()
         try:
             result = await tool.ainvoke({"action": "resume", "job_id": job.id})
-            parsed = json.loads(result)
-            assert parsed["status"] == "success"
+            assert "cannot create or modify" in result
         finally:
             exit_cron_execution_context(token)
 
     @pytest.mark.asyncio
-    async def test_remove_allowed_during_cron_execution(self, tool, manager: CronManager) -> None:
+    async def test_remove_blocked_during_cron_execution(self, tool, manager: CronManager) -> None:
         job = await manager.create_job(
             user_id=USER_ID,
             name="test",
@@ -1130,7 +1128,23 @@ class TestCronGuardNonMutating:
         token = enter_cron_execution_context()
         try:
             result = await tool.ainvoke({"action": "remove", "job_id": job.id})
-            assert "deleted" in result
+            assert "cannot create or modify" in result
+        finally:
+            exit_cron_execution_context(token)
+
+    @pytest.mark.asyncio
+    async def test_run_blocked_during_cron_execution(self, tool, manager: CronManager) -> None:
+        job = await manager.create_job(
+            user_id=USER_ID,
+            name="test",
+            job_type=JobType.AGENT,
+            schedule=Schedule(kind=ScheduleKind.INTERVAL, interval_ms=300_000),
+            prompt="check",
+        )
+        token = enter_cron_execution_context()
+        try:
+            result = await tool.ainvoke({"action": "run", "job_id": job.id})
+            assert "cannot create or modify" in result
         finally:
             exit_cron_execution_context(token)
 

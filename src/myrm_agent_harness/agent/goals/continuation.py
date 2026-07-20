@@ -265,7 +265,7 @@ async def _maybe_auto_enter_wait_for_background_bash(
     from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import get_loop_guard
 
     from .wait_background_bash import (
-        WAIT_ON_BACKGROUND_PID_KEY,
+        WAIT_ON_BACKGROUND_JOB_ID_KEY,
         find_latest_background_spawn_in_window,
     )
 
@@ -273,25 +273,22 @@ async def _maybe_auto_enter_wait_for_background_bash(
     if spawn is None:
         return None
 
-    existing_pid = goal.metadata.get(WAIT_ON_BACKGROUND_PID_KEY)
-    if existing_pid is not None:
-        try:
-            if int(existing_pid) == spawn.pid:  # type: ignore[arg-type]
-                return None
-        except (TypeError, ValueError):
-            pass
+    existing_job_id = goal.metadata.get(WAIT_ON_BACKGROUND_JOB_ID_KEY)
+    if existing_job_id is not None and str(existing_job_id) == spawn.job_id:
+        return None
 
-    reason = f"Waiting for background process (pid {spawn.pid})"
+    reason = f"Waiting for background job {spawn.job_id}"
     await goal_provider.enter_wait(goal.goal_id, reason=reason)
     await goal_provider.update_metadata(
         goal.goal_id,
-        {WAIT_ON_BACKGROUND_PID_KEY: spawn.pid},
+        {WAIT_ON_BACKGROUND_JOB_ID_KEY: spawn.job_id},
     )
     refreshed = await goal_provider.get_goal(goal.goal_id)
     target = refreshed or goal
     logger.info(
-        "Goal %s auto-entered WAIT for background pid=%s",
+        "Goal %s auto-entered WAIT for background job_id=%s pid=%s",
         goal.goal_id,
+        spawn.job_id,
         spawn.pid,
     )
     return _make_decision("wait", reason, target)

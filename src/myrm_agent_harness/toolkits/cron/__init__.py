@@ -60,7 +60,7 @@ from myrm_agent_harness.toolkits.cron.protocols import (
     StreamListener,
     TriggerProvider,
 )
-from myrm_agent_harness.toolkits.cron.runners import RouterJobRunner, ShellJobRunner
+from myrm_agent_harness.toolkits.cron.runners import NotificationRunner, RouterJobRunner, ShellJobRunner
 from myrm_agent_harness.toolkits.cron.situation import (
     SituationContext,
     SituationReportBuilder,
@@ -119,6 +119,7 @@ __all__ = [
     "JobRunner",
     "JobStatus",
     "JobType",
+    "NotificationRunner",
     "PollTrigger",
     "ResultDelivery",
     "RouterJobRunner",

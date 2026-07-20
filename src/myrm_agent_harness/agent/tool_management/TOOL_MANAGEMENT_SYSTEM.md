@@ -101,7 +101,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `grep_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
 | `web_fetch_tool` | CORE | user_capability | — | Agent baseline; Turn1 (Fast mode may omit file/bash only) |
 | `memory_manage_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
-| `memory_recall_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
+| `memory_search_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
 | `memory_save_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
 | `todo_write` | COMMON | user_capability | planning | planning or existing workspace todos |
 | `web_search_tool` | COMMON | user_capability | web_search | enabled_builtin_tools: web_search (default on) |
@@ -135,7 +135,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `kanban_list_tasks` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_show` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_unblock` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
-| `knowledge_recall_tool` | EXTENDED | user_capability | — | enable_wiki + enable_memory (non-incognito) |
+| `memory_search_tool` | EXTENDED | user_capability | — | enable_wiki + enable_memory (non-incognito) |
 | `render_ui_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
 | `request_answer_user_tool` | EXTENDED | user_capability | answer_tool | enabled_builtin_tools: answer_tool |
 | `send_teammate_message_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |

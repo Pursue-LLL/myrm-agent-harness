@@ -54,6 +54,7 @@ if TYPE_CHECKING:
 
 # Blueprint filler: (blueprint_id, values_dict, tz) -> (schedule_dict, prompt, name) | None
 BlueprintFiller = Callable[[str, dict[str, str], str | None], tuple[dict[str, str | int | None], str, str] | None]
+BlueprintCatalogProvider = Callable[[], str]
 DeliveryResolver = Callable[[str], DeliveryConfig]
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,7 @@ logger = logging.getLogger(__name__)
 _MIN_INTERVAL_MINUTES = 5
 
 _IN_CRON_EXECUTION: ContextVar[bool] = ContextVar("_in_cron_execution", default=False)
+_CRON_EXECUTION_MUTATING_ACTIONS = frozenset({"add", "update", "remove", "run", "pause", "resume"})
 
 
 def enter_cron_execution_context() -> Token[bool]:
@@ -83,36 +85,41 @@ def create_cron_tools(
     current_model: str = "",
     chat_id: str | None = None,
     agent_id: str | None = None,
-    blueprint_catalog: str = "",
     blueprint_filler: BlueprintFiller | None = None,
+    blueprint_catalog_provider: BlueprintCatalogProvider | None = None,
     delivery_resolver: DeliveryResolver | None = None,
+    default_delivery: DeliveryConfig | None = None,
 ) -> list[BaseTool]:
     """Create a single cron management tool bound to a user.
 
     ``current_model`` is the LiteLLM model name of the calling Agent session,
     used as default when the user doesn't specify a model for a new cron job.
 
-    ``blueprint_catalog`` is a pre-rendered text snippet describing available
-    blueprints, appended to the tool description for LLM awareness.
+    ``blueprint_catalog_provider`` returns blueprint catalog text for the
+    on-demand ``action=blueprints`` lookup (not injected into Turn1 schema).
 
     ``blueprint_filler`` is a callable that fills a blueprint by ID and slot
     values, returning (schedule_dict, prompt, name) or None if unknown.
 
+    ``default_delivery`` is used when ``webhook_url`` is empty instead of
+    falling back to in-chat delivery (e.g. IM channel + recipient binding).
+
     ``delivery_resolver`` maps webhook URLs to ``DeliveryConfig``. When omitted,
     non-empty URLs use generic ``webhook`` delivery (no channel-specific heuristics).
     """
-    _blueprint_suffix = f"\n\n{blueprint_catalog}" if blueprint_catalog else ""
 
     def _resolve_delivery(webhook_url: str) -> DeliveryConfig:
         if delivery_resolver is not None:
             return delivery_resolver(webhook_url)
         if not webhook_url.strip():
+            if default_delivery is not None:
+                return default_delivery
             return DeliveryConfig(channel="chat")
         return DeliveryConfig(channel="webhook", target=webhook_url)
 
     @tool("cron_manage_tool")
     async def cron_manage(
-        action: Literal["add", "list", "update", "remove", "run", "pause", "resume"],
+        action: Literal["add", "list", "update", "remove", "run", "pause", "resume", "blueprints"],
         prompt: str = "",
         command: str = "",
         model: str = "",
@@ -145,12 +152,14 @@ def create_cron_tools(
         poll_url: str = "",
         poll_json_path: str = "",
         poll_interval_seconds: int = 0,
+        reminder: bool = False,
     ) -> str:
         """Manage scheduled tasks (create, list, update, delete, trigger, pause, resume).
 
         Actions:
           add    - Create a task. Fill (prompt OR command) + ONE schedule param.
                    Use prompt for agent tasks, command for shell tasks.
+                   Set reminder=true for zero-LLM notification reminders (prompt only).
                    Recurring schedules (cron_expr or every_minutes) require
                    recurring_confirmed=true. For one-time reminders use "at".
                    Minimum interval for every_minutes is 5 minutes.
@@ -162,6 +171,7 @@ def create_cron_tools(
           run    - Trigger a task now. Requires job_id.
           pause  - Pause a task (preserves history). Requires job_id.
           resume - Resume a paused task. Requires job_id.
+          blueprints - List available automation blueprint templates (on demand).
 
         Schedule (for add/update — fill exactly ONE, unless using blueprint):
           cron_expr     - Cron expression, e.g. "0 9 * * *" (daily 9am),
@@ -246,10 +256,12 @@ def create_cron_tools(
                 E.g. "$.0.sha" for the latest commit SHA. Optional.
             poll_interval_seconds: Polling interval in seconds (minimum 60, default 300).
                 Only used when poll_url is set.
+            reminder: When true (add only), create a zero-LLM reminder that delivers
+                the prompt text directly. Mutually exclusive with command.
         """
         effective_model = model.strip() or current_model
 
-        if action in ("add", "update") and _IN_CRON_EXECUTION.get():
+        if action in _CRON_EXECUTION_MUTATING_ACTIONS and _IN_CRON_EXECUTION.get():
             return (
                 "Error: cannot create or modify scheduled tasks from within "
                 "a cron job execution. This prevents infinite task chains."
@@ -320,9 +332,11 @@ def create_cron_tools(
                 poll_url=poll_url,
                 poll_json_path=poll_json_path,
                 poll_interval_seconds=poll_interval_seconds,
+                reminder=reminder,
                 resolve_delivery=_resolve_delivery,
             ),
             "list": lambda: _do_list(manager, user_id, name_filter),
+            "blueprints": lambda: _do_blueprints(blueprint_catalog_provider),
             "update": lambda: _do_update(
                 manager,
                 user_id,
@@ -351,9 +365,6 @@ def create_cron_tools(
         if not handler:
             return f"Unknown action: {action}"
         return await handler()
-
-    if _blueprint_suffix:
-        cron_manage.description = (cron_manage.description or "") + _blueprint_suffix
 
     return [cron_manage]
 
@@ -551,6 +562,12 @@ def _build_trigger_config(
     return None, TriggerConfig(streams=streams, polls=polls)
 
 
+async def _do_blueprints(provider: BlueprintCatalogProvider | None) -> str:
+    if provider is None:
+        return "Blueprint catalog is not available in this session."
+    return provider()
+
+
 async def _do_add(
     mgr: CronManager,
     user_id: str,
@@ -584,15 +601,21 @@ async def _do_add(
     poll_url: str = "",
     poll_json_path: str = "",
     poll_interval_seconds: int = 0,
+    reminder: bool = False,
     *,
     resolve_delivery: DeliveryResolver,
 ) -> str:
     has_prompt = bool(prompt.strip())
     has_command = bool(command.strip())
 
+    if reminder and has_command:
+        return "Reminder tasks use prompt only — do not set command."
+    if reminder and not has_prompt:
+        return "Reminder tasks require a non-empty prompt."
+
     if has_prompt and has_command:
         return "Provide either prompt (agent task) or command (shell task), not both."
-    if not has_prompt and not has_command:
+    if not reminder and not has_prompt and not has_command:
         return "Either prompt or command is required."
 
     has_stream_or_poll = bool(stream_url.strip()) or bool(poll_url.strip())
@@ -632,6 +655,9 @@ async def _do_add(
     if has_command:
         job_type = JobType.SHELL
         task_name = name.strip() or generate_job_name(command.strip())
+    elif reminder:
+        job_type = JobType.REMINDER
+        task_name = name.strip() or generate_job_name(prompt.strip())
     else:
         job_type = JobType.AGENT
         task_name = name.strip() or generate_job_name(prompt.strip())
@@ -680,7 +706,10 @@ async def _do_add(
         return str(exc)
 
     next_run = job.next_run_at.strftime("%Y-%m-%d %H:%M UTC") if job.next_run_at else "N/A"
-    type_label = "Shell" if job_type == JobType.SHELL else "Agent"
+    type_label = {
+        JobType.SHELL: "Shell",
+        JobType.REMINDER: "Reminder",
+    }.get(job_type, "Agent")
 
     result: dict[str, str | int | None] = {
         "status": "success",
@@ -718,7 +747,10 @@ async def _do_list(mgr: CronManager, user_id: str, name_filter: str) -> str:
     for j in jobs:
         next_run = j.next_run_at.strftime("%m-%d %H:%M") if j.next_run_at else "—"
         icon = ">" if j.status.value == "active" else "||"
-        type_tag = "[shell]" if j.job_type == JobType.SHELL else ""
+        type_tag = {
+            JobType.SHELL: "[shell]",
+            JobType.REMINDER: "[reminder]",
+        }.get(j.job_type, "")
         model_tag = f" ({j.model})" if j.model else ""
         fires_tag = f" [{j.fire_count}/{j.max_fires}]" if j.max_fires else ""
         ctx_tag = f" ←[{','.join(j.context_from)}]" if j.context_from else ""
@@ -797,7 +829,10 @@ async def _do_update(
         return f"Task {job_id} not found."
 
     next_run = job.next_run_at.strftime("%Y-%m-%d %H:%M UTC") if job.next_run_at else "N/A"
-    type_label = "Shell" if job.job_type == JobType.SHELL else "Agent"
+    type_label = {
+        JobType.SHELL: "Shell",
+        JobType.REMINDER: "Reminder",
+    }.get(job.job_type, "Agent")
 
     result: dict[str, str | int | None] = {
         "status": "success",

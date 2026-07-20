@@ -89,13 +89,26 @@ class CronManager:
         user_id: str,
         *,
         name_filter: str | None = None,
+        chat_id: str | None = None,
         limit: int | None = None,
         offset: int = 0,
     ) -> list[CronJob]:
-        return await self._store.list_jobs(user_id=user_id, name_filter=name_filter, limit=limit, offset=offset)
+        return await self._store.list_jobs(
+            user_id=user_id,
+            name_filter=name_filter,
+            chat_id=chat_id,
+            limit=limit,
+            offset=offset,
+        )
 
-    async def count_jobs(self, user_id: str) -> int:
-        return await self._store.count_jobs(user_id=user_id)
+    async def count_jobs(
+        self,
+        user_id: str,
+        *,
+        name_filter: str | None = None,
+        chat_id: str | None = None,
+    ) -> int:
+        return await self._store.count_jobs(user_id=user_id, name_filter=name_filter, chat_id=chat_id)
 
     async def get_job(self, job_id: str, user_id: str) -> CronJob | None:
         job = await self._store.get_job(job_id)

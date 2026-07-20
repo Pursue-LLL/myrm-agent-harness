@@ -104,19 +104,19 @@ class ToolLayer(IntEnum):
 |------|---------|---------|----------:|
 | 能力发现网关（**TURN1**，DeferEconomics 判定） | searchable skills / 大 defer 池 | discover_capability_tool | ~819（条件绑定） |
 | bash_process_tool | bash 启用时 Turn1 | bash_process_tool | ~200 |
-| 记忆工具（COMMON） | 启用记忆系统 | memory_recall_tool, memory_save_tool, memory_manage_tool | ~840 |
+| 记忆工具（COMMON） | 启用记忆系统 | memory_search_tool, memory_save_tool, memory_manage_tool | ~840 |
 | 会话搜索（EXTENDED，opt-in） | `memoryEnableConversationSearch=true` 且非无痕 | conversation_search_tool | ~67 |
 | 技能工具（Turn1） | 有技能后端 | skill_select_tool, skill_manage_tool | ~343 |
 | 浏览器工具 | `enabled_builtin_tools: browser` | browser_navigate_tool, browser_snapshot_tool, ... (8个) | ~535 |
 | 定时任务工具 | cron 能力 wired；勾选 cron 时 Turn1 | cron_manage_tool | ~827 |
 | Wiki 工具 | `enabled_builtin_tools: wiki` | wiki_query_tool, wiki_ingest_tool (2个) | ~95 |
-| 统一知识检索 | wiki + memory 双开 | knowledge_recall_tool (1个) | ~55 |
+| 统一知识检索 | wiki + memory 双开 | memory_search_tool (1个) | ~55 |
 | 子 Agent 工具 | SubagentManagementExtension + entitlements | delegate_task_tool, subagent_control_tool, send_teammate_message_tool (orchestrator) | TBD |
 | UI 渲染工具 | `enabled_builtin_tools: render_ui` | render_ui_tool | 223 |
 | 答案自审工具 | `enabled_builtin_tools: answer_tool` | request_answer_user_tool | ~120 |
 | Goal 工具 | chat 有 active Goal | complete_goal_tool | ~120 |
 | 看板工具 | `enabled_builtin_tools: kanban` | orchestrator 3 + worker 6；board CRUD 走 REST/GUI | -
-| Server 业务工具 | skill/凭证/notify 配置 | x_search_tool, knowledge_recall_tool, channel_notify_tool, image_tool, video_tool, tts_generate (6个) | 按凭证 |
+| Server 业务工具 | skill/凭证/notify 配置 | x_search_tool, memory_search_tool, channel_notify_tool, image_tool, video_tool, tts_generate (6个) | 按凭证 |
 
 ### 2.3 排序规则
 

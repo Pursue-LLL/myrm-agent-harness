@@ -31,7 +31,7 @@ from .manager_queue_mixin import GoalManagerQueueMixin
 from .protocols import GoalProvider
 from .storage import GoalStorage
 from .types import Goal, GoalAccountingOutcome, GoalBudget, GoalStatus
-from .wait_background_bash import WAIT_ON_BACKGROUND_PID_KEY
+from .wait_background_bash import WAIT_ON_BACKGROUND_JOB_ID_KEY
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.goals.verification.types import VerificationResult
@@ -259,7 +259,7 @@ class GoalManager(GoalManagerQueueMixin, GoalProvider):
         goal.metadata.pop("wait_reason", None)
         goal.metadata.pop("wait_started_at", None)
         goal.metadata.pop("wait_max_seconds", None)
-        goal.metadata.pop(WAIT_ON_BACKGROUND_PID_KEY, None)
+        goal.metadata.pop(WAIT_ON_BACKGROUND_JOB_ID_KEY, None)
         goal.updated_at = datetime.now(UTC)
         await self._storage.save_goal(goal)
         logger.info("Goal %s exited WAIT → ACTIVE", goal_id)

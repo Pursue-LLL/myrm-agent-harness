@@ -789,7 +789,7 @@ Try: (1) different command syntax, (2) check file permissions, (3) verify curren
 ```python
 _DEFAULT_EXEMPTED_TOOLS = {
     # Memory system (high-frequency readonly)
-    "memory_recall_tool",
+    "memory_search_tool",
     "memory_save_tool",
     "memory_manage_tool",
     # Skill system (high-frequency readonly)
@@ -1143,7 +1143,7 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 | 工具名 | 用途 |
 |--------|------|
 | `web_search_tool` | 网络搜索 |
-| `memory_recall_tool` / `memory_save_tool` / `memory_manage_tool` | 记忆管理 |
+| `memory_search_tool` / `memory_save_tool` / `memory_manage_tool` | 记忆管理 |
 | `skill_select_tool` / `skill_discovery_tool` / `discover_capability_tool` | 技能系统 |
 | `browser_interact_tool` / `browser_manage_tool` | 浏览器操作（通过动态解析细分权限） |
 | `request_answer_user_tool` | 内部控制工具，触发回答阶段 |

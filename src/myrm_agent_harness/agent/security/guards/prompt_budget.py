@@ -46,7 +46,7 @@ class PromptBudgetGuard:
     def __init__(
         self,
         max_tokens: int = 2500,
-        truncation_message: str = "\n... (Some lower-priority items were truncated. Use memory_recall to search for more.)",
+        truncation_message: str = "\n... (Some lower-priority items were truncated. Use memory_search_tool to search for more.)",
     ) -> None:
         self.max_chars = max_tokens * CHARS_PER_TOKEN
         self.truncation_message = truncation_message

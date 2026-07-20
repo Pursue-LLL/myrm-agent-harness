@@ -680,7 +680,8 @@ class TestInjectMemoryContext:
         stable_payload = "\n".join(str(m.content) for m in injected_messages if isinstance(m, SystemMessage))
         untrusted_payload = "\n".join(str(m.content) for m in injected_messages if isinstance(m, HumanMessage))
         assert "Snapshot User" in stable_payload
-        assert MEMORY_UNTRUSTED_OPEN_MARKER in untrusted_payload
+        # P0: learned snapshot is not injected — retrieval goes through memory_search_tool.
+        assert MEMORY_UNTRUSTED_OPEN_MARKER not in untrusted_payload
         assert get_memory_runtime_injection() == {
             "state": "applied",
             "source": "snapshot",
@@ -775,7 +776,7 @@ class TestInjectMemoryContext:
         handler.assert_awaited_once_with(req)
         assert get_memory_runtime_injection() == {
             "state": "not_applied",
-            "reason": "static_error",
+            "reason": "load_error",
         }
 
     @pytest.mark.asyncio
@@ -858,8 +859,8 @@ class TestInjectMemoryContext:
         assert human_count == 1
 
     @pytest.mark.asyncio
-    async def test_learned_only_prefixed_human_before_user_human(self, _inject_fn):
-        """Learned envelope HumanMessage sits immediately before the real user utterance."""
+    async def test_learned_only_uses_cold_start_without_untrusted_injection(self, _inject_fn):
+        """P0: learned facts are not injected; empty profile gets stable cold-start guidance only."""
         handler = AsyncMock()
         req = _make_request(
             messages=[
@@ -891,7 +892,13 @@ class TestInjectMemoryContext:
             ("sys" if isinstance(m, SystemMessage) else ("mem" if isinstance(m, HumanMessage) and MEMORY_UNTRUSTED_OPEN_MARKER in str(m.content) else "user"))
             for m in injected
         ]
-        assert ids == ["sys", "mem", "user"]
+        assert ids == ["sys", "sys", "user"]
+        cold_msgs = [
+            m
+            for m in injected
+            if isinstance(m, SystemMessage) and "Discovery Mode" in str(m.content) and MEMORY_CONTEXT_MARKER in str(m.content)
+        ]
+        assert len(cold_msgs) == 1
 
     @pytest.mark.asyncio
     async def test_skips_injection_when_recall_mode_tools(self, _inject_fn):

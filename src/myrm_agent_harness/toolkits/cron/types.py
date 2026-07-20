@@ -39,6 +39,7 @@ class JobType(StrEnum):
     AGENT = "agent"
     SHELL = "shell"
     ROUTER = "router"
+    REMINDER = "reminder"
 
 
 class JobStatus(StrEnum):

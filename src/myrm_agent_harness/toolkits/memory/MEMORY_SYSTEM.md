@@ -7,7 +7,7 @@
 构建一个 **Protocol-first** 的可插拔 AI Agent 记忆系统：
 
 - **运行时读写**：Agent 通过工具动态存储和检索记忆
-- **可解释引用**：`memory_recall_tool` 在返回结果时同步发出 cited memory IDs、轻量 citation refs 与业务无关 retrieval trace；无结果检索也会发出 trace，业务层可展示“为什么没召回”；`conversation_search_tool` 通过标准 `sources` 事件发出历史会话来源，业务层可持久化并在聊天 UI 展示记忆与会话证据来源
+- **可解释引用**：`memory_search_tool` 在返回结果时同步发出 cited memory IDs、轻量 citation refs 与业务无关 retrieval trace；无结果检索也会发出 trace，业务层可展示“为什么没召回”；`conversation_search_tool` 通过标准 `sources` 事件发出历史会话来源，业务层可持久化并在聊天 UI 展示记忆与会话证据来源
 - **个性化体验**：基于用户画像和历史交互提供定制化服务
 - **跨会话上下文**：记忆在不同对话间持久化
 - **跨渠道持久化**：记忆携带确定性 `scope`（`agent_id/channel_id/conversation_id/task_id`），默认支持跨渠道召回并保留来源
@@ -463,7 +463,7 @@ Agent.process_stream(chat_id)
   │     ├── memory_save_tool("知识A") → buffer (0 IO)
   │     ├── memory_save_tool("知识B") → buffer (0 IO)
   │     ├── memory_save_tool("偏好")  → DB (幂等直写)
-  │     ├── memory_recall_tool("xxx") → DB + buffer merged
+  │     ├── memory_search_tool("xxx") → DB + buffer merged
   │     └── finally: manager.end_session()
   │           ├── store_batch() → batch persist + dedup
   │           ├── preference micro-rebuild
@@ -474,7 +474,7 @@ Agent.process_stream(chat_id)
 ```
 
 - Semantic/Episodic/Procedural 缓冲；Profile 直写（幂等）
-- `memory_recall_tool` 合并持久化结果和缓冲区
+- `memory_search_tool` 合并持久化结果和缓冲区
 - 无 session 时等同直写（优雅降级）
 
 ### 5.3 MemoryRetriever（混合检索 + RRF 融合 + MMR 多样性重排）
@@ -736,13 +736,13 @@ tools = create_memory_tools(manager=manager)
 
 | 工具            | 功能                                                                  |
 | --------------- | --------------------------------------------------------------------- |
-| `memory_recall_tool` | 搜索记忆（合并缓冲区，偏好提权，纠正链抑制，图增强，动态陈旧代码路径验证警告）                  |
-| `memory_save_tool`   | 存储新记忆，支持 knowledge/event/preference/rule/instruction 五种类别。description 含写入质量引导（何时存/何时不存/声明式写入/类别选择/重要性评分/write_target），从源头减少垃圾记忆 |
-| `memory_manage_tool` | 更新/删除/纠正记忆（correct action 创建纠正链）                       |
-| `conversation_search_tool` | 搜索历史会话，返回证据片段和预计算摘要；框架只依赖 `ConversationSearchProtocol`。GeneralAgent 经 Server 装配为 **opt-in**（用户设置 `memoryEnableConversationSearch`，默认关闭；无痕模式不 bind）。CustomAgent 委派仍 scoped eager。 |
+| `memory_search_tool` | COMMON 层统一读工具：`corpus=memory|wiki|sessions|all`；Server 通过 `MemorySearchPolicy` ACL 绑定 wiki/会话后端 |
+| `memory_save_tool`   | 存储新记忆，支持 knowledge/event/preference/rule/instruction 五种类别 |
+| `memory_manage_tool` | 更新/删除/纠正记忆（correct action 创建纠正链） |
 
-`memory_recall_tool` 的 `limit` 是 Agent 工具层上下文预算，而不是底层检索能力上限。工具入口会将模型请求归一化并收敛到 `1..15`：默认返回 5 条，复杂问题允许提升到 10-15 条，非法值回落到默认值，超大值不会继续下传到检索层。返回内容还会受到工具输出预算保护：每条超长记忆会截断正文但保留 id/category/score/age/citation 相关元信息，整体输出保持在上下文安全范围内，避免一次错误工具调用污染当前上下文窗口。检索链路会输出 sanitize / route / embed / collect / rank / graph / budget 等 retrieval trace step，供应用层做回放、诊断和瀑布流展示；该 DTO 不含业务表依赖，仍属于框架层通用能力。
-`conversation_search_tool` 的 `limit` 收敛到 `1..8`；空查询或 `*` 表示浏览最近会话。工具自身不调用 LLM，也不持有数据库连接，并通过标准 `sources` 事件输出 `conversation_history` 来源；Server 层可用 FTS5 + `compacted_summary` 实现零现场摘要成本的会话召回。
+`memory_search_tool` 的 `limit` 在 memory corpus 下收敛到 `1..15`；sessions corpus 下收敛到 `1..8`。空查询或 `*` 在 `corpus=sessions` 时表示浏览最近会话。wiki/sessions corpus 由 Server policy 控制，runtime 无法扩 scope。
+
+`conversation_search_tool` 工厂仍保留于 `conversation_search/tool.py`，供 CustomAgent / 测试直接挂载；GeneralAgent Turn1 不再单独 bind。
 
 ### 8.3 审批机制
 
@@ -829,7 +829,7 @@ Human: 用户第一轮输入 …
 
 - `preference_type`: `"explicit"` | `"implicit"` | `None`
 - `preference_strength`: 0.0-1.0，检索时自动通过加权几何平均融合
-- 统一检索路径：`memory_recall_tool` 自动返回偏好记忆，无需模型选择不同工具
+- 统一检索路径：`memory_search_tool` 自动返回偏好记忆，无需模型选择不同工具
 
 ### 偏好稳定性检测
 
