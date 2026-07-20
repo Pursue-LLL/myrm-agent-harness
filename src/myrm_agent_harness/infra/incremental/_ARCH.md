@@ -8,7 +8,7 @@ Incremental state tracking for monitoring data changes.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Incremental state tracking for monitoring data changes. | — |
-| manager.py | Core | Incremental monitor lifecycle manager. | ✅ |
+| manager.py | Core | Incremental monitor lifecycle manager; restores set/hash monitors and persists baseline + failure state. | ✅ |
 | protocols.py | Core | Protocol for incremental monitoring. | ✅ |
 | hash_monitor.py | Core | Hash-based monitor with JSON canonicalization, invalid-json contract error signaling, and asset-order guard. | ✅ |
 | set_monitor.py | Core | Set-based incremental monitor. | ✅ |

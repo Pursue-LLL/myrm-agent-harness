@@ -110,17 +110,25 @@ class IncrementalMonitorManager:
         Note:
             This method resets failure_count to 0 on successful save.
         """
-        if not isinstance(monitor, SetMonitor):
+        if not isinstance(monitor, (SetMonitor, HashMonitor)):
             logger.warning(
                 "save_monitor_state: unsupported monitor type %s",
                 type(monitor).__name__,
             )
             return
 
+        state_data = monitor.get_state_data()
+        if not isinstance(state_data, dict):
+            logger.warning(
+                "save_monitor_state: invalid monitor state payload type %s",
+                type(state_data).__name__,
+            )
+            return
+
         state = MonitorState(
             job_id=job_id,
             monitor_type=config.monitor_type,
-            data=monitor.get_state_data(),
+            data=state_data,
             updated_at=datetime.now(UTC),
             ttl_days=config.ttl_days,
             failure_count=0,

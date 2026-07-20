@@ -461,7 +461,13 @@ class TestRunAndRecord:
             return JobResult(success=True, output="never")
 
         runner.run = slow_run
-        with patch("asyncio.wait_for", side_effect=TimeoutError):
+        async def timeout_and_close(*args: object, **_kwargs: object) -> object:
+            coro = args[0] if args else None
+            if coro is not None and hasattr(coro, "close"):
+                coro.close()
+            raise TimeoutError
+
+        with patch("asyncio.wait_for", side_effect=timeout_and_close):
             await executor.run_and_record(job, runner)
         saved_run = store.save_run.call_args[0][0]
         assert saved_run.status == RunStatus.ERROR
@@ -531,6 +537,81 @@ class TestRunAndRecord:
         saved_job = store.save_job.call_args[0][0]
         assert saved_job.consecutive_failures == 1
         assert saved_job.last_status == RunStatus.ERROR
+
+    @pytest.mark.asyncio
+    async def test_repeated_invalid_json_contract_error_dedups_main_delivery(self) -> None:
+        """Repeated contract errors should not spam the main delivery channel."""
+        executor, store, delivery = _make_executor()
+        from myrm_agent_harness.infra.incremental.hash_monitor import (
+            InvalidJsonLikeMonitorOutputError,
+        )
+        from myrm_agent_harness.infra.incremental.types import MonitorConfig
+
+        mc = MonitorConfig(enabled=True, monitor_type="hash")
+        job = _make_job(monitor_config=mc)
+        result = JobResult(success=True, output='{"asset":"BTC"')
+
+        runner = AsyncMock()
+        runner.run = AsyncMock(return_value=result)
+
+        with patch.object(executor._monitor_manager, "get_monitor") as mock_get:
+            mock_monitor = MagicMock()
+            mock_monitor.is_baseline.return_value = False
+            mock_monitor.compute_delta.side_effect = InvalidJsonLikeMonitorOutputError(
+                "invalid JSON-like monitor output"
+            )
+            mock_get.return_value = (mock_monitor, None)
+
+            with patch.object(executor._monitor_manager, "record_monitor_failure", new_callable=AsyncMock) as mock_record:
+                mock_record.return_value = 2
+                await executor.run_and_record(job, runner)
+
+        delivery.deliver.assert_not_awaited()
+        saved_run = store.save_run.call_args[0][0]
+        assert saved_run.status == RunStatus.ERROR
+        assert saved_run.delivery_status == DeliveryStatus.SKIPPED
+        assert saved_run.delivery_error == "monitor_contract_error_dedup"
+        assert saved_run.metadata is not None
+        assert saved_run.metadata.get("monitor_failure_count") == 2
+
+    @pytest.mark.asyncio
+    async def test_contract_error_uses_memory_fallback_count_when_store_unavailable(self) -> None:
+        """Contract-error dedup should still work when monitor-state persistence fails."""
+        executor, store, delivery = _make_executor()
+        from myrm_agent_harness.infra.incremental.hash_monitor import (
+            InvalidJsonLikeMonitorOutputError,
+        )
+        from myrm_agent_harness.infra.incremental.types import MonitorConfig
+
+        mc = MonitorConfig(enabled=True, monitor_type="hash")
+        job = _make_job(monitor_config=mc)
+        result = JobResult(success=True, output='{"asset":"BTC"')
+        runner = AsyncMock()
+        runner.run = AsyncMock(return_value=result)
+
+        with patch.object(executor._monitor_manager, "get_monitor") as mock_get:
+            mock_monitor = MagicMock()
+            mock_monitor.is_baseline.return_value = False
+            mock_monitor.compute_delta.side_effect = InvalidJsonLikeMonitorOutputError(
+                "invalid JSON-like monitor output"
+            )
+            mock_get.return_value = (mock_monitor, None)
+
+            with patch.object(executor._monitor_manager, "record_monitor_failure", new_callable=AsyncMock) as mock_record:
+                mock_record.side_effect = RuntimeError("monitor state store unavailable")
+                await executor.run_and_record(job, runner)
+                await executor.run_and_record(job, runner)
+
+        assert delivery.deliver.await_count == 1
+        first_run = store.save_run.call_args_list[0][0][0]
+        second_run = store.save_run.call_args_list[1][0][0]
+        assert first_run.metadata is not None
+        assert first_run.metadata.get("monitor_failure_count") == 1
+        assert first_run.metadata.get("monitor_failure_count_source") == "memory_fallback"
+        assert second_run.metadata is not None
+        assert second_run.metadata.get("monitor_failure_count") == 2
+        assert second_run.delivery_status == DeliveryStatus.SKIPPED
+        assert second_run.delivery_error == "monitor_contract_error_dedup"
 
 
 # ---------------------------------------------------------------------------
@@ -844,7 +925,13 @@ class TestRunAndRecordTracing:
         runner = AsyncMock()
         runner.run = slow_run
 
-        with patch("asyncio.wait_for", side_effect=TimeoutError):
+        async def timeout_and_close(*args: object, **_kwargs: object) -> object:
+            coro = args[0] if args else None
+            if coro is not None and hasattr(coro, "close"):
+                coro.close()
+            raise TimeoutError
+
+        with patch("asyncio.wait_for", side_effect=timeout_and_close):
             await executor.run_and_record(job, runner)
 
         assert TracingContext.get_trace_id() == "-"

@@ -36,6 +36,7 @@ from myrm_agent_harness.infra.incremental.hash_monitor import (
 )
 from myrm_agent_harness.infra.incremental.manager import IncrementalMonitorManager
 from myrm_agent_harness.observability.tracing import TracingContext
+from myrm_agent_harness.toolkits.cron.delivery_guard import is_silent_output
 from myrm_agent_harness.toolkits.cron.engine.helpers import (
     classify_transient_error,
     error_backoff_ms,
@@ -49,7 +50,6 @@ from myrm_agent_harness.toolkits.cron.engine.integrity import (
     GENESIS_HASH,
     compute_integrity_hash,
 )
-from myrm_agent_harness.toolkits.cron.delivery_guard import is_silent_output
 from myrm_agent_harness.toolkits.cron.engine.parser import compute_next_run
 from myrm_agent_harness.toolkits.cron.types import (
     CronConfig,
@@ -112,6 +112,7 @@ class JobExecutor:
         self._global_failure_delivery = cfg.failure_delivery
         self._global_failure_alert = cfg.failure_alert
         self._monitor_manager = IncrementalMonitorManager(store)
+        self._monitor_failure_fallback_counts: dict[str, int] = {}
 
     async def run_and_record(
         self,
@@ -286,12 +287,12 @@ class JobExecutor:
                 monitor,
                 job.monitor_config,
             )
+            self._monitor_failure_fallback_counts.pop(job.id, None)
 
         except Exception as exc:
             if job.monitor_config:
-                failure_count = await self._monitor_manager.record_monitor_failure(
-                    job.id,
-                    job.monitor_config,
+                failure_count, failure_count_source = await self._next_monitor_failure_count(
+                    job,
                     exc,
                 )
 
@@ -299,6 +300,9 @@ class JobExecutor:
                 if contract_error:
                     metadata = dict(result.metadata or {})
                     metadata["monitor_contract_error"] = "invalid_json_like_output"
+                    metadata["monitor_failure_count"] = failure_count
+                    if failure_count_source != "persistent_state":
+                        metadata["monitor_failure_count_source"] = failure_count_source
                     contract_error_message = (
                         "Monitoring output format is invalid and cannot be diffed safely. "
                         "Please adjust the task output format or model settings."
@@ -349,6 +353,39 @@ class JobExecutor:
 
         return result
 
+    async def _next_monitor_failure_count(
+        self,
+        job: CronJob,
+        error: Exception,
+    ) -> tuple[int, str]:
+        """Return consecutive monitor failure count with storage fallback.
+
+        Returns:
+            Tuple of (failure_count, source), where source is either
+            ``persistent_state`` or ``memory_fallback``.
+        """
+        if not job.monitor_config:
+            return 1, "memory_fallback"
+
+        try:
+            failure_count = await self._monitor_manager.record_monitor_failure(
+                job.id,
+                job.monitor_config,
+                error,
+            )
+            self._monitor_failure_fallback_counts[job.id] = failure_count
+            return failure_count, "persistent_state"
+        except Exception as persist_exc:
+            failure_count = self._monitor_failure_fallback_counts.get(job.id, 0) + 1
+            self._monitor_failure_fallback_counts[job.id] = failure_count
+            logger.error(
+                "Job %s: failed to persist monitor failure count, using in-memory fallback (%d): %s",
+                job.id,
+                failure_count,
+                persist_exc,
+            )
+            return failure_count, "memory_fallback"
+
     # ------------------------------------------------------------------
     # Delivery
     # ------------------------------------------------------------------
@@ -360,6 +397,27 @@ class JobExecutor:
     ) -> tuple[DeliveryStatus, str | None]:
         if job.delivery.channel == "none":
             return DeliveryStatus.SKIPPED, None
+
+        metadata = result.metadata or {}
+        contract_error_kind = metadata.get("monitor_contract_error")
+        failure_count_raw = metadata.get("monitor_failure_count")
+        failure_count = (
+            failure_count_raw
+            if isinstance(failure_count_raw, int) and not isinstance(failure_count_raw, bool)
+            else None
+        )
+        if (
+            not result.success
+            and contract_error_kind == "invalid_json_like_output"
+            and failure_count is not None
+            and failure_count > 1
+        ):
+            logger.info(
+                "Job %s: repeated monitor contract error (%d), suppressing duplicate main delivery",
+                job.id,
+                failure_count,
+            )
+            return DeliveryStatus.SKIPPED, "monitor_contract_error_dedup"
 
         if result.success:
             if result.exit_code == 0 and job.monitor_config and job.monitor_config.enabled:

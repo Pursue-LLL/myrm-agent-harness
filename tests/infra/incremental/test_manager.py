@@ -144,6 +144,27 @@ class TestIncrementalMonitorManager:
         assert "url1" in saved_state.data["seen"]
         assert "url2" in saved_state.data["seen"]
 
+    async def test_save_hash_monitor_state_persists_to_store(
+        self,
+        manager: IncrementalMonitorManager,
+        mock_store: Mock,
+    ) -> None:
+        """Hash monitor state should be persisted the same way as set monitor."""
+        config = MonitorConfig(monitor_type="hash", ttl_days=30)
+        monitor, _ = await manager.get_monitor("job-hash", config)
+
+        monitor.compute_delta('{"asset":"BTC","price":67000}')
+        monitor.update_baseline("")
+
+        await manager.save_monitor_state("job-hash", monitor, config)
+
+        mock_store.save_monitor_state.assert_called_once()
+        saved_state = mock_store.save_monitor_state.call_args[0][0]
+        assert saved_state.job_id == "job-hash"
+        assert saved_state.monitor_type == "hash"
+        assert isinstance(saved_state.data.get("last_hash"), str)
+        assert saved_state.data.get("is_baseline") is False
+
     async def test_clear_cache_single_job(
         self,
         manager: IncrementalMonitorManager,
