@@ -109,6 +109,16 @@ class TestTryDeliver:
         assert error == "silent_response"
 
     @pytest.mark.asyncio
+    async def test_empty_success_output_skipped(self) -> None:
+        executor, _, delivery = _make_executor()
+        job = _make_job()
+        result = JobResult(success=True, output="   ")
+        status, error = await executor._try_deliver(job, result)
+        assert status == DeliveryStatus.SKIPPED
+        assert error == "empty_output"
+        delivery.deliver.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_silent_with_suffix_delivers(self) -> None:
         executor, _, delivery = _make_executor()
         job = _make_job()

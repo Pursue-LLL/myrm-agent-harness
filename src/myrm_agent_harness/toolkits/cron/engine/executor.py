@@ -339,6 +339,9 @@ class JobExecutor:
                     return DeliveryStatus.SKIPPED, "no_new_content"
 
             output_text = (result.output or "").strip()
+            if not output_text:
+                logger.info("Job %s: empty output — skipping delivery", job.id)
+                return DeliveryStatus.SKIPPED, "empty_output"
             if is_silent_output(output_text):
                 logger.warning("Job %s: [SILENT] response — skipping delivery", job.id)
                 return DeliveryStatus.SKIPPED, "silent_response"
