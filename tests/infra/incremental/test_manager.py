@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from myrm_agent_harness.infra.incremental.hash_monitor import HashMonitor
 from myrm_agent_harness.infra.incremental.manager import IncrementalMonitorManager
 from myrm_agent_harness.infra.incremental.set_monitor import SetMonitor
 from myrm_agent_harness.infra.incremental.types import MonitorConfig, MonitorState
@@ -64,6 +65,27 @@ class TestIncrementalMonitorManager:
 
         delta = monitor.compute_delta("url1\nurl2\nurl3")
         assert delta == "url3"
+
+    async def test_get_monitor_supports_hash_type(
+        self,
+        manager: IncrementalMonitorManager,
+        mock_store: Mock,
+    ) -> None:
+        """Hash monitor should be created/restored without errors."""
+        state = MonitorState(
+            job_id="job-hash",
+            monitor_type="hash",
+            data={"last_hash": "abc123", "is_baseline": False},
+            updated_at=datetime.now(UTC),
+            ttl_days=30,
+        )
+        mock_store.get_monitor_state.return_value = state
+
+        config = MonitorConfig(monitor_type="hash", ttl_days=30)
+        monitor, reset_reason = await manager.get_monitor("job-hash", config)
+
+        assert isinstance(monitor, HashMonitor)
+        assert reset_reason is None
 
     async def test_get_monitor_caches_instances(
         self,

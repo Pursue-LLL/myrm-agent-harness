@@ -1,5 +1,6 @@
 """Integration tests for incremental monitoring in cron executor."""
 
+import hashlib
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 
@@ -232,6 +233,44 @@ class TestIncrementalIntegration:
         saved_state = mock_store.save_monitor_state.call_args[0][0]
         assert saved_state.job_id == "test-job"
         assert saved_state.monitor_type == "set"
+
+    async def test_hash_monitor_change_triggers_delivery(
+        self,
+        executor: JobExecutor,
+        job_with_monitor: CronJob,
+        mock_store: Mock,
+        mock_delivery: Mock,
+    ) -> None:
+        """Hash monitor should deliver full output when content hash changes."""
+        previous_output = "old summary"
+        previous_hash = hashlib.sha256(previous_output.encode()).hexdigest()
+        mock_store.get_monitor_state.return_value = MonitorState(
+            job_id="test-job",
+            monitor_type="hash",
+            data={"last_hash": previous_hash, "is_baseline": False},
+            updated_at=datetime.now(UTC),
+            ttl_days=30,
+        )
+        job_with_monitor.monitor_config = MonitorConfig(
+            monitor_type="hash",
+            ttl_days=30,
+            enabled=True,
+        )
+
+        runner = Mock()
+        runner.run = AsyncMock(
+            return_value=JobResult(
+                success=True,
+                output='[{"asset":"BTC","confidence":83}]',
+                exit_code=0,
+            )
+        )
+
+        await executor.run_and_record(job_with_monitor, runner)
+
+        mock_delivery.deliver.assert_called_once()
+        delivered_result = mock_delivery.deliver.call_args[0][1]
+        assert delivered_result.output == '[{"asset":"BTC","confidence":83}]'
 
     async def test_monitoring_failure_records_failure_count(
         self,

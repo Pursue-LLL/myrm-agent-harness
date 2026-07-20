@@ -18,6 +18,7 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.infra.incremental.hash_monitor import HashMonitor
 from myrm_agent_harness.infra.incremental.set_monitor import SetMonitor
 from myrm_agent_harness.infra.incremental.types import MonitorConfig, MonitorState
 
@@ -184,6 +185,11 @@ class IncrementalMonitorManager:
             if state:
                 return SetMonitor.from_state_data(state.data, config.ttl_days)
             return SetMonitor(seen=None, ttl_days=config.ttl_days)
+
+        if config.monitor_type == "hash":
+            if state:
+                return HashMonitor.from_state_data(state.data, config.ttl_days)
+            return HashMonitor(last_hash=None, ttl_days=config.ttl_days)
 
         raise ValueError(f"Unsupported monitor type: {config.monitor_type}")
 

@@ -6,9 +6,11 @@ between successive runs of monitoring tasks (RSS feeds, website changes, etc.).
 Core abstractions:
 - ``IncrementalMonitor`` — protocol for computing deltas
 - ``SetMonitor`` — built-in implementation for line-delimited item sets
+- ``HashMonitor`` — built-in implementation for full-content hash comparison
 - ``IncrementalMonitorManager`` — lifecycle management with TTL
 """
 
+from myrm_agent_harness.infra.incremental.hash_monitor import HashMonitor
 from myrm_agent_harness.infra.incremental.manager import IncrementalMonitorManager
 from myrm_agent_harness.infra.incremental.protocols import IncrementalMonitor
 from myrm_agent_harness.infra.incremental.set_monitor import SetMonitor
@@ -21,5 +23,6 @@ __all__ = [
     "MonitorState",
     "MonitorType",
     "ResetReason",
+    "HashMonitor",
     "SetMonitor",
 ]

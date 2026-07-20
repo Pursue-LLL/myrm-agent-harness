@@ -29,7 +29,7 @@ class MonitorConfig:
 
     ``monitor_type`` determines which monitor implementation to use:
     - "set": SetMonitor (line-delimited items, set difference)
-    - "hash": HashMonitor (content hash comparison, future)
+    - "hash": HashMonitor (content hash comparison)
     - "timeseries": TimeSeriesMonitor (time-series delta, future)
 
     ``ttl_days`` controls automatic cleanup of old baseline data.
