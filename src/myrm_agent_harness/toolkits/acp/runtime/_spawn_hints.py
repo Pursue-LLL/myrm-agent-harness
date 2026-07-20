@@ -1,4 +1,14 @@
-"""Human-readable hints when external CLI/ACP spawn fails."""
+"""Human-readable hints when external CLI spawn fails.
+
+[INPUT]
+- (none)
+
+[OUTPUT]
+- format_cli_spawn_failure_message: append adapter configuration hints for bare CLI binaries
+
+[POS]
+ACP runtime spawn diagnostics. Keeps CliRuntime error messages actionable without product-layer imports.
+"""
 
 from __future__ import annotations
 

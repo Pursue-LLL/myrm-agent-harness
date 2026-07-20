@@ -95,3 +95,13 @@ class TestContextFactoryDefaultEmulation:
         opts = factory._build_context_options("stealth", emulation=None, extra_kwargs=None)
         assert opts["permissions"] == ["clipboard-read", "clipboard-write"]
         assert "user_agent" in opts
+
+    def test_build_context_options_strips_domain_blocklist_from_playwright_kwargs(self) -> None:
+        factory = ContextFactory()
+        opts = factory._build_context_options(
+            "agent",
+            emulation=None,
+            extra_kwargs={"domain_blocklist": object(), "accept_downloads": True},
+        )
+        assert "domain_blocklist" not in opts
+        assert opts.get("accept_downloads") is True

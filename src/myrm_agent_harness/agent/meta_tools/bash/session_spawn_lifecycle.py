@@ -54,3 +54,11 @@ def reset_deferred_activation_for_tests() -> None:
     """Clear all activations (tests only)."""
     with _lock:
         _session_activations.clear()
+
+
+__all__ = [
+    "activate_session_deferred_tool",
+    "clear_session_deferred_tools",
+    "get_session_deferred_tool_names",
+    "reset_deferred_activation_for_tests",
+]

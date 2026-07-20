@@ -239,7 +239,9 @@ class ContextFactory:
 
         if extra_kwargs:
             playwright_kwargs = {
-                k: v for k, v in extra_kwargs.items() if k not in ("domain_allowlist", "resource_block")
+                k: v
+                for k, v in extra_kwargs.items()
+                if k not in ("domain_allowlist", "domain_blocklist", "resource_block")
             }
             ctx_opts.update(playwright_kwargs)
 

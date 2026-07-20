@@ -66,6 +66,9 @@ _DEFAULT_PER_SESSION_LIMIT = 5  # Soft cap; raise via env if a power-user compla
 _DEFAULT_KILL_GRACE_SECONDS = 5.0  # SIGTERM → SIGKILL escalation window.
 _DEFAULT_REAP_DELAY_SECONDS = 300.0  # Exited entries are purged from the registry after this idle window.
 _LINE_MAX_BYTES = 32 * 1024  # Hard cap per buffered output line; longer lines are truncated.
+_POLL_BACKOFF_MS: tuple[int, ...] = (5000, 10000, 20000, 30000, 60000)
+_WAIT_MAX_SECONDS = 120.0
+_WAIT_POLL_INTERVAL_SECONDS = 0.1
 
 
 @dataclass
@@ -93,6 +96,7 @@ class _Entry:
     # window the caller is told ``dropped=True`` instead of receiving stale
     # data silently.
     cursor: int = 0
+    empty_poll_streak: int = 0
 
 
 class BackgroundProcessRegistry:
@@ -170,6 +174,17 @@ class BackgroundProcessRegistry:
             entry = self._entries.get(pid)
         return self._snapshot(entry) if entry else None
 
+    def count_running(self, session_id: str | None = None) -> int:
+        """Count running background jobs globally or for one session."""
+        with self._lock:
+            if session_id is None:
+                return sum(1 for entry in self._entries.values() if entry.info.status == "running")
+            return sum(
+                1
+                for entry in self._entries.values()
+                if entry.info.session_id == session_id and entry.info.status == "running"
+            )
+
     def get_output(
         self,
         pid: int,
@@ -195,11 +210,23 @@ class BackgroundProcessRegistry:
                 "stderr": [],
                 "next_cursor": baseline,
                 "dropped": False,
+                "poll_hint": {"has_new_output": False, "suggested_wait_ms": _POLL_BACKOFF_MS[0]},
             }
 
         next_cursor = entry.cursor
         stdout_filtered = [text for cur, text in entry.stdout_buffer if cur > baseline]
         stderr_filtered = [text for cur, text in entry.stderr_buffer if cur > baseline]
+        has_new_output = bool(stdout_filtered or stderr_filtered)
+        if since_cursor is not None:
+            if has_new_output:
+                entry.empty_poll_streak = 0
+            else:
+                entry.empty_poll_streak += 1
+        streak_idx = min(entry.empty_poll_streak, len(_POLL_BACKOFF_MS) - 1)
+        poll_hint = {
+            "has_new_output": has_new_output,
+            "suggested_wait_ms": _POLL_BACKOFF_MS[streak_idx],
+        }
 
         if since_cursor is not None and entry.stdout_buffer and entry.stderr_buffer:
             oldest_kept = min(
@@ -217,6 +244,42 @@ class BackgroundProcessRegistry:
             "stderr": stderr_filtered[-max_lines:],
             "next_cursor": next_cursor,
             "dropped": dropped,
+            "poll_hint": poll_hint,
+        }
+
+    async def wait_for_process(
+        self,
+        pid: int,
+        *,
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        """Wait until a background job exits or ``timeout_seconds`` elapses."""
+        capped = min(max(timeout_seconds, 0.0), _WAIT_MAX_SECONDS)
+        deadline = time.monotonic() + capped
+        while time.monotonic() < deadline:
+            info = self.get(pid)
+            if info is None:
+                return {"found": False, "still_running": False, "pid": pid}
+            if info.status != "running":
+                return {
+                    "found": True,
+                    "still_running": False,
+                    "pid": pid,
+                    "status": info.status,
+                    "exit_code": info.exit_code,
+                    "error_category": info.error_category,
+                }
+            await asyncio.sleep(_WAIT_POLL_INTERVAL_SECONDS)
+        info = self.get(pid)
+        if info is None:
+            return {"found": False, "still_running": False, "pid": pid}
+        return {
+            "found": True,
+            "still_running": info.status == "running",
+            "pid": pid,
+            "status": info.status,
+            "exit_code": info.exit_code,
+            "error_category": info.error_category,
         }
 
     async def kill(
@@ -333,7 +396,7 @@ class BackgroundProcessRegistry:
             )
         if has_running:
             return
-        from myrm_agent_harness.agent.meta_tools.bash.background_deferred_activation import (
+        from myrm_agent_harness.agent.meta_tools.bash.session_spawn_lifecycle import (
             clear_session_deferred_tools,
         )
 
@@ -391,6 +454,9 @@ class BackgroundProcessRegistry:
                     text = raw[:_LINE_MAX_BYTES] + f"... [+{len(raw) - _LINE_MAX_BYTES} bytes truncated]"
                 else:
                     text = raw
+                from myrm_agent_harness.agent.security.redact import redact_sensitive_text
+
+                text = redact_sensitive_text(text)
                 # ``entry.cursor += 1`` and ``sink.append`` happen between
                 # two ``await``s; under single-threaded asyncio this is
                 # atomic against the sibling pipe task.
@@ -410,6 +476,11 @@ class BackgroundProcessRegistry:
             entry.info.exit_code = exit_code
             if entry.info.status == "running":
                 entry.info.status = "exited"
+            from myrm_agent_harness.agent.meta_tools.bash.bash_tool_background_listeners import (
+                classify_background_exit,
+            )
+
+            entry.info.error_category = classify_background_exit(entry.info)
         except asyncio.CancelledError:
             return
         except Exception as exc:  # pragma: no cover — defensive
@@ -466,6 +537,7 @@ class BackgroundProcessRegistry:
             started_at=info.started_at,
             status=info.status,
             exit_code=info.exit_code,
+            error_category=info.error_category,
         )
         snap.last_stdout_tail = [text for _, text in list(entry.stdout_buffer)[-20:]]
         snap.last_stderr_tail = [text for _, text in list(entry.stderr_buffer)[-20:]]

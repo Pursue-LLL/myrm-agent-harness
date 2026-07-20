@@ -70,6 +70,7 @@ from myrm_agent_harness.agent.middlewares._tool_guards import (
 )
 from myrm_agent_harness.agent.middlewares.tool_executor import execute_with_retry
 from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard
+from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import BASH_PROCESS_TOOL_NAME
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_economics.tracker import (
     get_token_tracker,
@@ -80,6 +81,11 @@ from myrm_agent_harness.utils.token_economics.tracker import (
 logger = get_agent_logger(__name__)
 
 _loop_guard_var: ContextVar[LoopGuard] = ContextVar("loop_guard")
+_BASH_POLL_TOOLS = frozenset({BASH_PROCESS_TOOL_NAME})
+
+
+def _create_loop_guard(*, graph_recursion_limit: int = 100) -> LoopGuard:
+    return LoopGuard(poll_tools=_BASH_POLL_TOOLS, graph_recursion_limit=graph_recursion_limit)
 
 
 def get_loop_guard() -> LoopGuard:
@@ -90,7 +96,7 @@ def get_loop_guard() -> LoopGuard:
             return guard
     except LookupError:
         pass
-    guard = LoopGuard()
+    guard = _create_loop_guard()
     _loop_guard_var.set(guard)
     return guard
 
@@ -109,7 +115,7 @@ def reset_loop_guard(*, is_resume: bool = False, graph_recursion_limit: int = 10
         guard.reset(preserve_error_signatures=is_resume)
         guard._configure_budget(graph_recursion_limit)
     except LookupError:
-        guard = LoopGuard(graph_recursion_limit=graph_recursion_limit)
+        guard = _create_loop_guard(graph_recursion_limit=graph_recursion_limit)
         _loop_guard_var.set(guard)
 
 

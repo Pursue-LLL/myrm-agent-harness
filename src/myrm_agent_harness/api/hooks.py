@@ -47,9 +47,16 @@ from myrm_agent_harness.utils.runtime.background_job_finish_registry import (
     set_global_background_job_finish_handler,
 )
 
+
+def count_running_background_shell_jobs(session_id: str | None = None) -> int:
+    """Return the number of running harness background shell jobs."""
+    return get_background_registry().count_running(session_id)
+
+
 __all__ = [
     "BackgroundJobFinishHandler",
     "BackgroundJobFinishResult",
+    "count_running_background_shell_jobs",
     "create_extraction_llm_func",
     "get_background_registry",
     "get_event_logger",

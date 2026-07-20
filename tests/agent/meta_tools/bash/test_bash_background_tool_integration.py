@@ -13,7 +13,7 @@ import pytest
 from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
     get_background_registry,
 )
-from myrm_agent_harness.agent.meta_tools.bash.background_deferred_activation import (
+from myrm_agent_harness.agent.meta_tools.bash.session_spawn_lifecycle import (
     get_session_deferred_tool_names,
     reset_deferred_activation_for_tests,
 )

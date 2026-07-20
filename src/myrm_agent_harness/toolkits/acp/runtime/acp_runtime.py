@@ -259,6 +259,11 @@ def _mcp_configs_to_acp_stdio(
     from acp.schema import McpServerStdio
 
     return [
-        McpServerStdio(name=server.name, command=server.command, args=list(server.args))
+        McpServerStdio(
+            name=server.name,
+            command=server.command,
+            args=list(server.args),
+            env=dict(server.env or {}),
+        )
         for server in mcp_servers
     ]

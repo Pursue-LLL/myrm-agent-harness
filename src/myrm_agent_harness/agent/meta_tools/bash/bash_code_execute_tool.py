@@ -42,6 +42,13 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_tool_background_listeners imp
     build_background_listeners,
     classify_background_exit,
 )
+from myrm_agent_harness.agent.meta_tools.bash.bash_auto_yield import (
+    build_auto_yield_return,
+    resolve_yield_seconds,
+    should_auto_yield,
+    wait_for_yield_window,
+)
+from myrm_agent_harness.agent.meta_tools.bash._background_registry import get_background_registry
 from myrm_agent_harness.agent.meta_tools.bash.bash_tool_exit_semantics import interpret_exit_code
 from myrm_agent_harness.agent.meta_tools.bash.bash_tool_formatting import (
     format_result,
@@ -108,6 +115,7 @@ def create_bash_code_execute_tool(
         reason: str = "",
         timeout: int | None = None,
         run_in_background: bool = False,
+        yield_after_seconds: int | None = None,
         *,
         config: RunnableConfig,
     ) -> dict[str, object] | Sequence[object]:
@@ -173,7 +181,12 @@ def create_bash_code_execute_tool(
             if global_env:
                 bash_executor.set_global_env(global_env)
 
-            if run_in_background:
+            auto_yield = should_auto_yield(
+                command=command,
+                run_in_background=run_in_background,
+                yield_after_seconds=yield_after_seconds,
+            )
+            if run_in_background or auto_yield:
                 if not session_id:
                     from myrm_agent_harness.utils.errors import ToolError
 
@@ -190,7 +203,7 @@ def create_bash_code_execute_tool(
                     finish_listener=finish_listener,
                     progress_listener=progress_listener,
                 )
-                from myrm_agent_harness.agent.meta_tools.bash.background_deferred_activation import (
+                from myrm_agent_harness.agent.meta_tools.bash.session_spawn_lifecycle import (
                     activate_session_deferred_tool,
                 )
                 from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
@@ -211,6 +224,21 @@ def create_bash_code_execute_tool(
                     },
                     config=config,
                 )
+
+                if auto_yield and not run_in_background:
+                    yield_seconds = resolve_yield_seconds(yield_after_seconds)
+                    assert yield_seconds is not None
+                    final_info = await wait_for_yield_window(
+                        get_background_registry(),
+                        info.pid,
+                        yield_seconds=yield_seconds,
+                    )
+                    if final_info is not None:
+                        return build_auto_yield_return(
+                            info=final_info,
+                            yield_seconds=yield_seconds,
+                        )
+
                 return {
                     "content": (
                         f"Background process started.\n"

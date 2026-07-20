@@ -891,6 +891,7 @@ Agent 推理 → browser_ask_human_tool(reason="请输入短信验证码")
   ↓ langgraph.types.interrupt(hitl_payload)  ← Agent 暂停
   ...
 Frontend ← SSE: browser_takeover_requested (includes is_managed from runtime pool)
+  ↓ setLoading(false) — 释放输入锁，允许 Done 触发 resume（与 APPROVAL_REQUIRED 同模式）
   ↓ is_managed=false → in-chat 横幅（引导用户在本地 Chrome 完成）+ Done/Skip
   ↓ is_managed=true → auto-open VNC/noVNC 面板 + reason 通知条
   ↓ auto_detect_completion=true → 隐藏 Done/Skip，显示 CAPTCHA 自动处理进度
@@ -900,6 +901,7 @@ Frontend ← SSE: browser_takeover_requested (includes is_managed from runtime p
   ↓ 用户完成操作后点 "Done"（或 CAPTCHA 自动完成后后端发 completed）
   ...
 Frontend → POST /agents/agent-stream { resume_value: { action: "completed" } }
+  ↓ sendMessage resume 路径：`resumeValue` 跳过 loading/isProcessing 守卫（stream 暂停期间 loading 仍为 true）
   ↓ managed 模式同步 POST /webui/vnc/resume
   ↓ Command(resume=resume_value) → interrupt() 返回 user_response
   ↓ dispatch_custom_event("browser_takeover_completed")

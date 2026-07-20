@@ -23,3 +23,22 @@ def test_unknown_binary_no_extra_hint() -> None:
     )
     assert "Hint:" not in message
     assert "code 2" in message
+
+
+def test_claude_bare_binary_includes_adapter_hint() -> None:
+    message = format_cli_spawn_failure_message(
+        "claude",
+        return_code=127,
+        stderr="not found",
+    )
+    assert "Hint:" in message
+    assert "External Agents" in message
+
+
+def test_gemini_bare_binary_includes_stream_json_hint() -> None:
+    message = format_cli_spawn_failure_message(
+        "/opt/homebrew/bin/gemini",
+        return_code=1,
+        stderr="spawn error",
+    )
+    assert "stream-json" in message

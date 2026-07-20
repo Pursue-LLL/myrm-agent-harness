@@ -413,7 +413,10 @@ acp/
 - **前端预设模板**：新增模式下提供 Claude Code / Codex CLI / Gemini CLI 一键填充，降低配置门槛
 - **委派取消传播**：CancellationToken → pool.cancel() → backend.cancel()，全链路级联终止
 - **Max Turns 双层安全护栏**：Layer 1 传递 CLI `--max-turns` 参数（Claude Code 原生优雅停止），Layer 2 在 delegate_tool 事件循环中统计 TOOL_START 计数并在超限时 pool.cancel()（所有后端通用兜底）
-- **Agent 能力描述**：`description` 字段注入 `delegate_to_agent_tool` 的 tool description，多 Agent 场景下帮助 LLM 智能选择委派目标
+- **稳定 Tool Schema**：`delegate_to_agent_tool` 使用固定 tool description（不含动态 agent 列表），保护 Turn1 Prompt Cache；`agent_name` 无效时错误响应列出 `available_backends`
+- **Deploy 门控（Server）**：`external_cli_deploy.is_external_cli_deploy_supported()` + profile `strip_deploy_incompatible_builtin_tools`；沙箱自动剔除 `external_cli`；BuiltinToolsPanel sandbox 硬禁用 toggle
+- **MCP 会话注入**：`RuntimePool.run_turn` → `AcpRuntime.new_session(mcp_servers=…)`（Server 默认传空 list；`RuntimeConfig.mcp_servers` 为配置源）
+- **Spawn 误配提示**：`runtime/_spawn_hints.format_cli_spawn_failure_message` 在 bare CLI 进程失败时返回 adapter 配置指引
 - **跨平台进程组清理**：`CliRuntime` 创建进程组，cancel 时级联终止子进程，确保跨平台（Unix/Windows）无孤儿进程遗留
 - **委派取消传播**：通过 ContextVar 传递 `CancellationToken`，用户取消主 Agent 时 `delegate_to_agent_tool` 的事件消费循环检测取消信号，调用 `pool.cancel()` → `backend.cancel()` 级联终止外部进程，避免"幽灵进程"继续消耗资源
 - **直连路由模式**：`force_delegate_agent` 参数允许前端绕过 LangChain Agent，直接将请求路由到指定外部 Agent，零 LLM 开销、零延迟的流式响应

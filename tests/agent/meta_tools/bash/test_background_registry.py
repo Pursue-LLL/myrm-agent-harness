@@ -544,12 +544,14 @@ async def test_list_processes_without_session_returns_all() -> None:
 def test_get_output_unknown_pid_returns_empty_snapshot() -> None:
     registry = BackgroundProcessRegistry()
     out = registry.get_output(99999, since_cursor=5)
-    assert out == {
-        "stdout": [],
-        "stderr": [],
-        "next_cursor": 5,
-        "dropped": False,
-    }
+    assert out["stdout"] == []
+    assert out["stderr"] == []
+    assert out["next_cursor"] == 5
+    assert out["dropped"] is False
+    poll_hint = out.get("poll_hint")
+    assert isinstance(poll_hint, dict)
+    assert poll_hint["has_new_output"] is False
+    assert poll_hint["suggested_wait_ms"] >= 5000
 
 
 @pytest.mark.asyncio

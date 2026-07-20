@@ -98,6 +98,15 @@ class BashInput(BaseModel):
             "active background job per task unless explicitly needed."
         ),
     )
+    yield_after_seconds: int | None = Field(
+        default=None,
+        description=(
+            "For build/test whitelist commands only: spawn as background, wait up to N seconds "
+            "for partial output, then return pid if still running. Default 10 when omitted; set 0 to disable."
+        ),
+        ge=0,
+        le=120,
+    )
 
 
 def restore_context_vars(context: dict[str, object], executor: object) -> None:

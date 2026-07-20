@@ -61,6 +61,7 @@ class BackgroundProcessInfo:
     started_at: float
     status: str  # "running" | "exited" | "killed"
     exit_code: int | None = None
+    error_category: str | None = None
     last_stdout_tail: list[str] = field(default_factory=list)
     last_stderr_tail: list[str] = field(default_factory=list)
     last_progress: dict[str, object] | None = None
@@ -79,6 +80,8 @@ class BackgroundProcessInfo:
             "exit_code": self.exit_code,
             "uptime_seconds": round(self.uptime_seconds, 2),
         }
+        if self.error_category is not None:
+            payload["error_category"] = self.error_category
         if self.last_progress is not None:
             payload["last_progress"] = self.last_progress
         return payload
