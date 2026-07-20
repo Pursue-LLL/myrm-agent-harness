@@ -1458,11 +1458,11 @@ class TestBuildMonitorConfig:
         assert cfg.monitor_type == "hash"
         assert clear is False
 
-    def test_enable_timeseries(self):
+    def test_enable_timeseries_rejected(self):
         err, cfg, clear = _build_monitor_config("timeseries", True)
-        assert err is None
-        assert cfg is not None
-        assert cfg.monitor_type == "timeseries"
+        assert err is not None
+        assert "Invalid monitor_type" in err
+        assert cfg is None
         assert clear is False
 
     def test_enable_default_type(self):

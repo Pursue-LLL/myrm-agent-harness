@@ -32,6 +32,31 @@ class TestHashMonitor:
         delta = monitor.compute_delta("beta")
         assert delta == "beta"
 
+    def test_json_key_order_and_whitespace_do_not_trigger_delta(self) -> None:
+        monitor = HashMonitor(last_hash=None)
+        first = monitor.compute_delta('{"b":2,"a":1}')
+        monitor.update_baseline(first)
+
+        delta = monitor.compute_delta('{ "a": 1, "b": 2 }')
+        assert delta == ""
+
+    def test_asset_array_order_drift_does_not_trigger_delta(self) -> None:
+        monitor = HashMonitor(last_hash=None)
+        first = monitor.compute_delta('[{"asset":"BTC","confidence":80},{"asset":"ETH","confidence":70}]')
+        monitor.update_baseline(first)
+
+        # Same semantic content, different order + key ordering.
+        delta = monitor.compute_delta('[{"confidence":70,"asset":"ETH"},{"confidence":80,"asset":"BTC"}]')
+        assert delta == ""
+
+    def test_non_asset_array_keeps_order_sensitivity(self) -> None:
+        monitor = HashMonitor(last_hash=None)
+        first = monitor.compute_delta('[1,2,3]')
+        monitor.update_baseline(first)
+
+        delta = monitor.compute_delta('[3,2,1]')
+        assert delta == "[3,2,1]"
+
     def test_state_serialization_roundtrip(self) -> None:
         monitor1 = HashMonitor(last_hash=None)
         first = monitor1.compute_delta("alpha")

@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Literal
 
-MonitorType = Literal["set", "hash", "timeseries"]
+MonitorType = Literal["set", "hash"]
 ResetReason = Literal["manual", "command_change", "prompt_change", "monitor_type_change", "ttl_expired"]
 
 
@@ -30,7 +30,6 @@ class MonitorConfig:
     ``monitor_type`` determines which monitor implementation to use:
     - "set": SetMonitor (line-delimited items, set difference)
     - "hash": HashMonitor (content hash comparison)
-    - "timeseries": TimeSeriesMonitor (time-series delta, future)
 
     ``ttl_days`` controls automatic cleanup of old baseline data.
     After this many days, the baseline is reset to prevent unbounded growth.
@@ -48,7 +47,6 @@ class MonitorState:
     ``data`` contains monitor-specific state:
     - SetMonitor: {"seen": ["url1", "url2", ...]}
     - HashMonitor: {"last_hash": "abc123"}
-    - TimeSeriesMonitor: {"history": [...]}
 
     ``updated_at`` is used for TTL expiration checks.
     ``failure_count`` tracks consecutive monitoring failures for alerting.

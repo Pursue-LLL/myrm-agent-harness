@@ -16,6 +16,7 @@ Hash-based incremental monitor.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ class HashMonitor:
 
     def compute_delta(self, current_output: str) -> str:
         """Return full output only when normalized content hash changes."""
-        normalized = current_output.strip()
+        normalized = _normalize_for_hash(current_output)
         current_hash = hashlib.sha256(normalized.encode()).hexdigest()
         self._last_current_hash = current_hash
 
@@ -91,3 +92,58 @@ class HashMonitor:
             monitor._is_baseline = True
             monitor._last_hash = None
         return monitor
+
+
+def _normalize_for_hash(current_output: str) -> str:
+    """Normalize text for stable hashing.
+
+    Strategy:
+    1) Strip outer whitespace
+    2) If the output is JSON, canonicalize key order and spacing
+    3) For JSON arrays of dicts with ``asset`` keys, sort by ``asset`` to
+       reduce false positives from non-semantic ordering drift.
+    """
+    stripped = current_output.strip()
+    if not stripped:
+        return ""
+
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        if stripped.startswith("{") or stripped.startswith("["):
+            logger.warning("HashMonitor: invalid JSON-like output, using raw text hash")
+        return stripped
+
+    canonical = _canonicalize_json(parsed)
+    return json.dumps(canonical, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+
+
+def _canonicalize_json(value: object) -> object:
+    if isinstance(value, dict):
+        return {k: _canonicalize_json(v) for k, v in value.items()}
+
+    if isinstance(value, list):
+        normalized_items = [_canonicalize_json(item) for item in value]
+        if _is_asset_dict_list(normalized_items):
+            asset_items: list[dict[str, object]] = [item for item in normalized_items if isinstance(item, dict)]
+            return sorted(
+                asset_items,
+                key=lambda item: (
+                    str(item.get("asset", "")).strip().upper(),
+                    json.dumps(item, ensure_ascii=False, separators=(",", ":"), sort_keys=True),
+                ),
+            )
+        return normalized_items
+
+    return value
+
+
+def _is_asset_dict_list(items: list[object]) -> bool:
+    if not items:
+        return False
+    return all(
+        isinstance(item, dict)
+        and isinstance(item.get("asset"), str)
+        and bool(item.get("asset", "").strip())
+        for item in items
+    )

@@ -227,7 +227,7 @@ def create_cron_tools(
                 E.g. '{"time": "08:00", "weekdays": "weekdays"}'.
                 Only used when blueprint is set.
             monitor_type: Incremental monitoring type. "set" (detect new items
-                in line-delimited output), "hash", or "timeseries". For add/update.
+                in line-delimited output) or "hash". For add/update.
                 When set with monitor_enabled=true, the task only delivers
                 results when output changes (e.g. new prices, new articles).
                 Use "off" to disable monitoring on an existing task (update only).
@@ -472,7 +472,7 @@ def _build_active_hours(start: str, end: str, active_tz: str) -> ActiveHours | N
 
 _MIN_POLL_INTERVAL_SECONDS = 60
 _VALID_STREAM_PROTOCOLS = {"ws", "sse"}
-_VALID_MONITOR_TYPES = {"set", "hash", "timeseries"}
+_VALID_MONITOR_TYPES = {"set", "hash"}
 
 
 def _build_monitor_config(

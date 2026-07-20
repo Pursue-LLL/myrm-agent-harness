@@ -9,7 +9,7 @@ enum value not yet attached to `TriggerConfig`. Product wiring in
 `myrm-agent-server/app/core/cron/`). Supports `skip_if_active`
 concurrency control, `PreFlightCondition` script injection (probe interceptor), `context_from`
 cross-task data piping (inject referenced jobs' latest successful output), incremental monitoring
-(`MonitorConfig` — set/hash/timeseries change detection via `infra.incremental`), and
+(`MonitorConfig` — set/hash change detection via `infra.incremental`), and
 `SituationReportBuilder` for enriching heartbeat prompts with dynamic context from registered data sources.
 
 ## File & Submodule Index
