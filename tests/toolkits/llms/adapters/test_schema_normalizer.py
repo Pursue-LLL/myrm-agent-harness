@@ -827,3 +827,196 @@ class TestAnthropicStrip:
         prop = result["properties"]["n"]
         assert "minimum" not in prop
         assert "title" not in prop
+
+
+class TestOrphanRequiredPruning:
+    """Prune required entries that reference fields absent from properties.
+
+    Gemini/Vertex AI and OpenAI strict mode reject schemas with orphan required.
+    """
+
+    def test_top_level_orphan_pruned(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "body": {"type": "string"},
+                },
+                "required": ["title", "body", "repo", "owner"],
+            }
+        )
+        result = _params(normalize_tool_schema(schema, model_name="gemini-2.5-flash"))
+        assert result["required"] == ["title", "body"]
+
+    def test_nested_orphan_pruned(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "config": {
+                        "type": "object",
+                        "properties": {"timeout": {"type": "integer"}},
+                        "required": ["timeout", "retries", "priority"],
+                    }
+                },
+                "required": ["config"],
+            }
+        )
+        result = _params(normalize_tool_schema(schema, model_name="gemini-2.5-flash"))
+        assert result["properties"]["config"]["required"] == ["timeout"]
+
+    def test_all_orphan_removes_required_key(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {"x": {"type": "string"}},
+                "required": ["a", "b", "c"],
+            }
+        )
+        result = _params(normalize_tool_schema(schema, model_name="gemini-2.5-flash"))
+        assert "required" not in result
+
+    def test_clean_schema_unchanged(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "a": {"type": "string"},
+                    "b": {"type": "integer"},
+                },
+                "required": ["a", "b"],
+            }
+        )
+        result = _params(normalize_tool_schema(schema, model_name="gemini-2.5-flash"))
+        assert result["required"] == ["a", "b"]
+
+    def test_no_required_key_unaffected(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {"x": {"type": "string"}},
+            }
+        )
+        result = _params(normalize_tool_schema(schema, model_name="gemini-2.5-flash"))
+        assert "required" not in result
+
+    def test_works_for_non_gemini_models(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {"a": {"type": "string"}},
+                "required": ["a", "missing"],
+            }
+        )
+        result = _params(normalize_tool_schema(schema, model_name="gpt-4o"))
+        assert result["required"] == ["a"]
+
+    def test_allof_merge_orphan_pruned(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "item": {
+                        "allOf": [
+                            {
+                                "type": "object",
+                                "properties": {"name": {"type": "string"}},
+                                "required": ["name", "id"],
+                            },
+                            {
+                                "type": "object",
+                                "properties": {"age": {"type": "integer"}},
+                                "required": ["age"],
+                            },
+                        ]
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        item = result["properties"]["item"]
+        assert "id" not in item.get("required", [])
+        assert "name" in item.get("required", [])
+        assert "age" in item.get("required", [])
+
+    def test_array_items_object_orphan_pruned(self) -> None:
+        """Orphan required inside array items object schema are pruned."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {"label": {"type": "string"}},
+                            "required": ["label", "color"],
+                        },
+                    }
+                },
+                "required": ["tags"],
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        items_schema = result["properties"]["tags"]["items"]
+        assert items_schema["required"] == ["label"]
+
+    def test_deeply_nested_three_levels_orphan(self) -> None:
+        """Orphan required pruning works at 3+ nesting levels."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "level1": {
+                        "type": "object",
+                        "properties": {
+                            "level2": {
+                                "type": "object",
+                                "properties": {
+                                    "level3": {
+                                        "type": "object",
+                                        "properties": {"val": {"type": "string"}},
+                                        "required": ["val", "ghost"],
+                                    }
+                                },
+                                "required": ["level3"],
+                            }
+                        },
+                        "required": ["level2", "phantom"],
+                    }
+                },
+                "required": ["level1"],
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        l1 = result["properties"]["level1"]
+        assert l1["required"] == ["level2"]
+        l2 = l1["properties"]["level2"]
+        assert l2["required"] == ["level3"]
+        l3 = l2["properties"]["level3"]
+        assert l3["required"] == ["val"]
+
+    def test_duplicate_required_entries_deduplication(self) -> None:
+        """Duplicate entries in required are preserved but orphans removed."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {"x": {"type": "string"}},
+                "required": ["x", "x", "missing"],
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        assert result["required"] == ["x", "x"]
+
+    def test_anthropic_model_still_prunes_orphan(self) -> None:
+        """Orphan pruning works even when Anthropic strip pass follows."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {"name": {"type": "string", "minLength": 1}},
+                "required": ["name", "absent"],
+            }
+        )
+        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
+        assert result["required"] == ["name"]

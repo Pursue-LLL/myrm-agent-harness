@@ -179,7 +179,9 @@ def build_channel_security_config(
     - ruleset: Agent rules merged on top (higher priority)
     - timeout: Agent overrides user (if configured)
 
-    For Cron jobs, ``declared_capabilities`` defines the exact capability set.
+    For Cron jobs, a **non-empty** ``declared_capabilities`` replaces the capability
+    set with that exact list. When empty, the CRON channel preset capabilities are
+    kept (unrestricted within the preset — matches UI "leave empty for all").
     ``declared_allowed_roots`` provides additional path access grants (union-merged
     with existing allowed_roots). Applies to all channel types.
     """
@@ -206,7 +208,7 @@ def build_channel_security_config(
     if local_mode:
         ruleset = merge(ruleset, _LOCAL_BROWSER_RELAXATION)
 
-    if channel_type == ChannelType.CRON:
+    if channel_type == ChannelType.CRON and declared_capabilities:
         capabilities = _build_declared_capability_set(declared_capabilities)
 
     if declared_allowed_roots:

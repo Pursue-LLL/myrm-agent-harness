@@ -108,7 +108,7 @@ Server wiring: `agent._desktop_session` → `AgentGateway.get_active_desktop_ses
 | Deeplink SSOT | `myrm-agent-frontend/src/lib/desktop/permissionDeepLink.ts` |
 | Open semantics | Settings `DesktopPermissionsCard` → `openPermissionDeepLink`（deeplink fallback）；Doctor / Agent inline / Inspector → `openPermissionDeepLinkWithGuideFallback(url, platform)`（平台指南 fallback） |
 | Trusted apps | `GET/DELETE /webui/desktop/trust/apps` + Settings trusted-apps section（加载失败显示重试，不伪装空列表） |
-| Chrome E2E | `tests/e2e/test_desktop_control_approval_chrome_e2e.py` (`chrome_e2e_desktop`, allow_once) |
+| Chrome E2E | `tests/e2e/test_desktop_control_approval_chrome_e2e.py` + `tests/e2e/desktop_approval/` (`chrome_e2e_desktop`, allow_once + allow_always→revoke) |
 | Chrome E2E attach gate | `tests/support/e2e_runtime_guard.py::assert_chrome_attach_health` — shared-attach lane only; item runtimes skip (private preflight already ran) |
 
 Channel security: IM strips `!desktop_*`; Cron denies `desktop_capture` / `desktop_control` (see [SECURITY_SYSTEM.md](../../agent/security/SECURITY_SYSTEM.md)).
@@ -133,7 +133,7 @@ Injected via `DESKTOP_CONTROL_RULES` in `shared_rules.py` when `enable_computer_
 |------|--------|
 | Linux AT-SPI invoke | ✅ implemented (pyatspi doAction/EditableText/grabFocus) |
 | Desktop control gate (server) | ✅ `DesktopControlGate` + SSE approval card. Local monorepo: `./myrm ready` (editable harness; no PyPI). Release/CI: harness tag → `./myrm harness sync-lock` → commit `uv.lock` before `--frozen` |
-| Stream E2E tests | ✅ `test_desktop_control_approval_chrome_e2e.py` — `@pytest.mark.chrome_e2e_desktop`；strict `\\bDONE\\b`（`chat_messages_have_done` 仅最后 assistant）；signoff 独立 darwin phase + preflight；并行 cap 默认 2 |
+| Stream E2E tests | ✅ `test_desktop_control_approval_chrome_e2e.py` + `tests/e2e/desktop_approval/` — `@pytest.mark.chrome_e2e_desktop`；allow_once + allow_always→Settings revoke；strict `\\bDONE\\b`；signoff 独立 darwin phase |
 | Onboarding hint when computer_use enabled | implemented (toggle + tooltip + empty state) |
 | Native API routing hints | implemented (macOS/Windows/Linux) |
 

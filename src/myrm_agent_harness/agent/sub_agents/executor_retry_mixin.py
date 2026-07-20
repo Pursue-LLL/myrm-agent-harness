@@ -68,6 +68,7 @@ class SubagentExecutorRetryMixin:
         resume_command: object | None = None,
         parent_progress_sink: ToolProgressSink | None = None,
         complexity_tier: str | None = None,
+        on_running_token_usage: Callable[[dict[str, object]], None] | None = None,
     ) -> SubAgentResult:
         """Execute subagent with retry logic and workspace isolation."""
         retries_left = config.max_retries
@@ -139,6 +140,7 @@ class SubagentExecutorRetryMixin:
                         cancel_token=cancel_token,
                         resume_command=resume_command,
                         parent_progress_sink=parent_progress_sink,
+                        on_running_token_usage=on_running_token_usage,
                     )
                     if isolation_ctx and result.success:
                         isolation_succeeded = True

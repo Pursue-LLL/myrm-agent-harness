@@ -742,7 +742,7 @@ tools = create_memory_tools(manager=manager)
 
 `memory_search_tool` 的 `limit` 在 memory corpus 下收敛到 `1..15`；sessions corpus 下收敛到 `1..8`。空查询或 `*` 在 `corpus=sessions` 时表示浏览最近会话。wiki/sessions corpus 由 Server policy 控制，runtime 无法扩 scope。
 
-`conversation_search_tool` 工厂仍保留于 `conversation_search/tool.py`，供 CustomAgent / 测试直接挂载；GeneralAgent Turn1 不再单独 bind。
+`conversation_search/` 模块保留 Protocol、formatter 与 optional `create_conversation_search_tool` 工厂（测试/legacy）；产品路径（GeneralAgent 与 Custom 子 Agent）均通过 `memory_search_tool(corpus=sessions)` + Server `MemorySearchPolicy` ACL，Turn1 不 bind standalone `conversation_search_tool`。
 
 ### 8.3 审批机制
 

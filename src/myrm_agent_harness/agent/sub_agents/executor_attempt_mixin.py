@@ -96,6 +96,7 @@ class SubagentExecutorAttemptMixin:
         resume_command: object | None = None,
         parent_progress_sink: ToolProgressSink | None = None,
         complexity_tier: str | None = None,
+        on_running_token_usage: Callable[[dict[str, object]], None] | None = None,
     ) -> SubAgentResult:
         """Execute one child-agent attempt. Raises on failure for retry."""
         parent_tools = tool_registry_getter()
@@ -150,7 +151,7 @@ class SubagentExecutorAttemptMixin:
             config,
             start_time,
             parent_progress_sink=parent_progress_sink,
-            on_running_token_usage=lambda usage: self.patch_child_running_token_usage(task_id, usage),
+            on_running_token_usage=on_running_token_usage,
         )
 
         # Critical: Mark execution context as subagent to prevent approval deadlocks

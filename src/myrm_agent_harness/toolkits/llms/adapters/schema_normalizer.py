@@ -8,6 +8,8 @@ MCP tools use full JSON Schema, but OpenAI-compatible providers reject:
 - ``nullable`` keyword (OpenAPI 3.0 extension, non-standard JSON Schema)
 - null/empty-string values in enum arrays on scalar types
 - tuple-style ``items`` arrays (positional element schemas)
+- ``required`` entries referencing fields absent from ``properties``
+  (Gemini/Vertex AI and OpenAI strict mode reject these with 400)
 
 Additionally, Anthropic's Tool Use API supports only a subset of JSON Schema.
 Keywords like ``minimum``, ``maxItems``, ``pattern``, ``format``, ``title``,
@@ -28,6 +30,9 @@ Tool Schema Normalizer for OpenAI-compatible Providers
 from __future__ import annotations
 
 import copy
+import logging
+
+logger = logging.getLogger(__name__)
 
 _COMPOSITE_KEYWORDS = frozenset({"anyOf", "oneOf", "allOf"})
 _REF_PREFIXES = ("#/$defs/", "#/definitions/")
@@ -172,6 +177,16 @@ def _normalize_properties(schema: dict[str, object]) -> None:
     for prop_name, prop_schema in list(props.items()):
         if isinstance(prop_schema, dict):
             props[prop_name] = _normalize_property(prop_schema)
+
+    req = schema.get("required")
+    if isinstance(req, list):
+        pruned = [r for r in req if r in props]
+        if len(pruned) < len(req):
+            logger.debug("Pruned orphan required entries: %s", set(req) - set(pruned))
+        if pruned:
+            schema["required"] = pruned
+        else:
+            del schema["required"]
 
 
 def _normalize_property(prop: dict[str, object]) -> dict[str, object]:

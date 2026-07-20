@@ -122,9 +122,14 @@ class TestAriaParserCoverage:
         assert _parse_yaml_nodes({}) == []
 
     def test_parse_yaml_nodes_unexpected_type(self) -> None:
-        """Test _parse_yaml_nodes with unexpected data type."""
+        """Test _parse_yaml_nodes with bare identifier string falls back to role token."""
         result = _parse_yaml_nodes("unexpected string", indent=0)
-        assert result == []
+        assert len(result) == 1
+        assert result[0].role == "unexpected"
+        assert result[0].name == ""
+
+        result_non_ident = _parse_yaml_nodes("123 not-valid", indent=0)
+        assert result_non_ident == []
 
     def test_parse_yaml_nodes_unexpected_non_string_type(self) -> None:
         """Test _parse_yaml_nodes with unexpected non-string types."""

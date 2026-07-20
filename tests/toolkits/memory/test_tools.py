@@ -7,9 +7,11 @@ import pytest
 
 from myrm_agent_harness.toolkits.memory.config import RecallMode
 from myrm_agent_harness.toolkits.memory.memory_agent_tools import (
-    _channel_label,
-    _is_stale,
     create_memory_tools,
+)
+from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+    channel_label as _channel_label,
+    is_stale as _is_stale,
     memory_age_label,
 )
 from myrm_agent_harness.toolkits.memory.types import (

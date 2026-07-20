@@ -252,10 +252,13 @@ class TestBuildChannelSecurityConfig:
         assert "shell_exec" in caps_perms
         assert "file_read" in caps_perms
 
-    def test_cron_without_declared_capabilities_gets_empty_set(self) -> None:
-        """Cron with no declared_capabilities produces an empty CapabilitySet."""
+    def test_cron_without_declared_capabilities_uses_preset(self) -> None:
+        """Cron with no declared_capabilities keeps the CRON channel preset."""
         config = build_channel_security_config("cron")
-        assert len(config.capabilities) == 0
+        preset = CHANNEL_PRESETS[ChannelType.CRON]
+        assert config.capabilities == preset.capabilities
+        action, _ = evaluate_tool_call("web_search_tool", {}, config)
+        assert action != PermissionAction.DENY
 
     def test_cron_with_allowed_roots(self) -> None:
         config = build_channel_security_config("cron", declared_allowed_roots=("/tmp/jobs",))

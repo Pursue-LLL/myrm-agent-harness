@@ -177,6 +177,7 @@ class CronManager:
         active_hours: ActiveHours | None = None,
         required_capabilities: tuple[str, ...] = (),
         allowed_roots: tuple[str, ...] = (),
+        tools_allowed: tuple[str, ...] | None = None,
         max_retries: int = 2,
         retry_backoff_ms: int = 30_000,
         timeout_seconds: int = 300,
@@ -224,6 +225,7 @@ class CronManager:
                 command=command,
                 required_capabilities=required_capabilities,
                 allowed_roots=allowed_roots,
+                tools_allowed=tools_allowed,
                 delivery=delivery or DeliveryConfig(),
                 failure_delivery=failure_delivery,
                 failure_alert=failure_alert,
@@ -300,6 +302,7 @@ class CronManager:
             command=source.command,
             required_capabilities=source.required_capabilities,
             allowed_roots=source.allowed_roots,
+            tools_allowed=source.tools_allowed,
             delivery=source.delivery,
             failure_delivery=source.failure_delivery,
             failure_alert=source.failure_alert,
@@ -399,6 +402,10 @@ class CronManager:
             job.required_capabilities = patch.required_capabilities
         if patch.allowed_roots is not None:
             job.allowed_roots = patch.allowed_roots
+        if patch.clear_tools_allowed:
+            job.tools_allowed = None
+        elif patch.tools_allowed is not None:
+            job.tools_allowed = patch.tools_allowed
         if patch.max_retries is not None:
             job.max_retries = patch.max_retries
         if patch.retry_backoff_ms is not None:

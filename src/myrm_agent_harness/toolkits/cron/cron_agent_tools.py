@@ -12,7 +12,7 @@ when called from within a cron job execution, preventing infinite task chains.
 [OUTPUT]
 - enter_cron_execution_context: Mark the current async context as running inside a cron j...
 - exit_cron_execution_context: Restore the previous cron execution context.
-- create_cron_tools: Create a single cron management tool bound to a user.
+- create_cron_tools: Create cron_manage_tool with on-demand blueprints, default_delivery, reminder jobs.
 
 [POS]
 Agent tool for scheduled task management.
@@ -52,8 +52,11 @@ from myrm_agent_harness.toolkits.cron.types import (
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.cron.manager import CronManager
 
-# Blueprint filler: (blueprint_id, values_dict, tz) -> (schedule_dict, prompt, name) | None
-BlueprintFiller = Callable[[str, dict[str, str], str | None], tuple[dict[str, str | int | None], str, str] | None]
+# Blueprint filler: (blueprint_id, values_dict, tz) -> (schedule_dict, prompt, name, caps, tools) | None
+BlueprintFiller = Callable[
+    [str, dict[str, str], str | None],
+    tuple[dict[str, str | int | None], str, str, tuple[str, ...], tuple[str, ...] | None] | None,
+]
 BlueprintCatalogProvider = Callable[[], str]
 DeliveryResolver = Callable[[str], DeliveryConfig]
 
@@ -153,6 +156,8 @@ def create_cron_tools(
         poll_json_path: str = "",
         poll_interval_seconds: int = 0,
         reminder: bool = False,
+        required_capabilities: str = "",
+        tools_allowed: str = "",
     ) -> str:
         """Manage scheduled tasks (create, list, update, delete, trigger, pause, resume).
 
@@ -258,6 +263,10 @@ def create_cron_tools(
                 Only used when poll_url is set.
             reminder: When true (add only), create a zero-LLM reminder that delivers
                 the prompt text directly. Mutually exclusive with command.
+            required_capabilities: Comma-separated capability IDs for agent tasks (add/update).
+                E.g. "web_search_tool,net_fetch". Leave empty to use channel defaults.
+            tools_allowed: Comma-separated builtin tool IDs to mount at execution (add/update).
+                E.g. "web_search,memory". Intersected with the bound agent profile at run time.
         """
         effective_model = model.strip() or current_model
 
@@ -274,6 +283,8 @@ def create_cron_tools(
         bp_at = at
         bp_tz = tz
         bp_name = name
+        bp_required_capabilities: tuple[str, ...] = ()
+        bp_tools_allowed: tuple[str, ...] | None = None
 
         if action == "add" and blueprint.strip() and blueprint_filler:
             bp_values: dict[str, str] = {}
@@ -287,9 +298,11 @@ def create_cron_tools(
             if fill_result is None:
                 return f"Error: unknown blueprint '{blueprint.strip()}'. Use list action or check available blueprints."
 
-            sched_dict, filled_prompt, filled_name = fill_result
+            sched_dict, filled_prompt, filled_name, filled_caps, filled_tools = fill_result
             bp_prompt = filled_prompt
             bp_name = bp_name or filled_name
+            bp_required_capabilities = filled_caps
+            bp_tools_allowed = filled_tools
 
             sched_kind = sched_dict.get("kind", "")
             if sched_kind == "cron" and sched_dict.get("expr"):
@@ -297,6 +310,17 @@ def create_cron_tools(
                 bp_tz = str(sched_dict.get("tz") or tz or "")
             elif sched_kind == "interval" and sched_dict.get("interval_ms"):
                 bp_every_minutes = int(sched_dict["interval_ms"]) // 60_000
+
+        effective_required_capabilities = (
+            _parse_csv_tuple(required_capabilities)
+            if required_capabilities.strip()
+            else bp_required_capabilities
+        )
+        effective_tools_allowed = (
+            tuple(_parse_csv_tuple(tools_allowed))
+            if tools_allowed.strip()
+            else bp_tools_allowed
+        )
 
         dispatch = {
             "add": lambda: _do_add(
@@ -333,6 +357,8 @@ def create_cron_tools(
                 poll_json_path=poll_json_path,
                 poll_interval_seconds=poll_interval_seconds,
                 reminder=reminder,
+                required_capabilities=effective_required_capabilities,
+                tools_allowed=effective_tools_allowed,
                 resolve_delivery=_resolve_delivery,
             ),
             "list": lambda: _do_list(manager, user_id, name_filter),
@@ -355,6 +381,12 @@ def create_cron_tools(
                 monitor_type=monitor_type,
                 monitor_enabled=monitor_enabled,
                 session_mode=session_mode,
+                required_capabilities=_parse_csv_tuple(required_capabilities)
+                if required_capabilities.strip()
+                else None,
+                tools_allowed=tuple(_parse_csv_tuple(tools_allowed))
+                if tools_allowed.strip()
+                else None,
             ),
             "remove": lambda: _do_remove(manager, user_id, job_id),
             "run": lambda: _do_run(manager, user_id, job_id),
@@ -463,6 +495,21 @@ def _build_monitor_config(
         valid = ", ".join(sorted(_VALID_MONITOR_TYPES))
         return f"Invalid monitor_type '{monitor_type}'. Must be one of: {valid}.", None, False
     return None, MonitorConfig(monitor_type=mt, enabled=True), False
+
+
+def _parse_csv_tuple(raw: str) -> tuple[str, ...]:
+    """Parse comma-separated IDs into a deduplicated tuple."""
+    if not raw.strip():
+        return ()
+    seen: set[str] = set()
+    items: list[str] = []
+    for part in raw.split(","):
+        token = part.strip()
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        items.append(token)
+    return tuple(items)
 
 
 def _parse_context_from(raw: str) -> tuple[str, ...]:
@@ -602,6 +649,8 @@ async def _do_add(
     poll_json_path: str = "",
     poll_interval_seconds: int = 0,
     reminder: bool = False,
+    required_capabilities: tuple[str, ...] = (),
+    tools_allowed: tuple[str, ...] | None = None,
     *,
     resolve_delivery: DeliveryResolver,
 ) -> str:
@@ -701,6 +750,8 @@ async def _do_add(
             context_from=parsed_context_from,
             monitor_config=monitor_config,
             triggers=trigger_config,
+            required_capabilities=required_capabilities,
+            tools_allowed=tools_allowed,
         )
     except ValueError as exc:
         return str(exc)
@@ -779,6 +830,8 @@ async def _do_update(
     monitor_type: str = "",
     monitor_enabled: bool = False,
     session_mode: str = "",
+    required_capabilities: tuple[str, ...] | None = None,
+    tools_allowed: tuple[str, ...] | None = None,
 ) -> str:
     if not job_id:
         return "job_id required. Use action='list' first."
@@ -818,6 +871,8 @@ async def _do_update(
         monitor_config=monitor_config,
         clear_monitor_config=clear_monitor,
         session_target=parsed_session_target,
+        required_capabilities=required_capabilities,
+        tools_allowed=tools_allowed,
     )
 
     try:

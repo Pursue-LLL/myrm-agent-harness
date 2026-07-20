@@ -117,7 +117,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `browser_snapshot_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `channel_notify_tool` | EXTENDED | user_capability | — | Agent notify_targets configured |
 | `complete_goal_tool` | EXTENDED | user_capability | — | active Goal on chat |
-| `conversation_search_tool` | EXTENDED | user_capability | memory | CustomAgent scoped mount only; GeneralAgent uses memory_search_tool sessions ACL |
+| `conversation_search_tool` | EXTENDED | user_capability | memory | Harness test/legacy factory only; product uses `memory_search_tool` sessions ACL |
 | `cron_manage_tool` | EXTENDED | user_capability | cron | user cron capability wired |
 | `delegate_task_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `delegate_to_agent_tool` | EXTENDED | user_capability | external_cli | external ACP agent configured |

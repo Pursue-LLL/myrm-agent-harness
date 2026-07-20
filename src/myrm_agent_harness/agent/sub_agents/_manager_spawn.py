@@ -202,6 +202,7 @@ class SubagentSpawnMixin:
                 resume_command=resume_command,
                 parent_progress_sink=parent_progress_sink,
                 complexity_tier=complexity_tier,
+                on_running_token_usage=lambda usage: self.patch_child_running_token_usage(task_id, usage),
             )
         finally:
             self._cancel_flags.pop(task_id, None)
