@@ -34,8 +34,8 @@ def mock_registry():
 @pytest.fixture
 def mock_skills():
     return [
-        SkillMetadata(name="external_skill_1", description="An external skill"),
-        SkillMetadata(name="external_skill_2", description="Another external skill"),
+        SkillMetadata(name="bound_skill_1", description="A bound skill"),
+        SkillMetadata(name="bound_skill_2", description="Another bound skill"),
     ]
 
 
@@ -48,12 +48,12 @@ async def test_create_tool_no_engines():
 
 
 @pytest.mark.asyncio
-async def test_discover_external_skill(mock_skills):
+async def test_discover_bound_skill(mock_skills):
     tool = create_discover_capability_tool(skills=mock_skills)
     result = await tool.ainvoke({"query": ".*", "mode": "regex"})
-    assert "Found Skills" in result
-    assert "<ExternalSkills>" in result
-    assert "external_skill_1" in result
+    assert "Found bound skills" in result
+    assert "<BoundSkills>" in result
+    assert "bound_skill_1" in result
 
 
 @pytest.mark.asyncio
@@ -86,7 +86,7 @@ async def test_capability_gap_block_on_hit() -> None:
         active_tool_groups=frozenset({"web", "memory", "file_ops", "shell"}),
     )
     result = await tool.ainvoke({"query": "browse", "mode": "regex"})
-    assert "Found Skills" in result
+    assert "Found bound skills" in result
     assert "<CapabilityGap>" in result
     assert "browser" in result
 
@@ -148,12 +148,12 @@ async def test_description_contains_must_search_before_declining():
 
 
 @pytest.mark.asyncio
-async def test_external_skill_output_format(mock_skills):
-    """Verify external skill results use only name and description (no source/version)."""
+async def test_bound_skill_output_format(mock_skills):
+    """Verify bound skill results use only name and description (no source/version)."""
     tool = create_discover_capability_tool(skills=mock_skills)
     result = await tool.ainvoke({"query": ".*", "mode": "regex"})
-    assert "external_skill_1" in result
-    assert "An external skill" in result
+    assert "bound_skill_1" in result
+    assert "A bound skill" in result
     assert "source:" not in result
     assert "version:" not in result
 
@@ -162,22 +162,24 @@ async def test_external_skill_output_format(mock_skills):
 async def test_bm25_mode_default(mock_skills):
     """Verify default mode is bm25 (not regex)."""
     tool = create_discover_capability_tool(skills=mock_skills)
-    result = await tool.ainvoke({"query": "external"})
-    assert "external_skill" in result or "No capabilities" in result
+    result = await tool.ainvoke({"query": "bound"})
+    assert "bound_skill" in result or "No capabilities" in result
 
 
 @pytest.mark.asyncio
 async def test_skill_output_format(mock_skills):
-    """Verify skill output uses ExternalSkills XML format."""
+    """Verify skill output uses BoundSkills XML format."""
     tool = create_discover_capability_tool(skills=mock_skills)
     result = await tool.ainvoke({"query": ".*", "mode": "regex"})
-    assert "<ExternalSkills>" in result
-    assert "external_skill_1" in result
+    assert "<BoundSkills>" in result
+    assert "</BoundSkills>" in result
+    assert "<ExternalSkills>" not in result
+    assert "bound_skill_1" in result
 
 
 @pytest.mark.asyncio
 async def test_description_contains_skill_select_instruction():
-    """Verify description mentions skill_select_tool for external skills."""
+    """Verify description mentions skill_select_tool for bound skills."""
     tool = create_discover_capability_tool()
     assert "skill_select_tool" in tool.description
 
@@ -187,7 +189,7 @@ async def test_wildcard_query(mock_skills):
     """Verify query='*' lists all skills."""
     tool = create_discover_capability_tool(skills=mock_skills)
     result = await tool.ainvoke({"query": "*"})
-    assert "external_skill_1" in result or "No capabilities" in result
+    assert "bound_skill_1" in result or "No capabilities" in result
 
 
 @pytest.mark.asyncio
@@ -199,7 +201,7 @@ async def test_hybrid_engine_path(mock_skills):
 
     mock_engine_instance = MagicMock()
     mock_engine_instance.search_bm25 = AsyncMock(
-        return_value=[SkillSearchResult(name="external_skill_1", description="An external skill", score=1.0)]
+        return_value=[SkillSearchResult(name="bound_skill_1", description="A bound skill", score=1.0)]
     )
     mock_hybrid_cls = MagicMock(return_value=mock_engine_instance)
 
@@ -214,8 +216,8 @@ async def test_hybrid_engine_path(mock_skills):
             embedding_config=mock_embedding_config,
         )
 
-    result = await tool.ainvoke({"query": "external"})
-    assert "external_skill_1" in result
+    result = await tool.ainvoke({"query": "bound"})
+    assert "bound_skill_1" in result
 
 
 @pytest.mark.asyncio

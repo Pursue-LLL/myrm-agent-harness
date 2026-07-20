@@ -12,6 +12,13 @@ def test_filter_output_lines_keeps_matching_only() -> None:
     assert filter_output_lines(lines, pattern) == ["ERROR: boom", "FAIL hard"]
 
 
+def test_filter_pattern_length_rejected() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="256"):
+        compile_output_filter("x" * 257)
+
+
 def test_filter_output_lines_empty_input() -> None:
     pattern = compile_output_filter("x")
     assert filter_output_lines([], pattern) == []

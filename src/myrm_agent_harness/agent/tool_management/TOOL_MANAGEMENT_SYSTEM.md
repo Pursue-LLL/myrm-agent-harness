@@ -189,7 +189,7 @@ python scripts/validate_tool_registry.py --generate-docs  # 刷新 TOOL_COUNT + 
 - 所有 LLM Action Tool → `TURN1`（按 profile 条件装配；MCP 超标整服降级 PTC Skill）
 - `_completion_check`（CompletionGuard）→ `RUNTIME_ONLY`（名称 `_` 前缀自动推断）
 
-**已删除**：`ToolBindMode.DISCOVERABLE`、`get_discoverable_tools()`、`discoverable_tools` 构造参数。低频能力改由 profile 开关 + MCP PTC 路由 + `discover_capability_tool`（搜索 external skills）承担。
+**已删除**：`ToolBindMode.DISCOVERABLE`、`get_discoverable_tools()`、`discoverable_tools` 构造参数。低频能力改由 profile 开关 + MCP PTC 路由 + `discover_capability_tool`（搜索已绑定 Agent 的技能库）承担。
 
 **禁止**：`get_deferred_tools()` 已删除；新代码不得混用 `deferred_tools` / `discoverable_tools` 变量名。
 

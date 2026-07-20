@@ -42,7 +42,6 @@ import signal
 import time
 from collections import deque
 from contextlib import suppress
-from dataclasses import dataclass
 from threading import Lock
 from typing import TYPE_CHECKING
 
@@ -51,6 +50,10 @@ from myrm_agent_harness.agent.meta_tools.bash._background_types import (
     BackgroundQuotaError,
     FinishListener,
     ProgressListener,
+)
+from myrm_agent_harness.agent.meta_tools.bash._background_registry_consume import (
+    BackgroundRegistryEntry,
+    consume_background_entry,
 )
 from myrm_agent_harness.utils.os_compat import kill_process_group
 
@@ -68,38 +71,8 @@ _OUTPUT_TAIL_LINES = 200  # Per process; bounded to keep memory flat under churn
 _DEFAULT_PER_SESSION_LIMIT = 5  # Soft cap; raise via env if a power-user complains.
 _DEFAULT_KILL_GRACE_SECONDS = 5.0  # SIGTERM → SIGKILL escalation window.
 _DEFAULT_REAP_DELAY_SECONDS = 300.0  # Exited entries are purged from the registry after this idle window.
-_LINE_MAX_BYTES = 32 * 1024  # Hard cap per buffered output line; longer lines are truncated.
 _WAIT_MAX_SECONDS = 120.0
 _WAIT_POLL_INTERVAL_SECONDS = 0.1
-
-
-@dataclass
-class _Entry:
-    """Internal registry record (carries the live process handle).
-
-    Each buffered line is stored as ``(cursor, text)``. ``cursor`` is a
-    process-wide monotonically increasing integer shared between stdout and
-    stderr; this lets ``get_output(since_cursor=...)`` filter both streams
-    against the same cursor without confusing rates (a busy stderr will not
-    eat into stdout's quota or vice versa).
-    """
-
-    info: BackgroundProcessInfo
-    proc: AsyncProcessProtocol
-    stdout_buffer: deque[tuple[int, str]]
-    stderr_buffer: deque[tuple[int, str]]
-    reader_task: asyncio.Task[None] | None = None
-    finish_listener: FinishListener | None = None
-    progress_listener: ProgressListener | None = None
-    spill_writer: BackgroundOutputSpillWriter | None = None
-    # Process-wide monotonic cursor incremented for every line written across
-    # both streams. Returned to callers so they can poll incrementally without
-    # bookkeeping. Each ring buffer holds the last ``_OUTPUT_TAIL_LINES``
-    # lines, so when ``next_cursor - since_cursor`` exceeds the buffered
-    # window the caller is told ``dropped=True`` instead of receiving stale
-    # data silently.
-    cursor: int = 0
-    empty_poll_streak: int = 0
 
 
 class BackgroundProcessRegistry:
@@ -116,7 +89,7 @@ class BackgroundProcessRegistry:
         per_session_limit: int = _DEFAULT_PER_SESSION_LIMIT,
         reap_delay_seconds: float = _DEFAULT_REAP_DELAY_SECONDS,
     ) -> None:
-        self._entries: dict[int, _Entry] = {}
+        self._entries: dict[int, BackgroundRegistryEntry] = {}
         self._lock = Lock()
         self._per_session_limit = per_session_limit
         self._reap_delay_seconds = reap_delay_seconds
@@ -165,7 +138,7 @@ class BackgroundProcessRegistry:
         )
         stdout_buffer: deque[tuple[int, str]] = deque(maxlen=_OUTPUT_TAIL_LINES)
         stderr_buffer: deque[tuple[int, str]] = deque(maxlen=_OUTPUT_TAIL_LINES)
-        entry = _Entry(
+        entry = BackgroundRegistryEntry(
             info=info,
             proc=proc,
             stdout_buffer=stdout_buffer,
@@ -420,118 +393,13 @@ class BackgroundProcessRegistry:
 
         clear_session_spawn_tools(session_id)
 
-    async def _consume(self, entry: _Entry) -> None:
-        from myrm_agent_harness.agent.meta_tools.bash._background_progress import (
-            try_parse_progress_line,
+    async def _consume(self, entry: BackgroundRegistryEntry) -> None:
+        await consume_background_entry(
+            entry,
+            snapshot=self._snapshot,
+            schedule_reap=self._schedule_reap,
+            clear_session_if_idle=self._maybe_clear_session_deferred_tools,
         )
-
-        async def _emit_progress(progress: dict[str, object]) -> None:
-            # 1. Cache the most recent progress on the info record so that
-            #    ``bash_process_tool(action='list')`` can surface it without a follow-up
-            #    output fetch. The ``updated_at`` field lets the LLM identify
-            #    stale snapshots (e.g. a job that stopped emitting progress
-            #    minutes ago) without bookkeeping.
-            entry.info.last_progress = {**progress, "updated_at": time.time()}
-            listener = entry.progress_listener
-            if listener is None:
-                return
-            try:
-                await listener(entry.info, progress)
-            except Exception as exc:  # pragma: no cover — best-effort
-                logger.debug(
-                    "background progress listener for pid=%s failed: %s",
-                    entry.info.pid,
-                    exc,
-                )
-
-        async def _pipe(stream: object, sink: deque[tuple[int, str]]) -> None:
-            reader = getattr(stream, "readline", None)
-            if reader is None:
-                return
-            while True:
-                try:
-                    chunk = await reader()
-                except asyncio.LimitOverrunError as exc:
-                    # The child emitted a line larger than the StreamReader's
-                    # limit (8 MiB by default for background spawns). Drain the
-                    # overflow so the reader can keep going; surface a marker
-                    # so the LLM/UI knows we elided a giant line.
-                    drain_method = getattr(stream, "readexactly", None)
-                    if drain_method is not None:
-                        with suppress(asyncio.IncompleteReadError, ConnectionError, OSError):
-                            await drain_method(exc.consumed)
-                    entry.cursor += 1
-                    sink.append((entry.cursor, f"[output line >{exc.consumed} bytes truncated]"))
-                    continue
-                except (ConnectionError, OSError, asyncio.CancelledError):
-                    return
-                if not chunk:
-                    break
-                raw = (chunk.decode("utf-8", errors="replace") if isinstance(chunk, bytes) else str(chunk)).rstrip()
-                if len(raw) > _LINE_MAX_BYTES:
-                    text = raw[:_LINE_MAX_BYTES] + f"... [+{len(raw) - _LINE_MAX_BYTES} bytes truncated]"
-                else:
-                    text = raw
-                from myrm_agent_harness.agent.security.redact import redact_sensitive_text
-
-                text = redact_sensitive_text(text)
-                spill = entry.spill_writer
-                if spill is not None:
-                    stream_name = "stderr" if sink is entry.stderr_buffer else "stdout"
-                    spill.append_line(stream_name, text)
-                    if spill.vault_log_ref and entry.info.vault_log_ref != spill.vault_log_ref:
-                        entry.info.vault_log_ref = spill.vault_log_ref
-                        from myrm_agent_harness.agent.meta_tools.bash._background_registry_store_sync import (
-                            persist_vault_log_ref,
-                        )
-
-                        persist_vault_log_ref(entry.info)
-                # ``entry.cursor += 1`` and ``sink.append`` happen between
-                # two ``await``s; under single-threaded asyncio this is
-                # atomic against the sibling pipe task.
-                entry.cursor += 1
-                sink.append((entry.cursor, text))
-                progress = try_parse_progress_line(text)
-                if progress is not None:
-                    await _emit_progress(progress)
-
-        try:
-            await asyncio.gather(
-                _pipe(entry.proc.stdout, entry.stdout_buffer),
-                _pipe(entry.proc.stderr, entry.stderr_buffer),
-                return_exceptions=True,
-            )
-            exit_code = await entry.proc.wait()
-            entry.info.exit_code = exit_code
-            if entry.info.status == "running":
-                entry.info.status = "exited"
-            from myrm_agent_harness.agent.meta_tools.bash.bash_tool_background_listeners import (
-                classify_background_exit,
-            )
-
-            entry.info.error_category = classify_background_exit(entry.info)
-            from myrm_agent_harness.agent.meta_tools.bash._background_registry_store_sync import (
-                persist_terminal_state,
-            )
-
-            persist_terminal_state(entry.info)
-        except asyncio.CancelledError:
-            return
-        except Exception as exc:  # pragma: no cover — defensive
-            logger.warning("background reader for pid=%s crashed: %s", entry.info.pid, exc)
-        finally:
-            listener = entry.finish_listener
-            if listener is not None:
-                try:
-                    await listener(self._snapshot(entry))
-                except Exception as exc:  # pragma: no cover — best-effort
-                    logger.debug(
-                        "background finish listener for pid=%s failed: %s",
-                        entry.info.pid,
-                        exc,
-                    )
-            self._maybe_clear_session_deferred_tools(entry.info.session_id)
-            self._schedule_reap(entry.info.pid)
 
     def _schedule_reap(self, pid: int) -> None:
         """Drop an exited/killed entry after a short window so ``list_processes``
@@ -562,7 +430,7 @@ class BackgroundProcessRegistry:
             self._entries.pop(pid, None)
 
     @staticmethod
-    def _snapshot(entry: _Entry) -> BackgroundProcessInfo:
+    def _snapshot(entry: BackgroundRegistryEntry) -> BackgroundProcessInfo:
         info = entry.info
         snap = BackgroundProcessInfo(
             job_id=info.job_id,

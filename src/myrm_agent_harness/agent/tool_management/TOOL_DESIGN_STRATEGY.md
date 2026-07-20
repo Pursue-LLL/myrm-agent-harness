@@ -400,16 +400,16 @@ def get_tool_layer(tool_name: str) -> ToolLayer:
 
 ### 11.2 自适应工具加载 ✅ 已实现
 
-**实现**: `discover_capability_tool` (BM25+Embedding) — indexes external skills for unified search
+**实现**: `discover_capability_tool` (BM25+Embedding) — indexes agent-bound searchable skills for unified search
 
 **效果**:
 - DeferEconomics：小 defer 池 + 无外部技能 → 不绑 discover 网关（省 ~238 tok/Turn1）
-- Agent 通过 discover 命中外部技能 → `skill_select_tool` 加载 SOP 后执行
+- Agent 通过 discover 命中已绑定技能 → `skill_select_tool` 加载 SOP 后执行
 - 严禁 append 非 Turn1 schema 到 bind_tools（框架 11.1 prefix cache 底线）
 
 ### 11.3 工具推荐系统 ✅ 已实现
 
-**实现**: `discover_capability_tool` 统一搜索 Native Discoverable Tools + External Skills
+**实现**: `discover_capability_tool` 统一搜索已绑定 Agent 的可搜索技能（命中结果以 `<BoundSkills>` XML 包裹）
 
 **效果**:
 - BM25 + Embedding 混合语义搜索

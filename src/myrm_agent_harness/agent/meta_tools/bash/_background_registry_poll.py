@@ -7,7 +7,7 @@
 - build_poll_output: stdout/stderr slices + next_cursor + poll_hint
 
 [POS]
-Extracted from BackgroundProcessRegistry.get_output for file-size and test isolation.
+Incremental poll snapshot builder for ``bash_process_tool`` / auto-yield.
 """
 
 from __future__ import annotations

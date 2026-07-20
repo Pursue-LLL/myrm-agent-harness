@@ -799,6 +799,42 @@ class TestInjectMemoryContext:
         req.override.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_handles_get_context_load_error(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request()
+
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(side_effect=RuntimeError("static db error"))
+
+        with patch("myrm_agent_harness.agent._skill_agent_context.get_memory_manager", return_value=mock_manager):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "load_error",
+        }
+
+    @pytest.mark.asyncio
+    async def test_handles_invalid_static_payload_type(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request()
+
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value="not-a-dict")
+
+        with patch("myrm_agent_harness.agent._skill_agent_context.get_memory_manager", return_value=mock_manager):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "invalid_static_payload",
+        }
+
+    @pytest.mark.asyncio
     async def test_cold_start_injects_discovery_prompt(self, _inject_fn):
         """New users (empty context) get cold start discovery guidance as SystemMessage."""
         handler = AsyncMock()
@@ -951,10 +987,128 @@ class TestInjectMemoryContext:
         assert ai_msg.content.startswith("[Agent: SubAgentA]\n")
         assert "I am a response" in ai_msg.content
 
+    @pytest.mark.asyncio
+    async def test_aimessage_name_prefix_for_list_content_blocks(self, _inject_fn):
+        """AIMessages with structured content blocks get the same agent name prefix."""
+        from langchain_core.messages import AIMessage
 
-# ---------------------------------------------------------------------------
-# Scope Boundary — agent instruction vs global memory precedence
-# ---------------------------------------------------------------------------
+        handler = AsyncMock()
+        req = _make_request(
+            messages=[
+                SystemMessage(content="sys"),
+                AIMessage(
+                    content=[{"type": "text", "text": "Structured response"}],
+                    name="SubAgentB",
+                ),
+                HumanMessage(content="Hello"),
+            ]
+        )
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch("myrm_agent_harness.agent._skill_agent_context.get_memory_manager", return_value=mock_manager):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        injected_messages = req.override.call_args[1]["messages"]
+        ai_msg = next((m for m in injected_messages if isinstance(m, AIMessage)), None)
+        assert ai_msg is not None
+        assert isinstance(ai_msg.content, list)
+        assert ai_msg.content[0]["text"].startswith("[Agent: SubAgentB]\n")
+
+    @pytest.mark.asyncio
+    async def test_aimessage_name_prefix_skips_non_text_first_block(self, _inject_fn):
+        from langchain_core.messages import AIMessage
+
+        handler = AsyncMock()
+        original_content = [{"type": "image", "url": "https://example.com/a.png"}]
+        req = _make_request(
+            messages=[
+                SystemMessage(content="sys"),
+                AIMessage(content=original_content, name="SubAgentC"),
+                HumanMessage(content="Hello"),
+            ]
+        )
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch("myrm_agent_harness.agent._skill_agent_context.get_memory_manager", return_value=mock_manager):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        ai_msg = next(m for m in req.override.call_args[1]["messages"] if isinstance(m, AIMessage))
+        assert ai_msg.content == original_content
+
+    @pytest.mark.asyncio
+    async def test_injects_untrusted_human_message_when_formatter_returns_untrusted(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request(
+            messages=[
+                SystemMessage(content="sys"),
+                HumanMessage(content="Hello"),
+            ]
+        )
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "User"}})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with (
+            patch("myrm_agent_harness.agent._skill_agent_context.get_memory_manager", return_value=mock_manager),
+            patch(
+                "myrm_agent_harness.agent.middlewares.memory_context_middleware._format_memory_context",
+                return_value=("<user_memory_context>stable</user_memory_context>", "untrusted-learned-block"),
+            ),
+        ):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        injected = req.override.call_args[1]["messages"]
+        human_msgs = [m for m in injected if isinstance(m, HumanMessage)]
+        assert len(human_msgs) == 2
+        assert "untrusted-learned-block" in str(human_msgs[0].content)
+
+    @pytest.mark.asyncio
+    async def test_memory_budget_uses_base_chars_without_model_context_tokens(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request()
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 1200
+        mock_manager._config.model_context_tokens = None
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "BudgetUser"}})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch("myrm_agent_harness.agent._skill_agent_context.get_memory_manager", return_value=mock_manager):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        budget = get_memory_runtime_budget()
+        assert budget is not None
+        assert budget["total"] == 1200
+        assert budget["used"] > 0
 
 
 class TestScopeBoundary:

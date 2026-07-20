@@ -9,7 +9,7 @@
 - persist_terminal_state: Mark job terminal in Store
 
 [POS]
-Extracted from BackgroundProcessRegistry to keep registry file under maintainability limits.
+Write-through persistence helpers invoked by BackgroundProcessRegistry and the consume loop.
 """
 
 from __future__ import annotations

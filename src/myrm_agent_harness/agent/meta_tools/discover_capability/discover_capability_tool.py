@@ -13,9 +13,10 @@
 [OUTPUT]
 - create_discover_capability_tool: 创建统一能力发现工具的工厂函数
 - sync_discover_capability_tool: 注册 discover_capability_tool（当有可搜索技能时）
+- 运行时命中结果以 `<BoundSkills>` XML 包裹
 
 [POS]
-Unified Capability Discovery meta-tool. Indexes external skills (MCP PTC + user skills)
+Unified Capability Discovery meta-tool. Indexes agent-bound searchable skills (MCP PTC + user skills)
 via SkillSearchEngine into a semantic search index. Capability gap detection provides
 hints when tools/skills are disabled or not installed.
 """
@@ -52,7 +53,7 @@ def create_discover_capability_tool(
 
     Args:
         registry: 工具注册表 (reserved for future use)
-        skills: 全部可用技能列表 (用于构建外部技能搜索索引)
+        skills: 全部可用技能列表 (用于构建 agent 已绑定技能搜索索引)
         embedding_config: Embedding 模型配置(可选)
         cache: Embedding 缓存实例(可选)
 
@@ -150,7 +151,7 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
         args_schema=DiscoverCapabilityInput,
     )
     async def discover_capability_func(query: str, mode: Literal["bm25", "regex"] = "bm25") -> str:
-        """Search for capabilities across native tools and external skills."""
+        """Search for capabilities among skills bound to this agent."""
         not_found = f"No capabilities found matching '{query}'. Try broader terms or synonyms."
 
         if engine is None:
@@ -173,8 +174,8 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
 
         skill_text = "\n".join(f"- **{s.name}**: {s.description}" for s in matches)
         result_body = (
-            "### Found Skills (You MUST use `skill_select_tool` to load their SOPs before using):\n"
-            f"<ExternalSkills>\n{skill_text}\n</ExternalSkills>"
+            "### Found bound skills (You MUST use `skill_select_tool` to load their SOPs before using):\n"
+            f"<BoundSkills>\n{skill_text}\n</BoundSkills>"
         )
 
         await _emit_gap_events(query)

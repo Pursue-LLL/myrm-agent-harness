@@ -72,7 +72,7 @@
 | `discover_capability_tool` | 已绑定 Agent 的技能库（含 MCP PTC 降级技能） | search → `skill_select_tool` 加载 SOP |
 | `skill_discovery_tool` | 外部市场（GitHub、skills.sh 等） | search → install/uninstall 新技能 |
 
-两者 tool description 互相指向，避免 LLM 调错入口。CI 门禁：`tests/architecture/test_skill_tool_boundary.py`。
+两者 tool description 互相指向，避免 LLM 调错入口；`discover_capability_tool` 命中结果以 `<BoundSkills>` XML 包裹（与 description 语义一致）。CI 门禁：`tests/architecture/test_skill_tool_boundary.py`；装配集成：`tests/integration/test_skill_tool_boundary_wiring.py`。
 
 根目录独立工具：
 

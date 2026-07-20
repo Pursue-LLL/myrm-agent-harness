@@ -28,7 +28,7 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | `test_event_bus_naming_boundary.py` | Gate | 禁止 stale `EventBus` import（pubsub/broadcast rename 回归） | — |
 | `test_manager_shared_barrel.py` | Gate | manager 共享 barrel 约束 | — |
 | `test_tool_registry.py` | Gate | tool registry 与 `_TOOL_LAYERS` 一致 | — |
-| `test_skill_tool_boundary.py` | Gate | `discover_capability_tool` ↔ `skill_discovery_tool` description 互指不回归 | — |
+| `test_skill_tool_boundary.py` | Gate | `discover_capability_tool` ↔ `skill_discovery_tool` description 互指 + `<BoundSkills>` 运行时 XML 不回归（单元/集成覆盖） | — |
 | `test_boundary_config.py` | Gate | boundary 配置完整性 | — |
 | `test_boundary_autofix.py` | Gate | boundary `--fix` 行为 | — |
 | `test_verify_release_tag.py` | Gate | release tag 与 `project.version` 对齐 | — |
