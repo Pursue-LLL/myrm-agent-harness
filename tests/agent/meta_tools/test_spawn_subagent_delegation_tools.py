@@ -189,6 +189,32 @@ class TestDelegateTaskPauseGate:
             resume_delegation("chat_test")
 
     @pytest.mark.asyncio
+    async def test_batch_mode_blocked_when_paused(self) -> None:
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            create_delegate_task_tool,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegation_pause_gate import (
+            pause_delegation,
+            resume_delegation,
+        )
+
+        parent = _make_parent()
+        pause_delegation("chat_test")
+        try:
+            tool = create_delegate_task_tool(parent, lambda: [], CatalogStub())
+            result = await tool.ainvoke(
+                {
+                    "mode": "batch",
+                    "tasks": [{"agent_type": "worker", "objective": "blocked batch task"}],
+                    "wait": True,
+                }
+            )
+            assert result["success"] is False
+            assert "paused" in str(result["error"]).lower()
+        finally:
+            resume_delegation("chat_test")
+
+    @pytest.mark.asyncio
     async def test_parallel_mode_empty_tasks(self) -> None:
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
             create_delegate_task_tool,
