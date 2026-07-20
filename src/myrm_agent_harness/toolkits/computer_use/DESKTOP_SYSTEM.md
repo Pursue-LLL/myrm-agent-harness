@@ -108,7 +108,7 @@ Server wiring: `agent._desktop_session` → `AgentGateway.get_active_desktop_ses
 | Deeplink SSOT | `myrm-agent-frontend/src/lib/desktop/permissionDeepLink.ts` |
 | Open semantics | Settings `DesktopPermissionsCard` → `openPermissionDeepLink`（deeplink fallback）；Doctor / Agent inline / Inspector → `openPermissionDeepLinkWithGuideFallback(url, platform)`（平台指南 fallback） |
 | Trusted apps | `GET/DELETE /webui/desktop/trust/apps` + Settings trusted-apps section（加载失败显示重试，不伪装空列表） |
-| Chrome E2E | `tests/e2e/test_desktop_control_approval_chrome_e2e.py` + `tests/e2e/desktop_approval/` (`chrome_e2e_desktop`, allow_once + allow_always→revoke) |
+| Chrome E2E | `tests/e2e/test_desktop_control_approval_chrome_e2e.py` + `tests/e2e/desktop_approval/` — allow_once / allow_session / allow_always→revoke（**signoff 待 3/3 绿**） |
 | Chrome E2E attach gate | `tests/support/e2e_runtime_guard.py::assert_chrome_attach_health` — shared-attach lane only; item runtimes skip (private preflight already ran) |
 
 Channel security: IM strips `!desktop_*`; Cron denies `desktop_capture` / `desktop_control` (see [SECURITY_SYSTEM.md](../../agent/security/SECURITY_SYSTEM.md)).

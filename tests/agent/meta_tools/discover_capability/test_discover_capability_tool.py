@@ -9,7 +9,6 @@ from pydantic import BaseModel, Field
 from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
     create_discover_capability_tool,
 )
-from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 from myrm_agent_harness.backends.skills.types import SkillMetadata
 
 
@@ -24,11 +23,6 @@ class DummyTool(BaseTool):
 
     def _run(self, arg1: str) -> str:
         return "dummy"
-
-
-@pytest.fixture
-def mock_registry():
-    return MagicMock(spec=ToolRegistry)
 
 
 @pytest.fixture
@@ -57,8 +51,8 @@ async def test_discover_bound_skill(mock_skills):
 
 
 @pytest.mark.asyncio
-async def test_no_matches(mock_registry, mock_skills):
-    tool = create_discover_capability_tool(registry=mock_registry, skills=mock_skills)
+async def test_no_matches(mock_skills):
+    tool = create_discover_capability_tool(skills=mock_skills)
     result = await tool.ainvoke({"query": "nonexistent_capability_xyz123"})
     assert "No capabilities found" in result
 

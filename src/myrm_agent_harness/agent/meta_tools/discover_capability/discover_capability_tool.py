@@ -8,7 +8,7 @@
 - .hybrid_engine::HybridSkillSearchEngine (POS: 混合搜索引擎, 可选)
 - toolkits.retriever.embedding.factory::EmbeddingConfig (POS: Embedding 配置, 可选)
 - toolkits.memory.protocols.cache::EmbeddingCacheProtocol (POS: Embedding 缓存协议, 可选)
-- agent.tool_management.registry::ToolRegistry (POS: 工具注册表)
+- agent.tool_management.registry::ToolRegistry (POS: 工具注册表，由 sync_discover_capability_tool 使用)
 
 [OUTPUT]
 - create_discover_capability_tool: 创建统一能力发现工具的工厂函数
@@ -41,7 +41,6 @@ if TYPE_CHECKING:
 
 
 def create_discover_capability_tool(
-    registry: ToolRegistry | None = None,
     skills: list[SkillMetadata] | None = None,
     embedding_config: EmbeddingConfig | None = None,
     cache: EmbeddingCacheProtocol | None = None,
@@ -52,7 +51,6 @@ def create_discover_capability_tool(
     """创建统一能力发现工具
 
     Args:
-        registry: 工具注册表 (reserved for future use)
         skills: 全部可用技能列表 (用于构建 agent 已绑定技能搜索索引)
         embedding_config: Embedding 模型配置(可选)
         cache: Embedding 缓存实例(可选)
@@ -208,7 +206,6 @@ def sync_discover_capability_tool(
         return None
 
     tool = create_discover_capability_tool(
-        registry=registry,
         skills=discoverable_skills,
         embedding_config=embedding_config,
         cache=embedding_cache,

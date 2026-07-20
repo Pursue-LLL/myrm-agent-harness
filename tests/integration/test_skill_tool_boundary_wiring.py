@@ -135,3 +135,71 @@ async def test_skill_agent_build_tools_wires_boundary_descriptions() -> None:
             _tool_description_by_name(tools, _MARKETPLACE_TOOL),
         )
     )
+
+
+@pytest.mark.integration
+def test_registry_omits_marketplace_tool_without_discovery_backend() -> None:
+    """skill_discovery_tool mounts only when discovery_backend is provided."""
+    skills = [_sample_skill()]
+    registry = ToolRegistry()
+    meta_tools = get_meta_tools(
+        skills,
+        _StubSkillBackend(skills),
+        registry=registry,
+        discovery_backend=None,
+        enable_file_tools=False,
+        enable_bash=False,
+        enable_answer_tool=False,
+    )
+    registry.register_many(meta_tools, source=ToolSource.META)
+    sync_discover_capability_tool(registry, skills=skills)
+
+    resolved_names = {t.name for t in registry.resolve()}
+    assert _DISCOVER_TOOL in resolved_names
+    assert _MARKETPLACE_TOOL not in resolved_names
+
+
+@pytest.mark.integration
+def test_registry_omits_discover_tool_when_no_searchable_skills() -> None:
+    """discover_capability_tool is absent when sync receives no model_invocable skills."""
+    registry = ToolRegistry()
+    meta_tools = get_meta_tools(
+        [],
+        _StubSkillBackend([]),
+        registry=registry,
+        discovery_backend=_StubDiscoveryBackend(),
+        enable_file_tools=False,
+        enable_bash=False,
+        enable_answer_tool=False,
+    )
+    registry.register_many(meta_tools, source=ToolSource.META)
+    sync_discover_capability_tool(registry, skills=[])
+
+    resolved_names = {t.name for t in registry.resolve()}
+    assert _MARKETPLACE_TOOL in resolved_names
+    assert _DISCOVER_TOOL not in resolved_names
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_discover_runtime_returns_bound_skills_xml() -> None:
+    """Runtime hit path wraps results in BoundSkills (not ExternalSkills)."""
+    skills = [_sample_skill()]
+    registry = ToolRegistry()
+    meta_tools = get_meta_tools(
+        skills,
+        _StubSkillBackend(skills),
+        registry=registry,
+        discovery_backend=_StubDiscoveryBackend(),
+        enable_file_tools=False,
+        enable_bash=False,
+        enable_answer_tool=False,
+    )
+    registry.register_many(meta_tools, source=ToolSource.META)
+    sync_discover_capability_tool(registry, skills=skills)
+
+    discover = next(t for t in registry.resolve() if t.name == _DISCOVER_TOOL)
+    result = await discover.ainvoke({"query": "github", "mode": "regex"})
+    assert "<BoundSkills>" in result
+    assert "<ExternalSkills>" not in result
+    assert "github_pr" in result
