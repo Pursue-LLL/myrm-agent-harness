@@ -61,8 +61,11 @@ Protocol-first architecture with strict framework-business separation.
    to create scheduled blocks. Frontend renders distinct icons per block kind and a live
    countdown for scheduled blocks.
 
-5. **Goal integration**: Tasks can optionally link to a `goal_id`, allowing
-   complex tasks to leverage the existing Goal Guard Chain for execution.
+5. **Chat session linkage**: When an orchestrator creates tasks from a chat session,
+   `metadata.source_chat_id` is injected server-side (not exposed in LLM tool schema).
+   Orchestrator `kanban_list_tasks` auto-scopes to the session via closure (no schema change).
+   The REST list endpoint supports `source_chat_id` filtering; the board UI reads
+   `?source_chat=` from the URL. Task drawer links back to the originating chat.
 
 6. **Completion Verification (Hallucination Gate)**: When a `CompletionVerifier` is
    injected into the dispatcher, it intercepts `_handle_success` before marking a task

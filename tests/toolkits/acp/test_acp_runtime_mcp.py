@@ -23,7 +23,9 @@ def test_mcp_configs_to_acp_stdio_converts_stdio_servers() -> None:
     assert converted[0].name == "fs"
     assert converted[0].command == "mcp-fs"
     assert converted[0].args == ["--ro"]
-    assert converted[0].env == {"FOO": "bar"}
+    assert len(converted[0].env) == 1
+    assert converted[0].env[0].name == "FOO"
+    assert converted[0].env[0].value == "bar"
 
 
 @pytest.mark.asyncio
@@ -47,3 +49,19 @@ async def test_create_session_passes_mcp_servers_when_configured() -> None:
     assert kwargs["mcp_servers"] is not None
     assert len(kwargs["mcp_servers"]) == 1
     assert runtime._session_id == "sess-1"
+
+
+@pytest.mark.asyncio
+async def test_create_session_omits_mcp_when_not_configured() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from myrm_agent_harness.toolkits.acp.runtime.acp_runtime import AcpRuntime
+
+    config = RuntimeConfig(backend_type="acp", command="claude", cwd="/tmp/ws")
+    runtime = AcpRuntime("claude", config)
+    runtime._conn = MagicMock()
+    runtime._conn.new_session = AsyncMock(return_value=MagicMock(session_id="sess-2"))
+
+    await runtime._create_session(mcp_servers=None)
+
+    runtime._conn.new_session.assert_awaited_once_with(cwd="/tmp/ws")

@@ -8,7 +8,6 @@ import pytest
 
 from myrm_agent_harness.toolkits.acp.acp_agent_tools import (
     MAX_TASK_BYTES,
-    _build_agent_listing,
     _run_turn_and_collect,
     create_delegate_to_agent_tool,
 )
@@ -39,31 +38,28 @@ def _cfg(desc: str = "", max_turns: int = 25) -> RuntimeConfig:
     )
 
 
-class TestBuildAgentListing:
-    def test_empty_pool(self) -> None:
-        pool = _make_pool()
-        assert _build_agent_listing(pool) == "(none configured)"
+class TestStableDelegateSchema:
+    def test_description_identical_regardless_of_pool_backends(self) -> None:
+        pool_empty = _make_pool()
+        pool_many = _make_pool({"claude": _cfg("Claude"), "codex": _cfg("Codex")})
+        desc_empty = create_delegate_to_agent_tool(pool_empty, cwd="/workspace").description
+        desc_many = create_delegate_to_agent_tool(pool_many, cwd="/workspace").description
+        assert desc_empty == desc_many
+        assert "Available agents" not in desc_empty
 
-    def test_single_agent_no_description(self) -> None:
-        pool = _make_pool({"claude": _cfg()})
-        listing = _build_agent_listing(pool)
-        assert "- claude" in listing
+    @pytest.mark.asyncio
+    async def test_key_error_lists_runtime_backends(self) -> None:
+        pool = _make_pool({"claude": _cfg(), "codex": _cfg()})
 
-    def test_single_agent_with_description(self) -> None:
-        pool = _make_pool({"claude": _cfg("A powerful coding agent")})
-        listing = _build_agent_listing(pool)
-        assert "- claude: A powerful coding agent" in listing
+        async def raise_key_error(*args, **kwargs):
+            raise KeyError("Unknown backend 'nope'")
+            yield  # type: ignore[misc]
 
-    def test_multiple_agents(self) -> None:
-        pool = _make_pool(
-            {
-                "claude": _cfg("Claude"),
-                "codex": _cfg("Codex"),
-            }
-        )
-        listing = _build_agent_listing(pool)
-        assert "- claude: Claude" in listing
-        assert "- codex: Codex" in listing
+        pool.run_turn = raise_key_error
+        tool_func = create_delegate_to_agent_tool(pool, cwd="/workspace")
+        result = await tool_func.ainvoke({"agent_name": "nope", "task": "test", "mode": "persistent"})
+        assert "Unknown backend" in result
+        assert "Available backends: claude, codex" in result
 
 
 class TestCreateDelegateTool:

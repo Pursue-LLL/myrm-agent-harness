@@ -63,19 +63,6 @@ _MAX_RETRIES = 1
 _DEFAULT_MAX_TURNS = 25
 
 
-def _build_agent_listing(pool: RuntimePool) -> str:
-    """Build a formatted listing of available agents with descriptions."""
-    names = pool.available_backends
-    if not names:
-        return "(none configured)"
-    lines: list[str] = []
-    for name in names:
-        cfg = pool.get_config(name)
-        desc = cfg.description if cfg else ""
-        lines.append(f"- {name}: {desc}" if desc else f"- {name}")
-    return "\n".join(lines)
-
-
 def create_delegate_to_agent_tool(
     pool: RuntimePool,
     *,

@@ -344,3 +344,60 @@ class TestCheckSessionRecurrence:
         await manager.check_session_recurrence("python data processing again")
 
         mock_llm.ainvoke.assert_called_once()
+
+
+class TestCloseSessionDrain:
+    """Test that close() flushes active session before closing stores."""
+
+    @pytest.mark.asyncio
+    async def test_close_flushes_active_session(self, mock_vector_store, mock_embedding, memory_config):
+        """close() must flush session buffer before closing stores."""
+        mock_vector_store.upsert.return_value = ["mem-1"]
+        manager = MemoryManager(memory_config, user_id="u1", vector=mock_vector_store, embedding=mock_embedding)
+
+        session = manager.begin_session("chat-drain")
+        session.add_knowledge("important preference")
+
+        await manager.close()
+
+        assert manager.active_session is None
+        mock_vector_store.upsert.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_close_noop_when_no_active_session(self, mock_vector_store, mock_embedding, memory_config):
+        """close() is safe when no active session exists."""
+        manager = MemoryManager(memory_config, user_id="u1", vector=mock_vector_store, embedding=mock_embedding)
+
+        await manager.close()
+
+        assert manager.active_session is None
+
+    @pytest.mark.asyncio
+    async def test_close_idempotent_after_end_session(self, mock_vector_store, mock_embedding, memory_config):
+        """close() after end_session() does not double-flush."""
+        mock_vector_store.upsert.return_value = ["mem-1"]
+        manager = MemoryManager(memory_config, user_id="u1", vector=mock_vector_store, embedding=mock_embedding)
+
+        session = manager.begin_session("chat-idem")
+        session.add_knowledge("test data")
+
+        await manager.end_session()
+        mock_vector_store.upsert.reset_mock()
+
+        await manager.close()
+
+        mock_vector_store.upsert.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_close_continues_on_flush_failure(self, mock_vector_store, mock_embedding, memory_config):
+        """close() still closes stores even if flush raises."""
+        mock_vector_store.upsert.side_effect = OSError("disk full")
+        mock_vector_store.close = AsyncMock()
+        manager = MemoryManager(memory_config, user_id="u1", vector=mock_vector_store, embedding=mock_embedding)
+
+        session = manager.begin_session("chat-fail")
+        session.add_knowledge("will fail to persist")
+
+        await manager.close()
+
+        mock_vector_store.close.assert_called_once()

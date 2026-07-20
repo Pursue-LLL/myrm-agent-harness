@@ -47,6 +47,8 @@ class SkillInstallResult:
     skill_id: str = ""
     installed_path: str = ""
     error: str = ""
+    error_code: str = ""
+    """Machine-readable error code for UI/API branching (empty when not applicable)."""
     scan_summary: str = ""
     """Security scan summary (populated when scanner detects findings during install)"""
 

@@ -17,6 +17,12 @@ from myrm_agent_harness.agent.skills.discovery.service import (
 from myrm_agent_harness.agent.skills.discovery.sources.github import GitHubRef
 from myrm_agent_harness.backends.skills.discovery_protocols import SkillInstallResult, SkillSearchResult
 from myrm_agent_harness.backends.skills.scanning import SkillTrustRecommendation
+from myrm_agent_harness.backends.skills.scanning.archive_security import (
+    ArchiveSecurityCode,
+    ArchiveSecurityError,
+    ArchiveSecurityViolation,
+    format_archive_security_user_message,
+)
 
 
 def _make_search_result(
@@ -471,6 +477,37 @@ class TestInstallGitFlow:
         with patch("myrm_agent_harness.agent.skills.discovery.service.LOCAL_INSTALL_DIR", tmp_path):
             result = await svc.install("zip-skill", "skills_sh")
             assert result.success is True
+
+    @pytest.mark.asyncio
+    async def test_install_zip_archive_security_error_is_mapped(self) -> None:
+        svc = BaseSkillDiscoveryService()
+        detail = MagicMock()
+        detail.install_method = "zip"
+        detail.source = "skills_sh"
+        detail.name = "zip-skill"
+        detail.install_url = "https://example.com/skill.zip"
+        detail.subdirectory = None
+
+        async def mock_detail(sid: str, src: str):
+            return detail
+
+        svc.get_detail = mock_detail
+
+        violation = ArchiveSecurityViolation(
+            code=ArchiveSecurityCode.ENTRY_LIMIT_EXCEEDED,
+            source="safe_extract_zip",
+            actual=5000,
+            limit=4096,
+        )
+        svc._zip_installer.download = AsyncMock(
+            side_effect=ArchiveSecurityError(violation, "ZIP contains too many entries (5000 > 4096)")
+        )
+
+        result = await svc.install("zip-skill", "skills_sh")
+
+        assert result.success is False
+        assert result.error == format_archive_security_user_message(violation)
+        assert result.error_code == ArchiveSecurityCode.ENTRY_LIMIT_EXCEEDED.value
 
 
 class TestPreview:

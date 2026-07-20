@@ -89,10 +89,11 @@ class KanbanStore(Protocol):
         status: TaskStatus | None = None,
         parent_task_id: str | None = None,
         agent_id: str | None = None,
+        source_chat_id: str | None = None,
         limit: int | None = None,
         offset: int = 0,
     ) -> list[KanbanTask]:
-        """Return tasks for a board, optionally filtered by status, parent, or agent."""
+        """Return tasks for a board, optionally filtered by status, parent, agent, or source chat."""
         ...
 
     async def count_tasks(

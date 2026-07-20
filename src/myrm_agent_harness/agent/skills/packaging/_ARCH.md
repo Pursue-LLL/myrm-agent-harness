@@ -10,7 +10,7 @@ Skills Packaging module.
 | __init__.py | Package |   Init   | — |
 | packer.py | Core | Provides PackageResult, SkillPacker. | ✅ |
 | unpacker.py | Core | Provides UnpackResult, SkillUnpacker. | ✅ |
-| validator.py | Core | Provides SkillPackageInfo, suggest_valid_skill_name, is_forbidden_file. | ✅ |
+| validator.py | Core | ZIP package validation with root checks, forbidden-file filtering, and archive-security contract (entry-limit + executable-binary rejection). | ✅ |
 
 ## Key Dependencies
 

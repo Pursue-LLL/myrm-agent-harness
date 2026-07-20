@@ -1,6 +1,8 @@
 import io
 import zipfile
 
+import pytest
+
 from myrm_agent_harness.agent.skills.packaging.validator import (
     MAX_SKILL_ZIP_SIZE,
     is_forbidden_file,
@@ -8,6 +10,14 @@ from myrm_agent_harness.agent.skills.packaging.validator import (
     suggest_valid_skill_name,
     validate_skill_zip,
 )
+
+
+def _build_fake_pe_binary() -> bytes:
+    payload = bytearray(128)
+    payload[0:2] = b"MZ"
+    payload[0x3C:0x40] = (0x40).to_bytes(4, "little")
+    payload[0x40:0x44] = b"PE\x00\x00"
+    return bytes(payload)
 
 
 def test_suggest_valid_skill_name():
@@ -142,3 +152,50 @@ def test_validate_skill_zip_forbidden_files_are_ignored():
     # The forbidden files should not be listed in info.files
     assert len(info.files) == 1
     assert info.files[0] == "SKILL.md"
+
+
+def test_validate_skill_zip_rejects_too_many_entries(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.skills.packaging.validator.MAX_ZIP_ENTRY_COUNT",
+        4,
+    )
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_STORED) as zf:
+        zf.writestr("test_skill/SKILL.md", "---\nname: test_skill\n---")
+        for index in range(4):
+            zf.writestr(f"test_skill/file-{index:04d}.txt", "")
+
+    info = validate_skill_zip(zip_buffer.getvalue())
+
+    assert not info.is_valid
+    assert any("ZIP 文件条目数过多" in error for error in info.validation_errors)
+
+
+def test_validate_skill_zip_allows_entry_count_at_limit(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.skills.packaging.validator.MAX_ZIP_ENTRY_COUNT",
+        4,
+    )
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_STORED) as zf:
+        zf.writestr("test_skill/SKILL.md", "---\nname: test_skill\n---")
+        for index in range(3):
+            zf.writestr(f"test_skill/file-{index:04d}.txt", "")
+
+    info = validate_skill_zip(zip_buffer.getvalue())
+
+    assert info.is_valid
+
+
+def test_validate_skill_zip_rejects_executable_binary_member():
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_STORED) as zf:
+        zf.writestr("test_skill/SKILL.md", "---\nname: test_skill\n---")
+        zf.writestr("test_skill/payload.bin", _build_fake_pe_binary())
+
+    info = validate_skill_zip(zip_buffer.getvalue())
+
+    assert not info.is_valid
+    assert any("可执行二进制文件" in error for error in info.validation_errors)

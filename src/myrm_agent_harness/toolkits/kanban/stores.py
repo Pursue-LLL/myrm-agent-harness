@@ -25,6 +25,7 @@ from myrm_agent_harness.toolkits.kanban.types import (
     _PRIORITY_ORDER,
     _TERMINAL_STATUSES,
     BlockKind,
+    KANBAN_SOURCE_CHAT_METADATA_KEY,
     KanbanBoard,
     KanbanTask,
     TaskEdge,
@@ -96,6 +97,7 @@ class InMemoryKanbanStore(KanbanStore):
         status: TaskStatus | None = None,
         parent_task_id: str | None = None,
         agent_id: str | None = None,
+        source_chat_id: str | None = None,
         limit: int | None = None,
         offset: int = 0,
     ) -> list[KanbanTask]:
@@ -106,6 +108,13 @@ class InMemoryKanbanStore(KanbanStore):
             results = [t for t in results if t.parent_task_id == parent_task_id]
         if agent_id is not None:
             results = [t for t in results if t.agent_id == agent_id]
+        if source_chat_id is not None:
+            results = [
+                t
+                for t in results
+                if isinstance(t.metadata, dict)
+                and t.metadata.get(KANBAN_SOURCE_CHAT_METADATA_KEY) == source_chat_id
+            ]
         results.sort(key=lambda t: t.created_at)
         results = results[offset:]
         if limit is not None:

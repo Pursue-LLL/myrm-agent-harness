@@ -158,3 +158,28 @@ class TestSafeExtractZip:
         zip_bytes = _make_zip({"top/file.txt": content})
         result = safe_extract_zip(zip_bytes)
         assert "file.txt" in result
+
+    def test_rejects_entry_count_limit(self):
+        zip_bytes = _make_zip({f"top/file-{i}.txt": b"x" for i in range(5)})
+        with pytest.raises(ValueError, match="too many entries"):
+            safe_extract_zip(zip_bytes, max_entries=4)
+
+    def test_allows_entry_count_at_limit(self):
+        zip_bytes = _make_zip({f"top/file-{i}.txt": b"x" for i in range(4)})
+        result = safe_extract_zip(zip_bytes, max_entries=4)
+        assert len(result) == 4
+
+    def test_default_entry_limit_allows_normal_archives(self):
+        zip_bytes = _make_zip({f"top/file-{i}.txt": b"x" for i in range(10)})
+        result = safe_extract_zip(zip_bytes)
+        assert len(result) == 10
+
+    def test_rejects_executable_binary_member(self):
+        zip_bytes = _make_zip(
+            {
+                "top/safe.txt": b"safe",
+                "top/payload.bin": b"\x7fELF\x02\x01\x01\x00",
+            }
+        )
+        with pytest.raises(ValueError, match="executable binary member"):
+            safe_extract_zip(zip_bytes)

@@ -14,5 +14,5 @@ ACP Runtime backends — unified interface for ACP, SDK, and CLI agents.
 | acp_callback.py | Core | ACP callback handler for the AcpRuntime backend. | ✅ |
 | acp_runtime.py | Core | ACP protocol runtime backend. | ✅ |
 | cli_runtime.py | Core | CLI runtime backend — spawns a CLI agent process and parses NDJSON output. | ✅ |
-| pool.py | Core | Runtime pool management layer. Provides multi-backend unified management, concurrency control, | ✅ |
+| pool.py | Core | Runtime pool: multi-backend management, concurrency control, config MCP passthrough to backends. | ✅ |
 | sdk_runtime.py | Core | SDK runtime backend — direct integration with Claude Agent SDK. | ✅ |

@@ -18,6 +18,9 @@ Consumed by dispatcher, store, tools, and application adapters.
 - TaskEventKind: Lifecycle event categories.
 - TaskEvent: Persistent lifecycle event.
 - TaskTimeoutError: Raised when a task exceeds its max_runtime_seconds.
+- KANBAN_SOURCE_CHAT_METADATA_KEY: Metadata key linking tasks to originating chat sessions.
+- extract_source_chat_id: Read trimmed source_chat_id from task metadata.
+- inherit_source_chat_metadata: Build metadata patch for child task inheritance.
 
 [POS]
 Kanban domain types.
@@ -28,6 +31,27 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
+
+KANBAN_SOURCE_CHAT_METADATA_KEY = "source_chat_id"
+
+
+def extract_source_chat_id(metadata: dict[str, object] | None) -> str | None:
+    """Return trimmed source_chat_id from task metadata, or None."""
+    if not metadata:
+        return None
+    raw = metadata.get(KANBAN_SOURCE_CHAT_METADATA_KEY)
+    if not isinstance(raw, str):
+        return None
+    trimmed = raw.strip()
+    return trimmed or None
+
+
+def inherit_source_chat_metadata(parent_metadata: dict[str, object] | None) -> dict[str, object] | None:
+    """Build metadata patch copying source_chat_id from a parent task."""
+    source_chat_id = extract_source_chat_id(parent_metadata)
+    if source_chat_id is None:
+        return None
+    return {KANBAN_SOURCE_CHAT_METADATA_KEY: source_chat_id}
 
 
 class TaskStatus(StrEnum):
@@ -203,9 +227,6 @@ class KanbanTask:
     # Agent binding — allows different tasks to use different agent profiles
     agent_id: str | None = None
 
-    # Goal integration — optional, complex tasks can leverage Goal's Guard Chain
-    goal_id: str | None = None
-
     # Hierarchy — simple parent-child, no complex DAG
     parent_task_id: str | None = None
 
@@ -262,7 +283,6 @@ class KanbanTask:
             "status": self.status.value,
             "priority": self.priority.value,
             "agent_id": self.agent_id,
-            "goal_id": self.goal_id,
             "parent_task_id": self.parent_task_id,
             "workspace_path": self.workspace_path,
             "branch": self.branch,

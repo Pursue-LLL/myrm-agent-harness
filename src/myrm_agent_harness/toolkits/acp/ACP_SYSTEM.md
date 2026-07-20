@@ -291,7 +291,7 @@ auth/
 - **凭据导入兜底**（`CredentialStore.import_credential`）：登录不可脚本化（gemini/qwen 浏览器流）或不便时的**通用路径**——用户在有浏览器的机器登录后粘贴 `auth.json`，原子安全写入对应路径
 
 **设计铁律**：
-- 鉴权态**绝不进入** prompt / 工具描述（`_build_agent_listing` 仅含 name+description），不破坏提示词前缀缓存
+- 鉴权态**绝不进入** Turn1 工具描述；`create_delegate_to_agent_tool` 使用**固定 schema**（backend 列表仅在运行时 KeyError 返回值中暴露），不破坏提示词前缀缓存
 - 凭据路径环境感知 → 控制平面通过重定向 home（如 `CODEX_HOME` → 持久卷）即可实现 SaaS 持久化，harness 零耦合
 - 登录态检测基于文件，刻意**不做运行时硬预检**：跨平台凭据存储差异（如 macOS Keychain）会导致误判，CLI 自身的未登录错误已由 `PROCESS_CRASHED`（含 stderr 提示）准确透传，状态可见性由徽章承担
 

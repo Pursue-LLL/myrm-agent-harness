@@ -494,6 +494,13 @@ class MemoryManagerDeletionMixin:
         raise MemoryNotFoundError(f"Memory {memory_id} not found")
 
     async def close(self) -> None:
+        if self._active_session is not None:
+            try:
+                await self._active_session.flush()
+            except Exception as e:
+                logger.warning("Shutdown session flush failed (non-fatal): %s", e)
+            self._active_session = None
+
         if self._relational and hasattr(self._relational, "close"):
             await self._relational.close()
         if self._vector:

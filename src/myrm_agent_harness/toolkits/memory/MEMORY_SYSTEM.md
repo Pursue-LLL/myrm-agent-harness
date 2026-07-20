@@ -470,7 +470,7 @@ Agent.process_stream(chat_id)
   │           ├── maybe_consolidate (interval-based)
   │           └── recurrence_check (async background)
   │                 └── embedding similarity → trigger LLM consolidation if ≥k
-  └── agent.close()
+  └── agent.close()  ← drain guard: flush active session if still buffered
 ```
 
 - Semantic/Episodic/Procedural 缓冲；Profile 直写（幂等）

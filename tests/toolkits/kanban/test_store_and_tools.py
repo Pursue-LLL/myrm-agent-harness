@@ -800,6 +800,89 @@ class TestIdempotencyKey:
         assert len(tasks) == 1
 
 
+class TestSourceChatMetadata:
+    """Cover orchestrator source_chat_id metadata injection and list filter."""
+
+    def _get_tool(self, tools: list, name: str):
+        return next(t for t in tools if t.name == name)
+
+    @pytest.mark.asyncio
+    async def test_add_task_stores_source_chat_id(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        tools = create_kanban_tools(
+            store,
+            mode="orchestrator",
+            default_board_id="b1",
+            source_chat_id="chat-session-1",
+        )
+        add_task = self._get_tool(tools, "kanban_add_task")
+
+        result = json.loads(await add_task.ainvoke({"title": "From chat"}))
+        assert result["status"] == "added"
+        task_id = result["task"]["task_id"]
+        task = await store.get_task(task_id)
+        assert task is not None
+        assert task.metadata is not None
+        assert task.metadata["source_chat_id"] == "chat-session-1"
+
+    @pytest.mark.asyncio
+    async def test_list_tasks_filters_by_source_chat_id(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        add_task = self._get_tool(tools, "kanban_add_task")
+
+        r1 = json.loads(await add_task.ainvoke({"title": "Manual task"}))
+        assert r1["status"] == "added"
+        manual_id = r1["task"]["task_id"]
+        manual = await store.get_task(manual_id)
+        assert manual is not None
+        manual.metadata = {}
+        await store.save_task(manual)
+
+        chat_tools = create_kanban_tools(
+            store,
+            mode="orchestrator",
+            default_board_id="b1",
+            source_chat_id="chat-filter-me",
+        )
+        chat_add = self._get_tool(chat_tools, "kanban_add_task")
+        r2 = json.loads(await chat_add.ainvoke({"title": "Chat task"}))
+        assert r2["status"] == "added"
+
+        filtered = await store.list_tasks("b1", source_chat_id="chat-filter-me")
+        assert len(filtered) == 1
+        assert filtered[0].title == "Chat task"
+
+    @pytest.mark.asyncio
+    async def test_list_tasks_tool_scopes_by_source_chat_id(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        add_task = self._get_tool(tools, "kanban_add_task")
+
+        r1 = json.loads(await add_task.ainvoke({"title": "Manual task"}))
+        manual = await store.get_task(r1["task"]["task_id"])
+        assert manual is not None
+        manual.metadata = {}
+        await store.save_task(manual)
+
+        chat_tools = create_kanban_tools(
+            store,
+            mode="orchestrator",
+            default_board_id="b1",
+            source_chat_id="chat-list-scope",
+        )
+        chat_add = self._get_tool(chat_tools, "kanban_add_task")
+        await chat_add.ainvoke({"title": "Scoped chat task"})
+
+        list_tasks = self._get_tool(chat_tools, "kanban_list_tasks")
+        listed = json.loads(await list_tasks.ainvoke({}))
+        assert listed["count"] == 1
+        assert listed["tasks"][0]["title"] == "Scoped chat task"
+
+
 # ===========================================================================
 # Idempotency key — O(N) performance benchmark
 # ===========================================================================

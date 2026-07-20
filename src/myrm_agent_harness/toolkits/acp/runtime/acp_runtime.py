@@ -256,14 +256,17 @@ def _mcp_configs_to_acp_stdio(
 ) -> list[object] | None:
     if not mcp_servers:
         return None
-    from acp.schema import McpServerStdio
+    from acp.schema import EnvVariable, McpServerStdio
 
     return [
         McpServerStdio(
             name=server.name,
             command=server.command,
             args=list(server.args),
-            env=dict(server.env or {}),
+            env=[
+                EnvVariable(name=key, value=value)
+                for key, value in sorted((server.env or {}).items())
+            ],
         )
         for server in mcp_servers
     ]

@@ -1,9 +1,11 @@
 """Secure ZIP extraction with defense-in-depth.
 
 [INPUT]
+- backends.skills.scanning.archive_security::ArchiveSecurityError (POS: Typed archive-security error contract shared across validation/extraction layers.)
 
 [OUTPUT]
 - safe_extract_zip(): extract ZIP content with Zip Bomb / symlink / path traversal defense
+- MAX_ZIP_ENTRY_COUNT: default archive member-count hard limit shared by validation/extraction layers
 
 [POS]
 Framework-level ZIP security utility. Business layers call this instead of
@@ -11,11 +13,13 @@ implementing their own extraction logic.
 
 Defenses:
 1. Zip Bomb: reject when compression ratio exceeds threshold
-2. Total size limit: prevent disk exhaustion
-3. Symlink detection: skip symlink entries to block directory escape
-4. Path traversal: reject entries containing .. components
-5. Absolute path: reject entries starting with / or \\ (blocks pathlib join escape)
-6. Windows drive prefix: reject entries like C:\\ or D:\\ (blocks PureWindowsPath join escape)
+2. Entry-count limit: reject archives with too many members
+3. Total size limit: prevent disk exhaustion
+4. Symlink detection: skip symlink entries to block directory escape
+5. Path traversal: reject entries containing .. components
+6. Absolute path: reject entries starting with / or \\ (blocks pathlib join escape)
+7. Windows drive prefix: reject entries like C:\\ or D:\\ (blocks PureWindowsPath join escape)
+8. Executable-binary detection: reject archives containing ELF/PE/Mach-O members
 """
 
 from __future__ import annotations
@@ -25,10 +29,19 @@ import logging
 import zipfile
 from collections.abc import Callable
 
+from myrm_agent_harness.backends.skills.scanning.archive_security import (
+    ArchiveSecurityCode,
+    ArchiveSecurityError,
+    ArchiveSecurityViolation,
+    is_executable_binary_content,
+    log_archive_security_violation,
+)
+
 logger = logging.getLogger(__name__)
 
 _MAX_COMPRESSION_RATIO = 100
 _MAX_TOTAL_UNCOMPRESSED_BYTES = 50 * 1024 * 1024  # 50 MB
+MAX_ZIP_ENTRY_COUNT = 4096
 _SYMLINK_TYPE_MASK = 0o170000
 _SYMLINK_TYPE_FLAG = 0o120000
 
@@ -38,6 +51,7 @@ def safe_extract_zip(
     *,
     max_compression_ratio: int = _MAX_COMPRESSION_RATIO,
     max_total_bytes: int = _MAX_TOTAL_UNCOMPRESSED_BYTES,
+    max_entries: int = MAX_ZIP_ENTRY_COUNT,
     strip_top_dir: bool = True,
     forbidden_check: Callable[[str], bool] | None = None,
 ) -> dict[str, bytes]:
@@ -50,6 +64,7 @@ def safe_extract_zip(
         zip_content: Raw ZIP bytes
         max_compression_ratio: Maximum allowed compression ratio (default 100:1)
         max_total_bytes: Maximum total uncompressed size in bytes (default 50 MB)
+        max_entries: Maximum allowed member count before extraction (default 4096)
         strip_top_dir: If True, strip the top-level directory from paths
         forbidden_check: Optional callback to filter out forbidden files by path
 
@@ -57,19 +72,21 @@ def safe_extract_zip(
         Mapping of relative file paths to their contents
 
     Raises:
-        ValueError: If Zip Bomb detected or size limit exceeded
+        ValueError: If compression ratio, entry count, or size limits are exceeded
     """
     compressed_size = len(zip_content)
 
     with zipfile.ZipFile(io.BytesIO(zip_content), "r") as zf:
-        total_uncompressed = sum(info.file_size for info in zf.infolist())
+        infos = zf.infolist()
+        total_uncompressed = sum(info.file_size for info in infos)
 
         _check_zip_bomb(compressed_size, total_uncompressed, max_compression_ratio)
+        _check_entry_count(len(infos), max_entries)
         _check_total_size(total_uncompressed, max_total_bytes)
 
         file_contents: dict[str, bytes] = {}
 
-        for entry in zf.infolist():
+        for entry in infos:
             if entry.filename.endswith("/"):
                 continue
 
@@ -86,7 +103,9 @@ def safe_extract_zip(
             if forbidden_check is not None and forbidden_check(relative_path):
                 continue
 
-            file_contents[relative_path] = zf.read(entry.filename)
+            entry_bytes = zf.read(entry.filename)
+            _check_executable_binary_member(relative_path, entry_bytes)
+            file_contents[relative_path] = entry_bytes
 
     return file_contents
 
@@ -94,13 +113,62 @@ def safe_extract_zip(
 def _check_zip_bomb(compressed: int, uncompressed: int, max_ratio: int) -> None:
     if compressed > 0 and uncompressed / compressed > max_ratio:
         ratio = uncompressed / compressed
-        raise ValueError(f"Zip Bomb detected: compression ratio {ratio:.0f}:1 exceeds {max_ratio}:1 limit")
+        violation = ArchiveSecurityViolation(
+            code=ArchiveSecurityCode.COMPRESSION_RATIO_EXCEEDED,
+            source="safe_extract_zip",
+            actual=ratio,
+            limit=max_ratio,
+        )
+        log_archive_security_violation(logger, violation)
+        raise ArchiveSecurityError(
+            violation,
+            f"Zip Bomb detected: compression ratio {ratio:.0f}:1 exceeds {max_ratio}:1 limit",
+        )
 
 
 def _check_total_size(total: int, max_bytes: int) -> None:
     if total > max_bytes:
-        raise ValueError(
-            f"Total uncompressed size {total / 1024 / 1024:.1f} MB exceeds {max_bytes / 1024 / 1024:.0f} MB limit"
+        violation = ArchiveSecurityViolation(
+            code=ArchiveSecurityCode.TOTAL_SIZE_EXCEEDED,
+            source="safe_extract_zip",
+            actual=total,
+            limit=max_bytes,
+        )
+        log_archive_security_violation(logger, violation)
+        raise ArchiveSecurityError(
+            violation,
+            (
+                f"Total uncompressed size {total / 1024 / 1024:.1f} MB "
+                f"exceeds {max_bytes / 1024 / 1024:.0f} MB limit"
+            ),
+        )
+
+
+def _check_entry_count(total_entries: int, max_entries: int) -> None:
+    if total_entries > max_entries:
+        violation = ArchiveSecurityViolation(
+            code=ArchiveSecurityCode.ENTRY_LIMIT_EXCEEDED,
+            source="safe_extract_zip",
+            actual=total_entries,
+            limit=max_entries,
+        )
+        log_archive_security_violation(logger, violation)
+        raise ArchiveSecurityError(
+            violation,
+            f"ZIP contains too many entries ({total_entries} > {max_entries})",
+        )
+
+
+def _check_executable_binary_member(path: str, content: bytes) -> None:
+    if is_executable_binary_content(content):
+        violation = ArchiveSecurityViolation(
+            code=ArchiveSecurityCode.EXECUTABLE_BINARY_DETECTED,
+            source="safe_extract_zip",
+        )
+        log_archive_security_violation(logger, violation)
+        raise ArchiveSecurityError(
+            violation,
+            f"ZIP contains executable binary member: {path}",
         )
 
 

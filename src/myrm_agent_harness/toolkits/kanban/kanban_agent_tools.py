@@ -29,6 +29,7 @@ from langchain_core.tools import BaseTool, tool
 
 from myrm_agent_harness.toolkits.kanban.types import (
     BlockKind,
+    KANBAN_SOURCE_CHAT_METADATA_KEY,
     KanbanTask,
     TaskEventKind,
     TaskPriority,
@@ -134,6 +135,7 @@ def create_kanban_tools(
     agent_id: str | None = None,
     current_task_id: str | None = None,
     attach_task_file: KanbanTaskAttachFn | None = None,
+    source_chat_id: str | None = None,
 ) -> list[BaseTool]:
     """Create kanban tools scoped by role.
 
@@ -158,6 +160,7 @@ def create_kanban_tools(
         dispatcher,
         default_board_id=default_board_id,
         agent_id=agent_id,
+        source_chat_id=source_chat_id,
     )
 
 
@@ -418,6 +421,7 @@ def _build_orchestrator_tools(
     *,
     default_board_id: str | None = None,
     agent_id: str | None = None,
+    source_chat_id: str | None = None,
 ) -> list[BaseTool]:
     """Build orchestrator-scoped tools (3 tools)."""
 
@@ -501,6 +505,11 @@ def _build_orchestrator_tools(
                 task.metadata = {}
             task.metadata["idempotency_key"] = idempotency_key
 
+        if source_chat_id:
+            if task.metadata is None:
+                task.metadata = {}
+            task.metadata[KANBAN_SOURCE_CHAT_METADATA_KEY] = source_chat_id
+
         saved = await store.save_task(task)
         await store.append_event(saved.task_id, TaskEventKind.CREATED)
 
@@ -583,6 +592,7 @@ def _build_orchestrator_tools(
             resolved_board_id,
             status=status,
             agent_id=agent_id_filter or None,
+            source_chat_id=source_chat_id,
             limit=limit + 1,
         )
         truncated = len(rows) > limit

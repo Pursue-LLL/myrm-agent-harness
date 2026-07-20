@@ -6,6 +6,7 @@ Implements SkillDiscoveryBackend protocol.
 [INPUT]
 - backends.skills.discovery_protocols::SkillInstallResult, (POS: SkillBackend SkillBackend SkillDiscoveryBackend)
 - backends.skills.scanning::ScanFinding, (POS: Scan result cache layer. Stores scan results in Volume (~/.myrm/skill_scans/) to avoid redundant scanning. Critical for performance: 20x speedup for repeat scans. Cache key: SHA256 hash of skill content Cache location: ~/.myrm/skill_scans/{content_hash}.json Expiration: 60 days TTL (auto-cleanup on get))
+- backends.skills.scanning.archive_security::format_archive_security_user_message (POS: Canonical archive-security contract for typed/untyped ZIP guard errors.)
 
 [OUTPUT]
 - EnrichedSearchResult: Search result enriched with local installation info.
@@ -28,6 +29,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.backends.skills.discovery_protocols import SkillInstallResult, SkillSearchResult
+from myrm_agent_harness.backends.skills.scanning.archive_security import (
+    classify_archive_security_issue,
+    format_archive_security_user_message,
+)
 
 if TYPE_CHECKING:
     from myrm_agent_harness.backends.skills.discovery_protocols import InstalledSkillStore
@@ -53,6 +58,13 @@ LOCAL_INSTALL_DIR = Path("~/.myrm/skills").expanduser()
 SEARCH_TIMEOUT = 20.0
 CACHE_MAX_ENTRIES = 100
 CACHE_TTL_SECONDS = 300
+
+
+def _resolve_install_error(error: ValueError) -> tuple[str, str]:
+    violation = classify_archive_security_issue(error)
+    if violation is None:
+        return str(error), ""
+    return format_archive_security_user_message(violation), violation.code.value
 
 
 @dataclass(frozen=True)
@@ -197,8 +209,9 @@ class BaseSkillDiscoveryService:
             try:
                 files = await fetch_lobehub_as_skill(detail)
             except ValueError as e:
-                _emit("failed", str(e))
-                return SkillInstallResult(success=False, error=str(e))
+                resolved_error, error_code = _resolve_install_error(e)
+                _emit("failed", resolved_error)
+                return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
             return await self._quarantine_install(
                 skill_id, detail.name, files, source=source, progress_callback=progress_callback
             )
@@ -213,8 +226,9 @@ class BaseSkillDiscoveryService:
                 _emit("failed", "Unsupported install method")
                 return SkillInstallResult(success=False, error=f"Unsupported install method: {detail.install_method}")
         except ValueError as e:
-            _emit("failed", str(e))
-            return SkillInstallResult(success=False, error=str(e))
+            resolved_error, error_code = _resolve_install_error(e)
+            _emit("failed", resolved_error)
+            return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
 
         sanitized = sanitize_skill_files(skill_files.files)
         return await self._quarantine_install(
@@ -244,8 +258,9 @@ class BaseSkillDiscoveryService:
         try:
             skill_files = await self._git_installer.download(ref.clone_url, subdirectory=ref.subdirectory, ref=ref.ref)
         except ValueError as e:
-            _emit("failed", str(e))
-            return SkillInstallResult(success=False, error=str(e))
+            resolved_error, error_code = _resolve_install_error(e)
+            _emit("failed", resolved_error)
+            return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
 
         sanitized = sanitize_skill_files(skill_files.files)
         return await self._quarantine_install(

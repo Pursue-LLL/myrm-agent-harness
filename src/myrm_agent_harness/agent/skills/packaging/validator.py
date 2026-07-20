@@ -4,6 +4,8 @@
 
 [INPUT]
 - agent.skills.discovery.sanitizer::SKILL_MD_FILE, (POS: Provides is_blocked_file, sanitize_skill_files.)
+- backends.skills.scanning.zip_extract::MAX_ZIP_ENTRY_COUNT (POS: Framework-level ZIP security utility for archive limits.)
+- backends.skills.scanning.archive_security::is_executable_binary_content (POS: Canonical archive-security contract and executable signature detection.)
 
 [OUTPUT]
 - SkillPackageInfo: class — Skill Package Info
@@ -13,7 +15,7 @@
 - validate_skill_zip: function — validate_skill_zip
 
 [POS]
-Provides SkillPackageInfo, suggest_valid_skill_name, is_forbidden_file.
+Skill ZIP validation entrypoint for packaging flows, including archive-security guards.
 """
 
 from __future__ import annotations
@@ -26,6 +28,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from myrm_agent_harness.agent.skills.discovery.sanitizer import SKILL_MD_FILE, SKILL_NAME_PATTERN
+from myrm_agent_harness.backends.skills.scanning.archive_security import (
+    ArchiveSecurityCode,
+    ArchiveSecurityViolation,
+    format_archive_security_user_message,
+    is_executable_binary_content,
+    log_archive_security_violation,
+)
+from myrm_agent_harness.backends.skills.scanning.zip_extract import MAX_ZIP_ENTRY_COUNT
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +184,28 @@ def validate_skill_zip(zip_content: bytes) -> SkillPackageInfo:
                 errors.append("ZIP 文件为空")
                 return empty_info
 
+            if len(namelist) > MAX_ZIP_ENTRY_COUNT:
+                violation = ArchiveSecurityViolation(
+                    code=ArchiveSecurityCode.ENTRY_LIMIT_EXCEEDED,
+                    source="validate_skill_zip",
+                    actual=len(namelist),
+                    limit=MAX_ZIP_ENTRY_COUNT,
+                )
+                log_archive_security_violation(logger, violation)
+                errors.append(format_archive_security_user_message(violation))
+                return empty_info
+
+            executable_member = _detect_executable_binary_member(zf)
+            if executable_member is not None:
+                violation = ArchiveSecurityViolation(
+                    code=ArchiveSecurityCode.EXECUTABLE_BINARY_DETECTED,
+                    source="validate_skill_zip",
+                    actual=executable_member,
+                )
+                log_archive_security_violation(logger, violation)
+                errors.append(format_archive_security_user_message(violation))
+                return empty_info
+
             root_dirs = {n.split("/")[0] for n in namelist if n.split("/")[0]}
 
             if len(root_dirs) != 1:
@@ -233,3 +265,14 @@ def validate_skill_zip(zip_content: bytes) -> SkillPackageInfo:
     except zipfile.BadZipFile:
         errors.append("无效的 ZIP 文件")
         return empty_info
+
+
+def _detect_executable_binary_member(zf: zipfile.ZipFile) -> str | None:
+    for entry in zf.infolist():
+        if entry.is_dir():
+            continue
+        with zf.open(entry, "r") as handle:
+            header = handle.read(512)
+        if is_executable_binary_content(header):
+            return entry.filename
+    return None
