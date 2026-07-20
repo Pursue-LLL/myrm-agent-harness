@@ -36,7 +36,8 @@ if TYPE_CHECKING:
 
     from myrm_agent_harness.backends.skills.discovery_protocols import SkillDiscoveryBackend, SkillInstallResult
 
-TOOL_DESCRIPTION = """Search, install, and uninstall skills from external sources (GitHub, skills.sh, etc.).
+TOOL_DESCRIPTION = """Install NEW skills from external markets (GitHub, skills.sh, etc.).
+NOT for searching skills already bound to this agent — use `discover_capability_tool` for that.
 
 Use this tool when:
 - User asks "find me a skill for X" or "is there a skill that can..."
@@ -102,7 +103,7 @@ def create_skill_discovery_tool(
     async def skill_discovery_func(
         action: str, query: str = "", skill_id: str = "", source: str = "", url: str = "", *, config: RunnableConfig
     ) -> str:
-        """Search, install, and uninstall skills from external sources."""
+        """Install or uninstall skills from external marketplaces (not in-agent library search)."""
         if action == "search":
             return await _handle_search(discovery_backend, query)
 

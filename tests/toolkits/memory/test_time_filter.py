@@ -243,7 +243,7 @@ class TestMemoryRecallTimePassing:
         )
 
         with patch.object(MemoryManager, "search", search_mock):
-            recall_tool = next(t for t in create_memory_tools(manager) if t.name == "memory_recall_tool")
+            recall_tool = next(t for t in create_memory_tools(manager) if t.name == "memory_search_tool")
             await recall_tool.ainvoke({"query": "test", "since": "7d", "until": "1d"})
 
         search_mock.assert_called_once()
@@ -260,7 +260,7 @@ class TestMemoryRecallTimePassing:
 
         search_mock = AsyncMock(return_value=[])
         with patch.object(MemoryManager, "search", search_mock):
-            recall_tool = next(t for t in create_memory_tools(manager) if t.name == "memory_recall_tool")
+            recall_tool = next(t for t in create_memory_tools(manager) if t.name == "memory_search_tool")
             await recall_tool.ainvoke({"query": "test"})
 
         search_mock.assert_called_once()
@@ -277,7 +277,7 @@ class TestMemoryRecallTimePassing:
 
         search_mock = AsyncMock(return_value=[])
         with patch.object(MemoryManager, "search", search_mock):
-            recall_tool = next(t for t in create_memory_tools(manager) if t.name == "memory_recall_tool")
+            recall_tool = next(t for t in create_memory_tools(manager) if t.name == "memory_search_tool")
             await recall_tool.ainvoke({"query": "test", "since": "2026-04-01T00:00:00"})
 
         call_kwargs = search_mock.call_args
@@ -295,7 +295,7 @@ class TestMemoryRecallTimePassing:
 
         search_mock = AsyncMock(return_value=[])
         with patch.object(MemoryManager, "search", search_mock):
-            recall_tool = next(t for t in create_memory_tools(manager) if t.name == "memory_recall_tool")
+            recall_tool = next(t for t in create_memory_tools(manager) if t.name == "memory_search_tool")
             await recall_tool.ainvoke({"query": "test", "since": "not-a-date"})
 
         call_kwargs = search_mock.call_args

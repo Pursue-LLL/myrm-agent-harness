@@ -38,7 +38,7 @@ class TestGetToolLayer:
         common_tools = [
             "todo_write",
             "web_search_tool",
-            "memory_recall_tool",
+            "memory_search_tool",
             "memory_save_tool",
             "memory_manage_tool",
         ]
@@ -50,7 +50,7 @@ class TestGetToolLayer:
             "request_answer_user_tool",
             "skill_select_tool",
             "skill_manage_tool",
-            "conversation_search_tool",
+            "browser_navigate_tool",
         ]
         for tool in extended_tools:
             assert get_tool_layer(tool) == ToolLayer.EXTENDED, f"{tool} should be EXTENDED"
@@ -99,8 +99,8 @@ class TestCommonLayerSortKey:
             return StructuredTool.from_function(lambda: None, name=name, description="d")
 
         reg = ToolRegistry()
-        for name in ("web_search_tool", "memory_recall_tool", "memory_save_tool", "memory_manage_tool"):
+        for name in ("web_search_tool", "memory_search_tool", "memory_save_tool", "memory_manage_tool"):
             reg.register(_tool(name), source=ToolSource.USER)
         names = [t.name for t in reg.resolve()]
         assert names.index("memory_manage_tool") < names.index("web_search_tool")
-        assert names.index("memory_recall_tool") < names.index("web_search_tool")
+        assert names.index("memory_search_tool") < names.index("web_search_tool")

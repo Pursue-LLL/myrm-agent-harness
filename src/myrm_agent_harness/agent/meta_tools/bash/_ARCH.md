@@ -29,7 +29,7 @@ Bash tool module.
 | bash_tool_helpers.py | Core | BashInput schema, OS hint, context restore, context access tracking. | ✅ |
 | _background_job_store_core.py | Core | Pure reconcile/status helpers for BSDL durable ledger. | ✅ |
 | _background_job_store.py | Core | SQLite BackgroundJobStore on Volume (metadata, finish dedupe, orphan reconcile). | ✅ |
-| _background_output_spill.py | Core | Incremental vault spill for long background stdout/stderr. | ✅ |
+| _background_output_spill.py | Core | Incremental vault spill for long background stdout/stderr; writes `output_{hex8}.txt` under `.context/{session}/evicted/` (same basename contract as `_output_eviction` + `/files/evicted` API). | ✅ |
 | session_spawn_lifecycle.py | Core | Session spawn lifecycle markers; auto-clear when shell jobs exit. | ✅ |
 | bash_process_tools.py | Core | Unified LangChain tool ``bash_process_tool`` (actions list/output/kill/wait). Turn1 eager when bash enabled. | ✅ |
 | bash_auto_yield.py | Core | Auto-yield foreground whitelist commands into background after ``yield_after_seconds``; composes registry poll snapshot for tool return. | ✅ |

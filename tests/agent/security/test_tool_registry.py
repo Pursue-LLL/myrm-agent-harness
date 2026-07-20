@@ -41,7 +41,7 @@ class TestBuiltinToolNames:
 
     def test_contains_unmapped_builtins(self):
         assert "web_search_tool" in BUILTIN_TOOL_NAMES
-        assert "memory_recall_tool" in BUILTIN_TOOL_NAMES
+        assert "memory_search_tool" in BUILTIN_TOOL_NAMES
         assert "memory_save_tool" in BUILTIN_TOOL_NAMES
         assert "memory_manage_tool" in BUILTIN_TOOL_NAMES
         assert "skill_select_tool" in BUILTIN_TOOL_NAMES
@@ -76,7 +76,7 @@ class TestResolvePermissionType:
 
     def test_unmapped_builtin_returns_original_name(self):
         assert resolve_permission_type("web_search_tool") == "web_search_tool"
-        assert resolve_permission_type("memory_recall_tool") == "memory_recall_tool"
+        assert resolve_permission_type("memory_search_tool") == "memory_search_tool"
         assert resolve_permission_type("skill_select_tool") == "skill_select_tool"
         assert resolve_permission_type("request_answer_user_tool") == "request_answer_user_tool"
         assert resolve_permission_type("render_ui_tool") == "render_ui_tool"
@@ -184,7 +184,7 @@ class TestSafetyMetadata:
             assert meta.is_concurrent_safe is True
 
     def test_search_tools_declared_safe(self):
-        for tool in ("web_search_tool", "web_fetch_tool", "memory_recall_tool"):
+        for tool in ("web_search_tool", "web_fetch_tool", "memory_search_tool"):
             meta = resolve_safety_metadata(tool)
             assert meta.is_read_only is True
             assert meta.is_concurrent_safe is True

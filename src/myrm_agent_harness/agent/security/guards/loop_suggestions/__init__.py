@@ -54,7 +54,7 @@ __all__ = [
 _SuggestFn = Callable[[list[CallRecord], dict[str, float] | None], str]
 
 _DYNAMIC_GENERATORS: dict[str, _SuggestFn] = {
-    "memory_recall_tool": suggest_memory_recall,
+    "memory_search_tool": suggest_memory_recall,
     "file_read_tool": suggest_file_read,
     "web_search_tool": suggest_web_search,
     "bash_code_execute_tool": suggest_bash,

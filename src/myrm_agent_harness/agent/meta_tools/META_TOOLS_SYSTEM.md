@@ -65,6 +65,15 @@
 | `interaction/` | UI artifact 渲染与增量 data 更新 | `render_ui_tool`, `update_ui_data_tool` |
 | `discover_capability/` | 统一能力发现网关 | `discover_capability_tool` |
 
+### Skill 工具边界（discover vs discovery）
+
+| 工具 | 搜什么 | 典型动作 |
+|------|--------|----------|
+| `discover_capability_tool` | 已绑定 Agent 的技能库（含 MCP PTC 降级技能） | search → `skill_select_tool` 加载 SOP |
+| `skill_discovery_tool` | 外部市场（GitHub、skills.sh 等） | search → install/uninstall 新技能 |
+
+两者 tool description 互相指向，避免 LLM 调错入口。
+
 根目录独立工具：
 
 | 文件 | 职责 |

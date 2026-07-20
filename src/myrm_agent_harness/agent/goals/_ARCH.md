@@ -32,7 +32,7 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 | manager_queue_mixin.py | 核心 | Subgoal/queue/stash 操作 mixin | ✅ |
 | finalizer.py | 核心 | GoalFinalizer SSOT — 统一 COMPLETE 过渡；tool 路径 deferred terminal | ✅ |
 | steering_prompts.py | 核心 | Goal 运行时 steering prompt 模板 | ✅ |
-| storage.py | 核心 | SQLite 持久化与队列索引 | ✅ |
+| storage.py | 核心 | SQLite 持久化、队列索引、`list_latest_goal_sessions`（启动 orphan WAIT 扫描） | ✅ |
 | goal_prompt_prefixes.py | Core | `GOAL_CONTINUATION_PREFIX` / `GOAL_WRAPUP_PREFIX` SSOT | ✅ |
 | continuation.py | 核心 | guard chain → ContinuationDecision；WAIT 早退；tool-complete deferred 解析；白名单 background bash 自动 enter_wait | ✅ |
 | wait_background_bash.py | 核心 | 窄域 build/test/CI 白名单 + LoopGuard 窗口解析 background spawn；Server finish 时 exit_wait + `trigger_goal_stream_with_failure_policy` 闭环 | ✅ |

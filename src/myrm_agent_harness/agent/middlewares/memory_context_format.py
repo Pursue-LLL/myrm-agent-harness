@@ -105,27 +105,28 @@ def _partition_budget_sections(
     return stable_body, untrusted_body
 
 
-def _conversation_search_tool_bound(request: ModelRequest) -> bool:
+def _memory_search_tool_bound(request: ModelRequest) -> bool:
     tools = getattr(request, "tools", None) or []
     for tool in tools:
         name = tool.name if hasattr(tool, "name") else tool.get("name")
-        if name == "conversation_search_tool":
+        if name == "memory_search_tool":
             return True
     return False
 
 
-def _memory_search_guidance(*, include_conversation_search: bool) -> str:
+def _memory_search_guidance(*, sessions_corpus_enabled: bool) -> str:
     lines = [
         "## Memory Search",
         (
-            "Use memory_recall for durable user facts, preferences, profile data, learned rules, "
-            "project stack, and coding conventions."
+            "Use memory_search_tool with corpus=memory (default) for durable user facts, preferences, "
+            "profile data, rules, and project conventions."
         ),
     ]
-    if include_conversation_search:
+    if sessions_corpus_enabled:
         lines.append(
-            'Use conversation_search for prior chat evidence, earlier decisions, branch/fork context, '
-            'or requests like "last time", "previously", and "continue that discussion".'
+            'Use corpus=sessions for prior chat evidence, earlier decisions, branch/fork context, '
+            'or requests like "last time", "previously", and "continue that discussion". '
+            'Use corpus=wiki when wiki is enabled; corpus=all searches every enabled corpus.'
         )
     lines.append(
         "Memories and recalled conversations are point-in-time records. "
@@ -134,7 +135,7 @@ def _memory_search_guidance(*, include_conversation_search: bool) -> str:
     return "\n".join(lines)
 
 
-def _build_cold_start_context(*, include_conversation_search: bool) -> str:
+def _build_cold_start_context(*, sessions_corpus_enabled: bool) -> str:
     return f"""<user_memory_context>
 # New User — Discovery Mode
 
@@ -151,18 +152,18 @@ When your answer directly relies on any provided memory or rule (from either sta
 Format: <cite:MEMORY_ID>
 Example: "Based on your preference for concise answers <cite:mem-123>, here is the script."
 
-{_memory_search_guidance(include_conversation_search=include_conversation_search)}
+{_memory_search_guidance(sessions_corpus_enabled=sessions_corpus_enabled)}
 </user_memory_context>"""
 
 
-_COLD_START_CONTEXT = _build_cold_start_context(include_conversation_search=False)
+_COLD_START_CONTEXT = _build_cold_start_context(sessions_corpus_enabled=False)
 
 
 def _format_memory_context(
     ctx: dict[str, object],
     learned: dict[str, list[dict[str, str]]],
     *,
-    include_conversation_search: bool = False,
+    sessions_corpus_enabled: bool = False,
 ) -> tuple[str | None, str | None]:
     stable_sections: list[BudgetedSection] = []
     untrusted_sections: list[BudgetedSection] = []
@@ -260,11 +261,11 @@ def _format_memory_context(
 
     # Cold start: guide the agent to actively learn about the user
     if is_cold:
-        return _build_cold_start_context(include_conversation_search=include_conversation_search), None
+        return _build_cold_start_context(sessions_corpus_enabled=sessions_corpus_enabled), None
 
     truncation_message = (
         "\n... (Some lower-priority memory items were truncated to preserve prompt stability. "
-        "Use memory_recall tool to search for more.)"
+        "Use memory_search_tool to search for more.)"
     )
     escaped_untrusted = [
         BudgetedSection(sec.title, [_escape_xml_item(i) for i in sec.items], priority=sec.priority)
@@ -303,7 +304,7 @@ Format: <cite:MEMORY_ID>
 Example: "Based on your preference for concise answers <cite:mem-123>, here is the script."
 
 ## Memory Search
-{_memory_search_guidance(include_conversation_search=include_conversation_search)}"""
+{_memory_search_guidance(sessions_corpus_enabled=sessions_corpus_enabled)}"""
 
     return stable_formatted, untrusted_formatted
 

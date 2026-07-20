@@ -252,13 +252,13 @@ class TestToolLayerFunctions:
     def test_memory_tools_sorted_before_web_search_in_common(self) -> None:
         from myrm_agent_harness.agent.tool_management.tool_layers import get_tool_layer
 
-        for memory_tool in ("memory_manage_tool", "memory_recall_tool", "memory_save_tool"):
+        for memory_tool in ("memory_manage_tool", "memory_search_tool", "memory_save_tool"):
             assert get_tool_layer(memory_tool) == ToolLayer.COMMON
 
         reg = ToolRegistry()
         for name in (
             "web_search_tool",
-            "memory_recall_tool",
+            "memory_search_tool",
             "file_read_tool",
             "memory_save_tool",
             "bash_code_execute_tool",
@@ -268,7 +268,7 @@ class TestToolLayerFunctions:
         names = [tool.name for tool in reg.resolve()]
 
         assert names[:2] == ["bash_code_execute_tool", "file_read_tool"]
-        memory_block = ["memory_manage_tool", "memory_recall_tool", "memory_save_tool"]
+        memory_block = ["memory_manage_tool", "memory_search_tool", "memory_save_tool"]
         assert names[2:5] == memory_block
         assert names[5] == "web_search_tool"
 
@@ -276,14 +276,14 @@ class TestToolLayerFunctions:
         reg = ToolRegistry()
         reg.register(_make_tool("file_read_tool"), source=ToolSource.META, layer=ToolLayer.CORE)
         reg.register(_make_tool("web_search_tool"), source=ToolSource.USER, layer=ToolLayer.COMMON)
-        reg.register(_make_tool("memory_recall_tool"), source=ToolSource.USER, layer=ToolLayer.COMMON)
+        reg.register(_make_tool("memory_search_tool"), source=ToolSource.USER, layer=ToolLayer.COMMON)
         common_prefix = [tool.name for tool in reg.resolve()]
 
         with_extended = ToolRegistry()
         for name in (
             "discover_capability_tool",
             "file_read_tool",
-            "memory_recall_tool",
+            "memory_search_tool",
             "web_search_tool",
         ):
             layer = ToolLayer.EXTENDED if name == "discover_capability_tool" else None

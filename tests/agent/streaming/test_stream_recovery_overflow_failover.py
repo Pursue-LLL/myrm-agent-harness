@@ -510,3 +510,164 @@ async def test_consecutive_overloaded_resets_on_success(ctx):
 
     assert result is False
     assert executor._consecutive_overloaded == 1
+
+
+# ─── End-to-end: real classify → _handle_overflow (no mock on is_context_overflow) ──
+
+
+class TestOverflowE2EClassifier:
+    """Verify the full classify_error → is_context_overflow → _handle_overflow
+    chain with REAL litellm exceptions — no mock on is_context_overflow."""
+
+    @pytest.fixture
+    def executor(self, ctx):
+        return _make_executor(ctx)
+
+    @staticmethod
+    def _make_litellm_400(message: str) -> Exception:
+        """Build a litellm-style BadRequestError (status 400)."""
+        try:
+            from litellm.exceptions import BadRequestError as LiteBadRequest
+
+            return LiteBadRequest(
+                message=message, model="test-model", llm_provider="openai", response=MagicMock(status_code=400)
+            )
+        except ImportError:
+            exc = Exception(message)
+            exc.status_code = 400
+            return exc
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error_msg",
+        [
+            "Prompt exceeds max length",
+            "tokens in request more than max tokens allowed",
+            "total message size 5943865 exceeds limit 2097152",
+            "This model's maximum context length is 128000 tokens. However, your messages resulted in 130000 tokens.",
+        ],
+    )
+    async def test_real_overflow_triggers_compact(self, ctx, executor, error_msg):
+        """Real provider errors (Z.AI, Kimi, OpenAI) go through full classify chain."""
+        exc = self._make_litellm_400(error_msg)
+
+        with patch(
+            "myrm_agent_harness.agent.streaming.stream_recovery._emergency_compact",
+            new_callable=AsyncMock,
+            return_value=500,
+        ) as compact_mock:
+            result = await executor._handle_overflow(exc, 0)
+
+        assert result is True, f"Expected overflow recovery for: {error_msg}"
+        compact_mock.assert_called_once()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error_msg",
+        [
+            "invalid json in request body",
+            "model not found: gpt-99",
+            "rate limit exceeded",
+        ],
+    )
+    async def test_non_overflow_not_triggered(self, ctx, executor, error_msg):
+        """Non-overflow errors should NOT trigger overflow recovery."""
+        exc = self._make_litellm_400(error_msg)
+
+        result = await executor._handle_overflow(exc, 0)
+
+        assert result is False, f"Should NOT trigger overflow for: {error_msg}"
+
+    @pytest.mark.asyncio
+    async def test_stage2_truncation_on_retry1(self, ctx, executor):
+        """Stage 2 (retries=1): real overflow triggers _truncate_oldest_rounds."""
+        exc = self._make_litellm_400("Prompt exceeds max length")
+
+        with patch(
+            "myrm_agent_harness.agent.streaming.stream_recovery._truncate_oldest_rounds",
+            return_value=300,
+        ) as truncate_mock:
+            result = await executor._handle_overflow(exc, 1)
+
+        assert result is True
+        truncate_mock.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_retries_exhausted_with_real_error(self, ctx, executor):
+        """retries >= MAX_OVERFLOW_RETRIES → compression_exhausted, no recovery."""
+        exc = self._make_litellm_400("tokens in request more than max tokens allowed")
+
+        result = await executor._handle_overflow(exc, 2)
+
+        assert result is False
+        assert ctx.stats.compression_exhausted is True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error_msg",
+        [
+            "上下文过长",
+            "请压缩上下文后重试",
+            "上下文超出限制",
+            "上下文长度超过模型最大限制",
+            "超出最大上下文窗口",
+        ],
+    )
+    async def test_chinese_overflow_keywords(self, ctx, executor, error_msg):
+        """Chinese overflow keywords are correctly detected."""
+        exc = self._make_litellm_400(error_msg)
+
+        with patch(
+            "myrm_agent_harness.agent.streaming.stream_recovery._emergency_compact",
+            new_callable=AsyncMock,
+            return_value=200,
+        ):
+            result = await executor._handle_overflow(exc, 0)
+
+        assert result is True, f"Chinese overflow not detected: {error_msg}"
+
+    @pytest.mark.asyncio
+    async def test_http_413_compound_overflow(self, ctx, executor):
+        """HTTP 413 + 'too large' compound check triggers overflow."""
+        exc = self._make_litellm_400("413 Request Entity Too Large")
+        exc.status_code = 413
+
+        with patch(
+            "myrm_agent_harness.agent.streaming.stream_recovery._emergency_compact",
+            new_callable=AsyncMock,
+            return_value=100,
+        ):
+            result = await executor._handle_overflow(exc, 0)
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_compact_zero_falls_through_to_truncate(self, ctx, executor):
+        """When _emergency_compact returns 0, falls through to _truncate_oldest_rounds."""
+        exc = self._make_litellm_400("total message size 9999999 exceeds limit 2097152")
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.streaming.stream_recovery._emergency_compact",
+                new_callable=AsyncMock,
+                return_value=0,
+            ),
+            patch(
+                "myrm_agent_harness.agent.streaming.stream_recovery._truncate_oldest_rounds",
+                return_value=400,
+            ) as truncate_mock,
+        ):
+            result = await executor._handle_overflow(exc, 0)
+
+        assert result is True
+        truncate_mock.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_resume_mode_rejects_real_overflow(self, ctx, executor):
+        """Resume mode (Command input) rejects recovery even for real overflow."""
+        ctx.agent_input = Command(resume="some_val")
+        exc = self._make_litellm_400("Prompt exceeds max length")
+
+        result = await executor._handle_overflow(exc, 0)
+
+        assert result is False

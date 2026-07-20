@@ -44,7 +44,7 @@ from enum import StrEnum, auto, unique
 _DEFAULT_EXEMPTED_TOOLS: frozenset[str] = frozenset(
     {
         # Memory system (high-frequency readonly)
-        "memory_recall_tool",
+        "memory_search_tool",
         "memory_save_tool",
         "memory_manage_tool",
         # Skill system (high-frequency readonly)

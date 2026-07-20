@@ -3,6 +3,8 @@
 ## Overview
 Unified Capability Discovery gateway. Indexes external skills (MCP PTC + user skills) into a semantic search index. When searchable skills exist, ``sync_discover_capability_tool()`` registers the discovery tool.
 
+**Boundary**: searches the **agent-bound skill library**. To install new skills from external markets, use ``skill_discovery_tool`` instead.
+
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |

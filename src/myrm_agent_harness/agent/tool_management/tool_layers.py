@@ -67,7 +67,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # ============================================================
     "todo_write": ToolLayer.COMMON,
     "web_search_tool": ToolLayer.COMMON,
-    "memory_recall_tool": ToolLayer.COMMON,
+    "memory_search_tool": ToolLayer.COMMON,
     "memory_save_tool": ToolLayer.COMMON,
     "memory_manage_tool": ToolLayer.COMMON,
     # ============================================================
@@ -110,8 +110,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "kanban_add_task": ToolLayer.EXTENDED,
     "kanban_list_tasks": ToolLayer.EXTENDED,
     "kanban_unblock": ToolLayer.EXTENDED,
-    # --- 记忆工具（recall/save/manage → COMMON；conversation_search → EXTENDED opt-in）---
-    "conversation_search_tool": ToolLayer.EXTENDED,
+    # --- 记忆工具（search/save/manage → COMMON；sessions/wiki 通过 corpus ACL）---
     # --- 技能工具 ---
     "discover_capability_tool": ToolLayer.EXTENDED,
     "skill_discovery_tool": ToolLayer.EXTENDED,
@@ -130,7 +129,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
 # COMMON 层组内排序：高频默认能力簇优先，单工具开关次之（组内仍按 name 稳定排序）
 _COMMON_LAYER_SORT_RANK: dict[str, int] = {
     "memory_manage_tool": 0,
-    "memory_recall_tool": 1,
+    "memory_search_tool": 1,
     "memory_save_tool": 2,
     "web_search_tool": 10,
     "todo_write": 30,

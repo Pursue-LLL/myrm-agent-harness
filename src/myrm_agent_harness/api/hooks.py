@@ -35,6 +35,15 @@ from myrm_agent_harness.agent._skill_agent_context import (
 from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
     get_background_registry,
 )
+from myrm_agent_harness.agent.meta_tools.bash._background_job_store import (
+    configure_background_job_store,
+    get_background_job_store,
+)
+from myrm_agent_harness.agent.meta_tools.bash._background_job_store_core import (
+    BackgroundJobRecord,
+    map_store_status_to_shell_task_status,
+)
+from myrm_agent_harness.agent.meta_tools.bash._background_types import BackgroundProcessInfo
 from myrm_agent_harness.agent.middlewares._session_context import (
     get_event_logger,
     get_terminal_errors,
@@ -56,8 +65,12 @@ def count_running_background_shell_jobs(session_id: str | None = None) -> int:
 __all__ = [
     "BackgroundJobFinishHandler",
     "BackgroundJobFinishResult",
+    "BackgroundJobRecord",
+    "BackgroundProcessInfo",
+    "configure_background_job_store",
     "count_running_background_shell_jobs",
     "create_extraction_llm_func",
+    "get_background_job_store",
     "get_background_registry",
     "get_event_logger",
     "get_global_background_job_finish_handler",
@@ -68,6 +81,7 @@ __all__ = [
     "get_task_intent",
     "get_terminal_errors",
     "invalidate_permissions",
+    "map_store_status_to_shell_task_status",
     "persist_extracted_memories",
     "set_approval_user_id",
     "set_global_background_job_finish_handler",

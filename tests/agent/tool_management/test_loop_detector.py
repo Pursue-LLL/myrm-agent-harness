@@ -118,7 +118,7 @@ class TestToolSpecificSuggestions:
     def test_memory_recall_suggestion(self) -> None:
         g = LoopGuard(warn_threshold=3, break_threshold=99)
         for _ in range(6):
-            v = g.pre_check("memory_recall_tool", {"query": "test", "limit": 5})
+            v = g.pre_check("memory_search_tool", {"query": "test", "limit": 5})
         assert v.action == LoopAction.WARN
         assert "categories" in v.reason or "limit" in v.reason
 
@@ -160,7 +160,7 @@ class TestDynamicSuggestions:
     def test_memory_recall_dynamic_categories(self) -> None:
         g = LoopGuard(warn_threshold=3, break_threshold=99)
         for _ in range(6):
-            v = g.pre_check("memory_recall_tool", {"query": "test", "categories": ["knowledge"], "limit": 5})
+            v = g.pre_check("memory_search_tool", {"query": "test", "categories": ["knowledge"], "limit": 5})
         assert v.action == LoopAction.WARN
         assert "untried categories" in v.reason
         assert "event" in v.reason or "preference" in v.reason
@@ -168,7 +168,7 @@ class TestDynamicSuggestions:
     def test_memory_recall_dynamic_limit(self) -> None:
         g = LoopGuard(warn_threshold=3, break_threshold=99)
         for _ in range(6):
-            v = g.pre_check("memory_recall_tool", {"query": "test", "limit": 5})
+            v = g.pre_check("memory_search_tool", {"query": "test", "limit": 5})
         assert v.action == LoopAction.WARN
         assert "limit" in v.reason
         assert "15" in v.reason
@@ -309,8 +309,8 @@ class TestErrorAwareSuggestions:
         g = LoopGuard(warn_threshold=3, break_threshold=99)
 
         for _ in range(6):
-            v = g.pre_check("memory_recall_tool", {"query": "test", "categories": ["knowledge"]})
-            g.record_result("memory_recall_tool", {"query": "test", "categories": ["knowledge"]}, "[]")
+            v = g.pre_check("memory_search_tool", {"query": "test", "categories": ["knowledge"]})
+            g.record_result("memory_search_tool", {"query": "test", "categories": ["knowledge"]}, "[]")
 
         assert v.action == LoopAction.WARN
         assert "profile_key" in v.reason.lower()
@@ -362,7 +362,7 @@ class TestDivergenceDetection:
             "file_write_tool",
             "web_search_tool",
             "bash_code_execute_tool",
-            "memory_recall_tool",
+            "memory_search_tool",
             "browser_navigate_tool",
         ]
         for tool in tools:
@@ -379,7 +379,7 @@ class TestDivergenceDetection:
             "file_write_tool",
             "web_search_tool",
             "bash_code_execute_tool",
-            "memory_recall_tool",
+            "memory_search_tool",
             "browser_navigate_tool",
         ]
         for tool in tools2:

@@ -125,14 +125,14 @@ class TestExemptedTools:
         guard = FrequencyGuard(
             global_limit=100,
             per_tool_limit=5,
-            exempted_tools=frozenset({"memory_recall_tool"}),
+            exempted_tools=frozenset({"memory_search_tool"}),
         )
 
         # Call exempted tool 10 times (exceeds per-tool limit)
         for _i in range(10):
-            verdict = guard.check("memory_recall_tool")
+            verdict = guard.check("memory_search_tool")
             assert verdict.action == FrequencyAction.ALLOW
-            guard.record("memory_recall_tool")
+            guard.record("memory_search_tool")
 
         assert guard.get_stats()["current_window_size"] == 10
 
@@ -141,17 +141,17 @@ class TestExemptedTools:
         guard = FrequencyGuard(
             global_limit=5,
             per_tool_limit=10,
-            exempted_tools=frozenset({"memory_recall_tool"}),
+            exempted_tools=frozenset({"memory_search_tool"}),
         )
 
         # Fill global limit with exempted tool
         for _i in range(5):
-            verdict = guard.check("memory_recall_tool")
+            verdict = guard.check("memory_search_tool")
             assert verdict.action in (FrequencyAction.ALLOW, FrequencyAction.WARN)
-            guard.record("memory_recall_tool")
+            guard.record("memory_search_tool")
 
         # 6th call should trigger global BREAK
-        verdict = guard.check("memory_recall_tool")
+        verdict = guard.check("memory_search_tool")
         assert verdict.action == FrequencyAction.BREAK
         assert "global" in verdict.reason.lower()
 
@@ -160,7 +160,7 @@ class TestExemptedTools:
         guard = FrequencyGuard(
             global_limit=100,
             per_tool_limit=3,
-            exempted_tools=frozenset({"memory_recall_tool"}),
+            exempted_tools=frozenset({"memory_search_tool"}),
         )
 
         # Fill per-tool limit for non-exempted tool
@@ -423,10 +423,10 @@ class TestEdgeCases:
 
         # All tools should have per-tool limits
         for _i in range(3):
-            guard.check("memory_recall_tool")
-            guard.record("memory_recall_tool")
+            guard.check("memory_search_tool")
+            guard.record("memory_search_tool")
 
-        verdict = guard.check("memory_recall_tool")
+        verdict = guard.check("memory_search_tool")
         assert verdict.action == FrequencyAction.BREAK
 
     def test_check_without_record(self):
@@ -486,7 +486,7 @@ class TestIntegration:
         guard = FrequencyGuard(global_limit=100, per_tool_limit=30)
 
         # Simulate normal agent execution
-        tools = ["bash_code_execute_tool", "file_read_tool", "web_search_tool", "memory_recall_tool"]
+        tools = ["bash_code_execute_tool", "file_read_tool", "web_search_tool", "memory_search_tool"]
 
         for _round in range(10):
             for tool in tools:
@@ -504,17 +504,17 @@ class TestIntegration:
         guard = FrequencyGuard(
             global_limit=200,
             per_tool_limit=10,
-            exempted_tools=frozenset({"memory_recall_tool", "skill_select_tool"}),
+            exempted_tools=frozenset({"memory_search_tool", "skill_select_tool"}),
         )
 
         # High-frequency memory operations (common in agents)
         for _i in range(50):
-            verdict = guard.check("memory_recall_tool")
+            verdict = guard.check("memory_search_tool")
             assert verdict.action == FrequencyAction.ALLOW
-            guard.record("memory_recall_tool")
+            guard.record("memory_search_tool")
 
         # Should not trigger per-tool limit
-        verdict = guard.check("memory_recall_tool")
+        verdict = guard.check("memory_search_tool")
         assert verdict.action == FrequencyAction.ALLOW
 
         # But non-exempted tool should still have limit

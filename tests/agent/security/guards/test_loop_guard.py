@@ -387,7 +387,7 @@ class TestDivergence:
         guard = LoopGuard(warn_threshold=10, break_threshold=20, divergence_threshold=6)
 
         tools_with_results: list[tuple[str, dict[str, object], SuccessLevel]] = [
-            ("memory_recall_tool", {"key": "x"}, SuccessLevel.FAILURE),
+            ("memory_search_tool", {"key": "x"}, SuccessLevel.FAILURE),
             ("file_read_tool", {"path": "/a"}, SuccessLevel.FAILURE),
             ("bash_code_execute_tool", {"command": "ls"}, SuccessLevel.FULL_SUCCESS),
             ("web_search_tool", {"query": "hi"}, SuccessLevel.FAILURE),
@@ -409,7 +409,7 @@ class TestDivergence:
         guard = LoopGuard(warn_threshold=3, break_threshold=5, divergence_threshold=6)
 
         tools = [
-            ("memory_recall_tool", {"key": "x"}),
+            ("memory_search_tool", {"key": "x"}),
             ("file_read_tool", {"path": "/a"}),
             ("bash_code_execute_tool", {"command": "ls"}),
             ("web_search_tool", {"query": "hi"}),

@@ -216,18 +216,18 @@ def test_format_empty_returns_cold_start():
     assert untrusted2 is None
 
 
-def test_format_memory_search_omits_conversation_search_by_default():
+def test_format_memory_search_omits_sessions_corpus_by_default():
     learned = {
         "learned_preferences": [{"content": "Prefers dark mode", "id": "p1"}],
         "learned_rules": [],
     }
     _stable, untrusted = _format_memory_context({}, learned)
     assert untrusted is not None
-    assert "memory_recall" in untrusted
-    assert "conversation_search" not in untrusted
+    assert "memory_search_tool" in untrusted
+    assert "corpus=sessions" not in untrusted
 
 
-def test_format_memory_search_includes_conversation_search_when_opt_in():
+def test_format_memory_search_includes_sessions_corpus_when_enabled():
     learned = {
         "learned_preferences": [{"content": "Prefers dark mode", "id": "p1"}],
         "learned_rules": [],
@@ -235,10 +235,10 @@ def test_format_memory_search_includes_conversation_search_when_opt_in():
     _stable, untrusted = _format_memory_context(
         {},
         learned,
-        include_conversation_search=True,
+        sessions_corpus_enabled=True,
     )
     assert untrusted is not None
-    assert "conversation_search" in untrusted
+    assert "corpus=sessions" in untrusted
 
 
 def test_format_profile():

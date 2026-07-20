@@ -495,8 +495,9 @@ class BackgroundProcessRegistry:
                 if spill is not None:
                     stream_name = "stderr" if sink is entry.stderr_buffer else "stdout"
                     spill.append_line(stream_name, text)
-                    if spill.vault_log_ref:
+                    if spill.vault_log_ref and entry.info.vault_log_ref != spill.vault_log_ref:
                         entry.info.vault_log_ref = spill.vault_log_ref
+                        self._persist_store_vault_log_ref(entry)
                 # ``entry.cursor += 1`` and ``sink.append`` happen between
                 # two ``await``s; under single-threaded asyncio this is
                 # atomic against the sibling pipe task.
@@ -567,6 +568,22 @@ class BackgroundProcessRegistry:
             if entry.info.status == "running":
                 return
             self._entries.pop(pid, None)
+
+    def _persist_store_vault_log_ref(self, entry: _Entry) -> None:
+        from myrm_agent_harness.agent.meta_tools.bash._background_job_store import get_background_job_store
+
+        store = get_background_job_store()
+        ref = entry.info.vault_log_ref
+        if store is None or not ref:
+            return
+        try:
+            store.set_vault_log_ref(entry.info.job_id, ref)
+        except Exception as exc:
+            logger.warning(
+                "Background job store vault_log_ref update failed job=%s: %s",
+                entry.info.job_id,
+                exc,
+            )
 
     def _persist_store_terminal(self, entry: _Entry) -> None:
         from myrm_agent_harness.agent.meta_tools.bash._background_job_store import get_background_job_store

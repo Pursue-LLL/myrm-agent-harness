@@ -160,8 +160,7 @@ class ToolGroup(Enum):
 
 
 TOOL_SEMANTIC_MAP: dict[str, ToolGroup] = {
-    "memory_recall_tool": ToolGroup.MEMORY,
-    "conversation_search_tool": ToolGroup.MEMORY,
+    "memory_search_tool": ToolGroup.MEMORY,
     "memory_save_tool": ToolGroup.MEMORY,
     "memory_manage_tool": ToolGroup.MEMORY,
     "file_read_tool": ToolGroup.READ,

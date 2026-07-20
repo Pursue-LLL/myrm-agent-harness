@@ -49,7 +49,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from myrm_agent_harness.toolkits.memory.config import RecallMode
 
 from .memory_context_format import (
-    _conversation_search_tool_bound,
+    _memory_search_tool_bound,
     _format_memory_context,
     _has_memory_context,
 )
@@ -196,17 +196,18 @@ class MemoryContextMiddleware(AgentMiddleware):
         learned_result: object
         if isinstance(prefetched_snapshot, dict):
             static_result = prefetched_snapshot.get("memory_ctx", {})
-            learned_result = prefetched_snapshot.get("learned_ctx", {})
+            learned_result = {}
             snapshot_id = prefetched_snapshot.get("snapshot_id")
             if isinstance(snapshot_id, str) and snapshot_id.strip():
                 state_extra["memory_brief_snapshot_id"] = snapshot_id.strip()
         else:
             try:
-                static_result, learned_result = await asyncio.gather(
-                    manager.get_context(include_profile=True, include_rules=True, include_agent_instructions=True),
-                    manager.get_learned_context(),
-                    return_exceptions=True,
+                static_result = await manager.get_context(
+                    include_profile=True,
+                    include_rules=True,
+                    include_agent_instructions=True,
                 )
+                learned_result = {}
             except Exception as e:
                 logger.warning("Failed to load memory context: %s", e)
                 _set_memory_injection_status(
@@ -238,16 +239,16 @@ class MemoryContextMiddleware(AgentMiddleware):
             logger.warning("Learned memory context failed (non-fatal): %s", learned_result)
             learned_ctx: dict[str, list[dict[str, str]]] = {"learned_rules": [], "learned_preferences": []}
         elif not isinstance(learned_result, dict):
-            logger.warning("Learned memory context payload has unexpected type: %s", type(learned_result).__name__)
             learned_ctx = {"learned_rules": [], "learned_preferences": []}
         else:
-            learned_ctx = learned_result
+            # P0: keep Turn1 prefix cache-stable — learned facts are retrieved via memory_search_tool.
+            learned_ctx = {"learned_rules": [], "learned_preferences": []}
 
-        include_conversation_search = _conversation_search_tool_bound(request)
+        sessions_corpus_enabled = _memory_search_tool_bound(request)
         stable_formatted, untrusted_formatted = _format_memory_context(
             memory_ctx,
             learned_ctx,
-            include_conversation_search=include_conversation_search,
+            sessions_corpus_enabled=sessions_corpus_enabled,
         )
         if not stable_formatted and not untrusted_formatted:
             _set_memory_injection_status(

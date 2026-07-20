@@ -24,19 +24,19 @@ def _make_call(tool: str, args: dict[str, object] | None = None, result: str | N
 
 class TestSuggestMemoryRecall:
     def test_empty_result_suggests_profile_key(self) -> None:
-        calls = [_make_call("memory_recall_tool", {"query": "test"}, "[]")]
+        calls = [_make_call("memory_search_tool", {"query": "test"}, "[]")]
         result = suggest_memory_recall(calls)
         assert "profile_key" in result
 
     def test_untried_categories(self) -> None:
-        calls = [_make_call("memory_recall_tool", {"categories": ["knowledge"]}, "some data")]
+        calls = [_make_call("memory_search_tool", {"categories": ["knowledge"]}, "some data")]
         result = suggest_memory_recall(calls)
         assert "untried categories" in result
 
     def test_low_limit(self) -> None:
         calls = [
             _make_call(
-                "memory_recall_tool", {"limit": 5, "categories": list(["knowledge", "event", "preference", "rule"])}, "data"
+                "memory_search_tool", {"limit": 5, "categories": list(["knowledge", "event", "preference", "rule"])}, "data"
             )
         ]
         result = suggest_memory_recall(calls)
@@ -45,7 +45,7 @@ class TestSuggestMemoryRecall:
     def test_no_suggestions_fallback(self) -> None:
         calls = [
             _make_call(
-                "memory_recall_tool", {"categories": list(["knowledge", "event", "preference", "rule"]), "limit": 20}, "data"
+                "memory_search_tool", {"categories": list(["knowledge", "event", "preference", "rule"]), "limit": 20}, "data"
             )
         ]
         result = suggest_memory_recall(calls)

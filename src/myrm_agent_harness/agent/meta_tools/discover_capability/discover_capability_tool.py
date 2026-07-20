@@ -77,7 +77,9 @@ def create_discover_capability_tool(
     else:
         engine = None
 
-    tool_description = """Search for missing capabilities (external skills/plugins).
+    tool_description = """Search for missing capabilities among skills already available to this agent (bound library + MCP PTC skills).
+NOT for installing new skills from external markets — use `skill_discovery_tool` for that.
+
 IMPORTANT: You MUST search here BEFORE declining any user request due to missing capability. Never tell the user you cannot do something without first checking if a skill exists (e.g., drawing, video generation, Github, Jira, etc.).
 
 **How to query**:

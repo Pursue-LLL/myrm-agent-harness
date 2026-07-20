@@ -18,40 +18,26 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from typing import Literal
 
 from langchain_core.tools import tool
 
 from myrm_agent_harness.toolkits.memory.config import RecallMode
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-from myrm_agent_harness.toolkits.memory.memory_citations import cited_memory_ref, emit_cited_memory_ids
-from myrm_agent_harness.toolkits.memory.memory_recall_budget import (
-    DEFAULT_RECALL_LIMIT,
-    MAX_RECALL_OUTPUT_CHARS,
-    budget_recall_line,
-    line_cost,
-    normalize_recall_limit,
+from myrm_agent_harness.toolkits.memory.memory_recall_budget import DEFAULT_RECALL_LIMIT, normalize_recall_limit
+from myrm_agent_harness.toolkits.memory.memory_recall_formatting import parse_time_bound as _parse_time_bound
+from myrm_agent_harness.toolkits.memory.memory_search_execution import (
+    search_memory_corpus,
+    search_sessions_corpus,
+    search_wiki_corpus,
 )
-from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
-    channel_label as _channel_label,
+from myrm_agent_harness.toolkits.memory.memory_search_policy import (
+    MemorySearchBackends,
+    MemorySearchCorpus,
+    MemorySearchPolicy,
+    resolve_search_corpora,
 )
-from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
-    is_stale as _is_stale,
-)
-from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
-    memory_age_label,
-)
-from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
-    parse_time_bound as _parse_time_bound,
-)
-from myrm_agent_harness.toolkits.memory.types import (
-    ClaimMemory,
-    MemorySearchResult,
-    MemoryType,
-    RuleSource,
-    SemanticMemory,
-)
+from myrm_agent_harness.toolkits.memory.types import MemoryType, RuleSource
 
 logger = logging.getLogger(__name__)
 
@@ -65,21 +51,14 @@ CATEGORY_TO_TYPE: dict[str, MemoryType] = {
     "integration": MemoryType.INTEGRATION,
 }
 
-_DRIFT_DEFENSE_FOOTER = (
-    "\n---\n"
-    "Note: Before acting on recalled memories:\n"
-    "- If a memory references files/functions → verify they still exist\n"
-    "- If a memory states configs/versions → check current project state\n"
-    "- If a memory conflicts with current observations → trust current observation\n"
-    "To fix outdated memories: use memory_manage(action='correct') or memory_manage(action='delete')"
-)
 
-_CODE_PATH_PATTERN = re.compile(
-    r"(\/[a-zA-Z0-9_\-\.]+)+\/?|[a-zA-Z0-9_\-\.]+\.(py|ts|tsx|js|jsx|json|yaml|yml|md|rs|go|java|c|cpp|h|hpp)"
-)
-
-
-def create_memory_tools(manager: MemoryManager, recall_mode: RecallMode = RecallMode.HYBRID) -> list[object]:
+def create_memory_tools(
+    manager: MemoryManager,
+    recall_mode: RecallMode = RecallMode.HYBRID,
+    *,
+    search_policy: MemorySearchPolicy | None = None,
+    search_backends: MemorySearchBackends | None = None,
+) -> list[object]:
     """Create memory tools for the user bound to the manager.
 
     Args:
@@ -94,50 +73,41 @@ def create_memory_tools(manager: MemoryManager, recall_mode: RecallMode = Recall
     if recall_mode == RecallMode.CONTEXT:
         return []
 
+    policy = search_policy or MemorySearchPolicy()
+    backends = search_backends or MemorySearchBackends()
     tools: list[object] = []
 
-    @tool("memory_recall_tool")
-    async def memory_recall(
+    @tool("memory_search_tool")
+    async def memory_search(
         query: str,
+        corpus: MemorySearchCorpus = "memory",
         categories: list[str] | str | None = None,
         limit: int | str | None = DEFAULT_RECALL_LIMIT,
         profile_key: str | None = None,
         since: str | None = None,
         until: str | None = None,
     ) -> str:
-        """Search user memories or retrieve a specific profile attribute.
+        """Unified search across long-term memory, wiki, and prior conversations.
 
-        Use this tool when the user's question relates to their personal context,
-        preferences, past discussions, or ongoing projects.
+        Use when the user's question relates to personal context, preferences, wiki docs,
+        or earlier chat evidence ("last time", "we discussed", "continue that thread").
 
-        **When to call immediately**:
-        - User asks "my preferences", "what I like", "my settings"
-        - User references "we discussed", "last time", "previously", "you mentioned"
-        - User asks "what do you know about me", "my profile"
-        - User mentions "my projects", "my code", "my work"
+        **Corpus guide**:
+        - memory (default): durable facts, preferences, profile, learned rules
+        - sessions: prior chat snippets and summaries (when enabled)
+        - wiki: agent wiki vault content (when enabled)
+        - all: search every corpus enabled for this agent
 
         **Search tips**:
-        - Use specific queries: "user's Python framework preference" not just "Python"
-        - Filter by categories when known: knowledge (facts), claim (compiled knowledge),
-          event (conversations), preference (likes/dislikes), rule (behavioral patterns)
-        - Increase limit if initial results seem insufficient (try 10-15)
-        - Use profile_key for instant attribute lookup (faster than semantic search)
-        - Use since/until when the user mentions time: "last week", "yesterday", "recently"
-
-        Args:
-            query: Semantic search query. Be specific for better results.
-            categories: Filter by: knowledge, claim, event, preference, rule.
-            limit: Max results (default 5, clamped to 1-15 for context safety).
-            profile_key: Quick-access a profile attribute (e.g. "name").
-            since: Only return memories created after this time.
-                Accepts relative shorthand (7d, 2w, 1m, 24h, 1y) or ISO 8601.
-            until: Only return memories created before this time.
-                Accepts relative shorthand or ISO 8601.
-
-        Returns:
-            Formatted memory results with relevance scores, or specific profile value.
+        - Be specific: "user's Python framework preference" not just "Python"
+        - Filter categories for memory corpus: knowledge, claim, event, preference, rule
+        - Use profile_key for instant attribute lookup (memory corpus only)
+        - Use since/until for time-scoped queries (7d, 2w, 1m, 24h, 1y, or ISO 8601)
+        - For recent chats without a query, use corpus=sessions with query="*"
         """
         if profile_key:
+            if corpus not in ("memory", "all"):
+                return "profile_key lookup is only supported for corpus=memory."
             if not manager.has_relational:
                 return "Profile memory is not enabled."
             value = await manager.get_profile_attribute(profile_key)
@@ -145,125 +115,52 @@ def create_memory_tools(manager: MemoryManager, recall_mode: RecallMode = Recall
                 return f"No profile attribute '{profile_key}' found."
             return f"{profile_key}: {value}"
 
-        parsed_cats = _parse_string_list(categories)
-        types: list[MemoryType] | None = None
-        if parsed_cats:
-            valid = [CATEGORY_TO_TYPE[c] for c in parsed_cats if c in CATEGORY_TO_TYPE]
-            types = valid or None
+        corpora, reject_reason = resolve_search_corpora(corpus, policy)
+        if reject_reason:
+            return reject_reason
+        if not corpora:
+            return "No search corpora available."
 
+        parsed_cats = _parse_string_list(categories)
+        category_names = [c for c in parsed_cats if c in CATEGORY_TO_TYPE] or None
         parsed_since = _parse_time_bound(since)
         parsed_until = _parse_time_bound(until)
         recall_limit = normalize_recall_limit(limit)
-        results = await manager.search(
-            query,
-            memory_types=types,
-            limit=recall_limit,
-            since=parsed_since,
-            until=parsed_until,
-        )
-        output: list[str] = []
-        displayed_results: list[MemorySearchResult] = []
-        max_body_chars = MAX_RECALL_OUTPUT_CHARS - (len(_DRIFT_DEFENSE_FOOTER) if results else 0)
-        output_chars = 0
-        truncated_by_budget = False
+        sections: list[str] = []
 
-        session = manager.active_session
-        if session and session.buffer_size > 0 and query:
-            for m in session.search_buffer(query):
-                budgeted = budget_recall_line(
-                    prefix="[buffered] ",
-                    content=m.content,
-                    suffix="",
-                    output_chars=output_chars,
-                    max_body_chars=max_body_chars,
+        for target in corpora:
+            if target == "memory":
+                memory_text = await search_memory_corpus(
+                    manager,
+                    query=query,
+                    category_to_type=CATEGORY_TO_TYPE,
+                    categories=category_names,
+                    limit=recall_limit,
+                    since=since,
+                    until=until,
                 )
-                if budgeted.line is None:
-                    truncated_by_budget = True
-                    break
-                output.append(budgeted.line)
-                output_chars = budgeted.next_chars
-                truncated_by_budget = truncated_by_budget or budgeted.truncated
-
-        if not results and not output:
-            if manager.last_retrieval_trace is not None:
-                await emit_cited_memory_ids([], [], retrieval_trace=manager.last_retrieval_trace)
-            return "No relevant memories found."
-
-        for r in results:
-            cat = next((k for k, v in CATEGORY_TO_TYPE.items() if v == r.memory_type), r.memory_type.value)
-            mem = r.memory
-            age = memory_age_label(mem.created_at)
-            provenance = _channel_label(mem.scope.channel_id)
-            prefix = f"{provenance}[{cat}] (id: {mem.id}, score: {r.score:.2f}, {age}) "
-            suffix = ""
-            if isinstance(mem, ClaimMemory):
-                freshness = mem.freshness
-                contradiction = mem.contradiction_status
-                evidence_count = mem.evidence_count
-                relation_type = str(mem.metadata.get("latest_relationship_type", "")).strip().lower()
-                relation_suffix = f" relation={relation_type}" if relation_type else ""
-                suffix += (
-                    f" [claim_graph freshness={freshness} contradiction={contradiction} "
-                    f"evidence={evidence_count}{relation_suffix}]"
+                sections.append(f"## Memory\n{memory_text}")
+            elif target == "wiki":
+                wiki_text = await search_wiki_corpus(backends, query)
+                sections.append(f"## Wiki\n{wiki_text}")
+            elif target == "sessions":
+                session_text = await search_sessions_corpus(
+                    backends,
+                    query=query,
+                    limit=recall_limit,
+                    since=parsed_since,
+                    until=parsed_until,
                 )
-            if isinstance(mem, SemanticMemory) and mem.source_error:
-                suffix += f" (avoid: {mem.source_error})"
-            # Staleness warning only for fact/event memories, not behavioral rules
-            if r.memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC, MemoryType.CLAIM) and _is_stale(
-                mem.created_at
-            ):
-                has_code_paths = bool(_CODE_PATH_PATTERN.search(mem.content))
-                # Check if Agent has Read tools (tool_capture_hook implies session context where tools are evaluated)
-                # But since we can't easily introspect the entire Agent toolkit here without circular deps,
-                # we'll use a dynamic fallback instruction.
-                if has_code_paths:
-                    suffix += "\n[CRITICAL: Outdated memory referencing potential paths. YOU MUST USE Read/Grep TOOLS TO VERIFY BEFORE CITING IF AVAILABLE, OR DO NOT BLINDLY TRUST]"
-                else:
-                    suffix += " (may be outdated — verify before citing)"
-            budgeted = budget_recall_line(
-                prefix=prefix,
-                content=r.content,
-                suffix=suffix,
-                output_chars=output_chars,
-                max_body_chars=max_body_chars,
-            )
-            if budgeted.line is None:
-                truncated_by_budget = True
-                break
-            output.append(budgeted.line)
-            displayed_results.append(r)
-            output_chars = budgeted.next_chars
-            truncated_by_budget = truncated_by_budget or budgeted.truncated
+                sections.append(f"## Sessions\n{session_text}")
 
-        if truncated_by_budget:
-            notice = (
-                "[recall_budget] Some recalled content was truncated to keep this tool result within "
-                f"{MAX_RECALL_OUTPUT_CHARS} chars. Refine the query or lower limit for more detail."
-            )
-            if output_chars + line_cost(notice) <= max_body_chars:
-                output.append(notice)
+        if len(sections) == 1 and corpus != "all":
+            single = sections[0]
+            prefix = "## Memory\n" if corpus == "memory" else "## Wiki\n" if corpus == "wiki" else "## Sessions\n"
+            if single.startswith(prefix):
+                return single[len(prefix) :]
+        return "\n\n".join(sections)
 
-        if displayed_results:
-            _ratable_types = (MemoryType.SEMANTIC, MemoryType.EPISODIC)
-            cited_ids = [r.memory.id for r in displayed_results if r.memory.id and r.memory_type in _ratable_types]
-            cited_refs = [
-                cited_memory_ref(r.memory, r.memory_type, r.score)
-                for r in displayed_results
-                if r.memory.id and r.memory_type in _ratable_types
-            ]
-            if cited_ids:
-                manager.set_last_cited_memory_ids(cited_ids)
-            if cited_ids or manager.last_retrieval_trace is not None:
-                await emit_cited_memory_ids(cited_ids, cited_refs, retrieval_trace=manager.last_retrieval_trace)
-        elif manager.last_retrieval_trace is not None:
-            await emit_cited_memory_ids([], [], retrieval_trace=manager.last_retrieval_trace)
-
-        text = "\n".join(output)
-        if displayed_results:
-            text += _DRIFT_DEFENSE_FOOTER
-        return text
-
-    tools.append(memory_recall)
+    tools.append(memory_search)
 
     @tool("memory_save_tool")
     async def memory_save(
@@ -288,7 +185,7 @@ def create_memory_tools(manager: MemoryManager, recall_mode: RecallMode = Recall
         - User sets a rule: "always do X" / "never do Y"
 
         **WHAT NOT TO SAVE**:
-        - Task progress, session outcomes, completed-work logs (use conversation_search instead)
+        - Task progress, session outcomes, completed-work logs (use memory_search with corpus=sessions instead)
         - Temporary state: PR numbers, commit SHAs, current file paths, WIP items
         - Information that will be stale within a week
         - Step-by-step procedures or workflows (not suitable for memory)
@@ -428,7 +325,7 @@ def create_memory_tools(manager: MemoryManager, recall_mode: RecallMode = Recall
 
         Args:
             action: "update", "delete", "correct", or "rate".
-            memory_id: Memory ID from memory_recall results.
+            memory_id: Memory ID from memory_search results.
             category: knowledge | event | preference | rule.
             new_content: Required for update/correct actions.
             new_importance: Optional new importance score.

@@ -111,7 +111,7 @@ class TestLoopGuardDivergence:
     def test_divergence_detected(self) -> None:
         g = LoopGuard(divergence_threshold=6, warn_threshold=100, break_threshold=100)
         tools = [
-            "memory_recall_tool",
+            "memory_search_tool",
             "file_read_tool",
             "bash_code_execute_tool",
             "web_search_tool",
@@ -121,7 +121,7 @@ class TestLoopGuardDivergence:
         for tool_name in tools:
             g.pre_check(tool_name, {"x": 1})
             g.record_result(tool_name, {"x": 1}, "Success: something worked")
-        verdict = g.pre_check("memory_recall_tool", {"x": 2})
+        verdict = g.pre_check("memory_search_tool", {"x": 2})
         if verdict.action == LoopAction.WARN:
             assert "tool categories" in verdict.reason.lower() or "divergence" in verdict.reason.lower()
 
@@ -223,7 +223,7 @@ class TestPollTools:
 
 class TestToolGroupMapping:
     def test_known_tools(self) -> None:
-        assert get_tool_group("memory_recall_tool") == ToolGroup.MEMORY
+        assert get_tool_group("memory_search_tool") == ToolGroup.MEMORY
         assert get_tool_group("file_read_tool") == ToolGroup.READ
         assert get_tool_group("bash_code_execute_tool") == ToolGroup.EXECUTE
         assert get_tool_group("web_search_tool") == ToolGroup.SEARCH

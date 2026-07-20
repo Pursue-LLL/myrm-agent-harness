@@ -1,23 +1,26 @@
 """Incremental vault spill for long-running background bash stdout/stderr.
 
 [INPUT]
-- runtime.execution_paths::ensure_context_dir_exists, get_workspace_relative_path (POS: context paths)
+- runtime.execution_paths::ensure_context_dir_exists (POS: session-scoped context dirs)
 
 [OUTPUT]
-- BackgroundOutputSpillWriter: Append-only log writer under .context/{session}/evicted/
+- BackgroundOutputSpillWriter: Append-only log writer; exposes evicted API basename via vault_log_ref
 
 [POS]
-BSDL Core — mirrors foreground _output_eviction persistence for background jobs.
+Long-running background bash stdout/stderr spill under .context/{session}/evicted/ (same filename contract as foreground _output_eviction).
 """
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
+from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
 _SPILL_LINE_THRESHOLD = 80
+_EVICTED_BASENAME_PREFIX = "output_"
+_EVICTED_BASENAME_SUFFIX = ".txt"
 
 
 class BackgroundOutputSpillWriter:
@@ -27,13 +30,16 @@ class BackgroundOutputSpillWriter:
         self._session_id = session_id
         self._job_id = job_id
         self._line_count = 0
-        self._rel_path: str | None = None
+        self._filename: str | None = None
         self._abs_path: Path | None = None
         self._spill_active = False
 
     @property
     def vault_log_ref(self) -> str | None:
-        return self._rel_path
+        """Basename for /files/evicted API (matches foreground _output_eviction)."""
+        if self._filename is None:
+            return None
+        return self._filename
 
     def append_line(self, stream: str, text: str) -> None:
         if not self._session_id or not text:
@@ -53,20 +59,17 @@ class BackgroundOutputSpillWriter:
             logger.warning("Background spill write failed job=%s: %s", self._job_id, exc)
 
     def _ensure_paths(self) -> None:
-        if self._rel_path is not None:
+        if self._filename is not None:
             return
-        from myrm_agent_harness.runtime.execution_paths import (
-            ensure_context_dir_exists,
-            get_workspace_relative_path,
-        )
+        from myrm_agent_harness.runtime.execution_paths import ensure_context_dir_exists
 
-        ensure_context_dir_exists(self._session_id, "evicted")
-        safe_job = "".join(c if c.isalnum() else "_" for c in self._job_id)[:48]
+        file_id = uuid4().hex[:8]
+        filename = f"{_EVICTED_BASENAME_PREFIX}{file_id}{_EVICTED_BASENAME_SUFFIX}"
         session_dir = ensure_context_dir_exists(self._session_id, "evicted")
-        abs_path = Path(session_dir) / f"bg_{safe_job}.log"
+        abs_path = Path(session_dir) / filename
         abs_path.parent.mkdir(parents=True, exist_ok=True)
         self._abs_path = abs_path
-        self._rel_path = get_workspace_relative_path(str(abs_path))
+        self._filename = filename
 
 
 __all__ = ["BackgroundOutputSpillWriter"]

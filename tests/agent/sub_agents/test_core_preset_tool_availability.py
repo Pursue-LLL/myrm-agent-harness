@@ -91,7 +91,7 @@ def test_analysis_preset_uses_memory_ssot_tools() -> None:
 
     assert config is not None
     assert set(config.tools) == {
-        "memory_recall_tool",
+        "memory_search_tool",
         "memory_save_tool",
         "memory_manage_tool",
     }

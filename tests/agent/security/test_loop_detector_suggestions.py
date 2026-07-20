@@ -111,7 +111,7 @@ class TestEvaluateSuccessLevel:
         assert evaluate_success_level("web_search_tool", "[]") == SuccessLevel.EMPTY_OK
 
     def test_memory_empty_is_empty_ok(self) -> None:
-        assert evaluate_success_level("memory_recall_tool", "[]") == SuccessLevel.EMPTY_OK
+        assert evaluate_success_level("memory_search_tool", "[]") == SuccessLevel.EMPTY_OK
 
     def test_browser_404_is_failure(self) -> None:
         assert evaluate_success_level("browser_navigate_tool", "Page 404 not found") == SuccessLevel.FAILURE
@@ -182,7 +182,7 @@ class TestPrioritizeSuggestions:
 
 class TestGetToolSuggestion:
     def test_known_tool(self) -> None:
-        s = get_tool_suggestion("memory_recall_tool")
+        s = get_tool_suggestion("memory_search_tool")
         assert "categories" in s or "profile_key" in s
 
     def test_unknown_tool(self) -> None:
@@ -191,14 +191,14 @@ class TestGetToolSuggestion:
 
 class TestGenerateDynamicSuggestion:
     def test_no_relevant_calls(self) -> None:
-        result = generate_dynamic_suggestion("memory_recall_tool", [])
-        assert result == get_tool_suggestion("memory_recall_tool")
+        result = generate_dynamic_suggestion("memory_search_tool", [])
+        assert result == get_tool_suggestion("memory_search_tool")
 
     def test_with_relevant_calls(self) -> None:
         calls = [
-            CallRecord(tool_name="memory_recall_tool", args_hash="abc", args={"query": "test"}),
+            CallRecord(tool_name="memory_search_tool", args_hash="abc", args={"query": "test"}),
         ]
-        result = generate_dynamic_suggestion("memory_recall_tool", calls)
+        result = generate_dynamic_suggestion("memory_search_tool", calls)
         assert isinstance(result, str)
         assert len(result) > 0
 

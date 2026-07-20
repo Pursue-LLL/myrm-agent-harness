@@ -4,7 +4,7 @@ from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard
 def test_debug():
     g = LoopGuard(divergence_threshold=6, warn_threshold=100, break_threshold=100)
     tools = [
-        "memory_recall_tool",
+        "memory_search_tool",
         "file_read_tool",
         "bash_code_execute_tool",
         "web_search_tool",

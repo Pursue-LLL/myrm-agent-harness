@@ -26,7 +26,7 @@ dependencies = [
   "aiosqlite>=0.22.1",                  # async SQLite (memory stores + checkpointer)
   "dill>=0.4.1",                        # checkpoint serde (ChatLiteLLM / complex objects)
   # --- LLM 多供应商适配 ---
-  "litellm>=1.92.0", # 统一 LLM API 代理 (100+ 供应商)
+  "litellm>=1.93.0", # 统一 LLM API 代理 (100+ 供应商)
   # --- MCP 协议支持 ---
   "langchain-mcp-adapters>=0.3.0", # MCP 工具/服务适配器
   # --- 数据验证与序列化 ---
@@ -49,7 +49,7 @@ dependencies = [
   "beautifulsoup4>=4.15.0", # HTML DOM 解析与清洗（ContentPruningFilter）
   "lxml>=6.1.1",            # bs4 lxml parser (content_pruning + tree_truncator)
   # --- Agent 协议与基础设施 ---
-  "filelock>=3.29.7",  # 跨进程文件锁 (Skill 并发控制)
+  "filelock>=3.31.1",  # 跨进程文件锁 (Skill 并发控制)
   "mcp>=1.28.1",       # MCP 协议 SDK (Server transport)
   "watchdog>=6.0.0",   # 文件系统变更监控 (backends/skills/watcher.py)
   "pdfplumber>=0.11.10", # PDF 文本+表格提取 (file_read_tool CORE; pypdfium2 由 pdfplumber 传递依赖)

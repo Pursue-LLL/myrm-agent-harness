@@ -48,7 +48,7 @@ async def test_memory_recall_formats_channel_provenance(mock_vector_store, mock_
             ]
         ),
     ):
-        recall_tool = next(tool for tool in create_memory_tools(manager) if tool.name == "memory_recall_tool")
+        recall_tool = next(tool for tool in create_memory_tools(manager) if tool.name == "memory_search_tool")
         result = await recall_tool.ainvoke({"query": "deployment"})
 
     assert "[from Feishu] [knowledge]" in result
@@ -94,7 +94,7 @@ async def test_memory_recall_formats_claim_graph_annotations(mock_vector_store, 
             ]
         ),
     ):
-        recall_tool = next(tool for tool in create_memory_tools(manager) if tool.name == "memory_recall_tool")
+        recall_tool = next(tool for tool in create_memory_tools(manager) if tool.name == "memory_search_tool")
         result = await recall_tool.ainvoke({"query": "jwt auth"})
 
     assert "[from Telegram] [claim]" in result
@@ -113,7 +113,7 @@ class TestRecallModeToolVisibility:
         manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
         tools = create_memory_tools(manager, recall_mode=RecallMode.HYBRID)
         names = {t.name for t in tools}
-        assert names == {"memory_recall_tool", "memory_save_tool", "memory_manage_tool"}
+        assert names == {"memory_search_tool", "memory_save_tool", "memory_manage_tool"}
 
     def test_context_hides_all_tools(self, mock_vector_store, mock_embedding, memory_config):
         manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
@@ -124,7 +124,7 @@ class TestRecallModeToolVisibility:
         manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
         tools = create_memory_tools(manager, recall_mode=RecallMode.TOOLS)
         names = {t.name for t in tools}
-        assert names == {"memory_recall_tool", "memory_save_tool", "memory_manage_tool"}
+        assert names == {"memory_search_tool", "memory_save_tool", "memory_manage_tool"}
 
     def test_default_is_hybrid(self, mock_vector_store, mock_embedding, memory_config):
         manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
@@ -200,7 +200,7 @@ class TestMemoryRecallTool:
     async def test_recall_no_results(self, mock_vector_store, mock_embedding, memory_config):
         manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
         with patch.object(type(manager), "search", AsyncMock(return_value=[])):
-            tool = next(t for t in create_memory_tools(manager) if t.name == "memory_recall_tool")
+            tool = next(t for t in create_memory_tools(manager) if t.name == "memory_search_tool")
             result = await tool.ainvoke({"query": "nothing"})
         assert "No relevant memories found" in result
 
@@ -210,7 +210,7 @@ class TestMemoryRecallTool:
 
         manager = self._make_manager(mock_vector_store, mock_embedding, memory_config, relational=AsyncMock())
         with patch.object(MemoryManager, "get_profile_attribute", AsyncMock(return_value="Alice")):
-            tool = next(t for t in create_memory_tools(manager) if t.name == "memory_recall_tool")
+            tool = next(t for t in create_memory_tools(manager) if t.name == "memory_search_tool")
             result = await tool.ainvoke({"query": "", "profile_key": "name"})
         assert "name: Alice" in result
 
@@ -220,14 +220,14 @@ class TestMemoryRecallTool:
 
         manager = self._make_manager(mock_vector_store, mock_embedding, memory_config, relational=AsyncMock())
         with patch.object(MemoryManager, "get_profile_attribute", AsyncMock(return_value=None)):
-            tool = next(t for t in create_memory_tools(manager) if t.name == "memory_recall_tool")
+            tool = next(t for t in create_memory_tools(manager) if t.name == "memory_search_tool")
             result = await tool.ainvoke({"query": "", "profile_key": "missing_key"})
         assert "No profile attribute" in result
 
     @pytest.mark.asyncio
     async def test_recall_profile_key_no_relational(self, mock_vector_store, mock_embedding, memory_config):
         manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
-        tool = next(t for t in create_memory_tools(manager) if t.name == "memory_recall_tool")
+        tool = next(t for t in create_memory_tools(manager) if t.name == "memory_search_tool")
         result = await tool.ainvoke({"query": "", "profile_key": "name"})
         assert "not enabled" in result.lower()
 
@@ -248,7 +248,7 @@ class TestMemoryRecallTool:
                 ]
             ),
         ):
-            tool = next(t for t in create_memory_tools(manager) if t.name == "memory_recall_tool")
+            tool = next(t for t in create_memory_tools(manager) if t.name == "memory_search_tool")
             result = await tool.ainvoke({"query": "fact"})
         assert "may be outdated" in result
 
@@ -268,7 +268,7 @@ class TestMemoryRecallTool:
                 ]
             ),
         ):
-            tool = next(t for t in create_memory_tools(manager) if t.name == "memory_recall_tool")
+            tool = next(t for t in create_memory_tools(manager) if t.name == "memory_search_tool")
             result = await tool.ainvoke({"query": "pref"})
         assert "(avoid: wrong output)" in result
 
@@ -286,7 +286,7 @@ class TestMemoryRecallTool:
                 ]
             ),
         ):
-            tool = next(t for t in create_memory_tools(manager) if t.name == "memory_recall_tool")
+            tool = next(t for t in create_memory_tools(manager) if t.name == "memory_search_tool")
             result = await tool.ainvoke({"query": "fact"})
         assert "verify they still exist" in result
 
@@ -297,7 +297,7 @@ class TestMemoryRecallTool:
         manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
         search_mock = AsyncMock(return_value=[])
         with patch.object(MemoryManager, "search", search_mock):
-            tool = next(t for t in create_memory_tools(manager) if t.name == "memory_recall_tool")
+            tool = next(t for t in create_memory_tools(manager) if t.name == "memory_search_tool")
             await tool.ainvoke({"query": "test", "categories": ["knowledge", "event"]})
         call_kw = search_mock.call_args
         types = call_kw.kwargs.get("memory_types") or call_kw[1].get("memory_types")

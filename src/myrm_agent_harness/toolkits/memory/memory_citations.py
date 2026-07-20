@@ -53,7 +53,7 @@ async def emit_cited_memory_ids(
     memory_ids: list[str],
     memory_refs: list[dict[str, object]] | None = None,
     *,
-    tool_name: str = "memory_recall_tool",
+    tool_name: str = "memory_search_tool",
     retrieval_trace: MemoryRetrievalTrace | None = None,
 ) -> None:
     """Push cited memory metadata to the SSE output queue for frontend consumption."""

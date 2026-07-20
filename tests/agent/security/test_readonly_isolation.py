@@ -69,11 +69,11 @@ class TestReadonlyDisallowedTools:
         """readonly blocks are added even when tools allowlist is set."""
         config = SubagentConfig(
             system_prompt="test",
-            tools=("write_file", "web_search_tool", "memory_recall_tool"),
+            tools=("write_file", "web_search_tool", "memory_search_tool"),
         )
         new = _apply_readonly(config)
         assert "write_file" in new.disallowed_tools
-        assert new.tools == ("write_file", "web_search_tool", "memory_recall_tool")
+        assert new.tools == ("write_file", "web_search_tool", "memory_search_tool")
 
     def test_idempotent(self):
         """Applying readonly twice produces the same result."""
@@ -117,7 +117,7 @@ class TestFilterToolsIntegration:
         for name in [
             "write_file",
             "web_search_tool",
-            "memory_recall_tool",
+            "memory_search_tool",
             "bash_run_command",
             "execute_terminal_command",
             "git_commit",
@@ -141,7 +141,7 @@ class TestFilterToolsIntegration:
             assert blocked not in filtered_names, f"{blocked} should be filtered out"
 
         assert "web_search_tool" in filtered_names
-        assert "memory_recall_tool" in filtered_names
+        assert "memory_search_tool" in filtered_names
         assert "read_file" in filtered_names
 
     def test_readonly_plus_global_blacklist(self, mock_tools):

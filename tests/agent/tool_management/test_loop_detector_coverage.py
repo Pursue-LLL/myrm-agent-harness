@@ -97,13 +97,13 @@ class TestAnalyzeWarningLevel:
 
 class TestEvaluateSuccessLevel:
     def test_empty_content(self) -> None:
-        assert evaluate_success_level("memory_recall_tool", "") == SuccessLevel.FAILURE
+        assert evaluate_success_level("memory_search_tool", "") == SuccessLevel.FAILURE
 
     def test_search_empty_result(self) -> None:
         assert evaluate_success_level("web_search_tool", "[]") == SuccessLevel.EMPTY_OK
 
     def test_memory_empty_result(self) -> None:
-        assert evaluate_success_level("memory_recall_tool", "[]") == SuccessLevel.EMPTY_OK
+        assert evaluate_success_level("memory_search_tool", "[]") == SuccessLevel.EMPTY_OK
 
     def test_non_search_empty_result(self) -> None:
         assert evaluate_success_level("file_write_tool", "[]") == SuccessLevel.FAILURE
@@ -334,7 +334,7 @@ class TestPhaseInference:
             "file_read_tool",
             "web_search_tool",
             "bash_code_execute_tool",
-            "memory_recall_tool",
+            "memory_search_tool",
             "browser_navigate_tool",
             "glob_tool",
             "grep_tool",
@@ -356,7 +356,7 @@ class TestDivergenceWarningPath:
             "file_write_tool",
             "web_search_tool",
             "bash_code_execute_tool",
-            "memory_recall_tool",
+            "memory_search_tool",
             "browser_navigate_tool",
         ]
         for i, tool in enumerate(tools):
@@ -395,7 +395,7 @@ class TestPhaseInferenceHighCallCount:
             "file_read_tool",
             "web_search_tool",
             "bash_code_execute_tool",
-            "memory_recall_tool",
+            "memory_search_tool",
             "browser_navigate_tool",
             "glob_tool",
             "grep_tool",

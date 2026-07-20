@@ -102,8 +102,7 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
     {
         *TOOL_PERMISSION_MAP,
         "web_search_tool",
-        "conversation_search_tool",
-        "memory_recall_tool",
+        "memory_search_tool",
         "memory_save_tool",
         "memory_manage_tool",
         "skill_select_tool",
@@ -172,7 +171,7 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
     ),
     "memory": frozenset(
         {
-            "memory_recall_tool",
+            "memory_search_tool",
             "memory_save_tool",
             "memory_manage_tool",
         }
@@ -247,7 +246,7 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
     "web_fetch_tool": ["url"],
     "web_search_tool": ["query"],
     "memory_save_tool": ["content", "tags"],
-    "memory_recall_tool": ["query"],
+    "memory_search_tool": ["query"],
     "memory_manage_tool": ["action"],
     "skill_select_tool": ["skill_ids"],
     "skill_discovery_tool": ["query"],
@@ -434,8 +433,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         taint_label="external_network",
         taint_extractor=lambda args: _sanitize_url_for_taint(args.get("url")),
     ),
-    "conversation_search_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "memory_recall_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "memory_search_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "todo_write": SafetyMetadata(is_read_only=False, is_concurrent_safe=False, is_idempotent=False),
     "discover_capability_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     "skill_discovery_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),

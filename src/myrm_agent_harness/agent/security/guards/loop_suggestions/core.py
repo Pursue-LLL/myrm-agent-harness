@@ -40,7 +40,7 @@ _REAL_PASS_RE = re.compile(
 )
 
 TOOL_SUGGESTIONS: dict[str, str] = {
-    "memory_recall_tool": (
+    "memory_search_tool": (
         "Try: (1) different 'categories' filter (knowledge/event/preference/rule), "
         "(2) increase 'limit' to 10-15, (3) rephrase query with specific keywords, "
         "(4) use 'profile_key' for direct attribute access, "

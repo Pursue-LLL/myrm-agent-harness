@@ -41,7 +41,6 @@ _GROUP_TO_PRODUCT_ID: dict[str, str] = {
 _BASELINE_TOOL_GROUPS: frozenset[str] = frozenset({"file_ops", "shell"})
 
 _PRODUCT_ID_TOOL_OVERRIDES: dict[str, str] = {
-    "conversation_search_tool": "memory",
 }
 
 _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
@@ -53,10 +52,9 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
     "glob_tool": "Agent baseline file_ops; Turn1",
     "grep_tool": "Agent baseline file_ops; Turn1",
     "web_search_tool": "enabled_builtin_tools: web_search (default on)",
-    "memory_recall_tool": "enable_memory + enabled_builtin_tools: memory",
+    "memory_search_tool": "enable_memory + enabled_builtin_tools: memory; corpus=sessions when memoryEnableConversationSearch",
     "memory_save_tool": "enable_memory + enabled_builtin_tools: memory",
     "memory_manage_tool": "enable_memory + enabled_builtin_tools: memory",
-    "conversation_search_tool": "memoryEnableConversationSearch opt-in",
     "request_answer_user_tool": "enabled_builtin_tools: answer_tool",
     "todo_write": "planning or existing workspace todos",
     "bash_process_tool": "Turn1 when bash enabled",
@@ -69,7 +67,6 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
     "send_teammate_message_tool": "SubagentManagementExtension + entitlements",
     "complete_goal_tool": "active Goal on chat",
     "x_search_tool": "x-live-search prebuilt skill bound",
-    "knowledge_recall_tool": "enable_wiki + enable_memory (non-incognito)",
     "channel_notify_tool": "Agent notify_targets configured",
     "cron_manage_tool": "user cron capability wired",
     "delegate_to_agent_tool": "external ACP agent configured",

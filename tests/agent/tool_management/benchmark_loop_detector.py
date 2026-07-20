@@ -38,7 +38,7 @@ def benchmark_full_detection() -> dict[str, float]:
 
     test_tools = [
         ("file_read_tool", {"path": "/foo/bar.py"}),
-        ("memory_recall_tool", {"query": "test", "limit": 5}),
+        ("memory_search_tool", {"query": "test", "limit": 5}),
         ("bash_code_execute_tool", {"command": "ls -la"}),
         ("web_search_tool", {"questions": ["python async"]}),
         ("file_write_tool", {"path": "/tmp/test.txt", "content": "test"}),

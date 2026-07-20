@@ -24,7 +24,7 @@ def _recall_tool(manager: MemoryManager) -> _AsyncTool:
     tool = next(
         candidate
         for candidate in create_memory_tools(manager)
-        if getattr(candidate, "name", "") == "memory_recall_tool"
+        if getattr(candidate, "name", "") == "memory_search_tool"
     )
     return cast(_AsyncTool, tool)
 

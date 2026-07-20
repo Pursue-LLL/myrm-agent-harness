@@ -94,6 +94,16 @@ class GoalStorage:
             logger.warning("Failed to enumerate active goal sessions", exc_info=True)
             return []
 
+    async def list_latest_goal_sessions(self) -> list[str]:
+        """Return session_ids that have a latest goal index entry."""
+        prefix = f"{_GOAL_NAMESPACE}_latest/"
+        try:
+            keys = await self._storage.list(prefix=prefix)
+            return [k.removeprefix(prefix) for k in keys if k.startswith(prefix)]
+        except Exception:
+            logger.warning("Failed to enumerate latest goal sessions", exc_info=True)
+            return []
+
     async def get_latest_goal_id(self, session_id: str) -> str | None:
         """Get the ID of the latest goal for a session."""
         try:
