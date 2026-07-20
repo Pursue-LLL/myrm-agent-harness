@@ -28,6 +28,7 @@ from uuid import uuid4
 from myrm_agent_harness.toolkits.acp.event_bus import EventBus
 from myrm_agent_harness.toolkits.acp.health_monitor import HealthMonitor
 from myrm_agent_harness.toolkits.acp.types import (
+    McpServerConfig,
     RuntimeBackend,
     RuntimeConfig,
     RuntimeEvent,
@@ -149,6 +150,7 @@ class RuntimePool:
         session_id: str,
         *,
         mode: str = "persistent",
+        mcp_servers: list[McpServerConfig] | None = None,
     ) -> AsyncIterator[RuntimeEvent]:
         """Stream events from a backend turn with concurrency control.
 
@@ -158,10 +160,21 @@ class RuntimePool:
             msg = f"Invalid mode: {mode}"
             raise ValueError(msg)
 
+        config = self._configs.get(name)
+        effective_mcp = (
+            mcp_servers
+            if mcp_servers is not None
+            else (list(config.mcp_servers) if config is not None else [])
+        )
+
         async with self._semaphore:
             backend = self.get(name)
             try:
-                async for event in backend.run_turn(prompt, session_id):
+                async for event in backend.run_turn(
+                    prompt,
+                    session_id,
+                    mcp_servers=effective_mcp or None,
+                ):
                     if self._event_bus is not None:
                         await self._event_bus.emit(event)
                     yield event

@@ -193,12 +193,19 @@ class CliRuntime(BaseRuntime):
                     stderr_text[:200],
                 )
             else:
+                from myrm_agent_harness.toolkits.acp.runtime._spawn_hints import format_cli_spawn_failure_message
+
+                message = format_cli_spawn_failure_message(
+                    command,
+                    return_code=return_code,
+                    stderr=stderr_text,
+                )
                 yield create_event(
                     RuntimeEventType.ERROR,
                     session_id,
                     error=AcpError(
                         code=AcpErrorCode.PROCESS_CRASHED,
-                        message=f"CLI process exited with code {return_code}: {stderr_text[:500]}",
+                        message=message,
                         retryable=True,
                     ),
                 )

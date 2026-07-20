@@ -85,6 +85,7 @@ class ComputerSession:
         estimated_duration_seconds: float = 5.0,
         app_name: str = "",
         window_title: str = "",
+        app_id: str = "",
     ) -> ActionResult | None:
         """Gate foreground-stealing operations behind user permission.
 
@@ -117,6 +118,7 @@ class ComputerSession:
             estimated_duration_seconds=estimated_duration_seconds,
             app_name=app_name,
             window_title=window_title,
+            app_id=app_id,
             require_app_approval=False,
         )
 
@@ -141,16 +143,19 @@ class ComputerSession:
         window_title: str,
         operation: str,
         estimated_duration_seconds: float = 5.0,
+        app_id: str = "",
     ) -> ActionResult | None:
         """Gate first-time per-app desktop interaction behind user approval."""
         resolved_app = app_name.strip()
         resolved_title = window_title.strip()
+        resolved_app_id = app_id.strip()
 
         if not resolved_app:
             from myrm_agent_harness.toolkits.computer_use.perception.ax_dispatch import inspect_backend
 
             fg_info = inspect_backend(self._backend)
             resolved_app = str(fg_info.get("app_name", "") or "").strip()
+            resolved_app_id = str(fg_info.get("app_id", "") or "").strip()
             if not resolved_title:
                 resolved_title = str(fg_info.get("window_title", "") or "").strip()
 
@@ -179,6 +184,7 @@ class ComputerSession:
             estimated_duration_seconds=estimated_duration_seconds,
             app_name=resolved_app,
             window_title=resolved_title,
+            app_id=resolved_app_id,
             require_app_approval=True,
         )
 

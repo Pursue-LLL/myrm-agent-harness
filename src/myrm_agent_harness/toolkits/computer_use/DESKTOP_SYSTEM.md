@@ -10,7 +10,7 @@
 2. **Semantic-first**: Prefer `desktop_interact_tool(ref=@dref)` over coordinate guessing
 3. **Explicit fallback**: `desktop_vision_tool` for canvas-only UIs, empty AX trees, or failed semantic invoke
 4. **WebUI parity**: Mirror browser inspector via `DESKTOP_VIEW_UPDATE` SSE + `/webui/desktop/snapshot` REST refresh
-5. **Safety**: Three guardrail types in `safety.py` — blocked key combos, dangerous type-text patterns, and sensitive application guard (`is_sensitive_app`). Enforced in `desktop_snapshot`, `desktop_interact`, and `desktop_vision_action`
+5. **Safety**: Three guardrail types in `safety.py` — blocked key combos, dangerous type-text patterns, and sensitive application guard (`is_sensitive_app`, including terminal/shell apps and SelfAppGuard for Myrm/Cursor host UI via bundle_id + host names). Enforced in `desktop_snapshot`, `desktop_interact`, and `desktop_vision_action`
 
 ---
 
@@ -104,9 +104,10 @@ Server wiring: `agent._desktop_session` → `AgentGateway.get_active_desktop_ses
 | `CuPermissionInline` (Agent config) | Inline status when `computer_use` is enabled locally |
 | Settings Doctor `DesktopControl` probe | Same probe via `check_desktop_permissions_health()` in `observability/diagnostics/probes.py` |
 | Server regression | `myrm-agent-server/tests/api/health/test_doctor.py::test_desktop_control_probe_in_doctor`; `tests/api/webui/test_desktop_permissions.py` (probe session close) |
-| Frontend vitest | `DoctorDashboard.desktopControlWarn.test.tsx`; `CuPermissionInline.test.tsx`; `DesktopPermissionsCard.test.tsx`; `DesktopControlApprovalBanner.test.tsx`; `DesktopLiveView.permissionBanner.test.tsx`; `lib/desktop/permissionDeepLink.test.ts` (6 files, 21 cases) |
+| Frontend vitest | `DoctorDashboard.desktopControlWarn.test.tsx`; `CuPermissionInline.test.tsx`; `DesktopPermissionsCard.test.tsx` (5 cases); `DesktopControlApprovalBanner.test.tsx`; `DesktopLiveView.permissionBanner.test.tsx`; `lib/desktop/permissionDeepLink.test.ts` (6 files, 22 cases) |
 | Deeplink SSOT | `myrm-agent-frontend/src/lib/desktop/permissionDeepLink.ts` |
 | Open semantics | Settings `DesktopPermissionsCard` → `openPermissionDeepLink`（deeplink fallback）；Doctor / Agent inline / Inspector → `openPermissionDeepLinkWithGuideFallback(url, platform)`（平台指南 fallback） |
+| Trusted apps | `GET/DELETE /webui/desktop/trust/apps` + Settings trusted-apps section（加载失败显示重试，不伪装空列表） |
 | Chrome E2E | `tests/e2e/test_desktop_control_approval_chrome_e2e.py` (`chrome_e2e_desktop`, allow_once) |
 | Chrome E2E attach gate | `tests/support/e2e_runtime_guard.py::assert_chrome_attach_health` — shared-attach lane only; item runtimes skip (private preflight already ran) |
 

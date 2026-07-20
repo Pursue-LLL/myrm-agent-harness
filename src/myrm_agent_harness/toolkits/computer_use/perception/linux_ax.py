@@ -40,10 +40,11 @@ def _try_pyatspi_snapshot() -> LinuxAxSnapshot | None:
     refs: dict[str, ElementRef] = {}
     app_name = ""
     window_title = ""
+    app_id = ""
     counter = 0
 
     def walk(node: object) -> None:
-        nonlocal counter, app_name, window_title
+        nonlocal counter, app_name, window_title, app_id
         if counter >= _MAX_ELEMENTS:
             return
         try:
@@ -57,6 +58,8 @@ def _try_pyatspi_snapshot() -> LinuxAxSnapshot | None:
             window_title = name
         if role_name in {"application"} and not app_name:
             app_name = name
+            if name:
+                app_id = f"linux:{name.strip().lower()}"
 
         if role_name in _INTERACTIVE_ROLES:
             try:
@@ -93,6 +96,7 @@ def _try_pyatspi_snapshot() -> LinuxAxSnapshot | None:
         app_name=app_name,
         window_title=window_title,
         scope="foreground",
+        app_id=app_id,
         truncated=counter >= _MAX_ELEMENTS,
     )
     return LinuxAxSnapshot(meta=meta, refs=refs)
@@ -238,6 +242,7 @@ def inspect_foreground() -> dict[str, str | int | bool]:
     return {
         "app_name": snapshot.meta.app_name,
         "window_title": snapshot.meta.window_title,
+        "app_id": snapshot.meta.app_id,
         "interactive_estimate": snapshot.meta.ref_count,
         "needs_permission": False,
         "recommendation": base_rec + native_hint,

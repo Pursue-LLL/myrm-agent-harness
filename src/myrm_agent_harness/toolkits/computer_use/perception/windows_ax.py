@@ -71,6 +71,21 @@ def _collect_controls(control: object, refs: dict[str, ElementRef], counter: lis
         _collect_controls(child, refs, counter)
 
 
+def _resolve_windows_app_id(control: object) -> str:
+    try:
+        import uiautomation as auto
+
+        pid = int(getattr(control, "ProcessId", 0) or 0)
+        if pid <= 0:
+            return ""
+        process_name = auto.GetProcessNameByPid(pid)
+        if process_name:
+            return f"win:{process_name.strip().lower()}"
+    except Exception:
+        return ""
+    return ""
+
+
 def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -> WindowsAxSnapshot:
     del scope, window_title
     try:
@@ -84,6 +99,7 @@ def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -
 
     app_name = control.Name or ""
     window_title_value = app_name
+    app_id = _resolve_windows_app_id(control)
     refs: dict[str, ElementRef] = {}
     _collect_controls(control, refs, [0])
     if not refs:
@@ -94,6 +110,7 @@ def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -
         app_name=app_name,
         window_title=window_title_value,
         scope="foreground",
+        app_id=app_id,
         truncated=len(refs) >= _MAX_ELEMENTS,
     )
     return WindowsAxSnapshot(meta=meta, refs=refs)
@@ -191,6 +208,7 @@ def inspect_foreground() -> dict[str, str | int | bool]:
     return {
         "app_name": snapshot.meta.app_name,
         "window_title": snapshot.meta.window_title,
+        "app_id": snapshot.meta.app_id,
         "interactive_estimate": snapshot.meta.ref_count,
         "needs_permission": False,
         "recommendation": base_rec + native_hint,

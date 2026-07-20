@@ -233,6 +233,7 @@ class ForegroundPermissionCallback(Protocol):
         timeout_seconds: float = 30.0,
         app_name: str = "",
         window_title: str = "",
+        app_id: str = "",
         require_app_approval: bool = True,
     ) -> ForegroundPermissionResult:
         """Request desktop control permission from the user.
@@ -242,8 +243,9 @@ class ForegroundPermissionCallback(Protocol):
             operation: The specific action being attempted (e.g. "click at (320, 480)").
             estimated_duration_seconds: How long the operation will take.
             timeout_seconds: Max time to wait for user response before auto-denying.
-            app_name: Foreground application name for per-app first approval.
+            app_name: Human-readable application name for per-app first approval.
             window_title: Foreground window title for display context.
+            app_id: Stable platform identifier (bundle ID / process exe) for trust keys.
             require_app_approval: When False, only foreground/coordinate approval is requested.
         """
         ...

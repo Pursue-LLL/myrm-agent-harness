@@ -94,7 +94,7 @@ class AcpRuntime(BaseRuntime):
             await self._ensure_connection()
 
         if self._session_id is None:
-            await self._create_session()
+            await self._create_session(mcp_servers=mcp_servers)
 
         handler = self._handler
         if handler is None:
@@ -231,7 +231,7 @@ class AcpRuntime(BaseRuntime):
         )
         logger.info("acp_runtime_connected name=%s pid=%s", self._name, process.pid)
 
-    async def _create_session(self) -> None:
+    async def _create_session(self, *, mcp_servers: list[McpServerConfig] | None = None) -> None:
         """Create a new ACP session."""
         if self._conn is None:
             msg = "Cannot create session: connection not established"
@@ -240,8 +240,25 @@ class AcpRuntime(BaseRuntime):
         from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import WorkspacePathResolver
 
         cwd = self._config.cwd or str(WorkspacePathResolver.resolve_workspace_root())
-        response = await self._conn.new_session(cwd=cwd)
+        acp_mcp = _mcp_configs_to_acp_stdio(mcp_servers)
+        if acp_mcp:
+            response = await self._conn.new_session(cwd=cwd, mcp_servers=acp_mcp)
+        else:
+            response = await self._conn.new_session(cwd=cwd)
         self._session_id = response.session_id
         if self._handler is not None:
             self._handler.session_id = self._session_id
         logger.info("acp_runtime_session_created name=%s session_id=%s", self._name, self._session_id)
+
+
+def _mcp_configs_to_acp_stdio(
+    mcp_servers: list[McpServerConfig] | None,
+) -> list[object] | None:
+    if not mcp_servers:
+        return None
+    from acp.schema import McpServerStdio
+
+    return [
+        McpServerStdio(name=server.name, command=server.command, args=list(server.args))
+        for server in mcp_servers
+    ]

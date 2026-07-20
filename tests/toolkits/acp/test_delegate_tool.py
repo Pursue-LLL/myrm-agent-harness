@@ -71,6 +71,8 @@ class TestCreateDelegateTool:
         pool = _make_pool({"claude": _cfg()})
         tool_func = create_delegate_to_agent_tool(pool, cwd="/workspace")
         assert tool_func.name == "delegate_to_agent_tool"
+        assert "Available agents" not in tool_func.description
+        assert "configured backend" in tool_func.description
 
     @pytest.mark.asyncio
     async def test_invalid_mode(self) -> None:
@@ -332,6 +334,25 @@ class TestRunTurnAndCollect:
         await _run_turn_and_collect(pool, "claude", "t2", mode="persistent")
         assert captured_sessions[0] == captured_sessions[1]
         assert "default" in captured_sessions[0]
+
+    @pytest.mark.asyncio
+    async def test_persistent_session_id_uses_scope(self) -> None:
+        pool = _make_pool({"claude": _cfg()})
+        captured_sessions: list[str] = []
+
+        async def capture_session(name, task, session_id, mode="persistent"):
+            captured_sessions.append(session_id)
+            yield create_event(RuntimeEventType.DONE, session_id, stop_reason="end_turn")
+
+        pool.run_turn = capture_session
+        await _run_turn_and_collect(
+            pool,
+            "claude",
+            "t1",
+            mode="persistent",
+            session_scope="chat-abc",
+        )
+        assert captured_sessions[0] == "claude-chat-abc"
 
     @pytest.mark.asyncio
     async def test_text_delta_non_string_content_skipped(self) -> None:

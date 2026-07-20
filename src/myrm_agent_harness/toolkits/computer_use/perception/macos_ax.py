@@ -103,13 +103,17 @@ end replaceText
 tell application "System Events"
     set frontApp to first application process whose frontmost is true
     set appName to name of frontApp
+    set bundleId to ""
+    try
+        set bundleId to bundle identifier of frontApp
+    end try
     set winTitle to ""
     try
         set winTitle to name of window 1 of frontApp
     end try
 
     set outputLines to {{}}
-    set end of outputLines to appName & "|||META|||" & winTitle
+    set end of outputLines to appName & "|||META|||" & winTitle & "|||" & bundleId
 
     try
         set uiElements to entire contents of window 1 of frontApp
@@ -152,16 +156,20 @@ _AX_FOREGROUND_META_SCRIPT = """
 tell application "System Events"
     set frontApp to first application process whose frontmost is true
     set appName to name of frontApp
+    set bundleId to ""
+    try
+        set bundleId to bundle identifier of frontApp
+    end try
     set winTitle to ""
     try
         set winTitle to name of window 1 of frontApp
     end try
-    return appName & "|||" & winTitle
+    return appName & "|||" & winTitle & "|||" & bundleId
 end tell
 """
 
 
-def _read_foreground_meta() -> tuple[str, str]:
+def _read_foreground_meta() -> tuple[str, str, str]:
     try:
         result = subprocess.run(
             ["osascript", "-e", _AX_FOREGROUND_META_SCRIPT],
@@ -170,13 +178,14 @@ def _read_foreground_meta() -> tuple[str, str]:
             timeout=5,
         )
     except subprocess.TimeoutExpired:
-        return "", ""
+        return "", "", ""
     if result.returncode != 0:
-        return "", ""
+        return "", "", ""
     parts = result.stdout.strip().split("|||")
     app_name = parts[0] if parts else ""
     window_title = parts[1] if len(parts) > 1 else ""
-    return app_name, window_title
+    app_id = parts[2] if len(parts) > 2 else ""
+    return app_name, window_title, app_id
 
 
 @dataclass(frozen=True)
@@ -210,6 +219,7 @@ def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -
     meta_line = lines[0].split("|||")
     app_name = meta_line[0] if meta_line else ""
     window_name = meta_line[2] if len(meta_line) > 2 else ""
+    app_id = meta_line[4] if len(meta_line) > 4 else ""
 
     refs: dict[str, ElementRef] = {}
     ref_index = 0
@@ -248,6 +258,7 @@ def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -
         app_name=app_name,
         window_title=window_name,
         scope="foreground",
+        app_id=app_id,
         truncated=truncated,
     )
     return MacAxSnapshot(meta=meta, refs=refs)
@@ -369,12 +380,13 @@ def inspect_foreground() -> dict[str, str | int | bool]:
         return {
             "app_name": "",
             "window_title": "",
+            "app_id": "",
             "interactive_estimate": 0,
             "needs_permission": True,
             "recommendation": "Grant macOS Accessibility permission, then call desktop_snapshot_tool.",
         }
     except AXTreeEmptyError as exc:
-        app_name, window_title = _read_foreground_meta()
+        app_name, window_title, app_id = _read_foreground_meta()
         if not app_name and "(" in str(exc) and str(exc).endswith(")"):
             app_name = str(exc).rsplit("(", 1)[-1].rstrip(")").strip()
         base_rec = "Call desktop_snapshot_tool(scope='foreground') before desktop_interact_tool."
@@ -383,6 +395,7 @@ def inspect_foreground() -> dict[str, str | int | bool]:
             return {
                 "app_name": app_name,
                 "window_title": window_title,
+                "app_id": app_id,
                 "interactive_estimate": 0,
                 "needs_permission": False,
                 "recommendation": f"{base_rec} AX tree had no interactive nodes ({exc}).{native_hint} Use desktop_vision_tool for canvas/custom-rendered UI.",
@@ -390,6 +403,7 @@ def inspect_foreground() -> dict[str, str | int | bool]:
         return {
             "app_name": "",
             "window_title": "",
+            "app_id": "",
             "interactive_estimate": 0,
             "needs_permission": False,
             "recommendation": f"AX tree unavailable ({exc}). Use desktop_vision_tool fallback.",
@@ -400,6 +414,7 @@ def inspect_foreground() -> dict[str, str | int | bool]:
     return {
         "app_name": snapshot.meta.app_name,
         "window_title": snapshot.meta.window_title,
+        "app_id": snapshot.meta.app_id,
         "interactive_estimate": snapshot.meta.ref_count,
         "needs_permission": False,
         "recommendation": base_rec + native_hint,

@@ -76,32 +76,34 @@ def _build_agent_listing(pool: RuntimePool) -> str:
     return "\n".join(lines)
 
 
-def create_delegate_to_agent_tool(pool: RuntimePool, *, cwd: str | None = None) -> BaseTool:
+def create_delegate_to_agent_tool(
+    pool: RuntimePool,
+    *,
+    cwd: str | None = None,
+    session_scope: str | None = None,
+) -> BaseTool:
     """Create the delegate_to_agent tool.
 
     Args:
         pool: Pre-configured RuntimePool with registered backends.
         cwd: Working directory injected as context into delegated tasks.
+        session_scope: Optional chat/session id for stable CLI resume keys.
 
     Returns:
         A LangChain tool function.
     """
-    agent_lines = _build_agent_listing(pool)
     from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import WorkspacePathResolver
 
     effective_cwd = cwd or str(WorkspacePathResolver.resolve_workspace_root())
 
-    tool_description = f"""Delegate a task to an external coding agent.
+    tool_description = """Delegate a task to an external coding agent.
 
 Use this tool when you need another AI agent (Claude Code, Codex, Gemini CLI, etc.)
 to perform a coding task. The external agent runs as a separate process with its own
 context and capabilities.
 
-## Available agents
-{agent_lines}
-
 ## Parameters
-- agent_name: Name of the external agent to delegate to.
+- agent_name: Name of the external agent (must match a configured backend in Settings).
 - task: Clear, complete description of what the agent should do.
   Include all necessary context — the external agent has NO access to your conversation.
 - mode: 'persistent' (default) reuses the session for follow-ups;
@@ -116,6 +118,7 @@ context and capabilities.
 - The external agent runs independently — provide ALL context in the task.
 - Response is the agent's complete text output (tool calls are summarized).
 - Each agent has a max-turns safety limit (default 25).
+- If agent_name is unknown, the error lists currently configured backends.
 """
 
     class DelegateInput(BaseModel):
@@ -145,7 +148,13 @@ context and capabilities.
         last_error: str = ""
         for attempt in range(_MAX_RETRIES + 1):
             try:
-                result, meta = await _run_turn_and_collect(pool, agent_name, enriched_task, mode=mode)
+                result, meta = await _run_turn_and_collect(
+                    pool,
+                    agent_name,
+                    enriched_task,
+                    mode=mode,
+                    session_scope=session_scope,
+                )
                 elapsed = time.monotonic() - t0
                 truncated = result.endswith("[truncated — response exceeded limit]")
                 usage = meta.get("usage")
@@ -189,7 +198,8 @@ context and capabilities.
 
                 return f"{result}\n\n[Delegation: {summary}]"
             except KeyError as exc:
-                return f"[error] {exc}"
+                available = ", ".join(pool.available_backends) or "(none configured)"
+                return f"[error] {exc}. Available backends: {available}"
             except Exception as exc:
                 elapsed = time.monotonic() - t0
                 retryable = getattr(getattr(exc, "__cause__", None), "retryable", False) or getattr(
@@ -232,6 +242,7 @@ async def _run_turn_and_collect(
     task: str,
     *,
     mode: str,
+    session_scope: str | None = None,
 ) -> tuple[str, DelegateMeta]:
     """Stream events from pool.run_turn(), collect text, and track metadata.
 
@@ -244,6 +255,8 @@ async def _run_turn_and_collect(
     """
     if mode == "oneshot":
         session_id = f"{agent_name}-oneshot-{uuid4().hex}"
+    elif session_scope:
+        session_id = f"{agent_name}-{session_scope}"
     else:
         session_id = f"{agent_name}-default"
 

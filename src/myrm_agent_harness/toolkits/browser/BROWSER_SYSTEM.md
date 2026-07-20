@@ -894,6 +894,9 @@ Frontend ← SSE: browser_takeover_requested (includes is_managed from runtime p
   ↓ is_managed=false → in-chat 横幅（引导用户在本地 Chrome 完成）+ Done/Skip
   ↓ is_managed=true → auto-open VNC/noVNC 面板 + reason 通知条
   ↓ auto_detect_completion=true → 隐藏 Done/Skip，显示 CAPTCHA 自动处理进度
+  ↓ SSE 丢失时：streamConsumer finally → recoverPendingApprovals → openApproval
+  ↓ ApprovalRegistry payload 含 messageId；activateBrowserTakeover / resolveBrowserTakeoverMessageId SSOT
+  ↓ chatId 匹配：store chatId 或 URL pathname（isActiveChatForTakeover）
   ↓ 用户完成操作后点 "Done"（或 CAPTCHA 自动完成后后端发 completed）
   ...
 Frontend → POST /agents/agent-stream { resume_value: { action: "completed" } }

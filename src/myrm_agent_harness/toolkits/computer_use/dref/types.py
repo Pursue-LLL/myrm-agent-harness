@@ -82,6 +82,7 @@ class SnapshotMeta:
     app_name: str
     window_title: str
     scope: SnapshotScope
+    app_id: str = ""
     truncated: bool = False
     needs_permission: bool = False
     token_estimate: int = 0

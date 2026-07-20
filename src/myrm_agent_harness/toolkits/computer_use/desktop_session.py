@@ -98,7 +98,7 @@ class DesktopSession(ComputerSession):
         try:
             if interact_ref is not None:
                 meta, refs = capture_snapshot(self._backend, "foreground", None)
-                blocked = safety.is_sensitive_app(meta.app_name, meta.window_title)
+                blocked = safety.is_sensitive_app(meta.app_name, meta.window_title, meta.app_id)
                 if blocked:
                     logger.warning("[SECURITY] Sensitive app guard (interact): %s", blocked)
                     return f"Safety: {blocked}"
@@ -159,7 +159,7 @@ class DesktopSession(ComputerSession):
         except AXTreeEmptyError as exc:
             return str(exc)
 
-        blocked = safety.is_sensitive_app(meta.app_name, meta.window_title)
+        blocked = safety.is_sensitive_app(meta.app_name, meta.window_title, meta.app_id)
         if blocked:
             logger.warning("[SECURITY] Sensitive app guard: %s (app=%s)", blocked, meta.app_name)
             return f"Safety: {blocked}"
@@ -210,10 +210,12 @@ class DesktopSession(ComputerSession):
         meta = self._refs.meta
         app_name = meta.app_name if meta else ""
         window_title = meta.window_title if meta else ""
+        app_id = meta.app_id if meta else ""
 
         app_denied = await self.check_app_approval(
             app_name=app_name,
             window_title=window_title,
+            app_id=app_id,
             operation=f"desktop_interact({action}, @{ref})",
         )
         if app_denied is not None:
@@ -293,21 +295,21 @@ class DesktopSession(ComputerSession):
 
         # [SECURITY] Sensitive app guard — lightweight foreground app check.
         fg_info = inspect_backend(self._backend)
-        blocked = safety.is_sensitive_app(
-            fg_info.get("app_name", ""), fg_info.get("window_title", ""),  # type: ignore[arg-type]
-        )
+        fg_app = str(fg_info.get("app_name", "") or "")
+        fg_title = str(fg_info.get("window_title", "") or "")
+        fg_app_id = str(fg_info.get("app_id", "") or "")
+
+        blocked = safety.is_sensitive_app(fg_app, fg_title, fg_app_id)
         if blocked:
             logger.warning("[SECURITY] Sensitive app guard (vision): %s", blocked)
             return f"Safety: {blocked}"
 
         # [SECURITY] Foreground permission gate for coordinate-based actions.
-        fg_app = str(fg_info.get("app_name", "") or "")
-        fg_title = str(fg_info.get("window_title", "") or "")
-
         if safety.is_foreground_required(action):
             app_denied = await self.check_app_approval(
                 app_name=fg_app,
                 window_title=fg_title,
+                app_id=fg_app_id,
                 operation=f"desktop_vision_action({action})",
             )
             if app_denied is not None:
@@ -320,6 +322,7 @@ class DesktopSession(ComputerSession):
                     estimated_duration_seconds=5.0,
                     app_name=fg_app,
                     window_title=fg_title,
+                    app_id=fg_app_id,
                 )
                 if permission_denied is not None:
                     return f"Permission denied: {permission_denied.error}"

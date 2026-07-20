@@ -60,6 +60,32 @@ def is_dangerous_type_text(text: str) -> str | None:
     return None
 
 
+_SELF_APP_BUNDLE_IDS: frozenset[str] = frozenset(
+    {
+        "com.myrmagent.app",
+        "com.myrm.agent",
+        "com.myrm.agent.desktop",
+    }
+)
+
+_SELF_APP_NAME_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "myrm",
+        "myrmagent",
+        "myrm agent",
+        "cursor",
+    }
+)
+
+_SELF_WINDOW_TITLE_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "myrm",
+        "desktop control",
+        "desktop inspector",
+        "control approval",
+    }
+)
+
 _SENSITIVE_APPS: frozenset[str] = frozenset(
     {
         # Financial
@@ -83,9 +109,47 @@ _SENSITIVE_APPS: frozenset[str] = frozenset(
 )
 
 
+def is_self_app(
+    app_name: str,
+    window_title: str = "",
+    app_id: str = "",
+) -> str | None:
+    """Block automation of the agent product UI (Myrm / Cursor host windows)."""
+    lower_id = app_id.strip().lower()
+    if lower_id:
+        if lower_id in _SELF_APP_BUNDLE_IDS:
+            return (
+                f"Blocked: Agent cannot control its own application UI ({app_id}). "
+                "Use chat approval buttons directly instead of desktop automation."
+            )
+        if "todesktop" in lower_id and "cursor" in app_name.lower():
+            return (
+                "Blocked: Agent cannot control the Cursor host application. "
+                "Complete approvals in the chat UI instead."
+            )
+
+    lower_name = app_name.lower()
+    for keyword in _SELF_APP_NAME_KEYWORDS:
+        if keyword in lower_name:
+            return (
+                f"Blocked: Agent cannot control application '{app_name}'. "
+                "This appears to be the agent host UI."
+            )
+
+    lower_title = window_title.lower() if window_title else ""
+    for keyword in _SELF_WINDOW_TITLE_KEYWORDS:
+        if lower_title and keyword in lower_title:
+            return (
+                f"Blocked: Window '{window_title}' appears to be the agent UI. "
+                "Use chat controls instead of desktop automation."
+            )
+    return None
+
+
 def is_sensitive_app(
     app_name: str,
     window_title: str = "",
+    app_id: str = "",
     custom_blocked: frozenset[str] | None = None,
     custom_allowed: frozenset[str] | None = None,
 ) -> str | None:
@@ -98,6 +162,10 @@ def is_sensitive_app(
     """
     if not app_name:
         return None
+
+    self_blocked = is_self_app(app_name, window_title, app_id)
+    if self_blocked:
+        return self_blocked
 
     lower_name = app_name.lower()
     lower_title = window_title.lower() if window_title else ""
