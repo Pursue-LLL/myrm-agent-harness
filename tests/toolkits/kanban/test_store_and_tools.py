@@ -803,6 +803,24 @@ class TestIdempotencyKey:
 class TestSourceChatMetadata:
     """Cover orchestrator source_chat_id metadata injection and list filter."""
 
+    def test_extract_source_chat_id_helpers(self) -> None:
+        from myrm_agent_harness.toolkits.kanban.types import (
+            extract_source_chat_id,
+            inherit_source_chat_metadata,
+        )
+
+        assert extract_source_chat_id(None) is None
+        assert extract_source_chat_id({}) is None
+        assert extract_source_chat_id({"source_chat_id": 42}) is None
+        assert extract_source_chat_id({"source_chat_id": "  chat-abc  "}) == "chat-abc"
+        assert extract_source_chat_id({"source_chat_id": "   "}) is None
+
+        assert inherit_source_chat_metadata(None) is None
+        assert inherit_source_chat_metadata({"source_chat_id": "parent-chat"}) == {
+            "source_chat_id": "parent-chat",
+        }
+        assert inherit_source_chat_metadata({"source_chat_id": "  "}) is None
+
     def _get_tool(self, tools: list, name: str):
         return next(t for t in tools if t.name == name)
 

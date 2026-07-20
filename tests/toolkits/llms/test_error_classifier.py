@@ -34,6 +34,9 @@ from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
         "413 request too large",
         "max_tokens exceed context limit",
         "input length exceed context window",
+        "Prompt exceeds max length",
+        "tokens in request more than max tokens allowed",
+        "total message size 5943865 exceeds limit 2097152",
     ],
 )
 def test_classify_context_overflow(msg: str) -> None:
@@ -179,6 +182,10 @@ class TestIsContextOverflowPositive:
             "request exceeds the maximum size",
             "request size exceeds the limit",
             "Unhandled stop reason: model_context_window_exceeded",
+            "Prompt exceeds max length",
+            "tokens in request more than max tokens allowed",
+            "total message size 5943865 exceeds limit 2097152",
+            "Error code: 400 - {'error': {'code': '1261', 'message': 'Prompt exceeds max length'}}",
         ],
     )
     def test_exact_patterns(self, msg: str) -> None:

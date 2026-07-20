@@ -55,11 +55,13 @@ class BackgroundProcessInfo:
     ``TaskStatusFile.progress`` field.
     """
 
+    job_id: str
     pid: int
     command: str
     session_id: str | None
     started_at: float
     status: str  # "running" | "exited" | "killed"
+    vault_log_ref: str | None = None
     exit_code: int | None = None
     error_category: str | None = None
     last_stdout_tail: list[str] = field(default_factory=list)
@@ -72,6 +74,7 @@ class BackgroundProcessInfo:
 
     def to_dict(self) -> dict[str, object]:
         payload: dict[str, object] = {
+            "job_id": self.job_id,
             "pid": self.pid,
             "command": self.command,
             "session_id": self.session_id,
@@ -84,6 +87,8 @@ class BackgroundProcessInfo:
             payload["error_category"] = self.error_category
         if self.last_progress is not None:
             payload["last_progress"] = self.last_progress
+        if self.vault_log_ref is not None:
+            payload["vault_log_ref"] = self.vault_log_ref
         return payload
 
 

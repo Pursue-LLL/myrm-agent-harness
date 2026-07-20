@@ -31,6 +31,7 @@ class BackgroundJobFinishResult:
     status: str
     exit_code: int | None
     error_category: str | None
+    job_id: str = ""
 
 
 class BackgroundJobFinishHandler(Protocol):

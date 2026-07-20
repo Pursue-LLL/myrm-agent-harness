@@ -177,6 +177,9 @@ _OVERFLOW_EXACT_RE = re.compile(
             r"n_ctx_slot",
             r"exceeds the maximum number of input tokens",
             r"token.?limit.?exceeded",
+            r"prompt exceeds max length",
+            r"tokens in request more than max tokens allowed",
+            r"total message size.*exceeds limit",
         ]
     ),
     re.IGNORECASE,

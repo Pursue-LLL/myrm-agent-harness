@@ -58,6 +58,9 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.code_execution.executors.models import (
         AsyncProcessProtocol,
     )
+    from myrm_agent_harness.agent.meta_tools.bash._background_output_spill import (
+        BackgroundOutputSpillWriter,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +92,7 @@ class _Entry:
     reader_task: asyncio.Task[None] | None = None
     finish_listener: FinishListener | None = None
     progress_listener: ProgressListener | None = None
+    spill_writer: BackgroundOutputSpillWriter | None = None
     # Process-wide monotonic cursor incremented for every line written across
     # both streams. Returned to callers so they can poll incrementally without
     # bookkeeping. Each ring buffer holds the last ``_OUTPUT_TAIL_LINES``
@@ -138,11 +142,26 @@ class BackgroundProcessRegistry:
         if active >= self._per_session_limit:
             raise BackgroundQuotaError(session_id, self._per_session_limit)
 
+        from myrm_agent_harness.agent.meta_tools.bash._background_job_store import (
+            BackgroundJobStore,
+            get_background_job_store,
+        )
+        from myrm_agent_harness.agent.meta_tools.bash._background_output_spill import (
+            BackgroundOutputSpillWriter,
+        )
+
+        job_id = BackgroundJobStore.new_job_id()
+        started_at = time.time()
+        spill_writer: BackgroundOutputSpillWriter | None = None
+        if session_id:
+            spill_writer = BackgroundOutputSpillWriter(session_id=session_id, job_id=job_id)
+
         info = BackgroundProcessInfo(
+            job_id=job_id,
             pid=pid,
             command=command,
             session_id=session_id,
-            started_at=time.time(),
+            started_at=started_at,
             status="running",
         )
         stdout_buffer: deque[tuple[int, str]] = deque(maxlen=_OUTPUT_TAIL_LINES)
@@ -154,10 +173,24 @@ class BackgroundProcessRegistry:
             stderr_buffer=stderr_buffer,
             finish_listener=finish_listener,
             progress_listener=progress_listener,
+            spill_writer=spill_writer,
         )
 
         with self._lock:
             self._entries[pid] = entry
+
+        store = get_background_job_store()
+        if store is not None and session_id:
+            try:
+                store.insert_running(
+                    job_id=job_id,
+                    pid=pid,
+                    session_id=session_id,
+                    command=command,
+                    started_at=started_at,
+                )
+            except Exception as exc:
+                logger.warning("Background job store insert failed job=%s: %s", job_id, exc)
 
         entry.reader_task = asyncio.create_task(self._consume(entry))
         return info
@@ -335,6 +368,7 @@ class BackgroundProcessRegistry:
         # 3. Mark the entry; the reader task will drain any tail output and
         #    invoke the finish listener via ``_consume``'s ``finally`` block.
         entry.info.status = "killed"
+        self._persist_store_terminal(entry)
         if entry.reader_task and not entry.reader_task.done():
             entry.reader_task.cancel()
         return True
@@ -397,10 +431,10 @@ class BackgroundProcessRegistry:
         if has_running:
             return
         from myrm_agent_harness.agent.meta_tools.bash.session_spawn_lifecycle import (
-            clear_session_deferred_tools,
+            clear_session_spawn_tools,
         )
 
-        clear_session_deferred_tools(session_id)
+        clear_session_spawn_tools(session_id)
 
     async def _consume(self, entry: _Entry) -> None:
         from myrm_agent_harness.agent.meta_tools.bash._background_progress import (
@@ -457,6 +491,12 @@ class BackgroundProcessRegistry:
                 from myrm_agent_harness.agent.security.redact import redact_sensitive_text
 
                 text = redact_sensitive_text(text)
+                spill = entry.spill_writer
+                if spill is not None:
+                    stream_name = "stderr" if sink is entry.stderr_buffer else "stdout"
+                    spill.append_line(stream_name, text)
+                    if spill.vault_log_ref:
+                        entry.info.vault_log_ref = spill.vault_log_ref
                 # ``entry.cursor += 1`` and ``sink.append`` happen between
                 # two ``await``s; under single-threaded asyncio this is
                 # atomic against the sibling pipe task.
@@ -481,6 +521,7 @@ class BackgroundProcessRegistry:
             )
 
             entry.info.error_category = classify_background_exit(entry.info)
+            self._persist_store_terminal(entry)
         except asyncio.CancelledError:
             return
         except Exception as exc:  # pragma: no cover — defensive
@@ -527,10 +568,38 @@ class BackgroundProcessRegistry:
                 return
             self._entries.pop(pid, None)
 
+    def _persist_store_terminal(self, entry: _Entry) -> None:
+        from myrm_agent_harness.agent.meta_tools.bash._background_job_store import get_background_job_store
+
+        store = get_background_job_store()
+        if store is None:
+            return
+        info = entry.info
+        from myrm_agent_harness.agent.meta_tools.bash._background_job_store_core import BackgroundJobStoreStatus
+
+        status_map: dict[str, BackgroundJobStoreStatus] = {
+            "running": "running",
+            "exited": "exited",
+            "killed": "killed",
+        }
+        store_status: BackgroundJobStoreStatus = status_map.get(info.status, "exited")
+        try:
+            store.update_terminal(
+                info.job_id,
+                status=store_status,
+                exit_code=info.exit_code,
+                error_category=info.error_category,
+                completed_at=time.time() if info.status != "running" else None,
+                vault_log_ref=info.vault_log_ref,
+            )
+        except Exception as exc:
+            logger.warning("Background job store terminal update failed job=%s: %s", info.job_id, exc)
+
     @staticmethod
     def _snapshot(entry: _Entry) -> BackgroundProcessInfo:
         info = entry.info
         snap = BackgroundProcessInfo(
+            job_id=info.job_id,
             pid=info.pid,
             command=info.command,
             session_id=info.session_id,
@@ -538,6 +607,7 @@ class BackgroundProcessRegistry:
             status=info.status,
             exit_code=info.exit_code,
             error_category=info.error_category,
+            vault_log_ref=info.vault_log_ref,
         )
         snap.last_stdout_tail = [text for _, text in list(entry.stdout_buffer)[-20:]]
         snap.last_stderr_tail = [text for _, text in list(entry.stderr_buffer)[-20:]]

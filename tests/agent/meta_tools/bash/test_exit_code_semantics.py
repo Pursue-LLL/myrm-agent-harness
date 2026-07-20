@@ -244,6 +244,7 @@ class TestClassifyBackgroundExit:
         )
 
         return BackgroundProcessInfo(
+            job_id="job-dummy",
             pid=4321,
             command="dummy",
             session_id="s",

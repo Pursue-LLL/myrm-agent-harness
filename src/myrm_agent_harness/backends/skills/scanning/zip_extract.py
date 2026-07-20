@@ -100,11 +100,10 @@ def safe_extract_zip(
                 logger.warning("Skipping path traversal entry: %s", entry.filename)
                 continue
 
-            if forbidden_check is not None and forbidden_check(relative_path):
-                continue
-
             entry_bytes = zf.read(entry.filename)
             _check_executable_binary_member(relative_path, entry_bytes)
+            if forbidden_check is not None and forbidden_check(relative_path):
+                continue
             file_contents[relative_path] = entry_bytes
 
     return file_contents

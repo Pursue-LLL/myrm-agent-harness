@@ -92,6 +92,7 @@ def build_background_listeners(
                 await finish_handler.on_background_job_finish(
                     BackgroundJobFinishResult(
                         session_id=session_id,
+                        job_id=info.job_id,
                         pid=info.pid,
                         command=info.command,
                         status=info.status,

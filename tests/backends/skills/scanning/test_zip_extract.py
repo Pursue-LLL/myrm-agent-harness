@@ -98,6 +98,19 @@ class TestSafeExtractZip:
         assert "keep.txt" in result
         assert "drop.exe" not in result
 
+    def test_forbidden_check_does_not_bypass_executable_detection(self):
+        zip_bytes = _make_zip(
+            {
+                "top/.hidden/payload.bin": b"\x7fELF\x02\x01\x01\x00",
+                "top/keep.txt": b"keep",
+            }
+        )
+        with pytest.raises(ValueError, match="executable binary member"):
+            safe_extract_zip(
+                zip_bytes,
+                forbidden_check=lambda path: any(segment.startswith(".") for segment in path.split("/")),
+            )
+
     def test_empty_zip(self):
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w"):

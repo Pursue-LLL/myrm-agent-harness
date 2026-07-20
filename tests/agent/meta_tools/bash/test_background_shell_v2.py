@@ -114,6 +114,7 @@ def test_auto_yield_whitelist_and_defaults() -> None:
 
 def test_build_auto_yield_return_still_running() -> None:
     info = BackgroundProcessInfo(
+        job_id="chat-yield",
         pid=55,
         command="npm run build",
         session_id="chat-yield",
