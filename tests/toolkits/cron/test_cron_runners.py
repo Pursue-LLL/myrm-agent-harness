@@ -124,3 +124,44 @@ class TestShellJobRunner:
             result = await runner.run(_job())
             assert result.success is False
             assert "permission denied" in (result.error or "")
+
+
+class TestNotificationRunner:
+    @pytest.fixture
+    def runner(self) -> "NotificationRunner":
+        from myrm_agent_harness.toolkits.cron.runners import NotificationRunner
+
+        return NotificationRunner()
+
+    async def test_delivers_prompt(self, runner: "NotificationRunner") -> None:
+        job = CronJob(
+            id="r1",
+            user_id="u1",
+            name="reminder",
+            job_type=JobType.REMINDER,
+            prompt="Stand up now",
+            schedule=_SCHED,
+            delivery=DeliveryConfig(channel="none"),
+            created_at=_NOW,
+            updated_at=_NOW,
+        )
+        result = await runner.run(job)
+        assert result.success is True
+        assert result.output == "Stand up now"
+        assert result.exit_code == 1
+
+    async def test_missing_prompt(self, runner: "NotificationRunner") -> None:
+        job = CronJob(
+            id="r2",
+            user_id="u1",
+            name="reminder",
+            job_type=JobType.REMINDER,
+            prompt=None,
+            schedule=_SCHED,
+            delivery=DeliveryConfig(channel="none"),
+            created_at=_NOW,
+            updated_at=_NOW,
+        )
+        result = await runner.run(job)
+        assert result.success is False
+        assert "prompt" in (result.error or "").lower()

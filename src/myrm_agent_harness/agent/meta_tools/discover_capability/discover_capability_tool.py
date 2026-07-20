@@ -85,10 +85,10 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
 **How to query**:
 - Query naturally in any language.
 - For best results across languages, use format: "concept/translation/synonym" (e.g., "火车票/railway ticket/train booking").
-- Use query="*" to list all available external skills.
+- Use query="*" to list all searchable skills bound to this agent.
 
 **What happens next**:
-- If an **External Skill** is found, you MUST use `skill_select_tool` to load its SOP documentation before using it.
+- If a **skill** is found, you MUST use `skill_select_tool` to load its SOP documentation before using it.
 
 **Examples**: video generation, GitHub integration, database operations.
 """

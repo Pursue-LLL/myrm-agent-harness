@@ -7,7 +7,7 @@ Hybrid instruction hierarchy with cold/warm adaptive prompt:
     System prompts (prompt-cache friendly).
 
 - Untrusted learned layer: auto-extracted Preferences + Learned Rules
-    → **P0 default off** for Turn1 cache stability; retrieved via ``memory_search_tool(corpus=memory)``.
+    → Turn1 injection skips learned facts (cache-stable); retrieved via ``memory_search_tool(corpus=memory)``.
     When injected, wrapped with ``wrap_untrusted(..., source="memory_context")`` (`<<<UNTRUSTED_DATA id="…">>`)
 
 - Cold start: Discovery Mode lives only in `<user_memory_context>` (still SystemMessage).

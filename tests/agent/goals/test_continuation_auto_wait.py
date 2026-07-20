@@ -34,7 +34,7 @@ async def test_check_continuation_auto_enters_wait_for_whitelisted_background_ba
             tool_name="bash_code_execute_tool",
             args_hash="h1",
             args={"command": "npm run build", "run_in_background": True},
-            result_content="Background process started.\n  pid: 5555\n",
+            result_content="Background process started.\n  job_id: abcdef0123456789abcdef0123456789\n  pid: 5555\n",
         )
     )
     token = _loop_guard_var.set(guard)

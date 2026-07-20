@@ -20,7 +20,7 @@
 | 复用用户 Chrome 登录态（JIRA、内网等） | Agent 配置 `browser_source=extension` → Extension Bridge CDP 代理 | server `services/extension/` |
 | 手动登录后跨会话保持 | `SessionVault` 加密保存 Cookies/Storage；`browser_manage` 保存/恢复 | harness `session/` + server `browser_vault` |
 | Agent 跨引擎共享登录态 | SessionVault 注入 CrawlEngine / HttpFetcher | harness `navigation.py` |
-| 找回「跟 Agent 聊过的 URL」 | `memory_search_tool` / opt-in `conversation_search_tool` | harness memory + server adapter |
+| 找回「跟 Agent 聊过的 URL」 | `memory_search_tool`（corpus=sessions opt-in） | harness memory + server adapter |
 
 Extension Bridge 与 SessionVault 覆盖竞品（orca/holaboss）cookie 导入的核心收益，且无需读取 OS 浏览器数据库。
 

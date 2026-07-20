@@ -1611,3 +1611,62 @@ class TestMonitorViaCronManageTool:
         })
         result = await tool.ainvoke({"action": "list"})
         assert "Δset" in result
+
+
+class TestCronPlatformV2:
+    @pytest.mark.asyncio
+    async def test_blueprints_action_on_demand(self, manager: CronManager) -> None:
+        tools = create_cron_tools(
+            manager,
+            USER_ID,
+            blueprint_catalog_provider=lambda: "catalog-line-1",
+        )
+        result = await tools[0].ainvoke({"action": "blueprints"})
+        assert result == "catalog-line-1"
+
+    @pytest.mark.asyncio
+    async def test_tool_description_has_no_injected_catalog(self, manager: CronManager) -> None:
+        tools = create_cron_tools(
+            manager,
+            USER_ID,
+            blueprint_catalog_provider=lambda: "INJECTED_SHOULD_NOT_APPEAR",
+        )
+        description = tools[0].description or ""
+        assert "INJECTED_SHOULD_NOT_APPEAR" not in description
+
+    @pytest.mark.asyncio
+    async def test_reminder_job_create(self, tool, manager: CronManager) -> None:
+        result = await tool.ainvoke(
+            {
+                "action": "add",
+                "prompt": "Take a break",
+                "at": "2030-01-01T10:00:00",
+                "reminder": True,
+            }
+        )
+        parsed = json.loads(result)
+        assert parsed["status"] == "success"
+        assert parsed["job_type"] == "Reminder"
+        jobs = await manager.list_jobs(USER_ID)
+        assert jobs[0].job_type == JobType.REMINDER
+
+    @pytest.mark.asyncio
+    async def test_default_delivery_when_webhook_empty(self, manager: CronManager) -> None:
+        from myrm_agent_harness.toolkits.cron.types import DeliveryConfig
+
+        tools = create_cron_tools(
+            manager,
+            USER_ID,
+            default_delivery=DeliveryConfig(channel="telegram", target="chat-99"),
+        )
+        result = await tools[0].ainvoke(
+            {
+                "action": "add",
+                "prompt": "ping",
+                "at": "2030-01-01T10:00:00",
+            }
+        )
+        assert json.loads(result)["status"] == "success"
+        jobs = await manager.list_jobs(USER_ID)
+        assert jobs[0].delivery.channel == "telegram"
+        assert jobs[0].delivery.target == "chat-99"

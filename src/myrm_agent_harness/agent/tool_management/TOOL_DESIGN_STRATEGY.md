@@ -105,7 +105,7 @@ class ToolLayer(IntEnum):
 | 能力发现网关（**TURN1**，DeferEconomics 判定） | searchable skills / 大 defer 池 | discover_capability_tool | ~819（条件绑定） |
 | bash_process_tool | bash 启用时 Turn1 | bash_process_tool | ~200 |
 | 记忆工具（COMMON） | 启用记忆系统 | memory_search_tool, memory_save_tool, memory_manage_tool | ~840 |
-| 会话搜索（EXTENDED，opt-in） | `memoryEnableConversationSearch=true` 且非无痕 | conversation_search_tool | ~67 |
+| 会话搜索（opt-in） | `memoryEnableConversationSearch=true` 且非无痕 | `memory_search_tool`（corpus=sessions ACL；无额外 Turn1 schema） | 含于 memory×3 ~840 |
 | 技能工具（Turn1） | 有技能后端 | skill_select_tool, skill_manage_tool | ~343 |
 | 浏览器工具 | `enabled_builtin_tools: browser` | browser_navigate_tool, browser_snapshot_tool, ... (8个) | ~535 |
 | 定时任务工具 | cron 能力 wired；勾选 cron 时 Turn1 | cron_manage_tool | ~827 |

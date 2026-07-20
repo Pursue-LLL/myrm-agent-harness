@@ -49,6 +49,7 @@ def test_discover_capability_description_points_to_marketplace_tool(discover_too
     description = _tool_description(discover_tool)
     assert _MARKETPLACE_TOOL in description
     assert "external markets" in description.lower() or "installing new skills" in description.lower()
+    assert "bound to this agent" in description.lower() or "already available" in description.lower()
 
 
 @pytest.mark.architecture
