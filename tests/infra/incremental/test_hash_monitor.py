@@ -1,6 +1,11 @@
 """Unit tests for HashMonitor."""
 
-from myrm_agent_harness.infra.incremental.hash_monitor import HashMonitor
+import pytest
+
+from myrm_agent_harness.infra.incremental.hash_monitor import (
+    HashMonitor,
+    InvalidJsonLikeMonitorOutputError,
+)
 
 
 class TestHashMonitor:
@@ -56,6 +61,31 @@ class TestHashMonitor:
 
         delta = monitor.compute_delta('[3,2,1]')
         assert delta == "[3,2,1]"
+
+    def test_asset_array_with_rank_field_keeps_order_sensitivity(self) -> None:
+        monitor = HashMonitor(last_hash=None)
+        first = monitor.compute_delta('[{"asset":"BTC","rank":1},{"asset":"ETH","rank":2}]')
+        monitor.update_baseline(first)
+
+        # rank/order-like keys indicate ordering may carry semantics, so no auto-sort.
+        delta = monitor.compute_delta('[{"asset":"ETH","rank":2},{"asset":"BTC","rank":1}]')
+        assert delta == '[{"asset":"ETH","rank":2},{"asset":"BTC","rank":1}]'
+
+    def test_invalid_json_like_output_raises_contract_error(self) -> None:
+        monitor = HashMonitor(last_hash=None)
+        with pytest.raises(InvalidJsonLikeMonitorOutputError):
+            monitor.compute_delta('{"asset":"BTC"')
+
+    def test_valid_json_after_invalid_attempt_can_establish_baseline(self) -> None:
+        monitor = HashMonitor(last_hash=None)
+        with pytest.raises(InvalidJsonLikeMonitorOutputError):
+            monitor.compute_delta('{"asset":"BTC"')
+
+        first = monitor.compute_delta('{"asset":"BTC"}')
+        monitor.update_baseline(first)
+
+        delta = monitor.compute_delta('{"asset":"BTC"}')
+        assert delta == ""
 
     def test_state_serialization_roundtrip(self) -> None:
         monitor1 = HashMonitor(last_hash=None)

@@ -8,6 +8,7 @@ Best for summaries where line-level set diff is not reliable.
 
 [OUTPUT]
 - HashMonitor: Monitor based on full-content hash comparison.
+- InvalidJsonLikeMonitorOutputError: Contract error for JSON-like invalid outputs.
 
 [POS]
 Hash-based incremental monitor.
@@ -22,11 +23,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+class InvalidJsonLikeMonitorOutputError(ValueError):
+    """Raised when monitor output looks like JSON but is invalid JSON text."""
+
+
 class HashMonitor:
     """Monitor based on full-content hash comparison.
 
     Input format: arbitrary text output.
-    Algorithm: SHA-256(current_output.strip()) vs last_hash.
+    Algorithm: SHA-256(normalized_output) vs last_hash.
     Output: full current_output when changed, empty string when unchanged.
     """
 
@@ -100,8 +105,11 @@ def _normalize_for_hash(current_output: str) -> str:
     Strategy:
     1) Strip outer whitespace
     2) If the output is JSON, canonicalize key order and spacing
-    3) For JSON arrays of dicts with ``asset`` keys, sort by ``asset`` to
-       reduce false positives from non-semantic ordering drift.
+    3) For JSON arrays of dicts with ``asset`` keys and no order-sensitive
+       keys (rank/position/index/order/sequence), sort by ``asset`` to reduce
+       false positives from non-semantic ordering drift.
+    4) For JSON-like but invalid payloads, raise contract error so upper
+       layers can surface a user-visible signal instead of silent gating.
     """
     stripped = current_output.strip()
     if not stripped:
@@ -111,7 +119,8 @@ def _normalize_for_hash(current_output: str) -> str:
         parsed = json.loads(stripped)
     except json.JSONDecodeError:
         if stripped.startswith("{") or stripped.startswith("["):
-            logger.warning("HashMonitor: invalid JSON-like output, using raw text hash")
+            logger.warning("HashMonitor: invalid JSON-like output detected")
+            raise InvalidJsonLikeMonitorOutputError("invalid JSON-like monitor output")
         return stripped
 
     canonical = _canonicalize_json(parsed)
@@ -124,7 +133,7 @@ def _canonicalize_json(value: object) -> object:
 
     if isinstance(value, list):
         normalized_items = [_canonicalize_json(item) for item in value]
-        if _is_asset_dict_list(normalized_items):
+        if _is_sortable_asset_dict_list(normalized_items):
             asset_items: list[dict[str, object]] = [item for item in normalized_items if isinstance(item, dict)]
             return sorted(
                 asset_items,
@@ -138,12 +147,18 @@ def _canonicalize_json(value: object) -> object:
     return value
 
 
-def _is_asset_dict_list(items: list[object]) -> bool:
+_ORDER_SENSITIVE_KEYS = {"rank", "position", "index", "order", "sequence"}
+
+
+def _is_sortable_asset_dict_list(items: list[object]) -> bool:
     if not items:
         return False
-    return all(
-        isinstance(item, dict)
-        and isinstance(item.get("asset"), str)
-        and bool(item.get("asset", "").strip())
-        for item in items
-    )
+    for item in items:
+        if not isinstance(item, dict):
+            return False
+        asset = item.get("asset")
+        if not isinstance(asset, str) or not asset.strip():
+            return False
+        if any(str(key).lower() in _ORDER_SENSITIVE_KEYS for key in item):
+            return False
+    return True

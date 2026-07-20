@@ -41,6 +41,7 @@ _GROUP_TO_PRODUCT_ID: dict[str, str] = {
 _BASELINE_TOOL_GROUPS: frozenset[str] = frozenset({"file_ops", "shell"})
 
 _PRODUCT_ID_TOOL_OVERRIDES: dict[str, str] = {
+    "conversation_search_tool": "memory",
 }
 
 _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
@@ -60,6 +61,9 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
     "bash_process_tool": "Turn1 when bash enabled",
     "skill_discovery_tool": "Turn1 when discovery_backend present",
     "discover_capability_tool": "Turn1 when searchable skills exist",
+    "conversation_search_tool": "Harness test/legacy; product uses memory_search_tool corpus=sessions",
+    "wiki_compile_tool": "Settings REST + create_wiki_admin_tools(); not Turn1 LLM",
+    "wiki_maintain_tool": "Settings REST + create_wiki_admin_tools(); not Turn1 LLM",
     "skill_select_tool": "skill_backend present",
     "skill_manage_tool": "write_backend present",
     "delegate_task_tool": "SubagentManagementExtension + entitlements",

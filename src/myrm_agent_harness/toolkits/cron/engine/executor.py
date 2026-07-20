@@ -11,6 +11,7 @@ but owns no scheduling state — that remains in ``CronScheduler``.
 - toolkits.cron.protocols::CronStore, (POS: Protocols for the cron toolkit.)
 - toolkits.cron.delivery_guard::is_silent_output, (POS: Cron delivery guard.)
 - infra.incremental.manager::IncrementalMonitorManager (POS: Incremental monitor lifecycle manager.)
+- infra.incremental.hash_monitor::InvalidJsonLikeMonitorOutputError (POS: Hash monitor JSON-like contract error type.)
 - observability.tracing::TracingContext (POS: Request-scoped trace_id/session_id for log correlation.)
 
 [OUTPUT]
@@ -30,6 +31,9 @@ from dataclasses import replace as dc_replace
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.infra.incremental.hash_monitor import (
+    InvalidJsonLikeMonitorOutputError,
+)
 from myrm_agent_harness.infra.incremental.manager import IncrementalMonitorManager
 from myrm_agent_harness.observability.tracing import TracingContext
 from myrm_agent_harness.toolkits.cron.engine.helpers import (
@@ -291,7 +295,37 @@ class JobExecutor:
                     exc,
                 )
 
-                if failure_count >= 3:
+                contract_error = isinstance(exc, InvalidJsonLikeMonitorOutputError)
+                if contract_error:
+                    metadata = dict(result.metadata or {})
+                    metadata["monitor_contract_error"] = "invalid_json_like_output"
+                    contract_error_message = (
+                        "Monitoring output format is invalid and cannot be diffed safely. "
+                        "Please adjust the task output format or model settings."
+                    )
+                    logger.warning(
+                        "Job %s: monitor output contract error (invalid JSON-like content); emitting visible warning",
+                        job.id,
+                    )
+                    result = dc_replace(
+                        result,
+                        success=False,
+                        error=contract_error_message,
+                        exit_code=2,
+                        output=contract_error_message,
+                        incremental_delta="",
+                        metadata=metadata,
+                    )
+
+                if contract_error and failure_count < 3:
+                    logger.warning(
+                        "Incremental monitoring contract error for job %s (%d/%d): %s",
+                        job.id,
+                        failure_count,
+                        3,
+                        exc,
+                    )
+                elif failure_count >= 3:
                     logger.error(
                         "Monitor for job %s failed %d times consecutively (last failure: %s)",
                         job.id,

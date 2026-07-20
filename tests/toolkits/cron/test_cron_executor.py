@@ -491,6 +491,47 @@ class TestRunAndRecord:
 
         delivery.deliver.assert_not_awaited()
 
+    @pytest.mark.asyncio
+    async def test_invalid_json_like_monitor_output_emits_visible_warning(self) -> None:
+        """Invalid JSON-like monitor output should not silently disappear."""
+        executor, store, delivery = _make_executor()
+        from myrm_agent_harness.infra.incremental.hash_monitor import (
+            InvalidJsonLikeMonitorOutputError,
+        )
+        from myrm_agent_harness.infra.incremental.types import MonitorConfig
+
+        mc = MonitorConfig(enabled=True, monitor_type="hash")
+        job = _make_job(monitor_config=mc)
+        result = JobResult(success=True, output='{"asset":"BTC"')
+
+        runner = AsyncMock()
+        runner.run = AsyncMock(return_value=result)
+
+        with patch.object(executor._monitor_manager, "get_monitor") as mock_get:
+            mock_monitor = MagicMock()
+            mock_monitor.is_baseline.return_value = False
+            mock_monitor.compute_delta.side_effect = InvalidJsonLikeMonitorOutputError(
+                "invalid JSON-like monitor output"
+            )
+            mock_get.return_value = (mock_monitor, None)
+
+            with patch.object(executor._monitor_manager, "record_monitor_failure", new_callable=AsyncMock) as mock_record:
+                mock_record.return_value = 1
+                await executor.run_and_record(job, runner)
+
+        delivery.deliver.assert_awaited_once()
+        saved_run = store.save_run.call_args[0][0]
+        assert saved_run.status == RunStatus.ERROR
+        assert saved_run.output is not None
+        assert "Monitoring output format is invalid" in saved_run.output
+        assert saved_run.error is not None
+        assert "Monitoring output format is invalid" in saved_run.error
+        assert saved_run.metadata is not None
+        assert saved_run.metadata.get("monitor_contract_error") == "invalid_json_like_output"
+        saved_job = store.save_job.call_args[0][0]
+        assert saved_job.consecutive_failures == 1
+        assert saved_job.last_status == RunStatus.ERROR
+
 
 # ---------------------------------------------------------------------------
 # _resolve_context_from tests
