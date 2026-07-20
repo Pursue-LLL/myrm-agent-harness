@@ -108,7 +108,7 @@ Server wiring: `agent._desktop_session` → `AgentGateway.get_active_desktop_ses
 | Deeplink SSOT | `myrm-agent-frontend/src/lib/desktop/permissionDeepLink.ts` |
 | Open semantics | Settings `DesktopPermissionsCard` → `openPermissionDeepLink`（deeplink fallback）；Doctor / Agent inline / Inspector → `openPermissionDeepLinkWithGuideFallback(url, platform)`（平台指南 fallback） |
 | Trusted apps | `GET/DELETE /webui/desktop/trust/apps` + Settings trusted-apps section（加载失败显示重试，不伪装空列表） |
-| Chrome E2E | `tests/e2e/test_desktop_control_approval_chrome_e2e.py` + `tests/e2e/desktop_approval/` — allow_once / allow_session / allow_always→revoke（**signoff 待 3/3 绿**） |
+| Chrome E2E | `tests/e2e/test_desktop_control_approval_chrome_e2e.py` + `tests/e2e/desktop_approval/` — allow_once / allow_session / allow_always→revoke；Darwin：`./myrm test -m chrome_e2e_desktop …` 或 maintainer signoff desktop phase |
 | Chrome E2E attach gate | `tests/support/e2e_runtime_guard.py::assert_chrome_attach_health` — shared-attach lane only; item runtimes skip (private preflight already ran) |
 
 Channel security: IM strips `!desktop_*`; Cron denies `desktop_capture` / `desktop_control` (see [SECURITY_SYSTEM.md](../../agent/security/SECURITY_SYSTEM.md)).
@@ -133,7 +133,7 @@ Injected via `DESKTOP_CONTROL_RULES` in `shared_rules.py` when `enable_computer_
 |------|--------|
 | Linux AT-SPI invoke | ✅ implemented (pyatspi doAction/EditableText/grabFocus) |
 | Desktop control gate (server) | ✅ `DesktopControlGate` + SSE approval card. Local monorepo: `./myrm ready` (editable harness; no PyPI). Release/CI: harness tag → `./myrm harness sync-lock` → commit `uv.lock` before `--frozen` |
-| Stream E2E tests | ✅ `test_desktop_control_approval_chrome_e2e.py` + `tests/e2e/desktop_approval/` — `@pytest.mark.chrome_e2e_desktop`；allow_once + allow_always→Settings revoke；strict `\\bDONE\\b`；signoff 独立 darwin phase |
+| Stream E2E tests | ✅ `test_desktop_control_approval_chrome_e2e.py` + `tests/e2e/desktop_approval/` — `@pytest.mark.chrome_e2e_desktop`；allow_once + allow_always→Settings revoke；strict `\\bDONE\\b`；Darwin maintainer desktop phase 或 `./myrm test -m chrome_e2e_desktop` |
 | Onboarding hint when computer_use enabled | implemented (toggle + tooltip + empty state) |
 | Native API routing hints | implemented (macOS/Windows/Linux) |
 
