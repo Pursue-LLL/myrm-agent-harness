@@ -2,6 +2,7 @@
 
 [INPUT]
 pathlib::Path (POS: standard library file path operations)
+core.security.path_security::safe_join_path (POS: secure path resolution against traversal)
 
 [OUTPUT]
 WikiStructure: LLM-Wiki file system structure manager
@@ -14,6 +15,8 @@ and other file system operations.
 
 import re
 from pathlib import Path
+
+from myrm_agent_harness.core.security.path_security import safe_join_path
 
 
 class WikiStructure:
@@ -56,8 +59,8 @@ class WikiStructure:
             directory.mkdir(parents=True, exist_ok=True)
 
     def get_raw_file_path(self, filename: str) -> Path:
-        """Get path for a raw document."""
-        return self.raw_dir / filename
+        """Get path for a raw document, with boundary validation against traversal."""
+        return safe_join_path(self.raw_dir, filename)
 
     def get_concept_file_path(self, concept_path: str) -> Path:
         """Get path for a concept article in the local writable directory. Supports nested paths."""

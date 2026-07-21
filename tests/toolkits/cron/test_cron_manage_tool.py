@@ -1,7 +1,7 @@
 """Tests for cron_manage Agent tool (tools.py).
 
 Validates pause/resume actions, max_fires/expires_after parameters,
-list progress display, _parse_expires_after helper, cron execution guard,
+execution policy (required_capabilities / tools_allowed), list progress display, _parse_expires_after helper, cron execution guard,
 schedule builder, delivery resolution, and all action edge cases.
 """
 
@@ -544,6 +544,79 @@ class TestScheduleBuilder:
             }
         )
         assert "recurring_confirmed=true" in result
+
+
+# ---------------------------------------------------------------------------
+# Execution policy (required_capabilities / tools_allowed)
+# ---------------------------------------------------------------------------
+
+
+class TestExecutionPolicy:
+    @pytest.mark.asyncio
+    async def test_add_persists_tools_allowed_and_capabilities(
+        self, tool, manager: CronManager
+    ) -> None:
+        result = await tool.ainvoke(
+            {
+                "action": "add",
+                "prompt": "Summarize inbox",
+                "cron_expr": "0 9 * * *",
+                "recurring_confirmed": True,
+                "required_capabilities": "web_search_tool, net_fetch",
+                "tools_allowed": "web_search, memory",
+            }
+        )
+        parsed = json.loads(result)
+        assert parsed["status"] == "success"
+        job = await manager.get_job(str(parsed["job_id"]), USER_ID)
+        assert job is not None
+        assert job.required_capabilities == ("web_search_tool", "net_fetch")
+        assert job.tools_allowed == ("web_search", "memory")
+
+    @pytest.mark.asyncio
+    async def test_update_persists_tools_allowed_and_capabilities(
+        self, tool, manager: CronManager
+    ) -> None:
+        job = await manager.create_job(
+            user_id=USER_ID,
+            name="policy-job",
+            job_type=JobType.AGENT,
+            schedule=Schedule(kind=ScheduleKind.CRON, expr="0 10 * * *"),
+            prompt="check",
+        )
+        result = await tool.ainvoke(
+            {
+                "action": "update",
+                "job_id": job.id,
+                "tools_allowed": "web_search",
+                "required_capabilities": "web_search_tool",
+            }
+        )
+        parsed = json.loads(result)
+        assert parsed["status"] == "success"
+        updated = await manager.get_job(job.id, USER_ID)
+        assert updated is not None
+        assert updated.tools_allowed == ("web_search",)
+        assert updated.required_capabilities == ("web_search_tool",)
+
+    @pytest.mark.asyncio
+    async def test_add_tools_allowed_csv_strips_whitespace(
+        self, tool, manager: CronManager
+    ) -> None:
+        result = await tool.ainvoke(
+            {
+                "action": "add",
+                "prompt": "Research digest",
+                "cron_expr": "0 6 * * *",
+                "recurring_confirmed": True,
+                "tools_allowed": " web_search , wiki ",
+            }
+        )
+        parsed = json.loads(result)
+        assert parsed["status"] == "success"
+        job = await manager.get_job(str(parsed["job_id"]), USER_ID)
+        assert job is not None
+        assert job.tools_allowed == ("web_search", "wiki")
 
 
 # ---------------------------------------------------------------------------

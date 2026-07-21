@@ -102,6 +102,8 @@ def create_wiki_agent_tools(
                 content = source
                 filename = filename or f"text_{hashlib.sha256(source.encode()).hexdigest()[:12]}.md"
 
+            filename = Path(filename).name
+
             if folder_path:
                 safe_folder = structure._sanitize_path(folder_path)
                 full_path = f"{safe_folder}/{filename}"

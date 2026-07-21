@@ -42,9 +42,10 @@ def _extract_host_serial_lane(tool_name: str, metadata: SafetyMetadata) -> str |
 
 def _classify_tool_call_for_stage(
     tool_call: dict[str, Any],
-    reserved_paths: list[Path],
+    reserved_read_paths: list[Path],
+    reserved_write_paths: list[Path],
     reserved_host_serial_lanes: set[str],
-) -> tuple[_StageVerdict, Path | None, str | None]:
+) -> tuple[_StageVerdict, Path | None, str | None, bool]:
     """Classify whether a tool call can join the current parallel stage.
 
     Returns:
@@ -57,31 +58,36 @@ def _classify_tool_call_for_stage(
     metadata = resolve_safety_metadata(tool_name)
 
     if metadata.is_concurrent_safe and tool_name not in _PATH_SCOPED_TOOLS:
-        return "fit", None, None
+        return "fit", None, None, False
 
     if tool_name not in _PATH_SCOPED_TOOLS and not metadata.is_concurrent_safe:
         host_serial_lane = _extract_host_serial_lane(tool_name, metadata)
         if host_serial_lane is None:
-            return "singleton", None, None
+            return "singleton", None, None, False
         if host_serial_lane in reserved_host_serial_lanes:
-            return "conflict", None, None
-        return "fit", None, host_serial_lane
+            return "conflict", None, None, False
+        return "fit", None, host_serial_lane, False
 
     args = tool_call.get("args", {})
     if not isinstance(args, dict):
-        return "singleton", None, None
+        return "singleton", None, None, False
 
     scoped_path = _extract_parallel_scope_path(tool_name, args)
     if scoped_path is None:
         if not metadata.is_concurrent_safe:
-            return "singleton", None, None
-        return "fit", None, None
+            return "singleton", None, None, False
+        return "fit", None, None, False
 
-    if any(_paths_overlap(scoped_path, existing) for existing in reserved_paths):
-        return "conflict", None, None
+    if metadata.is_read_only:
+        if any(_paths_overlap(scoped_path, existing) for existing in reserved_write_paths):
+            return "conflict", None, None, False
+        return "fit", scoped_path, None, True
 
-    # ALL path-scoped operations reserve the path to prevent dirty reads.
-    return "fit", scoped_path, None
+    if any(_paths_overlap(scoped_path, existing) for existing in reserved_write_paths):
+        return "conflict", None, None, False
+    if any(_paths_overlap(scoped_path, existing) for existing in reserved_read_paths):
+        return "conflict", None, None, False
+    return "fit", scoped_path, None, False
 
 
 def _paths_overlap(left: Path, right: Path) -> bool:
@@ -122,44 +128,63 @@ def build_tool_execution_stages(tool_calls: list[dict[str, Any]]) -> list[list[i
 
     stages: list[list[int]] = []
     current_stage: list[int] = []
-    reserved_paths: list[Path] = []
+    reserved_read_paths: list[Path] = []
+    reserved_write_paths: list[Path] = []
     reserved_host_serial_lanes: set[str] = set()
 
     def _flush_stage() -> None:
-        nonlocal current_stage, reserved_paths, reserved_host_serial_lanes
+        nonlocal current_stage, reserved_read_paths, reserved_write_paths, reserved_host_serial_lanes
         if current_stage:
             stages.append(current_stage)
         current_stage = []
-        reserved_paths = []
+        reserved_read_paths = []
+        reserved_write_paths = []
         reserved_host_serial_lanes = set()
 
-    def _append_with_reservations(idx: int, path_reservation: Path | None, lane_reservation: str | None) -> None:
+    def _append_with_reservations(
+        idx: int,
+        path_reservation: Path | None,
+        lane_reservation: str | None,
+        path_read_only: bool,
+    ) -> None:
         current_stage.append(idx)
         if path_reservation is not None:
-            reserved_paths.append(path_reservation)
+            if path_read_only:
+                reserved_read_paths.append(path_reservation)
+            else:
+                reserved_write_paths.append(path_reservation)
         if lane_reservation is not None:
             reserved_host_serial_lanes.add(lane_reservation)
 
     for idx, tool_call in enumerate(tool_calls):
-        verdict, path_reservation, lane_reservation = _classify_tool_call_for_stage(
+        verdict, path_reservation, lane_reservation, path_read_only = _classify_tool_call_for_stage(
             tool_call,
-            reserved_paths,
+            reserved_read_paths,
+            reserved_write_paths,
             reserved_host_serial_lanes,
         )
 
         if verdict == "fit":
-            _append_with_reservations(idx, path_reservation, lane_reservation)
+            _append_with_reservations(idx, path_reservation, lane_reservation, path_read_only)
             continue
 
         if verdict == "conflict":
             _flush_stage()
-            retry_verdict, retry_path_reservation, retry_lane_reservation = _classify_tool_call_for_stage(
-                tool_call,
-                reserved_paths,
-                reserved_host_serial_lanes,
+            retry_verdict, retry_path_reservation, retry_lane_reservation, retry_path_read_only = (
+                _classify_tool_call_for_stage(
+                    tool_call,
+                    reserved_read_paths,
+                    reserved_write_paths,
+                    reserved_host_serial_lanes,
+                )
             )
             if retry_verdict == "fit":
-                _append_with_reservations(idx, retry_path_reservation, retry_lane_reservation)
+                _append_with_reservations(
+                    idx,
+                    retry_path_reservation,
+                    retry_lane_reservation,
+                    retry_path_read_only,
+                )
             else:
                 # Defensive fallback: impossible to co-locate with anything.
                 stages.append([idx])

@@ -156,3 +156,76 @@ class TestScanFolder:
 
         files = ws.scan_folder(src)
         assert files == []
+
+
+class TestGetRawFilePathBoundary:
+    """Boundary validation tests for get_raw_file_path (path traversal defense)."""
+
+    def test_normal_filename(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        path = ws.get_raw_file_path("my_document.md")
+        assert path.name == "my_document.md"
+        assert path.parent == ws.raw_dir
+
+    def test_nested_subfolder(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        path = ws.get_raw_file_path("research/ai/paper.md")
+        assert str(path).endswith("raw/research/ai/paper.md")
+
+    def test_url_hash_filename(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        path = ws.get_raw_file_path("web_abc123def456.md")
+        assert path.name == "web_abc123def456.md"
+
+    def test_rejects_path_traversal(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        with pytest.raises(ValueError, match="traversal"):
+            ws.get_raw_file_path("../../../tmp/evil.sh")
+
+    def test_rejects_deep_traversal(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        with pytest.raises(ValueError, match="traversal"):
+            ws.get_raw_file_path("../../../../../../../../etc/cron.d/evil")
+
+    def test_rejects_absolute_path(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        with pytest.raises(ValueError, match="Absolute"):
+            ws.get_raw_file_path("/etc/passwd")
+
+    def test_rejects_null_byte(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        with pytest.raises(ValueError, match="Null byte"):
+            ws.get_raw_file_path("file.md\x00.sh")
+
+    def test_filename_with_spaces(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        path = ws.get_raw_file_path("my document (draft).md")
+        assert path.name == "my document (draft).md"
+        assert path.parent == ws.raw_dir
+
+    def test_double_dot_without_slash(self, tmp_path):
+        """'..evil.md' is a valid filename, not a traversal attempt."""
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        path = ws.get_raw_file_path("..evil.md")
+        assert path.parent == ws.raw_dir
+
+    def test_rejects_mixed_traversal_with_valid_segments(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        with pytest.raises(ValueError, match="traversal"):
+            ws.get_raw_file_path("research/../../outside.md")
+
+    def test_deeply_nested_valid_path(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        path = ws.get_raw_file_path("a/b/c/d/e/deep.md")
+        assert str(path).endswith("raw/a/b/c/d/e/deep.md")

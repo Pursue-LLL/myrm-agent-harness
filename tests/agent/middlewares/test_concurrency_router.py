@@ -18,8 +18,9 @@ def mock_safety_metadata(monkeypatch):
             # file_write_tool and file_patch_tool are not concurrent safe inherently
             # (they modify state), but file_read_tool is concurrent safe.
             # However, for the sake of the test, let's strictly mock their actual metadata in our system:
-            is_safe = tool_name == "file_read_tool"
-            return SafetyMetadata(is_concurrent_safe=is_safe)
+            if tool_name == "file_read_tool":
+                return SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True)
+            return SafetyMetadata(is_concurrent_safe=False)
         if tool_name == "terminal_tool":
             return SafetyMetadata(is_concurrent_safe=False)
         if tool_name in ["mcp__ue__list_levels", "mcp__jira__list_issues", "mcp__ue__read_actor"]:
@@ -117,6 +118,15 @@ def test_should_not_parallelize_overlapping_read_and_write():
     assert not should_parallelize_tool_batch(calls)
 
 
+def test_should_parallelize_overlapping_reads():
+    # Two read calls targeting the same path are now allowed to overlap.
+    calls = [
+        {"name": "file_read_tool", "args": {"path": "src/a.ts"}},
+        {"name": "file_read_tool", "args": {"path": "src/a.ts"}},
+    ]
+    assert should_parallelize_tool_batch(calls)
+
+
 def test_should_parallelize_host_serial_read_only_across_servers():
     # Host-serial demoted read-only MCP tools can run in parallel across distinct servers.
     calls = [
@@ -169,3 +179,12 @@ def test_build_tool_execution_stages_splits_overlapping_path_calls():
         {"name": "file_write_tool", "args": {"path": "src/b.ts"}},
     ]
     assert build_tool_execution_stages(calls) == [[0], [1, 2]]
+
+
+def test_build_tool_execution_stages_allows_overlapping_reads():
+    calls = [
+        {"name": "file_read_tool", "args": {"path": "src/a.ts"}},
+        {"name": "file_read_tool", "args": {"path": "src/a.ts"}},
+        {"name": "file_write_tool", "args": {"path": "src/a.ts"}},
+    ]
+    assert build_tool_execution_stages(calls) == [[0, 1], [2]]
