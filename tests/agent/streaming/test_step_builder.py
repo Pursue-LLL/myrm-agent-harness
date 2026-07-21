@@ -22,6 +22,20 @@ class TestGetStepKey:
 
 
 class TestBuildStepDataSearch:
+    def test_glob_tool_pattern(self) -> None:
+        result = build_step_data("glob_tool", {"pattern": "**/*.py", "path": "src"})
+        assert result["step_key"] == "glob_tool"
+        assert result["data"] == [{"pattern": "**/*.py", "search_path": "src"}]
+
+    def test_grep_tool_pattern(self) -> None:
+        result = build_step_data(
+            "grep_tool",
+            {"pattern": "def main", "path": ".", "file_pattern": "**/*.py"},
+        )
+        assert result["step_key"] == "grep_tool"
+        assert result["data"][0]["pattern"] == "def main"
+        assert result["data"][0]["file_pattern"] == "**/*.py"
+
     def test_search_with_query(self):
         result = build_step_data("web_search", {"query": "hello world"})
         assert result == {"data": [{"query": "hello world"}]}

@@ -371,6 +371,8 @@ class CronManager:
         if patch.name is not None:
             job.name = patch.name
         if patch.status is not None:
+            if patch.status == JobStatus.ACTIVE and job.status != JobStatus.ACTIVE:
+                self._validate_resume_preconditions(job, now)
             job.status = patch.status
         if patch.schedule is not None:
             self._validate_schedule(patch.schedule)
@@ -530,6 +532,8 @@ class CronManager:
             return None
 
         now = datetime.now(UTC)
+        self._validate_resume_preconditions(job, now)
+
         job.status = JobStatus.ACTIVE
         job.next_run_at = compute_next_run(job.schedule, now)
         job.consecutive_failures = 0
@@ -553,6 +557,18 @@ class CronManager:
     # ------------------------------------------------------------------
     # Validation & Helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _validate_resume_preconditions(job: CronJob, now: datetime) -> None:
+        """Reject resuming a job whose constraints make it immediately un-runnable."""
+        if job.status == JobStatus.COMPLETED:
+            raise ValueError("completed jobs cannot be resumed")
+        if job.expires_at is not None:
+            ea = job.expires_at if job.expires_at.tzinfo else job.expires_at.replace(tzinfo=UTC)
+            if now >= ea:
+                raise ValueError("job has expired; extend expires_at before resuming")
+        if job.max_fires is not None and job.fire_count >= job.max_fires:
+            raise ValueError("max execution count reached; increase max_fires before resuming")
 
     def _validate_create(
         self,

@@ -163,7 +163,7 @@ async def test_execute_view_regular_file_content() -> None:
             "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.ValidatorChain",
         ) as mock_vc,
         patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_staleness_guard",
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
             return_value=None,
         ),
     ):
@@ -307,7 +307,7 @@ async def test_execute_view_fails_closed_when_archive_size_probe_fails() -> None
 
 
 @pytest.mark.asyncio
-async def test_execute_view_records_read_when_staleness_guard_active() -> None:
+async def test_execute_view_records_read_when_integrity_guard_active() -> None:
     context = OperationContext(operation=OperationType.VIEW, paths=["tracked.py"], executor=None)
     service = FileOperationService(context)
     guard = MagicMock()
@@ -320,7 +320,7 @@ async def test_execute_view_records_read_when_staleness_guard_active() -> None:
             "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.ValidatorChain",
         ) as mock_vc,
         patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_staleness_guard",
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
             return_value=guard,
         ),
     ):
@@ -373,7 +373,7 @@ async def test_execute_create_appends_conflict_notice() -> None:
         )
         stack.enter_context(
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_staleness_guard",
+                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
                 return_value=None,
             )
         )
@@ -434,7 +434,7 @@ async def test_execute_create_overwrite_triggers_modified_observers() -> None:
         )
         stack.enter_context(
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_staleness_guard",
+                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
                 return_value=None,
             )
         )
@@ -498,7 +498,7 @@ async def test_execute_str_replace_delta_failure_rolls_back() -> None:
         )
         stack.enter_context(
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_staleness_guard",
+                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
                 return_value=None,
             )
         )
@@ -524,7 +524,7 @@ async def test_execute_str_replace_delta_failure_rolls_back() -> None:
 
 
 @pytest.mark.asyncio
-async def test_execute_str_replace_appends_staleness_and_conflict_warnings() -> None:
+async def test_execute_str_replace_appends_conflict_warning() -> None:
     context = OperationContext(
         operation=OperationType.STR_REPLACE,
         executor=None,
@@ -534,8 +534,9 @@ async def test_execute_str_replace_appends_staleness_and_conflict_warnings() -> 
     )
     service = FileOperationService(context)
     guard = MagicMock()
-    guard.check_staleness.return_value = "Stale file warning"
     guard.require_read_before_write.return_value = None
+    guard.require_full_read_before_edit.return_value = None
+    guard.require_version_match.return_value = None
     guard.record_write = MagicMock()
     with ExitStack() as stack:
         stack.enter_context(patch.object(context, "validate"))
@@ -557,7 +558,7 @@ async def test_execute_str_replace_appends_staleness_and_conflict_warnings() -> 
         )
         stack.enter_context(
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_staleness_guard",
+                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
                 return_value=guard,
             )
         )
@@ -590,8 +591,8 @@ async def test_execute_str_replace_appends_staleness_and_conflict_warnings() -> 
         mock_factory.return_value = strategy
         mock_vc.return_value.validate = AsyncMock()
         result = await service.execute()
-    assert "Stale file warning" in result
     assert "Concurrent edit notice" in result
+    assert "Stale file warning" not in result
 
 
 @pytest.mark.asyncio
@@ -629,7 +630,7 @@ async def test_execute_str_replace_rejects_unread_file() -> None:
         )
         stack.enter_context(
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_staleness_guard",
+                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
                 return_value=guard,
             )
         )
@@ -686,7 +687,7 @@ async def test_create_triggers_auto_verify_when_no_verify_command() -> None:
         )
         stack.enter_context(
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_staleness_guard",
+                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
                 return_value=None,
             )
         )
@@ -768,7 +769,7 @@ async def test_create_skips_auto_verify_when_verify_command_present() -> None:
         )
         stack.enter_context(
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_staleness_guard",
+                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
                 return_value=None,
             )
         )
@@ -837,7 +838,7 @@ async def test_str_replace_triggers_auto_verify_with_line_range() -> None:
         )
         stack.enter_context(
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_staleness_guard",
+                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
                 return_value=None,
             )
         )

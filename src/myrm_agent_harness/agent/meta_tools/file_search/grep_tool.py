@@ -43,7 +43,10 @@ from myrm_agent_harness.agent.security.redact import redact_sensitive_text
 from myrm_agent_harness.toolkits.code_execution.executors.base import require_executor
 from myrm_agent_harness.utils.errors import ToolError
 
+from ._formatter import format_grep_results
+from .path_hint import format_path_not_found_hint, suggest_similar_paths
 from .regex_validator import RegexValidator
+from .skill_path_filter import get_disabled_skill_roots, is_under_disabled_skill_root
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
@@ -278,12 +281,20 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
                 ) from e
 
             search_path_obj = Path(search_path)
+            disabled_roots = get_disabled_skill_roots(config)
+
+            if disabled_roots and is_under_disabled_skill_root(str(search_path_obj), disabled_roots):
+                raise ToolError(
+                    message=f"Path blocked: {path}",
+                    user_hint="This path belongs to a disabled skill and cannot be searched.",
+                )
 
             # 验证路径存在
             if not search_path_obj.exists():
+                suggestions = suggest_similar_paths(search_path)
                 raise ToolError(
                     message=f"Path not found: {path}",
-                    user_hint=f"The path '{path}' does not exist. Please check the path and try again.",
+                    user_hint=format_path_not_found_hint(path, suggestions),
                 )
 
             flags = re.IGNORECASE if ignore_case else 0
@@ -409,7 +420,14 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
                 files_searched = min(i + len(batch), len(files))
 
             # --- Format phase ---
-            from ._formatter import format_grep_results
+            if disabled_roots and results:
+                filtered_results: list[dict[str, str | int]] = []
+                for match in results:
+                    rel_file = str(match.get("file", ""))
+                    abs_file = str(search_path_obj / rel_file) if rel_file else str(search_path_obj)
+                    if not is_under_disabled_skill_root(abs_file, disabled_roots):
+                        filtered_results.append(match)
+                results = filtered_results
 
             if used_ripgrep:
                 files_searched = len({str(r["file"]) for r in results})

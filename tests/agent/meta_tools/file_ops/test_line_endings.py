@@ -257,7 +257,7 @@ async def test_create_overwrite_preserves_crlf() -> None:
             return_value=None,
         ),
         patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_staleness_guard",
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
             return_value=None,
         ),
         patch(
@@ -312,7 +312,7 @@ async def test_create_new_file_no_normalization() -> None:
             return_value=None,
         ),
         patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_staleness_guard",
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
             return_value=None,
         ),
         patch(

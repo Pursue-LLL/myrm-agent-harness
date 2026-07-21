@@ -53,6 +53,32 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
     Returns:
         StepBuildResult: 包含可选的 step_key 覆盖和 data 列表
     """
+    # glob / grep — structured search pattern display
+    if tool_name == "glob_tool":
+        pattern = tool_args.get("pattern", "")
+        search_path = tool_args.get("path", ".")
+        if pattern:
+            return {
+                "step_key": "glob_tool",
+                "data": [{"pattern": str(pattern), "search_path": str(search_path)}],
+            }
+
+    if tool_name == "grep_tool":
+        pattern = tool_args.get("pattern", "")
+        search_path = tool_args.get("path", ".")
+        file_pattern = tool_args.get("file_pattern", "**/*")
+        if pattern:
+            return {
+                "step_key": "grep_tool",
+                "data": [
+                    {
+                        "pattern": str(pattern),
+                        "search_path": str(search_path),
+                        "file_pattern": str(file_pattern),
+                    }
+                ],
+            }
+
     # 搜索类工具 - 显示搜索查询
     if "search" in tool_name.lower():
         query = tool_args.get("questions") or tool_args.get("query") or tool_args.get("queries") or tool_args.get("q")

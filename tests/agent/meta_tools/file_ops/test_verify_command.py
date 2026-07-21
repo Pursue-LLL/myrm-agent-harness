@@ -100,7 +100,7 @@ class TestVerifyCommand:
         with patch(
             "myrm_agent_harness.agent.meta_tools.file_ops.strategies.strategy_factory.FileSystemStrategyFactory.create_strategy"
         ) as mock_factory, patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_staleness_guard",
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
             return_value=None,
         ):
             mock_strategy = AsyncMock()
@@ -136,7 +136,7 @@ class TestVerifyCommand:
         with patch(
             "myrm_agent_harness.agent.meta_tools.file_ops.strategies.strategy_factory.FileSystemStrategyFactory.create_strategy"
         ) as mock_factory, patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_staleness_guard",
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
             return_value=None,
         ):
             mock_strategy = AsyncMock()

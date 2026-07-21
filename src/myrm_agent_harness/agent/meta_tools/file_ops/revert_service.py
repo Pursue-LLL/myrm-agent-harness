@@ -1,7 +1,7 @@
 """File revert service — undo AI file changes at message or file granularity.
 
 Reads snapshots from SnapshotStore and restores files to their pre-modification
-state. Integrates with StalenessGuard (hash update) and ArtifactTracker (cleanup).
+state. Integrates with FileIntegrityGuard (hash update) and ArtifactTracker (cleanup).
 
 [INPUT]
 - agent.context_management.tracking.artifact_tracker::ArtifactAction, (POS: Artifact Trail  Agent  Factory Research)
@@ -24,7 +24,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from .core.staleness_guard import get_staleness_guard
+from .core.file_integrity_guard import get_file_integrity_guard
 from .observers.snapshot_observer import FileSnapshot, SnapshotOp, SnapshotStore
 
 logger = logging.getLogger(__name__)
@@ -194,7 +194,7 @@ async def _revert_single(snap: FileSnapshot, executor: object | None) -> _Single
 
         path.write_text(snap.original_content, "utf-8")
 
-        guard = get_staleness_guard(executor)
+        guard = get_file_integrity_guard(executor)
         if guard is not None:
             guard.record_write(snap.path, snap.original_content)
 

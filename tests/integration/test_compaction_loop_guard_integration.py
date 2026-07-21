@@ -243,8 +243,8 @@ async def test_compaction_without_loop_guard_in_contextvar():
 
 
 @pytest.mark.asyncio
-async def test_staleness_guard_cleared_alongside_loop_guard():
-    """Verify staleness_guard.clear() and notify_loop_guard_compaction()
+async def test_integrity_guard_cleared_alongside_loop_guard():
+    """Verify file_integrity_guard.clear() and notify_loop_guard_compaction()
     are both invoked when compaction saves tokens.
 
     Both are in the same `if result.tokens_saved > 0:` block in

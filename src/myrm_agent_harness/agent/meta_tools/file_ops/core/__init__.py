@@ -6,14 +6,14 @@
 from .file_operation_service import FileOperationService
 from .operation_context import OperationContext, OperationType, ViewRange
 from .result_formatter import ResultFormatter
-from .staleness_guard import StalenessGuard, get_staleness_guard
+from .file_integrity_guard import FileIntegrityGuard, get_file_integrity_guard
 
 __all__ = [
     "FileOperationService",
     "OperationContext",
     "OperationType",
     "ResultFormatter",
-    "StalenessGuard",
+    "FileIntegrityGuard",
     "ViewRange",
-    "get_staleness_guard",
+    "get_file_integrity_guard",
 ]

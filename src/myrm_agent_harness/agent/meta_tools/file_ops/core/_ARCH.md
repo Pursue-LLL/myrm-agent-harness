@@ -14,7 +14,7 @@ Text Editor core business logic module.
 | operation_context.py | Core | Provides OperationType, ViewRange, OperationContext. | ✅ |
 | read_semaphore.py | Core | Event-loop scoped read semaphore registry for concurrent file read limits. | ✅ |
 | result_formatter.py | Core | Provides FileContent, DirectoryListing, ResultFormatter. | ✅ |
-| staleness_guard.py | Core | File integrity guard. Combines read-before-edit gate (hard reject for unread files) with content-hash staleness detection (soft warning for externally modified files). Agent-aware with per-agent tracking. Sentinel value marks partial reads that pass the gate but skip staleness check. | ✅ |
+| file_integrity_guard.py | Core | File integrity guard. Read-before-write gate (hard reject), full-read gate before edits, and content-hash version gate (hard reject on external modification). Agent-aware with per-agent tracking. Partial reads use a sentinel marker. | ✅ |
 | file_activity_tracker.py | Core | File activity tracker. Line-level conflict detection for concurrent subagent file operations. | ✅ |
 
 ## Key Dependencies

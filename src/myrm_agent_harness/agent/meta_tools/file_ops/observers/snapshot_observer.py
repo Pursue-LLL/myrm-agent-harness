@@ -73,7 +73,7 @@ class SnapshotStore:
 
     Structure: {session_id: {message_id: [FileSnapshot, ...]}}
 
-    Uses ContextVar for per-context isolation (consistent with StalenessGuard
+    Uses ContextVar for per-context isolation (consistent with FileIntegrityGuard
     and TaintTracker). Each asyncio Task / agent run gets its own store.
     """
 

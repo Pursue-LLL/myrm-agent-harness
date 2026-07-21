@@ -371,11 +371,11 @@ def create_context_pipeline_middleware(
                 # because the model no longer has byte-level visibility of previously
                 # read file contents — it must re-read before editing.
                 if result.tokens_saved > 0:
-                    from myrm_agent_harness.agent.meta_tools.file_ops.core.staleness_guard import (
-                        _staleness_guards,
+                    from myrm_agent_harness.agent.meta_tools.file_ops.core.file_integrity_guard import (
+                        _integrity_guards,
                     )
 
-                    for guard in _staleness_guards.values():
+                    for guard in _integrity_guards.values():
                         guard.clear()
 
                     from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (

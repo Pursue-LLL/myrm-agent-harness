@@ -32,6 +32,9 @@ from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
 from myrm_agent_harness.toolkits.code_execution.executors.base import require_executor
 from myrm_agent_harness.utils.errors import ToolError
 
+from .path_hint import format_path_not_found_hint, suggest_similar_paths
+from .skill_path_filter import get_disabled_skill_roots, is_under_disabled_skill_root
+
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
@@ -124,12 +127,20 @@ def create_glob_tool(io_config: FileIOConfig | None = None) -> BaseTool:
                 ) from e
 
             search_path_obj = Path(search_path)
+            disabled_roots = get_disabled_skill_roots(config)
+
+            if disabled_roots and is_under_disabled_skill_root(str(search_path_obj), disabled_roots):
+                raise ToolError(
+                    message=f"Path blocked: {path}",
+                    user_hint="This path belongs to a disabled skill and cannot be searched.",
+                )
 
             # 验证路径存在且为目录
             if not search_path_obj.exists():
+                suggestions = suggest_similar_paths(search_path)
                 raise ToolError(
                     message=f"Path not found: {path}",
-                    user_hint=f"The directory '{path}' does not exist. Please check the path and try again.",
+                    user_hint=format_path_not_found_hint(path, suggestions),
                 )
 
             if not search_path_obj.is_dir():
@@ -223,6 +234,13 @@ def create_glob_tool(io_config: FileIOConfig | None = None) -> BaseTool:
             result_limited = len(files) >= io_cfg.max_search_results
             if result_limited:
                 logger.warning(f"Glob search hit limit ({io_cfg.max_search_results}), results may be incomplete")
+
+            if disabled_roots:
+                files = [
+                    f
+                    for f in files
+                    if not is_under_disabled_skill_root(str(f), disabled_roots)
+                ]
 
             # 搜索无结果不是错误，返回友好的消息
             if not files:

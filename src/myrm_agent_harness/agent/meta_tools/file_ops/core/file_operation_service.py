@@ -14,7 +14,7 @@
 - observers.activity_observer::FileActivityObserver (POS: 文件活动记录,并发冲突感知)
 - operation_context::OperationContext, OperationType (POS: 操作上下文和类型)
 - result_formatter::ResultFormatter, FileContent, DirectoryListing (POS: 结果格式化器)
-- staleness_guard::get_staleness_guard (POS: 文件过期检测)
+- file_integrity_guard::get_file_integrity_guard (POS: read/version integrity gates)
 - file_activity_tracker::get_file_activity_tracker (POS: 文件活动跟踪器,行级冲突检测)
 - context_management.infra.session_lock::get_current_chat_id (POS: 当前会话上下文)
 - utils.token_estimation::estimate_content_tokens (POS: 文件内容 token 估算)
@@ -66,7 +66,7 @@ from .file_conflict_guard import check_conflict_pre_write, compute_edit_line_ran
 from .operation_context import OperationContext, OperationType
 from .read_semaphore import get_read_semaphore
 from .result_formatter import DirectoryListing, FileContent, ResultFormatter
-from .staleness_guard import get_staleness_guard
+from .file_integrity_guard import get_file_integrity_guard
 
 logger = logging.getLogger(__name__)
 
@@ -228,7 +228,7 @@ class FileOperationService:
                 estimated_tokens=estimated_content_tokens,
             )
 
-        guard = get_staleness_guard(self.context.executor)
+        guard = get_file_integrity_guard(self.context.executor)
         if guard is not None:
             if view_range is None:
                 guard.record_read(resolved_path, content_text)
@@ -274,8 +274,20 @@ class FileOperationService:
         pre_existing = await strategy.exists(resolved_path)
         pre_content_str: str | None = None
         original_eol: str | None = None
+        guard = get_file_integrity_guard(self.context.executor)
         if pre_existing:
+            self._raise_if_integrity_rejection(
+                guard,
+                resolved_path,
+                require_version=False,
+            )
             pre_content_str = "\n".join(await strategy.read_file(resolved_path))
+            self._raise_if_integrity_rejection(
+                guard,
+                resolved_path,
+                disk_content=pre_content_str,
+                require_version=True,
+            )
             from ..utils.line_endings import detect_line_ending, normalize_line_endings
 
             original_eol = detect_line_ending(pre_content_str)
@@ -337,7 +349,6 @@ class FileOperationService:
         # Record hash AFTER observers and verification so FormatObserver's changes are captured.
         # Re-read to get the post-formatted content; skip re-read when no
         # executor is available (guard would be None anyway).
-        guard = get_staleness_guard(self.context.executor)
         if guard is not None:
             final_content = "\n".join(await strategy.read_file(resolved_path))
             guard.record_write(resolved_path, final_content)
@@ -370,25 +381,16 @@ class FileOperationService:
         validator_chain = ValidatorChain(strategy, io_config=self.io_config)
         await validator_chain.validate(self.context, resolved_path)
 
-        # Read-before-edit gate + staleness detection (single guard lookup)
-        guard = get_staleness_guard(self.context.executor)
-        if guard is not None:
-            gate_rejection = guard.require_read_before_write(resolved_path)
-            if gate_rejection is not None:
-                from myrm_agent_harness.utils.errors import ToolError
+        guard = get_file_integrity_guard(self.context.executor)
+        self._raise_if_integrity_rejection(guard, resolved_path, require_version=False)
 
-                raise ToolError(
-                    message=gate_rejection,
-                    user_hint="Read the file first with file_read_tool before editing.",
-                )
-
-        # 读取原内容
         old_content = "\n".join(await strategy.read_file(resolved_path))
-
-        # 过期检测(复用已读取的 old_content,零额外 I/O)
-        staleness_warning: str | None = None
-        if guard is not None:
-            staleness_warning = guard.check_staleness(resolved_path, old_content)
+        self._raise_if_integrity_rejection(
+            guard,
+            resolved_path,
+            disk_content=old_content,
+            require_version=True,
+        )
 
         # Concurrent subagent conflict detection (line-level precision)
         line_start, line_end = compute_edit_line_range(old_content, self.context.old_str)
@@ -458,10 +460,42 @@ class FileOperationService:
         logger.info(f"Replaced text in file: {resolved_path}")
 
         response = ResultFormatter.format_success("replaced text in", resolved_path)
-        if staleness_warning:
-            response = f"{response}\n\n{staleness_warning}"
         if conflict_warning:
             response = f"{response}\n\n{conflict_warning}"
         if auto_verify_report:
             response = f"{response}\n{auto_verify_report}"
         return response
+
+    @staticmethod
+    def _raise_if_integrity_rejection(
+        guard: object | None,
+        path: str,
+        *,
+        disk_content: str | None = None,
+        require_version: bool,
+    ) -> None:
+        if guard is None:
+            return
+        from myrm_agent_harness.utils.errors import ToolError
+
+        read_rejection = guard.require_read_before_write(path)
+        if read_rejection is not None:
+            raise ToolError(
+                message=read_rejection,
+                user_hint="Read the file first with file_read_tool before editing.",
+            )
+
+        partial_rejection = guard.require_full_read_before_edit(path)
+        if partial_rejection is not None:
+            raise ToolError(
+                message=partial_rejection,
+                user_hint="Read the full file with file_read_tool before editing.",
+            )
+
+        if require_version and disk_content is not None:
+            version_rejection = guard.require_version_match(path, disk_content)
+            if version_rejection is not None:
+                raise ToolError(
+                    message=version_rejection,
+                    user_hint="Re-read the file with file_read_tool — disk content changed since your last read.",
+                )

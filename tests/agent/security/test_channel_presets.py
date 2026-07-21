@@ -118,6 +118,16 @@ class TestChannelPresets:
         mcp_rules = [r for r in preset.ruleset if r.permission == "mcp_invoke"]
         assert any(r.action == PermissionAction.ASK for r in mcp_rules)
 
+    def test_im_preset_asks_file_write(self) -> None:
+        preset = CHANNEL_PRESETS[ChannelType.IM]
+        rules = [r for r in preset.ruleset if r.permission == "file_write_tool"]
+        assert any(r.action == PermissionAction.ASK for r in rules)
+
+    def test_im_preset_asks_file_edit(self) -> None:
+        preset = CHANNEL_PRESETS[ChannelType.IM]
+        rules = [r for r in preset.ruleset if r.permission == "file_edit_tool"]
+        assert any(r.action == PermissionAction.ASK for r in rules)
+
     def test_web_chat_preset_has_empty_ruleset(self) -> None:
         """WEB_CHAT preset inherits defaults without additional restrictions."""
         preset = CHANNEL_PRESETS[ChannelType.WEB_CHAT]

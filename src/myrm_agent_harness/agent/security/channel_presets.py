@@ -112,6 +112,8 @@ CHANNEL_PRESETS: dict[ChannelType, ChannelSecurityPreset] = {
             PermissionRule("shell_exec", "*", PermissionAction.DENY),
             PermissionRule("code_interpreter", "*", PermissionAction.ASK),
             PermissionRule("mcp_invoke", "*", PermissionAction.ASK),
+            PermissionRule("file_write_tool", "*", PermissionAction.ASK),
+            PermissionRule("file_edit_tool", "*", PermissionAction.ASK),
         ),
     ),
     ChannelType.CRON: ChannelSecurityPreset(
