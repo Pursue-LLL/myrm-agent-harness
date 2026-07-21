@@ -601,37 +601,44 @@ async def list_by_type(
             base_filters["tags"] = tag_filter.lower()
         return base_filters
 
+    async def _scroll_with_offset(
+        coll: str, filters: dict, *, fetch_limit: int, skip: int
+    ) -> list[VectorDocument]:
+        """Qdrant scroll with integer offset emulation.
+
+        Qdrant scroll is cursor-based (point-ID), not offset-based.
+        When ``order_by`` is used we fetch ``skip + fetch_limit`` items
+        and discard the first ``skip`` in-memory.  Without ``order_by``
+        the existing cursor-based behaviour is used (offset=None for
+        first page).
+        """
+        if order_by is not None and skip > 0:
+            docs, _ = await vector.scroll(  # type: ignore[union-attr]
+                coll, limit=skip + fetch_limit, filters=filters, order_by=order_by
+            )
+            return docs[skip:]
+        docs, _ = await vector.scroll(  # type: ignore[union-attr]
+            coll, limit=fetch_limit, filters=filters, order_by=order_by
+        )
+        return docs
+
     if memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC) and vector:
         coll = config.semantic_collection if memory_type == MemoryType.SEMANTIC else config.episodic_collection
         filters = _build_filters(_user_filter(namespaces=namespaces, include_archived=include_archived))
-        docs, _ = await vector.scroll(
-            coll,
-            limit=limit,
-            offset=offset,
-            filters=filters,
-            order_by=order_by,
-        )
+        docs = await _scroll_with_offset(coll, filters, fetch_limit=limit, skip=offset)
         converter = doc_to_semantic if memory_type == MemoryType.SEMANTIC else doc_to_episodic
         return [converter(d) for d in docs]
     if memory_type == MemoryType.CONVERSATION and vector:
         filters = _build_filters(_user_filter(namespaces=namespaces, include_archived=include_archived))
-        docs, _ = await vector.scroll(
-            config.conversation_collection,
-            limit=limit,
-            offset=offset,
-            filters=filters,
-            order_by=order_by,
+        docs = await _scroll_with_offset(
+            config.conversation_collection, filters, fetch_limit=limit, skip=offset
         )
         return [doc_to_conversation(d, config=config) for d in docs]
     if memory_type == MemoryType.TASK_DIGEST and vector:
         filters = _build_filters(_user_filter(namespaces=namespaces, include_archived=include_archived))
         filters["event_type"] = MemoryType.TASK_DIGEST.value
-        docs, _ = await vector.scroll(
-            config.episodic_collection,
-            limit=limit,
-            offset=offset,
-            filters=filters,
-            order_by=order_by,
+        docs = await _scroll_with_offset(
+            config.episodic_collection, filters, fetch_limit=limit, skip=offset
         )
         return [doc_to_episodic(d) for d in docs]
     return []

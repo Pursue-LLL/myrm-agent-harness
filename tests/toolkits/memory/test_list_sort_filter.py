@@ -86,7 +86,7 @@ class TestListByTypeSortAndFilter:
             config=config,
         )
         call_kwargs = mock_vector.scroll.call_args[1]
-        assert call_kwargs["order_by"] is None
+        assert call_kwargs.get("order_by") is None
 
     @pytest.mark.asyncio
     async def test_invalid_sort_by_ignored(self, mock_vector, config):
@@ -100,7 +100,23 @@ class TestListByTypeSortAndFilter:
             sort_by="nonexistent_field",
         )
         call_kwargs = mock_vector.scroll.call_args[1]
-        assert call_kwargs["order_by"] is None
+        assert call_kwargs.get("order_by") is None
+
+    @pytest.mark.asyncio
+    async def test_offset_with_order_by_fetches_skip_plus_limit(self, mock_vector, config):
+        """When order_by is set and offset > 0, should fetch offset+limit and skip first offset."""
+        await list_by_type(
+            MemoryType.SEMANTIC,
+            limit=10,
+            offset=5,
+            relational=None,
+            vector=mock_vector,
+            config=config,
+            sort_by="created_at",
+            sort_order="desc",
+        )
+        call_kwargs = mock_vector.scroll.call_args[1]
+        assert call_kwargs["limit"] == 15  # skip(5) + limit(10)
 
 
 class TestCountByTypeTagFilter:

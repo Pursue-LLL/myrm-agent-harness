@@ -14,6 +14,11 @@ Applied once at module load time by ``base_agent``.  Protections:
    before ``awrap_tool_call`` runs; middleware may attach a ``BaseTool`` via
    ``ToolCallRequest.override(tool=...)`` (e.g. deferred tools after ``discover_capability``).
 
+4. **Stage-level mixed concurrency** — Tool batches are planned into ordered stages:
+   each stage runs only mutually safe calls in parallel, while unsafe/conflicting calls
+   are isolated into singleton stages. This preserves failure short-circuit semantics
+   without forcing full-batch serialization.
+
 [INPUT]
 - (none)
 
@@ -149,6 +154,32 @@ def apply_langgraph_tool_args_guard() -> None:
 
         ToolNode._inject_tool_args = _safe_inject  # type: ignore[method-assign]
 
+    def _tool_output_failed(out: object) -> bool:
+        if hasattr(out, "status") and getattr(out, "status") == "error":
+            return True
+        if isinstance(out, list):
+            return any(getattr(m, "status", None) == "error" for m in out)
+        return False
+
+    def _append_abort_messages(
+        outputs: list[object],
+        tool_calls: list[dict[str, object]],
+        executed_mask: list[bool],
+    ) -> None:
+        from langchain_core.messages import ToolMessage
+
+        for idx, rem_call in enumerate(tool_calls):
+            if executed_mask[idx]:
+                continue
+            outputs.append(
+                ToolMessage(
+                    content="Aborted: A previous tool call in this batch failed. Mid-batch short-circuit applied.",
+                    name=rem_call.get("name", "unknown"),
+                    tool_call_id=rem_call.get("id", ""),
+                    status="error",
+                )
+            )
+
     _orig_afunc = getattr(ToolNode, "_afunc", None)
 
     if _orig_afunc:
@@ -156,7 +187,6 @@ def apply_langgraph_tool_args_guard() -> None:
         async def _afunc_with_guard(self, input, config, runtime):  # type: ignore[no-untyped-def]
             import asyncio
 
-            from langchain_core.messages import ToolMessage
             from langchain_core.runnables.config import get_config_list
             from langgraph.prebuilt.tool_node import ToolRuntime
 
@@ -179,45 +209,47 @@ def apply_langgraph_tool_args_guard() -> None:
                 )
                 tool_runtimes.append(tool_runtime)
 
-            from myrm_agent_harness.agent.middlewares.concurrency_router import should_parallelize_tool_batch
+            from myrm_agent_harness.agent.middlewares.concurrency_router import build_tool_execution_stages
 
-            is_smart_parallel = should_parallelize_tool_batch(tool_calls)
-            has_unsafe = not is_smart_parallel
+            stage_plan = build_tool_execution_stages(tool_calls)
+            outputs: list[object] = []
+            executed_mask = [False] * len(tool_calls)
 
-            outputs = []
-            if not has_unsafe:
-                for call in tool_calls:
-                    call["__smart_concurrent_safe__"] = True
-                coros = [
-                    self._arun_one(call, input_type, tr) for call, tr in zip(tool_calls, tool_runtimes, strict=False)
-                ]
-                outputs = await asyncio.gather(*coros)
-            else:
-                for call, tr in zip(tool_calls, tool_runtimes, strict=False):
-                    out = await self._arun_one(call, input_type, tr)
-                    outputs.append(out)
+            for stage in stage_plan:
+                if len(stage) > 1:
+                    for idx in stage:
+                        tool_calls[idx]["__smart_concurrent_safe__"] = True
+                    coros = [self._arun_one(tool_calls[idx], input_type, tool_runtimes[idx]) for idx in stage]
+                    stage_outputs = await asyncio.gather(*coros)
+                    for idx, out in zip(stage, stage_outputs, strict=False):
+                        executed_mask[idx] = True
+                        outputs.append(out)
 
-                    failed = False
-                    if (hasattr(out, "status") and out.status == "error") or (
-                        isinstance(out, list) and any(getattr(m, "status", None) == "error" for m in out)
-                    ):
-                        failed = True
-
-                    if failed:
+                    failed_idx = next(
+                        (idx for idx, out in zip(stage, stage_outputs, strict=False) if _tool_output_failed(out)),
+                        None,
+                    )
+                    if failed_idx is not None:
                         logger.warning(
                             "Mid-batch action failed (%s). Preserving partial results and aborting remainder.",
-                            call.get("name", ""),
+                            tool_calls[failed_idx].get("name", ""),
                         )
-                        for rem_call in tool_calls[len(outputs) :]:
-                            outputs.append(
-                                ToolMessage(
-                                    content="Aborted: A previous tool call in this batch failed. Mid-batch short-circuit applied.",
-                                    name=rem_call.get("name", "unknown"),
-                                    tool_call_id=rem_call.get("id", ""),
-                                    status="error",
-                                )
-                            )
+                        _append_abort_messages(outputs, tool_calls, executed_mask)
                         break
+                    continue
+
+                idx = stage[0]
+                out = await self._arun_one(tool_calls[idx], input_type, tool_runtimes[idx])
+                executed_mask[idx] = True
+                outputs.append(out)
+
+                if _tool_output_failed(out):
+                    logger.warning(
+                        "Mid-batch action failed (%s). Preserving partial results and aborting remainder.",
+                        tool_calls[idx].get("name", ""),
+                    )
+                    _append_abort_messages(outputs, tool_calls, executed_mask)
+                    break
 
             return self._combine_tool_outputs(outputs, input_type)
 
@@ -228,7 +260,6 @@ def apply_langgraph_tool_args_guard() -> None:
     if _orig_func:
 
         def _func_with_guard(self, input, config, runtime):  # type: ignore[no-untyped-def]
-            from langchain_core.messages import ToolMessage
             from langchain_core.runnables.config import get_config_list
             from langgraph.prebuilt.tool_node import ToolRuntime
 
@@ -251,46 +282,52 @@ def apply_langgraph_tool_args_guard() -> None:
                 )
                 tool_runtimes.append(tool_runtime)
 
-            from myrm_agent_harness.agent.middlewares.concurrency_router import should_parallelize_tool_batch
+            from myrm_agent_harness.agent.middlewares.concurrency_router import build_tool_execution_stages
 
-            is_smart_parallel = should_parallelize_tool_batch(tool_calls)
-            has_unsafe = not is_smart_parallel
+            stage_plan = build_tool_execution_stages(tool_calls)
+            outputs: list[object] = []
+            executed_mask = [False] * len(tool_calls)
 
-            outputs = []
-            if not has_unsafe:
-                for call in tool_calls:
-                    call["__smart_concurrent_safe__"] = True
-                from langchain_core.runnables.config import get_executor_for_config
+            for stage in stage_plan:
+                if len(stage) > 1:
+                    for idx in stage:
+                        tool_calls[idx]["__smart_concurrent_safe__"] = True
+                    from langchain_core.runnables.config import get_executor_for_config
 
-                with get_executor_for_config(config) as executor:
-                    input_types = [input_type] * len(tool_calls)
-                    outputs = list(executor.map(self._run_one, tool_calls, input_types, tool_runtimes))
-            else:
-                for call, tr in zip(tool_calls, tool_runtimes, strict=False):
-                    out = self._run_one(call, input_type, tr)
-                    outputs.append(out)
+                    with get_executor_for_config(config) as executor:
+                        stage_calls = [tool_calls[idx] for idx in stage]
+                        stage_input_types = [input_type] * len(stage_calls)
+                        stage_runtimes = [tool_runtimes[idx] for idx in stage]
+                        stage_outputs = list(executor.map(self._run_one, stage_calls, stage_input_types, stage_runtimes))
+                    for idx, out in zip(stage, stage_outputs, strict=False):
+                        executed_mask[idx] = True
+                        outputs.append(out)
 
-                    failed = False
-                    if (hasattr(out, "status") and out.status == "error") or (
-                        isinstance(out, list) and any(getattr(m, "status", None) == "error" for m in out)
-                    ):
-                        failed = True
-
-                    if failed:
+                    failed_idx = next(
+                        (idx for idx, out in zip(stage, stage_outputs, strict=False) if _tool_output_failed(out)),
+                        None,
+                    )
+                    if failed_idx is not None:
                         logger.warning(
                             "Mid-batch action failed (%s). Preserving partial results and aborting remainder.",
-                            call.get("name", ""),
+                            tool_calls[failed_idx].get("name", ""),
                         )
-                        for rem_call in tool_calls[len(outputs) :]:
-                            outputs.append(
-                                ToolMessage(
-                                    content="Aborted: A previous tool call in this batch failed. Mid-batch short-circuit applied.",
-                                    name=rem_call.get("name", "unknown"),
-                                    tool_call_id=rem_call.get("id", ""),
-                                    status="error",
-                                )
-                            )
+                        _append_abort_messages(outputs, tool_calls, executed_mask)
                         break
+                    continue
+
+                idx = stage[0]
+                out = self._run_one(tool_calls[idx], input_type, tool_runtimes[idx])
+                executed_mask[idx] = True
+                outputs.append(out)
+
+                if _tool_output_failed(out):
+                    logger.warning(
+                        "Mid-batch action failed (%s). Preserving partial results and aborting remainder.",
+                        tool_calls[idx].get("name", ""),
+                    )
+                    _append_abort_messages(outputs, tool_calls, executed_mask)
+                    break
 
             return self._combine_tool_outputs(outputs, input_type)
 

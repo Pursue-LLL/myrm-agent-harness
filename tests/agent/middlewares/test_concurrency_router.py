@@ -1,6 +1,9 @@
 import pytest
 
-from myrm_agent_harness.agent.middlewares.concurrency_router import should_parallelize_tool_batch
+from myrm_agent_harness.agent.middlewares.concurrency_router import (
+    build_tool_execution_stages,
+    should_parallelize_tool_batch,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -139,3 +142,30 @@ def test_should_not_parallelize_host_serial_destructive_call():
         {"name": "safe_tool", "args": {}},
     ]
     assert not should_parallelize_tool_batch(calls)
+
+
+def test_build_tool_execution_stages_splits_host_serial_lane_conflicts():
+    calls = [
+        {"name": "mcp__ue__list_levels", "args": {}},
+        {"name": "mcp__jira__list_issues", "args": {}},
+        {"name": "mcp__ue__read_actor", "args": {}},
+    ]
+    assert build_tool_execution_stages(calls) == [[0, 1], [2]]
+
+
+def test_build_tool_execution_stages_isolates_unsafe_singleton():
+    calls = [
+        {"name": "safe_tool", "args": {}},
+        {"name": "terminal_tool", "args": {"command": "echo 1"}},
+        {"name": "safe_tool", "args": {}},
+    ]
+    assert build_tool_execution_stages(calls) == [[0], [1], [2]]
+
+
+def test_build_tool_execution_stages_splits_overlapping_path_calls():
+    calls = [
+        {"name": "file_write_tool", "args": {"path": "src/a.ts"}},
+        {"name": "file_write_tool", "args": {"path": "src/a.ts"}},
+        {"name": "file_write_tool", "args": {"path": "src/b.ts"}},
+    ]
+    assert build_tool_execution_stages(calls) == [[0], [1, 2]]

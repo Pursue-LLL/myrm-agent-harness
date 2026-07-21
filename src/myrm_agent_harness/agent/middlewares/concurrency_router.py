@@ -1,8 +1,8 @@
-"""Smart parallel tool batch router based on path scope and AST."""
+"""Smart tool execution routing based on path scope and safety metadata."""
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from myrm_agent_harness.agent.security.tool_registry import SafetyMetadata, resolve_safety_metadata
 from myrm_agent_harness.toolkits.mcp.config import parse_mcp_tool_name
@@ -15,6 +15,9 @@ _PATH_SCOPED_TOOLS = {
     "file_glob_tool",
     "grep_search_tool",
 }
+
+
+_StageVerdict = Literal["fit", "conflict", "singleton"]
 
 
 def _extract_host_serial_lane(tool_name: str, metadata: SafetyMetadata) -> str | None:
@@ -35,6 +38,50 @@ def _extract_host_serial_lane(tool_name: str, metadata: SafetyMetadata) -> str |
         return None
     server_name, _tool_name = parsed
     return server_name or None
+
+
+def _classify_tool_call_for_stage(
+    tool_call: dict[str, Any],
+    reserved_paths: list[Path],
+    reserved_host_serial_lanes: set[str],
+) -> tuple[_StageVerdict, Path | None, str | None]:
+    """Classify whether a tool call can join the current parallel stage.
+
+    Returns:
+    - ``fit``: can run in this stage and contributes optional reservations.
+    - ``conflict``: can run concurrently in principle, but conflicts with reservations
+      already taken by this stage (start a new stage).
+    - ``singleton``: cannot safely run concurrently with any other call.
+    """
+    tool_name = str(tool_call.get("name", ""))
+    metadata = resolve_safety_metadata(tool_name)
+
+    if metadata.is_concurrent_safe and tool_name not in _PATH_SCOPED_TOOLS:
+        return "fit", None, None
+
+    if tool_name not in _PATH_SCOPED_TOOLS and not metadata.is_concurrent_safe:
+        host_serial_lane = _extract_host_serial_lane(tool_name, metadata)
+        if host_serial_lane is None:
+            return "singleton", None, None
+        if host_serial_lane in reserved_host_serial_lanes:
+            return "conflict", None, None
+        return "fit", None, host_serial_lane
+
+    args = tool_call.get("args", {})
+    if not isinstance(args, dict):
+        return "singleton", None, None
+
+    scoped_path = _extract_parallel_scope_path(tool_name, args)
+    if scoped_path is None:
+        if not metadata.is_concurrent_safe:
+            return "singleton", None, None
+        return "fit", None, None
+
+    if any(_paths_overlap(scoped_path, existing) for existing in reserved_paths):
+        return "conflict", None, None
+
+    # ALL path-scoped operations reserve the path to prevent dirty reads.
+    return "fit", scoped_path, None
 
 
 def _paths_overlap(left: Path, right: Path) -> bool:
@@ -63,44 +110,72 @@ def _extract_parallel_scope_path(tool_name: str, function_args: dict[str, Any]) 
     return Path(os.path.abspath(str(Path.cwd() / expanded)))
 
 
-def should_parallelize_tool_batch(tool_calls: list[dict[str, Any]]) -> bool:
-    """Return True when a tool-call batch is safe to run concurrently."""
-    if len(tool_calls) <= 1:
-        return False
+def build_tool_execution_stages(tool_calls: list[dict[str, Any]]) -> list[list[int]]:
+    """Plan execution stages for a tool-call batch.
 
+    The planner preserves call order and groups only calls that can safely run in
+    parallel in the same stage. Calls that are unsafe for any concurrency become
+    singleton stages. Conflicting calls open a new stage.
+    """
+    if not tool_calls:
+        return []
+
+    stages: list[list[int]] = []
+    current_stage: list[int] = []
     reserved_paths: list[Path] = []
     reserved_host_serial_lanes: set[str] = set()
 
-    for tool_call in tool_calls:
-        tool_name = str(tool_call.get("name", ""))
-        metadata = resolve_safety_metadata(tool_name)
+    def _flush_stage() -> None:
+        nonlocal current_stage, reserved_paths, reserved_host_serial_lanes
+        if current_stage:
+            stages.append(current_stage)
+        current_stage = []
+        reserved_paths = []
+        reserved_host_serial_lanes = set()
 
-        if metadata.is_concurrent_safe and tool_name not in _PATH_SCOPED_TOOLS:
+    def _append_with_reservations(idx: int, path_reservation: Path | None, lane_reservation: str | None) -> None:
+        current_stage.append(idx)
+        if path_reservation is not None:
+            reserved_paths.append(path_reservation)
+        if lane_reservation is not None:
+            reserved_host_serial_lanes.add(lane_reservation)
+
+    for idx, tool_call in enumerate(tool_calls):
+        verdict, path_reservation, lane_reservation = _classify_tool_call_for_stage(
+            tool_call,
+            reserved_paths,
+            reserved_host_serial_lanes,
+        )
+
+        if verdict == "fit":
+            _append_with_reservations(idx, path_reservation, lane_reservation)
             continue
 
-        if tool_name not in _PATH_SCOPED_TOOLS and not metadata.is_concurrent_safe:
-            host_serial_lane = _extract_host_serial_lane(tool_name, metadata)
-            if host_serial_lane is None:
-                return False
-            if host_serial_lane in reserved_host_serial_lanes:
-                return False
-            reserved_host_serial_lanes.add(host_serial_lane)
+        if verdict == "conflict":
+            _flush_stage()
+            retry_verdict, retry_path_reservation, retry_lane_reservation = _classify_tool_call_for_stage(
+                tool_call,
+                reserved_paths,
+                reserved_host_serial_lanes,
+            )
+            if retry_verdict == "fit":
+                _append_with_reservations(idx, retry_path_reservation, retry_lane_reservation)
+            else:
+                # Defensive fallback: impossible to co-locate with anything.
+                stages.append([idx])
             continue
 
-        args = tool_call.get("args", {})
-        if not isinstance(args, dict):
-            return False
+        # singleton: isolate the call in its own stage.
+        _flush_stage()
+        stages.append([idx])
 
-        scoped_path = _extract_parallel_scope_path(tool_name, args)
-        if scoped_path is None:
-            if not metadata.is_concurrent_safe:
-                return False
-            continue
+    _flush_stage()
+    return stages
 
-        if any(_paths_overlap(scoped_path, existing) for existing in reserved_paths):
-            return False
 
-        # ALL path-scoped operations reserve the path to prevent dirty reads
-        reserved_paths.append(scoped_path)
-
-    return True
+def should_parallelize_tool_batch(tool_calls: list[dict[str, Any]]) -> bool:
+    """Return True when the full batch can run in one concurrent stage."""
+    if len(tool_calls) <= 1:
+        return False
+    stages = build_tool_execution_stages(tool_calls)
+    return len(stages) == 1 and len(stages[0]) > 1
