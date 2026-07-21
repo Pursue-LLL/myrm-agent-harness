@@ -7,17 +7,88 @@ from typing import Any, Literal
 from myrm_agent_harness.agent.security.tool_registry import SafetyMetadata, resolve_safety_metadata
 from myrm_agent_harness.toolkits.mcp.config import parse_mcp_tool_name
 
-_PATH_SCOPED_TOOLS = {
-    "file_write_tool",
-    "file_patch_tool",
-    "file_read_tool",
-    "file_search_tool",
-    "file_glob_tool",
-    "grep_search_tool",
+_PATH_SCOPED_TOOLS = frozenset(
+    {
+        "file_write_tool",
+        "file_edit_tool",
+        "file_read_tool",
+        "grep_tool",
+        "glob_tool",
+    }
+)
+
+_TOOL_ALIASES = {
+    # Legacy aliases kept for compatibility with historical transcripts.
+    "file_patch_tool": "file_edit_tool",
+    "file_replace_tool": "file_edit_tool",
+    "file_search_tool": "file_read_tool",
+    "file_glob_tool": "glob_tool",
+    "grep_search_tool": "grep_tool",
 }
+
+_GLOB_META_CHARS = frozenset({"*", "?", "[", "]", "{", "}"})
 
 
 _StageVerdict = Literal["fit", "conflict", "singleton"]
+
+
+def _canonicalize_tool_name(tool_name: str) -> str:
+    """Normalize historical aliases to canonical tool names."""
+    return _TOOL_ALIASES.get(tool_name, tool_name)
+
+
+def _resolve_parallel_scope_path(raw_path: str) -> str:
+    """Resolve token-saving file IDs before path conflict planning."""
+    from myrm_agent_harness.agent.meta_tools.file_ops.utils.path_utils import resolve_file_id_path
+
+    return resolve_file_id_path(raw_path)
+
+
+def _normalize_scope_path(raw_path: str) -> Path | None:
+    if not raw_path.strip():
+        return None
+
+    resolved_raw_path = _resolve_parallel_scope_path(raw_path)
+    expanded = Path(resolved_raw_path).expanduser()
+    if expanded.is_absolute():
+        return Path(os.path.abspath(str(expanded)))
+
+    return Path(os.path.abspath(str(Path.cwd() / expanded)))
+
+
+def _collapse_scope_paths(raw_paths: list[str]) -> Path | None:
+    normalized_paths = [_normalize_scope_path(p) for p in raw_paths if isinstance(p, str)]
+    normalized_paths = [p for p in normalized_paths if p is not None]
+    if not normalized_paths:
+        return None
+    if len(normalized_paths) == 1:
+        return normalized_paths[0]
+
+    try:
+        return Path(os.path.commonpath([str(p) for p in normalized_paths]))
+    except ValueError:
+        return None
+
+
+def _extract_glob_scope_path(pattern: str) -> Path | None:
+    """Extract deterministic scope root from a glob pattern."""
+    expanded = Path(pattern).expanduser()
+    literal_parts: list[str] = []
+    for part in expanded.parts:
+        if any(ch in part for ch in _GLOB_META_CHARS):
+            break
+        literal_parts.append(part)
+
+    if not literal_parts:
+        return Path(os.path.abspath(str(Path.cwd())))
+
+    if literal_parts[0] == os.sep:
+        literal_path = Path(os.sep, *literal_parts[1:])
+    else:
+        literal_path = Path(*literal_parts)
+        if not literal_path.is_absolute():
+            literal_path = Path.cwd() / literal_path
+    return Path(os.path.abspath(str(literal_path)))
 
 
 def _extract_host_serial_lane(tool_name: str, metadata: SafetyMetadata) -> str | None:
@@ -54,7 +125,8 @@ def _classify_tool_call_for_stage(
       already taken by this stage (start a new stage).
     - ``singleton``: cannot safely run concurrently with any other call.
     """
-    tool_name = str(tool_call.get("name", ""))
+    raw_tool_name = str(tool_call.get("name", ""))
+    tool_name = _canonicalize_tool_name(raw_tool_name)
     metadata = resolve_safety_metadata(tool_name)
 
     if metadata.is_concurrent_safe and tool_name not in _PATH_SCOPED_TOOLS:
@@ -105,15 +177,23 @@ def _extract_parallel_scope_path(tool_name: str, function_args: dict[str, Any]) 
     if tool_name not in _PATH_SCOPED_TOOLS:
         return None
 
+    if tool_name == "file_read_tool":
+        raw_paths = function_args.get("paths")
+        if isinstance(raw_paths, list):
+            scope = _collapse_scope_paths([p for p in raw_paths if isinstance(p, str) and p.strip()])
+            if scope is not None:
+                return scope
+
+    if tool_name == "glob_tool":
+        raw_pattern = function_args.get("pattern")
+        if isinstance(raw_pattern, str) and raw_pattern.strip():
+            return _extract_glob_scope_path(raw_pattern)
+
     raw_path = function_args.get("path") or function_args.get("file_path") or function_args.get("file")
-    if not isinstance(raw_path, str) or not raw_path.strip():
+    if not isinstance(raw_path, str):
         return None
 
-    expanded = Path(raw_path).expanduser()
-    if expanded.is_absolute():
-        return Path(os.path.abspath(str(expanded)))
-
-    return Path(os.path.abspath(str(Path.cwd() / expanded)))
+    return _normalize_scope_path(raw_path)
 
 
 def build_tool_execution_stages(tool_calls: list[dict[str, Any]]) -> list[list[int]]:

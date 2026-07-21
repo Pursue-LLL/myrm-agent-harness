@@ -14,13 +14,12 @@ def mock_safety_metadata(monkeypatch):
     def fake_resolve(tool_name: str) -> SafetyMetadata:
         if tool_name == "safe_tool":
             return SafetyMetadata(is_concurrent_safe=True)
-        if tool_name in ["file_write_tool", "file_read_tool", "file_patch_tool"]:
-            # file_write_tool and file_patch_tool are not concurrent safe inherently
-            # (they modify state), but file_read_tool is concurrent safe.
-            # However, for the sake of the test, let's strictly mock their actual metadata in our system:
+        if tool_name in ["file_write_tool", "file_read_tool", "file_edit_tool", "file_patch_tool"]:
             if tool_name == "file_read_tool":
                 return SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True)
             return SafetyMetadata(is_concurrent_safe=False)
+        if tool_name in ["grep_tool", "glob_tool"]:
+            return SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True)
         if tool_name == "terminal_tool":
             return SafetyMetadata(is_concurrent_safe=False)
         if tool_name in ["mcp__ue__list_levels", "mcp__jira__list_issues", "mcp__ue__read_actor"]:
@@ -39,6 +38,7 @@ def mock_safety_metadata(monkeypatch):
         return SafetyMetadata(is_concurrent_safe=False)
 
     monkeypatch.setattr("myrm_agent_harness.agent.middlewares.concurrency_router.resolve_safety_metadata", fake_resolve)
+
 
 def test_should_parallelize_single_call():
     # Single tool call is never parallelized (it's meaningless)
@@ -114,6 +114,47 @@ def test_should_not_parallelize_overlapping_read_and_write():
     calls = [
         {"name": "file_read_tool", "args": {"path": "src/a.ts"}},
         {"name": "file_write_tool", "args": {"path": "src/a.ts"}}
+    ]
+    assert not should_parallelize_tool_batch(calls)
+
+
+def test_should_not_parallelize_read_paths_list_with_overlapping_write():
+    calls = [
+        {"name": "file_read_tool", "args": {"paths": ["src/a.ts", "src/b.ts"]}},
+        {"name": "file_write_tool", "args": {"path": "src/a.ts"}},
+    ]
+    assert not should_parallelize_tool_batch(calls)
+
+
+def test_should_not_parallelize_grep_and_overlapping_write():
+    calls = [
+        {"name": "grep_tool", "args": {"pattern": "TODO", "path": "src/a.ts"}},
+        {"name": "file_write_tool", "args": {"path": "src/a.ts"}},
+    ]
+    assert not should_parallelize_tool_batch(calls)
+
+
+def test_should_not_parallelize_glob_and_overlapping_write():
+    calls = [
+        {"name": "glob_tool", "args": {"pattern": "src/**/*.ts"}},
+        {"name": "file_write_tool", "args": {"path": "src/a.ts"}},
+    ]
+    assert not should_parallelize_tool_batch(calls)
+
+
+def test_should_not_parallelize_file_id_alias_with_real_path(monkeypatch):
+    def fake_resolve(path: str) -> str:
+        if path == "@file_001":
+            return "/tmp/workspace/src/a.ts"
+        return path
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.concurrency_router._resolve_parallel_scope_path",
+        fake_resolve,
+    )
+    calls = [
+        {"name": "file_write_tool", "args": {"path": "@file_001"}},
+        {"name": "file_write_tool", "args": {"path": "/tmp/workspace/src/a.ts"}},
     ]
     assert not should_parallelize_tool_batch(calls)
 

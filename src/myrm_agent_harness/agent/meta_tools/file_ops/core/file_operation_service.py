@@ -63,6 +63,7 @@ from .archive_restore_guard import (
     format_archive_restore_block,
 )
 from .file_conflict_guard import check_conflict_pre_write, compute_edit_line_range
+from .file_path_lock_manager import acquire_file_path_lock
 from .operation_context import OperationContext, OperationType
 from .read_semaphore import get_read_semaphore
 from .result_formatter import DirectoryListing, FileContent, ResultFormatter
@@ -123,12 +124,20 @@ class FileOperationService:
         # 根据操作类型分发
         if self.context.operation == OperationType.VIEW:
             return await self._execute_view()
-        elif self.context.operation == OperationType.CREATE:
-            return await self._execute_create()
-        elif self.context.operation == OperationType.STR_REPLACE:
-            return await self._execute_str_replace()
-        else:
-            raise ValueError(f"Unknown operation: {self.context.operation}")
+
+        if self.context.operation in (OperationType.CREATE, OperationType.STR_REPLACE):
+            if not self.context.path:
+                raise ValueError(f"{self.context.operation} operation requires 'path' parameter")
+
+            from ..utils.path_utils import resolve_file_id_path
+
+            resolved_lock_path = resolve_file_id_path(self.context.path)
+            async with acquire_file_path_lock(resolved_lock_path):
+                if self.context.operation == OperationType.CREATE:
+                    return await self._execute_create()
+                return await self._execute_str_replace()
+
+        raise ValueError(f"Unknown operation: {self.context.operation}")
 
     async def _execute_view(self) -> str:
         """执行 VIEW 操作(支持批量并发读取,带并发限制)"""
