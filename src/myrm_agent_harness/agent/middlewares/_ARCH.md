@@ -21,7 +21,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `clarification_guard_middleware.py` | Core | Enforces single `ask_question_tool` call per turn; blocks coexisting tool calls with synthetic errors. | ✅ |
 | `completion_guard_checklist.py` | Internal | Verification command classification + checklist builder + temporal ordering analysis + verification command extraction for CompletionGuard. | ✅ |
 | `concurrency_limiter.py` | Core | Subagent Semaphore by agent_type. | ✅ |
-| `concurrency_router.py` | Core | Smart concurrency routing with safety_dispatcher. | ✅ |
+| `concurrency_router.py` | Core | Smart concurrency routing with safety_dispatcher; path-overlap lockout + host-serial MCP lane awareness (distinct servers may parallelize, same server stays serial). | ✅ |
 | `context_pipeline_helpers.py` | Internal | Compression intent, cache feedback, schema fingerprint. | ✅ |
 | `context_pipeline_middleware.py` | Core | `create_context_pipeline_middleware` factory. | ✅ |
 | `dangling_tool_call_middleware.py` | Core | Repair dangling tool_calls for strict providers. | ✅ |

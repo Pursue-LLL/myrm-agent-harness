@@ -182,19 +182,17 @@ class QdrantVectorStore(VectorStore):
                     field_name=field,
                     field_schema=schema_type,
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Payload index %s on %s skipped: %s", field, collection, e)
 
     async def backfill_epoch_timestamps(self, collection: str, batch_size: int = 100) -> int:
         """Backfill ``_created_ts`` / ``_updated_ts`` for points missing them.
 
         Returns the number of points updated.
         """
-        from qdrant_client.http.models import FieldCondition, Filter, IsNullCondition, PayloadField
+        from qdrant_client.http.models import Filter, IsEmptyCondition, PayloadField
 
-        missing_filter = Filter(
-            must=[FieldCondition(key="_created_ts", match=IsNullCondition(is_null=PayloadField(key="_created_ts")))]
-        )
+        missing_filter = Filter(must=[IsEmptyCondition(is_empty=PayloadField(key="_created_ts"))])
         updated = 0
         offset: str | None = None
 

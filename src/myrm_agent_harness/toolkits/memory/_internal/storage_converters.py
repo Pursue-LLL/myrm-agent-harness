@@ -517,7 +517,7 @@ def episodic_to_doc(m: EpisodicMemory) -> VectorDocument:
         "source_chat_id": m.source_chat_id or "",
         "access_count": m.access_count,
         "user_rating": m.user_rating,
-        "tags": [t.lower() for t in m.tags],
+        "tags": [t.lower() for t in getattr(m, "tags", [])],
         "language": m.language,
         "merge_count": m.merge_count,
         "merge_history": m.merge_history,
