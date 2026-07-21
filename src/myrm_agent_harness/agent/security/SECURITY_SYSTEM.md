@@ -1047,10 +1047,12 @@ ruleset = (
     PermissionRule("shell_exec", "*", DENY),         # Shell 命令完全禁止
     PermissionRule("code_interpreter", "*", ASK),     # 代码执行需审批
     PermissionRule("mcp_invoke", "*", ASK),           # MCP 工具需审批
+    PermissionRule("file_write_tool", "*", ASK),      # 文件写入需审批
+    PermissionRule("file_edit_tool", "*", ASK),       # 文件编辑需审批
 )
 ```
 
-IM 渠道中浏览器操作被能力围栏排除（因为 IM 用户无法看到浏览器），桌面控制同样被能力围栏排除（IM 远程消息不得触发本机 GUI 操作），Shell 命令被完全禁止（IM 场景风险更高），代码执行和 MCP 需要审批。
+IM 渠道中浏览器操作被能力围栏排除（因为 IM 用户无法看到浏览器），桌面控制同样被能力围栏排除（IM 远程消息不得触发本机 GUI 操作），Shell 命令被完全禁止（IM 场景风险更高），代码执行和 MCP 需要审批，**文件写入与编辑（`file_write_tool` / `file_edit_tool`）需审批（ASK）**。
 
 ### Cron 渠道安全配置
 

@@ -6,6 +6,8 @@
 - agent.security.redact::redact_sensitive_text (POS: 工具输出脱敏)
 - backends.skills.types::SkillMetadata (POS: MCP 技能元数据)
 - file_read_handlers::build_multimodal_result, append_media_text_parts, process_text_paths (POS: file_read 执行处理器)
+- file_search.path_hint::suggest_similar_paths, format_path_not_found_hint (POS: 路径不存在时的相似路径提示)
+- file_search.skill_path_filter::get_disabled_skill_roots, is_under_disabled_skill_root (POS: disabled skill 路径拦截)
 - utils.vault_read::is_vault_uri, path_base, read_vault_paths_to_parts (POS: vault:// URI 读取)
 - utils.*_reader (POS: 多模态与文档读取)
 - utils.errors::ToolError (POS: 工具错误类型)
@@ -33,6 +35,14 @@ from pydantic import BaseModel, Field, field_validator
 from myrm_agent_harness.agent.context_management.context import extract_context_from_runnable_config
 from myrm_agent_harness.agent.security.redact import redact_sensitive_text
 from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
+from myrm_agent_harness.agent.meta_tools.file_search.path_hint import (
+    format_path_not_found_hint,
+    suggest_similar_paths,
+)
+from myrm_agent_harness.agent.meta_tools.file_search.skill_path_filter import (
+    get_disabled_skill_roots,
+    is_under_disabled_skill_root,
+)
 from myrm_agent_harness.utils.errors import ToolError
 
 from .file_read_handlers import append_media_text_parts, build_multimodal_result, process_text_paths
@@ -54,6 +64,32 @@ _URL_SCHEMES = ("http://", "https://", "ftp://", "ftps://")
 
 def _is_url(path: str) -> bool:
     return path.lower().startswith(_URL_SCHEMES)
+
+
+async def _assert_paths_allowed_for_read(
+    paths: list[str],
+    config: RunnableConfig,
+    executor: object | None,
+) -> None:
+    disabled_roots = get_disabled_skill_roots(config)
+    if not disabled_roots or executor is None:
+        return
+    resolve_path = getattr(executor, "resolve_path", None)
+    if resolve_path is None:
+        return
+    for raw in paths:
+        if is_vault_uri(raw) or _is_url(raw):
+            continue
+        base = path_base(raw)
+        try:
+            resolved = await resolve_path(base)
+        except ValueError:
+            resolved = base
+        if is_under_disabled_skill_root(str(resolved), disabled_roots):
+            raise ToolError(
+                message=f"Path blocked: {raw}",
+                user_hint="This path belongs to a disabled skill and cannot be read.",
+            )
 
 
 class FileReadInput(BaseModel):
@@ -155,6 +191,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
         *,
         config: RunnableConfig,
     ) -> str | Sequence[object]:
+        valid_paths: list[str] = []
         try:
             url_paths = [p for p in paths if _is_url(p)]
             valid_paths = [p for p in paths if not _is_url(p)]
@@ -175,6 +212,7 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
 
             ctx = extract_context_from_runnable_config(config)
             executor = get_executor()
+            await _assert_paths_allowed_for_read(valid_paths, config, executor)
             supports_vision = bool(ctx.get("supports_vision", False))
             vision_fallback_model_cfg = ctx.get("vision_fallback_model_cfg")
 
@@ -258,9 +296,11 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
         except ToolError:
             raise
         except FileNotFoundError as e:
+            hint_path = path_base(valid_paths[0]) if valid_paths else str(e)
+            suggestions = suggest_similar_paths(hint_path)
             raise ToolError(
                 message=str(e),
-                user_hint="The file or directory does not exist. Please check the path and try again.",
+                user_hint=format_path_not_found_hint(hint_path, suggestions),
             ) from e
         except PermissionError as e:
             raise ToolError(
