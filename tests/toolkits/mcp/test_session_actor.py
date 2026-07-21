@@ -1184,11 +1184,11 @@ class TestFailPendingMixedQueue:
         loop.close()
 
 
-# ────────── Custom init params: tool_include / tool_exclude ──────────
+# ────────── Custom init params: tool filters / host_serial ──────────
 
 
 class TestToolFilterParams:
-    """tool_include and tool_exclude are stored for _apply_tools."""
+    """tool_include/tool_exclude/host_serial/keepalive are stored correctly."""
 
     def test_include_stored(self) -> None:
         actor = MCPSessionActor("srv", {"transport": "stdio"}, tool_include=["a", "b"])
@@ -1202,6 +1202,20 @@ class TestToolFilterParams:
         actor = MCPSessionActor("srv", {"transport": "stdio"})
         assert actor._tool_include is None
         assert actor._tool_exclude is None
+        assert actor._host_serial is False
+        assert actor._keepalive_interval == 0.0
+
+    def test_host_serial_stored(self) -> None:
+        actor = MCPSessionActor("srv", {"transport": "stdio"}, host_serial=True)
+        assert actor._host_serial is True
+
+    def test_keepalive_override_for_remote_transport(self) -> None:
+        actor = MCPSessionActor(
+            "srv",
+            {"transport": "sse", "url": "https://example.com/sse"},
+            keepalive_interval=30,
+        )
+        assert actor._keepalive_interval == 30.0
 
 
 # ────────── _make_proxy: routes to live tool across reconnects ──────────

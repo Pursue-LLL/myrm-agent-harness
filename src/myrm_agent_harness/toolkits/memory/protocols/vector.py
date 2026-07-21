@@ -70,6 +70,7 @@ class VectorStoreProtocol(Protocol):
         limit: int = 100,
         offset: str | None = None,
         filters: FilterDict | None = None,
+        order_by: tuple[str, str] | None = None,
     ) -> tuple[list[VectorDocument], str | None]: ...
 
     async def ensure_collection(self, name: str, dimension: int, *, distance: str = "cosine") -> None: ...

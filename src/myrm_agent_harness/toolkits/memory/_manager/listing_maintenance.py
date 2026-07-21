@@ -35,6 +35,9 @@ class MemoryManagerListingMaintenanceMixin:
         limit: int = 100,
         offset: int = 0,
         include_archived: bool = False,
+        sort_by: str | None = None,
+        sort_order: str = "desc",
+        tag_filter: str | None = None,
     ) -> list[AnyMemory]:
         return await list_by_type(
             memory_type,
@@ -45,9 +48,14 @@ class MemoryManagerListingMaintenanceMixin:
             config=self._config,
             namespaces=self._namespaces,
             include_archived=include_archived,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            tag_filter=tag_filter,
         )
 
-    async def count_memories(self, memory_type: MemoryType, *, since: datetime | None = None) -> int:
+    async def count_memories(
+        self, memory_type: MemoryType, *, since: datetime | None = None, tag_filter: str | None = None
+    ) -> int:
         return await count_by_type(
             memory_type,
             relational=self._relational,
@@ -55,6 +63,7 @@ class MemoryManagerListingMaintenanceMixin:
             config=self._config,
             namespaces=self._namespaces,
             since=since,
+            tag_filter=tag_filter,
         )
 
     async def delete_by_type(self, memory_type: MemoryType) -> int:

@@ -156,6 +156,8 @@ class MCPSessionActor:
         max_output_chars: int = 100_000,
         tool_include: list[str] | None = None,
         tool_exclude: list[str] | None = None,
+        host_serial: bool = False,
+        keepalive_interval: float | None = None,
         auth_provider: object | None = None,
         oversized_result_handler: object | None = None,
     ) -> None:
@@ -166,12 +168,14 @@ class MCPSessionActor:
         self._max_output_chars = max_output_chars
         self._tool_include = tool_include
         self._tool_exclude = tool_exclude
+        self._host_serial = host_serial
         self._auth_provider = auth_provider
         self._oversized_result_handler = oversized_result_handler
         # Idle keepalive only matters for remote transports that sit behind LBs /
         # NAT; a local stdio pipe never idle-disconnects (interval 0 = disabled).
         transport = str(connection.get("transport", "")).lower()
-        self._keepalive_interval = _KEEPALIVE_INTERVAL if transport in _KEEPALIVE_TRANSPORTS else 0.0
+        remote_keepalive = float(keepalive_interval) if keepalive_interval is not None else _KEEPALIVE_INTERVAL
+        self._keepalive_interval = remote_keepalive if transport in _KEEPALIVE_TRANSPORTS else 0.0
 
         self._queue: asyncio.Queue[_ToolCall | object] = asyncio.Queue()
         self._task: asyncio.Task[None] | None = None
@@ -540,6 +544,7 @@ class MCPSessionActor:
             self._execute_timeout,
             self._max_output_chars,
             self._oversized_result_handler,
+            self._host_serial,
         )
         instructions: str | None = None
         if not self._ready.is_set():
@@ -623,6 +628,7 @@ class MCPSessionActor:
                 self._execute_timeout,
                 self._max_output_chars,
                 self._oversized_result_handler,
+                self._host_serial,
             )
             new_names = {tool.name for tool in processed}
             added = new_names - old_names

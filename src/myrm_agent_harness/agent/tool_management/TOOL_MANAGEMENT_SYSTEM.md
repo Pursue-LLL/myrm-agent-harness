@@ -8,7 +8,7 @@
 
 | 对外说法 | 含义 | 当前规模 |
 |----------|------|----------|
-| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **67**（CORE 7 + COMMON 5 + EXTENDED 55） |
+| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **57**（CORE 7 + COMMON 5 + EXTENDED 45） |
 
 对外文档与沟通中，**「工具」仅指 LLM 工具**。编排信号、runtime hook、toolkits 引擎、Skill 文档、PTC 等实现细节属于代码层，**不称为工具**。
 
@@ -71,7 +71,7 @@ Server `_tool_layer_bootstrap.py` 扩展 EXTENDED 层业务工具。
 
 ## 内部分类（实现 / token 会计，非产品术语）
 
-以下四类**不计入 LLM 工具 67 个**，仅用于实现与 Turn1 token 隔离：
+以下四类**不计入 LLM 工具 57 个**，仅用于实现与 Turn1 token 隔离：
 
 | 内部术语 | 含义 | SSOT |
 |----------|------|------|
@@ -101,8 +101,8 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `grep_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
 | `web_fetch_tool` | CORE | user_capability | — | Agent baseline; Turn1 (Fast mode may omit file/bash only) |
 | `memory_manage_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
-| `memory_search_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
 | `memory_save_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
+| `memory_search_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory; corpus=sessions when memoryEnableConversationSearch |
 | `todo_write` | COMMON | user_capability | planning | planning or existing workspace todos |
 | `web_search_tool` | COMMON | user_capability | web_search | enabled_builtin_tools: web_search (default on) |
 | `ask_question_tool` | EXTENDED | user_capability | structured_clarify | server mount policy (interactive web_chat); requires_confirmation WebUI emphasis; ClarificationGuardMiddleware one call/turn |
@@ -117,7 +117,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `browser_snapshot_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `channel_notify_tool` | EXTENDED | user_capability | — | Agent notify_targets configured |
 | `complete_goal_tool` | EXTENDED | user_capability | — | active Goal on chat |
-| `conversation_search_tool` | EXTENDED | user_capability | memory | Harness test/legacy factory only; product uses `memory_search_tool` sessions ACL |
+| `conversation_search_tool` | EXTENDED | user_capability | memory | Harness test/legacy; product uses memory_search_tool corpus=sessions |
 | `cron_manage_tool` | EXTENDED | user_capability | cron | user cron capability wired |
 | `delegate_task_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `delegate_to_agent_tool` | EXTENDED | user_capability | external_cli | external ACP agent configured |
@@ -127,7 +127,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `discover_capability_tool` | EXTENDED | user_capability | — | Turn1 when searchable skills exist |
 | `image_tool` | EXTENDED | user_capability | image_generation | enabled_builtin_tools: image_generation |
 | `kanban_add_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
-| `kanban_attach` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban (worker) |
+| `kanban_attach` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_block` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_comment` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_complete` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
@@ -145,7 +145,9 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `tts_generate` | EXTENDED | user_capability | tts | enabled_builtin_tools: tts |
 | `update_ui_data_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
 | `video_tool` | EXTENDED | user_capability | video_generation | enabled_builtin_tools: video_generation |
+| `wiki_compile_tool` | EXTENDED | user_capability | — | Settings REST + create_wiki_admin_tools(); not Turn1 LLM |
 | `wiki_ingest_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
+| `wiki_maintain_tool` | EXTENDED | user_capability | — | Settings REST + create_wiki_admin_tools(); not Turn1 LLM |
 | `wiki_query_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
 | `x_search_tool` | EXTENDED | user_capability | — | x-live-search prebuilt skill bound |
 <!-- TOOL_CATALOG_END -->

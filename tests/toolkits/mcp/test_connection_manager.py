@@ -30,6 +30,8 @@ class _FakeConfig:
     extra_params: dict[str, object] | None = None
     tool_include: list[str] | None = None
     tool_exclude: list[str] | None = None
+    host_serial: bool = False
+    keepalive_interval: float | None = None
 
 
 class _FakeActor:
@@ -215,6 +217,20 @@ class TestMCPConnectionManager:
     ) -> None:
         a = [_FakeConfig(name="x", tool_include=["t1"])]
         b = [_FakeConfig(name="x", tool_include=["t2"])]
+        assert manager._make_config_hash(a) != manager._make_config_hash(b)
+
+    def test_make_config_hash_distinguishes_host_serial(
+        self, manager: MCPConnectionManager
+    ) -> None:
+        a = [_FakeConfig(name="x", host_serial=False)]
+        b = [_FakeConfig(name="x", host_serial=True)]
+        assert manager._make_config_hash(a) != manager._make_config_hash(b)
+
+    def test_make_config_hash_distinguishes_keepalive_interval(
+        self, manager: MCPConnectionManager
+    ) -> None:
+        a = [_FakeConfig(name="x", keepalive_interval=None)]
+        b = [_FakeConfig(name="x", keepalive_interval=30.0)]
         assert manager._make_config_hash(a) != manager._make_config_hash(b)
 
     @pytest.mark.asyncio

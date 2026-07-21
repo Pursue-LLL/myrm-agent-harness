@@ -185,8 +185,14 @@ class VectorStore(ABC):
         limit: int = 100,
         offset: str | None = None,
         filters: FilterDict | None = None,
+        order_by: tuple[str, str] | None = None,
     ) -> tuple[list[VectorDocument], str | None]:
         """Cursor-based pagination through documents.
+
+        Args:
+            order_by: Optional (field_name, direction) tuple for sorted scrolling.
+                      direction is ``"asc"`` or ``"desc"``.  Requires a payload
+                      index on *field_name* in the underlying store.
 
         Returns:
             Tuple of (documents, next_cursor). next_cursor is None when done.

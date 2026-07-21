@@ -324,6 +324,8 @@ class MCPConnectionManager:
                 "extra_params": getattr(s, "extra_params", None),
                 "tool_include": getattr(s, "tool_include", None),
                 "tool_exclude": getattr(s, "tool_exclude", None),
+                "host_serial": getattr(s, "host_serial", False),
+                "keepalive_interval": getattr(s, "keepalive_interval", None),
             }
             for s in sorted(config, key=lambda x: x.name)
         ]
@@ -399,6 +401,8 @@ class MCPConnectionManager:
                 max_output_chars=getattr(cfg, "max_output_chars", 100_000),
                 tool_include=getattr(cfg, "tool_include", None),
                 tool_exclude=getattr(cfg, "tool_exclude", None),
+                host_serial=getattr(cfg, "host_serial", False),
+                keepalive_interval=getattr(cfg, "keepalive_interval", None),
                 auth_provider=getattr(cfg, "auth_provider", None),
                 oversized_result_handler=getattr(cfg, "oversized_result_handler", None),
             )

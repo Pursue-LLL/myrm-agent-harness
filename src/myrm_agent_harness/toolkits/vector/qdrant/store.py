@@ -160,6 +160,89 @@ class QdrantVectorStore(VectorStore):
         collections = await self._execute(self._client.get_collections)  # type: ignore[attr-defined]
         return [c.name for c in collections.collections]  # type: ignore[union-attr]
 
+    async def ensure_payload_indexes(self, collection: str) -> None:
+        """Create payload indexes required for sorted scrolling and tag filtering.
+
+        Idempotent — safe to call on every startup.  Indexes that already exist
+        are silently skipped by Qdrant.
+        """
+        from qdrant_client.http.models import PayloadSchemaType
+
+        index_specs: list[tuple[str, PayloadSchemaType]] = [
+            ("_created_ts", PayloadSchemaType.FLOAT),
+            ("_updated_ts", PayloadSchemaType.FLOAT),
+            ("importance", PayloadSchemaType.FLOAT),
+            ("tags", PayloadSchemaType.KEYWORD),
+        ]
+        for field, schema_type in index_specs:
+            try:
+                await self._with_retry(
+                    self._client.create_payload_index,  # type: ignore[attr-defined]
+                    collection_name=collection,
+                    field_name=field,
+                    field_schema=schema_type,
+                )
+            except Exception:
+                pass
+
+    async def backfill_epoch_timestamps(self, collection: str, batch_size: int = 100) -> int:
+        """Backfill ``_created_ts`` / ``_updated_ts`` for points missing them.
+
+        Returns the number of points updated.
+        """
+        from qdrant_client.http.models import FieldCondition, Filter, IsNullCondition, PayloadField
+
+        missing_filter = Filter(
+            must=[FieldCondition(key="_created_ts", match=IsNullCondition(is_null=PayloadField(key="_created_ts")))]
+        )
+        updated = 0
+        offset: str | None = None
+
+        while True:
+            points, next_offset = await self._with_retry(
+                self._client.scroll,  # type: ignore[attr-defined]
+                collection_name=collection,
+                scroll_filter=missing_filter,
+                limit=batch_size,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            if not points:  # type: ignore[truthy-bool]
+                break
+            for point in points:  # type: ignore[union-attr]
+                payload = point.payload or {}
+                iso_created = payload.get("created_at")
+                iso_updated = payload.get("updated_at")
+                if iso_created:
+                    try:
+                        ts = datetime.fromisoformat(iso_created).timestamp()
+                    except (ValueError, TypeError):
+                        ts = datetime.now(UTC).timestamp()
+                else:
+                    ts = datetime.now(UTC).timestamp()
+                if iso_updated:
+                    try:
+                        uts = datetime.fromisoformat(iso_updated).timestamp()
+                    except (ValueError, TypeError):
+                        uts = ts
+                else:
+                    uts = ts
+                await self._with_retry(
+                    self._client.set_payload,  # type: ignore[attr-defined]
+                    collection_name=collection,
+                    payload={"_created_ts": ts, "_updated_ts": uts},
+                    points=[point.id],
+                )
+                updated += 1
+            if next_offset is None:
+                break
+            offset = str(next_offset)
+
+        if updated:
+            logger.info("Backfilled %d points in collection %s with epoch timestamps", updated, collection)
+        return updated
+
     # Document operations
 
     async def upsert(
@@ -203,6 +286,8 @@ class QdrantVectorStore(VectorStore):
                     "content": doc.content,
                     "created_at": doc.created_at.isoformat(),
                     "updated_at": doc.updated_at.isoformat(),
+                    "_created_ts": doc.created_at.timestamp(),
+                    "_updated_ts": doc.updated_at.timestamp(),
                     **doc.metadata,
                 },
             )
@@ -337,17 +422,34 @@ class QdrantVectorStore(VectorStore):
         limit: int = 100,
         offset: str | None = None,
         filters: FilterDict | None = None,
+        order_by: tuple[str, str] | None = None,
     ) -> tuple[list[VectorDocument], str | None]:
+        from qdrant_client.http.models import OrderBy, Direction
+
         scroll_filter = build_qdrant_filter(filters)
+
+        kwargs: dict = {
+            "collection_name": collection,
+            "scroll_filter": scroll_filter,
+            "limit": limit,
+            "with_payload": True,
+            "with_vectors": True,
+        }
+
+        if order_by is not None:
+            field, direction = order_by
+            kwargs["order_by"] = OrderBy(
+                key=field,
+                direction=Direction.ASC if direction == "asc" else Direction.DESC,
+            )
+            if offset is not None:
+                kwargs["offset"] = offset
+        else:
+            kwargs["offset"] = offset
 
         points, next_offset = await self._with_retry(
             self._client.scroll,  # type: ignore[attr-defined]
-            collection_name=collection,
-            scroll_filter=scroll_filter,
-            limit=limit,
-            offset=offset,
-            with_payload=True,
-            with_vectors=True,
+            **kwargs,
         )
 
         documents = [self._point_to_document(point) for point in points]  # type: ignore[union-attr]

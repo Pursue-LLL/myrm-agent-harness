@@ -13,6 +13,7 @@ from unittest.mock import MagicMock
 from myrm_agent_harness.agent._factory.mcp_routing import (
     FALLBACK_PTC_BRIDGE_TOKENS,
     PTC_OVERHEAD_MULTIPLIER,
+    _config_to_dict,
     compute_direct_threshold,
     estimate_schema_tokens,
 )
@@ -102,6 +103,21 @@ class TestMCPConfigClean:
     def test_no_direct_tool_threshold_field(self) -> None:
         cfg = MCPConfig(name="test", type="stdio", command="echo")
         assert not hasattr(cfg, "direct_tool_threshold") or "direct_tool_threshold" not in cfg.model_fields
+
+    def test_ptc_config_projection_keeps_host_serial(self) -> None:
+        cfg = MCPConfig(name="stateful-host", type="stdio", command="echo", host_serial=True)
+        payload = _config_to_dict(cfg)
+        assert payload["host_serial"] is True
+
+    def test_ptc_config_projection_keeps_keepalive_interval(self) -> None:
+        cfg = MCPConfig(
+            name="remote-host",
+            type="sse",
+            url="https://example.com/sse",
+            keepalive_interval=45,
+        )
+        payload = _config_to_dict(cfg)
+        assert payload["keepalive_interval"] == 45
 
 
 class TestNormalizeMcpResult:

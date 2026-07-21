@@ -64,8 +64,10 @@ class MCPServerConfigProtocol(Protocol):
     required_secrets: list[str] | None
     tool_include: list[str] | None  # tool whitelist (takes precedence over tool_exclude)
     tool_exclude: list[str] | None  # tool blacklist (ignored when tool_include set)
+    host_serial: bool  # host-level serial scheduling override
     connect_timeout: float
     execute_timeout: float
+    keepalive_interval: float | None
     ssl_verify: bool | str | None  # TLS CA policy for HTTP transports
     client_cert: str | None  # mTLS client certificate path
     client_key: str | None  # mTLS client private key path (optional if bundled)

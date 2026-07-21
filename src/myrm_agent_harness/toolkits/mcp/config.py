@@ -133,6 +133,13 @@ class MCPConfig(BaseModel):
             "Ignored when tool_include is non-empty. None/empty = no blacklist constraint."
         ),
     )
+    host_serial: bool = Field(
+        default=False,
+        description=(
+            "Host-level serial execution policy. When true, all tools from this server are treated "
+            "as concurrency-unsafe even if readOnlyHint is set."
+        ),
+    )
     connect_timeout: float = Field(
         default=15.0,
         ge=1.0,
@@ -144,6 +151,15 @@ class MCPConfig(BaseModel):
         ge=1.0,
         le=600.0,
         description="Tool execution timeout in seconds (complex operations like DB queries need more time)",
+    )
+    keepalive_interval: float | None = Field(
+        default=None,
+        ge=5.0,
+        le=3600.0,
+        description=(
+            "Optional keepalive interval for remote MCP transports (sse/streamable_http). "
+            "None uses the framework default; stdio always ignores keepalive."
+        ),
     )
     max_output_chars: int = Field(
         default=100_000,

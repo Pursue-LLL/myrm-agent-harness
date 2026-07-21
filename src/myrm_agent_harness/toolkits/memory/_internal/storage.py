@@ -553,6 +553,13 @@ async def load_context(
 # ======================================================================
 
 
+_SORT_FIELD_MAP: dict[str, str] = {
+    "created_at": "_created_ts",
+    "updated_at": "_updated_ts",
+    "importance": "importance",
+}
+
+
 async def list_by_type(
     memory_type: MemoryType,
     *,
@@ -563,7 +570,14 @@ async def list_by_type(
     config: MemoryConfig,
     namespaces: list[str] | None = None,
     include_archived: bool = False,
+    sort_by: str | None = None,
+    sort_order: str = "desc",
+    tag_filter: str | None = None,
 ) -> list[SemanticMemory | EpisodicMemory | ConversationMemory | ProceduralMemory]:
+    order_by: tuple[str, str] | None = None
+    if sort_by and sort_by in _SORT_FIELD_MAP:
+        order_by = (_SORT_FIELD_MAP[sort_by], sort_order)
+
     if memory_type == MemoryType.PROFILE and relational:
         entries = await relational.list_profiles(limit=limit, offset=offset, namespaces=namespaces)
         visible_entries = [entry for entry in entries if not entry.key.startswith("_system_")]
@@ -581,32 +595,43 @@ async def list_by_type(
         ]
     if memory_type == MemoryType.PROCEDURAL and relational:
         return list(await relational.list_rules(active_only=True, limit=limit, offset=offset, namespaces=namespaces))
+
+    def _build_filters(base_filters: dict) -> dict:
+        if tag_filter:
+            base_filters["tags"] = tag_filter.lower()
+        return base_filters
+
     if memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC) and vector:
         coll = config.semantic_collection if memory_type == MemoryType.SEMANTIC else config.episodic_collection
+        filters = _build_filters(_user_filter(namespaces=namespaces, include_archived=include_archived))
         docs, _ = await vector.scroll(
             coll,
             limit=limit,
             offset=offset,
-            filters=_user_filter(namespaces=namespaces, include_archived=include_archived),
+            filters=filters,
+            order_by=order_by,
         )
         converter = doc_to_semantic if memory_type == MemoryType.SEMANTIC else doc_to_episodic
         return [converter(d) for d in docs]
     if memory_type == MemoryType.CONVERSATION and vector:
+        filters = _build_filters(_user_filter(namespaces=namespaces, include_archived=include_archived))
         docs, _ = await vector.scroll(
             config.conversation_collection,
             limit=limit,
             offset=offset,
-            filters=_user_filter(namespaces=namespaces, include_archived=include_archived),
+            filters=filters,
+            order_by=order_by,
         )
         return [doc_to_conversation(d, config=config) for d in docs]
     if memory_type == MemoryType.TASK_DIGEST and vector:
-        filters = _user_filter(namespaces=namespaces, include_archived=include_archived)
+        filters = _build_filters(_user_filter(namespaces=namespaces, include_archived=include_archived))
         filters["event_type"] = MemoryType.TASK_DIGEST.value
         docs, _ = await vector.scroll(
             config.episodic_collection,
             limit=limit,
             offset=offset,
             filters=filters,
+            order_by=order_by,
         )
         return [doc_to_episodic(d) for d in docs]
     return []
@@ -620,21 +645,27 @@ async def count_by_type(
     config: MemoryConfig,
     namespaces: list[str] | None = None,
     since: datetime | None = None,
+    tag_filter: str | None = None,
 ) -> int:
+    def _apply_tag(f: dict) -> dict:
+        if tag_filter:
+            f["tags"] = tag_filter.lower()
+        return f
+
     if memory_type == MemoryType.PROFILE and relational:
         return await relational.count_profiles(namespaces=namespaces)
     if memory_type == MemoryType.PROCEDURAL and relational:
         return await relational.count_rules(namespaces=namespaces)
     if memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC) and vector:
         coll = config.semantic_collection if memory_type == MemoryType.SEMANTIC else config.episodic_collection
-        return await vector.count(coll, filters=_user_filter(namespaces=namespaces, since=since))
+        return await vector.count(coll, filters=_apply_tag(_user_filter(namespaces=namespaces, since=since)))
     if memory_type == MemoryType.CONVERSATION and vector:
         return await vector.count(
             config.conversation_collection,
-            filters=_user_filter(namespaces=namespaces, since=since),
+            filters=_apply_tag(_user_filter(namespaces=namespaces, since=since)),
         )
     if memory_type == MemoryType.TASK_DIGEST and vector:
-        filters = _user_filter(namespaces=namespaces, since=since)
+        filters = _apply_tag(_user_filter(namespaces=namespaces, since=since))
         filters["event_type"] = MemoryType.TASK_DIGEST.value
         return await vector.count(config.episodic_collection, filters=filters)
     return 0

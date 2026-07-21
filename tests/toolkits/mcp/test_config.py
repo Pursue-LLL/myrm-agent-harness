@@ -97,6 +97,8 @@ class TestToolIncludeExcludeFields:
         cfg = MCPConfig(name="s", type="stdio", command="npx")
         assert cfg.tool_include is None
         assert cfg.tool_exclude is None
+        assert cfg.host_serial is False
+        assert cfg.keepalive_interval is None
 
     def test_include_set(self) -> None:
         cfg = MCPConfig(name="s", type="stdio", command="npx", tool_include=["read", "write"])
@@ -115,6 +117,14 @@ class TestToolIncludeExcludeFields:
         )
         assert cfg.tool_include == ["read"]
         assert cfg.tool_exclude == ["delete"]
+
+    def test_host_serial_set(self) -> None:
+        cfg = MCPConfig(name="s", type="stdio", command="npx", host_serial=True)
+        assert cfg.host_serial is True
+
+    def test_keepalive_interval_set(self) -> None:
+        cfg = MCPConfig(name="s", type="sse", url="https://example.com/sse", keepalive_interval=45)
+        assert cfg.keepalive_interval == 45
 
 
 class TestShouldRegisterMcpTool:

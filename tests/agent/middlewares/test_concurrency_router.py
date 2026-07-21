@@ -19,6 +19,19 @@ def mock_safety_metadata(monkeypatch):
             return SafetyMetadata(is_concurrent_safe=is_safe)
         if tool_name == "terminal_tool":
             return SafetyMetadata(is_concurrent_safe=False)
+        if tool_name in ["mcp__ue__list_levels", "mcp__jira__list_issues", "mcp__ue__read_actor"]:
+            return SafetyMetadata(
+                is_read_only=True,
+                is_concurrent_safe=False,
+                is_destructive=False,
+                is_open_world=False,
+            )
+        if tool_name == "mcp__ue__mutate_actor":
+            return SafetyMetadata(
+                is_read_only=False,
+                is_concurrent_safe=False,
+                is_destructive=True,
+            )
         return SafetyMetadata(is_concurrent_safe=False)
 
     monkeypatch.setattr("myrm_agent_harness.agent.middlewares.concurrency_router.resolve_safety_metadata", fake_resolve)
@@ -97,5 +110,32 @@ def test_should_not_parallelize_overlapping_read_and_write():
     calls = [
         {"name": "file_read_tool", "args": {"path": "src/a.ts"}},
         {"name": "file_write_tool", "args": {"path": "src/a.ts"}}
+    ]
+    assert not should_parallelize_tool_batch(calls)
+
+
+def test_should_parallelize_host_serial_read_only_across_servers():
+    # Host-serial demoted read-only MCP tools can run in parallel across distinct servers.
+    calls = [
+        {"name": "mcp__ue__list_levels", "args": {}},
+        {"name": "mcp__jira__list_issues", "args": {}},
+    ]
+    assert should_parallelize_tool_batch(calls)
+
+
+def test_should_not_parallelize_host_serial_read_only_same_server():
+    # Two host-serial demoted calls targeting the same MCP server must stay serial.
+    calls = [
+        {"name": "mcp__ue__list_levels", "args": {}},
+        {"name": "mcp__ue__read_actor", "args": {}},
+    ]
+    assert not should_parallelize_tool_batch(calls)
+
+
+def test_should_not_parallelize_host_serial_destructive_call():
+    # Destructive MCP calls are not eligible for host-serial lane parallelization.
+    calls = [
+        {"name": "mcp__ue__mutate_actor", "args": {"id": "a1"}},
+        {"name": "safe_tool", "args": {}},
     ]
     assert not should_parallelize_tool_batch(calls)

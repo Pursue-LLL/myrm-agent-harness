@@ -27,8 +27,12 @@ class FakeMCPServerConfig:
     headers: dict[str, str] | None = None
     extra_params: dict[str, object] | None = None
     required_secrets: list[str] | None = None
+    tool_include: list[str] | None = None
+    tool_exclude: list[str] | None = None
+    host_serial: bool = False
     connect_timeout: float = 15.0
     execute_timeout: float = 120.0
+    keepalive_interval: float | None = None
     ssl_verify: bool | str | None = None
     client_cert: str | None = None
     client_key: str | None = None

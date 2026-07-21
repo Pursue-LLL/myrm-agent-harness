@@ -606,6 +606,25 @@ def test_register_tool_annotations():
     assert safety.is_idempotent is True
 
 
+def test_register_tool_annotations_host_serial_forces_non_concurrent():
+    agent = MCPAgent()
+    tool = _make_tool(
+        metadata={
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        }
+    )
+
+    with patch("myrm_agent_harness.toolkits.mcp.agent.register_ptc_safety_metadata") as mock_reg:
+        agent._register_tool_annotations([tool], "my-server", host_serial=True)
+
+    safety = mock_reg.call_args[0][2]
+    assert safety.is_read_only is True
+    assert safety.is_concurrent_safe is False
+
+
 # ---------------------------------------------------------------------------
 # _register_tool_annotations: server name normalization
 # ---------------------------------------------------------------------------

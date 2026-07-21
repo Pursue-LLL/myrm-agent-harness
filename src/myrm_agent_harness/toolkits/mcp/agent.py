@@ -488,7 +488,7 @@ class MCPAgent:
             self._tool_server_mapping[tool_id] = server_name
 
     @staticmethod
-    def _register_tool_annotations(tools: list[BaseTool], server_name: str) -> None:
+    def _register_tool_annotations(tools: list[BaseTool], server_name: str, host_serial: bool = False) -> None:
         """Extract and register MCP native annotations into PTC safety registry."""
         skill_name = server_name.replace("-", "_").lower()
         if not skill_name.startswith("mcp_"):
@@ -507,7 +507,7 @@ class MCPAgent:
             is_read_only = annotations.get("readOnlyHint", False)
             safety_meta = SafetyMetadata(
                 is_read_only=is_read_only,
-                is_concurrent_safe=is_read_only,
+                is_concurrent_safe=is_read_only and not host_serial,
                 is_destructive=annotations.get("destructiveHint", False),
                 is_open_world=annotations.get("openWorldHint", False),
                 is_idempotent=annotations.get("idempotentHint", False),
@@ -542,6 +542,7 @@ class MCPAgent:
         execute_timeout: float,
         max_output_chars: int = 100_000,
         oversized_result_handler: OversizedResultHandler | None = None,
+        host_serial: bool = False,
     ) -> list[BaseTool]:
         """Apply the full post-processing chain to tools bound to a live session.
 
@@ -559,7 +560,7 @@ class MCPAgent:
         MCPAgent._enforce_description_limits(tools)
         MCPAgent._sanitize_tools(tools)
         MCPAgent._wrap_tools_with_timeout(tools, execute_timeout, max_output_chars, oversized_result_handler)
-        MCPAgent._register_tool_annotations(tools, server_name)
+        MCPAgent._register_tool_annotations(tools, server_name, host_serial)
         return tools
 
     def get_tool_server_name(self, tool: BaseTool) -> str:
@@ -651,6 +652,7 @@ class MCPAgent:
         execute_timeout_by_server: dict[str, float] = {}
         max_output_chars_by_server: dict[str, int] = {}
         tool_filter_by_server: dict[str, tuple[list[str] | None, list[str] | None]] = {}
+        host_serial_by_server: dict[str, bool] = {}
         if mcp_config:
             for cfg in mcp_config:
                 connect_timeout_by_server[cfg.name] = cfg.connect_timeout
@@ -660,6 +662,7 @@ class MCPAgent:
                     getattr(cfg, "tool_include", None),
                     getattr(cfg, "tool_exclude", None),
                 )
+                host_serial_by_server[cfg.name] = bool(getattr(cfg, "host_serial", False))
 
         if len(server_names) == 1:
             server_name, tools, error = await self.get_tools_from_server(
@@ -678,6 +681,7 @@ class MCPAgent:
                 exclude,
                 execute_timeout_by_server.get(server_name, 120.0),
                 max_output_chars_by_server.get(server_name, 100_000),
+                host_serial=host_serial_by_server.get(server_name, False),
             )
             self._store_tool_server_mapping(tools, server_name)
             all_tools = tools
@@ -706,6 +710,7 @@ class MCPAgent:
                         exclude,
                         execute_timeout_by_server.get(server_name, 120.0),
                         max_output_chars_by_server.get(server_name, 100_000),
+                        host_serial=host_serial_by_server.get(server_name, False),
                     )
                     self._store_tool_server_mapping(tools, server_name)
                     all_tools.extend(tools)

@@ -4,7 +4,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-from myrm_agent_harness.agent.security.tool_registry import resolve_safety_metadata
+from myrm_agent_harness.agent.security.tool_registry import SafetyMetadata, resolve_safety_metadata
+from myrm_agent_harness.toolkits.mcp.config import parse_mcp_tool_name
 
 _PATH_SCOPED_TOOLS = {
     "file_write_tool",
@@ -14,6 +15,26 @@ _PATH_SCOPED_TOOLS = {
     "file_glob_tool",
     "grep_search_tool",
 }
+
+
+def _extract_host_serial_lane(tool_name: str, metadata: SafetyMetadata) -> str | None:
+    """Return MCP server lane when a call is unsafe only due to host-serial override.
+
+    Host-serial demotion in MCP marks read-only tools as ``is_concurrent_safe=False``
+    even though they are not destructive. We can still parallelize such calls across
+    different MCP servers, but never twice on the same server in one batch.
+    """
+    if metadata.is_concurrent_safe:
+        return None
+    if not metadata.is_read_only:
+        return None
+    if metadata.is_destructive or metadata.is_open_world:
+        return None
+    parsed = parse_mcp_tool_name(tool_name)
+    if parsed is None:
+        return None
+    server_name, _tool_name = parsed
+    return server_name or None
 
 
 def _paths_overlap(left: Path, right: Path) -> bool:
@@ -48,6 +69,7 @@ def should_parallelize_tool_batch(tool_calls: list[dict[str, Any]]) -> bool:
         return False
 
     reserved_paths: list[Path] = []
+    reserved_host_serial_lanes: set[str] = set()
 
     for tool_call in tool_calls:
         tool_name = str(tool_call.get("name", ""))
@@ -57,7 +79,13 @@ def should_parallelize_tool_batch(tool_calls: list[dict[str, Any]]) -> bool:
             continue
 
         if tool_name not in _PATH_SCOPED_TOOLS and not metadata.is_concurrent_safe:
-            return False
+            host_serial_lane = _extract_host_serial_lane(tool_name, metadata)
+            if host_serial_lane is None:
+                return False
+            if host_serial_lane in reserved_host_serial_lanes:
+                return False
+            reserved_host_serial_lanes.add(host_serial_lane)
+            continue
 
         args = tool_call.get("args", {})
         if not isinstance(args, dict):

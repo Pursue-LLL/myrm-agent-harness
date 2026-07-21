@@ -157,6 +157,8 @@ def _config_to_dict(cfg: MCPServerConfigProtocol) -> dict[str, object]:
         "args": cfg.args,
         "description": cfg.description,
         "extra_params": cfg.extra_params,
+        "host_serial": getattr(cfg, "host_serial", False),
+        "keepalive_interval": getattr(cfg, "keepalive_interval", None),
     }
 
 
