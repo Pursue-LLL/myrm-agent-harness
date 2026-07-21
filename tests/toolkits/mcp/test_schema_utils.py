@@ -1,13 +1,17 @@
 import json
 
+import myrm_agent_harness.toolkits.mcp.schema_utils as schema_utils_module
 from myrm_agent_harness.toolkits.mcp.schema_utils import (
     analyze_schema_complexity,
     canonicalize_schema_for_cache,
     coerce_arguments_by_schema,
+    coerce_value,
     flatten_deep_schema,
     flatten_json_schema,
+    get_schema_coercion_stats,
     has_dot_keys,
     nest_flat_arguments,
+    reset_schema_coercion_stats,
 )
 
 # ---------------------------------------------------------------------------
@@ -51,6 +55,17 @@ def test_canonicalize_sorts_dependent_required():
     assert keys == ["a", "b"]
     assert canonical["dependentRequired"]["a"] == ["x", "y"]
     assert canonical["dependentRequired"]["b"] == ["a", "z"]
+
+
+def test_canonicalize_dependent_required_non_scalar_items():
+    """Non-scalar dependentRequired entries should recurse without crashing."""
+    schema = {
+        "dependentRequired": {
+            "a": [{"field": "x"}, {"field": "a"}],
+        }
+    }
+    canonical = canonicalize_schema_for_cache(schema)
+    assert canonical["dependentRequired"]["a"][0] == {"field": "x"}
 
 
 def test_canonicalize_idempotent():
@@ -241,6 +256,30 @@ def test_flatten_json_schema_infinite_recursion():
     assert "properties" in flattened["properties"]["node"]
 
 
+def test_flatten_json_schema_non_dict_passthrough():
+    payload = ["not", "a", "schema"]
+    assert flatten_json_schema(payload) == payload
+
+
+def test_flatten_json_schema_ref_merge_override_is_resolved():
+    schema = {
+        "type": "object",
+        "properties": {
+            "node": {
+                "$ref": "#/definitions/Node",
+                "description": {"$ref": "#/definitions/Label"},
+            }
+        },
+        "definitions": {
+            "Node": {"type": "object", "properties": {"id": {"type": "string"}}},
+            "Label": {"type": "string"},
+        },
+    }
+    flattened = flatten_json_schema(schema)
+    assert flattened["properties"]["node"]["description"]["type"] == "string"
+    assert flattened["properties"]["node"]["properties"]["id"]["type"] == "string"
+
+
 def test_coerce_arguments_by_schema_array():
     schema = {"properties": {"files": {"type": "array", "items": {"type": "string"}}}}
 
@@ -308,6 +347,268 @@ def test_coerce_arguments_recursive():
     assert coerced["filters"]["tags"] == [True, False]
 
 
+def test_coerce_arguments_injects_null_for_missing_required_nullable():
+    schema = {
+        "type": "object",
+        "properties": {
+            "captureTransform": {"type": ["object", "null"]},
+            "annotations": {"type": ["object", "null"]},
+            "bShowUI": {"type": "boolean"},
+        },
+        "required": ["captureTransform", "annotations", "bShowUI"],
+    }
+    kwargs = {"bShowUI": False}
+    coerced = coerce_arguments_by_schema(schema, kwargs)
+    assert coerced["bShowUI"] is False
+    assert coerced["captureTransform"] is None
+    assert coerced["annotations"] is None
+
+
+def test_coerce_arguments_does_not_inject_non_nullable_required():
+    schema = {
+        "type": "object",
+        "properties": {
+            "path": {"type": "string"},
+            "limit": {"type": "integer"},
+        },
+        "required": ["path", "limit"],
+    }
+    kwargs = {"path": "README.md"}
+    coerced = coerce_arguments_by_schema(schema, kwargs)
+    assert "limit" not in coerced
+
+
+def test_coerce_arguments_union_object_from_json_string():
+    schema = {"properties": {"payload": {"type": ["object", "null"]}}}
+    kwargs = {"payload": '{"name": "demo"}'}
+    coerced = coerce_arguments_by_schema(schema, kwargs)
+    assert coerced["payload"] == {"name": "demo"}
+
+
+def test_coerce_arguments_union_array_from_json_string():
+    schema = {"properties": {"items": {"type": ["array", "null"], "items": {"type": "string"}}}}
+    kwargs = {"items": '["a", "b"]'}
+    coerced = coerce_arguments_by_schema(schema, kwargs)
+    assert coerced["items"] == ["a", "b"]
+
+
+def test_coerce_arguments_union_null_string_to_none():
+    schema = {"properties": {"payload": {"type": ["object", "null"]}}}
+    kwargs = {"payload": "null"}
+    coerced = coerce_arguments_by_schema(schema, kwargs)
+    assert coerced["payload"] is None
+
+
+def test_coerce_arguments_mixed_union_prefers_container_literal():
+    schema = {
+        "properties": {
+            "payload": {
+                "anyOf": [
+                    {"type": "string"},
+                    {"type": "object"},
+                    {"type": "null"},
+                ]
+            }
+        }
+    }
+    kwargs = {"payload": '{"x": 1}'}
+    coerced = coerce_arguments_by_schema(schema, kwargs)
+    assert coerced["payload"] == {"x": 1}
+
+
+def test_coerce_arguments_mixed_union_keeps_plain_string():
+    schema = {
+        "properties": {
+            "payload": {
+                "anyOf": [
+                    {"type": "string"},
+                    {"type": "object"},
+                    {"type": "null"},
+                ]
+            }
+        }
+    }
+    kwargs = {"payload": "hello world"}
+    coerced = coerce_arguments_by_schema(schema, kwargs)
+    assert coerced["payload"] == "hello world"
+
+
+def test_coerce_arguments_mixed_union_incomplete_container_keeps_string():
+    schema = {
+        "properties": {
+            "payload": {
+                "anyOf": [
+                    {"type": "string"},
+                    {"type": "object"},
+                    {"type": "null"},
+                ]
+            }
+        }
+    }
+    kwargs = {"payload": "{"}
+    coerced = coerce_arguments_by_schema(schema, kwargs)
+    assert coerced["payload"] == "{"
+
+
+def test_coerce_arguments_array_from_ast_literal_single_quotes():
+    schema = {"properties": {"items": {"type": "array", "items": {"type": "string"}}}}
+    kwargs = {"items": "['a', 'b']"}
+    coerced = coerce_arguments_by_schema(schema, kwargs)
+    assert coerced["items"] == ["a", "b"]
+
+
+def test_coerce_arguments_object_invalid_literal_keeps_string():
+    schema = {"properties": {"payload": {"type": "object"}}}
+    kwargs = {"payload": "{'x':"}
+    coerced = coerce_arguments_by_schema(schema, kwargs)
+    assert coerced["payload"] == "{'x':"
+
+
+def test_coerce_arguments_string_reverse_coercion_paths():
+    schema = {"properties": {"payload": {"type": "string"}}}
+    coerced_dict = coerce_arguments_by_schema(schema, {"payload": {"k": "v"}})
+    coerced_num = coerce_arguments_by_schema(schema, {"payload": 42})
+    coerced_list = coerce_arguments_by_schema(schema, {"payload": [1, 2]})
+    assert coerced_dict["payload"] == '{"k": "v"}'
+    assert coerced_num["payload"] == "42"
+    assert coerced_list["payload"] == "[1, 2]"
+
+
+def test_coerce_arguments_preserves_unknown_key_passthrough():
+    schema = {"properties": {"known": {"type": "string"}}}
+    kwargs = {"known": "ok", "extra": 123}
+    coerced = coerce_arguments_by_schema(schema, kwargs)
+    assert coerced["extra"] == 123
+
+
+def test_internal_value_conforms_to_schema_types_branches():
+    schema = {
+        "type": [
+            "string",
+            "object",
+            "array",
+            "integer",
+            "number",
+            "boolean",
+            "null",
+        ]
+    }
+    assert schema_utils_module._value_conforms_to_schema_types(schema, None) is True
+    assert schema_utils_module._value_conforms_to_schema_types(schema, True) is True
+    assert schema_utils_module._value_conforms_to_schema_types(schema, {"x": 1}) is True
+    assert schema_utils_module._value_conforms_to_schema_types(schema, ["x"]) is True
+    assert schema_utils_module._value_conforms_to_schema_types(schema, 1) is True
+    assert schema_utils_module._value_conforms_to_schema_types(schema, 1.5) is True
+    assert schema_utils_module._value_conforms_to_schema_types(schema, "x") is True
+
+
+def test_coerce_value_non_dict_schema_passthrough():
+    assert schema_utils_module.coerce_value("not-a-schema", "value") == "value"
+
+
+def test_coerce_arguments_nullable_true_injects_missing_required():
+    schema = {
+        "type": "object",
+        "properties": {
+            "opt": {"type": "object", "nullable": True},
+            "name": {"type": "string"},
+        },
+        "required": ["opt", "name"],
+    }
+    kwargs = {"name": "demo"}
+    coerced = coerce_arguments_by_schema(schema, kwargs)
+    assert coerced["name"] == "demo"
+    assert coerced["opt"] is None
+
+
+def test_coerce_arguments_nullable_true_null_string_to_none():
+    schema = {
+        "type": "object",
+        "properties": {
+            "opt": {"type": "object", "nullable": True},
+        },
+    }
+    kwargs = {"opt": "null"}
+    coerced = coerce_arguments_by_schema(schema, kwargs)
+    assert coerced["opt"] is None
+
+
+def test_coerce_arguments_anyof_enum_null_injects_missing_required():
+    schema = {
+        "type": "object",
+        "properties": {
+            "opt": {
+                "anyOf": [
+                    {"type": "object"},
+                    {"enum": [None]},
+                ]
+            },
+            "name": {"type": "string"},
+        },
+        "required": ["opt", "name"],
+    }
+    kwargs = {"name": "demo"}
+    coerced = coerce_arguments_by_schema(schema, kwargs)
+    assert coerced["name"] == "demo"
+    assert coerced["opt"] is None
+
+
+def test_coerce_arguments_const_null_injects_missing_required():
+    schema = {
+        "type": "object",
+        "properties": {
+            "opt": {"const": None},
+            "name": {"type": "string"},
+        },
+        "required": ["opt", "name"],
+    }
+    kwargs = {"name": "demo"}
+    coerced = coerce_arguments_by_schema(schema, kwargs)
+    assert coerced["name"] == "demo"
+    assert coerced["opt"] is None
+
+
+def test_coerce_arguments_type_guard_rejects_scalar_for_object():
+    schema = {"properties": {"payload": {"type": ["object", "null"]}}}
+    kwargs = {"payload": "123"}
+    coerced = coerce_arguments_by_schema(schema, kwargs)
+    # Keep the original scalar string when schema expects object.
+    assert coerced["payload"] == "123"
+
+
+def test_schema_coercion_stats_tracks_core_events():
+    reset_schema_coercion_stats()
+    schema = {
+        "type": "object",
+        "properties": {
+            "opt": {"type": "object", "nullable": True},
+            "payload": {"type": ["object", "null"]},
+            "name": {"type": "string"},
+        },
+        "required": ["opt", "name"],
+    }
+    kwargs = {
+        "name": "demo",
+        "payload": "123",
+    }
+    _ = coerce_arguments_by_schema(schema, kwargs)
+    stats = get_schema_coercion_stats()
+    assert stats["coerce_argument_calls"] >= 1
+    assert stats["required_nullable_null_injections"] >= 1
+    assert stats["json_type_guard_rejections"] >= 1
+
+
+def test_schema_coercion_stats_tracks_ast_type_guard_rejection():
+    reset_schema_coercion_stats()
+    schema = {"properties": {"payload": {"type": ["object", "null"]}}}
+    kwargs = {"payload": "True"}
+    coerced = coerce_arguments_by_schema(schema, kwargs)
+    stats = get_schema_coercion_stats()
+    assert coerced["payload"] == "True"
+    assert stats["coerce_argument_calls"] >= 1
+    assert stats["ast_type_guard_rejections"] >= 1
+
+
 # ---------------------------------------------------------------------------
 # Deep-nesting flattening tests
 # ---------------------------------------------------------------------------
@@ -349,6 +650,10 @@ def test_analyze_schema_complexity_deep():
     assert max_depth == 3
 
 
+def test_analyze_schema_complexity_non_dict_zeroes():
+    assert analyze_schema_complexity(["not", "schema"]) == (0, 0)
+
+
 def test_flatten_deep_schema_below_threshold():
     """Schemas within threshold should not be flattened."""
     schema = {
@@ -361,6 +666,18 @@ def test_flatten_deep_schema_below_threshold():
     result, meta = flatten_deep_schema(schema)
     assert meta.was_flattened is False
     assert result is schema
+
+
+def test_flatten_deep_schema_non_dict_children_returns_original():
+    schema = {
+        "type": "object",
+        "properties": {
+            "broken": "non-dict-child",
+        },
+    }
+    result, meta = flatten_deep_schema(schema, depth_threshold=0, leaf_threshold=0)
+    assert result == schema
+    assert meta.was_flattened is False
 
 
 def test_flatten_deep_schema_stripe_like():
@@ -499,3 +816,125 @@ def test_flatten_and_nest_roundtrip():
     flat_args = {"amount": 100, "meta.order.id": "ord_123", "meta.order.items": 3}
     nested = nest_flat_arguments(flat_args)
     assert nested == {"amount": 100, "meta": {"order": {"id": "ord_123", "items": 3}}}
+
+
+# ---------------------------------------------------------------------------
+# Edge-case coverage for uncovered branches
+# ---------------------------------------------------------------------------
+
+
+def test_flatten_json_schema_list_in_definitions():
+    """$ref resolution handles list nodes within schemas (L149)."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "tags": {
+                "$ref": "#/definitions/TagList",
+            }
+        },
+        "definitions": {
+            "TagList": {
+                "type": "array",
+                "items": {"type": "string"},
+                "examples": ["alpha", "beta"],
+            }
+        },
+    }
+    result = flatten_json_schema(schema)
+    assert result["properties"]["tags"]["type"] == "array"
+    assert result["properties"]["tags"]["examples"] == ["alpha", "beta"]
+    assert "definitions" not in result
+
+
+def test_primary_non_null_type_all_null():
+    """_primary_non_null_type returns None when only null types declared (L240)."""
+    schema = {"type": "null"}
+    result = coerce_arguments_by_schema(
+        {"type": "object", "properties": {"x": schema}, "required": ["x"]},
+        {},
+    )
+    assert result == {"x": None}
+
+
+def test_value_conforms_unknown_type():
+    """_value_conforms_to_schema_types returns False for unsupported types (L264)."""
+    schema = {"type": "object", "properties": {"x": {"type": "string"}}}
+    result = coerce_arguments_by_schema(schema, {"x": b"bytes_value"})
+    assert result["x"] == b"bytes_value"
+
+
+def test_coerce_dict_to_string_via_name_key():
+    """Reverse coercion extracts string via name/value/text/id keys (L350-352)."""
+    schema = {"type": "string"}
+    result = coerce_value(schema, {"name": "Tokyo Station", "code": "TYO"})
+    assert result == "Tokyo Station"
+
+
+def test_coerce_dict_to_string_via_value_key():
+    """Reverse coercion uses 'value' key when 'name' absent."""
+    schema = {"type": "string"}
+    result = coerce_value(schema, {"value": "hello", "meta": 123})
+    assert result == "hello"
+
+
+def test_coerce_dict_to_string_via_text_key():
+    """Reverse coercion uses 'text' key."""
+    schema = {"type": "string"}
+    result = coerce_value(schema, {"text": "world", "idx": 1})
+    assert result == "world"
+
+
+def test_coerce_dict_to_string_via_id_key():
+    """Reverse coercion uses 'id' key."""
+    schema = {"type": "string"}
+    result = coerce_value(schema, {"id": "abc-123", "data": {}})
+    assert result == "abc-123"
+
+
+def test_coerce_arguments_empty_properties():
+    """coerce_arguments_by_schema returns kwargs unmodified when properties is empty (L397)."""
+    schema = {"type": "object", "properties": {}}
+    result = coerce_arguments_by_schema(schema, {"a": 1, "b": "two"})
+    assert result == {"a": 1, "b": "two"}
+
+
+def test_flatten_deep_schema_non_dict_child():
+    """flatten_deep_schema skips non-dict children in properties (L498)."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "valid": {"type": "string"},
+            "invalid_child": "not_a_dict",
+            "nested": {
+                "type": "object",
+                "properties": {
+                    "a": {"type": "integer"},
+                    "b": {"type": "integer"},
+                    "c": {"type": "integer"},
+                },
+            },
+        },
+    }
+    result, meta = flatten_deep_schema(schema, depth_threshold=0, leaf_threshold=0)
+    assert meta.was_flattened is True
+    assert "valid" in result["properties"]
+    assert "nested.a" in result["properties"]
+    assert "invalid_child" not in result["properties"]
+
+
+def test_flatten_deep_schema_empty_result():
+    """flatten_deep_schema returns original when _collect yields nothing (L512)."""
+    schema = {
+        "type": "object",
+        "properties": {},
+    }
+    result, meta = flatten_deep_schema(schema, depth_threshold=0, leaf_threshold=0)
+    assert meta.was_flattened is False
+    assert result == schema
+
+
+def test_coerce_value_null_only_schema_string_passthrough():
+    """coerce_value with type:null schema leaves non-null string unchanged (L240)."""
+    schema = {"type": "null"}
+    result = coerce_value(schema, "some_string")
+    assert result == "some_string"

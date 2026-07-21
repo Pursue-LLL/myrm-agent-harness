@@ -1,8 +1,8 @@
 """Approval timeout scheduler — auto-resumes agents when approval requests expire.
 
 Prevents agents from permanently suspending when no user responds to an
-approval request. Covers three scenarios:
-- Web UI: browser closed/refreshed before timeout
+approval or structured clarification request. Covers three scenarios:
+- Web UI: browser closed/refreshed before timeout (approval or clarify form)
 - Channels: user never responds to /approve prompt
 - Cron: fully unattended execution
 
@@ -69,7 +69,15 @@ class ApprovalTimeoutScheduler:
         self._tasks: dict[str, asyncio.Task[None]] = {}
         self._resolved_keys: set[str] = set()
 
-    def schedule(self, key: str, timeout_seconds: float, behavior: str, resume_callback: ResumeCallback) -> None:
+    def schedule(
+        self,
+        key: str,
+        timeout_seconds: float,
+        behavior: str,
+        resume_callback: ResumeCallback,
+        *,
+        resume_value_override: dict[str, object] | None = None,
+    ) -> None:
         """Register a timeout guard for a pending approval.
 
         Args:
@@ -78,14 +86,22 @@ class ApprovalTimeoutScheduler:
             behavior: "deny" or "allow" — determines the auto-resume decision.
             resume_callback: Async function receiving the constructed resume_value.
                              Responsible for executing the full Agent resume flow.
+            resume_value_override: When set, used as resume_value instead of approval decision payload.
         """
         self.cancel(key)
         self._resolved_keys.discard(key)
         task = asyncio.create_task(
-            self._run(key, timeout_seconds, behavior, resume_callback), name=f"approval-timeout:{key}"
+            self._run(key, timeout_seconds, behavior, resume_callback, resume_value_override),
+            name=f"approval-timeout:{key}",
         )
         self._tasks[key] = task
-        logger.info("Approval timeout scheduled: key=%s, timeout=%ss, behavior=%s", key, timeout_seconds, behavior)
+        logger.info(
+            "Approval timeout scheduled: key=%s, timeout=%ss, behavior=%s, override=%s",
+            key,
+            timeout_seconds,
+            behavior,
+            resume_value_override is not None,
+        )
 
     def resolve_if_first(self, key: str) -> bool:
         """Atomically resolve a pending approval key. Returns True only for the first caller.
@@ -102,20 +118,35 @@ class ApprovalTimeoutScheduler:
             task.cancel()
         return True
 
-    async def _run(self, key: str, timeout: float, behavior: str, callback: ResumeCallback) -> None:
+    async def _run(
+        self,
+        key: str,
+        timeout: float,
+        behavior: str,
+        callback: ResumeCallback,
+        resume_value_override: dict[str, object] | None,
+    ) -> None:
         try:
             await asyncio.sleep(timeout)
             if not self.resolve_if_first(key):
                 logger.info("Approval timeout lost race (already resolved): key=%s", key)
                 return
-            approved = behavior == "allow"
-            decision = "approve" if approved else "reject"
-            resume_value: dict[str, object] = {
-                "decision": decision,
-                "feedback": f"Auto-{'approved' if approved else 'rejected'}: approval timeout ({timeout:.0f}s)",
-            }
-            logger.warning("Approval timeout fired: key=%s, auto-%s after %ss", key, decision, timeout)
-            _record_timeout_audit(key, decision, timeout)
+            if resume_value_override is not None:
+                resume_value = resume_value_override
+                logger.warning(
+                    "HITL timeout fired with custom resume_value: key=%s after %ss",
+                    key,
+                    timeout,
+                )
+            else:
+                approved = behavior == "allow"
+                decision = "approve" if approved else "reject"
+                resume_value = {
+                    "decision": decision,
+                    "feedback": f"Auto-{'approved' if approved else 'rejected'}: approval timeout ({timeout:.0f}s)",
+                }
+                logger.warning("Approval timeout fired: key=%s, auto-%s after %ss", key, decision, timeout)
+                _record_timeout_audit(key, decision, timeout)
             await callback(resume_value)
         except asyncio.CancelledError:
             logger.debug("Approval timeout cancelled (manual resume): key=%s", key)

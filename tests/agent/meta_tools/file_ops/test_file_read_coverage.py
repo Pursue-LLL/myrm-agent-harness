@@ -496,3 +496,105 @@ async def test_process_text_paths_exception_fallback(tmp_path: Path) -> None:
     mock_service.assert_awaited()
     assert parts[-1] == "fallback content"
 
+
+@pytest.mark.asyncio
+async def test_file_read_blocks_disabled_skill_path() -> None:
+    tool = create_file_read_tool()
+    mock_executor = MagicMock()
+    mock_executor.resolve_path = AsyncMock(return_value="/workspace/skills/off/secret.md")
+    config = RunnableConfig(
+        configurable={"context": {"disabled_skill_roots": ["/workspace/skills/off"]}},
+    )
+
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+        return_value=mock_executor,
+    ):
+        with pytest.raises(ToolError, match="blocked"):
+            await tool.ainvoke({"paths": ["skills/off/secret.md"]}, config=config)
+
+
+@pytest.mark.asyncio
+async def test_file_read_file_not_found_includes_similar_path_hint(tmp_path: Path) -> None:
+    tool = create_file_read_tool()
+    (tmp_path / "readme.md").write_text("hello", encoding="utf-8")
+    target = str(tmp_path / "redme.md")
+    mock_executor = MagicMock()
+    mock_executor.resolve_path = AsyncMock(return_value=target)
+
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+        return_value=mock_executor,
+    ), patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+        new_callable=AsyncMock,
+        side_effect=FileNotFoundError(f"not found: {target}"),
+    ):
+        with pytest.raises(ToolError) as exc_info:
+            await tool.ainvoke({"paths": [target]}, config=_DUMMY_CONFIG)
+
+    assert exc_info.value.user_hint is not None
+    assert "Did you mean" in exc_info.value.user_hint
+
+
+@pytest.mark.asyncio
+async def test_file_read_rejects_url_paths_only() -> None:
+    tool = create_file_read_tool()
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+        return_value=MagicMock(),
+    ):
+        result = await tool.ainvoke({"paths": ["https://example.com/doc"]}, config=_DUMMY_CONFIG)
+    assert isinstance(result, str)
+    assert "cannot read URLs" in result
+
+
+@pytest.mark.asyncio
+async def test_file_read_raises_value_error_when_no_valid_paths() -> None:
+    tool = create_file_read_tool()
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+        return_value=MagicMock(),
+    ):
+        with pytest.raises(ToolError) as exc_info:
+            await tool.ainvoke({"paths": []}, config=_DUMMY_CONFIG)
+    assert exc_info.value.user_hint is not None
+    assert "Invalid parameter" in exc_info.value.user_hint
+
+
+@pytest.mark.asyncio
+async def test_file_read_permission_error_wrapped() -> None:
+    tool = create_file_read_tool()
+    mock_executor = MagicMock()
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+        return_value=mock_executor,
+    ), patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+        new_callable=AsyncMock,
+        side_effect=PermissionError("denied"),
+    ):
+        with pytest.raises(ToolError) as exc_info:
+            await tool.ainvoke({"paths": ["secret.txt"]}, config=_DUMMY_CONFIG)
+    assert exc_info.value.user_hint is not None
+    assert "Permission denied" in exc_info.value.user_hint
+
+
+@pytest.mark.asyncio
+async def test_file_read_disabled_path_when_resolve_raises_value_error() -> None:
+    tool = create_file_read_tool()
+    mock_executor = MagicMock()
+    mock_executor.resolve_path = AsyncMock(side_effect=ValueError("bad path"))
+    config = RunnableConfig(
+        configurable={"context": {"disabled_skill_roots": ["/workspace/skills/off"]}},
+    )
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+        return_value=mock_executor,
+    ):
+        with pytest.raises(ToolError, match="blocked"):
+            await tool.ainvoke(
+                {"paths": ["/workspace/skills/off/secret.md"]},
+                config=config,
+            )
+

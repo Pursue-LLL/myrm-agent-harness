@@ -144,6 +144,24 @@ class TestSnapshotStore:
             assert snaps[0].path == "/a.py"
             assert snaps[0].original_content == "orig"
 
+    @pytest.mark.asyncio
+    async def test_merge_session_from_disk(self):
+        SnapshotStore.reset()
+        store = SnapshotStore.get()
+        store.record("s1", "m1", FileSnapshot("/a.py", SnapshotOp.MODIFY, "orig"))
+        with tempfile.TemporaryDirectory() as tmpdir:
+            await store.persist_to_disk(tmpdir, "s1", "m1")
+
+            SnapshotStore.reset()
+            fresh = SnapshotStore.get()
+            assert fresh.get_message_snapshots("s1", "m1") == []
+
+            merged = await fresh.merge_session_from_disk(tmpdir, "s1")
+            assert merged is True
+            snaps = fresh.get_message_snapshots("s1", "m1")
+            assert len(snaps) == 1
+            assert snaps[0].original_content == "orig"
+
 
 class TestContextVars:
     def test_set_and_get_message_id(self):

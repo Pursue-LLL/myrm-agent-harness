@@ -161,6 +161,20 @@ class SnapshotStore:
                 count += 1
         return count
 
+    async def merge_session_from_disk(self, workspace_root: str, session_id: str) -> bool:
+        """Load persisted snapshots into memory when the session is not yet hydrated."""
+        if self._store.get(session_id):
+            return True
+
+        loaded = await SnapshotStore.load_from_disk(workspace_root, session_id)
+        if not loaded:
+            return False
+
+        for message_id, snapshots in loaded:
+            for snap in snapshots:
+                self.record(session_id, message_id, snap)
+        return True
+
     async def remove_persisted_message(self, workspace_root: str, session_id: str, message_id: str) -> None:
         """Delete the on-disk snapshot file for a specific message."""
         target = Path(workspace_root) / SNAPSHOTS_DIR_NAME / session_id / f"{message_id}.json"

@@ -7,7 +7,7 @@
 - extract_command_spans: Pipeline/logical segment spans (128KB cap, quote-aware split).
 - classify_span_risk_levels: Per-segment safe/unknown levels via risk_classifier.
 - classify_span_risk_reasons: Per-segment stable i18n reason codes via risk_classifier.
-- build_shell_approval_fields: Spans, risks, reasons, and plain_explanation from redacted display args.
+- build_shell_approval_fields: Spans, risks, reasons, plain_explanation, and execution_intent from redacted display args.
 - extract_shell_command_text: Read command/code from tool args.
 - is_shell_approval_tool: Whether a tool name participates in shell span UX.
 
@@ -117,6 +117,11 @@ def build_shell_approval_fields(
     explanation = humanize_command(shell_text, spans, levels)
     if explanation:
         result["plain_explanation"] = explanation
+    intent_raw = redacted_args.get("reason")
+    if isinstance(intent_raw, str):
+        intent = intent_raw.strip()
+        if intent:
+            result["execution_intent"] = intent
     return result
 
 

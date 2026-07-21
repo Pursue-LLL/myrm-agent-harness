@@ -120,15 +120,13 @@ class BuiltinToolRegistry:
         if not self._tools:
             return ""
 
-        lines = [
-            "\n## PTC Built-in Tools",
-            "Available via `import myrm_tools` in Python scripts (in skills: `from tools.{name} import {name}`):",
-        ]
-        for name, entry in sorted(self._tools.items()):
-            params_str = ", ".join(f"{k}: {v}" for k, v in entry.parameters.items())
-            lines.append(f"- `myrm_tools.{name}({params_str})` — {entry.description} -> {entry.return_type}")
-
-        return "\n".join(lines)
+        names = ", ".join(f"`myrm_tools.{name}`" for name in sorted(self._tools.keys()))
+        return (
+            "\n## PTC (Python only)\n"
+            f"Builtins: {names}. "
+            "Turn1-bound tools: `myrm_tools.{tool_name}(...)` (stubs generated at runtime). "
+            "Single native tool calls — do not use PTC."
+        )
 
     @property
     def tool_names(self) -> list[str]:

@@ -61,8 +61,7 @@ class TestBuiltinToolRegistry:
         registry.register("demo", AsyncMock(), "A demo tool", {"q": "str"}, return_type="list")
         desc = registry.get_ptc_description()
         assert "myrm_tools.demo" in desc
-        assert "A demo tool" in desc
-        assert "-> list" in desc
+        assert "PTC" in desc
 
     def test_overwrite_warning(self, caplog: pytest.LogCaptureFixture) -> None:
         registry = BuiltinToolRegistry()

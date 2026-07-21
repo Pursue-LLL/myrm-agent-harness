@@ -525,6 +525,134 @@ async def test_sanitize_tools_coercion():
     inner_mock.assert_called_once()
 
 
+@pytest.mark.asyncio
+async def test_sanitize_tools_strict_host_required_nullable_contract():
+    """End-to-end strict-host contract: missing required+nullable args are completed."""
+    agent = MCPAgent()
+    inner_mock = AsyncMock(return_value="strict_ok")
+    strict_schema = {
+        "type": "object",
+        "properties": {
+            "captureTransform": {"type": ["object", "null"]},
+            "annotations": {"type": ["object", "null"]},
+            "bShowUI": {"type": "boolean"},
+        },
+        "required": ["captureTransform", "annotations", "bShowUI"],
+    }
+    tool = _make_tool(schema=strict_schema, coroutine=inner_mock)
+    agent._sanitize_tools([tool])
+
+    result = await tool.coroutine(bShowUI="false")
+    assert result == "strict_ok"
+    call_kwargs = inner_mock.call_args[1]
+    assert call_kwargs["bShowUI"] is False
+    assert call_kwargs["captureTransform"] is None
+    assert call_kwargs["annotations"] is None
+
+
+@pytest.mark.asyncio
+async def test_sanitize_tools_nullable_true_contract():
+    """OpenAPI nullable:true must be treated as explicit null-allowed."""
+    agent = MCPAgent()
+    inner_mock = AsyncMock(return_value="nullable_flag_ok")
+    schema = {
+        "type": "object",
+        "properties": {
+            "opt": {"type": "object", "nullable": True},
+            "name": {"type": "string"},
+        },
+        "required": ["opt", "name"],
+    }
+    tool = _make_tool(schema=schema, coroutine=inner_mock)
+    agent._sanitize_tools([tool])
+
+    result = await tool.coroutine(name="demo")
+    assert result == "nullable_flag_ok"
+    call_kwargs = inner_mock.call_args[1]
+    assert call_kwargs["name"] == "demo"
+    assert call_kwargs["opt"] is None
+
+
+@pytest.mark.asyncio
+async def test_sanitize_tools_anyof_enum_null_contract():
+    """Null-literal enum branches in anyOf must permit explicit null completion."""
+    agent = MCPAgent()
+    inner_mock = AsyncMock(return_value="enum_null_ok")
+    schema = {
+        "type": "object",
+        "properties": {
+            "opt": {
+                "anyOf": [
+                    {"type": "object"},
+                    {"enum": [None]},
+                ]
+            },
+            "name": {"type": "string"},
+        },
+        "required": ["opt", "name"],
+    }
+    tool = _make_tool(schema=schema, coroutine=inner_mock)
+    agent._sanitize_tools([tool])
+
+    result = await tool.coroutine(name="demo")
+    assert result == "enum_null_ok"
+    call_kwargs = inner_mock.call_args[1]
+    assert call_kwargs["name"] == "demo"
+    assert call_kwargs["opt"] is None
+
+
+@pytest.mark.asyncio
+async def test_sanitize_tools_mixed_union_prefers_container_literal():
+    """Mixed unions should parse JSON object literals when schema accepts object."""
+    agent = MCPAgent()
+    inner_mock = AsyncMock(return_value="mixed_union_ok")
+    schema = {
+        "type": "object",
+        "properties": {
+            "payload": {
+                "anyOf": [
+                    {"type": "string"},
+                    {"type": "object"},
+                    {"type": "null"},
+                ]
+            }
+        },
+    }
+    tool = _make_tool(schema=schema, coroutine=inner_mock)
+    agent._sanitize_tools([tool])
+
+    result = await tool.coroutine(payload='{"x": 1}')
+    assert result == "mixed_union_ok"
+    call_kwargs = inner_mock.call_args[1]
+    assert call_kwargs["payload"] == {"x": 1}
+
+
+@pytest.mark.asyncio
+async def test_sanitize_tools_mixed_union_keeps_plain_string():
+    """Mixed unions should preserve plain text payloads as strings."""
+    agent = MCPAgent()
+    inner_mock = AsyncMock(return_value="mixed_union_string_ok")
+    schema = {
+        "type": "object",
+        "properties": {
+            "payload": {
+                "anyOf": [
+                    {"type": "string"},
+                    {"type": "object"},
+                    {"type": "null"},
+                ]
+            }
+        },
+    }
+    tool = _make_tool(schema=schema, coroutine=inner_mock)
+    agent._sanitize_tools([tool])
+
+    result = await tool.coroutine(payload="hello world")
+    assert result == "mixed_union_string_ok"
+    call_kwargs = inner_mock.call_args[1]
+    assert call_kwargs["payload"] == "hello world"
+
+
 # ---------------------------------------------------------------------------
 # _sanitize_tools: canonicalize sorts schema keys in full pipeline
 # ---------------------------------------------------------------------------

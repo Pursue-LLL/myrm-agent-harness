@@ -18,6 +18,7 @@ Provides MCP client integration with:
 [OUTPUT]
 - MCPAgent, MCPClientManager, MCPConfig, MCPConnectionManager, MCPServerConfigProtocol: core MCP types
 - OversizedResultHandler: callback type for vault-spilling oversized MCP tool outputs
+- get_schema_coercion_stats/reset_schema_coercion_stats: runtime counters for MCP schema coercion observability
 - MCPResponseError, MCPResponseValidator, MCPURLValidator, ResolvedURL, URLValidationError: security types
 - get_mcp_connection, get_mcp_connection_manager: connection pool accessors
 
@@ -49,6 +50,7 @@ from .security import (
     ResolvedURL,
     URLValidationError,
 )
+from .schema_utils import get_schema_coercion_stats, reset_schema_coercion_stats
 
 __all__ = [
     "MCPAgent",
@@ -68,6 +70,8 @@ __all__ = [
     "URLValidationError",
     "build_authorization_url",
     "generate_pkce_pair",
+    "get_schema_coercion_stats",
     "get_mcp_connection",
     "get_mcp_connection_manager",
+    "reset_schema_coercion_stats",
 ]

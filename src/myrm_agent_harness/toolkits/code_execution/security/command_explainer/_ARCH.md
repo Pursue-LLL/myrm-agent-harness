@@ -24,7 +24,7 @@ build_shell_approval_fields(tool_name, redacted_args)
   → extract_command_spans(shell_text)       → CommandSpan[]
   → _classify_span_risk_pairs(...)          → SpanRiskLevel[], SpanRiskReason[]
   → humanize_command(shell_text, spans, levels)  → BilingualExplanation | None
-  → returns { command_spans, command_span_risks, command_span_reasons, plain_explanation? }
+  → returns { command_spans, command_span_risks, command_span_reasons, plain_explanation?, execution_intent? }
 ```
 
 Frontend receives `plain_explanation: {en, zh}` and renders it below the

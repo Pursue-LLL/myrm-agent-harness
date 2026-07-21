@@ -61,6 +61,16 @@ class TestBuildShellApprovalFields:
     def test_whitespace_only_command_returns_empty(self) -> None:
         assert build_shell_approval_fields("bash_code_execute_tool", {"command": "   "}) == {}
 
+    def test_includes_execution_intent_from_reason_arg(self) -> None:
+        fields = build_shell_approval_fields(
+            "bash_code_execute_tool",
+            {
+                "command": "npm install",
+                "reason": "Install project dependencies for the build",
+            },
+        )
+        assert fields["execution_intent"] == "Install project dependencies for the build"
+
 
 class TestExtractCommandSpans:
     def test_single_command(self) -> None:

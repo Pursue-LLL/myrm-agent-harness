@@ -584,7 +584,7 @@ class AllowlistEntry:
 **参数标准化机制**：
 - 哈希计算基于"核心参数"而非全部参数，排除LLM生成的辅助字段（如 `reason`、`description`）
 - `TOOL_CANONICAL_PARAMS`（`tool_registry.py`）定义每个工具的核心参数映射：
-  - `bash_code_execute_tool`: `["command"]` — 仅命令内容影响哈希，`reason` 字段被忽略
+  - `bash_code_execute_tool`: `["command"]` — 仅命令内容影响 allowlist 哈希；`reason` 必填（审计 + 审批 UI `execution_intent`），但不参与哈希
   - `file_write_tool`: `["path", "content"]` — 仅路径和内容影响哈希
   - `browser_navigate_tool`: `["url"]` — 仅 URL 影响哈希
 - `compute_canonical_args_hash(tool_name, tool_args)` 根据映射表提取核心参数后计算 SHA256[:16] 哈希

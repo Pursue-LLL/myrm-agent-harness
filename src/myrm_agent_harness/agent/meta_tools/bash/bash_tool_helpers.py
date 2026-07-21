@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import re
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +74,22 @@ def get_os_hint() -> str:
 class BashInput(BaseModel):
     """Input schema for the bash code execution tool."""
 
+    reason: str = Field(
+        description=(
+            "Short intent for this execution (≥10 chars). ALWAYS provide this parameter first — "
+            "shown in approval UI and audit logs."
+        ),
+        max_length=500,
+    )
     command: str = Field(description="The shell command or python code to execute")
-    reason: str = Field(description="The reason for executing the command")
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def _normalize_reason(cls, value: object) -> str:
+        text = str(value or "").strip()
+        if len(text) < 10:
+            raise ValueError("reason must be at least 10 characters explaining why this command runs")
+        return text
     timeout: int | None = Field(
         default=None,
         description=(

@@ -8,7 +8,7 @@ Bash tool module.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Bash tool module. | — |
-| `_tool_description.py` | Internal | Static `TOOL_DESCRIPTION` prompt string for the LLM. PTC section states generic bind-name RPC rules plus `session_store` (PTC-only); dynamic PTC builtins appended via `get_ptc_description()`. | ✅ |
+| `_tool_description.py` | Internal | Static ~1.4k-char `TOOL_DESCRIPTION` (cache-stable across agents). PTC generic bind-name rules + compact `get_ptc_description()` builtins appendix. | ✅ |
 | _output_eviction.py | Internal | Large output eviction (save to file, return `EvictionResult(text, evicted_ref)` for SSE propagation to GUI viewer). | ✅ |
 | _event_logging.py | Internal | Event logging for bash command execution (redaction, classification). | ✅ |
 | _preflight_checks.py | Internal | Security preflight: URL exfiltration, sensitive paths, interactive detection, install package registry verification (anti-slopsquatting). | ✅ |
@@ -26,7 +26,7 @@ Bash tool module.
 | bash_tool_formatting.py | Core | Output compression, truncation, redaction, tool_output wrapping. | ✅ |
 | bash_tool_background_listeners.py | Core | Background spawn ptc_notify listeners and exit classification; natural ``exited`` finish emits progress + optional server finish hook; ``killed`` (session cancel) is silent (no finish ptc_notify, no chat persistence). | ✅ |
 | bash_tool_multimodal.py | Core | Vision ContentBlock inline return for generated images. | ✅ |
-| bash_tool_helpers.py | Core | BashInput schema, OS hint, context restore, context access tracking. | ✅ |
+| bash_tool_helpers.py | Core | BashInput schema (`reason` required ≥10 chars, first param), OS hint, context restore, context access tracking. | ✅ |
 | _background_job_store_core.py | Core | Pure reconcile/status helpers for BSDL durable ledger. | ✅ |
 | _background_job_store.py | Core | SQLite BackgroundJobStore on Volume (metadata, finish dedupe, orphan reconcile). | ✅ |
 | _background_output_spill.py | Core | Incremental vault spill for long background stdout/stderr; writes `output_{hex8}.txt` under `.context/{session}/evicted/` (same basename contract as `_output_eviction` + `/files/evicted` API). | ✅ |

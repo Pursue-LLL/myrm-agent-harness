@@ -22,6 +22,27 @@ async def test_get_returns_singleton() -> None:
 
 
 @pytest.mark.asyncio
+async def test_schedule_respects_resume_value_override() -> None:
+    scheduler = ApprovalTimeoutScheduler.get()
+    received: list[dict[str, object]] = []
+
+    async def callback(resume_value: dict[str, object]) -> None:
+        received.append(resume_value)
+
+    override = {"no_answer": True}
+    scheduler.schedule(
+        "override-key",
+        timeout_seconds=0.05,
+        behavior="deny",
+        resume_callback=callback,
+        resume_value_override=override,
+    )
+    await asyncio.sleep(0.15)
+    assert received == [override]
+    assert "decision" not in received[0]
+
+
+@pytest.mark.asyncio
 async def test_schedule_fires_deny_callback() -> None:
     scheduler = ApprovalTimeoutScheduler.get()
     received: list[dict[str, object]] = []

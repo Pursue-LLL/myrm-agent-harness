@@ -111,8 +111,8 @@ def create_bash_code_execute_tool(
 
     @tool("bash_code_execute_tool", description=description, args_schema=BashInput)
     async def bash_func(
+        reason: str,
         command: str,
-        reason: str = "",
         timeout: int | None = None,
         run_in_background: bool = False,
         yield_after_seconds: int | None = None,
@@ -120,9 +120,10 @@ def create_bash_code_execute_tool(
         config: RunnableConfig,
     ) -> dict[str, object] | Sequence[object]:
         """Execute a bash command, python script, or skill invocation."""
-        _ = reason
-
+        intent = reason.strip()
         command = command.strip()
+        preview = command[:200] + ("..." if len(command) > 200 else "")
+        logger.info("BASH_EXECUTE intent=%r command_preview=%r", intent, preview)
 
         if ".context/" in command:
             paths = []

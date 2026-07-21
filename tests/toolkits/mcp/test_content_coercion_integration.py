@@ -536,3 +536,119 @@ class TestProcessSessionToolsChain:
         result = await processed[0].coroutine()
         assert isinstance(result, list)
         assert result[0]["type"] == "image"
+
+    @pytest.mark.asyncio
+    async def test_full_chain_mixed_union_container_literal_coercion(self):
+        """Mixed union payload should parse clear JSON object literals end-to-end."""
+        seen_kwargs: dict[str, Any] = {}
+
+        async def _capture(*a: object, **kw: object) -> str:
+            seen_kwargs.update(kw)
+            return "ok"
+
+        tool = StructuredTool(
+            name="mixed_union_tool",
+            description="mixed union e2e",
+            args_schema={
+                "type": "object",
+                "properties": {
+                    "payload": {
+                        "anyOf": [
+                            {"type": "string"},
+                            {"type": "object"},
+                            {"type": "null"},
+                        ]
+                    }
+                },
+            },
+            coroutine=_capture,
+        )
+
+        processed = MCPAgent.process_session_tools(
+            [tool],
+            server_name="mixed_server",
+            tool_include=None,
+            tool_exclude=None,
+            execute_timeout=5.0,
+        )
+        result = await processed[0].coroutine(payload='{"x": 1}')
+        assert isinstance(result, str)
+        assert "ok" in result
+        assert seen_kwargs["payload"] == {"x": 1}
+
+    @pytest.mark.asyncio
+    async def test_full_chain_mixed_union_plain_string_passthrough(self):
+        """Mixed union payload should preserve plain text end-to-end."""
+        seen_kwargs: dict[str, Any] = {}
+
+        async def _capture(*a: object, **kw: object) -> str:
+            seen_kwargs.update(kw)
+            return "ok"
+
+        tool = StructuredTool(
+            name="mixed_union_text_tool",
+            description="mixed union text e2e",
+            args_schema={
+                "type": "object",
+                "properties": {
+                    "payload": {
+                        "anyOf": [
+                            {"type": "string"},
+                            {"type": "object"},
+                            {"type": "null"},
+                        ]
+                    }
+                },
+            },
+            coroutine=_capture,
+        )
+
+        processed = MCPAgent.process_session_tools(
+            [tool],
+            server_name="mixed_server",
+            tool_include=None,
+            tool_exclude=None,
+            execute_timeout=5.0,
+        )
+        result = await processed[0].coroutine(payload="hello world")
+        assert isinstance(result, str)
+        assert "ok" in result
+        assert seen_kwargs["payload"] == "hello world"
+
+    @pytest.mark.asyncio
+    async def test_full_chain_required_nullable_true_injects_missing_none(self):
+        """Missing required nullable:true argument should be injected as None."""
+        seen_kwargs: dict[str, Any] = {}
+
+        async def _capture(*a: object, **kw: object) -> str:
+            seen_kwargs.update(kw)
+            return "ok"
+
+        tool = StructuredTool(
+            name="nullable_inject_tool",
+            description="nullable inject e2e",
+            args_schema={
+                "type": "object",
+                "required": ["optional_flag"],
+                "properties": {
+                    "optional_flag": {
+                        "type": "string",
+                        "nullable": True,
+                    }
+                },
+            },
+            coroutine=_capture,
+        )
+
+        processed = MCPAgent.process_session_tools(
+            [tool],
+            server_name="mixed_server",
+            tool_include=None,
+            tool_exclude=None,
+            execute_timeout=5.0,
+        )
+        result = await processed[0].coroutine()
+        assert isinstance(result, str)
+        assert "ok" in result
+        assert "optional_flag" in seen_kwargs
+        assert seen_kwargs["optional_flag"] is None
