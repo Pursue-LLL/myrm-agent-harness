@@ -15,8 +15,9 @@ Design choices:
 
 [OUTPUT]
 - SnapshotOp: In-memory snapshot index with async disk persistence.
-- FileSnapshot: class — File Snapshot
-- SnapshotStore: class — Snapshot Store
+- SnapshotSkipReason: Enum — why a file change is not revertible.
+- FileSnapshot: class — File Snapshot (includes revertible metadata).
+- SnapshotStore: class — Snapshot Store (record + record_skipped).
 - SnapshotObserver: class — Snapshot Observer
 - set_current_message_id: Captures pre-modification file content for undo support.
 
@@ -51,15 +52,27 @@ class SnapshotOp(StrEnum):
     MODIFY = "modify"
 
 
+class SnapshotSkipReason(StrEnum):
+    FILE_TOO_LARGE = "file_too_large"
+    STORE_FULL = "store_full"
+
+
 @dataclass(frozen=True, slots=True)
 class FileSnapshot:
     path: str
     operation: SnapshotOp
     original_content: str | None
     timestamp: float = field(default_factory=time.time)
+    skip_reason: SnapshotSkipReason | None = None
+
+    @property
+    def revertible(self) -> bool:
+        return self.skip_reason is None
 
     @property
     def size_bytes(self) -> int:
+        if self.skip_reason is not None:
+            return 0
         return len(self.original_content.encode("utf-8")) if self.original_content else 0
 
 
@@ -104,6 +117,9 @@ class SnapshotStore:
 
     def record(self, session_id: str, message_id: str, snapshot: FileSnapshot) -> bool:
         """Record a snapshot. Returns False if size limits exceeded."""
+        if snapshot.skip_reason is not None:
+            raise ValueError("Use record_skipped for non-revertible metadata entries")
+
         if snapshot.size_bytes > MAX_FILE_BYTES:
             logger.info(
                 "Snapshot skipped (file too large): %s (%d bytes)",
@@ -125,6 +141,29 @@ class SnapshotStore:
         msg_snapshots.append(snapshot)
         self._total_bytes += snapshot.size_bytes
         return True
+
+    def record_skipped(
+        self,
+        session_id: str,
+        message_id: str,
+        path: str,
+        operation: SnapshotOp,
+        reason: SnapshotSkipReason,
+    ) -> None:
+        """Record a non-revertible file change (metadata only, zero content bytes)."""
+        session = self._store.setdefault(session_id, {})
+        msg_snapshots = session.setdefault(message_id, [])
+        for existing in msg_snapshots:
+            if existing.path == path and existing.skip_reason is not None:
+                return
+        msg_snapshots.append(
+            FileSnapshot(
+                path=path,
+                operation=operation,
+                original_content=None,
+                skip_reason=reason,
+            )
+        )
 
     def get_message_snapshots(self, session_id: str, message_id: str) -> list[FileSnapshot]:
         return self._store.get(session_id, {}).get(message_id, [])
@@ -172,7 +211,10 @@ class SnapshotStore:
 
         for message_id, snapshots in loaded:
             for snap in snapshots:
-                self.record(session_id, message_id, snap)
+                if snap.skip_reason is not None:
+                    self.record_skipped(session_id, message_id, snap.path, snap.operation, snap.skip_reason)
+                else:
+                    self.record(session_id, message_id, snap)
         return True
 
     async def remove_persisted_message(self, workspace_root: str, session_id: str, message_id: str) -> None:
@@ -215,6 +257,7 @@ class SnapshotStore:
                     "operation": s.operation.value,
                     "original_content": s.original_content,
                     "timestamp": s.timestamp,
+                    **({"skip_reason": s.skip_reason.value} if s.skip_reason is not None else {}),
                 }
                 for s in snapshots
             ]
@@ -248,6 +291,9 @@ class SnapshotStore:
                         operation=SnapshotOp(item["operation"]),
                         original_content=item["original_content"],
                         timestamp=item["timestamp"],
+                        skip_reason=SnapshotSkipReason(item["skip_reason"])
+                        if item.get("skip_reason")
+                        else None,
                     )
                     for item in raw
                 ]
@@ -300,17 +346,33 @@ class SnapshotObserver(FileOperationObserver):
     async def on_file_created(self, path: str, content: str) -> None:
         session_id = _get_session_id()
         message_id = get_current_message_id()
-        snap = FileSnapshot(path=path, operation=SnapshotOp.CREATE, original_content=None)
         store = SnapshotStore.get()
-        store.record(session_id, message_id, snap)
+        content_bytes = len(content.encode("utf-8"))
+        if content_bytes > MAX_FILE_BYTES:
+            store.record_skipped(session_id, message_id, path, SnapshotOp.CREATE, SnapshotSkipReason.FILE_TOO_LARGE)
+            self._schedule_persist(store, session_id, message_id, path)
+            return
+        snap = FileSnapshot(path=path, operation=SnapshotOp.CREATE, original_content=None)
+        if not store.record(session_id, message_id, snap):
+            store.record_skipped(session_id, message_id, path, SnapshotOp.CREATE, SnapshotSkipReason.STORE_FULL)
+            self._schedule_persist(store, session_id, message_id, path)
+            return
         self._schedule_persist(store, session_id, message_id, path)
 
     async def on_file_modified(self, path: str, old_content: str, new_content: str) -> None:
         session_id = _get_session_id()
         message_id = get_current_message_id()
-        snap = FileSnapshot(path=path, operation=SnapshotOp.MODIFY, original_content=old_content)
         store = SnapshotStore.get()
-        store.record(session_id, message_id, snap)
+        old_bytes = len(old_content.encode("utf-8"))
+        if old_bytes > MAX_FILE_BYTES:
+            store.record_skipped(session_id, message_id, path, SnapshotOp.MODIFY, SnapshotSkipReason.FILE_TOO_LARGE)
+            self._schedule_persist(store, session_id, message_id, path)
+            return
+        snap = FileSnapshot(path=path, operation=SnapshotOp.MODIFY, original_content=old_content)
+        if not store.record(session_id, message_id, snap):
+            store.record_skipped(session_id, message_id, path, SnapshotOp.MODIFY, SnapshotSkipReason.STORE_FULL)
+            self._schedule_persist(store, session_id, message_id, path)
+            return
         self._schedule_persist(store, session_id, message_id, path)
 
     async def on_file_viewed(self, path: str) -> None:

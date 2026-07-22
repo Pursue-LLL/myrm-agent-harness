@@ -9,6 +9,7 @@
 - get_tool_load_condition(): human-readable load gate
 - get_tool_product_id(): enabled_builtin_tools ID when applicable
 - validate_tool_catalog(): consistency checks for Action Tool names in _TOOL_LAYERS
+- validate_layer_product_consistency(): COMMON/CORE layer vs product default-on SSOT
 - build_tool_catalog_rows(): sorted rows for doc generation
 
 [POS]
@@ -84,9 +85,32 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
 
 _DEFAULT_LOAD_BY_LAYER: dict[ToolLayer, str] = {
     ToolLayer.CORE: "Agent baseline; Turn1 eager",
-    ToolLayer.COMMON: "Profile togglable; Turn1 when enabled",
+    ToolLayer.COMMON: "Profile togglable; Turn1 when enabled (default-on product IDs only)",
     ToolLayer.EXTENDED: "Opt-in Turn1; see product switch",
 }
+
+# SSOT for layer-product CI gate; aligned with server ``builtin_tool_ids.py``
+# ``DEFAULT_ENABLED_BUILTIN_TOOLS`` and frontend ``DEFAULT_ENABLED_BUILTIN_TOOLS``.
+DEFAULT_ENABLED_PRODUCT_IDS: frozenset[str] = frozenset({
+    "web_search",
+    "memory",
+    "structured_clarify",
+})
+
+CORE_ACTION_TOOL_NAMES: frozenset[str] = frozenset({
+    "web_fetch_tool",
+    "bash_code_execute_tool",
+    "file_edit_tool",
+    "file_read_tool",
+    "file_write_tool",
+    "glob_tool",
+    "grep_tool",
+})
+
+EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS: frozenset[str] = frozenset({
+    "ask_question_tool",
+    "conversation_search_tool",
+})
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,12 +185,67 @@ def build_tool_catalog_rows(registered: dict[str, ToolLayer | str]) -> list[Tool
     return rows
 
 
+def validate_layer_product_consistency(
+    registered: dict[str, ToolLayer | str],
+    *,
+    default_enabled_product_ids: frozenset[str] | None = None,
+) -> list[str]:
+    """Return errors when tool layer assignment disagrees with product default-on SSOT."""
+    defaults = default_enabled_product_ids or DEFAULT_ENABLED_PRODUCT_IDS
+    errors: list[str] = []
+
+    core_registered = {
+        name for name, layer in registered.items() if _coerce_layer(layer) == ToolLayer.CORE
+    }
+    if core_registered != CORE_ACTION_TOOL_NAMES:
+        missing = sorted(CORE_ACTION_TOOL_NAMES - core_registered)
+        extra = sorted(core_registered - CORE_ACTION_TOOL_NAMES)
+        if missing:
+            errors.append(f"CORE layer missing tools: {missing}")
+        if extra:
+            errors.append(f"CORE layer has unexpected tools: {extra}")
+
+    for name, layer_raw in registered.items():
+        layer = _coerce_layer(layer_raw)
+        product_id = get_tool_product_id(name)
+
+        if name in EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS:
+            if layer != ToolLayer.EXTENDED:
+                errors.append(
+                    f"{name}: must stay EXTENDED (default-on HITL / prompt-cache tail policy)"
+                )
+            continue
+
+        if layer == ToolLayer.COMMON:
+            if product_id is None:
+                errors.append(f"{name}: COMMON layer tools must map to a GUI product_id")
+            elif product_id not in defaults:
+                errors.append(
+                    f"{name}: COMMON layer requires default-on product_id "
+                    f"(got {product_id!r}; defaults={sorted(defaults)})"
+                )
+            continue
+
+        if (
+            layer == ToolLayer.EXTENDED
+            and product_id is not None
+            and product_id in defaults
+        ):
+            errors.append(
+                f"{name}: product_id {product_id!r} is default-on but tool is EXTENDED; "
+                "move to COMMON or add to EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS with rationale"
+            )
+
+    return errors
+
+
 def validate_tool_catalog(registered: dict[str, ToolLayer | str]) -> list[str]:
     """Return error strings when Action Tool catalog metadata is inconsistent."""
     errors: list[str] = []
     for name in registered:
         if name.startswith("_"):
             errors.append(f"{name}: Action Tools must not use underscore prefix")
+    errors.extend(validate_layer_product_consistency(registered))
     return errors
 
 

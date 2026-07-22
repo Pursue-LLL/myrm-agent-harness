@@ -30,7 +30,7 @@ _repo_root = Path(__file__).resolve().parent.parent.parent
 _harness_root = _repo_root / "myrm-agent-harness"
 sys.path.insert(0, str(_harness_root))
 
-from scripts.tool_registry_config import HARNESS_SRC, SCAN_ROOTS  # noqa: E402
+from scripts.tool_registry_config import HARNESS_SRC, SCAN_ROOTS, SERVER_ROOT  # noqa: E402
 from scripts.tool_registry_engine import (  # noqa: E402
     ScanReport,
     get_changed_python_files,
@@ -94,6 +94,31 @@ def _load_registry_metadata_keys() -> set[str]:
     for tools in TOOL_GROUP_MAP.values():
         keys.update(tools)
     return keys
+
+
+def _check_default_enabled_product_parity() -> list[str]:
+    """Ensure harness DEFAULT_ENABLED_PRODUCT_IDS matches server SSOT."""
+    errors: list[str] = []
+    server_path = str(SERVER_ROOT)
+    if server_path not in sys.path:
+        sys.path.insert(0, server_path)
+    try:
+        from app.services.agent.builtin_tool_ids import DEFAULT_ENABLED_BUILTIN_TOOLS
+        from myrm_agent_harness.agent.tool_management.tool_catalog import (
+            DEFAULT_ENABLED_PRODUCT_IDS,
+        )
+    except ImportError as exc:
+        errors.append(f"Could not import server DEFAULT_ENABLED_BUILTIN_TOOLS: {exc}")
+        return errors
+
+    server_ids = frozenset(DEFAULT_ENABLED_BUILTIN_TOOLS)
+    if server_ids != DEFAULT_ENABLED_PRODUCT_IDS:
+        errors.append(
+            "DEFAULT_ENABLED_PRODUCT_IDS drift: harness="
+            f"{sorted(DEFAULT_ENABLED_PRODUCT_IDS)} server={sorted(server_ids)}; "
+            "sync tool_catalog.py DEFAULT_ENABLED_PRODUCT_IDS with builtin_tool_ids.py"
+        )
+    return errors
 
 
 def _format_report(
@@ -348,11 +373,14 @@ def main() -> int:
         else report.ghost_registry_metadata_keys(_load_registry_metadata_keys())
     )
     bindmode_violations = [] if args.incremental else _scan_forbidden_bindmode_terms()
-    catalog_errors: list[str] = []
-    if not args.incremental:
-        from myrm_agent_harness.agent.tool_management.tool_catalog import validate_tool_catalog
+    from myrm_agent_harness.agent.tool_management.tool_catalog import validate_tool_catalog
 
-        catalog_errors = validate_tool_catalog(load_registered_layers())
+    # Layer-product gate is cheap (static _TOOL_LAYERS dict) — run in all modes so
+    # pre-commit --incremental (.pre-commit-config.yaml) catches layer mistakes too.
+    catalog_errors = validate_tool_catalog(load_registered_layers())
+    parity_errors: list[str] = []
+    if not args.incremental:
+        parity_errors = _check_default_enabled_product_parity()
     fail = bool(
         missing
         or ghosts
@@ -361,6 +389,7 @@ def main() -> int:
         or metadata_ghosts
         or bindmode_violations
         or catalog_errors
+        or parity_errors
     )
 
     if args.json:
@@ -402,6 +431,10 @@ def main() -> int:
             for err in catalog_errors:
                 print(f"  - {err}")
             print("  Fix: update tool_catalog.py role/load overrides.")
+        if parity_errors:
+            print(f"FAIL - {len(parity_errors)} default-enabled product ID parity issue(s):")
+            for err in parity_errors:
+                print(f"  - {err}")
 
     return 1 if fail else 0
 

@@ -19,6 +19,7 @@ from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer im
     FileSnapshot,
     SnapshotObserver,
     SnapshotOp,
+    SnapshotSkipReason,
     SnapshotStore,
     get_current_message_id,
     set_current_message_id,
@@ -63,6 +64,22 @@ class TestSnapshotStore:
         big_content = "x" * (MAX_FILE_BYTES + 1)
         snap = FileSnapshot(path="/big.py", operation=SnapshotOp.MODIFY, original_content=big_content)
         assert not store.record("s1", "m1", snap)
+
+    def test_record_skipped_metadata(self):
+        store = SnapshotStore.get()
+        store.record_skipped("s1", "m1", "/big.py", SnapshotOp.MODIFY, SnapshotSkipReason.FILE_TOO_LARGE)
+        snaps = store.get_message_snapshots("s1", "m1")
+        assert len(snaps) == 1
+        assert snaps[0].revertible is False
+        assert snaps[0].skip_reason == SnapshotSkipReason.FILE_TOO_LARGE
+        assert snaps[0].size_bytes == 0
+        assert store.total_bytes == 0
+
+    def test_record_skipped_dedup(self):
+        store = SnapshotStore.get()
+        store.record_skipped("s1", "m1", "/big.py", SnapshotOp.MODIFY, SnapshotSkipReason.FILE_TOO_LARGE)
+        store.record_skipped("s1", "m1", "/big.py", SnapshotOp.MODIFY, SnapshotSkipReason.STORE_FULL)
+        assert len(store.get_message_snapshots("s1", "m1")) == 1
 
     def test_total_store_limit(self):
         store = SnapshotStore.get()
@@ -115,6 +132,38 @@ class TestSnapshotStore:
         assert store.get_message_snapshots("none", "none") == []
         assert store.get_session_snapshots("none") == {}
         assert store.get_file_snapshot("none", "none", "/a") is None
+
+    @pytest.mark.asyncio
+    async def test_persist_skipped_to_disk(self):
+        store = SnapshotStore.get()
+        store.record_skipped("s1", "m1", "/big.py", SnapshotOp.MODIFY, SnapshotSkipReason.FILE_TOO_LARGE)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            await store.persist_to_disk(tmpdir, "s1", "m1")
+            target = Path(tmpdir) / ".myrm/snapshots/s1/m1.json"
+            data = json.loads(target.read_text("utf-8"))
+            assert data[0]["skip_reason"] == "file_too_large"
+            assert data[0]["original_content"] is None
+
+            result = await SnapshotStore.load_from_disk(tmpdir, "s1")
+            _, snaps = result[0]
+            assert snaps[0].skip_reason == SnapshotSkipReason.FILE_TOO_LARGE
+            assert snaps[0].revertible is False
+
+    @pytest.mark.asyncio
+    async def test_merge_skipped_from_disk(self):
+        store = SnapshotStore.get()
+        store.record_skipped("s1", "m1", "/big.py", SnapshotOp.MODIFY, SnapshotSkipReason.FILE_TOO_LARGE)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            await store.persist_to_disk(tmpdir, "s1", "m1")
+
+            SnapshotStore.reset()
+            fresh = SnapshotStore.get()
+            merged = await fresh.merge_session_from_disk(tmpdir, "s1")
+            assert merged is True
+            snaps = fresh.get_message_snapshots("s1", "m1")
+            assert len(snaps) == 1
+            assert snaps[0].revertible is False
 
     @pytest.mark.asyncio
     async def test_persist_to_disk(self):
@@ -240,6 +289,23 @@ class TestSnapshotObserver:
         assert snaps[0].original_content == "old-content"
 
     @pytest.mark.asyncio
+    async def test_on_file_modified_skips_large_file(self):
+        observer = SnapshotObserver()
+        set_current_message_id("test-large")
+
+        big = "x" * (MAX_FILE_BYTES + 1)
+        with patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer._get_session_id",
+            return_value="test-session",
+        ):
+            await observer.on_file_modified("/big.py", big, big + "y")
+
+        store = SnapshotStore.get()
+        snaps = store.get_message_snapshots("test-session", "test-large")
+        assert len(snaps) == 1
+        assert snaps[0].skip_reason == SnapshotSkipReason.FILE_TOO_LARGE
+
+    @pytest.mark.asyncio
     async def test_on_file_viewed_noop(self):
         observer = SnapshotObserver()
         await observer.on_file_viewed("/a.py")
@@ -319,6 +385,31 @@ class TestRevertService:
         finally:
             if os.path.exists(path):
                 os.remove(path)
+
+    @pytest.mark.asyncio
+    async def test_get_message_changes_skipped(self):
+        store = SnapshotStore.get()
+        store.record_skipped("s1", "m1", "/big.py", SnapshotOp.MODIFY, SnapshotSkipReason.FILE_TOO_LARGE)
+        changes = await RevertService.get_message_changes("s1", "m1")
+        assert len(changes) == 1
+        assert changes[0].revertible is False
+        assert changes[0].skip_reason == "file_too_large"
+
+    @pytest.mark.asyncio
+    async def test_revert_message_only_skipped(self):
+        store = SnapshotStore.get()
+        store.record_skipped("s1", "m1", "/big.py", SnapshotOp.MODIFY, SnapshotSkipReason.FILE_TOO_LARGE)
+        result = await RevertService.revert_message("s1", "m1")
+        assert result.reverted_files == []
+        assert "/big.py" in result.skipped_files
+
+    @pytest.mark.asyncio
+    async def test_revert_file_not_revertible(self):
+        store = SnapshotStore.get()
+        store.record_skipped("s1", "m1", "/big.py", SnapshotOp.MODIFY, SnapshotSkipReason.FILE_TOO_LARGE)
+        result = await RevertService.revert_file("s1", "m1", "/big.py")
+        assert result.reverted_files == []
+        assert "/big.py" in result.skipped_files
 
     @pytest.mark.asyncio
     async def test_get_message_changes(self):

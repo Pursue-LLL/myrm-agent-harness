@@ -259,6 +259,32 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
         return await self._checkpoint_manager.resume_from_checkpoint(task_id)
 
     # =========================================================================
+    # Guard event emission
+    # =========================================================================
+
+    def _emit_delegation_guard_event(self, task_id: str, guard_type: str, reason: str) -> None:
+        """Emit a lifecycle event when delegation is rejected by depth/capacity guards."""
+        session_id = ""
+        parent_ctx = getattr(self._parent_agent, "_last_context", None)
+        if isinstance(parent_ctx, dict):
+            session_id = str(parent_ctx.get("session_id", "") or "")
+        _emit_global_subagent_event(
+            event_name="delegation_guard_rejected",
+            task_id=task_id,
+            session_id=session_id,
+            data=SubagentLifecycleData(
+                status="rejected",
+                budget=self._budget_state.snapshot(),
+                extra={
+                    "guard_type": guard_type,
+                    "reason": reason,
+                    "depth": self._current_depth,
+                    "max_depth": _MAX_GLOBAL_SPAWN_DEPTH,
+                },
+            ),
+        )
+
+    # =========================================================================
     # Validation
     # =========================================================================
 
@@ -267,20 +293,33 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
 
     def _validate_depth(self, task_id: str, config: SubagentConfig) -> SubAgentResult | None:
         if self._current_depth >= _MAX_GLOBAL_SPAWN_DEPTH:
+            error_msg = (
+                f"Max spawn depth ({_MAX_GLOBAL_SPAWN_DEPTH}) reached at depth {self._current_depth}. "
+                f"The delegation chain is too deep — consider completing the task directly "
+                f"instead of delegating further, or restructure your approach to use fewer nesting levels."
+            )
+            logger.warning("Depth limit rejected task %s: %s", task_id, error_msg)
+            self._emit_delegation_guard_event(task_id, "depth_limit", error_msg)
             return SubAgentResult(
                 success=False,
                 task_id=task_id,
                 agent_type="",
-                error=f"Max spawn depth ({_MAX_GLOBAL_SPAWN_DEPTH}) reached at depth {self._current_depth}",
+                error=error_msg,
                 completed_at=time.time(),
                 status=SubAgentStatus.FAILED,
             )
         if config.control_scope == ControlScope.ORCHESTRATOR and self._current_depth >= config.max_spawn_depth:
+            error_msg = (
+                f"Config max_spawn_depth={config.max_spawn_depth} exceeded at depth {self._current_depth}. "
+                f"This agent type is not allowed to delegate further at this nesting level."
+            )
+            logger.warning("Config depth limit rejected task %s: %s", task_id, error_msg)
+            self._emit_delegation_guard_event(task_id, "config_depth_limit", error_msg)
             return SubAgentResult(
                 success=False,
                 task_id=task_id,
                 agent_type="",
-                error=f"Config max_spawn_depth={config.max_spawn_depth} exceeded at depth {self._current_depth}",
+                error=error_msg,
                 completed_at=time.time(),
                 status=SubAgentStatus.FAILED,
             )
@@ -293,13 +332,17 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
             max(1, config.max_children_per_agent),
         )
         if active_children >= max_active_children:
+            error_msg = (
+                f"Active child limit exceeded: {active_children}/{max_active_children} children already running. "
+                f"Wait for existing subagents to complete before spawning new ones."
+            )
+            logger.warning("Child limit rejected task %s (type=%s): %s", task_id, agent_type, error_msg)
+            self._emit_delegation_guard_event(task_id, "child_limit", error_msg)
             return SubAgentResult(
                 success=False,
                 task_id=task_id,
                 agent_type=agent_type,
-                error=(
-                    f"Active child limit exceeded: {active_children}/{max_active_children} children already running"
-                ),
+                error=error_msg,
                 completed_at=time.time(),
                 status=SubAgentStatus.FAILED,
                 payload={
@@ -312,11 +355,18 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
         try:
             self._budget_state.reserve()
         except DelegationBudgetExceededError as error:
+            error_msg = (
+                f"{error} "
+                f"This run has spawned too many subagents. Complete the task with existing agents "
+                f"or reduce the delegation depth."
+            )
+            logger.warning("Budget exceeded for task %s (type=%s): %s", task_id, agent_type, error_msg)
+            self._emit_delegation_guard_event(task_id, "budget_exceeded", error_msg)
             return SubAgentResult(
                 success=False,
                 task_id=task_id,
                 agent_type=agent_type,
-                error=str(error),
+                error=error_msg,
                 completed_at=time.time(),
                 status=SubAgentStatus.FAILED,
                 payload={

@@ -80,8 +80,8 @@ class ToolLayer(IntEnum):
 | 层级 | 工具 | 常驻理由 |
 |------|------|---------|
 | **CORE** | web_fetch + file×3 + bash + glob/grep | 7 登记 | 通用 Agent 基线 | 不依赖搜索 API |
-| **COMMON** | memory×3 + web_search + todo_write | 5 登记 | 默认 bind memory×3 + web_search | memory 组内优先排序 |
-| **EXTENDED** | 59 登记（harness 54 + server 5）+ 未注册 MCP 动态工具 | 按需 Turn1（profile 开关） | conversation_search **默认不 bind** |
+| **COMMON** | memory×3 + web_search | 4 登记 | 默认 bind memory×3 + web_search | memory 组内优先排序 |
+| **EXTENDED** | 46 登记（harness 41 + server 5）+ 未注册 MCP 动态工具 | 按需 Turn1（profile 开关） | todo_write / ask_question 等 opt-in |
 
 `ToolRegistry.resolve()` 执行去重 + 排序：
 

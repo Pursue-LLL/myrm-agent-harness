@@ -668,7 +668,3 @@ async def evaluate_tool_batch(
         pending_approval.append((idx, tool_call, permission_type, reason, extra_ctx))
 
     return auto_approved, auto_denied, pending_approval
-
-
-_DEFAULT_APPROVAL_TIMEOUT_SECONDS = 300
-_DEFAULT_TIMEOUT_BEHAVIOR = "deny"

@@ -9,7 +9,7 @@ state. Integrates with FileIntegrityGuard (hash update) and ArtifactTracker (cle
 
 [OUTPUT]
 - RevertResult: Restores files to pre-AI-edit state.
-- FileChange: class — File Change
+- FileChange: class — File change descriptor (revertible + skip_reason).
 - RevertService: class — Revert Service
 
 [POS]
@@ -45,6 +45,19 @@ class FileChange:
     operation: str
     has_original: bool
     timestamp: float
+    revertible: bool = True
+    skip_reason: str | None = None
+
+
+def _snapshot_to_change(snap: FileSnapshot) -> FileChange:
+    return FileChange(
+        path=snap.path,
+        operation=snap.operation.value,
+        has_original=snap.original_content is not None,
+        timestamp=snap.timestamp,
+        revertible=snap.revertible,
+        skip_reason=snap.skip_reason.value if snap.skip_reason is not None else None,
+    )
 
 
 class RevertService:
@@ -54,15 +67,7 @@ class RevertService:
     async def get_message_changes(session_id: str, message_id: str) -> list[FileChange]:
         store = SnapshotStore.get()
         snapshots = store.get_message_snapshots(session_id, message_id)
-        return [
-            FileChange(
-                path=s.path,
-                operation=s.operation.value,
-                has_original=s.original_content is not None,
-                timestamp=s.timestamp,
-            )
-            for s in snapshots
-        ]
+        return [_snapshot_to_change(s) for s in snapshots]
 
     @staticmethod
     async def get_session_changes(session_id: str) -> dict[str, list[FileChange]]:
@@ -70,15 +75,7 @@ class RevertService:
         session_snaps = store.get_session_snapshots(session_id)
         result: dict[str, list[FileChange]] = {}
         for msg_id, snapshots in session_snaps.items():
-            result[msg_id] = [
-                FileChange(
-                    path=s.path,
-                    operation=s.operation.value,
-                    has_original=s.original_content is not None,
-                    timestamp=s.timestamp,
-                )
-                for s in snapshots
-            ]
+            result[msg_id] = [_snapshot_to_change(s) for s in snapshots]
         return result
 
     @staticmethod
@@ -94,13 +91,21 @@ class RevertService:
         if not snapshots:
             return RevertResult(reverted_files=[], warnings=["No snapshots found for this message"], skipped_files=[])
 
+        revertible_snaps = [s for s in snapshots if s.revertible]
+        if not revertible_snaps:
+            return RevertResult(
+                reverted_files=[],
+                warnings=["File changes cannot be reverted automatically"],
+                skipped_files=[s.path for s in snapshots],
+            )
+
         reverted: list[str] = []
         warnings: list[str] = []
         skipped: list[str] = []
 
         seen_paths: set[str] = set()
 
-        for snap in reversed(snapshots):
+        for snap in reversed(revertible_snaps):
             if snap.path in seen_paths:
                 continue
             seen_paths.add(snap.path)
@@ -131,6 +136,13 @@ class RevertService:
                 skipped_files=[file_path],
             )
 
+        if not snap.revertible:
+            return RevertResult(
+                reverted_files=[],
+                warnings=[f"Cannot revert {file_path}: change is not revertible"],
+                skipped_files=[file_path],
+            )
+
         result = await _revert_single(snap, executor)
         if result.success:
             return RevertResult(reverted_files=[file_path], warnings=[], skipped_files=[])
@@ -149,6 +161,8 @@ class RevertService:
 
         for msg_id in reversed(list(session_snaps.keys())):
             for snap in reversed(session_snaps[msg_id]):
+                if not snap.revertible:
+                    continue
                 if snap.path in seen_paths:
                     continue
                 seen_paths.add(snap.path)
@@ -173,6 +187,9 @@ class _SingleRevertResult:
 
 async def _revert_single(snap: FileSnapshot, executor: object | None) -> _SingleRevertResult:
     """Revert a single file snapshot."""
+    if not snap.revertible:
+        return _SingleRevertResult(success=False, warning=f"Cannot revert {snap.path}: not revertible")
+
     try:
         path = Path(snap.path)
 

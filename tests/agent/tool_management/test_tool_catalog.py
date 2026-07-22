@@ -14,6 +14,7 @@ from myrm_agent_harness.agent.tool_management.tool_catalog import (
     get_tool_catalog_role,
     get_tool_load_condition,
     get_tool_product_id,
+    validate_layer_product_consistency,
     validate_tool_catalog,
 )
 from myrm_agent_harness.agent.tool_management.tool_layers import ToolLayer, _TOOL_LAYERS
@@ -54,6 +55,25 @@ def test_load_condition_uses_product_id_fallback() -> None:
 def test_validate_rejects_underscore_action_tool_names() -> None:
     errors = validate_tool_catalog({"_ghost_tool": ToolLayer.EXTENDED})
     assert any("_ghost_tool" in err for err in errors)
+
+
+def test_validate_layer_product_rejects_opt_in_tool_in_common() -> None:
+    registered = dict(_TOOL_LAYERS)
+    registered["todo_write"] = ToolLayer.COMMON
+    errors = validate_layer_product_consistency(registered)
+    assert any("todo_write" in err and "COMMON" in err for err in errors)
+
+
+def test_validate_layer_product_accepts_current_registry() -> None:
+    errors = validate_layer_product_consistency(dict(_TOOL_LAYERS))
+    assert errors == []
+
+
+def test_validate_layer_product_requires_ask_question_extended() -> None:
+    registered = dict(_TOOL_LAYERS)
+    registered["ask_question_tool"] = ToolLayer.COMMON
+    errors = validate_layer_product_consistency(registered)
+    assert any("ask_question_tool" in err for err in errors)
 
 
 def test_conversation_history_group_without_override_returns_none(

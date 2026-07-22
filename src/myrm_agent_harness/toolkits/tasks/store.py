@@ -266,7 +266,6 @@ class SQLiteTaskStore:
                     set_parts.append("status = ?")
                     values.append(value.value if isinstance(value, TaskStatus) else value)
                 elif key == "error":
-                    error: TaskError = value
                     set_parts.extend(
                         [
                             "error_type = ?",
@@ -275,15 +274,22 @@ class SQLiteTaskStore:
                             "error_traceback = ?",
                         ]
                     )
-                    values.extend(
-                        [
-                            error.error_type,
-                            error.message,
-                            error.recoverable.value,
-                            error.traceback,
-                        ]
-                    )
-                elif key in ("result", "payload", "metadata"):
+                    error: TaskError | None = value
+                    if error is None:
+                        values.extend([None, None, None, None])
+                    else:
+                        values.extend(
+                            [
+                                error.error_type,
+                                error.message,
+                                error.recoverable.value,
+                                error.traceback,
+                            ]
+                        )
+                elif key == "result":
+                    set_parts.append("result = ?")
+                    values.append(None if value is None else json.dumps(value))
+                elif key in ("payload", "metadata"):
                     set_parts.append(f"{key} = ?")
                     values.append(json.dumps(value))
                 elif key == "tags":

@@ -22,9 +22,10 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolCall, ToolMessa
 
 from myrm_agent_harness.agent.security.approval_flow import DEFAULT_USER_ID
 from myrm_agent_harness.agent.security.audit import record_decision
-from myrm_agent_harness.agent.security.engine import extract_url_domains
 from myrm_agent_harness.agent.security.command_allowlist_pattern import extract_shell_command
+from myrm_agent_harness.agent.security.engine import extract_url_domains
 from myrm_agent_harness.agent.security.types import SecurityConfig
+from myrm_agent_harness.core.security.redact import redact_for_display
 
 from .helpers import add_to_allowlist_if_needed, record_denial
 

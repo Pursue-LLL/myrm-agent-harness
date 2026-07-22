@@ -8,7 +8,7 @@
 
 | 对外说法 | 含义 | 当前规模 |
 |----------|------|----------|
-| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **57**（CORE 7 + COMMON 5 + EXTENDED 45） |
+| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **57**（CORE 7 + COMMON 4 + EXTENDED 46） |
 
 对外文档与沟通中，**「工具」仅指 LLM 工具**。编排信号、runtime hook、toolkits 引擎、Skill 文档、PTC 等实现细节属于代码层，**不称为工具**。
 
@@ -103,7 +103,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `memory_manage_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
 | `memory_save_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
 | `memory_search_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory; corpus=sessions when memoryEnableConversationSearch |
-| `todo_write` | COMMON | user_capability | planning | planning or existing workspace todos |
+| `todo_write` | EXTENDED | user_capability | planning | planning or existing workspace todos |
 | `web_search_tool` | COMMON | user_capability | web_search | enabled_builtin_tools: web_search (default on) |
 | `ask_question_tool` | EXTENDED | user_capability | structured_clarify | server mount policy (interactive web_chat); requires_confirmation WebUI emphasis; ClarificationGuardMiddleware one call/turn |
 | `bash_process_tool` | EXTENDED | user_capability | — | Turn1 when bash enabled |
@@ -157,9 +157,11 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 ## CI 集成
 
 ```bash
-python scripts/validate_tool_registry.py          # 注册一致性
+python scripts/validate_tool_registry.py          # 注册一致性 + layer-product 门禁
 python scripts/validate_tool_registry.py --generate-docs  # 刷新 TOOL_COUNT + LLM Tool Catalog 块
 ```
+
+全量扫描额外执行 `validate_layer_product_consistency()`（COMMON 层仅允许 default-on product_id）并与 server `DEFAULT_ENABLED_BUILTIN_TOOLS` 做 parity 校验。
 
 ---
 

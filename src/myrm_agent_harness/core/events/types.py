@@ -123,6 +123,7 @@ class AgentEventType(StrEnum):
     SUBAGENT_PROGRESS = "subagent_progress"
     SUBAGENT_LOG = "subagent_log"
     BASH_COMMAND_EXECUTED = "bash_command_executed"
+    SUBAGENT_STALE = "subagent_stale"
     SUBAGENT_COMPLETION = "subagent_completion"
     CONTEXT_SNAPSHOT = "context_snapshot"
     ITERATION_LIMIT_REACHED = "iteration_limit_reached"

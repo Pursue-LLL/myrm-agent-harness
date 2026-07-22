@@ -202,6 +202,28 @@ def _run_main(monkeypatch: pytest.MonkeyPatch, argv: list[str], **scan_kwargs: o
     return rc, out, err
 
 
+def test_main_incremental_runs_layer_product_gate(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Incremental pre-commit must still fail on invalid COMMON layer assignments."""
+    import scripts.validate_tool_registry as cli
+    from myrm_agent_harness.agent.tool_management.tool_layers import ToolLayer, _TOOL_LAYERS
+
+    bad_layers = dict(_TOOL_LAYERS)
+    bad_layers["todo_write"] = ToolLayer.COMMON
+
+    monkeypatch.setattr(cli, "load_registered_layers", lambda: bad_layers)
+    rc, out, _ = _run_main(
+        monkeypatch,
+        ["--incremental"],
+        report=ScanReport(declarations=[_decl("foo")], registered_names={"foo"}),
+        capsys=capsys,
+    )
+    assert rc == 1
+    assert "todo_write" in out
+    assert "tool catalog metadata" in out.lower() or "COMMON" in out
+
+
 def test_main_full_pass(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     rc, out, _ = _run_main(
         monkeypatch,

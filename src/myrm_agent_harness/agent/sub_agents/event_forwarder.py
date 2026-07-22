@@ -60,6 +60,23 @@ class SubagentEventForwarder:
         self.current_tool_name: str | None = None
         self.token_history: list[tuple[float, int]] = []
 
+        # Staleness detection
+        self._last_effective_progress_at: float = start_time
+        self._in_tool: bool = False
+        self._stale_emitted: bool = False
+
+    def _mark_progress(self) -> None:
+        """Record that effective progress (token growth or tool completion) occurred."""
+        self._last_effective_progress_at = time.time()
+        self._stale_emitted = False
+
+    def is_stale(self) -> bool:
+        """Check whether this subagent appears stalled (no token/tool progress)."""
+        threshold = self.config.stale_after_seconds
+        if self._in_tool:
+            threshold *= self.config.in_tool_stale_multiplier
+        return (time.time() - self._last_effective_progress_at) > threshold
+
     def _active_sink(self) -> ToolProgressSink | None:
         if self._parent_progress_sink is not None:
             return self._parent_progress_sink
@@ -100,6 +117,7 @@ class SubagentEventForwarder:
     async def _handle_token_usage(self, event: dict[str, object]) -> None:
         """Handle TOKEN_USAGE event and emit progress updates."""
         usage_dict: dict[str, object] = {}
+        prev_tokens = self.cumulative_tokens
         token_data = event.get("data")
         if isinstance(token_data, dict):
             raw_usage = token_data.get("usage")
@@ -107,6 +125,9 @@ class SubagentEventForwarder:
                 usage_dict = raw_usage
                 self.cumulative_tokens = int(raw_usage.get("total_tokens", self.cumulative_tokens) or 0)
                 self.total_cost_usd = raw_usage.get("total_cost_usd", getattr(self, "total_cost_usd", 0.0))
+
+        if self.cumulative_tokens > prev_tokens:
+            self._mark_progress()
 
         running_usage = self._build_running_token_usage(usage_dict)
 
@@ -166,6 +187,64 @@ class SubagentEventForwarder:
             except Exception as exc:
                 logger.warning("Failed to emit SUBAGENT_PROGRESS for %s: %s", self.task_id, exc)
 
+        await self._check_and_emit_stale(sink)
+
+    async def _check_and_emit_stale(self, sink: ToolProgressSink | None) -> None:
+        """Emit SUBAGENT_STALE once when no effective progress for configured threshold."""
+        if self._stale_emitted or not self.is_stale():
+            return
+        self._stale_emitted = True
+        elapsed_s = round(time.time() - self.start_time, 1)
+        stale_duration_s = round(time.time() - self._last_effective_progress_at, 1)
+        stale_data = {
+            "task_id": self.task_id,
+            "agent_type": self.agent_type,
+            "stale_duration_seconds": stale_duration_s,
+            "elapsed_seconds": elapsed_s,
+            "wasted_tokens": self.cumulative_tokens,
+            "wasted_cost_usd": getattr(self, "total_cost_usd", 0.0),
+            "current_tool": self.current_tool_name,
+            "auto_cancel": self.config.stale_auto_cancel,
+        }
+        logger.warning(
+            "[subagent:%s] Stale detected: no progress for %.0fs (elapsed=%.0fs, tokens=%d)",
+            self.task_id, stale_duration_s, elapsed_s, self.cumulative_tokens,
+        )
+        if sink:
+            try:
+                await sink.emit({
+                    "type": AgentEventType.SUBAGENT_STALE.value,
+                    "data": stale_data,
+                })
+            except Exception as exc:
+                logger.warning("Failed to emit SUBAGENT_STALE for %s: %s", self.task_id, exc)
+
+        self._publish_stale_lifecycle_event(stale_data)
+
+    def _publish_stale_lifecycle_event(self, stale_data: dict[str, object]) -> None:
+        """Publish stale event to global lifecycle bus for IM notification bridging."""
+        try:
+            from myrm_agent_harness.agent.sub_agents.manager import ACTIVE_SUBAGENT_SESSIONS
+            from myrm_agent_harness.runtime.events import SubagentLifecycleEvent, get_event_bus
+            from myrm_agent_harness.runtime.events.system_events import SubagentLifecycleData
+
+            session_id = ACTIVE_SUBAGENT_SESSIONS.get(self.task_id, "")
+            if not session_id:
+                return
+            get_event_bus().publish(
+                SubagentLifecycleEvent(
+                    event_name="stale",
+                    task_id=self.task_id,
+                    session_id=session_id,
+                    data=SubagentLifecycleData(
+                        agent_type=self.agent_type,
+                        extra=stale_data,
+                    ),
+                )
+            )
+        except Exception as exc:
+            logger.debug("Failed to publish stale lifecycle event: %s", exc)
+
     def _build_running_token_usage(self, usage_dict: dict[str, object]) -> dict[str, object] | None:
         if self.cumulative_tokens <= 0:
             return None
@@ -215,6 +294,7 @@ class SubagentEventForwarder:
         """Handle TOOL_START event."""
         tool_name = event.get("data", {}).get("tool_name", "unknown")
         self.current_tool_name = tool_name
+        self._in_tool = True
 
         sink = self._active_sink()
         if not sink:
@@ -240,6 +320,8 @@ class SubagentEventForwarder:
     async def _handle_tool_end(self, event: dict[str, object]) -> None:
         """Handle TOOL_END event."""
         self.tool_count += 1
+        self._in_tool = False
+        self._mark_progress()
 
         sink = self._active_sink()
         if not sink:
@@ -268,6 +350,7 @@ class SubagentEventForwarder:
 
     async def _handle_tool_failure(self, event: dict[str, object]) -> None:
         """Handle TOOL_FAILURE event."""
+        self._in_tool = False
         sink = self._active_sink()
         if not sink:
             return
@@ -295,6 +378,7 @@ class SubagentEventForwarder:
 
     async def _handle_tool_cancelled(self, event: dict[str, object]) -> None:
         """Handle TOOL_CANCELLED event."""
+        self._in_tool = False
         sink = self._active_sink()
         if not sink:
             return
@@ -324,6 +408,7 @@ class SubagentEventForwarder:
 
     async def _handle_tool_timeout(self, event: dict[str, object]) -> None:
         """Handle TOOL_TIMEOUT event."""
+        self._in_tool = False
         sink = self._active_sink()
         if not sink:
             return

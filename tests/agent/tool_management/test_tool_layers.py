@@ -36,7 +36,6 @@ class TestGetToolLayer:
 
     def test_common_tools_return_common(self):
         common_tools = [
-            "todo_write",
             "web_search_tool",
             "memory_search_tool",
             "memory_save_tool",
@@ -47,6 +46,7 @@ class TestGetToolLayer:
 
     def test_extended_tools_return_extended(self):
         extended_tools = [
+            "todo_write",
             "request_answer_user_tool",
             "skill_select_tool",
             "skill_manage_tool",

@@ -65,7 +65,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # ============================================================
     # COMMON - 默认开启但用户可在 GUI 关闭（放中间；组内 memory 优先于 web_search）
     # ============================================================
-    "todo_write": ToolLayer.COMMON,
     "web_search_tool": ToolLayer.COMMON,
     "memory_search_tool": ToolLayer.COMMON,
     "memory_save_tool": ToolLayer.COMMON,
@@ -92,8 +91,9 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "desktop_vision_tool": ToolLayer.EXTENDED,
     # --- Cron 定时任务 ---
     "cron_manage_tool": ToolLayer.EXTENDED,
-    # --- Goal 工具 ---
+    # --- Goal / planning 工具 ---
     "complete_goal_tool": ToolLayer.EXTENDED,
+    "todo_write": ToolLayer.EXTENDED,
     # --- 交互工具 ---
     "ask_question_tool": ToolLayer.EXTENDED,
     "render_ui_tool": ToolLayer.EXTENDED,
@@ -135,7 +135,6 @@ _COMMON_LAYER_SORT_RANK: dict[str, int] = {
     "memory_search_tool": 1,
     "memory_save_tool": 2,
     "web_search_tool": 10,
-    "todo_write": 30,
 }
 
 

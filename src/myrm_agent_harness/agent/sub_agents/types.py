@@ -459,6 +459,16 @@ class SubagentConfig:
     max_fork_tokens: int | None = None
     model_resolver: ModelResolver | None = field(default=None, repr=False)
     agent_factory: AgentFactory | None = field(default=None, repr=False)
+    stale_after_seconds: int = 300
+    """Seconds without token/tool progress before emitting SUBAGENT_STALE.
+    Only checked when TOKEN_USAGE events arrive; fully-hung agents (zero events)
+    are caught by the hard timeout instead."""
+    in_tool_stale_multiplier: int = 4
+    """Multiplier applied to stale_after_seconds while a tool call is active,
+    to avoid false positives on legitimately slow tools (e.g. web scraping)."""
+    stale_auto_cancel: bool = False
+    """If True, automatically cancel the subagent when staleness is detected.
+    Defaults to False (warn only) to avoid killing tasks that are slow but alive."""
     delegation_catalog: SubagentCatalog | None = field(default=None, repr=False)
     delegation_allowed_types: frozenset[str] | None = field(default=None, repr=False)
 

@@ -15,7 +15,7 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-        description: "Enforce that every @tool is registered in _TOOL_LAYERS and docs counts stay in sync"
+        description: "Enforce @tool registration in _TOOL_LAYERS and layer-product consistency (incremental: changed files + static layer gate)"
 
       - id: harness-fractal-docs-check
         name: Harness Fractal Docs Coverage

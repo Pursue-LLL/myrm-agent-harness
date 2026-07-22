@@ -214,6 +214,68 @@ async def test_update_task_rich_fields(temp_store):
 
 
 @pytest.mark.asyncio
+async def test_update_task_can_clear_error_fields(temp_store):
+    """update_task(error=None) clears persisted error columns."""
+    task = Task(
+        task_id="test-clear-error",
+        task_type="image_generate",
+        user_id="user-123",
+        status=TaskStatus.FAILED,
+        payload={},
+        error=TaskError(
+            error_type="api_error",
+            message="old failure",
+            recoverable=ErrorRecoverability.TRANSIENT,
+        ),
+    )
+    await temp_store.create_task(task)
+
+    await temp_store.update_task(
+        "test-clear-error",
+        status=TaskStatus.PENDING,
+        error=None,
+    )
+
+    updated = await temp_store.get_task("test-clear-error")
+    assert updated is not None
+    assert updated.status == TaskStatus.PENDING
+    assert updated.error is None
+
+
+@pytest.mark.asyncio
+async def test_update_task_can_clear_result_as_sql_null(temp_store):
+    """update_task(result=None) persists SQL NULL, not JSON string null."""
+    task = Task(
+        task_id="test-clear-result",
+        task_type="image_generate",
+        user_id="user-123",
+        status=TaskStatus.FAILED,
+        payload={},
+        result={"url": "stale.png"},
+    )
+    await temp_store.create_task(task)
+
+    await temp_store.update_task(
+        "test-clear-result",
+        status=TaskStatus.PENDING,
+        result=None,
+    )
+
+    updated = await temp_store.get_task("test-clear-result")
+    assert updated is not None
+    assert updated.status == TaskStatus.PENDING
+    assert updated.result is None
+
+    conn = temp_store._conn()  # noqa: SLF001 - test-only DB-level assertion
+    try:
+        row = conn.execute("SELECT result FROM tasks WHERE task_id = ?", ("test-clear-result",)).fetchone()
+    finally:
+        conn.close()
+    assert row is not None
+    assert row["result"] is None
+
+
+@pytest.mark.asyncio
 async def test_create_task_persists_retry_policy(temp_store):
     """create_task round-trips retry_policy JSON."""
     policy = RetryPolicy(max_retries=5, base_delay=2.0)
