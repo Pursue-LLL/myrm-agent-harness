@@ -286,6 +286,125 @@ def test_main_generate_docs_exit_1_when_marker_missing(
     assert "TOOL_COUNT_BEGIN" in err or "TOOL_CATALOG_BEGIN" in err
 
 
+def test_layer_counts_aggregates_registered_layers() -> None:
+    import scripts.validate_tool_registry as cli
+
+    counts = cli._layer_counts(ScanReport())
+    assert counts["CORE"] >= 7
+    assert counts["COMMON"] >= 4
+    assert counts["EXTENDED"] >= 40
+    assert sum(counts.values()) == counts["CORE"] + counts["COMMON"] + counts["EXTENDED"]
+
+
+def test_load_registry_metadata_keys_includes_todo_write() -> None:
+    import scripts.validate_tool_registry as cli
+
+    keys = cli._load_registry_metadata_keys()
+    assert "todo_write" in keys
+    assert "web_search_tool" in keys
+
+
+def test_check_default_enabled_product_parity_passes() -> None:
+    import scripts.validate_tool_registry as cli
+
+    errors = cli._check_default_enabled_product_parity()
+    assert errors == []
+
+
+def test_format_report_metadata_ghosts(monkeypatch: pytest.MonkeyPatch) -> None:
+    import scripts.validate_tool_registry as cli
+
+    monkeypatch.setattr(
+        cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0}
+    )
+    report = ScanReport(declarations=[_decl("foo")], registered_names={"foo"})
+    out = _format_report(report, metadata_ghosts={"dead_meta_key"})
+    assert "dead_meta_key" in out
+    assert "registry metadata key" in out
+
+
+def test_main_incremental_filters_to_changed_files(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import scripts.validate_tool_registry as cli
+    from myrm_agent_harness.agent.tool_management.tool_layers import _TOOL_LAYERS
+
+    src_a = _repo_root / "scripts" / "tool_registry_engine.py"
+    src_b = _repo_root / "scripts" / "tool_registry_models.py"
+    full = ScanReport(
+        declarations=[
+            ToolDeclaration(name="a", kind="decorator", file=src_a, line=1),
+            ToolDeclaration(name="b", kind="decorator", file=src_b, line=2),
+        ],
+        registered_names={"a", "b"},
+    )
+    monkeypatch.setattr(cli, "scan", lambda: full)
+    monkeypatch.setattr(cli, "get_changed_python_files", lambda _roots: [src_a])
+    monkeypatch.setattr(cli, "load_registered_layers", lambda: dict(_TOOL_LAYERS))
+    monkeypatch.setattr(
+        cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1}
+    )
+    monkeypatch.setattr(cli.sys, "argv", ["validate_tool_registry.py", "--incremental"])
+    rc = cli.main()
+    out, _ = capsys.readouterr()
+    assert rc == 0
+    assert "(incremental)" in out
+    assert "Files scanned: 1" in out
+
+
+def test_main_prints_catalog_and_parity_errors(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import scripts.validate_tool_registry as cli
+    from myrm_agent_harness.agent.tool_management.tool_layers import ToolLayer, _TOOL_LAYERS
+
+    bad_layers = dict(_TOOL_LAYERS)
+    bad_layers["todo_write"] = ToolLayer.COMMON
+    monkeypatch.setattr(cli, "load_registered_layers", lambda: bad_layers)
+    monkeypatch.setattr(cli, "_check_default_enabled_product_parity", lambda: ["parity drift"])
+    rc, out, _ = _run_main(
+        monkeypatch,
+        [],
+        report=ScanReport(declarations=[_decl("foo")], registered_names={"foo"}),
+        capsys=capsys,
+    )
+    assert rc == 1
+    assert "tool catalog metadata" in out.lower()
+    assert "parity drift" in out
+
+
+def test_main_generate_docs_already_up_to_date(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import scripts.validate_tool_registry as cli
+
+    good_doc = tmp_path / "good.md"
+    good_doc.write_text(
+        f"intro\n{_BLOCK_BEGIN}\nplaceholder\n{_BLOCK_END}\noutro\n"
+    )
+    catalog_doc = tmp_path / "catalog.md"
+    catalog_doc.write_text(
+        "intro\n<!-- TOOL_CATALOG_BEGIN -->\nplaceholder\n<!-- TOOL_CATALOG_END -->\n"
+    )
+    monkeypatch.setattr(cli, "_COUNT_DOC_TARGETS", (good_doc,))
+    monkeypatch.setattr(cli, "_CATALOG_DOC_TARGET", catalog_doc)
+    report = ScanReport(declarations=[_decl("foo")], registered_names={"foo"})
+    _run_main(
+        monkeypatch,
+        ["--generate-docs"],
+        report=report,
+        capsys=capsys,
+    )
+    rc, out, _ = _run_main(
+        monkeypatch,
+        ["--generate-docs"],
+        report=report,
+        capsys=capsys,
+    )
+    assert rc == 0
+    assert "already up-to-date" in out
+
+
 def test_main_generate_docs_rewrites_existing_marker_block(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

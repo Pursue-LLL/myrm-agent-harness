@@ -76,6 +76,29 @@ def test_validate_layer_product_requires_ask_question_extended() -> None:
     assert any("ask_question_tool" in err for err in errors)
 
 
+def test_validate_layer_product_rejects_unexpected_core_tool() -> None:
+    registered = dict(_TOOL_LAYERS)
+    registered["not_a_core_tool"] = ToolLayer.CORE
+    errors = validate_layer_product_consistency(registered)
+    assert any("unexpected tools" in err and "not_a_core_tool" in err for err in errors)
+
+
+def test_validate_layer_product_common_requires_product_id() -> None:
+    errors = validate_layer_product_consistency({"orphan_common_tool": ToolLayer.COMMON})
+    assert any("must map to a GUI product_id" in err for err in errors)
+
+
+def test_validate_layer_product_rejects_default_on_in_extended() -> None:
+    registered = dict(_TOOL_LAYERS)
+    registered["web_search_tool"] = ToolLayer.EXTENDED
+    errors = validate_layer_product_consistency(registered)
+    assert any("default-on but tool is EXTENDED" in err for err in errors)
+
+
+def test_conversation_search_product_id_override() -> None:
+    assert get_tool_product_id("conversation_search_tool") == "memory"
+
+
 def test_conversation_history_group_without_override_returns_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
