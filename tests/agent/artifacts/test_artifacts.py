@@ -134,11 +134,14 @@ class TestInferFunctions:
         assert infer_artifact_type_from_extension("data.xls") == ArtifactType.SPREADSHEET
 
     def test_infer_artifact_type_from_extension_extra_binary(self):
-        """Fallback: extra binary extensions (archives, office, media)."""
+        """Fallback: extra binary extensions (archives, media, executables)."""
         assert infer_artifact_type_from_extension("archive.zip") == ArtifactType.BINARY
-        assert infer_artifact_type_from_extension("doc.docx") == ArtifactType.BINARY
         assert infer_artifact_type_from_extension("video.mp4") == ArtifactType.BINARY
         assert infer_artifact_type_from_extension("app.exe") == ArtifactType.BINARY
+
+    def test_infer_artifact_type_from_extension_office_documents(self):
+        """Office document extensions get dedicated types."""
+        assert infer_artifact_type_from_extension("doc.docx") == ArtifactType.WORD_DOCUMENT
 
     def test_infer_artifact_type_from_extension_unknown(self):
         """Default: unknown extensions fall back to BINARY."""

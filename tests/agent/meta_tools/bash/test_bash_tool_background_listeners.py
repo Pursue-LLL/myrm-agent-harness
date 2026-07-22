@@ -16,11 +16,13 @@ class _FakeInfo:
     def __init__(
         self,
         *,
+        job_id: str = "job-test",
         pid: int = 1,
         command: str = "echo hi",
         status: str = "exited",
         exit_code: int | None = 0,
     ) -> None:
+        self.job_id = job_id
         self.pid = pid
         self.command = command
         self.status = status

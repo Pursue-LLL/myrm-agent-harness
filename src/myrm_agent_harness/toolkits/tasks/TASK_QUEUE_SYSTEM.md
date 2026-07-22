@@ -3,7 +3,7 @@
 ## Purpose
 
 Framework-agnostic async job queue for **long-running media work inside a conversation**.
-Production `task_type`: `image_generate`; additional media types use the same queue + executor pattern.
+Current product `task_type`: `image_generate`, `video_generate`; additional media types use the same queue + executor pattern.
 
 The harness owns **task models, store protocol, and SQLite persistence**. It does **not**
 own the worker loop, REST/SSE surface, payload encryption, or UI cards — those belong to the
@@ -110,10 +110,10 @@ result_json = await tools.generate_image(prompt="...", chat_id="...")
 
 ### Myrm product full chain
 
-1. `image_agent_tool` → `AsyncImageGenerationTools.generate_image`
+1. `image_agent_tool` / `video_agent_tool` → `Async*GenerationTools.generate_*`
 2. `seal_task_payload_secrets` (server) before `SQLiteTaskStore.create_task`
-3. `TaskWorker` + `ImageTaskExecutor` consume queue
-4. `TaskEventBus` → SSE `/api/v1/tasks/stream` → `ImageTaskCard`
+3. `TaskWorker` + media executors (`ImageTaskExecutor`, `VideoTaskExecutor`) consume queue
+4. `TaskEventBus` → SSE `/api/v1/tasks/stream` → task cards (`ImageTaskCard` / `VideoTaskCard`)
 
 ## Crypto Boundary
 

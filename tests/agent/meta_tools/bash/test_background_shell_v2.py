@@ -337,3 +337,58 @@ async def test_bash_process_missing_pid_errors() -> None:
     config = {"configurable": {"context": {"session_id": "chat-missing-pid"}}}
     result = await tool.ainvoke({"action": "output"}, config=config)
     assert result["metadata"]["error"] == "missing_pid"
+
+
+@pytest.mark.asyncio
+async def test_bash_process_output_invalid_filter() -> None:
+    registry = get_background_registry()
+    proc = _FakeProc(pid=9036, stdout=[b"line\n"], stderr=[])
+    await registry.register(cast(AsyncProcessProtocol, proc), command="echo line", session_id="chat-bad-filter")
+
+    tool = create_bash_process_tool()
+    config = {"configurable": {"context": {"session_id": "chat-bad-filter"}}}
+    result = await tool.ainvoke({"action": "output", "pid": 9036, "filter": "[invalid"}, config=config)
+    assert result["metadata"]["error"] == "invalid_filter"
+
+
+@pytest.mark.asyncio
+async def test_bash_process_output_with_line_filter() -> None:
+    registry = get_background_registry()
+    proc = _FakeProc(pid=9037, stdout=[b"ok\n", b"ERROR: boom\n"], stderr=[b"WARN: slow\n"])
+    await registry.register(cast(AsyncProcessProtocol, proc), command="build", session_id="chat-good-filter")
+    await asyncio.sleep(0.05)
+
+    tool = create_bash_process_tool()
+    config = {"configurable": {"context": {"session_id": "chat-good-filter"}}}
+    result = await tool.ainvoke({"action": "output", "pid": 9037, "filter": "ERROR|WARN"}, config=config)
+    assert "ERROR: boom" in result["content"]["stdout"][0]
+    assert result["metadata"]["filter"] == "ERROR|WARN"
+
+
+@pytest.mark.asyncio
+async def test_bash_process_wait_wrong_session() -> None:
+    registry = get_background_registry()
+    proc = _FakeProc(pid=9038, stdout=[], stderr=[])
+    await registry.register(cast(AsyncProcessProtocol, proc), command="sleep", session_id="owner-wait")
+
+    tool = create_bash_process_tool()
+    config = {"configurable": {"context": {"session_id": "other-wait"}}}
+    result = await tool.ainvoke({"action": "wait", "pid": 9038, "timeout_seconds": 1}, config=config)
+    assert result["metadata"]["found"] is False
+
+
+@pytest.mark.asyncio
+async def test_bash_process_unknown_action_fallback() -> None:
+    tool = create_bash_process_tool()
+    config = {"configurable": {"context": {"session_id": "chat-unknown-action"}}}
+    result = await tool.coroutine(  # type: ignore[attr-defined]
+        action="bogus",  # type: ignore[arg-type]
+        pid=None,
+        max_lines=100,
+        since_cursor=None,
+        timeout_seconds=30,
+        force=False,
+        filter=None,
+        config=config,
+    )
+    assert result["metadata"]["error"] == "invalid_action"

@@ -51,7 +51,7 @@ Detailed design: [TASK_QUEUE_SYSTEM.md](TASK_QUEUE_SYSTEM.md).
 | Server lifecycle | `myrm-agent-server/app/lifecycle/task_worker.py` | SQLiteTaskStore singleton + worker startup |
 | Server worker | `myrm-agent-server/app/tasks/worker.py` | Background task queue processing |
 | Server REST | `myrm-agent-server/app/api/tasks/router.py` | Task status API + SSE |
-| Harness media | `toolkits/llms/image/async_image_engine.py` | Async image jobs via TaskStore; optional `payload_postprocessor` before persist |
+| Harness media | `toolkits/llms/{image,video}/async_*_engine.py` | Async media jobs via TaskStore; optional `payload_postprocessor` before persist |
 | Media DTOs | `toolkits/llms/media_task_types.py` | Typed payloads for media async jobs |
 
 ## Key Dependencies

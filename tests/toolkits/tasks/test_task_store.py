@@ -98,6 +98,27 @@ async def test_list_tasks_with_filters(temp_store):
     image_tasks = await temp_store.list_tasks(TaskFilters(task_type="image_generate"))
     assert len(image_tasks) == 2
 
+    # Filter by task_ids
+    selected = await temp_store.list_tasks(TaskFilters(task_ids=["t1", "t3"]))
+    assert len(selected) == 2
+    assert {task.task_id for task in selected} == {"t1", "t3"}
+
+
+@pytest.mark.asyncio
+async def test_list_tasks_sanitizes_order_by(temp_store):
+    """Unsafe order_by falls back to default safe sort."""
+    task = Task("safe-order", "image_generate", "user-1", TaskStatus.PENDING, {})
+    await temp_store.create_task(task)
+
+    filters = TaskFilters(order_by="created_at DESC; DROP TABLE tasks")
+    listed = await temp_store.list_tasks(filters)
+
+    assert len(listed) == 1
+    assert filters.order_by == "created_at DESC"
+
+    normalized = TaskFilters(order_by="updated_at asc")
+    assert normalized.order_by == "updated_at ASC"
+
 
 @pytest.mark.asyncio
 async def test_idempotency_key(temp_store):

@@ -24,6 +24,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 
 from myrm_agent_harness.core.artifacts.constants import ArtifactType
+from myrm_agent_harness.toolkits.llms.media_task_types import TASK_TYPE_VIDEO_GENERATE
 
 from .generator import VideoGenerator
 from .models import (
@@ -265,6 +266,7 @@ class VideoGenerationTools:
         return json.dumps(
             {
                 "task_id": task_id,
+                "task_type": TASK_TYPE_VIDEO_GENERATE,
                 "status": "queued",
                 "mode": mode,
                 "provider": effective_provider,

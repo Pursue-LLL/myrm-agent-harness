@@ -52,3 +52,56 @@ def test_find_latest_background_spawn_in_window() -> None:
     assert info is not None
     assert info.job_id == "c" * 32
     assert info.pid == 99
+
+
+def test_is_wait_eligible_empty_command() -> None:
+    assert not is_wait_eligible_command("")
+    assert not is_wait_eligible_command("   ")
+
+
+def test_parse_background_spawn_rejects_wrong_tool() -> None:
+    assert (
+        parse_background_spawn_from_record(
+            "web_search_tool",
+            {"command": "pytest", "run_in_background": True},
+            "job_id: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa pid: 1",
+        )
+        is None
+    )
+
+
+def test_parse_background_spawn_requires_run_in_background() -> None:
+    assert (
+        parse_background_spawn_from_record(
+            "bash_code_execute_tool",
+            {"command": "pytest -q"},
+            "job_id: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa pid: 1",
+        )
+        is None
+    )
+
+
+def test_parse_background_spawn_non_eligible_command() -> None:
+    assert (
+        parse_background_spawn_from_record(
+            "bash_code_execute_tool",
+            {"command": "echo hi", "run_in_background": True},
+            "job_id: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa pid: 1",
+        )
+        is None
+    )
+
+
+def test_parse_background_spawn_missing_job_or_pid() -> None:
+    assert (
+        parse_background_spawn_from_record(
+            "bash_code_execute_tool",
+            {"command": "pytest -q", "run_in_background": True},
+            "Background process started without ids",
+        )
+        is None
+    )
+
+
+def test_find_latest_background_spawn_in_window_empty() -> None:
+    assert find_latest_background_spawn_in_window([]) is None

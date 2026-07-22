@@ -33,9 +33,11 @@ from .models import (
 )
 from .providers import ProviderRegistry, VideoGenerationProvider, get_registry
 from .task_store import FileVideoTaskStore, InMemoryVideoTaskStore, VideoTaskStore
+from .async_video_engine import AsyncVideoGenerationTools
 from .video_engine import VideoGenerationTools
 
 __all__ = [
+    "AsyncVideoGenerationTools",
     "FailoverAttempt",
     "FileVideoTaskStore",
     "InMemoryVideoTaskStore",

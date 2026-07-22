@@ -31,6 +31,42 @@ from typing import Protocol
 
 from .protocols import ErrorRecoverability, RetryPolicy, Task, TaskError, TaskStatus
 
+_DEFAULT_ORDER_BY = "created_at DESC"
+_ALLOWED_ORDER_COLUMNS = {
+    "created_at",
+    "updated_at",
+    "started_at",
+    "completed_at",
+    "priority",
+    "status",
+    "task_type",
+    "user_id",
+    "task_id",
+}
+_ALLOWED_ORDER_DIRECTIONS = {"ASC", "DESC"}
+
+
+def _sanitize_order_by(order_by: str) -> str:
+    normalized = " ".join(order_by.strip().split())
+    if not normalized:
+        return _DEFAULT_ORDER_BY
+
+    parts = normalized.split(" ")
+    if len(parts) == 1:
+        column = parts[0]
+        direction = "ASC"
+    elif len(parts) == 2:
+        column, direction = parts
+    else:
+        return _DEFAULT_ORDER_BY
+
+    direction_normalized = direction.upper()
+    if column not in _ALLOWED_ORDER_COLUMNS:
+        return _DEFAULT_ORDER_BY
+    if direction_normalized not in _ALLOWED_ORDER_DIRECTIONS:
+        return _DEFAULT_ORDER_BY
+    return f"{column} {direction_normalized}"
+
 
 class TaskFilters:
     """Filters for querying tasks."""
@@ -45,7 +81,8 @@ class TaskFilters:
         created_before: datetime | None = None,
         limit: int = 100,
         offset: int = 0,
-        order_by: str = "created_at DESC",
+        order_by: str = _DEFAULT_ORDER_BY,
+        task_ids: list[str] | None = None,
     ):
         self.status = status
         self.task_type = task_type
@@ -55,7 +92,8 @@ class TaskFilters:
         self.created_before = created_before
         self.limit = limit
         self.offset = offset
-        self.order_by = order_by
+        self.order_by = _sanitize_order_by(order_by)
+        self.task_ids = task_ids
 
 
 class TaskStore(Protocol):
@@ -292,6 +330,11 @@ class SQLiteTaskStore:
                 placeholders = ",".join(["?"] * len(types))
                 where_parts.append(f"task_type IN ({placeholders})")
                 values.extend(types)
+
+            if filters.task_ids:
+                placeholders = ",".join(["?"] * len(filters.task_ids))
+                where_parts.append(f"task_id IN ({placeholders})")
+                values.extend(filters.task_ids)
 
             if filters.user_id:
                 where_parts.append("user_id = ?")

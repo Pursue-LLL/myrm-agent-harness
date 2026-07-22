@@ -142,6 +142,7 @@ class AsyncImageGenerationTools:
         return json.dumps(
             {
                 "task_id": task_id,
+                "task_type": TASK_TYPE_IMAGE_GENERATE,
                 "status": "pending",
                 "message": "Image generation task created. Monitor status via SSE.",
             }
