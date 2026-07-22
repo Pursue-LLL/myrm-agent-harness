@@ -21,10 +21,10 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `clarification_guard_middleware.py` | Core | Enforces single `ask_question_tool` call per turn; blocks coexisting tool calls with synthetic errors. | ✅ |
 | `completion_guard_checklist.py` | Internal | Verification command classification + checklist builder + temporal ordering analysis + verification command extraction for CompletionGuard. | ✅ |
 | `concurrency_limiter.py` | Core | Subagent Semaphore by agent_type. | ✅ |
-| `concurrency_router.py` | Core | Smart concurrency routing with safety_dispatcher; host-serial MCP lane awareness (distinct servers may parallelize, same server stays serial) + path read/write conflict planning (read-read overlap allowed, read-write/write-write isolated). Exposes stage planner for mixed batches (`build_tool_execution_stages`) so runtimes can run parallel-safe subsets while keeping unsafe calls isolated. | ✅ |
+| `concurrency_router.py` | Core | Smart concurrency routing with safety_dispatcher; host-serial MCP lane awareness (distinct servers may parallelize, same server stays serial) + canonical path identity planning (`realpath`/`normcase`) and precise `file_read_tool.paths[]` conflict modeling (read-read overlap allowed, read-write/write-write isolated). Exposes stage planner for mixed batches (`build_tool_execution_stages`) so runtimes can run parallel-safe subsets while keeping unsafe calls isolated. | ✅ |
 | `context_pipeline_helpers.py` | Internal | Compression intent, cache feedback, schema fingerprint. | ✅ |
 | `context_pipeline_middleware.py` | Core | `create_context_pipeline_middleware` factory. | ✅ |
-| `dangling_tool_call_middleware.py` | Core | Repair dangling tool_calls for strict providers. | ✅ |
+| `dangling_tool_call_middleware.py` | Core | Repair malformed tool histories for strict providers: sanitize malformed calls, patch dangling tool_calls, and drop orphan ToolMessages. | ✅ |
 | `_skill_tool_choice.py` | Internal | Build OpenAI ``allowed_tools`` tool_choice for skill attenuation (cache-safe). | ✅ |
 | `skill_attenuation_middleware.py` | Core | Skill attenuation via ``tool_choice.allowed_tools``; dynamic tool resolution for ToolNode. Does not mutate `request.tools`. | ✅ |
 | `debug_logger_middleware.py` | Core | Full message list debug logging. | ✅ |

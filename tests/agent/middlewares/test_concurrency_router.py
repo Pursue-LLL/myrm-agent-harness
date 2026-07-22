@@ -126,6 +126,14 @@ def test_should_not_parallelize_read_paths_list_with_overlapping_write():
     assert not should_parallelize_tool_batch(calls)
 
 
+def test_should_parallelize_read_paths_list_without_overlapping_write():
+    calls = [
+        {"name": "file_read_tool", "args": {"paths": ["src/a.ts", "tests/b.ts"]}},
+        {"name": "file_write_tool", "args": {"path": "docs/c.md"}},
+    ]
+    assert should_parallelize_tool_batch(calls)
+
+
 def test_should_not_parallelize_grep_and_overlapping_write():
     calls = [
         {"name": "grep_tool", "args": {"pattern": "TODO", "path": "src/a.ts"}},
@@ -155,6 +163,22 @@ def test_should_not_parallelize_file_id_alias_with_real_path(monkeypatch):
     calls = [
         {"name": "file_write_tool", "args": {"path": "@file_001"}},
         {"name": "file_write_tool", "args": {"path": "/tmp/workspace/src/a.ts"}},
+    ]
+    assert not should_parallelize_tool_batch(calls)
+
+
+def test_should_not_parallelize_symlink_alias_with_real_path(tmp_path):
+    file_path = tmp_path / "real.ts"
+    alias_path = tmp_path / "alias.ts"
+    file_path.write_text("console.log('ok')", encoding="utf-8")
+    try:
+        alias_path.symlink_to(file_path)
+    except (NotImplementedError, OSError):
+        pytest.skip("Symlink not supported on this platform")
+
+    calls = [
+        {"name": "file_write_tool", "args": {"path": str(file_path)}},
+        {"name": "file_write_tool", "args": {"path": str(alias_path)}},
     ]
     assert not should_parallelize_tool_batch(calls)
 

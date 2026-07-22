@@ -1,4 +1,18 @@
-"""Smart tool execution routing based on path scope and safety metadata."""
+"""Smart tool execution routing based on path scope and safety metadata.
+
+[INPUT]
+- agent.security.tool_registry::resolve_safety_metadata (POS: tool safety metadata resolver)
+- toolkits.mcp.config::parse_mcp_tool_name (POS: parse ``mcp__server__tool`` names)
+- file_ops.path_utils::resolve_file_id_path (POS: resolve ``@file_xxx`` aliases)
+
+[OUTPUT]
+- build_tool_execution_stages: ordered stage plan for mixed concurrent/serial tool batches
+- should_parallelize_tool_batch: bool helper for full-batch one-stage parallelism
+
+[POS]
+Path-aware concurrency planner. It enforces read/write conflict isolation and
+host-serial MCP lane constraints while preserving safe parallel execution.
+"""
 
 import os
 from pathlib import Path
@@ -44,30 +58,38 @@ def _resolve_parallel_scope_path(raw_path: str) -> str:
     return resolve_file_id_path(raw_path)
 
 
+def _canonicalize_scope_path(path: Path) -> Path:
+    """Canonicalize to stable filesystem identity (realpath + normcase)."""
+    try:
+        resolved = path.resolve(strict=False)
+    except OSError:
+        resolved = Path(os.path.abspath(str(path)))
+    return Path(os.path.normcase(str(resolved)))
+
+
 def _normalize_scope_path(raw_path: str) -> Path | None:
     if not raw_path.strip():
         return None
 
     resolved_raw_path = _resolve_parallel_scope_path(raw_path)
     expanded = Path(resolved_raw_path).expanduser()
-    if expanded.is_absolute():
-        return Path(os.path.abspath(str(expanded)))
-
-    return Path(os.path.abspath(str(Path.cwd() / expanded)))
+    absolute = expanded if expanded.is_absolute() else Path.cwd() / expanded
+    return _canonicalize_scope_path(absolute)
 
 
-def _collapse_scope_paths(raw_paths: list[str]) -> Path | None:
-    normalized_paths = [_normalize_scope_path(p) for p in raw_paths if isinstance(p, str)]
-    normalized_paths = [p for p in normalized_paths if p is not None]
-    if not normalized_paths:
-        return None
-    if len(normalized_paths) == 1:
-        return normalized_paths[0]
-
-    try:
-        return Path(os.path.commonpath([str(p) for p in normalized_paths]))
-    except ValueError:
-        return None
+def _normalize_scope_paths(raw_paths: list[str]) -> tuple[Path, ...]:
+    normalized: list[Path] = []
+    seen: set[str] = set()
+    for raw in raw_paths:
+        scope = _normalize_scope_path(raw)
+        if scope is None:
+            continue
+        key = str(scope)
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append(scope)
+    return tuple(normalized)
 
 
 def _extract_glob_scope_path(pattern: str) -> Path | None:
@@ -80,7 +102,7 @@ def _extract_glob_scope_path(pattern: str) -> Path | None:
         literal_parts.append(part)
 
     if not literal_parts:
-        return Path(os.path.abspath(str(Path.cwd())))
+        return _canonicalize_scope_path(Path.cwd())
 
     if literal_parts[0] == os.sep:
         literal_path = Path(os.sep, *literal_parts[1:])
@@ -88,7 +110,7 @@ def _extract_glob_scope_path(pattern: str) -> Path | None:
         literal_path = Path(*literal_parts)
         if not literal_path.is_absolute():
             literal_path = Path.cwd() / literal_path
-    return Path(os.path.abspath(str(literal_path)))
+    return _canonicalize_scope_path(literal_path)
 
 
 def _extract_host_serial_lane(tool_name: str, metadata: SafetyMetadata) -> str | None:
@@ -116,7 +138,7 @@ def _classify_tool_call_for_stage(
     reserved_read_paths: list[Path],
     reserved_write_paths: list[Path],
     reserved_host_serial_lanes: set[str],
-) -> tuple[_StageVerdict, Path | None, str | None, bool]:
+) -> tuple[_StageVerdict, tuple[Path, ...], str | None, bool]:
     """Classify whether a tool call can join the current parallel stage.
 
     Returns:
@@ -130,36 +152,40 @@ def _classify_tool_call_for_stage(
     metadata = resolve_safety_metadata(tool_name)
 
     if metadata.is_concurrent_safe and tool_name not in _PATH_SCOPED_TOOLS:
-        return "fit", None, None, False
+        return "fit", tuple(), None, False
 
     if tool_name not in _PATH_SCOPED_TOOLS and not metadata.is_concurrent_safe:
         host_serial_lane = _extract_host_serial_lane(tool_name, metadata)
         if host_serial_lane is None:
-            return "singleton", None, None, False
+            return "singleton", tuple(), None, False
         if host_serial_lane in reserved_host_serial_lanes:
-            return "conflict", None, None, False
-        return "fit", None, host_serial_lane, False
+            return "conflict", tuple(), None, False
+        return "fit", tuple(), host_serial_lane, False
 
     args = tool_call.get("args", {})
     if not isinstance(args, dict):
-        return "singleton", None, None, False
+        return "singleton", tuple(), None, False
 
-    scoped_path = _extract_parallel_scope_path(tool_name, args)
-    if scoped_path is None:
+    scoped_paths = _extract_parallel_scope_paths(tool_name, args)
+    if not scoped_paths:
         if not metadata.is_concurrent_safe:
-            return "singleton", None, None, False
-        return "fit", None, None, False
+            return "singleton", tuple(), None, False
+        return "fit", tuple(), None, False
 
     if metadata.is_read_only:
-        if any(_paths_overlap(scoped_path, existing) for existing in reserved_write_paths):
-            return "conflict", None, None, False
-        return "fit", scoped_path, None, True
+        if _has_path_conflict(scoped_paths, reserved_write_paths):
+            return "conflict", tuple(), None, False
+        return "fit", scoped_paths, None, True
 
-    if any(_paths_overlap(scoped_path, existing) for existing in reserved_write_paths):
-        return "conflict", None, None, False
-    if any(_paths_overlap(scoped_path, existing) for existing in reserved_read_paths):
-        return "conflict", None, None, False
-    return "fit", scoped_path, None, False
+    if _has_path_conflict(scoped_paths, reserved_write_paths):
+        return "conflict", tuple(), None, False
+    if _has_path_conflict(scoped_paths, reserved_read_paths):
+        return "conflict", tuple(), None, False
+    return "fit", scoped_paths, None, False
+
+
+def _has_path_conflict(candidates: tuple[Path, ...], reserved: list[Path]) -> bool:
+    return any(_paths_overlap(candidate, existing) for candidate in candidates for existing in reserved)
 
 
 def _paths_overlap(left: Path, right: Path) -> bool:
@@ -172,28 +198,30 @@ def _paths_overlap(left: Path, right: Path) -> bool:
     return left_parts[:common_len] == right_parts[:common_len]
 
 
-def _extract_parallel_scope_path(tool_name: str, function_args: dict[str, Any]) -> Path | None:
-    """Return the normalized file target for path-scoped tools."""
+def _extract_parallel_scope_paths(tool_name: str, function_args: dict[str, Any]) -> tuple[Path, ...]:
+    """Return normalized path reservations for path-scoped tools."""
     if tool_name not in _PATH_SCOPED_TOOLS:
-        return None
+        return tuple()
 
     if tool_name == "file_read_tool":
         raw_paths = function_args.get("paths")
         if isinstance(raw_paths, list):
-            scope = _collapse_scope_paths([p for p in raw_paths if isinstance(p, str) and p.strip()])
-            if scope is not None:
-                return scope
+            paths = _normalize_scope_paths([p for p in raw_paths if isinstance(p, str) and p.strip()])
+            if paths:
+                return paths
 
     if tool_name == "glob_tool":
         raw_pattern = function_args.get("pattern")
         if isinstance(raw_pattern, str) and raw_pattern.strip():
-            return _extract_glob_scope_path(raw_pattern)
+            scope = _extract_glob_scope_path(raw_pattern)
+            return (scope,) if scope is not None else tuple()
 
     raw_path = function_args.get("path") or function_args.get("file_path") or function_args.get("file")
     if not isinstance(raw_path, str):
-        return None
+        return tuple()
 
-    return _normalize_scope_path(raw_path)
+    scope = _normalize_scope_path(raw_path)
+    return (scope,) if scope is not None else tuple()
 
 
 def build_tool_execution_stages(tool_calls: list[dict[str, Any]]) -> list[list[int]]:
@@ -223,12 +251,12 @@ def build_tool_execution_stages(tool_calls: list[dict[str, Any]]) -> list[list[i
 
     def _append_with_reservations(
         idx: int,
-        path_reservation: Path | None,
+        path_reservations: tuple[Path, ...],
         lane_reservation: str | None,
         path_read_only: bool,
     ) -> None:
         current_stage.append(idx)
-        if path_reservation is not None:
+        for path_reservation in path_reservations:
             if path_read_only:
                 reserved_read_paths.append(path_reservation)
             else:

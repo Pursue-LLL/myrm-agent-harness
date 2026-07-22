@@ -29,6 +29,8 @@ Dangling tool call repair middleware.
 """
 
 import logging
+from copy import deepcopy
+from json import JSONDecodeError, loads
 from collections.abc import Awaitable, Callable
 
 from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
@@ -39,6 +41,156 @@ logger = logging.getLogger(__name__)
 _INTERRUPTED_CONTENT = "[Tool call was interrupted and did not return a result.]"
 _INVALID_ARGS_CONTENT = "[Tool call could not be executed because its arguments were invalid.]"
 _MAX_ERROR_DETAIL_LEN = 500
+
+
+def _sanitize_tool_name(name: object) -> str:
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+    return "unknown"
+
+
+def _coerce_tool_args_object(args: object) -> dict[str, object]:
+    if isinstance(args, dict):
+        return args
+    if isinstance(args, str):
+        stripped = args.strip()
+        if len(stripped) >= 2 and stripped[0] in ("{", "["):
+            try:
+                parsed = loads(stripped)
+                if isinstance(parsed, dict):
+                    return {str(k): v for k, v in parsed.items()}
+                if isinstance(parsed, list):
+                    return {"items": parsed}
+            except (ValueError, JSONDecodeError):
+                return {}
+    return {}
+
+
+def _sanitize_tool_calls_list(raw_calls: object) -> tuple[list[dict[str, object]], bool]:
+    if not isinstance(raw_calls, list):
+        return [], bool(raw_calls)
+    sanitized: list[dict[str, object]] = []
+    changed = False
+    for tc in raw_calls:
+        if not isinstance(tc, dict):
+            changed = True
+            continue
+        tc_id = tc.get("id")
+        if not isinstance(tc_id, str) or not tc_id.strip():
+            changed = True
+            continue
+        clean: dict[str, object] = dict(tc)
+        clean["id"] = tc_id.strip()
+        clean["name"] = _sanitize_tool_name(tc.get("name"))
+        clean["args"] = _coerce_tool_args_object(tc.get("args"))
+        if clean != tc:
+            changed = True
+        sanitized.append(clean)
+    return sanitized, changed
+
+
+def _sanitize_invalid_tool_calls_list(raw_calls: object) -> tuple[list[dict[str, object]], bool]:
+    if not isinstance(raw_calls, list):
+        return [], bool(raw_calls)
+    sanitized: list[dict[str, object]] = []
+    changed = False
+    for tc in raw_calls:
+        if not isinstance(tc, dict):
+            changed = True
+            continue
+        tc_id = tc.get("id")
+        if not isinstance(tc_id, str) or not tc_id.strip():
+            changed = True
+            continue
+        clean: dict[str, object] = dict(tc)
+        clean["id"] = tc_id.strip()
+        clean["name"] = _sanitize_tool_name(tc.get("name"))
+        error = tc.get("error")
+        clean["error"] = error if isinstance(error, str) else None
+        args = tc.get("args")
+        clean["args"] = args if isinstance(args, str) else "{}"
+        if clean != tc:
+            changed = True
+        sanitized.append(clean)
+    return sanitized, changed
+
+
+def _sanitize_raw_tool_calls_list(raw_calls: object) -> tuple[list[dict[str, object]], bool]:
+    if not isinstance(raw_calls, list):
+        return [], bool(raw_calls)
+    sanitized: list[dict[str, object]] = []
+    changed = False
+    for tc in raw_calls:
+        if not isinstance(tc, dict):
+            changed = True
+            continue
+        tc_id = tc.get("id")
+        if not isinstance(tc_id, str) or not tc_id.strip():
+            changed = True
+            continue
+
+        function = tc.get("function")
+        fn_dict = function if isinstance(function, dict) else {}
+        fn_name = _sanitize_tool_name(tc.get("name") or fn_dict.get("name"))
+        fn_arguments = fn_dict.get("arguments")
+        if not isinstance(fn_arguments, str):
+            fn_arguments = "{}"
+
+        clean_function = dict(fn_dict)
+        clean_function["name"] = fn_name
+        clean_function["arguments"] = fn_arguments
+
+        clean: dict[str, object] = dict(tc)
+        clean["id"] = tc_id.strip()
+        clean["type"] = clean.get("type") or "function"
+        clean["function"] = clean_function
+        if clean != tc:
+            changed = True
+        sanitized.append(clean)
+    return sanitized, changed
+
+
+def _sanitize_ai_message(msg: BaseMessage) -> bool:
+    if getattr(msg, "type", None) != "ai":
+        return False
+
+    changed = False
+
+    tool_calls, tc_changed = _sanitize_tool_calls_list(getattr(msg, "tool_calls", None))
+    if tc_changed:
+        changed = True
+    if hasattr(msg, "tool_calls"):
+        setattr(msg, "tool_calls", tool_calls)
+
+    invalid_tool_calls, itc_changed = _sanitize_invalid_tool_calls_list(getattr(msg, "invalid_tool_calls", None))
+    if itc_changed:
+        changed = True
+    if hasattr(msg, "invalid_tool_calls"):
+        setattr(msg, "invalid_tool_calls", invalid_tool_calls)
+
+    additional_kwargs = getattr(msg, "additional_kwargs", None)
+    if isinstance(additional_kwargs, dict) and "tool_calls" in additional_kwargs:
+        raw_calls = additional_kwargs.get("tool_calls")
+        sanitized_raw_calls, raw_changed = _sanitize_raw_tool_calls_list(raw_calls)
+        if raw_changed:
+            changed = True
+            updated_kwargs = dict(additional_kwargs)
+            updated_kwargs["tool_calls"] = sanitized_raw_calls
+            setattr(msg, "additional_kwargs", updated_kwargs)
+
+    return changed
+
+
+def _extract_invalid_call_errors(msg: BaseMessage) -> dict[str, str]:
+    errors: dict[str, str] = {}
+    for itc in getattr(msg, "invalid_tool_calls", None) or []:
+        if not isinstance(itc, dict):
+            continue
+        itc_id = itc.get("id")
+        err = itc.get("error")
+        if isinstance(itc_id, str) and itc_id and isinstance(err, str) and err:
+            errors[itc_id] = err
+    return errors
 
 
 def _extract_tool_calls(msg: BaseMessage) -> list[tuple[str, str, bool]]:
@@ -102,42 +254,50 @@ def _build_patched_messages(messages: list[BaseMessage]) -> list[BaseMessage] | 
 
     Returns a new list with patches, or None if no patching is needed.
     """
-    existing_ids: set[str] = set()
-    for msg in messages:
-        if isinstance(msg, ToolMessage):
-            existing_ids.add(msg.tool_call_id)
+    working = deepcopy(messages)
+    changed = False
+    ai_tool_calls_by_msg: dict[int, list[tuple[str, str, bool]]] = {}
+    invalid_errors_by_msg: dict[int, dict[str, str]] = {}
+    referenced_ids: set[str] = set()
 
-    has_dangling = False
-    for msg in messages:
+    for msg in working:
+        if _sanitize_ai_message(msg):
+            changed = True
         if getattr(msg, "type", None) != "ai":
             continue
-        for tc_id, _, _ in _extract_tool_calls(msg):
-            if tc_id not in existing_ids:
-                has_dangling = True
-                break
-        if has_dangling:
-            break
+        tool_calls = _extract_tool_calls(msg)
+        ai_tool_calls_by_msg[id(msg)] = tool_calls
+        invalid_errors_by_msg[id(msg)] = _extract_invalid_call_errors(msg)
+        for tc_id, _, _ in tool_calls:
+            referenced_ids.add(tc_id)
 
-    if not has_dangling:
-        return None
+    existing_ids: set[str] = set()
+    for msg in working:
+        if not isinstance(msg, ToolMessage):
+            continue
+        if msg.tool_call_id in referenced_ids:
+            existing_ids.add(msg.tool_call_id)
 
     patched: list[BaseMessage] = []
     patched_ids: set[str] = set()
     patched_names: list[str] = []
+    dropped_orphan_ids: list[str] = []
 
-    for msg in messages:
+    for msg in working:
+        if isinstance(msg, ToolMessage) and msg.tool_call_id not in referenced_ids:
+            changed = True
+            dropped_orphan_ids.append(msg.tool_call_id)
+            continue
+
         patched.append(msg)
         if getattr(msg, "type", None) != "ai":
             continue
-        for tc_id, tool_name, is_invalid in _extract_tool_calls(msg):
+        tool_calls = ai_tool_calls_by_msg.get(id(msg), [])
+        invalid_errors = invalid_errors_by_msg.get(id(msg), {})
+        for tc_id, tool_name, is_invalid in tool_calls:
             if tc_id in existing_ids or tc_id in patched_ids:
                 continue
-            error = None
-            if is_invalid:
-                for itc in getattr(msg, "invalid_tool_calls", None) or []:
-                    if (itc.get("id") if isinstance(itc, dict) else getattr(itc, "id", None)) == tc_id:
-                        error = itc.get("error") if isinstance(itc, dict) else getattr(itc, "error", None)
-                        break
+            error = invalid_errors.get(tc_id) if is_invalid else None
             patched.append(
                 ToolMessage(
                     content=_synthetic_content(is_invalid, error),
@@ -148,8 +308,19 @@ def _build_patched_messages(messages: list[BaseMessage]) -> list[BaseMessage] | 
             )
             patched_ids.add(tc_id)
             patched_names.append(tool_name)
+            changed = True
 
-    logger.warning("Patched %d dangling tool call(s): %s", len(patched_names), ", ".join(patched_names))
+    if not changed:
+        return None
+
+    if patched_names:
+        logger.warning("Patched %d dangling tool call(s): %s", len(patched_names), ", ".join(patched_names))
+    if dropped_orphan_ids:
+        logger.warning(
+            "Dropped %d orphan tool message(s): %s",
+            len(dropped_orphan_ids),
+            ", ".join(dropped_orphan_ids),
+        )
     return patched
 
 

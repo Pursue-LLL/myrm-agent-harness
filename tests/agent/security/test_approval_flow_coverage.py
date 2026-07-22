@@ -23,7 +23,7 @@ class FakeStore:
 
     def __init__(self) -> None:
         self.saved: list[tuple[str, AllowlistEntry]] = []
-        self.removed: list[tuple[str, str, str | None, str | None]] = []
+        self.removed: list[tuple[str, str, str | None, str | None, str | None]] = []
         self.load_calls: list[str] = []
         self._data: dict[str, list[AllowlistEntry]] = {}
 
@@ -36,9 +36,14 @@ class FakeStore:
         self._data.setdefault(user_id, []).append(entry)
 
     async def remove(
-        self, user_id: str, permission: str, tool_name: str | None = None, tool_args_hash: str | None = None
+        self,
+        user_id: str,
+        permission: str,
+        tool_name: str | None = None,
+        tool_args_hash: str | None = None,
+        command_pattern: str | None = None,
     ) -> None:
-        self.removed.append((user_id, permission, tool_name, tool_args_hash))
+        self.removed.append((user_id, permission, tool_name, tool_args_hash, command_pattern))
 
 
 class TestDefaultUserID:

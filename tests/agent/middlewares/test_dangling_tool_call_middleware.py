@@ -142,6 +142,41 @@ class TestBuildPatchedMessages:
         """Empty message list → no patching."""
         assert _build_patched_messages([]) is None
 
+    def test_orphan_tool_message_is_dropped(self):
+        """ToolMessage without any matching AI tool_call should be dropped."""
+        messages = [
+            HumanMessage(content="hello"),
+            ToolMessage(content="orphan", tool_call_id="ghost_1", name="ghost"),
+            AIMessage(content="world"),
+        ]
+        patched = _build_patched_messages(messages)
+        assert patched is not None
+        assert len(patched) == 2
+        assert all(not isinstance(msg, ToolMessage) for msg in patched)
+
+    def test_malformed_tool_call_is_sanitized(self):
+        """Malformed tool_call name/args are sanitized before synthetic patching."""
+        ai_msg = AIMessage(
+            content="",
+            tool_calls=[{"id": "tc_1", "name": "placeholder", "args": {}}],
+        )
+        # Build with valid schema first, then inject malformed payload to validate sanitizer behavior.
+        ai_msg.tool_calls = [{"id": "tc_1", "name": "", "args": "not_json"}]
+        messages = [
+            HumanMessage(content="run"),
+            ai_msg,
+        ]
+        patched = _build_patched_messages(messages)
+        assert patched is not None
+        assert len(patched) == 3
+        ai_msg = patched[1]
+        assert isinstance(ai_msg, AIMessage)
+        assert ai_msg.tool_calls[0]["name"] == "unknown"
+        assert ai_msg.tool_calls[0]["args"] == {}
+        synthetic = patched[2]
+        assert isinstance(synthetic, ToolMessage)
+        assert synthetic.tool_call_id == "tc_1"
+
     def test_idempotent_on_already_patched(self):
         """Running on already-patched messages produces no new patches."""
         messages = [

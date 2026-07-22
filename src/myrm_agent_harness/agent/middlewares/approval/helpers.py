@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 from myrm_agent_harness.agent.security.approval_flow import AllowlistEntry, get_allowlist
+from myrm_agent_harness.agent.security.command_allowlist_pattern import derive_command_pattern
 
 logger = logging.getLogger(__name__)
 
@@ -140,14 +141,21 @@ def _build_hint(state: DenialState, breach: ThresholdBreach) -> str:
 
 
 async def add_to_allowlist_if_needed(
-    allow_always: bool | dict, user_id: str, permission_type: str, tool_name: str, tool_args_hash: str | None = None
+    allow_always: bool | dict,
+    user_id: str,
+    permission_type: str,
+    tool_name: str,
+    tool_args_hash: str | None = None,
+    *,
+    tool_command: str | None = None,
 ) -> None:
     """Add permission to user's allowlist if requested.
 
-    Supports three matching levels:
+    Supports four matching levels:
     1. Permission-level: allow_always=True → matches all tools of this permission type
     2. Tool-level: allow_always={'tool': True} → matches this specific tool
     3. Exact match: allow_always={'tool': True, 'args': True} → matches tool + args (requires tool_args_hash)
+    4. Pattern match: allow_always={'tool': True, 'pattern': True} → matches tool + command glob
     """
     if not allow_always or not user_id:
         return
@@ -157,13 +165,29 @@ async def add_to_allowlist_if_needed(
         log_msg = f"permission-level: ({permission_type}, *)"
     elif isinstance(allow_always, dict):
         match_args = allow_always.get("args", False)
-        args_hash = tool_args_hash if match_args else None
-
-        entry = AllowlistEntry(permission=permission_type, tool_name=tool_name, tool_args_hash=args_hash)
-        if args_hash:
-            log_msg = f"exact-match: ({permission_type}, {tool_name}, args_hash={args_hash})"
+        match_pattern = allow_always.get("pattern", False)
+        if match_pattern:
+            pattern = derive_command_pattern(tool_command or "")
+            if not pattern:
+                logger.warning(
+                    "[HITL] Skipped pattern allow-always for %s: command missing or compound shell",
+                    tool_name,
+                )
+                return
+            entry = AllowlistEntry(
+                permission=permission_type,
+                tool_name=tool_name,
+                tool_args_hash=None,
+                command_pattern=pattern,
+            )
+            log_msg = f"pattern-match: ({permission_type}, {tool_name}, pattern={pattern})"
         else:
-            log_msg = f"tool-level: ({permission_type}, {tool_name})"
+            args_hash = tool_args_hash if match_args else None
+            entry = AllowlistEntry(permission=permission_type, tool_name=tool_name, tool_args_hash=args_hash)
+            if args_hash:
+                log_msg = f"exact-match: ({permission_type}, {tool_name}, args_hash={args_hash})"
+            else:
+                log_msg = f"tool-level: ({permission_type}, {tool_name})"
     else:
         return
 

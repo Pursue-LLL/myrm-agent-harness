@@ -26,9 +26,12 @@ _FILE_PATH_LOCKS_GUARD = asyncio.Lock()
 
 def _normalize_lock_path(path: str) -> str:
     expanded = Path(path).expanduser()
-    if expanded.is_absolute():
-        return os.path.abspath(str(expanded))
-    return os.path.abspath(str(Path.cwd() / expanded))
+    absolute = expanded if expanded.is_absolute() else Path.cwd() / expanded
+    try:
+        resolved = absolute.resolve(strict=False)
+    except OSError:
+        resolved = Path(os.path.abspath(str(absolute)))
+    return os.path.normcase(str(resolved))
 
 
 async def _get_file_path_lock(normalized_path: str) -> asyncio.Lock:

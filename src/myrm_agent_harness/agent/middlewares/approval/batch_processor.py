@@ -217,7 +217,16 @@ async def evaluate_tool_batch(
             await allowlist.load_user(user_id)
             effective_tool_name = extra_ctx.get("ptc_tool_name_full", tool_name) if extra_ctx else tool_name
             args_hash = args_hashes.get(idx)
-            if allowlist.check(user_id, permission_type, effective_tool_name, args_hash):
+            from myrm_agent_harness.agent.security.command_allowlist_pattern import extract_shell_command
+
+            shell_command = extract_shell_command(tool_input)
+            if allowlist.check(
+                user_id,
+                permission_type,
+                effective_tool_name,
+                args_hash,
+                command=shell_command,
+            ):
                 action = PermissionAction.ALLOW
                 reason = f"Allowlist auto-approve: {effective_tool_name}"
                 record_decision(tool_name, "ALLOWLIST_AUTO_APPROVE", reason)

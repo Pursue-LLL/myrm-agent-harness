@@ -23,7 +23,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolCall, ToolMessa
 from myrm_agent_harness.agent.security.approval_flow import DEFAULT_USER_ID
 from myrm_agent_harness.agent.security.audit import record_decision
 from myrm_agent_harness.agent.security.engine import extract_url_domains
-from myrm_agent_harness.agent.security.redact import redact_for_display
+from myrm_agent_harness.agent.security.command_allowlist_pattern import extract_shell_command
 from myrm_agent_harness.agent.security.types import SecurityConfig
 
 from .helpers import add_to_allowlist_if_needed, record_denial
@@ -271,12 +271,15 @@ async def apply_approval_decisions(
                         )
 
                         user_id = get_approval_user_id() or DEFAULT_USER_ID
+                        tool_args = tool_call.get("args", {})
+                        shell_command = extract_shell_command(tool_args if isinstance(tool_args, dict) else None)
                         await add_to_allowlist_if_needed(
                             allow_always,
                             user_id,
                             permission_type,
                             allowlist_tool_name,
                             args_hashes.get(idx),
+                            tool_command=shell_command,
                         )
 
                 revised_tool_calls.append(tool_call)
@@ -339,12 +342,15 @@ async def apply_approval_decisions(
                         )
 
                         user_id = get_approval_user_id() or DEFAULT_USER_ID
+                        tool_args = tool_call.get("args", {})
+                        shell_command = extract_shell_command(tool_args if isinstance(tool_args, dict) else None)
                         await add_to_allowlist_if_needed(
                             allow_always,
                             user_id,
                             permission_type,
                             allowlist_tool_name,
                             args_hashes.get(idx),
+                            tool_command=shell_command,
                         )
 
             else:

@@ -61,6 +61,35 @@ async def test_file_path_lock_allows_different_paths_in_parallel() -> None:
 
 
 @pytest.mark.asyncio
+async def test_file_path_lock_serializes_symlink_aliases(tmp_path) -> None:
+    real_path = tmp_path / "real.ts"
+    alias_path = tmp_path / "alias.ts"
+    real_path.write_text("hello", encoding="utf-8")
+    try:
+        alias_path.symlink_to(real_path)
+    except (NotImplementedError, OSError):
+        pytest.skip("Symlink not supported on this platform")
+
+    active_count = 0
+    overlap_detected = False
+    counter_lock = asyncio.Lock()
+
+    async def worker(path: str) -> None:
+        nonlocal active_count, overlap_detected
+        async with acquire_file_path_lock(path):
+            async with counter_lock:
+                active_count += 1
+                if active_count > 1:
+                    overlap_detected = True
+            await asyncio.sleep(0.02)
+            async with counter_lock:
+                active_count -= 1
+
+    await asyncio.gather(worker(str(real_path)), worker(str(alias_path)))
+    assert not overlap_detected
+
+
+@pytest.mark.asyncio
 async def test_file_operation_service_create_uses_resolved_path_lock() -> None:
     context = OperationContext(
         operation=OperationType.CREATE,

@@ -30,6 +30,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Protocol
 
+from myrm_agent_harness.agent.security.command_allowlist_pattern import matches_command_pattern
+
 logger = logging.getLogger(__name__)
 
 # Framework-level sentinel user ID for single-user (sandbox) environments.
@@ -42,17 +44,19 @@ ALLOWLIST_STALE_CACHE_FACTOR: float = 2.0
 
 @dataclass(frozen=True, slots=True)
 class AllowlistEntry:
-    """A persistent allow-always record with three matching granularities.
+    """A persistent allow-always record with four matching granularities.
 
     Matching levels:
-    1. Permission-level: matches all tools of permission type (tool_name=None)
-    2. Tool-level: matches specific tool (tool_name set, tool_args_hash=None)
-    3. Exact match: matches tool + arguments (both tool_name and tool_args_hash set)
+    1. Exact match: matches tool + arguments (tool_args_hash set)
+    2. Pattern match: matches tool + command glob (command_pattern set)
+    3. Tool-level: matches specific tool (tool_name set, no hash/pattern)
+    4. Permission-level: matches all tools of permission type (tool_name=None)
     """
 
     permission: str
     tool_name: str | None = None
     tool_args_hash: str | None = None
+    command_pattern: str | None = None
     created_at: float = field(default_factory=time.time)
 
 
@@ -66,7 +70,12 @@ class AllowlistStore(Protocol):
     async def load(self, user_id: str) -> Sequence[AllowlistEntry]: ...
     async def save(self, user_id: str, entry: AllowlistEntry) -> None: ...
     async def remove(
-        self, user_id: str, permission: str, tool_name: str | None = None, tool_args_hash: str | None = None
+        self,
+        user_id: str,
+        permission: str,
+        tool_name: str | None = None,
+        tool_args_hash: str | None = None,
+        command_pattern: str | None = None,
     ) -> None: ...
 
 
@@ -89,7 +98,9 @@ class Allowlist:
     """
 
     def __init__(self, store: AllowlistStore | None = None, ttl_seconds: float = 300.0) -> None:
-        self._entries: dict[str, dict[tuple[str, str | None, str | None], AllowlistEntry]] = {}
+        self._entries: dict[
+            str, dict[tuple[str, str | None, str | None, str | None], AllowlistEntry]
+        ] = {}
         self._store = store
         self._cache_meta: dict[str, tuple[float | None, asyncio.Lock]] = {}
         self._meta_lock = asyncio.Lock()
@@ -164,39 +175,72 @@ class Allowlist:
                     return
 
             entries = await self._store.load(user_id)
-            self._entries[user_id] = {(e.permission, e.tool_name, e.tool_args_hash): e for e in entries}
+            self._entries[user_id] = {
+                (e.permission, e.tool_name, e.tool_args_hash, e.command_pattern): e for e in entries
+            }
             self._cache_meta[user_id] = (time.time(), lock)
 
     def check(
-        self, user_id: str, permission_type: str, tool_name: str | None = None, tool_args_hash: str | None = None
+        self,
+        user_id: str,
+        permission_type: str,
+        tool_name: str | None = None,
+        tool_args_hash: str | None = None,
+        *,
+        command: str | None = None,
     ) -> bool:
         """Check if the tool is in the user's allowlist.
 
         Matching priority:
         1. Exact match: (permission, tool_name, tool_args_hash) all match
-        2. Tool-level: (permission, tool_name) match, no args_hash constraint
-        3. Permission-level: permission match, no tool constraints
+        2. Pattern match: (permission, tool_name, command_pattern) glob match
+        3. Tool-level: (permission, tool_name) match, no args_hash/pattern constraint
+        4. Permission-level: permission match, no tool constraints
 
         Args:
             user_id: User identifier
             permission_type: Permission type (e.g., 'code_interpreter', 'shell_exec')
             tool_name: Optional specific tool name for fine-grained matching
             tool_args_hash: Optional pre-computed hash for exact match (SHA256[:16])
+            command: Optional shell command for pattern matching
         """
         user_entries = self._entries.get(user_id, {})
         if not user_entries:
             return False
 
-        for entry in user_entries.values():
-            if entry.permission != permission_type:
-                continue
+        entries = list(user_entries.values())
 
-            if entry.tool_name is None:
+        for entry in entries:
+            if (
+                entry.permission == permission_type
+                and entry.tool_name == tool_name
+                and entry.tool_args_hash is not None
+                and entry.command_pattern is None
+                and entry.tool_args_hash == tool_args_hash
+            ):
                 return True
 
-            if tool_name == entry.tool_name and (
-                entry.tool_args_hash is None or entry.tool_args_hash == tool_args_hash
+        if command:
+            for entry in entries:
+                if (
+                    entry.permission == permission_type
+                    and entry.tool_name == tool_name
+                    and entry.command_pattern is not None
+                    and matches_command_pattern(entry.command_pattern, command)
+                ):
+                    return True
+
+        for entry in entries:
+            if (
+                entry.permission == permission_type
+                and entry.tool_name == tool_name
+                and entry.tool_args_hash is None
+                and entry.command_pattern is None
             ):
+                return True
+
+        for entry in entries:
+            if entry.permission == permission_type and entry.tool_name is None:
                 return True
 
         return False
@@ -213,7 +257,7 @@ class Allowlist:
         async with lock:
             if user_id not in self._entries:
                 self._entries[user_id] = {}
-            key = (entry.permission, entry.tool_name, entry.tool_args_hash)
+            key = (entry.permission, entry.tool_name, entry.tool_args_hash, entry.command_pattern)
 
             if key in self._entries[user_id]:
                 return
@@ -224,15 +268,21 @@ class Allowlist:
         if self._store:
             await self._store.save(user_id, entry)
         logger.info(
-            "[ALLOWLIST] Added (%s, tool=%s, args_hash=%s) for user %s",
+            "[ALLOWLIST] Added (%s, tool=%s, args_hash=%s, pattern=%s) for user %s",
             entry.permission,
             entry.tool_name,
             entry.tool_args_hash,
+            entry.command_pattern,
             user_id,
         )
 
     async def remove(
-        self, user_id: str, permission: str, tool_name: str | None = None, tool_args_hash: str | None = None
+        self,
+        user_id: str,
+        permission: str,
+        tool_name: str | None = None,
+        tool_args_hash: str | None = None,
+        command_pattern: str | None = None,
     ) -> None:
         """Remove an allow-always entry (concurrent-safe)."""
         if user_id in self._cache_meta:
@@ -245,12 +295,13 @@ class Allowlist:
                     if entry.permission == permission
                     and (tool_name is None or entry.tool_name == tool_name)
                     and (tool_args_hash is None or entry.tool_args_hash == tool_args_hash)
+                    and (command_pattern is None or entry.command_pattern == command_pattern)
                 ]
                 for key in keys_to_remove:
                     user_entries.pop(key, None)
 
         if self._store:
-            await self._store.remove(user_id, permission, tool_name, tool_args_hash)
+            await self._store.remove(user_id, permission, tool_name, tool_args_hash, command_pattern)
 
     async def clear_user(self, user_id: str) -> int:
         """Clear all allowlist entries for a user (concurrent-safe).
@@ -266,7 +317,13 @@ class Allowlist:
             entries_to_clear = list(self._entries[user_id].values())
 
         for entry in entries_to_clear:
-            await self.remove(user_id, entry.permission, entry.tool_name, entry.tool_args_hash)
+            await self.remove(
+                user_id,
+                entry.permission,
+                entry.tool_name,
+                entry.tool_args_hash,
+                entry.command_pattern,
+            )
 
         return len(entries_to_clear)
 

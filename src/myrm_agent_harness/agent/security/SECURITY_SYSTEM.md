@@ -567,13 +567,24 @@ class AllowlistEntry:
     permission: str           # 权限类型
     tool_name: str | None     # 可选：工具名（None=权限级别）
     tool_args_hash: str | None  # 可选：参数哈希（None=工具级别）
+    command_pattern: str | None  # 可选：shell 命令 glob（None=非模式条目）
     created_at: float
 ```
 
-**三级匹配粒度**：
-1. **权限级别**（`tool_name=None`）：匹配所有此权限类型的工具（如 `code_interpreter`）
-2. **工具级别**（`tool_name!=None, tool_args_hash=None`）：匹配特定工具名（如 `code_interpreter + bash_code_execute_tool`）
-3. **精确匹配**（`tool_name!=None, tool_args_hash!=None`）：匹配工具+参数哈希（最安全）
+**四级匹配粒度**：
+1. **精确匹配**（`tool_name!=None, tool_args_hash!=None`）：匹配工具+参数哈希
+2. **模式匹配**（`command_pattern!=None`）：glob 前缀匹配 shell 命令；复合 shell 永不命中
+3. **工具级别**（`tool_name!=None, tool_args_hash=None, command_pattern=None`）：匹配特定工具名
+4. **权限级别**（`tool_name=None`）：匹配所有此权限类型的工具
+
+**匹配优先级**（`Allowlist.check()`）：exact → pattern → tool → permission（deny 规则仍在 Layer 2 优先于 allowlist）
+
+**Shell 默认审批范围（前端）**：bash 工具「始终允许」默认选 **exact**（`defaultAllowAlwaysScope()`）；用户可改选 pattern / tool / permission。
+
+**模式推导**（`command_allowlist_pattern.py`）：
+- 单段命令 → 取前两 token + `*`（仅 1 token 时取 `{token} *`）
+- 复合命令 → 拒绝写入 pattern allowlist
+- 匹配使用 `fnmatchcase`；compound shell 在 `check()` 时跳过 pattern 命中
 
 **NULL 标准化机制**：
 - 数据库层面将 `tool_name=None` 和 `tool_args_hash=None` 标准化为空字符串 `''`
