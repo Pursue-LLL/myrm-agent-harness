@@ -7,11 +7,12 @@
 - utils.logger_utils (POS: 日志工具)
 
 [OUTPUT]
-- SubagentEventForwarder: 子agent事件转发器(14种事件类型自动转发及预算拦截)
+- SubagentEventForwarder: 子agent事件转发器(14种事件类型自动转发及预算拦截, staleness检测)
 - Running token_usage projection via SUBAGENT_PROGRESS + optional observability callback
+- Staleness detection: is_stale(), _check_and_emit_stale(), SUBAGENT_STALE event emission
 
 [POS]
-Subagent event forwarder. Translates subagent event types into SUBAGENT_PROGRESS (with running token_usage), SUBAGENT_LOG, UI_UPDATE, and ARTIFACT_CONTENT events.
+Subagent event forwarder. Translates subagent event types into SUBAGENT_PROGRESS, SUBAGENT_LOG, SUBAGENT_STALE, UI_UPDATE, and ARTIFACT_CONTENT events. Includes staleness detection with configurable thresholds.
 
 """
 

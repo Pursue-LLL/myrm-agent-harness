@@ -3,6 +3,7 @@
 
 Validates that every `@tool` / `BaseTool` subclass / middleware-renamed tool
 is registered in the harness `_TOOL_LAYERS` (or in the server bootstrap),
+enforces layer-product consistency (COMMON = default-on product IDs),
 detects orphan tool factories, and regenerates documentation count blocks.
 
 Usage:

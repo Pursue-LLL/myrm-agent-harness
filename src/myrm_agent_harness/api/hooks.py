@@ -35,6 +35,9 @@ from myrm_agent_harness.agent._skill_agent_context import (
 from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
     get_background_registry,
 )
+from myrm_agent_harness.agent.meta_tools.bash._background_registry_store_sync import (
+    persist_vault_log_ref,
+)
 from myrm_agent_harness.agent.meta_tools.bash._background_job_store import (
     configure_background_job_store,
     get_background_job_store,
@@ -83,6 +86,7 @@ __all__ = [
     "invalidate_permissions",
     "map_store_status_to_shell_task_status",
     "persist_extracted_memories",
+    "persist_vault_log_ref",
     "set_approval_user_id",
     "set_global_background_job_finish_handler",
     "set_permission_invalidation_callback",

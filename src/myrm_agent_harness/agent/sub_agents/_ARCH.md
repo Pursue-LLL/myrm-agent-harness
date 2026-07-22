@@ -14,7 +14,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | builder.py | Core | Subagent construction helpers — tool filtering via DelegationCapabilityManifest + delegation_policy, model resolution, token merge. | ✅ |
 | delegation_policy.py | Core | Server-extensible L1 leaf blocklist (`register_leaf_blocked_tools`). | ✅ |
 | config_loader.py | Config | External config loader. YAML validation (Pydantic + Action Tool SSOT + regex tool names). | ✅ |
-| event_forwarder.py | Core | Subagent event forwarder. Translates subagent events into progress and log events. | ✅ |
+| event_forwarder.py | Core | Subagent event forwarder. Translates subagent events into progress and log events. Includes staleness detection (`is_stale`, `_check_and_emit_stale`) with configurable thresholds and in-tool multiplier. | ✅ |
 | executor.py | Core | SubagentExecutor aggregate root (mixin MRO: Retry → Attempt → Delegation). Re-exports helper functions for tests and notifications. | ✅ |
 | executor_retry_mixin.py | Internal | Retry loop, workspace isolation, hooks, and graceful cancellation (`run_with_retry`). | ✅ |
 | executor_attempt_mixin.py | Internal | Single child-agent attempt: fork context, event forwarding, handover parsing, taint propagation (`_inherit_parent_context`, `_run_single_attempt`). | ✅ |
@@ -34,7 +34,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | _workspace_diff.py | Internal | Lightweight stat-based workspace file change detection for adversarial verification diff injection. | ✅ |
 | prompts.py | Core | Default prompt templates for multi-agent coordination. | ✅ |
 | registry.py | Core | Subagent configuration registry and loader. Provides global config registration and lookup. | ✅ |
-| types.py | Config | Subagent subsystem core type definitions. Defines all subagent-related data types, enums, protocols, DelegationCapabilityManifest, SubagentConfig (including `max_error_chars` for error compaction control), CouncilOpinion, and CouncilResult. | ✅ |
+| types.py | Config | Subagent subsystem core type definitions. Defines all subagent-related data types, enums, protocols, DelegationCapabilityManifest, SubagentConfig (including `max_error_chars` for error compaction control, `stale_after_seconds`/`in_tool_stale_multiplier`/`stale_auto_cancel` for staleness detection), CouncilOpinion, and CouncilResult. | ✅ |
 | workspace_isolation.py | Core | Workspace isolation for subagent execution. COW clone with ignore-pattern filtering (node_modules, .git, dist, etc.), max_bytes safety guard, and efficient file counting. | ✅ |
 
 **Tests mocking executor internals** must patch the defining module (e.g. `executor_attempt_mixin.build_child_agent`), not the aggregate `executor` module.

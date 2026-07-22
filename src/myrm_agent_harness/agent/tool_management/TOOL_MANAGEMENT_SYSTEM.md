@@ -161,7 +161,7 @@ python scripts/validate_tool_registry.py          # 注册一致性 + layer-prod
 python scripts/validate_tool_registry.py --generate-docs  # 刷新 TOOL_COUNT + LLM Tool Catalog 块
 ```
 
-全量扫描额外执行 `validate_layer_product_consistency()`（COMMON 层仅允许 default-on product_id）并与 server `DEFAULT_ENABLED_BUILTIN_TOOLS` 做 parity 校验。
+全量扫描额外执行 `validate_layer_product_consistency()`（COMMON 层仅允许 default-on product_id）并与 server `DEFAULT_ENABLED_BUILTIN_TOOLS` 做 parity 校验。**incremental/pre-commit 模式同样执行 layer-product 静态门禁**（见 `.pre-commit-config.yaml`）。
 
 ---
 

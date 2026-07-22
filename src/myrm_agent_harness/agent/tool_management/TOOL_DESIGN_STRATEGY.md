@@ -144,7 +144,7 @@ class ToolLayer(IntEnum):
 
 **唯一例外表** `EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS`：`ask_question_tool`（默认开 HITL/cache）、`conversation_search_tool`（legacy harness 测试；产品用 memory_search_tool）。
 
-新增 LLM 工具时必须同步：`register_tool_layer()` + product_id 映射 + 跑 `validate_tool_registry.py`。
+新增 LLM 工具时必须同步：`register_tool_layer()` + product_id 映射 + 跑 `validate_tool_registry.py`（含 pre-commit `--incremental` 静态层门禁）。
 
 ---
 
