@@ -76,8 +76,13 @@ class TestBuildPatchedMessages:
     def test_empty_messages(self) -> None:
         assert _build_patched_messages([]) is None
 
-    def test_no_id_in_tool_call_skipped(self) -> None:
+    def test_no_id_in_tool_call_sanitized(self) -> None:
+        """Tool calls without id are sanitized (removed), returning a cleaned message list."""
         ai_msg = AIMessage(content="")
         ai_msg.tool_calls = [{"name": "tool", "args": {}}]  # type: ignore[list-item]
         messages = [ai_msg]
-        assert _build_patched_messages(messages) is None
+        patched = _build_patched_messages(messages)
+        assert patched is not None
+        assert len(patched) == 1
+        assert isinstance(patched[0], AIMessage)
+        assert patched[0].tool_calls == []

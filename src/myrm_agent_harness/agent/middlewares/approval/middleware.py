@@ -52,6 +52,7 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     get_is_subagent,
     get_security_config,
     get_workspace_root,
+    set_security_config,
 )
 from myrm_agent_harness.agent.security.tool_registry import compute_canonical_args_hash
 from myrm_agent_harness.agent.security.types import RecentToolCall
@@ -72,7 +73,17 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
         """
         config = get_security_config()
         if config is None:
-            return None
+            from myrm_agent_harness.agent.security.channel_presets import (
+                build_channel_security_config,
+            )
+
+            logger.error(
+                "[SECURITY] security_config missing in async context — "
+                "applying fail-closed web_chat defaults (session=%s)",
+                get_approval_session(),
+            )
+            config = build_channel_security_config("web_chat", None, local_mode=True)
+            set_security_config(config)
 
         messages = state.get("messages", [])
         if not messages:

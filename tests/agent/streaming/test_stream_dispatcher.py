@@ -257,6 +257,28 @@ async def test_emit_event_with_event_logger(ctx):
 
 
 @pytest.mark.asyncio
+async def test_dispatch_updates_interrupt_tool_approval(ctx):
+    """__interrupt__ with actionRequests dispatches TOOL_APPROVAL_REQUEST."""
+    executor = _make_executor(ctx)
+
+    interrupt_obj = MagicMock()
+    interrupt_obj.value = {
+        "actionRequests": [{"action": "bash_code_execute_tool", "args": {"command": "curl example.com"}}],
+        "reviewConfigs": [{"type": "shell_exec"}],
+        "extensions": {"approval": {"requestId": "req-1"}},
+    }
+    data = {"__interrupt__": (interrupt_obj,)}
+    chunk = ("updates", data)
+
+    await executor._dispatch_chunk(chunk, ctx, [])
+
+    events = executor._compactor.events
+    assert any(
+        isinstance(e, AgentStreamEvent) and e.type == AgentEventType.TOOL_APPROVAL_REQUEST for e in events
+    )
+
+
+@pytest.mark.asyncio
 async def test_dispatch_updates_interrupt(ctx):
     """__interrupt__ in updates data dispatches APPROVAL_REQUIRED."""
     executor = _make_executor(ctx)

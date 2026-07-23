@@ -1,6 +1,5 @@
 """Tests for tool_layers module — tool layer priority registry."""
 
-
 from myrm_agent_harness.agent.tool_management.tool_layers import (
     _TOOL_LAYERS,
     ToolLayer,
@@ -53,7 +52,9 @@ class TestGetToolLayer:
             "browser_navigate_tool",
         ]
         for tool in extended_tools:
-            assert get_tool_layer(tool) == ToolLayer.EXTENDED, f"{tool} should be EXTENDED"
+            assert (
+                get_tool_layer(tool) == ToolLayer.EXTENDED
+            ), f"{tool} should be EXTENDED"
 
     def test_unknown_tool_defaults_to_extended(self):
         assert get_tool_layer("totally_unknown_tool") == ToolLayer.EXTENDED
@@ -96,10 +97,17 @@ class TestCommonLayerSortKey:
         from langchain_core.tools import StructuredTool
 
         def _tool(name: str) -> StructuredTool:
-            return StructuredTool.from_function(lambda: None, name=name, description="d")
+            return StructuredTool.from_function(
+                lambda: None, name=name, description="d"
+            )
 
         reg = ToolRegistry()
-        for name in ("web_search_tool", "memory_search_tool", "memory_save_tool", "memory_manage_tool"):
+        for name in (
+            "web_search_tool",
+            "memory_search_tool",
+            "memory_save_tool",
+            "memory_manage_tool",
+        ):
             reg.register(_tool(name), source=ToolSource.USER)
         names = [t.name for t in reg.resolve()]
         assert names.index("memory_manage_tool") < names.index("web_search_tool")

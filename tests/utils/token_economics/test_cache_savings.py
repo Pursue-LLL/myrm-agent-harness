@@ -1,10 +1,12 @@
 import sys
 import types
 
+import pytest
+
 from myrm_agent_harness.utils.token_economics.cache_savings import calculate_cache_savings_usd
 
 
-def setup_mock_litellm():
+def _make_mock_litellm() -> types.ModuleType:
     mock_litellm = types.ModuleType("litellm")
     mock_litellm.model_cost = {
         "claude-3-5-sonnet": {
@@ -18,12 +20,27 @@ def setup_mock_litellm():
             "output_cost_per_token": 0.000015,
         }
     }
-    # Mock litellm.get_model_info safely returning None if missing
+
     def mock_get_model_info(model_name: str) -> dict | None:
         return mock_litellm.model_cost.get(model_name)
     mock_litellm.get_model_info = mock_get_model_info
 
-    sys.modules["litellm"] = mock_litellm
+    return mock_litellm
+
+
+@pytest.fixture(autouse=True)
+def _restore_litellm():
+    """Ensure sys.modules['litellm'] is restored after each test."""
+    original = sys.modules.get("litellm")
+    yield
+    if original is not None:
+        sys.modules["litellm"] = original
+    else:
+        sys.modules.pop("litellm", None)
+
+
+def _install_mock_litellm() -> None:
+    sys.modules["litellm"] = _make_mock_litellm()
 
 
 def test_empty_model_returns_zero():
@@ -36,14 +53,14 @@ def test_empty_usage_returns_zero():
 
 
 def test_no_cached_tokens_returns_zero():
-    setup_mock_litellm()
+    _install_mock_litellm()
     usage = {"prompt_tokens_details": {"cached_tokens": 0, "cache_creation_input_tokens": 0}}
     assert calculate_cache_savings_usd(usage, "claude-3-5-sonnet") == 0.0
 
 
 def test_litellm_has_cache_read_cost():
     """When litellm provides explicit cache_read_input_token_cost, use it directly."""
-    setup_mock_litellm()
+    _install_mock_litellm()
 
     usage = {"prompt_tokens_details": {"cached_tokens": 1000, "cache_creation_input_tokens": 500}}
     savings = calculate_cache_savings_usd(usage, "claude-3-5-sonnet")
@@ -56,9 +73,8 @@ def test_litellm_has_cache_read_cost():
 
 def test_cache_savings_negative_roi():
     """Test that cache savings can be negative if write premium exceeds read savings."""
-    setup_mock_litellm()
+    _install_mock_litellm()
 
-    # Simulate 0 cached reads, but lots of cache creation
     usage = {
         "prompt_tokens_details": {
             "cached_tokens": 0,
@@ -76,23 +92,16 @@ def test_cache_savings_negative_roi():
 
 def test_model_no_cache_cost_returns_zero():
     """When model does not have cache read cost defined, return 0 strictly."""
-    setup_mock_litellm()
+    _install_mock_litellm()
     usage = {"prompt_tokens_details": {"cached_tokens": 1000}}
     assert calculate_cache_savings_usd(usage, "model-no-cache-cost") == 0.0
 
 
 def test_litellm_import_error():
     """When litellm import fails entirely, return 0.0."""
-    original = sys.modules.get("litellm")
     sys.modules["litellm"] = None  # type: ignore[assignment]
-    try:
-        usage = {"prompt_tokens_details": {"cached_tokens": 500}}
-        assert calculate_cache_savings_usd(usage, "claude-3-5-sonnet") == 0.0
-    finally:
-        if original is not None:
-            sys.modules["litellm"] = original
-        else:
-            sys.modules.pop("litellm", None)
+    usage = {"prompt_tokens_details": {"cached_tokens": 500}}
+    assert calculate_cache_savings_usd(usage, "claude-3-5-sonnet") == 0.0
 
 
 def test_model_alias_not_found_returns_zero():

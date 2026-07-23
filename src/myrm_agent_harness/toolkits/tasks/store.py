@@ -44,6 +44,11 @@ _ALLOWED_ORDER_COLUMNS = {
     "task_id",
 }
 _ALLOWED_ORDER_DIRECTIONS = {"ASC", "DESC"}
+_TERMINAL_STATUS_VALUES = {
+    TaskStatus.SUCCEEDED.value,
+    TaskStatus.FAILED.value,
+    TaskStatus.CANCELLED.value,
+}
 
 
 def _sanitize_order_by(order_by: str) -> str:
@@ -68,6 +73,14 @@ def _sanitize_order_by(order_by: str) -> str:
     return f"{column} {direction_normalized}"
 
 
+def _is_terminal_status(status: TaskStatus | str | None) -> bool:
+    if status is None:
+        return False
+    if isinstance(status, TaskStatus):
+        return status.value in _TERMINAL_STATUS_VALUES
+    return status.lower() in _TERMINAL_STATUS_VALUES
+
+
 class TaskFilters:
     """Filters for querying tasks."""
 
@@ -79,6 +92,7 @@ class TaskFilters:
         tags: list[str] | None = None,
         created_after: datetime | None = None,
         created_before: datetime | None = None,
+        ready_before: datetime | None = None,
         limit: int = 100,
         offset: int = 0,
         order_by: str = _DEFAULT_ORDER_BY,
@@ -90,6 +104,7 @@ class TaskFilters:
         self.tags = tags
         self.created_after = created_after
         self.created_before = created_before
+        self.ready_before = ready_before
         self.limit = limit
         self.offset = offset
         self.order_by = _sanitize_order_by(order_by)
@@ -264,7 +279,7 @@ class SQLiteTaskStore:
             for key, value in updates.items():
                 if key == "status":
                     set_parts.append("status = ?")
-                    values.append(value.value if isinstance(value, TaskStatus) else value)
+                    values.append(value.value if isinstance(value, TaskStatus) else str(value).lower())
                 elif key == "error":
                     set_parts.extend(
                         [
@@ -306,6 +321,10 @@ class SQLiteTaskStore:
                 else:
                     set_parts.append(f"{key} = ?")
                     values.append(value)
+
+            if "next_retry_at" not in updates and _is_terminal_status(updates.get("status")):
+                set_parts.append("next_retry_at = ?")
+                values.append(None)
 
             set_parts.append("updated_at = ?")
             values.append(datetime.now(UTC).isoformat())
@@ -353,6 +372,10 @@ class SQLiteTaskStore:
             if filters.created_before:
                 where_parts.append("created_at <= ?")
                 values.append(filters.created_before.isoformat())
+
+            if filters.ready_before:
+                where_parts.append("(next_retry_at IS NULL OR next_retry_at <= ?)")
+                values.append(filters.ready_before.isoformat())
 
             # TODO: Tag filtering requires JSON query (not efficient in SQLite)
 

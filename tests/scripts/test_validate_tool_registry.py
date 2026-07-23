@@ -31,7 +31,9 @@ def _decl(name: str, file: str = "/a.py", line: int = 1) -> ToolDeclaration:
     return ToolDeclaration(name=name, kind="decorator", file=Path(file), line=line)
 
 
-def test_build_doc_block_emits_canonical_markers_and_breakdown(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_doc_block_emits_canonical_markers_and_breakdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Marker fences must be exact strings so re-runs are idempotent."""
     import scripts.validate_tool_registry as cli
 
@@ -110,7 +112,9 @@ def test_format_report_pass_path(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "PASS - tool registry consistent" in out
 
 
-def test_format_report_reports_missing_with_owner_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_format_report_reports_missing_with_owner_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import scripts.validate_tool_registry as cli
 
     monkeypatch.setattr(
@@ -118,14 +122,20 @@ def test_format_report_reports_missing_with_owner_metadata(monkeypatch: pytest.M
     )
     src_file = _repo_root / "scripts" / "tool_registry_models.py"
     report = ScanReport(
-        declarations=[ToolDeclaration(name="never_registered", kind="decorator", file=src_file, line=10)],
+        declarations=[
+            ToolDeclaration(
+                name="never_registered", kind="decorator", file=src_file, line=10
+            )
+        ],
         registered_names=set(),
     )
     out = _format_report(report)
     assert "FAIL" in out and "never_registered" in out
 
 
-def test_format_report_incremental_suppresses_ghost_and_orphan(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_format_report_incremental_suppresses_ghost_and_orphan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Incremental scan only sees a subset of files, so ghost/orphan would be
     misleading false positives — they must be silently suppressed."""
     import scripts.validate_tool_registry as cli
@@ -173,7 +183,9 @@ def test_format_report_reports_ghosts_and_orphans_and_duplicates(
     assert "FAIL" in out
 
 
-def _run_main(monkeypatch: pytest.MonkeyPatch, argv: list[str], **scan_kwargs: object) -> tuple[int, str, str]:
+def _run_main(
+    monkeypatch: pytest.MonkeyPatch, argv: list[str], **scan_kwargs: object
+) -> tuple[int, str, str]:
     """Drive `main()` with synthetic argv and a stubbed `scan()`."""
     import scripts.validate_tool_registry as cli
 
@@ -207,7 +219,10 @@ def test_main_incremental_runs_layer_product_gate(
 ) -> None:
     """Incremental pre-commit must still fail on invalid COMMON layer assignments."""
     import scripts.validate_tool_registry as cli
-    from myrm_agent_harness.agent.tool_management.tool_layers import ToolLayer, _TOOL_LAYERS
+    from myrm_agent_harness.agent.tool_management.tool_layers import (
+        ToolLayer,
+        _TOOL_LAYERS,
+    )
 
     bad_layers = dict(_TOOL_LAYERS)
     bad_layers["todo_write"] = ToolLayer.COMMON
@@ -224,7 +239,9 @@ def test_main_incremental_runs_layer_product_gate(
     assert "tool catalog metadata" in out.lower() or "COMMON" in out
 
 
-def test_main_full_pass(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_main_full_pass(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     rc, out, _ = _run_main(
         monkeypatch,
         [],
@@ -293,7 +310,9 @@ def test_layer_counts_aggregates_registered_layers() -> None:
     assert counts["CORE"] >= 7
     assert counts["COMMON"] >= 4
     assert counts["EXTENDED"] >= 40
-    assert sum(counts.values()) == counts["CORE"] + counts["COMMON"] + counts["EXTENDED"]
+    assert (
+        sum(counts.values()) == counts["CORE"] + counts["COMMON"] + counts["EXTENDED"]
+    )
 
 
 def test_load_registry_metadata_keys_includes_todo_write() -> None:
@@ -356,12 +375,17 @@ def test_main_prints_catalog_and_parity_errors(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     import scripts.validate_tool_registry as cli
-    from myrm_agent_harness.agent.tool_management.tool_layers import ToolLayer, _TOOL_LAYERS
+    from myrm_agent_harness.agent.tool_management.tool_layers import (
+        ToolLayer,
+        _TOOL_LAYERS,
+    )
 
     bad_layers = dict(_TOOL_LAYERS)
     bad_layers["todo_write"] = ToolLayer.COMMON
     monkeypatch.setattr(cli, "load_registered_layers", lambda: bad_layers)
-    monkeypatch.setattr(cli, "_check_default_enabled_product_parity", lambda: ["parity drift"])
+    monkeypatch.setattr(
+        cli, "_check_default_enabled_product_parity", lambda: ["parity drift"]
+    )
     rc, out, _ = _run_main(
         monkeypatch,
         [],
@@ -379,9 +403,7 @@ def test_main_generate_docs_already_up_to_date(
     import scripts.validate_tool_registry as cli
 
     good_doc = tmp_path / "good.md"
-    good_doc.write_text(
-        f"intro\n{_BLOCK_BEGIN}\nplaceholder\n{_BLOCK_END}\noutro\n"
-    )
+    good_doc.write_text(f"intro\n{_BLOCK_BEGIN}\nplaceholder\n{_BLOCK_END}\noutro\n")
     catalog_doc = tmp_path / "catalog.md"
     catalog_doc.write_text(
         "intro\n<!-- TOOL_CATALOG_BEGIN -->\nplaceholder\n<!-- TOOL_CATALOG_END -->\n"
@@ -414,7 +436,9 @@ def test_main_generate_docs_rewrites_existing_marker_block(
     good_doc.write_text(f"intro\n{_BLOCK_BEGIN}\nold body\n{_BLOCK_END}\noutro\n")
     monkeypatch.setattr(cli, "_COUNT_DOC_TARGETS", (good_doc,))
     catalog_doc = tmp_path / "catalog.md"
-    catalog_doc.write_text("intro\n<!-- TOOL_CATALOG_BEGIN -->\nold\n<!-- TOOL_CATALOG_END -->\n")
+    catalog_doc.write_text(
+        "intro\n<!-- TOOL_CATALOG_BEGIN -->\nold\n<!-- TOOL_CATALOG_END -->\n"
+    )
     monkeypatch.setattr(cli, "_CATALOG_DOC_TARGET", catalog_doc)
     rc, out, _ = _run_main(
         monkeypatch,

@@ -118,6 +118,16 @@ class StreamDispatcherMixin:
                             },
                             ctx,
                         )
+                    elif isinstance(interrupt_val.get("actionRequests"), list) and interrupt_val["actionRequests"]:
+                        logger.warning(" Agent execution suspended for tool approval")
+                        await self._emit_event(
+                            {
+                                "type": AgentEventType.TOOL_APPROVAL_REQUEST.value,
+                                "data": interrupt_val,
+                                "messageId": ctx.message_id,
+                            },
+                            ctx,
+                        )
                     else:
                         logger.warning(" Agent execution suspended for approval")
                         await self._emit_event(

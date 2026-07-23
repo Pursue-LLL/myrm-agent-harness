@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
+import litellm
+
 from myrm_agent_harness.utils.token_economics.cost_engine import (
     CostResult,
     CostStatus,
@@ -35,47 +37,23 @@ class TestComputeCost:
         assert compute_cost(MagicMock(), "") == CostResult()
 
     def test_positive_cost_returns_actual(self) -> None:
-        try:
-            import litellm
-            with patch.object(litellm, "completion_cost", return_value=0.0025) as mock_cc:
-                resp = MagicMock()
-                result = compute_cost(resp, "gpt-4o")
-                assert result.usd == 0.0025
-                assert result.status == CostStatus.ACTUAL
-                mock_cc.assert_called_once_with(completion_response=resp, model="gpt-4o")
-        except (ImportError, AttributeError):
-            with patch("myrm_agent_harness.utils.token_economics.cost_engine.litellm") as mock_llm:
-                mock_llm.completion_cost.return_value = 0.0025
-                resp = MagicMock()
-                result = compute_cost(resp, "gpt-4o")
-                assert result.usd == 0.0025
-                assert result.status == CostStatus.ACTUAL
+        with patch.object(litellm, "completion_cost", return_value=0.0025) as mock_cc:
+            resp = MagicMock()
+            result = compute_cost(resp, "gpt-4o")
+            assert result.usd == 0.0025
+            assert result.status == CostStatus.ACTUAL
+            mock_cc.assert_called_once_with(completion_response=resp, model="gpt-4o")
 
     def test_zero_cost_returns_unknown(self) -> None:
-        try:
-            import litellm
-            with patch.object(litellm, "completion_cost", return_value=0.0):
-                result = compute_cost(MagicMock(), "gpt-4o")
-                assert result.usd == 0.0
-                assert result.status == CostStatus.UNKNOWN
-        except (ImportError, AttributeError):
-            with patch("myrm_agent_harness.utils.token_economics.cost_engine.litellm") as mock_llm:
-                mock_llm.completion_cost.return_value = 0.0
-                result = compute_cost(MagicMock(), "gpt-4o")
-                assert result.usd == 0.0
-                assert result.status == CostStatus.UNKNOWN
+        with patch.object(litellm, "completion_cost", return_value=0.0):
+            result = compute_cost(MagicMock(), "gpt-4o")
+            assert result.usd == 0.0
+            assert result.status == CostStatus.UNKNOWN
 
     def test_exception_returns_unknown(self) -> None:
-        try:
-            import litellm
-            with patch.object(litellm, "completion_cost", side_effect=ValueError("model not found")):
-                result = compute_cost(MagicMock(), "unknown-model")
-                assert result == CostResult()
-        except (ImportError, AttributeError):
-            with patch("myrm_agent_harness.utils.token_economics.cost_engine.litellm") as mock_llm:
-                mock_llm.completion_cost.side_effect = ValueError("model not found")
-                result = compute_cost(MagicMock(), "unknown-model")
-                assert result == CostResult()
+        with patch.object(litellm, "completion_cost", side_effect=ValueError("model not found")):
+            result = compute_cost(MagicMock(), "unknown-model")
+            assert result == CostResult()
 
 
 class TestComputeCostByTokens:
@@ -88,70 +66,33 @@ class TestComputeCostByTokens:
         assert compute_cost_by_tokens("gpt-4o", -1, -1) == CostResult()
 
     def test_positive_cost_returns_actual(self) -> None:
-        try:
-            import litellm
-            with patch.object(litellm, "completion_cost", return_value=0.005) as mock_cc:
-                result = compute_cost_by_tokens("claude-3.5-sonnet", 1000, 500)
-                assert result.usd == 0.005
-                assert result.status == CostStatus.ACTUAL
-                mock_cc.assert_called_once_with(
-                    model="claude-3.5-sonnet",
-                    prompt_tokens=1000,
-                    completion_tokens=500,
-                )
-        except (ImportError, AttributeError):
-            with patch("myrm_agent_harness.utils.token_economics.cost_engine.litellm") as mock_llm:
-                mock_llm.completion_cost.return_value = 0.005
-                result = compute_cost_by_tokens("claude-3.5-sonnet", 1000, 500)
-                assert result.usd == 0.005
-                assert result.status == CostStatus.ACTUAL
+        with patch.object(litellm, "completion_cost", return_value=0.005) as mock_cc:
+            result = compute_cost_by_tokens("claude-3.5-sonnet", 1000, 500)
+            assert result.usd == 0.005
+            assert result.status == CostStatus.ACTUAL
+            mock_cc.assert_called_once_with(
+                model="claude-3.5-sonnet",
+                prompt_tokens=1000,
+                completion_tokens=500,
+            )
 
     def test_zero_cost_returns_unknown(self) -> None:
-        try:
-            import litellm
-            with patch.object(litellm, "completion_cost", return_value=0.0):
-                result = compute_cost_by_tokens("gpt-4o", 100, 50)
-                assert result.usd == 0.0
-                assert result.status == CostStatus.UNKNOWN
-        except (ImportError, AttributeError):
-            with patch("myrm_agent_harness.utils.token_economics.cost_engine.litellm") as mock_llm:
-                mock_llm.completion_cost.return_value = 0.0
-                result = compute_cost_by_tokens("gpt-4o", 100, 50)
-                assert result.usd == 0.0
-                assert result.status == CostStatus.UNKNOWN
+        with patch.object(litellm, "completion_cost", return_value=0.0):
+            result = compute_cost_by_tokens("gpt-4o", 100, 50)
+            assert result.usd == 0.0
+            assert result.status == CostStatus.UNKNOWN
 
     def test_exception_returns_unknown(self) -> None:
-        try:
-            import litellm
-            with patch.object(litellm, "completion_cost", side_effect=RuntimeError("API error")):
-                result = compute_cost_by_tokens("unknown-model", 100, 50)
-                assert result == CostResult()
-        except (ImportError, AttributeError):
-            with patch("myrm_agent_harness.utils.token_economics.cost_engine.litellm") as mock_llm:
-                mock_llm.completion_cost.side_effect = RuntimeError("API error")
-                result = compute_cost_by_tokens("unknown-model", 100, 50)
-                assert result == CostResult()
+        with patch.object(litellm, "completion_cost", side_effect=RuntimeError("API error")):
+            result = compute_cost_by_tokens("unknown-model", 100, 50)
+            assert result == CostResult()
 
     def test_only_prompt_tokens(self) -> None:
-        try:
-            import litellm
-            with patch.object(litellm, "completion_cost", return_value=0.001):
-                result = compute_cost_by_tokens("gpt-4o", 100, 0)
-                assert result.status == CostStatus.ACTUAL
-        except (ImportError, AttributeError):
-            with patch("myrm_agent_harness.utils.token_economics.cost_engine.litellm") as mock_llm:
-                mock_llm.completion_cost.return_value = 0.001
-                result = compute_cost_by_tokens("gpt-4o", 100, 0)
-                assert result.status == CostStatus.ACTUAL
+        with patch.object(litellm, "completion_cost", return_value=0.001):
+            result = compute_cost_by_tokens("gpt-4o", 100, 0)
+            assert result.status == CostStatus.ACTUAL
 
     def test_only_completion_tokens(self) -> None:
-        try:
-            import litellm
-            with patch.object(litellm, "completion_cost", return_value=0.002):
-                result = compute_cost_by_tokens("gpt-4o", 0, 100)
-                assert result.status == CostStatus.ACTUAL
-        except (ImportError, AttributeError):
-            with patch("myrm_agent_harness.utils.token_economics.cost_engine.litellm") as mock_llm:
-                mock_llm.completion_cost.return_value = 0.002
-                result = compute_cost_by_tokens("gpt-4o", 0, 100)
-                assert result.status == CostStatus.ACTUAL
+        with patch.object(litellm, "completion_cost", return_value=0.002):
+            result = compute_cost_by_tokens("gpt-4o", 0, 100)
+            assert result.status == CostStatus.ACTUAL

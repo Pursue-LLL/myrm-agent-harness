@@ -171,7 +171,19 @@ async def run_agent_loop(
         if timezone:
             set_user_timezone(timezone)
 
-        set_security_config(agent_state.config.security_config)
+        runtime_security = agent_state.config.security_config
+        if runtime_security is None:
+            from myrm_agent_harness.agent.security.channel_presets import (
+                build_channel_security_config,
+            )
+
+            channel = agent_state.config.channel_name or "web_chat"
+            logger.error(
+                "security_config missing on agent.config — applying fail-closed defaults (channel=%s)",
+                channel,
+            )
+            runtime_security = build_channel_security_config(channel, None, local_mode=True)
+        set_security_config(runtime_security)
         from myrm_agent_harness.agent.middlewares._session_context import (
             set_active_message_id,
         )

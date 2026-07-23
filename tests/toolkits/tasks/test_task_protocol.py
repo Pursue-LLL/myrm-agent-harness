@@ -1,6 +1,7 @@
 """Tests for Task protocol and Task dataclass."""
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 
 from myrm_agent_harness.toolkits.tasks import (
     ErrorRecoverability,
@@ -9,6 +10,10 @@ from myrm_agent_harness.toolkits.tasks import (
     TaskError,
     TaskStatus,
 )
+
+
+def _future_retry_at() -> datetime:
+    return datetime.now(UTC) + timedelta(minutes=5)
 
 
 def test_task_creation():
@@ -96,6 +101,7 @@ def test_task_mark_succeeded():
         user_id="u1",
         status=TaskStatus.RUNNING,
         payload={},
+        next_retry_at=_future_retry_at(),
     )
 
     result = {"output": "success"}
@@ -104,6 +110,7 @@ def test_task_mark_succeeded():
     assert task.status == TaskStatus.SUCCEEDED
     assert task.result == result
     assert task.progress == 1.0
+    assert task.next_retry_at is None
     assert task.completed_at is not None
 
 
@@ -115,6 +122,7 @@ def test_task_mark_failed():
         user_id="u1",
         status=TaskStatus.RUNNING,
         payload={},
+        next_retry_at=_future_retry_at(),
     )
 
     error = TaskError(
@@ -126,6 +134,7 @@ def test_task_mark_failed():
 
     assert task.status == TaskStatus.FAILED
     assert task.error == error
+    assert task.next_retry_at is None
     assert task.completed_at is not None
 
 
@@ -137,12 +146,14 @@ def test_task_mark_cancelled():
         user_id="u1",
         status=TaskStatus.RUNNING,
         payload={},
+        next_retry_at=_future_retry_at(),
     )
 
     task.mark_cancelled(reason="User cancelled")
 
     assert task.status == TaskStatus.CANCELLED
     assert task.cancellation_reason == "User cancelled"
+    assert task.next_retry_at is None
     assert task.completed_at is not None
 
 

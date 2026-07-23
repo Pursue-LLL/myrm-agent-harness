@@ -46,7 +46,9 @@ from myrm_agent_harness.agent.meta_tools.bash._background_job_store_core import 
     BackgroundJobRecord,
     map_store_status_to_shell_task_status,
 )
-from myrm_agent_harness.agent.meta_tools.bash._background_types import BackgroundProcessInfo
+from myrm_agent_harness.agent.meta_tools.bash._background_types import (
+    BackgroundProcessInfo,
+)
 from myrm_agent_harness.agent.middlewares._session_context import (
     get_event_logger,
     get_terminal_errors,

@@ -167,6 +167,7 @@ class Task:
         self.status = TaskStatus.SUCCEEDED
         self.result = result
         self.progress = 1.0
+        self.next_retry_at = None
         self.completed_at = datetime.now(UTC)
         self.updated_at = self.completed_at
 
@@ -174,6 +175,7 @@ class Task:
         """Mark task as failed."""
         self.status = TaskStatus.FAILED
         self.error = error
+        self.next_retry_at = None
         self.completed_at = datetime.now(UTC)
         self.updated_at = self.completed_at
 
@@ -181,6 +183,7 @@ class Task:
         """Mark task as cancelled."""
         self.status = TaskStatus.CANCELLED
         self.cancellation_reason = reason
+        self.next_retry_at = None
         self.completed_at = datetime.now(UTC)
         self.updated_at = self.completed_at
 

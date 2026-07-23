@@ -75,6 +75,28 @@ async def test_update_task(temp_store):
 
 
 @pytest.mark.asyncio
+async def test_update_task_normalizes_status_string_values(temp_store):
+    """String status values are normalized to lowercase enum values."""
+    task = Task(
+        task_id="test-002-normalize",
+        task_type="image_generate",
+        user_id="user-123",
+        status=TaskStatus.PENDING,
+        payload={},
+    )
+    await temp_store.create_task(task)
+
+    await temp_store.update_task(
+        "test-002-normalize",
+        status="FAILED",
+    )
+
+    updated = await temp_store.get_task("test-002-normalize")
+    assert updated is not None
+    assert updated.status == TaskStatus.FAILED
+
+
+@pytest.mark.asyncio
 async def test_list_tasks_with_filters(temp_store):
     """Test listing tasks with filters."""
     tasks = [
@@ -102,6 +124,48 @@ async def test_list_tasks_with_filters(temp_store):
     selected = await temp_store.list_tasks(TaskFilters(task_ids=["t1", "t3"]))
     assert len(selected) == 2
     assert {task.task_id for task in selected} == {"t1", "t3"}
+
+
+@pytest.mark.asyncio
+async def test_list_tasks_ready_before_filter(temp_store):
+    """ready_before excludes pending tasks scheduled for future retry."""
+    now = datetime.now(UTC)
+    tasks = [
+        Task(
+            task_id="ready-immediate",
+            task_type="image_generate",
+            user_id="user-1",
+            status=TaskStatus.PENDING,
+            payload={},
+        ),
+        Task(
+            task_id="ready-due",
+            task_type="image_generate",
+            user_id="user-1",
+            status=TaskStatus.PENDING,
+            payload={},
+            next_retry_at=now - timedelta(seconds=10),
+        ),
+        Task(
+            task_id="ready-future",
+            task_type="image_generate",
+            user_id="user-1",
+            status=TaskStatus.PENDING,
+            payload={},
+            next_retry_at=now + timedelta(minutes=5),
+        ),
+    ]
+    for task in tasks:
+        await temp_store.create_task(task)
+
+    ready = await temp_store.list_tasks(
+        TaskFilters(
+            status=TaskStatus.PENDING,
+            ready_before=now,
+            order_by="task_id ASC",
+        )
+    )
+    assert [task.task_id for task in ready] == ["ready-due", "ready-immediate"]
 
 
 @pytest.mark.asyncio
@@ -273,6 +337,32 @@ async def test_update_task_can_clear_result_as_sql_null(temp_store):
         conn.close()
     assert row is not None
     assert row["result"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_task_terminal_status_clears_next_retry_at_by_default(temp_store):
+    """Terminal status update clears stale next_retry_at when omitted."""
+    scheduled_retry = datetime.now(UTC) + timedelta(minutes=5)
+    task = Task(
+        task_id="test-terminal-clear-next-retry",
+        task_type="image_generate",
+        user_id="user-123",
+        status=TaskStatus.PENDING,
+        payload={},
+        next_retry_at=scheduled_retry,
+    )
+    await temp_store.create_task(task)
+
+    await temp_store.update_task(
+        "test-terminal-clear-next-retry",
+        status=TaskStatus.SUCCEEDED,
+        result={"ok": True},
+    )
+
+    updated = await temp_store.get_task("test-terminal-clear-next-retry")
+    assert updated is not None
+    assert updated.status == TaskStatus.SUCCEEDED
+    assert updated.next_retry_at is None
 
 
 @pytest.mark.asyncio

@@ -25,7 +25,10 @@ from enum import StrEnum
 from myrm_agent_harness.agent.meta_tools.discover_capability.capability_gap import (
     BUILTIN_TOOL_ID_TO_GROUP,
 )
-from myrm_agent_harness.agent.tool_management.tool_layers import ToolLayer, get_tool_layer
+from myrm_agent_harness.agent.tool_management.tool_layers import (
+    ToolLayer,
+    get_tool_layer,
+)
 from myrm_agent_harness.core.security.tool_registry import TOOL_TO_GROUP
 
 
@@ -91,26 +94,32 @@ _DEFAULT_LOAD_BY_LAYER: dict[ToolLayer, str] = {
 
 # SSOT for layer-product CI gate; aligned with server ``builtin_tool_ids.py``
 # ``DEFAULT_ENABLED_BUILTIN_TOOLS`` and frontend ``DEFAULT_ENABLED_BUILTIN_TOOLS``.
-DEFAULT_ENABLED_PRODUCT_IDS: frozenset[str] = frozenset({
-    "web_search",
-    "memory",
-    "structured_clarify",
-})
+DEFAULT_ENABLED_PRODUCT_IDS: frozenset[str] = frozenset(
+    {
+        "web_search",
+        "memory",
+        "structured_clarify",
+    }
+)
 
-CORE_ACTION_TOOL_NAMES: frozenset[str] = frozenset({
-    "web_fetch_tool",
-    "bash_code_execute_tool",
-    "file_edit_tool",
-    "file_read_tool",
-    "file_write_tool",
-    "glob_tool",
-    "grep_tool",
-})
+CORE_ACTION_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "web_fetch_tool",
+        "bash_code_execute_tool",
+        "file_edit_tool",
+        "file_read_tool",
+        "file_write_tool",
+        "glob_tool",
+        "grep_tool",
+    }
+)
 
-EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS: frozenset[str] = frozenset({
-    "ask_question_tool",
-    "conversation_search_tool",
-})
+EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS: frozenset[str] = frozenset(
+    {
+        "ask_question_tool",
+        "conversation_search_tool",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,7 +166,9 @@ def get_tool_load_condition(tool_name: str, *, layer: ToolLayer | None = None) -
     return _DEFAULT_LOAD_BY_LAYER.get(resolved_layer, "Opt-in; see factory wiring")
 
 
-def build_tool_catalog_row(tool_name: str, *, layer: ToolLayer | None = None) -> ToolCatalogRow:
+def build_tool_catalog_row(
+    tool_name: str, *, layer: ToolLayer | None = None
+) -> ToolCatalogRow:
     """Build a catalog row for one Action Tool name."""
     resolved_layer = layer if layer is not None else get_tool_layer(tool_name)
     return ToolCatalogRow(
@@ -175,7 +186,9 @@ def _coerce_layer(layer: ToolLayer | str) -> ToolLayer:
     return ToolLayer[str(layer)]
 
 
-def build_tool_catalog_rows(registered: dict[str, ToolLayer | str]) -> list[ToolCatalogRow]:
+def build_tool_catalog_rows(
+    registered: dict[str, ToolLayer | str],
+) -> list[ToolCatalogRow]:
     """Sorted catalog rows for all Action Tool names in _TOOL_LAYERS."""
     rows = [
         build_tool_catalog_row(name, layer=_coerce_layer(layer))
@@ -195,7 +208,9 @@ def validate_layer_product_consistency(
     errors: list[str] = []
 
     core_registered = {
-        name for name, layer in registered.items() if _coerce_layer(layer) == ToolLayer.CORE
+        name
+        for name, layer in registered.items()
+        if _coerce_layer(layer) == ToolLayer.CORE
     }
     if core_registered != CORE_ACTION_TOOL_NAMES:
         missing = sorted(CORE_ACTION_TOOL_NAMES - core_registered)
@@ -218,7 +233,9 @@ def validate_layer_product_consistency(
 
         if layer == ToolLayer.COMMON:
             if product_id is None:
-                errors.append(f"{name}: COMMON layer tools must map to a GUI product_id")
+                errors.append(
+                    f"{name}: COMMON layer tools must map to a GUI product_id"
+                )
             elif product_id not in defaults:
                 errors.append(
                     f"{name}: COMMON layer requires default-on product_id "

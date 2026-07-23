@@ -234,3 +234,321 @@ class TestParentProgressSink:
         data = emitted[0]["data"]
         assert data.get("error") == "[SYSTEM_ENFORCED] denied"
         assert data.get("level") == "ERROR"
+
+
+# ---------------------------------------------------------------------------
+# Staleness Detection Tests
+# ---------------------------------------------------------------------------
+
+
+class TestStalenessInit:
+    """Test staleness-related fields are properly initialized."""
+
+    def test_init_staleness_state(self, event_forwarder: SubagentEventForwarder) -> None:
+        assert event_forwarder._last_effective_progress_at == 0.0  # matches start_time
+        assert event_forwarder._in_tool is False
+        assert event_forwarder._stale_emitted is False
+
+    def test_is_stale_false_initially(self, basic_config: SubagentConfig) -> None:
+        import time as _time
+
+        now = _time.time()
+        forwarder = SubagentEventForwarder(
+            task_id="t", agent_type="w", config=basic_config, start_time=now,
+        )
+        assert forwarder.is_stale() is False
+
+
+class TestStalenessConfig:
+    """Test SubagentConfig staleness defaults and custom values."""
+
+    def test_stale_config_defaults(self) -> None:
+        cfg = SubagentConfig(system_prompt="sys")
+        assert cfg.stale_after_seconds == 300
+        assert cfg.in_tool_stale_multiplier == 4
+        assert cfg.stale_auto_cancel is False
+
+    def test_custom_stale_config(self) -> None:
+        cfg = SubagentConfig(
+            system_prompt="sys",
+            stale_after_seconds=60,
+            in_tool_stale_multiplier=2,
+            stale_auto_cancel=True,
+        )
+        assert cfg.stale_after_seconds == 60
+        assert cfg.in_tool_stale_multiplier == 2
+        assert cfg.stale_auto_cancel is True
+
+
+class TestIsStale:
+    """Test is_stale() threshold logic."""
+
+    def test_stale_after_threshold(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        cfg = SubagentConfig(system_prompt="sys", stale_after_seconds=10)
+        forwarder = SubagentEventForwarder(
+            task_id="t", agent_type="w", config=cfg, start_time=100.0,
+        )
+        # At t=100, last_effective=100, so (100-100)=0 < 10 → not stale
+        monkeypatch.setattr("time.time", lambda: 100.0)
+        assert forwarder.is_stale() is False
+
+        # At t=111, (111-100)=11 > 10 → stale
+        monkeypatch.setattr("time.time", lambda: 111.0)
+        assert forwarder.is_stale() is True
+
+    def test_in_tool_multiplier(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        cfg = SubagentConfig(
+            system_prompt="sys", stale_after_seconds=10, in_tool_stale_multiplier=3,
+        )
+        forwarder = SubagentEventForwarder(
+            task_id="t", agent_type="w", config=cfg, start_time=100.0,
+        )
+        forwarder._in_tool = True
+
+        # threshold = 10 * 3 = 30; at t=125 → (125-100)=25 < 30 → not stale
+        monkeypatch.setattr("time.time", lambda: 125.0)
+        assert forwarder.is_stale() is False
+
+        # at t=131 → (131-100)=31 > 30 → stale
+        monkeypatch.setattr("time.time", lambda: 131.0)
+        assert forwarder.is_stale() is True
+
+
+class TestMarkProgress:
+    """Test _mark_progress() resets staleness tracking."""
+
+    def test_mark_progress_resets_stale(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        cfg = SubagentConfig(system_prompt="sys", stale_after_seconds=10)
+        forwarder = SubagentEventForwarder(
+            task_id="t", agent_type="w", config=cfg, start_time=100.0,
+        )
+        # Simulate stale state
+        forwarder._stale_emitted = True
+
+        monkeypatch.setattr("time.time", lambda: 200.0)
+        forwarder._mark_progress()
+
+        assert forwarder._last_effective_progress_at == 200.0
+        assert forwarder._stale_emitted is False
+
+        # Should not be stale immediately after progress
+        monkeypatch.setattr("time.time", lambda: 205.0)
+        assert forwarder.is_stale() is False
+
+
+class TestStaleEventEmission:
+    """Test _check_and_emit_stale() event emission behavior."""
+
+    @pytest.mark.asyncio
+    async def test_stale_emitted_once(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """SUBAGENT_STALE should fire exactly once until progress resets it."""
+        cfg = SubagentConfig(system_prompt="sys", stale_after_seconds=5)
+        emitted: list[dict] = []
+
+        class FakeSink:
+            async def emit(self, event: dict) -> None:
+                emitted.append(event)
+
+        sink = FakeSink()
+        forwarder = SubagentEventForwarder(
+            task_id="t", agent_type="researcher", config=cfg, start_time=100.0,
+            parent_progress_sink=sink,
+        )
+        forwarder.cumulative_tokens = 500
+
+        monkeypatch.setattr("time.time", lambda: 106.0)
+        # Patch out lifecycle event publish to avoid import errors
+        monkeypatch.setattr(forwarder, "_publish_stale_lifecycle_event", lambda d: None)
+
+        await forwarder._check_and_emit_stale(sink)
+        assert len(emitted) == 1
+        assert emitted[0]["type"] == AgentEventType.SUBAGENT_STALE.value
+
+        # Second call should NOT emit again
+        await forwarder._check_and_emit_stale(sink)
+        assert len(emitted) == 1
+
+    @pytest.mark.asyncio
+    async def test_stale_not_emitted_when_not_stale(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        cfg = SubagentConfig(system_prompt="sys", stale_after_seconds=60)
+        emitted: list[dict] = []
+
+        class FakeSink:
+            async def emit(self, event: dict) -> None:
+                emitted.append(event)
+
+        sink = FakeSink()
+        forwarder = SubagentEventForwarder(
+            task_id="t", agent_type="w", config=cfg, start_time=100.0,
+            parent_progress_sink=sink,
+        )
+        monkeypatch.setattr("time.time", lambda: 110.0)  # 10s < 60s threshold
+        monkeypatch.setattr(forwarder, "_publish_stale_lifecycle_event", lambda d: None)
+
+        await forwarder._check_and_emit_stale(sink)
+        assert len(emitted) == 0
+
+    @pytest.mark.asyncio
+    async def test_stale_data_structure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        cfg = SubagentConfig(system_prompt="sys", stale_after_seconds=5, stale_auto_cancel=True)
+        emitted: list[dict] = []
+
+        class FakeSink:
+            async def emit(self, event: dict) -> None:
+                emitted.append(event)
+
+        sink = FakeSink()
+        forwarder = SubagentEventForwarder(
+            task_id="task-abc", agent_type="coder", config=cfg, start_time=100.0,
+            parent_progress_sink=sink,
+        )
+        forwarder.cumulative_tokens = 1234
+        forwarder.current_tool_name = "bash"
+        monkeypatch.setattr("time.time", lambda: 106.0)
+        monkeypatch.setattr(forwarder, "_publish_stale_lifecycle_event", lambda d: None)
+
+        await forwarder._check_and_emit_stale(sink)
+
+        assert len(emitted) == 1
+        data = emitted[0]["data"]
+        assert data["task_id"] == "task-abc"
+        assert data["agent_type"] == "coder"
+        assert data["wasted_tokens"] == 1234
+        assert data["current_tool"] == "bash"
+        assert data["auto_cancel"] is True
+        assert isinstance(data["stale_duration_seconds"], float)
+        assert isinstance(data["elapsed_seconds"], float)
+
+    @pytest.mark.asyncio
+    async def test_stale_resets_after_progress(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """After progress, stale can fire again."""
+        cfg = SubagentConfig(system_prompt="sys", stale_after_seconds=5)
+        emitted: list[dict] = []
+
+        class FakeSink:
+            async def emit(self, event: dict) -> None:
+                emitted.append(event)
+
+        sink = FakeSink()
+        forwarder = SubagentEventForwarder(
+            task_id="t", agent_type="w", config=cfg, start_time=100.0,
+            parent_progress_sink=sink,
+        )
+        monkeypatch.setattr(forwarder, "_publish_stale_lifecycle_event", lambda d: None)
+
+        # First stale
+        monkeypatch.setattr("time.time", lambda: 106.0)
+        await forwarder._check_and_emit_stale(sink)
+        assert len(emitted) == 1
+
+        # Progress resets stale
+        monkeypatch.setattr("time.time", lambda: 110.0)
+        forwarder._mark_progress()
+
+        # Not stale yet
+        monkeypatch.setattr("time.time", lambda: 113.0)
+        await forwarder._check_and_emit_stale(sink)
+        assert len(emitted) == 1
+
+        # Stale again
+        monkeypatch.setattr("time.time", lambda: 116.0)
+        await forwarder._check_and_emit_stale(sink)
+        assert len(emitted) == 2
+
+    @pytest.mark.asyncio
+    async def test_stale_with_none_sink(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """No crash when sink is None."""
+        cfg = SubagentConfig(system_prompt="sys", stale_after_seconds=5)
+        forwarder = SubagentEventForwarder(
+            task_id="t", agent_type="w", config=cfg, start_time=100.0,
+        )
+        monkeypatch.setattr("time.time", lambda: 106.0)
+        monkeypatch.setattr(forwarder, "_publish_stale_lifecycle_event", lambda d: None)
+
+        await forwarder._check_and_emit_stale(None)
+        assert forwarder._stale_emitted is True
+
+
+class TestStalenessIntegration:
+    """Test staleness tracking through event handlers."""
+
+    @pytest.mark.asyncio
+    async def test_token_usage_marks_progress(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        cfg = SubagentConfig(system_prompt="sys", stale_after_seconds=10)
+        forwarder = SubagentEventForwarder(
+            task_id="t", agent_type="w", config=cfg, start_time=100.0,
+        )
+        monkeypatch.setattr("time.time", lambda: 105.0)
+        monkeypatch.setattr(forwarder, "_publish_stale_lifecycle_event", lambda d: None)
+
+        event = {
+            "type": AgentEventType.TOKEN_USAGE.value,
+            "data": {"usage": {"total_tokens": 500}},
+        }
+        await forwarder.handle_event(event)
+
+        assert forwarder._last_effective_progress_at == 105.0
+
+    @pytest.mark.asyncio
+    async def test_tool_start_sets_in_tool(self) -> None:
+        cfg = SubagentConfig(system_prompt="sys")
+        forwarder = SubagentEventForwarder(
+            task_id="t", agent_type="w", config=cfg, start_time=0.0,
+        )
+        event = {"type": AgentEventType.TOOL_START.value, "data": {"tool_name": "bash"}}
+        await forwarder.handle_event(event)
+        assert forwarder._in_tool is True
+
+    @pytest.mark.asyncio
+    async def test_tool_end_clears_in_tool_and_marks_progress(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        cfg = SubagentConfig(system_prompt="sys")
+        forwarder = SubagentEventForwarder(
+            task_id="t", agent_type="w", config=cfg, start_time=100.0,
+        )
+        forwarder._in_tool = True
+        monkeypatch.setattr("time.time", lambda: 120.0)
+
+        event = {"type": AgentEventType.TOOL_END.value, "data": {"tool_name": "bash"}, "duration_ms": 100}
+        await forwarder.handle_event(event)
+
+        assert forwarder._in_tool is False
+        assert forwarder._last_effective_progress_at == 120.0
+
+    @pytest.mark.asyncio
+    async def test_tool_failure_clears_in_tool(self) -> None:
+        cfg = SubagentConfig(system_prompt="sys")
+        forwarder = SubagentEventForwarder(
+            task_id="t", agent_type="w", config=cfg, start_time=0.0,
+        )
+        forwarder._in_tool = True
+        event = {"type": AgentEventType.TOOL_FAILURE.value, "data": {"tool_name": "bash", "error": "fail"}}
+        await forwarder.handle_event(event)
+        assert forwarder._in_tool is False
+
+    @pytest.mark.asyncio
+    async def test_tool_cancelled_clears_in_tool(self) -> None:
+        cfg = SubagentConfig(system_prompt="sys")
+        forwarder = SubagentEventForwarder(
+            task_id="t", agent_type="w", config=cfg, start_time=0.0,
+        )
+        forwarder._in_tool = True
+        event = {
+            "type": AgentEventType.TOOL_CANCELLED.value,
+            "data": {"tool_name": "bash", "cancel_reason": "user", "duration_ms": 0},
+        }
+        await forwarder.handle_event(event)
+        assert forwarder._in_tool is False
+
+    @pytest.mark.asyncio
+    async def test_tool_timeout_clears_in_tool(self) -> None:
+        cfg = SubagentConfig(system_prompt="sys")
+        forwarder = SubagentEventForwarder(
+            task_id="t", agent_type="w", config=cfg, start_time=0.0,
+        )
+        forwarder._in_tool = True
+        event = {
+            "type": AgentEventType.TOOL_TIMEOUT.value,
+            "data": {"tool_name": "bash", "timeout_seconds": 30, "attempt": 1, "elapsed_ms": 30000},
+        }
+        await forwarder.handle_event(event)
+        assert forwarder._in_tool is False

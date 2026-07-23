@@ -31,7 +31,11 @@ _repo_root = Path(__file__).resolve().parent.parent.parent
 _harness_root = _repo_root / "myrm-agent-harness"
 sys.path.insert(0, str(_harness_root))
 
-from scripts.tool_registry_config import HARNESS_SRC, SCAN_ROOTS, SERVER_ROOT  # noqa: E402
+from scripts.tool_registry_config import (
+    HARNESS_SRC,
+    SCAN_ROOTS,
+    SERVER_ROOT,
+)  # noqa: E402
 from scripts.tool_registry_engine import (  # noqa: E402
     ScanReport,
     get_changed_python_files,
@@ -44,7 +48,9 @@ _COUNT_DOC_TARGETS = (
     HARNESS_SRC / "agent" / "tool_management" / "DEFAULT_AGENT_TOKEN_INVENTORY.md",
     HARNESS_SRC / "agent" / "tool_management" / "TOOL_DESIGN_STRATEGY.md",
 )
-_CATALOG_DOC_TARGET = HARNESS_SRC / "agent" / "tool_management" / "TOOL_MANAGEMENT_SYSTEM.md"
+_CATALOG_DOC_TARGET = (
+    HARNESS_SRC / "agent" / "tool_management" / "TOOL_MANAGEMENT_SYSTEM.md"
+)
 
 _BLOCK_BEGIN = "<!-- TOOL_COUNT_BEGIN -->"
 _BLOCK_END = "<!-- TOOL_COUNT_END -->"
@@ -57,7 +63,7 @@ _FORBIDDEN_BINDMODE_PATTERNS = (
     re.compile(r"\bdiscoverable_tools\b"),
     re.compile(r"\bget_discoverable_tools\b"),
     re.compile(r"\bToolBindMode\.DISCOVERABLE\b"),
-    re.compile(r'\bDISCOVERABLE\s*='),
+    re.compile(r"\bDISCOVERABLE\s*="),
 )
 _FORBIDDEN_TERM_SCAN_ROOTS = (
     HARNESS_SRC / "agent",
@@ -75,7 +81,9 @@ def _scan_forbidden_bindmode_terms() -> list[tuple[Path, int, str]]:
         for path in sorted(root.rglob("*.py")):
             if any(part in _FORBIDDEN_TERM_PATH_EXCLUDES for part in path.parts):
                 continue
-            for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            for line_no, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(), 1
+            ):
                 if any(pat.search(line) for pat in _FORBIDDEN_BINDMODE_PATTERNS):
                     violations.append((path, line_no, line.strip()))
     return violations
@@ -147,34 +155,54 @@ def _format_report(
     orphans: set[str] = set() if incremental else report.orphan_factories()
     meta_ghosts: set[str] = set() if incremental else (metadata_ghosts or set())
 
-    if not missing and not ghosts and not orphans and not duplicates and not meta_ghosts:
+    if (
+        not missing
+        and not ghosts
+        and not orphans
+        and not duplicates
+        and not meta_ghosts
+    ):
         lines.append("PASS - tool registry consistent")
         return "\n".join(lines)
 
     if missing:
-        lines.append(f"FAIL - {len(missing)} tool(s) defined but NOT registered in _TOOL_LAYERS:")
+        lines.append(
+            f"FAIL - {len(missing)} tool(s) defined but NOT registered in _TOOL_LAYERS:"
+        )
         for name in sorted(missing):
             owners = [d for d in report.declarations if d.name == name]
             owner = owners[0]
-            lines.append(f"  - {name}  ({owner.kind} @ {owner.file.relative_to(_repo_root)}:{owner.line})")
-        lines.append("  Fix: register via `register_tool_layer()` in either tool_layers.py (harness)")
+            lines.append(
+                f"  - {name}  ({owner.kind} @ {owner.file.relative_to(_repo_root)}:{owner.line})"
+            )
+        lines.append(
+            "  Fix: register via `register_tool_layer()` in either tool_layers.py (harness)"
+        )
         lines.append("       or _tool_layer_bootstrap.py (server).")
         lines.append("")
 
     if ghosts:
-        lines.append(f"FAIL - {len(ghosts)} tool(s) registered but NO source defines them:")
+        lines.append(
+            f"FAIL - {len(ghosts)} tool(s) registered but NO source defines them:"
+        )
         for name in sorted(ghosts):
             lines.append(f"  - {name}")
         lines.append("  Fix: remove the dead registration entry.")
         lines.append("")
 
     if orphans:
-        lines.append(f"FAIL - {len(orphans)} tool factory function(s) without any call site:")
+        lines.append(
+            f"FAIL - {len(orphans)} tool factory function(s) without any call site:"
+        )
         for factory in sorted(orphans):
             origin = report.factories[factory]
             lines.append(f"  - {factory}  (defined @ {origin.relative_to(_repo_root)})")
-        lines.append("  Fix: either wire the factory into a startup path, or delete the dead code.")
-        lines.append("       To intentionally allow an unused factory, add it to ORPHAN_FACTORY_WHITELIST.")
+        lines.append(
+            "  Fix: either wire the factory into a startup path, or delete the dead code."
+        )
+        lines.append(
+            "       To intentionally allow an unused factory, add it to ORPHAN_FACTORY_WHITELIST."
+        )
         lines.append("")
 
     if meta_ghosts:
@@ -183,11 +211,15 @@ def _format_report(
         )
         for name in sorted(meta_ghosts):
             lines.append(f"  - {name}")
-        lines.append("  Fix: remove dead keys from tool_registry.py maps or register the tool.")
+        lines.append(
+            "  Fix: remove dead keys from tool_registry.py maps or register the tool."
+        )
         lines.append("")
 
     if duplicates:
-        lines.append(f"FAIL - {len(duplicates)} tool name(s) declared in multiple source files:")
+        lines.append(
+            f"FAIL - {len(duplicates)} tool name(s) declared in multiple source files:"
+        )
         for name in sorted(duplicates):
             lines.append(f"  - {name}")
             for decl in duplicates[name]:
@@ -219,7 +251,9 @@ def _build_doc_block(report: ScanReport) -> str:
     counts = _layer_counts(report)
     action_total = sum(counts.values())
     from myrm_agent_harness.agent.orchestration.hooks import RUNTIME_HOOK_NAMES
-    from myrm_agent_harness.agent.orchestration.signals.catalog import ORCHESTRATION_SIGNAL_NAMES
+    from myrm_agent_harness.agent.orchestration.signals.catalog import (
+        ORCHESTRATION_SIGNAL_NAMES,
+    )
     from scripts.tool_registry_config import PTC_RUNTIME_TOOL_NAMES
 
     ptc_names = ", ".join(f"`{n}`" for n in sorted(PTC_RUNTIME_TOOL_NAMES))
@@ -258,7 +292,9 @@ def _build_catalog_block() -> str:
     )
 
 
-def _update_doc_blocks(doc_path: Path, blocks: dict[str, str]) -> tuple[bool, str | None]:
+def _update_doc_blocks(
+    doc_path: Path, blocks: dict[str, str]
+) -> tuple[bool, str | None]:
     """Update marker blocks. Returns (changed, error_message_if_any)."""
     if not doc_path.exists():
         return False, f"doc target missing: {doc_path}"
@@ -309,9 +345,15 @@ def _filter_report_to_files(report: ScanReport, files: set[Path]) -> ScanReport:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Tool registry consistency checker")
-    parser.add_argument("--incremental", action="store_true", help="Only consider files changed in git")
-    parser.add_argument("--generate-docs", action="store_true", help="Refresh TOOL_COUNT blocks in docs")
-    parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    parser.add_argument(
+        "--incremental", action="store_true", help="Only consider files changed in git"
+    )
+    parser.add_argument(
+        "--generate-docs", action="store_true", help="Refresh TOOL_COUNT blocks in docs"
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="Emit machine-readable JSON"
+    )
     args = parser.parse_args()
 
     try:
@@ -340,7 +382,9 @@ def main() -> int:
                 modified.append(target)
             if err:
                 doc_errors.append(err)
-        changed, err = _update_doc_blocks(_CATALOG_DOC_TARGET, {"catalog": catalog_block})
+        changed, err = _update_doc_blocks(
+            _CATALOG_DOC_TARGET, {"catalog": catalog_block}
+        )
         if changed:
             modified.append(_CATALOG_DOC_TARGET)
         if err:
@@ -349,7 +393,10 @@ def main() -> int:
             print("ERROR: --generate-docs cannot update docs:", file=sys.stderr)
             for err in doc_errors:
                 print(f"  - {err}", file=sys.stderr)
-            print("Add `<!-- TOOL_COUNT_BEGIN -->...<!-- TOOL_COUNT_END -->` markers.", file=sys.stderr)
+            print(
+                "Add `<!-- TOOL_COUNT_BEGIN -->...<!-- TOOL_COUNT_END -->` markers.",
+                file=sys.stderr,
+            )
             return 1
         if modified:
             print("Updated TOOL_COUNT blocks in:")
@@ -374,7 +421,9 @@ def main() -> int:
         else report.ghost_registry_metadata_keys(_load_registry_metadata_keys())
     )
     bindmode_violations = [] if args.incremental else _scan_forbidden_bindmode_terms()
-    from myrm_agent_harness.agent.tool_management.tool_catalog import validate_tool_catalog
+    from myrm_agent_harness.agent.tool_management.tool_catalog import (
+        validate_tool_catalog,
+    )
 
     # Layer-product gate is cheap (static _TOOL_LAYERS dict) — run in all modes so
     # pre-commit --incremental (.pre-commit-config.yaml) catches layer mistakes too.
@@ -405,7 +454,9 @@ def main() -> int:
             "metadata_ghosts": sorted(metadata_ghosts),
             "orphans": sorted(orphans),
             "duplicates": {
-                name: [f"{decl.file.relative_to(_repo_root)}:{decl.line}" for decl in decls]
+                name: [
+                    f"{decl.file.relative_to(_repo_root)}:{decl.line}" for decl in decls
+                ]
                 for name, decls in duplicates.items()
             },
         }
@@ -419,21 +470,27 @@ def main() -> int:
             )
         )
         if bindmode_violations:
-            print(f"FAIL - {len(bindmode_violations)} forbidden ToolBindMode legacy term(s):")
+            print(
+                f"FAIL - {len(bindmode_violations)} forbidden ToolBindMode legacy term(s):"
+            )
             for path, line_no, line in bindmode_violations:
                 try:
                     display = path.relative_to(_repo_root)
                 except ValueError:
                     display = path
                 print(f"  - {display}:{line_no}: {line}")
-            print("  Fix: use Turn1 registration + get_runtime_tools() for RUNTIME_ONLY hooks.")
+            print(
+                "  Fix: use Turn1 registration + get_runtime_tools() for RUNTIME_ONLY hooks."
+            )
         if catalog_errors:
             print(f"FAIL - {len(catalog_errors)} tool catalog metadata issue(s):")
             for err in catalog_errors:
                 print(f"  - {err}")
             print("  Fix: update tool_catalog.py role/load overrides.")
         if parity_errors:
-            print(f"FAIL - {len(parity_errors)} default-enabled product ID parity issue(s):")
+            print(
+                f"FAIL - {len(parity_errors)} default-enabled product ID parity issue(s):"
+            )
             for err in parity_errors:
                 print(f"  - {err}")
 

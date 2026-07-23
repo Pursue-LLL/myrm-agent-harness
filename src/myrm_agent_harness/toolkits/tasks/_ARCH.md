@@ -41,7 +41,7 @@ Detailed design: [TASK_QUEUE_SYSTEM.md](TASK_QUEUE_SYSTEM.md).
 | __init__.py | Package | Queue protocol exports (Task, store, executor) | ✅ |
 | executor.py | Core | AsyncTaskExecutor protocol for business executors | ✅ |
 | protocols.py | Core | Task, TaskStatus, RetryPolicy, state machine | ✅ |
-| store.py | Core | SQLiteTaskStore — CRUD, priority, idempotency, cache | ✅ |
+| store.py | Core | SQLiteTaskStore — CRUD, priority, idempotency, cache；支持 `ready_before` 过滤，避免 future `next_retry_at` 任务被提前消费；终态状态更新默认清空遗留 `next_retry_at` | ✅ |
 | TASK_QUEUE_SYSTEM.md | L2 | Placement, scenarios, integration recipes | — |
 
 ## Consumers

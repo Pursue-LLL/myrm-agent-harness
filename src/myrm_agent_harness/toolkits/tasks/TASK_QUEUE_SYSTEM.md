@@ -112,7 +112,7 @@ result_json = await tools.generate_image(prompt="...", chat_id="...")
 
 1. `image_agent_tool` / `video_agent_tool` → `Async*GenerationTools.generate_*`
 2. `seal_task_payload_secrets` (server) before `SQLiteTaskStore.create_task`
-3. `TaskWorker` + media executors (`ImageTaskExecutor`, `VideoTaskExecutor`) consume queue
+3. `TaskWorker` + media executors (`ImageTaskExecutor`, `VideoTaskExecutor`) consume queue (`next_retry_at` in future stays queued; only due tasks are consumed; terminal status persistence clears stale `next_retry_at`)
 4. `TaskEventBus` → SSE `/api/v1/tasks/stream` → task cards (`ImageTaskCard` / `VideoTaskCard`)
 
 ## Crypto Boundary
