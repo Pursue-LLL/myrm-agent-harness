@@ -83,11 +83,34 @@ def test_compute_batch_edit_line_range_union() -> None:
     assert end == 3
 
 
-def test_apply_rejects_duplicate_exact_match() -> None:
-    content = "aaa\n"
-    edits = (StrReplaceEdit(old_str="a", new_str="b"),)
-    with pytest.raises(ValueError, match="found 3 matches"):
+def test_apply_rejects_duplicate_after_prior_edit_expands_match() -> None:
+    # Edit 2 old_str absent in original (skipped by overlap precheck); first edit creates duplicates.
+    content = "MARKER bb"
+    edits = (
+        StrReplaceEdit(old_str="MARKER", new_str="aa"),
+        StrReplaceEdit(old_str="a", new_str="x"),
+    )
+    with pytest.raises(ValueError, match="Edit 2: found 2 matches"):
         apply_batch_str_replace(content, edits)
+
+
+def test_fuzzy_apply_success() -> None:
+    from unittest.mock import MagicMock, patch
+
+    fuzzy_result = MagicMock()
+    fuzzy_result.success = True
+    fuzzy_result.content = "replaced content"
+    fuzzy_result.strategy = "trimmed"
+    fuzzy_result.confidence = 0.95
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.core.batch_str_replace.fuzzy_replace",
+        return_value=fuzzy_result,
+    ):
+        result, strategies = apply_batch_str_replace(
+            "content", (StrReplaceEdit(old_str="missing", new_str="x"),)
+        )
+    assert result == "replaced content"
+    assert strategies == ["trimmed"]
 
 
 def test_fuzzy_apply_with_hint() -> None:
