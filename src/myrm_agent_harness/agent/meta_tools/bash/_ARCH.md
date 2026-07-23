@@ -31,7 +31,7 @@ Bash tool module.
 | _background_job_store.py | Core | SQLite BackgroundJobStore on Volume (metadata, finish dedupe, orphan reconcile). | ✅ |
 | _background_output_spill.py | Core | Incremental vault spill for long background stdout/stderr; writes `output_{hex8}.txt` under `.context/{session}/evicted/` (same basename contract as `_output_eviction` + `/files/evicted` API). | ✅ |
 | session_spawn_lifecycle.py | Core | Session spawn lifecycle markers; auto-clear when shell jobs exit. | ✅ |
-| bash_process_tools.py | Core | Unified LangChain tool ``bash_process_tool`` (actions list/output/kill/wait). ``action=output`` accepts optional ``filter`` regex (via ``_bash_output_filter_core.py``). Turn1 eager when bash enabled. | ✅ |
+| bash_process_tools.py | Core | Unified LangChain tool ``bash_process_tool`` (actions list/output/kill/wait). ``action=output`` accepts optional ``filter`` regex (via ``_bash_output_filter_core.py``). Turn1 eager when shell enabled (CORE; co-mounted with bash_code_execute). | ✅ |
 | _bash_output_filter_core.py | Core | Pure regex line filter for incremental ``bash_process_tool`` output polling (pattern max 256 chars). | ✅ |
 | bash_auto_yield.py | Core | Auto-yield foreground whitelist commands into background after ``yield_after_seconds``; composes registry poll snapshot for tool return. | ✅ |
 | _background_types.py | Core | Shared dataclasses & typing aliases (`BackgroundProcessInfo`, `BackgroundQuotaError`, `FinishListener`, `ProgressListener`) consumed by the registry and bash tool wiring. Lives alongside the registry so downstream callers can import the snapshot type without triggering the registry singleton's `atexit` hook. | ✅ |

@@ -8,7 +8,7 @@
 
 | 对外说法 | 含义 | 当前规模 |
 |----------|------|----------|
-| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **58**（CORE 7 + COMMON 4 + EXTENDED 47） |
+| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **58**（CORE 8 + COMMON 4 + EXTENDED 46） |
 
 对外文档与沟通中，**「工具」仅指 LLM 工具**。编排信号、runtime hook、toolkits 引擎、Skill 文档、PTC 等实现细节属于代码层，**不称为工具**。
 
