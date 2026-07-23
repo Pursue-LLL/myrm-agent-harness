@@ -20,7 +20,8 @@
 - utils.token_estimation::estimate_content_tokens (POS: 文件内容 token 估算)
 - context_management.tracking.task_metrics::ArchiveRefetchDecision, evaluate_archive_refetch_for_path (POS: 归档上下文读取预算)
 - core.archive_restore_guard::evaluate_archive_full_read_before_content, format_archive_restore_block (POS: 归档恢复读取守卫)
-- core.file_conflict_guard::check_conflict_pre_write, compute_edit_line_range (POS: 文件并发编辑冲突守卫)
+- core.file_conflict_guard::check_conflict_pre_write (POS: 文件并发编辑冲突守卫)
+- core.batch_str_replace::apply_batch_str_replace, compute_batch_edit_line_range (POS: Batch str-replace engine)
 - core.read_semaphore::get_read_semaphore (POS: 读取并发控制)
 
 [OUTPUT]
@@ -62,7 +63,8 @@ from .archive_restore_guard import (
     evaluate_archive_full_read_before_content,
     format_archive_restore_block,
 )
-from .file_conflict_guard import check_conflict_pre_write, compute_edit_line_range
+from .file_conflict_guard import check_conflict_pre_write
+from .batch_str_replace import apply_batch_str_replace, compute_batch_edit_line_range
 from .file_path_lock_manager import acquire_file_path_lock
 from .operation_context import OperationContext, OperationType
 from .read_semaphore import get_read_semaphore
@@ -372,21 +374,18 @@ class FileOperationService:
         return response
 
     async def _execute_str_replace(self) -> str:
-        """执行 STR_REPLACE 操作"""
-        if not self.context.path or self.context.old_str is None or self.context.new_str is None:
-            raise ValueError("STR_REPLACE operation requires 'path', 'old_str' and 'new_str' parameters")
+        """执行 STR_REPLACE 操作（单事务批量 edits）"""
+        if not self.context.path or not self.context.edits:
+            raise ValueError("STR_REPLACE operation requires 'path' and non-empty 'edits' parameters")
 
-        # 解析文件 ID
         from ..utils.path_utils import resolve_file_id_path
 
         resolved_path = resolve_file_id_path(self.context.path)
 
-        # 创建策略
         strategy = FileSystemStrategyFactory.create_strategy(
             resolved_path, self.context.skills, executor=self.context.executor
         )
 
-        # 验证(使用安全配置)
         validator_chain = ValidatorChain(strategy, io_config=self.io_config)
         await validator_chain.validate(self.context, resolved_path)
 
@@ -401,31 +400,30 @@ class FileOperationService:
             require_version=True,
         )
 
-        # Concurrent subagent conflict detection (line-level precision)
-        line_start, line_end = compute_edit_line_range(old_content, self.context.old_str)
+        line_start, line_end = compute_batch_edit_line_range(old_content, self.context.edits)
         conflict_warning = check_conflict_pre_write(resolved_path, line_start, line_end)
 
-        # 替换文本 (允许 Fuzzy Match 发挥作用)
-        await strategy.replace_text(resolved_path, self.context.old_str, self.context.new_str)
+        new_content, strategies = apply_batch_str_replace(old_content, self.context.edits)
+        if any(s != "exact" for s in strategies):
+            logger.info(
+                "Batch str_replace applied with fuzzy strategies path=%s strategies=%s",
+                resolved_path,
+                strategies,
+            )
 
-        # 读取真实的写后新内容
-        new_content = "\n".join(await strategy.read_file(resolved_path))
+        await strategy.write_file(resolved_path, new_content)
 
-        # 增量容错语法校验 (Delta Syntax Validator - Execute-then-Rollback 模式)
         from ..validators.delta_syntax_validator import DeltaSyntaxValidator
 
         try:
             DeltaSyntaxValidator.validate(resolved_path, new_content, pre_content=old_content)
         except ValueError as e:
-            # 校验失败,回滚文件内容 (对观察者绝对透明,因为它们还未触发)
             await strategy.write_file(resolved_path, old_content)
             logger.warning(f"Delta Syntax Validation failed for {resolved_path}, changes rolled back. Error: {e}")
             raise
 
-        # 通知观察者(FormatObserver may modify the file on disk)
         await self.observer_manager.notify_file_modified(resolved_path, old_content, new_content)
 
-        # 执行自动校验(如果有)
         if self.context.verify_command and self.context.executor:
             from myrm_agent_harness.toolkits.code_execution.executors.models import (
                 ExecutionContext,
@@ -436,7 +434,6 @@ class FileOperationService:
             result = await self.context.executor.execute_bash(exec_ctx)
 
             if not result.success:
-                # 校验失败,回滚文件内容
                 await strategy.write_file(resolved_path, old_content)
                 logger.warning(f"Verification failed for {resolved_path}, changes rolled back. Error: {result.stderr}")
                 raise ValueError(
@@ -448,7 +445,6 @@ class FileOperationService:
                     f"Please fix the errors and try again."
                 )
 
-        # Smart Auto-Verify fallback (soft diagnostic, no rollback)
         auto_verify_report: str | None = None
         if not self.context.verify_command and self.context.executor:
             from ..validators.auto_verify import run_auto_verify
@@ -460,8 +456,6 @@ class FileOperationService:
                 edit_line_end=line_end,
             )
 
-        # Record hash AFTER observers and verification so FormatObserver's changes are captured.
-        # Re-read to get the post-formatted content.
         if guard is not None:
             final_content = "\n".join(await strategy.read_file(resolved_path))
             guard.record_write(resolved_path, final_content)

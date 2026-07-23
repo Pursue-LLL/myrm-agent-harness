@@ -160,21 +160,18 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
         "file_read_tool",
         description="""读取文件内容或目录列表。支持图片（png/jpg/gif/webp）、PDF、Office 文档（docx/xlsx/xls）和 Jupyter Notebook（ipynb）。
 参数：
-- paths: 文件路径数组。支持行号范围语法：
+- paths: 文件路径数组（必须是 JSON 数组，不是字符串）。支持行号范围语法：
   - `["file.py"]` - 读取整个文件
   - `["file.py:1-50"]` - 读取第 1-50 行
   - `["file.py:100-"]` - 从第 100 行读取到文件末尾
   - `["src/"]` - 读取目录下的所有文件
-  - `["chart.png"]` - 读取图片（返回可视内容）
-  - `["report.pdf"]` - 读取 PDF（返回文档内容，支持图表/表格识别）
-  - `["contract.docx"]` - 读取 Word 文档（自动转为 Markdown）
-  - `["data.xlsx"]` - 读取 Excel 文件（自动转为 Markdown 表格）
-  - `["analysis.ipynb"]` - 读取 Jupyter Notebook（自动提取 Markdown/Code cells）
-  - `["vault://<uuid>"]` - 读取 auto-vault 落盘的大结果（子 Agent 返回的 vault 指针）
-  - `["vault://<uuid>:1-50"]` - 读取 vault 对象指定行范围
+  - `["chart.png"]` / `["report.pdf"]` / `["contract.docx"]` / `["data.xlsx"]` / `["analysis.ipynb"]` - 多模态读取
+  - `["vault://<uuid>"]` - 读取 auto-vault 落盘的大结果
+  - `["vault://<uuid>:1-50"]` - 读取 vault 指定行范围
 - mode: 读取模式（'all'默认 | 'preview'快速预览 | 'stream'大文件防OOM）
-  - **大文件建议**：>100MB文件使用mode='preview'快速查看，或使用行号范围读取指定部分
-- chunk_size_mb: streaming块大小（默认10MB）
+  - 大文件建议：>100MB 使用 mode='preview' 或行号范围
+- chunk_size_mb: streaming 块大小（默认 10MB）
+- excel_mode: Excel 专用（structure/content/audit，仅 .xlsx/.xls）
 
 **注意**: 必须是 JSON 数组，不是字符串！禁止凭空编造不存在的路径！
 **不支持 URL（http/https）**：此工具仅读取本地文件，不能访问网页 URL。

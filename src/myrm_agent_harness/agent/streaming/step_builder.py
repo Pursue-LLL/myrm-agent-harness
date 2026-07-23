@@ -153,10 +153,20 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
             except Exception:
                 pass
 
-            old_str = tool_args.get("old_str", "")
-            new_str = tool_args.get("new_str", "")
+            from myrm_agent_harness.agent.meta_tools.file_ops.file_edit_normalizer import (
+                merge_edits_for_diff,
+                normalize_edits_payload,
+            )
+
+            try:
+                normalized = normalize_edits_payload(tool_args)
+                old_str, new_str = merge_edits_for_diff(normalized)
+            except ValueError:
+                old_str = str(tool_args.get("old_str") or tool_args.get("old_string") or "")
+                new_str = str(tool_args.get("new_str") or tool_args.get("new_string") or "")
+
             if old_str or new_str:
-                _inject_diff(item, str(path), str(old_str), str(new_str))
+                _inject_diff(item, str(path), old_str, new_str)
 
             return {"step_key": "file_edit_tool", "data": [item]}
         return {"data": []}

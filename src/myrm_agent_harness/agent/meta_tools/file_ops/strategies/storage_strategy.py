@@ -82,52 +82,36 @@ class StorageBackendStrategy(FileSystemStrategy):
         await self.storage.delete(path)
 
     async def replace_text(self, path: str, old_str: str, new_str: str) -> None:
-        """Replace text in a file with progressive fuzzy matching fallback.
-
-        Tries exact match first (zero overhead). On failure, falls back to
-        fuzzy_replace which applies 8-strategy progressive chain.
-        Preserves original line endings (CRLF/LF) across edits.
-        """
+        """Replace text in a file via the shared batch str-replace engine."""
         if not await self.storage.exists(path):
             raise FileNotFoundError(f"File not found: {path}")
 
         content = await self.storage.get_text(path)
 
-        from ..utils.line_endings import detect_line_ending, normalize_line_endings
+        from ..core.batch_str_replace import apply_batch_str_replace
+        from ..core.operation_context import StrReplaceEdit
 
-        original_eol = detect_line_ending(content)
+        try:
+            new_content, strategies = apply_batch_str_replace(
+                content,
+                (StrReplaceEdit(old_str=old_str, new_str=new_str),),
+            )
+        except ValueError as error:
+            message = str(error)
+            if message.startswith("Edit 1: "):
+                message = message.removeprefix("Edit 1: ")
+            if "text not found" in message.lower() and path not in message:
+                message = f"Text not found in file: {path}\n{message}"
+            raise ValueError(message) from error
 
-        if old_str in content:
-            count = content.count(old_str)
-            if count > 1:
-                raise ValueError(f"Found {count} matches. Please provide more context to make the match unique.")
-            new_content = content.replace(old_str, new_str, 1)
-            if original_eol:
-                new_content = normalize_line_endings(new_content, original_eol)
-            await self.storage.put_text(path, new_content)
-            return
-
-        from myrm_agent_harness.utils.fuzzy_match import find_closest_lines, fuzzy_replace
-
-        result = fuzzy_replace(content, old_str, new_str)
-        if result.success:
+        if strategies and strategies[0] != "exact":
             logger.info(
-                "Fuzzy match succeeded: strategy=%s confidence=%.2f path=%s",
-                result.strategy,
-                result.confidence,
+                "Fuzzy match succeeded via batch engine: strategy=%s path=%s",
+                strategies[0],
                 path,
             )
-            final = result.content
-            if original_eol:
-                final = normalize_line_endings(final, original_eol)
-            await self.storage.put_text(path, final)
-            return
 
-        err_msg = f"Text not found in file: {path}\nSearched for:\n{old_str}"
-        hint = find_closest_lines(old_str, content)
-        if hint:
-            err_msg += hint
-        raise ValueError(err_msg)
+        await self.storage.put_text(path, new_content)
 
     async def is_directory(self, path: str) -> bool:
         """检查路径是否为目录"""

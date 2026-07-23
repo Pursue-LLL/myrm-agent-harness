@@ -10,7 +10,8 @@ File operations tool module (Claude Code compatible).
 | __init__.py | Package | File operations tool module (Claude Code compatible). | — |
 | constants.py | Core | Constants. | ✅ |
 | executor_storage_adapter.py | Core | CodeExecutor to StorageProvider adapter. | ✅ |
-| file_edit_tool.py | Core | File edit tool (Claude Code compatible). Supports precise search-and-replace text editing with auto  | ✅ |
+| file_edit_tool.py | Core | Batch atomic file edit via edits[]; LLM payload normalizer; fuzzy fallback | ✅ |
+| file_edit_normalizer.py | Util | LLM input normalizer for file_edit_tool legacy flat fields | ✅ |
 | file_read_tool.py | Core | File read tool factory: local/MCP/File ID/**vault://** paths, batch reads, line ranges, multimodal | ✅ |
 | file_read_handlers.py | Internal | Multimodal/text/vault execution handlers for file_read_tool | ✅ |
 | file_read_truncation.py | Internal | Output truncation helpers for file_read_tool | ✅ |

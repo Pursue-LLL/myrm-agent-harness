@@ -9,11 +9,11 @@
 - pydantic::BaseModel, Field (POS: 参数验证)
 
 [OUTPUT]
-- FileEditInput: 文件编辑输入参数模型
-- create_file_edit_tool: 创建文件编辑工具的工厂函数
+- StrReplaceEditInput, FileEditInput: 文件编辑输入参数模型
+- create_file_edit_tool: 创建 file_edit_tool 工厂函数
 
 [POS]
-File edit tool (Claude Code compatible). Supports precise search-and-replace text editing with auto File ID resolution, artifact updates, multi-match detection, and integrity checks.
+File edit tool. Batch atomic search-and-replace via edits[] with File ID resolution, fuzzy fallback, integrity gates, and verify rollback.
 
 """
 
@@ -24,12 +24,13 @@ from typing import TYPE_CHECKING
 
 from langchain.tools import tool
 from langchain_core.runnables import RunnableConfig
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from myrm_agent_harness.toolkits.code_execution.executors.base import require_executor
 from myrm_agent_harness.utils.errors import ToolError
 
-from .core import FileOperationService, OperationContext, OperationType
+from .core import FileOperationService, OperationContext, OperationType, StrReplaceEdit
+from .file_edit_normalizer import normalize_edits_payload
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
@@ -39,17 +40,41 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class StrReplaceEditInput(BaseModel):
+    """Single search-and-replace edit."""
+
+    old_str: str = Field(description="Text to replace (must be unique in file; include indentation)")
+    new_str: str = Field(default="", description="Replacement text (empty string deletes old_str)")
+
+
 class FileEditInput(BaseModel):
     """文件编辑工具输入参数"""
 
-    path: str = Field(description="文件路径（支持 File ID，如 @file_001）")
-    old_str: str = Field(description="要替换的文本（必须精确匹配）")
-    new_str: str = Field(description="替换后的文本")
+    path: str = Field(description="File path (supports File ID such as @file_001)")
+    edits: list[StrReplaceEditInput] = Field(
+        description=(
+            "Ordered list of search-and-replace edits applied atomically in one transaction. "
+            "Each edit uses exact match (fuzzy fallback). Max 20 edits; disjoint regions recommended."
+        )
+    )
     verify_command: str | None = Field(
         default=None,
-        description="编辑后自动执行的校验命令（如 'python -m py_compile file.py' 或 'node --check file.js'）。如果校验失败，将回滚编辑并返回错误。",
+        description=(
+            "Optional post-edit verify command (e.g. 'python -m py_compile file.py'). "
+            "On failure, all edits roll back."
+        ),
     )
-    reason: str | None = Field(default=None, description="执行命令的原因（可选，用于日志）")
+    reason: str | None = Field(default=None, description="Optional reason for logs")
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_llm_payload(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        payload = dict(data)
+        if payload.get("edits") is not None or "old_str" in payload or "old_string" in payload:
+            payload["edits"] = normalize_edits_payload(payload)
+        return payload
 
 
 def create_file_edit_tool(skills: list[SkillMetadata] | None = None) -> BaseTool:
@@ -75,88 +100,70 @@ def create_file_edit_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
 
     @tool(
         "file_edit_tool",
-        description="""精确编辑文件内容（字符串替换）。当需要修改文件时，必须使用本工具而非 bash sed/awk/perl。
+        description="""精确编辑文件内容（有序字符串替换）。当需要修改文件时，必须使用本工具而非 bash sed/awk/perl。
 
 参数：
 - path: 文件路径 (支持普通路径或 "@file_id")
-- old_str: 要替换的文本 (必须唯一且精确匹配，含缩进)
-- new_str: 替换后的文本
-- verify_command: 编辑后自动执行的语法/类型校验命令（强烈建议提供，如 'python -m py_compile file.py'）。校验失败会自动回滚，避免破坏代码。
+- edits: JSON 数组 [{old_str, new_str}]，单次调用原子写入（最多 20 条）。每条 old_str 必须唯一且精确匹配（含缩进）；建议区域不重叠。
+- verify_command: 编辑后自动执行的语法/类型校验命令（强烈建议，如 'python -m py_compile file.py'）。校验失败会回滚全部 edits。
 - reason: 操作原因（可选）
 """,
         args_schema=FileEditInput,
     )
     async def file_edit_func(
         path: str,
-        old_str: str,
-        new_str: str,
+        edits: list[StrReplaceEditInput],
         verify_command: str | None = None,
         reason: str | None = None,
         *,  # 强制后续参数为关键字参数
         config: RunnableConfig,  # LangChain 注入的配置
     ) -> str:
-        """精确编辑文件
-
-        Args:
-            path: 文件路径（支持 File ID）
-            old_str: 要替换的文本
-            new_str: 替换后的文本
-            verify_command: 编辑后自动执行的校验命令
-            reason: 操作原因（可选，用于日志）
-            config: LangChain 运行时配置，包含 context
-
-        Returns:
-            操作成功消息
-
-        Raises:
-            ValueError: old_str 不存在或出现多次
-            FileNotFoundError: 文件不存在
-            PermissionError: 权限不足
-        """
+        """精确编辑文件（批量原子替换）"""
         try:
             executor = require_executor()
+
+            edit_tuple = tuple(
+                StrReplaceEdit(old_str=item.old_str, new_str=item.new_str) for item in edits
+            )
 
             context = OperationContext(
                 operation=OperationType.STR_REPLACE,
                 executor=executor,
                 skills=skills or [],
-                path=path,  # 支持 @file_001 格式
-                old_str=old_str,
-                new_str=new_str,
+                path=path,
+                edits=edit_tuple,
                 verify_command=verify_command,
-                reason=reason,  # 操作原因（日志）
+                reason=reason,
             )
 
-            # 创建服务并执行
             service = FileOperationService(context)
             result = await service.execute()
             return result
 
         except ToolError:
-            # ToolError 已经包含友好提示，直接传播
             raise
         except FileNotFoundError as e:
-            # 文件不存在
             raise ToolError(
                 message=str(e), user_hint="The file does not exist. Use file_write_tool to create it first."
             ) from e
         except PermissionError as e:
-            # 权限不足（如 MCP 虚拟路径、只读文件）
             raise ToolError(message=str(e), user_hint="Permission denied. You cannot edit this file.") from e
         except ValueError as e:
-            # 参数错误（如 old_str 不存在、出现多次）
-            # FileOperationService 会抛出 ValueError("String not found" 或 "String appears N times")
             error_str = str(e).lower()
             if "not found" in error_str:
-                hint = "The old_str was not found in the file. Please check the exact text (including whitespace and indentation)."
+                hint = (
+                    "An old_str was not found. Check exact text (whitespace/indentation) "
+                    "or combine overlapping edits."
+                )
             elif "appears" in error_str and "times" in error_str:
-                hint = "The old_str appears multiple times in the file. Please provide a more specific string with more context."
+                hint = "An old_str matches multiple times. Add surrounding context to make it unique."
+            elif "overlap" in error_str:
+                hint = "Edits overlap in the file. Merge into one edit or reorder so regions are disjoint."
             else:
-                hint = "Invalid parameter. Please check the file path and text to replace."
+                hint = "Invalid edit parameters. Check path and edits array."
 
             raise ToolError(message=str(e), user_hint=hint) from e
         except Exception as e:
-            # 未预期的错误
             logger.exception(f"Unexpected error in file_edit_tool: {e}")
             raise ToolError(
                 message=f"Unexpected error during file edit: {e}",

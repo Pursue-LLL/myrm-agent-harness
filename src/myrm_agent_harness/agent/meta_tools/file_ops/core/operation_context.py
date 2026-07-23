@@ -9,6 +9,7 @@
 [OUTPUT]
 - OperationType: class — Operation Type
 - ViewRange: class — View Range
+- StrReplaceEdit: dataclass — Single batch edit payload
 - OperationContext: class — Operation Context
 
 [POS]
@@ -32,6 +33,14 @@ class OperationType(StrEnum):
     VIEW = "view"
     CREATE = "create"
     STR_REPLACE = "str_replace"
+
+
+@dataclass(frozen=True)
+class StrReplaceEdit:
+    """Single search-and-replace edit within a batch file edit."""
+
+    old_str: str
+    new_str: str = ""
 
 
 @dataclass
@@ -76,9 +85,8 @@ class OperationContext:
     path: str | None = None
     file_text: str | None = None
 
-    # STR_REPLACE 操作参数
-    old_str: str | None = None
-    new_str: str | None = None
+    # STR_REPLACE 操作参数（单事务批量应用）
+    edits: tuple[StrReplaceEdit, ...] = ()
 
     # 验证命令（用于文件写入/编辑后的自动校验）
     verify_command: str | None = None
@@ -105,7 +113,8 @@ class OperationContext:
         elif self.operation == OperationType.STR_REPLACE:
             if not self.path:
                 raise ValueError("STR_REPLACE operation requires 'path' parameter")
-            if self.old_str is None:
-                raise ValueError("STR_REPLACE operation requires 'old_str' parameter")
-            if self.new_str is None:
-                raise ValueError("STR_REPLACE operation requires 'new_str' parameter")
+            if not self.edits:
+                raise ValueError("STR_REPLACE operation requires non-empty 'edits'")
+            for index, edit in enumerate(self.edits, start=1):
+                if not edit.old_str:
+                    raise ValueError(f"STR_REPLACE edit {index} requires non-empty old_str")

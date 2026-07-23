@@ -108,6 +108,26 @@ class TestBuildStepDataFileEdit:
         item = result["data"][0]
         assert "diff" not in item
 
+    def test_file_edit_batch_edits_diff(self, tmp_path):
+        f = tmp_path / "batch.py"
+        f.write_text("line_a\nline_b\nline_c\n")
+        result = build_step_data(
+            "file_edit_tool",
+            {
+                "path": str(f),
+                "edits": [
+                    {"old_str": "line_a", "new_str": "LINE_A"},
+                    {"old_str": "line_c", "new_str": "LINE_C"},
+                ],
+            },
+        )
+        item = result["data"][0]
+        assert "diff" in item
+        assert "--- edit 1 ---" in item["diff"]
+        assert "--- edit 2 ---" in item["diff"]
+        assert "-line_a" in item["diff"]
+        assert "+LINE_A" in item["diff"]
+
 
 class TestBuildStepDataBash:
     def test_bash_code_execute(self):
