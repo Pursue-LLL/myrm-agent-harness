@@ -72,6 +72,24 @@ def test_compute_batch_edit_line_range_empty() -> None:
     assert end == 3
 
 
+def test_compute_batch_edit_line_range_union() -> None:
+    content = "line_a\nline_b\nline_c\n"
+    edits = (
+        StrReplaceEdit(old_str="line_a", new_str="LINE_A"),
+        StrReplaceEdit(old_str="line_c", new_str="LINE_C"),
+    )
+    start, end = compute_batch_edit_line_range(content, edits)
+    assert start == 1
+    assert end == 3
+
+
+def test_apply_rejects_duplicate_exact_match() -> None:
+    content = "aaa\n"
+    edits = (StrReplaceEdit(old_str="a", new_str="b"),)
+    with pytest.raises(ValueError, match="found 3 matches"):
+        apply_batch_str_replace(content, edits)
+
+
 def test_fuzzy_apply_with_hint() -> None:
     from unittest.mock import MagicMock, patch
 
