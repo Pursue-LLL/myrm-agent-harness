@@ -12,12 +12,23 @@ from pathlib import Path
 import pytest
 from langchain_core.runnables import RunnableConfig
 
-from myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool import create_file_edit_tool
-from myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool import create_file_read_tool
+from myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool import (
+    create_file_edit_tool,
+)
+from myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool import (
+    create_file_read_tool,
+)
 from myrm_agent_harness.toolkits.code_execution.config import ExecutionConfig
-from myrm_agent_harness.toolkits.code_execution.executors.base import reset_executor, set_executor
-from myrm_agent_harness.toolkits.code_execution.executors.local.executor import LocalExecutor
-from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import WorkspacePathResolver
+from myrm_agent_harness.toolkits.code_execution.executors.base import (
+    reset_executor,
+    set_executor,
+)
+from myrm_agent_harness.toolkits.code_execution.executors.local.executor import (
+    LocalExecutor,
+)
+from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import (
+    WorkspacePathResolver,
+)
 from myrm_agent_harness.toolkits.code_execution.workspace.storage_root_bind import (
     bind_workspace_storage_root,
 )
@@ -35,8 +46,12 @@ def _reset_workspace_cache() -> None:
 def _make_local_executor(workspace: Path) -> LocalExecutor:
     from unittest.mock import patch
 
-    from myrm_agent_harness.toolkits.code_execution.sandbox.providers.null import NullProvider
-    from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import SandboxStatus
+    from myrm_agent_harness.toolkits.code_execution.sandbox.providers.null import (
+        NullProvider,
+    )
+    from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import (
+        SandboxStatus,
+    )
 
     executor = LocalExecutor(ExecutionConfig())
     executor.bind_workspace(str(workspace))
@@ -84,7 +99,9 @@ async def _read_then_edit(
     token = set_executor(executor)
     try:
         read_tool = create_file_read_tool()
-        await read_tool.ainvoke({"paths": [rel_path], "mode": "all"}, config=_DUMMY_CONFIG)
+        await read_tool.ainvoke(
+            {"paths": [rel_path], "mode": "all"}, config=_DUMMY_CONFIG
+        )
 
         edit_tool = create_file_edit_tool()
         payload: dict[str, object] = {"path": rel_path, "edits": edits}
@@ -123,7 +140,9 @@ async def test_batch_edits_overlap_rejected_no_disk_change(workspace: Path) -> N
     token = set_executor(executor)
     try:
         read_tool = create_file_read_tool()
-        await read_tool.ainvoke({"paths": ["overlap.txt"], "mode": "all"}, config=_DUMMY_CONFIG)
+        await read_tool.ainvoke(
+            {"paths": ["overlap.txt"], "mode": "all"}, config=_DUMMY_CONFIG
+        )
 
         edit_tool = create_file_edit_tool()
         with pytest.raises(ToolError, match="overlap"):
@@ -153,7 +172,9 @@ async def test_batch_edits_verify_failure_rolls_back(workspace: Path) -> None:
     token = set_executor(executor)
     try:
         read_tool = create_file_read_tool()
-        await read_tool.ainvoke({"paths": ["notes.txt"], "mode": "all"}, config=_DUMMY_CONFIG)
+        await read_tool.ainvoke(
+            {"paths": ["notes.txt"], "mode": "all"}, config=_DUMMY_CONFIG
+        )
 
         edit_tool = create_file_edit_tool()
         with pytest.raises(ToolError, match="verification failed"):
@@ -204,7 +225,9 @@ async def test_second_edit_not_found_leaves_disk_unchanged(workspace: Path) -> N
     token = set_executor(executor)
     try:
         read_tool = create_file_read_tool()
-        await read_tool.ainvoke({"paths": ["partial.txt"], "mode": "all"}, config=_DUMMY_CONFIG)
+        await read_tool.ainvoke(
+            {"paths": ["partial.txt"], "mode": "all"}, config=_DUMMY_CONFIG
+        )
 
         edit_tool = create_file_edit_tool()
         with pytest.raises(ToolError, match="not found"):
@@ -241,7 +264,9 @@ async def test_delete_via_empty_new_str_on_disk(workspace: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_normalizer_flat_old_str_payload_on_disk(workspace: Path) -> None:
-    from myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool import FileEditInput
+    from myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool import (
+        FileEditInput,
+    )
 
     target = workspace / "flat.py"
     target.write_text("before\n", encoding="utf-8")
@@ -250,7 +275,9 @@ async def test_normalizer_flat_old_str_payload_on_disk(workspace: Path) -> None:
     token = set_executor(executor)
     try:
         read_tool = create_file_read_tool()
-        await read_tool.ainvoke({"paths": ["flat.py"], "mode": "all"}, config=_DUMMY_CONFIG)
+        await read_tool.ainvoke(
+            {"paths": ["flat.py"], "mode": "all"}, config=_DUMMY_CONFIG
+        )
 
         normalized = FileEditInput.model_validate(
             {"path": "flat.py", "old_str": "before", "new_str": "after"}

@@ -43,8 +43,12 @@ logger = logging.getLogger(__name__)
 class StrReplaceEditInput(BaseModel):
     """Single search-and-replace edit."""
 
-    old_str: str = Field(description="Text to replace (must be unique in file; include indentation)")
-    new_str: str = Field(default="", description="Replacement text (empty string deletes old_str)")
+    old_str: str = Field(
+        description="Text to replace (must be unique in file; include indentation)"
+    )
+    new_str: str = Field(
+        default="", description="Replacement text (empty string deletes old_str)"
+    )
 
 
 class FileEditInput(BaseModel):
@@ -72,7 +76,11 @@ class FileEditInput(BaseModel):
         if not isinstance(data, dict):
             return data
         payload = dict(data)
-        if payload.get("edits") is not None or "old_str" in payload or "old_string" in payload:
+        if (
+            payload.get("edits") is not None
+            or "old_str" in payload
+            or "old_string" in payload
+        ):
             payload["edits"] = normalize_edits_payload(payload)
         return payload
 
@@ -123,7 +131,8 @@ def create_file_edit_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
             executor = require_executor()
 
             edit_tuple = tuple(
-                StrReplaceEdit(old_str=item.old_str, new_str=item.new_str) for item in edits
+                StrReplaceEdit(old_str=item.old_str, new_str=item.new_str)
+                for item in edits
             )
 
             context = OperationContext(
@@ -144,10 +153,14 @@ def create_file_edit_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
             raise
         except FileNotFoundError as e:
             raise ToolError(
-                message=str(e), user_hint="The file does not exist. Use file_write_tool to create it first."
+                message=str(e),
+                user_hint="The file does not exist. Use file_write_tool to create it first.",
             ) from e
         except PermissionError as e:
-            raise ToolError(message=str(e), user_hint="Permission denied. You cannot edit this file.") from e
+            raise ToolError(
+                message=str(e),
+                user_hint="Permission denied. You cannot edit this file.",
+            ) from e
         except ValueError as e:
             error_str = str(e).lower()
             if "not found" in error_str:

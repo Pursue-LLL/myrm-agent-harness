@@ -4,7 +4,12 @@
 """
 
 from .file_operation_service import FileOperationService
-from .operation_context import OperationContext, OperationType, StrReplaceEdit, ViewRange
+from .operation_context import (
+    OperationContext,
+    OperationType,
+    StrReplaceEdit,
+    ViewRange,
+)
 from .result_formatter import ResultFormatter
 from .file_integrity_guard import FileIntegrityGuard, get_file_integrity_guard
 

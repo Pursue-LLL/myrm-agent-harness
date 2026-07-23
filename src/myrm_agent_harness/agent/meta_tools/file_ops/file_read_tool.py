@@ -32,7 +32,9 @@ from langchain_core.messages.content import create_text_block
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field, field_validator
 
-from myrm_agent_harness.agent.context_management.context import extract_context_from_runnable_config
+from myrm_agent_harness.agent.context_management.context import (
+    extract_context_from_runnable_config,
+)
 from myrm_agent_harness.agent.security.redact import redact_sensitive_text
 from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
 from myrm_agent_harness.agent.meta_tools.file_search.path_hint import (
@@ -45,7 +47,11 @@ from myrm_agent_harness.agent.meta_tools.file_search.skill_path_filter import (
 )
 from myrm_agent_harness.utils.errors import ToolError
 
-from .file_read_handlers import append_media_text_parts, build_multimodal_result, process_text_paths
+from .file_read_handlers import (
+    append_media_text_parts,
+    build_multimodal_result,
+    process_text_paths,
+)
 from .utils.document_reader import is_document_path
 from .utils.image_reader import is_image_path
 from .utils.pdf_reader import is_pdf_path
@@ -115,7 +121,9 @@ class FileReadInput(BaseModel):
         ),
     )
 
-    chunk_size_mb: int = Field(default=10, description="streaming模式下的块大小（MB），默认10MB")
+    chunk_size_mb: int = Field(
+        default=10, description="streaming模式下的块大小（MB），默认10MB"
+    )
 
     excel_mode: str | None = Field(
         default=None,
@@ -128,7 +136,9 @@ class FileReadInput(BaseModel):
         ),
     )
 
-    reason: str | None = Field(default=None, description="执行命令的原因（可选，用于日志）")
+    reason: str | None = Field(
+        default=None, description="执行命令的原因（可选，用于日志）"
+    )
 
     preserve_in_context: bool = Field(
         default=False,
@@ -196,7 +206,9 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
             url_errors: list[str] = []
             if url_paths:
                 rejected = ", ".join(url_paths[:3])
-                suffix = f" (and {len(url_paths) - 3} more)" if len(url_paths) > 3 else ""
+                suffix = (
+                    f" (and {len(url_paths) - 3} more)" if len(url_paths) > 3 else ""
+                )
                 url_errors.append(
                     f"file_read_tool cannot read URLs: {rejected}{suffix}. "
                     "This tool only supports local file paths, not web URLs."
@@ -213,10 +225,26 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
             supports_vision = bool(ctx.get("supports_vision", False))
             vision_fallback_model_cfg = ctx.get("vision_fallback_model_cfg")
 
-            image_paths = [p for p in valid_paths if is_image_path(path_base(p)) and not is_vault_uri(p)]
-            pdf_paths = [p for p in valid_paths if is_pdf_path(path_base(p)) and not is_vault_uri(p)]
-            document_paths = [p for p in valid_paths if is_document_path(path_base(p)) and not is_vault_uri(p)]
-            video_paths = [p for p in valid_paths if is_video_path(path_base(p)) and not is_vault_uri(p)]
+            image_paths = [
+                p
+                for p in valid_paths
+                if is_image_path(path_base(p)) and not is_vault_uri(p)
+            ]
+            pdf_paths = [
+                p
+                for p in valid_paths
+                if is_pdf_path(path_base(p)) and not is_vault_uri(p)
+            ]
+            document_paths = [
+                p
+                for p in valid_paths
+                if is_document_path(path_base(p)) and not is_vault_uri(p)
+            ]
+            video_paths = [
+                p
+                for p in valid_paths
+                if is_video_path(path_base(p)) and not is_vault_uri(p)
+            ]
             vault_paths = [p for p in valid_paths if is_vault_uri(p)]
             text_paths = [
                 p
@@ -228,8 +256,12 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
                 and not is_video_path(path_base(p))
             ]
 
-            has_multimodal = (image_paths or pdf_paths or video_paths) and executor is not None
-            use_multimodal = has_multimodal and (supports_vision or vision_fallback_model_cfg is not None)
+            has_multimodal = (
+                image_paths or pdf_paths or video_paths
+            ) and executor is not None
+            use_multimodal = has_multimodal and (
+                supports_vision or vision_fallback_model_cfg is not None
+            )
             has_documents = bool(document_paths) and executor is not None
 
             if (use_multimodal or has_documents) and executor is not None:
@@ -269,7 +301,11 @@ def create_file_read_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
             )
 
             if vault_paths:
-                text_parts.extend(await read_vault_paths_to_parts(vault_paths, executor, mode, config=config))
+                text_parts.extend(
+                    await read_vault_paths_to_parts(
+                        vault_paths, executor, mode, config=config
+                    )
+                )
 
             if text_paths:
                 text_parts.extend(

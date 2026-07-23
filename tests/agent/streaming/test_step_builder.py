@@ -64,7 +64,9 @@ class TestBuildStepDataFileWrite:
     def test_file_write_basic(self, tmp_path):
         f = tmp_path / "test.py"
         f.write_text("print('hello')")
-        result = build_step_data("file_write_tool", {"path": str(f), "content": "print('hello')"})
+        result = build_step_data(
+            "file_write_tool", {"path": str(f), "content": "print('hello')"}
+        )
         assert result["step_key"] == "file_write_tool"
         assert len(result["data"]) == 1
         item = result["data"][0]
@@ -89,11 +91,14 @@ class TestBuildStepDataFileEdit:
     def test_file_edit_with_diff(self, tmp_path):
         f = tmp_path / "edit.py"
         f.write_text("old content")
-        result = build_step_data("file_edit_tool", {
-            "path": str(f),
-            "old_str": "old content",
-            "new_str": "new content",
-        })
+        result = build_step_data(
+            "file_edit_tool",
+            {
+                "path": str(f),
+                "old_str": "old content",
+                "new_str": "new content",
+            },
+        )
         assert result["step_key"] == "file_edit_tool"
         item = result["data"][0]
         assert item["action_type"] == "write"
@@ -104,7 +109,9 @@ class TestBuildStepDataFileEdit:
     def test_file_edit_no_old_new(self, tmp_path):
         f = tmp_path / "noop.py"
         f.write_text("x")
-        result = build_step_data("file_edit_tool", {"path": str(f), "old_str": "", "new_str": ""})
+        result = build_step_data(
+            "file_edit_tool", {"path": str(f), "old_str": "", "new_str": ""}
+        )
         item = result["data"][0]
         assert "diff" not in item
 
@@ -172,10 +179,13 @@ class TestInjectDiff:
 
 class TestBuildStepDataSkillSelect:
     def test_skill_select(self):
-        result = build_step_data("skill_select_tool", {
-            "skill_names": ["code_review", "debug"],
-            "reason": "Need help",
-        })
+        result = build_step_data(
+            "skill_select_tool",
+            {
+                "skill_names": ["code_review", "debug"],
+                "reason": "Need help",
+            },
+        )
         assert len(result["data"]) == 2
         assert result["data"][0] == {"skill_name": "code_review", "reason": "Need help"}
 
@@ -193,6 +203,7 @@ class TestBuildStepDataFileRead:
 
     def test_file_read_json_string_paths(self, tmp_path):
         import json
+
         f = tmp_path / "a.txt"
         f.write_text("x")
         result = build_step_data("file_read_tool", {"paths": json.dumps([str(f)])})
@@ -218,24 +229,32 @@ class TestBuildStepDataFileRead:
 
 class TestBuildStepDataFileEditEdgeCases:
     def test_file_edit_empty_path(self):
-        result = build_step_data("file_edit_tool", {"path": "", "old_str": "x", "new_str": "y"})
+        result = build_step_data(
+            "file_edit_tool", {"path": "", "old_str": "x", "new_str": "y"}
+        )
         assert result == {"data": []}
 
     def test_file_edit_nonexistent_file(self):
-        result = build_step_data("file_edit_tool", {
-            "path": "/nonexistent/foo.py",
-            "old_str": "a",
-            "new_str": "b",
-        })
+        result = build_step_data(
+            "file_edit_tool",
+            {
+                "path": "/nonexistent/foo.py",
+                "old_str": "a",
+                "new_str": "b",
+            },
+        )
         item = result["data"][0]
         assert "size_bytes" not in item
         assert "diff" in item
 
     def test_file_write_nonexistent_file(self):
-        result = build_step_data("file_write_tool", {
-            "path": "/nonexistent/bar.py",
-            "content": "hello",
-        })
+        result = build_step_data(
+            "file_write_tool",
+            {
+                "path": "/nonexistent/bar.py",
+                "content": "hello",
+            },
+        )
         item = result["data"][0]
         assert "size_bytes" not in item
         assert "diff" in item
@@ -266,7 +285,9 @@ class TestBuildStepDataGenericFileCode:
     def test_generic_file_tool_with_line_range(self, tmp_path):
         f = tmp_path / "lr.py"
         f.write_text("a\nb\nc")
-        result = build_step_data("file_inspect_tool", {"path": str(f), "start_line": 1, "end_line": 10})
+        result = build_step_data(
+            "file_inspect_tool", {"path": str(f), "start_line": 1, "end_line": 10}
+        )
         item = result["data"][0]
         assert item["line_range"] == "1-10"
 
@@ -293,7 +314,9 @@ class TestBuildStepDataGenericFileCode:
 
 class TestBuildStepDataOtherTools:
     def test_other_tool_summary(self):
-        result = build_step_data("calendar_tool", {"date": "2024-01-01", "title": "Meeting"})
+        result = build_step_data(
+            "calendar_tool", {"date": "2024-01-01", "title": "Meeting"}
+        )
         item = result["data"][0]
         assert "text" in item
         assert "date:" in item["text"]

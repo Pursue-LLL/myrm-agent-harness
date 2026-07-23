@@ -150,10 +150,11 @@ async def test_file_operation_service_replace_uses_resolved_path_lock() -> None:
             "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.acquire_file_path_lock",
             fake_lock,
         ),
-        patch.object(service, "_execute_str_replace", new=AsyncMock(return_value="replaced")),
+        patch.object(
+            service, "_execute_str_replace", new=AsyncMock(return_value="replaced")
+        ),
     ):
         result = await service.execute()
 
     assert result == "replaced"
     assert locked_paths == ["/tmp/workspace/b.ts"]
-

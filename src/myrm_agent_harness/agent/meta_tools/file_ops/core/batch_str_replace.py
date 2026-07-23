@@ -34,7 +34,9 @@ def validate_edits_batch(edits: Sequence[StrReplaceEdit]) -> None:
     if not edits:
         raise ValueError("STR_REPLACE operation requires non-empty 'edits'")
     if len(edits) > MAX_EDITS_PER_CALL:
-        raise ValueError(f"At most {MAX_EDITS_PER_CALL} edits per call (got {len(edits)})")
+        raise ValueError(
+            f"At most {MAX_EDITS_PER_CALL} edits per call (got {len(edits)})"
+        )
     for index, edit in enumerate(edits, start=1):
         if not edit.old_str:
             raise ValueError(f"Edit {index}: old_str cannot be empty")
@@ -46,7 +48,9 @@ def _find_exclusive_span(content: str, old_str: str) -> tuple[int, int] | None:
         return None
     count = content.count(old_str)
     if count > 1:
-        raise ValueError(f"Found {count} matches. Please provide more context to make the match unique.")
+        raise ValueError(
+            f"Found {count} matches. Please provide more context to make the match unique."
+        )
     return idx, idx + len(old_str)
 
 
@@ -67,7 +71,9 @@ def check_non_overlapping_edits(content: str, edits: Sequence[StrReplaceEdit]) -
         ranges.append((start, end))
 
 
-def compute_batch_edit_line_range(content: str, edits: Sequence[StrReplaceEdit]) -> tuple[int, int]:
+def compute_batch_edit_line_range(
+    content: str, edits: Sequence[StrReplaceEdit]
+) -> tuple[int, int]:
     """Union of 1-indexed line ranges affected by all edits on original content."""
     if not edits:
         total = content.count("\n") + 1
@@ -81,7 +87,9 @@ def compute_batch_edit_line_range(content: str, edits: Sequence[StrReplaceEdit])
     return min(starts), max(ends)
 
 
-def apply_batch_str_replace(content: str, edits: Sequence[StrReplaceEdit]) -> tuple[str, list[str]]:
+def apply_batch_str_replace(
+    content: str, edits: Sequence[StrReplaceEdit]
+) -> tuple[str, list[str]]:
     """Apply edits sequentially in memory. Returns (new_content, strategies_used)."""
     from ..utils.line_endings import detect_line_ending, normalize_line_endings
 
@@ -115,7 +123,9 @@ def apply_batch_str_replace(content: str, edits: Sequence[StrReplaceEdit]) -> tu
             strategies.append(result.strategy)
             continue
 
-        err_msg = f"Edit {index}: text not found in file.\nSearched for:\n{edit.old_str}"
+        err_msg = (
+            f"Edit {index}: text not found in file.\nSearched for:\n{edit.old_str}"
+        )
         hint = find_closest_lines(edit.old_str, current)
         if hint:
             err_msg += hint

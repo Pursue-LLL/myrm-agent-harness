@@ -569,13 +569,14 @@ class TestEdgeCases:
         await pool.cancel("dummy", "any-session")
 
     @pytest.mark.asyncio
-    async def test_backend_detector_cache_isolation(self) -> None:
-        """Different BackendDetector instances should have independent caches."""
+    async def test_backend_detector_cache_shared_across_instances(self) -> None:
+        """Different BackendDetector instances should share process-wide cache."""
+        BackendDetector.invalidate_shared_cache()
         d1 = BackendDetector()
         d2 = BackendDetector()
         r1 = await d1.detect(include_version=False)
         r2 = await d2.detect(include_version=False)
-        assert r1 is not r2
+        assert r1 is r2
         assert len(r1) == len(r2)
 
     @pytest.mark.asyncio

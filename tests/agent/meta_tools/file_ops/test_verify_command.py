@@ -97,11 +97,14 @@ class TestVerifyCommand:
         )
 
         service = FileOperationService(ctx)
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.strategies.strategy_factory.FileSystemStrategyFactory.create_strategy"
-        ) as mock_factory, patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
-            return_value=None,
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.strategies.strategy_factory.FileSystemStrategyFactory.create_strategy"
+            ) as mock_factory,
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
+                return_value=None,
+            ),
         ):
             mock_strategy = AsyncMock()
             mock_strategy.exists.return_value = True
@@ -131,11 +134,14 @@ class TestVerifyCommand:
         )
 
         service = FileOperationService(ctx)
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.strategies.strategy_factory.FileSystemStrategyFactory.create_strategy"
-        ) as mock_factory, patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
-            return_value=None,
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.strategies.strategy_factory.FileSystemStrategyFactory.create_strategy"
+            ) as mock_factory,
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
+                return_value=None,
+            ),
         ):
             mock_strategy = AsyncMock()
             mock_strategy.exists.return_value = True

@@ -212,7 +212,9 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
     "external_cli": frozenset({"delegate_to_agent_tool"}),
 }
 
-TOOL_TO_GROUP: dict[str, str] = {tool: group for group, tools in TOOL_GROUP_MAP.items() for tool in tools}
+TOOL_TO_GROUP: dict[str, str] = {
+    tool: group for group, tools in TOOL_GROUP_MAP.items() for tool in tools
+}
 
 TOOL_GROUP_NAMES: frozenset[str] = frozenset(TOOL_GROUP_MAP)
 
@@ -253,7 +255,13 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
     "skill_discovery_tool": ["query"],
     "desktop_snapshot_tool": ["scope", "window_title", "include_screenshot"],
     "desktop_interact_tool": ["ref", "action", "text"],
-    "desktop_vision_tool": ["action", "coordinate", "text", "scroll_direction", "start_coordinate"],
+    "desktop_vision_tool": [
+        "action",
+        "coordinate",
+        "text",
+        "scroll_direction",
+        "start_coordinate",
+    ],
 }
 
 
@@ -288,7 +296,9 @@ def compute_canonical_args_hash(tool_name: str, tool_args: dict | None) -> str |
     return hashlib.sha256(sorted_json.encode()).hexdigest()[:16]
 
 
-def resolve_permission_type(tool_name: str, tool_input: dict[str, object] | None = None) -> str:
+def resolve_permission_type(
+    tool_name: str, tool_input: dict[str, object] | None = None
+) -> str:
     """Resolve a concrete tool name to its abstract permission type.
 
     Lookup order:
@@ -374,7 +384,9 @@ def register_ptc_safety_metadata(
     _PTC_TOOL_FLAT_INDEX[tool_name] = safety_meta
 
 
-def get_ptc_safety_metadata(skill_name: str, tool_name: str) -> tuple[SafetyMetadata, MCPAnnotations] | None:
+def get_ptc_safety_metadata(
+    skill_name: str, tool_name: str
+) -> tuple[SafetyMetadata, MCPAnnotations] | None:
     """Retrieve dynamic safety metadata for an MCP tool."""
     return _PTC_SAFETY_METADATA.get(skill_name, {}).get(tool_name)
 
@@ -402,10 +414,18 @@ _FAIL_CLOSED_DEFAULTS = SafetyMetadata()
 
 TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     # Read-only, concurrent-safe tools (all read-only tools are generally idempotent)
-    "file_read_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "grep_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "glob_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "browser_inspect_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "file_read_tool": SafetyMetadata(
+        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
+    ),
+    "grep_tool": SafetyMetadata(
+        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
+    ),
+    "glob_tool": SafetyMetadata(
+        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
+    ),
+    "browser_inspect_tool": SafetyMetadata(
+        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
+    ),
     "browser_snapshot_tool": SafetyMetadata(
         is_read_only=True,
         is_concurrent_safe=True,
@@ -425,7 +445,9 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         is_concurrent_safe=True,
         is_idempotent=True,
         taint_label="external_network",
-        taint_extractor=lambda args: f"search_query: {args.get('query', '')}" if args.get("query") else None,
+        taint_extractor=lambda args: (
+            f"search_query: {args.get('query', '')}" if args.get("query") else None
+        ),
     ),
     "web_fetch_tool": SafetyMetadata(
         is_read_only=True,
@@ -434,14 +456,30 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         taint_label="external_network",
         taint_extractor=lambda args: _sanitize_url_for_taint(args.get("url")),
     ),
-    "memory_search_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "todo_write": SafetyMetadata(is_read_only=False, is_concurrent_safe=False, is_idempotent=False),
-    "discover_capability_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "skill_discovery_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "skill_select_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "request_answer_user_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "render_ui_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "update_ui_data_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "memory_search_tool": SafetyMetadata(
+        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
+    ),
+    "todo_write": SafetyMetadata(
+        is_read_only=False, is_concurrent_safe=False, is_idempotent=False
+    ),
+    "discover_capability_tool": SafetyMetadata(
+        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
+    ),
+    "skill_discovery_tool": SafetyMetadata(
+        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
+    ),
+    "skill_select_tool": SafetyMetadata(
+        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
+    ),
+    "request_answer_user_tool": SafetyMetadata(
+        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
+    ),
+    "render_ui_tool": SafetyMetadata(
+        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
+    ),
+    "update_ui_data_tool": SafetyMetadata(
+        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
+    ),
     # Concurrent-safe but not read-only (independent execution contexts)
     "delegate_task_tool": SafetyMetadata(is_concurrent_safe=True),
     "subagent_control_tool": SafetyMetadata(is_concurrent_safe=True),
@@ -449,7 +487,9 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "delegate_to_agent_tool": SafetyMetadata(),
     # Destructive tools (explicit fail-closed: is_concurrent_safe=False)
     "bash_code_execute_tool": SafetyMetadata(is_destructive=True),
-    "file_write_tool": SafetyMetadata(is_destructive=True, is_idempotent=True),  # Writing same content is idempotent
+    "file_write_tool": SafetyMetadata(
+        is_destructive=True, is_idempotent=True
+    ),  # Writing same content is idempotent
     "file_edit_tool": SafetyMetadata(is_destructive=True),
     # Stateful tools (explicit fail-closed: is_concurrent_safe=False)
     "browser_navigate_tool": SafetyMetadata(
@@ -464,10 +504,14 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "memory_save_tool": SafetyMetadata(is_idempotent=True),
     "memory_manage_tool": SafetyMetadata(),
     "complete_goal_tool": SafetyMetadata(),
-    "desktop_snapshot_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "desktop_snapshot_tool": SafetyMetadata(
+        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
+    ),
     "desktop_interact_tool": SafetyMetadata(is_destructive=True),
     "desktop_vision_tool": SafetyMetadata(is_destructive=True),
-    "ask_question_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=False, is_idempotent=True),
+    "ask_question_tool": SafetyMetadata(
+        is_read_only=True, is_concurrent_safe=False, is_idempotent=True
+    ),
 }
 
 

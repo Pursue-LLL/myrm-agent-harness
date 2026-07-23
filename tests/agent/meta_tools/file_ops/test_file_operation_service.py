@@ -49,6 +49,8 @@ def _str_replace_ctx(
         edits=edits,
         **kwargs,
     )
+
+
 from myrm_agent_harness.agent.meta_tools.file_ops.core.read_semaphore import (
     get_read_semaphore,
 )
@@ -56,7 +58,9 @@ from myrm_agent_harness.agent.meta_tools.file_ops.core.read_semaphore import (
 
 @pytest.mark.asyncio
 async def test_execute_unknown_operation() -> None:
-    context = OperationContext(operation=OperationType.VIEW, paths=["test.txt"], executor=None)
+    context = OperationContext(
+        operation=OperationType.VIEW, paths=["test.txt"], executor=None
+    )
     service = FileOperationService(context)
     with (
         patch.object(context, "validate"),
@@ -75,9 +79,12 @@ async def test_execute_create_missing_params() -> None:
         file_text=None,
     )
     service = FileOperationService(context)
-    with patch.object(context, "validate"), pytest.raises(
-        ValueError,
-        match="CREATE operation requires 'path' and 'file_text' parameters",
+    with (
+        patch.object(context, "validate"),
+        pytest.raises(
+            ValueError,
+            match="CREATE operation requires 'path' and 'file_text' parameters",
+        ),
     ):
         await service.execute()
 
@@ -91,19 +98,26 @@ async def test_execute_str_replace_missing_params() -> None:
         edits=(),
     )
     service = FileOperationService(context)
-    with patch.object(context, "validate"), pytest.raises(
-        ValueError,
-        match=r"STR_REPLACE operation requires 'path' and non-empty 'edits' parameters",
+    with (
+        patch.object(context, "validate"),
+        pytest.raises(
+            ValueError,
+            match=r"STR_REPLACE operation requires 'path' and non-empty 'edits' parameters",
+        ),
     ):
         await service.execute()
 
 
 @pytest.mark.asyncio
 async def test_execute_view_with_read_error() -> None:
-    context = OperationContext(operation=OperationType.VIEW, paths=["error.txt"], executor=None)
+    context = OperationContext(
+        operation=OperationType.VIEW, paths=["error.txt"], executor=None
+    )
     service = FileOperationService(context)
     with (
-        patch.object(service, "_view_single_path", side_effect=Exception("Read failure")),
+        patch.object(
+            service, "_view_single_path", side_effect=Exception("Read failure")
+        ),
         patch.object(context, "validate"),
     ):
         result = await service.execute()
@@ -113,7 +127,9 @@ async def test_execute_view_with_read_error() -> None:
 
 @pytest.mark.asyncio
 async def test_execute_view_directory() -> None:
-    context = OperationContext(operation=OperationType.VIEW, paths=["/some/dir"], executor=None)
+    context = OperationContext(
+        operation=OperationType.VIEW, paths=["/some/dir"], executor=None
+    )
     service = FileOperationService(context)
 
     with (
@@ -150,7 +166,9 @@ async def test_get_read_semaphore_fallback_when_no_running_loop() -> None:
 
 
 @pytest.mark.asyncio
-async def test_execute_view_warns_when_paths_exceed_concurrency(caplog: pytest.LogCaptureFixture) -> None:
+async def test_execute_view_warns_when_paths_exceed_concurrency(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     io_config = FileIOConfig(max_concurrent_reads=2)
     context = OperationContext(
         operation=OperationType.VIEW,
@@ -158,11 +176,15 @@ async def test_execute_view_warns_when_paths_exceed_concurrency(caplog: pytest.L
         executor=None,
     )
     service = FileOperationService(context, io_config=io_config)
-    with caplog.at_level(logging.WARNING), patch.object(context, "validate"), patch.object(
-        service,
-        "_view_single_path",
-        new_callable=AsyncMock,
-        side_effect=lambda p: f"ok:{p}",
+    with (
+        caplog.at_level(logging.WARNING),
+        patch.object(context, "validate"),
+        patch.object(
+            service,
+            "_view_single_path",
+            new_callable=AsyncMock,
+            side_effect=lambda p: f"ok:{p}",
+        ),
     ):
         await service.execute()
     assert any("Concurrent read count" in r.message for r in caplog.records)
@@ -170,7 +192,9 @@ async def test_execute_view_warns_when_paths_exceed_concurrency(caplog: pytest.L
 
 @pytest.mark.asyncio
 async def test_execute_view_regular_file_content() -> None:
-    context = OperationContext(operation=OperationType.VIEW, paths=["doc.py"], executor=None)
+    context = OperationContext(
+        operation=OperationType.VIEW, paths=["doc.py"], executor=None
+    )
     service = FileOperationService(context)
     with (
         patch.object(context, "validate"),
@@ -237,7 +261,9 @@ async def test_execute_view_blocks_archive_read_when_budget_denies() -> None:
 
 
 @pytest.mark.asyncio
-async def test_execute_view_blocks_large_full_archive_read_with_structured_metrics() -> None:
+async def test_execute_view_blocks_large_full_archive_read_with_structured_metrics() -> (
+    None
+):
     chat_id = "chat_file_read_archive_range_required"
     archive_path = f".context/{chat_id}/compacted/result.txt"
     context = OperationContext(
@@ -270,7 +296,10 @@ async def test_execute_view_blocks_large_full_archive_read_with_structured_metri
         metrics = get_task_metrics(chat_id)
         assert "Archive restore blocked." in result
         assert '"reason": "archive_restore_range_required"' in result
-        assert '"primary_restore_arg": ".context/chat_file_read_archive_range_required/compacted/result.txt:1-200"' in result
+        assert (
+            '"primary_restore_arg": ".context/chat_file_read_archive_range_required/compacted/result.txt:1-200"'
+            in result
+        )
         mock_strategy.read_file.assert_not_awaited()
         assert metrics is not None
         assert metrics.archive_restore_blocked_count == 1
@@ -326,7 +355,9 @@ async def test_execute_view_fails_closed_when_archive_size_probe_fails() -> None
 
 @pytest.mark.asyncio
 async def test_execute_view_records_read_when_integrity_guard_active() -> None:
-    context = OperationContext(operation=OperationType.VIEW, paths=["tracked.py"], executor=None)
+    context = OperationContext(
+        operation=OperationType.VIEW, paths=["tracked.py"], executor=None
+    )
     service = FileOperationService(context)
     guard = MagicMock()
     with (
@@ -947,7 +978,9 @@ async def test_str_replace_triggers_auto_verify_with_line_range() -> None:
         )
         strategy = AsyncMock()
         strategy.exists = AsyncMock(return_value=True)
-        strategy.read_file = AsyncMock(return_value=["line1", "line2", "line3", "line4", "x = 1", "line6"])
+        strategy.read_file = AsyncMock(
+            return_value=["line1", "line2", "line3", "line4", "x = 1", "line6"]
+        )
         mock_factory.return_value = strategy
         mock_vc.return_value.validate = AsyncMock()
 

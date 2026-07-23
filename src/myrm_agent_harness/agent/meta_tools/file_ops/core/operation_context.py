@@ -117,4 +117,6 @@ class OperationContext:
                 raise ValueError("STR_REPLACE operation requires non-empty 'edits'")
             for index, edit in enumerate(self.edits, start=1):
                 if not edit.old_str:
-                    raise ValueError(f"STR_REPLACE edit {index} requires non-empty old_str")
+                    raise ValueError(
+                        f"STR_REPLACE edit {index} requires non-empty old_str"
+                    )

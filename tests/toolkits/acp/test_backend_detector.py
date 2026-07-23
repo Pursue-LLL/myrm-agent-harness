@@ -16,6 +16,13 @@ from myrm_agent_harness.toolkits.acp.backend_detector import (
 pytestmark = pytest.mark.filterwarnings("ignore::RuntimeWarning:unittest.mock")
 
 
+@pytest.fixture(autouse=True)
+def _reset_backend_detector_cache() -> None:
+    BackendDetector.invalidate_shared_cache()
+    yield
+    BackendDetector.invalidate_shared_cache()
+
+
 class TestDetectedBackend:
     def test_frozen_dataclass(self) -> None:
         db = DetectedBackend(name="claude", path="/usr/bin/claude", version="1.0.0")
@@ -76,8 +83,19 @@ class TestBackendDetectorDetect:
         assert first is second
 
     @pytest.mark.asyncio
+    async def test_detect_cache_shared_across_instances(self) -> None:
+        d1 = BackendDetector()
+        d2 = BackendDetector()
+        with patch.object(BackendDetector, "_find_executable", return_value=None) as mock_find:
+            first = await d1.detect(include_version=False)
+            second = await d2.detect(include_version=False)
+        assert first is second
+        assert mock_find.call_count > 0
+
+    @pytest.mark.asyncio
     async def test_invalidate_cache_forces_redetect(self) -> None:
-        detector = BackendDetector()
+        detector1 = BackendDetector()
+        detector2 = BackendDetector()
         call_count = 0
 
         def counting_find(name: str) -> str | None:
@@ -85,11 +103,11 @@ class TestBackendDetectorDetect:
             call_count += 1
             return None
 
-        with patch.object(detector, "_find_executable", side_effect=counting_find):
-            await detector.detect()
+        with patch.object(BackendDetector, "_find_executable", side_effect=counting_find):
+            await detector1.detect()
             first_count = call_count
-            detector.invalidate_cache()
-            await detector.detect()
+            detector2.invalidate_cache()
+            await detector1.detect()
             assert call_count > first_count
 
 

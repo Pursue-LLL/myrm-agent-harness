@@ -21,9 +21,9 @@ import asyncio
 import logging
 import os
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -53,17 +53,16 @@ class DetectedBackend:
     version: str | None = None
 
 
-@dataclass
 class BackendDetector:
     """Detects available CLI agent backends.
 
     Searches for known CLI tools using ``shutil.which``, common paths,
     and npm global. Optionally runs ``--version`` to detect the version.
 
-    Results are cached after the first detection.
+    Results are cached process-wide after the first detection.
     """
-
-    _cache: list[DetectedBackend] | None = field(default=None, init=False, repr=False)
+    _cache_with_version: ClassVar[list[DetectedBackend] | None] = None
+    _cache_without_version: ClassVar[list[DetectedBackend] | None] = None
 
     async def detect(self, *, include_version: bool = True) -> list[DetectedBackend]:
         """Detect all available backends.
@@ -74,8 +73,22 @@ class BackendDetector:
         Returns:
             List of detected backends (cached after first call).
         """
-        if self._cache is not None:
-            return self._cache
+        cached = self._get_cached(include_version=include_version)
+        if cached is not None:
+            return cached
+
+        if include_version:
+            cached_without_version = type(self)._cache_without_version
+            if cached_without_version is not None:
+                hydrated = await self._hydrate_versions(cached_without_version)
+                type(self)._cache_with_version = hydrated
+                return hydrated
+        else:
+            cached_with_version = type(self)._cache_with_version
+            if cached_with_version is not None:
+                stripped = [DetectedBackend(name=item.name, path=item.path) for item in cached_with_version]
+                type(self)._cache_without_version = stripped
+                return stripped
 
         results: list[DetectedBackend] = []
         for name in _KNOWN_BACKENDS:
@@ -90,7 +103,7 @@ class BackendDetector:
             results.append(DetectedBackend(name=name, path=path, version=version))
             logger.info("backend_detected name=%s path=%s version=%s", name, path, version)
 
-        self._cache = results
+        self._set_cache(include_version=include_version, value=results)
         return results
 
     async def detect_with_auth(
@@ -112,8 +125,38 @@ class BackendDetector:
         return [(backend, store.state(backend.name)) for backend in detected]
 
     def invalidate_cache(self) -> None:
-        """Force re-detection on next call."""
-        self._cache = None
+        """Force process-wide re-detection on next call."""
+        type(self).invalidate_shared_cache()
+
+    @classmethod
+    def invalidate_shared_cache(cls) -> None:
+        """Drop both versioned and non-versioned detection caches."""
+        cls._cache_with_version = None
+        cls._cache_without_version = None
+
+    @classmethod
+    def _get_cached(cls, *, include_version: bool) -> list[DetectedBackend] | None:
+        return cls._cache_with_version if include_version else cls._cache_without_version
+
+    @classmethod
+    def _set_cache(cls, *, include_version: bool, value: list[DetectedBackend]) -> None:
+        if include_version:
+            cls._cache_with_version = value
+            return
+        cls._cache_without_version = value
+
+    async def _hydrate_versions(self, backends: list[DetectedBackend]) -> list[DetectedBackend]:
+        hydrated: list[DetectedBackend] = []
+        for backend in backends:
+            version = await self._get_version(backend.path)
+            hydrated.append(
+                DetectedBackend(
+                    name=backend.name,
+                    path=backend.path,
+                    version=version,
+                )
+            )
+        return hydrated
 
     def _find_executable(self, name: str) -> str | None:
         """Find an executable by name using multiple strategies."""

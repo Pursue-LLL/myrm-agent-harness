@@ -81,7 +81,12 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
 
     # 搜索类工具 - 显示搜索查询
     if "search" in tool_name.lower():
-        query = tool_args.get("questions") or tool_args.get("query") or tool_args.get("queries") or tool_args.get("q")
+        query = (
+            tool_args.get("questions")
+            or tool_args.get("query")
+            or tool_args.get("queries")
+            or tool_args.get("q")
+        )
         if query:
             if isinstance(query, list):
                 return {"data": [{"query": q} for q in query[:5]]}
@@ -100,7 +105,11 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
         skill_names = tool_args.get("skill_names", [])
         reason = str(tool_args.get("reason", ""))
         if isinstance(skill_names, list) and skill_names:
-            return {"data": [{"skill_name": str(name), "reason": reason} for name in skill_names]}
+            return {
+                "data": [
+                    {"skill_name": str(name), "reason": reason} for name in skill_names
+                ]
+            }
 
     # 文件读取工具
     if tool_name == "file_read_tool":
@@ -128,7 +137,10 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
     if tool_name == "file_write_tool":
         path = tool_args.get("path", "")
         if path:
-            item: dict[str, str | bool] = {"file_path": str(path), "action_type": "write"}
+            item: dict[str, str | bool] = {
+                "file_path": str(path),
+                "action_type": "write",
+            }
             try:
                 if os.path.exists(str(path)) and os.path.isfile(str(path)):
                     item["size_bytes"] = str(os.path.getsize(str(path)))
@@ -162,8 +174,12 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
                 normalized = normalize_edits_payload(tool_args)
                 old_str, new_str = merge_edits_for_diff(normalized)
             except ValueError:
-                old_str = str(tool_args.get("old_str") or tool_args.get("old_string") or "")
-                new_str = str(tool_args.get("new_str") or tool_args.get("new_string") or "")
+                old_str = str(
+                    tool_args.get("old_str") or tool_args.get("old_string") or ""
+                )
+                new_str = str(
+                    tool_args.get("new_str") or tool_args.get("new_string") or ""
+                )
 
             if old_str or new_str:
                 _inject_diff(item, str(path), old_str, new_str)
@@ -176,7 +192,10 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
         code = tool_args.get("command", "")
         if code:
             # 返回完整代码，让前端处理展开/收起
-            return {"step_key": "bash_code_execute_tool_tool", "data": [{"code": str(code)}]}
+            return {
+                "step_key": "bash_code_execute_tool_tool",
+                "data": [{"code": str(code)}],
+            }
 
     # 其他文件/代码执行类 - 显示关键参数
     if any(kw in tool_name.lower() for kw in ["file", "code", "execute", "shell"]):
@@ -189,9 +208,14 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
 
             # 注入 action_type
             action_type = "read"
-            if any(kw in tool_name.lower() for kw in ["write", "edit", "replace", "append"]):
+            if any(
+                kw in tool_name.lower() for kw in ["write", "edit", "replace", "append"]
+            ):
                 action_type = "write"
-            elif any(kw in tool_name.lower() for kw in ["list", "glob", "search", "find", "grep"]):
+            elif any(
+                kw in tool_name.lower()
+                for kw in ["list", "glob", "search", "find", "grep"]
+            ):
                 action_type = "search"
             item["action_type"] = action_type
 
@@ -229,7 +253,9 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
 _DIFF_MAX_LINES = 50
 
 
-def _inject_diff(item: dict[str, str | bool], file_path: str, old_str: str, new_str: str) -> None:
+def _inject_diff(
+    item: dict[str, str | bool], file_path: str, old_str: str, new_str: str
+) -> None:
     """Generate unified diff and inject into item dict (mutates in-place)."""
     if not old_str and not new_str:
         return
@@ -238,13 +264,15 @@ def _inject_diff(item: dict[str, str | bool], file_path: str, old_str: str, new_
     old_lines = old_str.splitlines(keepends=True)
     new_lines = new_str.splitlines(keepends=True)
 
-    diff_lines = list(unified_diff(
-        old_lines,
-        new_lines,
-        fromfile=f"a/{filename}",
-        tofile=f"b/{filename}",
-        lineterm="",
-    ))
+    diff_lines = list(
+        unified_diff(
+            old_lines,
+            new_lines,
+            fromfile=f"a/{filename}",
+            tofile=f"b/{filename}",
+            lineterm="",
+        )
+    )
     if not diff_lines:
         return
 

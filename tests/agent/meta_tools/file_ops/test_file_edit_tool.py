@@ -30,7 +30,9 @@ async def test_file_edit_tool_success() -> None:
             "myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool.FileOperationService",
         ) as mock_service_cls,
     ):
-        mock_service_cls.return_value.execute = AsyncMock(return_value="Successfully replaced text in a.py")
+        mock_service_cls.return_value.execute = AsyncMock(
+            return_value="Successfully replaced text in a.py"
+        )
         result = await tool.ainvoke(
             {
                 "path": "a.py",
@@ -55,7 +57,9 @@ async def test_file_edit_tool_file_not_found() -> None:
             "myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool.FileOperationService",
         ) as mock_service_cls,
     ):
-        mock_service_cls.return_value.execute = AsyncMock(side_effect=FileNotFoundError("missing"))
+        mock_service_cls.return_value.execute = AsyncMock(
+            side_effect=FileNotFoundError("missing")
+        )
         with pytest.raises(ToolError) as exc_info:
             await tool.ainvoke(
                 {"path": "x.py", "edits": [{"old_str": "a", "new_str": "b"}]},
@@ -77,7 +81,9 @@ async def test_file_edit_tool_permission_denied() -> None:
             "myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool.FileOperationService",
         ) as mock_service_cls,
     ):
-        mock_service_cls.return_value.execute = AsyncMock(side_effect=PermissionError("denied"))
+        mock_service_cls.return_value.execute = AsyncMock(
+            side_effect=PermissionError("denied")
+        )
         with pytest.raises(ToolError) as exc_info:
             await tool.ainvoke(
                 {"path": "x.py", "edits": [{"old_str": "a", "new_str": "b"}]},
@@ -96,7 +102,9 @@ async def test_file_edit_tool_permission_denied() -> None:
         ("invalid parameter", "Invalid edit parameters"),
     ],
 )
-async def test_file_edit_tool_value_error_hints(error_message: str, hint_fragment: str) -> None:
+async def test_file_edit_tool_value_error_hints(
+    error_message: str, hint_fragment: str
+) -> None:
     tool = create_file_edit_tool()
 
     with (
@@ -108,7 +116,9 @@ async def test_file_edit_tool_value_error_hints(error_message: str, hint_fragmen
             "myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool.FileOperationService",
         ) as mock_service_cls,
     ):
-        mock_service_cls.return_value.execute = AsyncMock(side_effect=ValueError(error_message))
+        mock_service_cls.return_value.execute = AsyncMock(
+            side_effect=ValueError(error_message)
+        )
         with pytest.raises(ToolError) as exc_info:
             await tool.ainvoke(
                 {"path": "x.py", "edits": [{"old_str": "a", "new_str": "b"}]},
@@ -130,7 +140,9 @@ async def test_file_edit_tool_unexpected_error() -> None:
             "myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool.FileOperationService",
         ) as mock_service_cls,
     ):
-        mock_service_cls.return_value.execute = AsyncMock(side_effect=RuntimeError("boom"))
+        mock_service_cls.return_value.execute = AsyncMock(
+            side_effect=RuntimeError("boom")
+        )
         with pytest.raises(ToolError, match="Unexpected error"):
             await tool.ainvoke(
                 {"path": "x.py", "edits": [{"old_str": "a", "new_str": "b"}]},
@@ -162,7 +174,9 @@ async def test_file_edit_tool_passthrough_tool_error() -> None:
 
 
 def test_file_edit_input_legacy_flat_fields() -> None:
-    model = FileEditInput.model_validate({"path": "f.py", "old_string": "1", "new_string": "2"})
+    model = FileEditInput.model_validate(
+        {"path": "f.py", "old_string": "1", "new_string": "2"}
+    )
     assert model.edits[0].old_str == "1"
     assert model.edits[0].new_str == "2"
 

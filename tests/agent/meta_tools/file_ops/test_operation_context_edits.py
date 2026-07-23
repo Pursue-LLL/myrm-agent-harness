@@ -29,11 +29,15 @@ def test_view_validate_requires_paths() -> None:
 
 
 def test_create_validate_requires_fields() -> None:
-    ctx = OperationContext(operation=OperationType.CREATE, executor=None, path=None, file_text="x")
+    ctx = OperationContext(
+        operation=OperationType.CREATE, executor=None, path=None, file_text="x"
+    )
     with pytest.raises(ValueError, match="requires 'path'"):
         ctx.validate()
 
-    ctx2 = OperationContext(operation=OperationType.CREATE, executor=None, path="f.py", file_text=None)
+    ctx2 = OperationContext(
+        operation=OperationType.CREATE, executor=None, path="f.py", file_text=None
+    )
     with pytest.raises(ValueError, match="requires 'file_text'"):
         ctx2.validate()
 
