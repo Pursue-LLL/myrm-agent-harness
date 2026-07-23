@@ -35,8 +35,12 @@
 - 单工具：1次interrupt → 1次决策
 - 3个工具：1次interrupt → 1次决策（而非3次打断）
 
-### 3. 持久化Allowlist
-"Always Allow"决策存储到数据库（`user_tool_allowlist`表），跨重启、跨会话持久有效。
+### 3. 持久化 Allowlist
+"Always Allow" 决策存储到数据库（`user_tool_allowlist` 表），跨重启、跨会话持久有效。
+
+**四级粒度**（`AllowlistEntry`）：permission → tool → exact（args hash）→ **pattern**（shell glob，`command_pattern` 列）。
+
+**Pattern 规则**（`command_allowlist_pattern.py`）：单段命令推导 `{token0} {token1} *`；复合 shell（`&&`/`|`/`;`）永不写入、永不命中；DENY 仍优先于 allowlist。
 
 **缓存机制**：
 - Lazy-load（首次访问时从DB加载）
@@ -96,7 +100,7 @@ interrupt({
             "args": {...},  # optional, for edit
             "feedback": "...",  # optional, for reject
             "extensions": {
-                "allowAlways": bool
+                "allowAlways": bool | {"tool": bool, "args"?: bool, "pattern"?: bool}
             }
         }
     ]
@@ -314,7 +318,7 @@ and ask for permission or alternative instructions.]
 | 权限评估引擎 | `myrm_agent_harness/agent/security/engine.py` |
 | IM渠道路由 | `app/channels/routing/router.py` |
 | Channel执行器 | `app/core/channel_bridge/agent_executor.py` |
-| Frontend UI | `myrm-agent-frontend/src/components/ui/chat-window/ToolApprovalDialog.tsx` |
+| Frontend UI | `myrm-agent-frontend/src/components/features/chat-window/approval/AllowAlwaysConfirmDialog.tsx` + `AllowlistSection.tsx` |
 | DB持久化 | `app/database/allowlist_store.py` |
 
 ---
@@ -323,18 +327,14 @@ and ask for permission or alternative instructions.]
 
 | 测试类型 | 文件 | 覆盖范围 |
 |---------|------|---------|
-| HITL标准化 | `tests/api/test_hitl_standardization.py` | 13个测试：payload结构/approve/reject/edit/handover/allowAlways/batch/taint/cron |
-| Interrupt-Resume E2E | `tests/integration/test_hitl_interrupt_resume_e2e.py` | 2个测试：完整流程/拒绝流程 |
-| Interrupt边界 | `tests/integration/test_hitl_interrupt_edge_cases.py` | 4个测试：跨重启/并发隔离/编辑参数/无checkpointer |
-| Allowlist单元测试 | `tests/unit/test_approval_flow.py` | 5个测试 |
-| Allowlist并发 | `tests/unit/test_allowlist_concurrency.py` | 5个测试 |
-| Allowlist TTL | `tests/unit/test_allowlist_ttl_only.py` | 9个测试 |
-| DB持久化 | `tests/unit/test_allowlist_store.py` | 7个测试 |
-| Message lifecycle | `tests/unit/test_approval_message_lifecycle.py` | 10个测试 |
-| E2E持久化 | `tests/e2e/test_allowlist_persistence.py` | 完整重启测试 |
-| E2E DB集成 | `tests/e2e/test_allowlist_db_integration.py` | DB完整周期 |
-
-**总计**：55+个测试覆盖核心流程
+| Allowlist 单元 | `tests/agent/security/test_approval_flow.py` | permission / pattern glob `check()` |
+| Pattern 推导 | `tests/agent/security/test_command_allowlist_pattern.py` | 复合检测、glob 匹配、parity 向量 |
+| Middleware pattern | `tests/agent/middlewares/test_approval_edge_cases.py` | pattern 存入、`evaluate_tool_batch` auto-approve |
+| Allowlist REST | `myrm-agent/.../tests/api/security/test_allowlist_api.py` | list/delete `granularity=pattern` |
+| LIVE Chrome E2E | `myrm-agent/.../tests/e2e/test_allowlist_pattern_live_chrome_e2e.py` | 真实模型 bash → pattern → Settings |
+| SHPOIB attach replay | `myrm-agent/.../tests/api/agent/test_shpoib_hitl_attach_replay.py` | collector replay + hitl-probe（无 LLM） |
+| Allowlist 并发 | `tests/agent/security/test_approval_flow_coverage.py` | 并发 / TTL / store 协议 |
+| DB 持久化 | `myrm-agent/.../app/database/allowlist_store.py` + server 集成测 | `command_pattern` 列 UNIQUE |
 
 ---
 

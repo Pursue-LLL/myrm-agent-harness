@@ -5,8 +5,7 @@
 
 [OUTPUT]
 - is_compound_shell_command(): detect chained shell operators
-- derive_command_pattern(): build a conservative glob prefix pattern
-- matches_command_pattern(): fnmatch-based pattern check
+- `derive_command_pattern()` / `matches_command_pattern()` / `DERIVE_PATTERN_PARITY_VECTORS`（与 frontend vitest 对齐）
 
 [POS]
 Layer 4 allowlist extension (C-minimal). Pattern entries never auto-approve

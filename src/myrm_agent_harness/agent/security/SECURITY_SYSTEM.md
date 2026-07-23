@@ -557,9 +557,22 @@ Step 6:  Transcript Classifier → 当 auto_mode_enabled 时，对所有 engine 
 ```python
 class Allowlist:
     def __init__(store, ttl_seconds=300.0)     # ttl_seconds <= 0 disables time-based expiry
-    def check(user_id, permission_type, tool_name, tool_args) -> bool  # 细粒度匹配
+    def check(
+        user_id,
+        permission_type,
+        tool_name=None,
+        tool_args_hash=None,
+        *,
+        command=None,
+    ) -> bool  # exact → pattern → tool → permission
     async def add(user_id, entry) -> None       # 添加 allow-always 条目
-    async def remove(user_id, perm, tool_name, args_hash)  # 移除条目
+    async def remove(
+        user_id,
+        permission,
+        tool_name=None,
+        tool_args_hash=None,
+        command_pattern=None,
+    ) -> None  # 移除条目（含 pattern 粒度）
     async def load_user(user_id) -> None        # 懒加载用户规则（并发安全 + TTL）
 
 @dataclass
@@ -585,6 +598,16 @@ class AllowlistEntry:
 - 单段命令 → 取前两 token + `*`（仅 1 token 时取 `{token} *`）
 - 复合命令 → 拒绝写入 pattern allowlist
 - 匹配使用 `fnmatchcase`；compound shell 在 `check()` 时跳过 pattern 命中
+- 跨仓库 parity 向量：`tests/agent/security/test_command_allowlist_pattern.py::DERIVE_PATTERN_PARITY_VECTORS` 与前端 `shellCommandDisplay.test.ts` 对齐
+
+**前端 UX 约束**（`AllowAlwaysConfirmDialog` / `EditModeView`）：
+- pattern scope 且命令无法推导 glob 时，Confirm 按钮禁用（与 harness 侧静默 skip 一致）
+
+**回归测试**（无 Chrome）：
+- `tests/agent/security/test_approval_flow.py::test_pattern_match_checks_command_glob`
+- `tests/agent/middlewares/test_approval_edge_cases.py`（pattern 存入 / 复合 shell skip / `evaluate_tool_batch` auto-approve）
+- server：`tests/api/security/test_allowlist_api.py`（REST list/delete pattern 粒度）
+- server LIVE：`tests/e2e/test_allowlist_pattern_live_chrome_e2e.py`
 
 **NULL 标准化机制**：
 - 数据库层面将 `tool_name=None` 和 `tool_args_hash=None` 标准化为空字符串 `''`
