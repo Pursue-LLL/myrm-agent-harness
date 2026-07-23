@@ -126,6 +126,103 @@ async def test_add_to_allowlist_exact_match():
 
 
 @pytest.mark.asyncio
+async def test_add_to_allowlist_pattern_match():
+    """Pattern allow-always stores glob and matches variant shell commands."""
+    from myrm_agent_harness.agent.security.approval_flow import get_allowlist
+
+    allowlist = get_allowlist()
+
+    await add_to_allowlist_if_needed(
+        allow_always={"tool": True, "pattern": True},
+        user_id="user123",
+        permission_type="code_interpreter",
+        tool_name="bash_code_execute_tool",
+        tool_args_hash="ignored_hash",
+        tool_command="curl -sS http://127.0.0.1:9/ALLOWLIST_LIVE_PROBE",
+    )
+
+    assert allowlist.check(
+        "user123",
+        "code_interpreter",
+        "bash_code_execute_tool",
+        "different_hash",
+        command="curl -sS http://127.0.0.1:9/other-path",
+    )
+    assert not allowlist.check(
+        "user123",
+        "code_interpreter",
+        "bash_code_execute_tool",
+        "different_hash",
+        command="npm install lodash",
+    )
+
+
+@pytest.mark.asyncio
+async def test_add_to_allowlist_pattern_skips_compound_shell():
+    """Compound shell must not create a pattern allowlist entry."""
+    from myrm_agent_harness.agent.security.approval_flow import get_allowlist
+
+    allowlist = get_allowlist()
+
+    await add_to_allowlist_if_needed(
+        allow_always={"tool": True, "pattern": True},
+        user_id="user123",
+        permission_type="code_interpreter",
+        tool_name="bash_code_execute_tool",
+        tool_command="curl -sS http://127.0.0.1:9/probe && rm -rf /",
+    )
+
+    assert not allowlist.check(
+        "user123",
+        "code_interpreter",
+        "bash_code_execute_tool",
+        None,
+        command="curl -sS http://127.0.0.1:9/probe",
+    )
+
+
+@pytest.mark.asyncio
+async def test_pattern_allowlist_auto_approves_bash_in_evaluate_tool_batch():
+    """evaluate_tool_batch auto-approves when pattern allowlist matches shell command."""
+    from myrm_agent_harness.agent.middlewares.approval.batch_processor import evaluate_tool_batch
+    from myrm_agent_harness.agent.security.approval_flow import get_allowlist
+
+    config = SecurityConfig(ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),))
+    set_approval_user_id("user123")
+
+    allowlist = get_allowlist()
+    await allowlist.add(
+        "user123",
+        AllowlistEntry(
+            permission="code_interpreter",
+            tool_name="bash_code_execute_tool",
+            command_pattern="curl -sS *",
+        ),
+    )
+
+    tool_call = ToolCall(
+        type="tool_call",
+        name="bash_code_execute_tool",
+        args={"command": "curl -sS http://127.0.0.1:9/other"},
+        id="call_curl_pattern",
+    )
+
+    auto_approved, auto_denied, pending = await evaluate_tool_batch(
+        tool_calls=[tool_call],
+        config=config,
+        is_cron=False,
+        workspace_root="/tmp",
+        session_key="sess_pattern_allowlist",
+        args_hashes={0: "hash_a"},
+    )
+
+    assert len(auto_approved) == 1
+    assert len(auto_denied) == 0
+    assert len(pending) == 0
+    assert auto_approved[0][1].get("id") == "call_curl_pattern"
+
+
+@pytest.mark.asyncio
 async def test_add_to_allowlist_no_user_id():
     """Test that allowlist is not added when user_id is empty."""
     from myrm_agent_harness.agent.security.approval_flow import get_allowlist

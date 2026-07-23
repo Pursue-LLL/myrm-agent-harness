@@ -47,3 +47,33 @@ class TestAllowlist:
         assert allowlist.check("user1", "file_read") is False
         assert allowlist.check("user2", "file_read") is True
         assert allowlist.check("user2", "shell_exec") is False
+
+    @pytest.mark.asyncio
+    async def test_pattern_match_checks_command_glob(self, allowlist: Allowlist) -> None:
+        entry = AllowlistEntry(
+            permission="code_interpreter",
+            tool_name="bash_code_execute_tool",
+            command_pattern="curl -sS *",
+        )
+        await allowlist.add("user1", entry)
+        assert allowlist.check(
+            "user1",
+            "code_interpreter",
+            "bash_code_execute_tool",
+            "any_hash",
+            command="curl -sS http://127.0.0.1:9/probe",
+        )
+        assert not allowlist.check(
+            "user1",
+            "code_interpreter",
+            "bash_code_execute_tool",
+            "any_hash",
+            command="wget http://127.0.0.1:9/probe",
+        )
+        assert not allowlist.check(
+            "user1",
+            "code_interpreter",
+            "bash_code_execute_tool",
+            "any_hash",
+            command="curl -sS http://127.0.0.1:9/probe && rm -rf /",
+        )
