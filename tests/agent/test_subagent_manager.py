@@ -78,6 +78,19 @@ class FakeSearchTool(BaseTool):
         return f"result: {query}"
 
 
+class FakeAskQuestionTool(BaseTool):
+    """Fake structured clarify tool used for L1 filter assertions."""
+
+    name: str = "ask_question_tool"
+    description: str = "Ask user structured clarification questions"
+
+    def _run(self, **kwargs: object) -> str:
+        return "clarify"
+
+    async def _arun(self, **kwargs: object) -> str:
+        return "clarify"
+
+
 class FakeWriteTool(BaseTool):
     """Fake write tool."""
 
@@ -570,6 +583,7 @@ def test_filter_tools_blocks_all_global_blacklisted_tools() -> None:
 
     parent_tools = [
         FakeSearchTool(),
+        FakeAskQuestionTool(),
         FakeSpawnSubagentTool(),
         FakeBatchDelegateTool(),
         FakeListSubagentsTool(),
@@ -584,6 +598,7 @@ def test_filter_tools_blocks_all_global_blacklisted_tools() -> None:
     filtered_names = {t.name for t in filtered}
 
     assert "web_search_tool" in filtered_names
+    assert "ask_question_tool" not in filtered_names
     assert "delegate_task_tool" not in filtered_names
     assert "batch_delegate_tasks_tool" not in filtered_names
     assert "subagent_control_tool" not in filtered_names
@@ -598,7 +613,7 @@ def test_filter_tools_blocks_blacklisted_even_with_explicit_allowlist() -> None:
 
     config = SubagentConfig(
         system_prompt="test",
-        tools=("web_search_tool", "skill_manage_tool", "batch_delegate_tasks_tool"),
+        tools=("web_search_tool", "skill_manage_tool", "batch_delegate_tasks_tool", "ask_question_tool"),
     )
 
     filtered = filter_tools(config, parent_tools)
@@ -607,6 +622,7 @@ def test_filter_tools_blocks_blacklisted_even_with_explicit_allowlist() -> None:
     assert "web_search_tool" in filtered_names
     assert "skill_manage_tool" not in filtered_names
     assert "batch_delegate_tasks_tool" not in filtered_names
+    assert "ask_question_tool" not in filtered_names
 
 
 # ---------------------------------------------------------------------------

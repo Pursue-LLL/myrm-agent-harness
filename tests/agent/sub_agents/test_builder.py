@@ -49,6 +49,22 @@ class TestFilterTools:
         assert "batch_delegate_tasks_tool" not in names
         assert "read_file" in names
 
+    def test_l1_blocks_ask_question_tool(self):
+        tools = [_make_tool("ask_question_tool"), _make_tool("read_file")]
+        cfg = SubagentConfig(system_prompt="s")
+        result = filter_tools(cfg, tools)
+        names = [t.name for t in result]
+        assert "ask_question_tool" not in names
+        assert "read_file" in names
+
+    def test_l1_ask_question_cannot_be_allowlisted(self):
+        tools = [_make_tool("ask_question_tool"), _make_tool("read_file")]
+        cfg = SubagentConfig(system_prompt="s", tools=("ask_question_tool", "read_file"))
+        result = filter_tools(cfg, tools)
+        names = [t.name for t in result]
+        assert "ask_question_tool" not in names
+        assert "read_file" in names
+
     def test_l2_allowlist(self):
         tools = [_make_tool("read_file"), _make_tool("write_file"), _make_tool("bash")]
         cfg = SubagentConfig(system_prompt="s", tools=("read_file", "bash"))

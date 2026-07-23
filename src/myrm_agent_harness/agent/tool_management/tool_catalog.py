@@ -80,7 +80,7 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
     "delegate_to_agent_tool": "external ACP agent configured",
     "render_ui_tool": "enabled_builtin_tools: render_ui",
     "update_ui_data_tool": "enabled_builtin_tools: render_ui",
-    "ask_question_tool": "server mount policy (interactive web_chat); requires_confirmation WebUI emphasis; ClarificationGuardMiddleware one call/turn",
+    "ask_question_tool": "server mount policy (interactive web_chat); requires_confirmation WebUI emphasis; ClarificationGuardMiddleware one call/turn; leaf subagent L1 block",
     "image_tool": "enabled_builtin_tools: image_generation",
     "video_tool": "enabled_builtin_tools: video_generation",
     "tts_generate": "enabled_builtin_tools: tts",

@@ -87,7 +87,8 @@ Layer 0: create_delegate_task_tool(allowed_types=...)
          → 类型准入控制，限制可委托的 agent 类型
 
 Layer 1: DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools
-         → delegate_task_tool + subagent_control_tool + skill_manage/discovery_tool；
+         → delegate_task_tool + subagent_control_tool + skill_manage/discovery_tool
+           + ask_question_tool (HITL must stay on parent/web thread);
            同一份 manifest 同时驱动 leaf 剥离和 orchestrator child-scoped 工具注入
 
 Layer 2: SubagentConfig

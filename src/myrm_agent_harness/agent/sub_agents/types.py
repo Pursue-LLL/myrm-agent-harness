@@ -78,10 +78,12 @@ class DelegationCapabilityManifest:
                 "steer_subagent_tool",
             }
         )
+        hitl_tools = frozenset({"ask_question_tool"})
         return cls(
             leaf_blocked_tools=frozenset(orchestrator_child_tools)
             | privileged_skill_tools
-            | legacy_delegation_tools,
+            | legacy_delegation_tools
+            | hitl_tools,
             orchestrator_child_tools=orchestrator_child_tools,
             privileged_skill_tools=privileged_skill_tools,
         )
