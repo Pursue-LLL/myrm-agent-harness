@@ -29,12 +29,14 @@ Response levels:
 
 [OUTPUT]
 - LoopGuard: session-scoped detector with BREAK/WARN/ALLOW verdicts,
-  loop pattern metadata, smart suggestions, metrics, and quality feedback
+  loop pattern metadata, smart suggestions, metrics, quality feedback,
+  and sandbox_boundary_triggered flag for Goal HITL escalation
 
 [POS]
 Session-level safety guard integrated into tool_interceptor_middleware.
 Pre-call: detect loops (incl. output diminishing) and optionally BREAK execution.
 Post-call: record results for no-progress detection and suggestion tracking.
+Exposes sandbox_boundary_triggered for continuation guard chain HITL escalation.
 """
 
 from __future__ import annotations
@@ -190,6 +192,7 @@ class LoopGuard(LoopDetectorMixin):
         self._output_history: deque[int] = deque(maxlen=window_size)
         self._last_recorded_call_index: int = -1
         self._error_signatures: dict[str, int] = {}
+        self._sandbox_boundary_flag: bool = False
         self._stats_db = stats_db if enable_stats else None
         if enable_stats and stats_db is None and LoopGuardStatsDB is not None:
             self._stats_db = LoopGuardStatsDB()
@@ -366,6 +369,11 @@ class LoopGuard(LoopDetectorMixin):
         """Reset metrics counters."""
         self._metrics = LoopGuardMetrics()
 
+    @property
+    def sandbox_boundary_triggered(self) -> bool:
+        """True if the most recent detection was a sandbox boundary violation."""
+        return self._last_detection_kind == LoopKind.ERROR_SIGNATURE and self._sandbox_boundary_flag
+
     def reset(self, *, preserve_error_signatures: bool = False) -> None:
         """Clear all recorded calls and per-run state."""
         self._window.clear()
@@ -377,6 +385,7 @@ class LoopGuard(LoopDetectorMixin):
         self._last_detection_kind = None
         self._output_history.clear()
         self._last_recorded_call_index = -1
+        self._sandbox_boundary_flag = False
         if not preserve_error_signatures:
             self._error_signatures.clear()
 

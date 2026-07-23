@@ -97,6 +97,7 @@ async def enable_heartbeat(
     schedule: Schedule | None = None,
     prompt: str | None = None,
     model: str | None = None,
+    agent_id: str | None = None,
 ) -> CronJob:
     """Enable the heartbeat.  Idempotent: creates or resumes the job.
 
@@ -104,6 +105,10 @@ async def enable_heartbeat(
     This allows callers to pass a CRON-based schedule for time-of-day
     triggering (e.g. ``Schedule(kind=ScheduleKind.CRON, expr="0 9 * * *",
     tz="Asia/Shanghai")``).
+
+    When *agent_id* is set, the heartbeat job binds to that agent profile,
+    inheriting its model, system prompt, skills, and tool configuration.
+    Pass ``None`` to unbind (clears any previously bound agent).
     """
     sched = _build_schedule(schedule, interval_ms)
     existing = await _find_heartbeat(manager, owner_id)
@@ -114,6 +119,7 @@ async def enable_heartbeat(
             schedule=sched,
             prompt=prompt or existing.prompt or _DEFAULT_PROMPT,
             model=model,
+            agent_id=agent_id if agent_id is not None else "",
         )
         updated = await manager.update_job(existing.id, owner_id, patch)
         if updated is not None:
@@ -127,6 +133,7 @@ async def enable_heartbeat(
         schedule=sched,
         prompt=prompt or _DEFAULT_PROMPT,
         model=model,
+        agent_id=agent_id,
         delivery=DeliveryConfig(channel="chat"),
         session_target=SessionTarget.ISOLATED,
         timeout_seconds=_DEFAULT_TIMEOUT,

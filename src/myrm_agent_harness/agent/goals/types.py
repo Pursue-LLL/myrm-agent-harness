@@ -213,6 +213,8 @@ ContinuationVerdict = Literal[
     "convergence",
     "loop_restart",
     "wait",
+    "drift_nudge",
+    "drift_pause",
 ]
 
 

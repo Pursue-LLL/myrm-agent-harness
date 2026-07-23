@@ -3,11 +3,13 @@
 [INPUT]
 - .protocols::GoalProvider (POS: Goal provider protocol)
 - .audit::build_continuation_prompt, build_judge_criteria, build_wrapup_prompt (POS: Prompt/criteria builders)
+- .continuation_drift::check_goal_drift (POS: Goal drift detection for continuation guard chain)
 - .invariant_snapshot::ProtectedFileViolation, verify_protected_integrity (POS: Post-hoc tamper detection)
 - .types::ContinuationDecision, GoalStatus (POS: Guard chain result)
 - langchain_core.messages::HumanMessage, AIMessage (POS: Message types)
 - utils.runtime.cancellation::CancellationToken (POS: Cancellation state)
 - utils.runtime.steering::SteeringToken (POS: Steering state)
+- middlewares.tool_interceptor_middleware::get_loop_guard (POS: LoopGuard accessor)
 
 [OUTPUT]
 - check_continuation: Evaluates the guard chain, returns ContinuationDecision.
@@ -15,7 +17,8 @@
 [POS]
 Core logic for determining if a goal should automatically continue to the next turn.
 Evaluates budget, suppression, cancellation, steering, convergence, loop restart,
-semantic completion, and protected file integrity (InvariantSnapshot tamper detection).
+goal drift detection, sandbox boundary HITL, semantic completion, and protected file
+integrity (InvariantSnapshot tamper detection).
 Returns a structured ContinuationDecision with verdict/reason for downstream consumers.
 """
 
@@ -54,6 +57,11 @@ _WRAPUP_SENTINEL = GOAL_WRAPUP_PREFIX
 _MAX_VERIFICATION_RETRIES = 3
 
 _WAIT_TIMEOUT_PAUSE_REASON = "Wait timeout exceeded — goal paused"
+
+from .continuation_drift import (
+    _DRIFT_CHECK_INTERVAL,
+    check_goal_drift as _check_goal_drift,
+)
 
 
 def _is_wait_expired(goal: Goal) -> bool:
@@ -451,6 +459,29 @@ async def check_continuation(
         await goal_provider.update_status(goal.goal_id, GoalStatus.PAUSED)
         await goal_provider.reset_suppression(session_id)
         return _make_decision("suppressed", "No tool calls — paused to prevent spinning", goal)
+
+    # 6.5a Sandbox boundary escalation: PAUSE goal if LoopGuard flagged permission probing
+    from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import get_loop_guard as _get_lg
+
+    _lg = _get_lg()
+    if _lg.sandbox_boundary_triggered:
+        logger.warning("Goal %s paused: sandbox boundary violation detected", goal.goal_id)
+        await goal_provider.update_status(goal.goal_id, GoalStatus.PAUSED)
+        await goal_provider.update_metadata(
+            goal.goal_id,
+            {"pause_reason": "Sandbox boundary violation — repeated permission denied"},
+        )
+        return _make_decision(
+            "drift_pause",
+            "Sandbox boundary violation — goal paused for human review",
+            goal,
+        )
+
+    # 6.5b Goal drift detection (skip first few turns; only when tools were called)
+    if goal.turns_used >= _DRIFT_CHECK_INTERVAL and tools_called_this_turn:
+        drift_decision = await _check_goal_drift(goal_provider, goal, collected_messages)
+        if drift_decision is not None:
+            return drift_decision
 
     # 7. Semantic completion judge (skip first N turns)
     last_judge_reason: str | None = None

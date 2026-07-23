@@ -238,6 +238,19 @@ async def run_pre_call_guards(
     if loop_verdict.action == LoopAction.BREAK:
         raw_loop_kind = getattr(loop_verdict, "loop_kind", None)
         loop_kind = raw_loop_kind if isinstance(raw_loop_kind, str) else "loop_break"
+
+        if loop_kind == "sandbox_boundary":
+            record_decision(tool_name, "SANDBOX_BOUNDARY_ESCALATE", loop_verdict.reason)
+            logger.warning("Sandbox boundary escalation: %s -- %s", tool_name, loop_verdict.reason)
+            await _emit_loop_guard_event("sandbox_boundary", tool_name, loop_verdict.reason, "error")
+            return make_error_msg(
+                tool_name,
+                tool_call_id,
+                f"Error: {loop_verdict.reason}\n\nYour goal will be paused for human review.",
+                error_category="sandbox_boundary",
+                loop_kind=loop_kind,
+            )
+
         record_decision(tool_name, "LOOP_BREAK", loop_verdict.reason)
         logger.warning("Loop break: %s -- %s", tool_name, loop_verdict.reason)
         await _emit_loop_guard_event("loop_guard_break", tool_name, loop_verdict.reason, "error")
@@ -461,9 +474,15 @@ async def run_post_call_guards(
 
     post_verdict = loop_guard.record_result(tool_name, tool_args, result_text)
     if post_verdict.action == LoopAction.BREAK:
-        record_decision(tool_name, "LOOP_BREAK", post_verdict.reason)
-        logger.warning("Loop output break: %s -- %s", tool_name, post_verdict.reason)
-        await _emit_loop_guard_event("loop_guard_break", tool_name, post_verdict.reason, "error")
+        post_loop_kind = getattr(post_verdict, "loop_kind", None)
+        if post_loop_kind == "sandbox_boundary":
+            record_decision(tool_name, "SANDBOX_BOUNDARY_ESCALATE", post_verdict.reason)
+            logger.warning("Sandbox boundary (post-call): %s -- %s", tool_name, post_verdict.reason)
+            await _emit_loop_guard_event("sandbox_boundary", tool_name, post_verdict.reason, "error")
+        else:
+            record_decision(tool_name, "LOOP_BREAK", post_verdict.reason)
+            logger.warning("Loop output break: %s -- %s", tool_name, post_verdict.reason)
+            await _emit_loop_guard_event("loop_guard_break", tool_name, post_verdict.reason, "error")
     elif post_verdict.action == LoopAction.WARN:
         record_decision(tool_name, "LOOP_WARN", post_verdict.reason)
         logger.warning("Loop output warning: %s -- %s", tool_name, post_verdict.reason)

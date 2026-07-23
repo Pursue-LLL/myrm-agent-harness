@@ -4,14 +4,16 @@ Contains the actual detection logic for each loop pattern. Designed as a
 mixin class so that LoopGuard can inherit without tight coupling.
 
 [INPUT]
-- loop_guard_types (POS: core types for loop detection)
+- loop_guard_types (POS: core types for loop detection, incl. ErrorPattern)
 - loop_suggestions (POS: context-aware suggestion generation)
+- loop_suggestions.core::analyze_error_pattern (POS: error pattern classification)
 
 [OUTPUT]
 - LoopDetectorMixin: mixin providing _check_* detection methods
 
 [POS]
-Loop detection algorithms — repetition, pattern matching, and stuck-state detection.
+Loop detection algorithms — repetition, pattern matching, stuck-state detection,
+and sandbox boundary escalation (PERMISSION_DENIED special handling).
 LoopGuard delegates detection logic here; this module owns the detection strategies.
 """
 
@@ -23,6 +25,7 @@ from .loop_guard_types import (
     VERDICT_ALLOW,
     AgentPhase,
     CallRecord,
+    ErrorPattern,
     LoopAction,
     LoopKind,
     LoopVerdict,
@@ -348,9 +351,17 @@ class LoopDetectorMixin:
 
         return VERDICT_ALLOW
 
+    _PERMISSION_DENIED_ESCALATION_THRESHOLD = 3
+
     def _check_error_signature(self, tool_name: str, result_text: str) -> LoopVerdict:
-        """Cross-tool error signature detection."""
+        """Cross-tool error signature detection.
+
+        Special handling for PERMISSION_DENIED: escalates after 3 occurrences
+        with a BREAK verdict carrying loop_kind="sandbox_boundary" so that
+        the tool guard layer can PAUSE the Goal instead of brute-force interrupt.
+        """
         from .loop_guard import _normalise_error_signature
+        from .loop_suggestions.core import analyze_error_pattern
 
         sig = _normalise_error_signature(result_text)
         if not sig:
@@ -358,6 +369,20 @@ class LoopDetectorMixin:
 
         count = self._error_signatures.get(sig, 0) + 1
         self._error_signatures[sig] = count
+
+        error_pattern = analyze_error_pattern(result_text)
+        if error_pattern == ErrorPattern.PERMISSION_DENIED and count >= self._PERMISSION_DENIED_ESCALATION_THRESHOLD:
+            self._record_detection(tool_name, LoopKind.ERROR_SIGNATURE, count)
+            self._sandbox_boundary_flag = True
+            return LoopVerdict(
+                action=LoopAction.BREAK,
+                reason=(
+                    f"Sandbox boundary violation: permission denied {count} times "
+                    f"across tools. The agent appears to be probing beyond its sandbox."
+                ),
+                backoff_hint="Stop attempting restricted operations. Ask the user for guidance.",
+                loop_kind="sandbox_boundary",
+            )
 
         if count >= self._error_sig_threshold:
             from myrm_agent_harness.agent.errors.agent_errors import ToolStuckException

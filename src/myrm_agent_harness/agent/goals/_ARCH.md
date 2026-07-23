@@ -8,7 +8,7 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 - **GoalBudget**: 4 维预算控制 — max_tokens / max_usd / max_time_seconds / max_turns + convergence_window / loop_on_pause / max_loop_restarts 自适应循环控制
 - **turns_used**: 精确的 turn 计数，每次 account_usage(turn_delta=1) 递增
 - **no_progress_streak**: 连续零工具调用轮次计数器，用于收敛检测
-- **ContinuationDecision**: guard chain 的结构化返回值，包含 verdict / reason / turns 指标。verdict 含 `convergence`、`loop_restart`、**`wait`**（外部等待，跳过 judge）及 `done`/`budget` 等
+- **ContinuationDecision**: guard chain 的结构化返回值，包含 verdict / reason / turns 指标。verdict 含 `convergence`、`loop_restart`、`wait`（外部等待，跳过 judge）、`drift_nudge`（轨迹偏离软提醒）、`drift_pause`（轨迹偏离/沙箱边界硬暂停）及 `done`/`budget` 等
 - **Convergence Mode**: 当 convergence_window 已设置且 no_progress_streak ≥ K 时，标记 Goal 为 COMPLETE(convergence) 而非 BUDGET_LIMITED，节省 token 并改善 UX
 - **Loop-on-Pause**: 当 loop_on_pause=True 且未超过 max_loop_restarts 时，PAUSED 后立即以新 context 重启，而非等待 Cron 分钟级延迟
 - **Semantic Judge**: 使用廉价 LLM 判断目标是否语义完成，三段式 prompt (角色 + DONE 条件 + JSON 输出格式)
@@ -20,6 +20,8 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 - **auto_approve**: 从队列 dequeue 出的 goal 跳过 PENDING_APPROVAL 人工审批阶段，实现无人值守串行执行。
 - **Objective Hot-Edit**: 运行时修改 goal objective 文本，通过 SteeringToken 注入 `<untrusted_objective>` 标记的 steering 消息，agent 实时调整方向而不丢失进度。
 - **Budget Wrap-up Turn**: 预算耗尽时不立即终止，注入 `build_wrapup_prompt` 让 LLM 生成最后一轮无工具语义总结（进度/工件/剩余工作/下步建议）。通过 `_WRAPUP_SENTINEL` 标记防止无限循环。
+- **Goal Drift Detection**: 每 5 轮调用廉价 LLM 评估最近工具调用与目标的相关性（0-10 分）。drift_score ≥ 3 注入 nudge 提醒；≥ 7 PAUSE Goal 等待人工审查。Fail-open：评估失败时默认允许继续。复用现有 `evaluate_semantic` 基础设施。
+- **Sandbox Boundary HITL**: LoopGuard 检测到连续 3 次 PERMISSION_DENIED 跨工具错误时，标记 `sandbox_boundary` 并在 continuation guard chain 中 PAUSE Goal，而非暴力 interrupt。用户收到通知后可决定是否授权或调整任务。
 
 ## 文件清单
 
@@ -34,7 +36,8 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 | steering_prompts.py | 核心 | Goal 运行时 steering prompt 模板 | ✅ |
 | storage.py | 核心 | SQLite 持久化、队列索引、`list_latest_goal_sessions`（启动 orphan WAIT 扫描） | ✅ |
 | goal_prompt_prefixes.py | Core | `GOAL_CONTINUATION_PREFIX` / `GOAL_WRAPUP_PREFIX` SSOT | ✅ |
-| continuation.py | 核心 | guard chain → ContinuationDecision；WAIT 早退；tool-complete deferred 解析；白名单 background bash 自动 enter_wait | ✅ |
+| continuation.py | 核心 | guard chain → ContinuationDecision；WAIT 早退；tool-complete deferred 解析；白名单 background bash 自动 enter_wait；Sandbox Boundary HITL (step 6.5a)；delegates drift to continuation_drift | ✅ |
+| continuation_drift.py | 核心 | Goal Drift Detection (step 6.5b) — LLM judge 评估轨迹偏离度，produce drift_nudge/drift_pause verdicts | ✅ |
 | wait_background_bash.py | 核心 | 窄域 build/test/CI 白名单 + LoopGuard 窗口解析 background spawn；metadata `wait_on_background_job_id` 绑定 BSDL job_id；Server finish 时 exit_wait + `trigger_goal_stream_with_failure_policy` 闭环 | ✅ |
 | audit.py | 核心 | 三段式 judge criteria + 行为引导 continuation prompt（含 Fidelity 防目标缩水、Evidence-based 防历史幻觉、Progress visibility 激活 todo_write 进度推送、8 步 audit protocol、历史 learnings 注入、收敛引导指令）+ budget wrap-up prompt | ✅ |
 | goal_interceptor.py | 核心 | Goal 拦截器：执行前发布 protected_paths / invariant snapshot；进度由主 Agent `todo_write` 负责 | ✅ |

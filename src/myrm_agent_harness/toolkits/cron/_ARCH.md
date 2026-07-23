@@ -20,7 +20,7 @@ cross-task data piping (inject referenced jobs' latest successful output), incre
 | cron_agent_tools.py | Core | Agent tool for scheduled task management. Blueprint catalog via `action=blueprints` (not Turn1 schema injection). Supports `default_delivery`, `reminder` jobs, cron-execution mutating guard, incremental monitoring, context chaining, active hours. **`required_capabilities` / `tools_allowed` CSV params** on add/update; `BlueprintFiller` 5-tuple includes caps + tools. | ✅ |
 | delivery.py | Core | Built-in webhook ResultDelivery for cron job results. | ✅ |
 | delivery_guard.py | Core | Exact-token `[SILENT]` detection for delivery filtering (`is_silent_output`). | ✅ |
-| heartbeat.py | Core | Heartbeat — convenience layer over CronManager for periodic agent self-checks. Supports both INTERVAL and CRON scheduling (time-of-day triggers). | ✅ |
+| heartbeat.py | Core | Heartbeat — convenience layer over CronManager for periodic agent self-checks. Supports both INTERVAL and CRON scheduling (time-of-day triggers). Optional `agent_id` binding to inherit Agent Profile (model, prompt, skills). | ✅ |
 | manager.py | Core | Cron CRUD orchestration layer. Validates job configurations, persists changes via CronStore, | ✅ |
 | protocols.py | Core | Protocols for the cron toolkit. | ✅ |
 | runners.py | Core | Built-in job runners (ShellJobRunner, RouterJobRunner, NotificationRunner). | ✅ |
