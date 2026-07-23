@@ -4,12 +4,28 @@ from __future__ import annotations
 
 import pytest
 
+from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    build_delivery_footer,
+    emit_evicted_ref,
+    persist_evicted_content,
+)
 from myrm_agent_harness.core.context_vars import chat_id_var, workspace_root_var
 from myrm_agent_harness.toolkits.web_fetch.spill import (
     DEFAULT_MODEL_PREVIEW_CHARS,
     emit_web_fetch_evicted_ref,
     maybe_spill_web_fetch_content,
+    set_evicted_content_callbacks,
 )
+
+
+@pytest.fixture(autouse=True)
+def _inject_evicted_callbacks() -> None:
+    """Mirror agent_runtime wiring so spill tests exercise real UECD persist/emit."""
+    set_evicted_content_callbacks(
+        persist_fn=persist_evicted_content,
+        build_footer_fn=build_delivery_footer,
+        emit_ref_fn=emit_evicted_ref,
+    )
 
 
 @pytest.mark.asyncio
@@ -64,6 +80,19 @@ async def test_spill_persist_failure_still_returns_preview(tmp_path, monkeypatch
     finally:
         workspace_root_var.reset(token)
         chat_id_var.reset(chat_token)
+
+
+@pytest.mark.asyncio
+async def test_spill_without_callbacks_truncates_only() -> None:
+    from myrm_agent_harness.toolkits.web_fetch import spill as spill_mod
+
+    spill_mod._evicted_callbacks_var.set(None)
+
+    body = "x" * 5000
+    result = await maybe_spill_web_fetch_content(body, preview_chars=1000)
+    assert result.spilled is True
+    assert result.evicted_ref is None
+    assert len(result.preview) < len(body)
 
 
 @pytest.mark.asyncio
