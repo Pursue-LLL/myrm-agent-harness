@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.agent.meta_tools.clarification.hitl_tool_policy import (
+from myrm_agent_harness.agent.sub_agents.hitl_tool_policy import (
     HITL_TOOL_POLICY,
     HitlToolPolicy,
 )

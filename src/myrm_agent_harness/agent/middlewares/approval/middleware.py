@@ -73,17 +73,22 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
         """
         config = get_security_config()
         if config is None:
-            from myrm_agent_harness.agent.security.channel_presets import (
-                build_channel_security_config,
-            )
+            runtime_sec = getattr(getattr(runtime, "config", None), "security_config", None)
+            if runtime_sec is not None:
+                config = runtime_sec
+                set_security_config(config)
+            else:
+                from myrm_agent_harness.agent.security.channel_presets import (
+                    build_channel_security_config,
+                )
 
-            logger.error(
-                "[SECURITY] security_config missing in async context — "
-                "applying fail-closed web_chat defaults (session=%s)",
-                get_approval_session(),
-            )
-            config = build_channel_security_config("web_chat", None, local_mode=True)
-            set_security_config(config)
+                logger.error(
+                    "[SECURITY] security_config missing in async context — "
+                    "applying fail-closed web_chat defaults (session=%s)",
+                    get_approval_session(),
+                )
+                config = build_channel_security_config("web_chat", None, local_mode=True)
+                set_security_config(config)
 
         messages = state.get("messages", [])
         if not messages:

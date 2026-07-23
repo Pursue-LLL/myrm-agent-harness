@@ -86,6 +86,35 @@ class TestSearch:
         assert "skill-b" in ids
 
     @pytest.mark.asyncio
+    async def test_search_deduplicate_prefers_high_priority_source_deterministically(self) -> None:
+        scenarios = (
+            (0.02, 0.00),
+            (0.00, 0.02),
+        )
+        for github_delay, skills_sh_delay in scenarios:
+            svc = BaseSkillDiscoveryService()
+            github_result = _make_search_result("dup-github", name="Shared Skill", source="github")
+            skills_sh_result = _make_search_result("dup-skills-sh", name="Shared Skill", source="skills_sh")
+
+            async def github_search(_query: str, _limit: int) -> list[SkillSearchResult]:
+                await asyncio.sleep(github_delay)
+                return [github_result]
+
+            async def skills_sh_search(_query: str, _limit: int) -> list[SkillSearchResult]:
+                await asyncio.sleep(skills_sh_delay)
+                return [skills_sh_result]
+
+            svc._sources = [
+                MagicMock(source_name="github", search=github_search),
+                MagicMock(source_name="skills_sh", search=skills_sh_search),
+            ]
+
+            results = await svc.search(f"shared-{github_delay}-{skills_sh_delay}")
+            assert len(results) == 1
+            assert results[0].result.name == "Shared Skill"
+            assert results[0].result.source == "skills_sh"
+
+    @pytest.mark.asyncio
     async def test_search_cache_hit(self) -> None:
         svc = BaseSkillDiscoveryService()
         cached_results = [_make_search_result("cached")]

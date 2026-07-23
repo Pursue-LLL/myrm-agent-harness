@@ -4,7 +4,7 @@ Self-update note: when this file changes, update its INPUT/OUTPUT/POS comments.
 
 [INPUT]
 - utils.token_tracker::TokenUsage (POS: Token usage tracking type for prompt/completion/total tokens)
-- meta_tools.clarification.hitl_tool_policy::HITL_TOOL_POLICY (POS: HITL tool registry SSOT for subagent blocking)
+- .hitl_tool_policy::HITL_TOOL_POLICY (POS: HITL tool registry SSOT for subagent blocking)
 
 [OUTPUT]
 - CouncilOpinion: Single expert opinion from one council round.
@@ -38,7 +38,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Literal, Protocol
 
-from myrm_agent_harness.agent.meta_tools.clarification.hitl_tool_policy import (
+from myrm_agent_harness.agent.sub_agents.hitl_tool_policy import (
     HITL_TOOL_POLICY,
 )
 from myrm_agent_harness.utils.token_economics.tracker import TokenUsage

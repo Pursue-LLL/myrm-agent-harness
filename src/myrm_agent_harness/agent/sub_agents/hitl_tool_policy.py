@@ -5,10 +5,11 @@
 
 [OUTPUT]
 - HitlToolPolicy: frozen registry of interactive human-in-the-loop meta tools.
+- HITL_TOOL_POLICY: default policy singleton.
 
 [POS]
-Single source for which tools require a live user thread. Subagent delegation reads
-subagent_blocked; server mount gates apply channel/mode filters separately.
+Subagent-side import-safe SSOT for HITL policy. Placed outside meta_tools package
+to avoid package-level circular imports when subagent types are imported early.
 """
 
 from __future__ import annotations

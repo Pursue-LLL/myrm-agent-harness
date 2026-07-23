@@ -54,6 +54,7 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     get_event_logger,
     get_terminal_errors,
     set_approval_user_id,
+    set_security_config,
 )
 from myrm_agent_harness.utils.runtime.background_job_finish_registry import (
     BackgroundJobFinishHandler,

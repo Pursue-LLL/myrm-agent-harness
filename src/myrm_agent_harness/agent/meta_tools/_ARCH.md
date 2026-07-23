@@ -20,7 +20,7 @@ Detailed design: [META_TOOLS_SYSTEM.md](META_TOOLS_SYSTEM.md)
 | file_search/ | File search tool module (Claude Code compatible). |
 | goals/ | Goal interaction tools — LLM tools for querying/completing goals. |
 | progress/ | Main-agent todo progress (`todo_write`, workspace todos SSOT). |
-| clarification/ | Structured HITL clarification (`ask_question_tool`) — schemas, `HitlToolPolicy` SSOT, LangChain adapter. |
+| clarification/ | Structured HITL clarification (`ask_question_tool`) — schemas and LangChain adapter; HITL policy SSOT is in `sub_agents/hitl_tool_policy.py`. |
 | interaction/ | UI rendering (`render_ui_tool`, `update_ui_data_tool`) — UIArtifact context; v3.1 progressive spec + fail-closed type/graph/action/registry validation. |
 | skills/ | Skills submodule (`skill_discovery_tool` Turn1 when discovery_backend present). |
 | spawn_subagent/ | LLM 子 Agent 委派（`delegate_task_tool` 等；≠ PTC `dynamic_workflow/tools.py`） |

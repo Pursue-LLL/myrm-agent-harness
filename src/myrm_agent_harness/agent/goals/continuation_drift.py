@@ -73,22 +73,8 @@ def _parse_drift_score(reason: str) -> int | None:
     return None
 
 
-def _make_decision(
-    verdict: str,
-    reason: str,
-    goal: Goal,
-    *,
-    message: str | None = None,
-) -> ContinuationDecision:
-    """Build a ContinuationDecision for drift verdicts."""
-    return ContinuationDecision(
-        should_continue=(verdict == "drift_nudge"),
-        verdict=verdict,  # type: ignore[arg-type]
-        reason=reason,
-        turns_used=goal.turns_used,
-        max_turns=goal.budget.max_turns if goal.budget else None,
-        message=message or "",
-    )
+def _goal_metrics(goal: Goal) -> dict[str, int | None]:
+    return {"turns_used": goal.turns_used, "max_turns": goal.budget.max_turns if goal.budget else None}
 
 
 async def check_goal_drift(
@@ -145,10 +131,11 @@ async def check_goal_drift(
                 goal.goal_id,
                 {"pause_reason": f"Goal drift detected (score={score}): {raw_reason[:200]}"},
             )
-            return _make_decision(
-                "drift_pause",
-                f"Goal drift detected (score={score}/10) — paused for human review",
-                goal,
+            return ContinuationDecision(
+                should_continue=False,
+                verdict="drift_pause",  # type: ignore[arg-type]
+                reason=f"Goal drift detected (score={score}/10) — paused for human review",
+                **_goal_metrics(goal),
             )
 
         if score >= _DRIFT_NUDGE_THRESHOLD:
@@ -157,7 +144,13 @@ async def check_goal_drift(
                 f"(drift score: {score}/10). Refocus on: {objective_snippet[:120]}"
             )
             collected_messages.append(HumanMessage(content=nudge_msg, name="developer"))
-            return _make_decision("drift_nudge", f"Drift nudge injected (score={score})", goal, message=nudge_msg)
+            return ContinuationDecision(
+                should_continue=True,
+                verdict="drift_nudge",  # type: ignore[arg-type]
+                reason=f"Drift nudge injected (score={score})",
+                message=nudge_msg,
+                **_goal_metrics(goal),
+            )
 
     except NotImplementedError:
         pass

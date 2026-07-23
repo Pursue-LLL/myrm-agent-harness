@@ -49,6 +49,7 @@
 | 文件 | 职责 |
 |:--|:--|
 | `agent/sub_agents/types.py` | SubagentConfig（含 agent_factory/role/budget）, AgentFactory Protocol, SubAgentStatus, SubAgentResult, SubagentCatalog Protocol, DelegationCapabilityManifest 能力清单 |
+| `agent/sub_agents/hitl_tool_policy.py` | HITL 工具策略 SSOT（`HitlToolPolicy`, `HITL_TOOL_POLICY`），供 subagent 能力清单读取，避免 `meta_tools` 包级循环导入 |
 | `agent/sub_agents/budget.py` | 委派运行树预算计数（max_descendants_per_run），防止递归/批量委派暴走 |
 | `agent/sub_agents/builder.py` | 子 agent 构建（async build_child_agent 支持 AgentFactory 委托、工具过滤、模型解析、结果截断、Token 合并） |
 | `agent/sub_agents/manager.py` | 核心执行器（spawn/cancel/wait/chain/merge + checkpoint save/resume） |
@@ -88,7 +89,7 @@ Layer 0: create_delegate_task_tool(allowed_types=...)
 
 Layer 1: DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools
          → delegate_task_tool + subagent_control_tool + skill_manage/discovery_tool
-           + HitlToolPolicy.subagent_blocked (HITL must stay on parent/web thread);
+           + HitlToolPolicy.subagent_blocked (from agent/sub_agents/hitl_tool_policy.py; HITL must stay on parent/web thread);
            同一份 manifest 同时驱动 leaf 剥离和 orchestrator child-scoped 工具注入
 
 Layer 2: SubagentConfig

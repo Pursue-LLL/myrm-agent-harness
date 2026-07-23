@@ -331,6 +331,63 @@ class TestCronSchedule:
 
 
 # ---------------------------------------------------------------------------
+# agent_id binding
+# ---------------------------------------------------------------------------
+
+
+class TestAgentIdBinding:
+    @pytest.mark.asyncio
+    async def test_create_with_agent_id(self):
+        """New heartbeat with agent_id should pass it to create_job."""
+        mgr = _make_manager()
+        created = _make_heartbeat_job()
+        mgr.create_job = AsyncMock(return_value=created)
+
+        await enable_heartbeat(mgr, "owner-1", agent_id="agent-scout")
+
+        call_kwargs = mgr.create_job.call_args[1]
+        assert call_kwargs["agent_id"] == "agent-scout"
+
+    @pytest.mark.asyncio
+    async def test_create_without_agent_id(self):
+        """New heartbeat without agent_id should pass None."""
+        mgr = _make_manager()
+        created = _make_heartbeat_job()
+        mgr.create_job = AsyncMock(return_value=created)
+
+        await enable_heartbeat(mgr, "owner-1")
+
+        call_kwargs = mgr.create_job.call_args[1]
+        assert call_kwargs["agent_id"] is None
+
+    @pytest.mark.asyncio
+    async def test_update_with_agent_id(self):
+        """Updating existing heartbeat should pass agent_id to patch."""
+        existing = _make_heartbeat_job()
+        mgr = _make_manager()
+        mgr.list_jobs = AsyncMock(return_value=[existing])
+        mgr.update_job = AsyncMock(return_value=existing)
+
+        await enable_heartbeat(mgr, "owner-1", agent_id="agent-patrol")
+
+        patch = mgr.update_job.call_args[0][2]
+        assert patch.agent_id == "agent-patrol"
+
+    @pytest.mark.asyncio
+    async def test_unbind_agent_id(self):
+        """agent_id=None should clear binding (empty string in patch)."""
+        existing = _make_heartbeat_job()
+        mgr = _make_manager()
+        mgr.list_jobs = AsyncMock(return_value=[existing])
+        mgr.update_job = AsyncMock(return_value=existing)
+
+        await enable_heartbeat(mgr, "owner-1", agent_id=None)
+
+        patch = mgr.update_job.call_args[0][2]
+        assert patch.agent_id == ""
+
+
+# ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 

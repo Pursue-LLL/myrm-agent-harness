@@ -40,7 +40,7 @@ from myrm_agent_harness.agent.skills.discovery.sanitizer import sanitize_skill_f
 from myrm_agent_harness.backends.skills.scanning import ScanFinding, SkillTrustRecommendation
 from myrm_agent_harness.backends.skills.versioning import compare_versions
 
-from .helpers import deduplicate, fetch_lobehub_as_skill, rank_results, scan_all_text_files, write_origin
+from .helpers import SOURCE_PRIORITY, deduplicate, fetch_lobehub_as_skill, rank_results, scan_all_text_files, write_origin
 from .installers.git_installer import GitInstaller
 from .installers.zip_installer import ZipInstaller
 from .sources.aliyun import AliyunSource
@@ -128,17 +128,30 @@ class BaseSkillDiscoveryService:
             else:
                 sources = self._sources
 
-            tasks = [self._search_source(source, query, limit) for source in sources]
+            async def _search_with_meta(source_index: int, source: SkillSource) -> tuple[int, str, list[SkillSearchResult]]:
+                results = await self._search_source(source, query, limit)
+                return source_index, source.source_name, results
 
-            all_results: list[SkillSearchResult] = []
+            tasks = [_search_with_meta(source_index, source) for source_index, source in enumerate(sources)]
+            source_batches: list[tuple[int, str, list[SkillSearchResult]]] = []
             for coro in asyncio.as_completed(tasks):
                 try:
-                    results = await asyncio.wait_for(coro, timeout=SEARCH_TIMEOUT)
-                    all_results.extend(results)
+                    source_batches.append(await asyncio.wait_for(coro, timeout=SEARCH_TIMEOUT))
                 except TimeoutError:
                     logger.warning("A skill source timed out during search")
                 except Exception as e:
                     logger.warning("Skill source search error: %s", e)
+
+            source_batches.sort(
+                key=lambda batch: (
+                    -SOURCE_PRIORITY.get(batch[1], 0),
+                    batch[0],
+                    batch[1],
+                )
+            )
+            all_results: list[SkillSearchResult] = []
+            for _, _, source_results in source_batches:
+                all_results.extend(source_results)
 
             deduped = deduplicate(all_results)
             ranked = rank_results(deduped, query)

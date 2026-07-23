@@ -3,7 +3,7 @@
 [INPUT]
 - clarification.ask_question (POS: structured clarification form schema SSOT)
 - clarification.clarification_agent_tools (POS: LangChain adapter for ask_question_tool)
-- clarification.hitl_tool_policy (POS: HITL tool registry SSOT)
+- sub_agents.hitl_tool_policy (POS: HITL tool registry SSOT)
 
 [OUTPUT]
 - AskQuestionInput, QuestionItem, OptionItem, AskQuestionTool, create_ask_question_tool
@@ -22,7 +22,7 @@ from myrm_agent_harness.agent.meta_tools.clarification.clarification_agent_tools
     AskQuestionTool,
     create_ask_question_tool,
 )
-from myrm_agent_harness.agent.meta_tools.clarification.hitl_tool_policy import (
+from myrm_agent_harness.agent.sub_agents.hitl_tool_policy import (
     HITL_TOOL_POLICY,
     HitlToolPolicy,
 )
