@@ -15,6 +15,7 @@ from myrm_agent_harness.agent.meta_tools.file_ops.core.file_path_lock_manager im
 from myrm_agent_harness.agent.meta_tools.file_ops.core.operation_context import (
     OperationContext,
     OperationType,
+    StrReplaceEdit,
 )
 
 
@@ -129,8 +130,7 @@ async def test_file_operation_service_replace_uses_resolved_path_lock() -> None:
         operation=OperationType.STR_REPLACE,
         executor=None,
         path="@file_002",
-        old_str="old",
-        new_str="new",
+        edits=(StrReplaceEdit(old_str="old", new_str="new"),),
     )
     service = FileOperationService(context)
     locked_paths: list[str] = []

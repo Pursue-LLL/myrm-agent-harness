@@ -39,7 +39,7 @@ class SkillAgentToolsMixin:
     Requires the following attributes from SkillAgent:
     - skill_backend, discovery_backend, write_backend
     - _embedding_config, skill_configs, _similarity_checker
-    - _enable_file_tools, _enable_bash
+    - _enable_file_tools, _enable_shell_tools
     - _skill_env_map, _default_skill_instances, state_manager
     - storage_backend, llm, config
     - _task_workspace_root (chat sandbox path for progress persistence)
@@ -86,7 +86,7 @@ class SkillAgentToolsMixin:
             similarity_checker=self._similarity_checker,  # type: ignore[attr-defined]
             registry=registry,
             enable_file_tools=self._enable_file_tools,  # type: ignore[attr-defined]
-            enable_bash=self._enable_bash,  # type: ignore[attr-defined]
+            enable_shell_tools=self._enable_shell_tools,  # type: ignore[attr-defined]
             enable_answer_tool=self._enable_answer_tool,  # type: ignore[attr-defined]
             available_tool_names=self._available_tool_names,  # type: ignore[attr-defined]
             available_tool_groups=self._available_tool_groups,  # type: ignore[attr-defined]

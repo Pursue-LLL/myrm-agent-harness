@@ -205,13 +205,13 @@ def create_bash_code_execute_tool(
                     progress_listener=progress_listener,
                 )
                 from myrm_agent_harness.agent.meta_tools.bash.session_spawn_lifecycle import (
-                    activate_session_deferred_tool,
+                    activate_session_spawn_tool,
                 )
                 from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
                     BASH_PROCESS_TOOL_NAME,
                 )
 
-                activate_session_deferred_tool(session_id, BASH_PROCESS_TOOL_NAME)
+                activate_session_spawn_tool(session_id, BASH_PROCESS_TOOL_NAME)
                 from myrm_agent_harness.utils.event_utils import dispatch_custom_event
 
                 await dispatch_custom_event(

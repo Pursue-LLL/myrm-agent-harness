@@ -181,7 +181,7 @@ async def test_replace_text_fuzzy_preserves_crlf() -> None:
 
     strategy = StorageBackendStrategy(storage)
     with patch(
-        "myrm_agent_harness.utils.fuzzy_match.fuzzy_replace",
+        "myrm_agent_harness.agent.meta_tools.file_ops.core.batch_str_replace.fuzzy_replace",
         return_value=fuzzy_result,
     ):
         await strategy.replace_text("test.txt", "line2_typo", "replaced")

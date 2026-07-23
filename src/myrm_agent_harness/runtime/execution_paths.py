@@ -87,7 +87,7 @@ CONTEXT_SUBDIRS: dict[ContextSubdir, str] = {
     "compacted": "compacted",  # Compressed tool outputs
     "scratchpad": "scratchpad",  # Agent active externalization
     "snapshots": "snapshots",  # Pre-compression full conversation snapshots
-    "evicted": "evicted",  # Large bash output eviction files
+    "evicted": "evicted",  # Large tool/web output spill files (UECD)
 }
 
 
@@ -185,11 +185,13 @@ def get_content_addressed_compacted_restore_map_path(
     )
 
 
-def get_evicted_output_path(session_id: str) -> str:
-    """Get path for evicted large bash output (auto-generates UUID).
+def get_evicted_output_path(session_id: str, *, source: str = "output", ext: str = "txt") -> str:
+    """Get path for evicted large output (auto-generates UUID basename).
 
     Args:
         session_id: Session identifier (e.g., chat_id)
+        source: Filename prefix (output, web_fetch, mcp, tool, filter)
+        ext: File extension (txt, md, log, json)
 
     Returns:
         Absolute path to evicted output file
@@ -199,9 +201,12 @@ def get_evicted_output_path(session_id: str) -> str:
         '/persistent/.context/chat_abc123/evicted/output_a3f5c8d1.txt'
 
     """
+    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+        build_evicted_basename,
+    )
+
     safe_session = _sanitize_path_segment(session_id)
-    unique_id = uuid.uuid4().hex[:8]
-    filename = f"output_{unique_id}.txt"
+    filename = build_evicted_basename(source, ext=ext)
     return f"{CONTEXT_ROOT}/{safe_session}/evicted/{filename}"
 
 

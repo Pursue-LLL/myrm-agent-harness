@@ -96,8 +96,12 @@ class CatchupBriefExtractor:
                                 short_cmd += "..."
                             brief.activity_steps.append(f"Ran command: {short_cmd}")
                     elif tool_name == "web_search_tool":
-                        query = item.get("query")
-                        if isinstance(query, str) and query:
+                        query = item.get("questions") or item.get("query")
+                        if isinstance(query, list):
+                            for q in query[:3]:
+                                if isinstance(q, str) and q:
+                                    brief.activity_steps.append(f"Searched web for: {q}")
+                        elif isinstance(query, str) and query:
                             brief.activity_steps.append(f"Searched web for: {query}")
 
         brief.files_touched = sorted(list(files_touched_set))

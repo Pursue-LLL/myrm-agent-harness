@@ -76,7 +76,7 @@ def get_meta_tools(
     similarity_checker: SkillSimilarityChecker | None = None,
     registry: ToolRegistry | None = None,
     enable_file_tools: bool = True,
-    enable_bash: bool = True,
+    enable_shell_tools: bool = True,
     enable_answer_tool: bool = False,
     available_tool_names: frozenset[str] | None = None,
     available_tool_groups: frozenset[str] | None = None,
@@ -252,7 +252,7 @@ def get_meta_tools(
     # bash Python PTC can access the full tool list via closure.
     _ptc_tools_ref: list = []
 
-    if enable_bash:
+    if enable_shell_tools:
         bash_code_execute = create_bash_code_execute_tool(
             skills=skills,
             skill_env_map=skill_env_map,

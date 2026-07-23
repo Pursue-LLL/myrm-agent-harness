@@ -9,6 +9,8 @@ Tests:
 6. Invalid batch response error handling
 """
 
+import time
+
 import pytest
 from langchain_core.messages import AIMessage, ToolCall
 
@@ -22,8 +24,13 @@ from myrm_agent_harness.agent.middlewares.approval import (
     set_security_config,
     set_workspace_root,
 )
+from myrm_agent_harness.agent.middlewares._session_context import get_security_config
 from myrm_agent_harness.agent.security.approval_flow import AllowlistEntry
-from myrm_agent_harness.agent.security.types import PermissionAction, PermissionRule, SecurityConfig
+from myrm_agent_harness.agent.security.types import (
+    PermissionAction,
+    PermissionRule,
+    SecurityConfig,
+)
 
 
 class MockRuntime:
@@ -35,7 +42,9 @@ def _isolation() -> None:
     """Reset global state for test isolation."""
     import myrm_agent_harness.agent.security.approval_flow as approval_flow
     from myrm_agent_harness.agent.middlewares.approval import get_approval_rate_limiter
-    from myrm_agent_harness.agent.security.guards.taint_tracker import reset_taint_tracker
+    from myrm_agent_harness.agent.security.guards.taint_tracker import (
+        reset_taint_tracker,
+    )
 
     approval_flow._allowlist = approval_flow.Allowlist()
     reset_taint_tracker()
@@ -80,7 +89,11 @@ async def test_add_to_allowlist_permission_level():
     allowlist = get_allowlist()
 
     await add_to_allowlist_if_needed(
-        allow_always=True, user_id="user123", permission_type="network", tool_name="web_search", tool_args_hash="abc123"
+        allow_always=True,
+        user_id="user123",
+        permission_type="network",
+        tool_name="web_search",
+        tool_args_hash="abc123",
     )
 
     assert allowlist.check("user123", "network", "web_search", "abc123")
@@ -102,7 +115,9 @@ async def test_add_to_allowlist_tool_level():
         tool_args_hash="abc123",
     )
 
-    assert allowlist.check("user123", "code_interpreter", "bash_code_execute_tool", "xyz")
+    assert allowlist.check(
+        "user123", "code_interpreter", "bash_code_execute_tool", "xyz"
+    )
     assert not allowlist.check("user123", "code_interpreter", "other_tool", "xyz")
 
 
@@ -121,8 +136,12 @@ async def test_add_to_allowlist_exact_match():
         tool_args_hash="abc123",
     )
 
-    assert allowlist.check("user123", "code_interpreter", "bash_code_execute_tool", "abc123")
-    assert not allowlist.check("user123", "code_interpreter", "bash_code_execute_tool", "xyz")
+    assert allowlist.check(
+        "user123", "code_interpreter", "bash_code_execute_tool", "abc123"
+    )
+    assert not allowlist.check(
+        "user123", "code_interpreter", "bash_code_execute_tool", "xyz"
+    )
 
 
 @pytest.mark.asyncio
@@ -184,10 +203,14 @@ async def test_add_to_allowlist_pattern_skips_compound_shell():
 @pytest.mark.asyncio
 async def test_pattern_allowlist_auto_approves_bash_in_evaluate_tool_batch():
     """evaluate_tool_batch auto-approves when pattern allowlist matches shell command."""
-    from myrm_agent_harness.agent.middlewares.approval.batch_processor import evaluate_tool_batch
+    from myrm_agent_harness.agent.middlewares.approval.batch_processor import (
+        evaluate_tool_batch,
+    )
     from myrm_agent_harness.agent.security.approval_flow import get_allowlist
 
-    config = SecurityConfig(ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),))
+    config = SecurityConfig(
+        ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),)
+    )
     set_approval_user_id("user123")
 
     allowlist = get_allowlist()
@@ -229,7 +252,9 @@ async def test_add_to_allowlist_no_user_id():
 
     allowlist = get_allowlist()
 
-    await add_to_allowlist_if_needed(allow_always=True, user_id="", permission_type="network", tool_name="web_search")
+    await add_to_allowlist_if_needed(
+        allow_always=True, user_id="", permission_type="network", tool_name="web_search"
+    )
 
     assert not allowlist.check("", "network", "web_search", None)
 
@@ -242,7 +267,10 @@ async def test_add_to_allowlist_invalid_type():
     allowlist = get_allowlist()
 
     await add_to_allowlist_if_needed(
-        allow_always="invalid", user_id="user123", permission_type="network", tool_name="web_search"
+        allow_always="invalid",
+        user_id="user123",
+        permission_type="network",
+        tool_name="web_search",
     )
 
     assert not allowlist.check("user123", "network", "web_search", None)
@@ -257,7 +285,10 @@ async def test_taint_conflict_escalation(monkeypatch):
     set_approval_session("test-session")
     set_approval_user_id("user123")
 
-    from myrm_agent_harness.agent.security.guards.taint_tracker import TaintLabel, get_taint_tracker
+    from myrm_agent_harness.agent.security.guards.taint_tracker import (
+        TaintLabel,
+        get_taint_tracker,
+    )
 
     taint_tracker = get_taint_tracker()
     taint_tracker.record(TaintLabel.EXTERNAL_NETWORK)
@@ -269,7 +300,10 @@ async def test_taint_conflict_escalation(monkeypatch):
         interrupt_called = True
         return {"decisions": [{"type": "approve"}]}
 
-    monkeypatch.setattr("myrm_agent_harness.agent.middlewares.approval.middleware.interrupt", mock_interrupt)
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.interrupt",
+        mock_interrupt,
+    )
 
     middleware = ToolApprovalMiddleware()
 
@@ -278,7 +312,12 @@ async def test_taint_conflict_escalation(monkeypatch):
             AIMessage(
                 content="Bash command.",
                 tool_calls=[
-                    ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "ls"}, id="call_1"),
+                    ToolCall(
+                        type="tool_call",
+                        name="bash_code_execute_tool",
+                        args={"command": "ls"},
+                        id="call_1",
+                    ),
                 ],
             )
         ]
@@ -296,7 +335,8 @@ async def test_cron_fail_closed_policy(monkeypatch):
     from myrm_agent_harness.agent.security.types import DEFAULT_CAPABILITIES
 
     config = SecurityConfig(
-        ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),), capabilities=DEFAULT_CAPABILITIES
+        ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),),
+        capabilities=DEFAULT_CAPABILITIES,
     )
     set_security_config(config)
     set_workspace_root("/tmp")
@@ -311,7 +351,10 @@ async def test_cron_fail_closed_policy(monkeypatch):
                 content="Cron task.",
                 tool_calls=[
                     ToolCall(
-                        type="tool_call", name="bash_code_execute_tool", args={"command": "backup.sh"}, id="call_1"
+                        type="tool_call",
+                        name="bash_code_execute_tool",
+                        args={"command": "backup.sh"},
+                        id="call_1",
                     ),
                 ],
             )
@@ -349,7 +392,10 @@ async def test_cron_capability_preapproval(monkeypatch):
                 content="Cron task.",
                 tool_calls=[
                     ToolCall(
-                        type="tool_call", name="bash_code_execute_tool", args={"command": "backup.sh"}, id="call_1"
+                        type="tool_call",
+                        name="bash_code_execute_tool",
+                        args={"command": "backup.sh"},
+                        id="call_1",
                     ),
                 ],
             )
@@ -364,7 +410,9 @@ async def test_cron_capability_preapproval(monkeypatch):
 @pytest.mark.asyncio
 async def test_rate_limit_exceeded(monkeypatch):
     """Test that rate limiting denies tools when limit exceeded."""
-    config = SecurityConfig(ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),))
+    config = SecurityConfig(
+        ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),)
+    )
     set_security_config(config)
     set_workspace_root("/tmp")
     set_approval_session("test-session")
@@ -407,7 +455,9 @@ async def test_rate_limit_exceeded(monkeypatch):
 @pytest.mark.asyncio
 async def test_invalid_batch_response_type(monkeypatch):
     """Test error handling when interrupt returns invalid response type."""
-    config = SecurityConfig(ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),))
+    config = SecurityConfig(
+        ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),)
+    )
     set_security_config(config)
     set_workspace_root("/tmp")
     set_approval_session("test-session")
@@ -416,7 +466,10 @@ async def test_invalid_batch_response_type(monkeypatch):
     def mock_interrupt(payload):
         return "invalid_string_response"
 
-    monkeypatch.setattr("myrm_agent_harness.agent.middlewares.approval.middleware.interrupt", mock_interrupt)
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.interrupt",
+        mock_interrupt,
+    )
 
     middleware = ToolApprovalMiddleware()
 
@@ -448,7 +501,9 @@ async def test_invalid_batch_response_type(monkeypatch):
 @pytest.mark.asyncio
 async def test_decision_count_mismatch(monkeypatch):
     """Test error handling when decision count doesn't match pending count."""
-    config = SecurityConfig(ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),))
+    config = SecurityConfig(
+        ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),)
+    )
     set_security_config(config)
     set_workspace_root("/tmp")
     set_approval_session("test-session")
@@ -457,7 +512,10 @@ async def test_decision_count_mismatch(monkeypatch):
     def mock_interrupt(payload):
         return {"decisions": [{"type": "approve"}]}
 
-    monkeypatch.setattr("myrm_agent_harness.agent.middlewares.approval.middleware.interrupt", mock_interrupt)
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.interrupt",
+        mock_interrupt,
+    )
 
     middleware = ToolApprovalMiddleware()
 
@@ -513,7 +571,12 @@ async def test_deny_action_auto_rejected():
             AIMessage(
                 content="Bash command.",
                 tool_calls=[
-                    ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "ls"}, id="call_1"),
+                    ToolCall(
+                        type="tool_call",
+                        name="bash_code_execute_tool",
+                        args={"command": "ls"},
+                        id="call_1",
+                    ),
                 ],
             )
         ]
@@ -524,7 +587,9 @@ async def test_deny_action_auto_rejected():
     assert result is not None
     messages = result["messages"]
     modified_ai_msg = messages[0]
-    assert len(modified_ai_msg.tool_calls) == 0, "Tool should be removed from tool_calls"
+    assert (
+        len(modified_ai_msg.tool_calls) == 0
+    ), "Tool should be removed from tool_calls"
 
     tool_messages = [msg for msg in messages[1:] if hasattr(msg, "tool_call_id")]
     assert len(tool_messages) == 1
@@ -534,7 +599,9 @@ async def test_deny_action_auto_rejected():
 @pytest.mark.asyncio
 async def test_allowlist_bypass_with_user_id(monkeypatch):
     """Test that tools are auto-approved when allowlist match found."""
-    config = SecurityConfig(ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),))
+    config = SecurityConfig(
+        ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),)
+    )
     set_security_config(config)
     set_workspace_root("/tmp")
     set_approval_session("test-session")
@@ -545,7 +612,11 @@ async def test_allowlist_bypass_with_user_id(monkeypatch):
     allowlist = get_allowlist()
     await allowlist.add(
         "user123",
-        AllowlistEntry(permission="code_interpreter", tool_name="bash_code_execute_tool", tool_args_hash=None),
+        AllowlistEntry(
+            permission="code_interpreter",
+            tool_name="bash_code_execute_tool",
+            tool_args_hash=None,
+        ),
     )
 
     middleware = ToolApprovalMiddleware()
@@ -555,7 +626,12 @@ async def test_allowlist_bypass_with_user_id(monkeypatch):
             AIMessage(
                 content="Bash command.",
                 tool_calls=[
-                    ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "ls"}, id="call_1"),
+                    ToolCall(
+                        type="tool_call",
+                        name="bash_code_execute_tool",
+                        args={"command": "ls"},
+                        id="call_1",
+                    ),
                 ],
             )
         ]
@@ -578,7 +654,12 @@ async def test_empty_config_no_approval():
             AIMessage(
                 content="Test.",
                 tool_calls=[
-                    ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "ls"}, id="call_1"),
+                    ToolCall(
+                        type="tool_call",
+                        name="bash_code_execute_tool",
+                        args={"command": "ls"},
+                        id="call_1",
+                    ),
                 ],
             )
         ]
@@ -624,7 +705,10 @@ async def test_all_auto_denied_branch(monkeypatch):
     def mock_interrupt(payload):
         raise RuntimeError("Should not call interrupt when all tools auto-denied")
 
-    monkeypatch.setattr("myrm_agent_harness.agent.middlewares.approval.middleware.interrupt", mock_interrupt)
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.interrupt",
+        mock_interrupt,
+    )
 
     middleware = ToolApprovalMiddleware()
 
@@ -633,8 +717,18 @@ async def test_all_auto_denied_branch(monkeypatch):
             AIMessage(
                 content="Multiple tools.",
                 tool_calls=[
-                    ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "ls"}, id="call_1"),
-                    ToolCall(type="tool_call", name="web_search_tool", args={"query": "test"}, id="call_2"),
+                    ToolCall(
+                        type="tool_call",
+                        name="bash_code_execute_tool",
+                        args={"command": "ls"},
+                        id="call_1",
+                    ),
+                    ToolCall(
+                        type="tool_call",
+                        name="web_search_tool",
+                        args={"query": "test"},
+                        id="call_2",
+                    ),
                 ],
             )
         ]
@@ -648,7 +742,9 @@ async def test_all_auto_denied_branch(monkeypatch):
     assert len(modified_ai_msg.tool_calls) == 0, "All tools should be removed"
 
     tool_messages = [msg for msg in messages[1:] if hasattr(msg, "tool_call_id")]
-    assert len(tool_messages) == 2, "Should have 2 artificial ToolMessages for denied tools"
+    assert (
+        len(tool_messages) == 2
+    ), "Should have 2 artificial ToolMessages for denied tools"
 
 
 @pytest.mark.asyncio
@@ -658,7 +754,9 @@ async def test_allowlist_query_bypasses_ask_for_file_write():
     Uses file_write_tool (permission type: file_write, not affected by risk classifier)
     to test the actual allowlist query path in evaluate_tool_batch.
     """
-    config = SecurityConfig(ruleset=(PermissionRule("file_write", "*", PermissionAction.ASK),))
+    config = SecurityConfig(
+        ruleset=(PermissionRule("file_write", "*", PermissionAction.ASK),)
+    )
     set_security_config(config)
     set_workspace_root("/tmp")
     set_approval_session("test-session")
@@ -692,7 +790,9 @@ async def test_allowlist_query_bypasses_ask_for_file_write():
 
     result = await middleware.aafter_model(state, MockRuntime())
 
-    assert result is None, "file_write_tool in allowlist should auto-approve, no interrupt"
+    assert (
+        result is None
+    ), "file_write_tool in allowlist should auto-approve, no interrupt"
 
 
 # --- Middleware intent context, tool call extraction, and taint labels ---
@@ -701,12 +801,66 @@ async def test_allowlist_query_bypasses_ask_for_file_write():
 @pytest.mark.asyncio
 async def test_middleware_returns_none_when_no_config():
     """aafter_model returns None when SecurityConfig is not set."""
-    from myrm_agent_harness.agent.middlewares._session_context import set_security_config as _set
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        set_security_config as _set,
+    )
 
     _set(None)
     middleware = ToolApprovalMiddleware()
     result = await middleware.aafter_model({"messages": []}, MockRuntime())
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_middleware_yolo_from_runtime_context_when_contextvar_missing():
+    """LangGraph subtasks may miss ContextVar; runtime.context must carry YOLO config."""
+    from unittest.mock import patch
+
+    from langchain_core.messages import ToolCall
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        EFFECTIVE_SECURITY_CONFIG_CONTEXT_KEY,
+        set_security_config,
+    )
+
+    yolo_config = SecurityConfig(
+        ruleset=(),
+        yolo_mode_enabled=True,
+        yolo_mode_enabled_at=time.time(),
+    )
+    set_security_config(None)
+    set_workspace_root("/tmp")
+    set_approval_session("yolo-runtime-ctx")
+    set_approval_user_id("user1")
+
+    runtime = MockRuntime()
+    runtime.context = {EFFECTIVE_SECURITY_CONFIG_CONTEXT_KEY: yolo_config}
+
+    state = {
+        "messages": [
+            AIMessage(
+                content="run",
+                tool_calls=[
+                    ToolCall(
+                        type="tool_call",
+                        name="bash_code_execute_tool",
+                        args={"command": 'python3 -c "import time; time.sleep(1)"'},
+                        id="tc-yolo-ctx",
+                    ),
+                ],
+            ),
+        ]
+    }
+
+    middleware = ToolApprovalMiddleware()
+    with patch(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.interrupt"
+    ) as mock_interrupt:
+        result = await middleware.aafter_model(state, runtime)
+
+    mock_interrupt.assert_not_called()
+    assert result is None
+    assert get_security_config() is not None
+    assert get_security_config().yolo_mode_enabled is True
 
 
 @pytest.mark.asyncio
@@ -735,7 +889,9 @@ async def test_middleware_intent_context_truncation():
     """Intent context exceeding 2000 chars is truncated."""
     from langchain_core.messages import HumanMessage
 
-    from myrm_agent_harness.agent.middlewares.approval.batch_processor import register_security_reviewer
+    from myrm_agent_harness.agent.middlewares.approval.batch_processor import (
+        register_security_reviewer,
+    )
 
     register_security_reviewer(None)
 
@@ -755,7 +911,12 @@ async def test_middleware_intent_context_truncation():
             AIMessage(
                 content="ok",
                 tool_calls=[
-                    ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "ls"}, id="c1"),
+                    ToolCall(
+                        type="tool_call",
+                        name="bash_code_execute_tool",
+                        args={"command": "ls"},
+                        id="c1",
+                    ),
                 ],
             ),
         ]
@@ -769,7 +930,9 @@ async def test_middleware_intent_context_truncation():
 @pytest.mark.asyncio
 async def test_middleware_auto_deny_generates_error_messages():
     """Auto-denied tools produce ToolMessages with error status."""
-    from myrm_agent_harness.agent.middlewares.approval.batch_processor import register_security_reviewer
+    from myrm_agent_harness.agent.middlewares.approval.batch_processor import (
+        register_security_reviewer,
+    )
 
     register_security_reviewer(None)
 
@@ -786,7 +949,12 @@ async def test_middleware_auto_deny_generates_error_messages():
             AIMessage(
                 content="running",
                 tool_calls=[
-                    ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "rm -rf /"}, id="c1"),
+                    ToolCall(
+                        type="tool_call",
+                        name="bash_code_execute_tool",
+                        args={"command": "rm -rf /"},
+                        id="c1",
+                    ),
                 ],
             ),
         ]
@@ -804,7 +972,9 @@ async def test_middleware_auto_deny_generates_error_messages():
 @pytest.mark.asyncio
 async def test_middleware_mixed_deny_and_allow():
     """Some tools denied + some allowed → approved tools pass through, denied get error."""
-    from myrm_agent_harness.agent.middlewares.approval.batch_processor import register_security_reviewer
+    from myrm_agent_harness.agent.middlewares.approval.batch_processor import (
+        register_security_reviewer,
+    )
 
     register_security_reviewer(None)
 
@@ -824,8 +994,18 @@ async def test_middleware_mixed_deny_and_allow():
             AIMessage(
                 content="mixed",
                 tool_calls=[
-                    ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "rm -rf /"}, id="c1"),
-                    ToolCall(type="tool_call", name="file_read_tool", args={"path": "/tmp/readme.txt"}, id="c2"),
+                    ToolCall(
+                        type="tool_call",
+                        name="bash_code_execute_tool",
+                        args={"command": "rm -rf /"},
+                        id="c1",
+                    ),
+                    ToolCall(
+                        type="tool_call",
+                        name="file_read_tool",
+                        args={"path": "/tmp/readme.txt"},
+                        id="c2",
+                    ),
                 ],
             ),
         ]
@@ -842,7 +1022,9 @@ async def test_middleware_mixed_deny_and_allow():
     error_msgs = [m for m in msgs[1:] if hasattr(m, "status") and m.status == "error"]
     assert len(error_msgs) == 1
     """Middleware extracts taint labels when auto_mode_enabled and session is tainted."""
-    from myrm_agent_harness.agent.middlewares.approval.batch_processor import register_security_reviewer
+    from myrm_agent_harness.agent.middlewares.approval.batch_processor import (
+        register_security_reviewer,
+    )
     from myrm_agent_harness.agent.security.guards.taint_tracker import (
         TaintLabel,
         get_taint_tracker,
@@ -875,7 +1057,12 @@ async def test_middleware_mixed_deny_and_allow():
             AIMessage(
                 content="ok",
                 tool_calls=[
-                    ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "echo hi"}, id="c1"),
+                    ToolCall(
+                        type="tool_call",
+                        name="bash_code_execute_tool",
+                        args={"command": "echo hi"},
+                        id="c1",
+                    ),
                 ],
             ),
         ]
@@ -898,8 +1085,18 @@ async def test_middleware_fallback_auto_deny():
     ai_msg = AIMessage(
         content="test",
         tool_calls=[
-            ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "ls"}, id="c1"),
-            ToolCall(type="tool_call", name="file_read_tool", args={"path": "/tmp/x"}, id="c2"),
+            ToolCall(
+                type="tool_call",
+                name="bash_code_execute_tool",
+                args={"command": "ls"},
+                id="c1",
+            ),
+            ToolCall(
+                type="tool_call",
+                name="file_read_tool",
+                args={"path": "/tmp/x"},
+                id="c2",
+            ),
         ],
     )
 
@@ -908,7 +1105,9 @@ async def test_middleware_fallback_auto_deny():
     ]
     auto_denied = [(1, ai_msg.tool_calls[1], " denied by policy")]
 
-    result = middleware._fallback_auto_deny(ai_msg, pending_approval, auto_denied, "test-session")
+    result = middleware._fallback_auto_deny(
+        ai_msg, pending_approval, auto_denied, "test-session"
+    )
 
     assert result is not None
     msgs = result["messages"]

@@ -50,6 +50,9 @@ from langgraph.types import Command
 
 from myrm_agent_harness.agent.artifacts import ArtifactContextManager
 from myrm_agent_harness.agent.event_log.logger import EventLogger
+from myrm_agent_harness.agent.middlewares._session_context import (
+    EFFECTIVE_SECURITY_CONFIG_CONTEXT_KEY,
+)
 from myrm_agent_harness.agent.middlewares.approval import (
     set_agent_id,
     set_approval_session,
@@ -78,7 +81,12 @@ from myrm_agent_harness.utils.runtime.progress_sink import (
 from myrm_agent_harness.utils.runtime.steering import set_steering_token
 from myrm_agent_harness.utils.token_economics.tracker import init_token_tracker
 
-from ._agent_build import build_middlewares, build_tools, create_registry, emit_tools_snapshot
+from ._agent_build import (
+    build_middlewares,
+    build_tools,
+    create_registry,
+    emit_tools_snapshot,
+)
 from ._agent_helpers import (
     _fire_and_forget,
     extract_query_text,
@@ -86,7 +94,12 @@ from ._agent_helpers import (
     reset_all_guards,
     schedule_post_run_idle_tasks,
 )
-from .run_lifecycle import cleanup_run, collect_tracker_stats, compute_context_budget_snapshot, post_run_events
+from .run_lifecycle import (
+    cleanup_run,
+    collect_tracker_stats,
+    compute_context_budget_snapshot,
+    post_run_events,
+)
 
 if TYPE_CHECKING:
     from langchain.agents.middleware.types import AgentState
@@ -153,7 +166,9 @@ async def run_agent_loop(
     set_current_message_id(message_id)
 
     if agent_state.config.collect_artifacts:
-        artifact_ctx_manager: ArtifactContextManager | nullcontext[None] = ArtifactContextManager(message_id=message_id)
+        artifact_ctx_manager: ArtifactContextManager | nullcontext[None] = (
+            ArtifactContextManager(message_id=message_id)
+        )
     else:
         artifact_ctx_manager = nullcontext()
 
@@ -182,14 +197,20 @@ async def run_agent_loop(
                 "security_config missing on agent.config — applying fail-closed defaults (channel=%s)",
                 channel,
             )
-            runtime_security = build_channel_security_config(channel, None, local_mode=True)
+            runtime_security = build_channel_security_config(
+                channel, None, local_mode=True
+            )
         set_security_config(runtime_security)
         from myrm_agent_harness.agent.middlewares._session_context import (
             set_active_message_id,
         )
 
         set_active_message_id(message_id)
-        session_key = str(context.get("approval_session_key") or context.get("session_id") or "") if context else ""
+        session_key = (
+            str(context.get("approval_session_key") or context.get("session_id") or "")
+            if context
+            else ""
+        )
         from myrm_agent_harness.agent.artifacts.ui_registry import bind_run_message_id
 
         if session_key:
@@ -202,6 +223,7 @@ async def run_agent_loop(
         output_queue: asyncio.Queue[dict[str, object] | object] = asyncio.Queue()
 
         merged_context = await agent_state._setup_workspace(context, message_id)
+        merged_context[EFFECTIVE_SECURITY_CONFIG_CONTEXT_KEY] = runtime_security
         agent_state._last_context = merged_context
         agent_state._init_usage_ledger(merged_context)
 
@@ -229,7 +251,9 @@ async def run_agent_loop(
                 )
                 agent_state._tools_initialized = True
             except Exception:
-                logger.exception(" [Lifecycle] Tool initialization failed, agent startup aborted")
+                logger.exception(
+                    " [Lifecycle] Tool initialization failed, agent startup aborted"
+                )
                 raise
 
         event_logger: EventLogger | None = None
@@ -292,13 +316,19 @@ async def run_agent_loop(
         if hook_exec is not None:
             _fire_and_forget(
                 hook_exec.execute(
-                    HookEvent.USER_TURN, {"user_input": str(query_text), "session_id": session_key or message_id}
+                    HookEvent.USER_TURN,
+                    {
+                        "user_input": str(query_text),
+                        "session_id": session_key or message_id,
+                    },
                 )
             )
 
         logger.step("Agent started")
         query_preview = str(query_text)[:100]
-        logger.info("Query: %s%s", query_preview, "..." if len(str(query_text)) > 100 else "")
+        logger.info(
+            "Query: %s%s", query_preview, "..." if len(str(query_text)) > 100 else ""
+        )
 
         tools_snapshot = agent_state._emit_tools_snapshot()
         if tools_snapshot is not None:
@@ -357,10 +387,14 @@ async def run_agent_loop(
 
         if is_resume:
             agent_input = cast("Command[Any] | AgentState[Any]", query)
-            logger.info(f" Resume: {query.resume if hasattr(query, 'resume') else query}")
+            logger.info(
+                f" Resume: {query.resume if hasattr(query, 'resume') else query}"
+            )
             # Prompt Cache preservation: Mark as Resume
             merged_context["is_resume"] = True
-            merged_context = validate_context(merged_context, agent_state.context_schema)
+            merged_context = validate_context(
+                merged_context, agent_state.context_schema
+            )
             merged_context = await agent_state._prepare_context(merged_context)
         else:
             messages = build_messages(query, chat_history)
@@ -376,11 +410,15 @@ async def run_agent_loop(
                     if isinstance(quote_raw, QuoteAttachment):
                         messages[-1].additional_kwargs["quote_attachment"] = quote_raw
                     elif (
-                        isinstance(quote_raw, dict) and "source_message_id" in quote_raw and "quoted_text" in quote_raw
+                        isinstance(quote_raw, dict)
+                        and "source_message_id" in quote_raw
+                        and "quoted_text" in quote_raw
                     ):
-                        messages[-1].additional_kwargs["quote_attachment"] = QuoteAttachment(
-                            source_message_id=str(quote_raw["source_message_id"]),
-                            quoted_text=str(quote_raw["quoted_text"]),
+                        messages[-1].additional_kwargs["quote_attachment"] = (
+                            QuoteAttachment(
+                                source_message_id=str(quote_raw["source_message_id"]),
+                                quoted_text=str(quote_raw["quoted_text"]),
+                            )
                         )
 
             inject_ephemeral_quote(messages)
@@ -410,7 +448,9 @@ async def run_agent_loop(
                     len(stale_notifications),
                 )
 
-            active_ctx = format_active_subagent_context(agent_state._subagent_manager.list_children())
+            active_ctx = format_active_subagent_context(
+                agent_state._subagent_manager.list_children()
+            )
             if active_ctx:
                 messages.append(HumanMessage(content=active_ctx))
                 logger.info(
@@ -418,7 +458,9 @@ async def run_agent_loop(
                     len(active_ctx),
                 )
 
-            merged_context = validate_context(merged_context, agent_state.context_schema)
+            merged_context = validate_context(
+                merged_context, agent_state.context_schema
+            )
             merged_context = await agent_state._prepare_context(merged_context)
 
             agent_input = cast("AgentState[Any]", {"messages": messages})
@@ -427,7 +469,9 @@ async def run_agent_loop(
         goal_provider = merged_context.pop("goal_provider", None)
         on_goal_terminal = merged_context.pop("on_goal_terminal", None)
         on_loop_restart = merged_context.pop("on_loop_restart", None)
-        from myrm_agent_harness.agent.middlewares._session_context import set_goal_provider
+        from myrm_agent_harness.agent.middlewares._session_context import (
+            set_goal_provider,
+        )
 
         set_goal_provider(goal_provider)
 
@@ -485,7 +529,9 @@ async def run_agent_loop(
         llm_info: dict[str, str | None] | None = None
         if agent_state.llm:
             # `model_name` on LangChain/LiteLLM may exist but be None; still prefer `model` when so.
-            model_name = getattr(agent_state.llm, "model_name", None) or getattr(agent_state.llm, "model", None)
+            model_name = getattr(agent_state.llm, "model_name", None) or getattr(
+                agent_state.llm, "model", None
+            )
             base_url = getattr(agent_state.llm, "base_url", None)
             if model_name:
                 llm_info = {
@@ -510,7 +556,9 @@ async def run_agent_loop(
             sid = str(merged_context.get("session_id") or session_id or "")
             need_roster = not _roster_injected
             result = drain_teammate_messages_for_task(
-                sid, task_id, include_roster=need_roster,
+                sid,
+                task_id,
+                include_roster=need_roster,
             )
             if result is not None and need_roster:
                 _roster_injected = True
@@ -563,7 +611,9 @@ async def run_agent_loop(
         except Exception as e:
             from .agent_recovery import diagnose_llm_error
 
-            error_msg, diagnostic_dict = diagnose_llm_error(e, agent_state.llm, agent_state.config.locale)
+            error_msg, diagnostic_dict = diagnose_llm_error(
+                e, agent_state.llm, agent_state.config.locale
+            )
             error_type = type(e).__name__
 
             if not stats.error_message:
@@ -596,12 +646,20 @@ async def run_agent_loop(
 
             # If goal is present in context, use its max_tokens as max_ctx
             goal_dict = merged_context.get("goal")
-            if isinstance(goal_dict, dict) and "max_tokens" in goal_dict and goal_dict["max_tokens"]:
+            if (
+                isinstance(goal_dict, dict)
+                and "max_tokens" in goal_dict
+                and goal_dict["max_tokens"]
+            ):
                 max_ctx = goal_dict["max_tokens"]
             else:
-                max_ctx = merged_context.get("max_context_tokens") if merged_context else None
+                max_ctx = (
+                    merged_context.get("max_context_tokens") if merged_context else None
+                )
 
-            stats.context_budget = compute_context_budget_snapshot(stats, int(max_ctx) if max_ctx is not None else None)
+            stats.context_budget = compute_context_budget_snapshot(
+                stats, int(max_ctx) if max_ctx is not None else None
+            )
             agent_state._last_run_stats = stats
 
         # Collect token stats BEFORE post_run_events so message_end includes usage.
@@ -631,7 +689,9 @@ async def run_agent_loop(
                 "Agent execution completed; final answer streaming %s",
                 "completed" if executor.streaming_final_answer else "not detected",
             )
-        usage_info = f", tokens: {stats.token_usage.total_tokens}" if stats.token_usage else ""
+        usage_info = (
+            f", tokens: {stats.token_usage.total_tokens}" if stats.token_usage else ""
+        )
         cost_info = f", cost: ${stats.cost_usd:.6f}" if stats.cost_usd > 0 else ""
         logger.info(
             "Execution stats [duration: %.2fs, nodes: %d, tool_calls: %d, msg_chunks: %d%s%s]",

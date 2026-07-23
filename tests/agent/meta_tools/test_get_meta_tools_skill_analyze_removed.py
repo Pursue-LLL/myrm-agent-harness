@@ -45,7 +45,7 @@ class TestSkillAnalyzeRemoved:
             skill_backend,
             registry=registry,
             enable_file_tools=False,
-            enable_bash=False,
+            enable_shell_tools=False,
             enable_answer_tool=False,
         )
 
@@ -68,7 +68,7 @@ class TestSkillAnalyzeRemoved:
             skill_backend,
             registry=registry,
             enable_file_tools=True,
-            enable_bash=False,
+            enable_shell_tools=False,
             enable_answer_tool=False,
         )
         sync_discover_capability_tool(registry, skills=[sample_skill])

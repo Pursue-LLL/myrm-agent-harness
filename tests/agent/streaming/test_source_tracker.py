@@ -104,6 +104,29 @@ class TestSourceTrackerIncremental:
         assert len(tracker.all_sources) == 2
 
 
+    def test_url_dedup_after_citation_normalization(self) -> None:
+        """Two provider redirects resolving to the same final URL should dedup."""
+        tracker = SourceTracker()
+        batch1 = tracker.add_batch([
+            {
+                "url": "https://real.example/article",
+                "redirect_url": "https://redirect-a.example/r",
+                "title": "A",
+            },
+        ])
+        assert len(batch1) == 1
+
+        batch2 = tracker.add_batch([
+            {
+                "url": "https://real.example/article",
+                "redirect_url": "https://redirect-b.example/r",
+                "title": "B",
+            },
+        ])
+        assert len(batch2) == 0
+        assert len(tracker.all_sources) == 1
+
+
 class TestSourceTrackerExtract:
     """extract_and_add from metadata dict."""
 

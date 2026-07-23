@@ -357,7 +357,7 @@ class BackgroundProcessRegistry:
                 if entry.info.session_id == session_id and entry.info.status == "running"
             ]
         if not targets:
-            self._maybe_clear_session_deferred_tools(session_id)
+            self._maybe_clear_session_spawn_tools(session_id)
             return 0
 
         results = await asyncio.gather(
@@ -373,10 +373,10 @@ class BackgroundProcessRegistry:
                 len(targets),
                 grace_seconds,
             )
-        self._maybe_clear_session_deferred_tools(session_id)
+        self._maybe_clear_session_spawn_tools(session_id)
         return killed
 
-    def _maybe_clear_session_deferred_tools(self, session_id: str | None) -> None:
+    def _maybe_clear_session_spawn_tools(self, session_id: str | None) -> None:
         """Drop spawn lifecycle markers when a session has no running shell jobs."""
         if not session_id:
             return
@@ -398,7 +398,7 @@ class BackgroundProcessRegistry:
             entry,
             snapshot=self._snapshot,
             schedule_reap=self._schedule_reap,
-            clear_session_if_idle=self._maybe_clear_session_deferred_tools,
+            clear_session_if_idle=self._maybe_clear_session_spawn_tools,
         )
 
     def _schedule_reap(self, pid: int) -> None:

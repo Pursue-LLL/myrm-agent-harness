@@ -91,7 +91,7 @@ def test_registry_wiring_exposes_skill_tools_with_boundary_descriptions() -> Non
         registry=registry,
         discovery_backend=discovery_backend,
         enable_file_tools=False,
-        enable_bash=False,
+        enable_shell_tools=False,
         enable_answer_tool=False,
     )
     registry.register_many(meta_tools, source=ToolSource.META)
@@ -120,7 +120,7 @@ async def test_skill_agent_build_tools_wires_boundary_descriptions() -> None:
         skill_backend=_StubSkillBackend(skills),
         discovery_backend=_StubDiscoveryBackend(),
         enable_file_tools=False,
-        enable_bash=False,
+        enable_shell_tools=False,
         enable_answer_tool=False,
     )
 
@@ -148,7 +148,7 @@ def test_registry_omits_marketplace_tool_without_discovery_backend() -> None:
         registry=registry,
         discovery_backend=None,
         enable_file_tools=False,
-        enable_bash=False,
+        enable_shell_tools=False,
         enable_answer_tool=False,
     )
     registry.register_many(meta_tools, source=ToolSource.META)
@@ -169,7 +169,7 @@ def test_registry_omits_discover_tool_when_no_searchable_skills() -> None:
         registry=registry,
         discovery_backend=_StubDiscoveryBackend(),
         enable_file_tools=False,
-        enable_bash=False,
+        enable_shell_tools=False,
         enable_answer_tool=False,
     )
     registry.register_many(meta_tools, source=ToolSource.META)
@@ -192,7 +192,7 @@ async def test_discover_runtime_returns_bound_skills_xml() -> None:
         registry=registry,
         discovery_backend=_StubDiscoveryBackend(),
         enable_file_tools=False,
-        enable_bash=False,
+        enable_shell_tools=False,
         enable_answer_tool=False,
     )
     registry.register_many(meta_tools, source=ToolSource.META)

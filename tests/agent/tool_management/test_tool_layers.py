@@ -50,6 +50,7 @@ class TestGetToolLayer:
             "skill_select_tool",
             "skill_manage_tool",
             "browser_navigate_tool",
+            "web_crawl_tool",
         ]
         for tool in extended_tools:
             assert (

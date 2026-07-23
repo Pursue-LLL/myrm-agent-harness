@@ -14,7 +14,10 @@ Layered web crawl engine with L1 HTTP / L2 Browser / L3 Stealth fallback, adapti
 | engine_fetch_mixin.py | Core | L1/L2/L3 fetch, degradation, router feedback mixin | ✅ |
 | engine_escalation_mixin.py | Core | L4 remote escalation + bilibili cookie loader mixin | ✅ |
 | pipeline.py | Core | ContentPipeline — HTML to clean Markdown conversion. | ✅ |
-| web_fetch_agent_tools.py | Core | LangChain @tool factory. Routes fetch_full_content / fetch_and_extract / deep_crawl / check_crawl_status / cancel_crawl. | ✅ |
+| web_fetch_agent_tools.py | Core | LangChain @tool factory for fetch_full_content / fetch_and_extract. | ✅ |
+| web_crawl_agent_tools.py | Core | LangChain @tool factory for site-wide deep crawl (EXTENDED bind). | ✅ |
+| spill.py | Util | UECD wrapper — head/tail preview + evicted persist for fetch_full_content. | ✅ |
+| content_sanitize.py | Util | Strip base64 image blobs from fetched markdown before model delivery. | ✅ |
 | deep_crawl.py | Core | DeepCrawlPipeline — recursive site crawl via sitemap/link discovery, robots.txt compliance; sitemap fetch via `secure_get`. | ✅ |
 | task_store.py | Core | CrawlTaskStore — SQLite WAL durable task queue for async crawl groups. | ✅ |
 | task_executor.py | Core | CrawlTaskExecutor — background asyncio worker pool consuming tasks from store. | ✅ |
@@ -48,7 +51,7 @@ chain (Jina then Firecrawl when enabled in server config). Providers bind per ag
 ## Architecture: Deep Crawl Pipeline
 
 ```
-Agent calls web_fetch(operation="deep_crawl", url=...)
+Agent calls web_crawl_tool(operation="start", seed_url=...)
     │
     ▼
 DeepCrawlPipeline

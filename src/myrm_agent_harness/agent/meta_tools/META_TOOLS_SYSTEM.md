@@ -55,7 +55,7 @@
 | 子模块 | 职责 | 关键出口 |
 |--------|------|----------|
 | `bash/` | PTY/bash 执行、输出压缩与 eviction | `bash_code_execute_tool`（聚合根）、`bash_executor`（4 mixin 聚合） |
-| `file_ops/` | 读写编辑、validators、observers；`file_read_tool` 支持 `vault://` 恢复 auto-vault 大结果 | `file_read_tool`, `file_write_tool`, `file_edit_tool` |
+| `file_ops/` | 读写编辑、validators、observers；`file_read_tool` 支持 `vault://`；`file_edit_tool` 支持 `edits[]` 批量原子替换 | `file_read_tool`, `file_write_tool`, `file_edit_tool` |
 | `file_search/` | glob/grep（Claude Code 兼容） | `glob_tool`, `grep_tool` |
 | `spawn_subagent/` | delegate/control/teammate (mode=batch|parallel on delegate) | `delegate_task_tool`, `subagent_control_tool` |
 | `skills/` | select/manage/discovery 技能工具 | `create_skill_*_tool` 系列（见各子目录） |
@@ -99,7 +99,7 @@ Server 层通过 `factory.py` 的 `_setup_*_tools()` 注入 store/dispatcher 等
 - `agent/sub_agents/` — 委派执行
 - `agent/parallel/` — batch/swarm 并行 spawn
 - `agent/artifacts/` — `@file_*` 短 ID、vault、UI registry
-- `agent/middlewares/` — completion_guard、clarification_guard、tool_interceptor、deferred_tool
+- `agent/middlewares/` — completion_guard、clarification_guard、tool_interceptor、skill_attenuation
 - `toolkits/` — 底层执行（browser、code_execution、kanban 等）
 
 ---

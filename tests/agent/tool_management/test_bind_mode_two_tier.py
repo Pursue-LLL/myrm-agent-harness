@@ -1,4 +1,4 @@
-"""ToolBindMode is Turn1 + RUNTIME_ONLY only (DISCOVERABLE removed)."""
+"""ToolBindMode is TURN1 + RUNTIME_ONLY only."""
 
 from __future__ import annotations
 

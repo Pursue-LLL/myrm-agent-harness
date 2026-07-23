@@ -12,7 +12,7 @@ Applied once at module load time by ``base_agent``.  Protections:
 
 3. **Dynamic tools** — We do not reject tool names missing from ``ToolNode.tools_by_name``
    before ``awrap_tool_call`` runs; middleware may attach a ``BaseTool`` via
-   ``ToolCallRequest.override(tool=...)`` (e.g. deferred tools after ``discover_capability``).
+   ``ToolCallRequest.override(tool=...)`` (e.g. dynamic tools from skill middleware).
 
 4. **Stage-level mixed concurrency** — Tool batches are planned into ordered stages:
    each stage runs only mutually safe calls in parallel, while unsafe/conflicting calls
@@ -114,8 +114,7 @@ def apply_langgraph_tool_args_guard() -> None:
     async def _arun_one_with_guard(self, call, input_type, tool_runtime):  # type: ignore[no-untyped-def]
         _stash_args(call)
         # Do not block unknown tool names here: ToolNode + awrap_tool_call may supply a
-        # BaseTool via ToolCallRequest.override(tool=...) (e.g. deferred tools after
-        # discover_capability). Validation runs in _execute_tool_async when tool stays None.
+        # BaseTool via ToolCallRequest.override(tool=...) (e.g. dynamic skill tools).
         return await _orig_arun(self, call, input_type, tool_runtime)
 
     ToolNode._arun_one = _arun_one_with_guard  # type: ignore[method-assign]

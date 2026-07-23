@@ -9,7 +9,7 @@
 - _output_eviction 是第一道防线（即时，仅 bash 工具）
 - FilterProcessor 是第二道防线（延迟，所有 ToolMessage）
 - bash 输出经过 eviction 后已很小，不会触发 FilterProcessor
-- MCP 等外部工具的大输出由 FilterProcessor 处理
+- all tools → FilterProcessor → tool_output_persister → UECD `.context/.../evicted/`
 
 [INPUT]
 - (none)

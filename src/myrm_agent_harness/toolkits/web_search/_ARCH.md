@@ -18,6 +18,7 @@ and the intent-aware search parameter optimizer.
 | metrics.py | Core | In-process counters for web search operations (thread-safe, optional observability hook). | ✅ |
 | search_results_processor.py | Core | Search result post-processor. Two-layer deduplication (URL arbitration: same URL keeps longest content; content hash: mirror site dedup) + domain diversity sorting (same-domain decay). | ✅ |
 | web_search_agent_tools.py | Core | Web search meta-tool. Integrates web search capability as a meta-tool (high frequency, 80%+ queries). | ✅ |
+| citation_resolver.py | Core | SSRF-safe citation redirect resolution. Normalizes `metadata.sources` so `url` is the final clickable destination; preserves provider redirect in `redirect_url`. | ✅ |
 | web_searcher.py | Core | Web search orchestrator. Unified interface for querying multiple search providers with caching, retry, per-query parameter override, and Try-Catch Flexible Fallback. | ✅ |
 | constants.py | Core | Canonical SearXNG URLs and region presets for self-hosted search. | ✅ |
 | local_probe.py | Core | HTTP probes for SearXNG endpoints (ping + HTML search verify). | ✅ |
@@ -39,6 +40,7 @@ User query → LLM Query Rewriting → questions: list[str]
     → combine_search_results_unified()  [two-layer dedup: URL arbitration + content hash]
     → apply_domain_diversity_sort()     [same-domain decay]
     → BM25 / Precision mode selection
+    → enrich_sources_with_resolved_urls()  [wrapper URLs only: SSRF-safe HEAD; direct links passthrough]
 ```
 
 When intent confidence is below threshold (0.6), no adjustment is made and

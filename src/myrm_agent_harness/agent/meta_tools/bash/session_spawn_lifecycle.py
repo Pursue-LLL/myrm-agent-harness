@@ -1,9 +1,8 @@
 """Session-scoped bash spawn lifecycle tracking.
 
 When ``bash_code_execute_tool`` spawns a background job, the session records
-``bash_process_tool`` so ``BackgroundProcessRegistry`` can auto-clear when all
-shell jobs exit. Tool names may also appear in ``<available-deferred-tools>``
-(stable system index); invoke uses that index, not this store.
+``bash_process_tool`` so ``BackgroundProcessRegistry`` can auto-clear spawn
+markers when all shell jobs exit.
 
 [INPUT]
 - None (in-process session → tool-name set)
@@ -56,20 +55,9 @@ def reset_spawn_lifecycle_for_tests() -> None:
         _session_activations.clear()
 
 
-# Backward-compatible aliases (pre-BSDL rename)
-activate_session_deferred_tool = activate_session_spawn_tool
-get_session_deferred_tool_names = get_session_spawn_tool_names
-clear_session_deferred_tools = clear_session_spawn_tools
-reset_deferred_activation_for_tests = reset_spawn_lifecycle_for_tests
-
-
 __all__ = [
-    "activate_session_deferred_tool",
     "activate_session_spawn_tool",
-    "clear_session_deferred_tools",
     "clear_session_spawn_tools",
-    "get_session_deferred_tool_names",
     "get_session_spawn_tool_names",
-    "reset_deferred_activation_for_tests",
     "reset_spawn_lifecycle_for_tests",
 ]

@@ -58,7 +58,7 @@ is an adapter, not the toolkit itself. Examples: `wiki/wiki_agent_tools.py`,
 **Rule of thumb:** engine + persistence + Protocol in `toolkits/` (exported from `__init__.py`);
 LangChain adapter is optional and secondary. Wrappers that must read `agent/` session state belong in `agent/meta_tools/`.
 
-Current `*_agent_tools.py` modules (all compliant): `acp/`, `computer_use/`, `cron/`, `kanban/`, `memory/`, `web_fetch/`, `web_search/`, `wiki/`.
+Current `*_agent_tools.py` modules (all compliant): `acp/`, `computer_use/`, `cron/`, `kanban/`, `memory/`, `web_fetch/` (`web_fetch_agent_tools.py`, `web_crawl_agent_tools.py`), `web_search/`, `wiki/`.
 
 ### Naming disambiguation: `mcp/agent.py`
 

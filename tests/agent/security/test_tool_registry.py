@@ -76,7 +76,7 @@ class TestResolvePermissionType:
 
     def test_unmapped_builtin_returns_original_name(self):
         assert resolve_permission_type("web_search_tool") == "web_search_tool"
-        assert resolve_permission_type("memory_search_tool") == "memory_recall"
+        assert resolve_permission_type("memory_search_tool") == "memory_search_tool"
         assert resolve_permission_type("skill_select_tool") == "skill_select_tool"
         assert resolve_permission_type("request_answer_user_tool") == "request_answer_user_tool"
         assert resolve_permission_type("render_ui_tool") == "render_ui_tool"

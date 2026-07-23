@@ -29,7 +29,26 @@ from myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service im
 from myrm_agent_harness.agent.meta_tools.file_ops.core.operation_context import (
     OperationContext,
     OperationType,
+    StrReplaceEdit,
 )
+
+
+def _str_replace_ctx(
+    *,
+    path: str,
+    old_str: str = "old",
+    new_str: str = "new",
+    edits: tuple[StrReplaceEdit, ...] | None = None,
+    **kwargs: object,
+) -> OperationContext:
+    if edits is None:
+        edits = (StrReplaceEdit(old_str=old_str, new_str=new_str),)
+    return OperationContext(
+        operation=OperationType.STR_REPLACE,
+        path=path,
+        edits=edits,
+        **kwargs,
+    )
 from myrm_agent_harness.agent.meta_tools.file_ops.core.read_semaphore import (
     get_read_semaphore,
 )
@@ -69,13 +88,12 @@ async def test_execute_str_replace_missing_params() -> None:
         operation=OperationType.STR_REPLACE,
         executor=None,
         path="test.txt",
-        old_str=None,
-        new_str="new",
+        edits=(),
     )
     service = FileOperationService(context)
     with patch.object(context, "validate"), pytest.raises(
         ValueError,
-        match=r"STR_REPLACE operation requires 'path', 'old_str' and 'new_str' parameters",
+        match=r"STR_REPLACE operation requires 'path' and non-empty 'edits' parameters",
     ):
         await service.execute()
 
@@ -469,13 +487,7 @@ async def test_execute_create_overwrite_triggers_modified_observers() -> None:
 
 @pytest.mark.asyncio
 async def test_execute_str_replace_delta_failure_rolls_back() -> None:
-    context = OperationContext(
-        operation=OperationType.STR_REPLACE,
-        executor=None,
-        path="/w/a.py",
-        old_str="old",
-        new_str="new",
-    )
+    context = _str_replace_ctx(executor=None, path="/w/a.py")
     service = FileOperationService(context)
     old_flat = "old"
     with ExitStack() as stack:
@@ -520,18 +532,13 @@ async def test_execute_str_replace_delta_failure_rolls_back() -> None:
         mock_vc.return_value.validate = AsyncMock()
         with pytest.raises(ValueError, match="delta failed"):
             await service.execute()
-        strategy.write_file.assert_awaited_once_with("/w/a.py", old_flat)
+        assert strategy.write_file.await_count == 2
+        strategy.write_file.assert_any_await("/w/a.py", old_flat)
 
 
 @pytest.mark.asyncio
 async def test_execute_str_replace_appends_conflict_warning() -> None:
-    context = OperationContext(
-        operation=OperationType.STR_REPLACE,
-        executor=None,
-        path="/w/a.py",
-        old_str="old",
-        new_str="new",
-    )
+    context = _str_replace_ctx(executor=None, path="/w/a.py")
     service = FileOperationService(context)
     guard = MagicMock()
     guard.require_read_before_write.return_value = None
@@ -584,7 +591,6 @@ async def test_execute_str_replace_appends_conflict_warning() -> None:
         strategy.read_file = AsyncMock(
             side_effect=[
                 ["old"],
-                ["new"],
                 ["new_final"],
             ]
         )
@@ -598,13 +604,7 @@ async def test_execute_str_replace_appends_conflict_warning() -> None:
 @pytest.mark.asyncio
 async def test_execute_str_replace_rejects_unread_file() -> None:
     """Gate rejects edits on files never read in the session."""
-    context = OperationContext(
-        operation=OperationType.STR_REPLACE,
-        executor=None,
-        path="/w/unread.py",
-        old_str="old",
-        new_str="new",
-    )
+    context = _str_replace_ctx(executor=None, path="/w/unread.py")
     service = FileOperationService(context)
     guard = MagicMock()
     guard.require_read_before_write.return_value = (
@@ -646,13 +646,7 @@ async def test_execute_str_replace_rejects_unread_file() -> None:
 @pytest.mark.asyncio
 async def test_execute_str_replace_rejects_partial_read() -> None:
     """Gate rejects edits after only a partial/range read."""
-    context = OperationContext(
-        operation=OperationType.STR_REPLACE,
-        executor=None,
-        path="/w/partial.py",
-        old_str="old",
-        new_str="new",
-    )
+    context = _str_replace_ctx(executor=None, path="/w/partial.py")
     service = FileOperationService(context)
     guard = MagicMock()
     guard.require_read_before_write.return_value = None
@@ -695,13 +689,7 @@ async def test_execute_str_replace_rejects_partial_read() -> None:
 @pytest.mark.asyncio
 async def test_execute_str_replace_rejects_stale_version() -> None:
     """Gate rejects edits when on-disk content changed since full read."""
-    context = OperationContext(
-        operation=OperationType.STR_REPLACE,
-        executor=None,
-        path="/w/stale.py",
-        old_str="old",
-        new_str="new",
-    )
+    context = _str_replace_ctx(executor=None, path="/w/stale.py")
     service = FileOperationService(context)
     guard = MagicMock()
     guard.require_read_before_write.return_value = None
@@ -904,8 +892,7 @@ async def test_create_skips_auto_verify_when_verify_command_present() -> None:
 async def test_str_replace_triggers_auto_verify_with_line_range() -> None:
     """STR_REPLACE without verify_command triggers auto_verify with edit range."""
     executor = AsyncMock()
-    context = OperationContext(
-        operation=OperationType.STR_REPLACE,
+    context = _str_replace_ctx(
         executor=executor,
         path="/workspace/main.py",
         old_str="x = 1",
@@ -942,12 +929,6 @@ async def test_str_replace_triggers_auto_verify_with_line_range() -> None:
             patch(
                 "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
                 return_value=None,
-            )
-        )
-        stack.enter_context(
-            patch(
-                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.compute_edit_line_range",
-                return_value=(5, 5),
             )
         )
         stack.enter_context(

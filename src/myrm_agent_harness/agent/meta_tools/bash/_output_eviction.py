@@ -30,6 +30,10 @@ import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    build_delivery_footer,
+    cap_content_for_storage,
+)
 from myrm_agent_harness.agent.context_management.strategies.filter import should_filter
 from myrm_agent_harness.agent.context_management.strategies.filters.base import (
     STRUCTURAL_CONTENT_TYPES,
@@ -44,7 +48,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_FALLBACK_EVICTION_DIR = ".evicted"
 _PREVIEW_MAX_CHARS = 3000
 _structural_filter = StructuralFilter()
 
@@ -99,7 +102,12 @@ async def maybe_evict_large_output(stdout: str, executor: CodeExecutor | None = 
             preview = _create_smart_preview(stdout)
 
         if file_path:
-            preview += f"\nFull output saved to: {file_path}\nUse file_read_tool to read specific sections (e.g. {file_path}:100-200 for line ranges)."
+            head_part = preview.split("\n\n[Truncated:")[0] if "[Truncated:" in preview else preview
+            preview += build_delivery_footer(
+                evicted_basename=os.path.basename(file_path),
+                head_text=head_part,
+                rel_path=file_path,
+            )
 
         evicted_ref = os.path.basename(file_path) if file_path else None
         logger.warning(" [Eviction] Truncated to preview=%d chars, file=%s", len(preview), file_path)
@@ -109,39 +117,38 @@ async def maybe_evict_large_output(stdout: str, executor: CodeExecutor | None = 
         logger.warning(" [Eviction] Failed: %s, falling back to smart_truncate", e)
         fallback = _create_smart_preview(stdout)
         if file_path:
-            fallback += f"\nFull output saved to: {file_path}\nUse file_read_tool to read specific sections (e.g. {file_path}:100-200 for line ranges)."
+            head_part = fallback.split("\n\n[Truncated:")[0] if "[Truncated:" in fallback else fallback
+            fallback += build_delivery_footer(
+                evicted_basename=os.path.basename(file_path),
+                head_text=head_part,
+                rel_path=file_path,
+            )
         evicted_ref = os.path.basename(file_path) if file_path else None
         return EvictionResult(text=fallback, evicted_ref=evicted_ref)
 
 
-async def _save_to_file(executor: CodeExecutor, content: str) -> str:
-    """将大输出保存到 session-aware eviction 目录
+async def _save_to_file(executor: CodeExecutor, content: str) -> str | None:
+    """Persist large bash output under `.context/{session_id}/evicted/`.
 
-    优先使用 .context/{session_id}/evicted/ 路径（统一清理体系），
-    无法获取 session_id 时降级到 .evicted/（兼容无会话场景）。
+    Returns None when no session context exists (preview-only, no GUI ref).
     """
     session_id = _get_session_id()
+    if not session_id:
+        logger.warning("[Eviction] No session_id; skip file persist (preview only)")
+        return None
 
-    if session_id:
-        from myrm_agent_harness.runtime.execution_paths import (
-            ensure_context_dir_exists,
-            get_evicted_output_path,
-            get_workspace_relative_path,
-        )
+    from myrm_agent_harness.runtime.execution_paths import (
+        ensure_context_dir_exists,
+        get_evicted_output_path,
+        get_workspace_relative_path,
+    )
 
-        abs_path = get_evicted_output_path(session_id)
-        rel_path = get_workspace_relative_path(abs_path)
-        ensure_context_dir_exists(session_id, "evicted")
-        await executor.write_file(rel_path, content)
-        return rel_path
-
-    from uuid import uuid4
-
-    file_id = uuid4().hex[:8]
-    path = f"{_FALLBACK_EVICTION_DIR}/output_{file_id}.txt"
-    await executor.mkdir(_FALLBACK_EVICTION_DIR)
-    await executor.write_file(path, content)
-    return path
+    abs_path = get_evicted_output_path(session_id)
+    rel_path = get_workspace_relative_path(abs_path)
+    ensure_context_dir_exists(session_id, "evicted")
+    capped_content, _ = cap_content_for_storage(content)
+    await executor.write_file(rel_path, capped_content)
+    return rel_path
 
 
 def _create_smart_preview(content: str) -> str:

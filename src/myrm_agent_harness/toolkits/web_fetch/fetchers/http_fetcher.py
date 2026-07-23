@@ -45,6 +45,9 @@ _MAX_REDIRECTS = 5
 _HTTP3_RETRY_STATUS = frozenset({403})
 
 
+DEFAULT_MAX_RESPONSE_BYTES = 750_000
+
+
 class HttpFetcher:
     """L1 tier: curl_cffi HTTP requests, TLS fingerprint spoofing"""
 
@@ -314,6 +317,14 @@ class HttpFetcher:
         )
 
         body = getattr(response, "body", b"")
+        if len(body) > DEFAULT_MAX_RESPONSE_BYTES:
+            logger.warning(
+                "L1 HTTP response body capped: %d -> %d bytes for %s",
+                len(body),
+                DEFAULT_MAX_RESPONSE_BYTES,
+                current_url,
+            )
+            body = body[:DEFAULT_MAX_RESPONSE_BYTES]
         encoding = getattr(response, "encoding", None) or "utf-8"
 
         if is_text:

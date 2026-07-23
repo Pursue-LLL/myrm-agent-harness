@@ -49,7 +49,7 @@ _PRODUCT_ID_TOOL_OVERRIDES: dict[str, str] = {
 }
 
 _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
-    "web_fetch_tool": "Agent baseline; Turn1 (Fast mode may omit file/bash only)",
+    "web_fetch_tool": "Agent baseline; Turn1 when enable_web_fetch (Fast mode may omit file/bash only)",
     "bash_code_execute_tool": "Agent baseline file_ops+code_execute; Turn1",
     "file_read_tool": "Agent baseline file_ops; Turn1",
     "file_write_tool": "Agent baseline file_ops; Turn1",
@@ -84,6 +84,7 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
     "image_tool": "enabled_builtin_tools: image_generation",
     "video_tool": "enabled_builtin_tools: video_generation",
     "tts_generate": "enabled_builtin_tools: tts",
+    "web_crawl_tool": "enabled_builtin_tools: web_crawl",
 }
 
 _DEFAULT_LOAD_BY_LAYER: dict[ToolLayer, str] = {

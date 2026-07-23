@@ -51,8 +51,8 @@ async def test_eviction_hint_references_file_read_tool(mock_executor):
     assert isinstance(result, EvictionResult)
     assert "file_read_tool" in result.text
     assert "cat " not in result.text
-    assert "offset/limit" not in result.text
-    assert ":100-200" in result.text
+    assert "offset=" in result.text
+    assert "limit=" in result.text
     assert result.evicted_ref == "output.txt"
 
 
@@ -75,7 +75,7 @@ async def test_eviction_fallback_hint_references_file_read_tool(mock_executor):
     assert isinstance(result, EvictionResult)
     assert "file_read_tool" in result.text
     assert "cat " not in result.text
-    assert ":100-200" in result.text
+    assert "offset=" in result.text
     assert result.evicted_ref == "output.txt"
 
 
@@ -85,7 +85,7 @@ async def test_eviction_no_executor_no_file_hint():
     """Without executor, no file_path hint should appear."""
     result = await maybe_evict_large_output("x" * 50000)
     assert isinstance(result, EvictionResult)
-    assert "Full output saved to" not in result.text
+    assert "Full content saved to sandbox storage" not in result.text
     assert "LARGE OUTPUT TRUNCATED" in result.text
     assert result.evicted_ref is None
 
@@ -101,7 +101,7 @@ async def test_eviction_file_save_failure_still_has_preview(mock_executor):
         result = await maybe_evict_large_output("x" * 50000, mock_executor)
     assert isinstance(result, EvictionResult)
     assert "LARGE OUTPUT TRUNCATED" in result.text
-    assert "Full output saved to" not in result.text
+    assert "Full content saved to sandbox storage" not in result.text
     assert result.evicted_ref is None
 
 
@@ -120,7 +120,8 @@ async def test_eviction_hint_includes_actual_file_path(mock_executor):
         ),
     ):
         result = await maybe_evict_large_output("x" * 50000, mock_executor)
-    assert ".context/session123/evicted/output_abc.txt:100-200" in result.text
+    assert 'path=".context/session123/evicted/output_abc.txt"' in result.text
+    assert "offset=" in result.text
     assert result.evicted_ref == "output_abc.txt"
 
 
@@ -131,3 +132,74 @@ async def test_eviction_skips_small_output():
     assert isinstance(result, EvictionResult)
     assert result.text == "small output"
     assert result.evicted_ref is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("_mock_should_filter", "_mock_detect_non_structural")
+async def test_eviction_no_session_skips_file_persist(mock_executor):
+    """Without session_id, large output is preview-only (no GUI evicted ref)."""
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.bash._output_eviction._get_session_id",
+        return_value=None,
+    ):
+        result = await maybe_evict_large_output("x" * 50000, mock_executor)
+
+    assert result.evicted_ref is None
+    assert "LARGE OUTPUT TRUNCATED" in result.text
+    mock_executor.write_file.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("_mock_should_filter")
+async def test_eviction_structural_content_preview(mock_executor):
+    """Structural JSON content uses structural filter summary path."""
+    payload = '{"items": [' + '{"id": 1},' * 500 + '{"id": 999}]}'
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash._output_eviction._save_to_file",
+            return_value=".context/s1/evicted/output_ab12cd34.txt",
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash._output_eviction.detect_content_type",
+            return_value="json",
+        ),
+    ):
+        result = await maybe_evict_large_output(payload, mock_executor)
+
+    assert "LARGE OUTPUT TRUNCATED" in result.text or "structure" in result.text.lower()
+    assert result.evicted_ref == "output_ab12cd34.txt"
+
+
+def test_get_session_id_returns_none_on_error():
+    from myrm_agent_harness.agent.meta_tools.bash import _output_eviction as mod
+
+    with patch(
+        "myrm_agent_harness.agent.context_management.infra.session_lock.get_current_chat_id",
+        side_effect=RuntimeError("no session context"),
+    ):
+        assert mod._get_session_id() is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("_mock_should_filter", "_mock_detect_non_structural")
+async def test_save_to_file_persists_with_session(mock_executor):
+    from myrm_agent_harness.agent.meta_tools.bash import _output_eviction as mod
+
+    with (
+        patch.object(mod, "_get_session_id", return_value="session_save"),
+        patch(
+            "myrm_agent_harness.runtime.execution_paths.get_evicted_output_path",
+            return_value="/ws/.context/session_save/evicted/output_abcd1234.txt",
+        ),
+        patch(
+            "myrm_agent_harness.runtime.execution_paths.get_workspace_relative_path",
+            return_value=".context/session_save/evicted/output_abcd1234.txt",
+        ),
+        patch(
+            "myrm_agent_harness.runtime.execution_paths.ensure_context_dir_exists",
+        ),
+    ):
+        rel = await mod._save_to_file(mock_executor, "payload")
+
+    assert rel == ".context/session_save/evicted/output_abcd1234.txt"
+    mock_executor.write_file.assert_awaited_once()

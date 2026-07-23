@@ -77,7 +77,7 @@ async def _build_default_turn1_tools() -> list[BaseTool]:
         write_backend=write_backend,
         registry=registry,
         enable_file_tools=True,
-        enable_bash=True,
+        enable_shell_tools=True,
         enable_answer_tool=False,
     )
 

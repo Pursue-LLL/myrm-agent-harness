@@ -1,7 +1,7 @@
 """Tests that glob_tool/grep_tool stay eager when file_ops is enabled.
 
-Roadmap P1 verdict (2026-07-02): glob/grep deferred-only is rejected; they must
-mount with file_read/write/edit via enable_file_tools, not discover deferred pool.
+glob/grep must mount with file_read/write/edit via enable_file_tools at Turn1,
+not via a separate deferred discovery pool.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ class TestFileSearchEager:
             skill_backend,
             registry=registry,
             enable_file_tools=True,
-            enable_bash=False,
+            enable_shell_tools=False,
             enable_answer_tool=False,
         )
 
@@ -54,7 +54,7 @@ class TestFileSearchEager:
             skill_backend,
             registry=registry,
             enable_file_tools=True,
-            enable_bash=False,
+            enable_shell_tools=False,
             enable_answer_tool=False,
         )
 
@@ -72,7 +72,7 @@ class TestFileSearchEager:
             skill_backend,
             registry=registry,
             enable_file_tools=False,
-            enable_bash=False,
+            enable_shell_tools=False,
             enable_answer_tool=False,
         )
 
@@ -96,7 +96,7 @@ class TestFileSearchEager:
             skill_backend,
             registry=registry,
             enable_file_tools=True,
-            enable_bash=False,
+            enable_shell_tools=False,
             enable_answer_tool=False,
         )
         sync_discover_capability_tool(registry, skills=[sample_skill])
@@ -118,7 +118,7 @@ class TestFileSearchEager:
             skill_backend,
             registry=registry,
             enable_file_tools=False,
-            enable_bash=True,
+            enable_shell_tools=True,
             enable_answer_tool=False,
         )
 
@@ -138,7 +138,7 @@ class TestFileSearchEager:
             skill_backend,
             registry=ToolRegistry(),
             enable_file_tools=False,
-            enable_bash=False,
+            enable_shell_tools=False,
             enable_answer_tool=True,
         )
 

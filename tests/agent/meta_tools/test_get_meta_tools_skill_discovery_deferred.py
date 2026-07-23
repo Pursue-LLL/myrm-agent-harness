@@ -36,7 +36,7 @@ class TestSkillDiscoveryEager:
             registry=registry,
             discovery_backend=discovery_backend,
             enable_file_tools=False,
-            enable_bash=False,
+            enable_shell_tools=False,
             enable_answer_tool=False,
         )
 
@@ -55,7 +55,7 @@ class TestSkillDiscoveryEager:
             registry=registry,
             discovery_backend=discovery_backend,
             enable_file_tools=False,
-            enable_bash=False,
+            enable_shell_tools=False,
             enable_answer_tool=False,
         )
 

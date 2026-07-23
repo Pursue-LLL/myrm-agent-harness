@@ -427,6 +427,10 @@ async def run_post_call_guards(
             tool_name,
             budget_verdict.persisted_path,
         )
+        if budget_verdict.evicted_ref:
+            from myrm_agent_harness.agent.context_management.infra.evicted_content import emit_evicted_ref
+
+            await emit_evicted_ref(budget_verdict.evicted_ref)
         result = ToolMessage(
             content=budget_verdict.content,
             name=tool_name,

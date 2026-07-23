@@ -4,10 +4,11 @@ Four layers of protection:
 1. Single tool result size limit (persist or truncate oversized results)
 2. Session total context budget tracking (cumulative token estimation)
 3. Predictive overflow detection (warn before overflow, not after)
-4. Graceful degradation (disk-persist → truncate fallback chain)
+4. Graceful degradation (UECD disk-persist → truncate fallback chain)
 
 [INPUT]
 - text_utils::smart_truncate (POS: Head+Tail truncation with intelligent tail detection)
+- infra.evicted_content::write_evicted_content_sync (UECD persist)
 
 [OUTPUT]
 - BudgetVerdict: persisted / truncated / warning / ok (with details)
@@ -20,23 +21,14 @@ the post-call stage, after tool execution but before result validation.
 
 from __future__ import annotations
 
-import contextlib
 import logging
-import re
-import uuid
 from contextvars import ContextVar
 from dataclasses import dataclass
 from enum import StrEnum
-from pathlib import Path
 
 from myrm_agent_harness.utils.text_utils import smart_truncate
 
 logger = logging.getLogger(__name__)
-
-_PERSIST_NOTICE = (
-    "\n\n[FULL RESULT SAVED: {path} ({original} chars, {lines} lines)]\n"
-    "[Read the file at the path above to access the complete content]\n"
-)
 
 _PREVIEW_CHARS = 500
 
@@ -71,6 +63,7 @@ class BudgetVerdict:
     reason: str
     budget_used_pct: float
     persisted_path: str | None = None
+    evicted_ref: str | None = None
 
 
 def _estimate_tokens(text: str) -> int:
@@ -78,23 +71,12 @@ def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
-def _build_persist_summary(content: str, file_path: str) -> str:
-    """Build a summary with head/tail preview and file path."""
-    line_count = content.count("\n") + 1
-    notice = _PERSIST_NOTICE.format(path=file_path, original=len(content), lines=line_count)
-    head = content[:_PREVIEW_CHARS]
-    tail = content[-_PREVIEW_CHARS:] if len(content) > _PREVIEW_CHARS * 2 else ""
-    if tail:
-        return f"{head}\n...{notice}\n...{tail}"
-    return f"{head}{notice}"
-
-
 class ContextBudgetGuard:
     """Session-scoped context budget tracker.
 
     Tracks cumulative token usage from tool results and enforces
     per-result and total budget limits. Oversized results are persisted
-    to disk when persist_dir is configured, falling back to truncation.
+    via UECD when workspace/chat session context exists, otherwise truncated.
 
     Args:
         max_result_chars: max characters for a single tool result (default 100_000)
@@ -102,7 +84,6 @@ class ContextBudgetGuard:
         warning_pct: percentage of budget used before warning (default 0.80)
         hard_limit_pct: percentage of budget used before forced truncation (default 0.95)
         min_retained_chars: minimum characters to retain after truncation (default 200)
-        persist_dir: directory for persisting oversized results (None = truncate-only)
     """
 
     def __init__(
@@ -113,16 +94,13 @@ class ContextBudgetGuard:
         warning_pct: float = 0.80,
         hard_limit_pct: float = 0.95,
         min_retained_chars: int = 200,
-        persist_dir: Path | None = None,
     ) -> None:
         self._max_result_chars = max_result_chars
         self._total_budget_tokens = total_budget_tokens
         self._warning_pct = warning_pct
         self._hard_limit_pct = hard_limit_pct
         self._min_retained_chars = min_retained_chars
-        self._persist_dir = persist_dir
         self._used_tokens = 0
-        self._persisted_files: list[Path] = []
 
     @property
     def used_tokens(self) -> int:
@@ -134,32 +112,40 @@ class ContextBudgetGuard:
             return 1.0
         return self._used_tokens / self._total_budget_tokens
 
-    @property
-    def persisted_files(self) -> list[Path]:
-        return list(self._persisted_files)
+    def _try_persist(self, content: str, tool_name: str) -> tuple[str, str, str | None] | None:
+        """Try to persist content to UECD evicted dir. Returns (summary, rel_path, evicted_basename) or None."""
+        from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+            build_delivery_footer,
+            sanitize_evicted_source,
+            write_evicted_content_sync,
+        )
 
-    def _try_persist(self, content: str, tool_name: str) -> tuple[str, str] | None:
-        """Try to persist content to disk. Returns (summary, file_path) or None."""
-        if self._persist_dir is None:
+        source = sanitize_evicted_source(tool_name)
+        if "mcp" in tool_name.lower():
+            source = "mcp"
+        result = write_evicted_content_sync(content, source, ext="txt")
+        if result.evicted_ref is None or result.rel_path is None:
             return None
-        try:
-            self._persist_dir.mkdir(parents=True, exist_ok=True)
-            short_id = uuid.uuid4().hex[:8]
-            safe_name = re.sub(r"[^\w]", "_", tool_name)
-            file_path = self._persist_dir / f"{safe_name}_{short_id}.txt"
-            file_path.write_text(content, encoding="utf-8")
-            self._persisted_files.append(file_path)
-            summary = _build_persist_summary(content, str(file_path))
-            return summary, str(file_path)
-        except OSError:
-            logger.warning("Failed to persist tool result to disk, falling back to truncation")
-            return None
+
+        line_count = content.count("\n") + 1
+        head = content[:_PREVIEW_CHARS]
+        footer = build_delivery_footer(
+            evicted_basename=result.evicted_ref,
+            head_text=head,
+            rel_path=result.rel_path,
+        )
+        tail = content[-_PREVIEW_CHARS:] if len(content) > _PREVIEW_CHARS * 2 else ""
+        if tail:
+            summary = f"{head}\n...[truncated {line_count} lines total]...\n{tail}{footer}"
+        else:
+            summary = f"{head}{footer}"
+        return summary, result.rel_path, result.evicted_ref
 
     def check_and_truncate(self, content: str, tool_name: str) -> BudgetVerdict:
         """Check a tool result against budget limits.
 
         When a result exceeds max_result_chars:
-        - If persist_dir is configured: save full result to disk, return summary
+        - Persist full result to `.context/{chat_id}/evicted/` via UECD when session context exists
         - Otherwise: truncate with head+tail preservation
 
         This is the main entry point called from middleware post-call.
@@ -167,6 +153,7 @@ class ContextBudgetGuard:
         original_len = len(content)
         result_content = content
         persisted_path: str | None = None
+        evicted_ref: str | None = None
         was_persisted = False
 
         # Layer 1: single result size limit — persist or truncate.
@@ -177,7 +164,7 @@ class ContextBudgetGuard:
         if not skip_layer1 and original_len > self._max_result_chars:
             persist_result = self._try_persist(content, tool_name)
             if persist_result is not None:
-                result_content, persisted_path = persist_result
+                result_content, persisted_path, evicted_ref = persist_result
                 was_persisted = True
             else:
                 result_content = smart_truncate(content, self._max_result_chars)
@@ -214,6 +201,7 @@ class ContextBudgetGuard:
                 ),
                 budget_used_pct=current_pct,
                 persisted_path=persisted_path,
+                evicted_ref=evicted_ref,
             )
 
         if len(result_content) < original_len:
@@ -240,52 +228,19 @@ class ContextBudgetGuard:
         return BudgetVerdict(action=BudgetAction.OK, content=result_content, reason="", budget_used_pct=current_pct)
 
     def reset(self) -> None:
-        """Clear budget tracking and persisted files."""
+        """Clear cumulative budget tracking for a new run."""
         self._used_tokens = 0
-        for path in self._persisted_files:
-            with contextlib.suppress(OSError):
-                path.unlink(missing_ok=True)
-        self._persisted_files.clear()
 
 
 _budget_guard_var: ContextVar[ContextBudgetGuard] = ContextVar("context_budget_guard")
 
 
-def _resolve_persist_dir() -> Path | None:
-    """Resolve persist_dir from current session context.
-
-    Uses the session-aware evicted directory when a chat_id is available,
-    ensuring persisted tool results are cleaned up with the session.
-    Falls back to a temporary directory when no session context exists.
-    """
-    try:
-        from myrm_agent_harness.agent.context_management.infra.session_lock import get_current_chat_id
-        from myrm_agent_harness.runtime.execution_paths import CONTEXT_ROOT
-
-        chat_id = get_current_chat_id()
-        if chat_id:
-            safe_id = re.sub(r"[^\w\-]", "_", chat_id)
-            return Path(f"{CONTEXT_ROOT}/{safe_id}/evicted")
-
-        import tempfile
-
-        return Path(tempfile.gettempdir()) / "myrm-budget-persist"
-    except Exception:
-        return None
-
-
 def get_context_budget_guard() -> ContextBudgetGuard:
-    """Get or create the session-scoped ContextBudgetGuard.
-
-    On first access, automatically resolves persist_dir from the current
-    session context so that oversized tool results are persisted to disk
-    rather than silently truncated.
-    """
+    """Get or create the session-scoped ContextBudgetGuard."""
     try:
         return _budget_guard_var.get()
     except LookupError:
-        persist_dir = _resolve_persist_dir()
-        guard = ContextBudgetGuard(persist_dir=persist_dir)
+        guard = ContextBudgetGuard()
         _budget_guard_var.set(guard)
         return guard
 
@@ -296,9 +251,3 @@ def set_context_budget_guard(guard: ContextBudgetGuard) -> None:
     Call before any tool execution to configure custom budget limits.
     """
     _budget_guard_var.set(guard)
-
-
-def reset_context_budget() -> None:
-    """Reset the context budget for a new session."""
-    with contextlib.suppress(LookupError):
-        _budget_guard_var.get().reset()

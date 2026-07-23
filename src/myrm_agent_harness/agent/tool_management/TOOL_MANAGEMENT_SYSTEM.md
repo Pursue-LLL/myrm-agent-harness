@@ -8,7 +8,7 @@
 
 | 对外说法 | 含义 | 当前规模 |
 |----------|------|----------|
-| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **57**（CORE 7 + COMMON 4 + EXTENDED 46） |
+| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **58**（CORE 7 + COMMON 4 + EXTENDED 47） |
 
 对外文档与沟通中，**「工具」仅指 LLM 工具**。编排信号、runtime hook、toolkits 引擎、Skill 文档、PTC 等实现细节属于代码层，**不称为工具**。
 
@@ -71,7 +71,7 @@ Server `_tool_layer_bootstrap.py` 扩展 EXTENDED 层业务工具。
 
 ## 内部分类（实现 / token 会计，非产品术语）
 
-以下四类**不计入 LLM 工具 57 个**，仅用于实现与 Turn1 token 隔离：
+以下四类**不计入 LLM 工具 58 个**，仅用于实现与 Turn1 token 隔离：
 
 | 内部术语 | 含义 | SSOT |
 |----------|------|------|
@@ -99,14 +99,13 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `file_write_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
 | `glob_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
 | `grep_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
-| `web_fetch_tool` | CORE | user_capability | — | Agent baseline; Turn1 (Fast mode may omit file/bash only) |
+| `web_fetch_tool` | CORE | user_capability | — | Agent baseline; Turn1 when enable_web_fetch (Fast mode may omit file/bash only) |
 | `memory_manage_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
 | `memory_save_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
 | `memory_search_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory; corpus=sessions when memoryEnableConversationSearch |
-| `todo_write` | EXTENDED | user_capability | planning | planning or existing workspace todos |
 | `web_search_tool` | COMMON | user_capability | web_search | enabled_builtin_tools: web_search (default on) |
-| `ask_question_tool` | EXTENDED | user_capability | structured_clarify | server mount policy (interactive web_chat); requires_confirmation WebUI emphasis; ClarificationGuardMiddleware one call/turn |
-| `bash_process_tool` | EXTENDED | user_capability | — | Turn1 when bash enabled |
+| `ask_question_tool` | EXTENDED | user_capability | structured_clarify | server mount policy (interactive web_chat); requires_confirmation WebUI emphasis; ClarificationGuardMiddleware one call/turn; HitlToolPolicy L1 subagent block |
+| `bash_process_tool` | CORE | user_capability | — | Turn1 when shell enabled (co-mounted with bash_code_execute) |
 | `browser_ask_human_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `browser_execute_script_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `browser_extract_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
@@ -142,9 +141,11 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `skill_manage_tool` | EXTENDED | user_capability | — | write_backend present |
 | `skill_select_tool` | EXTENDED | user_capability | — | skill_backend present |
 | `subagent_control_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
+| `todo_write` | EXTENDED | user_capability | planning | planning or existing workspace todos |
 | `tts_generate` | EXTENDED | user_capability | tts | enabled_builtin_tools: tts |
 | `update_ui_data_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
 | `video_tool` | EXTENDED | user_capability | video_generation | enabled_builtin_tools: video_generation |
+| `web_crawl_tool` | EXTENDED | user_capability | — | enabled_builtin_tools: web_crawl |
 | `wiki_compile_tool` | EXTENDED | user_capability | — | Settings REST + create_wiki_admin_tools(); not Turn1 LLM |
 | `wiki_ingest_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
 | `wiki_maintain_tool` | EXTENDED | user_capability | — | Settings REST + create_wiki_admin_tools(); not Turn1 LLM |
@@ -192,9 +193,9 @@ python scripts/validate_tool_registry.py --generate-docs  # 刷新 TOOL_COUNT + 
 - 所有 LLM Action Tool → `TURN1`（按 profile 条件装配；MCP 超标整服降级 PTC Skill）
 - `_completion_check`（CompletionGuard）→ `RUNTIME_ONLY`（名称 `_` 前缀自动推断）
 
-**已删除**：`ToolBindMode.DISCOVERABLE`、`get_discoverable_tools()`、`discoverable_tools` 构造参数。低频能力改由 profile 开关 + MCP PTC 路由 + `discover_capability_tool`（搜索已绑定 Agent 的技能库）承担。
+**Profile 装配**：EXTENDED 层工具通过 `enabled_builtin_tools` 与运行时 gate 在 Agent 构建时决定是否 Turn1 绑定；MCP 超预算时整服降级为 PTC Skill；存在可搜索技能时挂载 `discover_capability_tool`。
 
-**禁止**：`get_deferred_tools()` 已删除；新代码不得混用 `deferred_tools` / `discoverable_tools` 变量名。
+**命名约束**：不得使用 `deferred_tools`、`discoverable_tools`、`get_deferred_tools()` 等废弃 API 名（CI 门禁见 `validate_tool_registry.py`）。
 
 **GUI 暴露**（`emit_tools_snapshot`）：仅序列化 `TURN1` 工具，与 `resolve()` 一致；`RUNTIME_ONLY` 不进 `tools_snapshot` SSE。每条 snapshot 含可选 `builtin_tool_id`（Harness 内由 `get_tool_product_id()` 派生，无 i18n）；WebUI wrench 与 gap toast 共用 `builtinTools.ts` 中的本地化 capability 标签。
 

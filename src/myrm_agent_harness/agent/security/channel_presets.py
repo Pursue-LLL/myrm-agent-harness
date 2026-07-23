@@ -105,7 +105,9 @@ _LOCAL_BROWSER_RELAXATION: PermissionRuleset = (
 )
 
 CHANNEL_PRESETS: dict[ChannelType, ChannelSecurityPreset] = {
-    ChannelType.WEB_CHAT: ChannelSecurityPreset(capabilities=DEFAULT_CAPABILITIES, ruleset=()),
+    ChannelType.WEB_CHAT: ChannelSecurityPreset(
+        capabilities=DEFAULT_CAPABILITIES, ruleset=()
+    ),
     ChannelType.IM: ChannelSecurityPreset(
         capabilities=_IM_CAPABILITIES,
         ruleset=(
@@ -214,7 +216,9 @@ def build_channel_security_config(
         capabilities = _build_declared_capability_set(declared_capabilities)
 
     if declared_allowed_roots:
-        merged_roots = tuple(sorted(set(path_policy.allowed_roots) | set(declared_allowed_roots)))
+        merged_roots = tuple(
+            sorted(set(path_policy.allowed_roots) | set(declared_allowed_roots))
+        )
         path_policy = PathPolicy(
             forbidden_paths=path_policy.forbidden_paths,
             allowed_roots=merged_roots,
@@ -268,7 +272,9 @@ def build_channel_security_config(
     return result
 
 
-def _merge_user_and_agent(user: SecurityConfig | None, agent: SecurityConfig | None) -> SecurityConfig | None:
+def _merge_user_and_agent(
+    user: SecurityConfig | None, agent: SecurityConfig | None
+) -> SecurityConfig | None:
     """Merge user-level config with per-agent overrides.
 
     - capabilities: intersection (Agent restricts, never expands)
@@ -282,37 +288,74 @@ def _merge_user_and_agent(user: SecurityConfig | None, agent: SecurityConfig | N
     if user is None:
         return agent
 
-    agent_positives = frozenset(c for c in agent.capabilities if not c.permission.startswith("!"))
+    agent_positives = frozenset(
+        c for c in agent.capabilities if not c.permission.startswith("!")
+    )
     if agent_positives:
-        user_positives = frozenset(c for c in user.capabilities if not c.permission.startswith("!"))
-        all_negatives = frozenset(c for c in user.capabilities if c.permission.startswith("!")) | frozenset(
-            c for c in agent.capabilities if c.permission.startswith("!")
+        user_positives = frozenset(
+            c for c in user.capabilities if not c.permission.startswith("!")
         )
+        all_negatives = frozenset(
+            c for c in user.capabilities if c.permission.startswith("!")
+        ) | frozenset(c for c in agent.capabilities if c.permission.startswith("!"))
         caps = (user_positives & agent_positives) | all_negatives
     else:
         caps = user.capabilities
 
     ruleset = merge(user.ruleset, agent.ruleset)
 
-    allowed = tuple(sorted(set(user.path_policy.allowed_roots) | set(agent.path_policy.allowed_roots)))
+    allowed = tuple(
+        sorted(
+            set(user.path_policy.allowed_roots) | set(agent.path_policy.allowed_roots)
+        )
+    )
     label = agent.path_policy.workspace_label or user.path_policy.workspace_label
-    pp = PathPolicy(forbidden_paths=user.path_policy.forbidden_paths, allowed_roots=allowed, workspace_label=label)
-
-    timeout = agent.approval_timeout_seconds if agent.approval_timeout_seconds != 120 else user.approval_timeout_seconds
-    timeout_behavior = (
-        agent.approval_timeout_behavior if agent.approval_timeout_behavior != "deny" else user.approval_timeout_behavior
+    pp = PathPolicy(
+        forbidden_paths=user.path_policy.forbidden_paths,
+        allowed_roots=allowed,
+        workspace_label=label,
     )
 
-    network_allowlist = tuple(sorted(set(user.network_allowlist) | set(agent.network_allowlist)))
-    network_blocklist = tuple(sorted(set(user.network_blocklist) | set(agent.network_blocklist)))
+    timeout = (
+        agent.approval_timeout_seconds
+        if agent.approval_timeout_seconds != 120
+        else user.approval_timeout_seconds
+    )
+    timeout_behavior = (
+        agent.approval_timeout_behavior
+        if agent.approval_timeout_behavior != "deny"
+        else user.approval_timeout_behavior
+    )
+
+    network_allowlist = tuple(
+        sorted(set(user.network_allowlist) | set(agent.network_allowlist))
+    )
+    network_blocklist = tuple(
+        sorted(set(user.network_blocklist) | set(agent.network_blocklist))
+    )
     domain_hitl_enabled = user.domain_hitl_enabled or agent.domain_hitl_enabled
     auto_mode_enabled = user.auto_mode_enabled or agent.auto_mode_enabled
     auto_review_model = agent.auto_review_model or user.auto_review_model
-    auto_review_timeout = min(user.auto_review_timeout_seconds, agent.auto_review_timeout_seconds)
+    auto_review_timeout = min(
+        user.auto_review_timeout_seconds, agent.auto_review_timeout_seconds
+    )
 
     yolo_enabled = user.yolo_mode_enabled or agent.yolo_mode_enabled
-    yolo_at = user.yolo_mode_enabled_at or agent.yolo_mode_enabled_at
-    yolo_timeout = user.yolo_mode_timeout if user.yolo_mode_enabled else agent.yolo_mode_timeout
+    # Per-agent YOLO is an explicit override: do not let stale user timestamps/timeouts
+    # expire agent YOLO (hitl-probe checks the flag only; batch_processor enforces timeout).
+    if agent.yolo_mode_enabled:
+        yolo_at = agent.yolo_mode_enabled_at
+        if yolo_at is None and user.yolo_mode_enabled:
+            yolo_at = user.yolo_mode_enabled_at
+        yolo_timeout = agent.yolo_mode_timeout
+        if yolo_timeout is None and user.yolo_mode_enabled:
+            yolo_timeout = user.yolo_mode_timeout
+    elif user.yolo_mode_enabled:
+        yolo_at = user.yolo_mode_enabled_at
+        yolo_timeout = user.yolo_mode_timeout
+    else:
+        yolo_at = None
+        yolo_timeout = None
 
     return SecurityConfig(
         capabilities=caps,

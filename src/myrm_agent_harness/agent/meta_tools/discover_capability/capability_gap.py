@@ -6,7 +6,7 @@
 [OUTPUT]
 - detect_capability_gap / detect_skill_gap: entitlement gap hits
 - format_capability_gap_block / format_skill_gap_block: XML blocks for tool messages
-- CAPABILITY_GAP_REGISTRY: SSOT for GUI-togglable builtin tool_id → group + triggers (baseline excluded)
+- CAPABILITY_GAP_REGISTRY: SSOT for GUI-togglable builtin tool_id → group + triggers (16 entries; baseline excluded)
 - BUILTIN_TOOL_ID_TO_GROUP: derived view for server catalog parity tests
 
 [POS]
@@ -61,6 +61,22 @@ CAPABILITY_GAP_REGISTRY: tuple[CapabilityGapEntry, ...] = (
             "回忆",
             "记忆",
             "想起来",
+        ),
+    ),
+    CapabilityGapEntry(
+        "web_crawl",
+        "web_crawl",
+        (
+            "site crawl",
+            "web crawl",
+            "crawl site",
+            "crawl entire",
+            "recursive crawl",
+            "spider site",
+            "整站爬",
+            "爬取整站",
+            "整站爬取",
+            "递归爬",
         ),
     ),
     CapabilityGapEntry(

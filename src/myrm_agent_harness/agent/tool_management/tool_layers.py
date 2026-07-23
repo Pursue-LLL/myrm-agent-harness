@@ -15,6 +15,11 @@
 [POS]
 Tool layer priority registry. Defines CORE/COMMON/EXTENDED three-tier tool priorities used by ToolRegistry for ordering.
 
+Tool loading dual-track (SSOT):
+- General track (Web non-fast, Channel/IM, Cron/Kanban): CORE tools always Turn1 eager via tool_mount.resolve_agent_mount → get_meta_tools(enable_shell_tools=True).
+- Search/Fast track: Web action_mode=fast only — no file/bash (params/converter.py).
+- Channel/IM binds General agents only; prompt_mode=search agents rejected at bind API.
+
 """
 
 from enum import IntEnum
@@ -53,15 +58,19 @@ class ToolLayer(IntEnum):
 _TOOL_LAYERS: dict[str, ToolLayer] = {
     # ============================================================
     # CORE - 通用 Agent 基线工具（无条件 Turn1 eager，前端无开关）
-    # file/bash/web_fetch/glob/grep；Fast 模式仍由 converter 关闭 file/bash
+    # General 轨道：Web 非 fast、Channel/IM、Cron/Kanban — server tool_mount.resolve_agent_mount
+    # Search/Fast 无 file/bash：仅 Web action_mode=fast — 见 server params/converter.py
     # ============================================================
     "web_fetch_tool": ToolLayer.CORE,
     "bash_code_execute_tool": ToolLayer.CORE,
+    "bash_process_tool": ToolLayer.CORE,
     "file_edit_tool": ToolLayer.CORE,
     "file_read_tool": ToolLayer.CORE,
     "file_write_tool": ToolLayer.CORE,
     "glob_tool": ToolLayer.CORE,
     "grep_tool": ToolLayer.CORE,
+    # --- Web crawl (site-wide; opt-in) ---
+    "web_crawl_tool": ToolLayer.EXTENDED,
     # ============================================================
     # COMMON - 默认开启但用户可在 GUI 关闭（放中间；组内 memory 优先于 web_search）
     # ============================================================
@@ -74,8 +83,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # ============================================================
     # --- ACP（Agent Communication Protocol）---
     "delegate_to_agent_tool": ToolLayer.EXTENDED,
-    # --- Bash 后台进程（discoverable；stable index + invoke）---
-    "bash_process_tool": ToolLayer.EXTENDED,
     # --- 浏览器工具 ---
     "browser_extract_tool": ToolLayer.EXTENDED,
     "browser_inspect_tool": ToolLayer.EXTENDED,

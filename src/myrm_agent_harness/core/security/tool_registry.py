@@ -135,6 +135,7 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
             "web_fetch_tool",
         }
     ),
+    "web_crawl": frozenset({"web_crawl_tool"}),
     "browser": frozenset(
         {
             "browser_interact_tool",
@@ -234,7 +235,7 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
     "bash_code_execute_tool": ["command"],
     "file_read_tool": ["path"],
     "file_write_tool": ["path", "content"],
-    "file_edit_tool": ["path", "old_string", "new_string"],
+    "file_edit_tool": ["path", "edits"],
     "browser_navigate_tool": ["url"],
     "browser_interact_tool": ["action", "ref", "value"],
     "browser_manage_tool": ["action", "value"],

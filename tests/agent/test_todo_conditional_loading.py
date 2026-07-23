@@ -174,7 +174,7 @@ async def test_build_tools_excludes_todo_when_planning_disabled() -> None:
         storage_backend=storage,
         enable_planning=False,
         enable_file_tools=False,
-        enable_bash=False,
+        enable_shell_tools=False,
         enable_answer_tool=False,
     )
     agent.skill_backend = AsyncMock()

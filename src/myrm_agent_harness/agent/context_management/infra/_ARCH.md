@@ -20,7 +20,8 @@ Context management infrastructure: shared types, budget management, session lock
 | schemas_pre_compact.py | Config | PreCompactInjection + ContextPreCompactCallback types | ✅ |
 | session_lock.py | Core | Session-level lock manager. Provides reentrant per-session async locks for serialized context mutations while preserving cross-session parallelism. | ✅ |
 | tool_result_trimming.py | Core | Deterministic trimming for oversized tool outputs. Uses structure-aware JSON compaction under the fast-guard threshold and bounded head/tail text trim above it. | ✅ |
-| tool_output_persister.py | Core | Large tool output persister. | ✅ |
+| tool_output_persister.py | Core | UECD delegate — persists FilterProcessor overflows to `.context/.../evicted/` | ✅ |
+| evicted_content.py | Core | UECD SSOT: 2MB cap, `{source}_{hex8}.{ext}` naming, persist/footer/SSE contract; server `evicted.py` imports `EVICTED_BASENAME_PATTERN` from here | ✅ |
 
 ## Key Dependencies
 

@@ -10,6 +10,8 @@ introducing forbidden dependencies (e.g. toolkits/ → agent/).
 - user_timezone_var: User timezone string (e.g. "Asia/Shanghai")
 - datetime_injection_enabled_var: Whether to inject timestamps into messages
 - prompt_routing_key_var: Session-scoped routing key for OpenAI prompt cache affinity
+- workspace_root_var: Sandbox workspace root for toolkit spill paths
+- chat_id_var: Active chat/session id for per-session spill directories
 
 [POS]
 Foundation ContextVar registry. Eliminates coupling between agent/ and toolkits/
@@ -26,3 +28,6 @@ datetime_injection_enabled_var: ContextVar[bool] = ContextVar("datetime_injectio
 # OpenAI prompt_cache_key routing hint — set per-session to maximize KV cache hit
 # rate by ensuring requests from the same session route to the same inference node.
 prompt_routing_key_var: ContextVar[str | None] = ContextVar("prompt_routing_key", default=None)
+
+workspace_root_var: ContextVar[str] = ContextVar("workspace_root", default="")
+chat_id_var: ContextVar[str] = ContextVar("chat_id", default="")

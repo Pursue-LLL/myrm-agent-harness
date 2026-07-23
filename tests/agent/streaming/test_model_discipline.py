@@ -93,6 +93,11 @@ class TestAgentCoreRules:
         assert "declining a user request" in AGENT_CORE_RULES
         assert "discovery or search tool" in AGENT_CORE_RULES
 
+    def test_search_query_guidance_not_in_execution_discipline(self) -> None:
+        llm = _make_llm(model_name="gpt-4o")
+        discipline = resolve_execution_discipline(llm)
+        assert "Query Rewriting Rules" not in discipline
+
     def test_proactive_search_before_xml_close(self) -> None:
         """Proactive capability discovery rule is inside the XML block."""
         close_tag_pos = AGENT_CORE_RULES.index("</agent_behavior_rules>")

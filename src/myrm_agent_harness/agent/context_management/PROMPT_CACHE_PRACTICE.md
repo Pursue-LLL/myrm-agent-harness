@@ -995,6 +995,16 @@ Turn 12 (会话结束):
 | Summarize 摘要 | ``SummarizeProcessor`` 注入 **HumanMessage** | 不破坏 cache |
 | 记忆上下文 | ``memory_context_middleware`` **SystemMessage** (one-shot) | 仅首轮 baseline 建立 |
 
+**单工具 invoke 规则（2026-07-23 增补）**：
+
+| 规则 | 说明 |
+|------|------|
+| 位置 | harness ``toolkits/*/`` 工具的 **description + args schema**；**禁止**迁入 ``AGENT_CORE_RULES`` / 全局 System Prompt |
+| Token | **搬迁不省 token**（API 顺序 ``Tools → System → Messages``，同文本换段前缀总长不变）；只有 **压缩** description 才省 |
+| 跨工具行为 | 「何时该搜」等跨工具规则可留 ``model_discipline.AGENT_CORE_RULES`` |
+| 门禁 | ``tests/architecture/test_tool_prompt_placement.py`` + ``measure_turn1_token_inventory.py`` |
+| 例外 | ``web_search_tool`` 保留长 description（中下等模型 query 调优）；**禁止**再迁入 System 或进一步瘦身，除非重做 golden eval |
+
 ``SkillMetadata.always=True`` 表示 **始终出现在 skill_select XML**（``always="true"`` 属性），**不是**写入 SystemMessage。
 
 MCP 本身不直接改 SystemMessage；常见 ``system prompt changed`` 来自 planner / memory 等 middleware 的首轮 one-shot 注入，而非 MCP 协议或 skill_select 目录变更。

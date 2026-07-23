@@ -10,7 +10,7 @@ process registry for jobs spawned via ``bash_code_execute_tool(run_in_background
 
 [OUTPUT]
 - create_bash_process_tool: Unified process management tool factory
-- BASH_PROCESS_TOOL_NAME: Stable tool id for deferred activation
+- BASH_PROCESS_TOOL_NAME: Stable tool id for spawn lifecycle tracking
 
 [POS]
 PTC-adjacent surface tool — bash-tool-package only; no business coupling.

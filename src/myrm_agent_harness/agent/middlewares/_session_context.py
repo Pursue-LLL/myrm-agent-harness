@@ -29,7 +29,9 @@ from __future__ import annotations
 from contextvars import ContextVar, Token
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.agent.security.terminal_error_registry import TerminalErrorRegistry
+from myrm_agent_harness.agent.security.terminal_error_registry import (
+    TerminalErrorRegistry,
+)
 from myrm_agent_harness.agent.security.types import PrivacyPolicy, SecurityConfig
 
 if TYPE_CHECKING:
@@ -37,25 +39,39 @@ if TYPE_CHECKING:
 
     from myrm_agent_harness.agent.event_log.logger import EventLogger
     from myrm_agent_harness.agent.goals.protocols import GoalProvider
-    from myrm_agent_harness.agent.security.detection.pseudonym_store import PseudonymStore
+    from myrm_agent_harness.agent.security.detection.pseudonym_store import (
+        PseudonymStore,
+    )
     from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 
-_security_config_var: ContextVar[SecurityConfig | None] = ContextVar("security_config", default=None)
+_security_config_var: ContextVar[SecurityConfig | None] = ContextVar(
+    "security_config", default=None
+)
 _workspace_root_var: ContextVar[str] = ContextVar("workspace_root", default="")
-_pseudonym_store_var: ContextVar[PseudonymStore | None] = ContextVar("pseudonym_store", default=None)
+_pseudonym_store_var: ContextVar[PseudonymStore | None] = ContextVar(
+    "pseudonym_store", default=None
+)
 _session_key_var: ContextVar[str] = ContextVar("approval_session_key", default="")
-_active_message_id_var: ContextVar[str | None] = ContextVar("active_message_id", default=None)
+_active_message_id_var: ContextVar[str | None] = ContextVar(
+    "active_message_id", default=None
+)
 _agent_id_var: ContextVar[str] = ContextVar("agent_id", default="")
 _user_id_var: ContextVar[str] = ContextVar("approval_user_id", default="")
-_event_logger_var: ContextVar[EventLogger | None] = ContextVar("event_logger", default=None)
+_event_logger_var: ContextVar[EventLogger | None] = ContextVar(
+    "event_logger", default=None
+)
 _allowed_domains_map_var: ContextVar[dict[str, list[str] | None] | None] = ContextVar(
     "allowed_domains_map", default=None
 )
 _is_subagent_var: ContextVar[bool] = ContextVar("is_subagent", default=False)
-_subagent_task_id_var: ContextVar[str | None] = ContextVar("subagent_task_id", default=None)
+_subagent_task_id_var: ContextVar[str | None] = ContextVar(
+    "subagent_task_id", default=None
+)
 _is_shadow_agent_var: ContextVar[bool] = ContextVar("is_shadow_agent", default=False)
 _canary_token_var: ContextVar[str] = ContextVar("canary_token", default="")
-_goal_provider_var: ContextVar[GoalProvider | None] = ContextVar("goal_provider", default=None)
+_goal_provider_var: ContextVar[GoalProvider | None] = ContextVar(
+    "goal_provider", default=None
+)
 
 
 def set_goal_provider(provider: GoalProvider | None) -> None:
@@ -79,6 +95,22 @@ def get_allowed_domains_map() -> dict[str, list[str] | None]:
     return val if val is not None else {}
 
 
+EFFECTIVE_SECURITY_CONFIG_CONTEXT_KEY = "_effective_security_config"
+
+
+def resolve_security_config_from_runtime(
+    runtime: object | None,
+) -> SecurityConfig | None:
+    """Read SecurityConfig from LangGraph runtime.context when ContextVar is missing."""
+    if runtime is None:
+        return None
+    ctx = getattr(runtime, "context", None)
+    if not isinstance(ctx, dict):
+        return None
+    snap = ctx.get(EFFECTIVE_SECURITY_CONFIG_CONTEXT_KEY)
+    return snap if isinstance(snap, SecurityConfig) else None
+
+
 def set_security_config(config: SecurityConfig | None) -> None:
     """Set the active SecurityConfig for the current async context."""
     _security_config_var.set(config)
@@ -97,6 +129,9 @@ def get_security_config() -> SecurityConfig | None:
 def set_workspace_root(path: str) -> None:
     """Set the workspace root for PathPolicy evaluation in the current async context."""
     _workspace_root_var.set(path)
+    from myrm_agent_harness.core.context_vars import workspace_root_var
+
+    workspace_root_var.set(path)
 
 
 def get_workspace_root() -> str:
@@ -107,6 +142,9 @@ def get_workspace_root() -> str:
 def set_approval_session(session_key: str) -> None:
     """Set the session key for approval routing."""
     _session_key_var.set(session_key)
+    from myrm_agent_harness.core.context_vars import chat_id_var
+
+    chat_id_var.set(session_key)
 
 
 def get_approval_session() -> str:
@@ -204,8 +242,12 @@ def reset_terminal_errors() -> None:
         _terminal_errors_var.set(registry)
 
 
-_active_tool_registry_var: ContextVar[ToolRegistry | None] = ContextVar("active_tool_registry", default=None)
-_active_resolved_tools_var: ContextVar[list[BaseTool] | None] = ContextVar("active_resolved_tools", default=None)
+_active_tool_registry_var: ContextVar[ToolRegistry | None] = ContextVar(
+    "active_tool_registry", default=None
+)
+_active_resolved_tools_var: ContextVar[list[BaseTool] | None] = ContextVar(
+    "active_resolved_tools", default=None
+)
 
 
 def set_active_tool_registry(registry: ToolRegistry) -> None:
@@ -288,7 +330,9 @@ def get_canary_token() -> str:
     return _canary_token_var.get()
 
 
-_protected_paths_var: ContextVar[tuple[str, ...]] = ContextVar("protected_paths", default=())
+_protected_paths_var: ContextVar[tuple[str, ...]] = ContextVar(
+    "protected_paths", default=()
+)
 
 
 def set_protected_paths(patterns: tuple[str, ...]) -> None:

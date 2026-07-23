@@ -1,17 +1,32 @@
-"""Tests for ContextBudgetGuard including persist-to-disk functionality."""
+"""Tests for ContextBudgetGuard including UECD persist-to-disk functionality."""
 
 from __future__ import annotations
 
 import contextvars
 from pathlib import Path
-from unittest.mock import patch
+
+import pytest
 
 from myrm_agent_harness.agent.security.guards.context_budget import (
     BudgetAction,
     ContextBudgetGuard,
-    _resolve_persist_dir,
     get_context_budget_guard,
 )
+from myrm_agent_harness.core.context_vars import chat_id_var, workspace_root_var
+
+
+@pytest.fixture
+def uecd_session(tmp_path: Path) -> tuple[str, str]:
+    """Bind workspace + chat context required by UECD persist."""
+    workspace = str(tmp_path)
+    chat_id = "budget_test_chat"
+    w_tok = workspace_root_var.set(workspace)
+    c_tok = chat_id_var.set(chat_id)
+    try:
+        yield workspace, chat_id
+    finally:
+        workspace_root_var.reset(w_tok)
+        chat_id_var.reset(c_tok)
 
 
 class TestBasicBudget:
@@ -51,97 +66,82 @@ class TestBasicBudget:
 
 
 class TestPersistToDisk:
-    def test_persist_oversized_result(self, tmp_path: Path) -> None:
-        g = ContextBudgetGuard(max_result_chars=100, persist_dir=tmp_path)
+    def test_persist_oversized_result(self, uecd_session: tuple[str, str]) -> None:
+        workspace, _chat_id = uecd_session
+        g = ContextBudgetGuard(max_result_chars=100)
         content = "line\n" * 200
-        v = g.check_and_truncate(content, "file_read")
+        v = g.check_and_truncate(content, "grep_tool")
         assert v.action == BudgetAction.PERSISTED
         assert v.persisted_path is not None
-        assert Path(v.persisted_path).exists()
-        assert Path(v.persisted_path).read_text(encoding="utf-8") == content
-        assert "FULL RESULT SAVED" in v.content
-        assert "file_read" in v.persisted_path
+        assert v.evicted_ref is not None
+        saved = Path(workspace) / v.persisted_path
+        assert saved.is_file()
+        assert saved.read_text(encoding="utf-8") == content
+        assert "Full content saved to sandbox storage" in v.content
 
-    def test_persist_summary_contains_line_count(self, tmp_path: Path) -> None:
-        g = ContextBudgetGuard(max_result_chars=100, persist_dir=tmp_path)
-        content = "line\n" * 50
+    def test_persist_summary_contains_line_count(self, uecd_session: tuple[str, str]) -> None:
+        g = ContextBudgetGuard(max_result_chars=100)
+        content = "line\n" * 300
         v = g.check_and_truncate(content, "grep")
         assert v.action == BudgetAction.PERSISTED
-        assert "51 lines" in v.content
+        assert "lines total" in v.content
 
-    def test_persist_summary_contains_file_path(self, tmp_path: Path) -> None:
-        g = ContextBudgetGuard(max_result_chars=100, persist_dir=tmp_path)
+    def test_persist_summary_contains_file_path(self, uecd_session: tuple[str, str]) -> None:
+        g = ContextBudgetGuard(max_result_chars=100)
         v = g.check_and_truncate("x" * 500, "bash")
         assert v.action == BudgetAction.PERSISTED
         assert v.persisted_path is not None
         assert v.persisted_path in v.content
 
-    def test_persist_summary_contains_head_preview(self, tmp_path: Path) -> None:
-        g = ContextBudgetGuard(max_result_chars=100, persist_dir=tmp_path)
-        content = "HEADER_MARKER" + "x" * 500
-        v = g.check_and_truncate(content, "tool")
-        assert "HEADER_MARKER" in v.content
-
-    def test_persist_reduces_budget_consumption(self, tmp_path: Path) -> None:
-        g = ContextBudgetGuard(max_result_chars=100, total_budget_tokens=10_000, persist_dir=tmp_path)
+    def test_persist_reduces_budget_consumption(self, uecd_session: tuple[str, str]) -> None:
+        g = ContextBudgetGuard(max_result_chars=100, total_budget_tokens=10_000)
         content = "x" * 50_000
         v = g.check_and_truncate(content, "big_tool")
         assert v.action == BudgetAction.PERSISTED
         assert g.used_tokens < 50_000 // 4
 
-    def test_no_persist_when_under_limit(self, tmp_path: Path) -> None:
-        g = ContextBudgetGuard(max_result_chars=1000, persist_dir=tmp_path)
+    def test_no_persist_when_under_limit(self, uecd_session: tuple[str, str]) -> None:
+        g = ContextBudgetGuard(max_result_chars=1000)
         v = g.check_and_truncate("x" * 500, "tool")
         assert v.action == BudgetAction.OK
         assert v.persisted_path is None
-        assert len(g.persisted_files) == 0
 
-    def test_fallback_to_truncate_without_persist_dir(self) -> None:
-        g = ContextBudgetGuard(max_result_chars=100, persist_dir=None)
+    def test_fallback_to_truncate_without_session_context(self) -> None:
+        g = ContextBudgetGuard(max_result_chars=100)
         v = g.check_and_truncate("x" * 500, "tool")
         assert v.action == BudgetAction.TRUNCATED
         assert v.persisted_path is None
 
-    def test_reset_cleans_persisted_files(self, tmp_path: Path) -> None:
-        g = ContextBudgetGuard(max_result_chars=100, persist_dir=tmp_path)
-        g.check_and_truncate("x" * 500, "tool1")
-        g.check_and_truncate("y" * 500, "tool2")
-        assert len(g.persisted_files) == 2
-        files = g.persisted_files
-        g.reset()
-        assert len(g.persisted_files) == 0
-        for f in files:
-            assert not f.exists()
-
-    def test_multiple_persists_unique_filenames(self, tmp_path: Path) -> None:
-        g = ContextBudgetGuard(max_result_chars=100, persist_dir=tmp_path)
-        v1 = g.check_and_truncate("x" * 500, "file_read")
-        v2 = g.check_and_truncate("y" * 500, "file_read")
+    def test_multiple_persists_unique_filenames(self, uecd_session: tuple[str, str]) -> None:
+        g = ContextBudgetGuard(max_result_chars=100)
+        v1 = g.check_and_truncate("x" * 500, "http_tool")
+        v2 = g.check_and_truncate("y" * 500, "http_tool")
         assert v1.persisted_path != v2.persisted_path
 
-    def test_persist_skips_predictive_overflow(self, tmp_path: Path) -> None:
+    def test_persist_skips_predictive_overflow(self, uecd_session: tuple[str, str]) -> None:
         """Persisted results skip Layer 3 predictive overflow (summary is small)."""
-        g = ContextBudgetGuard(max_result_chars=100, total_budget_tokens=50, hard_limit_pct=0.95, persist_dir=tmp_path)
+        g = ContextBudgetGuard(max_result_chars=100, total_budget_tokens=50, hard_limit_pct=0.95)
         g.check_and_truncate("x" * 160, "tool1")
         v = g.check_and_truncate("y" * 500, "tool2")
         assert v.action == BudgetAction.PERSISTED
 
-    def test_persisted_files_property(self, tmp_path: Path) -> None:
-        g = ContextBudgetGuard(max_result_chars=100, persist_dir=tmp_path)
-        g.check_and_truncate("x" * 500, "tool1")
-        files = g.persisted_files
-        assert len(files) == 1
-        assert files[0].exists()
+    def test_oserror_fallback_to_truncate(self, uecd_session: tuple[str, str], monkeypatch: pytest.MonkeyPatch) -> None:
+        """When UECD disk write fails, gracefully fall back to truncation."""
+        g = ContextBudgetGuard(max_result_chars=100)
 
-    def test_oserror_fallback_to_truncate(self, tmp_path: Path) -> None:
-        """When disk write fails, gracefully fall back to truncation."""
-        g = ContextBudgetGuard(max_result_chars=100, persist_dir=tmp_path)
-        with patch.object(Path, "write_text", side_effect=OSError("disk full")):
-            v = g.check_and_truncate("x" * 500, "tool")
+        def _fail_write(*_args: object, **_kwargs: object) -> object:
+            from myrm_agent_harness.agent.context_management.infra.evicted_content import EvictedPersistResult
+
+            return EvictedPersistResult(evicted_ref=None, rel_path=None, stored_chars=0)
+
+        monkeypatch.setattr(
+            "myrm_agent_harness.agent.context_management.infra.evicted_content.write_evicted_content_sync",
+            _fail_write,
+        )
+        v = g.check_and_truncate("x" * 500, "tool")
         assert v.action == BudgetAction.TRUNCATED
         assert v.persisted_path is None
         assert "Truncated" in v.content
-        assert len(g.persisted_files) == 0
 
 
 class TestLayer1Exemption:
@@ -161,17 +161,14 @@ class TestLayer1Exemption:
         assert v.action in (BudgetAction.OK, BudgetAction.WARNING)
         assert v.content == content
 
-    def test_file_read_exempt_even_with_persist_dir(self, tmp_path: Path) -> None:
-        """file_read_tool is exempt even when persist_dir is configured."""
-        g = ContextBudgetGuard(max_result_chars=100, persist_dir=tmp_path)
+    def test_file_read_exempt_even_with_session(self, uecd_session: tuple[str, str]) -> None:
+        g = ContextBudgetGuard(max_result_chars=100)
         content = "z" * 500
         v = g.check_and_truncate(content, "file_read_tool")
         assert v.action != BudgetAction.PERSISTED
         assert v.persisted_path is None
-        assert len(g.persisted_files) == 0
 
-    def test_non_exempt_tool_gets_truncated(self) -> None:
-        """Non-exempt tools ARE truncated at Layer 1."""
+    def test_non_exempt_tool_gets_truncated_without_session(self) -> None:
         g = ContextBudgetGuard(max_result_chars=100)
         content = "a" * 500
         v = g.check_and_truncate(content, "web_fetch_tool")
@@ -182,39 +179,35 @@ class TestLayer1Exemption:
 class TestPersistContentReadability:
     """Verify persisted summaries contain info needed for Agent to re-read the file."""
 
-    def test_persist_summary_has_file_path_for_reread(self, tmp_path: Path) -> None:
-        """Agent must see a clear file path in the summary to re-read via file_read_tool."""
-        g = ContextBudgetGuard(max_result_chars=100, persist_dir=tmp_path)
+    def test_persist_summary_has_file_path_for_reread(self, uecd_session: tuple[str, str]) -> None:
+        g = ContextBudgetGuard(max_result_chars=100)
         content = "important data\n" * 100
         v = g.check_and_truncate(content, "web_fetch_tool")
         assert v.action == BudgetAction.PERSISTED
         assert v.persisted_path is not None
         assert v.persisted_path in v.content
-        assert "Read the file at the path above" in v.content
+        assert "file_read_tool" in v.content
 
-    def test_persist_summary_head_tail_preview(self, tmp_path: Path) -> None:
-        """Summary should contain head and tail previews for context."""
-        g = ContextBudgetGuard(max_result_chars=100, persist_dir=tmp_path)
+    def test_persist_summary_head_tail_preview(self, uecd_session: tuple[str, str]) -> None:
         head = "HEAD_MARKER_" + "x" * 50
         tail = "y" * 50 + "_TAIL_MARKER"
         content = head + "m" * 2000 + tail
+        g = ContextBudgetGuard(max_result_chars=100)
         v = g.check_and_truncate(content, "http_tool")
         assert "HEAD_MARKER_" in v.content
         assert "_TAIL_MARKER" in v.content
 
-    def test_persisted_file_contains_full_content(self, tmp_path: Path) -> None:
-        """The persisted file must contain the full, unmodified content."""
-        g = ContextBudgetGuard(max_result_chars=100, persist_dir=tmp_path)
+    def test_persisted_file_contains_full_content(self, uecd_session: tuple[str, str]) -> None:
+        workspace, _chat_id = uecd_session
+        g = ContextBudgetGuard(max_result_chars=100)
         content = "line {}\n".format("x" * 100) * 50
         v = g.check_and_truncate(content, "mcp_tool")
         assert v.persisted_path is not None
-        saved = Path(v.persisted_path).read_text(encoding="utf-8")
-        assert saved == content
+        saved = Path(workspace) / v.persisted_path
+        assert saved.read_text(encoding="utf-8") == content
 
 
 class TestCumulativeBudgetTracking:
-    """Verify cumulative budget tracking across multiple tool calls."""
-
     def test_multiple_tools_accumulate_budget(self) -> None:
         g = ContextBudgetGuard(max_result_chars=100_000, total_budget_tokens=100, warning_pct=0.80)
         g.check_and_truncate("x" * 100, "tool1")
@@ -223,9 +216,8 @@ class TestCumulativeBudgetTracking:
         assert g.used_tokens > 0
         assert g.budget_used_pct > 0
 
-    def test_persisted_results_consume_less_budget(self, tmp_path: Path) -> None:
-        """Persisted results consume far less budget than the original content."""
-        g = ContextBudgetGuard(max_result_chars=100, total_budget_tokens=10_000, persist_dir=tmp_path)
+    def test_persisted_results_consume_less_budget(self, uecd_session: tuple[str, str]) -> None:
+        g = ContextBudgetGuard(max_result_chars=100, total_budget_tokens=10_000)
         large_content = "x" * 50_000
         v = g.check_and_truncate(large_content, "big_tool")
         assert v.action == BudgetAction.PERSISTED
@@ -234,60 +226,14 @@ class TestCumulativeBudgetTracking:
         assert tokens_after_persist < 1000
 
 
-class TestAutoResolvePersistDir:
-    """Tests for automatic persist_dir resolution in get_context_budget_guard()."""
-
-    def test_resolve_persist_dir_with_session_id(self) -> None:
-        """When chat_id is set, persist_dir points to session evicted dir."""
-        with patch(
-            "myrm_agent_harness.agent.context_management.infra.session_lock.get_current_chat_id",
-            return_value="test_session_123",
-        ):
-            result = _resolve_persist_dir()
-        assert result is not None
-        assert "test_session_123" in str(result)
-        assert "evicted" in str(result)
-
-    def test_resolve_persist_dir_without_session_id(self) -> None:
-        """When no chat_id, falls back to temp directory."""
-        with patch(
-            "myrm_agent_harness.agent.context_management.infra.session_lock.get_current_chat_id", return_value=None
-        ):
-            result = _resolve_persist_dir()
-        assert result is not None
-        assert "myrm-budget-persist" in str(result)
-
-    def test_resolve_persist_dir_sanitizes_chat_id(self) -> None:
-        """Special characters in chat_id are sanitized."""
-        with patch(
-            "myrm_agent_harness.agent.context_management.infra.session_lock.get_current_chat_id",
-            return_value="chat/../../etc/passwd",
-        ):
-            result = _resolve_persist_dir()
-        assert result is not None
-        path_str = str(result)
-        assert "/../" not in path_str
-
-    def test_resolve_persist_dir_handles_exception(self) -> None:
-        """When imports fail, returns None gracefully."""
-        with patch(
-            "myrm_agent_harness.agent.context_management.infra.session_lock.get_current_chat_id",
-            side_effect=RuntimeError("unexpected error"),
-        ):
-            result = _resolve_persist_dir()
-        assert result is None
-
-    def test_get_guard_creates_with_persist_dir(self) -> None:
-        """get_context_budget_guard() creates guard with persist_dir when session exists."""
+class TestGetContextBudgetGuard:
+    def test_get_guard_creates_default_instance(self) -> None:
         ctx = contextvars.copy_context()
 
-        def _run_in_clean_context() -> Path | None:
-            with patch(
-                "myrm_agent_harness.agent.security.guards.context_budget._resolve_persist_dir",
-                return_value=Path("/tmp/test-persist"),
-            ):
-                guard = get_context_budget_guard()
-                return guard._persist_dir
+        def _run_in_clean_context() -> ContextBudgetGuard:
+            return get_context_budget_guard()
 
-        result = ctx.run(_run_in_clean_context)
-        assert result == Path("/tmp/test-persist")
+        guard = ctx.run(_run_in_clean_context)
+        assert isinstance(guard, ContextBudgetGuard)
+        v = guard.check_and_truncate("x" * 50, "probe")
+        assert v.action == BudgetAction.OK

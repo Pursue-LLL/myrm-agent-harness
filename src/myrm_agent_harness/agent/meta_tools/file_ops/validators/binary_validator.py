@@ -46,8 +46,8 @@ class BinaryValidator(Validator):
         content_to_check = ""
         if context.operation == OperationType.CREATE and context.file_text:
             content_to_check = context.file_text
-        elif context.operation == OperationType.STR_REPLACE and context.new_str:
-            content_to_check = context.new_str
+        elif context.operation == OperationType.STR_REPLACE and context.edits:
+            content_to_check = "".join(edit.new_str for edit in context.edits)
 
         if not content_to_check:
             return

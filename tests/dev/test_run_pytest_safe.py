@@ -28,3 +28,5 @@ def test_run_pytest_safe_python_timeout_returns_124() -> None:
         text=True,
     )
     assert result.returncode == 124
+    assert "PYTEST_SAFE_SUMMARY" in result.stderr
+    assert "session_timeout" in result.stderr

@@ -14,8 +14,8 @@ from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
     get_background_registry,
 )
 from myrm_agent_harness.agent.meta_tools.bash.session_spawn_lifecycle import (
-    get_session_deferred_tool_names,
-    reset_deferred_activation_for_tests,
+    get_session_spawn_tool_names,
+    reset_spawn_lifecycle_for_tests,
 )
 from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
     BASH_PROCESS_TOOL_NAME,
@@ -62,10 +62,10 @@ def _stop_sandbox_patches() -> None:
 def _clear_background_registry() -> None:
     registry = get_background_registry()
     registry._entries.clear()  # type: ignore[attr-defined]
-    reset_deferred_activation_for_tests()
+    reset_spawn_lifecycle_for_tests()
     yield
     registry._entries.clear()  # type: ignore[attr-defined]
-    reset_deferred_activation_for_tests()
+    reset_spawn_lifecycle_for_tests()
 
 
 @pytest.mark.integration
@@ -119,7 +119,7 @@ async def test_background_spawn_automount_list_output_kill(tmp_path: Path) -> No
 
     assert spawn_result["metadata"]["background"] is True
     pid = int(spawn_result["metadata"]["pid"])
-    assert BASH_PROCESS_TOOL_NAME in get_session_deferred_tool_names(session_id)
+    assert BASH_PROCESS_TOOL_NAME in get_session_spawn_tool_names(session_id)
 
     list_result = await process_tool.ainvoke({"action": "list"}, config=config)
     processes = list_result["content"]["processes"]  # type: ignore[index]

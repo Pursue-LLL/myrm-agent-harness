@@ -172,6 +172,10 @@ Example:
             top_k=10,
         )
 
+        from myrm_agent_harness.toolkits.web_search.citation_resolver import enrich_sources_with_resolved_urls
+
+        sources_metadata = await enrich_sources_with_resolved_urls(sources_metadata)
+
         if formatted_context:
             from myrm_agent_harness.utils.context_format import wrap_with_external_sources_tag
 

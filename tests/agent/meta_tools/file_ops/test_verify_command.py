@@ -8,6 +8,7 @@ from myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service im
 from myrm_agent_harness.agent.meta_tools.file_ops.core.operation_context import (
     OperationContext,
     OperationType,
+    StrReplaceEdit,
 )
 from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionResult
 
@@ -90,8 +91,7 @@ class TestVerifyCommand:
         ctx = OperationContext(
             operation=OperationType.STR_REPLACE,
             path="test.py",
-            old_str="old",
-            new_str="new",
+            edits=(StrReplaceEdit(old_str="old", new_str="new"),),
             verify_command="python -m py_compile test.py",
             executor=mock_executor,
         )
@@ -107,15 +107,14 @@ class TestVerifyCommand:
             mock_strategy.exists.return_value = True
             mock_strategy.is_directory.return_value = False
             mock_strategy.get_file_size.return_value = 100
-            mock_strategy.read_file.return_value = ["new"]
+            mock_strategy.read_file.return_value = ["old"]
             mock_factory.return_value = mock_strategy
 
             result = await service._execute_str_replace()
 
             assert "Successfully replaced text" in result
             mock_executor.execute_bash.assert_awaited_once()
-            # It should not write back the old content
-            assert mock_strategy.write_file.call_count == 0
+            mock_strategy.write_file.assert_awaited_once_with("test.py", "new")
 
     @pytest.mark.asyncio
     async def test_edit_verify_failure_rolls_back(self, mock_executor):
@@ -126,8 +125,7 @@ class TestVerifyCommand:
         ctx = OperationContext(
             operation=OperationType.STR_REPLACE,
             path="test.py",
-            old_str="old",
-            new_str="new",
+            edits=(StrReplaceEdit(old_str="old", new_str="new"),),
             verify_command="python -m py_compile test.py",
             executor=mock_executor,
         )
@@ -143,13 +141,12 @@ class TestVerifyCommand:
             mock_strategy.exists.return_value = True
             mock_strategy.is_directory.return_value = False
             mock_strategy.get_file_size.return_value = 100
-            # First read returns old content, second read returns new content
-            mock_strategy.read_file.side_effect = [["old_content"], ["new_content"]]
+            mock_strategy.read_file.return_value = ["old"]
             mock_factory.return_value = mock_strategy
 
             with pytest.raises(ValueError, match="File edited but verification failed"):
                 await service._execute_str_replace()
 
             mock_executor.execute_bash.assert_awaited_once()
-            # It should write back the old content to rollback
-            mock_strategy.write_file.assert_awaited_once_with("test.py", "old_content")
+            assert mock_strategy.write_file.await_count == 2
+            mock_strategy.write_file.assert_any_await("test.py", "old")

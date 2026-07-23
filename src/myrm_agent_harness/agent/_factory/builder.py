@@ -94,7 +94,7 @@ async def create_skill_agent(
     on_session_cleanup: Callable[[Sequence[dict[str, str]], str | None], Awaitable[None]] | None = None,
     on_loaded_skills_persist: Callable[[list[str], str | None], Awaitable[None]] | None = None,
     enable_file_tools: bool = True,
-    enable_bash: bool = True,
+    enable_shell_tools: bool = True,
     enable_answer_tool: bool = False,
     enable_planning: bool = False,
     task_workspace_root: str | None = None,
@@ -337,7 +337,7 @@ async def create_skill_agent(
         on_session_cleanup=on_session_cleanup,
         on_loaded_skills_persist=on_loaded_skills_persist,
         enable_file_tools=enable_file_tools,
-        enable_bash=enable_bash,
+        enable_shell_tools=enable_shell_tools,
         enable_answer_tool=enable_answer_tool,
         enable_planning=enable_planning,
         task_workspace_root=task_workspace_root
