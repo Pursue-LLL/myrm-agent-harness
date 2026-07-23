@@ -404,6 +404,21 @@ class TestRevertService:
         assert "/big.py" in result.skipped_files
 
     @pytest.mark.asyncio
+    async def test_revert_message_mixed_includes_non_revertible_in_skipped(self):
+        store = SnapshotStore.get()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write("v2")
+            small_path = f.name
+        try:
+            store.record("s1", "m1", FileSnapshot(small_path, SnapshotOp.MODIFY, "v1"))
+            store.record_skipped("s1", "m1", "/big.py", SnapshotOp.MODIFY, SnapshotSkipReason.FILE_TOO_LARGE)
+            result = await RevertService.revert_message("s1", "m1")
+            assert small_path in result.reverted_files
+            assert "/big.py" in result.skipped_files
+        finally:
+            Path(small_path).unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
     async def test_revert_file_not_revertible(self):
         store = SnapshotStore.get()
         store.record_skipped("s1", "m1", "/big.py", SnapshotOp.MODIFY, SnapshotSkipReason.FILE_TOO_LARGE)

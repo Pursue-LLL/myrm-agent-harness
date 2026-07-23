@@ -117,6 +117,10 @@ class RevertService:
                 warnings.append(result.warning)
                 skipped.append(snap.path)
 
+        for snap in snapshots:
+            if not snap.revertible and snap.path not in skipped:
+                skipped.append(snap.path)
+
         store.remove_message(session_id, message_id)
         _schedule_disk_cleanup(store, "message", session_id, message_id)
         return RevertResult(reverted_files=reverted, warnings=warnings, skipped_files=skipped)
@@ -172,6 +176,11 @@ class RevertService:
                     all_reverted.append(snap.path)
                 elif result.warning:
                     all_warnings.append(result.warning)
+                    all_skipped.append(snap.path)
+
+        for msg_snaps in session_snaps.values():
+            for snap in msg_snaps:
+                if not snap.revertible and snap.path not in all_skipped:
                     all_skipped.append(snap.path)
 
         store.clear_session(session_id)
