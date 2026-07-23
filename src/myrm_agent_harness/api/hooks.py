@@ -32,6 +32,10 @@ from myrm_agent_harness.agent._skill_agent_context import (
     set_permission_invalidation_callback,
     set_task_intent,
 )
+from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    EVICTED_BASENAME_PATTERN,
+    build_evicted_basename,
+)
 from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
     get_background_registry,
 )
@@ -56,6 +60,10 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     set_approval_user_id,
     set_security_config,
 )
+from myrm_agent_harness.agent.streaming.step_builder import build_step_data
+from myrm_agent_harness.toolkits.web_fetch.web_crawl_agent_tools import (
+    create_web_crawl_tool,
+)
 from myrm_agent_harness.utils.runtime.background_job_finish_registry import (
     BackgroundJobFinishHandler,
     BackgroundJobFinishResult,
@@ -77,6 +85,8 @@ __all__ = [
     "configure_background_job_store",
     "count_running_background_shell_jobs",
     "create_extraction_llm_func",
+    "create_web_crawl_tool",
+    "EVICTED_BASENAME_PATTERN",
     "get_background_job_store",
     "get_background_registry",
     "get_event_logger",
@@ -89,11 +99,14 @@ __all__ = [
     "get_terminal_errors",
     "invalidate_permissions",
     "map_store_status_to_shell_task_status",
+    "build_evicted_basename",
+    "build_step_data",
     "persist_extracted_memories",
     "persist_terminal_state",
     "persist_vault_log_ref",
     "set_approval_user_id",
     "set_global_background_job_finish_handler",
     "set_permission_invalidation_callback",
+    "set_security_config",
     "set_task_intent",
 ]
