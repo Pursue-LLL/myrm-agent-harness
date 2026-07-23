@@ -10,6 +10,16 @@ from myrm_agent_harness.agent.security.command_allowlist_pattern import (
     matches_command_pattern,
 )
 
+# Keep aligned with myrm-agent-frontend/src/lib/approval/__tests__/shellCommandDisplay.test.ts
+DERIVE_PATTERN_PARITY_VECTORS: list[tuple[str, str | None]] = [
+    ("npm install lodash", "npm install *"),
+    ("ls -la", "ls -la *"),
+    ("curl -sS http://127.0.0.1:9/ALLOWLIST_LIVE_PROBE", "curl -sS *"),
+    ("npm install && rm -rf /", None),
+    ("npm install | grep foo", None),
+    ("npm install; rm file", None),
+]
+
 
 class TestCompoundShellDetection:
     def test_simple_command_is_not_compound(self) -> None:
@@ -28,6 +38,10 @@ class TestCompoundShellDetection:
 
 
 class TestDeriveCommandPattern:
+    @pytest.mark.parametrize(("command", "expected"), DERIVE_PATTERN_PARITY_VECTORS)
+    def test_parity_vectors(self, command: str, expected: str | None) -> None:
+        assert derive_command_pattern(command) == expected
+
     def test_two_token_prefix(self) -> None:
         assert derive_command_pattern("npm install lodash") == "npm install *"
 
