@@ -255,14 +255,14 @@ Token 明细（历史 tiktoken 计量保留）：
 | 分类 | Token (tiktoken) | 明细 |
 |------|------------------:|------|
 | System Prompt 层 | ~2,607 | 固定，跨用户缓存 |
-| CORE 工具层 | **~2,761** | 7 工具（bash slim 后自 ~4,097 下调，2026-07-19 估算） |
+| CORE 工具层 | **~2,881** | 8 工具（含 bash_process ~120；bash slim 后自 ~4,097 下调，2026-07-19 估算） |
 | COMMON 工具层 | **~2,468** | memory×3 + web_search |
 | EXTENDED 工具层 | **~769** | skill×2 + discover（默认无 conversation_search） |
-| 工具 JSON schema | **~910** | 14 工具 × ~65 |
+| 工具 JSON schema | **~975** | 15 工具 × ~65 |
 | 动态注入 | ~1,200 | user_instructions + memory_context + inline_skills |
 | 消息格式 | ~500 | role tags, boundaries 等 |
 | 用户消息 | ~32 | 短消息 + datetime 标签 |
-| **tiktoken 小计** | **~11,247** | |
+| **tiktoken 小计** | **~11,432** | |
 
 > bash Turn1 描述 token **~1,020**（静态 slim `_tool_description.py` + OS hint + PTC stub；2026-07-19 估算；compiled-core 可用时用 `scripts/measure_turn1_token_inventory.py` 复测）。
 
@@ -275,7 +275,7 @@ Token 明细（历史 tiktoken 计量保留）：
 | 工具 JSON schema | ~520 (~8 工具 × ~65) |
 | 用户消息 | ~32 |
 | 消息格式 | ~300 |
-| **tiktoken 小计** | **~6,118** |
+| **tiktoken 小计** | **~6,303** |
 
 ### 满载场景（所有可选功能全开：浏览器+Cron+Wiki+子Agent+渲染UI+看板+日历+计算机+IM）
 
