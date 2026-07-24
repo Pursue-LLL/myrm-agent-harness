@@ -5,9 +5,11 @@ executors.base::ExecutionContext (POS: Code executor base classes)
 executors.models::AsyncProcessProtocol (POS: Data models for code execution)
 code_execution.sandbox::detect_sandbox_provider (POS: Sandbox detection and wrapping)
 code_execution.security.validator::sanitize_env (POS: Environment sanitization)
+executors.local._background_pty_spawn::try_spawn_background_pty (POS: POSIX PTY spawn adapter)
 
 [OUTPUT]
 spawn_background_process: Spawn a sandboxed background process with full-duplex streams.
+PTY-first on POSIX hosts without OS sandbox; falls back to PIPE via `_background_pty_spawn.py`.
 
 [POS]
 Background process spawning. Handles sandbox wrapping, environment sanitization,

@@ -12,4 +12,5 @@ host machine using subprocesses, persistent sessions, and OS-level sandboxing.
 | executor.py | Core | Orchestrator: Python/Bash execution, session lifecycle, workspace binding. | ✅ |
 | _file_ops.py | Mixin | Native file I/O (read/write/grep/glob) via pathlib with read-only guard. | ✅ |
 | _python_subprocess.py | Helper | Python script subprocess: sandbox wrapping, env, timeout, output parsing. | ✅ |
-| _background_spawn.py | Helper | Background process spawning with sandbox, env isolation, process groups. | ✅ |
+| _background_spawn.py | Helper | Background process spawning with sandbox, env isolation, process groups; **PTY-first on POSIX (non-sandbox) with PIPE fallback** via `_background_pty_spawn.py`. | ✅ |
+| _background_pty_spawn.py | Helper | POSIX PTY master/slave spawn adapter (merged stdout/stderr); skipped under bwrap or on Windows. | ✅ |

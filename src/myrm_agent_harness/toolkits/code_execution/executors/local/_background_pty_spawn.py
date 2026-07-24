@@ -1,8 +1,7 @@
 """Optional POSIX PTY spawn for background bash jobs (PIPE fallback elsewhere).
 
 [INPUT]
-- executors.base::ExecutionContext
-- executors.models::AsyncProcessProtocol
+- executors.models::AsyncProcessProtocol (POS: subprocess handle protocol)
 
 [OUTPUT]
 - try_spawn_background_pty: Spawn with merged stdout/stderr on a PTY master fd
@@ -23,7 +22,6 @@ from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
 
-from myrm_agent_harness.toolkits.code_execution.executors.base import ExecutionContext
 from myrm_agent_harness.toolkits.code_execution.executors.models import (
     AsyncProcessProtocol,
 )
@@ -49,7 +47,11 @@ class _PtyStdinWriter:
         await asyncio.sleep(0)
 
     def close(self) -> None:
+        if self._closed:
+            return
         self._closed = True
+        with suppress(OSError):
+            os.write(self._fd, b"\x04")
 
     async def wait_closed(self) -> None:
         return None
@@ -72,10 +74,11 @@ class _PtyProcessWrapper(AsyncProcessProtocol):
         self._stdout_reader = stdout_reader
         self._read_transport = read_transport
         self._read_file = read_file
+        self._stdin_writer = _PtyStdinWriter(master_fd)
 
     @property
     def stdin(self) -> _PtyStdinWriter:
-        return _PtyStdinWriter(self._master_fd)
+        return self._stdin_writer
 
     @property
     def stdout(self) -> asyncio.StreamReader:
