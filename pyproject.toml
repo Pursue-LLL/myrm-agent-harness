@@ -20,7 +20,7 @@ classifiers = [
 dependencies = [
   # --- LangChain 生态 (Agent 框架基础) ---
   "langchain>=1.3.14",                  # Agent 编排核心
-  "langchain-core>=1.4.9",              # LangChain 基础抽象
+  "langchain-core>=1.5.1",              # LangChain 基础抽象
   "langgraph>=1.2.9",                  # 图状态机 Agent 运行时
   "langgraph-checkpoint-sqlite>=3.1.0", # SQLite 状态持久化 (checkpoint factory)
   "aiosqlite>=0.22.1",                  # async SQLite (memory stores + checkpointer)
@@ -49,7 +49,7 @@ dependencies = [
   "beautifulsoup4>=4.15.0", # HTML DOM 解析与清洗（ContentPruningFilter）
   "lxml>=6.1.1",            # bs4 lxml parser (content_pruning + tree_truncator)
   # --- Agent 协议与基础设施 ---
-  "filelock>=3.31.1",  # 跨进程文件锁 (Skill 并发控制)
+  "filelock>=3.32.0",  # 跨进程文件锁 (Skill 并发控制)
   "mcp>=1.28.1",       # MCP 协议 SDK (Server transport)
   "watchdog>=6.0.0",   # 文件系统变更监控 (backends/skills/watcher.py)
   "pdfplumber>=0.11.10", # PDF 文本+表格提取 (file_read_tool CORE; pypdfium2 由 pdfplumber 传递依赖)
@@ -143,7 +143,7 @@ environments = ["python_full_version >= '3.13' and python_full_version < '3.14'"
 override-dependencies = [
   "click>=8.4.2",
   "patchright>=1.59.1",
-  "openai>=2.45.0",
+  "openai>=2.48.0",
   "opentelemetry-semantic-conventions>=0.61b0",
   "mcp>=1.28.0,<2",               # langchain-mcp-adapters needs RequestContext (removed in mcp 2.0 alpha)
 ]
