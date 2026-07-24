@@ -17,7 +17,10 @@ from myrm_agent_harness.agent.sub_agents.builder import (
     filter_tools,
 )
 from myrm_agent_harness.agent.sub_agents.manager import SubagentManager
-from myrm_agent_harness.agent.sub_agents.registry import SUBAGENT_CONFIGS, register_subagent_configs
+from myrm_agent_harness.agent.sub_agents.registry import (
+    SUBAGENT_CONFIGS,
+    register_subagent_configs,
+)
 from myrm_agent_harness.agent.sub_agents.types import (
     CancellationStrategy,
     ControlScope,
@@ -29,13 +32,15 @@ from myrm_agent_harness.agent.types import AgentRuntimeConfig
 
 # Register test subagent configs for tests that reference SUBAGENT_CONFIGS["search"]
 if "search" not in SUBAGENT_CONFIGS:
-    register_subagent_configs({
-        "search": SubagentConfig(
-            description="Search subagent",
-            system_prompt="You are a search subagent.",
-            tools=("web_search_tool",),
-        ),
-    })
+    register_subagent_configs(
+        {
+            "search": SubagentConfig(
+                description="Search subagent",
+                system_prompt="You are a search subagent.",
+                tools=("web_search_tool",),
+            ),
+        }
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,7 +188,11 @@ async def test_spawn_child_wait_true_returns_result_and_cleans_up() -> None:
             system_prompt="You are a general purpose subagent.",
             tools=("web_search_tool",),
         ),
-        context={"session_id": "test", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
+        context={
+            "session_id": "test",
+            "workspace_path": "/tmp/test",
+            "workspaces_storage_root": "/tmp/test",
+        },
         tool_registry_getter=lambda: [FakeSearchTool()],
         wait=True,
     )
@@ -236,7 +245,10 @@ async def test_spawn_child_wait_false_populates_completed_results(tmp_path) -> N
 
     assert "child_wait_false" not in manager._children
     assert manager._children_results["child_wait_false"].success is True
-    assert "background child response" in manager._children_results["child_wait_false"].result
+    assert (
+        "background child response"
+        in manager._children_results["child_wait_false"].result
+    )
     listed = manager.list_children()
     completed = next(item for item in listed if item["task_id"] == "child_wait_false")
     assert completed["role"] == "leaf"
@@ -263,7 +275,11 @@ async def test_spawn_child_retries_after_transient_failure() -> None:
         agent_type="search",
         task_description="recover after failure",
         config=config,
-        context={"session_id": "test-retry-isolation", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
+        context={
+            "session_id": "test-retry-isolation",
+            "workspace_path": "/tmp/test",
+            "workspaces_storage_root": "/tmp/test",
+        },
         tool_registry_getter=lambda: [FakeSearchTool()],
         wait=True,
     )
@@ -294,7 +310,11 @@ async def test_spawn_child_times_out_when_execution_is_too_slow() -> None:
         agent_type="search",
         task_description="run too long",
         config=config,
-        context={"session_id": "test", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
+        context={
+            "session_id": "test",
+            "workspace_path": "/tmp/test",
+            "workspaces_storage_root": "/tmp/test",
+        },
         tool_registry_getter=lambda: [FakeSearchTool()],
         wait=True,
     )
@@ -325,7 +345,11 @@ async def test_spawn_child_rejects_duplicate_task_id() -> None:
         agent_type="search",
         task_description="first run",
         config=SUBAGENT_CONFIGS["search"],
-        context={"session_id": "test", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
+        context={
+            "session_id": "test",
+            "workspace_path": "/tmp/test",
+            "workspaces_storage_root": "/tmp/test",
+        },
         tool_registry_getter=lambda: [FakeSearchTool()],
         wait=False,
     )
@@ -335,7 +359,11 @@ async def test_spawn_child_rejects_duplicate_task_id() -> None:
         agent_type="search",
         task_description="second run",
         config=SUBAGENT_CONFIGS["search"],
-        context={"session_id": "test", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
+        context={
+            "session_id": "test",
+            "workspace_path": "/tmp/test",
+            "workspaces_storage_root": "/tmp/test",
+        },
         tool_registry_getter=lambda: [FakeSearchTool()],
         wait=False,
     )
@@ -420,7 +448,11 @@ async def test_spawn_child_accepts_parent_type() -> None:
         agent_type="search",
         task_description="nested search",
         config=SUBAGENT_CONFIGS["search"],
-        context={"session_id": "test", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
+        context={
+            "session_id": "test",
+            "workspace_path": "/tmp/test",
+            "workspaces_storage_root": "/tmp/test",
+        },
         tool_registry_getter=lambda: [FakeSearchTool()],
         wait=True,
         parent_type="browser",
@@ -613,7 +645,12 @@ def test_filter_tools_blocks_blacklisted_even_with_explicit_allowlist() -> None:
 
     config = SubagentConfig(
         system_prompt="test",
-        tools=("web_search_tool", "skill_manage_tool", "batch_delegate_tasks_tool", "ask_question_tool"),
+        tools=(
+            "web_search_tool",
+            "skill_manage_tool",
+            "batch_delegate_tasks_tool",
+            "ask_question_tool",
+        ),
     )
 
     filtered = filter_tools(config, parent_tools)
@@ -681,7 +718,11 @@ async def test_delegate_task_tool_allowed_types_none_allows_all() -> None:
             "agent_type": "search",
             "objective": "test",
             "wait": True,
-            "context": {"session_id": "s", "workspace_path": "/tmp", "workspaces_storage_root": "/tmp"},
+            "context": {
+                "session_id": "s",
+                "workspace_path": "/tmp",
+                "workspaces_storage_root": "/tmp",
+            },
         }
     )
     assert result["success"] is True
@@ -727,7 +768,9 @@ async def test_delegate_task_tool_batch_mode() -> None:
     """Verify delegate_task_tool mode=batch runs multiple tasks concurrently."""
     from unittest.mock import patch
 
-    from myrm_agent_harness.agent.meta_tools.spawn_subagent import create_delegate_task_tool
+    from myrm_agent_harness.agent.meta_tools.spawn_subagent import (
+        create_delegate_task_tool,
+    )
 
     agent = BaseAgent(llm=FakeLLM())
     agent._last_context = {"session_id": "chat_test-session"}
@@ -746,7 +789,9 @@ async def test_delegate_task_tool_batch_mode() -> None:
             {"agent_type": "search", "objective": "task 2", "readonly": False},
         ]
 
-        result = await delegate_tool.ainvoke({"mode": "batch", "tasks": tasks, "wait": True})
+        result = await delegate_tool.ainvoke(
+            {"mode": "batch", "tasks": tasks, "wait": True}
+        )
         assert result["success"] is True
         assert result["all_success"] is True
         assert len(result["results"]) == 2
@@ -1474,7 +1519,9 @@ class TestAgentManageTools:
         )
 
         control_tool = create_subagent_control_tool(agent)
-        result = await control_tool.ainvoke({"action": "cancel", "task_id": "cancel_me"})
+        result = await control_tool.ainvoke(
+            {"action": "cancel", "task_id": "cancel_me"}
+        )
         assert result["success"] is True
         assert "cancelled" in result["message"].lower()
 
@@ -1489,7 +1536,9 @@ class TestAgentManageTools:
 
         agent = BaseAgent(llm=FakeLLM())
         control_tool = create_subagent_control_tool(agent)
-        result = await control_tool.ainvoke({"action": "cancel", "task_id": "nonexistent"})
+        result = await control_tool.ainvoke(
+            {"action": "cancel", "task_id": "nonexistent"}
+        )
         assert result["success"] is False
         assert "could not cancel" in result["message"].lower()
 
@@ -1651,7 +1700,11 @@ class TestCleanupChildPaths:
             agent_type="search",
             task_description="slow work",
             config=SUBAGENT_CONFIGS["search"],
-            context={"session_id": "test_session", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
+            context={
+                "session_id": "test_session",
+                "workspace_path": "/tmp/test",
+                "workspaces_storage_root": "/tmp/test",
+            },
             tool_registry_getter=lambda: [],
             wait=False,
         )
@@ -2224,7 +2277,11 @@ class TestDrainNotifications:
             agent_type="search",
             task_description="quick task",
             config=SUBAGENT_CONFIGS["search"],
-            context={"session_id": "s", "workspace_path": "/tmp", "workspaces_storage_root": "/tmp"},
+            context={
+                "session_id": "s",
+                "workspace_path": "/tmp",
+                "workspaces_storage_root": "/tmp",
+            },
             tool_registry_getter=lambda: [FakeSearchTool()],
             wait=True,
         )
@@ -2320,7 +2377,11 @@ class TestHardTimeoutSemaphoreRelease:
             agent_type="search",
             task_description="timeout test",
             config=config,
-            context={"session_id": "s", "workspace_path": "/tmp", "workspaces_storage_root": "/tmp"},
+            context={
+                "session_id": "s",
+                "workspace_path": "/tmp",
+                "workspaces_storage_root": "/tmp",
+            },
             tool_registry_getter=lambda: [FakeSearchTool()],
             wait=True,
         )
@@ -2425,7 +2486,12 @@ class TestTraceId:
             agent_type="search",
             task_description="test",
             config=config,
-            context={"session_id": "s", "trace_id": "timeout_trace_123", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
+            context={
+                "session_id": "s",
+                "trace_id": "timeout_trace_123",
+                "workspace_path": "/tmp/test",
+                "workspaces_storage_root": "/tmp/test",
+            },
             tool_registry_getter=lambda: [FakeSearchTool()],
             wait=True,
         )
@@ -2602,7 +2668,9 @@ class TestSteerSubagentTool:
 
         agent = BaseAgent(llm=FakeLLM())
         tool = create_subagent_control_tool(agent)
-        result = await tool.ainvoke({"action": "steer", "task_id": "unknown", "message": "fix this"})
+        result = await tool.ainvoke(
+            {"action": "steer", "task_id": "unknown", "message": "fix this"}
+        )
         assert result["success"] is False
 
     @pytest.mark.asyncio
@@ -2649,7 +2717,9 @@ class TestSteerSubagentTool:
             )
 
         tool = create_subagent_control_tool(agent)
-        result = await tool.ainvoke({"action": "steer", "task_id": "steer_ok", "message": "go left"})
+        result = await tool.ainvoke(
+            {"action": "steer", "task_id": "steer_ok", "message": "go left"}
+        )
         assert result["success"] is True
         assert result["task_id"] == "steer_ok"
 
@@ -3079,7 +3149,11 @@ class TestCancellationStrategy:
             agent_type="search",
             task_description="long task",
             config=config,
-            context={"session_id": "test_session", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
+            context={
+                "session_id": "test_session",
+                "workspace_path": "/tmp/test",
+                "workspaces_storage_root": "/tmp/test",
+            },
             tool_registry_getter=lambda: [FakeSearchTool()],
             wait=False,
         )
@@ -3112,7 +3186,11 @@ class TestCancellationStrategy:
             agent_type="search",
             task_description="long task",
             config=config,
-            context={"session_id": "test_session", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
+            context={
+                "session_id": "test_session",
+                "workspace_path": "/tmp/test",
+                "workspaces_storage_root": "/tmp/test",
+            },
             tool_registry_getter=lambda: [FakeSearchTool()],
             wait=False,
         )
@@ -3148,7 +3226,11 @@ class TestCancellationStrategy:
             agent_type="search",
             task_description="long task",
             config=config,
-            context={"session_id": "test_session", "workspace_path": "/tmp/test", "workspaces_storage_root": "/tmp/test"},
+            context={
+                "session_id": "test_session",
+                "workspace_path": "/tmp/test",
+                "workspaces_storage_root": "/tmp/test",
+            },
             tool_registry_getter=lambda: [FakeSearchTool()],
             wait=False,
         )
@@ -3231,7 +3313,11 @@ class TestCancellationStrategy:
             agent_type="search",
             task_description="slow work",
             config=config,
-            context={"session_id": "s", "workspace_path": "/tmp", "workspaces_storage_root": "/tmp"},
+            context={
+                "session_id": "s",
+                "workspace_path": "/tmp",
+                "workspaces_storage_root": "/tmp",
+            },
             tool_registry_getter=lambda: [FakeSearchTool()],
             wait=False,
         )
@@ -3269,7 +3355,11 @@ class TestCancellationStrategy:
             agent_type="search",
             task_description="test",
             config=config,
-            context={"session_id": "s", "workspace_path": "/tmp", "workspaces_storage_root": "/tmp"},
+            context={
+                "session_id": "s",
+                "workspace_path": "/tmp",
+                "workspaces_storage_root": "/tmp",
+            },
             tool_registry_getter=lambda: [FakeSearchTool()],
             wait=True,
         )
@@ -3304,7 +3394,11 @@ class TestCapacitySnapshotWithActiveChildren:
                     agent_type="search",
                     task_description="test",
                     config=config,
-                    context={"session_id": "s", "workspace_path": "/tmp", "workspaces_storage_root": "/tmp"},
+                    context={
+                        "session_id": "s",
+                        "workspace_path": "/tmp",
+                        "workspaces_storage_root": "/tmp",
+                    },
                     tool_registry_getter=lambda: [FakeSearchTool()],
                     wait=True,
                 )
@@ -3350,8 +3444,12 @@ class TestEventPublishingError:
         """_emit_global_subagent_event catches publish errors."""
         from unittest.mock import patch
 
-        from myrm_agent_harness.agent.sub_agents.manager import _emit_global_subagent_event
-        from myrm_agent_harness.runtime.events.system_events import SubagentLifecycleData
+        from myrm_agent_harness.agent.sub_agents.manager import (
+            _emit_global_subagent_event,
+        )
+        from myrm_agent_harness.runtime.events.system_events import (
+            SubagentLifecycleData,
+        )
 
         with patch(
             "myrm_agent_harness.runtime.events.get_event_bus",
@@ -3396,7 +3494,11 @@ class TestCleanupChildEdgeCases:
                 agent_type="search",
                 task_description="test",
                 config=config,
-                context={"session_id": "s", "workspace_path": "/tmp", "workspaces_storage_root": "/tmp"},
+                context={
+                    "session_id": "s",
+                    "workspace_path": "/tmp",
+                    "workspaces_storage_root": "/tmp",
+                },
                 tool_registry_getter=lambda: [FakeSearchTool()],
                 wait=True,
             )
@@ -3430,7 +3532,11 @@ class TestListChildrenDetails:
             agent_type="search",
             task_description="test",
             config=config,
-            context={"session_id": "s", "workspace_path": "/tmp", "workspaces_storage_root": "/tmp"},
+            context={
+                "session_id": "s",
+                "workspace_path": "/tmp",
+                "workspaces_storage_root": "/tmp",
+            },
             tool_registry_getter=lambda: [FakeSearchTool()],
             wait=True,
         )
@@ -3584,7 +3690,11 @@ class TestSteerDetails:
                 agent_type="search",
                 task_description="test",
                 config=config,
-                context={"session_id": "s", "workspace_path": "/tmp", "workspaces_storage_root": "/tmp"},
+                context={
+                    "session_id": "s",
+                    "workspace_path": "/tmp",
+                    "workspaces_storage_root": "/tmp",
+                },
                 tool_registry_getter=lambda: [FakeSearchTool()],
                 wait=True,
             )

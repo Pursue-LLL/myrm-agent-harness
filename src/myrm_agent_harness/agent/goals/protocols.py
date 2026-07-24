@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-from .types import Goal, GoalAccountingOutcome, GoalBudget, GoalStatus
+from .types import CheckpointMode, Goal, GoalAccountingOutcome, GoalBudget, GoalStatus
 
 if TYPE_CHECKING:
     from .verification.base import VerificationResult
@@ -51,6 +51,7 @@ class GoalProvider(Protocol):
         constraints: list[str] | None = None,
         protected_paths: list[str] | None = None,
         ui_summary: str = "",
+        checkpoint_mode: CheckpointMode = "none",
     ) -> Goal:
         """Create a new goal. If an active goal exists, queues the new goal instead."""
         ...

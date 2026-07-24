@@ -144,7 +144,11 @@ def check_shell_threats(permission: str, tool_input: dict[str, object]) -> tuple
         analyze_command,
     )
 
-    command = str(tool_input.get("command", "") or tool_input.get("code", "")).strip()
+    command = str(
+        tool_input.get("command", "")
+        or tool_input.get("code", "")
+        or tool_input.get("data", "")
+    ).strip()
     if not command:
         return None, ""
 

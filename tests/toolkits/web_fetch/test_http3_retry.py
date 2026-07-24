@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.web_fetch.engine import CrawlEngine
+from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 from myrm_agent_harness.toolkits.web_fetch.fetchers.http_fetcher import HttpFetcher
 from myrm_agent_harness.toolkits.web_fetch.fetchers.protocols import FetcherType, FetchResult
 from myrm_agent_harness.toolkits.web_fetch.http3_probe import get_http3_retry_metrics, reset_http3_state_for_tests
@@ -218,7 +218,7 @@ async def test_http3_success_marks_site_experience(site_store: SiteExperienceSto
 
 @pytest.mark.asyncio
 async def test_engine_cache_metrics_exposes_http3_retry() -> None:
-    engine = CrawlEngine()
+    engine = FetchEngine()
     metrics = engine.get_cache_metrics()
     assert "http3_retry" in metrics
     assert "http3_retry_attempts" in metrics["http3_retry"]
@@ -227,12 +227,12 @@ async def test_engine_cache_metrics_exposes_http3_retry() -> None:
 
 
 @pytest.mark.asyncio
-async def test_crawl_engine_skips_browser_when_l1_http_succeeds(tmp_path: Path) -> None:
+async def test_fetch_engine_skips_browser_when_l1_http_succeeds(tmp_path: Path) -> None:
     from langchain_core.documents import Document
 
     from myrm_agent_harness.toolkits.web_fetch.fetchers.protocols import FetcherType
 
-    engine = CrawlEngine(adaptive_router_rules_file=tmp_path / "router.pkl")
+    engine = FetchEngine(adaptive_router_rules_file=tmp_path / "router.pkl")
     browser_fetch = AsyncMock(return_value=None)
 
     async def mock_try_and_report(
@@ -755,10 +755,10 @@ async def test_http3_probe_real_exception_path(install_fake_scrapling: AsyncMock
 
 
 @pytest.mark.asyncio
-async def test_crawl_engine_escalates_browser_when_l1_fails(tmp_path: Path) -> None:
+async def test_fetch_engine_escalates_browser_when_l1_fails(tmp_path: Path) -> None:
     from langchain_core.documents import Document
 
-    engine = CrawlEngine(adaptive_router_rules_file=tmp_path / "router.pkl")
+    engine = FetchEngine(adaptive_router_rules_file=tmp_path / "router.pkl")
     browser_doc = Document(page_content="Browser fallback", metadata={"url": "https://blocked.example/article"})
     fetcher_types: list[FetcherType] = []
 

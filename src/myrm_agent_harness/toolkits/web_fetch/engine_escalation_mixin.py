@@ -1,4 +1,4 @@
-"""CrawlEngine L4 escalation and platform fast-path helpers.
+"""FetchEngine L4 escalation and platform fast-path helpers.
 
 [POS]
 Mixin: remote fetch escalation after local L1-L3 exhaustion; bilibili cookie loader.
@@ -14,13 +14,13 @@ from langchain_core.documents import Document
 from .fetchers.protocols import FetcherType, FetchResult
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.web_fetch.engine import CrawlEngine
+    from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 
 logger = logging.getLogger(__name__)
 
 
-class CrawlEngineEscalationMixin:
-    async def _load_bilibili_cookies(self: CrawlEngine) -> dict[str, str] | None:
+class FetchEngineEscalationMixin:
+    async def _load_bilibili_cookies(self: FetchEngine) -> dict[str, str] | None:
         """Load bilibili.com cookies from SessionVault for subtitle API access."""
         vault = self._http_fetcher._session_vault
         if not vault:
@@ -34,7 +34,7 @@ class CrawlEngineEscalationMixin:
             return None
 
     async def _try_escalation(
-        self: CrawlEngine, url: str, *, max_chars: int = 0
+        self: FetchEngine, url: str, *, max_chars: int = 0
     ) -> tuple[Document | None, FetchResult | None]:
         """Try injected remote providers after local L1-L3 exhaustion."""
         from .escalation.context import get_bound_escalation_providers

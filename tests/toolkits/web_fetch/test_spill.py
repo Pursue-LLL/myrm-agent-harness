@@ -58,7 +58,9 @@ async def test_spill_truncates_and_persists_large_content(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_spill_persist_failure_still_returns_preview(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_spill_persist_failure_still_returns_preview(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     workspace = tmp_path
     chat_id = "chat_persist_fail"
     token = workspace_root_var.set(str(workspace))
@@ -96,7 +98,9 @@ async def test_spill_without_callbacks_truncates_only() -> None:
 
 
 @pytest.mark.asyncio
-async def test_emit_web_fetch_evicted_ref_dispatches_event(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_emit_web_fetch_evicted_ref_dispatches_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     events: list[tuple[str, dict[str, str]]] = []
 
     async def _capture(event_type: str, payload: dict[str, str]) -> None:

@@ -18,13 +18,3 @@ async def test_secure_get_blocks_literal_loopback() -> None:
 async def test_secure_get_blocks_cloud_metadata_ip() -> None:
     with pytest.raises(SSRFSecurityError):
         await secure_get("http://169.254.169.254/latest/meta-data/", timeout=5.0)
-
-
-@pytest.mark.asyncio
-async def test_robots_parser_live_blocks_metadata_robots() -> None:
-    from myrm_agent_harness.toolkits.web_fetch.robots_parser import RobotsParser
-
-    parser = RobotsParser()
-    rules = await parser._fetch_robots("http://169.254.169.254/robots.txt")
-    assert rules.disallowed == []
-    assert rules.sitemaps == []

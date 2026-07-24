@@ -23,7 +23,7 @@ Toolkits Llms module.
 | fallback/ | Enhanced model fallback management. Contains ManagedLLM with Direct Preflight Guard (zero-cost local token overflow prevention), cooldown periods, candidate pools, and decision logging |
 | image/ | Image submodule. |
 | providers/ | Providers submodule. |
-| routing/ | Routing submodule. |
+| routing/ | Pre-agent routing layer: task complexity routing, privacy routing, and Combo routing engine (ordered target chains with 7 strategies + CredentialPool failover). |
 | utils/ | LLM toollayer: JSON handles, modelparameter, log |
 | video/ | Video generation module — multi-provider video generation with failover. |
 | tts/ | Audio generation module — OpenAI/ElevenLabs TTS with gateway fallback. See [tts/_ARCH.md](tts/_ARCH.md). |

@@ -61,6 +61,7 @@ class BackgroundRegistryEntry:
     spill_writer: BackgroundOutputSpillWriter | None = None
     cursor: int = 0
     empty_poll_streak: int = 0
+    stdin_lock: asyncio.Lock | None = None
 
 
 async def consume_background_entry(

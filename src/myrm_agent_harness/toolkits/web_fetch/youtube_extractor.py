@@ -1,9 +1,9 @@
 """YouTube transcript extractor.
 
 Extracts subtitles/transcripts from YouTube videos when ``youtube-transcript-api``
-(``[web]`` optional extra) is installed. Used as a fast-path shortcut in CrawlEngine
+(``[web]`` optional extra) is installed. Used as a fast-path shortcut in FetchEngine
 when a YouTube URL is detected, bypassing the three-tier HTML fetcher pipeline.
-When the optional dependency is missing or fetch fails, CrawlEngine falls back to
+When the optional dependency is missing or fetch fails, FetchEngine falls back to
 standard HTML crawl.
 
 Design pattern: analogous to binary_router.py — special content source routing.

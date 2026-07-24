@@ -26,9 +26,18 @@ from langchain_core.messages import ToolMessage
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.text_utils import get_token_count
 
-from ...infra.schemas import DEFAULT_CONTEXT_CONFIG, TOOL_PROTECTION_CONFIG, ContextConfig, ToolProtectionConfig
+from ...infra.schemas import (
+    DEFAULT_CONTEXT_CONFIG,
+    TOOL_PROTECTION_CONFIG,
+    ContextConfig,
+    ToolProtectionConfig,
+)
 from ...infra.tool_output_persister import persist_large_tool_output
-from ...strategies.filter import create_filtered_result, format_filtered_message, should_filter
+from ...strategies.filter import (
+    create_filtered_result,
+    format_filtered_message,
+    should_filter,
+)
 from ..base import BaseProcessor, ProcessorContext
 
 logger = get_agent_logger(__name__)
@@ -46,7 +55,9 @@ class FilterProcessor(BaseProcessor):
     """
 
     def __init__(
-        self, protection_config: ToolProtectionConfig | None = None, context_config: ContextConfig | None = None
+        self,
+        protection_config: ToolProtectionConfig | None = None,
+        context_config: ContextConfig | None = None,
     ):
         self.protection_config = protection_config or TOOL_PROTECTION_CONFIG
         self.context_config = context_config or DEFAULT_CONTEXT_CONFIG
@@ -60,13 +71,16 @@ class FilterProcessor(BaseProcessor):
         for msg in context.messages:
             if isinstance(msg, ToolMessage):
                 content = msg.content if isinstance(msg.content, str) else ""
-                if should_filter(content, threshold=self.context_config.tool_result_evict_threshold):
+                if should_filter(
+                    content, threshold=self.context_config.tool_result_evict_threshold
+                ):
                     return True
 
         # Check aggregate limit for the latest turn
         latest_turn_msgs = self._get_latest_turn_tool_messages(context.messages)
         aggregate_tokens = sum(
-            get_token_count(msg.content if isinstance(msg.content, str) else "") for msg in latest_turn_msgs
+            get_token_count(msg.content if isinstance(msg.content, str) else "")
+            for msg in latest_turn_msgs
         )
         return aggregate_tokens > self.context_config.turn_aggregate_evict_threshold
 
@@ -109,11 +123,16 @@ class FilterProcessor(BaseProcessor):
                     continue
 
                 content = msg.content if isinstance(msg.content, str) else ""
-                if should_filter(content, threshold=self.context_config.tool_result_evict_threshold):
+                if should_filter(
+                    content, threshold=self.context_config.tool_result_evict_threshold
+                ):
                     saved_path = await persist_large_tool_output(content, msg.name)
 
                     result = await create_filtered_result(
-                        content=content, file_path="", user_query=context.user_query, llm=filter_llm
+                        content=content,
+                        file_path="",
+                        user_query=context.user_query,
+                        llm=filter_llm,
                     )
 
                     msg.content = format_filtered_message(result, saved_path=saved_path)
@@ -125,7 +144,9 @@ class FilterProcessor(BaseProcessor):
 
         # Filter out protected messages from aggregate consideration
         unprotected_turn_msgs = [
-            m for m in latest_turn_msgs if not (m.name and self.protection_config.is_protected(m.name))
+            m
+            for m in latest_turn_msgs
+            if not (m.name and self.protection_config.is_protected(m.name))
         ]
 
         # Calculate current aggregate tokens
@@ -139,7 +160,10 @@ class FilterProcessor(BaseProcessor):
             unprotected_turn_msgs.sort(key=_get_tokens, reverse=True)
 
             for msg in unprotected_turn_msgs:
-                if aggregate_tokens <= self.context_config.turn_aggregate_evict_threshold:
+                if (
+                    aggregate_tokens
+                    <= self.context_config.turn_aggregate_evict_threshold
+                ):
                     break
 
                 content = msg.content if isinstance(msg.content, str) else ""
@@ -151,7 +175,10 @@ class FilterProcessor(BaseProcessor):
 
                 saved_path = await persist_large_tool_output(content, msg.name)
                 result = await create_filtered_result(
-                    content=content, file_path="", user_query=context.user_query, llm=filter_llm
+                    content=content,
+                    file_path="",
+                    user_query=context.user_query,
+                    llm=filter_llm,
                 )
 
                 msg.content = format_filtered_message(result, saved_path=saved_path)
@@ -159,12 +186,16 @@ class FilterProcessor(BaseProcessor):
                 total_saved += result.estimated_tokens
 
                 # Update aggregate tokens (subtract original, add preview size)
-                aggregate_tokens = aggregate_tokens - msg_tokens + result.estimated_tokens
+                aggregate_tokens = (
+                    aggregate_tokens - msg_tokens + result.estimated_tokens
+                )
 
         if filtered_count > 0 or protected_count > 0:
             log_parts = []
             if filtered_count > 0:
-                log_parts.append(f"过滤 {filtered_count} 个，节省 ~{total_saved} tokens")
+                log_parts.append(
+                    f"过滤 {filtered_count} 个，节省 ~{total_saved} tokens"
+                )
             if protected_count > 0:
                 log_parts.append(f"保护 {protected_count} 个关键工具")
             logger.warning(f" [Filter] {' | '.join(log_parts)}")
@@ -172,6 +203,8 @@ class FilterProcessor(BaseProcessor):
         context.tokens_saved += total_saved
 
         if protected_count > 0:
-            context.operations.append(f"protected_tools:{','.join(set(protected_tools))}")
+            context.operations.append(
+                f"protected_tools:{','.join(set(protected_tools))}"
+            )
 
         return context

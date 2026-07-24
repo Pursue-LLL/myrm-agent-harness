@@ -73,7 +73,9 @@ logger = get_agent_logger(__name__)
 # ---------------------------------------------------------------------------
 
 
-async def _emit_loop_guard_event(step_key: str, tool_name: str, reason: str, status: str) -> None:
+async def _emit_loop_guard_event(
+    step_key: str, tool_name: str, reason: str, status: str
+) -> None:
     """Emit a STATUS event to the frontend when LoopGuard triggers WARN/BREAK."""
     try:
         from myrm_agent_harness.utils.event_utils import dispatch_custom_event
@@ -137,7 +139,9 @@ async def run_pre_call_guards(
     """Execute all pre-call guards. Returns ToolMessage if blocked, PreCallResult to proceed."""
     from myrm_agent_harness.agent.hooks.executor import fire_hook
     from myrm_agent_harness.agent.hooks.types import HookEvent
-    from myrm_agent_harness.agent.middlewares._session_context import get_active_message_id
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_active_message_id,
+    )
     from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer import (
         set_current_message_id,
     )
@@ -241,8 +245,12 @@ async def run_pre_call_guards(
 
         if loop_kind == "sandbox_boundary":
             record_decision(tool_name, "SANDBOX_BOUNDARY_ESCALATE", loop_verdict.reason)
-            logger.warning("Sandbox boundary escalation: %s -- %s", tool_name, loop_verdict.reason)
-            await _emit_loop_guard_event("sandbox_boundary", tool_name, loop_verdict.reason, "error")
+            logger.warning(
+                "Sandbox boundary escalation: %s -- %s", tool_name, loop_verdict.reason
+            )
+            await _emit_loop_guard_event(
+                "sandbox_boundary", tool_name, loop_verdict.reason, "error"
+            )
             return make_error_msg(
                 tool_name,
                 tool_call_id,
@@ -253,7 +261,9 @@ async def run_pre_call_guards(
 
         record_decision(tool_name, "LOOP_BREAK", loop_verdict.reason)
         logger.warning("Loop break: %s -- %s", tool_name, loop_verdict.reason)
-        await _emit_loop_guard_event("loop_guard_break", tool_name, loop_verdict.reason, "error")
+        await _emit_loop_guard_event(
+            "loop_guard_break", tool_name, loop_verdict.reason, "error"
+        )
         return make_error_msg(
             tool_name,
             tool_call_id,
@@ -264,7 +274,9 @@ async def run_pre_call_guards(
     if loop_verdict.action == LoopAction.WARN:
         record_decision(tool_name, "LOOP_WARN", loop_verdict.reason)
         logger.warning("Loop warning: %s -- %s", tool_name, loop_verdict.reason)
-        await _emit_loop_guard_event("loop_guard_warn", tool_name, loop_verdict.reason, "warning")
+        await _emit_loop_guard_event(
+            "loop_guard_warn", tool_name, loop_verdict.reason, "warning"
+        )
 
     freq_guard = get_frequency_guard()
     freq_verdict = freq_guard.check(tool_name)
@@ -331,7 +343,9 @@ async def run_pre_call_guards(
             error_category="pii_guard",
         )
 
-    return PreCallResult(loop_guard, loop_verdict, freq_guard, freq_verdict, steering_token)
+    return PreCallResult(
+        loop_guard, loop_verdict, freq_guard, freq_verdict, steering_token
+    )
 
 
 def _check_circuit_breaker(tool_name: str, tool_call_id: str) -> ToolMessage | None:
@@ -343,8 +357,14 @@ def _check_circuit_breaker(tool_name: str, tool_call_id: str) -> ToolMessage | N
         return None
 
     t_lower = tool_name.lower()
-    is_network_tool = any(kw in t_lower for kw in ["web", "search", "browser", "fetch", "http", "network", "mcp"])
-    is_write_tool = any(kw in t_lower for kw in ["write", "edit", "create", "delete", "mkdir", "rm", "append"])
+    is_network_tool = any(
+        kw in t_lower
+        for kw in ["web", "search", "browser", "fetch", "http", "network", "mcp"]
+    )
+    is_write_tool = any(
+        kw in t_lower
+        for kw in ["write", "edit", "create", "delete", "mkdir", "rm", "append"]
+    )
 
     blocker = None
     if "any" in terminal_errors:
@@ -356,7 +376,9 @@ def _check_circuit_breaker(tool_name: str, tool_call_id: str) -> ToolMessage | N
 
     if blocker:
         hint = f"Circuit breaker active for {blocker}. Previous failures indicate this resource is unavailable."
-        logger.warning("Circuit breaker: blocked %s due to terminal %s", tool_name, blocker)
+        logger.warning(
+            "Circuit breaker: blocked %s due to terminal %s", tool_name, blocker
+        )
         return make_error_msg(
             tool_name,
             tool_call_id,
@@ -428,7 +450,9 @@ async def run_post_call_guards(
             budget_verdict.persisted_path,
         )
         if budget_verdict.evicted_ref:
-            from myrm_agent_harness.agent.context_management.infra.evicted_content import emit_evicted_ref
+            from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+                emit_evicted_ref,
+            )
 
             await emit_evicted_ref(budget_verdict.evicted_ref)
         result = ToolMessage(
@@ -440,7 +464,9 @@ async def run_post_call_guards(
         result_text = budget_verdict.content
     elif budget_verdict.action == BudgetAction.TRUNCATED:
         record_decision(tool_name, "CONTEXT_TRUNCATED", budget_verdict.reason)
-        logger.warning("Context budget truncated: %s -- %s", tool_name, budget_verdict.reason)
+        logger.warning(
+            "Context budget truncated: %s -- %s", tool_name, budget_verdict.reason
+        )
         result = ToolMessage(
             content=budget_verdict.content,
             name=tool_name,
@@ -481,16 +507,26 @@ async def run_post_call_guards(
         post_loop_kind = getattr(post_verdict, "loop_kind", None)
         if post_loop_kind == "sandbox_boundary":
             record_decision(tool_name, "SANDBOX_BOUNDARY_ESCALATE", post_verdict.reason)
-            logger.warning("Sandbox boundary (post-call): %s -- %s", tool_name, post_verdict.reason)
-            await _emit_loop_guard_event("sandbox_boundary", tool_name, post_verdict.reason, "error")
+            logger.warning(
+                "Sandbox boundary (post-call): %s -- %s", tool_name, post_verdict.reason
+            )
+            await _emit_loop_guard_event(
+                "sandbox_boundary", tool_name, post_verdict.reason, "error"
+            )
         else:
             record_decision(tool_name, "LOOP_BREAK", post_verdict.reason)
-            logger.warning("Loop output break: %s -- %s", tool_name, post_verdict.reason)
-            await _emit_loop_guard_event("loop_guard_break", tool_name, post_verdict.reason, "error")
+            logger.warning(
+                "Loop output break: %s -- %s", tool_name, post_verdict.reason
+            )
+            await _emit_loop_guard_event(
+                "loop_guard_break", tool_name, post_verdict.reason, "error"
+            )
     elif post_verdict.action == LoopAction.WARN:
         record_decision(tool_name, "LOOP_WARN", post_verdict.reason)
         logger.warning("Loop output warning: %s -- %s", tool_name, post_verdict.reason)
-        await _emit_loop_guard_event("loop_guard_warn", tool_name, post_verdict.reason, "warning")
+        await _emit_loop_guard_event(
+            "loop_guard_warn", tool_name, post_verdict.reason, "warning"
+        )
 
     freq_guard.record(tool_name)
 
@@ -538,7 +574,9 @@ async def run_post_call_guards(
         },
     )
     if post_hook_result.blocked or not post_hook_result.all_succeeded:
-        result = build_hook_failure_result(result, post_hook_result, tool_name, tool_call_id, post_result_text)
+        result = build_hook_failure_result(
+            result, post_hook_result, tool_name, tool_call_id, post_result_text
+        )
         await emit_hook_failure_event(tool_name, post_hook_result, AgentEventType)
 
     return result

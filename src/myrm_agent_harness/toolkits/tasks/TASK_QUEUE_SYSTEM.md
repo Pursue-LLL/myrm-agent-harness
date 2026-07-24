@@ -79,7 +79,6 @@ Does this code import agent/ or require the current chat session at definition t
 | `toolkits/tasks/` | Agent tool during chat | `SQLiteTaskStore` (`tasks.db`) | `task_id` + ImageTaskCard |
 | `toolkits/cron/` | Schedule / webhook / poll | CronStore | Cron job history |
 | `toolkits/kanban/` | Planner / user board | KanbanStore | Kanban card + SSE |
-| `web_fetch/CrawlTaskStore` | Deep crawl pipeline | Crawl-specific SQLite | Crawl group status |
 | `agent/background_worker/` | Agent idle window | IdleTaskRegistry | None (maintenance) |
 
 ## Integration Recipes

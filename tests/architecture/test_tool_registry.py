@@ -87,3 +87,26 @@ def test_no_duplicate_tool_names(report) -> None:
         )
         + "\nFix: rename one of the colliding tools."
     )
+
+
+@pytest.mark.architecture
+def test_web_crawl_tool_removed_from_harness() -> None:
+    """Deep crawl product path removed in Web Stack Consolidation v1.2."""
+    src_root = _repo_root / "src" / "myrm_agent_harness"
+    banned_tokens = (
+        "web_crawl_tool",
+        "create_web_crawl_tool",
+        "CrawlTaskStore",
+        "robots_parser",
+        "deep_crawl.py",
+    )
+    hits: list[str] = []
+    for path in src_root.rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        for token in banned_tokens:
+            if token in text:
+                hits.append(f"{path.relative_to(_repo_root)}:{token}")
+    assert not hits, (
+        "Removed deep crawl symbols must not reappear in harness:\n"
+        + "\n".join(f"  - {hit}" for hit in sorted(hits))
+    )

@@ -18,9 +18,12 @@ pytestmark = pytest.mark.filterwarnings("ignore::RuntimeWarning:unittest.mock")
 
 @pytest.fixture(autouse=True)
 def _reset_backend_detector_cache() -> None:
+    default_ttl = BackendDetector._cache_ttl_seconds
+    BackendDetector._cache_ttl_seconds = 300.0
     BackendDetector.invalidate_shared_cache()
     yield
     BackendDetector.invalidate_shared_cache()
+    BackendDetector._cache_ttl_seconds = default_ttl
 
 
 class TestDetectedBackend:
@@ -109,6 +112,43 @@ class TestBackendDetectorDetect:
             detector2.invalidate_cache()
             await detector1.detect()
             assert call_count > first_count
+
+    @pytest.mark.asyncio
+    async def test_detect_refresh_forces_redetect(self) -> None:
+        detector = BackendDetector()
+        call_count = 0
+
+        def counting_find(name: str) -> str | None:
+            nonlocal call_count
+            call_count += 1
+            return None
+
+        with patch.object(BackendDetector, "_find_executable", side_effect=counting_find):
+            first = await detector.detect(include_version=False)
+            first_count = call_count
+            second = await detector.detect(include_version=False, refresh=True)
+
+        assert call_count > first_count
+        assert first is not second
+
+    @pytest.mark.asyncio
+    async def test_detect_cache_stale_ttl_forces_redetect(self) -> None:
+        detector = BackendDetector()
+        BackendDetector._cache_ttl_seconds = -1.0
+        call_count = 0
+
+        def counting_find(name: str) -> str | None:
+            nonlocal call_count
+            call_count += 1
+            return None
+
+        with patch.object(BackendDetector, "_find_executable", side_effect=counting_find):
+            first = await detector.detect(include_version=False)
+            first_count = call_count
+            second = await detector.detect(include_version=False)
+
+        assert call_count > first_count
+        assert first is not second
 
 
 class TestFindExecutable:
@@ -221,8 +261,13 @@ class TestGetVersion:
         mock_proc = AsyncMock()
         mock_proc.communicate = AsyncMock(return_value=(b"", b""))
 
+        async def _raise_timeout(awaitable: object, timeout: float) -> tuple[bytes, bytes]:
+            if hasattr(awaitable, "close"):
+                awaitable.close()  # type: ignore[attr-defined]
+            raise TimeoutError
+
         with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
-            with patch("asyncio.wait_for", side_effect=TimeoutError):
+            with patch("asyncio.wait_for", side_effect=_raise_timeout):
                 version = await detector._get_version("/usr/bin/claude")
         assert version is None
 

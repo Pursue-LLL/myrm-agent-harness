@@ -496,7 +496,7 @@ class RetrieverManager:
         Returns:
             (metadata list, formatted context, error info)
         """
-        from myrm_agent_harness.toolkits.web_fetch import CrawlEngine, web_fetch_tools
+        from myrm_agent_harness.toolkits.web_fetch import FetchEngine, web_fetch_tools
 
         if not urls:
             return [], "", "No URLs provided"
@@ -505,7 +505,7 @@ class RetrieverManager:
             return [], "", "No queries provided"
 
         try:
-            engine = CrawlEngine(
+            engine = FetchEngine(
                 use_raw_markdown=use_raw_markdown,
                 allow_private_networks=allow_private_networks,
                 session_vault=web_fetch_tools._http_fetcher._session_vault,

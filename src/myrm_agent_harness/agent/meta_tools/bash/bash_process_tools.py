@@ -1,8 +1,7 @@
 """Unified LangChain tool for background bash process management.
 
-Single ``bash_process_tool`` with ``action=list|output|kill|wait`` replaces three
-separate list/output/kill tools. Operates on the in-process background
-process registry for jobs spawned via ``bash_code_execute_tool(run_in_background=True)``.
+Single ``bash_process_tool`` manages list/output/wait/kill/stdin for jobs spawned
+via ``bash_code_execute_tool(run_in_background=True)``.
 
 [INPUT]
 - agent.meta_tools.bash._background_registry::get_background_registry (POS: registry singleton)
@@ -39,6 +38,16 @@ _OUTPUT_MAX_LINES = 500
 _WAIT_DEFAULT_SECONDS = 30
 _WAIT_MAX_SECONDS = 120
 
+_BASH_PROCESS_ACTIONS = Literal[
+    "list",
+    "output",
+    "kill",
+    "wait",
+    "write_stdin",
+    "submit_stdin",
+    "close_stdin",
+]
+
 _MISSING_SESSION_PAYLOAD: dict[str, object] = {
     "content": (
         "Background process tools require a bound session_id. "
@@ -60,17 +69,20 @@ def _extract_session_id(config: RunnableConfig) -> str | None:
 
 
 class _BashProcessInput(BaseModel):
-    action: Literal["list", "output", "kill", "wait"] = Field(
+    action: _BASH_PROCESS_ACTIONS = Field(
         description=(
             "list: all background jobs in this session (includes last_progress when available); "
             "output: tail stdout/stderr for pid; "
             "wait: block until pid exits or timeout_seconds (max 120); "
-            "kill: stop pid (SIGTERM unless force=true)."
+            "kill: stop pid (SIGTERM unless force=true); "
+            "write_stdin: send raw bytes to pid stdin (no newline); "
+            "submit_stdin: send data plus Enter (for y/n prompts); "
+            "close_stdin: send EOF to close stdin."
         ),
     )
     pid: int | None = Field(
         default=None,
-        description="Required for output, wait, and kill. Background process pid from list or spawn metadata.",
+        description="Required for output, wait, kill, and stdin actions.",
         ge=1,
     )
     max_lines: int = Field(
@@ -99,6 +111,13 @@ class _BashProcessInput(BaseModel):
         default=None,
         description=(
             "For output: optional regex applied per line — only matching stdout/stderr lines are returned."
+        ),
+    )
+    data: str = Field(
+        default="",
+        description=(
+            "For write_stdin/submit_stdin: text to send to the process stdin "
+            "(e.g. 'y' to confirm an installer prompt)."
         ),
     )
 
@@ -140,20 +159,35 @@ async def _handle_output(
         except re.error as exc:
             return {
                 "content": f"Invalid output filter regex: {exc}",
-                "metadata": {"pid": pid, "found": True, "action": "output", "error": "invalid_filter"},
+                "metadata": {
+                    "pid": pid,
+                    "found": True,
+                    "action": "output",
+                    "error": "invalid_filter",
+                },
             }
 
     streams = registry.get_output(pid, max_lines=max_lines, since_cursor=since_cursor)
     stdout = streams["stdout"]
     stderr = streams["stderr"]
     if line_filter is not None:
-        from myrm_agent_harness.agent.meta_tools.bash._bash_output_filter_core import filter_output_lines
+        from myrm_agent_harness.agent.meta_tools.bash._bash_output_filter_core import (
+            filter_output_lines,
+        )
 
-        stdout = filter_output_lines(list(stdout) if isinstance(stdout, list) else [], line_filter)
-        stderr = filter_output_lines(list(stderr) if isinstance(stderr, list) else [], line_filter)
+        stdout = filter_output_lines(
+            list(stdout) if isinstance(stdout, list) else [], line_filter
+        )
+        stderr = filter_output_lines(
+            list(stderr) if isinstance(stderr, list) else [], line_filter
+        )
 
     poll_hint = streams.get("poll_hint")
-    metadata: dict[str, object] = {"pid": pid, "session_id": session_id, "action": "output"}
+    metadata: dict[str, object] = {
+        "pid": pid,
+        "session_id": session_id,
+        "action": "output",
+    }
     if filter_pattern:
         metadata["filter"] = filter_pattern
     if isinstance(poll_hint, dict):
@@ -174,7 +208,9 @@ async def _handle_output(
     }
 
 
-async def _handle_wait(session_id: str, pid: int, timeout_seconds: int) -> dict[str, object]:
+async def _handle_wait(
+    session_id: str, pid: int, timeout_seconds: int
+) -> dict[str, object]:
     registry = get_background_registry()
     info = registry.get(pid)
     if info is None or info.session_id != session_id:
@@ -182,7 +218,9 @@ async def _handle_wait(session_id: str, pid: int, timeout_seconds: int) -> dict[
             "content": f"No background process with pid={pid} in this session.",
             "metadata": {"pid": pid, "found": False, "action": "wait"},
         }
-    result = await registry.wait_for_process(pid, timeout_seconds=float(timeout_seconds))
+    result = await registry.wait_for_process(
+        pid, timeout_seconds=float(timeout_seconds)
+    )
     still_running = bool(result.get("still_running"))
     content: dict[str, object] = {
         "pid": pid,
@@ -201,7 +239,12 @@ async def _handle_wait(session_id: str, pid: int, timeout_seconds: int) -> dict[
         content["stderr"] = streams.get("stderr", [])
     return {
         "content": content,
-        "metadata": {"pid": pid, "session_id": session_id, "action": "wait", "still_running": still_running},
+        "metadata": {
+            "pid": pid,
+            "session_id": session_id,
+            "action": "wait",
+            "still_running": still_running,
+        },
     }
 
 
@@ -216,7 +259,9 @@ async def _handle_kill(session_id: str, pid: int, force: bool) -> dict[str, obje
     ok = await registry.kill(pid, force=force)
     return {
         "content": (
-            f"Sent {'SIGKILL' if force else 'SIGTERM'} to pid={pid}" if ok else f"Failed to signal pid={pid}"
+            f"Sent {'SIGKILL' if force else 'SIGTERM'} to pid={pid}"
+            if ok
+            else f"Failed to signal pid={pid}"
         ),
         "metadata": {
             "pid": pid,
@@ -224,6 +269,40 @@ async def _handle_kill(session_id: str, pid: int, force: bool) -> dict[str, obje
             "killed": ok,
             "session_id": session_id,
             "action": "kill",
+        },
+    }
+
+
+async def _handle_stdin(
+    session_id: str,
+    pid: int,
+    data: str,
+    *,
+    append_newline: bool,
+    close: bool,
+    action: str,
+) -> dict[str, object]:
+    registry = get_background_registry()
+    info = registry.get(pid)
+    if info is None or info.session_id != session_id:
+        return {
+            "content": f"No background process with pid={pid} in this session.",
+            "metadata": {"pid": pid, "found": False, "action": action},
+        }
+    result = await registry.write_stdin(
+        pid,
+        data,
+        append_newline=append_newline,
+        close=close,
+    )
+    ok = bool(result.get("ok"))
+    return {
+        "content": result,
+        "metadata": {
+            "pid": pid,
+            "session_id": session_id,
+            "action": action,
+            "ok": ok,
         },
     }
 
@@ -236,18 +315,20 @@ def create_bash_process_tool() -> BaseTool:
         description=(
             "Manage background bash processes started with bash_code_execute_tool(run_in_background=true). "
             "Actions: list (session jobs + last_progress), output (tail/ incremental poll via since_cursor), "
-            "wait (block until exit or timeout_seconds, max 120), kill (SIGTERM or force SIGKILL)."
+            "wait (block until exit or timeout_seconds, max 120), kill (SIGTERM or force SIGKILL), "
+            "write_stdin (raw stdin), submit_stdin (stdin + Enter), close_stdin (EOF)."
         ),
         args_schema=_BashProcessInput,
     )
     async def _bash_process(
-        action: Literal["list", "output", "kill", "wait"],
+        action: _BASH_PROCESS_ACTIONS,
         pid: int | None = None,
         max_lines: int = _OUTPUT_DEFAULT_LINES,
         since_cursor: int | None = None,
         timeout_seconds: int = _WAIT_DEFAULT_SECONDS,
         force: bool = False,
         filter: str | None = None,
+        data: str = "",
         *,
         config: RunnableConfig,
     ) -> dict[str, object]:
@@ -257,23 +338,68 @@ def create_bash_process_tool() -> BaseTool:
 
         if action == "list":
             return await _handle_list(session_id)
-        if action in {"output", "kill", "wait"} and pid is None:
+
+        pid_required = {
+            "output",
+            "kill",
+            "wait",
+            "write_stdin",
+            "submit_stdin",
+            "close_stdin",
+        }
+        if action in pid_required and pid is None:
             return {
                 "content": f"action={action!r} requires pid.",
                 "metadata": {"error": "missing_pid", "action": action},
             }
+
         if action == "output":
             assert pid is not None
-            return await _handle_output(session_id, pid, max_lines, since_cursor, filter)
+            return await _handle_output(
+                session_id, pid, max_lines, since_cursor, filter
+            )
         if action == "wait":
             assert pid is not None
             return await _handle_wait(session_id, pid, timeout_seconds)
         if action == "kill":
             assert pid is not None
             return await _handle_kill(session_id, pid, force)
+        if action == "write_stdin":
+            assert pid is not None
+            return await _handle_stdin(
+                session_id,
+                pid,
+                data,
+                append_newline=False,
+                close=False,
+                action=action,
+            )
+        if action == "submit_stdin":
+            assert pid is not None
+            return await _handle_stdin(
+                session_id,
+                pid,
+                data,
+                append_newline=True,
+                close=False,
+                action=action,
+            )
+        if action == "close_stdin":
+            assert pid is not None
+            return await _handle_stdin(
+                session_id,
+                pid,
+                "",
+                append_newline=False,
+                close=True,
+                action=action,
+            )
 
         return {
-            "content": f"Unknown action: {action!r}. Use list, output, wait, or kill.",
+            "content": (
+                "Unknown action. Use list, output, wait, kill, write_stdin, "
+                "submit_stdin, or close_stdin."
+            ),
             "metadata": {"error": "invalid_action"},
         }
 

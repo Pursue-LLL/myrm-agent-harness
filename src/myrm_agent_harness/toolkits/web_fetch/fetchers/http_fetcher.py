@@ -5,7 +5,7 @@
 - toolkits.web_fetch.antibot_detector::is_blocked (POS: Anti-bot detection for crawl results)
 - toolkits.web_fetch.http3_probe::is_quic_egress_available (POS: QUIC egress probe and L1 retry metrics)
 - toolkits.web_fetch.router.site_experience::get_global_site_experience_store (POS: Site experience store)
-- toolkits.browser.pool.proxy::ProxyPool (POS: Proxy rotation pool for CrawlEngine)
+- toolkits.browser.pool.proxy::ProxyPool (POS: Proxy rotation pool for FetchEngine)
 
 [OUTPUT]
 - HttpFetcher: L1 tier fetcher with HTTP/2 default and HTTP/3 retry on antibot/403/empty failure (not 429; skipped when proxy pool active)
@@ -22,14 +22,24 @@ import logging
 from typing import TYPE_CHECKING
 from urllib.parse import urljoin, urlparse
 
-from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError, async_pin_url
-from myrm_agent_harness.core.security.http.secure_fetch import is_ssrf_shield_enabled, parse_allowed_internal_hosts
-from myrm_agent_harness.toolkits.web_fetch.antibot_detector import is_blocked as detect_antibot
+from myrm_agent_harness.core.security.guards.ssrf import (
+    SSRFSecurityError,
+    async_pin_url,
+)
+from myrm_agent_harness.core.security.http.secure_fetch import (
+    is_ssrf_shield_enabled,
+    parse_allowed_internal_hosts,
+)
+from myrm_agent_harness.toolkits.web_fetch.antibot_detector import (
+    is_blocked as detect_antibot,
+)
 from myrm_agent_harness.toolkits.web_fetch.http3_probe import (
     is_quic_egress_available,
     record_http3_retry,
 )
-from myrm_agent_harness.toolkits.web_fetch.router.site_experience import get_global_site_experience_store
+from myrm_agent_harness.toolkits.web_fetch.router.site_experience import (
+    get_global_site_experience_store,
+)
 
 from .protocols import FetcherType, FetchResult
 
@@ -65,7 +75,9 @@ class HttpFetcher:
         self._proxy_pool = proxy_pool
         self._session_vault = session_vault
 
-    async def fetch(self, url: str, *, etag: str | None = None, last_modified: str | None = None) -> FetchResult | None:
+    async def fetch(
+        self, url: str, *, etag: str | None = None, last_modified: str | None = None
+    ) -> FetchResult | None:
         enable_ssrf_shield = is_ssrf_shield_enabled()
         allowed_hosts = parse_allowed_internal_hosts()
 
@@ -91,11 +103,15 @@ class HttpFetcher:
                     allowed_hosts=allowed_hosts,
                     use_http3=True,
                 )
-                if prefer_result is not None and not self._should_retry_with_http3(prefer_result):
+                if prefer_result is not None and not self._should_retry_with_http3(
+                    prefer_result
+                ):
                     return prefer_result
 
                 site_store.set_prefer_http3(domain, enabled=False)
-                logger.info("L1 HTTP/3 prefer_http3 cleared for %s after QUIC failure", domain)
+                logger.info(
+                    "L1 HTTP/3 prefer_http3 cleared for %s after QUIC failure", domain
+                )
                 return prefer_result
 
             http2_result = await self._fetch_with_redirects(
@@ -123,7 +139,10 @@ class HttpFetcher:
                 use_http3=True,
             )
 
-            http3_succeeded = http3_result is not None and not self._should_retry_with_http3(http3_result)
+            http3_succeeded = (
+                http3_result is not None
+                and not self._should_retry_with_http3(http3_result)
+            )
             record_http3_retry(succeeded=http3_succeeded)
             if http3_succeeded:
                 site_store.set_prefer_http3(domain)
@@ -150,7 +169,11 @@ class HttpFetcher:
         try:
             domain = self._extract_domain(url)
             entry = await self._session_vault.load(domain)
-            if not entry or not entry.storage_state or "cookies" not in entry.storage_state:
+            if (
+                not entry
+                or not entry.storage_state
+                or "cookies" not in entry.storage_state
+            ):
                 return None
 
             cookie_jar = http.cookiejar.CookieJar()
@@ -185,7 +208,9 @@ class HttpFetcher:
                 )
             return cookie_jar
         except Exception as exc:
-            logger.warning("HttpFetcher failed to load session cookies for %s: %s", url, exc)
+            logger.warning(
+                "HttpFetcher failed to load session cookies for %s: %s", url, exc
+            )
             return None
 
     @staticmethod
@@ -235,7 +260,9 @@ class HttpFetcher:
 
             if enable_ssrf_shield:
                 try:
-                    safe_url, host_header = await async_pin_url(current_url, allowed_hosts)
+                    safe_url, host_header = await async_pin_url(
+                        current_url, allowed_hosts
+                    )
                     request_url = safe_url
                     request_headers.update(host_header)
                 except SSRFSecurityError as exc:
@@ -251,7 +278,9 @@ class HttpFetcher:
                 response = await AsyncFetcher.get(request_url, **kwargs)
 
                 if response.status in (301, 302, 303, 307, 308):
-                    location = response.headers.get("Location") or response.headers.get("location")
+                    location = response.headers.get("Location") or response.headers.get(
+                        "location"
+                    )
                     if not location:
                         break
                     current_url = urljoin(current_url, location)
@@ -263,7 +292,9 @@ class HttpFetcher:
                 logger.warning("HttpFetcher failed at %s — %s", current_url, exc)
                 return None
 
-        logger.warning("HttpFetcher failed: Too many redirects (%s) for %s", _MAX_REDIRECTS, url)
+        logger.warning(
+            "HttpFetcher failed: Too many redirects (%s) for %s", _MAX_REDIRECTS, url
+        )
         return None
 
     def _build_request_kwargs(
@@ -309,11 +340,14 @@ class HttpFetcher:
                 fetcher_type=FetcherType.HTTP,
             )
 
-        content_type = (resp_headers.get("content-type") or "").split(";")[0].strip().lower()
+        content_type = (
+            (resp_headers.get("content-type") or "").split(";")[0].strip().lower()
+        )
         is_text = (
             not content_type
             or content_type.startswith("text/")
-            or content_type in ("application/json", "application/xml", "application/javascript")
+            or content_type
+            in ("application/json", "application/xml", "application/javascript")
         )
 
         body = getattr(response, "body", b"")

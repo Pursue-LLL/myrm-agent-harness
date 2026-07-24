@@ -196,10 +196,11 @@ PermissionManager (Protocol)
 2. 扩展 PATH 搜索
 3. 常见安装路径（/usr/local/bin, ~/.local/bin）
 4. npm global
-5. 版本检测（`--version`）
+5. 可选版本检测（`--version`，按调用方需要开启）
+6. 可选强制刷新（`refresh=True`，绕过缓存）
 
 **返回**：`list[DetectedBackend]`（name, path, version）
-**缓存**：检测结果缓存，避免重复检测
+**缓存**：进程级双缓存（带版本 / 不带版本）+ 软 TTL（默认 300s），避免重复路径扫描与重复版本探测，同时避免长期陈旧结果常驻
 
 ### 3.7 HealthMonitor（健康监控）
 

@@ -1,4 +1,4 @@
-"""CrawlEngine fetch, degradation, and router feedback helpers.
+"""FetchEngine fetch, degradation, and router feedback helpers.
 
 [POS]
 Mixin: L1/L2/L3 fetch+pipeline, tier degradation, adaptive router feedback.
@@ -17,7 +17,7 @@ from .engine_types import DEGRADABLE_4XX
 from .fetchers.protocols import FetcherType, FetchResult
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.web_fetch.engine import CrawlEngine
+    from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +30,9 @@ except (ImportError, TypeError):
     logger.warning("psutil not available, resource tracking disabled")
 
 
-class CrawlEngineFetchMixin:
+class FetchEngineFetchMixin:
     async def _try_fetch_and_process(
-        self: CrawlEngine,
+        self: FetchEngine,
         url: str,
         fetcher_type: FetcherType,
         *,
@@ -138,7 +138,7 @@ class CrawlEngineFetchMixin:
         return doc, True, latency_ms, cpu_percent, memory_mb, fetch_result
 
     async def _try_and_report(
-        self: CrawlEngine,
+        self: FetchEngine,
         url: str,
         fetcher_type: FetcherType,
         *,
@@ -154,7 +154,7 @@ class CrawlEngineFetchMixin:
         return doc, degradable, latency, cpu, mem, fetch_result
 
     async def _crawl_with_degradation(
-        self: CrawlEngine,
+        self: FetchEngine,
         url: str,
         *,
         etag: str | None = None,
@@ -250,7 +250,7 @@ class CrawlEngineFetchMixin:
         return doc, result
 
     def _report_feedback(
-        self: CrawlEngine,
+        self: FetchEngine,
         url: str,
         fetcher_type: FetcherType,
         success: bool,

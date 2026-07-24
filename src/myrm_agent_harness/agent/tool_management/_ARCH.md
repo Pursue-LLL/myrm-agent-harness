@@ -11,7 +11,7 @@ Detailed design: [TOOL_MANAGEMENT_SYSTEM.md](TOOL_MANAGEMENT_SYSTEM.md)
 | Track | Entry | CORE file/bash | SSOT |
 | --- | --- | --- | --- |
 | General Agent | Default saved agent; Web non-fast; Channel/IM; Cron/Kanban | Always on | `tool_layers.py` CORE + server `tool_mount.resolve_agent_mount` |
-| Search/Fast | Web `action_mode=fast` | Off | `myrm-agent-server/.../params/converter.py` |
+| Search/Fast | Web `action_mode=fast` | UECD read-only file_read | `myrm-agent-server/.../params/converter.py` + `tool_mount` |
 | Cron subset | Per-job `tools_allowed` | Optional off | `myrm-agent-server/.../cron/adapters/tools_policy.py` |
 
 `enabled_builtin_tools` lists GUI-togglable products only. `file_ops` / `code_execute` are General baseline: stripped on DB persist and forced on General runs. Channel/IM accepts General agents only; Search/Fast is Web fast mode, not channel binding.

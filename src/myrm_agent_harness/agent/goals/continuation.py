@@ -3,6 +3,7 @@
 [INPUT]
 - .protocols::GoalProvider (POS: Goal provider protocol)
 - .audit::build_continuation_prompt, build_judge_criteria, build_wrapup_prompt (POS: Prompt/criteria builders)
+- .continuation_checkpoint::check_todo_checkpoint (POS: Per-todo checkpoint detection)
 - .continuation_drift::check_goal_drift (POS: Goal drift detection for continuation guard chain)
 - .invariant_snapshot::ProtectedFileViolation, verify_protected_integrity (POS: Post-hoc tamper detection)
 - .types::ContinuationDecision, GoalStatus (POS: Guard chain result)
@@ -17,8 +18,8 @@
 [POS]
 Core logic for determining if a goal should automatically continue to the next turn.
 Evaluates budget, suppression, cancellation, steering, convergence, loop restart,
-goal drift detection, sandbox boundary HITL, semantic completion, and protected file
-integrity (InvariantSnapshot tamper detection).
+goal drift detection, sandbox boundary HITL, per-todo checkpoint, semantic completion,
+and protected file integrity (InvariantSnapshot tamper detection).
 Returns a structured ContinuationDecision with verdict/reason for downstream consumers.
 """
 
@@ -58,6 +59,7 @@ _MAX_VERIFICATION_RETRIES = 3
 
 _WAIT_TIMEOUT_PAUSE_REASON = "Wait timeout exceeded — goal paused"
 
+from .continuation_checkpoint import check_todo_checkpoint as _check_todo_checkpoint
 from .continuation_drift import (
     _DRIFT_CHECK_INTERVAL,
     check_goal_drift as _check_goal_drift,
@@ -482,6 +484,12 @@ async def check_continuation(
         drift_decision = await _check_goal_drift(goal_provider, goal, collected_messages)
         if drift_decision is not None:
             return drift_decision
+
+    # 6.5c Per-todo checkpoint: PAUSE when new todos completed (opt-in)
+    if tools_called_this_turn:
+        checkpoint_decision = await _check_todo_checkpoint(goal_provider, goal)
+        if checkpoint_decision is not None:
+            return checkpoint_decision
 
     # 7. Semantic completion judge (skip first N turns)
     last_judge_reason: str | None = None

@@ -63,6 +63,12 @@ class ComputerSession:
         self._always_permission_granted: bool = False
         self._operation_foreground_waived: bool = False
 
+    def reset_runtime_permission_cache(self) -> None:
+        """Clear in-memory foreground/app approval shortcuts (E2E/dev recovery)."""
+        self._session_permission_granted = False
+        self._always_permission_granted = False
+        self._operation_foreground_waived = False
+
     @property
     def screen_info(self) -> ScreenInfo:
         if self._screen_info is None:

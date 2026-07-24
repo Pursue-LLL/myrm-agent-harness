@@ -6,7 +6,7 @@
 - RoundRobinProxyPool: Default implementation with round-robin rotation and sticky sessions
 
 [POS]
-Manages proxy rotation across Browser Pool and CrawlEngine. Supports:
+Manages proxy rotation across Browser Pool and FetchEngine. Supports:
 1. Round-robin rotation across multiple proxies
 2. Sticky sessions (same proxy for a given session_id with TTL)
 3. Concurrency-safe in asyncio single-threaded event loop

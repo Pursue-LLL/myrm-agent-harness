@@ -61,9 +61,6 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     set_security_config,
 )
 from myrm_agent_harness.agent.streaming.step_builder import build_step_data
-from myrm_agent_harness.toolkits.web_fetch.web_crawl_agent_tools import (
-    create_web_crawl_tool,
-)
 from myrm_agent_harness.utils.runtime.background_job_finish_registry import (
     BackgroundJobFinishHandler,
     BackgroundJobFinishResult,
@@ -85,7 +82,6 @@ __all__ = [
     "configure_background_job_store",
     "count_running_background_shell_jobs",
     "create_extraction_llm_func",
-    "create_web_crawl_tool",
     "EVICTED_BASENAME_PATTERN",
     "get_background_job_store",
     "get_background_registry",

@@ -136,10 +136,16 @@ def apply_langgraph_tool_args_guard() -> None:
                 stashed = _args_stash.pop(tc_id, None)
                 if stashed is not None:
                     tool_call["args"] = stashed
-                    logger.info("Recovered tool_call args from stash for %s", tool_call.get("name"))
+                    logger.info(
+                        "Recovered tool_call args from stash for %s",
+                        tool_call.get("name"),
+                    )
                 else:
                     tool_call["args"] = {}
-                    logger.warning("Tool call args None for %s and no stash available", tool_call.get("name"))
+                    logger.warning(
+                        "Tool call args None for %s and no stash available",
+                        tool_call.get("name"),
+                    )
             else:
                 _args_stash.pop(tc_id, None)
 
@@ -208,7 +214,9 @@ def apply_langgraph_tool_args_guard() -> None:
                 )
                 tool_runtimes.append(tool_runtime)
 
-            from myrm_agent_harness.agent.middlewares.concurrency_router import build_tool_execution_stages
+            from myrm_agent_harness.agent.middlewares.concurrency_router import (
+                build_tool_execution_stages,
+            )
 
             stage_plan = build_tool_execution_stages(tool_calls)
             outputs: list[object] = []
@@ -218,14 +226,21 @@ def apply_langgraph_tool_args_guard() -> None:
                 if len(stage) > 1:
                     for idx in stage:
                         tool_calls[idx]["__smart_concurrent_safe__"] = True
-                    coros = [self._arun_one(tool_calls[idx], input_type, tool_runtimes[idx]) for idx in stage]
+                    coros = [
+                        self._arun_one(tool_calls[idx], input_type, tool_runtimes[idx])
+                        for idx in stage
+                    ]
                     stage_outputs = await asyncio.gather(*coros)
                     for idx, out in zip(stage, stage_outputs, strict=False):
                         executed_mask[idx] = True
                         outputs.append(out)
 
                     failed_idx = next(
-                        (idx for idx, out in zip(stage, stage_outputs, strict=False) if _tool_output_failed(out)),
+                        (
+                            idx
+                            for idx, out in zip(stage, stage_outputs, strict=False)
+                            if _tool_output_failed(out)
+                        ),
                         None,
                     )
                     if failed_idx is not None:
@@ -238,7 +253,9 @@ def apply_langgraph_tool_args_guard() -> None:
                     continue
 
                 idx = stage[0]
-                out = await self._arun_one(tool_calls[idx], input_type, tool_runtimes[idx])
+                out = await self._arun_one(
+                    tool_calls[idx], input_type, tool_runtimes[idx]
+                )
                 executed_mask[idx] = True
                 outputs.append(out)
 
@@ -281,7 +298,9 @@ def apply_langgraph_tool_args_guard() -> None:
                 )
                 tool_runtimes.append(tool_runtime)
 
-            from myrm_agent_harness.agent.middlewares.concurrency_router import build_tool_execution_stages
+            from myrm_agent_harness.agent.middlewares.concurrency_router import (
+                build_tool_execution_stages,
+            )
 
             stage_plan = build_tool_execution_stages(tool_calls)
             outputs: list[object] = []
@@ -297,13 +316,24 @@ def apply_langgraph_tool_args_guard() -> None:
                         stage_calls = [tool_calls[idx] for idx in stage]
                         stage_input_types = [input_type] * len(stage_calls)
                         stage_runtimes = [tool_runtimes[idx] for idx in stage]
-                        stage_outputs = list(executor.map(self._run_one, stage_calls, stage_input_types, stage_runtimes))
+                        stage_outputs = list(
+                            executor.map(
+                                self._run_one,
+                                stage_calls,
+                                stage_input_types,
+                                stage_runtimes,
+                            )
+                        )
                     for idx, out in zip(stage, stage_outputs, strict=False):
                         executed_mask[idx] = True
                         outputs.append(out)
 
                     failed_idx = next(
-                        (idx for idx, out in zip(stage, stage_outputs, strict=False) if _tool_output_failed(out)),
+                        (
+                            idx
+                            for idx, out in zip(stage, stage_outputs, strict=False)
+                            if _tool_output_failed(out)
+                        ),
                         None,
                     )
                     if failed_idx is not None:

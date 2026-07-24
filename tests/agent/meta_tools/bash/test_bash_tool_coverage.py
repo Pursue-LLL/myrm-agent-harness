@@ -207,6 +207,67 @@ async def test_bash_tool_background_path_returns_pid_metadata() -> None:
 
 
 @pytest.mark.asyncio
+async def test_bash_tool_interactive_command_allowed_in_background() -> None:
+    mock_executor = MagicMock()
+    mock_bash_executor = AsyncMock()
+    fake_info = MagicMock(
+        pid=100,
+        job_id="job-interactive-bg",
+        command="npx create-next-app my-app",
+        status="running",
+    )
+    mock_bash_executor.spawn_background.return_value = fake_info
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.extract_context_from_runnable_config",
+            return_value={"session_id": "test-session"},
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.executors.base.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash.bash_executor.BashExecutor",
+            return_value=mock_bash_executor,
+        ),
+        patch(
+            "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+            AsyncMock(),
+        ),
+    ):
+        tool = create_bash_code_execute_tool()
+        result = await tool.ainvoke(
+            {
+                "command": "npx create-next-app my-app",
+                "reason": "scaffold new project",
+                "run_in_background": True,
+            },
+            config={"configurable": {"context": {"session_id": "s"}}},
+        )
+
+    assert result["metadata"]["background"] is True
+    assert result["metadata"]["pid"] == 100
+    mock_bash_executor.spawn_background.assert_awaited_once()
+    content = str(result["content"])
+    assert "submit_stdin" in content
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_interactive_command_blocked_in_foreground() -> None:
+    tool = create_bash_code_execute_tool()
+    with pytest.raises(Exception, match="interactive|template|option"):
+        await tool.ainvoke(
+            {
+                "command": "npx create-next-app my-app",
+                "reason": "scaffold new project",
+                "run_in_background": False,
+            },
+            config={"configurable": {"context": {"session_id": "s"}}},
+        )
+
+
+@pytest.mark.asyncio
 async def test_bash_tool_foreground_success_returns_content() -> None:
     mocks = _patch_bash_tool_success(
         {
@@ -301,7 +362,7 @@ async def test_bash_tool_interactive_command_raises_tool_error() -> None:
         tool = create_bash_code_execute_tool()
         with pytest.raises(Exception, match="interactive not allowed"):
             await tool.ainvoke(
-                {"command": "vim file", "reason": "test"},
+                {"command": "vim file", "reason": "edit file in vim"},
                 config={"configurable": {"context": {"session_id": "s"}}},
             )
 

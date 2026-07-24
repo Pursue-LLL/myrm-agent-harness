@@ -15,7 +15,6 @@ Contains:
 
 [POS]
 Web fetch meta-tool for known-URL full read and RAG extract modes.
-Site-wide crawl lives in web_crawl_tool (EXTENDED, opt-in).
 """
 
 from __future__ import annotations
@@ -95,20 +94,24 @@ def create_web_fetch_tool(
 
     tool_description = f"""web_fetch_tool extracts detailed content from specific webpage URLs.
 {sections}
-For whole-site recursive crawl, use web_crawl_tool (when enabled).
+For JS-heavy or interactive pages, use browser tools. For many pages, call web_fetch with multiple URLs.
 """.strip()
 
     preview_budget = model_preview_chars
 
     class WebFetchInput(BaseModel):
         urls: list[str] = Field(description="Real webpage URL list", min_length=1)
-        operation: str = Field(default=default_op, description=f"Operation type (default '{default_op}')")
+        operation: str = Field(
+            default=default_op, description=f"Operation type (default '{default_op}')"
+        )
         questions: list[str] = Field(
             default_factory=list,
             description="Retrieval query list (fetch_and_extract only, 1-5 queries)",
             max_length=5,
         )
-        reason: str = Field(description="State your reasoning, express key info with minimal tokens, max 100 chars")
+        reason: str = Field(
+            description="State your reasoning, express key info with minimal tokens, max 100 chars"
+        )
 
     @tool("web_fetch_tool", description=tool_description, args_schema=WebFetchInput)
     async def web_fetch_func(
@@ -123,7 +126,9 @@ For whole-site recursive crawl, use web_crawl_tool (when enabled).
         logger = get_agent_logger(__name__)
 
         if not allow_private_networks:
-            from myrm_agent_harness.core.security.guards.ssrf import validate_url_for_ssrf
+            from myrm_agent_harness.core.security.guards.ssrf import (
+                validate_url_for_ssrf,
+            )
             from myrm_agent_harness.utils.url_utils import check_url_exfiltration
 
             for url in urls:
@@ -134,12 +139,18 @@ For whole-site recursive crawl, use web_crawl_tool (when enabled).
                         user_hint="The URL is blocked for security reasons. Use a different, publicly accessible URL.",
                     )
 
-                exfiltration_warnings = check_url_exfiltration(url, allow_private_networks=allow_private_networks)
+                exfiltration_warnings = check_url_exfiltration(
+                    url, allow_private_networks=allow_private_networks
+                )
                 if exfiltration_warnings:
-                    from myrm_agent_harness.utils.url_utils import sanitize_url_for_error
+                    from myrm_agent_harness.utils.url_utils import (
+                        sanitize_url_for_error,
+                    )
 
                     safe_url = sanitize_url_for_error(url)
-                    logger.warning(" Potential data exfiltration detected in URL: %s", safe_url)
+                    logger.warning(
+                        " Potential data exfiltration detected in URL: %s", safe_url
+                    )
                     for warning in exfiltration_warnings:
                         logger.warning(" - %s", warning)
                     raise ToolError(
@@ -159,7 +170,9 @@ For whole-site recursive crawl, use web_crawl_tool (when enabled).
             )
             evicted_ref = result.get("evicted_ref")
             if isinstance(evicted_ref, str) and evicted_ref:
-                from myrm_agent_harness.toolkits.web_fetch.spill import emit_web_fetch_evicted_ref
+                from myrm_agent_harness.toolkits.web_fetch.spill import (
+                    emit_web_fetch_evicted_ref,
+                )
 
                 await emit_web_fetch_evicted_ref(evicted_ref)
             return result
@@ -183,8 +196,15 @@ For whole-site recursive crawl, use web_crawl_tool (when enabled).
             allow_private_networks=allow_private_networks,
         )
 
-        if sufficiency_config and sufficiency_config.enabled and sufficiency_llm_config and result.get("content"):
-            from myrm_agent_harness.toolkits.retriever.sufficiency import evaluate_sufficiency
+        if (
+            sufficiency_config
+            and sufficiency_config.enabled
+            and sufficiency_llm_config
+            and result.get("content")
+        ):
+            from myrm_agent_harness.toolkits.retriever.sufficiency import (
+                evaluate_sufficiency,
+            )
 
             original_query = " | ".join(questions)
             verdict = await evaluate_sufficiency(
@@ -194,13 +214,19 @@ For whole-site recursive crawl, use web_crawl_tool (when enabled).
                 config=sufficiency_config,
             )
 
-            if not verdict.is_sufficient and verdict.confidence >= sufficiency_config.confidence_threshold:
+            if (
+                not verdict.is_sufficient
+                and verdict.confidence >= sufficiency_config.confidence_threshold
+            ):
                 guidance_parts: list[str] = []
                 if verdict.missing_aspects:
-                    guidance_parts.append("**Missing information**: " + "; ".join(verdict.missing_aspects))
+                    guidance_parts.append(
+                        "**Missing information**: " + "; ".join(verdict.missing_aspects)
+                    )
                 if verdict.suggested_queries:
                     guidance_parts.append(
-                        "**Suggested follow-up searches**: " + ", ".join(f'"{q}"' for q in verdict.suggested_queries)
+                        "**Suggested follow-up searches**: "
+                        + ", ".join(f'"{q}"' for q in verdict.suggested_queries)
                     )
                 if verdict.negative_constraint_violations:
                     guidance_parts.append(
@@ -218,7 +244,9 @@ For whole-site recursive crawl, use web_crawl_tool (when enabled).
                         "confidence": verdict.confidence,
                         "missing_aspects": list(verdict.missing_aspects),
                         "suggested_queries": list(verdict.suggested_queries),
-                        "negative_constraint_violations": list(verdict.negative_constraint_violations),
+                        "negative_constraint_violations": list(
+                            verdict.negative_constraint_violations
+                        ),
                     }
 
         return result
@@ -234,18 +262,21 @@ async def _fetch_full_content(
     preview_chars: int | None = None,
 ) -> dict[str, str | dict[str, object] | None]:
     """Get webpage content with head/tail preview and optional sandbox spill."""
-    from myrm_agent_harness.toolkits.web_fetch import CrawlEngine, web_fetch_tools
+    from myrm_agent_harness.toolkits.web_fetch import FetchEngine, web_fetch_tools
     from myrm_agent_harness.toolkits.web_fetch.spill import (
         DEFAULT_MODEL_PREVIEW_CHARS,
         maybe_spill_web_fetch_content,
     )
-    from myrm_agent_harness.utils.context_format import format_crawl_results, wrap_with_external_sources_tag
+    from myrm_agent_harness.utils.context_format import (
+        format_crawl_results,
+        wrap_with_external_sources_tag,
+    )
 
     budget = preview_chars if preview_chars is not None else DEFAULT_MODEL_PREVIEW_CHARS
 
     need_custom_engine = use_raw_markdown or allow_private_networks
     engine = (
-        CrawlEngine(
+        FetchEngine(
             use_raw_markdown=use_raw_markdown,
             allow_private_networks=allow_private_networks,
             session_vault=web_fetch_tools._http_fetcher._session_vault,
@@ -262,17 +293,22 @@ async def _fetch_full_content(
         )
 
     sources_metadata = [
-        {"url": doc.metadata.get("url", url), "title": doc.metadata.get("title", "")} for url, doc in success_results
+        {"url": doc.metadata.get("url", url), "title": doc.metadata.get("title", "")}
+        for url, doc in success_results
     ]
 
-    formatted_context = format_crawl_results(success_results=success_results, include_title=True, include_date=False)
+    formatted_context = format_crawl_results(
+        success_results=success_results, include_title=True, include_date=False
+    )
     if not formatted_context:
         raise ToolError(
             "No content found in the provided URLs",
             user_hint="The pages may be empty, require authentication, or block automated access. Try different URLs.",
         )
 
-    from myrm_agent_harness.toolkits.web_fetch.content_sanitize import strip_base64_images_from_markdown
+    from myrm_agent_harness.toolkits.web_fetch.content_sanitize import (
+        strip_base64_images_from_markdown,
+    )
 
     formatted_context = strip_base64_images_from_markdown(formatted_context)
 
@@ -299,20 +335,26 @@ async def _fetch_and_extract(
     allow_private_networks: bool = False,
 ) -> dict[str, str | dict[str, object]]:
     """Retrieve relevant content snippets from webpages."""
-    from myrm_agent_harness.toolkits.retriever.embedding.factory import get_embedding_service
+    from myrm_agent_harness.toolkits.retriever.embedding.factory import (
+        get_embedding_service,
+    )
     from myrm_agent_harness.toolkits.retriever.engine import retriever_tools
-    from myrm_agent_harness.toolkits.retriever.reranker.factory import get_reranker_service
+    from myrm_agent_harness.toolkits.retriever.reranker.factory import (
+        get_reranker_service,
+    )
     from myrm_agent_harness.utils.context_format import wrap_with_external_sources_tag
 
     reranker = get_reranker_service(reranker_config)
     embeddings = get_embedding_service(embedding_config)
-    url_metadata_list, formatted_context, error = await retriever_tools.retrieve_from_urls(
-        urls=urls,
-        questions=questions,
-        reranker=reranker,
-        embeddings=embeddings,
-        top_k=10,
-        allow_private_networks=allow_private_networks,
+    url_metadata_list, formatted_context, error = (
+        await retriever_tools.retrieve_from_urls(
+            urls=urls,
+            questions=questions,
+            reranker=reranker,
+            embeddings=embeddings,
+            top_k=10,
+            allow_private_networks=allow_private_networks,
+        )
     )
 
     if error:
@@ -327,6 +369,12 @@ async def _fetch_and_extract(
         )
 
     return {
-        "content": wrap_with_external_sources_tag(formatted_context, source="web_fetch"),
-        "metadata": {"sources": url_metadata_list, "operation": "fetch_and_extract", "questions": questions},
+        "content": wrap_with_external_sources_tag(
+            formatted_context, source="web_fetch"
+        ),
+        "metadata": {
+            "sources": url_metadata_list,
+            "operation": "fetch_and_extract",
+            "questions": questions,
+        },
     }

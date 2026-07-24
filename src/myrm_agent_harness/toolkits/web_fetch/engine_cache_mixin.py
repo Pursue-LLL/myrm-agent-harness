@@ -1,4 +1,4 @@
-"""CrawlEngine cache, coalescing, and background revalidation helpers.
+"""FetchEngine cache, coalescing, and background revalidation helpers.
 
 [POS]
 Mixin: LRU cache hits, SWR background workers, fetch error normalization.
@@ -16,13 +16,13 @@ from langchain_core.documents import Document
 from .engine_types import BackgroundTask, CachedDocument
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.web_fetch.engine import CrawlEngine
+    from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 
 logger = logging.getLogger(__name__)
 
 
-class CrawlEngineCacheMixin:
-    def _ensure_workers_started(self: CrawlEngine) -> None:
+class FetchEngineCacheMixin:
+    def _ensure_workers_started(self: FetchEngine) -> None:
         """Lazy start background workers (idempotent, thread-safe)."""
         if self._workers_started:
             return
@@ -38,7 +38,7 @@ class CrawlEngineCacheMixin:
                 self._background_workers.append(worker)
             self._workers_started = True
 
-    def _calculate_priority(self: CrawlEngine, cache_key: str) -> int:
+    def _calculate_priority(self: FetchEngine, cache_key: str) -> int:
         """Compute background task priority (time decay + access frequency)."""
         stats = self._url_access_stats.get(cache_key)
         if not stats:
@@ -50,7 +50,7 @@ class CrawlEngineCacheMixin:
         return -round(effective_count)
 
     def _handle_cache_hit(
-        self: CrawlEngine, cached_item: CachedDocument, is_expired: bool, url: str, cache_key: str
+        self: FetchEngine, cached_item: CachedDocument, is_expired: bool, url: str, cache_key: str
     ) -> Document | None:
         """Handle cache hit logic (fresh / stale-while-revalidate / stale)."""
         cache_age = time.time() - cached_item.cached_at
@@ -78,7 +78,7 @@ class CrawlEngineCacheMixin:
         return cached_item.doc
 
     async def _handle_fetch_error(
-        self: CrawlEngine, url: str, cache_key: str, future: asyncio.Future[Document | None], error: Exception
+        self: FetchEngine, url: str, cache_key: str, future: asyncio.Future[Document | None], error: Exception
     ) -> Document | None:
         """Unified fetch error handling."""
         self._fail_cache.set(cache_key, True)
@@ -99,7 +99,7 @@ class CrawlEngineCacheMixin:
             future.set_exception(error)
         raise
 
-    async def _background_worker(self: CrawlEngine) -> None:
+    async def _background_worker(self: FetchEngine) -> None:
         """Background worker: dequeue tasks from priority queue and execute."""
         while True:
             try:
@@ -115,7 +115,7 @@ class CrawlEngineCacheMixin:
                 logger.error(f"Background worker error: {e}", exc_info=True)
 
     async def _background_revalidate(
-        self: CrawlEngine, url: str, cache_key: str, cached_item: CachedDocument
+        self: FetchEngine, url: str, cache_key: str, cached_item: CachedDocument
     ) -> None:
         """Background async refresh of stale cache (Stale-While-Revalidate + 30s timeout)."""
         start = time.perf_counter()

@@ -1,4 +1,4 @@
-"""Tests for CrawlEngine L4 escalation hook."""
+"""Tests for FetchEngine L4 escalation hook."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.web_fetch.engine import CrawlEngine
+from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 from myrm_agent_harness.toolkits.web_fetch.escalation.protocols import EscalationFetchResult
 from myrm_agent_harness.toolkits.web_fetch.fetchers.protocols import FetcherType
 
@@ -21,7 +21,7 @@ class _StubProvider:
 
 @pytest.mark.asyncio
 async def test_try_escalation_returns_document_when_provider_succeeds() -> None:
-    engine = CrawlEngine()
+    engine = FetchEngine()
     provider = _StubProvider(
         EscalationFetchResult(
             url="https://example.com",
@@ -43,7 +43,7 @@ async def test_try_escalation_returns_document_when_provider_succeeds() -> None:
 
 @pytest.mark.asyncio
 async def test_crawl_with_degradation_skips_escalation_when_disabled() -> None:
-    engine = CrawlEngine()
+    engine = FetchEngine()
     provider = _StubProvider(
         EscalationFetchResult(url="https://example.com", content="remote", provider_id="stub")
     )
@@ -66,7 +66,7 @@ async def test_escalation_prefers_context_over_instance_providers() -> None:
     context_provider = _StubProvider(
         EscalationFetchResult(url="https://example.com", content="context", provider_id="context")
     )
-    engine = CrawlEngine()
+    engine = FetchEngine()
     engine.set_escalation_providers([instance_provider])
 
     with bind_web_fetch_escalation_context(providers=[context_provider], launch_mode=None):
@@ -83,7 +83,7 @@ async def test_try_escalation_records_failure_when_all_providers_fail() -> None:
     from myrm_agent_harness.toolkits.web_fetch.escalation.metrics import web_fetch_escalation_metrics
 
     before = web_fetch_escalation_metrics.snapshot()["failure_count"]
-    engine = CrawlEngine()
+    engine = FetchEngine()
     provider = _StubProvider(None)
     engine.set_escalation_providers([provider])
 
@@ -95,7 +95,7 @@ async def test_try_escalation_records_failure_when_all_providers_fail() -> None:
 
 @pytest.mark.asyncio
 async def test_crawl_with_degradation_calls_escalation_after_l3_failure() -> None:
-    engine = CrawlEngine()
+    engine = FetchEngine()
     provider = _StubProvider(
         EscalationFetchResult(url="https://example.com", content="remote body", provider_id="stub")
     )

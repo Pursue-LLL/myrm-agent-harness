@@ -6,13 +6,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from langchain_core.documents import Document
 
-from myrm_agent_harness.toolkits.web_fetch.engine import CrawlEngine
+from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 
 
 @pytest.mark.asyncio
 async def test_concurrent_requests_coalescing():
     """测试并发请求合并：10 个协程同时 crawl 同一 URL，只发起 1 次网络调用"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
     mock_doc = Document(page_content="test content", metadata={"url": "https://example.com"})
 
     with patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:
@@ -35,7 +35,7 @@ async def test_concurrent_requests_coalescing():
 @pytest.mark.asyncio
 async def test_coalescing_with_different_urls():
     """测试不同 URL 不会被合并"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
     mock_doc1 = Document(page_content="content1", metadata={})
     mock_doc2 = Document(page_content="content2", metadata={})
 
@@ -59,7 +59,7 @@ async def test_coalescing_with_different_urls():
 @pytest.mark.asyncio
 async def test_coalescing_exception_propagation():
     """测试请求合并时异常正确传播到所有等待者"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
 
     async def mock_crawl_with_delay(url, **kwargs):
         """模拟真实网络延迟，确保所有协程都能注册到 future"""
@@ -91,7 +91,7 @@ async def test_coalescing_exception_propagation():
 @pytest.mark.asyncio
 async def test_coalescing_with_force_refresh():
     """测试 force_refresh 不触发请求合并"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
     mock_doc = Document(page_content="test", metadata={})
 
     with patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:
@@ -111,7 +111,7 @@ async def test_coalescing_with_force_refresh():
 @pytest.mark.asyncio
 async def test_coalescing_sequential_requests():
     """测试顺序请求不触发合并（第二个请求应该命中缓存）"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
     mock_doc = Document(page_content="test", metadata={})
 
     with patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:
@@ -135,7 +135,7 @@ async def test_coalescing_sequential_requests():
 @pytest.mark.asyncio
 async def test_coalescing_high_concurrency():
     """测试高并发场景（100 个协程）"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
     mock_doc = Document(page_content="test", metadata={})
 
     with patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:

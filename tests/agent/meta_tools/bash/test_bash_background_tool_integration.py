@@ -21,7 +21,9 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
     BASH_PROCESS_TOOL_NAME,
     create_bash_process_tool,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import create_bash_code_execute_tool
+from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
+    create_bash_code_execute_tool,
+)
 from myrm_agent_harness.toolkits.code_execution.config import ExecutionConfig
 from myrm_agent_harness.toolkits.code_execution.executors.base import set_executor
 from myrm_agent_harness.toolkits.code_execution.workspace.storage_root_bind import (
@@ -32,13 +34,22 @@ from myrm_agent_harness.toolkits.code_execution.workspace.storage_root_bind impo
 def _make_local_executor(workspace: Path) -> object:
     from unittest.mock import patch as mock_patch
 
-    from myrm_agent_harness.toolkits.code_execution.executors.local.executor import LocalExecutor
-    from myrm_agent_harness.toolkits.code_execution.sandbox.providers.null import NullProvider
-    from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import SandboxStatus
+    from myrm_agent_harness.toolkits.code_execution.executors.local.executor import (
+        LocalExecutor,
+    )
+    from myrm_agent_harness.toolkits.code_execution.sandbox.providers.null import (
+        NullProvider,
+    )
+    from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import (
+        SandboxStatus,
+    )
 
     executor = LocalExecutor(ExecutionConfig())
     executor.bind_workspace(str(workspace))
-    null_result = (NullProvider(), SandboxStatus(enabled=False, provider_name="null", reason="test"))
+    null_result = (
+        NullProvider(),
+        SandboxStatus(enabled=False, provider_name="null", reason="test"),
+    )
     mock_patch(
         "myrm_agent_harness.toolkits.code_execution.sandbox.detector.detect_sandbox_provider",
         return_value=null_result,

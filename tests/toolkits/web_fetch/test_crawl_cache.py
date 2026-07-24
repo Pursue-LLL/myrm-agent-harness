@@ -1,11 +1,11 @@
-"""CrawlEngine 缓存功能测试"""
+"""FetchEngine 缓存功能测试"""
 
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from langchain_core.documents import Document
 
-from myrm_agent_harness.toolkits.web_fetch.engine import CrawlEngine
+from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 
 SSRF_BYPASS = patch(
     "myrm_agent_harness.core.security.guards.ssrf.validate_url_for_ssrf",
@@ -16,7 +16,7 @@ SSRF_BYPASS = patch(
 @pytest.mark.asyncio
 async def test_cache_hit_and_miss():
     """测试缓存命中和未命中"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
     mock_doc = Document(page_content="test", metadata={"url": "https://example.com"})
 
     with patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:
@@ -40,7 +40,7 @@ async def test_cache_hit_and_miss():
 @pytest.mark.asyncio
 async def test_force_refresh():
     """测试强制刷新"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
     mock_doc = Document(page_content="test", metadata={"url": "https://example.com"})
 
     with patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:
@@ -58,7 +58,7 @@ async def test_force_refresh():
 @pytest.mark.asyncio
 async def test_fail_cache():
     """测试失败缓存"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
 
     with SSRF_BYPASS, patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:
         mock_crawl.return_value = (None, None)
@@ -80,7 +80,7 @@ async def test_fail_cache():
 @pytest.mark.asyncio
 async def test_custom_cache_config():
     """测试自定义缓存配置"""
-    engine = CrawlEngine(cache_ttl=7200, cache_maxsize=1000)
+    engine = FetchEngine(cache_ttl=7200, cache_maxsize=1000)
 
     assert engine._crawl_cache.ttl == 7200
     assert engine._crawl_cache.maxsize == 1000
@@ -91,7 +91,7 @@ async def test_custom_cache_config():
 @pytest.mark.asyncio
 async def test_crawl_many_with_cache():
     """测试批量爬取的缓存行为"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
     mock_doc = Document(page_content="test", metadata={})
 
     with SSRF_BYPASS, patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:
@@ -114,7 +114,7 @@ async def test_crawl_many_with_cache():
 @pytest.mark.asyncio
 async def test_crawl_many_force_refresh():
     """测试批量爬取的强制刷新"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
     mock_doc = Document(page_content="test", metadata={})
 
     with patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:

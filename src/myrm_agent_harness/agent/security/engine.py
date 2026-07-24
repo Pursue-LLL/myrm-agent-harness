@@ -178,6 +178,8 @@ def _resolve_target(permission: str, tool_input: dict[str, object], *, tool_name
     if not key:
         return "*"
     value = tool_input.get(key)
+    if not value and permission == "shell_exec":
+        value = tool_input.get("data")
     if not value:
         return "*"
     raw = str(value)
@@ -256,7 +258,11 @@ def evaluate_tool_call(
             classify_command_risk,
         )
 
-        command = str(tool_input.get("command", "")).strip()
+        command = str(
+            tool_input.get("command", "")
+            or tool_input.get("code", "")
+            or tool_input.get("data", "")
+        ).strip()
         if command and classify_command_risk(command) == CommandRiskLevel.SAFE:
             return PermissionAction.ALLOW, ""
 

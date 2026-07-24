@@ -10,7 +10,8 @@
 - build_judge_criteria: Build criteria string for semantic goal completion judge.
 
 [POS]
-Provides the strict verification checklist injected during goal continuation,
+Provides the strict verification checklist injected during goal continuation
+(including checkpoint confirmation injection on resume),
 the wrap-up prompt for budget-exhaustion graceful conclusion,
 and the judge criteria for autonomous completion detection.
 """
@@ -78,6 +79,15 @@ def build_continuation_prompt(goal: Goal, *, last_judge_reason: str | None = Non
             items = "\n".join(f"- {item}" for item in raw_learnings[:5])
             learnings_block = f"\nRelevant learnings from previous goals:\n{items}\n"
 
+    checkpoint_block = ""
+    checkpoint_reason = goal.metadata.get("pause_reason")
+    if (
+        goal.checkpoint_mode == "per_todo"
+        and isinstance(checkpoint_reason, str)
+        and checkpoint_reason.startswith("Checkpoint:")
+    ):
+        checkpoint_block = f"\nUser confirmed previous step: {checkpoint_reason}\nContinue with the next step.\n"
+
     subgoals_block = ""
     if goal.subgoals:
         subgoals_block = "\n\nCRITICAL - Newly Added Subgoals (Latest subgoals take absolute precedence):\n"
@@ -129,6 +139,7 @@ def build_continuation_prompt(goal: Goal, *, last_judge_reason: str | None = Non
         f"{GOAL_CONTINUATION_PREFIX}\n\n"
         f"<untrusted_objective>\n{goal.objective}\n</untrusted_objective>\n"
         f"{learnings_block}"
+        f"{checkpoint_block}"
         f"{subgoals_block}"
         f"{constraints_block}"
         f"{criteria_block}\n\n"

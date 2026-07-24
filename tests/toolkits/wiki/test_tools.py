@@ -415,7 +415,7 @@ class TestFetchUrlAsMarkdown:
         with patch(
             "myrm_agent_harness.toolkits.web_fetch.web_fetch_tools.crawl",
             new_callable=AsyncMock,
-            side_effect=RuntimeError("CrawlEngine unavailable"),
+            side_effect=RuntimeError("FetchEngine unavailable"),
         ), patch(
             "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
             new_callable=AsyncMock,
@@ -439,7 +439,7 @@ class TestFetchUrlAsMarkdown:
         with patch(
             "myrm_agent_harness.toolkits.web_fetch.web_fetch_tools.crawl",
             new_callable=AsyncMock,
-            side_effect=RuntimeError("CrawlEngine unavailable"),
+            side_effect=RuntimeError("FetchEngine unavailable"),
         ), patch(
             "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
             new_callable=AsyncMock,
@@ -449,7 +449,7 @@ class TestFetchUrlAsMarkdown:
                 await _fetch_url_as_markdown("http://example.com/missing")
 
     @pytest.mark.asyncio
-    async def test_uses_crawl_engine_when_available(self) -> None:
+    async def test_uses_fetch_engine_when_available(self) -> None:
         from myrm_agent_harness.toolkits.wiki.wiki_agent_tools import _fetch_url_as_markdown
 
         mock_doc = MagicMock()

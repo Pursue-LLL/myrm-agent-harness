@@ -21,6 +21,8 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Literal
 
+CheckpointMode = Literal["none", "per_todo"]
+
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
@@ -91,6 +93,9 @@ class Goal:
     # and CompletionGuard (post-hoc hash integrity check).
     protected_paths: list[str] = field(default_factory=list)
 
+    # Per-todo checkpoint: PAUSE goal after each todo completion for user confirmation.
+    checkpoint_mode: CheckpointMode = "none"
+
     # Budget configuration
     budget: GoalBudget | None = None
 
@@ -136,6 +141,7 @@ class Goal:
             "auto_approve": self.auto_approve,
             "constraints": self.constraints,
             "protected_paths": self.protected_paths,
+            "checkpoint_mode": self.checkpoint_mode,
             "status": self.status.value,
             "budget": (
                 {
@@ -215,6 +221,7 @@ ContinuationVerdict = Literal[
     "wait",
     "drift_nudge",
     "drift_pause",
+    "checkpoint_pause",
 ]
 
 

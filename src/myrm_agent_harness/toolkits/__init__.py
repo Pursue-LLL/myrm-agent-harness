@@ -6,18 +6,18 @@ Agent-callable tools are exported via dedicated xx_agent_tools.py files.
 
 [INPUT]
 - llms::llm_manager, LLMManager, ChatLiteLLM, create_litellm_model (POS: LLM manager and adapters, 100+ provider support)
-- web_fetch::CrawlEngine (POS: layered crawl engine with HTTP/Browser/Stealth fallback)
+- web_fetch::FetchEngine (POS: layered fetch engine with HTTP/Browser/Stealth fallback)
 - retriever_tools::RetrieverManager (POS: retriever manager class)
-- web_fetch::web_fetch_tools (POS: global CrawlEngine instance)
+- web_fetch::web_fetch_tools (POS: global FetchEngine instance)
 
 [OUTPUT]
 - llm_manager: global LLM manager singleton
 - LLMManager: LLM manager class
 - ChatLiteLLM: LiteLLM chat model
 - create_litellm_model: LiteLLM model factory function
-- CrawlEngine: layered crawl engine
+- FetchEngine: layered fetch engine
 - RetrieverManager: retriever manager class
-- web_fetch_tools: global CrawlEngine instance
+- web_fetch_tools: global FetchEngine instance
 
 [POS]
 Generic, framework-agnostic toolkit collection. No agent coupling — each toolkit is independently usable via `myrm_agent_harness.toolkits.xxx`.
@@ -32,7 +32,7 @@ Generic, framework-agnostic toolkit collection. No agent coupling — each toolk
 - memory: pluggable memory system (vector/relational/graph storage)
 - retriever: retrieval and reranking tools
 - storage: storage service
-- web_fetch: layered crawl engine
+- web_fetch: layered fetch engine
 - web_search: web search tools
 """
 
@@ -41,11 +41,11 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.llms import ChatLiteLLM, LLMManager, create_litellm_model, llm_manager
     from myrm_agent_harness.toolkits.retriever.engine import RetrieverManager
-    from myrm_agent_harness.toolkits.web_fetch import CrawlEngine, web_fetch_tools
+    from myrm_agent_harness.toolkits.web_fetch import FetchEngine, web_fetch_tools
 
 __all__ = [
     "ChatLiteLLM",
-    "CrawlEngine",
+    "FetchEngine",
     "LLMManager",
     "RetrieverManager",
     "create_browser_tools",
@@ -65,7 +65,7 @@ _LAZY_IMPORTS = {
     "LLMManager": ("myrm_agent_harness.toolkits.llms", "LLMManager"),
     "ChatLiteLLM": ("myrm_agent_harness.toolkits.llms", "ChatLiteLLM"),
     "create_litellm_model": ("myrm_agent_harness.toolkits.llms", "create_litellm_model"),
-    "CrawlEngine": ("myrm_agent_harness.toolkits.web_fetch", "CrawlEngine"),
+    "FetchEngine": ("myrm_agent_harness.toolkits.web_fetch", "FetchEngine"),
     "RetrieverManager": ("myrm_agent_harness.toolkits.retriever.engine", "RetrieverManager"),
     "web_fetch_tools": ("myrm_agent_harness.toolkits.web_fetch", "web_fetch_tools"),
     "create_browser_tools": ("myrm_agent_harness.toolkits.browser.tools", "create_browser_tools"),

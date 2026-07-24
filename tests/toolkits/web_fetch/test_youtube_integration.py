@@ -1,9 +1,9 @@
-"""Integration tests for YouTube fast-path in CrawlEngine.
+"""Integration tests for YouTube fast-path in FetchEngine.
 
 Validates the full routing path: YouTube URL detection → transcript extraction →
 fallback to HTML fetcher when transcript unavailable.
 
-No mocking of CrawlEngine internals. Uses real network calls where possible.
+No mocking of FetchEngine internals. Uses real network calls where possible.
 """
 
 from __future__ import annotations
@@ -14,14 +14,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.web_fetch.engine import CrawlEngine
+from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 
 
 @pytest.mark.asyncio
 async def test_youtube_url_routes_to_transcript_extractor() -> None:
-    """CrawlEngine correctly identifies YouTube URLs and routes to extractor."""
+    """FetchEngine correctly identifies YouTube URLs and routes to extractor."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        engine = CrawlEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
+        engine = FetchEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
 
         youtube_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
@@ -46,7 +46,7 @@ async def test_youtube_url_routes_to_transcript_extractor() -> None:
 async def test_non_youtube_url_skips_transcript_extractor() -> None:
     """Non-YouTube URLs do NOT trigger the transcript extractor."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        engine = CrawlEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
+        engine = FetchEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
 
         normal_url = "https://example.com/article"
 
@@ -69,7 +69,7 @@ async def test_non_youtube_url_skips_transcript_extractor() -> None:
 async def test_youtube_fallback_to_html_on_transcript_failure() -> None:
     """When transcript extraction returns None, engine falls back to HTML fetcher."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        engine = CrawlEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
+        engine = FetchEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
 
         youtube_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
@@ -98,7 +98,7 @@ async def test_youtube_languages_passed_to_extractor() -> None:
     custom_langs = ["zh-Hans", "en", "ja"]
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        engine = CrawlEngine(
+        engine = FetchEngine(
             adaptive_router_rules_file=Path(tmpdir) / "rules.pkl",
             youtube_languages=custom_langs,
         )
@@ -125,7 +125,7 @@ async def test_youtube_languages_passed_to_extractor() -> None:
 async def test_youtube_transcript_cached_after_success() -> None:
     """Successfully extracted transcript is cached for subsequent requests."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        engine = CrawlEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
+        engine = FetchEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
 
         youtube_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
         mock_doc = MagicMock(
@@ -155,7 +155,7 @@ async def test_youtube_transcript_cached_after_success() -> None:
 async def test_youtube_fail_does_not_pollute_fail_cache() -> None:
     """YouTube transcript failure + successful HTML fallback should NOT add to fail cache."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        engine = CrawlEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
+        engine = FetchEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
 
         youtube_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
@@ -184,7 +184,7 @@ async def test_youtube_fail_does_not_pollute_fail_cache() -> None:
 async def test_youtube_shorts_url_recognized() -> None:
     """YouTube Shorts URLs are correctly routed through the YouTube fast-path."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        engine = CrawlEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
+        engine = FetchEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
 
         shorts_url = "https://www.youtube.com/shorts/abc123XYZ00"
 
@@ -208,7 +208,7 @@ async def test_youtube_shorts_url_recognized() -> None:
 async def test_youtu_be_short_link_recognized() -> None:
     """youtu.be short links are correctly routed through the YouTube fast-path."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        engine = CrawlEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
+        engine = FetchEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
 
         short_url = "https://youtu.be/dQw4w9WgXcQ"
 
@@ -232,7 +232,7 @@ async def test_youtu_be_short_link_recognized() -> None:
 async def test_youtube_force_refresh_bypasses_cache() -> None:
     """force_refresh=True skips cache and re-extracts YouTube transcript."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        engine = CrawlEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
+        engine = FetchEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
 
         youtube_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
@@ -267,7 +267,7 @@ async def test_youtube_timeout_triggers_fallback() -> None:
     import asyncio as aio
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        engine = CrawlEngine(
+        engine = FetchEngine(
             adaptive_router_rules_file=Path(tmpdir) / "rules.pkl",
             crawl_timeout=0.1,
         )
@@ -302,7 +302,7 @@ async def test_youtube_concurrent_requests_coalescing() -> None:
     import asyncio as aio
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        engine = CrawlEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
+        engine = FetchEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
 
         youtube_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
         call_count = 0
@@ -338,7 +338,7 @@ async def test_youtube_concurrent_requests_coalescing() -> None:
 async def test_youtube_both_transcript_and_fallback_fail() -> None:
     """When both transcript and HTML fallback fail, URL enters fail_cache."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        engine = CrawlEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
+        engine = FetchEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
 
         youtube_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 

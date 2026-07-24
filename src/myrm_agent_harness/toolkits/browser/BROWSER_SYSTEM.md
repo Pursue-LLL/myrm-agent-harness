@@ -19,7 +19,7 @@
 |------|------|-----|
 | 复用用户 Chrome 登录态（JIRA、内网等） | Agent 配置 `browser_source=extension` → Extension Bridge CDP 代理 | server `services/extension/` |
 | 手动登录后跨会话保持 | `SessionVault` 加密保存 Cookies/Storage；`browser_manage` 保存/恢复 | harness `session/` + server `browser_vault` |
-| Agent 跨引擎共享登录态 | SessionVault 注入 CrawlEngine / HttpFetcher | harness `navigation.py` |
+| Agent 跨引擎共享登录态 | SessionVault 注入 FetchEngine / HttpFetcher | harness `navigation.py` |
 | 找回「跟 Agent 聊过的 URL」 | `memory_search_tool`（corpus=sessions opt-in） | harness memory + server adapter |
 
 Extension Bridge 与 SessionVault 覆盖竞品（orca/holaboss）cookie 导入的核心收益，且无需读取 OS 浏览器数据库。
@@ -386,7 +386,7 @@ AES-256-GCM (AEAD)
 - `load()` 时自动检查过期，即时删除
 
 **跨引擎状态共享 (Cross-Engine Global Cookie Jar)**：
-- SessionVault 实例被注入到 `CrawlEngine` 及其底层的 `HttpFetcher` 和 `BrowserFetcher` 中。
+- SessionVault 实例被注入到 `FetchEngine` 及其底层的 `HttpFetcher` 和 `BrowserFetcher` 中。
 - 当 Agent 使用 `browser_navigate_tool` 登录并保存状态后，`web_fetch_tool` (使用 `HttpFetcher`) 可以自动从 SessionVault 中读取对应域名的 Cookies 并注入到请求中，实现无缝的跨引擎状态共享，极大提升了认证页面的抓取效率。
 
 **可插拔后端**：

@@ -5,13 +5,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from langchain_core.documents import Document
 
-from myrm_agent_harness.toolkits.web_fetch.engine import CrawlEngine
+from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 
 
 @pytest.mark.asyncio
 async def test_cache_hit_with_tracking_params():
     """测试带追踪参数的 URL 能命中缓存"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
     mock_doc = Document(page_content="test", metadata={})
 
     with patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:
@@ -35,7 +35,7 @@ async def test_cache_hit_with_tracking_params():
 @pytest.mark.asyncio
 async def test_cache_hit_with_case_difference():
     """测试大小写不同的 URL 能命中缓存"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
     mock_doc = Document(page_content="test", metadata={})
 
     with patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:
@@ -58,7 +58,7 @@ async def test_cache_hit_with_case_difference():
 @pytest.mark.asyncio
 async def test_cache_hit_with_default_port():
     """测试带默认端口的 URL 能命中缓存"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
     mock_doc = Document(page_content="test", metadata={})
 
     with patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:
@@ -81,7 +81,7 @@ async def test_cache_hit_with_default_port():
 @pytest.mark.asyncio
 async def test_cache_hit_with_query_param_order():
     """测试查询参数顺序不同的 URL 能命中缓存"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
     mock_doc = Document(page_content="test", metadata={})
 
     with patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:

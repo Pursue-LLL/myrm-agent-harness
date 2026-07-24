@@ -6,13 +6,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from langchain_core.documents import Document
 
-from myrm_agent_harness.toolkits.web_fetch.engine import CrawlEngine
+from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 
 
 @pytest.mark.asyncio
 async def test_prefetch_loads_cache():
     """测试 prefetch 成功加载缓存"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
     mock_doc = Document(page_content="test", metadata={})
 
     with patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:
@@ -37,7 +37,7 @@ async def test_prefetch_loads_cache():
 @pytest.mark.asyncio
 async def test_prefetch_respects_concurrency():
     """测试 prefetch 遵守并发限制"""
-    engine = CrawlEngine(allow_private_networks=True)
+    engine = FetchEngine(allow_private_networks=True)
     mock_doc = Document(page_content="test", metadata={})
     concurrent_calls = []
 
@@ -62,7 +62,7 @@ async def test_prefetch_respects_concurrency():
 @pytest.mark.asyncio
 async def test_prefetch_silent_failure():
     """测试 prefetch 失败时静默处理"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
 
     with patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:
         mock_crawl.side_effect = RuntimeError("Network error")
@@ -82,7 +82,7 @@ async def test_prefetch_silent_failure():
 @pytest.mark.asyncio
 async def test_prefetch_empty_list():
     """测试 prefetch 空列表"""
-    engine = CrawlEngine()
+    engine = FetchEngine()
 
     with patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:
         await engine.prefetch([])

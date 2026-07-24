@@ -91,9 +91,14 @@ async def create_skill_agent(
     wiki_public_dirs: list[Path | str] | None = None,
     wiki_search_fn: SemanticSearchFn | None = None,
     similarity_checker: SkillSimilarityChecker | None = None,
-    on_session_cleanup: Callable[[Sequence[dict[str, str]], str | None], Awaitable[None]] | None = None,
-    on_loaded_skills_persist: Callable[[list[str], str | None], Awaitable[None]] | None = None,
+    on_session_cleanup: (
+        Callable[[Sequence[dict[str, str]], str | None], Awaitable[None]] | None
+    ) = None,
+    on_loaded_skills_persist: (
+        Callable[[list[str], str | None], Awaitable[None]] | None
+    ) = None,
     enable_file_tools: bool = True,
+    enable_evicted_read: bool = False,
     enable_shell_tools: bool = True,
     enable_answer_tool: bool = False,
     enable_planning: bool = False,
@@ -129,7 +134,10 @@ async def create_skill_agent(
         llm = create_litellm_model(**kwargs)
         logger.info(f" 创建 LLM 实例: {llm_config.model}")
 
-    if privacy_routing_config is not None and privacy_routing_config.local_model is not None:
+    if (
+        privacy_routing_config is not None
+        and privacy_routing_config.local_model is not None
+    ):
         from myrm_agent_harness.toolkits.llms import (
             create_litellm_model as _create_model,
         )
@@ -207,7 +215,9 @@ async def create_skill_agent(
                 routes=new_routes,
                 default=skill_backend.default,
             )
-            logger.info(f" 扁平化合并 MCP Skills + 用户 {len(skill_backend.routes)} 个后端路由")
+            logger.info(
+                f" 扁平化合并 MCP Skills + 用户 {len(skill_backend.routes)} 个后端路由"
+            )
 
         else:
             routes: dict[str, SkillBackendProto] = {
@@ -229,8 +239,14 @@ async def create_skill_agent(
         from dataclasses import fields as dataclass_fields
 
         known_fields = {field.name for field in dataclass_fields(EngineParams)}
-        filtered_params = {key: value for key, value in engine_params_dict.items() if key in known_fields}
-        engine_params = EngineParams(**filtered_params) if filtered_params else EngineParams()
+        filtered_params = {
+            key: value
+            for key, value in engine_params_dict.items()
+            if key in known_fields
+        }
+        engine_params = (
+            EngineParams(**filtered_params) if filtered_params else EngineParams()
+        )
     else:
         engine_params = EngineParams()
 
@@ -337,12 +353,15 @@ async def create_skill_agent(
         on_session_cleanup=on_session_cleanup,
         on_loaded_skills_persist=on_loaded_skills_persist,
         enable_file_tools=enable_file_tools,
+        enable_evicted_read=enable_evicted_read,
         enable_shell_tools=enable_shell_tools,
         enable_answer_tool=enable_answer_tool,
         enable_planning=enable_planning,
         task_workspace_root=task_workspace_root
         or (spec.workspace_binding.root_path if spec.workspace_binding else None),
-        available_tool_names=frozenset(spec.allowed_tools) if spec.allowed_tools else None,
+        available_tool_names=(
+            frozenset(spec.allowed_tools) if spec.allowed_tools else None
+        ),
         available_tool_groups=frozenset(spec.tool_groups) if spec.tool_groups else None,
         library_skill_names=library_skill_names,
     )

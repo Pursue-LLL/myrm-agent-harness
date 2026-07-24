@@ -76,6 +76,7 @@ def get_meta_tools(
     similarity_checker: SkillSimilarityChecker | None = None,
     registry: ToolRegistry | None = None,
     enable_file_tools: bool = True,
+    enable_evicted_read: bool = False,
     enable_shell_tools: bool = True,
     enable_answer_tool: bool = False,
     available_tool_names: frozenset[str] | None = None,
@@ -124,7 +125,9 @@ def get_meta_tools(
         )
 
     # --- Conditional skill filtering based on agent's tool capabilities ---
-    if skills and (available_tool_names is not None or available_tool_groups is not None):
+    if skills and (
+        available_tool_names is not None or available_tool_groups is not None
+    ):
         _atn = available_tool_names or frozenset()
         _atg = available_tool_groups or frozenset()
         pre_count = len(skills)
@@ -200,9 +203,13 @@ def get_meta_tools(
                     hidden_count,
                 )
             else:
-                skill_select_tool = create_select_skill_tool(skills, skill_backend, has_manage_tool=has_manage_tool)
+                skill_select_tool = create_select_skill_tool(
+                    skills, skill_backend, has_manage_tool=has_manage_tool
+                )
                 tools.append(skill_select_tool)
-                logger.info(f" skill_select_tool 已加载({len(model_visible_skills)} 个模型可见技能全部内联)")
+                logger.info(
+                    f" skill_select_tool 已加载({len(model_visible_skills)} 个模型可见技能全部内联)"
+                )
     else:
         if not skills:
             logger.info(" skill_select_tool 未加载(无可用技能)")
@@ -222,7 +229,9 @@ def get_meta_tools(
 
     if has_manage_tool:
         assert write_backend is not None  # narrowed by has_manage_tool
-        skill_mgmt_tool = create_skill_manage_tool(write_backend, skill_backend, similarity_checker)
+        skill_mgmt_tool = create_skill_manage_tool(
+            write_backend, skill_backend, similarity_checker
+        )
         tools.append(skill_mgmt_tool)
         logger.info(" skill_manage_tool 已加载")
 
@@ -238,13 +247,17 @@ def get_meta_tools(
         file_edit_tool = create_file_edit_tool(skills=skills)
         glob_tool = create_glob_tool()
         grep_tool = create_grep_tool()
-        tools.extend([
-            file_read_tool,
-            file_write_tool,
-            file_edit_tool,
-            glob_tool,
-            grep_tool
-        ])
+        tools.extend(
+            [file_read_tool, file_write_tool, file_edit_tool, glob_tool, grep_tool]
+        )
+    elif enable_evicted_read:
+        file_read_tool = create_file_read_tool(
+            skills=skills, path_policy="evicted_uploaded"
+        )
+        tools.append(file_read_tool)
+        logger.info(
+            " UECD read-only file_read_tool mounted (evicted + uploaded paths only)"
+        )
     else:
         logger.info("File tools disabled by caller configuration")
 
@@ -281,7 +294,11 @@ def get_meta_tools(
 
     # PTC tools for bash Python execution — fill the mutable ref so that
     # BashExecutor.ptc_tools is populated before any actual execution.
-    _ptc_tools_ref.extend(t for t in tools if t.name not in ("bash_code_execute_tool", "request_answer_user_tool"))
+    _ptc_tools_ref.extend(
+        t
+        for t in tools
+        if t.name not in ("bash_code_execute_tool", "request_answer_user_tool")
+    )
     logger.info(
         " PTC tools injected into bash_code_execute_tool (%d tools exposed via myrm_tools)",
         len(_ptc_tools_ref),

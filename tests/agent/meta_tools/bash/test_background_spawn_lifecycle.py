@@ -94,7 +94,9 @@ async def test_registry_keeps_spawn_while_sibling_shell_job_running() -> None:
     fast.finish(0)
     await asyncio.sleep(0.08)
 
-    assert get_session_spawn_tool_names("chat-shell") == frozenset({"bash_process_tool"})
+    assert get_session_spawn_tool_names("chat-shell") == frozenset(
+        {"bash_process_tool"}
+    )
     slow.finish(0)
     await asyncio.sleep(0.08)
     assert get_session_spawn_tool_names("chat-shell") == frozenset()

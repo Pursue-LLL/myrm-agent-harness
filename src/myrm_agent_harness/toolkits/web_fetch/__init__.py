@@ -1,33 +1,24 @@
 """Web fetch toolkit.
 
-
 [INPUT]
-- engine::CrawlEngine, FailedResult, SuccessResult (POS: layered crawl engine with HTTP/Browser/Stealth fallback)
-- deep_crawl::DeepCrawlPipeline (POS: recursive site crawl orchestrator)
-- task_store::CrawlTaskStore, CrawlTaskStatus, CrawlTask, CrawlTaskGroupSummary (POS: SQLite task persistence)
-- task_executor::CrawlTaskExecutor (POS: background task executor)
-- rate_limiter::DomainRateLimiter (POS: per-domain rate limiting)
-- robots_parser::RobotsParser, RobotsRules (POS: robots.txt compliance)
+- engine::FetchEngine, FailedResult, SuccessResult (POS: layered single-page fetch engine)
 
 [OUTPUT]
-- CrawlEngine: layered crawl engine (re-export)
-- FailedResult: failed crawl result model (re-export)
-- SuccessResult: successful crawl result model (re-export)
-- web_fetch_tools: global CrawlEngine instance
-- DeepCrawlPipeline: recursive crawl orchestrator (re-export)
-- CrawlTaskStore: SQLite task queue (re-export)
+- FetchEngine: layered fetch engine (re-export)
+- FailedResult: failed fetch result model (re-export)
+- SuccessResult: successful fetch result model (re-export)
+- web_fetch_tools: global FetchEngine instance
 
 [POS]
-Web fetch toolkit entry point. Re-exports the core crawl engine, deep crawl
-pipeline, and supporting components.
+Web fetch toolkit entry point. Re-exports the core single-page fetch engine.
 """
 
-from .engine import CrawlEngine, FailedResult, SuccessResult
+from .engine import FailedResult, FetchEngine, SuccessResult
 
-web_fetch_tools = CrawlEngine()
+web_fetch_tools = FetchEngine()
 
 __all__ = [
-    "CrawlEngine",
+    "FetchEngine",
     "FailedResult",
     "SuccessResult",
     "web_fetch_tools",

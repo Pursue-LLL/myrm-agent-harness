@@ -1,7 +1,7 @@
-"""CrawlEngine shared types and constants.
+"""FetchEngine shared types and constants.
 
 [POS]
-Dataclasses and result aliases shared by CrawlEngine and its internal mixins.
+Dataclasses and result aliases shared by FetchEngine and its internal mixins.
 """
 
 from __future__ import annotations

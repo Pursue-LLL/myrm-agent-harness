@@ -42,7 +42,9 @@ class TestFileSearchEager:
 
         returned_names = {t.name for t in tools}
         assert {"glob_tool", "grep_tool"}.issubset(returned_names)
-        assert {"file_read_tool", "file_write_tool", "file_edit_tool"}.issubset(returned_names)
+        assert {"file_read_tool", "file_write_tool", "file_edit_tool"}.issubset(
+            returned_names
+        )
 
     def test_glob_grep_not_runtime_only_registry(
         self,

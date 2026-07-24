@@ -6,13 +6,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from langchain_core.documents import Document
 
-from myrm_agent_harness.toolkits.web_fetch.engine import CrawlEngine
+from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 
 
 @pytest.mark.asyncio
 async def test_coalescing_timeout_protection():
     """测试请求合并超时后重试"""
-    engine = CrawlEngine(coalescing_timeout=0.5)
+    engine = FetchEngine(coalescing_timeout=0.5)
 
     mock_doc = Document(page_content="test", metadata={})
     call_count = 0
@@ -48,7 +48,7 @@ async def test_coalescing_timeout_protection():
 @pytest.mark.asyncio
 async def test_coalescing_no_timeout_when_fast():
     """测试快速请求不触发超时"""
-    engine = CrawlEngine(coalescing_timeout=2.0)
+    engine = FetchEngine(coalescing_timeout=2.0)
 
     mock_doc = Document(page_content="test", metadata={})
 
@@ -75,7 +75,7 @@ async def test_coalescing_no_timeout_when_fast():
 @pytest.mark.asyncio
 async def test_coalescing_timeout_removes_future():
     """测试超时后 future 被正确移除"""
-    engine = CrawlEngine(coalescing_timeout=0.2)
+    engine = FetchEngine(coalescing_timeout=0.2)
 
     call_count = 0
 

@@ -17,7 +17,7 @@ Tool layer priority registry. Defines CORE/COMMON/EXTENDED three-tier tool prior
 
 Tool loading dual-track (SSOT):
 - General track (Web non-fast, Channel/IM, Cron/Kanban): CORE tools always Turn1 eager via tool_mount.resolve_agent_mount → get_meta_tools(enable_shell_tools=True).
-- Search/Fast track: Web action_mode=fast only — no file/bash (params/converter.py).
+- Search/Fast track: Web `action_mode=fast` only — no write/shell; UECD read-only `file_read_tool` via `enable_evicted_read` (server `tool_mount.resolve_agent_mount`).
 - Channel/IM binds General agents only; prompt_mode=search agents rejected at bind API.
 
 """
@@ -69,8 +69,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "file_write_tool": ToolLayer.CORE,
     "glob_tool": ToolLayer.CORE,
     "grep_tool": ToolLayer.CORE,
-    # --- Web crawl (site-wide; opt-in) ---
-    "web_crawl_tool": ToolLayer.EXTENDED,
     # ============================================================
     # COMMON - 默认开启但用户可在 GUI 关闭（放中间；组内 memory 优先于 web_search）
     # ============================================================

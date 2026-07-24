@@ -1,4 +1,4 @@
-"""Remote fetch escalation hooks for CrawlEngine (L4 after L1-L3).
+"""Remote fetch escalation hooks for FetchEngine (L4 after L1-L3).
 
 Framework layer defines Protocol + DTOs only; httpx vendor implementations live in server.
 """

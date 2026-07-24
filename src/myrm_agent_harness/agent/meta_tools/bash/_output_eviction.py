@@ -40,7 +40,9 @@ from myrm_agent_harness.agent.context_management.strategies.filters.base import 
     FilterContext,
     detect_content_type,
 )
-from myrm_agent_harness.agent.context_management.strategies.filters.structural_filter import StructuralFilter
+from myrm_agent_harness.agent.context_management.strategies.filters.structural_filter import (
+    StructuralFilter,
+)
 from myrm_agent_harness.utils.text_utils import get_token_count, smart_truncate
 
 if TYPE_CHECKING:
@@ -66,7 +68,9 @@ class EvictionResult:
     evicted_ref: str | None = None
 
 
-async def maybe_evict_large_output(stdout: str, executor: CodeExecutor | None = None) -> EvictionResult:
+async def maybe_evict_large_output(
+    stdout: str, executor: CodeExecutor | None = None
+) -> EvictionResult:
     """大输出截断为智能预览，可选持久化到沙箱文件
 
     Args:
@@ -102,7 +106,11 @@ async def maybe_evict_large_output(stdout: str, executor: CodeExecutor | None = 
             preview = _create_smart_preview(stdout)
 
         if file_path:
-            head_part = preview.split("\n\n[Truncated:")[0] if "[Truncated:" in preview else preview
+            head_part = (
+                preview.split("\n\n[Truncated:")[0]
+                if "[Truncated:" in preview
+                else preview
+            )
             preview += build_delivery_footer(
                 evicted_basename=os.path.basename(file_path),
                 head_text=head_part,
@@ -110,14 +118,22 @@ async def maybe_evict_large_output(stdout: str, executor: CodeExecutor | None = 
             )
 
         evicted_ref = os.path.basename(file_path) if file_path else None
-        logger.warning(" [Eviction] Truncated to preview=%d chars, file=%s", len(preview), file_path)
+        logger.warning(
+            " [Eviction] Truncated to preview=%d chars, file=%s",
+            len(preview),
+            file_path,
+        )
         return EvictionResult(text=preview, evicted_ref=evicted_ref)
 
     except Exception as e:
         logger.warning(" [Eviction] Failed: %s, falling back to smart_truncate", e)
         fallback = _create_smart_preview(stdout)
         if file_path:
-            head_part = fallback.split("\n\n[Truncated:")[0] if "[Truncated:" in fallback else fallback
+            head_part = (
+                fallback.split("\n\n[Truncated:")[0]
+                if "[Truncated:" in fallback
+                else fallback
+            )
             fallback += build_delivery_footer(
                 evicted_basename=os.path.basename(file_path),
                 head_text=head_part,
@@ -164,7 +180,9 @@ def _create_smart_preview(content: str) -> str:
 def _get_session_id() -> str | None:
     """尝试从 contextvars 获取当前 session_id"""
     try:
-        from myrm_agent_harness.agent.context_management.infra.session_lock import get_current_chat_id
+        from myrm_agent_harness.agent.context_management.infra.session_lock import (
+            get_current_chat_id,
+        )
 
         return get_current_chat_id()
     except Exception:

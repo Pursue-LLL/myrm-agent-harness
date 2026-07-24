@@ -23,7 +23,11 @@ from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent.meta_tools import get_meta_tools
 from myrm_agent_harness.agent.orchestration.hooks import is_runtime_hook
-from myrm_agent_harness.agent.tool_management import ToolBindMode, ToolSnapshot, ToolSource
+from myrm_agent_harness.agent.tool_management import (
+    ToolBindMode,
+    ToolSnapshot,
+    ToolSource,
+)
 from myrm_agent_harness.toolkits.storage import storage_config
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -64,7 +68,9 @@ class SkillAgentToolsMixin:
                     )
                     if instance:
                         skill_env_map[skill_name] = instance.config.env_overrides
-                        logger.info("Loaded skill instance: %s.%s", skill_name, instance_name)
+                        logger.info(
+                            "Loaded skill instance: %s.%s", skill_name, instance_name
+                        )
                 except Exception as e:
                     logger.warning(
                         "Failed to load skill instance %s.%s: %s",
@@ -86,6 +92,7 @@ class SkillAgentToolsMixin:
             similarity_checker=self._similarity_checker,  # type: ignore[attr-defined]
             registry=registry,
             enable_file_tools=self._enable_file_tools,  # type: ignore[attr-defined]
+            enable_evicted_read=self._enable_evicted_read,  # type: ignore[attr-defined]
             enable_shell_tools=self._enable_shell_tools,  # type: ignore[attr-defined]
             enable_answer_tool=self._enable_answer_tool,  # type: ignore[attr-defined]
             available_tool_names=self._available_tool_names,  # type: ignore[attr-defined]
@@ -119,7 +126,11 @@ class SkillAgentToolsMixin:
                     if mw_tools:
                         for t in mw_tools:
                             is_internal = t.name.startswith("_")
-                            bind_mode = ToolBindMode.RUNTIME_ONLY if is_internal else ToolBindMode.TURN1
+                            bind_mode = (
+                                ToolBindMode.RUNTIME_ONLY
+                                if is_internal
+                                else ToolBindMode.TURN1
+                            )
                             registry.register(t, source=ToolSource.MIDDLEWARE, bind_mode=bind_mode)  # type: ignore[arg-type]
                 except Exception as e:
                     logger.warning(
@@ -151,7 +162,10 @@ class SkillAgentToolsMixin:
             for t in resolved:
                 tags = getattr(t, "tags", []) or []
                 if "interactive" in tags:
-                    logger.info("Skipping interactive tool %s in unattended mode", getattr(t, "name", "unknown"))
+                    logger.info(
+                        "Skipping interactive tool %s in unattended mode",
+                        getattr(t, "name", "unknown"),
+                    )
                     continue
                 filtered.append(t)
             resolved = filtered
@@ -172,7 +186,9 @@ class SkillAgentToolsMixin:
         if self.storage_backend is None:  # type: ignore[attr-defined]
             return False
         try:
-            from myrm_agent_harness.agent.meta_tools.progress.storage import workspace_todos_exist
+            from myrm_agent_harness.agent.meta_tools.progress.storage import (
+                workspace_todos_exist,
+            )
 
             return await workspace_todos_exist(
                 self.storage_backend,  # type: ignore[attr-defined]
@@ -193,7 +209,9 @@ class SkillAgentToolsMixin:
 
     def _resolve_task_workspace_root(self) -> str | None:
         """Resolve chat workspace for progress persistence."""
-        from myrm_agent_harness.agent.middlewares._session_context import get_workspace_root
+        from myrm_agent_harness.agent.middlewares._session_context import (
+            get_workspace_root,
+        )
 
         live_root = get_workspace_root()
         if live_root:
@@ -212,13 +230,19 @@ class SkillAgentToolsMixin:
             getattr(t, "name", getattr(t, "tool_name", None)) == "todo_write"
             for t in self.user_tools  # type: ignore[attr-defined]
         ):
-            logger.info("todo_write: user-provided override detected, skipping auto-creation")
+            logger.info(
+                "todo_write: user-provided override detected, skipping auto-creation"
+            )
             return None
 
         try:
-            from myrm_agent_harness.agent.meta_tools.progress.todo_write_tool import create_todo_write_tool
+            from myrm_agent_harness.agent.meta_tools.progress.todo_write_tool import (
+                create_todo_write_tool,
+            )
 
-            tool = create_todo_write_tool(workspace_root=self._resolve_task_workspace_root())
+            tool = create_todo_write_tool(
+                workspace_root=self._resolve_task_workspace_root()
+            )
             logger.warning(" todo_write auto-created")
             return tool
         except Exception as e:
@@ -292,7 +316,9 @@ class SkillAgentToolsMixin:
             register_large_doc_ingest_callback,
         )
 
-        async def _ingest_large_doc(filename: str, full_text: str, doc_hash: str) -> None:
+        async def _ingest_large_doc(
+            filename: str, full_text: str, doc_hash: str
+        ) -> None:
             raw_path = structure.get_raw_file_path(f"auto_rag_{doc_hash}_{filename}.md")
             raw_path.parent.mkdir(parents=True, exist_ok=True)
             content = f"# {filename}\n\n{full_text}"
@@ -305,7 +331,9 @@ class SkillAgentToolsMixin:
                 return
 
             compiler.enqueue_file(raw_path)
-            logger.info("Large doc auto-ingested into wiki for RAG: %s (%s)", filename, doc_hash)
+            logger.info(
+                "Large doc auto-ingested into wiki for RAG: %s (%s)", filename, doc_hash
+            )
 
         register_large_doc_ingest_callback(_ingest_large_doc)
 
@@ -320,4 +348,8 @@ class SkillAgentToolsMixin:
         """Get all skill storage paths (absolute)."""
         skills = await self._get_cached_skills()  # type: ignore[attr-defined]
         base_path = storage_config.get_local_base_path()
-        return [str(base_path / skill.storage_path) for skill in skills if skill.storage_path]
+        return [
+            str(base_path / skill.storage_path)
+            for skill in skills
+            if skill.storage_path
+        ]

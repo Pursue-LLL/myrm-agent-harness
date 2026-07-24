@@ -21,13 +21,28 @@ from pydantic import BaseModel, Field
 class CatchupBrief(BaseModel):
     """Structured summary of an agent session for Catchup Inbox."""
 
-    last_user_prompt: str = Field(default="", description="The last message sent by the user")
-    latest_agent_response: str = Field(default="", description="The latest text response from the agent")
-    files_touched: list[str] = Field(default_factory=list, description="List of unique file paths modified")
-    tool_counts: dict[str, int] = Field(default_factory=dict, description="Counts of each tool used")
-    activity_steps: list[str] = Field(default_factory=list, description="High-level activity descriptions")
-    needs_from_user: str | None = Field(default=None, description="What the agent needs from the user (if any)")
-    status: str = Field(default="completed", description="Status of the session (e.g., completed, waiting, error)")
+    last_user_prompt: str = Field(
+        default="", description="The last message sent by the user"
+    )
+    latest_agent_response: str = Field(
+        default="", description="The latest text response from the agent"
+    )
+    files_touched: list[str] = Field(
+        default_factory=list, description="List of unique file paths modified"
+    )
+    tool_counts: dict[str, int] = Field(
+        default_factory=dict, description="Counts of each tool used"
+    )
+    activity_steps: list[str] = Field(
+        default_factory=list, description="High-level activity descriptions"
+    )
+    needs_from_user: str | None = Field(
+        default=None, description="What the agent needs from the user (if any)"
+    )
+    status: str = Field(
+        default="completed",
+        description="Status of the session (e.g., completed, waiting, error)",
+    )
 
 
 class CatchupBriefExtractor:
@@ -35,7 +50,9 @@ class CatchupBriefExtractor:
 
     @staticmethod
     def extract(
-        messages: list[dict[str, Any]], progress_steps: list[dict[str, Any]], status: str = "completed"
+        messages: list[dict[str, Any]],
+        progress_steps: list[dict[str, Any]],
+        status: str = "completed",
     ) -> CatchupBrief:
         """Extract a CatchupBrief from raw message data and progress steps.
 
@@ -81,7 +98,12 @@ class CatchupBriefExtractor:
                         continue
 
                     # Handle file_write_tool, file_edit_tool, etc.
-                    if tool_name in ("file_write_tool", "file_edit_tool", "file_replace_tool", "file_patch_tool"):
+                    if tool_name in (
+                        "file_write_tool",
+                        "file_edit_tool",
+                        "file_replace_tool",
+                        "file_patch_tool",
+                    ):
                         path = item.get("path")
                         if isinstance(path, str) and path:
                             files_touched_set.add(path)
@@ -100,7 +122,9 @@ class CatchupBriefExtractor:
                         if isinstance(query, list):
                             for q in query[:3]:
                                 if isinstance(q, str) and q:
-                                    brief.activity_steps.append(f"Searched web for: {q}")
+                                    brief.activity_steps.append(
+                                        f"Searched web for: {q}"
+                                    )
                         elif isinstance(query, str) and query:
                             brief.activity_steps.append(f"Searched web for: {query}")
 

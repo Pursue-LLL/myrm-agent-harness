@@ -1,8 +1,8 @@
 """Automatic detection of CLI agent backends.
 
 Discovers installed CLI tools (claude, codex, gemini) by searching PATH,
-common installation paths, and npm global. Caches results to avoid
-repeated filesystem scans.
+common installation paths, and npm global. Maintains process-wide caches
+for versioned and non-versioned detection results to avoid repeated scans.
 
 [INPUT]
 - (none)
@@ -12,7 +12,8 @@ repeated filesystem scans.
 - BackendDetector: Detects available CLI agent backends.
 
 [POS]
-Automatic detection of CLI agent backends.
+Automatic detection of CLI agent backends with process-wide cache sharing and
+optional version probing.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ import asyncio
 import logging
 import os
 import shutil
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
@@ -59,36 +61,43 @@ class BackendDetector:
     Searches for known CLI tools using ``shutil.which``, common paths,
     and npm global. Optionally runs ``--version`` to detect the version.
 
-    Results are cached process-wide after the first detection.
+    Results are cached process-wide after the first detection, with a soft
+    freshness TTL. Callers can force a fresh scan via ``refresh=True``.
     """
     _cache_with_version: ClassVar[list[DetectedBackend] | None] = None
     _cache_without_version: ClassVar[list[DetectedBackend] | None] = None
+    _cache_with_version_at: ClassVar[float | None] = None
+    _cache_without_version_at: ClassVar[float | None] = None
+    _cache_ttl_seconds: ClassVar[float] = 300.0
 
-    async def detect(self, *, include_version: bool = True) -> list[DetectedBackend]:
+    async def detect(self, *, include_version: bool = True, refresh: bool = False) -> list[DetectedBackend]:
         """Detect all available backends.
 
         Args:
             include_version: If True, run ``<cmd> --version`` to get version info.
+            refresh: If True, bypass cache and force a fresh detection pass.
 
         Returns:
             List of detected backends (cached after first call).
         """
-        cached = self._get_cached(include_version=include_version)
-        if cached is not None:
-            return cached
+        now = time.monotonic()
+        if not refresh:
+            cached = self._get_cached(include_version=include_version, now=now)
+            if cached is not None:
+                return cached
 
-        if include_version:
-            cached_without_version = type(self)._cache_without_version
-            if cached_without_version is not None:
-                hydrated = await self._hydrate_versions(cached_without_version)
-                type(self)._cache_with_version = hydrated
-                return hydrated
-        else:
-            cached_with_version = type(self)._cache_with_version
-            if cached_with_version is not None:
-                stripped = [DetectedBackend(name=item.name, path=item.path) for item in cached_with_version]
-                type(self)._cache_without_version = stripped
-                return stripped
+            if include_version:
+                cached_without_version = self._get_cached(include_version=False, now=now)
+                if cached_without_version is not None:
+                    hydrated = await self._hydrate_versions(cached_without_version)
+                    self._set_cache(include_version=True, value=hydrated)
+                    return hydrated
+            else:
+                cached_with_version = self._get_cached(include_version=True, now=now)
+                if cached_with_version is not None:
+                    stripped = self._strip_versions(cached_with_version)
+                    self._set_cache(include_version=False, value=stripped)
+                    return stripped
 
         results: list[DetectedBackend] = []
         for name in _KNOWN_BACKENDS:
@@ -103,6 +112,8 @@ class BackendDetector:
             results.append(DetectedBackend(name=name, path=path, version=version))
             logger.info("backend_detected name=%s path=%s version=%s", name, path, version)
 
+        if include_version:
+            self._set_cache(include_version=False, value=self._strip_versions(results))
         self._set_cache(include_version=include_version, value=results)
         return results
 
@@ -111,6 +122,7 @@ class BackendDetector:
         *,
         env: Mapping[str, str] | None = None,
         include_version: bool = True,
+        refresh: bool = False,
     ) -> list[tuple[DetectedBackend, CredentialState]]:
         """Detect installed backends and pair each with its current auth state.
 
@@ -121,7 +133,7 @@ class BackendDetector:
         from myrm_agent_harness.toolkits.acp.auth import CredentialStore
 
         store = CredentialStore(env)
-        detected = await self.detect(include_version=include_version)
+        detected = await self.detect(include_version=include_version, refresh=refresh)
         return [(backend, store.state(backend.name)) for backend in detected]
 
     def invalidate_cache(self) -> None:
@@ -133,17 +145,28 @@ class BackendDetector:
         """Drop both versioned and non-versioned detection caches."""
         cls._cache_with_version = None
         cls._cache_without_version = None
+        cls._cache_with_version_at = None
+        cls._cache_without_version_at = None
 
     @classmethod
-    def _get_cached(cls, *, include_version: bool) -> list[DetectedBackend] | None:
-        return cls._cache_with_version if include_version else cls._cache_without_version
+    def _get_cached(cls, *, include_version: bool, now: float) -> list[DetectedBackend] | None:
+        cached = cls._cache_with_version if include_version else cls._cache_without_version
+        cached_at = cls._cache_with_version_at if include_version else cls._cache_without_version_at
+        if cached is None or cached_at is None:
+            return None
+        if now - cached_at > cls._cache_ttl_seconds:
+            return None
+        return cached
 
     @classmethod
     def _set_cache(cls, *, include_version: bool, value: list[DetectedBackend]) -> None:
+        captured_at = time.monotonic()
         if include_version:
             cls._cache_with_version = value
+            cls._cache_with_version_at = captured_at
             return
         cls._cache_without_version = value
+        cls._cache_without_version_at = captured_at
 
     async def _hydrate_versions(self, backends: list[DetectedBackend]) -> list[DetectedBackend]:
         hydrated: list[DetectedBackend] = []
@@ -157,6 +180,10 @@ class BackendDetector:
                 )
             )
         return hydrated
+
+    @staticmethod
+    def _strip_versions(backends: list[DetectedBackend]) -> list[DetectedBackend]:
+        return [DetectedBackend(name=item.name, path=item.path) for item in backends]
 
     def _find_executable(self, name: str) -> str | None:
         """Find an executable by name using multiple strategies."""

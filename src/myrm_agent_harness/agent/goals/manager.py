@@ -30,7 +30,7 @@ from myrm_agent_harness.observability.metrics.goal_metrics import (
 from .manager_queue_mixin import GoalManagerQueueMixin
 from .protocols import GoalProvider
 from .storage import GoalStorage
-from .types import Goal, GoalAccountingOutcome, GoalBudget, GoalStatus
+from .types import CheckpointMode, Goal, GoalAccountingOutcome, GoalBudget, GoalStatus
 from .wait_background_bash import WAIT_ON_BACKGROUND_JOB_ID_KEY
 
 if TYPE_CHECKING:
@@ -92,6 +92,7 @@ class GoalManager(GoalManagerQueueMixin, GoalProvider):
         constraints: list[str] | None = None,
         protected_paths: list[str] | None = None,
         ui_summary: str = "",
+        checkpoint_mode: CheckpointMode = "none",
     ) -> Goal:
         """Create a new goal. If an active goal exists, queues the new goal instead."""
         active = await self.get_active_goal(session_id)
@@ -112,6 +113,7 @@ class GoalManager(GoalManagerQueueMixin, GoalProvider):
             auto_approve=auto_approve,
             constraints=constraints or [],
             protected_paths=protected_paths or [],
+            checkpoint_mode=checkpoint_mode,
             metadata=metadata or {},
             acceptance_criteria=acceptance_criteria or [],
         )

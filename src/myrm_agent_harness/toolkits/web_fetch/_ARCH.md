@@ -1,28 +1,23 @@
 # web_fetch/
 
 ## Overview
-Layered web crawl engine with L1 HTTP / L2 Browser / L3 Stealth fallback, adaptive routing, and deep_crawl async pipeline for full-site recursive crawling.
+
+Layered single-page web fetch engine with L1 HTTP / L2 Browser / L3 Stealth fallback, adaptive routing, optional L4 remote escalation, and UECD spill for large pages.
 
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Entry point. Re-exports CrawlEngine, result types, and global instance. | ✅ |
-| engine.py | Core | CrawlEngine — tiered fetcher pool entry (mixins: cache / fetch / escalation) | ✅ |
+| __init__.py | Package | Entry point. Re-exports FetchEngine, result types, and global instance. | ✅ |
+| engine.py | Core | FetchEngine — tiered fetcher pool entry (mixins: cache / fetch / escalation) | ✅ |
 | engine_types.py | Core | CachedDocument, AccessStats, BackgroundTask, result aliases | ✅ |
 | engine_cache_mixin.py | Core | Cache, coalescing, SWR background revalidation mixin | ✅ |
 | engine_fetch_mixin.py | Core | L1/L2/L3 fetch, degradation, router feedback mixin | ✅ |
 | engine_escalation_mixin.py | Core | L4 remote escalation + bilibili cookie loader mixin | ✅ |
 | pipeline.py | Core | ContentPipeline — HTML to clean Markdown conversion. | ✅ |
 | web_fetch_agent_tools.py | Core | LangChain @tool factory for fetch_full_content / fetch_and_extract. | ✅ |
-| web_crawl_agent_tools.py | Core | LangChain @tool factory for site-wide deep crawl (EXTENDED bind). | ✅ |
 | spill.py | Util | UECD wrapper — head/tail preview + evicted persist for fetch_full_content. | ✅ |
 | content_sanitize.py | Util | Strip base64 image blobs from fetched markdown before model delivery. | ✅ |
-| deep_crawl.py | Core | DeepCrawlPipeline — recursive site crawl via sitemap/link discovery, robots.txt compliance; sitemap fetch via `secure_get`. | ✅ |
-| task_store.py | Core | CrawlTaskStore — SQLite WAL durable task queue for async crawl groups. | ✅ |
-| task_executor.py | Core | CrawlTaskExecutor — background asyncio worker pool consuming tasks from store. | ✅ |
-| rate_limiter.py | Core | DomainRateLimiter — per-domain request interval + concurrency control. | ✅ |
-| robots_parser.py | Core | RobotsParser — fetches and parses robots.txt via `secure_get` for Allow/Disallow/Crawl-Delay/Sitemap. | ✅ |
 | url_normalizer.py | Util | URL normalization for de-duplication. | ✅ |
 | html_to_markdown.py | Util | HTML to Markdown conversion utilities. | ✅ |
 | markdown_generator.py | Util | Markdown document generation helpers. | ✅ |
@@ -41,43 +36,14 @@ Layered web crawl engine with L1 HTTP / L2 Browser / L3 Stealth fallback, adapti
 
 ## L4 Escalation (WFEL)
 
-After local L1-L3 failure, `CrawlEngine._try_escalation` tries injected `FetchEscalationProvider`
+After local L1-L3 failure, `FetchEngine._try_escalation` tries injected `FetchEscalationProvider`
 chain (Jina then Firecrawl when enabled in server config). Providers bind per agent run via
 `escalation/context.py` ContextVar — **not** global singleton mutation.
 
-- `deep_crawl` / `CrawlTaskExecutor` calls `crawl(..., allow_escalation=False)` to block L4 cost.
 - L2 Browser respects `get_bound_browser_launch_mode()` for extension CDP pages.
-
-## Architecture: Deep Crawl Pipeline
-
-```
-Agent calls web_crawl_tool(operation="start", seed_url=...)
-    │
-    ▼
-DeepCrawlPipeline
-    ├── RobotsParser → fetch robots.txt, extract rules + sitemaps
-    ├── DomainRateLimiter → apply Crawl-Delay
-    ├── Discover pages (sitemap.xml preferred, HTML link fallback)
-    ├── CrawlTaskStore → persist tasks to SQLite WAL (with URL normalization)
-    └── CrawlTaskExecutor → background async workers
-            ├── CrawlEngine.crawl() per URL
-            ├── Rate limiting via DomainRateLimiter
-            ├── Write Markdown files to sandbox volume
-            ├── Recursive link discovery (depth+1 tasks added on success)
-            ├── Emit progress via dispatch_custom_event
-            └── Generate _index.json on completion
-
-Cancellation: cancel_crawl sets pending tasks to 'cancelled' → Executor
-finds no pending tasks → naturally stops → generates _index.json with
-completed pages only. Running tasks complete but do not enqueue new links
-(is_group_cancelled guard in _discover_and_enqueue_links).
-
-Crash recovery: On init, stale 'running' tasks reset to 'pending'.
-```
 
 ## Key Dependencies
 
-- `utils.event_utils` (dispatch_custom_event for progress)
 - `toolkits.retriever` (for fetch_and_extract mode)
-- `httpx` (robots.txt fetching, sitemap parsing)
+- `httpx`
 - `[web]` optional: `scrapling` (L1 HTTP / L3 stealth fetchers), `youtube-transcript-api` (YouTube subtitle fast-path; HTML fallback when missing)

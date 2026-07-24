@@ -11,43 +11,11 @@ from myrm_agent_harness.agent.meta_tools.discover_capability.capability_gap impo
 
 
 def test_detect_capability_gap_browser_when_disabled() -> None:
-    hit = detect_capability_gap("please browse this website", frozenset({"web", "memory", "file_ops", "shell"}))
+    hit = detect_capability_gap(
+        "please browse this website", frozenset({"web", "memory", "file_ops", "shell"})
+    )
     assert hit is not None
     assert hit.tool_id == "browser"
-
-
-def test_detect_capability_gap_web_crawl_when_disabled() -> None:
-    hit = detect_capability_gap(
-        "please crawl entire site docs.example.com into markdown",
-        frozenset({"web", "memory", "file_ops", "shell"}),
-    )
-    assert hit is not None
-    assert hit.tool_id == "web_crawl"
-    assert hit.tool_group == "web_crawl"
-
-
-def test_detect_capability_gap_web_crawl_zh_when_disabled() -> None:
-    hit = detect_capability_gap(
-        "帮我把 docs.example.com 整站爬取存成 Markdown",
-        frozenset({"web", "memory", "file_ops", "shell"}),
-    )
-    assert hit is not None
-    assert hit.tool_id == "web_crawl"
-
-
-def test_detect_capability_gap_none_when_web_crawl_enabled() -> None:
-    groups = frozenset({"web", "memory", "file_ops", "shell", "web_crawl"})
-    assert detect_capability_gap("crawl entire site docs.example.com", groups) is None
-
-
-def test_detect_capability_gap_web_crawl_wins_over_browser_for_crawl_site() -> None:
-    """web_crawl registry entry precedes browser; crawl-specific intent must not map to browser."""
-    hit = detect_capability_gap(
-        "crawl entire website docs.example.com",
-        frozenset({"web", "memory", "file_ops", "shell"}),
-    )
-    assert hit is not None
-    assert hit.tool_id == "web_crawl"
 
 
 def test_detect_capability_gap_external_cli_when_disabled() -> None:
@@ -119,7 +87,6 @@ def test_detect_capability_gap_none_when_computer_use_enabled() -> None:
 @pytest.mark.parametrize(
     ("tool_id", "query", "group"),
     [
-        ("web_crawl", "crawl entire site docs.example.com", "web_crawl"),
         ("wiki", "search my personal wiki", "wiki"),
         ("kanban", "move card on kanban board", "kanban"),
         ("cron", "create a cron job every day", "cron"),
@@ -274,7 +241,9 @@ def test_format_capability_gap_block() -> None:
         format_capability_gap_block,
     )
 
-    block = format_capability_gap_block(CapabilityGapHit(tool_id="browser", tool_group="browser"))
+    block = format_capability_gap_block(
+        CapabilityGapHit(tool_id="browser", tool_group="browser")
+    )
     assert "<CapabilityGap>" in block
     assert '"tool_id": "browser"' in block
 

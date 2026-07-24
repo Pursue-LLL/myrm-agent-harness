@@ -12,7 +12,7 @@ from myrm_agent_harness.toolkits.wiki.wiki_agent_tools import _fetch_url_as_mark
 
 @pytest.mark.asyncio
 async def test_fetch_url_blocks_ssrf() -> None:
-    """CrawlEngine validates SSRF; if it returns None, fallback secure_get also raises."""
+    """FetchEngine validates SSRF; if it returns None, fallback secure_get also raises."""
     with (
         patch(
             "myrm_agent_harness.toolkits.wiki.wiki_agent_tools.web_fetch_tools",
@@ -30,8 +30,8 @@ async def test_fetch_url_blocks_ssrf() -> None:
 
 
 @pytest.mark.asyncio
-async def test_fetch_url_uses_crawl_engine() -> None:
-    """Primary path: CrawlEngine returns Document with page_content."""
+async def test_fetch_url_uses_fetch_engine() -> None:
+    """Primary path: FetchEngine returns Document with page_content."""
     mock_doc = MagicMock()
     mock_doc.page_content = "# YouTube Video\n\nTranscript content here"
 
@@ -46,8 +46,8 @@ async def test_fetch_url_uses_crawl_engine() -> None:
 
 
 @pytest.mark.asyncio
-async def test_fetch_url_falls_back_on_crawl_engine_failure() -> None:
-    """Fallback: CrawlEngine raises → secure_get + MarkdownGenerator."""
+async def test_fetch_url_falls_back_on_fetch_engine_failure() -> None:
+    """Fallback: FetchEngine raises → secure_get + MarkdownGenerator."""
     mock_response = type("R", (), {"status_code": 200, "text": "<html><body><p>ok</p></body></html>"})()
 
     with (
@@ -69,7 +69,7 @@ async def test_fetch_url_falls_back_on_crawl_engine_failure() -> None:
 
 @pytest.mark.asyncio
 async def test_fetch_url_falls_back_on_empty_content() -> None:
-    """Fallback: CrawlEngine returns Document but page_content is empty."""
+    """Fallback: FetchEngine returns Document but page_content is empty."""
     mock_doc = MagicMock()
     mock_doc.page_content = ""
 
@@ -93,7 +93,7 @@ async def test_fetch_url_falls_back_on_empty_content() -> None:
 
 @pytest.mark.asyncio
 async def test_fetch_url_falls_back_on_none_doc() -> None:
-    """Fallback: CrawlEngine returns None (e.g. SSRF blocked)."""
+    """Fallback: FetchEngine returns None (e.g. SSRF blocked)."""
     mock_response = type("R", (), {"status_code": 200, "text": "<html><body><p>recovered</p></body></html>"})()
 
     with (
@@ -178,8 +178,8 @@ async def test_fetch_url_fallback_network_error() -> None:
 
 
 @pytest.mark.asyncio
-async def test_fetch_url_crawl_engine_import_failure() -> None:
-    """CrawlEngine import fails (ModuleNotFoundError) → fallback to secure_get."""
+async def test_fetch_url_fetch_engine_import_failure() -> None:
+    """FetchEngine import fails (ModuleNotFoundError) → fallback to secure_get."""
     mock_response = type("R", (), {"status_code": 200, "text": "<html><body><p>imported ok</p></body></html>"})()
 
     with (
@@ -203,7 +203,7 @@ async def test_fetch_url_crawl_engine_import_failure() -> None:
 
 @pytest.mark.asyncio
 async def test_fetch_url_doc_with_none_page_content() -> None:
-    """CrawlEngine returns Document with page_content=None → fallback."""
+    """FetchEngine returns Document with page_content=None → fallback."""
     mock_doc = MagicMock()
     mock_doc.page_content = None
 

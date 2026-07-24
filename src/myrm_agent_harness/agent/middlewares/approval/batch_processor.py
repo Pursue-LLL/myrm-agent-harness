@@ -465,7 +465,9 @@ async def evaluate_tool_batch(
                     )
 
                     shell_cmd = str(
-                        tool_input.get("command", "") or tool_input.get("code", "")
+                        tool_input.get("command", "")
+                        or tool_input.get("code", "")
+                        or tool_input.get("data", "")
                     ).strip()
                     if (
                         shell_cmd
@@ -577,7 +579,9 @@ async def evaluate_tool_batch(
                 )
                 continue
             shell_cmd = str(
-                tool_input.get("command", "") or tool_input.get("code", "")
+                tool_input.get("command", "")
+                or tool_input.get("code", "")
+                or tool_input.get("data", "")
             ).strip()
             if permission_type in ("shell_exec", "code_interpreter") and shell_cmd:
                 from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer import (
@@ -684,7 +688,11 @@ async def evaluate_tool_batch(
         ):
             # Build command representation for the classifier
             if permission_type in ("shell_exec", "code_interpreter"):
-                command = str(tool_input.get("command", "")).strip()
+                command = str(
+                    tool_input.get("command", "")
+                    or tool_input.get("code", "")
+                    or tool_input.get("data", "")
+                ).strip()
                 if extra_ctx and "ptc_annotations" in extra_ctx:
                     command = f"{command}\n\n# PTC Annotations: {extra_ctx['ptc_annotations']}"
             else:

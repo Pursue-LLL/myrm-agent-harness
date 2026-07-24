@@ -198,7 +198,7 @@ class SSRFResult:
 
 提供同步 (`validate_url_for_ssrf`) 和异步 (`async_validate_url_for_ssrf`) 两个版本。
 
-**出站 HTTP 执行层（httpx）**：`core/security/http/secure_fetch.py` 提供 `secure_get` / `secure_request` / `resolve_secure_http_target`，在 httpx 出站路径上强制执行 DNS pinning 与逐跳 redirect 复检。消费者包括 MediaResolver、ZipInstaller、OpenAPI Bridge、web_fetch deep_crawl（robots/sitemap）、A2A resolver、cron webhook、HTTP hooks、LobeHub 技能安装、wiki URL ingestion、image/video 用户与模型结果 URL 下载、server 媒体下载。`async_pin_url` 阻断时写入 `SSRF_BLOCKED` 审计条目。
+**出站 HTTP 执行层（httpx）**：`core/security/http/secure_fetch.py` 提供 `secure_get` / `secure_request` / `resolve_secure_http_target`，在 httpx 出站路径上强制执行 DNS pinning 与逐跳 redirect 复检。消费者包括 MediaResolver、ZipInstaller、OpenAPI Bridge、A2A resolver、cron webhook、HTTP hooks、LobeHub 技能安装、wiki URL ingestion、image/video 用户与模型结果 URL 下载、server 媒体下载。`async_pin_url` 阻断时写入 `SSRF_BLOCKED` 审计条目。
 
 **浏览器 document 导航层（Playwright）**：`toolkits/browser/navigation_ssrf_guard.py` 在 `page.goto` 期间注册 document 级 route 拦截，对每个 document 请求与 redirect 链逐跳调用 `async_pin_url` 校验。不拦截 subresource（与 OpenClaw 同级策略）。本地模式 `allow_private_networks=True` 时跳过 SSRF 校验。
 
@@ -1124,7 +1124,7 @@ _LOCAL_BROWSER_RELAXATION = (
 
 本地模式用户拥有本机和局域网控制权，内网导航、表单填充、上传下载和会话管理无需审批。Navigator 同步跳过 SSRF Guard 检查（保留 URL scheme 检查）。
 
-**web_fetch 内网放宽**：本地模式下 `CrawlEngine` 和 `web_fetch_tool` 同样跳过 SSRF 检查，允许抓取 `localhost`、`192.168.*`、`10.*`、`172.16-31.*` 等内网地址。三层 SSRF 检查（工具入口层 → 引擎层 → Navigator 层）均尊重 `allow_private_networks` 标志。
+**web_fetch 内网放宽**：本地模式下 `FetchEngine` 和 `web_fetch_tool` 同样跳过 SSRF 检查，允许抓取 `localhost`、`192.168.*`、`10.*`、`172.16-31.*` 等内网地址。三层 SSRF 检查（工具入口层 → 引擎层 → Navigator 层）均尊重 `allow_private_networks` 标志。
 
 ### 配置合并优先级
 

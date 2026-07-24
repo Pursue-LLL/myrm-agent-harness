@@ -324,6 +324,21 @@ async def run_agent_loop(
                 )
             )
 
+        from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+            build_delivery_footer,
+            emit_evicted_ref,
+            persist_evicted_content,
+        )
+        from myrm_agent_harness.toolkits.web_fetch.spill import (
+            set_evicted_content_callbacks,
+        )
+
+        set_evicted_content_callbacks(
+            persist_fn=persist_evicted_content,
+            build_footer_fn=build_delivery_footer,
+            emit_ref_fn=emit_evicted_ref,
+        )
+
         logger.step("Agent started")
         query_preview = str(query_text)[:100]
         logger.info(

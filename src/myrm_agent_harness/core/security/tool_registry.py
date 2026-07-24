@@ -119,6 +119,7 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
         "desktop_vision_tool",
         "complete_goal_tool",
         "ask_question_tool",
+        "bash_process_tool",
     }
 )
 
@@ -135,7 +136,6 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
             "web_fetch_tool",
         }
     ),
-    "web_crawl": frozenset({"web_crawl_tool"}),
     "browser": frozenset(
         {
             "browser_interact_tool",
@@ -235,6 +235,7 @@ _MANAGE_ACTION_MAP: dict[str, str] = {
 
 TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
     "bash_code_execute_tool": ["command"],
+    "bash_process_tool": ["action", "pid", "data"],
     "file_read_tool": ["path"],
     "file_write_tool": ["path", "content"],
     "file_edit_tool": ["path", "edits"],
@@ -313,6 +314,11 @@ def resolve_permission_type(
     if tool_input and tool_name == "browser_manage_tool":
         action = str(tool_input.get("action", ""))
         return _MANAGE_ACTION_MAP.get(action, "browser_manage")
+    if tool_input and tool_name == "bash_process_tool":
+        action = str(tool_input.get("action", ""))
+        if action in ("write_stdin", "submit_stdin", "close_stdin", "kill"):
+            return "shell_exec"
+        return "bash_process_tool"
     if tool_name == "desktop_vision_tool":
         if tool_input:
             action = str(tool_input.get("action", ""))
@@ -487,6 +493,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "delegate_to_agent_tool": SafetyMetadata(),
     # Destructive tools (explicit fail-closed: is_concurrent_safe=False)
     "bash_code_execute_tool": SafetyMetadata(is_destructive=True),
+    "bash_process_tool": SafetyMetadata(),
     "file_write_tool": SafetyMetadata(
         is_destructive=True, is_idempotent=True
     ),  # Writing same content is idempotent

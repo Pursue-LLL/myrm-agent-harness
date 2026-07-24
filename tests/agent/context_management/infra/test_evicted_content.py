@@ -79,7 +79,9 @@ def test_build_evicted_basename_truncates_long_source() -> None:
 
 @pytest.mark.asyncio
 async def test_emit_evicted_ref_dispatches_event() -> None:
-    from myrm_agent_harness.agent.context_management.infra.evicted_content import emit_evicted_ref
+    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+        emit_evicted_ref,
+    )
 
     with patch(
         "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
@@ -123,7 +125,9 @@ def test_write_evicted_content_sync_success(tmp_path) -> None:
         chat_id_var.reset(c_tok)
 
 
-def test_write_evicted_content_sync_oserror(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_write_evicted_content_sync_oserror(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from myrm_agent_harness.agent.context_management.infra.evicted_content import (
         write_evicted_content_sync,
     )
@@ -149,7 +153,9 @@ async def test_persist_evicted_content_without_session_context() -> None:
 
 
 @pytest.mark.asyncio
-async def test_persist_evicted_content_oserror(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_persist_evicted_content_oserror(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     w_tok = workspace_root_var.set(str(tmp_path))
     c_tok = chat_id_var.set("chat_async_oserror")
     try:

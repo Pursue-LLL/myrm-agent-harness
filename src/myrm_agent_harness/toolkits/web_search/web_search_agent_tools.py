@@ -141,7 +141,8 @@ Example:
             max_length=5,
         )
         reason: str = Field(
-            default="", description="Search rationale, express key information in minimal tokens, max 100 chars"
+            default="",
+            description="Search rationale, express key information in minimal tokens, max 100 chars",
         )
 
         @field_validator("questions", mode="before")
@@ -166,27 +167,42 @@ Example:
         from myrm_agent_harness.toolkits.web_search.engine import WebSearchTools
 
         web_search = WebSearchTools(search_service_cfg, reranker_config=reranker_config)
-        sources_metadata, formatted_context = await web_search.fast_search_with_questions(
-            questions=questions,
-            search_results_per_query=10,
-            top_k=10,
+        sources_metadata, formatted_context = (
+            await web_search.fast_search_with_questions(
+                questions=questions,
+                search_results_per_query=10,
+                top_k=10,
+            )
         )
 
-        from myrm_agent_harness.toolkits.web_search.citation_resolver import enrich_sources_with_resolved_urls
+        from myrm_agent_harness.toolkits.web_search.citation_resolver import (
+            enrich_sources_with_resolved_urls,
+        )
 
         sources_metadata = await enrich_sources_with_resolved_urls(sources_metadata)
 
         if formatted_context:
-            from myrm_agent_harness.utils.context_format import wrap_with_external_sources_tag
+            from myrm_agent_harness.utils.context_format import (
+                wrap_with_external_sources_tag,
+            )
 
-            content = wrap_with_external_sources_tag(formatted_context, source="web_search")
+            content = wrap_with_external_sources_tag(
+                formatted_context, source="web_search"
+            )
         else:
             content = formatted_context
 
         sufficiency_metadata: dict[str, object] = {}
 
-        if sufficiency_config and sufficiency_config.enabled and sufficiency_llm_config and content:
-            from myrm_agent_harness.toolkits.retriever.sufficiency import evaluate_sufficiency
+        if (
+            sufficiency_config
+            and sufficiency_config.enabled
+            and sufficiency_llm_config
+            and content
+        ):
+            from myrm_agent_harness.toolkits.retriever.sufficiency import (
+                evaluate_sufficiency,
+            )
 
             original_query = " | ".join(questions)
             verdict = await evaluate_sufficiency(
@@ -201,10 +217,15 @@ Example:
                 "confidence": verdict.confidence,
                 "missing_aspects": list(verdict.missing_aspects),
                 "suggested_queries": list(verdict.suggested_queries),
-                "negative_constraint_violations": list(verdict.negative_constraint_violations),
+                "negative_constraint_violations": list(
+                    verdict.negative_constraint_violations
+                ),
             }
 
-            if not verdict.is_sufficient and verdict.confidence >= sufficiency_config.confidence_threshold:
+            if (
+                not verdict.is_sufficient
+                and verdict.confidence >= sufficiency_config.confidence_threshold
+            ):
                 guidance_parts: list[str] = []
                 if verdict.missing_aspects:
                     guidance_parts.append(
@@ -212,7 +233,8 @@ Example:
                     )
                 if verdict.suggested_queries:
                     guidance_parts.append(
-                        "**Suggested follow-up searches**: " + ", ".join(f'"{q}"' for q in verdict.suggested_queries)
+                        "**Suggested follow-up searches**: "
+                        + ", ".join(f'"{q}"' for q in verdict.suggested_queries)
                     )
                 if verdict.negative_constraint_violations:
                     guidance_parts.append(
@@ -229,7 +251,11 @@ Example:
                 "sources": sources_metadata,
                 "search_queries": questions,
                 "total_results": len(sources_metadata),
-                **({"sufficiency": sufficiency_metadata} if sufficiency_metadata else {}),
+                **(
+                    {"sufficiency": sufficiency_metadata}
+                    if sufficiency_metadata
+                    else {}
+                ),
             },
         }
 

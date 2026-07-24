@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.agent.streaming.model_discipline import resolve_execution_discipline
+from myrm_agent_harness.agent.streaming.model_discipline import (
+    resolve_execution_discipline,
+)
 from myrm_agent_harness.toolkits.web_search.engine import SearchServiceConfig
-from myrm_agent_harness.toolkits.web_search.web_search_agent_tools import create_web_search_tool
+from myrm_agent_harness.toolkits.web_search.web_search_agent_tools import (
+    create_web_search_tool,
+)
 
 GOLDEN_SEARCH_INTENTS: tuple[str, ...] = (
     "Python 3.12 vs 3.11 feature comparison 2025",
@@ -36,7 +40,9 @@ class TestWebSearchDescriptionBaseline:
 
     def test_tool_description_retains_mid_tier_rewrite_rules(self) -> None:
         tool = create_web_search_tool(
-            search_service_cfg=SearchServiceConfig(search_service="tavily", api_key="test-key"),
+            search_service_cfg=SearchServiceConfig(
+                search_service="tavily", api_key="test-key"
+            ),
         )
         description = tool.description or ""
         assert "Query Rewriting Rules" in description

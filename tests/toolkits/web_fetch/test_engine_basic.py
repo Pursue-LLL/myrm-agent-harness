@@ -1,18 +1,18 @@
-"""CrawlEngine 基础功能测试（不涉及实际网络请求）"""
+"""FetchEngine 基础功能测试（不涉及实际网络请求）"""
 
 import tempfile
 from pathlib import Path
 
 import pytest
 
-from myrm_agent_harness.toolkits.web_fetch.engine import CrawlEngine
+from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 
 
 @pytest.mark.asyncio
 async def test_engine_initialization_defaults():
     """测试引擎默认初始化"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        engine = CrawlEngine(adaptive_router_rules_file=Path(tmpdir) / "test.pkl")
+        engine = FetchEngine(adaptive_router_rules_file=Path(tmpdir) / "test.pkl")
 
         assert engine._http_fetcher is not None
         assert engine._browser_fetcher is not None
@@ -29,7 +29,7 @@ async def test_engine_initialization_defaults():
 async def test_engine_custom_config():
     """测试引擎自定义配置"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        engine = CrawlEngine(
+        engine = FetchEngine(
             adaptive_router_rules_file=Path(tmpdir) / "test.pkl",
             use_raw_markdown=True,
             cache_ttl=1800,
@@ -47,7 +47,7 @@ async def test_engine_custom_config():
 async def test_get_router_stats():
     """测试获取路由统计"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        engine = CrawlEngine(adaptive_router_rules_file=Path(tmpdir) / "test.pkl")
+        engine = FetchEngine(adaptive_router_rules_file=Path(tmpdir) / "test.pkl")
 
         stats = engine.get_router_stats()
 
@@ -61,7 +61,7 @@ async def test_get_router_stats():
 async def test_get_cache_metrics():
     """测试获取缓存指标"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        engine = CrawlEngine(adaptive_router_rules_file=Path(tmpdir) / "test.pkl")
+        engine = FetchEngine(adaptive_router_rules_file=Path(tmpdir) / "test.pkl")
 
         metrics = engine.get_cache_metrics()
 

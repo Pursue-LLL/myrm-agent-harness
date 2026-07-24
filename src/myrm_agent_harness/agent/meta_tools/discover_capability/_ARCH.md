@@ -10,7 +10,7 @@ Unified Capability Discovery gateway. Indexes agent-bound searchable skills (MCP
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | discover_capability_tool.py | Core | Unified discovery meta-tool, index sync, `<BoundSkills>` XML output. | ✅ |
-| capability_gap.py | Core | Disabled builtin tool / unbound skill gap detection; `CAPABILITY_GAP_REGISTRY` (16 GUI-togglable IDs incl. `web_crawl`); consumed by discover miss + stream preflight. | ✅ |
+| capability_gap.py | Core | Disabled builtin tool / unbound skill gap detection; `CAPABILITY_GAP_REGISTRY` (15 GUI-togglable IDs); consumed by discover miss + stream preflight. | ✅ |
 
 ## Key Dependencies
 

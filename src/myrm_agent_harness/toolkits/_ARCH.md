@@ -58,7 +58,7 @@ is an adapter, not the toolkit itself. Examples: `wiki/wiki_agent_tools.py`,
 **Rule of thumb:** engine + persistence + Protocol in `toolkits/` (exported from `__init__.py`);
 LangChain adapter is optional and secondary. Wrappers that must read `agent/` session state belong in `agent/meta_tools/`.
 
-Current `*_agent_tools.py` modules (all compliant): `acp/`, `computer_use/`, `cron/`, `kanban/`, `memory/`, `web_fetch/` (`web_fetch_agent_tools.py`, `web_crawl_agent_tools.py`), `web_search/`, `wiki/`.
+Current `*_agent_tools.py` modules (all compliant): `acp/`, `computer_use/`, `cron/`, `kanban/`, `memory/`, `web_fetch/` (`web_fetch_agent_tools.py`), `web_search/`, `wiki/`.
 
 ### Naming disambiguation: `mcp/agent.py`
 
@@ -99,7 +99,6 @@ Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
 | `tasks/` | Agent tool during chat (slow media) | `task_id` + progress card (e.g. ImageTaskCard) |
 | `cron/` | Schedule / webhook / poll | Cron job history |
 | `kanban/` | Planner / board | Kanban card + SSE |
-| `web_fetch/task_store.py` | Deep crawl only | Crawl group status — **not** a substitute for `tasks/` |
 | **Observability** | `vnc/` | Real-time desktop streaming and human takeover coordination |
 
 Agent runtime-bound tool wrappers (e.g. `ask_question_tool`, `render_ui_tool`, `todo_write`) live in `agent/meta_tools/`, not here. Optional LangChain adapters (`*_agent_tools.py`) that do not import `agent/` may stay in `toolkits/` as a secondary export — see § `*_agent_tools.py` naming convention.

@@ -7,14 +7,14 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from langchain_core.documents import Document
 
-from myrm_agent_harness.toolkits.web_fetch.engine import CrawlEngine
+from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 from myrm_agent_harness.toolkits.web_fetch.fetchers.protocols import FetcherType, FetchResult
 
 
 @pytest.mark.asyncio
 async def test_stale_while_revalidate_returns_immediately():
     """测试过期缓存立即返回，后台刷新"""
-    engine = CrawlEngine(cache_ttl=1, stale_while_revalidate=True)
+    engine = FetchEngine(cache_ttl=1, stale_while_revalidate=True)
 
     first_result = FetchResult(
         html="<html><body>old content</body></html>",
@@ -69,7 +69,7 @@ async def test_stale_while_revalidate_returns_immediately():
 @pytest.mark.asyncio
 async def test_stale_while_revalidate_304():
     """测试后台刷新收到 304 时更新 cached_at"""
-    engine = CrawlEngine(cache_ttl=1, stale_while_revalidate=True)
+    engine = FetchEngine(cache_ttl=1, stale_while_revalidate=True)
 
     first_result = FetchResult(
         html="<html><body>content</body></html>",
@@ -118,7 +118,7 @@ async def test_stale_while_revalidate_304():
 @pytest.mark.asyncio
 async def test_stale_while_revalidate_disabled():
     """测试禁用 stale-while-revalidate 时同步验证"""
-    engine = CrawlEngine(cache_ttl=1, stale_while_revalidate=False)
+    engine = FetchEngine(cache_ttl=1, stale_while_revalidate=False)
 
     first_result = FetchResult(
         html="<html><body>content</body></html>",
@@ -158,7 +158,7 @@ async def test_stale_while_revalidate_disabled():
 @pytest.mark.asyncio
 async def test_background_tasks_cleanup_on_shutdown():
     """测试 shutdown 时等待后台任务完成"""
-    engine = CrawlEngine(cache_ttl=1, stale_while_revalidate=True)
+    engine = FetchEngine(cache_ttl=1, stale_while_revalidate=True)
 
     first_result = FetchResult(
         html="<html><body>content</body></html>",
@@ -195,7 +195,7 @@ async def test_background_tasks_cleanup_on_shutdown():
 @pytest.mark.asyncio
 async def test_background_revalidation_metrics():
     """测试后台刷新的监控指标"""
-    engine = CrawlEngine(cache_ttl=1, stale_while_revalidate=True)
+    engine = FetchEngine(cache_ttl=1, stale_while_revalidate=True)
 
     first_result = FetchResult(
         html="<html><body>content</body></html>",
@@ -246,7 +246,7 @@ async def test_background_revalidation_metrics():
 @pytest.mark.asyncio
 async def test_background_revalidation_failure_metrics():
     """测试后台刷新失败时的指标"""
-    engine = CrawlEngine(cache_ttl=1, stale_while_revalidate=True)
+    engine = FetchEngine(cache_ttl=1, stale_while_revalidate=True)
 
     first_result = FetchResult(
         html="<html><body>content</body></html>",
@@ -287,7 +287,7 @@ async def test_background_revalidation_failure_metrics():
 @pytest.mark.asyncio
 async def test_background_tasks_limit():
     """测试后台任务限流保护"""
-    engine = CrawlEngine(cache_ttl=0.5, stale_while_revalidate=True, max_background_tasks=2)
+    engine = FetchEngine(cache_ttl=0.5, stale_while_revalidate=True, max_background_tasks=2)
 
     first_result = FetchResult(
         html="<html><body>content</body></html>",
@@ -348,7 +348,7 @@ async def test_background_tasks_limit():
 @pytest.mark.asyncio
 async def test_background_revalidation_timeout_metric():
     """测试后台刷新超时指标存在"""
-    engine = CrawlEngine(cache_ttl=3600, stale_while_revalidate=True)
+    engine = FetchEngine(cache_ttl=3600, stale_while_revalidate=True)
 
     # 验证超时指标字段存在
     metrics = engine.get_cache_metrics()
@@ -363,7 +363,7 @@ async def test_background_revalidation_timeout_metric():
 @pytest.mark.asyncio
 async def test_background_priority_queue():
     """测试后台任务优先级队列（高频 URL 优先刷新）"""
-    engine = CrawlEngine(cache_ttl=0.5, stale_while_revalidate=True, max_background_tasks=2)
+    engine = FetchEngine(cache_ttl=0.5, stale_while_revalidate=True, max_background_tasks=2)
 
     first_result = FetchResult(
         html="<html><body>content</body></html>",
@@ -428,7 +428,7 @@ async def test_background_priority_queue():
 @pytest.mark.asyncio
 async def test_url_access_stats_lru_eviction():
     """测试访问统计 LRU 淘汰（防止内存泄漏）"""
-    engine = CrawlEngine(cache_ttl=3600)
+    engine = FetchEngine(cache_ttl=3600)
 
     # 设置较小的上限用于测试
     engine._max_access_stats_size = 5
@@ -468,7 +468,7 @@ async def test_priority_with_time_decay():
     """测试时间衰减优先级计算"""
     from myrm_agent_harness.toolkits.web_fetch.engine import AccessStats
 
-    engine = CrawlEngine(cache_ttl=3600)
+    engine = FetchEngine(cache_ttl=3600)
 
     current_time = time.time()
 

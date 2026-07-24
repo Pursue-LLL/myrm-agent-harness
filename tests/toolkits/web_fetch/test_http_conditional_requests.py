@@ -6,14 +6,14 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from langchain_core.documents import Document
 
-from myrm_agent_harness.toolkits.web_fetch.engine import CrawlEngine
+from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 from myrm_agent_harness.toolkits.web_fetch.fetchers.protocols import FetcherType, FetchResult
 
 
 @pytest.mark.asyncio
 async def test_cache_fresh_no_validation():
     """测试缓存未过期时直接返回，不发送验证请求"""
-    engine = CrawlEngine(cache_ttl=10)
+    engine = FetchEngine(cache_ttl=10)
 
     first_result = FetchResult(
         html="<html><body>content</body></html>",
@@ -45,7 +45,7 @@ async def test_cache_fresh_no_validation():
 @pytest.mark.asyncio
 async def test_cache_expired_sends_conditional_request():
     """测试缓存过期时发送条件请求（304 复用缓存）"""
-    engine = CrawlEngine(cache_ttl=1, stale_while_revalidate=False)
+    engine = FetchEngine(cache_ttl=1, stale_while_revalidate=False)
 
     # 第一次请求：返回完整内容 + ETag
     first_result = FetchResult(
@@ -94,7 +94,7 @@ async def test_cache_expired_sends_conditional_request():
 @pytest.mark.asyncio
 async def test_cache_expired_content_changed():
     """测试缓存过期且内容变更时更新缓存（200 响应）"""
-    engine = CrawlEngine(cache_ttl=1, stale_while_revalidate=False)
+    engine = FetchEngine(cache_ttl=1, stale_while_revalidate=False)
 
     # 第一次请求
     first_result = FetchResult(
@@ -140,7 +140,7 @@ async def test_cache_expired_content_changed():
 @pytest.mark.asyncio
 async def test_last_modified_validation():
     """测试缓存过期时使用 Last-Modified 验证"""
-    engine = CrawlEngine(cache_ttl=1, stale_while_revalidate=False)
+    engine = FetchEngine(cache_ttl=1, stale_while_revalidate=False)
 
     first_result = FetchResult(
         html="<html><body>content</body></html>",
@@ -184,7 +184,7 @@ async def test_last_modified_validation():
 @pytest.mark.asyncio
 async def test_cache_expired_no_validation_headers():
     """测试缓存过期但无验证头时返回过期缓存"""
-    engine = CrawlEngine(cache_ttl=1, stale_while_revalidate=False)
+    engine = FetchEngine(cache_ttl=1, stale_while_revalidate=False)
 
     first_result = FetchResult(
         html="<html><body>content</body></html>",
@@ -216,7 +216,7 @@ async def test_cache_expired_no_validation_headers():
 @pytest.mark.asyncio
 async def test_cache_fresh_with_validation_headers():
     """测试缓存未过期时，即使有验证头也不发送请求"""
-    engine = CrawlEngine(cache_ttl=10)
+    engine = FetchEngine(cache_ttl=10)
 
     first_result = FetchResult(
         html="<html><body>content</body></html>",

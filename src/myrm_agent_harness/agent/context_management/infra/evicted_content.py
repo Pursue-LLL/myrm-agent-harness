@@ -57,7 +57,9 @@ class EvictedPersistResult:
     storage_truncated: bool = False
 
 
-def cap_content_for_storage(content: str, *, max_chars: int = MAX_STORED_CHARS) -> tuple[str, bool]:
+def cap_content_for_storage(
+    content: str, *, max_chars: int = MAX_STORED_CHARS
+) -> tuple[str, bool]:
     """Cap content before writing to Volume; returns (text, was_truncated)."""
     if len(content) <= max_chars:
         return content, False
@@ -109,7 +111,9 @@ def _resolve_persist_target(source: str, ext: str) -> tuple[str, str, Path] | No
     workspace_root = workspace_root_var.get().strip()
     chat_id = chat_id_var.get().strip()
     if not workspace_root or not chat_id:
-        logger.warning("[EvictedContent] Missing workspace_root or chat_id, skip persist")
+        logger.warning(
+            "[EvictedContent] Missing workspace_root or chat_id, skip persist"
+        )
         return None
     basename = build_evicted_basename(source, ext=ext)
     rel_dir = Path(".context") / chat_id / "evicted"

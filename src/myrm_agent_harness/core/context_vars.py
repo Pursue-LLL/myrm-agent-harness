@@ -23,11 +23,15 @@ from __future__ import annotations
 from contextvars import ContextVar
 
 user_timezone_var: ContextVar[str | None] = ContextVar("user_timezone", default=None)
-datetime_injection_enabled_var: ContextVar[bool] = ContextVar("datetime_injection_enabled", default=True)
+datetime_injection_enabled_var: ContextVar[bool] = ContextVar(
+    "datetime_injection_enabled", default=True
+)
 
 # OpenAI prompt_cache_key routing hint — set per-session to maximize KV cache hit
 # rate by ensuring requests from the same session route to the same inference node.
-prompt_routing_key_var: ContextVar[str | None] = ContextVar("prompt_routing_key", default=None)
+prompt_routing_key_var: ContextVar[str | None] = ContextVar(
+    "prompt_routing_key", default=None
+)
 
 workspace_root_var: ContextVar[str] = ContextVar("workspace_root", default="")
 chat_id_var: ContextVar[str] = ContextVar("chat_id", default="")

@@ -26,12 +26,20 @@ async def test_web_search_tool_description_token_budget() -> None:
     import tiktoken
 
     from myrm_agent_harness.toolkits.web_search.engine import SearchServiceConfig
-    from myrm_agent_harness.toolkits.web_search.web_search_agent_tools import create_web_search_tool
+    from myrm_agent_harness.toolkits.web_search.web_search_agent_tools import (
+        create_web_search_tool,
+    )
 
     tool = create_web_search_tool(
-        search_service_cfg=SearchServiceConfig(search_service="tavily", api_key="test-key"),
+        search_service_cfg=SearchServiceConfig(
+            search_service="tavily", api_key="test-key"
+        ),
     )
     encoding = tiktoken.get_encoding("cl100k_base")
     tokens = len(encoding.encode(tool.description or ""))
-    assert tokens <= 1300, f"web_search_tool description bloated beyond baseline to {tokens} tok"
-    assert tokens >= 1000, f"web_search_tool description trimmed below mid-tier baseline: {tokens} tok"
+    assert (
+        tokens <= 1300
+    ), f"web_search_tool description bloated beyond baseline to {tokens} tok"
+    assert (
+        tokens >= 1000
+    ), f"web_search_tool description trimmed below mid-tier baseline: {tokens} tok"

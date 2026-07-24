@@ -145,7 +145,6 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `tts_generate` | EXTENDED | user_capability | tts | enabled_builtin_tools: tts |
 | `update_ui_data_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
 | `video_tool` | EXTENDED | user_capability | video_generation | enabled_builtin_tools: video_generation |
-| `web_crawl_tool` | EXTENDED | user_capability | — | enabled_builtin_tools: web_crawl |
 | `wiki_compile_tool` | EXTENDED | user_capability | — | Settings REST + create_wiki_admin_tools(); not Turn1 LLM |
 | `wiki_ingest_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
 | `wiki_maintain_tool` | EXTENDED | user_capability | — | Settings REST + create_wiki_admin_tools(); not Turn1 LLM |

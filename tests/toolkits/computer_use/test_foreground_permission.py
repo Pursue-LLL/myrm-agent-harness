@@ -165,6 +165,20 @@ class TestCallbackInvocation:
         )
 
 
+class TestResetRuntimePermissionCache:
+    def test_clears_session_flags(self, backend: MagicMock) -> None:
+        session = ComputerSession(backend=backend, config=ComputerUseConfig())
+        session._session_permission_granted = True
+        session._always_permission_granted = True
+        session._operation_foreground_waived = True
+
+        session.reset_runtime_permission_cache()
+
+        assert session._session_permission_granted is False
+        assert session._always_permission_granted is False
+        assert session._operation_foreground_waived is False
+
+
 class TestCheckAppApproval:
     """check_app_approval: per-app gate with inspect_backend fallback."""
 

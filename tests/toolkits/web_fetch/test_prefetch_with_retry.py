@@ -6,14 +6,14 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from langchain_core.documents import Document
 
-from myrm_agent_harness.toolkits.web_fetch.engine import CrawlEngine
+from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 from myrm_agent_harness.toolkits.web_fetch.fetchers.protocols import FetcherType, FetchResult
 
 
 @pytest.mark.asyncio
 async def test_prefetch_with_retry_success_first_attempt():
     """测试第一次尝试就成功"""
-    engine = CrawlEngine(cache_ttl=3600)
+    engine = FetchEngine(cache_ttl=3600)
 
     result = FetchResult(
         html="<html><body>content</body></html>",
@@ -40,7 +40,7 @@ async def test_prefetch_with_retry_success_first_attempt():
 @pytest.mark.asyncio
 async def test_prefetch_with_retry_success_after_retries():
     """测试重试后成功"""
-    engine = CrawlEngine(cache_ttl=3600)
+    engine = FetchEngine(cache_ttl=3600)
 
     result = FetchResult(
         html="<html><body>content</body></html>",
@@ -75,7 +75,7 @@ async def test_prefetch_with_retry_success_after_retries():
 @pytest.mark.asyncio
 async def test_prefetch_with_retry_exhausted():
     """测试重试耗尽后失败"""
-    engine = CrawlEngine(cache_ttl=3600)
+    engine = FetchEngine(cache_ttl=3600)
 
     with patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:
         mock_crawl.side_effect = ConnectionError("Persistent network error")
@@ -93,7 +93,7 @@ async def test_prefetch_with_retry_exhausted():
 @pytest.mark.asyncio
 async def test_prefetch_with_retry_exponential_backoff():
     """测试指数退避策略"""
-    engine = CrawlEngine(cache_ttl=3600)
+    engine = FetchEngine(cache_ttl=3600)
 
     call_times = []
 
@@ -120,7 +120,7 @@ async def test_prefetch_with_retry_exponential_backoff():
 @pytest.mark.asyncio
 async def test_prefetch_with_retry_multiple_urls():
     """测试批量预热（部分成功，部分失败）"""
-    engine = CrawlEngine(cache_ttl=3600)
+    engine = FetchEngine(cache_ttl=3600)
 
     result = FetchResult(
         html="<html><body>content</body></html>",
@@ -161,7 +161,7 @@ async def test_prefetch_with_retry_multiple_urls():
 @pytest.mark.asyncio
 async def test_prefetch_with_retry_concurrency():
     """测试并发预热"""
-    engine = CrawlEngine(cache_ttl=3600)
+    engine = FetchEngine(cache_ttl=3600)
 
     result = FetchResult(
         html="<html><body>content</body></html>",
@@ -209,7 +209,7 @@ async def test_prefetch_with_retry_concurrency():
 @pytest.mark.asyncio
 async def test_prefetch_with_retry_concurrency_limit():
     """测试并发限制"""
-    engine = CrawlEngine(cache_ttl=3600)
+    engine = FetchEngine(cache_ttl=3600)
 
     result = FetchResult(
         html="<html><body>content</body></html>",

@@ -2,7 +2,7 @@
 
 ## Overview
 
-L4 remote fetch extension point for `CrawlEngine`. Framework defines Protocol, DTOs,
+L4 remote fetch extension point for `FetchEngine`. Framework defines Protocol, DTOs,
 ContextVar binding, and metrics only — httpx vendor implementations live in
 `myrm-agent-server/app/services/web_fetch/providers/`.
 
@@ -17,6 +17,5 @@ ContextVar binding, and metrics only — httpx vendor implementations live in
 
 ## Usage
 
-Server binds providers per agent stream; `CrawlEngine._try_escalation` reads
-`get_bound_escalation_providers()` after L1-L3 failure. `deep_crawl` passes
-`allow_escalation=False`.
+Server binds providers per agent stream; `FetchEngine._try_escalation` reads
+`get_bound_escalation_providers()` after L1-L3 failure.

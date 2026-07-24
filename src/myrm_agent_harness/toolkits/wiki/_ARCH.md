@@ -11,7 +11,7 @@ LLM-driven wikilink enrichment.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Wiki toolkit entry point | ✅ |
-| wiki_agent_tools.py | Core | LangChain tool integration layer (auto-compile on ingest, knowledge compounding on query, URL fetching via CrawlEngine with YouTube/Bilibili subtitle extraction and secure_get fallback). Supports binary document ingestion (PDF/DOCX/XLSX/PPTX) via file_parsers, auto-chunking for large documents, and FTS5 raw indexing for immediate searchability. | ✅ |
+| wiki_agent_tools.py | Core | LangChain tool integration layer (auto-compile on ingest, knowledge compounding on query, URL fetching via FetchEngine with YouTube/Bilibili subtitle extraction and secure_get fallback). Supports binary document ingestion (PDF/DOCX/XLSX/PPTX) via file_parsers, auto-chunking for large documents, and FTS5 raw indexing for immediate searchability. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
@@ -22,8 +22,8 @@ LLM-driven wikilink enrichment.
 
 ## Key Dependencies
 
-- `web_fetch` (CrawlEngine for URL ingestion with YouTube/Bilibili subtitle extraction + multi-tier fallback; MarkdownGenerator as fallback converter)
-- `core.security.http.secure_fetch` (secure_get fallback for URL ingestion when CrawlEngine unavailable)
+- `web_fetch` (FetchEngine for URL ingestion with YouTube/Bilibili subtitle extraction + multi-tier fallback; MarkdownGenerator as fallback converter)
+- `core.security.http.secure_fetch` (secure_get fallback for URL ingestion when FetchEngine unavailable)
 - `utils` (logger, context_format)
 - `web_search` (deep research integration)
 - `memory` (auto-archive from conversations)

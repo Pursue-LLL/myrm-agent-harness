@@ -1,4 +1,4 @@
-"""CrawlEngine — Layered crawl engine.
+"""FetchEngine — Layered fetch engine.
 
 Three-tier architecture:
   L1 HttpFetcher (curl_cffi, ~100 ms)
@@ -27,10 +27,10 @@ browser.domain_filter::DomainAllowlist (POS: Domain allowlist filter)
 utils.lru_cache::LRUCache (POS: Generic TTL-based LRU cache)
 
 [OUTPUT]
-CrawlEngine: Layered crawl engine with adaptive routing, caching, and request coalescing
+FetchEngine: Layered fetch engine with adaptive routing, caching, and request coalescing
 
 [POS]
-Core crawl engine. Orchestrates L1/L2/L3 fetchers behind an adaptive router with
+Core fetch engine. Orchestrates L1/L2/L3 fetchers behind an adaptive router with
 in-memory caching, request coalescing, and stale-while-revalidate semantics.
 
 """
@@ -55,9 +55,9 @@ if TYPE_CHECKING:
 from myrm_agent_harness.utils.lru_cache import LRUCache
 
 from .bilibili_extractor import extract_bilibili_subtitle, is_bilibili_url
-from .engine_cache_mixin import CrawlEngineCacheMixin
-from .engine_escalation_mixin import CrawlEngineEscalationMixin
-from .engine_fetch_mixin import CrawlEngineFetchMixin
+from .engine_cache_mixin import FetchEngineCacheMixin
+from .engine_escalation_mixin import FetchEngineEscalationMixin
+from .engine_fetch_mixin import FetchEngineFetchMixin
 from .engine_types import (
     AccessStats,
     BackgroundTask,
@@ -83,18 +83,18 @@ __all__ = [
     "AccessStats",
     "BackgroundTask",
     "CachedDocument",
-    "CrawlEngine",
+    "FetchEngine",
     "FailedResult",
     "SuccessResult",
 ]
 
 
-class CrawlEngine(
-    CrawlEngineEscalationMixin,
-    CrawlEngineFetchMixin,
-    CrawlEngineCacheMixin,
+class FetchEngine(
+    FetchEngineEscalationMixin,
+    FetchEngineFetchMixin,
+    FetchEngineCacheMixin,
 ):
-    """Tiered crawl engine: L1 HTTP -> L2 Browser -> L3 Stealth."""
+    """Tiered fetch engine: L1 HTTP -> L2 Browser -> L3 Stealth."""
 
     _DEFAULT_CRAWL_TIMEOUT: float = 45.0
 
@@ -138,11 +138,11 @@ class CrawlEngine(
         self._crawl_cache: LRUCache[CachedDocument] = LRUCache(
             maxsize=cache_maxsize,
             ttl=cache_ttl,
-            id="crawl_engine_cache",
+            id="fetch_engine_cache",
             max_bytes=cache_max_bytes,
             size_fn=_doc_size,
         )
-        self._fail_cache: LRUCache[bool] = LRUCache(maxsize=200, ttl=300, id="crawl_engine_fail_cache")
+        self._fail_cache: LRUCache[bool] = LRUCache(maxsize=200, ttl=300, id="fetch_engine_fail_cache")
         self._pending_requests: dict[str, asyncio.Future[Document | None]] = {}
         self._enable_http_validation = True
         self._stale_while_revalidate = stale_while_revalidate

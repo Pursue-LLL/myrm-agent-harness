@@ -32,9 +32,7 @@ from myrm_agent_harness.agent.streaming.model_discipline import (
 )
 
 
-def _make_llm(
-    model_name: str | None = None, model: str | None = None
-) -> BaseChatModel:
+def _make_llm(model_name: str | None = None, model: str | None = None) -> BaseChatModel:
     """Create a mock LLM with configurable model_name / model attributes."""
     llm = MagicMock(spec=BaseChatModel)
     if model_name is not None:
@@ -298,9 +296,7 @@ class TestResolveExecutionDiscipline:
 
     def test_different_families_differ(self) -> None:
         gpt = resolve_execution_discipline(_make_llm(model_name="gpt-4o"))
-        claude = resolve_execution_discipline(
-            _make_llm(model_name="claude-3.5-sonnet")
-        )
+        claude = resolve_execution_discipline(_make_llm(model_name="claude-3.5-sonnet"))
         assert gpt != claude
 
     def test_codex_uses_gpt_discipline(self) -> None:
@@ -429,9 +425,7 @@ class TestEdgeCases:
     def test_result_length_varies_by_family(self) -> None:
         """Different families produce outputs of different lengths (GPT longest)."""
         gpt = resolve_execution_discipline(_make_llm(model_name="gpt-4o"))
-        claude = resolve_execution_discipline(
-            _make_llm(model_name="claude-3.5-sonnet")
-        )
+        claude = resolve_execution_discipline(_make_llm(model_name="claude-3.5-sonnet"))
         unknown = resolve_execution_discipline(_make_llm(model_name="llama-3"))
         assert len(gpt) > len(claude) > len(unknown)
 

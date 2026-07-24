@@ -94,7 +94,9 @@ CONTEXT_SUBDIRS: dict[ContextSubdir, str] = {
 # ============ Specialized Path Functions ============
 
 
-def get_compacted_output_path(session_id: str, tool_name: str, compressed: bool = False) -> str:
+def get_compacted_output_path(
+    session_id: str, tool_name: str, compressed: bool = False
+) -> str:
     """Get path for compacted tool output (auto-generates UUID).
 
     Args:
@@ -134,7 +136,9 @@ def get_content_addressed_compacted_output_path(
     """
     safe_session = _sanitize_path_segment(session_id)
     safe_tool = _sanitize_path_segment(tool_name)
-    normalized_hash = "".join(ch for ch in content_sha256.lower() if ch in "0123456789abcdef")
+    normalized_hash = "".join(
+        ch for ch in content_sha256.lower() if ch in "0123456789abcdef"
+    )
     if len(normalized_hash) != 64:
         raise ValueError("content_sha256 must be a 64-character hexadecimal digest")
 
@@ -185,7 +189,9 @@ def get_content_addressed_compacted_restore_map_path(
     )
 
 
-def get_evicted_output_path(session_id: str, *, source: str = "output", ext: str = "txt") -> str:
+def get_evicted_output_path(
+    session_id: str, *, source: str = "output", ext: str = "txt"
+) -> str:
     """Get path for evicted large output (auto-generates UUID basename).
 
     Args:
@@ -385,9 +391,13 @@ def get_context_archive_sidecar_path_candidates(
     elif raw_path.startswith(".context/") or raw_path.startswith("workspace/"):
         archive_candidates.append(f"{PERSISTENT_ROOT}/{raw_path}")
     elif raw_path.startswith(f"{LEGACY_WORKSPACE_ROOT}/"):
-        archive_candidates.append(f"{WORKSPACE_ROOT}/{raw_path[len(LEGACY_WORKSPACE_ROOT) + 1 :]}")
+        archive_candidates.append(
+            f"{WORKSPACE_ROOT}/{raw_path[len(LEGACY_WORKSPACE_ROOT) + 1 :]}"
+        )
     elif not is_absolute:
-        archive_candidates.extend((f"{WORKSPACE_ROOT}/{raw_path}", f"{PERSISTENT_ROOT}/{raw_path}"))
+        archive_candidates.extend(
+            (f"{WORKSPACE_ROOT}/{raw_path}", f"{PERSISTENT_ROOT}/{raw_path}")
+        )
 
     sidecars: list[str] = []
     seen: set[str] = set()
@@ -524,7 +534,9 @@ def is_context_path(path: str) -> bool:
 
 # Cached function references to avoid repeated imports
 _cached_get_current_chat_id: Callable[[], str | None] | None = None
-_cached_get_file_access_tracker: Callable[[], Coroutine[None, None, object]] | None = None
+_cached_get_file_access_tracker: Callable[[], Coroutine[None, None, object]] | None = (
+    None
+)
 
 
 async def track_context_file_access_if_needed(file_path: str) -> None:

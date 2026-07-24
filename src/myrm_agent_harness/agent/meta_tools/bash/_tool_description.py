@@ -49,7 +49,7 @@ TOOL_DESCRIPTION = """
 
 ## 后台任务（可选）
 
-``run_in_background=true`` 立即返回 pid；配合 ``bash_process_tool(action='list'|'output'|'kill')``。进度: ``echo 'MYRM_PROGRESS {"percent":42,"message":"..."}'`` 或 ``MYRM_CHECKPOINT``。
+``run_in_background=true`` 立即返回 pid；配合 ``bash_process_tool(action='list'|'output'|'kill'|'submit_stdin')``。交互式命令可后台启动后由 GUI 或 ``submit_stdin`` 应答。进度: ``echo 'MYRM_PROGRESS {"percent":42,"message":"..."}'`` 或 ``MYRM_CHECKPOINT``。
 """.strip()
 
 __all__ = ["TOOL_DESCRIPTION"]

@@ -48,8 +48,12 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_auto_yield import (
     should_auto_yield,
     wait_for_yield_window,
 )
-from myrm_agent_harness.agent.meta_tools.bash._background_registry import get_background_registry
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool_exit_semantics import interpret_exit_code
+from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
+    get_background_registry,
+)
+from myrm_agent_harness.agent.meta_tools.bash.bash_tool_exit_semantics import (
+    interpret_exit_code,
+)
 from myrm_agent_harness.agent.meta_tools.bash.bash_tool_formatting import (
     format_result,
     truncate_bash_output,
@@ -97,9 +101,7 @@ def create_bash_code_execute_tool(
 
     skill_paths = [s.storage_path for s in (skills or []) if s.storage_path]
     skill_oauth_issuers = {
-        s.name: s.oauth_issuer
-        for s in (skills or [])
-        if s.oauth_issuer and s.name
+        s.name: s.oauth_issuer for s in (skills or []) if s.oauth_issuer and s.name
     }
 
     from myrm_agent_harness.agent.skills.mcp.builtin_registry import (
@@ -139,7 +141,7 @@ def create_bash_code_execute_tool(
             check_sensitive_paths(command)
 
             interactive_msg = check_interactive_command(command)
-            if interactive_msg is not None:
+            if interactive_msg is not None and not run_in_background:
                 from myrm_agent_harness.utils.errors import ToolError
 
                 raise ToolError(
@@ -247,8 +249,10 @@ def create_bash_code_execute_tool(
                         f"  pid: {info.pid}\n"
                         f"  command: {info.command}\n"
                         f"  status: {info.status}\n\n"
-                        "Use bash_process_tool(action='output', pid=...) to poll stdout/stderr "
-                        "or bash_process_tool(action='kill', pid=...) to stop it."
+                        "Use bash_process_tool(action='output', pid=...) to poll stdout/stderr, "
+                        "bash_process_tool(action='submit_stdin', pid=..., data=...) for interactive "
+                        "prompts, or bash_process_tool(action='kill', pid=...) to stop it. "
+                        "GUI users can also send input from the Activity panel."
                     ),
                     "metadata": {
                         "background": True,
@@ -311,7 +315,9 @@ def create_bash_code_execute_tool(
                 metadata = result["mcp_metadata"]
 
             generated = result.get("generated_files")
-            generated_files: list[str] = list(generated) if isinstance(generated, list) else []
+            generated_files: list[str] = (
+                list(generated) if isinstance(generated, list) else []
+            )
             blocks = await maybe_build_image_blocks(
                 text_content=formatted_content,
                 generated_files=generated_files,

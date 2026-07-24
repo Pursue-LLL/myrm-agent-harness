@@ -22,13 +22,14 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 - **Budget Wrap-up Turn**: 预算耗尽时不立即终止，注入 `build_wrapup_prompt` 让 LLM 生成最后一轮无工具语义总结（进度/工件/剩余工作/下步建议）。通过 `_WRAPUP_SENTINEL` 标记防止无限循环。
 - **Goal Drift Detection**: 每 5 轮调用廉价 LLM 评估最近工具调用与目标的相关性（0-10 分）。drift_score ≥ 3 注入 nudge 提醒；≥ 7 PAUSE Goal 等待人工审查。Fail-open：评估失败时默认允许继续。复用现有 `evaluate_semantic` 基础设施。
 - **Sandbox Boundary HITL**: LoopGuard 检测到连续 3 次 PERMISSION_DENIED 跨工具错误时，标记 `sandbox_boundary` 并在 continuation guard chain 中 PAUSE Goal，而非暴力 interrupt。用户收到通知后可决定是否授权或调整任务。
+- **Per-Todo Checkpoint**: `checkpoint_mode: "none" | "per_todo"` — opt-in 逐步确认模式。开启后，guard chain (step 6.5c) 在每个 todo 完成时自动 PAUSE Goal，等待用户确认后继续。通过对比 workspace todos.json 当前状态与 Goal.metadata `_checkpoint_completed_ids` 快照检测新完成的 todo。Resume 时 continuation prompt 注入用户确认信息，确保 Agent 知情继续。
 
 ## 文件清单
 
 | 文件 | 地位 | 职责 | I/O/P |
 |------|------|------|-------|
 | __init__.py | 辅助 | 模块导出 | ✅ |
-| types.py | 核心 | Goal, GoalBudget, GoalStatus(含 QUEUED/**WAIT**), ContinuationDecision(含 convergence/loop_restart/**wait**), GoalExecutionSummary 等核心数据类型 | ✅ |
+| types.py | 核心 | Goal(含 checkpoint_mode), GoalBudget, GoalStatus(含 QUEUED/**WAIT**), ContinuationDecision(含 convergence/loop_restart/**wait**/**checkpoint_pause**), GoalExecutionSummary, CheckpointMode 等核心数据类型 | ✅ |
 | protocols.py | 核心 | GoalProvider protocol — 含 update_metadata、enter_wait、exit_wait、account_usage(turn_delta)、resume_goal、dequeue_next 等 | ✅ |
 | manager.py | 核心 | GoalManager 状态机 — 4 维预算、WAIT 屏障、update_metadata、resume_goal、队列与 metrics | ✅ |
 | manager_queue_mixin.py | 核心 | Subgoal/queue/stash 操作 mixin | ✅ |
@@ -36,7 +37,8 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 | steering_prompts.py | 核心 | Goal 运行时 steering prompt 模板 | ✅ |
 | storage.py | 核心 | SQLite 持久化、队列索引、`list_latest_goal_sessions`（启动 orphan WAIT 扫描） | ✅ |
 | goal_prompt_prefixes.py | Core | `GOAL_CONTINUATION_PREFIX` / `GOAL_WRAPUP_PREFIX` SSOT | ✅ |
-| continuation.py | 核心 | guard chain → ContinuationDecision；WAIT 早退；tool-complete deferred 解析；白名单 background bash 自动 enter_wait；Sandbox Boundary HITL (step 6.5a)；delegates drift to continuation_drift | ✅ |
+| continuation.py | 核心 | guard chain → ContinuationDecision；WAIT 早退；tool-complete deferred 解析；白名单 background bash 自动 enter_wait；Sandbox Boundary HITL (step 6.5a)；delegates drift to continuation_drift；delegates checkpoint to continuation_checkpoint | ✅ |
+| continuation_checkpoint.py | 核心 | Per-Todo Checkpoint (step 6.5c) — 检测新完成的 todo 并 PAUSE Goal 等待用户确认，produce checkpoint_pause verdict | ✅ |
 | continuation_drift.py | 核心 | Goal Drift Detection (step 6.5b) — LLM judge 评估轨迹偏离度，produce drift_nudge/drift_pause verdicts | ✅ |
 | wait_background_bash.py | 核心 | 窄域 build/test/CI 白名单 + LoopGuard 窗口解析 background spawn；metadata `wait_on_background_job_id` 绑定 BSDL job_id；Server finish 时 exit_wait + `trigger_goal_stream_with_failure_policy` 闭环 | ✅ |
 | audit.py | 核心 | 三段式 judge criteria + 行为引导 continuation prompt（含 Fidelity 防目标缩水、Evidence-based 防历史幻觉、Progress visibility 激活 todo_write 进度推送、8 步 audit protocol、历史 learnings 注入、收敛引导指令）+ budget wrap-up prompt | ✅ |

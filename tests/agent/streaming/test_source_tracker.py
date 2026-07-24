@@ -20,36 +20,46 @@ class TestSourceTrackerDedup:
 
     def test_url_dedup(self) -> None:
         tracker = SourceTracker()
-        batch1 = tracker.add_batch([
-            {"url": "https://a.com", "title": "A"},
-            {"url": "https://b.com", "title": "B"},
-        ])
+        batch1 = tracker.add_batch(
+            [
+                {"url": "https://a.com", "title": "A"},
+                {"url": "https://b.com", "title": "B"},
+            ]
+        )
         assert len(batch1) == 2
 
-        batch2 = tracker.add_batch([
-            {"url": "https://a.com", "title": "A duplicate"},
-        ])
+        batch2 = tracker.add_batch(
+            [
+                {"url": "https://a.com", "title": "A duplicate"},
+            ]
+        )
         assert len(batch2) == 0
         assert len(tracker.all_sources) == 2
 
     def test_content_hash_dedup_for_non_url_sources(self) -> None:
         tracker = SourceTracker()
-        batch1 = tracker.add_batch([
-            {"type": "mcp", "skill_name": "web_search"},
-        ])
+        batch1 = tracker.add_batch(
+            [
+                {"type": "mcp", "skill_name": "web_search"},
+            ]
+        )
         assert len(batch1) == 1
 
-        batch2 = tracker.add_batch([
-            {"type": "mcp", "skill_name": "web_search"},
-        ])
+        batch2 = tracker.add_batch(
+            [
+                {"type": "mcp", "skill_name": "web_search"},
+            ]
+        )
         assert len(batch2) == 0
 
     def test_different_content_not_deduped(self) -> None:
         tracker = SourceTracker()
-        batch = tracker.add_batch([
-            {"type": "mcp", "skill_name": "web_search"},
-            {"type": "mcp", "skill_name": "code_exec"},
-        ])
+        batch = tracker.add_batch(
+            [
+                {"type": "mcp", "skill_name": "web_search"},
+                {"type": "mcp", "skill_name": "code_exec"},
+            ]
+        )
         assert len(batch) == 2
 
 
@@ -58,11 +68,13 @@ class TestSourceTrackerIndex:
 
     def test_sequential_index(self) -> None:
         tracker = SourceTracker()
-        batch = tracker.add_batch([
-            {"url": "https://a.com"},
-            {"url": "https://b.com"},
-            {"url": "https://c.com"},
-        ])
+        batch = tracker.add_batch(
+            [
+                {"url": "https://a.com"},
+                {"url": "https://b.com"},
+                {"url": "https://c.com"},
+            ]
+        )
         assert [s["index"] for s in batch] == [1, 2, 3]
 
     def test_index_persists_across_batches(self) -> None:
@@ -84,16 +96,20 @@ class TestSourceTrackerIncremental:
 
     def test_incremental_return(self) -> None:
         tracker = SourceTracker()
-        batch1 = tracker.add_batch([
-            {"url": "https://a.com"},
-            {"url": "https://b.com"},
-        ])
+        batch1 = tracker.add_batch(
+            [
+                {"url": "https://a.com"},
+                {"url": "https://b.com"},
+            ]
+        )
         assert len(batch1) == 2
 
-        batch2 = tracker.add_batch([
-            {"url": "https://a.com"},
-            {"url": "https://c.com"},
-        ])
+        batch2 = tracker.add_batch(
+            [
+                {"url": "https://a.com"},
+                {"url": "https://c.com"},
+            ]
+        )
         assert len(batch2) == 1
         assert batch2[0]["url"] == "https://c.com"
 
@@ -103,26 +119,29 @@ class TestSourceTrackerIncremental:
         tracker.add_batch([{"url": "https://b.com"}])
         assert len(tracker.all_sources) == 2
 
-
     def test_url_dedup_after_citation_normalization(self) -> None:
         """Two provider redirects resolving to the same final URL should dedup."""
         tracker = SourceTracker()
-        batch1 = tracker.add_batch([
-            {
-                "url": "https://real.example/article",
-                "redirect_url": "https://redirect-a.example/r",
-                "title": "A",
-            },
-        ])
+        batch1 = tracker.add_batch(
+            [
+                {
+                    "url": "https://real.example/article",
+                    "redirect_url": "https://redirect-a.example/r",
+                    "title": "A",
+                },
+            ]
+        )
         assert len(batch1) == 1
 
-        batch2 = tracker.add_batch([
-            {
-                "url": "https://real.example/article",
-                "redirect_url": "https://redirect-b.example/r",
-                "title": "B",
-            },
-        ])
+        batch2 = tracker.add_batch(
+            [
+                {
+                    "url": "https://real.example/article",
+                    "redirect_url": "https://redirect-b.example/r",
+                    "title": "B",
+                },
+            ]
+        )
         assert len(batch2) == 0
         assert len(tracker.all_sources) == 1
 
@@ -172,20 +191,24 @@ class TestSourceTrackerEdgeCases:
     def test_url_with_fragment_not_deduped(self) -> None:
         """URLs with different fragments are treated as different."""
         tracker = SourceTracker()
-        batch = tracker.add_batch([
-            {"url": "https://a.com/page#section1"},
-            {"url": "https://a.com/page#section2"},
-        ])
+        batch = tracker.add_batch(
+            [
+                {"url": "https://a.com/page#section1"},
+                {"url": "https://a.com/page#section2"},
+            ]
+        )
         assert len(batch) == 2
 
     def test_mixed_url_and_non_url_sources(self) -> None:
         tracker = SourceTracker()
-        batch = tracker.add_batch([
-            {"url": "https://a.com"},
-            {"type": "mcp", "skill_name": "web_search"},
-            {"type": "conversation_history", "title": "Chat 1"},
-            {"url": "https://b.com"},
-        ])
+        batch = tracker.add_batch(
+            [
+                {"url": "https://a.com"},
+                {"type": "mcp", "skill_name": "web_search"},
+                {"type": "conversation_history", "title": "Chat 1"},
+                {"url": "https://b.com"},
+            ]
+        )
         assert len(batch) == 4
         assert [s["index"] for s in batch] == [1, 2, 3, 4]
 
@@ -199,9 +222,16 @@ class TestSourceTrackerEdgeCases:
 
     def test_source_preserves_original_fields(self) -> None:
         tracker = SourceTracker()
-        batch = tracker.add_batch([
-            {"url": "https://a.com", "title": "Test", "snippet": "Some text", "extra_field": 42},
-        ])
+        batch = tracker.add_batch(
+            [
+                {
+                    "url": "https://a.com",
+                    "title": "Test",
+                    "snippet": "Some text",
+                    "extra_field": 42,
+                },
+            ]
+        )
         assert batch[0]["title"] == "Test"
         assert batch[0]["snippet"] == "Some text"
         assert batch[0]["extra_field"] == 42
@@ -214,5 +244,7 @@ class TestSourceTrackerEdgeCases:
         assert len(batch1) == 1
         assert batch1[0]["index"] == 1  # overwritten by tracker
 
-        batch2 = tracker.add_batch([{"type": "mcp", "skill_name": "test", "index": 100}])
+        batch2 = tracker.add_batch(
+            [{"type": "mcp", "skill_name": "test", "index": 100}]
+        )
         assert len(batch2) == 0  # deduped (index excluded from hash)

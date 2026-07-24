@@ -1,11 +1,11 @@
 """Web Fetch Tools import tests."""
 
-from myrm_agent_harness.toolkits.web_fetch.engine import CrawlEngine
+from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 
 
 def test_web_fetch_tools_import() -> None:
-    """Test CrawlEngine class can be imported."""
-    assert CrawlEngine is not None
-    assert hasattr(CrawlEngine, "crawl")
-    assert hasattr(CrawlEngine, "crawl_many")
-    assert hasattr(CrawlEngine, "shutdown")
+    """Test FetchEngine class can be imported."""
+    assert FetchEngine is not None
+    assert hasattr(FetchEngine, "crawl")
+    assert hasattr(FetchEngine, "crawl_many")
+    assert hasattr(FetchEngine, "shutdown")

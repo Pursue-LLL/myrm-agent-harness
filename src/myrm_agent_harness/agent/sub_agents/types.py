@@ -94,7 +94,9 @@ class DelegationCapabilityManifest:
 
 
 DELEGATION_CAPABILITY_MANIFEST = DelegationCapabilityManifest.default()
-_SUBAGENT_DEFAULT_BLACKLIST: frozenset[str] = DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools
+_SUBAGENT_DEFAULT_BLACKLIST: frozenset[str] = (
+    DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools
+)
 
 
 class SubAgentStatus(StrEnum):
@@ -264,7 +266,9 @@ class SubAgentResult:
         if self.handover_state:
             data["handover_state"] = self.handover_state.to_dict()
         if self.accumulated_duration_seconds is not None:
-            data["accumulated_duration_seconds"] = round(self.accumulated_duration_seconds, 3)
+            data["accumulated_duration_seconds"] = round(
+                self.accumulated_duration_seconds, 3
+            )
         if self.still_running:
             data["still_running"] = True
         return data
