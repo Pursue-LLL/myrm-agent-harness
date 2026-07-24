@@ -7,7 +7,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import create_bash_code_execute_tool
+from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
+    create_bash_code_execute_tool,
+)
 from myrm_agent_harness.agent.meta_tools.bash.bash_tool_background_listeners import (
     build_background_listeners,
     classify_background_exit,
@@ -340,7 +342,9 @@ async def test_bash_tool_foreground_with_truncation_eviction_and_hint() -> None:
         ),
     ):
         tool = create_bash_code_execute_tool(
-            skills=[SimpleNamespace(name="s", oauth_issuer="iss", storage_path="/skills/s")],
+            skills=[
+                SimpleNamespace(name="s", oauth_issuer="iss", storage_path="/skills/s")
+            ],
             skill_env_map={"s": {}},
             global_env={"G": "1"},
         )

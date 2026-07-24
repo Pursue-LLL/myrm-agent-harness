@@ -42,7 +42,9 @@ def _wildcard_match(value: str, pattern: str) -> bool:
     return fnmatch(value, pattern)
 
 
-def evaluate(permission: str, target: str, *rulesets: PermissionRuleset) -> PermissionRule:
+def evaluate(
+    permission: str, target: str, *rulesets: PermissionRuleset
+) -> PermissionRule:
     """Resolve the effective rule for a (permission, target) pair.
 
     Uses **last-match-wins** semantics: later rulesets override earlier ones,
@@ -54,7 +56,9 @@ def evaluate(permission: str, target: str, *rulesets: PermissionRuleset) -> Perm
     merged = merge(*rulesets)
     match: PermissionRule | None = None
     for rule in merged:
-        if _wildcard_match(permission, rule.permission) and _wildcard_match(target, rule.pattern):
+        if _wildcard_match(permission, rule.permission) and _wildcard_match(
+            target, rule.pattern
+        ):
             match = rule
     return match or PermissionRule(permission, "*", PermissionAction.ASK)
 
@@ -90,7 +94,9 @@ _TARGET_EXTRACTORS: dict[str, str] = {
     "file_write": "path",
 }
 
-_URL_BEARING_PERMISSIONS: frozenset[str] = frozenset({"web_fetch", "net_fetch", "browser_navigate"})
+_URL_BEARING_PERMISSIONS: frozenset[str] = frozenset(
+    {"web_fetch", "net_fetch", "browser_navigate"}
+)
 _PATH_CHECKED_PERMISSIONS: frozenset[str] = frozenset({"file_read", "file_write"})
 
 
@@ -160,7 +166,9 @@ def _check_domain_policy(
     return PermissionAction.ASK, f"Domain '{hostname}' requires approval"
 
 
-def _resolve_target(permission: str, tool_input: dict[str, object], *, tool_name: str | None = None) -> str:
+def _resolve_target(
+    permission: str, tool_input: dict[str, object], *, tool_name: str | None = None
+) -> str:
     """Extract the target resource from tool_input for pattern matching.
 
     For URL-bearing permissions (``browser_navigate``, ``web_fetch``),
@@ -220,7 +228,11 @@ def evaluate_tool_call(
 
     Returns (action, reason). Reason is empty for ALLOW.
     """
-    from myrm_agent_harness.agent.security.checks import check_navigate_scheme, check_path_policy, check_shell_threats
+    from myrm_agent_harness.agent.security.checks import (
+        check_navigate_scheme,
+        check_path_policy,
+        check_shell_threats,
+    )
 
     if not check_capability(permission, "*", config.capabilities):
         return PermissionAction.DENY, f"Capability not granted: {permission}"
@@ -233,26 +245,35 @@ def evaluate_tool_call(
     if scheme_action is not None:
         return scheme_action, scheme_reason
 
-    block_action, block_reason = _check_domain_blocklist(permission, tool_input, config.network_blocklist)
+    block_action, block_reason = _check_domain_blocklist(
+        permission, tool_input, config.network_blocklist
+    )
     if block_action is not None:
         return block_action, block_reason
 
     if config.domain_hitl_enabled:
-        domain_action, domain_reason = _check_domain_policy(permission, tool_input, config.network_allowlist)
+        domain_action, domain_reason = _check_domain_policy(
+            permission, tool_input, config.network_allowlist
+        )
         if domain_action is not None:
             return domain_action, domain_reason
 
     if permission in _PATH_CHECKED_PERMISSIONS:
         raw_path = str(tool_input.get("path", ""))
         if raw_path:
-            path_action, path_reason = check_path_policy(raw_path, config.path_policy, workspace_root)
+            path_action, path_reason = check_path_policy(
+                raw_path, config.path_policy, workspace_root
+            )
             if path_action in (PermissionAction.DENY, PermissionAction.ASK):
                 return path_action, path_reason
 
     target = _resolve_target(permission, tool_input, tool_name=tool_name)
     result = evaluate(permission, target, config.ruleset)
 
-    if result.action == PermissionAction.ASK and permission in ("shell_exec", "code_interpreter"):
+    if result.action == PermissionAction.ASK and permission in (
+        "shell_exec",
+        "code_interpreter",
+    ):
         from myrm_agent_harness.toolkits.code_execution.security.risk_classifier import (
             CommandRiskLevel,
             classify_command_risk,
@@ -278,7 +299,9 @@ def merge(*rulesets: PermissionRuleset) -> PermissionRuleset:
 
 
 def disabled_permissions(
-    permissions: list[str], ruleset: PermissionRuleset, capabilities: CapabilitySet = DEFAULT_CAPABILITIES
+    permissions: list[str],
+    ruleset: PermissionRuleset,
+    capabilities: CapabilitySet = DEFAULT_CAPABILITIES,
 ) -> frozenset[str]:
     """Return permission types that are unconditionally denied.
 
@@ -300,7 +323,9 @@ def disabled_permissions(
     return frozenset(result)
 
 
-def extract_url_domains(permission: str, tool_input: dict[str, object]) -> tuple[str, ...]:
+def extract_url_domains(
+    permission: str, tool_input: dict[str, object]
+) -> tuple[str, ...]:
     """Extract hostnames from URL-bearing tool arguments.
 
     Returns a tuple of lowercased hostnames found in the tool's URL parameters.

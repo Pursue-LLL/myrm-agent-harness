@@ -37,7 +37,9 @@ class TestForegroundMode:
     """ExecutionMode.foreground → always pass through regardless of callback."""
 
     @pytest.mark.asyncio
-    async def test_foreground_mode_passes_without_callback(self, backend: MagicMock) -> None:
+    async def test_foreground_mode_passes_without_callback(
+        self, backend: MagicMock
+    ) -> None:
         config = ComputerUseConfig(execution_mode=ExecutionMode.foreground)
         session = ComputerSession(backend=backend, config=config)
 
@@ -47,10 +49,14 @@ class TestForegroundMode:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_foreground_mode_never_calls_callback(self, backend: MagicMock) -> None:
+    async def test_foreground_mode_never_calls_callback(
+        self, backend: MagicMock
+    ) -> None:
         callback = AsyncMock()
         config = ComputerUseConfig(execution_mode=ExecutionMode.foreground)
-        session = ComputerSession(backend=backend, config=config, permission_callback=callback)
+        session = ComputerSession(
+            backend=backend, config=config, permission_callback=callback
+        )
 
         await session.check_foreground_permission(reason="test", operation="click")
         callback.assert_not_called()
@@ -61,27 +67,39 @@ class TestCachedGrant:
 
     @pytest.mark.asyncio
     async def test_session_scope_caches(self, backend: MagicMock) -> None:
-        callback = AsyncMock(return_value=ForegroundPermissionResult(
-            granted=True, scope=ForegroundPermissionScope.session
-        ))
+        callback = AsyncMock(
+            return_value=ForegroundPermissionResult(
+                granted=True, scope=ForegroundPermissionScope.session
+            )
+        )
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
-        session = ComputerSession(backend=backend, config=config, permission_callback=callback)
+        session = ComputerSession(
+            backend=backend, config=config, permission_callback=callback
+        )
 
-        first = await session.check_foreground_permission(reason="first", operation="op1")
+        first = await session.check_foreground_permission(
+            reason="first", operation="op1"
+        )
         assert first is None
         assert callback.call_count == 1
 
-        second = await session.check_foreground_permission(reason="second", operation="op2")
+        second = await session.check_foreground_permission(
+            reason="second", operation="op2"
+        )
         assert second is None
         assert callback.call_count == 1  # not called again
 
     @pytest.mark.asyncio
     async def test_always_scope_caches(self, backend: MagicMock) -> None:
-        callback = AsyncMock(return_value=ForegroundPermissionResult(
-            granted=True, scope=ForegroundPermissionScope.always
-        ))
+        callback = AsyncMock(
+            return_value=ForegroundPermissionResult(
+                granted=True, scope=ForegroundPermissionScope.always
+            )
+        )
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_best_effort)
-        session = ComputerSession(backend=backend, config=config, permission_callback=callback)
+        session = ComputerSession(
+            backend=backend, config=config, permission_callback=callback
+        )
 
         await session.check_foreground_permission(reason="first", operation="op1")
         await session.check_foreground_permission(reason="second", operation="op2")
@@ -94,7 +112,9 @@ class TestNoCallback:
     @pytest.mark.asyncio
     async def test_strict_mode_denies(self, backend: MagicMock) -> None:
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
-        session = ComputerSession(backend=backend, config=config, permission_callback=None)
+        session = ComputerSession(
+            backend=backend, config=config, permission_callback=None
+        )
 
         result = await session.check_foreground_permission(
             reason="need foreground", operation="bbox_click"
@@ -106,7 +126,9 @@ class TestNoCallback:
     @pytest.mark.asyncio
     async def test_best_effort_mode_passes(self, backend: MagicMock) -> None:
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_best_effort)
-        session = ComputerSession(backend=backend, config=config, permission_callback=None)
+        session = ComputerSession(
+            backend=backend, config=config, permission_callback=None
+        )
 
         result = await session.check_foreground_permission(
             reason="need foreground", operation="bbox_click"
@@ -121,7 +143,9 @@ class TestCallbackInvocation:
     async def test_callback_deny_returns_error(self, backend: MagicMock) -> None:
         callback = AsyncMock(return_value=ForegroundPermissionResult(granted=False))
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
-        session = ComputerSession(backend=backend, config=config, permission_callback=callback)
+        session = ComputerSession(
+            backend=backend, config=config, permission_callback=callback
+        )
 
         result = await session.check_foreground_permission(
             reason="AX failed", operation="click(50, 60)"
@@ -132,11 +156,15 @@ class TestCallbackInvocation:
 
     @pytest.mark.asyncio
     async def test_callback_grant_once_does_not_cache(self, backend: MagicMock) -> None:
-        callback = AsyncMock(return_value=ForegroundPermissionResult(
-            granted=True, scope=ForegroundPermissionScope.once
-        ))
+        callback = AsyncMock(
+            return_value=ForegroundPermissionResult(
+                granted=True, scope=ForegroundPermissionScope.once
+            )
+        )
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
-        session = ComputerSession(backend=backend, config=config, permission_callback=callback)
+        session = ComputerSession(
+            backend=backend, config=config, permission_callback=callback
+        )
 
         await session.check_foreground_permission(reason="first", operation="op1")
         await session.check_foreground_permission(reason="second", operation="op2")
@@ -144,11 +172,15 @@ class TestCallbackInvocation:
 
     @pytest.mark.asyncio
     async def test_callback_receives_correct_args(self, backend: MagicMock) -> None:
-        callback = AsyncMock(return_value=ForegroundPermissionResult(
-            granted=True, scope=ForegroundPermissionScope.once
-        ))
+        callback = AsyncMock(
+            return_value=ForegroundPermissionResult(
+                granted=True, scope=ForegroundPermissionScope.once
+            )
+        )
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_best_effort)
-        session = ComputerSession(backend=backend, config=config, permission_callback=callback)
+        session = ComputerSession(
+            backend=backend, config=config, permission_callback=callback
+        )
 
         await session.check_foreground_permission(
             reason="AX invoke failed",
@@ -183,14 +215,20 @@ class TestCheckAppApproval:
     """check_app_approval: per-app gate with inspect_backend fallback."""
 
     @pytest.mark.asyncio
-    async def test_inspect_fallback_when_app_name_empty(self, backend: MagicMock) -> None:
+    async def test_inspect_fallback_when_app_name_empty(
+        self, backend: MagicMock
+    ) -> None:
         from unittest.mock import patch
 
         callback = AsyncMock(
-            return_value=ForegroundPermissionResult(granted=True, scope=ForegroundPermissionScope.once)
+            return_value=ForegroundPermissionResult(
+                granted=True, scope=ForegroundPermissionScope.once
+            )
         )
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
-        session = ComputerSession(backend=backend, config=config, permission_callback=callback)
+        session = ComputerSession(
+            backend=backend, config=config, permission_callback=callback
+        )
 
         with patch(
             "myrm_agent_harness.toolkits.computer_use.perception.ax_dispatch.inspect_backend",
@@ -208,12 +246,16 @@ class TestCheckAppApproval:
         assert callback.call_args.kwargs["window_title"] == "Desktop"
 
     @pytest.mark.asyncio
-    async def test_fail_closed_when_foreground_unknown(self, backend: MagicMock) -> None:
+    async def test_fail_closed_when_foreground_unknown(
+        self, backend: MagicMock
+    ) -> None:
         from unittest.mock import patch
 
         callback = AsyncMock(return_value=ForegroundPermissionResult(granted=True))
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
-        session = ComputerSession(backend=backend, config=config, permission_callback=callback)
+        session = ComputerSession(
+            backend=backend, config=config, permission_callback=callback
+        )
 
         with patch(
             "myrm_agent_harness.toolkits.computer_use.perception.ax_dispatch.inspect_backend",
@@ -230,11 +272,15 @@ class TestCheckAppApproval:
         callback.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_unknown_app_best_effort_without_callback_passes(self, backend: MagicMock) -> None:
+    async def test_unknown_app_best_effort_without_callback_passes(
+        self, backend: MagicMock
+    ) -> None:
         from unittest.mock import patch
 
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_best_effort)
-        session = ComputerSession(backend=backend, config=config, permission_callback=None)
+        session = ComputerSession(
+            backend=backend, config=config, permission_callback=None
+        )
 
         with patch(
             "myrm_agent_harness.toolkits.computer_use.perception.ax_dispatch.inspect_backend",
@@ -248,12 +294,13 @@ class TestCheckAppApproval:
 
         assert result is None
 
-
     @pytest.mark.asyncio
     async def test_app_approval_denied_by_callback(self, backend: MagicMock) -> None:
         callback = AsyncMock(return_value=ForegroundPermissionResult(granted=False))
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
-        session = ComputerSession(backend=backend, config=config, permission_callback=callback)
+        session = ComputerSession(
+            backend=backend, config=config, permission_callback=callback
+        )
 
         result = await session.check_app_approval(
             app_name="Notes",
@@ -267,9 +314,13 @@ class TestCheckAppApproval:
         assert session._operation_foreground_waived is False
 
     @pytest.mark.asyncio
-    async def test_app_approval_no_callback_strict_with_app(self, backend: MagicMock) -> None:
+    async def test_app_approval_no_callback_strict_with_app(
+        self, backend: MagicMock
+    ) -> None:
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
-        session = ComputerSession(backend=backend, config=config, permission_callback=None)
+        session = ComputerSession(
+            backend=backend, config=config, permission_callback=None
+        )
 
         result = await session.check_app_approval(
             app_name="Finder",
@@ -286,12 +337,18 @@ class TestOperationForegroundWaiver:
     """App approval grants a one-shot foreground waiver for bbox/healer in the same tool call."""
 
     @pytest.mark.asyncio
-    async def test_app_approval_waives_immediate_foreground_check(self, backend: MagicMock) -> None:
+    async def test_app_approval_waives_immediate_foreground_check(
+        self, backend: MagicMock
+    ) -> None:
         callback = AsyncMock(
-            return_value=ForegroundPermissionResult(granted=True, scope=ForegroundPermissionScope.once),
+            return_value=ForegroundPermissionResult(
+                granted=True, scope=ForegroundPermissionScope.once
+            ),
         )
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
-        session = ComputerSession(backend=backend, config=config, permission_callback=callback)
+        session = ComputerSession(
+            backend=backend, config=config, permission_callback=callback
+        )
 
         app_result = await session.check_app_approval(
             app_name="Finder",
@@ -318,14 +375,18 @@ class TestOperationForegroundWaiver:
         assert callback.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_app_approval_always_scope_caches_foreground(self, backend: MagicMock) -> None:
+    async def test_app_approval_always_scope_caches_foreground(
+        self, backend: MagicMock
+    ) -> None:
         callback = AsyncMock(
             return_value=ForegroundPermissionResult(
                 granted=True, scope=ForegroundPermissionScope.always
             )
         )
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
-        session = ComputerSession(backend=backend, config=config, permission_callback=callback)
+        session = ComputerSession(
+            backend=backend, config=config, permission_callback=callback
+        )
 
         app_result = await session.check_app_approval(
             app_name="Finder",
@@ -366,9 +427,13 @@ class TestComputerSessionCoordinateIo:
 
     @pytest.fixture
     def session(self, backend: MagicMock) -> ComputerSession:
-        from myrm_agent_harness.toolkits.computer_use.coordinate_scaler import CoordinateScaler
+        from myrm_agent_harness.toolkits.computer_use.coordinate_scaler import (
+            CoordinateScaler,
+        )
 
-        s = ComputerSession(backend=backend, config=ComputerUseConfig(screenshot_delay=0.0))
+        s = ComputerSession(
+            backend=backend, config=ComputerUseConfig(screenshot_delay=0.0)
+        )
         s._scaler = CoordinateScaler(
             screen_width=1920,
             screen_height=1080,
@@ -379,22 +444,32 @@ class TestComputerSessionCoordinateIo:
         return s
 
     @pytest.mark.asyncio
-    async def test_click_at_rejects_out_of_bounds(self, session: ComputerSession) -> None:
+    async def test_click_at_rejects_out_of_bounds(
+        self, session: ComputerSession
+    ) -> None:
         result = await session.click_at(900, 700)
         assert result.success is False
         assert "out of bounds" in (result.error or "")
 
     @pytest.mark.asyncio
-    async def test_zoom_region_returns_crop(self, session: ComputerSession, backend: MagicMock) -> None:
-        with patch.object(session._processor, "crop_and_process", return_value=("b64crop", (200, 200))):
+    async def test_zoom_region_returns_crop(
+        self, session: ComputerSession, backend: MagicMock
+    ) -> None:
+        with patch.object(
+            session._processor, "crop_and_process", return_value=("b64crop", (200, 200))
+        ):
             result = await session.zoom_region(100, 100, size=400)
         assert result.success is True
         assert result.screenshot_base64 == "b64crop"
         backend.screenshot.assert_awaited()
 
     @pytest.mark.asyncio
-    async def test_type_text_and_key_press_refresh_screenshot(self, session: ComputerSession) -> None:
-        with patch.object(session, "take_screenshot", new_callable=AsyncMock) as mock_ss:
+    async def test_type_text_and_key_press_refresh_screenshot(
+        self, session: ComputerSession
+    ) -> None:
+        with patch.object(
+            session, "take_screenshot", new_callable=AsyncMock
+        ) as mock_ss:
             mock_ss.return_value = ActionResult(
                 success=True, screenshot_base64="ss", screenshot_size=(800, 600)
             )
@@ -405,8 +480,12 @@ class TestComputerSessionCoordinateIo:
         assert typed.screenshot_base64 == "ss"
 
     @pytest.mark.asyncio
-    async def test_mouse_move_scroll_drag(self, session: ComputerSession, backend: MagicMock) -> None:
-        with patch.object(session, "take_screenshot", new_callable=AsyncMock) as mock_ss:
+    async def test_mouse_move_scroll_drag(
+        self, session: ComputerSession, backend: MagicMock
+    ) -> None:
+        with patch.object(
+            session, "take_screenshot", new_callable=AsyncMock
+        ) as mock_ss:
             mock_ss.return_value = ActionResult(
                 success=True, screenshot_base64="ss", screenshot_size=(800, 600)
             )
@@ -418,8 +497,12 @@ class TestComputerSessionCoordinateIo:
         backend.drag.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_wait_seconds_and_close_non_fatal(self, session: ComputerSession) -> None:
-        with patch.object(session, "take_screenshot", new_callable=AsyncMock) as mock_ss:
+    async def test_wait_seconds_and_close_non_fatal(
+        self, session: ComputerSession
+    ) -> None:
+        with patch.object(
+            session, "take_screenshot", new_callable=AsyncMock
+        ) as mock_ss:
             mock_ss.return_value = ActionResult(
                 success=True, screenshot_base64="ss", screenshot_size=(800, 600)
             )
@@ -428,11 +511,17 @@ class TestComputerSessionCoordinateIo:
         await session.close()
 
     @pytest.mark.asyncio
-    async def test_lazy_scaler_init_for_mouse_scroll_drag(self, backend: MagicMock) -> None:
-        session = ComputerSession(backend=backend, config=ComputerUseConfig(screenshot_delay=0.0))
+    async def test_lazy_scaler_init_for_mouse_scroll_drag(
+        self, backend: MagicMock
+    ) -> None:
+        session = ComputerSession(
+            backend=backend, config=ComputerUseConfig(screenshot_delay=0.0)
+        )
         assert session.scaler is None
 
-        with patch.object(session._processor, "process", return_value=("b64", (800, 600))):
+        with patch.object(
+            session._processor, "process", return_value=("b64", (800, 600))
+        ):
             await session.mouse_move_to(10, 20)
 
         assert session.scaler is not None
@@ -440,22 +529,32 @@ class TestComputerSessionCoordinateIo:
 
     @pytest.mark.asyncio
     async def test_scroll_at_lazy_scaler_init(self, backend: MagicMock) -> None:
-        session = ComputerSession(backend=backend, config=ComputerUseConfig(screenshot_delay=0.0))
-        with patch.object(session._processor, "process", return_value=("b64", (800, 600))):
+        session = ComputerSession(
+            backend=backend, config=ComputerUseConfig(screenshot_delay=0.0)
+        )
+        with patch.object(
+            session._processor, "process", return_value=("b64", (800, 600))
+        ):
             await session.scroll_at(10, 20, "down", 2)
         backend.scroll.assert_awaited_once()
         assert session.scaler is not None
 
     @pytest.mark.asyncio
     async def test_drag_lazy_scaler_init(self, backend: MagicMock) -> None:
-        session = ComputerSession(backend=backend, config=ComputerUseConfig(screenshot_delay=0.0))
-        with patch.object(session._processor, "process", return_value=("b64", (800, 600))):
+        session = ComputerSession(
+            backend=backend, config=ComputerUseConfig(screenshot_delay=0.0)
+        )
+        with patch.object(
+            session._processor, "process", return_value=("b64", (800, 600))
+        ):
             await session.drag(0, 0, 50, 50)
         backend.drag.assert_awaited_once()
         assert session.scaler is not None
 
     @pytest.mark.asyncio
-    async def test_check_permissions_delegates_to_backend(self, backend: MagicMock) -> None:
+    async def test_check_permissions_delegates_to_backend(
+        self, backend: MagicMock
+    ) -> None:
         from myrm_agent_harness.toolkits.computer_use.types import PermissionStatus
 
         expected = PermissionStatus(accessibility=True, screen_recording=True)
@@ -466,9 +565,17 @@ class TestComputerSessionCoordinateIo:
 
     @pytest.mark.asyncio
     async def test_zoom_region_lazy_scaler_init(self, backend: MagicMock) -> None:
-        session = ComputerSession(backend=backend, config=ComputerUseConfig(screenshot_delay=0.0))
-        with patch.object(session._processor, "process", return_value=("b64", (800, 600))):
-            with patch.object(session._processor, "crop_and_process", return_value=("b64crop", (200, 200))):
+        session = ComputerSession(
+            backend=backend, config=ComputerUseConfig(screenshot_delay=0.0)
+        )
+        with patch.object(
+            session._processor, "process", return_value=("b64", (800, 600))
+        ):
+            with patch.object(
+                session._processor,
+                "crop_and_process",
+                return_value=("b64crop", (200, 200)),
+            ):
                 result = await session.zoom_region(100, 100, size=400)
         assert result.success is True
         assert session.scaler is not None
@@ -504,13 +611,17 @@ class TestCreateComputerSession:
             "myrm_agent_harness.toolkits.computer_use.backends.macos.MacOSBackend",
             lambda: fake_backend,
         )
-        monkeypatch.setattr(session_module, "_try_wrap_with_cua_driver", lambda backend: backend)
+        monkeypatch.setattr(
+            session_module, "_try_wrap_with_cua_driver", lambda backend: backend
+        )
 
         created = session_module.create_computer_session()
         assert isinstance(created, ComputerSession)
         assert created._backend is fake_backend
 
-    def test_try_wrap_uses_cua_when_available(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_try_wrap_uses_cua_when_available(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from myrm_agent_harness.toolkits.computer_use import session as session_module
 
         native = MagicMock()
@@ -525,7 +636,9 @@ class TestCreateComputerSession:
         )
         assert session_module._try_wrap_with_cua_driver(native) is wrapped
 
-    def test_try_wrap_returns_native_when_cua_unavailable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_try_wrap_returns_native_when_cua_unavailable(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from myrm_agent_harness.toolkits.computer_use import session as session_module
 
         native = MagicMock()

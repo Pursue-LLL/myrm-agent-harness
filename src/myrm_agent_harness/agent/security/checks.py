@@ -39,7 +39,9 @@ def _is_subpath(child: str, parent: str) -> bool:
     return child == parent or child.startswith(parent + os.sep)
 
 
-def check_path_policy(raw_path: str, policy: PathPolicy, workspace_root: str | None) -> tuple[PermissionAction, str]:
+def check_path_policy(
+    raw_path: str, policy: PathPolicy, workspace_root: str | None
+) -> tuple[PermissionAction, str]:
     """Evaluate a file path against the PathPolicy.
 
     Returns (DENY, reason) if blocked by forbidden paths, (ALLOW, "") if in allowed roots or workspace.
@@ -62,7 +64,11 @@ def check_path_policy(raw_path: str, policy: PathPolicy, workspace_root: str | N
             in_allowed_zone = True
             break
 
-    if not in_allowed_zone and workspace_root and _is_subpath(normalized, _normalize_path(workspace_root)):
+    if (
+        not in_allowed_zone
+        and workspace_root
+        and _is_subpath(normalized, _normalize_path(workspace_root))
+    ):
         in_allowed_zone = True
 
     if not in_allowed_zone:
@@ -99,7 +105,9 @@ def _has_explicit_scheme(url: str) -> bool:
     return not after_colon.isdigit()
 
 
-def check_navigate_scheme(permission: str, tool_input: dict[str, object]) -> tuple[PermissionAction | None, str]:
+def check_navigate_scheme(
+    permission: str, tool_input: dict[str, object]
+) -> tuple[PermissionAction | None, str]:
     """Validate URL scheme for browser_navigate (Layer 2 Built-in Blacklist).
 
     Only ``http://`` and ``https://`` are allowed. All other schemes
@@ -119,7 +127,10 @@ def check_navigate_scheme(permission: str, tool_input: dict[str, object]) -> tup
     if not scheme:
         return None, ""
     if scheme not in _ALLOWED_NAVIGATE_SCHEMES:
-        return PermissionAction.DENY, f"Blocked URL scheme: {scheme}:// (only http/https allowed)"
+        return (
+            PermissionAction.DENY,
+            f"Blocked URL scheme: {scheme}:// (only http/https allowed)",
+        )
     return None, ""
 
 
@@ -130,7 +141,9 @@ def check_navigate_scheme(permission: str, tool_input: dict[str, object]) -> tup
 _SHELL_EXEC_PERMISSION = "shell_exec"
 
 
-def check_shell_threats(permission: str, tool_input: dict[str, object]) -> tuple[PermissionAction | None, str]:
+def check_shell_threats(
+    permission: str, tool_input: dict[str, object]
+) -> tuple[PermissionAction | None, str]:
     """Analyze shell commands via shell_command_analyzer (Layer 2).
 
     Returns (action, reason) if a threat is detected, or (None, "") if clean.

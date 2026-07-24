@@ -30,7 +30,9 @@ from myrm_agent_harness.agent.meta_tools.bash._background_types import (
 )
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.code_execution.executors.models import AsyncProcessProtocol
+    from myrm_agent_harness.toolkits.code_execution.executors.models import (
+        AsyncProcessProtocol,
+    )
     from myrm_agent_harness.agent.meta_tools.bash._background_output_spill import (
         BackgroundOutputSpillWriter,
     )
@@ -100,18 +102,29 @@ async def consume_background_entry(
             except asyncio.LimitOverrunError as exc:
                 drain_method = getattr(stream, "readexactly", None)
                 if drain_method is not None:
-                    with suppress(asyncio.IncompleteReadError, ConnectionError, OSError):
+                    with suppress(
+                        asyncio.IncompleteReadError, ConnectionError, OSError
+                    ):
                         await drain_method(exc.consumed)
                 entry.cursor += 1
-                sink.append((entry.cursor, f"[output line >{exc.consumed} bytes truncated]"))
+                sink.append(
+                    (entry.cursor, f"[output line >{exc.consumed} bytes truncated]")
+                )
                 continue
             except (ConnectionError, OSError, asyncio.CancelledError):
                 return
             if not chunk:
                 break
-            raw = (chunk.decode("utf-8", errors="replace") if isinstance(chunk, bytes) else str(chunk)).rstrip()
+            raw = (
+                chunk.decode("utf-8", errors="replace")
+                if isinstance(chunk, bytes)
+                else str(chunk)
+            ).rstrip()
             if len(raw) > _LINE_MAX_BYTES:
-                text = raw[:_LINE_MAX_BYTES] + f"... [+{len(raw) - _LINE_MAX_BYTES} bytes truncated]"
+                text = (
+                    raw[:_LINE_MAX_BYTES]
+                    + f"... [+{len(raw) - _LINE_MAX_BYTES} bytes truncated]"
+                )
             else:
                 text = raw
             from myrm_agent_harness.agent.security.redact import redact_sensitive_text
@@ -121,7 +134,10 @@ async def consume_background_entry(
             if spill is not None:
                 stream_name = "stderr" if sink is entry.stderr_buffer else "stdout"
                 spill.append_line(stream_name, text)
-                if spill.vault_log_ref and entry.info.vault_log_ref != spill.vault_log_ref:
+                if (
+                    spill.vault_log_ref
+                    and entry.info.vault_log_ref != spill.vault_log_ref
+                ):
                     entry.info.vault_log_ref = spill.vault_log_ref
                     from myrm_agent_harness.agent.meta_tools.bash._background_registry_store_sync import (
                         persist_vault_log_ref,
