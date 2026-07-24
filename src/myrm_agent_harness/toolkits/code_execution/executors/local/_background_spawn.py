@@ -143,8 +143,10 @@ async def spawn_background_process(
         )
         wrapped_cmd, wrapped_args = provider.wrap_command(cmd, tuple(args), work_dir_str, policy)
         full_cmd_array = [wrapped_cmd, *wrapped_args]
+        use_pty = False
     else:
         full_cmd_array = [cmd, *args]
+        use_pty = True
 
         if context.max_memory_mb:
             mem_bytes = context.max_memory_mb * 1024 * 1024
@@ -164,6 +166,24 @@ async def spawn_background_process(
     kwargs = os_compat.get_process_group_kwargs()
     if os.name != "nt" and preexec_fn:
         kwargs["preexec_fn"] = preexec_fn
+
+    if use_pty:
+        from myrm_agent_harness.toolkits.code_execution.executors.local._background_pty_spawn import (
+            pty_spawn_eligible,
+            try_spawn_background_pty,
+        )
+
+        if pty_spawn_eligible(sandbox_enabled=False):
+            pty_proc = await try_spawn_background_pty(
+                full_cmd_array=full_cmd_array,
+                effective_cwd=effective_cwd,
+                env=env,
+                preexec_fn=preexec_fn,
+                process_group_kwargs=kwargs,
+            )
+            if pty_proc is not None:
+                return pty_proc
+            logger.info(" [LocalExecutor] PTY spawn unavailable; falling back to PIPE")
 
     # The default StreamReader limit is 64 KiB. Real-world tools (docker
     # manifest JSON, pytest -vv dumps, Node heap dumps) easily exceed that

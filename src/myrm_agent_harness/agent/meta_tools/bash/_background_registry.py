@@ -141,6 +141,7 @@ class BackgroundProcessRegistry:
             session_id=session_id,
             started_at=started_at,
             status="running",
+            last_output_at=started_at,
         )
         stdout_buffer: deque[tuple[int, str]] = deque(maxlen=_OUTPUT_TAIL_LINES)
         stderr_buffer: deque[tuple[int, str]] = deque(maxlen=_OUTPUT_TAIL_LINES)
@@ -474,6 +475,10 @@ class BackgroundProcessRegistry:
 
     @staticmethod
     def _snapshot(entry: BackgroundRegistryEntry) -> BackgroundProcessInfo:
+        from myrm_agent_harness.agent.meta_tools.bash._background_types import (
+            compute_waiting_for_input,
+        )
+
         info = entry.info
         snap = BackgroundProcessInfo(
             job_id=info.job_id,
@@ -485,6 +490,7 @@ class BackgroundProcessRegistry:
             exit_code=info.exit_code,
             error_category=info.error_category,
             vault_log_ref=info.vault_log_ref,
+            last_output_at=info.last_output_at or info.started_at,
         )
         snap.last_stdout_tail = [text for _, text in list(entry.stdout_buffer)[-20:]]
         snap.last_stderr_tail = [text for _, text in list(entry.stderr_buffer)[-20:]]
@@ -492,6 +498,14 @@ class BackgroundProcessRegistry:
         # in-place mutation by the consumer must not bleed back into the
         # live registry record (parsers append/normalise fields downstream).
         snap.last_progress = dict(info.last_progress) if info.last_progress else None
+        stdin_available = entry.proc.stdin is not None and not entry.stdin_closed
+        snap.waiting_for_input = compute_waiting_for_input(
+            status=snap.status,
+            last_output_at=snap.last_output_at,
+            started_at=snap.started_at,
+            stdin_closed=entry.stdin_closed,
+            stdin_available=stdin_available,
+        )
         return snap
 
     def shutdown(self) -> None:

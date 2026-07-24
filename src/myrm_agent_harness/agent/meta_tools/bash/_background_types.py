@@ -30,6 +30,27 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
+# Idle time after last stdout/stderr before a running job is flagged as likely
+# waiting for stdin (mirrors OpenClaw DEFAULT_INPUT_WAIT_IDLE_MS = 15_000).
+INPUT_WAIT_IDLE_SECONDS = 15.0
+
+
+def compute_waiting_for_input(
+    *,
+    status: str,
+    last_output_at: float,
+    started_at: float,
+    stdin_closed: bool,
+    stdin_available: bool,
+    now: float | None = None,
+) -> bool:
+    """True when a running job has an open stdin and has been idle long enough."""
+    if status != "running" or stdin_closed or not stdin_available:
+        return False
+    ts = now if now is not None else time.time()
+    anchor = last_output_at if last_output_at > 0 else started_at
+    return (ts - anchor) >= INPUT_WAIT_IDLE_SECONDS
+
 
 class BackgroundQuotaError(RuntimeError):
     """Raised when a session would exceed its allowed concurrent background jobs."""
@@ -67,6 +88,8 @@ class BackgroundProcessInfo:
     last_stdout_tail: list[str] = field(default_factory=list)
     last_stderr_tail: list[str] = field(default_factory=list)
     last_progress: dict[str, object] | None = None
+    last_output_at: float = 0.0
+    waiting_for_input: bool = False
 
     @property
     def uptime_seconds(self) -> float:
@@ -89,6 +112,9 @@ class BackgroundProcessInfo:
             payload["last_progress"] = self.last_progress
         if self.vault_log_ref is not None:
             payload["vault_log_ref"] = self.vault_log_ref
+        if self.status == "running":
+            payload["waiting_for_input"] = self.waiting_for_input
+            payload["last_output_at"] = self.last_output_at
         return payload
 
 
@@ -101,4 +127,6 @@ __all__ = [
     "BackgroundQuotaError",
     "FinishListener",
     "ProgressListener",
+    "INPUT_WAIT_IDLE_SECONDS",
+    "compute_waiting_for_input",
 ]

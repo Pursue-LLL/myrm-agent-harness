@@ -64,6 +64,7 @@ class BackgroundRegistryEntry:
     cursor: int = 0
     empty_poll_streak: int = 0
     stdin_lock: asyncio.Lock | None = None
+    stdin_closed: bool = False
 
 
 async def consume_background_entry(
@@ -146,6 +147,7 @@ async def consume_background_entry(
                     persist_vault_log_ref(entry.info)
             entry.cursor += 1
             sink.append((entry.cursor, text))
+            entry.info.last_output_at = time.time()
             progress = try_parse_progress_line(text)
             if progress is not None:
                 await _emit_progress(progress)

@@ -71,6 +71,7 @@ async def write_background_stdin(
                 writer.close()  # type: ignore[union-attr]
                 if hasattr(writer, "wait_closed"):
                     await writer.wait_closed()  # type: ignore[union-attr]
+            entry.stdin_closed = True
             return {
                 "ok": True,
                 "pid": entry.info.pid,
@@ -90,6 +91,7 @@ async def write_background_stdin(
             writer.close()  # type: ignore[union-attr]
             if hasattr(writer, "wait_closed"):
                 await writer.wait_closed()  # type: ignore[union-attr]
+            entry.stdin_closed = True
 
     logger.info(
         "background stdin pid=%s bytes=%d newline=%s close=%s",
