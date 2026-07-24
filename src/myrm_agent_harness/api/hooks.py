@@ -53,6 +53,7 @@ from myrm_agent_harness.agent.meta_tools.bash._background_job_store_core import 
 )
 from myrm_agent_harness.agent.meta_tools.bash._background_types import (
     BackgroundProcessInfo,
+    INPUT_WAIT_IDLE_SECONDS,
 )
 from myrm_agent_harness.agent.middlewares._session_context import (
     get_event_logger,
@@ -93,6 +94,7 @@ __all__ = [
     "get_memory_runtime_injection",
     "get_task_intent",
     "get_terminal_errors",
+    "INPUT_WAIT_IDLE_SECONDS",
     "invalidate_permissions",
     "map_store_status_to_shell_task_status",
     "build_evicted_basename",
