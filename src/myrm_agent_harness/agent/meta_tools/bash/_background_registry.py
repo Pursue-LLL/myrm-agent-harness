@@ -498,7 +498,9 @@ class BackgroundProcessRegistry:
         # in-place mutation by the consumer must not bleed back into the
         # live registry record (parsers append/normalise fields downstream).
         snap.last_progress = dict(info.last_progress) if info.last_progress else None
-        stdin_available = entry.proc.stdin is not None and not entry.stdin_closed
+        stdin_obj = getattr(entry.proc, "stdin", None)
+        stdin_available = stdin_obj is not None and not entry.stdin_closed
+        snap.stdin_closed = entry.stdin_closed
         snap.waiting_for_input = compute_waiting_for_input(
             status=snap.status,
             last_output_at=snap.last_output_at,

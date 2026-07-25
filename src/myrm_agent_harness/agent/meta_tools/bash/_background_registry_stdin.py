@@ -65,6 +65,20 @@ async def write_background_stdin(
         entry.stdin_lock = asyncio.Lock()
 
     async with entry.stdin_lock:
+        if entry.stdin_closed:
+            if close and not payload:
+                return {
+                    "ok": True,
+                    "pid": entry.info.pid,
+                    "bytes_written": 0,
+                    "closed": True,
+                }
+            return {
+                "ok": False,
+                "error": "stdin_closed",
+                "pid": entry.info.pid,
+            }
+
         if close and not payload:
             writer = stdin
             if hasattr(writer, "close"):

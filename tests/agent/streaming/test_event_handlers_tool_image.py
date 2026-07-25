@@ -462,3 +462,20 @@ def test_messages_chunk_anthropic_thinking():
 
     reasoning_events = [e for e, _ in events if e["type"] == AgentEventType.REASONING.value]
     assert len(reasoning_events) == 1
+
+
+def test_messages_chunk_reasoning_is_sanitized_and_scrubbed() -> None:
+    """Reasoning content should pass through the same scrub pipeline as message text."""
+    stats = AgentRunStatistics()
+    raw_reasoning = "api_key=sk-test-12345 path=/Users/alice/private_project"
+    chunk = AIMessageChunk(
+        content="",
+        additional_kwargs={"reasoning_content": raw_reasoning},
+    )
+    events = list(process_messages_chunk((chunk, {"langgraph_node": "model"}), stats, "msg_m8"))
+
+    reasoning_events = [e for e, _ in events if e["type"] == AgentEventType.REASONING.value]
+    assert len(reasoning_events) == 1
+    scrubbed = str(reasoning_events[0]["data"])
+    assert "sk-test-12345" not in scrubbed
+    assert "/Users/alice" not in scrubbed

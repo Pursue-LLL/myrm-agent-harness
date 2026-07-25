@@ -27,6 +27,9 @@ from pydantic import BaseModel, Field
 from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
     get_background_registry,
 )
+from myrm_agent_harness.agent.meta_tools.bash._background_types import (
+    build_input_wait_hint,
+)
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
@@ -192,18 +195,27 @@ async def _handle_output(
         metadata["filter"] = filter_pattern
     if isinstance(poll_hint, dict):
         metadata["poll_hint"] = poll_hint
+
+    content: dict[str, object] = {
+        "pid": pid,
+        "status": info.status,
+        "exit_code": info.exit_code,
+        "error_category": info.error_category,
+        "stdout": stdout,
+        "stderr": stderr,
+        "next_cursor": streams["next_cursor"],
+        "dropped": streams["dropped"],
+        "poll_hint": poll_hint,
+    }
+    if info.status == "running":
+        content["waiting_for_input"] = info.waiting_for_input
+        content["last_output_at"] = info.last_output_at
+        hint = build_input_wait_hint(info)
+        if hint:
+            content["input_wait_hint"] = hint
+
     return {
-        "content": {
-            "pid": pid,
-            "status": info.status,
-            "exit_code": info.exit_code,
-            "error_category": info.error_category,
-            "stdout": stdout,
-            "stderr": stderr,
-            "next_cursor": streams["next_cursor"],
-            "dropped": streams["dropped"],
-            "poll_hint": poll_hint,
-        },
+        "content": content,
         "metadata": metadata,
     }
 
@@ -230,9 +242,16 @@ async def _handle_wait(
         "error_category": result.get("error_category"),
     }
     if still_running:
+        live = registry.get(pid)
         content["message"] = (
             f"pid={pid} still running after {timeout_seconds}s; poll with action=output or wait again."
         )
+        if live is not None and live.status == "running":
+            content["waiting_for_input"] = live.waiting_for_input
+            content["last_output_at"] = live.last_output_at
+            hint = build_input_wait_hint(live)
+            if hint:
+                content["input_wait_hint"] = hint
     else:
         streams = registry.get_output(pid, max_lines=_OUTPUT_DEFAULT_LINES)
         content["stdout"] = streams.get("stdout", [])

@@ -168,6 +168,33 @@ async def test_write_background_stdin_rejects_missing_stdin() -> None:
 
 
 @pytest.mark.asyncio
+async def test_write_background_stdin_rejects_after_close() -> None:
+    proc = _ProcWithStdin(pid=7004)
+    info = BackgroundProcessInfo(
+        job_id="job-4",
+        pid=7004,
+        command="cmd",
+        session_id="sess-4",
+        started_at=1.0,
+        status="running",
+    )
+    entry = BackgroundRegistryEntry(
+        info=info,
+        proc=cast(AsyncProcessProtocol, proc),
+        stdout_buffer=deque(),
+        stderr_buffer=deque(),
+        stdin_closed=True,
+    )
+    result = await write_background_stdin(entry, "y", append_newline=True)
+    assert result["ok"] is False
+    assert result["error"] == "stdin_closed"
+
+    idempotent = await write_background_stdin(entry, "", close=True)
+    assert idempotent["ok"] is True
+    assert idempotent.get("closed") is True
+
+
+@pytest.mark.asyncio
 async def test_write_background_stdin_rejects_oversized_payload() -> None:
     proc = _ProcWithStdin(pid=7004)
     info = BackgroundProcessInfo(

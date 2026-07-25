@@ -8,7 +8,7 @@
 
 [OUTPUT]
 - process_updates_chunk(): 处理 LangGraph updates 流 → 业务事件（含自动 sources 转发，空 AIMessage 过滤）
-- process_messages_chunk(): 处理 LangGraph messages 流 → 消息块事件（含 LLM 控制 token 清洗、工具调用文本抑制）
+- process_messages_chunk(): 处理 LangGraph messages 流 → 消息块事件（含 message/reasoning 统一清洗、工具调用文本抑制）
 
 [POS]
 LangGraph stream event to business event transformer. Core event handler for BaseAgent.run().
@@ -317,6 +317,8 @@ def process_messages_chunk(
 
     reasoning_text = _extract_reasoning(message_chunk)
     if reasoning_text:
+        reasoning_text = _sanitize_stream_text(reasoning_text)
+    if reasoning_text:
         yield (
             {
                 "type": AgentEventType.REASONING.value,
@@ -329,12 +331,8 @@ def process_messages_chunk(
     is_tool_call = _is_tool_call_chunk(message_chunk)
 
     if content_str:
-        # Myrm-Guard: Final global scrubbing for all LLM messages (even thoughts)
-        from myrm_agent_harness.toolkits.code_execution.executors.models import (
-            scrub_sensitive_info,
-        )
-
-        content_str = scrub_sensitive_info(sanitize_llm_output(content_str))
+        # Myrm-Guard: Final global scrubbing for all LLM-emitted text.
+        content_str = _sanitize_stream_text(content_str)
 
     # 如果检测到工具调用，则抑制文本回调，防止将 XML 标签或 JSON 暴露给用户
     if content_str and not is_tool_call:
@@ -395,3 +393,8 @@ def _is_tool_call_chunk(message_chunk: object) -> bool:
     has_tool_calls = bool(getattr(message_chunk, "tool_calls", None))
     has_tool_call_chunks = bool(getattr(message_chunk, "tool_call_chunks", None))
     return is_tool_call_block or has_tool_calls or has_tool_call_chunks
+
+
+def _sanitize_stream_text(text: str) -> str:
+    """Apply the same safety pipeline to all stream-visible text."""
+    return scrub_sensitive_info(sanitize_llm_output(text))

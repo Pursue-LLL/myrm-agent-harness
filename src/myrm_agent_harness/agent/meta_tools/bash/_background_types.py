@@ -52,6 +52,18 @@ def compute_waiting_for_input(
     return (ts - anchor) >= INPUT_WAIT_IDLE_SECONDS
 
 
+def build_input_wait_hint(info: BackgroundProcessInfo) -> str:
+    """Human-readable nudge when a running job may be blocked on stdin (output poll)."""
+    if not info.waiting_for_input:
+        return ""
+    anchor = info.last_output_at if info.last_output_at > 0 else info.started_at
+    idle_sec = max(0, int(time.time() - anchor))
+    return (
+        f"No new output for {idle_sec}s; this job may be waiting for stdin. "
+        "Use write_stdin, submit_stdin, close_stdin, or the Activity panel Send input."
+    )
+
+
 class BackgroundQuotaError(RuntimeError):
     """Raised when a session would exceed its allowed concurrent background jobs."""
 
@@ -90,6 +102,7 @@ class BackgroundProcessInfo:
     last_progress: dict[str, object] | None = None
     last_output_at: float = 0.0
     waiting_for_input: bool = False
+    stdin_closed: bool = False
 
     @property
     def uptime_seconds(self) -> float:
@@ -115,6 +128,7 @@ class BackgroundProcessInfo:
         if self.status == "running":
             payload["waiting_for_input"] = self.waiting_for_input
             payload["last_output_at"] = self.last_output_at
+            payload["stdin_closed"] = self.stdin_closed
         return payload
 
 
@@ -129,4 +143,5 @@ __all__ = [
     "ProgressListener",
     "INPUT_WAIT_IDLE_SECONDS",
     "compute_waiting_for_input",
+    "build_input_wait_hint",
 ]
