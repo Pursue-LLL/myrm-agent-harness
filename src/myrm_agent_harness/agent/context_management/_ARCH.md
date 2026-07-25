@@ -13,7 +13,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | PROMPT_CACHE_PRACTICE.md | L2 | Framework prompt-cache implementation practices | — |
 | __init__.py | Package | Context management module. | — |
 | context.py | Core | Agent runtime context definition. Provides a type-safe context container for passing user, session,  | ✅ |
-| preheat.py | Utility | Prefix cache preheat for explicit-cache providers (Anthropic, Qwen). Agent-init preheat (fire-and-forget at startup via `schedule_init_preheat`) and `preheat_prefix_cache` API for post-compaction re-warming. Uses max_tokens=0 per Anthropic best practice with max_tokens=1 fallback. | ✅ |
+| preheat.py | Utility | Prefix cache preheat and idle keep-alive for explicit-cache providers (Anthropic, Qwen). Three patterns: agent-init preheat (`schedule_init_preheat`), post-compaction re-warming (`preheat_prefix_cache`), and idle keep-alive (`CacheKeepAliveManager` — periodic 4-min probes to prevent 5-min TTL eviction). Uses max_tokens=0 per Anthropic best practice with max_tokens=1 fallback. | ✅ |
 | pre_compact_service.py | Core | MemoryPreCompactService — default ContextPreCompactCallback; semantic recall before compaction. | ✅ |
 
 | Submodule | Description |

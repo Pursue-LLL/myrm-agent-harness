@@ -129,6 +129,10 @@ class BaseAgent(BaseAgentModesMixin):
         self._tools_initialized = False
         self._tool_registry = self._create_registry()
 
+        from myrm_agent_harness.agent.context_management.preheat import CacheKeepAliveManager
+
+        self._cache_keepalive: CacheKeepAliveManager | None = None
+
     def register_extension(self, ext: "AgentExtension") -> None:
         """Register an AgentExtension. Must be called before the first ``run()``.
 
@@ -231,10 +235,18 @@ class BaseAgent(BaseAgentModesMixin):
 
         # Fire-and-forget: pre-warm Anthropic/Qwen server-side prefix cache
         # while the user is still typing their first message.
-        from myrm_agent_harness.agent.context_management.preheat import schedule_init_preheat
+        from myrm_agent_harness.agent.context_management.preheat import (
+            CacheKeepAliveManager,
+            needs_explicit_preheat,
+            schedule_init_preheat,
+        )
 
         model_name = getattr(llm, "model_name", "") or getattr(llm, "model", "") or ""
         schedule_init_preheat(llm, self._cached_system_prompt, model_name)
+
+        if self._cached_system_prompt and needs_explicit_preheat(model_name):
+            self._cache_keepalive = CacheKeepAliveManager(llm, self._cached_system_prompt, model_name)
+            self._cache_keepalive.start()
 
     def _rebuild_agent_with_llm(self, new_llm: BaseChatModel) -> None:
         """Rebuild agent graph with a different LLM for failover."""
@@ -403,6 +415,8 @@ class BaseAgent(BaseAgentModesMixin):
                 span.end()
         finally:
             self._is_running = False
+            if self._cache_keepalive is not None:
+                self._cache_keepalive.touch()
 
     async def _run_internal(
         self,
@@ -593,6 +607,10 @@ class BaseAgent(BaseAgentModesMixin):
             finally:
                 await agent.cleanup_tools()
         """
+        if self._cache_keepalive is not None:
+            self._cache_keepalive.stop()
+            self._cache_keepalive = None
+
         for ext in self._extensions:
             try:
                 await ext.on_agent_shutdown(self)

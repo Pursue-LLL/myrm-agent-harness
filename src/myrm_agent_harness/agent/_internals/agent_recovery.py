@@ -145,6 +145,11 @@ def rebuild_agent_with_llm(agent: BaseAgent, new_llm: BaseChatModel) -> None:
     """
     from langchain.agents import create_agent
 
+    from myrm_agent_harness.agent.context_management.preheat import (
+        CacheKeepAliveManager,
+        needs_explicit_preheat,
+    )
+
     agent.llm = new_llm
     model = agent._apply_parallel_tool_calls(new_llm)
 
@@ -156,6 +161,15 @@ def rebuild_agent_with_llm(agent: BaseAgent, new_llm: BaseChatModel) -> None:
         context_schema=agent.context_schema,
         checkpointer=agent.checkpointer,
     )
+
+    if agent._cache_keepalive is not None:
+        agent._cache_keepalive.stop()
+        agent._cache_keepalive = None
+
+    new_model_name = getattr(new_llm, "model_name", "") or getattr(new_llm, "model", "") or ""
+    if agent._cached_system_prompt and needs_explicit_preheat(new_model_name):
+        agent._cache_keepalive = CacheKeepAliveManager(new_llm, agent._cached_system_prompt, new_model_name)
+        agent._cache_keepalive.start()
 
 
 # ============================================================================

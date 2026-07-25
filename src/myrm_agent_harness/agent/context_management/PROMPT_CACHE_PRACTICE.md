@@ -19,6 +19,7 @@
 > | §6.1-6.2 LLM 层 | `toolkits/llms/llm.py` |
 > | §6.3 缓存可观测性 | `utils/token_economics/tracker.py`, `toolkits/llms/utils/logger.py` |
 > | §6.3 层次5 缓存断裂诊断 | `infra/cache_break_detector.py`, `infra/cache_metrics_collector.py` |
+> | §6.4 前缀缓存预热与空闲保活 | `preheat.py`, `base_agent.py` |
 
 本文档记录 myrm-agent-harness 框架对 Prompt Cache 的真实实践和应用。
 与 [CONTEXT_ENGINEERING.md](./CONTEXT_ENGINEERING.md) 的业界理论对照，本文聚焦于**框架代码中的具体实现**。
@@ -32,7 +33,7 @@
 3. [显式缓存优化器](#3-显式缓存优化器) — ExplicitCacheProcessor 断点策略
 4. [缓存友好的上下文缩减](#4-缓存友好的上下文缩减) — 批量清理、compress_min_save、动态阈值、缓存生命周期
 5. [Pipeline 架构与缓存协同](#5-pipeline-架构与缓存协同) — 处理器执行顺序与缓存感知
-6. [LLM 层集成](#6-llm-层集成) — cache_control 传递链路、缓存可观测性（四层监控）、性能特性
+6. [LLM 层集成](#6-llm-层集成) — cache_control 传递链路、缓存可观测性（四层监控）、性能特性、前缀缓存预热与空闲保活
 7. [故障排查指南](#7-故障排查指南) — 常见问题诊断与解决方案
 8. [代码索引](#8-代码索引)
 
@@ -1056,6 +1057,31 @@ MCP 本身不直接改 SystemMessage；常见 ``system prompt changed`` 来自 p
 | ContextVar 线程隔离 | N/A | 100%（无跨线程泄漏） |
 
 证据来源：``tests/unit/test_cache_processor_performance_benchmark.py``（5个基准测试）、``tests/unit/test_cache_metrics_concurrent.py``（5个并发测试）
+
+### 6.4 前缀缓存预热与空闲保活
+
+``preheat.py`` 提供三种前缀缓存保护机制（仅对显式缓存提供商 Anthropic/Qwen 生效）：
+
+| 机制 | 触发时机 | 实现 |
+|------|---------|------|
+| Agent Init Preheat | ``BaseAgent._ensure_initialized()`` 末尾 | ``schedule_init_preheat`` — fire-and-forget ``asyncio.Task``，用户打字时预热 |
+| Post-Compaction Preheat | 上下文压缩后 | ``preheat_prefix_cache`` — 由 ``idle_tasks._run_context_compaction`` 调用 |
+| Idle Keep-Alive | 空闲 ≥4min 时每 4min 一次 | ``CacheKeepAliveManager._loop`` — 防止 5min TTL 过期 |
+
+**Keep-Alive 工作原理**：
+
+```
+用户活跃期间             空闲期间（>4min）           用户恢复
+   │                       │                        │
+   ├─ touch() ←─ run()     ├─ sleep(240s)           ├─ touch() ←─ run()
+   ├─ touch() ←─ run()     ├─ send probe            │  (keepalive 暂停)
+   │                       ├─ sleep(240s)           │
+   │                       ├─ send probe            │
+```
+
+- 零副作用：probe 不经过 ``context_pipeline_middleware``，不触发 ``cache_break_detector``
+- fail-open：异常仅 ``debug`` 日志，不阻断正常流程
+- 成本：~$0.09/天/session（每次 probe ~10 input tokens，无 output tokens）
 
 ---
 

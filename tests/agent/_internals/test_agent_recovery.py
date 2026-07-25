@@ -279,3 +279,109 @@ class TestRebuildAgentWithLlm:
             call_kwargs = mock_create.call_args
             assert call_kwargs.kwargs["tools"] == agent._cached_tools
             assert call_kwargs.kwargs["system_prompt"] == "sys"
+
+    def test_stops_old_keepalive_on_rebuild(self):
+        """rebuild_agent_with_llm should stop old keepalive and start new one
+        when failing over to another explicit-cache provider."""
+        from myrm_agent_harness.agent._internals.agent_recovery import rebuild_agent_with_llm
+
+        agent = MagicMock()
+        agent._apply_parallel_tool_calls.return_value = MagicMock()
+        agent._cached_tools = [MagicMock()]
+        agent._cached_system_prompt = "sys"
+        agent._cached_middlewares = []
+        agent.context_schema = None
+        agent.checkpointer = None
+
+        old_keepalive = MagicMock()
+        agent._cache_keepalive = old_keepalive
+
+        new_llm = MagicMock()
+        new_llm.model_name = "anthropic/claude-3-5-sonnet"
+
+        with (
+            patch("langchain.agents.create_agent", return_value=MagicMock()),
+            patch(
+                "myrm_agent_harness.agent.context_management.preheat.needs_explicit_preheat",
+                return_value=True,
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.preheat.CacheKeepAliveManager"
+            ) as MockKAM,
+        ):
+            new_kam_instance = MagicMock()
+            MockKAM.return_value = new_kam_instance
+
+            rebuild_agent_with_llm(agent, new_llm)
+
+            old_keepalive.stop.assert_called_once()
+            MockKAM.assert_called_once_with(new_llm, "sys", "anthropic/claude-3-5-sonnet")
+            new_kam_instance.start.assert_called_once()
+            assert agent._cache_keepalive == new_kam_instance
+
+    def test_no_new_keepalive_for_auto_cache_provider(self):
+        """rebuild_agent_with_llm should not start keepalive for providers
+        that use automatic caching (e.g., OpenAI, DeepSeek)."""
+        from myrm_agent_harness.agent._internals.agent_recovery import rebuild_agent_with_llm
+
+        agent = MagicMock()
+        agent._apply_parallel_tool_calls.return_value = MagicMock()
+        agent._cached_tools = [MagicMock()]
+        agent._cached_system_prompt = "sys"
+        agent._cached_middlewares = []
+        agent.context_schema = None
+        agent.checkpointer = None
+
+        old_keepalive = MagicMock()
+        agent._cache_keepalive = old_keepalive
+
+        new_llm = MagicMock()
+        new_llm.model_name = "gpt-4o"
+
+        with (
+            patch("langchain.agents.create_agent", return_value=MagicMock()),
+            patch(
+                "myrm_agent_harness.agent.context_management.preheat.needs_explicit_preheat",
+                return_value=False,
+            ),
+        ):
+            rebuild_agent_with_llm(agent, new_llm)
+
+            old_keepalive.stop.assert_called_once()
+            assert agent._cache_keepalive is None
+
+    def test_rebuild_without_existing_keepalive(self):
+        """rebuild_agent_with_llm should create keepalive from scratch when
+        the agent had none (e.g., originally on auto-cache provider)."""
+        from myrm_agent_harness.agent._internals.agent_recovery import rebuild_agent_with_llm
+
+        agent = MagicMock()
+        agent._apply_parallel_tool_calls.return_value = MagicMock()
+        agent._cached_tools = [MagicMock()]
+        agent._cached_system_prompt = "sys"
+        agent._cached_middlewares = []
+        agent.context_schema = None
+        agent.checkpointer = None
+        agent._cache_keepalive = None
+
+        new_llm = MagicMock()
+        new_llm.model_name = "anthropic/claude-3-5-sonnet"
+
+        with (
+            patch("langchain.agents.create_agent", return_value=MagicMock()),
+            patch(
+                "myrm_agent_harness.agent.context_management.preheat.needs_explicit_preheat",
+                return_value=True,
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.preheat.CacheKeepAliveManager"
+            ) as MockKAM,
+        ):
+            new_kam_instance = MagicMock()
+            MockKAM.return_value = new_kam_instance
+
+            rebuild_agent_with_llm(agent, new_llm)
+
+            MockKAM.assert_called_once()
+            new_kam_instance.start.assert_called_once()
+            assert agent._cache_keepalive == new_kam_instance

@@ -4,13 +4,16 @@ Forces providers with explicit prefix caching (Anthropic, Qwen) to write
 the prompt prefix into their server-side cache before the first real user
 request arrives, eliminating the cold-start latency tax on TTFT.
 
-Two usage patterns:
+Three usage patterns:
 1. **Agent init preheat** — called from ``BaseAgent._ensure_initialized()``
    right after the system prompt is built.  The user is still typing, so
    the cache is warm by the time the first message is sent.
 2. **Post-compaction preheat** — ``preheat_prefix_cache`` is exposed as a
    public API for callers that rewrite the message list (e.g. context
    compaction pipelines) and need to re-warm the prefix cache afterward.
+3. **Idle keep-alive** — ``CacheKeepAliveManager`` periodically sends
+   zero-output probes during idle periods to prevent the provider's
+   5-minute TTL from evicting the system prompt prefix cache.
 
 Anthropic official best practice: send ``max_tokens=0`` (zero output) with
 ``cache_control`` on the system block.  The API writes the cache without
@@ -28,15 +31,17 @@ Ref: https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
 [OUTPUT]
 - preheat_prefix_cache: async function that sends a cache-warming probe.
 - schedule_init_preheat: fire-and-forget init-time preheat for system prompt prefix.
+- CacheKeepAliveManager: periodic idle keep-alive for explicit-cache providers.
 
 [POS]
-Prefix cache preheat utility for agent init and post-compaction pipelines.
+Prefix cache preheat utility for agent init, post-compaction, and idle keep-alive.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -46,6 +51,8 @@ if TYPE_CHECKING:
     from langchain_core.messages import BaseMessage
 
 logger = logging.getLogger(__name__)
+
+_KEEPALIVE_INTERVAL_SECONDS = 4 * 60
 
 _EXPLICIT_CACHE_PREFIXES = ("anthropic/", "claude-", "qwen", "dashscope/", "openai/qwen")
 
@@ -92,7 +99,7 @@ async def preheat_prefix_cache(
         await llm.ainvoke(messages, max_tokens=0)
         logger.info("Prefix cache preheated for %s (%d messages)", model_name, len(messages))
         return True
-    except (ValueError, TypeError):
+    except Exception:
         try:
             await llm.ainvoke(messages, max_tokens=1)
             logger.info("Prefix cache preheated (fallback max_tokens=1) for %s", model_name)
@@ -100,9 +107,6 @@ async def preheat_prefix_cache(
         except Exception:
             logger.warning("Prefix cache preheat failed for %s", model_name, exc_info=True)
             return False
-    except Exception:
-        logger.warning("Prefix cache preheat failed for %s", model_name, exc_info=True)
-        return False
 
 
 def schedule_init_preheat(
@@ -151,3 +155,97 @@ def schedule_init_preheat(
         asyncio.get_running_loop().create_task(_do_preheat())
     except RuntimeError:
         logger.debug("No running event loop for init preheat; skipping")
+
+
+class CacheKeepAliveManager:
+    """Periodic idle keep-alive for explicit-cache providers.
+
+    Sends zero-output probes every ``_KEEPALIVE_INTERVAL_SECONDS`` (4 min)
+    to prevent the provider's 5-minute TTL from evicting the system prompt
+    prefix cache.  Automatically pauses when the agent is actively
+    processing requests (activity sensing via ``touch()``).
+
+    Lifecycle:
+    - ``start()`` — called once during ``BaseAgent._ensure_initialized()``.
+    - ``touch()`` — called after every successful LLM call to reset the
+      idle timer.  No keepalive is sent while the agent is active.
+    - ``stop()``  — called from ``BaseAgent.cleanup_tools()``.
+    """
+
+    __slots__ = (
+        "_llm",
+        "_system_prompt",
+        "_model_name",
+        "_task",
+        "_last_activity",
+        "_stopped",
+    )
+
+    def __init__(
+        self,
+        llm: BaseChatModel,
+        system_prompt: str,
+        model_name: str,
+    ) -> None:
+        self._llm = llm
+        self._system_prompt = system_prompt
+        self._model_name = model_name
+        self._task: asyncio.Task[None] | None = None
+        self._last_activity: float = time.monotonic()
+        self._stopped = False
+
+    def touch(self) -> None:
+        """Reset the idle timer after a successful LLM call."""
+        self._last_activity = time.monotonic()
+
+    def start(self) -> None:
+        """Start the background keepalive loop (idempotent)."""
+        if self._task is not None or self._stopped:
+            return
+        try:
+            self._task = asyncio.get_running_loop().create_task(
+                self._loop(), name="cache_keepalive"
+            )
+        except RuntimeError:
+            logger.debug("No running event loop for cache keepalive; skipping")
+
+    def stop(self) -> None:
+        """Cancel the background keepalive loop (idempotent)."""
+        self._stopped = True
+        if self._task is not None:
+            self._task.cancel()
+            self._task = None
+
+    async def _loop(self) -> None:
+        """Main keepalive loop — sleeps, checks idle, sends probe."""
+        while not self._stopped:
+            try:
+                await asyncio.sleep(_KEEPALIVE_INTERVAL_SECONDS)
+            except asyncio.CancelledError:
+                return
+
+            if self._stopped:
+                return
+
+            idle_seconds = time.monotonic() - self._last_activity
+            if idle_seconds < _KEEPALIVE_INTERVAL_SECONDS:
+                continue
+
+            try:
+                from langchain_core.messages import HumanMessage, SystemMessage
+
+                msgs: list[BaseMessage] = [
+                    SystemMessage(content=self._system_prompt),
+                    HumanMessage(content="warmup"),
+                ]
+                result = await preheat_prefix_cache(self._llm, msgs, self._model_name)
+                if result:
+                    logger.debug(
+                        "Cache keepalive probe sent for %s (idle %.0fs)",
+                        self._model_name,
+                        idle_seconds,
+                    )
+            except asyncio.CancelledError:
+                return
+            except Exception:
+                logger.debug("Cache keepalive probe failed", exc_info=True)

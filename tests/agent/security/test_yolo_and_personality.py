@@ -638,15 +638,15 @@ class TestSecurityConfigMergeEdgeCases:
         )
         assert config.yolo_mode_enabled is False
 
-    def test_merge_timeout_from_user_when_user_enabled(self) -> None:
+    def test_merge_timeout_from_agent_when_both_enabled(self) -> None:
         config = build_channel_security_config(
             "web_chat",
             {"yolo_mode_enabled": True, "yolo_mode_timeout": 120},
             agent_security_raw={"yolo_mode_enabled": True, "yolo_mode_timeout": 600},
         )
         assert config.yolo_mode_enabled is True
-        # user timeout takes precedence when user is enabled
-        assert config.yolo_mode_timeout == 120
+        # agent timeout takes precedence (per-agent YOLO is an explicit override)
+        assert config.yolo_mode_timeout == 600
 
     def test_merge_timeout_from_agent_when_only_agent_enabled(self) -> None:
         config = build_channel_security_config(
