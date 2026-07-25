@@ -59,6 +59,8 @@ class _FallbackSummaryModel(BaseModel):
     resolved_questions: list[str] = Field(default_factory=list)
     pending_user_asks: list[str] = Field(default_factory=list)
     active_state: str = Field(default="")
+    blocked_items: list[str] = Field(default_factory=list)
+    next_steps: list[str] = Field(default_factory=list)
 
     def to_structured_summary(self) -> StructuredSummary:
         return StructuredSummary(
@@ -74,6 +76,8 @@ class _FallbackSummaryModel(BaseModel):
             resolved_questions=self.resolved_questions,
             pending_user_asks=self.pending_user_asks,
             active_state=self.active_state,
+            blocked_items=self.blocked_items,
+            next_steps=self.next_steps,
         )
 
 

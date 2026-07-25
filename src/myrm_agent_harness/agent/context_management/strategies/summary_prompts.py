@@ -39,7 +39,9 @@ Do not translate or switch languages.
 9. pending_user_asks: Outstanding items the user raised but are not yet addressed — includes tasks, questions, and decisions awaiting input (max 5), write "None" if empty
 10. files_modified: **Especially important**! List all created or modified file paths, with brief key insights in parentheses
 11. last_action: The last action performed
-12. Preserve all identifiers exactly as-is (file paths, UUIDs, hashes, API endpoints, URLs, error codes, env var names, IP:port) — never simplify or obscure them
+12. blocked_items: Current blockers and issues preventing progress (max 3). Include specific error messages, missing dependencies, or unanswered decisions. Write "None" if no blockers
+13. next_steps: Planned next actions the assistant was about to take or should take next (max 5). Be specific and actionable (e.g. "run pytest on tests/test_api.py", "implement error handling in auth.py"). Write "None" if the task is complete
+14. Preserve all identifiers exactly as-is (file paths, UUIDs, hashes, API endpoints, URLs, error codes, env var names, IP:port) — never simplify or obscure them
 
 ## Conversation History
 {context}
@@ -70,7 +72,9 @@ Do not translate or switch languages.
 7. **MOVE** answered questions to resolved_questions, new questions to pending_user_asks
 8. **UPDATE** last_action to the most recent action
 9. **MERGE** files_modified list (add new files, keep old files)
-10. If user goal has changed, update user_goal
+10. **UPDATE** blocked_items to current blockers only (remove resolved blockers)
+11. **UPDATE** next_steps to the latest planned actions (discard completed steps)
+12. If user goal has changed, update user_goal
 
 Notes:
 - completed_actions: keep at most 15 (prioritize most important)
@@ -79,6 +83,8 @@ Notes:
 - constraints_and_preferences: keep at most 5
 - resolved_questions: keep at most 5
 - pending_user_asks: write "None" if empty
+- blocked_items: keep at most 3, write "None" if no blockers
+- next_steps: keep at most 5, write "None" if task is complete
 - files_modified: keep as complete as possible
 - Preserve all identifiers exactly as-is (file paths, UUIDs, hashes, API endpoints, URLs, error codes, env var names, IP:port) — never simplify or obscure them
 {budget_hint}"""

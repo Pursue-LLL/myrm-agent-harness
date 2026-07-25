@@ -17,6 +17,7 @@ Pipeline processors module.
 | media_filter.py | Core | Proactive media filter — strips image/video/audio for text-only models before LLM call. | ✅ |
 | media_resolver.py | Core | Resolves non-base64 image URLs (HTTP/file/API references) to base64 data URLs right before LLM invocation. Supports `file://` local paths, HTTP(S) StorageProvider URLs, and `/api/media/` paths via injected `FileContentReader`. Positioned after MediaFilter so only surviving images are resolved. | ✅ |
 | normalize_processor.py | Core | Provides NormalizeProcessor. | ✅ |
+| post_compaction_reread_processor.py | Core | Post-compaction active file reread. After compaction (tokens_saved > 0), reads top-5 recently modified files from ArtifactTracker and injects their content as HumanMessage, eliminating redundant read_file tool calls. | ✅ |
 | session_notes_processor.py | Core | Provides SessionNotesProcessor. | ✅ |
 | summarize_processor.py | Core | Provides SummarizeProcessor. | ✅ |
 | pre_compact_processor.py | Core | Pre-compaction semantic memory recall processor. Invokes ContextPreCompactCallback before Compress/SessionNotes/Summarize and stores protected HumanMessage recall in context metadata. | ✅ |

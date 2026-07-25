@@ -210,13 +210,29 @@ def create_summary_message(summary: StructuredSummary, chat_id: str | None = Non
         for item in summary.errors_and_fixes[:8]:
             parts.append(f" - {item}")
 
+    if summary.blocked_items:
+        blocked = [b for b in summary.blocked_items if b.strip() and b.strip() != "None"]
+        if blocked:
+            parts.append("")
+            parts.append("Blocked:")
+            for item in blocked[:3]:
+                parts.append(f" - {item}")
+
     if summary.pending_user_asks:
-        pending = [a for a in summary.pending_user_asks if a != "None"]
+        pending = [a for a in summary.pending_user_asks if a.strip() and a.strip() != "None"]
         if pending:
             parts.append("")
             parts.append("Pending User Asks:")
             for ask in pending[:5]:
                 parts.append(f" - {ask}")
+
+    if summary.next_steps:
+        steps = [s for s in summary.next_steps if s.strip() and s.strip() != "None"]
+        if steps:
+            parts.append("")
+            parts.append("Next Steps:")
+            for step in steps[:5]:
+                parts.append(f" - {step}")
 
     if summary.active_state:
         parts.append("")

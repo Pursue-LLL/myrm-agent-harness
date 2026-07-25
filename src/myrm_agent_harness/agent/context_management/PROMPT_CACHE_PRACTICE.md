@@ -592,7 +592,11 @@ SessionNotesProcessor    ← 笔记就绪时零 API 压缩；未就绪时自然�
        ↓
 SummarizeProcessor       ← 超大上下文 → 结构化摘要（最后手段）
        ↓
+PostCompactionRereadProcessor ← 压缩后自动重读最近修改的文件注入上下文
+       ↓
 NormalizeProcessor       ← 内容标准化（清理空行、换行符）
+       ↓
+MediaResolverProcessor   ← 解析 URL/file 图片引用为 base64
        ↓
 ExplicitCacheProcessor   ← 注入 cache_control 断点（最后执行）
 ```

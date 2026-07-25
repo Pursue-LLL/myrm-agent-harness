@@ -533,6 +533,8 @@ class StructuredSummary:
     - resolved_questions: answered questions, prevents the agent from re-answering
     - pending_user_asks: unfinished requests, prevents omissions
     - active_state: current work state (branch, tests, processes), reduces redundant exploration
+    - blocked_items: blockers and issues preventing progress, ensures the next agent can unblock
+    - next_steps: planned next actions, ensures task continuity and reduces re-planning overhead
     """
 
     user_goal: str
@@ -547,6 +549,8 @@ class StructuredSummary:
     resolved_questions: list[str] = field(default_factory=list)
     pending_user_asks: list[str] = field(default_factory=list)
     active_state: str = ""
+    blocked_items: list[str] = field(default_factory=list)
+    next_steps: list[str] = field(default_factory=list)
 
     def to_json(self) -> str:
         """Serialize to JSON string (for incremental merge prompts)."""
@@ -567,6 +571,10 @@ class StructuredSummary:
             data["pending_user_asks"] = self.pending_user_asks
         if self.active_state:
             data["active_state"] = self.active_state
+        if self.blocked_items:
+            data["blocked_items"] = self.blocked_items
+        if self.next_steps:
+            data["next_steps"] = self.next_steps
         return json.dumps(data, ensure_ascii=False, indent=2)
 
 
