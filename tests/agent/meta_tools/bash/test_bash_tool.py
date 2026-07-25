@@ -51,7 +51,7 @@ async def test_bash_tool_git_clone_hint():
         tool = create_bash_code_execute_tool()
         with pytest.raises(ToolError) as exc_info:
             await tool.ainvoke(
-                {"command": "git clone https://github.com/owner/repo.git", "reason": "test"}
+                {"command": "git clone https://github.com/owner/repo.git", "reason": "test cloning from remote repo"}
             )
 
         assert "git clone" in exc_info.value.user_hint
@@ -69,7 +69,7 @@ async def test_bash_tool_no_git_clone_hint_for_other_commands():
     with p_ctx, p_get, p_be, p_scope:
         tool = create_bash_code_execute_tool()
         with pytest.raises(ToolError) as exc_info:
-            await tool.ainvoke({"command": "ls -la", "reason": "test"})
+            await tool.ainvoke({"command": "ls -la", "reason": "test cloning from remote repo"})
 
         assert "git clone" not in exc_info.value.user_hint
         assert "curl" not in exc_info.value.user_hint

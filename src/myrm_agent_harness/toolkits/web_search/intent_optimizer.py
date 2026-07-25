@@ -38,6 +38,7 @@ class SearchIntent(Enum):
     ACADEMIC = "academic"
     SOCIAL = "social"
     SECURITY = "security"
+    PLATFORM_BILIBILI = "platform_bilibili"
     GENERAL = "general"
 
 
@@ -76,6 +77,17 @@ _CONFIDENCE_THRESHOLD = 0.6
 # Priority groups ensure e.g. "Python news" matches NEWS not CODE
 # Note: \b does not work for CJK characters; Chinese patterns omit \b.
 _PRIORITY_PATTERNS: list[tuple[SearchIntent, list[str]]] = [
+    # PLATFORM_BILIBILI has highest priority (explicit platform routing)
+    (
+        SearchIntent.PLATFORM_BILIBILI,
+        [
+            r"(?:搜|找|查|看看|搜索)B站",
+            r"B站(?:上|里|中|内)?(?:搜|找|查|有没有|有哪些|关于)",
+            r"(?:搜|找|查|看看|搜索)(?:b站|哔哩哔哩)",
+            r"(?:b站|哔哩哔哩)(?:上|里|中|内)?(?:搜|找|查|有没有|有哪些|关于)",
+            r"\bsite:bilibili\.com\b",
+        ],
+    ),
     # NEWS has highest priority (overrides language-name matches)
     (
         SearchIntent.NEWS,

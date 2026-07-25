@@ -38,6 +38,7 @@ class TestSearchIntentEnum:
             "academic",
             "social",
             "security",
+            "platform_bilibili",
             "general",
         }
         actual = {intent.value for intent in SearchIntent}

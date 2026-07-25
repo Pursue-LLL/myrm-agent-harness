@@ -12,7 +12,7 @@ LLM adapter layer: LangChain-compatible LiteLLM interface, provider-specific mes
 | chat_model_exceptions.py | Core | Shared adapter exceptions and OpenAI param whitelist constants | ✅ |
 | chat_model_message_mixin.py | Core | Message normalization, developer-role promotion, reasoning_content stamp, ChatResult assembly | ✅ |
 | chat_model_sync_mixin.py | Core | Synchronous generation and streaming with empty-response retry | ✅ |
-| chat_model_async_mixin.py | Core | Asynchronous generation and streaming with concurrency gate | ✅ |
+| chat_model_async_mixin.py | Core | Asynchronous generation and streaming with concurrency gate and stream stall detection | ✅ |
 | model_capability.py | Core | Model capability detection for reasoning_content echo-back requirements (MiMo, DeepSeek, Kimi/Moonshot) | ✅ |
 | concurrency.py | Core | Concurrency gate — per-model and global asyncio semaphores | ✅ |
 | converters.py | Core | Bidirectional message format conversion (LangChain ↔ LiteLLM) with explicit message-name preservation | ✅ |

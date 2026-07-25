@@ -64,6 +64,39 @@ async def test_persist_evicted_content_writes_file(tmp_path) -> None:
         chat_id_var.reset(c_tok)
 
 
+@pytest.mark.asyncio
+async def test_persist_uses_raw_chat_id_for_api_contract(tmp_path) -> None:
+    """GET /files/evicted?chat_id= uses raw chat id, not chat_{id} session keys."""
+    workspace = tmp_path
+    raw_chat_id = "e2ebashfg-deadbeef"
+    w_tok = workspace_root_var.set(str(workspace))
+    c_tok = chat_id_var.set(raw_chat_id)
+    try:
+        result = await persist_evicted_content("line\n", "output", ext="txt")
+        assert result.evicted_ref is not None
+        assert result.rel_path is not None
+        assert result.rel_path.startswith(f".context/{raw_chat_id}/evicted/")
+        assert (workspace / result.rel_path).is_file()
+    finally:
+        workspace_root_var.reset(w_tok)
+        chat_id_var.reset(c_tok)
+
+
+@pytest.mark.asyncio
+async def test_persist_strips_chat_prefix_from_session_key(tmp_path) -> None:
+    workspace = tmp_path
+    raw_chat_id = "e2ebashfg-prefix"
+    w_tok = workspace_root_var.set(str(workspace))
+    c_tok = chat_id_var.set(f"chat_{raw_chat_id}")
+    try:
+        result = await persist_evicted_content("line\n", "output", ext="txt")
+        assert result.rel_path is not None
+        assert f".context/{raw_chat_id}/evicted/" in result.rel_path
+    finally:
+        workspace_root_var.reset(w_tok)
+        chat_id_var.reset(c_tok)
+
+
 def test_build_evicted_basename_sanitizes_unknown_source() -> None:
     name = build_evicted_basename("custom_mcp_tool_xyz", ext="md")
     assert name.startswith("tool_")

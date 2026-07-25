@@ -2,7 +2,7 @@
 
 Covers:
 - canonicalize_key_combo: alias normalization to canonical frozenset
-- is_blocked_key_combo: all 5 blocked combos + safe combos pass through
+- is_blocked_key_combo: all 9 blocked combos (5 macOS + 4 Windows) + safe combos pass through
 - is_dangerous_type_text: all 5 dangerous patterns + safe text passes
 - Integration in desktop_vision_tool: safety check before execution
 """
@@ -66,7 +66,7 @@ class TestCanonicalizeKeyCombo:
 
 
 class TestIsBlockedKeyCombo:
-    """is_blocked_key_combo: detect dangerous macOS system shortcuts."""
+    """is_blocked_key_combo: detect dangerous macOS and Windows system shortcuts."""
 
     def test_cmd_shift_backspace_blocked(self) -> None:
         result = is_blocked_key_combo("cmd+shift+backspace")
@@ -88,6 +88,21 @@ class TestIsBlockedKeyCombo:
     def test_cmd_option_shift_q_blocked(self) -> None:
         result = is_blocked_key_combo("cmd+option+shift+q")
         assert result is not None
+
+    def test_win_l_blocked(self) -> None:
+        assert is_blocked_key_combo("win+l") is not None
+
+    def test_ctrl_alt_delete_blocked(self) -> None:
+        assert is_blocked_key_combo("ctrl+alt+delete") is not None
+
+    def test_ctrl_alt_del_blocked(self) -> None:
+        assert is_blocked_key_combo("ctrl+alt+del") is not None
+
+    def test_alt_f4_blocked(self) -> None:
+        assert is_blocked_key_combo("alt+f4") is not None
+
+    def test_windows_alias_resolves_to_win(self) -> None:
+        assert is_blocked_key_combo("windows+l") is not None
 
     def test_aliases_resolve_to_blocked(self) -> None:
         assert is_blocked_key_combo("command+shift+q") is not None
@@ -288,10 +303,10 @@ class TestComputerActionSafetyIntegration:
 
 
 class TestBlockedCombosCompleteness:
-    """Verify all 5 documented blocked combos are present."""
+    """Verify all 9 documented blocked combos are present (5 macOS + 4 Windows)."""
 
-    def test_exactly_five_blocked_combos(self) -> None:
-        assert len(_BLOCKED_KEY_COMBOS) == 5
+    def test_exactly_nine_blocked_combos(self) -> None:
+        assert len(_BLOCKED_KEY_COMBOS) == 9
 
     def test_all_combos_are_frozensets(self) -> None:
         for combo in _BLOCKED_KEY_COMBOS:
@@ -301,7 +316,7 @@ class TestBlockedCombosCompleteness:
         assert len(_DANGEROUS_TYPE_PATTERNS) == 5
 
     def test_key_aliases_coverage(self) -> None:
-        expected_aliases = {"command", "control", "alt", "meta", "super", "opt"}
+        expected_aliases = {"command", "control", "alt", "meta", "super", "opt", "windows"}
         assert set(_KEY_ALIASES.keys()) == expected_aliases
 
 

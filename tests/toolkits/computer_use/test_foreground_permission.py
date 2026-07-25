@@ -193,6 +193,7 @@ class TestCallbackInvocation:
             estimated_duration_seconds=3.0,
             app_name="",
             window_title="",
+            app_id="",
             require_app_approval=False,
         )
 

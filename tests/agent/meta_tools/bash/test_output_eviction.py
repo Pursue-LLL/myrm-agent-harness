@@ -180,26 +180,38 @@ def test_get_session_id_returns_none_on_error():
         assert mod._get_session_id() is None
 
 
+def test_get_session_id_prefers_chat_id_var():
+    from myrm_agent_harness.agent.meta_tools.bash import _output_eviction as mod
+    from myrm_agent_harness.core.context_vars import chat_id_var
+
+    token = chat_id_var.set("chat-from-var")
+    try:
+        assert mod._get_session_id() == "chat-from-var"
+    finally:
+        chat_id_var.reset(token)
+
+
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("_mock_should_filter", "_mock_detect_non_structural")
 async def test_save_to_file_persists_with_session(mock_executor):
+    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+        EvictedPersistResult,
+    )
     from myrm_agent_harness.agent.meta_tools.bash import _output_eviction as mod
 
     with (
         patch.object(mod, "_get_session_id", return_value="session_save"),
         patch(
-            "myrm_agent_harness.runtime.execution_paths.get_evicted_output_path",
-            return_value="/ws/.context/session_save/evicted/output_abcd1234.txt",
-        ),
-        patch(
-            "myrm_agent_harness.runtime.execution_paths.get_workspace_relative_path",
-            return_value=".context/session_save/evicted/output_abcd1234.txt",
-        ),
-        patch(
-            "myrm_agent_harness.runtime.execution_paths.ensure_context_dir_exists",
-        ),
+            "myrm_agent_harness.agent.context_management.infra.evicted_content.persist_evicted_content",
+            return_value=EvictedPersistResult(
+                evicted_ref="output_abcd1234.txt",
+                rel_path=".context/session_save/evicted/output_abcd1234.txt",
+                stored_chars=7,
+            ),
+        ) as persist_mock,
     ):
         rel = await mod._save_to_file(mock_executor, "payload")
 
     assert rel == ".context/session_save/evicted/output_abcd1234.txt"
-    mock_executor.write_file.assert_awaited_once()
+    persist_mock.assert_awaited_once()
+    mock_executor.write_file.assert_not_called()

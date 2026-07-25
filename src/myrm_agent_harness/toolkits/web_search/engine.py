@@ -136,6 +136,7 @@ class WebSearchTools:
             ValueError: When all queries return 0 results
         """
         from myrm_agent_harness.toolkits.web_search.intent_optimizer import (
+            SearchIntent,
             detect_search_intent,
             resolve_search_params,
         )
@@ -144,8 +145,11 @@ class WebSearchTools:
 
         provider = self._searcher.config.search_service
         per_query_overrides: list[dict[str, str] | None] = []
+        bilibili_queries: list[str] = []
         for q in questions:
             intent_result = detect_search_intent(q)
+            if intent_result.intent == SearchIntent.PLATFORM_BILIBILI:
+                bilibili_queries.append(q)
             override = resolve_search_params(intent_result, provider)
             per_query_overrides.append(override)
             if override:
@@ -154,12 +158,43 @@ class WebSearchTools:
                     f"confidence={intent_result.confidence:.2f} override={override}"
                 )
 
-        search_results = await self._searcher.multi_query_parallel_search(
-            questions, search_results_per_query, per_query_overrides
-        )
-        _, unified_docs = combine_search_results_unified(search_results)
-        unified_docs = apply_domain_diversity_sort(unified_docs)
-        search_time_ms = (time.perf_counter() - start_time) * 1000
+        # Bilibili fast-path: when all queries target Bilibili, use native API
+        if bilibili_queries and len(bilibili_queries) == len(questions):
+            from myrm_agent_harness.toolkits.web_search.bilibili_search import search_bilibili
+            from myrm_agent_harness.toolkits.web_search.search_results_processor import (
+                search_results_to_documents,
+            )
+
+            all_bili_results = []
+            for q in bilibili_queries:
+                bili_results = await search_bilibili(q, max_results=search_results_per_query)
+                if bili_results:
+                    all_bili_results.extend(bili_results)
+
+            if all_bili_results:
+                unified_docs = search_results_to_documents(all_bili_results)
+                unified_docs = apply_domain_diversity_sort(unified_docs)
+                search_time_ms = (time.perf_counter() - start_time) * 1000
+                logger.info(
+                    f"Bilibili fast-path: {len(bilibili_queries)} queries, "
+                    f"{len(unified_docs)} docs in {search_time_ms:.0f}ms"
+                )
+            else:
+                logger.info("Bilibili fast-path failed, falling back to generic search with site:bilibili.com")
+                fallback_questions = [f"{q} site:bilibili.com" for q in questions]
+                search_results = await self._searcher.multi_query_parallel_search(
+                    fallback_questions, search_results_per_query, [None] * len(fallback_questions)
+                )
+                _, unified_docs = combine_search_results_unified(search_results)
+                unified_docs = apply_domain_diversity_sort(unified_docs)
+                search_time_ms = (time.perf_counter() - start_time) * 1000
+        else:
+            search_results = await self._searcher.multi_query_parallel_search(
+                questions, search_results_per_query, per_query_overrides
+            )
+            _, unified_docs = combine_search_results_unified(search_results)
+            unified_docs = apply_domain_diversity_sort(unified_docs)
+            search_time_ms = (time.perf_counter() - start_time) * 1000
 
         # Evaluate document characteristics to decide precision mode
         avg_doc_tokens = (

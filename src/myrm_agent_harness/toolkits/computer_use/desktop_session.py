@@ -250,7 +250,11 @@ class DesktopSession(ComputerSession):
             elif action == "set_value":
                 effective_action = "set_value"
 
-            ax_result = invoke_element(self._backend, element, effective_action, effective_text)
+            snapshot_app = self._refs.meta.app_name if self._refs.meta else None
+            ax_result = invoke_element(
+                self._backend, element, effective_action, effective_text,
+                app_name=snapshot_app,
+            )
             if not ax_result.success:
                 bbox_result = await try_bbox_click(self, element, effective_action, effective_text, modifiers)
                 if not bbox_result.success:
@@ -260,7 +264,16 @@ class DesktopSession(ComputerSession):
                     )
 
             await asyncio.sleep(self._config.screenshot_delay)
-            follow_up = await self.desktop_snapshot(scope="foreground", include_screenshot=False)
+            if self._refs.meta and self._refs.meta.app_name:
+                follow_up = await self.desktop_snapshot(
+                    scope="window_title",
+                    window_title=self._refs.meta.app_name,
+                    include_screenshot=False,
+                )
+            else:
+                follow_up = await self.desktop_snapshot(
+                    scope="foreground", include_screenshot=False,
+                )
             if action == "fill_credential":
                 result_prefix = f"Filled credential '{text}' into @{element.ref_id} [CREDENTIAL_FILLED]\n\n"
             else:
@@ -483,6 +496,39 @@ class DesktopSession(ComputerSession):
     async def check_permissions(self) -> PermissionStatus:
         """Delegate to the platform backend to probe OS-level permissions."""
         return await super().check_permissions()
+
+    def export_registry_view(self) -> dict[str, object] | None:
+        """Return last DRefRegistry snapshot for inspector/API without re-capturing AX."""
+        from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef
+
+        meta = self._refs.meta
+        refs = self._refs.all_refs()
+        if meta is None or not refs:
+            return None
+        element_refs = {key: value for key, value in refs.items() if isinstance(value, ElementRef)}
+        if not element_refs:
+            return None
+        info = self.screen_info
+        viewport_width = info.width
+        viewport_height = info.height
+        return {
+            "screenshot_base64": "",
+            "mime_type": "",
+            "refs": refs_for_view_update(
+                element_refs,
+                viewport_width=viewport_width,
+                viewport_height=viewport_height,
+                som_index_map=None,
+            ),
+            "app_name": meta.app_name,
+            "window_title": meta.window_title,
+            "scope": meta.scope,
+            "needs_permission": meta.needs_permission,
+            "viewport_width": viewport_width,
+            "viewport_height": viewport_height,
+            "registry_generation": self._refs.generation,
+            **self._snapshot_screen_fields(),
+        }
 
     async def export_inspector_snapshot(self) -> dict[str, object]:
         """Capture foreground desktop state for WebUI inspector refresh."""

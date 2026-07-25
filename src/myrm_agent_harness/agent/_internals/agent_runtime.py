@@ -216,6 +216,14 @@ async def run_agent_loop(
         if session_key:
             bind_run_message_id(session_key, message_id)
         set_approval_session(session_key)
+        # UECD spill paths and /files/evicted API use raw chat_id (context["chat_id"]),
+        # not approval session_key (often "chat_{id}").
+        if context:
+            delivery_chat_id = str(context.get("chat_id") or "").strip()
+            if delivery_chat_id:
+                from myrm_agent_harness.core.context_vars import chat_id_var
+
+                chat_id_var.set(delivery_chat_id)
 
         # Make sure agent_id is populated from config
         set_agent_id(agent_state.config.agent_id)

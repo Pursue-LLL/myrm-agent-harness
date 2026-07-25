@@ -62,7 +62,9 @@ async def test_fill_credential_resolves_password(mock_backend, mock_config):
         result = await session.desktop_interact(ref="e0", action="fill_credential", text="my-login")
 
     vault.get_password.assert_called_once_with("my-login")
-    mock_invoke.assert_called_once_with(mock_backend, elem, "fill", "s3cret_p@ss")
+    mock_invoke.assert_called_once()
+    call_args = mock_invoke.call_args
+    assert call_args[0][:4] == (mock_backend, elem, "fill", "s3cret_p@ss")
     assert "CREDENTIAL_FILLED" in result
     assert "my-login" in result
 
@@ -88,7 +90,9 @@ async def test_fill_credential_resolves_totp(mock_backend, mock_config):
         result = await session.desktop_interact(ref="e0", action="fill_credential", text="my-login-totp")
 
     vault.get_totp_token.assert_called_once_with("my-login-totp")
-    mock_invoke.assert_called_once_with(mock_backend, elem, "fill", "123456")
+    mock_invoke.assert_called_once()
+    call_args = mock_invoke.call_args
+    assert call_args[0][:4] == (mock_backend, elem, "fill", "123456")
     assert "CREDENTIAL_FILLED" in result
 
 

@@ -353,15 +353,22 @@ def _extract_window_text() -> WindowTextResult:
 
 
 def _detect_dpi_scale_quartz(logical_width: int) -> float:
-    """Detect DPI scale via AppKit NSScreen.backingScaleFactor (accurate, no string parsing)."""
+    """Detect DPI scale via subprocess-isolated AppKit probe, then system_profiler fallback."""
     try:
-        from AppKit import NSScreen
-
-        screen = NSScreen.mainScreen()
-        scale = screen.backingScaleFactor()
-        if scale > 0:
-            return float(scale)
-    except Exception:
+        probe = subprocess.run(
+            [
+                "python3", "-c",
+                "from AppKit import NSScreen; print(NSScreen.mainScreen().backingScaleFactor())",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if probe.returncode == 0:
+            scale = float(probe.stdout.strip())
+            if scale > 0:
+                return scale
+    except (subprocess.TimeoutExpired, ValueError, OSError):
         pass
 
     try:
@@ -372,9 +379,9 @@ def _detect_dpi_scale_quartz(logical_width: int) -> float:
             timeout=5,
         )
         for line in result.stdout.splitlines():
-            if "Retina" in line.lower() or "@2x" in line:
+            if "retina" in line.lower() or "@2x" in line:
                 return 2.0
-    except Exception:
+    except (subprocess.TimeoutExpired, OSError):
         pass
 
     return 1.0

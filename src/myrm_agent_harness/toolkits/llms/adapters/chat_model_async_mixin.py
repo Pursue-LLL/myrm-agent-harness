@@ -1,15 +1,15 @@
 """ChatLiteLLM asynchronous generation and streaming mixin.
 
 [INPUT]
-- adapters.chat_model_exceptions (POS: EmptyChoicesError / EmptyStreamError)
+- adapters.chat_model_exceptions (POS: EmptyChoicesError / EmptyStreamError / StreamStallTimeoutError)
 - adapters.concurrency (POS: per-model semaphores)
 - adapters.stream_aggregator / adapters.streaming (POS: stream aggregation)
 
 [OUTPUT]
-- ChatLiteLLMAsyncMixin: _agenerate, _astream, empty-response retry
+- ChatLiteLLMAsyncMixin: _agenerate, _astream, empty-response retry, stream stall detection
 
 [POS]
-Asynchronous LLM generation and streaming path for ChatLiteLLM with concurrency gate.
+Asynchronous LLM generation and streaming path for ChatLiteLLM with concurrency gate and stream stall detection.
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from myrm_agent_harness.toolkits.llms.adapters.chat_model_exceptions import (
     EmptyChoicesError,
     EmptyStreamError,
+    StreamStallTimeoutError,
 )
 from myrm_agent_harness.toolkits.llms.adapters.concurrency import (
     get_semaphores as _get_semaphores,
@@ -265,46 +266,66 @@ class ChatLiteLLMAsyncMixin:
                 xml_content_buffer = XmlStreamBuffer()
                 xml_reasoning_buffer = XmlStreamBuffer()
 
-                async for chunk in stream:
-                    chunk_dict = agg.ingest_raw_chunk(chunk)
-                    if chunk_dict is None:
-                        continue
-                    agg.aggregate_tool_calls_from_dict(chunk_dict)
+                stall_phase = "first_event"
+                try:
+                    loop = asyncio.get_running_loop()
+                    async with asyncio.timeout(self.first_event_timeout) as stall_tm:
+                        async for chunk in stream:
+                            stall_tm.reschedule(loop.time() + self.inter_chunk_timeout)
+                            if stall_phase == "first_event":
+                                stall_phase = "inter_chunk"
 
-                    cg_chunk, new_class = self._process_chunk(
-                        chunk_dict,
-                        agg.default_chunk_class,
-                        agg.tool_call_id_map,
-                        emit_tool_call_chunks=False,
+                            chunk_dict = agg.ingest_raw_chunk(chunk)
+                            if chunk_dict is None:
+                                continue
+                            agg.aggregate_tool_calls_from_dict(chunk_dict)
+
+                            cg_chunk, new_class = self._process_chunk(
+                                chunk_dict,
+                                agg.default_chunk_class,
+                                agg.tool_call_id_map,
+                                emit_tool_call_chunks=False,
+                            )
+                            if cg_chunk:
+                                agg.on_generation_chunk(cg_chunk, new_class)
+
+                                # Filter content and reasoning_content through DSML buffer before yielding
+                                raw_content = str(cg_chunk.message.content) if cg_chunk.message.content else ""
+                                safe_content = xml_content_buffer.process(raw_content)
+
+                                additional_kwargs = dict(getattr(cg_chunk.message, "additional_kwargs", {}))
+                                raw_reasoning = additional_kwargs.get("reasoning_content", "")
+                                safe_reasoning = xml_reasoning_buffer.process(str(raw_reasoning)) if raw_reasoning else ""
+
+                                if safe_content or safe_reasoning or getattr(cg_chunk.message, "tool_call_chunks", []):
+                                    msg_dict = dict(cg_chunk.message)
+                                    msg_dict.pop("type", None)
+                                    msg_dict["content"] = safe_content
+                                    if "additional_kwargs" in msg_dict:
+                                        ak = dict(msg_dict["additional_kwargs"])
+                                        if safe_reasoning:
+                                            ak["reasoning_content"] = safe_reasoning
+                                        elif "reasoning_content" in ak:
+                                            del ak["reasoning_content"]
+                                        msg_dict["additional_kwargs"] = ak
+
+                                    safe_chunk = cg_chunk.message.__class__(**msg_dict)
+                                    safe_cg_chunk = ChatGenerationChunk(message=safe_chunk)
+                                    if run_manager:
+                                        await run_manager.on_llm_new_token(safe_content, chunk=safe_cg_chunk)
+                                    yield safe_cg_chunk
+                except TimeoutError:
+                    timeout_val = self.first_event_timeout if stall_phase == "first_event" else self.inter_chunk_timeout
+                    logger.warning(
+                        " Stream stall detected (phase=%s, model=%s, timeout=%.0fs)",
+                        stall_phase, model_name, timeout_val,
                     )
-                    if cg_chunk:
-                        agg.on_generation_chunk(cg_chunk, new_class)
-
-                        # Filter content and reasoning_content through DSML buffer before yielding
-                        raw_content = str(cg_chunk.message.content) if cg_chunk.message.content else ""
-                        safe_content = xml_content_buffer.process(raw_content)
-
-                        additional_kwargs = dict(getattr(cg_chunk.message, "additional_kwargs", {}))
-                        raw_reasoning = additional_kwargs.get("reasoning_content", "")
-                        safe_reasoning = xml_reasoning_buffer.process(str(raw_reasoning)) if raw_reasoning else ""
-
-                        if safe_content or safe_reasoning or getattr(cg_chunk.message, "tool_call_chunks", []):
-                            msg_dict = dict(cg_chunk.message)
-                            msg_dict.pop("type", None)
-                            msg_dict["content"] = safe_content
-                            if "additional_kwargs" in msg_dict:
-                                ak = dict(msg_dict["additional_kwargs"])
-                                if safe_reasoning:
-                                    ak["reasoning_content"] = safe_reasoning
-                                elif "reasoning_content" in ak:
-                                    del ak["reasoning_content"]
-                                msg_dict["additional_kwargs"] = ak
-
-                            safe_chunk = cg_chunk.message.__class__(**msg_dict)
-                            safe_cg_chunk = ChatGenerationChunk(message=safe_chunk)
-                            if run_manager:
-                                await run_manager.on_llm_new_token(safe_content, chunk=safe_cg_chunk)
-                            yield safe_cg_chunk
+                    raise StreamStallTimeoutError(
+                        provider=self.custom_llm_provider or "unknown",
+                        model=model_name,
+                        phase=stall_phase,
+                        elapsed_s=timeout_val,
+                    )
 
                 logger.debug(f" Stream completed: total {agg.chunk_count} chunks")
 
@@ -356,6 +377,8 @@ class ChatLiteLLMAsyncMixin:
                     await asyncio.sleep(self.empty_retry_delay)
                 else:
                     logger.error(f" Empty stream after {max_attempts} attempts.")
+            except StreamStallTimeoutError:
+                raise
             except Exception as e:
                 from myrm_agent_harness.toolkits.llms.errors.classifier import (
                     is_context_overflow,

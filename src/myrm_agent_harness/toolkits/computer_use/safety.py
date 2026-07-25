@@ -1,7 +1,7 @@
 """Safety guardrails for desktop control tools.
 
 Three guardrail types:
-- Blocked key combos: prevents dangerous macOS system shortcuts
+- Blocked key combos: prevents dangerous system shortcuts (macOS + Windows)
 - Dangerous type-text patterns: prevents shell injection via typed text
 - Sensitive app guard: prevents interaction with financial, communication,
   and password management applications
@@ -20,6 +20,7 @@ _KEY_ALIASES: dict[str, str] = {
     "meta": "cmd",
     "super": "cmd",
     "opt": "option",
+    "windows": "win",
 }
 
 _BLOCKED_KEY_COMBOS: frozenset[frozenset[str]] = frozenset(
@@ -29,6 +30,10 @@ _BLOCKED_KEY_COMBOS: frozenset[frozenset[str]] = frozenset(
         frozenset({"cmd", "ctrl", "q"}),
         frozenset({"cmd", "shift", "q"}),
         frozenset({"cmd", "option", "shift", "q"}),
+        frozenset({"win", "l"}),
+        frozenset({"ctrl", "option", "delete"}),
+        frozenset({"ctrl", "option", "del"}),
+        frozenset({"option", "f4"}),
     }
 )
 

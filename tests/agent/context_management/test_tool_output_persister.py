@@ -1,140 +1,93 @@
 """Unit tests for tool_output_persister."""
 
-import os
-from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    sanitize_evicted_source,
+)
 from myrm_agent_harness.agent.context_management.infra.tool_output_persister import (
-    _sanitize_name,
     persist_large_tool_output,
 )
 
-_MOCK_WS = "myrm_agent_harness.agent.middlewares._session_context.get_workspace_root"
+_MOCK_PERSIST = (
+    "myrm_agent_harness.agent.context_management.infra.tool_output_persister"
+    ".persist_evicted_content"
+)
 
 
-class TestSanitizeName:
+class TestSanitizeEvictedSource:
     def test_normal_name(self) -> None:
-        assert _sanitize_name("my_tool") == "my_tool"
+        result = sanitize_evicted_source("tool")
+        assert result == "tool"
 
-    def test_special_characters(self) -> None:
-        assert _sanitize_name("server/tool.name") == "server_tool_name"
+    def test_mcp_name(self) -> None:
+        result = sanitize_evicted_source("mcp")
+        assert result == "mcp"
 
-    def test_spaces(self) -> None:
-        assert _sanitize_name("my tool name") == "my_tool_name"
+    def test_filter_name(self) -> None:
+        result = sanitize_evicted_source("filter")
+        assert result == "filter"
 
-    def test_long_name_truncated(self) -> None:
-        long_name = "a" * 100
-        result = _sanitize_name(long_name)
-        assert len(result) == 40
+    def test_unknown_source_falls_back(self) -> None:
+        result = sanitize_evicted_source("some_random_thing")
+        assert result == "tool"
 
-    def test_empty_name(self) -> None:
-        assert _sanitize_name("") == "unknown"
+    def test_empty_source(self) -> None:
+        result = sanitize_evicted_source("")
+        assert result == "tool"
 
-    def test_all_special_chars_produce_underscores(self) -> None:
-        result = _sanitize_name("@#$%^&*()")
-        assert "_" in result
-        assert len(result) > 0
-
-    def test_hyphen_preserved(self) -> None:
-        assert _sanitize_name("my-tool") == "my-tool"
+    def test_special_chars_sanitized(self) -> None:
+        result = sanitize_evicted_source("server/tool.name")
+        assert result == "tool"
 
 
 class TestPersistLargeToolOutput:
     @pytest.mark.asyncio
-    async def test_no_workspace_root_returns_none(self) -> None:
-        with patch(_MOCK_WS, return_value=""):
-            result = await persist_large_tool_output("content", "tool")
-        assert result is None
+    async def test_successful_persist(self) -> None:
+        mock_result = AsyncMock()
+        mock_result.return_value.rel_path = ".context/abc/evicted/tool_123.txt"
+
+        with patch(_MOCK_PERSIST, mock_result):
+            result = await persist_large_tool_output("content", "test_tool")
+
+        assert result == ".context/abc/evicted/tool_123.txt"
+        mock_result.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_successful_persist(self, tmp_path: Path) -> None:
-        content = "large output content " * 100
-        workspace = str(tmp_path / "workspace")
-        os.makedirs(workspace, exist_ok=True)
+    async def test_mcp_tool_uses_mcp_source(self) -> None:
+        mock_result = AsyncMock()
+        mock_result.return_value.rel_path = ".context/abc/evicted/mcp_123.txt"
 
-        with patch(_MOCK_WS, return_value=workspace):
-            result = await persist_large_tool_output(content, "test_tool")
+        with patch(_MOCK_PERSIST, mock_result) as mock_fn:
+            result = await persist_large_tool_output("content", "mcp_server_query")
 
         assert result is not None
-        assert result.startswith(".myrm/artifacts/tool_outputs/")
-        assert "test_tool_" in result
-        assert result.endswith(".txt")
-
-        full_path = Path(workspace) / result
-        assert full_path.exists()
-        assert full_path.read_text(encoding="utf-8") == content
+        call_args = mock_fn.call_args
+        assert call_args[0][1] == "mcp"
 
     @pytest.mark.asyncio
-    async def test_creates_parent_directories(self, tmp_path: Path) -> None:
-        workspace = str(tmp_path / "deep" / "nested" / "workspace")
+    async def test_none_tool_name_uses_filter(self) -> None:
+        mock_result = AsyncMock()
+        mock_result.return_value.rel_path = ".context/abc/evicted/filter_123.txt"
 
-        with patch(_MOCK_WS, return_value=workspace):
-            result = await persist_large_tool_output("content", "tool")
-
-        assert result is not None
-        assert (Path(workspace) / result).exists()
-
-    @pytest.mark.asyncio
-    async def test_none_tool_name(self, tmp_path: Path) -> None:
-        workspace = str(tmp_path)
-
-        with patch(_MOCK_WS, return_value=workspace):
+        with patch(_MOCK_PERSIST, mock_result) as mock_fn:
             result = await persist_large_tool_output("content", None)
 
         assert result is not None
-        assert "tool_" in result
+        call_args = mock_fn.call_args
+        assert call_args[0][1] == "filter"
 
     @pytest.mark.asyncio
-    async def test_special_chars_in_tool_name(self, tmp_path: Path) -> None:
-        workspace = str(tmp_path)
+    async def test_persist_failure_returns_none(self) -> None:
+        mock_result = AsyncMock()
+        mock_result.return_value.rel_path = None
 
-        with patch(_MOCK_WS, return_value=workspace):
-            result = await persist_large_tool_output("content", "mcp/server.query")
-
-        assert result is not None
-        assert "mcp_server_query_" in result
-        assert (Path(workspace) / result).exists()
-
-    @pytest.mark.asyncio
-    async def test_write_failure_returns_none(self, tmp_path: Path) -> None:
-        workspace = str(tmp_path)
-
-        with (
-            patch(_MOCK_WS, return_value=workspace),
-            patch(
-                "myrm_agent_harness.agent.context_management.infra.tool_output_persister.async_atomic_write",
-                side_effect=OSError("disk full"),
-            ),
-        ):
+        with patch(_MOCK_PERSIST, mock_result):
             result = await persist_large_tool_output("content", "tool")
 
         assert result is None
-
-    @pytest.mark.asyncio
-    async def test_unicode_content(self, tmp_path: Path) -> None:
-        workspace = str(tmp_path)
-        content = "日本語テスト  中文内容 한국어"
-
-        with patch(_MOCK_WS, return_value=workspace):
-            result = await persist_large_tool_output(content, "tool")
-
-        assert result is not None
-        saved = (Path(workspace) / result).read_text(encoding="utf-8")
-        assert saved == content
-
-    @pytest.mark.asyncio
-    async def test_relative_path_format(self, tmp_path: Path) -> None:
-        """Returned path must be relative (no leading /)."""
-        workspace = str(tmp_path)
-
-        with patch(_MOCK_WS, return_value=workspace):
-            result = await persist_large_tool_output("data", "my_tool")
-
-        assert result is not None
-        assert not result.startswith("/")
-        assert result.startswith(".myrm/")
 
 
 class TestFormatFilteredMessageWithSavedPath:
@@ -172,7 +125,9 @@ class TestFormatFilteredMessageWithSavedPath:
             structure_overview="keys: [a, b, c]",
             read_suggestions=["re-execute tool"],
         )
-        msg = format_filtered_message(result, saved_path=".myrm/artifacts/tool_outputs/test.txt")
+        msg = format_filtered_message(
+            result, saved_path=".context/abc/evicted/tool_123.txt"
+        )
         assert "Full output saved to:" in msg
-        assert ".myrm/artifacts/tool_outputs/test.txt" in msg
+        assert ".context/abc/evicted/tool_123.txt" in msg
         assert "file_read_tool" in msg

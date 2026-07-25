@@ -146,25 +146,25 @@ async def maybe_evict_large_output(
 async def _save_to_file(executor: CodeExecutor, content: str) -> str | None:
     """Persist large bash output under `.context/{session_id}/evicted/`.
 
+    Uses the same workspace_root_var + chat_id_var path as web_fetch UECD spill
+    (evicted_content.persist_evicted_content), not hardcoded /persistent paths.
+
     Returns None when no session context exists (preview-only, no GUI ref).
     """
+    _ = executor  # Kept for call-site compatibility; persist uses workspace_root_var.
     session_id = _get_session_id()
     if not session_id:
         logger.warning("[Eviction] No session_id; skip file persist (preview only)")
         return None
 
-    from myrm_agent_harness.runtime.execution_paths import (
-        ensure_context_dir_exists,
-        get_evicted_output_path,
-        get_workspace_relative_path,
+    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+        persist_evicted_content,
     )
 
-    abs_path = get_evicted_output_path(session_id)
-    rel_path = get_workspace_relative_path(abs_path)
-    ensure_context_dir_exists(session_id, "evicted")
-    capped_content, _ = cap_content_for_storage(content)
-    await executor.write_file(rel_path, capped_content)
-    return rel_path
+    result = await persist_evicted_content(content, source="output", ext="txt")
+    if result.evicted_ref and result.rel_path:
+        return result.rel_path
+    return None
 
 
 def _create_smart_preview(content: str) -> str:
@@ -178,7 +178,15 @@ def _create_smart_preview(content: str) -> str:
 
 
 def _get_session_id() -> str | None:
-    """尝试从 contextvars 获取当前 session_id"""
+    """Resolve active chat/session id for evicted file persistence."""
+    try:
+        from myrm_agent_harness.core.context_vars import chat_id_var
+
+        chat_id = chat_id_var.get().strip()
+        if chat_id:
+            return chat_id
+    except Exception:
+        pass
     try:
         from myrm_agent_harness.agent.context_management.infra.session_lock import (
             get_current_chat_id,

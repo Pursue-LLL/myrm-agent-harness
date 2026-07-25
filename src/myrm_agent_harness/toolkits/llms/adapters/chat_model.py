@@ -69,6 +69,7 @@ from myrm_agent_harness.toolkits.llms.adapters.chat_model_async_mixin import Cha
 from myrm_agent_harness.toolkits.llms.adapters.chat_model_exceptions import (
     EmptyChoicesError,
     EmptyStreamError,
+    StreamStallTimeoutError,
     _DEVELOPER_ROLE_PATTERN,
     _FRAMEWORK_REQUIRED_OPENAI_PARAMS,
 )
@@ -93,6 +94,7 @@ __all__ = [
     "ChatLiteLLM",
     "EmptyChoicesError",
     "EmptyStreamError",
+    "StreamStallTimeoutError",
     "_DEVELOPER_ROLE_PATTERN",
     "clean_model_kwargs",
 ]
@@ -142,6 +144,18 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
         ge=0.1,
         le=10.0,
         description="Delay between retries in seconds (0.1-10.0)",
+    )
+    first_event_timeout: float = Field(
+        default=60.0,
+        ge=5.0,
+        description="Max seconds to wait for the first stream event after HTTP 200. "
+        "Reasoning models may need higher values (e.g. 120-180s).",
+    )
+    inter_chunk_timeout: float = Field(
+        default=180.0,
+        ge=10.0,
+        description="Max seconds between consecutive stream chunks. "
+        "Detects mid-stream stalls caused by proxy buffering or provider GC.",
     )
 
     # Private attribute for metrics (Pydantic v2 PrivateAttr)

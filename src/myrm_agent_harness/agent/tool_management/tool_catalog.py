@@ -106,6 +106,7 @@ CORE_ACTION_TOOL_NAMES: frozenset[str] = frozenset(
     {
         "web_fetch_tool",
         "bash_code_execute_tool",
+        "bash_process_tool",
         "file_edit_tool",
         "file_read_tool",
         "file_write_tool",

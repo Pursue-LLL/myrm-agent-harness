@@ -107,9 +107,17 @@ def build_delivery_footer(
     )
 
 
+def _normalize_delivery_chat_id(raw: str) -> str:
+    """Map approval session keys (`chat_{id}`) to API/UI chat ids."""
+    chat_id = raw.strip()
+    if chat_id.startswith("chat_"):
+        return chat_id.removeprefix("chat_")
+    return chat_id
+
+
 def _resolve_persist_target(source: str, ext: str) -> tuple[str, str, Path] | None:
     workspace_root = workspace_root_var.get().strip()
-    chat_id = chat_id_var.get().strip()
+    chat_id = _normalize_delivery_chat_id(chat_id_var.get())
     if not workspace_root or not chat_id:
         logger.warning(
             "[EvictedContent] Missing workspace_root or chat_id, skip persist"

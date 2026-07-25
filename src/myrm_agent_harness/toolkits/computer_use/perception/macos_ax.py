@@ -1,4 +1,21 @@
-"""macOS accessibility tree capture and invoke via AppleScript."""
+"""macOS accessibility tree capture and invoke via AppleScript.
+
+[INPUT]
+- types::ActionResult (POS: action result container)
+- dref.errors::AXPermissionRequiredError, AXTreeEmptyError (POS: AX error types)
+- dref.types::ElementRef, SnapshotMeta, SnapshotScope, BBox, INTERACTIVE_AX_ROLES (POS: @dref types)
+- perception.overlay_roles::normalize_desktop_role (POS: cross-platform role normalization)
+
+[OUTPUT]
+- capture_ax_snapshot: AX tree capture with targeted app support and foreground fallback
+- invoke_ax_element: AX element invocation with targeted app support
+- inspect_foreground: frontmost app metadata and native API routing hints
+- refs_for_view_update: DRef list for WebUI desktop inspector overlay
+
+[POS]
+macOS AX backend. Captures accessibility trees and invokes elements via AppleScript.
+Supports targeted capture by app name (bypasses frontmost) with auto-fallback.
+"""
 
 from __future__ import annotations
 
@@ -72,9 +89,14 @@ def _applescript_string_list(values: tuple[str, ...]) -> str:
     return ", ".join(f'"{value}"' for value in values)
 
 
-def _build_ax_snapshot_script() -> str:
+def _build_ax_snapshot_script(*, target_app: str | None = None) -> str:
     role_filter = _applescript_string_list(_SNAPSHOT_ROLE_FILTER)
     always_emit_roles = _applescript_string_list(_SNAPSHOT_ALWAYS_EMIT_ROLES)
+    if target_app:
+        escaped = target_app.replace('"', '\\"')
+        app_selector = f'set targetApp to application process "{escaped}"'
+    else:
+        app_selector = "set targetApp to first application process whose frontmost is true"
     return f"""
 on serializeElement(idx, elemRole, elemName, elemValue, posX, posY, sizeW, sizeH)
     set safeName to my escapeText(elemName)
@@ -101,22 +123,23 @@ on replaceText(sourceText, oldText, newText)
 end replaceText
 
 tell application "System Events"
-    set frontApp to first application process whose frontmost is true
-    set appName to name of frontApp
+    {app_selector}
+    set appName to name of targetApp
     set bundleId to ""
     try
-        set bundleId to bundle identifier of frontApp
+        set bundleId to bundle identifier of targetApp
     end try
+    set appPid to unix id of targetApp
     set winTitle to ""
     try
-        set winTitle to name of window 1 of frontApp
+        set winTitle to name of window 1 of targetApp
     end try
 
     set outputLines to {{}}
-    set end of outputLines to appName & "|||META|||" & winTitle & "|||" & bundleId
+    set end of outputLines to appName & "|||META|||" & winTitle & "|||" & bundleId & "|||" & appPid
 
     try
-        set uiElements to entire contents of window 1 of frontApp
+        set uiElements to entire contents of window 1 of targetApp
         set maxElements to count of uiElements
         if maxElements > {_MAX_ELEMENTS} then set maxElements to {_MAX_ELEMENTS}
         repeat with i from 1 to maxElements
@@ -194,11 +217,17 @@ class MacAxSnapshot:
     refs: dict[str, ElementRef]
 
 
-def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -> MacAxSnapshot:
-    del scope, window_title  # foreground-only for v1; scope reserved for follow-up
+def _resolve_target_app(scope: SnapshotScope, window_title: str | None) -> str | None:
+    """Extract target app name from scope. Returns None for foreground mode."""
+    if scope == "window_title" and window_title:
+        return window_title
+    return None
+
+
+def _run_ax_snapshot(script: str) -> subprocess.CompletedProcess[str]:
     try:
-        result = subprocess.run(
-            ["osascript", "-e", _AX_SNAPSHOT_SCRIPT],
+        return subprocess.run(
+            ["osascript", "-e", script],
             capture_output=True,
             text=True,
             timeout=15,
@@ -206,6 +235,11 @@ def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -
     except subprocess.TimeoutExpired as exc:
         raise AXTreeEmptyError("macOS AX snapshot timed out") from exc
 
+
+def _parse_ax_output(
+    result: subprocess.CompletedProcess[str],
+    effective_scope: SnapshotScope,
+) -> MacAxSnapshot:
     if result.returncode != 0:
         stderr = result.stderr.strip()
         if "不允许辅助访问" in stderr or "not allowed assistive" in stderr.lower():
@@ -217,9 +251,12 @@ def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -
         raise AXTreeEmptyError("no AX output")
 
     meta_line = lines[0].split("|||")
+    # Format: appName|||META|||winTitle|||bundleId|||appPid
     app_name = meta_line[0] if meta_line else ""
     window_name = meta_line[2] if len(meta_line) > 2 else ""
-    app_id = meta_line[4] if len(meta_line) > 4 else ""
+    app_id = meta_line[3] if len(meta_line) > 3 else ""
+    pid_str = meta_line[4] if len(meta_line) > 4 else ""
+    pid = int(pid_str) if pid_str.isdigit() else 0
 
     refs: dict[str, ElementRef] = {}
     ref_index = 0
@@ -257,14 +294,39 @@ def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -
         ref_count=len(refs),
         app_name=app_name,
         window_title=window_name,
-        scope="foreground",
+        scope=effective_scope,
         app_id=app_id,
+        pid=pid,
         truncated=truncated,
     )
     return MacAxSnapshot(meta=meta, refs=refs)
 
 
-_AX_INVOKE_SCRIPT = """
+def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -> MacAxSnapshot:
+    target_app = _resolve_target_app(scope, window_title)
+
+    if target_app is not None:
+        targeted_script = _build_ax_snapshot_script(target_app=target_app)
+        try:
+            result = _run_ax_snapshot(targeted_script)
+            return _parse_ax_output(result, effective_scope=scope)
+        except AXTreeEmptyError:
+            logger.info(
+                "Targeted AX snapshot for '%s' failed, falling back to foreground",
+                target_app,
+            )
+
+    result = _run_ax_snapshot(_AX_SNAPSHOT_SCRIPT)
+    return _parse_ax_output(result, effective_scope="foreground")
+
+
+def _build_ax_invoke_script(target_app: str | None = None) -> str:
+    if target_app:
+        escaped = target_app.replace('"', '\\"')
+        app_selector = f'set targetApp to application process "{escaped}"'
+    else:
+        app_selector = "set targetApp to first application process whose frontmost is true"
+    return f"""
 on escapeText(t)
     if t is missing value then return ""
     set s to t as string
@@ -290,8 +352,8 @@ on run argv
     set inputText to item 3 of argv
 
     tell application "System Events"
-        set frontApp to first application process whose frontmost is true
-        set uiElements to entire contents of window 1 of frontApp
+        {app_selector}
+        set uiElements to entire contents of window 1 of targetApp
         set elem to item elemIndex of uiElements
         if actionName is "fill" then
             set value of elem to inputText
@@ -320,7 +382,15 @@ end run
 """
 
 
-def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionResult:
+_AX_INVOKE_SCRIPT = _build_ax_invoke_script()
+
+
+def invoke_ax_element(
+    backend_key: str,
+    action: str,
+    text: str = "",
+    app_name: str | None = None,
+) -> ActionResult:
     normalized_action = action.lower()
     if normalized_action in {"dblclick", "double_click"}:
         normalized_action = "click"
@@ -328,9 +398,14 @@ def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionRe
         return ActionResult(success=False, error=f"Unsupported AX action: {action}")
 
     ax_action = "fill" if normalized_action in {"fill", "type", "set_value"} else "click"
+    invoke_script = (
+        _build_ax_invoke_script(target_app=app_name)
+        if app_name
+        else _AX_INVOKE_SCRIPT
+    )
     try:
         result = subprocess.run(
-            ["osascript", "-e", _AX_INVOKE_SCRIPT, ax_action, backend_key, text],
+            ["osascript", "-e", invoke_script, ax_action, backend_key, text],
             capture_output=True,
             text=True,
             timeout=10,
