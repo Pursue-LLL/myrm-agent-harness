@@ -319,6 +319,8 @@ async def evaluate_tool_batch(
                 )
                 action = PermissionAction.ASK
                 reason = f"Taint policy: session contains {conflict_str} data"
+                extra_ctx = extra_ctx or {}
+                extra_ctx["high_risk"] = True
 
                 # Smart Intent Guard: Try LLM review for taint conflict if enabled
                 if (
@@ -380,9 +382,9 @@ async def evaluate_tool_batch(
                                 tool_name,
                                 review_result.reason,
                             )
-                            # Inject the LLM's uncertainty reason into the HITL prompt so the user knows *why* it was flagged
                             reason = f"{reason}\n\n AI Security Reviewer Note:\n{review_result.reason}"
-                            # Fall through to the default ASK behavior below
+                            extra_ctx = extra_ctx or {}
+                            extra_ctx["high_risk"] = True
             else:
                 # Auto Mode outbound check: delegate_agent actions that pass
                 # the deterministic engine as ALLOW still need Classifier review
@@ -435,6 +437,8 @@ async def evaluate_tool_batch(
                             record_decision(
                                 tool_name, "OUTBOUND_UNCERTAIN", review_result.reason
                             )
+                            extra_ctx = extra_ctx or {}
+                            extra_ctx["high_risk"] = True
                             pending_approval.append(
                                 (
                                     idx,
@@ -521,6 +525,8 @@ async def evaluate_tool_batch(
                                     "SHELL_ESCALATION_UNCERTAIN",
                                     review_result.reason,
                                 )
+                                extra_ctx = extra_ctx or {}
+                                extra_ctx["high_risk"] = True
                                 pending_approval.append(
                                     (
                                         idx,
@@ -757,6 +763,8 @@ async def evaluate_tool_batch(
                         tool_name, "LLM_REVIEW_UNCERTAIN", review_result.reason
                     )
                     reason = f"{reason}\n\nAI Security Reviewer: {review_result.reason}"
+                    extra_ctx = extra_ctx or {}
+                    extra_ctx["high_risk"] = True
 
         elif (
             config.auto_mode_enabled and is_threshold_breached() != ThresholdBreach.NONE
@@ -772,6 +780,12 @@ async def evaluate_tool_batch(
             record_decision(
                 tool_name, "AUTO_MODE_SUSPENDED", f"denial threshold: {breach.value}"
             )
+            extra_ctx = extra_ctx or {}
+            extra_ctx["high_risk"] = True
+
+        if reason.startswith("Shell threat"):
+            extra_ctx = extra_ctx or {}
+            extra_ctx["high_risk"] = True
 
         pending_approval.append((idx, tool_call, permission_type, reason, extra_ctx))
 
