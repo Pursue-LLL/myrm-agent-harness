@@ -1,0 +1,92 @@
+"""Tests for runtime intent-aware allowed-tools governance."""
+
+from __future__ import annotations
+
+from langchain_core.messages import AIMessage, HumanMessage
+
+from myrm_agent_harness.agent.middlewares._runtime_tool_governance import (
+    derive_runtime_allowed_tools,
+    extract_recent_human_text,
+)
+
+
+def test_extract_recent_human_text_uses_latest_human_message() -> None:
+    messages: list[object] = [
+        HumanMessage(content="first"),
+        AIMessage(content="ack"),
+        HumanMessage(content="latest user input"),
+    ]
+
+    assert extract_recent_human_text(messages) == "latest user input"
+
+
+def test_extract_recent_human_text_handles_segment_list_content() -> None:
+    messages: list[object] = [
+        HumanMessage(content=[{"type": "text", "text": "segment A"}, {"type": "text", "text": "segment B"}]),
+    ]
+
+    assert extract_recent_human_text(messages) == "segment A segment B"
+
+
+def test_runtime_governance_disables_ui_tools_without_ui_intent() -> None:
+    tool_names = ["render_ui_tool", "update_ui_data_tool", "web_search_tool"]
+    allowed, reasons = derive_runtime_allowed_tools(
+        tool_names=tool_names,
+        recent_human_text="请解释一下这个问题的根因",
+    )
+
+    assert allowed == frozenset({"web_search_tool"})
+    assert "ui_intent_gate" in reasons
+
+
+def test_runtime_governance_keeps_ui_tools_for_ui_intent() -> None:
+    tool_names = ["render_ui_tool", "update_ui_data_tool", "web_search_tool"]
+    allowed, reasons = derive_runtime_allowed_tools(
+        tool_names=tool_names,
+        recent_human_text="请把结果做成可视化 dashboard 图表",
+    )
+
+    assert allowed is None
+    assert reasons == ()
+
+
+def test_runtime_governance_ui_keyword_does_not_match_build_substring() -> None:
+    tool_names = ["render_ui_tool", "web_fetch_tool"]
+    allowed, reasons = derive_runtime_allowed_tools(
+        tool_names=tool_names,
+        recent_human_text="please build and deploy this service",
+    )
+
+    assert allowed == frozenset({"web_fetch_tool"})
+    assert "ui_intent_gate" in reasons
+
+
+def test_runtime_governance_readonly_intent_filters_mutation_tools() -> None:
+    tool_names = [
+        "web_fetch_tool",
+        "file_read_tool",
+        "bash_code_execute_tool",
+        "file_write_tool",
+        "request_answer_user_tool",
+    ]
+    allowed, reasons = derive_runtime_allowed_tools(
+        tool_names=tool_names,
+        recent_human_text="请分析这段日志为什么会失败？",
+    )
+
+    assert allowed == frozenset(
+        {"web_fetch_tool", "file_read_tool", "request_answer_user_tool"}
+    )
+    assert "readonly_intent_gate" in reasons
+
+
+def test_runtime_governance_action_intent_keeps_mutation_tools() -> None:
+    tool_names = ["file_write_tool", "web_fetch_tool"]
+    allowed, reasons = derive_runtime_allowed_tools(
+        tool_names=tool_names,
+        recent_human_text="请修改这个配置文件并修复报错",
+    )
+
+    assert allowed is None
+    assert reasons == ()
+

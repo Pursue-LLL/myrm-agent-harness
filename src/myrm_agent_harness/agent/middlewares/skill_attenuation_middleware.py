@@ -32,6 +32,10 @@ from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
+from myrm_agent_harness.agent.middlewares._runtime_tool_governance import (
+    derive_runtime_allowed_tools,
+    extract_recent_human_text,
+)
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -62,19 +66,46 @@ class SkillAttenuationMiddleware(AgentMiddleware[AgentState[object], object, obj
         )
         from myrm_agent_harness.agent.skills.runtime.attenuator import attenuate_tools
 
-        loaded_skills = get_loaded_skills()
-        if loaded_skills and request.tools:
+        if request.tools:
             tool_names = extract_bound_tool_names(list(request.tools))
-            attenuation = attenuate_tools(tool_names, loaded_skills)
-            if attenuation.removed_tools:
-                allowed_names = frozenset(attenuation.tool_names)
+            allowed_names = set(tool_names)
+            restriction_reasons: list[str] = []
+
+            loaded_skills = get_loaded_skills()
+            if loaded_skills:
+                attenuation = attenuate_tools(tool_names, loaded_skills)
+                if attenuation.removed_tools:
+                    allowed_names &= set(attenuation.tool_names)
+                    restriction_reasons.append("skill_attenuation")
+
+            recent_human_text = extract_recent_human_text(list(request.messages))
+            runtime_allowed, runtime_reasons = derive_runtime_allowed_tools(
+                tool_names=sorted(allowed_names),
+                recent_human_text=recent_human_text,
+            )
+            if runtime_allowed is not None:
+                allowed_names &= set(runtime_allowed)
+                restriction_reasons.extend(runtime_reasons)
+
+            if not allowed_names:
+                # Fail-open is intentional to avoid invalid empty allowed_tools payloads.
+                # Keep explicit observability so policy authors can tune skill/runtime gates.
+                logger.warning(
+                    " SkillAttenuationMiddleware produced empty allowlist; skipping tool_choice override (reasons=%s)",
+                    ",".join(restriction_reasons) or "unspecified",
+                )
+                return await handler(request)
+
+            if allowed_names and len(allowed_names) < len(tool_names):
+                final_allowed = frozenset(allowed_names)
                 request = request.override(
-                    tool_choice=build_allowed_tools_tool_choice(allowed_names),
+                    tool_choice=build_allowed_tools_tool_choice(final_allowed),
                 )
                 logger.info(
-                    " SkillAttenuationMiddleware allowed_tools restricted %d tool(s): %s",
-                    len(attenuation.removed_tools),
-                    attenuation.removed_tools,
+                    " SkillAttenuationMiddleware allowed_tools restricted %d tool(s): %s (reasons=%s)",
+                    len(tool_names) - len(final_allowed),
+                    sorted(set(tool_names) - set(final_allowed)),
+                    ",".join(restriction_reasons) or "unspecified",
                 )
 
         return await handler(request)

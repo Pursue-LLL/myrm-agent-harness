@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 import myrm_agent_harness.agent.middlewares.completion_guard as _cg_mod
 from myrm_agent_harness.agent.middlewares.completion_guard import (
@@ -91,6 +91,76 @@ class TestCompletionGuardTriggerConditions:
         with patch(LOOP_GUARD_PATCH) as mock_guard:
             mock_guard.return_value._window = []
             result = await self.guard.aafter_model(state, None)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_blocks_when_external_evidence_required_but_missing(self) -> None:
+        """Freshness query without evidence tools should be blocked before finish."""
+        state = _make_state(
+            [
+                HumanMessage(content="今天最新的 AI 新闻是什么？"),
+                AIMessage(content="All done."),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = []
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is not None
+        tool_calls = result["messages"][0].tool_calls
+        assert tool_calls[0]["name"] == COMPLETION_CHECK_TOOL_NAME
+        assert "evidence_reason" in tool_calls[0]["args"]
+
+    @pytest.mark.asyncio
+    async def test_allows_when_external_evidence_exists(self) -> None:
+        """Freshness query with successful web evidence should pass through."""
+        state = _make_state(
+            [
+                HumanMessage(content="Please give today's latest AI news summary."),
+                AIMessage(content="All done."),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = [
+                CallRecord(
+                    tool_name="web_search_tool",
+                    args_hash="evidence1",
+                    args={"query": "latest ai news"},
+                    success_level=SuccessLevel.FULL_SUCCESS,
+                )
+            ]
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_does_not_block_plain_programming_question(self) -> None:
+        """Non-freshness coding questions should not trigger external evidence gate."""
+        state = _make_state(
+            [
+                HumanMessage(content="How do I link two lists in Python?"),
+                AIMessage(content="All done."),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = []
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_does_not_block_keyword_substring_in_code_question(self) -> None:
+        """Word substrings like 'priceList' should not trigger freshness gate."""
+        state = _make_state(
+            [
+                HumanMessage(content="How do I model a priceList type in TypeScript?"),
+                AIMessage(content="All done."),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = []
+            result = await self.guard.aafter_model(state, None)
+
         assert result is None
 
     @pytest.mark.asyncio

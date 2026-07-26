@@ -112,17 +112,17 @@ class SessionPersistence:
         )
 
     async def restore(self, context: BrowserContext, page: Page, domain: str) -> str:
-        """from EncryptStorageRestoreSessionState
+        """Restore session state from encrypted storage.
 
-        AutoFilter过期Session(Default 30 天 TTL)。
+        Auto-filters expired sessions (default 30-day TTL).
 
         Args:
-            context: BrowserContext Instance
-            page: Page Instance( for 注入 localStorage)
-            domain: Domain
+            context: Browser context to inject state into.
+            page: Page instance for localStorage injection.
+            domain: Target domain.
 
         Returns:
-            操作ResultDescription
+            Operation result description.
         """
         import time
 
@@ -148,16 +148,13 @@ class SessionPersistence:
         local_storage_origins = entry.storage_state.get("origins", [])
         if local_storage_origins:
             try:
-                # 动态分配一个临时页面用于执行同源 localStorage 注入，防止作用在 about:blank 上
                 temp_page = await context.new_page()
-                # 拦截所有请求，直接返回 200 OK 空页面，实现毫秒级伪导航，避免真实的昂贵网络请求
                 await temp_page.route("**/*", lambda route: route.fulfill(status=200, body=""))
                 for origin_data in local_storage_origins:
                     origin = origin_data.get("origin")
                     local_storage = origin_data.get("localStorage", [])
                     if local_storage and origin:
                         try:
-                            # 导航到目标 origin（被拦截，瞬间返回）以获取正确的执行上下文
                             await temp_page.goto(origin, timeout=5000)
                             await temp_page.evaluate(
                                 "(items) => items.forEach(({name, value}) => localStorage.setItem(name, value))",
@@ -183,10 +180,10 @@ class SessionPersistence:
         return f"Restored encrypted session for {domain} ({len(cookies)} cookies, {local_storage_count} localStorage items)"
 
     async def list_domains(self) -> str:
-        """列出AllSave Session
+        """List all saved session domains.
 
         Returns:
-            SessionListDescription
+            Formatted session list description.
         """
         domains = await self._vault.list_domains()
 
@@ -196,13 +193,13 @@ class SessionPersistence:
         return "Saved sessions:\n" + "\n".join(f"- {d}" for d in domains)
 
     async def delete(self, domain: str) -> str:
-        """DeleteSave Session
+        """Delete a saved session.
 
         Args:
-            domain: Domain
+            domain: Target domain.
 
         Returns:
-            操作ResultDescription
+            Operation result description.
         """
         deleted = await self._vault.delete(domain)
 
@@ -213,10 +210,10 @@ class SessionPersistence:
             return f"No saved session found for domain: {domain}"
 
     async def cleanup_expired(self) -> int:
-        """Clean up过期 Session
+        """Remove all expired sessions.
 
         Returns:
-            Clean up SessionCount
+            Number of sessions removed.
         """
         try:
             removed = await self._vault.cleanup_expired()
@@ -224,7 +221,7 @@ class SessionPersistence:
                 logger.info("SessionPersistence: cleaned up %d expired session(s)", removed)
             return removed
         except Exception as exc:
-            logger.warning(f"SessionPersistence: failed to cleanup expired sessions: {exc}")
+            logger.warning("SessionPersistence: failed to cleanup expired sessions: %s", exc)
             return 0
 
     async def compute_hash(self, domain: str) -> str | None:
@@ -253,18 +250,18 @@ class SessionPersistence:
 
     @staticmethod
     def _is_cookie_for_domain(cookie_domain: str, target_domain: str) -> bool:
-        """Check Cookie Whether属于目标Domain
+        """Check if a cookie belongs to the target domain.
 
-        Support子DomainMatch(leading dot):
-        - .github.com Match github.com  and  api.github.com
-        - github.com 只Match github.com
+        Supports subdomain matching via leading dot:
+        - .github.com matches github.com and api.github.com
+        - github.com matches only github.com
 
         Args:
-            cookie_domain: Cookie   domain Field
-            target_domain: 目标Domain
+            cookie_domain: Cookie's domain field.
+            target_domain: Target domain to match against.
 
         Returns:
-            True IfMatch
+            True if the cookie belongs to the target domain.
         """
         cookie_domain = cookie_domain.lower().strip()
         target_domain = target_domain.lower().strip()

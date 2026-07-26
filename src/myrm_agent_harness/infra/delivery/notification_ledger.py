@@ -1,15 +1,15 @@
-"""Persistent dedupe ledger for permanent-failure user notifications.
+"""Permanent-failure notification deduplication ledger.
 
 [INPUT]
-- (none — protocol + optional in-memory implementation for tests)
+delivery_id: str — unique delivery identifier
 
 [OUTPUT]
-- PermanentFailureNotificationLedger: Protocol for delivery_id notify dedupe
-- InMemoryPermanentFailureNotificationLedger: Process-local test double
+- PermanentFailureNotificationLedger: Protocol defining persistent notify dedup
+- InMemoryPermanentFailureNotificationLedger: In-memory implementation for testing
 
 [POS]
-Generic hook for business/server layers to persist DLQ permanent-failure alerts
-across process restarts without coupling harness to Myrm-specific storage.
+Prevents duplicate on_permanent_failure callbacks across process restarts.
+DLQ checks this ledger before invoking the callback; marks after success.
 """
 
 from __future__ import annotations
@@ -18,27 +18,25 @@ from typing import Protocol
 
 
 class PermanentFailureNotificationLedger(Protocol):
-    """Tracks delivery IDs that already triggered permanent-failure notification."""
+    """Protocol for persistent deduplication of permanent-failure notifications."""
 
     def was_notified(self, delivery_id: str) -> bool:
-        """Return True when permanent-failure notification was already emitted."""
+        """Return True if this delivery's permanent-failure was already notified."""
         ...
 
     def mark_notified(self, delivery_id: str) -> None:
-        """Record that permanent-failure notification was emitted for delivery_id."""
+        """Record that permanent-failure notification was sent for this delivery."""
         ...
 
 
 class InMemoryPermanentFailureNotificationLedger:
-    """In-memory ledger for unit tests (not durable across restarts)."""
-
-    __slots__ = ("_notified_ids",)
+    """In-memory implementation suitable for testing and single-process use."""
 
     def __init__(self) -> None:
-        self._notified_ids: set[str] = set()
+        self._notified: set[str] = set()
 
     def was_notified(self, delivery_id: str) -> bool:
-        return delivery_id in self._notified_ids
+        return delivery_id in self._notified
 
     def mark_notified(self, delivery_id: str) -> None:
-        self._notified_ids.add(delivery_id)
+        self._notified.add(delivery_id)

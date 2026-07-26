@@ -10,6 +10,7 @@ Agent meta-tools for structured HITL clarification (`ask_question_tool`). Schema
 |------|------|-------------|-------|
 | `ask_question.py` | Core | Pydantic schemas: AskQuestionInput, QuestionItem, OptionItem | ✅ |
 | `clarification_agent_tools.py` | Core | AskQuestionTool + create_ask_question_tool factory | ✅ |
+| `hitl_tool_policy.py` | Core | HITL policy compatibility re-export (`HitlToolPolicy`, `HITL_TOOL_POLICY`) | ✅ |
 | `__init__.py` | Package | Public exports | ✅ |
 
 ## Key Dependencies

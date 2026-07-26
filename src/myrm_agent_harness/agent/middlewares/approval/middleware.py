@@ -7,6 +7,8 @@ Decision flow:
 2. ALLOW: taint check → proceed or escalate to ASK
 3. DENY: inject artificial ToolMessage with error
 4. ASK: domain HITL runtime check → cron pre-approval → allowlist → batch interrupt()
+5. (Optional) high-risk second confirmation: for configured high-risk approvals,
+   a second interrupt is required before tool execution.
 
 Batch approval: When multiple tools require approval in a single turn, all are
 collected and presented in one interrupt() call. Users decide for all tools at once.
@@ -43,7 +45,7 @@ import logging
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, ToolCall, ToolMessage
 from langgraph.types import interrupt
 
 from myrm_agent_harness.agent.middlewares._session_context import (
@@ -56,7 +58,7 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     set_security_config,
 )
 from myrm_agent_harness.agent.security.tool_registry import compute_canonical_args_hash
-from myrm_agent_harness.agent.security.types import RecentToolCall
+from myrm_agent_harness.agent.security.types import RecentToolCall, SecurityConfig
 
 from .batch_processor import (
     apply_approval_decisions,
@@ -66,6 +68,20 @@ from .batch_processor import (
 from .helpers import reset_denial_counter
 
 logger = logging.getLogger(__name__)
+
+_DOUBLE_CONFIRM_PERMISSION_TYPES: frozenset[str] = frozenset(
+    {
+        "shell_exec",
+        "code_interpreter",
+        "delegate_agent",
+        "browser_fill",
+        "browser_upload",
+        "browser_download",
+        "desktop_control",
+        "mcp_invoke",
+        "cron_manage",
+    }
+)
 
 
 class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
@@ -289,37 +305,18 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
             )
 
         batch_response = interrupt(payload)
-
-        if not isinstance(batch_response, dict):
-            logger.error(
-                "[BATCH_APPROVAL] Invalid batch response type: %s", type(batch_response)
-            )
-            decisions = [
-                {"type": "reject", "feedback": "Invalid batch response"}
-                for _ in pending_approval
-            ]
-        else:
-            if "decision" in batch_response and "decisions" not in batch_response:
-                # Global decision from text interception
-                global_decision = batch_response["decision"]
-                global_feedback = batch_response.get("feedback")
-                decisions = [
-                    {"type": global_decision, "feedback": global_feedback}
-                    for _ in pending_approval
-                ]
-            else:
-                decisions = batch_response.get("decisions", [])
-
-            if len(decisions) != len(pending_approval):
-                logger.error(
-                    "[BATCH_APPROVAL] Decision count mismatch: expected %d, got %d",
-                    len(pending_approval),
-                    len(decisions),
-                )
-                decisions = [
-                    {"type": "reject", "feedback": "Decision count mismatch"}
-                    for _ in pending_approval
-                ]
+        decisions = self._normalize_batch_decisions(
+            batch_response,
+            expected_count=len(pending_approval),
+            phase="primary",
+        )
+        decisions = self._maybe_run_high_risk_second_confirmation(
+            decisions=decisions,
+            pending_approval=pending_approval,
+            session_key=session_key,
+            config=config,
+            workspace_root=workspace_root,
+        )
 
         logger.info(
             "[BATCH_APPROVAL] Batch interrupt resolved with %d decisions",
@@ -346,6 +343,153 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
         if guidance_messages:
             result_messages.extend(guidance_messages)
         return {"messages": result_messages}
+
+    @staticmethod
+    def _normalize_batch_decisions(
+        batch_response: object,
+        *,
+        expected_count: int,
+        phase: str,
+    ) -> list[dict[str, object]]:
+        if not isinstance(batch_response, dict):
+            logger.error(
+                "[BATCH_APPROVAL] (%s) Invalid batch response type: %s",
+                phase,
+                type(batch_response),
+            )
+            return [{"type": "reject", "feedback": "Invalid batch response"} for _ in range(expected_count)]
+
+        if "decision" in batch_response and "decisions" not in batch_response:
+            global_decision = batch_response["decision"]
+            global_feedback = batch_response.get("feedback")
+            normalized = [
+                {"type": global_decision, "feedback": global_feedback}
+                for _ in range(expected_count)
+            ]
+        else:
+            raw = batch_response.get("decisions", [])
+            normalized = raw if isinstance(raw, list) else []
+
+        if len(normalized) != expected_count:
+            logger.error(
+                "[BATCH_APPROVAL] (%s) Decision count mismatch: expected %d, got %d",
+                phase,
+                expected_count,
+                len(normalized),
+            )
+            return [{"type": "reject", "feedback": "Decision count mismatch"} for _ in range(expected_count)]
+        return normalized
+
+    @staticmethod
+    def _requires_second_confirmation(
+        permission_type: str,
+        tool_call: ToolCall,
+    ) -> bool:
+        if permission_type not in _DOUBLE_CONFIRM_PERMISSION_TYPES:
+            return False
+
+        tool_name = tool_call.get("name", "unknown")
+        raw_args = tool_call.get("args", {})
+        tool_args = raw_args if isinstance(raw_args, dict) else {}
+
+        if permission_type in {"shell_exec", "code_interpreter"}:
+            from myrm_agent_harness.toolkits.code_execution.security.risk_classifier import (
+                CommandRiskLevel,
+                classify_command_risk,
+            )
+
+            command = str(
+                tool_args.get("command", "")
+                or tool_args.get("code", "")
+                or tool_args.get("data", "")
+            ).strip()
+            if not command:
+                return False
+            try:
+                return classify_command_risk(command) != CommandRiskLevel.SAFE
+            except Exception:
+                return True
+
+        if permission_type == "mcp_invoke":
+            from myrm_agent_harness.agent.security.tool_registry import (
+                resolve_safety_metadata,
+            )
+
+            safety = resolve_safety_metadata(str(tool_name))
+            return safety.is_destructive or safety.is_open_world
+
+        return True
+
+    def _maybe_run_high_risk_second_confirmation(
+        self,
+        *,
+        decisions: list[dict[str, object]],
+        pending_approval: list[tuple[int, ToolCall, str, str, dict[str, Any] | None]],
+        session_key: str,
+        config: SecurityConfig,
+        workspace_root: str | None,
+    ) -> list[dict[str, object]]:
+        enabled = bool(getattr(config, "high_risk_double_confirm_enabled", False))
+        if not enabled:
+            return decisions
+
+        target_indices: list[int] = []
+        for decision_index, decision in enumerate(decisions):
+            if decision_index >= len(pending_approval):
+                break
+            decision_type = str(decision.get("type", "reject"))
+            if decision_type not in {"approve", "edit"}:
+                continue
+            _, tool_call, permission_type, _reason, _ = pending_approval[decision_index]
+            if self._requires_second_confirmation(permission_type, tool_call):
+                target_indices.append(decision_index)
+
+        if not target_indices:
+            return decisions
+
+        second_pending = [pending_approval[i] for i in target_indices]
+        second_payload, _ = build_interrupt_payload(
+            second_pending,
+            session_key,
+            approval_timeout_seconds=config.approval_timeout_seconds,
+            timeout_behavior=config.approval_timeout_behavior,
+            workspace_root=workspace_root,
+        )
+
+        for request in second_payload.get("actionRequests", []):
+            if isinstance(request, dict):
+                original = str(request.get("description", ""))
+                request["description"] = (
+                    "Final confirmation required for high-risk action. "
+                    f"{original}"
+                )
+        for review_cfg in second_payload.get("reviewConfigs", []):
+            if isinstance(review_cfg, dict):
+                review_cfg["allowedDecisions"] = ["approve", "reject"]
+
+        extensions = second_payload.get("extensions")
+        if isinstance(extensions, dict):
+            approval_ext = extensions.get("approval")
+            if isinstance(approval_ext, dict):
+                approval_ext["phase"] = "high_risk_final_confirm"
+            extensions["secondConfirm"] = True
+
+        logger.warning(
+            "[BATCH_APPROVAL] Triggering second confirmation for %d high-risk action(s)",
+            len(second_pending),
+        )
+
+        second_response = interrupt(second_payload)
+        second_decisions = self._normalize_batch_decisions(
+            second_response,
+            expected_count=len(second_pending),
+            phase="high_risk_final_confirm",
+        )
+
+        merged = list(decisions)
+        for offset, decision_index in enumerate(target_indices):
+            merged[decision_index] = second_decisions[offset]
+        return merged
 
     @staticmethod
     async def _fire_correction_hook(

@@ -8,7 +8,10 @@ forces the Agent to run checks first.
 Task-type-aware strictness:
   - **Code modification** (has_writes=True + code files): CRITICAL blocking
     mode, up to max_rejections before forced finish.
-  - **Query/non-code tasks**: no intervention — the Agent finishes immediately.
+  - **Freshness-sensitive query tasks**: when user asks for latest/current data
+    but no successful web/search/browser evidence exists, block completion and
+    request evidence collection before finishing.
+  - **Other query/non-code tasks**: no intervention — the Agent finishes immediately.
 
 Temporal ordering enforcement: when code is modified AFTER the last successful
 verification, the guard independently re-runs the verification command in the
@@ -34,6 +37,7 @@ persisting across ReAct cycles.
 
 [OUTPUT]
 - CompletionGuard: aafter_model middleware for critical completion verification + independent re-run
+- External-evidence completion gate for freshness-sensitive responses
 - classify_verification(): detect verification commands in bash tool args
 - reset_completion_guard(): reset session state for new run
 
@@ -50,11 +54,12 @@ a complete answer.
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import BaseTool, tool
 
 from myrm_agent_harness.agent.middlewares.completion_guard_checklist import (
@@ -123,7 +128,11 @@ def reset_completion_guard() -> None:
 
 
 @tool(COMPLETION_CHECK_TOOL_NAME)
-def _completion_check_tool(workspace_root: str = "", force_fail: bool = False) -> str:
+def _completion_check_tool(
+    workspace_root: str = "",
+    force_fail: bool = False,
+    evidence_reason: str = "",
+) -> str:
     """Internal verification checkpoint — generates a task-aware checklist.
 
     This tool is injected by the CompletionGuard middleware. It reads the
@@ -137,6 +146,15 @@ def _completion_check_tool(workspace_root: str = "", force_fail: bool = False) -
             "in your final response to the user stating that you were unable to successfully "
             "verify the changes (e.g., tests failed or were not run) and that they should "
             "manually review the work."
+        )
+
+    if evidence_reason.strip():
+        return (
+            " CRITICAL COMPLETION CHECK: This response appears to require external evidence, "
+            "but no successful evidence-gathering tools were observed in this run.\n"
+            f"Reason: {evidence_reason}\n"
+            "Before finishing, run at least one successful evidence step (web_search_tool, "
+            "web_fetch_tool, or browser evidence tools), then synthesize the answer."
         )
 
     from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
@@ -198,6 +216,63 @@ _UNFINISHED_MARKERS: tuple[str, ...] = (
 
 _STRUCTURE_MARKERS: tuple[str, ...] = ("\n#", "\n-", "\n*", "\n1.", "```")
 
+_EXTERNAL_EVIDENCE_TOOLS: frozenset[str] = frozenset(
+    {
+        "web_search_tool",
+        "web_fetch_tool",
+        "browser_navigate_tool",
+        "browser_extract_tool",
+        "browser_snapshot_tool",
+        "browser_inspect_tool",
+    }
+)
+
+_EXTERNAL_FRESHNESS_KEYWORDS: tuple[str, ...] = (
+    "latest",
+    "today",
+    "current",
+    "real-time",
+    "realtime",
+    "live",
+    "news",
+    "price",
+    "stock",
+    "最新",
+    "今天",
+    "当前",
+    "实时",
+    "新闻",
+    "价格",
+    "行情",
+    "刚刚",
+)
+
+_EXTERNAL_CITATION_KEYWORDS: tuple[str, ...] = (
+    "source",
+    "sources",
+    "citation",
+    "citations",
+    "reference",
+    "references",
+    "来源",
+    "出处",
+    "链接",
+    "官网",
+)
+
+_EXTERNAL_WEB_HINT_KEYWORDS: tuple[str, ...] = (
+    "web",
+    "internet",
+    "online",
+    "search",
+    "website",
+    "网址",
+    "网页",
+    "网站",
+    "搜索",
+    "联网",
+)
+
 
 def _is_substantive_final_response(content: str) -> bool:
     """Determine if content is a complete final response rather than in-progress narration.
@@ -213,6 +288,80 @@ def _is_substantive_final_response(content: str) -> bool:
     tail = content[-100:]
     has_unfinished = any(marker in tail for marker in _UNFINISHED_MARKERS)
     return not has_unfinished
+
+
+def _extract_latest_human_text(messages: list[object]) -> str | None:
+    for message in reversed(messages):
+        if not isinstance(message, HumanMessage):
+            continue
+        if isinstance(message.content, str):
+            text = message.content.strip()
+            if text:
+                return text
+            continue
+        if isinstance(message.content, list):
+            parts: list[str] = []
+            for item in message.content:
+                if isinstance(item, dict):
+                    text = item.get("text")
+                    if isinstance(text, str) and text.strip():
+                        parts.append(text.strip())
+            if parts:
+                return " ".join(parts)
+    return None
+
+
+def _requires_external_evidence(user_text: str) -> bool:
+    lowered = user_text.lower()
+    if _contains_keyword(lowered, _EXTERNAL_FRESHNESS_KEYWORDS):
+        return True
+    has_citation = _contains_keyword(lowered, _EXTERNAL_CITATION_KEYWORDS)
+    has_web_hint = _contains_keyword(lowered, _EXTERNAL_WEB_HINT_KEYWORDS)
+    return has_citation and has_web_hint
+
+
+def _contains_keyword(text: str, keywords: tuple[str, ...]) -> bool:
+    for keyword in keywords:
+        normalized = keyword.lower()
+        if _is_ascii_word(normalized):
+            if re.search(rf"\b{re.escape(normalized)}\b", text):
+                return True
+            continue
+        if normalized in text:
+            return True
+    return False
+
+
+def _is_ascii_word(keyword: str) -> bool:
+    return keyword.isascii() and keyword.isalpha()
+
+
+def _has_external_evidence(records: list[object]) -> bool:
+    for record in records:
+        tool_name = getattr(record, "tool_name", "")
+        if tool_name not in _EXTERNAL_EVIDENCE_TOOLS:
+            continue
+        success_level = getattr(record, "success_level", None)
+        if getattr(success_level, "name", "") == "FAILURE":
+            continue
+        return True
+    return False
+
+
+def _build_external_evidence_reason(
+    *,
+    messages: list[object],
+    records: list[object],
+) -> str | None:
+    latest_human = _extract_latest_human_text(messages)
+    if not latest_human or not _requires_external_evidence(latest_human):
+        return None
+    if _has_external_evidence(records):
+        return None
+    excerpt = latest_human.replace("\n", " ").strip()
+    if len(excerpt) > 200:
+        excerpt = f"{excerpt[:200]}..."
+    return f"latest user request hints external/freshness need: '{excerpt}'"
 
 
 class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
@@ -300,6 +449,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
 
         guard = get_loop_guard()
         records = list(guard._window)
+        filtered_records = [r for r in records if not r.tool_name.startswith("_")]
 
         workspace_root = None
         if hasattr(runtime, "get") and isinstance(runtime, dict):
@@ -312,6 +462,12 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         _, has_critical_errors = _build_checklist(
             records, workspace_root=str(workspace_root) if workspace_root else None
         )
+        evidence_reason = _build_external_evidence_reason(
+            messages=messages,
+            records=filtered_records,
+        )
+        if evidence_reason is not None:
+            has_critical_errors = True
 
         if not has_critical_errors:
             return None
@@ -321,21 +477,21 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         # modified AFTER the last successful verification. Other critical errors
         # (no verification, failed verification, empty tests, execution failures)
         # must NOT be bypassed by independent re-run.
-        filtered_records = [r for r in records if not r.tool_name.startswith("_")]
-        has_code_writes = any(
-            get_tool_group(r.tool_name) == ToolGroup.WRITE and _is_code_file(str(r.args.get("path", "")))
-            for r in filtered_records
-        )
-        if has_code_writes and _has_post_verification_code_write(filtered_records, _CODE_EXTENSIONS):
-            rerun_cmd = _find_last_verification_cmd(filtered_records)
-            if rerun_cmd:
-                rerun_passed = await _rerun_verification_in_sandbox(rerun_cmd)
-                if rerun_passed:
-                    logger.info(
-                        "[CompletionGuard] Independent re-run of '%s' passed — allowing completion.",
-                        rerun_cmd,
-                    )
-                    return None
+        if evidence_reason is None:
+            has_code_writes = any(
+                get_tool_group(r.tool_name) == ToolGroup.WRITE and _is_code_file(str(r.args.get("path", "")))
+                for r in filtered_records
+            )
+            if has_code_writes and _has_post_verification_code_write(filtered_records, _CODE_EXTENSIONS):
+                rerun_cmd = _find_last_verification_cmd(filtered_records)
+                if rerun_cmd:
+                    rerun_passed = await _rerun_verification_in_sandbox(rerun_cmd)
+                    if rerun_passed:
+                        logger.info(
+                            "[CompletionGuard] Independent re-run of '%s' passed — allowing completion.",
+                            rerun_cmd,
+                        )
+                        return None
 
         # --- CRITICAL BLOCKING MODE ---
         current_rejections = _rejection_count
@@ -346,13 +502,16 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                 self._max_rejections,
             )
             tool_call_id = f"call_{uuid.uuid4().hex[:24]}"
+            forced_args: dict[str, object] = {
+                "workspace_root": (str(workspace_root) if workspace_root else ""),
+                "force_fail": True,
+            }
+            if evidence_reason is not None:
+                forced_args["evidence_reason"] = evidence_reason
             last_ai_msg.tool_calls = [
                 {
                     "name": COMPLETION_CHECK_TOOL_NAME,
-                    "args": {
-                        "workspace_root": (str(workspace_root) if workspace_root else ""),
-                        "force_fail": True,
-                    },
+                    "args": forced_args,
                     "id": tool_call_id,
                     "type": "tool_call",
                 }
@@ -368,10 +527,15 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         )
 
         tool_call_id = f"call_{uuid.uuid4().hex[:24]}"
+        tool_args: dict[str, object] = {
+            "workspace_root": str(workspace_root) if workspace_root else ""
+        }
+        if evidence_reason is not None:
+            tool_args["evidence_reason"] = evidence_reason
         last_ai_msg.tool_calls = [
             {
                 "name": COMPLETION_CHECK_TOOL_NAME,
-                "args": {"workspace_root": str(workspace_root) if workspace_root else ""},
+                "args": tool_args,
                 "id": tool_call_id,
                 "type": "tool_call",
             }

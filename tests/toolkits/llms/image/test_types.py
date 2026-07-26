@@ -80,7 +80,7 @@ class TestProfileRegistry:
         assert "stability/stable-diffusion-xl" in BUILTIN_PROFILES
 
     def test_builtin_count(self) -> None:
-        assert len(BUILTIN_PROFILES) == 7
+        assert len(BUILTIN_PROFILES) == 9
 
     def test_get_profile_known(self) -> None:
         p = get_profile("dall-e-3")

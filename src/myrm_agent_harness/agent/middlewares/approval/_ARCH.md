@@ -13,7 +13,7 @@ Tool approval subsystem — Human-in-the-Loop approval flow with correction lear
 | _batch_review.py | Internal | LLM-based security review, runtime domain tracking, and skill hook evaluation. | ✅ |
 | correction_learning.py | Core | HITL correction learning — converts approval edits/rejects into persistent SemanticMemory preferences and ProceduralMemory rules. Zero LLM cost (deterministic dict-diff classification). Fires on APPROVAL_CORRECTION hook. | ✅ |
 | helpers.py | Core | Denial tracking, **allow-always four scopes** (permission/tool/exact/pattern via `derive_command_pattern`), allowlist persistence. | ✅ |
-| middleware.py | Core | Bridges the Permission Engine with the LangGraph tool pipeline. Auto-denies approval for shadow agents (no UI channel). Fires APPROVAL_CORRECTION hook after decisions for correction learning. | ✅ |
+| middleware.py | Core | Bridges the Permission Engine with the LangGraph tool pipeline. Auto-denies approval for shadow agents (no UI channel). Supports optional second confirmation for high-risk approvals (`high_risk_double_confirm_enabled`). Fires APPROVAL_CORRECTION hook after decisions for correction learning. | ✅ |
 | rate_limiter.py | Core | Approval rate limiter. Independent from core approval logic for easy testing and configuration. | ✅ |
 | scheduler.py | Core | HITL timeout scheduler — auto-resumes agents when approval or Web clarification requests expire. Approval uses global decision format; clarification uses `resume_value_override` (empty dict → no_answer). Idempotent `resolve_if_first` prevents race conditions between timeout auto-resume and manual user resume. | ✅ |
 

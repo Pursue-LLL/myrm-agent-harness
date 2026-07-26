@@ -14,6 +14,7 @@ Acts as the central router and orchestrator for the verification phase.
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import TYPE_CHECKING
 
@@ -27,6 +28,8 @@ from myrm_agent_harness.agent.goals.verification.shell import ShellCriterion
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.goals.protocols import GoalProvider
+
+logger = logging.getLogger(__name__)
 
 CRITERION_REGISTRY = {
     "shell": ShellCriterion,
@@ -44,6 +47,8 @@ class VerificationGatekeeper:
             if crit_type in CRITERION_REGISTRY:
                 cls = CRITERION_REGISTRY[crit_type]
                 self.criteria.append(cls.from_dict(config))
+            else:
+                logger.warning("Unknown acceptance criterion type %r — skipped", crit_type)
 
     async def verify_all(self, goal_provider: GoalProvider | None = None) -> AggregatedVerificationResult:
         """Run all criteria sequentially and return per-criterion results."""

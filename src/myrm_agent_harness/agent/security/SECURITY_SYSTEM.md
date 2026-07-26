@@ -1325,7 +1325,7 @@ if session_key.startswith("cron:"):
 | 中间件 | 类型 | 集成点 | 职责 |
 |--------|------|--------|------|
 | `SecurityGuardrailMiddleware` | `AgentMiddleware` | `before_model` / `after_model` | 输入侧注入检测 + 工具结果脱敏 + 输出侧泄露检测 + 历史脱敏 |
-| `ToolApprovalMiddleware` | `AgentMiddleware` | `after_model` | 主协调器：调用批量处理器完成 Layer 1-4 评估 + 审批流 |
+| `ToolApprovalMiddleware` | `AgentMiddleware` | `after_model` | 主协调器：调用批量处理器完成 Layer 1-4 评估 + 审批流；可选高风险二次确认 |
 | `approval/batch_processor.py` | 辅助模块 | - | 批量审批核心逻辑：评估/构建payload/应用决策 |
 | `approval/helpers.py` | 辅助模块 | - | 拒绝计数 + allowlist 写入 |
 | `tool_interceptor_middleware`（含 LoopGuard） | `@wrap_tool_call` | 工具执行前后 | 工具拦截 + Layer 5 循环检测 |
@@ -1365,6 +1365,7 @@ Agent security_overrides
 | network_allowlist | 并集（Agent 可授予额外域名） | 域名过滤白名单（browser + web_fetch + hooks） |
 | network_blocklist | 并集（Agent 可追加封禁域名） | URL hostname 硬拒绝（DENY，先于 domain HITL） |
 | domain_hitl_enabled | OR（任一方启用则启用） | URL 工具域名级审批开关 |
+| high_risk_double_confirm_enabled | OR（任一方启用则启用） | 高风险动作二次确认开关 |
 | ruleset | Agent merge 到用户上（Agent 优先级更高） | last-match-wins |
 | timeout | Agent 覆盖用户（如果非默认值） | Agent 特化 |
 

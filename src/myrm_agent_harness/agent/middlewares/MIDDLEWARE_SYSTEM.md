@@ -29,12 +29,12 @@
 │ security_*_middleware                   │  ← 安全边界/护栏
 │ subagent_limit / concurrency_limiter    │  ← 委派 fan-out 限制
 │ dangling_tool_call_middleware           │  ← 悬空 tool_call 修复
-│ skill_attenuation_middleware            │  ← skill attenuation + dynamic tool resolve
+│ skill_attenuation_middleware            │  ← skill attenuation + runtime intent gating
 │ filesystem_search_middleware            │  ← glob/grep 注入
 │ tool_interceptor_middleware             │  ← ★ 工具执行主拦截点
 │   └─ tool_executor (timeout/retry)      │
 │   └─ approval/ + approval_interception/ │  ← HITL 审批
-│ completion_guard                        │  ← 完成门控 + 混合消息 guard
+│ completion_guard                        │  ← 完成门控 + 外部证据门控 + 混合消息 guard
 │ rate_limit                              │  ← Provider 429 主动节流
 │ safety_dispatcher / concurrency_router  │  ← 工具并发安全路由
 │ debug_logger_middleware (dev)           │
@@ -59,10 +59,11 @@
 | `_mutation_verifier.py` | 文件变更 per-turn 验证 → SSE |
 | `_skill_failure_tracking.py` | 技能失败事件跟踪 |
 | `_tool_execution_lifecycle.py` | 工具执行生命周期 hook |
+| `_runtime_tool_governance.py` | 回合级工具面收敛（UI intent gate + readonly intent gate） |
 | `approval/` | HITL 审批队列、batch、scheduler、correction_learning |
 | `approval_interception/` | 审批拦截识别与注入 |
 | `guardrails/` | Provider 链 + `GuardrailMiddleware` |
-| `completion_guard.py` | 代码任务完成验证门；Mixed Message Guard |
+| `completion_guard.py` | 代码任务完成验证门 + 外部证据缺失门控；Mixed Message Guard |
 | `context_pipeline_middleware.py` | 桥接 `context_management/pipeline/` |
 | `concurrency_limiter.py` | 按 agent_type Semaphore |
 | `concurrency_router.py` | 智能并发路由（与 safety_dispatcher 协作） |
@@ -71,7 +72,7 @@
 | `security_guardrail_middleware.py` | 安全护栏 |
 | `subagent_limit_middleware.py` | 单轮 delegate 上限 |
 | `dangling_tool_call_middleware.py` | 修复 strict provider 400 |
-| `skill_attenuation_middleware.py` | Skill attenuation via `tool_choice.allowed_tools`; dynamic tool resolution for ToolNode (no `request.tools` mutation) |
+| `skill_attenuation_middleware.py` | Skill attenuation + runtime intent-aware narrowing via `tool_choice.allowed_tools`; dynamic tool resolution for ToolNode (no `request.tools` mutation) |
 | `filesystem_search_middleware.py` | 工作区搜索工具注入 |
 | `memory_context_middleware.py` | 记忆上下文注入编排（首轮 LLM 前 idempotent 注入） |
 | `memory_context_format.py` | 记忆注入格式化纯函数（stable SystemMessage / learned UNTRUSTED HumanMessage） |

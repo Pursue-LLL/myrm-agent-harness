@@ -364,6 +364,7 @@ class SecurityConfig:
     auto_review_timeout_seconds: float = 3.0
     transcript_window_size: int = 20
     plan_confirm_enabled: bool = False
+    high_risk_double_confirm_enabled: bool = False
     yolo_mode_enabled: bool = False
     yolo_mode_enabled_at: float | None = None
     yolo_mode_timeout: int | None = None

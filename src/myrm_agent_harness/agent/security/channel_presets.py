@@ -232,6 +232,7 @@ def build_channel_security_config(
     auto_review_model: str | None = None
     auto_review_timeout: float = 3.0
     plan_confirm_enabled = False
+    high_risk_double_confirm_enabled = False
     yolo_mode_enabled = False
     yolo_mode_enabled_at: float | None = None
     yolo_mode_timeout: int | None = None
@@ -243,6 +244,7 @@ def build_channel_security_config(
         auto_review_model = effective.auto_review_model
         auto_review_timeout = effective.auto_review_timeout_seconds
         plan_confirm_enabled = effective.plan_confirm_enabled
+        high_risk_double_confirm_enabled = effective.high_risk_double_confirm_enabled
         yolo_mode_enabled = effective.yolo_mode_enabled
         yolo_mode_enabled_at = effective.yolo_mode_enabled_at
         yolo_mode_timeout = effective.yolo_mode_timeout
@@ -263,6 +265,7 @@ def build_channel_security_config(
         auto_review_model=auto_review_model,
         auto_review_timeout_seconds=auto_review_timeout,
         plan_confirm_enabled=plan_confirm_enabled,
+        high_risk_double_confirm_enabled=high_risk_double_confirm_enabled,
         yolo_mode_enabled=yolo_mode_enabled,
         yolo_mode_enabled_at=yolo_mode_enabled_at,
         yolo_mode_timeout=yolo_mode_timeout,
@@ -339,6 +342,10 @@ def _merge_user_and_agent(
     auto_review_timeout = min(
         user.auto_review_timeout_seconds, agent.auto_review_timeout_seconds
     )
+    high_risk_double_confirm_enabled = (
+        user.high_risk_double_confirm_enabled
+        or agent.high_risk_double_confirm_enabled
+    )
 
     yolo_enabled = user.yolo_mode_enabled or agent.yolo_mode_enabled
     # Per-agent YOLO is an explicit override: do not let stale user timestamps/timeouts
@@ -369,6 +376,7 @@ def _merge_user_and_agent(
         auto_mode_enabled=auto_mode_enabled,
         auto_review_model=auto_review_model,
         auto_review_timeout_seconds=auto_review_timeout,
+        high_risk_double_confirm_enabled=high_risk_double_confirm_enabled,
         yolo_mode_enabled=yolo_enabled,
         yolo_mode_enabled_at=yolo_at,
         yolo_mode_timeout=yolo_timeout,

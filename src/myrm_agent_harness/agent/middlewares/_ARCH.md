@@ -17,7 +17,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `_tool_execution_lifecycle.py` | Internal | Tool execution lifecycle hooks. | ✅ |
 | `_tool_guards.py` | Internal | Guard modules orchestrated by tool_interceptor. | ✅ |
 | `_tool_helpers.py` | Internal | Stateless helpers for tool_interceptor_middleware. | ✅ |
-| `completion_guard.py` | Core | Finish gate + Mixed Message Guard + Independent Re-run for code tasks. Temporal ordering enforcement: blocks completion when code is modified after last verification, independently re-runs the verification command in the sandbox before allowing completion. Exports `is_mutating_tool()` SSOT for side-effect tool detection. | ✅ |
+| `completion_guard.py` | Core | Finish gate + Mixed Message Guard + Independent Re-run for code tasks. Temporal ordering enforcement: blocks completion when code is modified after last verification, independently re-runs the verification command in the sandbox before allowing completion. Also gates freshness-sensitive completions when no successful external evidence tools were used. Exports `is_mutating_tool()` SSOT for side-effect tool detection. | ✅ |
 | `clarification_guard_middleware.py` | Core | Enforces single `ask_question_tool` call per turn; blocks coexisting tool calls with synthetic errors. | ✅ |
 | `completion_guard_checklist.py` | Internal | Verification command classification + checklist builder + temporal ordering analysis + verification command extraction for CompletionGuard. | ✅ |
 | `concurrency_limiter.py` | Core | Subagent Semaphore by agent_type. | ✅ |
@@ -26,7 +26,8 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `context_pipeline_middleware.py` | Core | `create_context_pipeline_middleware` factory. | ✅ |
 | `dangling_tool_call_middleware.py` | Core | Repair malformed tool histories for strict providers: sanitize malformed calls, patch dangling tool_calls, and drop orphan ToolMessages. | ✅ |
 | `_skill_tool_choice.py` | Internal | Build OpenAI ``allowed_tools`` tool_choice for skill attenuation (cache-safe). | ✅ |
-| `skill_attenuation_middleware.py` | Core | Skill attenuation via ``tool_choice.allowed_tools``; dynamic tool resolution for ToolNode. Does not mutate `request.tools`. | ✅ |
+| `_runtime_tool_governance.py` | Internal | Per-turn intent-aware tool narrowing helper (UI intent gate + readonly intent gate) using cache-safe `tool_choice.allowed_tools`. | ✅ |
+| `skill_attenuation_middleware.py` | Core | Skill attenuation via ``tool_choice.allowed_tools`` + runtime intent-aware narrowing; dynamic tool resolution for ToolNode. Does not mutate `request.tools`. | ✅ |
 | `debug_logger_middleware.py` | Core | Full message list debug logging. | ✅ |
 | `filesystem_search_middleware.py` | Core | Inject glob/grep workspace search tools. | ✅ |
 | `memory_context_middleware.py` | Core | `<user_memory_context>` + scope boundary + untrusted data wrapping；若存在 `memory_brief_snapshot` 则优先复用同源快照，避免预览/执行漂移；并通过 API hooks 记录 `injection` 与 `budget` telemetry（applied/not_applied + source/reason）供 server 透传；未注入时清空 budget telemetry 防止跨轮残留。 | ✅ |

@@ -40,7 +40,7 @@ class PptxParser(FileParser):
 
         content = await asyncio.to_thread(self._parse_sync, file_path)
 
-        logger.warning("PowerPoint parsed: %s, length: %d chars", path.name, len(content))
+        logger.info("PowerPoint parsed: %s, length: %d chars", path.name, len(content))
         return content
 
     def _parse_sync(self, file_path: str) -> str:

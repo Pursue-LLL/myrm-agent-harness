@@ -114,6 +114,7 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
             "permissions": {"shell_exec": "ask", "file_read": {"*.env": "ask"}},
             "approvalTimeoutSeconds": 120,
             "approvalTimeoutBehavior": "deny",
+            "highRiskDoubleConfirmEnabled": false,
             "pathPolicy": {
                 "forbiddenPaths": ["~/.ssh"],
                 "allowedRoots": ["~/.claude"]
@@ -169,6 +170,10 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
     transcript_window_size = parse_int(transcript_window_raw, 20, min_val=1, max_val=200)
 
     plan_confirm_enabled = bool(raw.get("planConfirmEnabled") or raw.get("plan_confirm_enabled", False))
+    high_risk_double_confirm_enabled = bool(
+        raw.get("highRiskDoubleConfirmEnabled")
+        or raw.get("high_risk_double_confirm_enabled", False)
+    )
 
     yolo_mode_enabled = bool(raw.get("yoloModeEnabled") or raw.get("yolo_mode_enabled", False))
     yolo_mode_enabled_at_raw = raw.get("yolo_mode_enabled_at")
@@ -190,6 +195,7 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
         auto_review_timeout_seconds=auto_review_timeout,
         transcript_window_size=transcript_window_size,
         plan_confirm_enabled=plan_confirm_enabled,
+        high_risk_double_confirm_enabled=high_risk_double_confirm_enabled,
         yolo_mode_enabled=yolo_mode_enabled,
         yolo_mode_enabled_at=yolo_mode_enabled_at,
         yolo_mode_timeout=yolo_mode_timeout,
@@ -221,6 +227,7 @@ def apply_remote_exposed_overlay(base: SecurityConfig) -> SecurityConfig:
         auto_review_model=base.auto_review_model,
         auto_review_timeout_seconds=base.auto_review_timeout_seconds,
         transcript_window_size=base.transcript_window_size,
+        high_risk_double_confirm_enabled=base.high_risk_double_confirm_enabled,
         yolo_mode_enabled=False,
         yolo_mode_enabled_at=None,
         yolo_mode_timeout=None,
@@ -238,4 +245,6 @@ def security_config_to_dict(config: SecurityConfig) -> dict[str, object]:
         "permissions": _ruleset_to_permissions(config.ruleset),
         "yoloModeEnabled": config.yolo_mode_enabled,
         "yolo_mode_enabled": config.yolo_mode_enabled,
+        "highRiskDoubleConfirmEnabled": config.high_risk_double_confirm_enabled,
+        "high_risk_double_confirm_enabled": config.high_risk_double_confirm_enabled,
     }
