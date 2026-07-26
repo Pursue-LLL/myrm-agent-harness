@@ -14,10 +14,10 @@ keeping the tool layer free from business concepts.
 - backends.skills.discovery_protocols::SkillDiscoveryBackend, (POS: SkillBackend SkillBackend SkillDiscoveryBackend)
 
 [OUTPUT]
-- create_skill_discovery_tool: Create the skill discovery tool.
+- create_skill_discovery_tool: Create the skill market tool (LLM name: skill_market_tool).
 
 [POS]
-Skill discovery meta-tool.
+Skill market meta-tool. Enables Agent to search and install skills from external marketplaces.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.backends.skills.discovery_protocols import SkillDiscoveryBackend, SkillInstallResult
 
 TOOL_DESCRIPTION = """Install NEW skills from external markets (GitHub, skills.sh, etc.).
-NOT for searching skills already bound to this agent — use `discover_capability_tool` for that.
+NOT for searching skills already bound to this agent — use `skill_search_tool` for that.
 
 Use this tool when:
 - User asks "find me a skill for X" or "is there a skill that can..."
@@ -99,7 +99,7 @@ def create_skill_discovery_tool(
         source: str = Field(default="", description="Skill source from search results (required for action='install')")
         url: str = Field(default="", description="GitHub URL or owner/repo (required for action='install_from_url')")
 
-    @tool("skill_discovery_tool", description=TOOL_DESCRIPTION, args_schema=SkillDiscoveryInput)
+    @tool("skill_market_tool", description=TOOL_DESCRIPTION, args_schema=SkillDiscoveryInput)
     async def skill_discovery_func(
         action: str, query: str = "", skill_id: str = "", source: str = "", url: str = "", *, config: RunnableConfig
     ) -> str:

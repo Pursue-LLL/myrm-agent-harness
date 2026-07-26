@@ -80,7 +80,7 @@ class TestSkillToolsSuggestions:
             v = g.pre_check("skill_select_tool", {"skill_names": ["test_skill"]})
 
         assert v.action == LoopAction.WARN
-        assert "discover_capability_tool" in v.reason or "direct tools" in v.reason
+        assert "skill_search_tool" in v.reason or "direct tools" in v.reason
 
     def test_skill_search_empty_result(self) -> None:
         g = LoopGuard(no_progress_threshold=3, warn_threshold=99, break_threshold=99)
@@ -88,11 +88,11 @@ class TestSkillToolsSuggestions:
         g._check_consecutive_failures = lambda calls: VERDICT_ALLOW
 
         for i in range(4):
-            g.pre_check("discover_capability_tool", {"query": f"query_{i}"})
-            g.record_result("discover_capability_tool", {"query": f"query_{i}"}, "No skills found")
+            g.pre_check("skill_search_tool", {"query": f"query_{i}"})
+            g.record_result("skill_search_tool", {"query": f"query_{i}"}, "No skills found")
 
-        v = g.pre_check("discover_capability_tool", {"query": "final_query"})
-        g.record_result("discover_capability_tool", {"query": "final_query"}, "No skills found")
+        v = g.pre_check("skill_search_tool", {"query": "final_query"})
+        g.record_result("skill_search_tool", {"query": "final_query"}, "No skills found")
 
         if v.action != LoopAction.ALLOW:
             assert "broader" in v.reason or "skill_select_tool" in v.reason or v.action == LoopAction.WARN
@@ -102,10 +102,10 @@ class TestSkillToolsSuggestions:
 
         # discover_capability is idempotent, so threshold is doubled (2 * 2 = 4)
         for _ in range(3):
-            g.pre_check("discover_capability_tool", {"query": "test", "mode": "bm25"})
-            g.record_result("discover_capability_tool", {"query": "test", "mode": "bm25"}, "No results")
+            g.pre_check("skill_search_tool", {"query": "test", "mode": "bm25"})
+            g.record_result("skill_search_tool", {"query": "test", "mode": "bm25"}, "No results")
 
-        v = g.pre_check("discover_capability_tool", {"query": "test", "mode": "bm25"})
+        v = g.pre_check("skill_search_tool", {"query": "test", "mode": "bm25"})
 
         if v.action != LoopAction.ALLOW:
             assert "regex" in v.reason.lower()
@@ -121,7 +121,7 @@ class TestToolCoverage:
             "delegate_task_tool",
             "browser_snapshot_tool",
             "skill_select_tool",
-            "discover_capability_tool",
+            "skill_search_tool",
         ]
 
         for tool in p1_tools:

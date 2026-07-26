@@ -102,8 +102,8 @@ def get_meta_tools(
     Args:
         skills: 可用的技能列表
         skill_backend: 技能后端(用于 skill_select_tool)
-        registry: ToolRegistry（必填；discover_capability_tool 由 SkillAgent 末尾 sync 注册）
-        discovery_backend: 技能发现后端(用于 skill_discovery_tool)
+        registry: ToolRegistry（必填；skill_search_tool 由 SkillAgent 末尾 sync 注册）
+        discovery_backend: 技能发现后端(用于 skill_market_tool)
         write_backend: 技能写入后端(用于 skill_manage_tool, ScanningSkillWriteBackend)
         embedding_config: Embedding 配置(可选, 用于语义搜索)
         embedding_cache: Embedding 缓存实例(可选, 仅 Hybrid 模式使用)
@@ -121,7 +121,7 @@ def get_meta_tools(
     if registry is None:
         raise TypeError(
             "get_meta_tools requires a ToolRegistry instance; discoverable tools and "
-            "discover_capability_tool register exclusively via registry."
+            "skill_search_tool register exclusively via registry."
         )
 
     # --- Conditional skill filtering based on agent's tool capabilities ---
@@ -225,7 +225,7 @@ def get_meta_tools(
             install_from_url_fn=install_url_fn,
             uninstall_fn=uninstall_fn,
         )
-        logger.info(" skill_discovery_tool registered (Turn1)")
+        logger.info(" skill_market_tool registered (Turn1)")
 
     if has_manage_tool:
         assert write_backend is not None  # narrowed by has_manage_tool
@@ -280,17 +280,17 @@ def get_meta_tools(
     if skill_discovery_pending is not None:
         tools.append(skill_discovery_pending)
 
-    # discover_capability_tool SSOT: SkillAgent calls sync_discover_capability_tool()
+    # discover_capability_tool → skill_search_tool SSOT: SkillAgent calls sync_discover_capability_tool()
     # after all skills are registered.
     discoverable_skills = [s for s in skills if s.model_invocable] if skills else []
     if discoverable_skills:
         logger.info(
-            " discover_capability_tool deferred to sync_discover_capability_tool "
+            " skill_search_tool deferred to sync_discover_capability_tool "
             "(可搜索技能: %d)",
             len(discoverable_skills),
         )
     else:
-        logger.info(" discover_capability_tool 未加载(无可搜索技能)")
+        logger.info(" skill_search_tool 未加载(无可搜索技能)")
 
     # PTC tools for bash Python execution — fill the mutable ref so that
     # BashExecutor.ptc_tools is populated before any actual execution.

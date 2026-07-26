@@ -86,7 +86,7 @@ def suggest_skill_select(recent_calls: list[CallRecord], quality_scores: dict[st
     suggestions: list[tuple[SuggestionPriority, str]] = []
 
     if ErrorPattern.FILE_NOT_FOUND in error_patterns or ErrorPattern.INVALID_FORMAT in error_patterns:
-        suggestions.append((SuggestionPriority.HIGH, "use 'discover_capability_tool' to find available skills"))
+        suggestions.append((SuggestionPriority.HIGH, "use 'skill_search_tool' to find available skills"))
         suggestions.append((SuggestionPriority.MEDIUM, "verify skill_id exists in the skill registry"))
         suggestions.append((SuggestionPriority.LOW, "check skill parameters match requirements"))
         return prioritize_suggestions(suggestions, quality_scores)
@@ -96,11 +96,11 @@ def suggest_skill_select(recent_calls: list[CallRecord], quality_scores: dict[st
             (SuggestionPriority.HIGH, "consider using direct tools (file_read, bash, web_search) instead")
         )
         suggestions.append((SuggestionPriority.MEDIUM, "verify skill description aligns with current goal"))
-        suggestions.append((SuggestionPriority.LOW, "use 'discover_capability_tool' to find alternative skills"))
+        suggestions.append((SuggestionPriority.LOW, "use 'skill_search_tool' to find alternative skills"))
         return prioritize_suggestions(suggestions, quality_scores)
 
     if not suggestions:
-        suggestions.append((SuggestionPriority.MEDIUM, "use 'discover_capability_tool' to find relevant skills"))
+        suggestions.append((SuggestionPriority.MEDIUM, "use 'skill_search_tool' to find relevant skills"))
         suggestions.append((SuggestionPriority.LOW, "verify skill parameters"))
 
     return prioritize_suggestions(suggestions, quality_scores)

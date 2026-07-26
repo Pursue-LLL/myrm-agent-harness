@@ -20,7 +20,13 @@ async def test_create_context_cleanup_on_install_failure() -> None:
 
     allowlist = DomainAllowlist.from_strings(["example.com"])
 
-    async def failing_install(ctx: object, al: object, *, resource_block: object | None = None) -> None:
+    async def failing_install(
+        ctx: object,
+        al: object,
+        *,
+        domain_blocklist: object | None = None,
+        resource_block: object | None = None,
+    ) -> None:
         raise RuntimeError("Install failed")
 
     with patch("myrm_agent_harness.toolkits.browser.domain_filter.install_domain_filter", new=failing_install):
@@ -43,7 +49,13 @@ async def test_create_context_no_cleanup_on_success() -> None:
 
     allowlist = DomainAllowlist.from_strings(["example.com"])
 
-    async def successful_install(ctx: object, al: object, *, resource_block: object | None = None) -> None:
+    async def successful_install(
+        ctx: object,
+        al: object,
+        *,
+        domain_blocklist: object | None = None,
+        resource_block: object | None = None,
+    ) -> None:
         pass
 
     with patch("myrm_agent_harness.toolkits.browser.domain_filter.install_domain_filter", new=successful_install):

@@ -1,4 +1,4 @@
-"""Unit tests for skill_discovery_tool marketplace actions."""
+"""Unit tests for skill_market_tool marketplace actions."""
 
 from __future__ import annotations
 
@@ -7,14 +7,14 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from myrm_agent_harness.agent.meta_tools.skills.discovery.skill_discovery_tool import (
-    create_skill_discovery_tool,
+    create_skill_market_tool,
 )
 from myrm_agent_harness.backends.skills.discovery_protocols import (
     SkillInstallResult,
     SkillSearchResult,
 )
 
-_DISCOVER_CAPABILITY_TOOL = "discover_capability_tool"
+_DISCOVER_CAPABILITY_TOOL = "skill_search_tool"
 
 
 def _user_config(user_id: str = "test_user") -> dict:
@@ -45,7 +45,7 @@ def marketplace_tool(discovery_backend: MagicMock):
     uninstall = AsyncMock(
         return_value=SkillInstallResult(success=True, skill_name="demo_skill", skill_id="demo")
     )
-    return create_skill_discovery_tool(
+    return create_skill_market_tool(
         discovery_backend,
         install_from_url_fn=install_from_url,
         uninstall_fn=uninstall,
@@ -53,7 +53,7 @@ def marketplace_tool(discovery_backend: MagicMock):
 
 
 @pytest.mark.asyncio
-async def test_description_points_to_discover_capability_tool(marketplace_tool) -> None:
+async def test_description_points_to_skill_search_tool(marketplace_tool) -> None:
     description = marketplace_tool.description
     assert _DISCOVER_CAPABILITY_TOOL in description
     assert "already bound" in description.lower() or "bound to this agent" in description.lower()
@@ -116,7 +116,7 @@ async def test_install_success(marketplace_tool, discovery_backend: MagicMock) -
 @pytest.mark.asyncio
 async def test_install_failure(discovery_backend: MagicMock) -> None:
     discovery_backend.install.return_value = SkillInstallResult(success=False, error="network down")
-    tool = create_skill_discovery_tool(discovery_backend)
+    tool = create_skill_market_tool(discovery_backend)
     result = await tool.ainvoke(
         {"action": "install", "skill_id": "demo", "source": "github"},
         config=_user_config(),
@@ -135,7 +135,7 @@ async def test_install_from_url_requires_url(marketplace_tool) -> None:
 
 @pytest.mark.asyncio
 async def test_install_from_url_without_backend_fn(discovery_backend: MagicMock) -> None:
-    tool = create_skill_discovery_tool(discovery_backend)
+    tool = create_skill_market_tool(discovery_backend)
     result = await tool.ainvoke(
         {"action": "install_from_url", "url": "https://github.com/o/r"},
         config=_user_config(),
@@ -164,7 +164,7 @@ async def test_uninstall_requires_skill_id(marketplace_tool) -> None:
 
 @pytest.mark.asyncio
 async def test_uninstall_without_backend_fn(discovery_backend: MagicMock) -> None:
-    tool = create_skill_discovery_tool(discovery_backend)
+    tool = create_skill_market_tool(discovery_backend)
     result = await tool.ainvoke(
         {"action": "uninstall", "skill_id": "demo"},
         config=_user_config(),
@@ -183,7 +183,7 @@ async def test_uninstall_success(marketplace_tool) -> None:
 
 @pytest.mark.asyncio
 async def test_install_requires_user_id_in_config(discovery_backend: MagicMock) -> None:
-    tool = create_skill_discovery_tool(discovery_backend)
+    tool = create_skill_market_tool(discovery_backend)
     with pytest.raises(ValueError, match="user_id is required"):
         await tool.ainvoke(
             {"action": "install", "skill_id": "demo", "source": "github"},
@@ -200,7 +200,7 @@ async def test_install_includes_scan_summary(discovery_backend: MagicMock) -> No
         installed_path="/tmp/demo",
         scan_summary="1 warning",
     )
-    tool = create_skill_discovery_tool(discovery_backend)
+    tool = create_skill_market_tool(discovery_backend)
     result = await tool.ainvoke(
         {"action": "install", "skill_id": "demo", "source": "github"},
         config=_user_config(),
@@ -211,7 +211,7 @@ async def test_install_includes_scan_summary(discovery_backend: MagicMock) -> No
 @pytest.mark.asyncio
 async def test_install_from_url_failure(discovery_backend: MagicMock) -> None:
     install_from_url = AsyncMock(return_value=SkillInstallResult(success=False, error="bad zip"))
-    tool = create_skill_discovery_tool(discovery_backend, install_from_url_fn=install_from_url)
+    tool = create_skill_market_tool(discovery_backend, install_from_url_fn=install_from_url)
     result = await tool.ainvoke(
         {"action": "install_from_url", "url": "https://github.com/o/r"},
         config=_user_config(),
@@ -222,7 +222,7 @@ async def test_install_from_url_failure(discovery_backend: MagicMock) -> None:
 @pytest.mark.asyncio
 async def test_uninstall_failure(discovery_backend: MagicMock) -> None:
     uninstall = AsyncMock(return_value=SkillInstallResult(success=False, error="not found"))
-    tool = create_skill_discovery_tool(discovery_backend, uninstall_fn=uninstall)
+    tool = create_skill_market_tool(discovery_backend, uninstall_fn=uninstall)
     result = await tool.ainvoke(
         {"action": "uninstall", "skill_id": "demo"},
         config=_user_config(),

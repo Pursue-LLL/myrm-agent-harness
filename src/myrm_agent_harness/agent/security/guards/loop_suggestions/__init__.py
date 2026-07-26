@@ -61,7 +61,7 @@ _DYNAMIC_GENERATORS: dict[str, _SuggestFn] = {
     "delegate_task_tool": suggest_spawn_subagent,
     "browser_snapshot_tool": suggest_browser_snapshot,
     "skill_select_tool": suggest_skill_select,
-    "discover_capability_tool": suggest_skill_search,
+    "skill_search_tool": suggest_skill_search,
 }
 
 

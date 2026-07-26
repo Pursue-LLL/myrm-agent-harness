@@ -1,4 +1,4 @@
-"""Tests that skill_discovery_tool is Turn1 eager when discovery_backend is provided."""
+"""Tests that skill_market_tool is Turn1 eager when discovery_backend is provided."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ class TestSkillDiscoveryEager:
         )
 
         returned_names = {t.name for t in tools}
-        assert "skill_discovery_tool" in returned_names
+        assert "skill_market_tool" in returned_names
 
     def test_skill_discovery_not_runtime_only(
         self,
@@ -60,4 +60,4 @@ class TestSkillDiscoveryEager:
         )
 
         runtime_names = {t.name for t in registry.get_runtime_tools()}
-        assert "skill_discovery_tool" not in runtime_names
+        assert "skill_market_tool" not in runtime_names

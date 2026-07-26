@@ -36,7 +36,7 @@ PTC_OVERHEAD_MULTIPLIER = 2
 If MCP schema > bridge_cost * multiplier, PTC is more efficient."""
 
 FALLBACK_PTC_BRIDGE_TOKENS = 450
-"""Estimated PTC bridge tool schema overhead (skill_select_tool + discover_capability_tool)
+"""Estimated PTC bridge tool schema overhead (skill_select_tool + skill_search_tool)
 when actual bridge tools are not yet available for measurement."""
 
 CHARS_PER_TOKEN = 4.0

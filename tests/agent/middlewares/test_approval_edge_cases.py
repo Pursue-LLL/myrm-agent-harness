@@ -1115,3 +1115,162 @@ async def test_middleware_fallback_auto_deny():
     assert len(error_msgs) == 2
     system_enforced = [m for m in error_msgs if "SYSTEM_ENFORCED" in m.content]
     assert len(system_enforced) == 1
+
+
+@pytest.mark.asyncio
+async def test_shadow_agent_auto_deny(monkeypatch):
+    """Shadow agents have no UI channel — all pending approvals are auto-denied."""
+    config = SecurityConfig(
+        ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),)
+    )
+    set_security_config(config)
+    set_workspace_root("/tmp")
+    set_approval_session("shadow-session")
+    set_approval_user_id("user1")
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.get_is_shadow_agent",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.get_is_subagent",
+        lambda: False,
+    )
+
+    middleware = ToolApprovalMiddleware()
+    state = {
+        "messages": [
+            AIMessage(
+                content="Running command.",
+                tool_calls=[
+                    ToolCall(
+                        type="tool_call",
+                        name="bash_code_execute_tool",
+                        args={"command": "rm -rf /"},
+                        id="shadow_call_1",
+                    ),
+                ],
+            )
+        ]
+    }
+
+    result = await middleware.aafter_model(state, MockRuntime())
+
+    assert result is not None
+    msgs = result["messages"]
+    error_msgs = [m for m in msgs if hasattr(m, "status") and m.status == "error"]
+    assert len(error_msgs) == 1
+    assert "SYSTEM_ENFORCED" in error_msgs[0].content
+
+
+@pytest.mark.asyncio
+async def test_subagent_missing_task_id_auto_deny(monkeypatch):
+    """Subagent without task_id falls back to auto-deny to prevent deadlock."""
+    config = SecurityConfig(
+        ruleset=(
+            PermissionRule("*", "*", PermissionAction.ALLOW),
+            PermissionRule("code_interpreter", "*", PermissionAction.ASK),
+        )
+    )
+    set_security_config(config)
+    set_workspace_root("/tmp")
+    set_approval_session("sub-session")
+    set_approval_user_id("user1")
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.get_is_subagent",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.get_is_shadow_agent",
+        lambda: False,
+    )
+    import myrm_agent_harness.agent.middlewares._session_context as _sc
+    monkeypatch.setattr(_sc, "get_subagent_task_id", lambda: None)
+
+    middleware = ToolApprovalMiddleware()
+    state = {
+        "messages": [
+            AIMessage(
+                content="Running command.",
+                tool_calls=[
+                    ToolCall(
+                        type="tool_call",
+                        name="bash_code_execute_tool",
+                        args={"command": "echo hello"},
+                        id="sub_call_1",
+                    ),
+                ],
+            )
+        ]
+    }
+
+    result = await middleware.aafter_model(state, MockRuntime())
+
+    assert result is not None
+    msgs = result["messages"]
+    error_msgs = [m for m in msgs if hasattr(m, "status") and m.status == "error"]
+    assert len(error_msgs) == 1
+    assert "SYSTEM_ENFORCED" in error_msgs[0].content
+
+
+@pytest.mark.asyncio
+async def test_normalize_batch_decisions_count_mismatch(monkeypatch):
+    """Decision count mismatch triggers fail-closed reject for all tools."""
+    config = SecurityConfig(
+        ruleset=(
+            PermissionRule("*", "*", PermissionAction.ALLOW),
+            PermissionRule("code_interpreter", "*", PermissionAction.ASK),
+        )
+    )
+    set_security_config(config)
+    set_workspace_root("/tmp")
+    set_approval_session("mismatch-session")
+    set_approval_user_id("user1")
+
+    def mock_interrupt(payload):
+        return {"decisions": [{"type": "approve"}]}
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.interrupt",
+        mock_interrupt,
+    )
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.get_is_subagent",
+        lambda: False,
+    )
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.get_is_shadow_agent",
+        lambda: False,
+    )
+
+    middleware = ToolApprovalMiddleware()
+    state = {
+        "messages": [
+            AIMessage(
+                content="Running commands.",
+                tool_calls=[
+                    ToolCall(
+                        type="tool_call",
+                        name="bash_code_execute_tool",
+                        args={"command": "ls"},
+                        id="mm_call_1",
+                    ),
+                    ToolCall(
+                        type="tool_call",
+                        name="bash_code_execute_tool",
+                        args={"command": "pwd"},
+                        id="mm_call_2",
+                    ),
+                ],
+            )
+        ]
+    }
+
+    result = await middleware.aafter_model(state, MockRuntime())
+
+    assert result is not None
+    msgs = result["messages"]
+    error_msgs = [m for m in msgs if hasattr(m, "status") and m.status == "error"]
+    assert len(error_msgs) == 2
+    assert all("rejected" in m.content.lower() or "mismatch" in m.content.lower() for m in error_msgs)

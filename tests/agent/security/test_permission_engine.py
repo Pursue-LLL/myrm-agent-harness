@@ -178,15 +178,6 @@ class TestParseSecurityConfig:
         assert "api.example.com" in config.network_allowlist
         assert "cdn.example.com" in config.network_allowlist
 
-    def test_high_risk_double_confirm_flag(self) -> None:
-        config = parse_security_config(
-            {
-                "highRiskDoubleConfirmEnabled": True,
-            }
-        )
-        assert config is not None
-        assert config.high_risk_double_confirm_enabled is True
-
 
 class TestHasExplicitScheme:
     def test_http(self) -> None:
@@ -841,14 +832,11 @@ class TestSecurityConfigSerialization:
                 PermissionRule(permission="shell_exec", pattern="*", action=PermissionAction.ASK),
             ),
             yolo_mode_enabled=True,
-            high_risk_double_confirm_enabled=True,
         )
         exported = security_config_to_dict(config)
         assert exported["permissions"] == {"shell_exec": "ask"}
         assert exported["yoloModeEnabled"] is True
         assert exported["yolo_mode_enabled"] is True
-        assert exported["highRiskDoubleConfirmEnabled"] is True
-        assert exported["high_risk_double_confirm_enabled"] is True
 
     def test_remote_exposed_permissions_returns_deny_map(self) -> None:
         perms = remote_exposed_permissions()

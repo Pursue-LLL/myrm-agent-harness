@@ -198,7 +198,10 @@ class TestCreateBrowserRouting:
         launcher = _make_launcher(launch_mode=LaunchMode.CONNECT)
         expected = BrowserInstance(browser=_mock_browser(), is_managed=False)
 
-        with patch.object(launcher, "_connect_existing", AsyncMock(return_value=expected)) as mock_connect:
+        with (
+            patch.object(launcher, "_discover_local_chrome", AsyncMock(return_value=None)),
+            patch.object(launcher, "_connect_existing", AsyncMock(return_value=expected)) as mock_connect,
+        ):
             result = await launcher.create_browser()
 
             mock_connect.assert_awaited_once_with(launcher._cdp_endpoint, headers=None)

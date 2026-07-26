@@ -41,8 +41,8 @@ _READ_ONLY_TOOL_ALLOWLIST: frozenset[str] = frozenset(
         "browser_snapshot_tool",
         "browser_extract_tool",
         "browser_inspect_tool",
-        "discover_capability_tool",
-        "skill_discovery_tool",
+        "skill_search_tool",
+        "skill_market_tool",
         "skill_select_tool",
     }
 )

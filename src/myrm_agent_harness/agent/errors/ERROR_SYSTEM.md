@@ -167,7 +167,7 @@ WebSearchError
 | acp_delegate_tool | 软错误 | 自行 catch + 重试 | — |
 | delegate_task_tool | 软错误 | 自行 catch | — |
 | todo_write | 无异常场景 | — | — |
-| discover_capability_tool | 无异常场景 | — | — |
+| skill_search_tool | 无异常场景 | — | — |
 
 ---
 

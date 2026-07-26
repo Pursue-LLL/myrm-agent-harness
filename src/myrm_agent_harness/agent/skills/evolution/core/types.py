@@ -290,6 +290,7 @@ class SkillRecord:
                 "last_success_at": (self.metrics.last_success_at.isoformat() if self.metrics.last_success_at else None),
                 "last_failure_at": (self.metrics.last_failure_at.isoformat() if self.metrics.last_failure_at else None),
                 "consecutive_failures": self.metrics.consecutive_failures,
+                "user_correction_count": self.metrics.user_correction_count,
             },
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
@@ -314,6 +315,7 @@ class SkillRecord:
                 datetime.fromisoformat(metrics_data["last_failure_at"]) if metrics_data.get("last_failure_at") else None
             ),
             consecutive_failures=metrics_data.get("consecutive_failures", 0),
+            user_correction_count=metrics_data.get("user_correction_count", 0),
         )
 
         return cls(

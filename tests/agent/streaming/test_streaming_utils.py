@@ -191,10 +191,10 @@ class TestNormalizeToolNames:
 
     def test_meta_tool_exempt_from_suffix(self) -> None:
         tool = MagicMock(spec=BaseTool)
-        tool.name = "discover_capability_tool"
+        tool.name = "skill_search_tool"
         result = normalize_tool_names([tool])
         assert len(result) == 1
-        assert result[0].name == "discover_capability_tool"
+        assert result[0].name == "skill_search_tool"
 
     def test_empty_list(self) -> None:
         result = normalize_tool_names([])

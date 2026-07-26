@@ -259,7 +259,7 @@ class TestSuggestMetaCoverage:
             )
         ]
         result = suggest_skill_select(calls)
-        assert "discover_capability_tool" in result
+        assert "skill_search_tool" in result
 
     def test_skill_select_many_skills(self) -> None:
         calls = [
@@ -272,18 +272,18 @@ class TestSuggestMetaCoverage:
 
     def test_skill_search_mode_regex(self) -> None:
         calls = [
-            CallRecord(tool_name="discover_capability_tool", args_hash="h", args={"query": "test", "mode": "bm25"}),
+            CallRecord(tool_name="skill_search_tool", args_hash="h", args={"query": "test", "mode": "bm25"}),
         ]
         result = suggest_skill_search(calls)
         assert "regex" in result.lower()
 
     def test_skill_search_many_queries(self) -> None:
-        calls = [CallRecord(tool_name="discover_capability_tool", args_hash="h", args={"query": f"q{i}"}) for i in range(4)]
+        calls = [CallRecord(tool_name="skill_search_tool", args_hash="h", args={"query": f"q{i}"}) for i in range(4)]
         result = suggest_skill_search(calls)
         assert "skill_select_tool" in result
 
     def test_skill_search_empty_result(self) -> None:
-        calls = [CallRecord(tool_name="discover_capability_tool", args_hash="h", args={"query": "test"}, result_content="[]")]
+        calls = [CallRecord(tool_name="skill_search_tool", args_hash="h", args={"query": "test"}, result_content="[]")]
         result = suggest_skill_search(calls)
         assert "broader" in result.lower()
 
@@ -401,7 +401,7 @@ class TestPhaseInferenceHighCallCount:
             "grep_tool",
             "file_write_tool",
             "browser_snapshot_tool",
-            "discover_capability_tool",
+            "skill_search_tool",
         ]
         for i in range(10):
             tool = tools[i % len(tools)]

@@ -156,11 +156,11 @@ class TestSuggestSkillSelect:
 
 class TestSuggestSkillSearch:
     def test_empty_results(self) -> None:
-        calls = [_make_call("discover_capability_tool", {"query": "test"}, "[]")]
+        calls = [_make_call("skill_search_tool", {"query": "test"}, "[]")]
         result = suggest_skill_search(calls)
         assert len(result) > 0
 
     def test_many_calls(self) -> None:
-        calls = [_make_call("discover_capability_tool", {"query": f"q{i}"}, "ok") for i in range(3)]
+        calls = [_make_call("skill_search_tool", {"query": f"q{i}"}, "ok") for i in range(3)]
         result = suggest_skill_search(calls)
         assert len(result) > 0

@@ -558,7 +558,7 @@ class FakeSkillManageTool(BaseTool):
 
 
 class FakeSkillDiscoveryTool(BaseTool):
-    name: str = "skill_discovery_tool"
+    name: str = "skill_market_tool"
     description: str = "Discover skills"
 
     def _run(self) -> str:
@@ -636,7 +636,7 @@ def test_filter_tools_blocks_all_global_blacklisted_tools() -> None:
     assert "subagent_control_tool" not in filtered_names
     assert "send_teammate_message_tool" not in filtered_names
     assert "skill_manage_tool" not in filtered_names
-    assert "skill_discovery_tool" not in filtered_names
+    assert "skill_market_tool" not in filtered_names
 
 
 def test_filter_tools_blocks_blacklisted_even_with_explicit_allowlist() -> None:

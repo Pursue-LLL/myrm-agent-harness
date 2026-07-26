@@ -8,6 +8,7 @@
 - regex_validator::RegexValidator (POS: 正则表达式验证器，防止 ReDoS)
 - utils.lru_cache::LRUCache (POS: LRU 缓存)
 - _formatter (POS: Grep flat path:line output formatter with line truncation)
+- fallback_discovery::collect_candidate_files (POS: 无 ripgrep 时的候选文件发现与 git-aware ignore 策略)
 
 [OUTPUT]
 - GrepInput: Grep 工具输入参数模型
@@ -44,6 +45,7 @@ from myrm_agent_harness.toolkits.code_execution.executors.base import require_ex
 from myrm_agent_harness.utils.errors import ToolError
 
 from ._formatter import format_grep_results
+from .fallback_discovery import collect_candidate_files
 from .path_hint import format_path_not_found_hint, suggest_similar_paths
 from .regex_validator import RegexValidator
 from .skill_path_filter import get_disabled_skill_roots, is_under_disabled_skill_root
@@ -94,6 +96,7 @@ async def _ripgrep_search(
         )
 
         results: list[dict[str, str | int]] = []
+        match_count = 0
         stderr_data = bytearray()
 
         async def _read_stderr():
@@ -104,7 +107,7 @@ async def _ripgrep_search(
                 stderr_data.extend(chunk)
 
         async def _read_lines():
-            match_count = 0
+            nonlocal match_count
             while True:
                 line_bytes = await proc.stdout.readline()
                 if not line_bytes:
@@ -328,13 +331,17 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
 
             if not used_ripgrep:
                 try:
-                    if search_path_obj.is_file():
-                        if search_path_obj.match(file_pattern) or file_pattern == "**/*":
-                            files = [search_path_obj]
-                        else:
-                            files = []
-                    else:
-                        files = list(search_path_obj.rglob(file_pattern))
+                    if "\x00" in file_pattern:
+                        raise ValueError("NUL byte is not allowed in file patterns")
+                    _ = Path("validation.txt").match(file_pattern)
+                    files = await asyncio.to_thread(
+                        collect_candidate_files,
+                        search_root=search_path_obj,
+                        file_pattern=file_pattern,
+                        max_files=io_cfg.max_search_files,
+                        include_hidden=False,
+                        include_ignored=False,
+                    )
                 except (ValueError, OSError) as e:
                     raise ToolError(
                         message=f"Invalid file pattern '{file_pattern}': {e}",
@@ -342,13 +349,6 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
                     ) from e
 
                 files = [f for f in files if f.is_file()]
-
-                if len(files) > io_cfg.max_search_files:
-                    logger.warning(
-                        f"Search file count ({len(files)}) exceeds limit ({io_cfg.max_search_files}). "
-                        "Limiting search scope."
-                    )
-                    files = files[: io_cfg.max_search_files]
 
                 start_time = time.time()
 

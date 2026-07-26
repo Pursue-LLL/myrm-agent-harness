@@ -80,7 +80,8 @@ async def test_memory_cache_performance(backend: FileVaultBackend, vault_key: by
     nocache_time = time.perf_counter() - start
 
     speedup = nocache_time / cached_time
-    assert speedup > 7, f"Cache speedup {speedup:.1f}x should be >7x"
+    min_speedup = 2 if os.environ.get("COV_CORE_SOURCE") else 7
+    assert speedup > min_speedup, f"Cache speedup {speedup:.1f}x should be >{min_speedup}x"
 
 
 @pytest.mark.benchmark

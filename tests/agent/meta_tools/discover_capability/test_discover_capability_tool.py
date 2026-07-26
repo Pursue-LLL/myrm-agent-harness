@@ -36,7 +36,7 @@ def mock_skills():
 @pytest.mark.asyncio
 async def test_create_tool_no_engines():
     tool = create_discover_capability_tool()
-    assert tool.name == "discover_capability_tool"
+    assert tool.name == "skill_search_tool"
     result = await tool.ainvoke({"query": "test"})
     assert "No capabilities found" in result
 

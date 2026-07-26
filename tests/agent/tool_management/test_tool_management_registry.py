@@ -281,17 +281,17 @@ class TestToolLayerFunctions:
 
         with_extended = ToolRegistry()
         for name in (
-            "discover_capability_tool",
+            "skill_search_tool",
             "file_read_tool",
             "memory_search_tool",
             "web_search_tool",
         ):
-            layer = ToolLayer.EXTENDED if name == "discover_capability_tool" else None
+            layer = ToolLayer.EXTENDED if name == "skill_search_tool" else None
             with_extended.register(_make_tool(name), source=ToolSource.USER, layer=layer)
         names = [tool.name for tool in with_extended.resolve()]
 
         assert names[: len(common_prefix)] == common_prefix
-        assert names[len(common_prefix) :] == ["discover_capability_tool"]
+        assert names[len(common_prefix) :] == ["skill_search_tool"]
 
 
 class TestToolRegistryBindMode:

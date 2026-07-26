@@ -14,6 +14,8 @@ Covers:
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
+import subprocess
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -277,3 +279,61 @@ class TestCreateGlobTool:
         ):
             result = await tool_fn.ainvoke({"pattern": "*.json"}, config=runnable_config)
             assert "config.json" in result
+
+    async def test_fallback_respects_gitignore_when_include_ignored_false(
+        self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig
+    ) -> None:
+        if shutil.which("git") is None:
+            pytest.skip("git not installed")
+        subprocess.run(["git", "init"], cwd=workspace, check=True, capture_output=True)
+        (workspace / ".gitignore").write_text("ignored_dir/\nignored.txt\n")
+        (workspace / "ignored.txt").write_text("ignored\n")
+        (workspace / "visible.txt").write_text("visible\n")
+        ignored_dir = workspace / "ignored_dir"
+        ignored_dir.mkdir()
+        (ignored_dir / "nested.txt").write_text("ignored nested\n")
+
+        tool_fn = create_glob_tool()
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+                return_value=mock_executor,
+            ),
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool._has_ripgrep",
+                return_value=False,
+            ),
+        ):
+            result = await tool_fn.ainvoke(
+                {"pattern": "**/*.txt", "include_ignored": False},
+                config=runnable_config,
+            )
+            assert "visible.txt" in result
+            assert "ignored.txt" not in result
+            assert "ignored_dir" not in result
+
+    async def test_fallback_includes_gitignored_when_include_ignored_true(
+        self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig
+    ) -> None:
+        if shutil.which("git") is None:
+            pytest.skip("git not installed")
+        subprocess.run(["git", "init"], cwd=workspace, check=True, capture_output=True)
+        (workspace / ".gitignore").write_text("ignored_only.txt\n")
+        (workspace / "ignored_only.txt").write_text("ignored\n")
+
+        tool_fn = create_glob_tool()
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+                return_value=mock_executor,
+            ),
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool._has_ripgrep",
+                return_value=False,
+            ),
+        ):
+            result = await tool_fn.ainvoke(
+                {"pattern": "**/*.txt", "include_ignored": True},
+                config=runnable_config,
+            )
+            assert "ignored_only.txt" in result

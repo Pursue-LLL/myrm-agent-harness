@@ -68,7 +68,8 @@ def test_import_order_types_then_clarification_works_and_is_single_ssot():
     _run_import_smoke(script)
 
 
-def test_legacy_shim_path_removed_and_unimportable():
+def test_legacy_shim_path_is_reexport_only():
+    """The compatibility shim must re-export from the canonical sub_agents SSOT."""
     legacy_path = (
         _HARNESS_ROOT
         / "src"
@@ -78,6 +79,14 @@ def test_legacy_shim_path_removed_and_unimportable():
         / "clarification"
         / "hitl_tool_policy.py"
     )
-    assert not legacy_path.exists()
-    with pytest.raises(ModuleNotFoundError):
-        __import__("myrm_agent_harness.agent.meta_tools.clarification.hitl_tool_policy")
+    assert legacy_path.exists(), "Compatibility shim should exist for backward compat"
+    mod = __import__(
+        "myrm_agent_harness.agent.meta_tools.clarification.hitl_tool_policy",
+        fromlist=["HitlToolPolicy", "HITL_TOOL_POLICY"],
+    )
+    from myrm_agent_harness.agent.sub_agents.hitl_tool_policy import (
+        HITL_TOOL_POLICY as canonical_policy,
+        HitlToolPolicy as canonical_cls,
+    )
+    assert mod.HitlToolPolicy is canonical_cls
+    assert mod.HITL_TOOL_POLICY is canonical_policy

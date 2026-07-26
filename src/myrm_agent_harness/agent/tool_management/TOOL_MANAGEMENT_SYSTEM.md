@@ -123,7 +123,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `desktop_interact_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_snapshot_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_vision_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
-| `discover_capability_tool` | EXTENDED | user_capability | — | Turn1 when searchable skills exist |
+| `skill_search_tool` | EXTENDED | user_capability | — | Turn1 when searchable skills exist |
 | `image_tool` | EXTENDED | user_capability | image_generation | enabled_builtin_tools: image_generation |
 | `kanban_add_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_attach` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
@@ -137,7 +137,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `render_ui_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
 | `request_answer_user_tool` | EXTENDED | user_capability | answer_tool | enabled_builtin_tools: answer_tool |
 | `send_teammate_message_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
-| `skill_discovery_tool` | EXTENDED | user_capability | — | Turn1 when discovery_backend present |
+| `skill_market_tool` | EXTENDED | user_capability | — | Turn1 when discovery_backend present |
 | `skill_manage_tool` | EXTENDED | user_capability | — | write_backend present |
 | `skill_select_tool` | EXTENDED | user_capability | — | skill_backend present |
 | `subagent_control_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
@@ -192,7 +192,7 @@ python scripts/validate_tool_registry.py --generate-docs  # 刷新 TOOL_COUNT + 
 - 所有 LLM Action Tool → `TURN1`（按 profile 条件装配；MCP 超标整服降级 PTC Skill）
 - `_completion_check`（CompletionGuard）→ `RUNTIME_ONLY`（名称 `_` 前缀自动推断）
 
-**Profile 装配**：EXTENDED 层工具通过 `enabled_builtin_tools` 与运行时 gate 在 Agent 构建时决定是否 Turn1 绑定；MCP 超预算时整服降级为 PTC Skill；存在可搜索技能时挂载 `discover_capability_tool`。
+**Profile 装配**：EXTENDED 层工具通过 `enabled_builtin_tools` 与运行时 gate 在 Agent 构建时决定是否 Turn1 绑定；MCP 超预算时整服降级为 PTC Skill；存在可搜索技能时挂载 `skill_search_tool`。
 
 **命名约束**：不得使用 `deferred_tools`、`discoverable_tools`、`get_deferred_tools()` 等废弃 API 名（CI 门禁见 `validate_tool_registry.py`）。
 

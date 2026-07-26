@@ -74,8 +74,8 @@ glob_tool / grep_tool 登记在 CORE 层，Turn1 与 file 工具一并 bind。�
 |---|--------|------------------:|----------|------|
 | 20 | skill_select_tool | 295 | `harness/agent/meta_tools/skills/select/skill_select_tool.py` | 加载技能 SOP 文档 |
 | 21 | skill_manage_tool | 251 | `harness/agent/meta_tools/skills/manage/skill_manage_tool.py` | 创建/修改/删除技能 |
-| 22 | discover_capability_tool | 238 | `harness/agent/meta_tools/discover_capability/discover_capability_tool.py` | 统一能力发现 |
-| 23 | skill_discovery_tool | 192 | `harness/agent/meta_tools/skills/discovery/skill_discovery_tool.py` | 从外部源安装/卸载技能 | Turn1 when discovery_backend present |
+| 22 | skill_search_tool | 238 | `harness/agent/meta_tools/discover_capability/discover_capability_tool.py` | 统一能力发现 |
+| 23 | skill_market_tool | 192 | `harness/agent/meta_tools/skills/discovery/skill_discovery_tool.py` | 从外部源安装/卸载技能 | Turn1 when discovery_backend present |
 
 ### 4.4 交互工具（harness 提供，按配置加载）
 

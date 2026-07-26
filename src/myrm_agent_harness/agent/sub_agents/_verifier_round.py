@@ -16,6 +16,7 @@ Verifier-only round execution used by Cron post-run delivery assurance and orche
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import time
 from collections.abc import Callable
@@ -158,35 +159,14 @@ async def _execute_verifier_round(
     current_executor = get_executor()
     use_readonly = round_verifier_config.workspace_policy == WorkspacePolicy.READ_ONLY_SANDBOX
 
-    if current_executor:
-        proxy_executor = ReadonlyExecutorProxy(current_executor) if use_readonly else None
-        ctx_mgr = ExecutorContextManager(proxy_executor) if proxy_executor else None
-        if ctx_mgr:
-            with ctx_mgr:
-                verifier_result = await manager.spawn_child(
-                    task_id=verifier_task_id,
-                    agent_type=verifier_type,
-                    task_description=verifier_task_desc,
-                    config=round_verifier_config,
-                    context=context,
-                    tool_registry_getter=verifier_tool_registry_getter,
-                    wait=True,
-                )
-        else:
-            verifier_result = await manager.spawn_child(
-                task_id=verifier_task_id,
-                agent_type=verifier_type,
-                task_description=verifier_task_desc,
-                config=round_verifier_config,
-                context=context,
-                tool_registry_getter=verifier_tool_registry_getter,
-                wait=True,
-            )
-        tracked_executor = proxy_executor or current_executor
-        context["_verifier_has_executed_code"] = getattr(tracked_executor, "has_executed_code", False)
-    else:
-        if use_readonly:
-            logger.warning("[verification] No current executor found, cannot apply READ_ONLY_SANDBOX")
+    proxy_executor: ReadonlyExecutorProxy | None = None
+    if current_executor and use_readonly:
+        proxy_executor = ReadonlyExecutorProxy(current_executor)
+    elif not current_executor and use_readonly:
+        logger.warning("[verification] No current executor found, cannot apply READ_ONLY_SANDBOX")
+
+    ctx_mgr = ExecutorContextManager(proxy_executor) if proxy_executor else contextlib.nullcontext()
+    with ctx_mgr:
         verifier_result = await manager.spawn_child(
             task_id=verifier_task_id,
             agent_type=verifier_type,
@@ -196,6 +176,10 @@ async def _execute_verifier_round(
             tool_registry_getter=verifier_tool_registry_getter,
             wait=True,
         )
+
+    tracked_executor = proxy_executor or current_executor
+    if tracked_executor:
+        context["_verifier_has_executed_code"] = getattr(tracked_executor, "has_executed_code", False)
 
     if isinstance(verifier_result, dict):
         verifier_result = SubAgentResult(

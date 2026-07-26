@@ -73,7 +73,7 @@ class TestDynamicThreshold:
 
     def test_with_actual_bridge_tools(self) -> None:
         bridge = [_make_mock_tool("skill_select_tool", schema_size=200),
-                  _make_mock_tool("discover_capability_tool", schema_size=100)]
+                  _make_mock_tool("skill_search_tool", schema_size=100)]
         threshold = compute_direct_threshold(bridge_tools=bridge)
         expected = estimate_schema_tokens(bridge) * PTC_OVERHEAD_MULTIPLIER
         assert threshold == expected

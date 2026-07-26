@@ -12,7 +12,7 @@
 
 [OUTPUT]
 - create_discover_capability_tool: 创建统一能力发现工具的工厂函数
-- sync_discover_capability_tool: 注册 discover_capability_tool（当有可搜索技能时）
+- sync_discover_capability_tool: 注册 skill_search_tool（当有可搜索技能时）
 - 运行时命中结果以 `<BoundSkills>` XML 包裹
 
 [POS]
@@ -77,7 +77,7 @@ def create_discover_capability_tool(
         engine = None
 
     tool_description = """Search for missing capabilities among skills already available to this agent (bound library + MCP PTC skills).
-NOT for installing new skills from external markets — use `skill_discovery_tool` for that.
+NOT for installing new skills from external markets — use `skill_market_tool` for that.
 
 IMPORTANT: You MUST search here BEFORE declining any user request due to missing capability. Never tell the user you cannot do something without first checking if a skill exists (e.g., drawing, video generation, Github, Jira, etc.).
 
@@ -144,7 +144,7 @@ IMPORTANT: You MUST search here BEFORE declining any user request due to missing
         )
 
     @tool(
-        "discover_capability_tool",
+        "skill_search_tool",
         description=tool_description,
         args_schema=DiscoverCapabilityInput,
     )
@@ -200,7 +200,7 @@ def sync_discover_capability_tool(
 
     discoverable_skills = [s for s in (skills or []) if s.model_invocable]
 
-    registry.remove_tool("discover_capability_tool")
+    registry.remove_tool("skill_search_tool")
 
     if not discoverable_skills:
         return None

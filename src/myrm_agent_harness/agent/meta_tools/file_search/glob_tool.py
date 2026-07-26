@@ -7,6 +7,7 @@
 - pydantic::BaseModel, Field (POS: 参数验证)
 - agent.config.file_io::FileIOConfig (POS: I/O 配置)
 - toolkits.storage.base::StorageProvider (POS: 存储协议/接口)
+- fallback_discovery::collect_candidate_files (POS: 无 ripgrep 时的候选文件发现与 git-aware ignore 策略)
 
 [OUTPUT]
 - GlobInput: Glob 工具输入参数模型
@@ -32,6 +33,7 @@ from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
 from myrm_agent_harness.toolkits.code_execution.executors.base import require_executor
 from myrm_agent_harness.utils.errors import ToolError
 
+from .fallback_discovery import collect_candidate_files
 from .path_hint import format_path_not_found_hint, suggest_similar_paths
 from .skill_path_filter import get_disabled_skill_roots, is_under_disabled_skill_root
 
@@ -210,19 +212,19 @@ def create_glob_tool(io_config: FileIOConfig | None = None) -> BaseTool:
                         proc.terminate()
 
             if not used_ripgrep:
-                # Fallback to Python rglob
+                # Fallback to Python discovery with bounded candidate scan.
                 try:
-
-                    def _do_rglob():
-                        fallback_files = []
-                        for match in search_path_obj.rglob(pattern):
-                            if match.is_file():
-                                fallback_files.append(match)
-                                if len(fallback_files) >= io_cfg.max_search_results:
-                                    break
-                        return fallback_files
-
-                    files = await asyncio.to_thread(_do_rglob)
+                    if "\x00" in pattern:
+                        raise ValueError("NUL byte is not allowed in glob patterns")
+                    _ = Path("validation.txt").match(pattern)
+                    files = await asyncio.to_thread(
+                        collect_candidate_files,
+                        search_root=search_path_obj,
+                        file_pattern=pattern,
+                        max_files=io_cfg.max_search_results,
+                        include_hidden=True,
+                        include_ignored=include_ignored,
+                    )
 
                 except (ValueError, OSError) as e:
                     # 无效的 pattern（如包含非法字符）

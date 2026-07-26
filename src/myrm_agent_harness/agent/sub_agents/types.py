@@ -70,7 +70,7 @@ class DelegationCapabilityManifest:
         privileged_skill_tools = frozenset(
             {
                 "skill_manage_tool",
-                "skill_discovery_tool",
+                "skill_market_tool",
             }
         )
         legacy_delegation_tools = frozenset(

@@ -103,7 +103,7 @@ class TestFileSearchEager:
         )
         sync_discover_capability_tool(registry, skills=[sample_skill])
         discover = next(
-            t for t in registry.resolve() if t.name == "discover_capability_tool"
+            t for t in registry.resolve() if t.name == "skill_search_tool"
         )
         description = discover.description or ""
         assert "glob_tool" not in description

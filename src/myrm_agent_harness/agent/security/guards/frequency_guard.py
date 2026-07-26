@@ -49,8 +49,8 @@ _DEFAULT_EXEMPTED_TOOLS: frozenset[str] = frozenset(
         "memory_manage_tool",
         # Skill system (high-frequency readonly)
         "skill_select_tool",
-        "skill_discovery_tool",
-        "discover_capability_tool",
+        "skill_market_tool",
+        "skill_search_tool",
         # Knowledge base (readonly)
         "knowledge_tool",
         # UI rendering (pure display)

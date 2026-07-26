@@ -1092,7 +1092,7 @@ STATIC_SKILL_SLUGS: list[str] = [
    - **适用场景**：高频使用、对当前任务至关重要的技能。
 
 2. **L2 外围技能 (Peripheral Skills)**：
-   - **机制**：仅将技能的 `[名称: 简短描述]` 注入到 `skill_select_tool` 的提示词中（最多 50 个），其余技能通过 `discover_capability_tool` 统一搜索网关发现。
+   - **机制**：仅将技能的 `[名称: 简短描述]` 注入到 `skill_select_tool` 的提示词中（最多 50 个），其余技能通过 `skill_search_tool` 统一搜索网关发现。
    - **特点**：极低 Token 消耗，0 认知负担。LLM 知道其存在，需要时通过 `skill_select_tool` 渐进式加载完整 SOP。
    - **适用场景**：低频使用、长尾技能。
 

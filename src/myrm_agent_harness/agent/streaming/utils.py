@@ -163,7 +163,7 @@ def validate_context(context: dict[str, object] | None, context_schema: type | N
 
 
 # Meta tools intentionally use stable names without the _tool suffix (LLM-facing contract).
-_META_TOOL_NAME_EXEMPT = frozenset({"discover_capability_tool"})
+_META_TOOL_NAME_EXEMPT = frozenset({"skill_search_tool"})
 
 
 def normalize_tool_names(tools: list[BaseTool]) -> list[BaseTool]:

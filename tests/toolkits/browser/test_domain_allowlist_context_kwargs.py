@@ -23,7 +23,13 @@ async def test_context_kwargs_passes_domain_allowlist() -> None:
 
     install_domain_filter_called = False
 
-    async def mock_install(ctx: object, al: object, *, resource_block: object | None = None) -> None:
+    async def mock_install(
+        ctx: object,
+        al: object,
+        *,
+        domain_blocklist: object | None = None,
+        resource_block: object | None = None,
+    ) -> None:
         nonlocal install_domain_filter_called
         install_domain_filter_called = True
         assert ctx is mock_context
@@ -54,7 +60,13 @@ async def test_context_kwargs_no_domain_allowlist() -> None:
 
     install_domain_filter_called = False
 
-    async def mock_install(ctx: object, al: object, *, resource_block: object | None = None) -> None:
+    async def mock_install(
+        ctx: object,
+        al: object,
+        *,
+        domain_blocklist: object | None = None,
+        resource_block: object | None = None,
+    ) -> None:
         nonlocal install_domain_filter_called
         install_domain_filter_called = True
 

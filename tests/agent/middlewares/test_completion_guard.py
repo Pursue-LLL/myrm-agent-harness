@@ -1360,3 +1360,121 @@ class TestIndependentRerun:
 
         assert result is not None
         assert COMPLETION_CHECK_TOOL_NAME in str(result)
+
+
+class TestExtractLatestHumanText:
+    """Tests for _extract_latest_human_text covering multimodal content."""
+
+    def test_string_content(self) -> None:
+        from myrm_agent_harness.agent.middlewares.completion_guard import (
+            _extract_latest_human_text,
+        )
+
+        messages = [HumanMessage(content="What is the latest news?")]
+        assert _extract_latest_human_text(messages) == "What is the latest news?"
+
+    def test_multimodal_list_content(self) -> None:
+        from myrm_agent_harness.agent.middlewares.completion_guard import (
+            _extract_latest_human_text,
+        )
+
+        messages = [
+            HumanMessage(
+                content=[
+                    {"type": "text", "text": "Describe this image"},
+                    {"type": "image_url", "image_url": {"url": "http://example.com/img.png"}},
+                ]
+            )
+        ]
+        assert _extract_latest_human_text(messages) == "Describe this image"
+
+    def test_multimodal_list_multiple_text_parts(self) -> None:
+        from myrm_agent_harness.agent.middlewares.completion_guard import (
+            _extract_latest_human_text,
+        )
+
+        messages = [
+            HumanMessage(
+                content=[
+                    {"type": "text", "text": "Hello"},
+                    {"type": "text", "text": "world"},
+                ]
+            )
+        ]
+        assert _extract_latest_human_text(messages) == "Hello world"
+
+    def test_empty_string_content_skipped(self) -> None:
+        from myrm_agent_harness.agent.middlewares.completion_guard import (
+            _extract_latest_human_text,
+        )
+
+        messages = [
+            HumanMessage(content="   "),
+            HumanMessage(content="Actual question"),
+        ]
+        assert _extract_latest_human_text(messages) == "Actual question"
+
+    def test_empty_list_returns_none(self) -> None:
+        from myrm_agent_harness.agent.middlewares.completion_guard import (
+            _extract_latest_human_text,
+        )
+
+        assert _extract_latest_human_text([]) is None
+
+    def test_no_human_messages(self) -> None:
+        from myrm_agent_harness.agent.middlewares.completion_guard import (
+            _extract_latest_human_text,
+        )
+
+        messages = [AIMessage(content="I am AI")]
+        assert _extract_latest_human_text(messages) is None
+
+
+class TestHasExternalEvidence:
+    """Tests for _has_external_evidence helper."""
+
+    def test_returns_true_for_successful_evidence_tool(self) -> None:
+        from myrm_agent_harness.agent.middlewares.completion_guard import (
+            _has_external_evidence,
+        )
+
+        record = CallRecord(
+            tool_name="web_search_tool",
+            args_hash="s1",
+            args={"query": "test"},
+            success_level=SuccessLevel.FULL_SUCCESS,
+        )
+        assert _has_external_evidence([record]) is True
+
+    def test_returns_false_for_failed_evidence_tool(self) -> None:
+        from myrm_agent_harness.agent.middlewares.completion_guard import (
+            _has_external_evidence,
+        )
+
+        record = CallRecord(
+            tool_name="web_search_tool",
+            args_hash="s1",
+            args={"query": "test"},
+            success_level=SuccessLevel.FAILURE,
+        )
+        assert _has_external_evidence([record]) is False
+
+    def test_returns_false_for_non_evidence_tool(self) -> None:
+        from myrm_agent_harness.agent.middlewares.completion_guard import (
+            _has_external_evidence,
+        )
+
+        record = CallRecord(
+            tool_name="file_read_tool",
+            args_hash="r1",
+            args={"path": "/tmp/x"},
+            success_level=SuccessLevel.FULL_SUCCESS,
+        )
+        assert _has_external_evidence([record]) is False
+
+    def test_returns_false_for_empty_records(self) -> None:
+        from myrm_agent_harness.agent.middlewares.completion_guard import (
+            _has_external_evidence,
+        )
+
+        assert _has_external_evidence([]) is False

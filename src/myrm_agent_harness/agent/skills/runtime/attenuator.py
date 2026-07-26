@@ -32,7 +32,7 @@ READ_ONLY_TOOLS: frozenset[str] = frozenset(
         "echo_tool",
         "json_tool",
         "skill_list_tool",
-        "discover_capability_tool",
+        "skill_search_tool",
         "skill_select_tool",
         "_completion_check",
     }

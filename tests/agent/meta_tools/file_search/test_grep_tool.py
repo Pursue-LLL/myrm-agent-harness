@@ -196,6 +196,42 @@ class TestRipgrepSearch:
         results = await _ripgrep_search("NONEXISTENT_STRING_12345", workspace, "**/*", False, 0, 100)
         assert results == []
 
+    async def test_nonzero_returncode_raises_runtime_error_without_name_error(self, workspace: Path) -> None:
+        class _FakeStdout:
+            async def readline(self) -> bytes:
+                return b""
+
+        class _FakeStderr:
+            def __init__(self) -> None:
+                self._sent = False
+
+            async def read(self, _: int) -> bytes:
+                if self._sent:
+                    return b""
+                self._sent = True
+                return b"simulated error"
+
+        class _FakeProcess:
+            def __init__(self) -> None:
+                self.stdout = _FakeStdout()
+                self.stderr = _FakeStderr()
+                self.returncode = 2
+                self.terminated = False
+
+            async def wait(self) -> int:
+                return self.returncode
+
+            def terminate(self) -> None:
+                self.terminated = True
+
+        fake_proc = _FakeProcess()
+        with patch(
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.asyncio.create_subprocess_exec",
+            return_value=fake_proc,
+        ):
+            with pytest.raises(RuntimeError, match="ripgrep failed"):
+                await _ripgrep_search("pattern", workspace, "**/*", False, 0, 10)
+
 
 # ---------------------------------------------------------------------------
 # Tests: create_grep_tool integration
@@ -518,6 +554,49 @@ class TestPythonFallback:
                 config=runnable_config,
             )
             assert "No matches found" in result
+
+    async def test_fallback_skips_hidden_files_by_default(
+        self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig
+    ) -> None:
+        (workspace / ".hidden.py").write_text("hidden_token = True\n")
+        tool_fn = create_grep_tool()
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+                return_value=mock_executor,
+            ),
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool._has_ripgrep",
+                return_value=False,
+            ),
+        ):
+            result = await tool_fn.ainvoke(
+                {"pattern": "hidden_token"},
+                config=runnable_config,
+            )
+            assert ".hidden.py" not in result
+
+    async def test_fallback_allows_explicit_hidden_file_path(
+        self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig
+    ) -> None:
+        (workspace / ".hidden_explicit.py").write_text("explicit_hidden_token = True\n")
+        tool_fn = create_grep_tool()
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+                return_value=mock_executor,
+            ),
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool._has_ripgrep",
+                return_value=False,
+            ),
+        ):
+            result = await tool_fn.ainvoke(
+                {"pattern": "explicit_hidden_token", "path": ".hidden_explicit.py"},
+                config=runnable_config,
+            )
+            assert "Found 1 match(es)" in result
+            assert "No matches found" not in result
 
     async def test_fallback_invalid_file_pattern(
         self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig

@@ -112,7 +112,7 @@ async def execute_dag_plan(
 
             if progress_sink:
                 progress_sink(step_id, "in_progress", f"Starting: {desc}")
-            logger.info(f"[DAG] Starting step {step_id}: {desc}")
+            logger.info("[DAG] Starting step %s: %s", step_id, desc)
 
             # Prepare context with previous results based on dependencies
             step_context = context.copy()
@@ -185,7 +185,7 @@ async def execute_dag_plan(
                         await asyncio.sleep(0.01)  # Exponential backoff (short for tests)
 
                 except TimeoutError:
-                    logger.warning(f"[DAG] Timeout in step {step_id} on attempt {attempt + 1}/{max_node_retries}")
+                    logger.warning("[DAG] Timeout in step %s on attempt %d/%d", step_id, attempt + 1, max_node_retries)
                     result = SubAgentResult(
                         success=False,
                         task_id=f"dag-{step_id}",
@@ -248,7 +248,7 @@ async def execute_dag_plan(
                     yielded_checkpoints.pop(step_id, None)
                     if progress_sink:
                         progress_sink(step_id, "success", f"Completed: {desc}")
-                    logger.info(f"[DAG] Completed step {step_id}")
+                    logger.info("[DAG] Completed step %s", step_id)
                 else:
                     if hasattr(plan, "add_error"):
                         plan.add_error("DAGExecutionError", result.error, step_id=step_id)
@@ -258,13 +258,13 @@ async def execute_dag_plan(
                             step.status = "skipped"
                         if progress_sink:
                             progress_sink(step_id, "warning", f"Non-critical step failed (skipped): {result.error}")
-                        logger.warning(f"[DAG] Optional step {step_id} failed (skipped): {result.error}")
+                        logger.warning("[DAG] Optional step %s failed (skipped): %s", step_id, result.error)
                     else:
                         if hasattr(step, "status"):
                             step.status = "failed"
                         if progress_sink:
                             progress_sink(step_id, "error", f"Failed: {result.error}")
-                        logger.error(f"[DAG] Failed step {step_id}: {result.error}")
+                        logger.error("[DAG] Failed step %s: %s", step_id, result.error)
 
             running_tasks.remove(step_id)
 
@@ -302,7 +302,7 @@ async def execute_dag_plan(
                             tg._bg_tasks.add(_bg_task)
                             _bg_task.add_done_callback(tg._bg_tasks.discard)
                     except Exception as e:
-                        logger.error(f"[DAG] Failed to create task for step {step_id}: {e}")
+                        logger.error("[DAG] Failed to create task for step %s: %s", step_id, e)
                         running_tasks.discard(step_id)
                         if hasattr(plan, "add_error"):
                             plan.add_error("DAGExecutionError", str(e), step_id=step_id)
@@ -319,7 +319,7 @@ async def execute_dag_plan(
     except Exception as e:
         # In tests, the mock might not have all the methods, causing an exception
         # We catch it here so we can still return the partial results
-        logger.error(f"[DAG] TaskGroup failed: {e}")
+        logger.error("[DAG] TaskGroup failed: %s", e)
         # If we failed to even start the TaskGroup, we still want to return what we have
         pass
 

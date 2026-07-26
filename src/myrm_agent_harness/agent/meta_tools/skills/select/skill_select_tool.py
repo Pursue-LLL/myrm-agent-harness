@@ -76,7 +76,7 @@ def create_select_skill_tool(
     if hidden_skill_count > 0:
         search_hint = (
             f"\n {hidden_skill_count} more skills are hidden to save context. "
-            f'Use `discover_capability_tool` (query="*") to find them.\n'
+            f'Use `skill_search_tool` (query="*") to find them.\n'
         )
 
     evolution_rules = ""

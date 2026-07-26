@@ -45,8 +45,8 @@ class TestBuiltinToolNames:
         assert "memory_save_tool" in BUILTIN_TOOL_NAMES
         assert "memory_manage_tool" in BUILTIN_TOOL_NAMES
         assert "skill_select_tool" in BUILTIN_TOOL_NAMES
-        assert "skill_discovery_tool" in BUILTIN_TOOL_NAMES
-        assert "discover_capability_tool" in BUILTIN_TOOL_NAMES
+        assert "skill_market_tool" in BUILTIN_TOOL_NAMES
+        assert "skill_search_tool" in BUILTIN_TOOL_NAMES
         assert "request_answer_user_tool" in BUILTIN_TOOL_NAMES
         assert "render_ui_tool" in BUILTIN_TOOL_NAMES
 
@@ -80,7 +80,7 @@ class TestResolvePermissionType:
         assert resolve_permission_type("skill_select_tool") == "skill_select_tool"
         assert resolve_permission_type("request_answer_user_tool") == "request_answer_user_tool"
         assert resolve_permission_type("render_ui_tool") == "render_ui_tool"
-        assert resolve_permission_type("discover_capability_tool") == "discover_capability_tool"
+        assert resolve_permission_type("skill_search_tool") == "skill_search_tool"
 
     def test_mapped_agent_tools_return_permission_type(self):
         assert resolve_permission_type("delegate_to_agent_tool") == "delegate_agent"
@@ -190,7 +190,7 @@ class TestSafetyMetadata:
             assert meta.is_concurrent_safe is True
 
     def test_skill_search_tools_declared_safe(self):
-        for tool in ("discover_capability_tool", "skill_discovery_tool"):
+        for tool in ("skill_search_tool", "skill_market_tool"):
             meta = resolve_safety_metadata(tool)
             assert meta.is_read_only is True
             assert meta.is_concurrent_safe is True

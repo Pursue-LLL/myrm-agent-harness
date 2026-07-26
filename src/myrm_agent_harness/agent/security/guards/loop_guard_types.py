@@ -178,8 +178,8 @@ TOOL_SEMANTIC_MAP: dict[str, ToolGroup] = {
     "browser_manage_tool": ToolGroup.BROWSER,
     "delegate_task_tool": ToolGroup.EXECUTE,
     "skill_select_tool": ToolGroup.SEARCH,
-    "discover_capability_tool": ToolGroup.SEARCH,
-    "skill_discovery_tool": ToolGroup.SEARCH,
+    "skill_search_tool": ToolGroup.SEARCH,
+    "skill_market_tool": ToolGroup.SEARCH,
     "_completion_check": ToolGroup.OTHER,
 }
 

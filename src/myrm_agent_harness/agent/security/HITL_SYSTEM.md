@@ -35,19 +35,6 @@
 - 单工具：1次interrupt → 1次决策
 - 3个工具：1次interrupt → 1次决策（而非3次打断）
 
-### 4. 高风险动作二次确认（可配置）
-当 `SecurityConfig.high_risk_double_confirm_enabled=True` 时，批量审批中的高风险动作（如高风险 shell/code 执行、delegate、高风险 MCP 调用）在首轮 approve 后会触发第二次 `interrupt()` 进行最终确认。
-
-**实现机制**（`ToolApprovalMiddleware`）：
-- 首轮批量审批后，对 `approve/edit` 决策逐项评估风险
-- 仅对高风险动作构建第二批 payload（不影响低风险动作）
-- 二次确认 payload 强制 `allowedDecisions=["approve","reject"]`
-- `extensions.secondConfirm=true` + `extensions.approval.phase="high_risk_final_confirm"` 供前端识别
-
-**体验目标**：
-- 不增加低风险操作摩擦
-- 对高风险动作增加“最后一道闸”，降低误操作成本
-
 ### 3. 持久化 Allowlist
 "Always Allow" 决策存储到数据库（`user_tool_allowlist` 表），跨重启、跨会话持久有效。
 
@@ -99,8 +86,7 @@ interrupt({
             "requestId": uuid,
             "sessionKey": "channel:chat_id",
             "batchSize": 3  # 批量时添加
-        },
-        "secondConfirm": true  # optional, high-risk final confirmation phase
+        }
     }
 })
 ```
@@ -223,8 +209,6 @@ class ToolApprovalMiddleware(AgentMiddleware):
             revised_calls, messages = await self._apply_approval_decisions(
                 batch_response["decisions"], last_ai_msg, auto_denied, pending, indices, user_id
             )
-            # 4.5 高风险二次确认（仅在开关开启且命中高风险动作时触发）
-            batch_response["decisions"] = self._maybe_run_high_risk_second_confirmation(...)
         
         return {"messages": [last_ai_msg, *messages]}
     

@@ -106,8 +106,8 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
         "memory_save_tool",
         "memory_manage_tool",
         "skill_select_tool",
-        "skill_discovery_tool",
-        "discover_capability_tool",
+        "skill_market_tool",
+        "skill_search_tool",
         "browser_interact_tool",
         "browser_manage_tool",
         "request_answer_user_tool",
@@ -253,7 +253,7 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
     "memory_search_tool": ["query"],
     "memory_manage_tool": ["action"],
     "skill_select_tool": ["skill_ids"],
-    "skill_discovery_tool": ["query"],
+    "skill_market_tool": ["query"],
     "desktop_snapshot_tool": ["scope", "window_title", "include_screenshot"],
     "desktop_interact_tool": ["ref", "action", "text"],
     "desktop_vision_tool": [
@@ -468,10 +468,10 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "todo_write": SafetyMetadata(
         is_read_only=False, is_concurrent_safe=False, is_idempotent=False
     ),
-    "discover_capability_tool": SafetyMetadata(
+    "skill_search_tool": SafetyMetadata(
         is_read_only=True, is_concurrent_safe=True, is_idempotent=True
     ),
-    "skill_discovery_tool": SafetyMetadata(
+    "skill_market_tool": SafetyMetadata(
         is_read_only=True, is_concurrent_safe=True, is_idempotent=True
     ),
     "skill_select_tool": SafetyMetadata(

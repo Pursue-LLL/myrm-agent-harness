@@ -17,7 +17,7 @@ async def test_sync_registers_discover_when_skills_present() -> None:
     registry = ToolRegistry()
     skills = [SkillMetadata(name="github_pr", description="GitHub PR operations")]
     sync_discover_capability_tool(registry, skills=skills)
-    assert registry.has_tool("discover_capability_tool")
+    assert registry.has_tool("skill_search_tool")
 
 
 @pytest.mark.asyncio
@@ -25,7 +25,7 @@ async def test_sync_does_not_register_discover_when_no_skills() -> None:
     """discover_capability_tool is NOT registered when no searchable skills."""
     registry = ToolRegistry()
     sync_discover_capability_tool(registry)
-    assert not registry.has_tool("discover_capability_tool")
+    assert not registry.has_tool("skill_search_tool")
 
 
 @pytest.mark.asyncio
@@ -34,7 +34,7 @@ async def test_sync_removes_stale_discover_tool() -> None:
     registry = ToolRegistry()
     skills = [SkillMetadata(name="github_pr", description="GitHub PR operations")]
     sync_discover_capability_tool(registry, skills=skills)
-    assert registry.has_tool("discover_capability_tool")
+    assert registry.has_tool("skill_search_tool")
 
     sync_discover_capability_tool(registry, skills=[])
-    assert not registry.has_tool("discover_capability_tool")
+    assert not registry.has_tool("skill_search_tool")

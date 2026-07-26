@@ -120,12 +120,12 @@ TOOL_SUGGESTIONS: dict[str, str] = {
     ),
     "skill_select_tool": (
         "Try: (1) different skill_id from the available list, "
-        "(2) use 'discover_capability_tool' to find relevant skills, "
+        "(2) use 'skill_search_tool' to find relevant skills, "
         "(3) verify skill parameters match task requirements, "
         "(4) check if skill description aligns with current goal, "
         "or (5) use direct tools (file_read, bash, web_search) instead of skills."
     ),
-    "discover_capability_tool": (
+    "skill_search_tool": (
         "Try: (1) different search keywords or phrasing, "
         "(2) broader query (remove specific technical terms), "
         "(3) more specific query (add context or domain), "

@@ -1,7 +1,7 @@
 """Registry ↔ SkillAgent wiring integration for skill tool boundary descriptions.
 
 Verifies get_meta_tools + sync_discover_capability_tool and SkillAgent._build_tools
-expose discover_capability_tool and skill_discovery_tool with mutual cross-references.
+expose skill_search_tool and skill_market_tool with mutual cross-references.
 Key path uses real ToolRegistry and stub protocol backends (no MagicMock on registry wiring).
 """
 
@@ -19,8 +19,8 @@ from myrm_agent_harness.agent.skill_agent import SkillAgent
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry, ToolSource
 from myrm_agent_harness.backends.skills.types import SkillMetadata
 
-_DISCOVER_TOOL = "discover_capability_tool"
-_MARKETPLACE_TOOL = "skill_discovery_tool"
+_DISCOVER_TOOL = "skill_search_tool"
+_MARKETPLACE_TOOL = "skill_market_tool"
 
 
 class _StubSkillBackend:
@@ -44,7 +44,7 @@ class _StubSkillBackend:
 
 
 class _StubDiscoveryBackend:
-    """Minimal discovery backend so skill_discovery_tool mounts Turn1 eager."""
+    """Minimal discovery backend so skill_market_tool mounts Turn1 eager."""
 
     async def install_from_url(self, url: str, user_id: str) -> dict[str, object]:
         return {"url": url, "user_id": user_id}
@@ -139,7 +139,7 @@ async def test_skill_agent_build_tools_wires_boundary_descriptions() -> None:
 
 @pytest.mark.integration
 def test_registry_omits_marketplace_tool_without_discovery_backend() -> None:
-    """skill_discovery_tool mounts only when discovery_backend is provided."""
+    """skill_market_tool mounts only when discovery_backend is provided."""
     skills = [_sample_skill()]
     registry = ToolRegistry()
     meta_tools = get_meta_tools(
@@ -161,7 +161,7 @@ def test_registry_omits_marketplace_tool_without_discovery_backend() -> None:
 
 @pytest.mark.integration
 def test_registry_omits_discover_tool_when_no_searchable_skills() -> None:
-    """discover_capability_tool is absent when sync receives no model_invocable skills."""
+    """skill_search_tool is absent when sync receives no model_invocable skills."""
     registry = ToolRegistry()
     meta_tools = get_meta_tools(
         [],

@@ -235,7 +235,7 @@ tools:
   - web_search_tool
 disallowed_tools:
   - skill_manage_tool
-  - skill_discovery_tool
+  - skill_market_tool
 system_prompt: |
   You are a test agent.
 config: {}
@@ -247,7 +247,7 @@ config: {}
         config = loader.load_from_yaml(config_file)
 
         assert config is not None
-        assert config.disallowed_tools == frozenset({"skill_manage_tool", "skill_discovery_tool"})
+        assert config.disallowed_tools == frozenset({"skill_manage_tool", "skill_market_tool"})
 
     def test_load_model_and_display_name(self, temp_config_dir):
         """Test that model and display_name fields are parsed from YAML."""
@@ -512,7 +512,7 @@ class TestCodingYamlIntegration:
 
         assert config is not None
         assert "skill_manage_tool" in config.disallowed_tools
-        assert "skill_discovery_tool" in config.disallowed_tools
+        assert "skill_market_tool" in config.disallowed_tools
 
     def test_coding_yaml_uses_fork_context(self, coding_yaml_path):
         """Test that coding preset uses fork context mode for cache preservation."""
@@ -574,7 +574,7 @@ class TestDeepAuditYamlIntegration:
 
         assert config is not None
         assert set(config.tools) == {"file_read_tool", "grep_tool", "glob_tool", "bash_code_execute_tool"}
-        write_tools = {"file_write_tool", "file_edit_tool", "skill_manage_tool", "skill_discovery_tool", "delegate_to_agent_tool"}
+        write_tools = {"file_write_tool", "file_edit_tool", "skill_manage_tool", "skill_market_tool", "delegate_to_agent_tool"}
         assert write_tools.issubset(config.disallowed_tools)
 
     def test_deep_audit_no_delegation(self, deep_audit_yaml_path):
