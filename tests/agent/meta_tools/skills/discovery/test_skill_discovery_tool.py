@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.skills.market.skill_discovery_tool import (
+from myrm_agent_harness.agent.meta_tools.skills.market.skill_market_tool import (
     create_skill_market_tool,
 )
 from myrm_agent_harness.backends.skills.market_protocols import (

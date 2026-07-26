@@ -61,7 +61,7 @@ It contains two functions:
    Call at the start of each major phase so the user can track progress.
 
 IMPORTANT RULES:
-1. Use `concurrent.futures.ThreadPoolExecutor` with max_workers <= 8 for parallelism.
+1. Use `concurrent.futures.ThreadPoolExecutor` with max_workers <= 5 for parallelism.
 2. Wrap EACH spawn_subagent call in try/except to isolate failures:
    ```
    try:
@@ -78,7 +78,27 @@ pass readonly=True to prevent the sub-agent from modifying files.
 `myrm_tools.notify("Phase 1: Collecting data", step_index=1, total_steps=3, category="data")`. \
 This keeps the user informed of progress. Do NOT call it for every sub-agent — only for phase transitions.
 
-Example Script:
+PATTERN SELECTION — choose the right orchestration shape:
+- BARRIER (fan-out → wait-all → next): Use when all results are needed before proceeding. \
+Example: "Research 5 topics, then write a comparison report."
+- PIPELINE (stage₁ output feeds stage₂): Use when later stages depend on earlier results. \
+Example: "Find all API endpoints, then audit each one for security issues."
+- DIAMOND (fan-out → fan-in synthesis): Use when independent branches converge into one summary. \
+Example: "Analyze frontend AND backend in parallel, then produce a unified architecture doc."
+
+DATA TRANSFORMATION — NEVER spawn a sub-agent for:
+- Filtering, sorting, deduplication, flattening lists
+- String formatting, JSON parsing, dict merging
+- Any operation achievable with Python builtins (list comprehension, set(), sorted(), etc.)
+These are trivial in Python. Spawning an agent for them wastes time and budget.
+
+PARTIAL FAILURE — when some sub-agents fail:
+- Continue execution; do NOT abort the entire workflow.
+- Collect all successful results and include them in the final output.
+- Report failures separately with task_id and error message.
+- The final JSON must always be printed regardless of partial failures.
+
+Example — Barrier Pattern (parallel research):
 ```python
 import concurrent.futures
 import myrm_tools
@@ -103,13 +123,55 @@ tasks = [
 
 myrm_tools.notify("Analyzing codebase", step_index=1, total_steps=2, category="analysis")
 
-with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
     futures = [executor.submit(run_task, tid, desc, ro) for tid, desc, ro in tasks]
     results = [f.result() for f in concurrent.futures.as_completed(futures)]
 
 myrm_tools.notify("Generating summary", step_index=2, total_steps=2, category="summary")
 
 print(json.dumps(results, indent=2, ensure_ascii=False))
+```
+
+Example — Pipeline Pattern (sequential dependency):
+```python
+import concurrent.futures
+import myrm_tools
+import json
+
+def run_task(task_id, description, readonly=False):
+    try:
+        result = myrm_tools.spawn_subagent(
+            task_id=task_id,
+            agent_type="generalPurpose",
+            task_description=description,
+            readonly=readonly,
+        )
+    except Exception as e:
+        result = {"success": False, "error": str(e)}
+    return {"task_id": task_id, **result}
+
+# Stage 1: Discover
+myrm_tools.notify("Discovering endpoints", step_index=1, total_steps=3, category="discovery")
+discovery = run_task("discover", "List all REST API endpoints in the project with their HTTP methods.", True)
+
+# Stage 2: Fan-out audit (uses Stage 1 output)
+endpoints = [e.strip() for e in (discovery.get("result") or "").split("\\n") if e.strip()]
+myrm_tools.notify("Auditing endpoints", step_index=2, total_steps=3, category="audit")
+
+with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    futures = [
+        executor.submit(run_task, f"audit_{i}", f"Security audit this endpoint: {ep}", True)
+        for i, ep in enumerate(endpoints[:10])
+    ]
+    audit_results = [f.result() for f in concurrent.futures.as_completed(futures)]
+
+# Stage 3: Synthesize (pure Python, no agent needed)
+myrm_tools.notify("Synthesizing report", step_index=3, total_steps=3, category="synthesis")
+successful = [r for r in audit_results if r.get("success")]
+failed = [r for r in audit_results if not r.get("success")]
+
+output = {"discovery": discovery, "audits": successful, "failures": failed}
+print(json.dumps(output, indent=2, ensure_ascii=False))
 ```
 
 Write ONLY the Python script. Do not include markdown formatting or explanations. \

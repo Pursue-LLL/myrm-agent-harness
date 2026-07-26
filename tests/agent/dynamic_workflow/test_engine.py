@@ -6,7 +6,33 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from langchain_core.messages import AIMessage
 
-from myrm_agent_harness.agent.dynamic_workflow import run_dynamic_workflow_stream
+from myrm_agent_harness.agent.dynamic_workflow import (
+    ORCHESTRATOR_PROMPT,
+    run_dynamic_workflow_stream,
+)
+from myrm_agent_harness.agent.parallel.config import DEFAULT_MAX_BATCH_PARALLEL
+
+
+class TestOrchestratorPromptConsistency:
+    """Guard: ORCHESTRATOR_PROMPT constraints stay aligned with runtime config."""
+
+    def test_max_workers_matches_config(self):
+        assert f"max_workers <= {DEFAULT_MAX_BATCH_PARALLEL}" in ORCHESTRATOR_PROMPT
+
+    def test_contains_pattern_selection(self):
+        assert "PATTERN SELECTION" in ORCHESTRATOR_PROMPT
+
+    def test_contains_data_transformation_rule(self):
+        assert "NEVER spawn a sub-agent for" in ORCHESTRATOR_PROMPT
+
+    def test_contains_partial_failure_guidance(self):
+        assert "PARTIAL FAILURE" in ORCHESTRATOR_PROMPT
+
+    def test_barrier_example_present(self):
+        assert "Barrier Pattern" in ORCHESTRATOR_PROMPT
+
+    def test_pipeline_example_present(self):
+        assert "Pipeline Pattern" in ORCHESTRATOR_PROMPT
 
 
 class FakeLLM:

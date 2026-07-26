@@ -21,7 +21,10 @@ Dynamic Workflow Engine (__init__.py)
   - cancel_token checked at each phase boundary
        ↓
 LLM generates Python Script (ORCHESTRATOR_PROMPT)
+  - Pattern selection guide (barrier/pipeline/diamond)
+  - Data transformation anti-delegation rules
   - Error isolation templates (try/except per spawn)
+  - Partial failure handling guidance
   - Structured JSON output
        ↓
 PTC Sandbox Execution
