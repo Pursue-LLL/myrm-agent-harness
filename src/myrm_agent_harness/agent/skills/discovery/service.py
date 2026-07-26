@@ -110,6 +110,25 @@ class BaseSkillDiscoveryService:
         self._zip_installer = ZipInstaller()
         self._search_cache: dict[str, tuple[float, list[SkillSearchResult]]] = {}
 
+    def register_source(self, source: SkillSource) -> None:
+        """Register a custom skill source for search aggregation.
+
+        Idempotent: skips if a source with the same source_name already exists.
+        """
+        if any(s.source_name == source.source_name for s in self._sources):
+            return
+        self._sources.append(source)
+        logger.info("Registered custom skill source: %s", source.source_name)
+
+    def unregister_source(self, source_name: str) -> bool:
+        """Remove a custom skill source by name. Returns True if removed."""
+        before = len(self._sources)
+        self._sources = [s for s in self._sources if s.source_name != source_name]
+        removed = len(self._sources) < before
+        if removed:
+            logger.info("Unregistered skill source: %s", source_name)
+        return removed
+
     async def search(
         self, query: str, limit: int = 30, installed_versions_map: dict[str, str] | None = None
     ) -> list[EnrichedSearchResult]:

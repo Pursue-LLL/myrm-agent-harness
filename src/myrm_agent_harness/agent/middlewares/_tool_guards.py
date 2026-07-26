@@ -34,6 +34,7 @@ from langgraph.prebuilt.tool_node import ToolCallRequest
 from myrm_agent_harness.agent.middlewares._session_context import (
     get_terminal_errors,
 )
+from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
 from myrm_agent_harness.agent.middlewares._tool_helpers import (
     apply_validation_result,
     build_hook_failure_result,
@@ -165,7 +166,7 @@ async def run_pre_call_guards(
             tool_name,
             tool_call_id,
             f"Blocked by hook: {pre_hook_result.reason}",
-            error_category="hook_blocked",
+            error_category=ToolErrorCategory.HOOK_BLOCKED,
         )
     if pre_hook_result.updated_input is not None:
         tool_args.clear()
@@ -186,7 +187,7 @@ async def run_pre_call_guards(
         msg = f"E-Stop active ({estop_state.level}): all tool execution is suspended. Reason: {estop_state.reason}"
         if estop_state.level == EStopLevel.KILL_ALL:
             msg = f"EMERGENCY: {msg}"
-        return make_error_msg(tool_name, tool_call_id, msg, error_category="estop")
+        return make_error_msg(tool_name, tool_call_id, msg, error_category=ToolErrorCategory.ESTOP)
 
     loop_guard = get_loop_guard_fn()
     tracker = get_token_tracker()
@@ -222,7 +223,7 @@ async def run_pre_call_guards(
                 tool_name,
                 tool_call_id,
                 f"Error: {pre_check_exc}",
-                error_category="loop_guard",
+                error_category=ToolErrorCategory.LOOP_GUARD,
                 loop_kind="iteration_budget",
             )
         raise pre_check_exc
@@ -255,7 +256,7 @@ async def run_pre_call_guards(
                 tool_name,
                 tool_call_id,
                 f"Error: {loop_verdict.reason}\n\nYour goal will be paused for human review.",
-                error_category="sandbox_boundary",
+                error_category=ToolErrorCategory.SANDBOX_BOUNDARY,
                 loop_kind=loop_kind,
             )
 
@@ -268,7 +269,7 @@ async def run_pre_call_guards(
             tool_name,
             tool_call_id,
             f"Error: {loop_verdict.reason}\n\nHint: {loop_verdict.backoff_hint}",
-            error_category="loop_guard",
+            error_category=ToolErrorCategory.LOOP_GUARD,
             loop_kind=loop_kind,
         )
     if loop_verdict.action == LoopAction.WARN:
@@ -292,7 +293,7 @@ async def run_pre_call_guards(
             f"{freq_verdict.global_remaining} remaining.\n"
             f"Tool: {freq_verdict.tool_count}/{freq_verdict.tool_limit} calls, "
             f"{freq_verdict.tool_remaining} remaining.",
-            error_category="frequency_guard",
+            error_category=ToolErrorCategory.FREQUENCY_GUARD,
         )
     if freq_verdict.action == FrequencyAction.WARN:
         record_decision(tool_name, "FREQUENCY_WARN", freq_verdict.reason)
@@ -305,7 +306,7 @@ async def run_pre_call_guards(
             tool_name,
             tool_call_id,
             STEERING_SKIP_MESSAGE,
-            error_category="steering",
+            error_category=ToolErrorCategory.STEERING,
         )
 
     if request.tool is None:
@@ -322,7 +323,7 @@ async def run_pre_call_guards(
             tool_name,
             tool_call_id,
             error_content,
-            error_category="invalid_tool",
+            error_category=ToolErrorCategory.INVALID_TOOL,
         )
 
     attenuation_msg = check_trust_attenuation(tool_name)
@@ -331,7 +332,7 @@ async def run_pre_call_guards(
             tool_name,
             tool_call_id,
             attenuation_msg,
-            error_category="trust_attenuation",
+            error_category=ToolErrorCategory.TRUST_ATTENUATION,
         )
 
     pii_block_msg = check_tool_params_pii(tool_name, tool_args)
@@ -340,7 +341,7 @@ async def run_pre_call_guards(
             tool_name,
             tool_call_id,
             pii_block_msg,
-            error_category="pii_guard",
+            error_category=ToolErrorCategory.PII_GUARD,
         )
 
     return PreCallResult(
@@ -383,7 +384,7 @@ def _check_circuit_breaker(tool_name: str, tool_call_id: str) -> ToolMessage | N
             tool_name,
             tool_call_id,
             f"Error: [SYSTEM_ENFORCED] Execution of '{tool_name}' blocked by circuit breaker.\nDetails: {hint}",
-            error_category="circuit_breaker",
+            error_category=ToolErrorCategory.CIRCUIT_BREAKER,
             error_hint=hint,
         )
     return None

@@ -36,7 +36,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Literal, Protocol
+from typing import TYPE_CHECKING, ClassVar, Literal, Protocol
 
 from myrm_agent_harness.agent.sub_agents.hitl_tool_policy import (
     HITL_TOOL_POLICY,
@@ -438,7 +438,10 @@ class SubagentConfig:
     theme_color: str = ""
     model: str | None = None
     llm: object | None = field(default=None, repr=False)
-    timeout_seconds: int = 120
+    timeout_seconds: int | None = None
+    """Wall-clock timeout for the subagent. None (default) disables the hard
+    timeout — the subagent runs until max_turns, staleness detection, or
+    budget limits stop it. Set to a positive int to enforce a hard cap."""
     concurrency_limit: int = 5
     max_turns: int = 25
     max_retries: int = 3
@@ -481,6 +484,16 @@ class SubagentConfig:
     Defaults to False (warn only) to avoid killing tasks that are slow but alive."""
     delegation_catalog: SubagentCatalog | None = field(default=None, repr=False)
     delegation_allowed_types: frozenset[str] | None = field(default=None, repr=False)
+
+    _MIN_TIMEOUT_SECONDS: ClassVar[int] = 30
+
+    def __post_init__(self) -> None:
+        ts = self.timeout_seconds
+        if ts is not None:
+            if ts <= 0:
+                object.__setattr__(self, "timeout_seconds", None)
+            else:
+                object.__setattr__(self, "timeout_seconds", max(self._MIN_TIMEOUT_SECONDS, ts))
 
 
 class SubagentCatalog(Protocol):

@@ -51,9 +51,11 @@ logger = logging.getLogger(__name__)
 _HARD_TIMEOUT_MULTIPLIER = 3
 """Hard execution timeout = config.timeout_seconds * this multiplier.
 
-The wait-level timeout (config.timeout_seconds) returns control to the parent
-non-fatally.  The hard timeout is a safety net that terminates truly runaway
-agents while still giving them enough headroom to finish after a wait timeout.
+Only applies when config.timeout_seconds is set (not None). The wait-level
+timeout returns control to the parent non-fatally. The hard timeout is a safety
+net that terminates truly runaway agents while still giving them enough headroom
+to finish after a wait timeout. When timeout_seconds is None, the subagent runs
+until max_turns, staleness detection, or budget limits stop it.
 """
 
 
@@ -88,26 +90,26 @@ class SubagentSpawnMixin:
         parent_progress_sink: ToolProgressSink | None = None,
         complexity_tier: str | None = None,
     ) -> SubAgentResult:
-        hard_timeout = config.timeout_seconds * _HARD_TIMEOUT_MULTIPLIER
         async with self._semaphore:
+            inner_coro = self._run_subagent_inner(
+                task_id,
+                agent_type,
+                task_description,
+                config,
+                context,
+                tool_registry_getter,
+                trace_id,
+                steering_token,
+                cancel_token=cancel_token,
+                resume_command=resume_command,
+                parent_progress_sink=parent_progress_sink,
+                complexity_tier=complexity_tier,
+            )
+            if config.timeout_seconds is None:
+                return await inner_coro
+            hard_timeout = config.timeout_seconds * _HARD_TIMEOUT_MULTIPLIER
             try:
-                return await asyncio.wait_for(
-                    self._run_subagent_inner(
-                        task_id,
-                        agent_type,
-                        task_description,
-                        config,
-                        context,
-                        tool_registry_getter,
-                        trace_id,
-                        steering_token,
-                        cancel_token=cancel_token,
-                        resume_command=resume_command,
-                        parent_progress_sink=parent_progress_sink,
-                        complexity_tier=complexity_tier,
-                    ),
-                    timeout=hard_timeout,
-                )
+                return await asyncio.wait_for(inner_coro, timeout=hard_timeout)
             except TimeoutError:
                 logger.warning(
                     "[subagent:%s] Hard timeout after %ss (config timeout=%ss)",
@@ -351,23 +353,24 @@ class SubagentSpawnMixin:
                         )
                 return result
 
-            logger.info(
-                "[subagent:%s] Wait timeout after %ss — agent continues in background",
-                task_id, config.timeout_seconds,
-            )
-            return SubAgentResult(
-                success=False,
-                task_id=task_id,
-                agent_type=agent_type,
-                error=(
-                    f"Timeout after {config.timeout_seconds}s, agent still running in background. "
-                    "Use list_subagents to check progress, or cancel_subagent to stop it."
-                ),
-                completed_at=0.0,
-                status=SubAgentStatus.TIMED_OUT,
-                still_running=True,
-                trace_id=trace_id,
-            )
+            if config.timeout_seconds is not None:
+                logger.info(
+                    "[subagent:%s] Wait timeout after %ss — agent continues in background",
+                    task_id, config.timeout_seconds,
+                )
+                return SubAgentResult(
+                    success=False,
+                    task_id=task_id,
+                    agent_type=agent_type,
+                    error=(
+                        f"Timeout after {config.timeout_seconds}s, agent still running in background. "
+                        "Use list_subagents to check progress, or cancel_subagent to stop it."
+                    ),
+                    completed_at=0.0,
+                    status=SubAgentStatus.TIMED_OUT,
+                    still_running=True,
+                    trace_id=trace_id,
+                )
 
         return {
             "task_id": task_id,

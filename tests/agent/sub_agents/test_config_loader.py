@@ -104,7 +104,7 @@ class TestSubagentConfigLoader:
         assert config is not None
         assert config.description == "Minimal agent with defaults"
         assert config.tools == ()
-        assert config.timeout_seconds == 120  # default
+        assert config.timeout_seconds is None  # default: no wall-clock timeout
         assert config.concurrency_limit == 5  # default
         assert config.max_spawn_depth == 0  # default
 

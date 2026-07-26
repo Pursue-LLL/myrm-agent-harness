@@ -11,6 +11,7 @@ Detailed design: [ERROR_SYSTEM.md](ERROR_SYSTEM.md)
 |------|------|-------------|-------|
 | __init__.py | Package | Agent execution errors with unified diagnostics. | — |
 | agent_errors.py | Core | Agent execution errors. ToolStuckException is converted to GraphInterrupt by tool_interceptor_middleware to truly halt agent execution. | ✅ |
+| tool_error_category.py | Core | Canonical StrEnum for all tool error categories. Values match frontend i18n keys. | ✅ |
 | tool_execution_error.py | Core | Unified tool execution error with structured diagnostics. | ✅ |
 
 | Submodule | Description |

@@ -269,7 +269,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             blocked_result = ExecutionResult(
                 success=False,
                 error=error_msg,
-                error_category="permission",
+                error_category="permission_denied",
                 stderr=error_msg,
                 execution_time=time.time() - start_time,
             )

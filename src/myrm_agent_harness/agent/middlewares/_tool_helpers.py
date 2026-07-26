@@ -37,6 +37,7 @@ from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import ToolMessage
 
+from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
 from myrm_agent_harness.agent.security.audit import record_decision
 from myrm_agent_harness.agent.security.detection.tool_result_validator import (
     should_apply_validation,
@@ -179,7 +180,7 @@ def apply_validation_result(result: ToolMessage, validation: ValidationResult, t
 
     additional_kwargs = dict(result.additional_kwargs)
     if severity == "error":
-        additional_kwargs["error_category"] = "context_validation"
+        additional_kwargs["error_category"] = ToolErrorCategory.CONTEXT_VALIDATION
 
     return ToolMessage(
         content=new_content,
@@ -384,7 +385,7 @@ def build_hook_failure_result(
         name=tool_name,
         tool_call_id=result.tool_call_id,
         status="error",
-        additional_kwargs={"error_category": "post_hook_blocked"},
+        additional_kwargs={"error_category": ToolErrorCategory.POST_HOOK_BLOCKED},
     )
 
 

@@ -6,6 +6,7 @@ from pathlib import Path
 from myrm_agent_harness.eval.protocols import (
     AgentResponse,
     EvalCase,
+    EvalManifest,
     EvalResult,
     EvalTimings,
     EvalTurnResult,
@@ -112,3 +113,103 @@ def test_markdown_reporter(tmp_path: Path):
     assert " PASS" in content
     assert " ERROR" in content
     assert "Some error" in content
+
+
+def _make_manifest() -> EvalManifest:
+    return EvalManifest(
+        model_provider="openai",
+        model_id="gpt-4o-2024-08-06",
+        thinking_effort="medium",
+        harness_version="0.1.0rc2",
+        tool_policy=("web_search", "code_exec"),
+        task_set_id="default",
+        task_set_hash="abc123def456",
+        prompt_fingerprint="sha256:deadbeef1234",
+        budget_max_tokens=4096,
+        timeout_seconds=120,
+        created_at="2026-07-25T14:00:00+00:00",
+    )
+
+
+def test_jsonl_reporter_with_manifest(tmp_path: Path):
+    report_path = tmp_path / "report_manifest.jsonl"
+    reporter = JsonlReporter(report_path)
+
+    manifest = _make_manifest()
+    result = EvalResult(
+        turn_results=[
+            EvalTurnResult(
+                case=EvalCase(message="test"),
+                response=AgentResponse(answer="ok"),
+                assertion_passed=True,
+                timings=EvalTimings(total_ms=50),
+            ),
+        ],
+        total_ms=50,
+        manifest=manifest,
+    )
+
+    reporter.report(result)
+
+    with report_path.open("r") as f:
+        lines = f.readlines()
+
+    summary = json.loads(lines[0])
+    assert summary["type"] == "summary"
+    assert "manifest" in summary
+    assert summary["manifest"]["model_provider"] == "openai"
+    assert summary["manifest"]["model_id"] == "gpt-4o-2024-08-06"
+    assert summary["manifest"]["tool_policy"] == ["web_search", "code_exec"]
+    assert summary["manifest"]["prompt_fingerprint"] == "sha256:deadbeef1234"
+
+
+def test_jsonl_reporter_without_manifest_no_key(tmp_path: Path):
+    report_path = tmp_path / "report_no_manifest.jsonl"
+    reporter = JsonlReporter(report_path)
+
+    result = EvalResult(
+        turn_results=[
+            EvalTurnResult(
+                case=EvalCase(message="test"),
+                response=AgentResponse(answer="ok"),
+                assertion_passed=True,
+                timings=EvalTimings(total_ms=50),
+            ),
+        ],
+        total_ms=50,
+    )
+
+    reporter.report(result)
+
+    with report_path.open("r") as f:
+        lines = f.readlines()
+
+    summary = json.loads(lines[0])
+    assert "manifest" not in summary
+
+
+def test_markdown_reporter_with_manifest(tmp_path: Path):
+    report_path = tmp_path / "report_manifest.md"
+    reporter = MarkdownReporter(report_path)
+
+    manifest = _make_manifest()
+    result = EvalResult(
+        turn_results=[
+            EvalTurnResult(
+                case=EvalCase(message="test"),
+                response=AgentResponse(answer="ok"),
+                assertion_passed=True,
+                timings=EvalTimings(total_ms=50),
+            ),
+        ],
+        total_ms=50,
+        manifest=manifest,
+    )
+
+    reporter.report(result)
+
+    content = report_path.read_text()
+    assert "## Environment" in content
+    assert "openai/gpt-4o-2024-08-06" in content
+    assert "0.1.0rc2" in content
+    assert "web_search, code_exec" in content

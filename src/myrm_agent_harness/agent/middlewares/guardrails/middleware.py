@@ -14,6 +14,7 @@ from myrm_agent_harness.agent.middlewares.guardrails.core import (
     GuardrailReason,
     GuardrailRequest,
 )
+from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 logger = get_agent_logger(__name__)
@@ -67,7 +68,7 @@ class GuardrailMiddleware(AgentMiddleware[object, object]):
             tool_call_id=tool_call_id,
             name=tool_name,
             status="error",
-            additional_kwargs={"error_category": "guardrail_blocked", "guardrail_code": reason_code},
+            additional_kwargs={"error_category": ToolErrorCategory.GUARDRAIL_BLOCKED, "guardrail_code": reason_code},
         )
 
     async def on_tool_start(self, tool: str, input_str: str, **kwargs: object) -> str | None:

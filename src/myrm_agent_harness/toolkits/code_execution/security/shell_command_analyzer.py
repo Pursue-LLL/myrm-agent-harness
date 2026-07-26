@@ -339,7 +339,7 @@ def is_destructive_command(command: str) -> bool:
         r"\brm\s+",
         r"\bmv\s+",
         r"\bsed\s+-i\b",
-        r"\bgit\s+(reset|clean|checkout|restore|apply)\b",
+        r"\bgit\b(?:\s+\S+)*?\s+(reset|clean|checkout|restore|apply)(?=\s|$)",
         r"\bcp\s+.*-r\b",
         r"\bfind\s+.*-delete\b",
         r"\bfind\s+.*-exec\s+rm\b",

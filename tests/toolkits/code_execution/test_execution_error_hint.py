@@ -136,7 +136,7 @@ class TestPermissionHint:
         result = ExecutionResult(
             success=False,
             stderr="bash: ./script.sh: Permission denied",
-            error_category="permission",
+            error_category="permission_denied",
         )
         hint = generate_error_hint(result)
         assert hint is not None
@@ -146,7 +146,7 @@ class TestPermissionHint:
         result = ExecutionResult(
             success=False,
             stderr="PermissionError: Permission denied: '/usr/local/bin/app'",
-            error_category="permission",
+            error_category="permission_denied",
         )
         hint = generate_error_hint(result)
         assert hint is not None

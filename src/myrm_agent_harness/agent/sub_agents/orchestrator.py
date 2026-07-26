@@ -149,9 +149,9 @@ async def execute_dag_plan(
 
             for attempt in range(max_node_retries):
                 try:
-                    # Add timeout protection for each step
                     step_agent_type = getattr(step, "agent_type", None) or "general"
-                    async with asyncio.timeout(300):
+                    step_timeout = config.timeout_seconds
+                    async with asyncio.timeout(step_timeout):
                         result = await manager.spawn_child(
                             task_id=f"dag-{step_id}",
                             agent_type=step_agent_type,

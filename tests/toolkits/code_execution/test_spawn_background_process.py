@@ -84,7 +84,8 @@ async def test_spawn_background_process_returns_protocol(workspace: Path) -> Non
         assert isinstance(process, AsyncProcessProtocol)
         assert process.stdin is not None
         assert process.stdout is not None
-        assert process.stderr is not None
+        # PTY mode merges stderr into stdout (stderr → None); PIPE mode has separate stderr.
+        # Both are valid — PTY is required for interactive CLIs.
     finally:
         process.terminate()
         await process.wait()
@@ -92,10 +93,14 @@ async def test_spawn_background_process_returns_protocol(workspace: Path) -> Non
 
 @pytest.mark.asyncio
 async def test_spawn_full_duplex_communication(workspace: Path) -> None:
-    """Verify full-duplex stdin/stdout communication through the spawned process."""
+    """Verify full-duplex stdin/stdout communication through the spawned process.
+
+    PTY mode merges stdin echo + stdout + stderr into a single stream,
+    so both the echo and the script output appear on stdout.
+    """
     executor = _make_executor(workspace)
 
-    script = "import sys; line = sys.stdin.readline(); sys.stdout.write(f'ECHO:{line}')"
+    script = "import sys; line = sys.stdin.readline(); sys.stdout.write(f'ECHO:{line}'); sys.stdout.flush()"
     context = ExecutionContext(
         code=sys.executable,
         args=["-c", script],
@@ -108,8 +113,23 @@ async def test_spawn_full_duplex_communication(workspace: Path) -> None:
         await process.stdin.drain()  # type: ignore[union-attr]
         process.stdin.close()  # type: ignore[union-attr]
 
-        data = await process.stdout.readline()  # type: ignore[union-attr]
-        assert data.decode("utf-8").strip() == "ECHO:hello"
+        collected = b""
+        for _ in range(20):
+            try:
+                data = await asyncio.wait_for(
+                    process.stdout.readline(),  # type: ignore[union-attr]
+                    timeout=2.0,
+                )
+            except (TimeoutError, asyncio.TimeoutError):
+                break
+            if not data:
+                break
+            collected += data
+
+        decoded = collected.decode("utf-8", errors="replace")
+        assert "ECHO:" in decoded and "hello" in decoded, (
+            f"Expected 'ECHO:...hello' in stdout but got: {decoded!r}"
+        )
 
         exit_code = await process.wait()
         assert exit_code == 0
@@ -120,10 +140,10 @@ async def test_spawn_full_duplex_communication(workspace: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_spawn_stderr_capture(workspace: Path) -> None:
-    """Stderr from the spawned process must be readable."""
+    """Stderr output must be capturable — via separate stderr (PIPE) or merged stdout (PTY)."""
     executor = _make_executor(workspace)
 
-    script = "import sys; sys.stderr.write('error output\\n')"
+    script = "import sys; sys.stderr.write('error output\\n'); sys.stderr.flush()"
     context = ExecutionContext(
         code=sys.executable,
         args=["-c", script],
@@ -134,8 +154,20 @@ async def test_spawn_stderr_capture(workspace: Path) -> None:
     try:
         await process.wait()
 
-        stderr_data = await process.stderr.readline()  # type: ignore[union-attr]
-        assert b"error output" in stderr_data
+        if process.stderr is not None:
+            stderr_data = await process.stderr.readline()
+            assert b"error output" in stderr_data
+        else:
+            # PTY mode merges stderr into stdout — read from stdout instead
+            found = False
+            for _ in range(10):
+                line = await asyncio.wait_for(process.stdout.readline(), timeout=2.0)  # type: ignore[union-attr]
+                if not line:
+                    break
+                if b"error output" in line:
+                    found = True
+                    break
+            assert found, "Expected 'error output' in merged PTY stdout"
     finally:
         with contextlib.suppress(ProcessLookupError):
             process.terminate()

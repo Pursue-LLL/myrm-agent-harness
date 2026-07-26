@@ -287,7 +287,11 @@ async def build_child_agent(
         checkpointer=None,
         config=AgentRuntimeConfig(
             recursion_limit=min(config.max_turns * 2, parent_agent.config.recursion_limit),
-            timeout_seconds=parent_agent.config.engine_params.timeout_seconds or config.timeout_seconds,
+            timeout_seconds=(
+                parent_agent.config.engine_params.timeout_seconds
+                if parent_agent.config.engine_params.timeout_seconds is not None
+                else config.timeout_seconds
+            ),
             parallel_tool_calls=parent_agent.config.engine_params.enable_parallel_tool_calls,
             collect_artifacts=False,
             security_config=parent_agent.config.security_config,

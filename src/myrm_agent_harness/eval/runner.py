@@ -32,6 +32,7 @@ from .assertions import (
 from .protocols import (
     AgentResponse,
     EvalCase,
+    EvalManifest,
     EvalResult,
     EvalTimings,
     EvalTurnResult,
@@ -75,6 +76,8 @@ class EvalRunner:
     async def run(
         self,
         cases: list[EvalCase],
+        *,
+        manifest: EvalManifest | None = None,
     ) -> EvalResult:
         """Run single-turn eval cases, optionally concurrently."""
         start = time.perf_counter()
@@ -95,11 +98,13 @@ class EvalRunner:
         turn_results = [r for r in raw_results if r is not None]
 
         total_ms = (time.perf_counter() - start) * 1000
-        return EvalResult(turn_results=list(turn_results), total_ms=total_ms)
+        return EvalResult(turn_results=list(turn_results), total_ms=total_ms, manifest=manifest)
 
     async def run_multi_turn(
         self,
         cases: list[MultiTurnEvalCase],
+        *,
+        manifest: EvalManifest | None = None,
     ) -> EvalResult:
         """Run multi-turn eval cases, optionally concurrently.
 
@@ -123,7 +128,7 @@ class EvalRunner:
             all_results.extend(session_results)
 
         total_ms = (time.perf_counter() - start) * 1000
-        return EvalResult(turn_results=all_results, total_ms=total_ms)
+        return EvalResult(turn_results=all_results, total_ms=total_ms, manifest=manifest)
 
     async def _execute_single(
         self,

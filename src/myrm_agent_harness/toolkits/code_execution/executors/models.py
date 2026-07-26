@@ -194,7 +194,7 @@ _ERROR_PATTERNS: list[tuple[str, list[str]]] = [
         ],
     ),
     (
-        "permission",
+        "permission_denied",
         ["Permission denied", "PermissionError", "EACCES", "Operation not permitted"],
     ),
     ("syntax", ["SyntaxError", "IndentationError", "TabError", "syntax error"]),
@@ -304,7 +304,7 @@ def generate_error_hint(result: ExecutionResult) -> str | None:
             return f"Command '{command}' not found. Install it or check the PATH."
         return "A command was not found. Verify spelling and PATH."
 
-    if category == "permission":
+    if category == "permission_denied":
         match = _PERMISSION_PATH_RE.search(combined)
         if match:
             path = match.group(1)

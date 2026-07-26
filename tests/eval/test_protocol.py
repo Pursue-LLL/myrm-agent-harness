@@ -8,6 +8,7 @@ from myrm_agent_harness.eval.protocols import (
     AgentExecutor,
     AgentResponse,
     EvalCase,
+    EvalManifest,
     EvalResult,
     EvalTimings,
     EvalTurnResult,
@@ -108,3 +109,79 @@ class TestAgentExecutorProtocol:
             pass
 
         assert not isinstance(BadExecutor(), AgentExecutor)
+
+
+class TestEvalManifest:
+    """EvalManifest — frozen environment snapshot for reproducibility."""
+
+    def _make_manifest(self) -> EvalManifest:
+        return EvalManifest(
+            model_provider="openai",
+            model_id="gpt-4o-2024-08-06",
+            thinking_effort="medium",
+            harness_version="0.1.0rc2",
+            tool_policy=("web_search", "code_exec"),
+            task_set_id="default",
+            task_set_hash="abc123def456",
+            prompt_fingerprint="sha256:deadbeef",
+            budget_max_tokens=4096,
+            timeout_seconds=120,
+            created_at="2026-07-25T14:00:00+00:00",
+        )
+
+    def test_frozen(self) -> None:
+        m = self._make_manifest()
+        with pytest.raises(AttributeError):
+            m.model_id = "other"  # type: ignore[misc]
+
+    def test_to_dict_structure(self) -> None:
+        m = self._make_manifest()
+        d = m.to_dict()
+        assert d["model_provider"] == "openai"
+        assert d["model_id"] == "gpt-4o-2024-08-06"
+        assert d["thinking_effort"] == "medium"
+        assert d["harness_version"] == "0.1.0rc2"
+        assert d["tool_policy"] == ["web_search", "code_exec"]
+        assert d["task_set_id"] == "default"
+        assert d["task_set_hash"] == "abc123def456"
+        assert d["prompt_fingerprint"] == "sha256:deadbeef"
+        assert d["budget_max_tokens"] == 4096
+        assert d["timeout_seconds"] == 120
+        assert d["created_at"] == "2026-07-25T14:00:00+00:00"
+
+    def test_eval_result_manifest_none_by_default(self) -> None:
+        r = EvalResult()
+        assert r.manifest is None
+
+    def test_eval_result_with_manifest(self) -> None:
+        m = self._make_manifest()
+        r = EvalResult(manifest=m)
+        assert r.manifest is m
+
+    def test_eval_result_to_dict_includes_manifest(self) -> None:
+        m = self._make_manifest()
+        r = EvalResult(
+            turn_results=[
+                EvalTurnResult(
+                    case=EvalCase(message="test"),
+                    response=AgentResponse(answer="ok"),
+                    assertion_passed=True,
+                )
+            ],
+            manifest=m,
+        )
+        d = r.to_dict()
+        assert "manifest" in d
+        assert d["manifest"]["model_id"] == "gpt-4o-2024-08-06"
+
+    def test_eval_result_to_dict_no_manifest_key_when_none(self) -> None:
+        r = EvalResult(
+            turn_results=[
+                EvalTurnResult(
+                    case=EvalCase(message="test"),
+                    response=AgentResponse(answer="ok"),
+                )
+            ],
+        )
+        d = r.to_dict()
+        assert "manifest" not in d

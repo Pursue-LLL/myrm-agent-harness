@@ -7,6 +7,7 @@ and intelligently truncated output previews.
 
 from .agent_errors import AgentBusyError
 from .diagnostics import DiagnosticResult, ErrorContext, LLMErrorDiagnostic
+from .tool_error_category import ToolErrorCategory
 from .tool_execution_error import ExecutionPhase, ToolExecutionError
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "ErrorContext",
     "ExecutionPhase",
     "LLMErrorDiagnostic",
+    "ToolErrorCategory",
     "ToolExecutionError",
 ]

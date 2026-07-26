@@ -302,16 +302,21 @@ result = SubAgentResult(checkpoint_data={...})
 
 `delegate_task_tool` 的结果缓存键包含 `session_id`，防止 Sandbox 模式下跨用户缓存污染。
 
-### 11. 非致命超时 (Non-fatal Timeout)
+### 11. 超时策略 (Timeout Policy)
 
-`spawn_child(wait=True)` 和 `wait_children(timeout=...)` 均采用**非致命超时**：
+`timeout_seconds` 默认为 `None`（无 wall-clock 超时）。`SubagentConfig.__post_init__` 对输入值进行归一化：`≤ 0` 转为 `None`（等同于 Hermes `child_timeout_seconds: 0` 语义），正值下限强制为 `_MIN_TIMEOUT_SECONDS`（30s），防止配置错误导致无意义超时。子代理通过四层安全网自然结束：
+
+1. **max_turns**（默认 25）：最大迭代次数
+2. **staleness detection**（`stale_after_seconds=300`）：无进度时警告或取消
+3. **budget_tokens**：可选 token 预算上限
+4. **max_cost_usd**：可选费用上限
+
+当 `timeout_seconds` 显式设为正整数（≥ 30）时，启用两级超时：
 
 - **等待超时 (wait timeout)**：`config.timeout_seconds`，超时后返回 `SubAgentResult(status=TIMED_OUT, still_running=True)`，子 agent **继续后台运行**，不做 cancel。
 - **硬安全超时 (hard safety timeout)**：`config.timeout_seconds * 3`，作为最终安全网终止真正的 runaway agent。
 - **LLM 决策权**：超时后 Parent Agent 可选择等待（`subagent_control_tool action=list`）、做别的事、或主动 cancel。
 - **`still_running` 字段**：`SubAgentResult.still_running: bool` 为 True 表示 agent 仍在后台运行。
-
-现有安全保障：budget_tokens / max_cost_usd / max_turns / `subagent_control_tool action=cancel` 均不受影响。
 
 ### 12. Chain 错误上下文
 

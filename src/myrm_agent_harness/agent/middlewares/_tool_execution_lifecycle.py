@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING
 from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
+from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
 from myrm_agent_harness.agent.middlewares._tool_helpers import (
     format_tool_error,
     make_error_msg,
@@ -194,7 +195,7 @@ async def handle_cancellation(
         tool_name,
         tool_call_id,
         f"{tool_name} was cancelled ({cancel_reason})",
-        error_category="tool_cancelled",
+        error_category=ToolErrorCategory.TOOL_CANCELLED,
     )
 
 

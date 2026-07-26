@@ -226,7 +226,7 @@ class SubagentConfigLoader:
                 display_name=validated.display_name,
                 theme_color=validated.theme_color,
                 model=validated.model,
-                timeout_seconds=config_dict.get("timeout_seconds", 120),
+                timeout_seconds=config_dict.get("timeout_seconds"),
                 concurrency_limit=config_dict.get("concurrency_limit", 5),
                 max_turns=config_dict.get("max_turns", 25),
                 max_retries=config_dict.get("max_retries", 3),

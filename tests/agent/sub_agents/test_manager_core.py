@@ -647,7 +647,8 @@ class TestRunSubagent:
         async def slow_inner(self, *args, **kwargs):
             await asyncio.sleep(100)
 
-        config = SubagentConfig(system_prompt="s", timeout_seconds=0.05)
+        config = SubagentConfig(system_prompt="s", timeout_seconds=60)
+        object.__setattr__(config, "timeout_seconds", 0.05)
         with patch.object(SubagentManager, "_run_subagent_inner", slow_inner):
             result = await mgr._run_subagent(
                 task_id="t1",
@@ -669,7 +670,7 @@ class TestRunSubagent:
         async def fast_inner(self, *args, **kwargs):
             return expected
 
-        config = SubagentConfig(system_prompt="s", timeout_seconds=5.0)
+        config = SubagentConfig(system_prompt="s", timeout_seconds=60)
         with patch.object(SubagentManager, "_run_subagent_inner", fast_inner):
             result = await mgr._run_subagent(
                 task_id="t1",
@@ -681,6 +682,44 @@ class TestRunSubagent:
             )
 
         assert result.success
+
+    @pytest.mark.asyncio
+    async def test_no_timeout_when_none(self):
+        """timeout_seconds=None skips asyncio.wait_for — runs until natural completion."""
+        mgr = _make_manager()
+        expected = _ok("t1")
+
+        async def fast_inner(self, *args, **kwargs):
+            return expected
+
+        config = SubagentConfig(system_prompt="s", timeout_seconds=None)
+        with patch.object(SubagentManager, "_run_subagent_inner", fast_inner):
+            result = await mgr._run_subagent(
+                task_id="t1",
+                agent_type="worker",
+                task_description="test",
+                config=config,
+                context={},
+                tool_registry_getter=lambda: [],
+            )
+
+        assert result.success
+        assert result.status == SubAgentStatus.COMPLETED
+
+    def test_zero_timeout_normalized_to_none(self):
+        """timeout_seconds=0 is normalized to None by __post_init__."""
+        config = SubagentConfig(system_prompt="s", timeout_seconds=0)
+        assert config.timeout_seconds is None
+
+    def test_negative_timeout_normalized_to_none(self):
+        """Negative timeout_seconds is normalized to None by __post_init__."""
+        config = SubagentConfig(system_prompt="s", timeout_seconds=-10)
+        assert config.timeout_seconds is None
+
+    def test_small_timeout_floored(self):
+        """timeout_seconds below _MIN_TIMEOUT_SECONDS is raised to the floor."""
+        config = SubagentConfig(system_prompt="s", timeout_seconds=5)
+        assert config.timeout_seconds == SubagentConfig._MIN_TIMEOUT_SECONDS
 
 
 class TestListChildren:

@@ -520,10 +520,11 @@ def create_delegate_task_tool(
             return _inject_capacity_signal(final_result, parent_agent)
 
         except TimeoutError:
-            logger.error("Subagent %s timed out after %ds", task_id, config.timeout_seconds)
+            timeout_msg = f"after {config.timeout_seconds}s" if config.timeout_seconds is not None else ""
+            logger.error("Subagent %s timed out %s", task_id, timeout_msg)
             return {
                 "success": False,
-                "error": f"Timeout after {config.timeout_seconds}s",
+                "error": f"Timeout {timeout_msg}".strip(),
                 "task_id": task_id,
             }
         except Exception as e:

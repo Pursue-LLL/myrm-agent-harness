@@ -14,6 +14,7 @@ from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer 
     analyze_command,
     has_block_threat,
     has_escalate_threat,
+    is_destructive_command,
     is_integration_mutation_command,
     register_integration_write_patterns,
 )
@@ -1140,3 +1141,77 @@ class TestConfigProtection:
         # Should not block due to config protection or lockfile protection.
         # It might trigger some escalate if `rm` is broadly caught, but shouldn't trigger the specific block for lockfile manipulation
         assert not any(t.detail == "Modifying lockfile via shell" for t in threats)
+
+
+class TestIsDestructiveCommand:
+    """Validate is_destructive_command detection for auto-snapshot triggering."""
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "git reset --hard",
+            "git clean -fd",
+            "git checkout -- .",
+            "git restore --staged file.txt",
+            "git apply bad.patch",
+        ],
+    )
+    def test_basic_destructive_git(self, cmd: str):
+        assert is_destructive_command(cmd)
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "git -C /tmp reset --hard",
+            "git --no-pager reset --hard",
+            "git -c user.name=x clean -fd",
+            "git -C /workspace --no-pager reset --hard HEAD~3",
+            "git --git-dir=/tmp/.git reset --soft HEAD~1",
+        ],
+    )
+    def test_git_flag_prefix_destructive(self, cmd: str):
+        """Flags between git and subcommand must not prevent detection."""
+        assert is_destructive_command(cmd)
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "git status",
+            "git log --oneline",
+            "git diff HEAD",
+            "git -C /tmp status",
+            "git --no-pager log",
+            "git blame file.py",
+            "git branch -a",
+            "git remote -v",
+        ],
+    )
+    def test_safe_git_not_flagged(self, cmd: str):
+        assert not is_destructive_command(cmd)
+
+    def test_git_config_value_not_flagged(self):
+        """checkout as a config key value must not trigger detection."""
+        assert not is_destructive_command("git config --get checkout.defaultRemote")
+
+    def test_git_log_format_not_flagged(self):
+        """reset as a --format= value must not trigger detection."""
+        assert not is_destructive_command("git log --format=reset")
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "rm -rf /",
+            "mv file.txt /dev/null",
+            "sed -i 's/a/b/' file.txt",
+        ],
+    )
+    def test_non_git_destructive(self, cmd: str):
+        assert is_destructive_command(cmd)
+
+    def test_empty_command(self):
+        assert not is_destructive_command("")
+        assert not is_destructive_command("   ")
+
+    def test_chained_destructive(self):
+        assert is_destructive_command("ls && git reset --hard")
+        assert is_destructive_command("echo test; git clean -fd")

@@ -79,6 +79,8 @@ class JsonlReporter:
                 "avg_time_secs": round(total_time_secs / case_count, 3) if case_count else 0.0,
                 "avg_total_tokens": round(total_tokens_sum / case_count) if case_count else 0,
             }
+            if result.manifest is not None:
+                summary["manifest"] = result.manifest.to_dict()
             f.write(json.dumps(summary, ensure_ascii=False) + "\n")
             for line in turn_lines:
                 f.write(line + "\n")
@@ -116,6 +118,22 @@ class MarkdownReporter:
             lines.append(f"- **Total Tokens**: {total_tokens:,} (avg {avg_tokens:,}/case)")
         if total_cost > 0:
             lines.append(f"- **Total Cost**: ${total_cost:.4f}")
+
+        if result.manifest is not None:
+            m = result.manifest
+            lines.extend([
+                "",
+                "## Environment",
+                "",
+                f"- **Model**: `{m.model_provider}/{m.model_id}`",
+                f"- **Thinking Effort**: `{m.thinking_effort}`",
+                f"- **Harness Version**: `{m.harness_version}`",
+                f"- **Tools**: `{', '.join(m.tool_policy)}`",
+                f"- **Dataset**: `{m.task_set_id}` (hash: `{m.task_set_hash[:12]}...`)",
+                f"- **Prompt Fingerprint**: `{m.prompt_fingerprint[:16]}...`",
+                f"- **Budget**: `{m.budget_max_tokens}` tokens / `{m.timeout_seconds}`s timeout",
+                f"- **Created**: `{m.created_at}`",
+            ])
 
         lines.extend(
             [
