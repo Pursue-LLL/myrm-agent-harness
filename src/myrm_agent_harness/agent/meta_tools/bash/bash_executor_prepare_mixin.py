@@ -158,7 +158,7 @@ class BashExecutorPrepareMixin:
             stdout="",
             stderr=error,
             error_hint=hint,
-            error_category="syntax_error",
+            error_category="syntax",
         )
 
     async def _execute_python_with_ptc(

@@ -545,7 +545,7 @@ def test_validate_python_syntax_raises_bash_execution_error() -> None:
     bash_exec = BashExecutor(_mock_code_executor(), enable_skill_execution=False)
     with pytest.raises(BashExecutionError) as exc_info:
         bash_exec._validate_python_syntax("def broken(", "print bad")
-    assert exc_info.value.error_category == "syntax_error"
+    assert exc_info.value.error_category == "syntax"
 
 
 @pytest.mark.asyncio

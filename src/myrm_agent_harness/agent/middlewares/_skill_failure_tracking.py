@@ -5,6 +5,7 @@ session that has loaded storage skills.  Also records successful
 executions for skill evolution feedback.
 
 [INPUT]
+- agent.errors.tool_error_category::ToolErrorCategory (POS: Canonical tool error categories for structured error classification.)
 - agent.skill_agent (POS: loaded skills + task intent queries)
 - runtime.events (POS: SkillFailureCandidate, SkillFailureEvent, event bus)
 - agent.skills.evolution (POS: global evolution integration)
@@ -27,6 +28,7 @@ import json
 import re
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
 from myrm_agent_harness.agent.middlewares._session_context import (
     get_approval_session,
 )
@@ -39,21 +41,21 @@ logger = get_agent_logger(__name__)
 
 _SECRETISH_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_./+=:-]{32,}")
 
-NON_SKILL_FAILURE_CATEGORIES = frozenset(
+NON_SKILL_FAILURE_CATEGORIES: frozenset[str] = frozenset(
     {
-        "circuit_breaker",
-        "context_validation",
-        "estop",
-        "frequency_guard",
-        "hook_blocked",
-        "invalid_tool",
-        "network_blocked",
-        "pii_guard",
-        "post_hook_blocked",
-        "sandbox_ro",
-        "steering",
-        "tool_cancelled",
-        "trust_attenuation",
+        ToolErrorCategory.CIRCUIT_BREAKER,
+        ToolErrorCategory.CONTEXT_VALIDATION,
+        ToolErrorCategory.ESTOP,
+        ToolErrorCategory.FREQUENCY_GUARD,
+        ToolErrorCategory.HOOK_BLOCKED,
+        ToolErrorCategory.INVALID_TOOL,
+        ToolErrorCategory.NETWORK_BLOCKED,
+        ToolErrorCategory.PII_GUARD,
+        ToolErrorCategory.POST_HOOK_BLOCKED,
+        ToolErrorCategory.SANDBOX_RO,
+        ToolErrorCategory.STEERING,
+        ToolErrorCategory.TOOL_CANCELLED,
+        ToolErrorCategory.TRUST_ATTENUATION,
         "any",
     }
 )
