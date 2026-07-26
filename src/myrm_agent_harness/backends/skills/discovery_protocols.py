@@ -1,4 +1,4 @@
-"""Skill discovery backend protocols.
+"""Skill market backend protocols.
 
 [INPUT]
 - typing::Protocol, runtime_checkable (POS: Python 协议类型)
@@ -6,10 +6,10 @@
 [OUTPUT]
 - SkillSearchResult: 搜索结果数据类
 - SkillInstallResult: 安装结果数据类
-- SkillDiscoveryBackend: 技能发现后端协议
+- SkillMarketBackend: 技能市场后端协议
 
 [POS]
-Skill discovery backend protocol. Defines unified interface for searching and installing external skills.
+Skill market backend protocol. Defines unified interface for searching and installing external skills.
 
 """
 
@@ -79,8 +79,8 @@ class InstalledSkillStore(Protocol):
 
 
 @runtime_checkable
-class SkillDiscoveryBackend(Protocol):
-    """技能发现后端协议（框架层定义，业务层实现）
+class SkillMarketBackend(Protocol):
+    """技能市场后端协议（框架层定义，业务层实现）
 
     职责：搜索外部技能源、安装技能到本地存储。
     """

@@ -61,7 +61,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
     ) -> str | list[object]:
         """Capture the desktop accessibility tree with @dref element IDs.
 
-        Workflow: desktop_snapshot_tool → desktop_interact_tool(ref=...).
+        Required workflow: call this tool first, then call desktop_interact_tool(ref=@dref, action=...) to act on elements.
         The snapshot header includes app/window metadata. Use desktop_vision_tool only when the AX tree is empty.
         """
         result = await session.desktop_snapshot(
@@ -115,7 +115,10 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
         text: str = "",
         modifiers: list[ModifierKey] | None = None,
     ) -> str | list[object]:
-        """Perform an action on a desktop element identified by @dref."""
+        """Perform an action on a desktop element identified by @dref from desktop_snapshot_tool.
+
+        Always call desktop_snapshot_tool first to obtain @drefs, then call this tool with the ref.
+        """
         return await session.desktop_interact(
             ref=ref,
             action=action,

@@ -3,7 +3,7 @@
 [INPUT]
 - protocols::SkillBackendProtocol (POS: 技能后端协议，定义技能加载接口契约)
 - creation_protocols::SkillWriteBackend, SkillSaveResult, SkillDeleteResult, SkillResourceWriteResult (POS: 技能写入后端协议)
-- discovery_protocols::SkillDiscoveryBackend, SkillSearchResult, SkillInstallResult (POS: 技能发现后端协议)
+- discovery_protocols::SkillMarketBackend, SkillSearchResult, SkillInstallResult (POS: 技能市场后端协议)
 - scanning_write_backend::ScanningSkillWriteBackend (POS: 安全扫描写入后端包装类)
 - local::LocalSkillBackend (POS: 本地技能后端，从文件系统加载)
 - storage::StorageSkillBackend (POS: 存储技能后端，从存储桶加载)
@@ -18,7 +18,7 @@
 - SkillDeleteResult: 技能删除结果
 - SkillResourceWriteResult: 辅助文件写入/删除结果
 - ScanningSkillWriteBackend: 安全扫描写入后端包装类
-- SkillDiscoveryBackend: 技能发现后端协议（外部技能的 search/install）
+- SkillMarketBackend: 技能市场后端协议（外部技能的 search/install）
 - SkillSearchResult: 技能搜索结果
 - SkillInstallResult: 技能安装结果
 - LocalSkillBackend: 本地技能后端（开发环境首选）
@@ -45,8 +45,8 @@ from myrm_agent_harness.backends.skills.decorators import (
     session_id_var,
 )
 from myrm_agent_harness.backends.skills.discovery_protocols import (
-    SkillDiscoveryBackend,
     SkillInstallResult,
+    SkillMarketBackend,
     SkillSearchResult,
 )
 from myrm_agent_harness.backends.skills.factory import SkillBackend
@@ -91,7 +91,7 @@ __all__ = [
     "SkillBackend",
     "SkillBackendProtocol",
     "SkillDeleteResult",
-    "SkillDiscoveryBackend",
+    "SkillMarketBackend",
     "SkillInstallResult",
     # Permission system
     "SkillPermission",
