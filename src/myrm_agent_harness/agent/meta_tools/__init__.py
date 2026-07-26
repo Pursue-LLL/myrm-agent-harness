@@ -103,7 +103,7 @@ def get_meta_tools(
         skills: 可用的技能列表
         skill_backend: 技能后端(用于 skill_select_tool)
         registry: ToolRegistry（必填；skill_search_tool 由 SkillAgent 末尾 sync 注册）
-        discovery_backend: 技能发现后端(用于 skill_market_tool)
+        market_backend: 技能市场后端(用于 skill_market_tool)
         write_backend: 技能写入后端(用于 skill_manage_tool, ScanningSkillWriteBackend)
         embedding_config: Embedding 配置(可选, 用于语义搜索)
         embedding_cache: Embedding 缓存实例(可选, 仅 Hybrid 模式使用)
@@ -216,12 +216,12 @@ def get_meta_tools(
         else:
             logger.info(" skill_select_tool 未加载(skill_backend 未提供)")
 
-    skill_discovery_pending: BaseTool | None = None
-    if discovery_backend is not None:
-        install_url_fn = getattr(discovery_backend, "install_from_url", None)
-        uninstall_fn = getattr(discovery_backend, "uninstall", None)
-        skill_discovery_pending = create_skill_discovery_tool(
-            discovery_backend,
+    skill_market_pending: BaseTool | None = None
+    if market_backend is not None:
+        install_url_fn = getattr(market_backend, "install_from_url", None)
+        uninstall_fn = getattr(market_backend, "uninstall", None)
+        skill_market_pending = create_skill_market_tool(
+            market_backend,
             install_from_url_fn=install_url_fn,
             uninstall_fn=uninstall_fn,
         )
