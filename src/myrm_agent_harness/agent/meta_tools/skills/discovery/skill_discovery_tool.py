@@ -11,10 +11,10 @@ user_id is extracted at runtime from RunnableConfig context (framework pattern),
 keeping the tool layer free from business concepts.
 
 [INPUT]
-- backends.skills.discovery_protocols::SkillDiscoveryBackend, (POS: SkillBackend SkillBackend SkillDiscoveryBackend)
+- backends.skills.discovery_protocols::SkillMarketBackend, (POS: SkillBackend SkillBackend SkillMarketBackend)
 
 [OUTPUT]
-- create_skill_discovery_tool: Create the skill market tool (LLM name: skill_market_tool).
+- create_skill_market_tool: Create the skill market tool (LLM name: skill_market_tool).
 
 [POS]
 Skill market meta-tool. Enables Agent to search and install skills from external marketplaces.
@@ -34,7 +34,7 @@ from myrm_agent_harness.agent.context_management.context import extract_context_
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
-    from myrm_agent_harness.backends.skills.discovery_protocols import SkillDiscoveryBackend, SkillInstallResult
+    from myrm_agent_harness.backends.skills.discovery_protocols import SkillMarketBackend, SkillInstallResult
 
 TOOL_DESCRIPTION = """Install NEW skills from external markets (GitHub, skills.sh, etc.).
 NOT for searching skills already bound to this agent — use `skill_search_tool` for that.
