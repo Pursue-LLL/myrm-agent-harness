@@ -98,6 +98,7 @@ async def execute_dag_plan(
     running_tasks: set[str] = set()
     yielded_checkpoints: dict[str, dict[str, object]] = {}
     fission_resume_payload: dict[str, dict[str, object]] = {}
+    step_completed_event = asyncio.Event()
 
     async def execute_step(step: object) -> None:
         async with limiter:
@@ -267,6 +268,7 @@ async def execute_dag_plan(
                         logger.error("[DAG] Failed step %s: %s", step_id, result.error)
 
             running_tasks.remove(step_id)
+            step_completed_event.set()
 
     # Main DAG loop using TaskGroup for graceful cancellation
     try:
@@ -310,12 +312,10 @@ async def execute_dag_plan(
                             step.status = "skipped" if getattr(step, "allow_failure", False) else "failed"
 
                 if running_tasks:
-                    await asyncio.sleep(0.1)  # Short sleep to yield control
+                    step_completed_event.clear()
+                    await step_completed_event.wait()
                 else:
                     break
-
-                # Prevent infinite loop in tests if ready_steps doesn't change
-                await asyncio.sleep(0)
     except Exception as e:
         # In tests, the mock might not have all the methods, causing an exception
         # We catch it here so we can still return the partial results
