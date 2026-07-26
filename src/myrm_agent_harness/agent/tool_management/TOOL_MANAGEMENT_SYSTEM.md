@@ -192,7 +192,7 @@ python scripts/validate_tool_registry.py --generate-docs  # 刷新 TOOL_COUNT + 
 - 所有 LLM Action Tool → `TURN1`（按 profile 条件装配；MCP 超标整服降级 PTC Skill）
 - `_completion_check`（CompletionGuard）→ `RUNTIME_ONLY`（名称 `_` 前缀自动推断）
 
-**Profile 装配**：EXTENDED 层工具通过 `enabled_builtin_tools` 与运行时 gate 在 Agent 构建时决定是否 Turn1 绑定；MCP 超预算时整服降级为 PTC Skill；存在可搜索技能时挂载 `skill_search_tool`。
+**Profile 装配**：EXTENDED 层工具通过 `enabled_builtin_tools` 与运行时 gate 在 Agent 构建时决定是否 Turn1 绑定；MCP 超预算时整服降级为 PTC Skill；保留 direct 的 MCP 工具会做 description compaction 以降低 Turn1 token 噪音；存在可搜索技能时挂载 `skill_search_tool`。
 
 **命名约束**：不得使用 `deferred_tools`、`discoverable_tools`、`get_deferred_tools()` 等废弃 API 名（CI 门禁见 `validate_tool_registry.py`）。
 

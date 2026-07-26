@@ -11,7 +11,8 @@
 
 [POS]
 Shared fallback discovery layer for file-search tools. Keeps no-ripgrep behavior
-bounded and predictable with git-aware ignore handling where available.
+bounded and predictable with git-aware ignore handling where available and
+root-level ignore files in non-git directories.
 """
 
 from __future__ import annotations
@@ -37,6 +38,7 @@ _DEFAULT_PRUNED_DIR_NAMES = frozenset(
         ".cache",
     }
 )
+_ROOT_IGNORE_FILE_NAMES = (".gitignore", ".ignore", ".fdignore", ".rgignore")
 
 
 def _pattern_matches(path: Path, root: Path, file_pattern: str) -> bool:
@@ -112,6 +114,36 @@ def _list_git_visible_files(search_root: Path, timeout_seconds: float = 5.0) -> 
         return None
 
 
+def _load_root_ignore_spec(search_root: Path):
+    """Load root ignore patterns for non-git fallback, or None."""
+    try:
+        import pathspec
+    except ImportError:
+        return None
+
+    patterns: list[str] = []
+    for filename in _ROOT_IGNORE_FILE_NAMES:
+        ignore_file = search_root / filename
+        if not ignore_file.is_file():
+            continue
+        try:
+            for raw_line in ignore_file.read_text(encoding="utf-8", errors="replace").splitlines():
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                patterns.append(line)
+        except OSError:
+            continue
+
+    if not patterns:
+        return None
+
+    try:
+        return pathspec.PathSpec.from_lines("gitignore", patterns)
+    except Exception:
+        return None
+
+
 def collect_candidate_files(
     *,
     search_root: Path,
@@ -142,6 +174,7 @@ def collect_candidate_files(
                 if len(candidates) >= max_files:
                     break
             return candidates
+    root_ignore_spec = _load_root_ignore_spec(search_root) if not include_ignored else None
 
     for dirpath, dirnames, filenames in os.walk(search_root, topdown=True):
         current_dir = Path(dirpath)
@@ -154,7 +187,16 @@ def collect_candidate_files(
         if include_ignored:
             dirnames[:] = hidden_filtered_dirs
         else:
-            dirnames[:] = [d for d in hidden_filtered_dirs if d not in _DEFAULT_PRUNED_DIR_NAMES]
+            visible_dirs = [d for d in hidden_filtered_dirs if d not in _DEFAULT_PRUNED_DIR_NAMES]
+            if root_ignore_spec is not None:
+                keep_dirs: list[str] = []
+                for dirname in visible_dirs:
+                    rel_dir = (current_dir / dirname).relative_to(search_root).as_posix()
+                    if root_ignore_spec.match_file(rel_dir) or root_ignore_spec.match_file(f"{rel_dir}/"):
+                        continue
+                    keep_dirs.append(dirname)
+                visible_dirs = keep_dirs
+            dirnames[:] = visible_dirs
 
         for filename in filenames:
             if not include_hidden and filename.startswith("."):
@@ -163,6 +205,10 @@ def collect_candidate_files(
             file_path = current_dir / filename
             if not file_path.is_file():
                 continue
+            if root_ignore_spec is not None:
+                rel_file = file_path.relative_to(search_root).as_posix()
+                if root_ignore_spec.match_file(rel_file):
+                    continue
             if not _pattern_matches(file_path, search_root, file_pattern):
                 continue
 

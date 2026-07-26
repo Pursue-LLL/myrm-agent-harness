@@ -8,6 +8,7 @@
 - route_mcp_servers(): split MCP servers into direct tools vs PTC skills
 - demote_direct_servers_over_budget(): whole-server Skill demotion when aggregate direct budget exceeded
 - PTC_OVERHEAD_MULTIPLIER, FALLBACK_PTC_BRIDGE_TOKENS, compute_direct_threshold, estimate_schema_tokens
+- _compact_description/_compress_direct_tools: direct MCP tool description compaction for token-noise control
 
 [POS]
 MCP schema-token routing for SkillAgent factory. Keeps hybrid direct/PTC decision isolated from assembly.
@@ -15,6 +16,7 @@ MCP schema-token routing for SkillAgent factory. Keeps hybrid direct/PTC decisio
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 from collections.abc import Sequence
@@ -47,6 +49,13 @@ AGGREGATE_DIRECT_TOKEN_BUDGET = 2700
 When multiple lightweight MCP servers individually pass the per-server threshold
 but their aggregate schema exceeds this budget, whole servers (largest first) are
 demoted to PTC/Skill until the remaining direct pool fits within budget.
+"""
+
+DIRECT_MCP_DESCRIPTION_SOFT_LIMIT = 180
+"""Soft character limit for direct MCP tool descriptions.
+
+Direct tools remain callable with full parameter schema. This limit trims verbose
+natural-language prose in descriptions to reduce EXTENDED Turn1 token noise.
 """
 
 
@@ -117,6 +126,47 @@ def estimate_single_tool_tokens(tool: BaseTool) -> int:
     schema = _input_schema(tool)
     entry = {"name": tool.name, "description": tool.description or "", "parameters": schema}
     return int(len(json.dumps(entry, ensure_ascii=False, separators=(",", ":"))) / CHARS_PER_TOKEN + 0.5)
+
+
+def _compact_description(description: str, limit: int = DIRECT_MCP_DESCRIPTION_SOFT_LIMIT) -> str:
+    """Compact verbose MCP tool descriptions while preserving a clear summary."""
+    normalized = " ".join(description.split())
+    if len(normalized) <= limit:
+        return normalized
+    summary = normalized[:limit].rstrip(" ,.;:")
+    return f"{summary}."
+
+
+def _compress_direct_tools(tools: Sequence[BaseTool]) -> list[BaseTool]:
+    """Return direct MCP tools with compacted descriptions for token budget control."""
+    compressed: list[BaseTool] = []
+    for tool in tools:
+        compacted = _compact_description(tool.description or "")
+        if compacted == (tool.description or ""):
+            compressed.append(tool)
+            continue
+
+        cloned: BaseTool | None = None
+        model_copy = getattr(tool, "model_copy", None)
+        if callable(model_copy):
+            try:
+                cloned = cast("BaseTool", model_copy(update={"description": compacted}))
+                if getattr(cloned, "name", None) != tool.name:
+                    cloned = None
+            except Exception:
+                cloned = None
+        if cloned is not None:
+            compressed.append(cloned)
+            continue
+
+        try:
+            fallback_copy = copy.copy(tool)
+            fallback_copy.description = compacted
+            compressed.append(cast("BaseTool", fallback_copy))
+        except Exception:
+            logger.debug("Failed to compact MCP tool description for %s", tool.name)
+            compressed.append(tool)
+    return compressed
 
 
 async def _generate_mcp_skills(
@@ -191,19 +241,22 @@ async def route_mcp_servers(
             logger.warning("MCP server '%s' exposed no tools, skipping", cfg.name)
             continue
 
-        schema_tokens = estimate_schema_tokens(server_tools)
-        if schema_tokens <= direct_threshold:
+        raw_schema_tokens = estimate_schema_tokens(server_tools)
+        if raw_schema_tokens <= direct_threshold:
+            compressed_tools = tuple(_compress_direct_tools(server_tools))
+            schema_tokens = estimate_schema_tokens(compressed_tools)
             direct_bundles.append(
                 _DirectServerBundle(
                     config=cfg,
-                    tools=tuple(server_tools),
+                    tools=compressed_tools,
                     schema_tokens=schema_tokens,
                 )
             )
             logger.info(
-                "MCP hybrid: server '%s' (%d tools, ~%d tokens, threshold=%d) → direct candidate",
+                "MCP hybrid: server '%s' (%d tools, raw~%d tokens, compact~%d tokens, threshold=%d) → direct candidate",
                 cfg.name,
                 len(server_tools),
+                raw_schema_tokens,
                 schema_tokens,
                 direct_threshold,
             )
@@ -213,7 +266,7 @@ async def route_mcp_servers(
                 "MCP hybrid: server '%s' (%d tools, ~%d tokens, threshold=%d) → PTC/Skill",
                 cfg.name,
                 len(server_tools),
-                schema_tokens,
+                raw_schema_tokens,
                 direct_threshold,
             )
 

@@ -225,12 +225,14 @@ class TestRipgrepSearch:
                 self.terminated = True
 
         fake_proc = _FakeProcess()
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.asyncio.create_subprocess_exec",
-            return_value=fake_proc,
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.asyncio.create_subprocess_exec",
+                return_value=fake_proc,
+            ),
+            pytest.raises(RuntimeError, match="ripgrep failed"),
         ):
-            with pytest.raises(RuntimeError, match="ripgrep failed"):
-                await _ripgrep_search("pattern", workspace, "**/*", False, 0, 10)
+            await _ripgrep_search("pattern", workspace, "**/*", False, 0, 10)
 
 
 # ---------------------------------------------------------------------------
@@ -346,7 +348,7 @@ class TestCreateGrepTool:
         with patch(
             "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
             return_value=mock_executor,
-        ), pytest.raises(ToolError, match="[Dd]angerous|[Nn]ested"):
+        ), pytest.raises(ToolError, match=r"[Dd]angerous|[Nn]ested"):
             await tool_fn.ainvoke(
                 {"pattern": "(a+)+"},
                 config=runnable_config,
@@ -598,6 +600,31 @@ class TestPythonFallback:
             assert "Found 1 match(es)" in result
             assert "No matches found" not in result
 
+    async def test_fallback_respects_root_ignore_files_without_git_repo(
+        self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig
+    ) -> None:
+        (workspace / ".gitignore").write_text("ignored_non_git.py\n")
+        (workspace / "ignored_non_git.py").write_text("NON_GIT_IGNORE_TOKEN = 1\n")
+        (workspace / "visible_non_git.py").write_text("NON_GIT_IGNORE_TOKEN = 1\n")
+
+        tool_fn = create_grep_tool()
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+                return_value=mock_executor,
+            ),
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool._has_ripgrep",
+                return_value=False,
+            ),
+        ):
+            result = await tool_fn.ainvoke(
+                {"pattern": "NON_GIT_IGNORE_TOKEN", "file_pattern": "**/*.py"},
+                config=runnable_config,
+            )
+            assert "visible_non_git.py" in result
+            assert "ignored_non_git.py" not in result
+
     async def test_fallback_invalid_file_pattern(
         self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig
     ) -> None:
@@ -610,7 +637,8 @@ class TestPythonFallback:
             patch(
                 "myrm_agent_harness.agent.meta_tools.file_search.grep_tool._has_ripgrep",
                 return_value=False,
-            ),pytest.raises(ToolError, match="[Ii]nvalid file pattern")
+            ),
+            pytest.raises(ToolError, match=r"[Ii]nvalid file pattern"),
         ):
             await tool_fn.ainvoke(
                 {"pattern": "test", "file_pattern": "\x00invalid"},
@@ -656,7 +684,7 @@ class TestUnexpectedExceptionWrapping:
         with patch(
             "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
             return_value=mock_executor_bad,
-        ), pytest.raises(ToolError, match="[Uu]nexpected"):
+        ), pytest.raises(ToolError, match=r"[Uu]nexpected"):
             await tool_fn.ainvoke(
                 {"pattern": "test"},
                 config=runnable_config,

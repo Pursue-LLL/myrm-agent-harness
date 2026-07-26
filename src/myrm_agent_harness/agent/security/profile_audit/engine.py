@@ -46,7 +46,7 @@ def run_profile_audit(audit_input: ProfileAuditInput) -> ProfileAuditResult:
         findings = checker.check(audit_input)
         all_findings.extend(findings)
 
-    findings_tuple = tuple(all_findings)
+    findings_tuple = tuple(sorted(all_findings, key=lambda f: f.severity, reverse=True))
     score, risk_level, finding_counts = compute_score(findings_tuple)
 
     return ProfileAuditResult(

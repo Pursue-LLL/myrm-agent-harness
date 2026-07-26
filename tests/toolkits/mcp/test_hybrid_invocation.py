@@ -11,8 +11,11 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from myrm_agent_harness.agent._factory.mcp_routing import (
+    DIRECT_MCP_DESCRIPTION_SOFT_LIMIT,
     FALLBACK_PTC_BRIDGE_TOKENS,
     PTC_OVERHEAD_MULTIPLIER,
+    _compact_description,
+    _compress_direct_tools,
     _config_to_dict,
     compute_direct_threshold,
     estimate_schema_tokens,
@@ -62,6 +65,33 @@ class TestEstimateSchemaTokens:
         del tool.get_input_schema
         tokens = estimate_schema_tokens([tool])
         assert tokens > 0
+
+
+class TestDirectToolDescriptionCompaction:
+    def test_compact_description_trims_verbose_text(self) -> None:
+        long_text = "Line one. " + ("Very long detail. " * 50)
+        compact = _compact_description(long_text)
+        assert len(compact) <= DIRECT_MCP_DESCRIPTION_SOFT_LIMIT + 1
+        assert compact.endswith(".")
+
+    def test_compact_description_keeps_short_text(self) -> None:
+        short_text = "Short MCP summary."
+        assert _compact_description(short_text) == short_text
+
+    def test_compress_direct_tools_updates_description(self) -> None:
+        tool = _make_mock_tool("verbose", schema_size=2000)
+        original = tool.description
+        compressed = _compress_direct_tools([tool])[0]
+        assert compressed.name == tool.name
+        assert len(compressed.description) < len(original)
+
+    def test_compress_direct_tools_avoids_in_place_mutation_without_model_copy(self) -> None:
+        tool = _make_mock_tool("plain", schema_size=2000)
+        tool.model_copy = None
+        original = tool.description
+        compressed = _compress_direct_tools([tool])[0]
+        assert tool.description == original
+        assert len(compressed.description) < len(original)
 
 
 class TestDynamicThreshold:
