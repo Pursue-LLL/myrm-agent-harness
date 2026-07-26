@@ -224,6 +224,7 @@ def build_channel_security_config(
 
     network_allowlist: tuple[str, ...] = ()
     network_blocklist: tuple[str, ...] = ()
+    command_denylist: tuple[str, ...] = ()
     domain_hitl_enabled = False
     auto_mode_enabled = True
     auto_review_model: str | None = None
@@ -235,6 +236,7 @@ def build_channel_security_config(
     if effective:
         network_allowlist = effective.network_allowlist
         network_blocklist = effective.network_blocklist
+        command_denylist = effective.command_denylist
         domain_hitl_enabled = effective.domain_hitl_enabled
         auto_mode_enabled = effective.auto_mode_enabled
         auto_review_model = effective.auto_review_model
@@ -255,6 +257,7 @@ def build_channel_security_config(
         path_policy=path_policy,
         network_allowlist=network_allowlist,
         network_blocklist=network_blocklist,
+        command_denylist=command_denylist,
         domain_hitl_enabled=domain_hitl_enabled,
         auto_mode_enabled=auto_mode_enabled,
         auto_review_model=auto_review_model,
@@ -330,6 +333,9 @@ def _merge_user_and_agent(
     network_blocklist = tuple(
         sorted(set(user.network_blocklist) | set(agent.network_blocklist))
     )
+    command_denylist = tuple(
+        sorted(set(user.command_denylist) | set(agent.command_denylist))
+    )
     domain_hitl_enabled = user.domain_hitl_enabled or agent.domain_hitl_enabled
     auto_mode_enabled = user.auto_mode_enabled or agent.auto_mode_enabled
     auto_review_model = agent.auto_review_model or user.auto_review_model
@@ -361,6 +367,7 @@ def _merge_user_and_agent(
         path_policy=pp,
         network_allowlist=network_allowlist,
         network_blocklist=network_blocklist,
+        command_denylist=command_denylist,
         domain_hitl_enabled=domain_hitl_enabled,
         auto_mode_enabled=auto_mode_enabled,
         auto_review_model=auto_review_model,

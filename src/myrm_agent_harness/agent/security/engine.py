@@ -6,8 +6,8 @@
 [OUTPUT]
 - evaluate(): resolve action for a (permission, target) pair via last-match-wins
 - evaluate_tool_call(): deterministic evaluation (Layers 1–5)
-  (capability → shell_command_analyzer → URL scheme check → domain HITL
-   → path_policy → target-aware ruleset → risk_classifier fallback).
+  (capability → shell_command_analyzer → command_denylist → URL scheme check
+   → domain HITL → path_policy → target-aware ruleset → risk_classifier fallback).
 - check_capability(): test (permission, target) against a CapabilitySet
 - merge(): combine multiple rulesets
 - disabled_permissions(): find unconditionally denied permission types
@@ -128,6 +128,41 @@ def _extract_url_host(url: str) -> str:
     return host or url
 
 
+_COMMAND_BEARING_PERMISSIONS = frozenset({"shell_exec", "code_interpreter"})
+
+
+def _check_command_denylist(
+    permission: str,
+    tool_input: dict[str, object],
+    command_denylist: tuple[str, ...],
+) -> tuple[PermissionAction | None, str]:
+    """Deny shell/code_interpreter calls whose command matches a user-defined glob.
+
+    Layer 2a.5: fires after ShellCommandAnalyzer (hardline), before URL scheme
+    check. Uses case-insensitive fnmatch so ``git push --force*`` matches
+    ``Git Push --Force origin main``.  YOLO cannot bypass this layer because
+    ``batch_processor.evaluate_tool_batch`` calls ``evaluate_tool_call`` and
+    honours DENY even under YOLO mode.
+    """
+    if permission not in _COMMAND_BEARING_PERMISSIONS or not command_denylist:
+        return None, ""
+    command = str(
+        tool_input.get("command", "")
+        or tool_input.get("code", "")
+        or tool_input.get("data", "")
+    ).strip()
+    if not command:
+        return None, ""
+    command_lower = command.lower()
+    for pattern in command_denylist:
+        if fnmatch(command_lower, pattern.lower()):
+            return (
+                PermissionAction.DENY,
+                f"Blocked by command denylist rule: {pattern}",
+            )
+    return None, ""
+
+
 def _check_domain_blocklist(
     permission: str, tool_input: dict[str, object], network_blocklist: tuple[str, ...]
 ) -> tuple[PermissionAction | None, str]:
@@ -219,6 +254,7 @@ def evaluate_tool_call(
     Evaluation order:
     1. Capability Fence → not granted → DENY
     2a. Shell Command Analyzer → BLOCK → DENY, ESCALATE → ASK
+    2a.5. Command Denylist → user-defined fnmatch globs → DENY (YOLO-proof)
     2b. URL Scheme Check → non-http(s) → DENY
     2c. Domain HITL → domain not in allowlist → ASK (when enabled)
     3. Path Policy → forbidden/allowed/workspace check (file_read/file_write only)
@@ -240,6 +276,12 @@ def evaluate_tool_call(
     threat_action, threat_reason = check_shell_threats(permission, tool_input)
     if threat_action is not None:
         return threat_action, threat_reason
+
+    deny_action, deny_reason = _check_command_denylist(
+        permission, tool_input, config.command_denylist
+    )
+    if deny_action is not None:
+        return deny_action, deny_reason
 
     scheme_action, scheme_reason = check_navigate_scheme(permission, tool_input)
     if scheme_action is not None:

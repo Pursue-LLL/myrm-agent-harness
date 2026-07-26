@@ -1120,8 +1120,13 @@ async def test_middleware_fallback_auto_deny():
 @pytest.mark.asyncio
 async def test_shadow_agent_auto_deny(monkeypatch):
     """Shadow agents have no UI channel — all pending approvals are auto-denied."""
+    from myrm_agent_harness.agent.middlewares.approval._batch_review import register_security_reviewer
+
+    register_security_reviewer(None)
+
     config = SecurityConfig(
-        ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),)
+        ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),),
+        auto_mode_enabled=False,
     )
     set_security_config(config)
     set_workspace_root("/tmp")
@@ -1170,12 +1175,16 @@ async def test_subagent_missing_task_id_auto_deny(monkeypatch):
         set_is_subagent,
         set_subagent_task_id,
     )
+    from myrm_agent_harness.agent.middlewares.approval._batch_review import register_security_reviewer
+
+    register_security_reviewer(None)
 
     config = SecurityConfig(
         ruleset=(
             PermissionRule("*", "*", PermissionAction.ALLOW),
             PermissionRule("code_interpreter", "*", PermissionAction.ASK),
-        )
+        ),
+        auto_mode_enabled=False,
     )
     set_security_config(config)
     set_workspace_root("/tmp")

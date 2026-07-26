@@ -32,6 +32,8 @@ Respond with ONLY a valid JSON object (no markdown, no explanation). The object 
   "pathPolicy": { ... },
   "privacyPolicy": { ... },
   "networkAllowlist": [ ... ],
+  "networkBlocklist": [ ... ],
+  "commandDenylist": [ ... ],
   "domainHitlEnabled": true/false,
   "capabilities": [ ... ],
   "approvalTimeoutSeconds": 120,
@@ -103,6 +105,19 @@ Trusted domains that bypass approval prompts.
 ["github.com", "api.openai.com", "*.google.com"]
 ```
 
+### networkBlocklist
+Domains permanently blocked from access, even under YOLO mode.
+```json
+["malware.example.com", "*.phishing.net"]
+```
+
+### commandDenylist
+Command patterns permanently blocked (glob syntax, fnmatch). Enforced at engine level — YOLO mode CANNOT bypass these.
+Use for unconditional hard blocks (e.g. destructive operations the user never wants executed).
+```json
+["rm -rf /*", "git push --force*", "*DROP DATABASE*", "mkfs*"]
+```
+
 ### domainHitlEnabled
 When true, accessing URLs with domains not in the allowlist requires user approval. Default: true.
 
@@ -118,7 +133,7 @@ Usually not needed (default grants all). Only specify to restrict.
 User: "不允许执行 rm 命令，允许读写 ~/projects 目录"
 ```json
 {
-  "permissions": {"shell_exec": {"rm *": "deny", "rm -rf *": "deny"}},
+  "commandDenylist": ["rm *", "rm -rf *"],
   "pathPolicy": {"allowedRoots": ["~/projects"]}
 }
 ```
@@ -154,13 +169,22 @@ User: "客服场景：只允许搜索和浏览网页，对所有PII进行脱敏�
 }
 ```
 
+User: "Block malicious sites and permanently forbid force push and database drops"
+```json
+{
+  "networkBlocklist": ["*.malware.com", "phishing.example.org"],
+  "commandDenylist": ["git push --force*", "git push * --force*", "*DROP DATABASE*", "*DROP TABLE*"]
+}
+```
+
 ## Rules
 1. Respond with ONLY valid JSON. No markdown code blocks, no explanations.
 2. Include ONLY keys relevant to the user's request. Do not include unchanged defaults.
 3. Support both Chinese and English input.
-4. When the user mentions "dangerous commands", map to shell_exec deny patterns for: rm, mkfs, dd, chmod 777, format.
+4. When the user says "永远禁止/绝对不允许/hard block" a command, use `commandDenylist` (YOLO-proof). When the user says "需要审批/需要确认", use `permissions` with "ask". Use `permissions` with "deny" for conditional blocks that respect rule priority.
 5. Default to the safest reasonable interpretation when ambiguous.
 6. "脱敏" = redact, "可逆脱敏" = pseudonymize, "加密" = pseudonymize.
+7. "禁止访问某域名/block domain" → use `networkBlocklist`. "信任某域名/trust domain" → use `networkAllowlist`.
 """
 
 
@@ -208,6 +232,14 @@ def _summarize_current_config(config: dict[str, Any]) -> str:
     allowlist = config.get("networkAllowlist")
     if allowlist:
         parts.append(f"- Trusted domains: {allowlist}")
+
+    blocklist = config.get("networkBlocklist")
+    if blocklist:
+        parts.append(f"- Blocked domains: {blocklist}")
+
+    cmd_deny = config.get("commandDenylist")
+    if cmd_deny:
+        parts.append(f"- Command denylist: {cmd_deny}")
 
     privacy = config.get("privacyPolicy")
     if privacy and privacy.get("enabled"):

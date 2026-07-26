@@ -33,6 +33,8 @@
 │   ↓              │
 │ Code Exec Valid. │ ← Layer 2: SSRF防护(DNS Pinning) + 命令/模块黑名单
 │   ↓              │
+│ Command Denylist │ ← Layer 2a.5: 用户自定义 fnmatch glob → DENY（YOLO-proof）
+│   ↓              │
 │ Domain Blocklist │ ← Layer 2b: URL hostname 命中 network_blocklist → DENY（先于 HITL）
 │   ↓              │
 │ Domain HITL      │ ← Layer 2c: URL域名审批（domain_hitl_enabled 时）
@@ -496,16 +498,19 @@ DEFAULT_RULESET = (
 ### evaluate_tool_call() — 评估入口
 
 ```
-Step 1:  Capability Fence → 未授权 → DENY
-Step 2a: Shell Command Analyzer → BLOCK → DENY, ESCALATE → ASK
-Step 2b: URL Scheme Check → 非 http/https → DENY
-Step 2b2: Domain Blocklist → hostname 命中 network_blocklist → DENY（无条件，优先于 Step 2c）
-Step 2c: Domain HITL → 域名不在 allowlist → ASK（仅 domain_hitl_enabled=True 时）
-Step 3:  Path Policy → forbidden → DENY, allowed/workspace → pass (file_read/file_write only)
-Step 4:  Permission Ruleset + Target Resolution → last-match-wins
-Step 5:  Fallback → ASK
-Step 6:  Transcript Classifier → 当 auto_mode_enabled 时，对所有 engine 返回 ASK 的操作进行 Reasoning-Blind 分类 → ALLOW / DENY / UNCERTAIN (回退到 ASK)
+Step 1:    Capability Fence → 未授权 → DENY
+Step 2a:   Shell Command Analyzer → BLOCK → DENY, ESCALATE → ASK
+Step 2a.5: Command Denylist → 用户自定义 fnmatch glob → DENY（YOLO 不可绕过）
+Step 2b:   URL Scheme Check → 非 http/https → DENY
+Step 2b2:  Domain Blocklist → hostname 命中 network_blocklist → DENY（无条件，优先于 Step 2c）
+Step 2c:   Domain HITL → 域名不在 allowlist → ASK（仅 domain_hitl_enabled=True 时）
+Step 3:    Path Policy → forbidden → DENY, allowed/workspace → pass (file_read/file_write only)
+Step 4:    Permission Ruleset + Target Resolution → last-match-wins
+Step 5:    Fallback → ASK
+Step 6:    Transcript Classifier → 当 auto_mode_enabled 时，对所有 engine 返回 ASK 的操作进行 Reasoning-Blind 分类 → ALLOW / DENY / UNCERTAIN (回退到 ASK)
 ```
+
+**Step 2a.5 — Command Denylist**：用户可在 WebUI 全局安全设置或 Per-Agent 安全配置中定义 fnmatch glob 模式列表（如 `git push --force*`、`kubectl delete*`、`*DROP DATABASE*`）。匹配采用大小写不敏感的 `fnmatch`，仅对 `shell_exec` 和 `code_interpreter` 权限类型生效。命中则 **DENY**，YOLO 模式也无法绕过（因为 `batch_processor.evaluate_tool_batch` 在 YOLO 路径仍调用 `evaluate_tool_call` 并尊重 DENY）。全局和 Agent 级 denylist 通过 `channel_presets._merge_user_and_agent` 取并集合并。
 
 **Step 2b2 — Domain Blocklist**：对含 `url` 参数的 URL-bearing 工具（`web_fetch`、`browser_navigate` 等），提取 hostname 并匹配 `SecurityConfig.network_blocklist`（与 allowlist 共用 `_domain_in_allowlist` 模式语法：`example.com`、`.example.com`）。命中则 **DENY**，不进入 HITL。WebUI Settings `DomainBlocklistEditor` 持久化；harness `BrowserSession.navigate()` 与会话 `domain_filter` 同步 enforcement。
 

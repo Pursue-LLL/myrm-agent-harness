@@ -1,4 +1,4 @@
-"""Architecture guard: discover_capability vs skill_discovery tool boundaries.
+"""Architecture guard: discover_capability vs skill_market tool boundaries.
 
 Prevents LLM schema regressions where paired tool descriptions lose cross-references
 that disambiguate library search from external marketplace install.
@@ -53,7 +53,7 @@ def test_discover_capability_description_points_to_marketplace_tool(discover_too
 
 
 @pytest.mark.architecture
-def test_skill_discovery_description_points_to_skill_search_tool(marketplace_tool) -> None:
+def test_skill_market_description_points_to_skill_search_tool(marketplace_tool) -> None:
     description = _tool_description(marketplace_tool)
     assert _DISCOVER_TOOL in description
     assert "already bound" in description.lower() or "bound to this agent" in description.lower()

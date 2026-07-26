@@ -30,6 +30,8 @@ _VALID_TOP_KEYS = frozenset(
         "pathPolicy",
         "privacyPolicy",
         "networkAllowlist",
+        "networkBlocklist",
+        "commandDenylist",
         "domainHitlEnabled",
         "capabilities",
         "approvalTimeoutSeconds",
@@ -128,6 +130,20 @@ def _normalize_config(raw: dict[str, object]) -> dict[str, object]:
             result["networkAllowlist"] = [str(d).strip().lower() for d in val if d]
         else:
             del result["networkAllowlist"]
+
+    if "networkBlocklist" in result:
+        val = result["networkBlocklist"]
+        if isinstance(val, list):
+            result["networkBlocklist"] = [str(d).strip().lower() for d in val if d]
+        else:
+            del result["networkBlocklist"]
+
+    if "commandDenylist" in result:
+        val = result["commandDenylist"]
+        if isinstance(val, list):
+            result["commandDenylist"] = [str(p).strip() for p in val if p]
+        else:
+            del result["commandDenylist"]
 
     if "pathPolicy" in result:
         result["pathPolicy"] = _normalize_path_policy(result["pathPolicy"])

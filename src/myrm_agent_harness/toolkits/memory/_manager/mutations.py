@@ -224,6 +224,7 @@ class MemoryManagerMutationsMixin:
                     "archive_expires_at": (now + timedelta(days=7)).isoformat(),
                     "archive_reason": "user_deleted",
                 }
+                await self._cascade_clean_derived_graph_nodes(memory_id)
             elif existing.status == MemoryStatus.ARCHIVED and status == MemoryStatus.ACTIVE:
                 updated.metadata.pop("archived_at", None)
                 updated.metadata.pop("archive_expires_at", None)

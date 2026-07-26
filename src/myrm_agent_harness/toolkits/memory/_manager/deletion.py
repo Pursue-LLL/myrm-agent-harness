@@ -21,6 +21,61 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
 
 
 class MemoryManagerDeletionMixin:
+    # ── Graph cascade ──
+
+    async def _cascade_clean_derived_graph_nodes(self, memory_id: str) -> None:
+        """Remove Claim Graph nodes derived from a deleted/archived memory.
+
+        Evidence nodes carry ``source_memory_id`` pointing back to the original
+        vector document.  Claim nodes track ``latest_source_memory_id``.  When
+        the original memory is removed, the derived Evidence must be deleted and
+        Claim's ``evidence_count`` decremented; a Claim with zero remaining
+        Evidence is deleted entirely.
+        """
+        if self._graph is None:
+            return
+        try:
+            await self._graph.delete_subgraph(memory_id)
+        except Exception as exc:
+            logger.warning("Graph subgraph cleanup failed for %s: %s", memory_id, exc)
+
+        try:
+            evidence_nodes = await self._graph.find_nodes(
+                ["Evidence"], {"source_memory_id": memory_id},
+            )
+        except Exception as exc:
+            logger.warning("Graph evidence lookup failed for %s: %s", memory_id, exc)
+            return
+
+        for evidence in evidence_nodes:
+            try:
+                await self._graph.delete_subgraph(evidence.id)
+            except Exception as exc:
+                logger.warning("Graph evidence delete failed for %s: %s", evidence.id, exc)
+
+        try:
+            claim_nodes = await self._graph.find_nodes(
+                ["Claim"], {"latest_source_memory_id": memory_id},
+            )
+        except Exception as exc:
+            logger.warning("Graph claim lookup failed for %s: %s", memory_id, exc)
+            return
+
+        for claim in claim_nodes:
+            evidence_count = int(claim.properties.get("evidence_count", 0))
+            if evidence_count <= 1:
+                try:
+                    await self._graph.delete_subgraph(claim.id)
+                except Exception as exc:
+                    logger.warning("Graph claim delete failed for %s: %s", claim.id, exc)
+            else:
+                try:
+                    await self._graph.update_node_properties(
+                        claim.id, {"evidence_count": max(0, evidence_count - 1)},
+                    )
+                except Exception as exc:
+                    logger.warning("Graph claim update failed for %s: %s", claim.id, exc)
+
     # ── Delete ──
 
     async def delete_memory(self, collection: str, ids: list[str], *, allow_pinned: bool = True) -> int:
@@ -37,12 +92,8 @@ class MemoryManagerDeletionMixin:
                 return 0
             ids = owned_ids
         deleted = await delete_from_vector(collection, ids, self._vector)
-        if self._graph is not None:
-            for memory_id in ids:
-                try:
-                    await self._graph.delete_subgraph(memory_id)
-                except Exception as e:
-                    logger.warning("Graph cleanup failed for %s: %s", memory_id, e)
+        for memory_id in ids:
+            await self._cascade_clean_derived_graph_nodes(memory_id)
         return deleted
 
     async def delete_rule(self, rule_id: str, *, allow_pinned: bool = True) -> bool:
@@ -262,11 +313,7 @@ class MemoryManagerDeletionMixin:
             result.deleted_refs.append(
                 MemoryMutationRef(memory_type=memory_type, memory_id=memory_id, backend=collection)
             )
-            if self._graph is not None:
-                try:
-                    await self._graph.delete_subgraph(memory_id)
-                except Exception as e:
-                    logger.warning("Graph cleanup failed for %s: %s", memory_id, e)
+            await self._cascade_clean_derived_graph_nodes(memory_id)
 
     async def list_memory_ids_by_metadata(
         self,

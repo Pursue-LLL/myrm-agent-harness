@@ -116,7 +116,8 @@ async def search_memory_corpus(
             result.memory_type.value,
         )
         memory = result.memory
-        age = memory_age_label(memory.created_at)
+        effective_time = max(memory.created_at, memory.updated_at)
+        age = memory_age_label(effective_time)
         provenance = _channel_label(memory.scope.channel_id)
         prefix = f"{provenance}[{cat}] (id: {memory.id}, score: {result.score:.2f}, {age}) "
         suffix = ""
@@ -130,7 +131,7 @@ async def search_memory_corpus(
         if isinstance(memory, SemanticMemory) and memory.source_error:
             suffix += f" (avoid: {memory.source_error})"
         if result.memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC, MemoryType.CLAIM) and _is_stale(
-            memory.created_at
+            effective_time
         ):
             if _CODE_PATH_PATTERN.search(memory.content):
                 suffix += (

@@ -78,6 +78,7 @@ def validate_generated_policy(
     _check_path_policy(generated, warnings)
     _check_privacy_policy(generated, warnings)
     _check_network_allowlist(generated, warnings)
+    _check_command_denylist(generated, warnings)
 
     if current_config:
         _check_conflicts(generated, current_config, warnings)
@@ -172,6 +173,24 @@ def _check_network_allowlist(config: dict[str, object], warnings: list[PolicyWar
                     message="Wildcard '*' in network allowlist disables all domain approval checks",
                     severity=WarningSeverity.DANGER,
                     field="networkAllowlist",
+                )
+            )
+
+
+def _check_command_denylist(config: dict[str, object], warnings: list[PolicyWarning]) -> None:
+    """Check command denylist for overly broad patterns."""
+    denylist = config.get("commandDenylist")
+    if not isinstance(denylist, list):
+        return
+
+    for pattern in denylist:
+        pattern_str = str(pattern)
+        if pattern_str == "*":
+            warnings.append(
+                PolicyWarning(
+                    message="Wildcard '*' in command denylist will block ALL shell commands and code execution",
+                    severity=WarningSeverity.WARNING,
+                    field="commandDenylist",
                 )
             )
 

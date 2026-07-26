@@ -157,9 +157,19 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
     if isinstance(blocklist_raw, list):
         network_blocklist = tuple(s.strip().lower() for s in blocklist_raw if isinstance(s, str) and s.strip())
 
+    command_denylist: tuple[str, ...] = ()
+    cmd_deny_raw = raw.get("commandDenylist")
+    if isinstance(cmd_deny_raw, list):
+        command_denylist = tuple(s.strip() for s in cmd_deny_raw if isinstance(s, str) and s.strip())
+
     domain_hitl_enabled = bool(raw.get("domainHitlEnabled", True))
 
-    auto_review_enabled = bool(raw.get("autoModeEnabled") or raw.get("autoReviewEnabled", True))
+    if "autoModeEnabled" in raw:
+        auto_review_enabled = bool(raw["autoModeEnabled"])
+    elif "autoReviewEnabled" in raw:
+        auto_review_enabled = bool(raw["autoReviewEnabled"])
+    else:
+        auto_review_enabled = True
     auto_review_model_raw = raw.get("autoReviewModel")
     auto_review_model = str(auto_review_model_raw) if auto_review_model_raw else None
     auto_review_timeout_raw = raw.get("autoReviewTimeoutSeconds", 3.0)
@@ -184,6 +194,7 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
         path_policy=path_policy,
         network_allowlist=network_allowlist,
         network_blocklist=network_blocklist,
+        command_denylist=command_denylist,
         domain_hitl_enabled=domain_hitl_enabled,
         auto_mode_enabled=auto_review_enabled,
         auto_review_model=auto_review_model,
@@ -215,6 +226,7 @@ def apply_remote_exposed_overlay(base: SecurityConfig) -> SecurityConfig:
         path_policy=base.path_policy,
         network_allowlist=base.network_allowlist,
         network_blocklist=base.network_blocklist,
+        command_denylist=base.command_denylist,
         domain_hitl_enabled=base.domain_hitl_enabled,
         privacy_policy=base.privacy_policy,
         auto_mode_enabled=base.auto_mode_enabled,
@@ -234,8 +246,11 @@ def remote_exposed_permissions() -> dict[str, str]:
 
 def security_config_to_dict(config: SecurityConfig) -> dict[str, object]:
     """Serialize SecurityConfig fields consumed by agent-server security_config_raw."""
-    return {
+    result: dict[str, object] = {
         "permissions": _ruleset_to_permissions(config.ruleset),
         "yoloModeEnabled": config.yolo_mode_enabled,
         "yolo_mode_enabled": config.yolo_mode_enabled,
     }
+    if config.command_denylist:
+        result["commandDenylist"] = list(config.command_denylist)
+    return result

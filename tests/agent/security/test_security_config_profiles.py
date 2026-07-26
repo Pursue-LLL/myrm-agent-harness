@@ -290,3 +290,50 @@ class TestSecurityConfigFrozen:
             assert False, "Should raise FrozenInstanceError"
         except AttributeError:
             pass
+
+
+class TestParseSecurityConfigAutoMode:
+    """Tests for parse_security_config handling of auto_mode_enabled defaults."""
+
+    def test_no_auto_mode_key_defaults_true(self) -> None:
+        from myrm_agent_harness.agent.security.config import parse_security_config
+
+        config = parse_security_config({"approvalTimeoutSeconds": 60})
+        assert config is not None
+        assert config.auto_mode_enabled is True
+
+    def test_auto_mode_enabled_explicit_false(self) -> None:
+        from myrm_agent_harness.agent.security.config import parse_security_config
+
+        config = parse_security_config({"autoModeEnabled": False})
+        assert config is not None
+        assert config.auto_mode_enabled is False
+
+    def test_auto_mode_enabled_explicit_true(self) -> None:
+        from myrm_agent_harness.agent.security.config import parse_security_config
+
+        config = parse_security_config({"autoModeEnabled": True})
+        assert config is not None
+        assert config.auto_mode_enabled is True
+
+    def test_auto_review_enabled_fallback_false(self) -> None:
+        from myrm_agent_harness.agent.security.config import parse_security_config
+
+        config = parse_security_config({"autoReviewEnabled": False})
+        assert config is not None
+        assert config.auto_mode_enabled is False
+
+    def test_auto_mode_takes_priority_over_auto_review(self) -> None:
+        from myrm_agent_harness.agent.security.config import parse_security_config
+
+        config = parse_security_config(
+            {"autoModeEnabled": False, "autoReviewEnabled": True}
+        )
+        assert config is not None
+        assert config.auto_mode_enabled is False
+
+    def test_empty_raw_returns_none(self) -> None:
+        from myrm_agent_harness.agent.security.config import parse_security_config
+
+        assert parse_security_config(None) is None
+        assert parse_security_config({}) is None

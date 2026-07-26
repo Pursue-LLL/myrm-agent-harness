@@ -341,6 +341,7 @@ class SecurityConfig:
     Evaluation order in ``engine.evaluate_tool_call``:
     1. Capability Fence (deny-by-default, anti-privilege-escalation)
     2a. Shell Command Analyzer (BLOCK → DENY, ESCALATE → ASK)
+    2a.5. Command Denylist (user-defined fnmatch globs, YOLO-proof)
     2b. URL Scheme Check (browser_navigate: only http/https allowed)
     2c. Domain HITL (URL-bearing tools: domain not in allowlist → ASK)
     3. Path Policy (forbidden → allowed_roots → workspace, file ops only)
@@ -364,6 +365,7 @@ class SecurityConfig:
     auto_review_timeout_seconds: float = 3.0
     transcript_window_size: int = 20
     plan_confirm_enabled: bool = False
+    command_denylist: tuple[str, ...] = ()
     yolo_mode_enabled: bool = False
     yolo_mode_enabled_at: float | None = None
     yolo_mode_timeout: int | None = None

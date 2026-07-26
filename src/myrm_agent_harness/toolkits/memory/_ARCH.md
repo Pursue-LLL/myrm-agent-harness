@@ -15,7 +15,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | adaptive.py              | Core     | Adaptive dual-channel selection logic. Analyzes query characteristics (token count,                           | ✅    |
 | archival.py              | Core     | Provides ArchivalCandidate, ArchivalStrategy, TimeBasedArchivalStrategy.                                      | ✅    |
 | backup.py                | Core     | Provides BackupMetadata, BackupResult, RestoreResult.                                                         | ✅    |
-| cache.py                 | Core     | Memory query result caching with LRU eviction and auto-invalidation.                                          | ✅    |
 | chunking.py              | Core     | Chunking utilities for ConversationMemory. Provides configurable strategies                                   | ✅    |
 | compression.py           | Core     | Transparent payload compression and external BLOB storage for ConversationMemory raw_exchange fields.         | ✅    |
 | config.py                | Core     | Memory configuration — functional switches and retrieval params only.                                         | ✅    |

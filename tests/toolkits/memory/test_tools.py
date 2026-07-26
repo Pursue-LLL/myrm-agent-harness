@@ -243,7 +243,7 @@ class TestMemoryRecallTool:
             AsyncMock(
                 return_value=[
                     MemorySearchResult(
-                        memory=SemanticMemory(content="old fact", created_at=stale_time),
+                        memory=SemanticMemory(content="old fact", created_at=stale_time, updated_at=stale_time),
                         score=0.9,
                         memory_type=MemoryType.SEMANTIC,
                     )

@@ -505,7 +505,8 @@ async def test_run_post_call_guards_budget_persisted():
          patch("myrm_agent_harness.agent.middlewares._tool_guards.check_tool_result_pii") as mock_pii, \
          patch("myrm_agent_harness.agent.security.guards.taint_tracker.get_taint_tracker"), \
          patch("myrm_agent_harness.agent.middlewares._tool_guards.get_context_budget_guard") as mock_budget, \
-         patch("myrm_agent_harness.agent.middlewares._tool_guards.run_content_validation", return_value=None):
+         patch("myrm_agent_harness.agent.middlewares._tool_guards.run_content_validation", return_value=None), \
+         patch("myrm_agent_harness.agent.context_management.infra.evicted_content.emit_evicted_ref", new_callable=AsyncMock):
 
         mock_hook_result = MagicMock()
         mock_hook_result.blocked = False
@@ -519,6 +520,10 @@ async def test_run_post_call_guards_budget_persisted():
         mock_budget_verdict.content = "persisted"
         mock_budget_verdict.reason = "too long"
         mock_budget_verdict.persisted_path = "/tmp/test"
+        mock_budget_verdict.evicted_ref = "evict_abc123"
+        mock_budget_verdict.stored_chars = 1024
+        mock_budget_verdict.total_lines = 50
+        mock_budget_verdict.storage_truncated = False
         mock_budget_inst.check_and_truncate.return_value = mock_budget_verdict
         mock_budget.return_value = mock_budget_inst
 

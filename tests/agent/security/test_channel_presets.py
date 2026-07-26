@@ -295,6 +295,15 @@ class TestBuildChannelSecurityConfig:
         assert config.approval_timeout_seconds == 120
         assert config.approval_timeout_behavior == "deny"
         assert config.network_allowlist == ()
+        assert config.auto_mode_enabled is True
+
+    def test_user_explicit_auto_mode_disabled(self) -> None:
+        """User explicitly disabling auto_mode is respected."""
+        config = build_channel_security_config(
+            "web_chat",
+            user_config_raw={"autoModeEnabled": False},
+        )
+        assert config.auto_mode_enabled is False
 
     def test_privacy_policy_passthrough(self) -> None:
         """privacy_policy parameter is correctly attached to the result."""
