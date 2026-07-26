@@ -18,6 +18,7 @@ individual failures are logged and silently skipped.
 | modelscope.py | Core | ModelScope 魔搭社区技能搜索源（搜索无需认证，80K+ 技能）。 | ✅ |
 | prebuilt.py | Core | Prebuilt skill search source. | ✅ |
 | skills_sh.py | Core | Provides SkillsShSource. | ✅ |
+| wellknown.py | Core | .well-known/skills/ endpoint source for custom/enterprise registries. | ✅ |
 
 ## Key Dependencies
 

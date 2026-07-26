@@ -5,6 +5,7 @@ detection, steering, trust, PII).  Post-call guards process the result
 (budget truncation, poisoning, taint, hook validation, loop recording).
 
 [INPUT]
+- agent.errors.tool_error_category::ToolErrorCategory (POS: Canonical tool error categories for structured error classification.)
 - agent.security.guards.estop (POS: Global guard)
 - agent.security.guards.loop_guard (POS: Session-level loop detection guard)
 - agent.security.guards.context_budget (POS: Session-level context budget guard)

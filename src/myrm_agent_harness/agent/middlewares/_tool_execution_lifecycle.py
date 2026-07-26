@@ -5,6 +5,7 @@ executions, and structured error / cancellation handling.
 
 [INPUT]
 - langgraph.prebuilt.tool_node::ToolCallRequest
+- agent.errors.tool_error_category::ToolErrorCategory (POS: Canonical tool error categories for structured error classification.)
 - agent.middlewares._session_context (POS: active tool registry)
 - agent.middlewares._tool_helpers (POS: error formatting)
 

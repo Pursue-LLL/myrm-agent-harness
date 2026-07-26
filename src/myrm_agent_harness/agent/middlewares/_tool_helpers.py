@@ -2,6 +2,7 @@
 
 [INPUT]
 - langchain_core.messages::ToolMessage (POS: Core message type definitions)
+- agent.errors.tool_error_category::ToolErrorCategory (POS: Canonical tool error categories for structured error classification.)
 - agent.security.guards.estop (POS: Global guard)
 - agent.security.types (POS: Security type definitions)
 - agent.security.audit::record_decision (POS: Cross-cutting security audit)

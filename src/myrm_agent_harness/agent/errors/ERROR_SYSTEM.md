@@ -140,7 +140,7 @@ WebSearchError
 - **覆盖范围**：
   - `import`：提取模块名 → `_IMPORT_TO_PYPI` 映射 PyPI 包名 → 智能检测 uv 包管理器优先使用（`uv pip install` vs `pip install`）
   - `not_found`：提取命令名 → 联动 `tool_discovery` 的 `get_install_hint()` 查询 `TOOL_CATALOG` 中的平台特定安装命令（如 `"Try: brew install jq"`），不在 catalog 中则 fallback 到通用提示
-  - `permission`：提取文件路径 → `chmod +x` 建议
+  - `permission_denied`：提取文件路径 → `chmod +x` 建议
   - `timeout`：方向性建议（减少数据量/拆分任务）
   - `oom`：方向性建议（分批处理/减少内存）
 - **不覆盖**：syntax / unknown（Agent 直接读 stderr 更有效）
