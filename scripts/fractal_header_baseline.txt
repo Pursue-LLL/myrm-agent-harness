@@ -1,9 +1,7 @@
-# Fractal IOP header baseline (paths relative to src/, one per line).
 #
 # CI: check_fractal_docs.py --strict-headers --header-baseline this file
-#
+# Fractal IOP header baseline (paths relative to src/, one per line).
 # New .py files MUST include [INPUT]/[OUTPUT]/[POS] and must NOT be listed here.
-
 myrm_agent_harness/__init__.py
 myrm_agent_harness/_core_ip_manifest.py
 myrm_agent_harness/_distribution.py
@@ -68,12 +66,10 @@ myrm_agent_harness/agent/security/tool_registry.py
 myrm_agent_harness/agent/security/trust_context.py
 myrm_agent_harness/agent/security/types.py
 myrm_agent_harness/agent/skills/__init__.py
-myrm_agent_harness/agent/skills/market/installers/batch_installer.py
 myrm_agent_harness/agent/skills/evolution/__init__.py
 myrm_agent_harness/agent/skills/evolution/quality/__init__.py
+myrm_agent_harness/agent/skills/market/installers/batch_installer.py
 myrm_agent_harness/agent/skills/mcp/__init__.py
-myrm_agent_harness/toolkits/code_execution/python_extractor.py
-myrm_agent_harness/toolkits/code_execution/code_detector.py
 myrm_agent_harness/agent/skills/optimization/__init__.py
 myrm_agent_harness/agent/skills/runtime/__init__.py
 myrm_agent_harness/agent/streaming/__init__.py
@@ -109,6 +105,9 @@ myrm_agent_harness/eval/__init__.py
 myrm_agent_harness/eval/memory_retrieval/__init__.py
 myrm_agent_harness/infra/incremental/__init__.py
 myrm_agent_harness/infra/security/__init__.py
+myrm_agent_harness/observability/tracing/context.py
+myrm_agent_harness/observability/tracing/json_formatter.py
+myrm_agent_harness/observability/tracing/log_filter.py
 myrm_agent_harness/runtime/__init__.py
 myrm_agent_harness/runtime/context/__init__.py
 myrm_agent_harness/runtime/events/__init__.py
@@ -124,9 +123,11 @@ myrm_agent_harness/toolkits/browser/enhancers/dom_enhancer_loader.py
 myrm_agent_harness/toolkits/browser/session/__init__.py
 myrm_agent_harness/toolkits/browser/snapshot/self_healer.py
 myrm_agent_harness/toolkits/browser/utils/proxy_error.py
+myrm_agent_harness/toolkits/code_execution/code_detector.py
 myrm_agent_harness/toolkits/code_execution/executors/__init__.py
 myrm_agent_harness/toolkits/code_execution/executors/common/__init__.py
 myrm_agent_harness/toolkits/code_execution/interceptor.py
+myrm_agent_harness/toolkits/code_execution/python_extractor.py
 myrm_agent_harness/toolkits/code_execution/sandbox/__init__.py
 myrm_agent_harness/toolkits/code_execution/sandbox/providers/__init__.py
 myrm_agent_harness/toolkits/code_execution/security/__init__.py
@@ -182,9 +183,6 @@ myrm_agent_harness/toolkits/web_fetch/html_to_markdown.py
 myrm_agent_harness/toolkits/web_fetch/router/__init__.py
 myrm_agent_harness/toolkits/web_search/constants.py
 myrm_agent_harness/toolkits/web_search/local_probe.py
-myrm_agent_harness/observability/tracing/context.py
-myrm_agent_harness/observability/tracing/json_formatter.py
-myrm_agent_harness/observability/tracing/log_filter.py
 myrm_agent_harness/utils/crypto/__init__.py
 myrm_agent_harness/utils/mime_types.py
 myrm_agent_harness/utils/tree_truncator.py
