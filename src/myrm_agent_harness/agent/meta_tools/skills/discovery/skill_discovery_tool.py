@@ -73,16 +73,16 @@ def _extract_user_id(config: RunnableConfig) -> str:
     return uid
 
 
-def create_skill_discovery_tool(
-    discovery_backend: SkillDiscoveryBackend,
+def create_skill_market_tool(
+    market_backend: SkillMarketBackend,
     *,
     install_from_url_fn: InstallFromUrlFn | None = None,
     uninstall_fn: UninstallFn | None = None,
 ) -> BaseTool:
-    """Create the skill discovery tool.
+    """Create the skill market tool.
 
     Args:
-        discovery_backend: Skill discovery backend (Protocol injection)
+        market_backend: Skill market backend (Protocol injection)
         install_from_url_fn: Optional callback for direct URL install (business layer)
         uninstall_fn: Optional callback for uninstall (business layer)
     """

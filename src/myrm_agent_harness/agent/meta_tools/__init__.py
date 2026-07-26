@@ -6,7 +6,7 @@
 - file_search::create_glob_tool, create_grep_tool (POS: 文件搜索工具创建函数)
 - skills.select::create_select_skill_tool (POS: 技能选择工具创建函数)
 - discover_capability::sync_discover_capability_tool (POS: 统一能力发现网关，由 SkillAgent 调用)
-- skills.discovery::create_skill_discovery_tool (POS: 外部技能发现工具创建函数)
+- skills.discovery::create_skill_market_tool (POS: 外部技能市场工具创建函数)
 - skills.manage::create_skill_manage_tool (POS: 技能管理工具创建函数)
 - spawn_subagent::create_delegate_task_tool, create_subagent_control_tool (POS: Subagent 委派与控制 LLM 工具)
 [OUTPUT]
@@ -277,8 +277,8 @@ def get_meta_tools(
     else:
         logger.info("Bash tool disabled by caller configuration")
 
-    if skill_discovery_pending is not None:
-        tools.append(skill_discovery_pending)
+    if skill_market_pending is not None:
+        tools.append(skill_market_pending)
 
     # discover_capability_tool → skill_search_tool SSOT: SkillAgent calls sync_discover_capability_tool()
     # after all skills are registered.
