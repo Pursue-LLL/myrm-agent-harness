@@ -55,6 +55,43 @@ def _should_block_allow_always(
         return True
     return _integration_mutation_blocks_allow_always(tool_call)
 
+
+async def _try_add_to_allowlist(
+    tool_call: dict[str, object],
+    extra_ctx: dict[str, Any] | None,
+    allow_always: bool | dict[str, bool],
+    permission_type: str,
+    allowlist_tool_name: str,
+    idx: int,
+    args_hashes: dict[int, str | None],
+) -> None:
+    """Write to allowlist if allow_always is set and not blocked by security guards."""
+    if not allow_always:
+        return
+    if _should_block_allow_always(tool_call, extra_ctx):
+        tool_name = tool_call.get("name", "unknown")
+        logger.warning(
+            "[APPROVAL] Ignoring allow_always for high-risk/restricted operation on %s",
+            tool_name,
+        )
+        return
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_approval_user_id,
+    )
+
+    user_id = get_approval_user_id() or DEFAULT_USER_ID
+    tool_args = tool_call.get("args", {})
+    shell_command = extract_shell_command(tool_args if isinstance(tool_args, dict) else None)
+    await add_to_allowlist_if_needed(
+        allow_always,
+        user_id,
+        permission_type,
+        allowlist_tool_name,
+        args_hashes.get(idx),
+        tool_command=shell_command,
+    )
+
+
 __all__ = ["apply_approval_decisions", "build_interrupt_payload"]
 
 _DEFAULT_APPROVAL_TIMEOUT_SECONDS = 600
@@ -284,28 +321,10 @@ async def apply_approval_decisions(
                         )
                         record_decision(tool_name, "DOMAIN_APPROVED", f"domains: {domains}")
 
-                if allow_always:
-                    if _should_block_allow_always(tool_call, extra_ctx):
-                        logger.warning(
-                            "[APPROVAL] Ignoring allow_always for high-risk/restricted operation on %s",
-                            tool_name,
-                        )
-                    else:
-                        from myrm_agent_harness.agent.middlewares._session_context import (
-                            get_approval_user_id,
-                        )
-
-                        user_id = get_approval_user_id() or DEFAULT_USER_ID
-                        tool_args = tool_call.get("args", {})
-                        shell_command = extract_shell_command(tool_args if isinstance(tool_args, dict) else None)
-                        await add_to_allowlist_if_needed(
-                            allow_always,
-                            user_id,
-                            permission_type,
-                            allowlist_tool_name,
-                            args_hashes.get(idx),
-                            tool_command=shell_command,
-                        )
+                await _try_add_to_allowlist(
+                    tool_call, extra_ctx, allow_always, permission_type,
+                    allowlist_tool_name, idx, args_hashes,
+                )
 
                 revised_tool_calls.append(tool_call)
 
@@ -355,28 +374,11 @@ async def apply_approval_decisions(
                     revised_tool_calls.append(tool_call)
                     edit_applied = True
 
-                if edit_applied and allow_always:
-                    if _should_block_allow_always(tool_call, extra_ctx):
-                        logger.warning(
-                            "[APPROVAL] Ignoring allow_always for high-risk/restricted edited operation on %s",
-                            tool_name,
-                        )
-                    else:
-                        from myrm_agent_harness.agent.middlewares._session_context import (
-                            get_approval_user_id,
-                        )
-
-                        user_id = get_approval_user_id() or DEFAULT_USER_ID
-                        tool_args = tool_call.get("args", {})
-                        shell_command = extract_shell_command(tool_args if isinstance(tool_args, dict) else None)
-                        await add_to_allowlist_if_needed(
-                            allow_always,
-                            user_id,
-                            permission_type,
-                            allowlist_tool_name,
-                            args_hashes.get(idx),
-                            tool_command=shell_command,
-                        )
+                if edit_applied:
+                    await _try_add_to_allowlist(
+                        tool_call, extra_ctx, allow_always, permission_type,
+                        allowlist_tool_name, idx, args_hashes,
+                    )
 
             else:
                 feedback = decision.get("feedback", "User rejected this action.")
