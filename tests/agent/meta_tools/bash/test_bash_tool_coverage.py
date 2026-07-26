@@ -115,6 +115,7 @@ def test_restore_context_vars_binds_executor_and_workspace() -> None:
     context = {
         "workspace_path": "/tmp/ws",
         "workspaces_storage_root": "/tmp/storage",
+        "chat_id": "e2ebashfg-abc",
     }
     with (
         patch(
@@ -129,12 +130,20 @@ def test_restore_context_vars_binds_executor_and_workspace() -> None:
         patch(
             "myrm_agent_harness.toolkits.code_execution.workspace.storage_root_bind.bind_workspace_storage_root",
         ) as mock_bind,
+        patch(
+            "myrm_agent_harness.core.context_vars.chat_id_var",
+        ) as mock_chat_id,
+        patch(
+            "myrm_agent_harness.core.context_vars.workspace_root_var",
+        ) as mock_ws_var,
     ):
         mock_root.get.return_value = None
         restore_context_vars(context, executor)
 
     mock_set.assert_called_once_with(executor)
     mock_ws.assert_called_once_with("/tmp/ws")
+    mock_ws_var.set.assert_called_once_with("/tmp/ws")
+    mock_chat_id.set.assert_called_once_with("e2ebashfg-abc")
     mock_bind.assert_called_once()
 
 

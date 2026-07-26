@@ -64,6 +64,9 @@ class BudgetVerdict:
     budget_used_pct: float
     persisted_path: str | None = None
     evicted_ref: str | None = None
+    stored_chars: int | None = None
+    total_lines: int | None = None
+    storage_truncated: bool = False
 
 
 def _estimate_tokens(text: str) -> int:
@@ -114,8 +117,11 @@ class ContextBudgetGuard:
 
     def _try_persist(
         self, content: str, tool_name: str
-    ) -> tuple[str, str, str | None] | None:
-        """Try to persist content to UECD evicted dir. Returns (summary, rel_path, evicted_basename) or None."""
+    ) -> tuple[str, str, str, int, int, bool] | None:
+        """Try to persist content to UECD evicted dir.
+
+        Returns (summary, rel_path, evicted_basename, stored_chars, total_lines, storage_truncated) or None.
+        """
         from myrm_agent_harness.agent.context_management.infra.evicted_content import (
             build_delivery_footer,
             sanitize_evicted_source,
@@ -143,7 +149,14 @@ class ContextBudgetGuard:
             )
         else:
             summary = f"{head}{footer}"
-        return summary, result.rel_path, result.evicted_ref
+        return (
+            summary,
+            result.rel_path,
+            result.evicted_ref,
+            result.stored_chars,
+            result.total_lines,
+            result.storage_truncated,
+        )
 
     def check_and_truncate(self, content: str, tool_name: str) -> BudgetVerdict:
         """Check a tool result against budget limits.
@@ -158,6 +171,9 @@ class ContextBudgetGuard:
         result_content = content
         persisted_path: str | None = None
         evicted_ref: str | None = None
+        stored_chars: int | None = None
+        total_lines: int | None = None
+        storage_truncated = False
         was_persisted = False
 
         # Layer 1: single result size limit — persist or truncate.
@@ -168,7 +184,14 @@ class ContextBudgetGuard:
         if not skip_layer1 and original_len > self._max_result_chars:
             persist_result = self._try_persist(content, tool_name)
             if persist_result is not None:
-                result_content, persisted_path, evicted_ref = persist_result
+                (
+                    result_content,
+                    persisted_path,
+                    evicted_ref,
+                    stored_chars,
+                    total_lines,
+                    storage_truncated,
+                ) = persist_result
                 was_persisted = True
             else:
                 result_content = smart_truncate(content, self._max_result_chars)
@@ -208,6 +231,9 @@ class ContextBudgetGuard:
                 budget_used_pct=current_pct,
                 persisted_path=persisted_path,
                 evicted_ref=evicted_ref,
+                stored_chars=stored_chars,
+                total_lines=total_lines,
+                storage_truncated=storage_truncated,
             )
 
         if len(result_content) < original_len:

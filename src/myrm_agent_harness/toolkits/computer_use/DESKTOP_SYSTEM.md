@@ -6,7 +6,7 @@
 
 ## Design Goals
 
-1. **Agent-friendly**: @dref element references from AX/UIA/AT-SPI trees reduce token cost vs full-screen screenshots every step
+1. **Agent-friendly**: @dref element references from AX/UIA/AT-SPI trees reduce token cost vs full-screen screenshots every step; incremental diff further reduces follow-up snapshot tokens by 80%+ in continuous-interact scenarios
 2. **Semantic-first**: Prefer `desktop_interact_tool(ref=@dref)` over coordinate guessing
 3. **Explicit fallback**: `desktop_vision_tool` for canvas-only UIs, empty AX trees, or failed semantic invoke
 4. **WebUI parity**: Mirror browser inspector via `DESKTOP_VIEW_UPDATE` SSE + `/webui/desktop/snapshot` REST refresh
@@ -51,7 +51,7 @@
 desktop_snapshot_tool
     ↓ AX tree with @dref IDs, app/window header (+ optional screenshot with [N] SOM labels) + browser soft-routing hint
 desktop_interact_tool(ref=@dref, action=...)
-    ↓ per-app approval gate → AX invoke → bbox healer fallback → text-only follow-up snapshot
+    ↓ per-app approval gate → AX invoke → bbox healer fallback → incremental diff follow-up (full-view fallback when unreliable)
 desktop_vision_tool (only when AX empty or interact failed)
     ↓ per-app approval gate → foreground permission gate → stale refresh → coordinate actions
 ```
@@ -64,8 +64,8 @@ desktop_vision_tool (only when AX empty or interact failed)
 |-----------|----------|------|
 | `DesktopSession` | `desktop_session.py` | Orchestrator: registry, snapshot, interact, view updates |
 | `create_desktop_tools` | `desktop_agent_tools.py` | LangChain tool factory |
-| `DRefRegistry` | `computer_use/dref/registry.py` | Session-scoped @dref map |
-| `perception/` | `ax_dispatch.py`, platform AX | Capture AX tree, invoke elements |
+| `DRefRegistry` | `computer_use/dref/registry.py` | Session-scoped @dref map with previous snapshot for diff |
+| `perception/` | `ax_dispatch.py`, `ax_diff.py`, platform AX | Capture AX tree, incremental diff, invoke elements |
 | `execution/healer.py` | BBox click fallback | When AX invoke fails |
 | `ComputerSession` | `session.py` | Screenshot + coordinate I/O |
 | `backends/` | Platform I/O | macOS, Windows, Linux |

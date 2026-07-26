@@ -174,7 +174,20 @@ For JS-heavy or interactive pages, use browser tools. For many pages, call web_f
                     emit_web_fetch_evicted_ref,
                 )
 
-                await emit_web_fetch_evicted_ref(evicted_ref)
+                await emit_web_fetch_evicted_ref(
+                    evicted_ref,
+                    stored_chars=(
+                        result["evicted_stored_chars"]
+                        if isinstance(result.get("evicted_stored_chars"), int)
+                        else None
+                    ),
+                    total_lines=(
+                        result["evicted_total_lines"]
+                        if isinstance(result.get("evicted_total_lines"), int)
+                        else None
+                    ),
+                    storage_truncated=bool(result.get("evicted_storage_truncated")),
+                )
             return result
 
         if not enable_extract:
@@ -323,6 +336,9 @@ async def _fetch_full_content(
             "raw_chars": len(formatted_context),
         },
         "evicted_ref": spill.evicted_ref,
+        "evicted_stored_chars": spill.stored_chars,
+        "evicted_total_lines": spill.total_lines,
+        "evicted_storage_truncated": spill.storage_truncated,
     }
 
 

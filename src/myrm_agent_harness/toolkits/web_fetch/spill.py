@@ -38,7 +38,7 @@ class _EvictedCallbacks:
 
     persist: Callable[..., Awaitable[object]]
     build_footer: Callable[..., str]
-    emit_ref: Callable[[str], Awaitable[None]]
+    emit_ref: Callable[..., Awaitable[None]]
 
 
 _evicted_callbacks_var: ContextVar[_EvictedCallbacks | None] = ContextVar(
@@ -50,7 +50,7 @@ def set_evicted_content_callbacks(
     *,
     persist_fn: Callable[..., Awaitable[object]],
     build_footer_fn: Callable[..., str],
-    emit_ref_fn: Callable[[str], Awaitable[None]],
+    emit_ref_fn: Callable[..., Awaitable[None]],
 ) -> None:
     """Inject evicted-content callbacks from the agent/middleware layer."""
     _evicted_callbacks_var.set(
@@ -67,6 +67,9 @@ class WebFetchSpillResult:
     preview: str
     evicted_ref: str | None = None
     spilled: bool = False
+    stored_chars: int | None = None
+    total_lines: int | None = None
+    storage_truncated: bool = False
 
 
 async def maybe_spill_web_fetch_content(
@@ -98,11 +101,29 @@ async def maybe_spill_web_fetch_content(
             "Use file_read_tool on the evicted file to read omitted sections."
         )
 
-    return WebFetchSpillResult(preview=preview, evicted_ref=evicted_ref, spilled=True)
+    return WebFetchSpillResult(
+        preview=preview,
+        evicted_ref=evicted_ref,
+        spilled=True,
+        stored_chars=persist_result.stored_chars if evicted_ref else None,
+        total_lines=persist_result.total_lines if evicted_ref else None,
+        storage_truncated=persist_result.storage_truncated if evicted_ref else False,
+    )
 
 
-async def emit_web_fetch_evicted_ref(evicted_ref: str) -> None:
+async def emit_web_fetch_evicted_ref(
+    evicted_ref: str,
+    *,
+    stored_chars: int | None = None,
+    total_lines: int | None = None,
+    storage_truncated: bool = False,
+) -> None:
     """Notify the GUI that full fetch content is available in the evicted drawer."""
     cbs = _evicted_callbacks_var.get()
     if cbs is not None:
-        await cbs.emit_ref(evicted_ref)
+        await cbs.emit_ref(
+            evicted_ref,
+            stored_chars=stored_chars,
+            total_lines=total_lines,
+            storage_truncated=storage_truncated,
+        )

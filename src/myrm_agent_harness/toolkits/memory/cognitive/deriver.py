@@ -135,7 +135,7 @@ class CognitiveDeriver:
             _normalize_change_kind,
         )
 
-        # --- B. Vector Dual Write (SemanticMemory) & Profile Entry ---
+        # --- B. Vector Write (SemanticMemory) ---
         from myrm_agent_harness.toolkits.memory.types import SemanticMemory
 
         normalized_strength = min(confidence, 1.0)
@@ -158,14 +158,9 @@ class CognitiveDeriver:
         )
 
         try:
-            # Store via manager to inherit standard namespaces and session limits
-            await self.manager.store(semantic_mem, _bypass_approval=True)
-
-            # For core implicit preferences, also dual-write to ProfileEntry for global injection
-            if pref_key in ("reply_style", "cognitive_depth", "proactivity"):
-                await self.manager.set_profile_attribute(key=pref_key, value=pref_claim)
+            await self.manager.store(semantic_mem)
         except Exception as e:
-            logger.warning("Failed to dual-write semantic memory for derived preference: %s", e)
+            logger.warning("Failed to store semantic memory for derived preference: %s", e)
 
         # --- A. Graph Write (Degradable) ---
         if not self.graph:

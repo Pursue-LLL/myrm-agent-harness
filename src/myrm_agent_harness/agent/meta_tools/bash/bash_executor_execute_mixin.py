@@ -188,4 +188,7 @@ class BashExecutorExecuteMixin:
             "workspace_root": context.workspace_root or "",
             "generated_files": list(result.generated_files or []),
             "evicted_ref": eviction_result.evicted_ref,
+            "evicted_stored_chars": eviction_result.stored_chars,
+            "evicted_total_lines": eviction_result.total_lines,
+            "evicted_storage_truncated": eviction_result.storage_truncated,
         }

@@ -123,6 +123,22 @@ BUILTIN_PROFILES: dict[str, ModelProfile] = {
         max_prompt_length=2000,
         allowed_output_formats=frozenset({"png"}),
     ),
+    "xai/grok-imagine-image": ModelProfile(
+        name="xai/grok-imagine-image",
+        api_key_provider="xai",
+        max_count=1,
+        allowed_sizes=frozenset(),
+        max_prompt_length=4000,
+        allowed_output_formats=frozenset({"png", "jpeg"}),
+    ),
+    "xai/grok-imagine-image-quality": ModelProfile(
+        name="xai/grok-imagine-image-quality",
+        api_key_provider="xai",
+        max_count=1,
+        allowed_sizes=frozenset(),
+        max_prompt_length=4000,
+        allowed_output_formats=frozenset({"png", "jpeg"}),
+    ),
 }
 
 # Runtime registry (copy of built-ins + user-registered profiles)

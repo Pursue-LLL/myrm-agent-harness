@@ -99,9 +99,13 @@ class MemoryManagerGovernanceSessionMixin:
         self._session_count += 1
         if self._preference_strategy is not None:
             try:
+                existing_active = {
+                    f.key for f in await self._preference_strategy.get_active_preferences()
+                }
                 promoted = await self._preference_strategy.micro_rebuild()
                 if promoted:
                     logger.info("Preference micro-rebuild: %d promoted to Active", promoted)
+                    await self._promote_core_preferences_to_profile(existing_active)
             except Exception as e:
                 logger.warning("Preference micro-rebuild failed (non-fatal): %s", e)
         if self._session_count % self._config.forgetting_interval == 0 and self._vector is not None:
@@ -176,6 +180,24 @@ class MemoryManagerGovernanceSessionMixin:
                 namespaces=self._namespaces,
             )
 
+    _CORE_PROFILE_KEYS = frozenset({"reply_style", "cognitive_depth", "proactivity"})
+
+    async def _promote_core_preferences_to_profile(self, existing_active_keys: set[str]) -> None:
+        """Write newly Active core preferences to Profile for 0-latency personalization."""
+        if self._preference_strategy is None:
+            return
+        current_active = await self._preference_strategy.get_active_preferences()
+        for facet in current_active:
+            if facet.key in existing_active_keys:
+                continue
+            if facet.key not in self._CORE_PROFILE_KEYS:
+                continue
+            try:
+                await self.set_system_profile_attribute(facet.key, facet.value)
+                logger.info("Profile promoted: %s = %s", facet.key, facet.value[:50])
+            except Exception as e:
+                logger.warning("Profile promotion failed for %s (non-fatal): %s", facet.key, e)
+
     async def _submit_preference_candidate(self, memory: AnyMemory) -> None:
         """Submit a SemanticMemory with preference_type as a PreferenceCandidate."""
         if self._preference_strategy is None:
@@ -191,7 +213,7 @@ class MemoryManagerGovernanceSessionMixin:
                 else CueFamily.INFERRED
             )
             candidate = PreferenceCandidate(
-                key=memory.content[:80],
+                key=memory.metadata.get("preference_key", memory.content[:80]),
                 value=memory.content,
                 category=_infer_preference_category(memory),
                 cue=cue,

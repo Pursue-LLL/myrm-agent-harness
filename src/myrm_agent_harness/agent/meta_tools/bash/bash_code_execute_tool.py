@@ -90,6 +90,12 @@ _maybe_build_image_blocks = maybe_build_image_blocks
 _CONTEXT_PATH_PATTERNS = CONTEXT_PATH_PATTERNS
 
 
+def _coerce_optional_int(value: object) -> int | None:
+    if isinstance(value, int):
+        return value
+    return None
+
+
 def create_bash_code_execute_tool(
     skills: list[SkillMetadata] | None = None,
     *,
@@ -169,13 +175,12 @@ def create_bash_code_execute_tool(
             executor = get_executor()
             if executor is None and session_id:
                 executor = get_stashed_executor(session_id)
-                if executor is not None:
-                    restore_context_vars(context, executor)
             if executor is None:
                 raise RuntimeError(
                     "CodeExecutor not available. Call set_executor() to bind an "
                     "executor to the current async context first."
                 )
+            restore_context_vars(context, executor)
             bash_executor = BashExecutor(executor=executor, ptc_tools=ptc_tools)
             if skill_oauth_issuers:
                 bash_executor.set_skill_oauth_issuers(skill_oauth_issuers)
@@ -302,11 +307,20 @@ def create_bash_code_execute_tool(
 
             evicted_ref = result.get("evicted_ref")
             if evicted_ref and isinstance(evicted_ref, str):
-                from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+                from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+                    emit_evicted_ref,
+                )
 
-                await dispatch_custom_event(
-                    "tool_evicted_ref",
-                    {"evicted_ref": evicted_ref},
+                preview_stdout = (
+                    formatted_content if isinstance(formatted_content, str) else None
+                )
+                await emit_evicted_ref(
+                    evicted_ref,
+                    tool_name="bash_code_execute_tool",
+                    preview_stdout=preview_stdout,
+                    stored_chars=_coerce_optional_int(result.get("evicted_stored_chars")),
+                    total_lines=_coerce_optional_int(result.get("evicted_total_lines")),
+                    storage_truncated=bool(result.get("evicted_storage_truncated")),
                     config=config,
                 )
 

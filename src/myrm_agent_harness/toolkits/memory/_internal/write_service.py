@@ -37,6 +37,7 @@ from myrm_agent_harness.toolkits.memory.types import (
     ProceduralMemory,
     RuleSource,
     SemanticMemory,
+    ToolRulePriority,
 )
 
 logger = logging.getLogger(__name__)
@@ -118,6 +119,9 @@ class MemoryWriter:
         if self._config.security_scan_enabled:
             scan_and_clean_memory(bound_memory, block_threshold=self._config.injection_block_threshold)
 
+        if isinstance(bound_memory, ProceduralMemory):
+            self._enforce_agent_self_priority_ceiling(bound_memory)
+
         if self._approval_required and not bypass_approval:
             pending_id = await self._submit_pending(bound_memory)
             if not pending_id:
@@ -143,6 +147,10 @@ class MemoryWriter:
         safe_memories = self._scan_batch(bound_memories)
         if not safe_memories:
             return []
+
+        for mem in safe_memories:
+            if isinstance(mem, ProceduralMemory):
+                self._enforce_agent_self_priority_ceiling(mem)
 
         if self._approval_required and not bypass_approval:
             results: list[AnyMemory] = []
@@ -266,6 +274,19 @@ class MemoryWriter:
     def _validate_supported_memory(self, memory: AnyMemory) -> None:
         if not isinstance(memory, (SemanticMemory, EpisodicMemory, ProceduralMemory, ConversationMemory)):
             raise ValueError(f"Unknown memory type: {type(memory).__name__}")
+
+    @staticmethod
+    def _enforce_agent_self_priority_ceiling(memory: ProceduralMemory) -> None:
+        """Prevent AGENT_SELF rules from claiming CRITICAL priority."""
+        if (
+            memory.source == RuleSource.AGENT_SELF
+            and memory.tool_rule_priority == ToolRulePriority.CRITICAL
+        ):
+            memory.tool_rule_priority = ToolRulePriority.HIGH
+            logger.warning(
+                "Downgraded AGENT_SELF rule from CRITICAL to HIGH: %s",
+                memory.content[:60],
+            )
 
 
 def build_semantic_deduplicator(

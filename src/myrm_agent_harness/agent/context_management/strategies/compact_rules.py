@@ -84,4 +84,18 @@ COMPACT_RULES: dict[str, CompactRule] = {
         result_template="COMPACTED: skill_select_tool\nSKILL: {identifier}",
         stats_template="COMPACTED: skill_select_tool\nSKILL: {identifier}\nRESULT: {chars} chars",
     ),
+    "desktop_snapshot_tool": CompactRule(
+        keep_args=["scope"],
+        identifier_arg="scope",
+        identifier_type="other",
+        result_template="COMPACTED: desktop_snapshot_tool\nSCOPE: {identifier}",
+        stats_template="COMPACTED: desktop_snapshot_tool\nSCOPE: {identifier}\nRESULT: {lines} lines, {chars} chars",
+    ),
+    "desktop_interact_tool": CompactRule(
+        keep_args=["ref", "action"],
+        identifier_arg="ref",
+        identifier_type="other",
+        result_template="COMPACTED: desktop_interact_tool\nREF: {identifier}",
+        stats_template="COMPACTED: desktop_interact_tool\nREF: {identifier}\nRESULT: {lines} lines, {chars} chars",
+    ),
 }

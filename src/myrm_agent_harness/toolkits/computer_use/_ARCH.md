@@ -22,7 +22,7 @@ with native desktop applications via accessibility trees (@dref) with coordinate
 | Submodule | Description |
 |-----------|-------------|
 | backends/ | Platform I/O: macOS, Windows, Linux |
-| perception/ | AX tree capture, overlay role SSOT, renderer, ax_dispatch — see [perception/_ARCH.md](perception/_ARCH.md) |
+| perception/ | AX tree capture, incremental diff, overlay role SSOT, renderer, ax_dispatch — see [perception/_ARCH.md](perception/_ARCH.md) |
 | execution/ | BBox click healer fallback — see [execution/_ARCH.md](execution/_ARCH.md) |
 | dref/ | @dref types, registry, errors (internal submodule) |
 

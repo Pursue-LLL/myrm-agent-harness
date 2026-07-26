@@ -454,7 +454,19 @@ async def run_post_call_guards(
                 emit_evicted_ref,
             )
 
-            await emit_evicted_ref(budget_verdict.evicted_ref)
+            await emit_evicted_ref(
+                budget_verdict.evicted_ref,
+                tool_name=tool_name,
+                tool_call_id=result.tool_call_id,
+                preview_stdout=(
+                    budget_verdict.content
+                    if isinstance(budget_verdict.content, str)
+                    else None
+                ),
+                stored_chars=budget_verdict.stored_chars,
+                total_lines=budget_verdict.total_lines,
+                storage_truncated=budget_verdict.storage_truncated,
+            )
         result = ToolMessage(
             content=budget_verdict.content,
             name=tool_name,

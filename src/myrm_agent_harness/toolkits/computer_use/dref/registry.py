@@ -25,6 +25,8 @@ class DRefRegistry:
     def __init__(self) -> None:
         self._refs: dict[str, ElementRef] = {}
         self._meta: SnapshotMeta | None = None
+        self._previous_refs: dict[str, ElementRef] = {}
+        self._previous_meta: SnapshotMeta | None = None
         self._generation: int = 0
 
     @property
@@ -35,11 +37,21 @@ class DRefRegistry:
     def meta(self) -> SnapshotMeta | None:
         return self._meta
 
+    @property
+    def previous_refs(self) -> dict[str, ElementRef]:
+        return dict(self._previous_refs)
+
+    @property
+    def previous_meta(self) -> SnapshotMeta | None:
+        return self._previous_meta
+
     def replace(
         self,
         refs: Mapping[str, ElementRef],
         meta: SnapshotMeta,
     ) -> None:
+        self._previous_refs = self._refs
+        self._previous_meta = self._meta
         self._refs = dict(refs)
         self._meta = meta
         self._generation += 1

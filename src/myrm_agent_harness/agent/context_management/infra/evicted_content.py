@@ -11,7 +11,8 @@ work consistently across bash, web_fetch, MCP, and FilterProcessor backup paths.
 [OUTPUT]
 - cap_content_for_storage, build_evicted_basename, build_delivery_footer
 - persist_evicted_content, write_evicted_content_sync, emit_evicted_ref
-- EvictedPersistResult, EVICTED_BASENAME_PATTERN
+- EvictedRefPayload, EvictedPersistResult, EVICTED_BASENAME_PATTERN
+- normalize_delivery_chat_id
 
 [POS]
 SSOT for sandbox evicted content delivery (agent context_management infra).
@@ -24,13 +25,18 @@ import re
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.core.context_vars import chat_id_var, workspace_root_var
 from myrm_agent_harness.infra.atomic_write import async_atomic_write
 
+if TYPE_CHECKING:
+    from langchain_core.runnables import RunnableConfig
+
 logger = logging.getLogger(__name__)
 
 MAX_STORED_CHARS = 2_000_000
+MAX_PREVIEW_STDOUT_CHARS = 8_000
 _TRUNCATION_MARKER_TEMPLATE = (
     "\n\n[... stored copy truncated at {cap:,} chars of {original:,}; "
     "re-fetch or read a narrower URL for the remainder ...]"
@@ -48,12 +54,42 @@ EVICTED_BASENAME_PATTERN = re.compile(
 
 
 @dataclass(frozen=True, slots=True)
+class EvictedRefPayload:
+    """Structured GUI binding contract for tool_evicted_ref custom events."""
+
+    evicted_ref: str
+    tool_name: str | None = None
+    tool_call_id: str | None = None
+    preview_stdout: str | None = None
+    stored_chars: int | None = None
+    total_lines: int | None = None
+    storage_truncated: bool = False
+
+    def to_event_dict(self) -> dict[str, str | int | bool]:
+        payload: dict[str, str | int | bool] = {"evicted_ref": self.evicted_ref}
+        if self.tool_name:
+            payload["tool_name"] = self.tool_name
+        if self.tool_call_id:
+            payload["tool_call_id"] = self.tool_call_id
+        if self.preview_stdout:
+            payload["preview_stdout"] = self.preview_stdout
+        if self.stored_chars is not None and self.stored_chars > 0:
+            payload["stored_chars"] = self.stored_chars
+        if self.total_lines is not None and self.total_lines > 0:
+            payload["total_lines"] = self.total_lines
+        if self.storage_truncated:
+            payload["storage_truncated"] = True
+        return payload
+
+
+@dataclass(frozen=True, slots=True)
 class EvictedPersistResult:
     """Result of persisting content to the evicted directory."""
 
     evicted_ref: str | None
     rel_path: str | None
     stored_chars: int
+    total_lines: int = 0
     storage_truncated: bool = False
 
 
@@ -107,7 +143,7 @@ def build_delivery_footer(
     )
 
 
-def _normalize_delivery_chat_id(raw: str) -> str:
+def normalize_delivery_chat_id(raw: str) -> str:
     """Map approval session keys (`chat_{id}`) to API/UI chat ids."""
     chat_id = raw.strip()
     if chat_id.startswith("chat_"):
@@ -117,7 +153,7 @@ def _normalize_delivery_chat_id(raw: str) -> str:
 
 def _resolve_persist_target(source: str, ext: str) -> tuple[str, str, Path] | None:
     workspace_root = workspace_root_var.get().strip()
-    chat_id = _normalize_delivery_chat_id(chat_id_var.get())
+    chat_id = normalize_delivery_chat_id(chat_id_var.get())
     if not workspace_root or not chat_id:
         logger.warning(
             "[EvictedContent] Missing workspace_root or chat_id, skip persist"
@@ -143,6 +179,11 @@ def write_evicted_content_sync(
 
     basename, rel_path, abs_path = target
     capped, storage_truncated = cap_content_for_storage(content)
+    from myrm_agent_harness.agent.context_management.infra.evicted_reader import (
+        count_lines_in_text,
+    )
+
+    total_lines = count_lines_in_text(capped)
 
     try:
         abs_path.parent.mkdir(parents=True, exist_ok=True)
@@ -152,6 +193,7 @@ def write_evicted_content_sync(
             evicted_ref=basename,
             rel_path=rel_path,
             stored_chars=len(capped),
+            total_lines=total_lines,
             storage_truncated=storage_truncated,
         )
     except OSError as exc:
@@ -172,6 +214,11 @@ async def persist_evicted_content(
 
     basename, rel_path, abs_path = target
     capped, storage_truncated = cap_content_for_storage(content)
+    from myrm_agent_harness.agent.context_management.infra.evicted_reader import (
+        count_lines_in_text,
+    )
+
+    total_lines = count_lines_in_text(capped)
 
     try:
         abs_path.parent.mkdir(parents=True, exist_ok=True)
@@ -181,6 +228,7 @@ async def persist_evicted_content(
             evicted_ref=basename,
             rel_path=rel_path,
             stored_chars=len(capped),
+            total_lines=total_lines,
             storage_truncated=storage_truncated,
         )
     except OSError as exc:
@@ -188,11 +236,61 @@ async def persist_evicted_content(
         return EvictedPersistResult(evicted_ref=None, rel_path=None, stored_chars=0)
 
 
-async def emit_evicted_ref(evicted_basename: str) -> None:
+def build_evicted_ref_payload(
+    evicted_ref: str,
+    *,
+    tool_name: str | None = None,
+    tool_call_id: str | None = None,
+    preview_stdout: str | None = None,
+    stored_chars: int | None = None,
+    total_lines: int | None = None,
+    storage_truncated: bool = False,
+    config: RunnableConfig | None = None,
+) -> EvictedRefPayload:
+    """Build the SSOT payload for tool_evicted_ref SSE/DB binding."""
+    from myrm_agent_harness.utils.event_utils import resolve_tool_call_id_from_config
+
+    resolved_tool_call_id = tool_call_id or resolve_tool_call_id_from_config(config)
+    preview = preview_stdout
+    if preview and len(preview) > MAX_PREVIEW_STDOUT_CHARS:
+        preview = preview[:MAX_PREVIEW_STDOUT_CHARS]
+    return EvictedRefPayload(
+        evicted_ref=evicted_ref,
+        tool_name=tool_name,
+        tool_call_id=resolved_tool_call_id,
+        preview_stdout=preview,
+        stored_chars=stored_chars,
+        total_lines=total_lines,
+        storage_truncated=storage_truncated,
+    )
+
+
+async def emit_evicted_ref(
+    evicted_ref: str,
+    *,
+    tool_name: str | None = None,
+    tool_call_id: str | None = None,
+    preview_stdout: str | None = None,
+    stored_chars: int | None = None,
+    total_lines: int | None = None,
+    storage_truncated: bool = False,
+    config: RunnableConfig | None = None,
+) -> None:
     """Notify the GUI that full content is available in the evicted drawer."""
     from myrm_agent_harness.utils.event_utils import dispatch_custom_event
 
-    await dispatch_custom_event(
-        "tool_evicted_ref",
-        {"evicted_ref": evicted_basename},
+    payload = build_evicted_ref_payload(
+        evicted_ref,
+        tool_name=tool_name,
+        tool_call_id=tool_call_id,
+        preview_stdout=preview_stdout,
+        stored_chars=stored_chars,
+        total_lines=total_lines,
+        storage_truncated=storage_truncated,
+        config=config,
     )
+    event_payload = payload.to_event_dict()
+    if config is not None:
+        await dispatch_custom_event("tool_evicted_ref", event_payload, config=config)
+    else:
+        await dispatch_custom_event("tool_evicted_ref", event_payload)

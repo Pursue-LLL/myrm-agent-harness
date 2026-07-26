@@ -266,16 +266,20 @@ class StreamDispatcherMixin:
 
         elif event_name == "tool_evicted_ref":
             event_data = data.get("data", {})
-            evicted_ref = event_data.get("evicted_ref", "") if isinstance(event_data, dict) else ""
-            if evicted_ref:
-                await self._emit_event(
-                    {
-                        "type": AgentEventType.TOOL_EVICTED_REF.value,
-                        "data": evicted_ref,
-                        "messageId": ctx.message_id,
-                    },
-                    ctx,
-                )
+            if isinstance(event_data, dict) and event_data.get("evicted_ref"):
+                payload: dict[str, object] = {
+                    "type": AgentEventType.TOOL_EVICTED_REF.value,
+                    "data": event_data,
+                    "messageId": ctx.message_id,
+                }
+                await self._emit_event(payload, ctx)
+            elif isinstance(event_data, str) and event_data.strip():
+                payload = {
+                    "type": AgentEventType.TOOL_EVICTED_REF.value,
+                    "data": {"evicted_ref": event_data.strip()},
+                    "messageId": ctx.message_id,
+                }
+                await self._emit_event(payload, ctx)
 
         elif event_name == "ui_update":
             event_data = data.get("data", {})

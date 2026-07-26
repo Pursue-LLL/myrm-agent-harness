@@ -25,7 +25,8 @@ from myrm_agent_harness.toolkits.computer_use.perception.ax_dispatch import (
     invoke_element,
 )
 from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import refs_for_view_update
-from myrm_agent_harness.toolkits.computer_use.perception.renderer import render_snapshot_tree
+from myrm_agent_harness.toolkits.computer_use.perception.ax_diff import compute_ref_diff
+from myrm_agent_harness.toolkits.computer_use.perception.renderer import render_diff_tree, render_snapshot_tree
 from myrm_agent_harness.toolkits.computer_use.som_overlay import (
     apply_som_overlay_to_jpeg_base64,
     build_som_index_map,
@@ -164,11 +165,28 @@ class DesktopSession(ComputerSession):
             logger.warning("[SECURITY] Sensitive app guard: %s (app=%s)", blocked, meta.app_name)
             return f"Safety: {blocked}"
 
+        prev_refs = self._refs.all_refs()
+        prev_meta = self._refs.meta
+
         self._refs.replace(refs, meta)
-        som_index_map = build_som_index_map(refs) if include_screenshot else None
-        tree_text, enriched_meta = render_snapshot_tree(meta, refs, som_index_map=som_index_map)
-        self._last_tree_text = tree_text
         self._last_snapshot_time = time.time()
+
+        som_index_map = build_som_index_map(refs) if include_screenshot else None
+
+        use_diff = False
+        diff_text = ""
+        if not include_screenshot and prev_refs:
+            diff = compute_ref_diff(prev_refs, refs, prev_meta, meta)
+            if not diff.use_full_view:
+                diff_text, enriched_meta = render_diff_tree(meta, diff)
+                use_diff = True
+
+        if not use_diff:
+            tree_text, enriched_meta = render_snapshot_tree(meta, refs, som_index_map=som_index_map)
+        else:
+            tree_text = diff_text
+
+        self._last_tree_text = tree_text
 
         screenshot_b64 = ""
         screenshot_size = (0, 0)

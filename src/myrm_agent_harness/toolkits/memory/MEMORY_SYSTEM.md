@@ -820,8 +820,9 @@ Human: 用户第一轮输入 …
 ### Cognitive Deriver (异步辩证推理引擎)
 废弃了传统的正则匹配，全面采用基于 LLM 的 Cognitive Deriver 进行偏好提取与画像生成：
 1. **隐性偏好提取**：`MemoryExtractor` 在对话结束时，通过 Dialectic Reasoning（辩证推理）从对话中提取用户的显性喜好。
-2. **实时偏好投影 (Real-time Persona Projection)**：`CognitiveDeriver` 在异步提取出 `reply_style`、`cognitive_depth`、`proactivity` 等核心隐性偏好后，除了在图数据库中保存证据和处理冲突，还会**实时投影**（双写）到用户的 `ProfileEntry` (KV存储) 中。`MemoryContextMiddleware` 会在下一轮对话中瞬间读取并注入到 System Prompt，实现“0延迟”的个性化体验。
+2. **安全偏好投影 (Secure Persona Projection)**：`CognitiveDeriver` 提取的隐性偏好走标准写入管道（审批队列 + 安全扫描），不再绕过审批直写 Profile。经 `PreferenceStabilityStrategy` 多轮观测稳定验证后（Candidate → Provisional → Active），`end_session` 的 Profile 晋升回调将核心偏好（`reply_style`/`cognitive_depth`/`proactivity`）通过 `set_system_profile_attribute` 安全写入 `ProfileEntry`（KV 存储），确保外部内容无法通过单次对话污染 Profile。
 3. **Agent 认知注入**：`memory_context_middleware.py` 自动拦截并读取该画像与长期目标、隐性偏好，将其常驻注入到大模型的 System Prompt (`<Our Relationship & Your Persona>`) 中，彻底解决 Agent 认知致盲问题，且完美契合 Prompt Caching。
+4. **AGENT_SELF 信任隔离**：`MemoryWriteService` 强制 AGENT_SELF 来源的 ProceduralMemory 不得拥有 CRITICAL 优先级（硬降级为 HIGH），防止 Agent 自生成规则占据免压缩位。
 
 ### 偏好记忆
 

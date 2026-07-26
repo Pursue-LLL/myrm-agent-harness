@@ -1,7 +1,7 @@
 # perception/
 
 ## Overview
-Platform AX/UIA/AT-SPI snapshot capture, tree rendering, element invoke dispatch, and native API routing hints for Semantic Desktop Control.
+Platform AX/UIA/AT-SPI snapshot capture, tree rendering, incremental diff, element invoke dispatch, and native API routing hints for Semantic Desktop Control.
 
 ## File Index
 
@@ -9,8 +9,9 @@ Platform AX/UIA/AT-SPI snapshot capture, tree rendering, element invoke dispatch
 |------|------|-------------|-------|
 | __init__.py | Package | Platform AX/UIA/AT-SPI perception package | — |
 | ax_dispatch.py | Core | Platform routing: capture_snapshot, inspect_backend, invoke_element | ✅ |
+| ax_diff.py | Core | Incremental AX tree diff: `compute_ref_diff` compares two snapshots via (role, name) identity matching + bbox proximity, produces `RefDiff` with 4-layer full-view fallback (first snapshot / app change / high change ratio / low identity confidence) | ✅ |
 | overlay_roles.py | Core | Cross-platform overlay role SSOT for SOM + Inspector | ✅ |
-| renderer.py | Core | AX tree text rendering for agent context; optional `[N]` SOM line prefixes | ✅ |
+| renderer.py | Core | AX tree text rendering: `render_snapshot_tree` (full) + `render_diff_tree` (incremental diff with +/~/- markers); optional `[N]` SOM line prefixes | ✅ |
 | macos_ax.py | Platform | macOS Accessibility API snapshot + invoke + native API routing hints; supports targeted capture by app name (bypasses frontmost); `refs_for_view_update` fills `nth` from SOM map | ✅ |
 | windows_ax.py | Platform | Windows UI Automation snapshot + invoke + COM/PowerShell routing hints | ✅ |
 | linux_ax.py | Platform | Linux AT-SPI snapshot + invoke (pyatspi doAction/EditableText/grabFocus) + D-Bus routing hints | ✅ |
@@ -18,8 +19,17 @@ Platform AX/UIA/AT-SPI snapshot capture, tree rendering, element invoke dispatch
 ## Dependencies
 
 - `computer_use/dref/types.py` (POS: @dref types)
+- `computer_use/dref/registry.py` (POS: @dref registry; diff reads current refs via `all_refs()`/`meta` before `replace()`)
 - `backends/protocols.py` (POS: ComputerBackend protocol)
 - Used by `desktop_session.py` (POS: semantic desktop orchestrator)
+
+## Key Design: Incremental AX Tree Diff
+
+`ax_diff.py` reduces follow-up snapshot token cost by 80%+ in continuous-interact scenarios.
+When `desktop_interact` completes, the follow-up snapshot compares current refs against previous
+refs via `compute_ref_diff`. If the diff is reliable (same app, sufficient identity confidence,
+low change ratio), only changed entries (+added, ~updated, -removed) are rendered to the agent
+context. Four fallback conditions automatically revert to full-tree rendering.
 
 ## Key Design: Native API Routing Hints
 

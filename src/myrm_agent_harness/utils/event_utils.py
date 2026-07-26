@@ -20,6 +20,27 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.runnables.config import var_child_runnable_config
 
 
+def resolve_tool_call_id_from_config(config: RunnableConfig | None) -> str | None:
+    """Extract the active tool_call_id from LangGraph/LangChain RunnableConfig."""
+    if config is None:
+        config = var_child_runnable_config.get()
+    if not config:
+        return None
+    metadata = config.get("metadata")
+    if isinstance(metadata, dict):
+        for key in ("tool_call_id", "langgraph_tool_call_id"):
+            value = metadata.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    configurable = config.get("configurable")
+    if isinstance(configurable, dict):
+        for key in ("tool_call_id", "langgraph_tool_call_id", "__tool_call_id"):
+            value = configurable.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
+
+
 class FallbackEventData(TypedDict):
     """Fallback event data structure for UI telemetry."""
 

@@ -51,12 +51,9 @@ class _FakeMemoryManager:
     async def _consolidation_llm(self, sys_prompt: str, user_prompt: str) -> str:
         return self.llm_response
 
-    async def store(self, memory: SemanticMemory, _bypass_approval: bool = False) -> SemanticMemory:
+    async def store(self, memory: SemanticMemory) -> SemanticMemory:
         self.stored_memories.append(memory)
         return memory
-
-    async def set_profile_attribute(self, key: str, value: str) -> None:
-        self.stored_memories.append(SemanticMemory(content=f"{key}={value}"))
 
 @pytest.mark.asyncio
 async def test_cognitive_deriver_core_preference() -> None:
@@ -79,9 +76,11 @@ async def test_cognitive_deriver_core_preference() -> None:
     assert result["success"] is True
     assert result["extracted_count"] == 1
 
-    # One for store(), one for set_profile_attribute()
-    assert len(manager.stored_memories) == 2
-    assert manager.stored_memories[1].content == "reply_style=User wants concise replies"
+    assert len(manager.stored_memories) == 1
+    mem = manager.stored_memories[0]
+    assert isinstance(mem, SemanticMemory)
+    assert "reply_style" in mem.content
+    assert mem.metadata.get("preference_key") == "reply_style"
 
 @pytest.mark.asyncio
 async def test_cognitive_deriver_success() -> None:

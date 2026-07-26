@@ -66,6 +66,9 @@ class EvictionResult:
 
     text: str
     evicted_ref: str | None = None
+    stored_chars: int | None = None
+    total_lines: int | None = None
+    storage_truncated: bool = False
 
 
 async def maybe_evict_large_output(
@@ -84,9 +87,10 @@ async def maybe_evict_large_output(
         return EvictionResult(text=stdout)
 
     file_path: str | None = None
+    persist_stats: "EvictedPersistResult | None" = None
     try:
         if executor is not None:
-            file_path = await _save_to_file(executor, stdout)
+            file_path, persist_stats = await _save_to_file(executor, stdout)
     except Exception as e:
         logger.warning(" [Eviction] Failed to save to file: %s", e)
 
@@ -123,7 +127,15 @@ async def maybe_evict_large_output(
             len(preview),
             file_path,
         )
-        return EvictionResult(text=preview, evicted_ref=evicted_ref)
+        return EvictionResult(
+            text=preview,
+            evicted_ref=evicted_ref,
+            stored_chars=persist_stats.stored_chars if persist_stats else None,
+            total_lines=persist_stats.total_lines if persist_stats else None,
+            storage_truncated=(
+                persist_stats.storage_truncated if persist_stats else False
+            ),
+        )
 
     except Exception as e:
         logger.warning(" [Eviction] Failed: %s, falling back to smart_truncate", e)
@@ -140,10 +152,20 @@ async def maybe_evict_large_output(
                 rel_path=file_path,
             )
         evicted_ref = os.path.basename(file_path) if file_path else None
-        return EvictionResult(text=fallback, evicted_ref=evicted_ref)
+        return EvictionResult(
+            text=fallback,
+            evicted_ref=evicted_ref,
+            stored_chars=persist_stats.stored_chars if persist_stats else None,
+            total_lines=persist_stats.total_lines if persist_stats else None,
+            storage_truncated=(
+                persist_stats.storage_truncated if persist_stats else False
+            ),
+        )
 
 
-async def _save_to_file(executor: CodeExecutor, content: str) -> str | None:
+async def _save_to_file(
+    executor: CodeExecutor, content: str
+) -> tuple[str | None, "EvictedPersistResult | None"]:
     """Persist large bash output under `.context/{session_id}/evicted/`.
 
     Uses the same workspace_root_var + chat_id_var path as web_fetch UECD spill
@@ -163,8 +185,8 @@ async def _save_to_file(executor: CodeExecutor, content: str) -> str | None:
 
     result = await persist_evicted_content(content, source="output", ext="txt")
     if result.evicted_ref and result.rel_path:
-        return result.rel_path
-    return None
+        return result.rel_path, result
+    return None, None
 
 
 def _create_smart_preview(content: str) -> str:
