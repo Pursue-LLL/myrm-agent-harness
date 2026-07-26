@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
     from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
     from myrm_agent_harness.backends.skills.discovery_protocols import (
-        SkillDiscoveryBackend,
+        SkillMarketBackend,
     )
     from myrm_agent_harness.backends.skills.protocols import SkillBackend
     from myrm_agent_harness.backends.skills.scanning_write_backend import (
@@ -51,7 +51,7 @@ from .file_ops import (
     create_file_write_tool,
 )
 from .file_search import create_glob_tool, create_grep_tool
-from .skills.discovery import create_skill_discovery_tool
+from .skills.discovery import create_skill_market_tool
 from .skills.manage import create_skill_manage_tool
 from .skills.select import create_select_skill_tool
 from .spawn_subagent import (
@@ -66,7 +66,7 @@ SKILL_CORE_MAX = 10
 def get_meta_tools(
     skills: list[SkillMetadata],
     skill_backend: SkillBackend | None = None,
-    discovery_backend: SkillDiscoveryBackend | None = None,
+    market_backend: SkillMarketBackend | None = None,
     write_backend: ScanningSkillWriteBackend | None = None,
     embedding_config: EmbeddingConfig | None = None,
     embedding_cache: EmbeddingCacheProtocol | None = None,
