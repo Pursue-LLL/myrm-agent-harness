@@ -176,19 +176,20 @@ async def _judge_completion(
     goal: Goal,
     last_response: str,
     collected_messages: list[BaseMessage] | None = None,
-) -> tuple[str | None, bool]:
+) -> tuple[str | None, bool, bool]:
     """Run the semantic completion judge.
 
     Returns:
-        (None, False)  — goal is complete (DONE).
-        (str, False)   — goal is NOT complete; the string is the judge's reason.
-        (str, True)    — goal is NOT complete AND judge output was unparseable.
+        (None, False, False)  — goal is complete (DONE).
+        (str, False, True)    — goal needs WAIT (blocked / needs user input).
+        (str, False, False)   — goal is NOT complete; the string is the judge's reason.
+        (str, True, False)    — goal is NOT complete AND judge output was unparseable.
 
     Fail-open: API/transport errors default to 'not complete' with parse_failed=False
     (network issues should not trigger the auto-pause circuit breaker).
     """
     if not last_response.strip():
-        return "", False
+        return "", False, False
 
     criteria = build_judge_criteria(goal)
     if goal.subgoals:
@@ -202,26 +203,28 @@ async def _judge_completion(
         result = await goal_provider.evaluate_semantic(criteria, content, context_messages=collected_messages)
         if result.passed:
             logger.info("Judge verdict: DONE for goal %s", goal.goal_id)
-            return None, False
+            return None, False, False
+        wait = getattr(result, "wait", False)
         reason = result.reason or ""
         parse_failed = result.parse_failed
         logger.info(
-            "Judge verdict: CONTINUE for goal %s (reason: %s, parse_failed: %s)",
+            "Judge verdict: %s for goal %s (reason: %s, parse_failed: %s)",
+            "WAIT" if wait else "CONTINUE",
             goal.goal_id,
             reason or "not complete",
             parse_failed,
         )
-        return reason, parse_failed
+        return reason, parse_failed, wait
     except NotImplementedError:
         logger.debug("Judge skipped: evaluate_semantic not implemented")
-        return "", False
+        return "", False, False
     except Exception:
         logger.warning(
             "Judge error for goal %s — defaulting to continue (fail-open)",
             goal.goal_id,
             exc_info=True,
         )
-        return "", False
+        return "", False, False
 
 
 def _check_protected_integrity(goal_id: str) -> list[ProtectedFileViolation]:
@@ -495,7 +498,29 @@ async def check_continuation(
     last_judge_reason: str | None = None
     if goal.turns_used >= _JUDGE_SKIP_INITIAL_TURNS and tools_called_this_turn:
         last_response = _extract_last_ai_response(collected_messages)
-        judge_reason, parse_failed = await _judge_completion(goal_provider, goal, last_response, collected_messages)
+        judge_reason, parse_failed, judge_wait = await _judge_completion(
+            goal_provider, goal, last_response, collected_messages
+        )
+
+        # 7a. Judge says blocked / needs user input → transition to WAIT
+        if judge_wait and not parse_failed:
+            logger.info(
+                "Goal %s entering WAIT: judge detected blocked/needs-input (reason: %s)",
+                goal.goal_id,
+                judge_reason,
+            )
+            if hasattr(goal_provider, "enter_wait"):
+                await goal_provider.enter_wait(
+                    goal.goal_id, reason=judge_reason or "Blocked — needs user input"
+                )
+            else:
+                await goal_provider.update_status(goal.goal_id, GoalStatus.WAIT)
+            return _make_decision(
+                "wait",
+                judge_reason or "Agent is blocked and needs user input",
+                goal,
+            )
+
         if judge_reason is None:
             verification_passed = await _run_acceptance_verification(goal_provider, goal)
             if verification_passed:

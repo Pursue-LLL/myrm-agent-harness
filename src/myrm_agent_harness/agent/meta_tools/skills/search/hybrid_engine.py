@@ -125,8 +125,7 @@ class HybridSkillSearchEngine:
             start_time = time.perf_counter()
             corpus = [f"{s.name} {s.description}" for s in self._skills]
 
-            # 分批处理避免超过API batch size限制（如64）
-            batch_size = 50  # 保守值，避免超过大多数API的限制
+            batch_size = 50
             all_vectors = []
             for i in range(0, len(corpus), batch_size):
                 batch = corpus[i : i + batch_size]

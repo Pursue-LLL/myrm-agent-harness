@@ -1,14 +1,14 @@
-"""技能注册表
+"""Skill Registry
 
-1. 本文件的 INPUT/OUTPUT/POS 注释
+1. INPUT/OUTPUT/POS annotations
 
 [INPUT]
-- backends.skills.types::SkillMetadata (POS: 技能元数据类型定义)
+- backends.skills.types::SkillMetadata (POS: skill metadata type definition)
 
 [OUTPUT]
-- SkillRegistry: 技能注册表类（管理技能的注册、查询、更新）
-- skill_registry: 全局技能注册表单例
-- get_metadata_summary(): XML 格式技能摘要（嵌入 skill_select_tool / todo_write 的 tool description，非 SystemMessage）
+- SkillRegistry: Skill registry class (manages registration, lookup, updates)
+- skill_registry: Global skill registry singleton
+- get_metadata_summary(): XML-format skill summary (embedded in skill_select_tool / todo_write tool descriptions, not in SystemMessage)
 
 [POS]
 Skill registry. Manages runtime caches and lookups, primarily for MCP-based skills.
@@ -73,52 +73,41 @@ def _append_contract_summary(lines: list[str], skill: SkillMetadata) -> None:
 
 
 class SkillRegistry:
-    """技能注册表
+    """Runtime skill cache and lookup registry.
 
-    用于运行时技能缓存和查询，主要用于：
-    - MCP 技能的动态注册
-    - 运行时技能查找
-
-    存储技能不需要注册，通过 SkillBackendProtocol 动态加载。
+    Handles dynamic MCP skill registration and runtime skill lookup.
+    Storage-backed skills are loaded via SkillBackendProtocol, not registered here.
     """
 
     def __init__(self):
         self._skills: dict[str, SkillMetadata] = {}
 
     def register(self, skill: SkillMetadata) -> None:
-        """注册技能"""
         self._skills[skill.name] = skill
-        # 判断技能来源
         if skill.is_mcp_skill:
             source = f"mcp:{skill.mcp.server}" if skill.mcp else "mcp"
         elif skill.is_storage_skill:
             source = "storage"
         else:
             source = "unknown"
-        logger.info(f" 注册技能: {skill.name} (source={source})")
+        logger.info("Registered skill: %s (source=%s)", skill.name, source)
 
     def get_skill(self, name: str) -> SkillMetadata | None:
-        """获取技能元数据"""
         return self._skills.get(name)
 
     def list_skills(self) -> list[SkillMetadata]:
-        """列出所有已注册的技能"""
         return list(self._skills.values())
 
     def list_mcp_skills(self) -> list[SkillMetadata]:
-        """列出所有 MCP 技能"""
         return [skill for skill in self._skills.values() if skill.is_mcp_skill]
 
     def list_storage_skills(self) -> list[SkillMetadata]:
-        """列出所有存储技能"""
         return [skill for skill in self._skills.values() if skill.is_storage_skill]
 
     def clear(self) -> None:
-        """清除所有技能缓存"""
         self._skills.clear()
 
 
-# 全局实例
 skill_registry = SkillRegistry()
 
 
@@ -148,7 +137,10 @@ def get_metadata_summary(skills: list[SkillMetadata], max_skills: int = MAX_SKIL
 
     if len(skills) > len(included):
         logger.warning(
-            f"Skill prompt limit: {len(included)}/{len(skills)} skills included (max_skills_in_prompt={max_skills})"
+            "Skill prompt limit: %d/%d skills included (max_skills_in_prompt=%d)",
+            len(included),
+            len(skills),
+            max_skills,
         )
 
     lines = [

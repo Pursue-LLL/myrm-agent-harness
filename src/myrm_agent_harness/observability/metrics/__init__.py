@@ -190,6 +190,12 @@ class _NoOpMetric:
     def labels(self, **kwargs: object) -> _NoOpLabeled:
         return _NoOpLabeled()
 
+    def inc(self, amount: float = 1) -> None:
+        pass
+
+    def observe(self, amount: float) -> None:
+        pass
+
 
 def get_or_create_counter(
     name: str,

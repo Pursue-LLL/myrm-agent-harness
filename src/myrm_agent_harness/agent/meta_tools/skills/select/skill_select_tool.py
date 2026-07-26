@@ -44,22 +44,18 @@ def create_select_skill_tool(
     hidden_skill_count: int = 0,
     has_manage_tool: bool = False,
 ) -> BaseTool:
-    """创建'选择技能'工具
+    """Create the skill-select meta-tool.
 
-    这个工具让模型能够选择一个或多个技能来收集信息。
-
-    当 inline_skills 为 None 时，展示全部 skills（当前行为）。
-    当 inline_skills 提供时，只展示 inline_skills 并提示可通过 discover_capability 搜索更多。
+    When inline_skills is None, all model-invocable skills are shown.
+    When provided, only inline_skills are embedded and the remainder
+    are listed as peripheral with a discover_capability search hint.
 
     Args:
-        skills: 全部可用的技能列表（用于名称查找）
-        skill_backend: 技能后端（Protocol 注入）
-        inline_skills: 内联展示的技能子集（None 表示展示全部）
-        hidden_skill_count: 未内联展示的技能数量（用于提示信息）
-        has_manage_tool: 是否同时加载了 skill_manage_tool（控制演化规则注入）
-
-    Returns:
-        skill_select_tool工具函数
+        skills: Full list of available skills (for name lookup)
+        skill_backend: Skill backend (protocol injection)
+        inline_skills: Subset to embed in tool description (None = show all)
+        hidden_skill_count: Number of skills not inlined (for hint text)
+        has_manage_tool: Whether skill_manage_tool is co-loaded (controls evolution rule injection)
     """
     from myrm_agent_harness.agent.skills.runtime.registry import get_metadata_summary
 

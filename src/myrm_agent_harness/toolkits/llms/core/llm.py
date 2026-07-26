@@ -23,7 +23,7 @@ Core layer used by LLMManager and business layer as the unified entry point for 
 import logging
 from typing import Any
 
-# 导入即注册自定义 Provider 到 litellm.custom_provider_map（副作用导入）
+# Side-effect import: registers custom providers into litellm.custom_provider_map
 from myrm_agent_harness.toolkits.llms import providers  # noqa: F401
 from myrm_agent_harness.infra.tls_compat import build_httpx_verify, tls_strict_disabled
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM, clean_model_kwargs
@@ -31,21 +31,20 @@ from myrm_agent_harness.toolkits.llms.core.reasoning_timeout import get_reasonin
 
 logger = logging.getLogger(__name__)
 
-# Note：显式Cache（Claude/Qwen）  cache_control  completely 由 Pipeline   ExplicitCacheProcessor 控制
-#  not 再 using  LiteLLM   cache_control_injection_points Configure
-# 这样 can implements更智能 多断点Strategy（System + Compress边界 + 对话历史 + 20-block 保护）
-# OpenAI/DeepSeek/Gemini  using AutoPrefixCache， no 需显式Process
+# Explicit cache (Claude/Qwen): controlled by Pipeline ExplicitCacheProcessor
+# via dynamic cache_control injection in message additional_kwargs.
+# OpenAI/DeepSeek/Gemini: rely on API auto-prefix cache, no explicit processing needed.
 
 
 def _merge_model_kwargs_to_extra_body(llm_kwargs: dict[str, Any], model_kwargs: dict[str, Any] | None) -> None:
-    """将 model_kwargs  in  AllParameterMerge to  extra_body  in
+    """Merge all model_kwargs into extra_body for cross-provider compatibility.
 
-    LiteLLM 对某些provides商（如 OpenAI compatibleInterface）会Filter掉非standardParameter。
-    将 model_kwargs  in  AllParameter simultaneously 放入 extra_body， ensure compatibleAllprovides商。
+    LiteLLM may drop non-standard parameters for some providers (e.g. OpenAI-compatible
+    endpoints). Duplicating model_kwargs into extra_body ensures they reach the provider.
 
     Args:
-        llm_kwargs: LLM ParameterDict（会被修改）
-        model_kwargs: 模型customParameter
+        llm_kwargs: LLM parameter dict (mutated in place).
+        model_kwargs: Model-specific custom parameters.
     """
     if not model_kwargs:
         return
@@ -55,7 +54,7 @@ def _merge_model_kwargs_to_extra_body(llm_kwargs: dict[str, Any], model_kwargs: 
         extra_body = {}
         llm_kwargs["extra_body"] = extra_body
 
-    # 将 model_kwargs  in  AllParameterCopy to  extra_body（ not 覆盖 already  has  ）
+    # Copy model_kwargs into extra_body without overwriting existing keys
     for key, value in model_kwargs.items():
         if key not in extra_body:
             extra_body[key] = value
@@ -111,26 +110,23 @@ def create_litellm_model(
     web_search_options: dict[str, Any] | None = None,
     **kwargs: Any,
 ) -> "ChatLiteLLM":
-    """
-    统一 LLMCreateFunction，Support各种模型Type
+    """Unified factory for creating ChatLiteLLM instances across all providers.
 
-    Note：
-    - 显式Cache（Claude/Qwen）由 Pipeline   ExplicitCacheProcessor 控制
-    - 隐式Cache（OpenAI/DeepSeek/Gemini） using  API AutoPrefixCache， no 需Process
-    这样 can implements更智能 多断点Strategy。
+    Explicit cache (Claude/Qwen) is controlled by ExplicitCacheProcessor.
+    Implicit cache (OpenAI/DeepSeek/Gemini) relies on API auto-prefix cache.
 
     Args:
-        model: 模型名称
-        base_url: APIbasicURL
-        api_key: APIKey
-        temperature: 温度Parameter
-        streaming: Whether启用流式output
-        native_tools: Model native tools config (None=auto-detect, set=explicit, empty set=disable)
-        web_search_options: Explicit LiteLLM web_search_options override
-        **kwargs: OtherParameter
+        model: Model identifier (e.g. "gpt-4o", "claude-3-opus").
+        base_url: Custom API base URL.
+        api_key: API key for authentication.
+        temperature: Sampling temperature.
+        streaming: Enable streaming output.
+        native_tools: Model native tools config (None=auto-detect, set=explicit, empty set=disable).
+        web_search_options: Explicit LiteLLM web_search_options override.
+        **kwargs: Additional model-specific parameters (e.g. model_kwargs, max_tokens).
 
     Returns:
-        ChatLiteLLM: LLMInstance
+        Configured ChatLiteLLM instance.
     """
     llm_kwargs: dict[str, Any] = {"model": model, **kwargs}
     if temperature is not None:
@@ -145,12 +141,7 @@ def create_litellm_model(
     if streaming:
         llm_kwargs["streaming"] = streaming
 
-    # 显式Cache（Claude/Qwen） completely 由 Pipeline   ExplicitCacheProcessor 控制
-    #  in 消息  additional_kwargs  in Dynamic注入 cache_control 标记
-    # OpenAI/DeepSeek/Gemini  using  API AutoPrefixCache， no 需Process
-
-    # 将 kwargs  in  customParameter simultaneously 放入 extra_body
-    # 解决 LiteLLM 对某些provides商Filter非standardParameter 问题
+    # Merge kwargs into extra_body for cross-provider compatibility
     _merge_model_kwargs_to_extra_body(llm_kwargs, kwargs)
 
     resolved_wso = _resolve_web_search_options(model, native_tools, web_search_options)

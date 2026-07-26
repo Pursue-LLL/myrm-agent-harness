@@ -30,6 +30,7 @@ class VerificationResult:
     reason: str | None = None
     error_logs: str | None = None
     parse_failed: bool = False
+    wait: bool = False
     duration_ms: int = 0
 
     def to_dict(self) -> dict[str, object]:

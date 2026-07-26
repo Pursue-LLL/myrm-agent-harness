@@ -267,9 +267,10 @@ def test_extract_last_ai_response_no_messages():
 async def test_judge_completion_empty_response():
     provider = AsyncMock()
     goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
-    reason, parse_failed = await _judge_completion(provider, goal, "   ")
+    reason, parse_failed, wait = await _judge_completion(provider, goal, "   ")
     assert reason == ""
     assert parse_failed is False
+    assert wait is False
     provider.evaluate_semantic.assert_not_called()
 
 
@@ -278,9 +279,10 @@ async def test_judge_completion_passed():
     provider = AsyncMock()
     provider.evaluate_semantic.return_value = VerificationResult(passed=True, reason="done")
     goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
-    reason, parse_failed = await _judge_completion(provider, goal, "Task is complete.")
+    reason, parse_failed, wait = await _judge_completion(provider, goal, "Task is complete.")
     assert reason is None
     assert parse_failed is False
+    assert wait is False
 
 
 @pytest.mark.asyncio
@@ -288,9 +290,10 @@ async def test_judge_completion_not_passed():
     provider = AsyncMock()
     provider.evaluate_semantic.return_value = VerificationResult(passed=False, reason="still working")
     goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
-    reason, parse_failed = await _judge_completion(provider, goal, "Still working on it.")
+    reason, parse_failed, wait = await _judge_completion(provider, goal, "Still working on it.")
     assert reason == "still working"
     assert parse_failed is False
+    assert wait is False
 
 
 @pytest.mark.asyncio
@@ -300,9 +303,10 @@ async def test_judge_completion_parse_failed():
         passed=False, reason="garbage text", parse_failed=True
     )
     goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
-    reason, parse_failed = await _judge_completion(provider, goal, "Still working on it.")
+    reason, parse_failed, wait = await _judge_completion(provider, goal, "Still working on it.")
     assert reason == "garbage text"
     assert parse_failed is True
+    assert wait is False
 
 
 @pytest.mark.asyncio
@@ -310,9 +314,10 @@ async def test_judge_completion_not_implemented():
     provider = AsyncMock()
     provider.evaluate_semantic.side_effect = NotImplementedError
     goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
-    reason, parse_failed = await _judge_completion(provider, goal, "Some response")
+    reason, parse_failed, wait = await _judge_completion(provider, goal, "Some response")
     assert reason == ""
     assert parse_failed is False
+    assert wait is False
 
 
 @pytest.mark.asyncio
@@ -320,9 +325,24 @@ async def test_judge_completion_error_failopen():
     provider = AsyncMock()
     provider.evaluate_semantic.side_effect = RuntimeError("API down")
     goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
-    reason, parse_failed = await _judge_completion(provider, goal, "Some response")
+    reason, parse_failed, wait = await _judge_completion(provider, goal, "Some response")
     assert reason == ""
     assert parse_failed is False
+    assert wait is False
+
+
+@pytest.mark.asyncio
+async def test_judge_completion_wait():
+    """When judge returns wait=True, the result signals blocked/needs-input."""
+    provider = AsyncMock()
+    provider.evaluate_semantic.return_value = VerificationResult(
+        passed=False, reason="needs user credentials", wait=True
+    )
+    goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
+    reason, parse_failed, wait = await _judge_completion(provider, goal, "I need your API key to proceed.")
+    assert reason == "needs user credentials"
+    assert parse_failed is False
+    assert wait is True
 
 
 # --- Semantic judge integration in check_continuation ---

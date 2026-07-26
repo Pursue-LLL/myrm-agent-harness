@@ -251,10 +251,12 @@ def build_judge_criteria(goal: Goal) -> str:
         f"{criteria_section}\n"
         "A goal is DONE (PASS) only when:\n"
         "- The response explicitly confirms the goal was completed, OR\n"
-        "- The response clearly shows the final deliverable was produced, OR\n"
-        "- The response explains the goal is unachievable / blocked / needs "
-        "user input (treat this as DONE with reason describing the block).\n\n"
+        "- The response clearly shows the final deliverable was produced.\n\n"
+        "A goal needs WAIT when:\n"
+        "- The agent is blocked and needs user input or external action, OR\n"
+        "- The goal is unachievable without user guidance.\n"
+        "(Do NOT mark blocked/needs-input as done — use wait instead.)\n\n"
         "Otherwise the goal is NOT done — FAIL (continue working).\n\n"
         "Reply ONLY with a JSON object: "
-        '{"done": true/false, "reason": "one-sentence rationale"}'
+        '{"done": true/false, "wait": true/false, "reason": "one-sentence rationale"}'
     )
