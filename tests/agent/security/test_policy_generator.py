@@ -31,6 +31,14 @@ class TestBuildMessages:
         assert "Current configuration context" in msgs[1]["content"]
         assert "github.com" in msgs[1]["content"]
 
+    def test_with_command_denylist_in_context(self) -> None:
+        config = {"commandDenylist": ["rm -rf *"], "networkBlocklist": ["malware.com"]}
+        msgs = build_messages("update policy", current_config=config)
+        assert "Command denylist" in msgs[1]["content"]
+        assert "rm -rf *" in msgs[1]["content"]
+        assert "Blocked domains" in msgs[1]["content"]
+        assert "malware.com" in msgs[1]["content"]
+
     def test_without_current_config(self) -> None:
         msgs = build_messages("block all commands")
         assert "Current configuration context" not in msgs[1]["content"]
@@ -117,6 +125,31 @@ class TestParsePolicy:
         perms = result["permissions"]
         assert perms["shell_exec"] == {"rm *": "deny", "git *": "allow"}
 
+    def test_parses_command_denylist(self) -> None:
+        raw = '{"commandDenylist": ["rm -rf *", "git push --force*"]}'
+        result = parse_policy_response(raw)
+        assert result["commandDenylist"] == ["rm -rf *", "git push --force*"]
+
+    def test_normalizes_command_denylist_strips_whitespace(self) -> None:
+        raw = '{"commandDenylist": ["  rm -rf * ", "", "git push --force*"]}'
+        result = parse_policy_response(raw)
+        assert result["commandDenylist"] == ["rm -rf *", "git push --force*"]
+
+    def test_parses_network_blocklist(self) -> None:
+        raw = '{"networkBlocklist": ["Malware.COM", "*.phishing.NET"]}'
+        result = parse_policy_response(raw)
+        assert result["networkBlocklist"] == ["malware.com", "*.phishing.net"]
+
+    def test_invalid_command_denylist_type_removed(self) -> None:
+        raw = '{"commandDenylist": "not a list"}'
+        result = parse_policy_response(raw)
+        assert "commandDenylist" not in result
+
+    def test_invalid_network_blocklist_type_removed(self) -> None:
+        raw = '{"networkBlocklist": "not a list"}'
+        result = parse_policy_response(raw)
+        assert "networkBlocklist" not in result
+
 
 class TestValidatePolicy:
     """Tests for validate_generated_policy (validator.py)."""
@@ -176,6 +209,18 @@ class TestValidatePolicy:
         config = {"permissions": {"shell_exec": {"*": "allow"}}}
         is_valid, _warnings = validate_generated_policy(config)
         assert not is_valid
+
+    def test_command_denylist_wildcard_warning(self) -> None:
+        config = {"commandDenylist": ["*"]}
+        is_valid, warnings = validate_generated_policy(config)
+        assert is_valid
+        assert any(w.field == "commandDenylist" and w.severity == WarningSeverity.WARNING for w in warnings)
+
+    def test_command_denylist_normal_patterns_valid(self) -> None:
+        config = {"commandDenylist": ["rm -rf *", "git push --force*"]}
+        is_valid, warnings = validate_generated_policy(config)
+        assert is_valid
+        assert len(warnings) == 0
 
 
 class TestExplainPolicy:
@@ -241,3 +286,27 @@ class TestExplainPolicy:
         result = explain_policy(config, locale="zh")
         assert "[rm *]" in result
         assert "[git *]" in result
+
+    def test_command_denylist_zh(self) -> None:
+        config = {"commandDenylist": ["rm -rf *", "git push --force*"]}
+        result = explain_policy(config, locale="zh")
+        assert "永久禁止命令" in result
+        assert "rm -rf *" in result
+
+    def test_command_denylist_en(self) -> None:
+        config = {"commandDenylist": ["rm -rf *"]}
+        result = explain_policy(config, locale="en")
+        assert "Permanently blocked commands" in result
+        assert "rm -rf *" in result
+
+    def test_network_blocklist_zh(self) -> None:
+        config = {"networkBlocklist": ["malware.com"]}
+        result = explain_policy(config, locale="zh")
+        assert "封锁域名" in result
+        assert "malware.com" in result
+
+    def test_network_blocklist_en(self) -> None:
+        config = {"networkBlocklist": ["*.phishing.net"]}
+        result = explain_policy(config, locale="en")
+        assert "Blocked domains" in result
+        assert "*.phishing.net" in result

@@ -25,9 +25,9 @@ _MARKETPLACE_TOOL = "skill_market_tool"
 
 def _tool_description(tool: object) -> str:
     description = getattr(tool, "description", None)
-    assert isinstance(description, str) and description.strip(), (
-        f"Expected non-empty description on {getattr(tool, 'name', tool)!r}"
-    )
+    assert (
+        isinstance(description, str) and description.strip()
+    ), f"Expected non-empty description on {getattr(tool, 'name', tool)!r}"
     return description
 
 
@@ -45,22 +45,35 @@ def marketplace_tool():
 
 
 @pytest.mark.architecture
-def test_discover_capability_description_points_to_marketplace_tool(discover_tool) -> None:
+def test_discover_capability_description_points_to_marketplace_tool(
+    discover_tool,
+) -> None:
     description = _tool_description(discover_tool)
     assert _MARKETPLACE_TOOL in description
-    assert "external markets" in description.lower() or "installing new skills" in description.lower()
-    assert "bound to this agent" in description.lower() or "already available" in description.lower()
+    assert (
+        "external markets" in description.lower()
+        or "installing new skills" in description.lower()
+    )
+    assert (
+        "bound to this agent" in description.lower()
+        or "already available" in description.lower()
+    )
 
 
 @pytest.mark.architecture
 def test_skill_market_description_points_to_skill_search_tool(marketplace_tool) -> None:
     description = _tool_description(marketplace_tool)
     assert _DISCOVER_TOOL in description
-    assert "already bound" in description.lower() or "bound to this agent" in description.lower()
+    assert (
+        "already bound" in description.lower()
+        or "bound to this agent" in description.lower()
+    )
 
 
 @pytest.mark.architecture
-def test_skill_tool_pair_mutual_cross_reference(discover_tool, marketplace_tool) -> None:
+def test_skill_tool_pair_mutual_cross_reference(
+    discover_tool, marketplace_tool
+) -> None:
     discover_description = _tool_description(discover_tool)
     marketplace_description = _tool_description(marketplace_tool)
     assert _MARKETPLACE_TOOL in discover_description

@@ -137,9 +137,19 @@ def build_interrupt_payload(
 
         action_request.update(build_shell_approval_fields(tool_name, redacted_args))
 
-        review_config: dict[str, object] = {
-            "allowedDecisions": ["approve", "reject", "edit"],
-        }
+        is_smart_denied = bool(extra_ctx and extra_ctx.get("smart_denied"))
+        if is_smart_denied:
+            review_config: dict[str, object] = {
+                "allowedDecisions": ["approve", "reject"],
+                "smartDenied": True,
+            }
+            reviewer_reason = extra_ctx.get("reviewer_reason", "") if extra_ctx else ""
+            if reviewer_reason:
+                action_request["reviewerReason"] = reviewer_reason
+        else:
+            review_config = {
+                "allowedDecisions": ["approve", "reject", "edit"],
+            }
         if domains:
             review_config["domainApproval"] = True
 
@@ -245,43 +255,59 @@ async def apply_approval_decisions(
             )
 
             if decision_type == "approve":
-                record_decision(tool_name, "USER_APPROVED", reason)
+                is_smart_denied_override = bool(
+                    extra_ctx and extra_ctx.get("smart_denied")
+                )
+                if is_smart_denied_override:
+                    reviewer_reason = extra_ctx.get("reviewer_reason", "") if extra_ctx else ""
+                    record_decision(
+                        tool_name,
+                        "LLM_REVIEW_DENY_USER_OVERRIDE",
+                        f"User overrode LLM DENY (once): {reviewer_reason}",
+                    )
+                    logger.warning(
+                        "[SMART_DENY_OVERRIDE] User overrode LLM DENY for %s (once)",
+                        tool_name,
+                    )
+                else:
+                    record_decision(tool_name, "USER_APPROVED", reason)
 
-                if allow_domain and config and config.domain_hitl_enabled:
-                    tool_input: dict[str, object] = tool_call.get("args", {})
-                    domains = extract_url_domains(permission_type, tool_input)
-                    if domains:
-                        runtime_domains = _get_runtime_domains()
-                        for domain in domains:
-                            runtime_domains.add(domain)
-                        logger.warning(
-                            "[DOMAIN_HITL] User approved domain(s) %s for session",
-                            domains,
-                        )
-                        record_decision(tool_name, "DOMAIN_APPROVED", f"domains: {domains}")
+                if not is_smart_denied_override:
+                    if allow_domain and config and config.domain_hitl_enabled:
+                        tool_input: dict[str, object] = tool_call.get("args", {})
+                        domains = extract_url_domains(permission_type, tool_input)
+                        if domains:
+                            runtime_domains = _get_runtime_domains()
+                            for domain in domains:
+                                runtime_domains.add(domain)
+                            logger.warning(
+                                "[DOMAIN_HITL] User approved domain(s) %s for session",
+                                domains,
+                            )
+                            record_decision(tool_name, "DOMAIN_APPROVED", f"domains: {domains}")
 
-                if allow_always:
-                    if _integration_mutation_blocks_allow_always(tool_call):
-                        logger.warning(
-                            "[APPROVAL] Ignoring allow_always for integration mutation on %s",
-                            tool_name,
-                        )
-                    else:
-                        from myrm_agent_harness.agent.middlewares._session_context import (
-                            get_approval_user_id,
-                        )
+                    if allow_always:
+                        if _integration_mutation_blocks_allow_always(tool_call):
+                            logger.warning(
+                                "[APPROVAL] Ignoring allow_always for integration mutation on %s",
+                                tool_name,
+                            )
+                        else:
+                            from myrm_agent_harness.agent.middlewares._session_context import (
+                                get_approval_user_id,
+                            )
 
-                        user_id = get_approval_user_id() or DEFAULT_USER_ID
-                        tool_args = tool_call.get("args", {})
-                        shell_command = extract_shell_command(tool_args if isinstance(tool_args, dict) else None)
-                        await add_to_allowlist_if_needed(
-                            allow_always,
-                            user_id,
-                            permission_type,
-                            allowlist_tool_name,
-                            args_hashes.get(idx),
-                            tool_command=shell_command,
-                        )
+                            user_id = get_approval_user_id() or DEFAULT_USER_ID
+                            tool_args = tool_call.get("args", {})
+                            shell_command = extract_shell_command(tool_args if isinstance(tool_args, dict) else None)
+                            await add_to_allowlist_if_needed(
+                                allow_always,
+                                user_id,
+                                permission_type,
+                                allowlist_tool_name,
+                                args_hashes.get(idx),
+                                tool_command=shell_command,
+                            )
 
                 revised_tool_calls.append(tool_call)
 

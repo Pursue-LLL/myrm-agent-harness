@@ -111,6 +111,8 @@ async def evaluate_tool_batch(
     intent_context: str | None = None,
     recent_tool_calls: tuple[RecentToolCall, ...] = (),
     taint_labels: frozenset[str] | None = None,
+    *,
+    is_interactive: bool = True,
 ) -> tuple[
     list[tuple[int, ToolCall]],
     list[tuple[int, ToolCall, str]],
@@ -733,14 +735,23 @@ async def evaluate_tool_batch(
                         record_decision(
                             tool_name, "LLM_REVIEW_DENY", review_result.reason
                         )
-                        hint = record_denial(tool_name)
-                        auto_denied.append(
-                            (
-                                idx,
-                                tool_call,
-                                f"Denied by security review: {review_result.reason}{hint}",
+                        if is_interactive:
+                            extra_ctx = extra_ctx or {}
+                            extra_ctx["smart_denied"] = True
+                            extra_ctx["reviewer_reason"] = review_result.reason
+                            reason = f"AI Security Reviewer recommends denial: {review_result.reason}"
+                            pending_approval.append(
+                                (idx, tool_call, permission_type, reason, extra_ctx)
                             )
-                        )
+                        else:
+                            hint = record_denial(tool_name)
+                            auto_denied.append(
+                                (
+                                    idx,
+                                    tool_call,
+                                    f"Denied by security review: {review_result.reason}{hint}",
+                                )
+                            )
                         continue
                     record_decision(
                         tool_name, "LLM_REVIEW_UNCERTAIN", review_result.reason

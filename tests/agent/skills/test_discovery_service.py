@@ -15,7 +15,10 @@ from myrm_agent_harness.agent.skills.market.service import (
     _atomic_replace,
 )
 from myrm_agent_harness.agent.skills.market.sources.github import GitHubRef
-from myrm_agent_harness.backends.skills.market_protocols import SkillInstallResult, SkillSearchResult
+from myrm_agent_harness.backends.skills.market_protocols import (
+    SkillInstallResult,
+    SkillSearchResult,
+)
 from myrm_agent_harness.backends.skills.scanning import SkillTrustRecommendation
 from myrm_agent_harness.backends.skills.scanning.archive_security import (
     ArchiveSecurityCode,
@@ -26,7 +29,10 @@ from myrm_agent_harness.backends.skills.scanning.archive_security import (
 
 
 def _make_search_result(
-    skill_id: str = "test-skill", name: str = "Test Skill", source: str = "github", version: str = "1.0.0"
+    skill_id: str = "test-skill",
+    name: str = "Test Skill",
+    source: str = "github",
+    version: str = "1.0.0",
 ) -> SkillSearchResult:
     return SkillSearchResult(
         id=skill_id,
@@ -66,7 +72,9 @@ class TestSearch:
     @pytest.mark.asyncio
     async def test_search_aggregates_from_sources(self) -> None:
         svc = BaseSkillMarketService()
-        results_a = [_make_search_result("skill-a", name="Alpha Skill", source="clawhub")]
+        results_a = [
+            _make_search_result("skill-a", name="Alpha Skill", source="clawhub")
+        ]
         results_b = [_make_search_result("skill-b", name="Beta Skill", source="github")]
 
         source_a = AsyncMock()
@@ -86,21 +94,31 @@ class TestSearch:
         assert "skill-b" in ids
 
     @pytest.mark.asyncio
-    async def test_search_deduplicate_prefers_high_priority_source_deterministically(self) -> None:
+    async def test_search_deduplicate_prefers_high_priority_source_deterministically(
+        self,
+    ) -> None:
         scenarios = (
             (0.02, 0.00),
             (0.00, 0.02),
         )
         for github_delay, skills_sh_delay in scenarios:
             svc = BaseSkillMarketService()
-            github_result = _make_search_result("dup-github", name="Shared Skill", source="github")
-            skills_sh_result = _make_search_result("dup-skills-sh", name="Shared Skill", source="skills_sh")
+            github_result = _make_search_result(
+                "dup-github", name="Shared Skill", source="github"
+            )
+            skills_sh_result = _make_search_result(
+                "dup-skills-sh", name="Shared Skill", source="skills_sh"
+            )
 
-            async def github_search(_query: str, _limit: int) -> list[SkillSearchResult]:
+            async def github_search(
+                _query: str, _limit: int
+            ) -> list[SkillSearchResult]:
                 await asyncio.sleep(github_delay)
                 return [github_result]
 
-            async def skills_sh_search(_query: str, _limit: int) -> list[SkillSearchResult]:
+            async def skills_sh_search(
+                _query: str, _limit: int
+            ) -> list[SkillSearchResult]:
                 await asyncio.sleep(skills_sh_delay)
                 return [skills_sh_result]
 
@@ -143,10 +161,14 @@ class TestSearch:
     @pytest.mark.asyncio
     async def test_search_enriches_with_installed_versions(self) -> None:
         svc = BaseSkillMarketService()
-        cached_results = [_make_search_result("my-skill", name="My Skill", version="2.0.0")]
+        cached_results = [
+            _make_search_result("my-skill", name="My Skill", version="2.0.0")
+        ]
         svc._search_cache["query"] = (time.time(), cached_results)
 
-        results = await svc.search("query", installed_versions_map={"my skill": "1.0.0"})
+        results = await svc.search(
+            "query", installed_versions_map={"my skill": "1.0.0"}
+        )
         assert len(results) == 1
         assert results[0].installed_version == "1.0.0"
         assert results[0].upgrade_available is True
@@ -236,7 +258,11 @@ class TestEnrichedSearchResult:
         assert r.upgrade_available is False
 
     def test_with_upgrade(self) -> None:
-        r = EnrichedSearchResult(result=_make_search_result(), installed_version="1.0", upgrade_available=True)
+        r = EnrichedSearchResult(
+            result=_make_search_result(),
+            installed_version="1.0",
+            upgrade_available=True,
+        )
         assert r.upgrade_available is True
 
 
@@ -343,9 +369,15 @@ class TestQuarantineInstall:
             "skill.py": b"def run(): return 'hello'",
         }
 
-        with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
+        with patch(
+            "myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path
+        ):
             result = await svc._quarantine_install(
-                "test-id", "clean-skill", files, source="test", progress_callback=on_progress
+                "test-id",
+                "clean-skill",
+                files,
+                source="test",
+                progress_callback=on_progress,
             )
 
         assert result.success is True
@@ -363,8 +395,12 @@ class TestQuarantineInstall:
 
         files = {"new.txt": b"new content"}
 
-        with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
-            result = await svc._quarantine_install("id", "existing-skill", files, source="test")
+        with patch(
+            "myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path
+        ):
+            result = await svc._quarantine_install(
+                "id", "existing-skill", files, source="test"
+            )
 
         assert result.success is True
         assert (tmp_path / "existing-skill" / "new.txt").exists()
@@ -409,7 +445,10 @@ class TestInstallGitFlow:
                 return_value={"skill.yaml": b"name: lobe-agent"},
             ),
             patch.object(
-                svc, "_quarantine_install", new_callable=AsyncMock, return_value=SkillInstallResult(success=True)
+                svc,
+                "_quarantine_install",
+                new_callable=AsyncMock,
+                return_value=SkillInstallResult(success=True),
             ),
         ):
             result = await svc.install("lobe-1", "lobehub")
@@ -459,7 +498,9 @@ class TestInstallGitFlow:
 
         svc._git_installer.download = AsyncMock(return_value=skill_files)
 
-        with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
+        with patch(
+            "myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path
+        ):
             result = await svc.install("git-skill", "github")
             assert result.success is True
 
@@ -503,7 +544,9 @@ class TestInstallGitFlow:
 
         svc._zip_installer.download = AsyncMock(return_value=skill_files)
 
-        with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
+        with patch(
+            "myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path
+        ):
             result = await svc.install("zip-skill", "skills_sh")
             assert result.success is True
 
@@ -529,7 +572,9 @@ class TestInstallGitFlow:
             limit=4096,
         )
         svc._zip_installer.download = AsyncMock(
-            side_effect=ArchiveSecurityError(violation, "ZIP contains too many entries (5000 > 4096)")
+            side_effect=ArchiveSecurityError(
+                violation, "ZIP contains too many entries (5000 > 4096)"
+            )
         )
 
         result = await svc.install("zip-skill", "skills_sh")
@@ -650,10 +695,18 @@ class TestInstallFromUrl:
         skill_files.name = "url-skill"
         skill_files.files = {"main.py": b"print('hi')"}
 
-        with patch("myrm_agent_harness.agent.skills.market.sources.github.parse_github_url", return_value=ref):
+        with patch(
+            "myrm_agent_harness.agent.skills.market.sources.github.parse_github_url",
+            return_value=ref,
+        ):
             svc._git_installer.download = AsyncMock(return_value=skill_files)
-            with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
-                result = await svc.install_from_url("https://github.com/test/skill-repo")
+            with patch(
+                "myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR",
+                tmp_path,
+            ):
+                result = await svc.install_from_url(
+                    "https://github.com/test/skill-repo"
+                )
                 assert result.success is True
 
     @pytest.mark.asyncio
@@ -673,8 +726,13 @@ class TestInstallFromUrl:
         svc = BaseSkillMarketService()
         ref = GitHubRef(owner="test", repo="repo")
 
-        with patch("myrm_agent_harness.agent.skills.market.sources.github.parse_github_url", return_value=ref):
-            svc._git_installer.download = AsyncMock(side_effect=ValueError("Clone failed"))
+        with patch(
+            "myrm_agent_harness.agent.skills.market.sources.github.parse_github_url",
+            return_value=ref,
+        ):
+            svc._git_installer.download = AsyncMock(
+                side_effect=ValueError("Clone failed")
+            )
             result = await svc.install_from_url("https://github.com/test/repo")
             assert result.success is False
             assert "Clone failed" in (result.error or "")
@@ -692,10 +750,18 @@ class TestInstallFromUrl:
         skill_files.name = "url-skill"
         skill_files.files = {"main.py": b"code"}
 
-        with patch("myrm_agent_harness.agent.skills.market.sources.github.parse_github_url", return_value=ref):
+        with patch(
+            "myrm_agent_harness.agent.skills.market.sources.github.parse_github_url",
+            return_value=ref,
+        ):
             svc._git_installer.download = AsyncMock(return_value=skill_files)
-            with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
-                await svc.install_from_url("https://github.com/test/repo", progress_callback=on_progress)
+            with patch(
+                "myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR",
+                tmp_path,
+            ):
+                await svc.install_from_url(
+                    "https://github.com/test/repo", progress_callback=on_progress
+                )
 
         assert "resolving" in progress_log
         assert "downloading" in progress_log
@@ -730,10 +796,18 @@ class TestQuarantineReject:
         mock_scan.findings = []
 
         with (
-            patch("myrm_agent_harness.agent.skills.market.service.scan_all_text_files", return_value=mock_scan),
-            patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path),
+            patch(
+                "myrm_agent_harness.agent.skills.market.service.scan_all_text_files",
+                return_value=mock_scan,
+            ),
+            patch(
+                "myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR",
+                tmp_path,
+            ),
         ):
-            result = await svc._quarantine_install("evil-id", "evil-skill", malicious_files, source="test")
+            result = await svc._quarantine_install(
+                "evil-id", "evil-skill", malicious_files, source="test"
+            )
 
         assert result.success is False
         assert "Security scan blocked" in (result.error or "")
@@ -751,10 +825,18 @@ class TestQuarantineReject:
         mock_scan.findings = ["subprocess usage"]
 
         with (
-            patch("myrm_agent_harness.agent.skills.market.service.scan_all_text_files", return_value=mock_scan),
-            patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path),
+            patch(
+                "myrm_agent_harness.agent.skills.market.service.scan_all_text_files",
+                return_value=mock_scan,
+            ),
+            patch(
+                "myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR",
+                tmp_path,
+            ),
         ):
-            result = await svc._quarantine_install("warn-id", "warn-skill", files, source="test")
+            result = await svc._quarantine_install(
+                "warn-id", "warn-skill", files, source="test"
+            )
 
         assert result.success is True
         assert result.scan_summary == "Uses subprocess"
@@ -770,7 +852,10 @@ class TestAtomicReplaceRollback:
         dst.mkdir()
         (dst / "old.txt").write_text("old")
 
-        with patch("shutil.move", side_effect=OSError("disk full")), pytest.raises(OSError, match="disk full"):
+        with (
+            patch("shutil.move", side_effect=OSError("disk full")),
+            pytest.raises(OSError, match="disk full"),
+        ):
             _atomic_replace(src, dst)
 
         assert dst.exists()
@@ -794,7 +879,9 @@ class TestSearchTimeout:
             MagicMock(source_name="fast", search=fast_search),
         ]
 
-        with patch("myrm_agent_harness.agent.skills.market.service.SEARCH_TIMEOUT", 0.01):
+        with patch(
+            "myrm_agent_harness.agent.skills.market.service.SEARCH_TIMEOUT", 0.01
+        ):
             results = await svc.search("test")
 
         assert len(results) >= 1
@@ -809,11 +896,15 @@ class TestSearchBrowseMode:
 
         prebuilt_src = AsyncMock()
         prebuilt_src.source_name = "prebuilt"
-        prebuilt_src.search = AsyncMock(return_value=[_make_search_result("pb", name="Prebuilt")])
+        prebuilt_src.search = AsyncMock(
+            return_value=[_make_search_result("pb", name="Prebuilt")]
+        )
 
         github_src = AsyncMock()
         github_src.source_name = "github"
-        github_src.search = AsyncMock(return_value=[_make_search_result("gh", name="GitHub")])
+        github_src.search = AsyncMock(
+            return_value=[_make_search_result("gh", name="GitHub")]
+        )
 
         svc._sources = [prebuilt_src, github_src]
 
@@ -829,7 +920,9 @@ class TestUninstallSuccess:
         skill_dir.mkdir()
         (skill_dir / "main.py").write_text("code")
 
-        with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
+        with patch(
+            "myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path
+        ):
             result = await svc.uninstall("local::my-skill")
 
         assert result.success is True

@@ -140,7 +140,11 @@ class HistoryTrackingSkillWriteBackend:
         """Write resource file with automatic history tracking."""
         try:
             prev_bytes = await self._read.get_skill_resources(skill_name, resource_path)
-            prev_content = prev_bytes.decode("utf-8") if isinstance(prev_bytes, bytes) else prev_bytes
+            prev_content = (
+                prev_bytes.decode("utf-8")
+                if isinstance(prev_bytes, bytes)
+                else prev_bytes
+            )
         except Exception:
             prev_content = None
 
@@ -174,7 +178,11 @@ class HistoryTrackingSkillWriteBackend:
         """Delete resource file with automatic history tracking."""
         try:
             prev_bytes = await self._read.get_skill_resources(skill_name, resource_path)
-            prev_content = prev_bytes.decode("utf-8") if isinstance(prev_bytes, bytes) else prev_bytes
+            prev_content = (
+                prev_bytes.decode("utf-8")
+                if isinstance(prev_bytes, bytes)
+                else prev_bytes
+            )
         except Exception:
             prev_content = None
 
@@ -277,7 +285,9 @@ class HistoryTrackingSkillWriteBackend:
         )
 
         if not result.success:
-            return SkillRollbackResult(success=False, skill_name=skill_name, error=result.error)
+            return SkillRollbackResult(
+                success=False, skill_name=skill_name, error=result.error
+            )
 
         # Record rollback as a separate history entry
         await self._record_history(

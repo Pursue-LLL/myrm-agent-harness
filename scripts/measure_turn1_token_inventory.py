@@ -54,10 +54,16 @@ async def _build_default_turn1_tools() -> list[BaseTool]:
     from myrm_agent_harness.backends.skills.types import SkillMetadata
     from myrm_agent_harness.toolkits.memory.config import MemoryConfig
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-    from myrm_agent_harness.toolkits.memory.memory_agent_tools import create_memory_tools
-    from myrm_agent_harness.toolkits.web_fetch.web_fetch_agent_tools import create_web_fetch_tool
+    from myrm_agent_harness.toolkits.memory.memory_agent_tools import (
+        create_memory_tools,
+    )
+    from myrm_agent_harness.toolkits.web_fetch.web_fetch_agent_tools import (
+        create_web_fetch_tool,
+    )
     from myrm_agent_harness.toolkits.web_search.engine import SearchServiceConfig
-    from myrm_agent_harness.toolkits.web_search.web_search_agent_tools import create_web_search_tool
+    from myrm_agent_harness.toolkits.web_search.web_search_agent_tools import (
+        create_web_search_tool,
+    )
 
     sample_skill = SkillMetadata(
         name="demo_skill",
@@ -81,7 +87,9 @@ async def _build_default_turn1_tools() -> list[BaseTool]:
         enable_answer_tool=False,
     )
 
-    search_cfg = SearchServiceConfig(search_service="tavily", api_key="measurement-placeholder")
+    search_cfg = SearchServiceConfig(
+        search_service="tavily", api_key="measurement-placeholder"
+    )
     web_tools = [
         create_web_search_tool(search_cfg),
         create_web_fetch_tool(),
@@ -126,7 +134,10 @@ async def _build_default_turn1_tools() -> list[BaseTool]:
 async def measure_turn1_inventory() -> dict[str, object]:
     import tiktoken
 
-    from myrm_agent_harness.agent.tool_management.tool_layers import ToolLayer, get_tool_layer
+    from myrm_agent_harness.agent.tool_management.tool_layers import (
+        ToolLayer,
+        get_tool_layer,
+    )
 
     encoding = tiktoken.get_encoding(ENCODING_NAME)
     tools = await _build_default_turn1_tools()
@@ -177,8 +188,12 @@ def _print_table(report: dict[str, object]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Measure default Turn-1 tool token inventory")
-    parser.add_argument("--json", action="store_true", help="Emit JSON instead of a table")
+    parser = argparse.ArgumentParser(
+        description="Measure default Turn-1 tool token inventory"
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="Emit JSON instead of a table"
+    )
     args = parser.parse_args()
 
     report = asyncio.run(measure_turn1_inventory())

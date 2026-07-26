@@ -164,6 +164,8 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
             if tracker.is_tainted:
                 session_taint_labels = frozenset(str(lbl) for lbl in tracker.labels)
 
+        is_interactive = not is_cron and not get_is_shadow_agent()
+
         _auto_approved, auto_denied, pending_approval = await evaluate_tool_batch(
             last_ai_msg.tool_calls,
             config,
@@ -174,6 +176,7 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
             intent_context=intent_context,
             recent_tool_calls=recent_tool_calls,
             taint_labels=session_taint_labels,
+            is_interactive=is_interactive,
         )
 
         if pending_approval:

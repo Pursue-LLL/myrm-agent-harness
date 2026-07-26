@@ -50,7 +50,10 @@ from myrm_agent_harness.backends.skills.market_protocols import (
     SkillSearchResult,
 )
 from myrm_agent_harness.backends.skills.factory import SkillBackend
-from myrm_agent_harness.backends.skills.local import LocalSkillBackend, scan_workspace_skills
+from myrm_agent_harness.backends.skills.local import (
+    LocalSkillBackend,
+    scan_workspace_skills,
+)
 from myrm_agent_harness.backends.skills.memory import InMemorySkillBackend
 from myrm_agent_harness.backends.skills.permission_templates import (
     TEMPLATE_PERMISSIONS,
@@ -73,7 +76,9 @@ from myrm_agent_harness.backends.skills.protocols import (
 from myrm_agent_harness.backends.skills.protocols import (
     SkillBackend as SkillBackendProtocol,
 )
-from myrm_agent_harness.backends.skills.scanning_write_backend import ScanningSkillWriteBackend
+from myrm_agent_harness.backends.skills.scanning_write_backend import (
+    ScanningSkillWriteBackend,
+)
 from myrm_agent_harness.backends.skills.storage import StorageSkillBackend
 from myrm_agent_harness.backends.skills.types import skill_visible_for_tools
 

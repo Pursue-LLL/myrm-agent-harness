@@ -139,13 +139,27 @@ def _explain_privacy(config: dict[str, object], lines: list[str], idx: int) -> N
 
 
 def _explain_network(config: dict[str, object], lines: list[str], idx: int) -> None:
-    """Explain network allowlist."""
+    """Explain network and command policies."""
     allowlist = config.get("networkAllowlist")
     if isinstance(allowlist, list) and allowlist:
         header = ("信任域名：", "Trusted domains:")[idx]
         lines.append(header)
         for domain in allowlist:
             lines.append(f"  • {domain}")
+
+    blocklist = config.get("networkBlocklist")
+    if isinstance(blocklist, list) and blocklist:
+        header = ("封锁域名：", "Blocked domains:")[idx]
+        lines.append(header)
+        for domain in blocklist:
+            lines.append(f"  • {domain}")
+
+    cmd_deny = config.get("commandDenylist")
+    if isinstance(cmd_deny, list) and cmd_deny:
+        header = ("永久禁止命令：", "Permanently blocked commands:")[idx]
+        lines.append(header)
+        for pattern in cmd_deny:
+            lines.append(f"  • {pattern}")
 
     hitl = config.get("domainHitlEnabled")
     if hitl is not None:

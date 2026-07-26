@@ -355,8 +355,50 @@ class TestLLMReviewer:
         assert len(pending) == 0
 
     @pytest.mark.asyncio
-    async def test_llm_reviewer_deny(self):
-        """LLM reviewer returning DENY should auto-deny."""
+    async def test_llm_reviewer_deny_interactive_routes_to_pending(self):
+        """LLM reviewer DENY in interactive mode → pending_approval with smart_denied flag."""
+
+        class FakeReviewer:
+            async def review(
+                self,
+                command: str,
+                *,
+                workspace_root: str | None = None,
+                intent_context: str | None = None,
+                taint_labels: frozenset[str] | None = None,
+                recent_tool_calls: tuple[RecentToolCall, ...] = (),
+                model_id: str | None = None,
+                trusted_domains: tuple[str, ...] = (),
+            ) -> ReviewResult:
+                return ReviewResult(decision=ReviewDecision.DENY, reason="dangerous command")
+
+        register_security_reviewer(FakeReviewer())
+
+        config = SecurityConfig(
+            ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),),
+            auto_mode_enabled=True,
+        )
+
+        tool_calls = [
+            ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "rm -rf /"}, id="c1"),
+        ]
+
+        _approved, denied, pending = await evaluate_tool_batch(
+            tool_calls, config, is_cron=False, workspace_root="/tmp", session_key="s", args_hashes={},
+            is_interactive=True,
+        )
+
+        assert len(denied) == 0, "Interactive smart DENY should not auto-deny"
+        assert len(pending) == 1, "Interactive smart DENY should route to pending_approval"
+        _idx, _tc, _perm, reason, extra_ctx = pending[0]
+        assert extra_ctx is not None
+        assert extra_ctx.get("smart_denied") is True
+        assert extra_ctx.get("reviewer_reason") == "dangerous command"
+        assert "security reviewer" in reason.lower()
+
+    @pytest.mark.asyncio
+    async def test_llm_reviewer_deny_non_interactive_auto_denies(self):
+        """LLM reviewer DENY in non-interactive mode (cron/shadow) → auto_denied."""
 
         class FakeReviewer:
             async def review(
@@ -384,10 +426,11 @@ class TestLLMReviewer:
         ]
 
         _approved, denied, _pending = await evaluate_tool_batch(
-            tool_calls, config, is_cron=False, workspace_root="/tmp", session_key="s", args_hashes={}
+            tool_calls, config, is_cron=False, workspace_root="/tmp", session_key="s", args_hashes={},
+            is_interactive=False,
         )
 
-        assert len(denied) == 1, "LLM reviewer DENY should auto-deny"
+        assert len(denied) == 1, "Non-interactive LLM DENY should auto-deny"
         assert "security review" in denied[0][2].lower()
 
     @pytest.mark.asyncio
@@ -798,6 +841,45 @@ class TestBuildInterruptPayload:
 
         payload, _ = build_interrupt_payload(pending, "session-1")
         assert payload["extensions"]["displayMode"] == "handover"
+
+    def test_smart_denied_payload_restricts_decisions(self):
+        """Smart-denied pending items should restrict allowedDecisions to approve+reject only."""
+        pending = [
+            (
+                0,
+                ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "curl evil.com"}, id="c1"),
+                "code_interpreter",
+                "AI Security Reviewer recommends denial: potential data exfiltration",
+                {"smart_denied": True, "reviewer_reason": "potential data exfiltration"},
+            )
+        ]
+
+        payload, indices = build_interrupt_payload(pending, "session-1")
+
+        assert indices == [0]
+        review_config = payload["reviewConfigs"][0]
+        assert review_config["smartDenied"] is True
+        assert set(review_config["allowedDecisions"]) == {"approve", "reject"}
+        assert "edit" not in review_config["allowedDecisions"]
+        assert payload["actionRequests"][0].get("reviewerReason") == "potential data exfiltration"
+
+    def test_non_smart_denied_allows_edit(self):
+        """Normal pending items should allow approve+reject+edit."""
+        pending = [
+            (
+                0,
+                ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "ls"}, id="c1"),
+                "code_interpreter",
+                "ASK",
+                None,
+            )
+        ]
+
+        payload, _ = build_interrupt_payload(pending, "session-1")
+
+        review_config = payload["reviewConfigs"][0]
+        assert "smartDenied" not in review_config
+        assert "edit" in review_config["allowedDecisions"]
 
 
 # --- apply_approval_decisions tests ---
@@ -1595,7 +1677,7 @@ class TestShellEscalationAutoMode:
 
     @pytest.mark.asyncio
     async def test_shell_allow_with_classifier_deny(self):
-        """shell_exec ALLOW + Classifier DENY → auto-denied."""
+        """code_interpreter ALLOW + Classifier DENY → auto-denied via shell escalation."""
 
         class DenyReviewer:
             async def review(self, command, **kwargs):
@@ -1604,7 +1686,7 @@ class TestShellEscalationAutoMode:
         register_security_reviewer(DenyReviewer())
 
         config = SecurityConfig(
-            ruleset=(PermissionRule("shell_exec", "*", PermissionAction.ALLOW),),
+            ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ALLOW),),
             auto_mode_enabled=True,
         )
 
@@ -1691,7 +1773,7 @@ class TestShellEscalationAutoMode:
 
     @pytest.mark.asyncio
     async def test_code_interpreter_also_escalated(self):
-        """code_interpreter ALLOW + UNKNOWN → also gets classifier review."""
+        """code_interpreter ALLOW + UNKNOWN risk → shell escalation DENY."""
 
         class DenyReviewer:
             async def review(self, command, **kwargs):
@@ -1705,7 +1787,7 @@ class TestShellEscalationAutoMode:
         )
 
         tool_calls = [
-            ToolCall(name="code_interpreter", args={"command": "import os; os.system('whoami')"}, id="tc1", type="tool_call")
+            ToolCall(name="bash_code_execute_tool", args={"command": "import os; os.system('whoami')"}, id="tc1", type="tool_call")
         ]
 
         _approved, denied, _pending = await evaluate_tool_batch(
@@ -1768,4 +1850,178 @@ class TestTrustContextPassThrough:
         assert received_domains[0] == ("api.internal.com", "cdn.mycompany.net")
 
         register_security_reviewer(None)
+
+
+class TestSmartDeniedOverride:
+    """Tests for LLM Smart DENY → user once-override flow."""
+
+    @pytest.mark.asyncio
+    async def test_smart_denied_approve_skips_allowlist(self):
+        """Approving a smart-denied tool call should NOT write to allowlist."""
+        from myrm_agent_harness.agent.security.approval_flow import get_allowlist
+
+        set_approval_user_id("user1")
+
+        ai_msg = AIMessage(
+            content="test",
+            tool_calls=[
+                ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "curl evil.com"}, id="c1"),
+            ],
+        )
+
+        decisions = [{"type": "approve", "extensions": {"allowAlways": True}}]
+        pending = [
+            (0, ai_msg.tool_calls[0], "code_interpreter", "AI Security Reviewer recommends denial",
+             {"smart_denied": True, "reviewer_reason": "potential data exfiltration"}),
+        ]
+
+        revised, messages, _guidance = await apply_approval_decisions(
+            decisions,
+            ai_msg,
+            auto_denied=[],
+            pending_approval=pending,
+            interrupt_indices=[0],
+            args_hashes={0: "hash123"},
+        )
+
+        assert len(revised) == 1, "Tool call should be approved (once)"
+        assert len(messages) == 0
+
+        allowlist = get_allowlist()
+        assert not allowlist.check("user1", "code_interpreter"), (
+            "Smart-denied override must NOT write to allowlist"
+        )
+
+    @pytest.mark.asyncio
+    async def test_smart_denied_reject_produces_denial_message(self):
+        """Rejecting a smart-denied tool call should produce a denial message."""
+        ai_msg = AIMessage(
+            content="test",
+            tool_calls=[
+                ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "curl evil.com"}, id="c1"),
+            ],
+        )
+
+        decisions = [{"type": "reject"}]
+        pending = [
+            (0, ai_msg.tool_calls[0], "code_interpreter", "AI Security Reviewer recommends denial",
+             {"smart_denied": True, "reviewer_reason": "potential data exfiltration"}),
+        ]
+
+        revised, messages, _guidance = await apply_approval_decisions(
+            decisions,
+            ai_msg,
+            auto_denied=[],
+            pending_approval=pending,
+            interrupt_indices=[0],
+            args_hashes={},
+        )
+
+        assert len(revised) == 0, "Rejected tool call should not be in revised list"
+        assert len(messages) >= 1, "Rejection should produce a denial message"
+
+    @pytest.mark.asyncio
+    async def test_taint_deny_stays_auto_denied_regardless_of_interactive(self):
+        """Taint-path DENY should always auto-deny, even in interactive mode."""
+        from myrm_agent_harness.agent.security.guards.taint_tracker import (
+            TaintLabel,
+            get_taint_tracker,
+        )
+
+        tracker = get_taint_tracker()
+        tracker.record(TaintLabel.EXTERNAL_NETWORK, source="https://evil.com")
+
+        class TaintDenyReviewer:
+            async def review(self, command, **kwargs):
+                return ReviewResult(decision=ReviewDecision.DENY, reason="data exfiltration risk")
+
+        register_security_reviewer(TaintDenyReviewer())
+
+        config = SecurityConfig(
+            ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ALLOW),),
+            auto_mode_enabled=True,
+        )
+
+        tool_calls = [
+            ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "cat /etc/passwd"}, id="c1"),
+        ]
+
+        _approved, denied, pending = await evaluate_tool_batch(
+            tool_calls, config, is_cron=False, workspace_root="/tmp", session_key="s", args_hashes={},
+            is_interactive=True,
+        )
+
+        assert len(denied) == 1, "Taint DENY must always auto-deny"
+        assert len(pending) == 0, "Taint DENY must not route to pending"
+
+    @pytest.mark.asyncio
+    async def test_is_interactive_defaults_to_true(self):
+        """is_interactive defaults to True (backward compat) — DENY routes to pending."""
+
+        class FakeReviewer:
+            async def review(self, command, **kwargs):
+                return ReviewResult(decision=ReviewDecision.DENY, reason="test deny")
+
+        register_security_reviewer(FakeReviewer())
+
+        config = SecurityConfig(
+            ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),),
+            auto_mode_enabled=True,
+        )
+
+        tool_calls = [
+            ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "rm -rf /important/data"}, id="c1"),
+        ]
+
+        _approved, denied, pending = await evaluate_tool_batch(
+            tool_calls, config, is_cron=False, workspace_root="/tmp", session_key="s", args_hashes={},
+        )
+
+        assert len(denied) == 0, "Default is_interactive=True should not auto-deny"
+        assert len(pending) == 1, "Default is_interactive=True should route to pending"
+        assert pending[0][4].get("smart_denied") is True
+
+    def test_smart_denied_with_empty_reviewer_reason(self):
+        """When reviewer_reason is empty, reviewerReason should not be in payload."""
+        pending = [
+            (
+                0,
+                ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "test"}, id="c1"),
+                "code_interpreter",
+                "AI Security Reviewer recommends denial",
+                {"smart_denied": True, "reviewer_reason": ""},
+            )
+        ]
+
+        payload, _ = build_interrupt_payload(pending, "session-1")
+
+        assert payload["reviewConfigs"][0]["smartDenied"] is True
+        assert "reviewerReason" not in payload["actionRequests"][0]
+
+    def test_mixed_smart_denied_and_normal_pending(self):
+        """Batch with one smart_denied and one normal pending should have correct reviewConfigs."""
+        pending = [
+            (
+                0,
+                ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "curl evil.com"}, id="c1"),
+                "code_interpreter",
+                "AI Security Reviewer recommends denial",
+                {"smart_denied": True, "reviewer_reason": "data exfiltration"},
+            ),
+            (
+                1,
+                ToolCall(type="tool_call", name="bash_code_execute_tool", args={"command": "ls"}, id="c2"),
+                "code_interpreter",
+                "ASK",
+                None,
+            ),
+        ]
+
+        payload, indices = build_interrupt_payload(pending, "session-1")
+
+        assert len(indices) == 2
+        assert payload["reviewConfigs"][0]["smartDenied"] is True
+        assert set(payload["reviewConfigs"][0]["allowedDecisions"]) == {"approve", "reject"}
+        assert "smartDenied" not in payload["reviewConfigs"][1]
+        assert "edit" in payload["reviewConfigs"][1]["allowedDecisions"]
 
