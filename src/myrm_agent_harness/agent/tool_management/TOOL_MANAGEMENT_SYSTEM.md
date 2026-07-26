@@ -137,7 +137,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `render_ui_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
 | `request_answer_user_tool` | EXTENDED | user_capability | answer_tool | enabled_builtin_tools: answer_tool |
 | `send_teammate_message_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
-| `skill_market_tool` | EXTENDED | user_capability | — | Turn1 when discovery_backend present |
+| `skill_market_tool` | EXTENDED | user_capability | — | Turn1 when market_backend present |
 | `skill_manage_tool` | EXTENDED | user_capability | — | write_backend present |
 | `skill_select_tool` | EXTENDED | user_capability | — | skill_backend present |
 | `subagent_control_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |

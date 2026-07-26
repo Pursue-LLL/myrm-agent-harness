@@ -121,9 +121,6 @@ CHANNEL_PRESETS: dict[ChannelType, ChannelSecurityPreset] = {
     ChannelType.CRON: ChannelSecurityPreset(
         capabilities=DEFAULT_CAPABILITIES,
         ruleset=(
-            PermissionRule("shell_exec", "*", PermissionAction.ALLOW),
-            PermissionRule("code_interpreter", "*", PermissionAction.ALLOW),
-            PermissionRule("mcp_invoke", "*", PermissionAction.ALLOW),
             PermissionRule("desktop_capture", "*", PermissionAction.DENY),
             PermissionRule("desktop_control", "*", PermissionAction.DENY),
         ),
@@ -228,7 +225,7 @@ def build_channel_security_config(
     network_allowlist: tuple[str, ...] = ()
     network_blocklist: tuple[str, ...] = ()
     domain_hitl_enabled = False
-    auto_mode_enabled = False
+    auto_mode_enabled = True
     auto_review_model: str | None = None
     auto_review_timeout: float = 3.0
     plan_confirm_enabled = False

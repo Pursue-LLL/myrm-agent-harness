@@ -548,7 +548,7 @@ Step 6:  Transcript Classifier → 当 auto_mode_enabled 时，对所有 engine 
 触发方式：
 - 前端 Settings UI 中的 YOLO 开关（写入 UserConfig → `parse_security_config()` 解析）
 - 渠道 `/yolo` 命令（Router 内存态，通过 `InboundMessage.metadata["yolo_state"]` 注入）
-- 定时任务自动启用（`agent_runner.py` 自动注入，确保无人值守执行不被阻塞）
+- Agent 安全配置中显式启用（per-Agent YOLO，适用于定时任务等无人值守场景）
 
 安全保证：YOLO 模式仅跳过 ASK 审批弹窗，不影响 DENY 规则、Layer 1-3 的权限检查和能力围栏。
 
@@ -1067,7 +1067,7 @@ Source: web_search
 |---------|---------|---------|
 | `WEB_CHAT` | 默认 Web 界面 | 完全继承用户配置，无额外限制 |
 | `IM` | telegram, feishu, dingtalk, discord, slack, wecom, teams, matrix, googlechat, whatsapp | 限制性配置 |
-| `CRON` | 定时任务 | 非交互式，自动允许 |
+| `CRON` | 定时任务 | 非交互式，fail-closed 默认拒绝危险操作 |
 
 ### IM 渠道安全配置
 
@@ -1093,15 +1093,12 @@ IM 渠道中浏览器操作被能力围栏排除（因为 IM 用户无法看到�
 ```python
 capabilities = DEFAULT_CAPABILITIES  # 全能力
 ruleset = (
-    PermissionRule("shell_exec", "*", ALLOW),         # 自动允许
-    PermissionRule("code_interpreter", "*", ALLOW),
-    PermissionRule("mcp_invoke", "*", ALLOW),
     PermissionRule("desktop_capture", "*", DENY),     # 无人值守禁止 GUI 快照
     PermissionRule("desktop_control", "*", DENY),     # 无人值守禁止 GUI 操作
 )
 ```
 
-Cron 是非交互式的，无人可以审批，因此 ASK 无意义。桌面控制（GUI 快照与操作）在 Cron 渠道一律 DENY，避免无人值守操控本机界面。通过声明式 Capability Fence 在创建时预授权（见 Cron 安全策略章节）。
+Cron 渠道采用 **fail-closed** 策略：`shell_exec`、`code_interpreter`、`mcp_invoke` 回落到 DEFAULT_RULESET 的 ASK，由 `batch_processor.py` 的 cron 分支处理——无声明式能力围栏时 DENY，有声明式能力围栏时 pre-approval ALLOW。桌面控制（GUI 快照与操作）在 Cron 渠道一律 DENY。用户可通过 YOLO 模式或 Smart Guard 显式授权。
 
 ### 本地模式浏览器放宽
 
@@ -1299,21 +1296,25 @@ Cron 是非交互式的，运行时无人可以审批。因此：
 1. **声明式能力围栏** — `CronJob.required_capabilities: tuple[str, ...]` 在创建时声明所需能力
 2. **声明式路径授权** — `CronJob.allowed_roots: tuple[str, ...]` 在创建时声明可访问的文件路径根目录
 3. **强制声明** — 每个 Cron Job 必须声明能力和路径，空声明 = 无能力 + 仅 workspace 内路径
-4. **ASK 自动提升** — Cron 中的 ASK 始终提升为 ALLOW（能力声明 = 预授权）。未声明的能力在 Capability Fence 层即被拒绝，根本到不了 ASK 分支
+4. **fail-closed 策略** — Cron 渠道不再强制 ALLOW `shell_exec/code_interpreter/mcp_invoke`，这些权限回落到 DEFAULT_RULESET 的 ASK，由 `batch_processor.py` 的 cron 分支决策：无声明式能力围栏时 DENY（fail-closed），有声明式能力围栏时 pre-approval ALLOW
 
 ```python
-# channel_presets.py — Cron 始终构建声明式能力集; declared_allowed_roots 适用于所有渠道
-if channel_type == ChannelType.CRON:
+# channel_presets.py — Cron 构建声明式能力集; declared_allowed_roots 适用于所有渠道
+if channel_type == ChannelType.CRON and declared_capabilities:
     capabilities = _build_declared_capability_set(declared_capabilities)
 
 if declared_allowed_roots:
     merged_roots = tuple(sorted(set(path_policy.allowed_roots) | set(declared_allowed_roots)))
     path_policy = PathPolicy(forbidden_paths=path_policy.forbidden_paths, allowed_roots=merged_roots)
 
-# approval/middleware.py — ASK 始终提升为 ALLOW
-if session_key.startswith("cron:"):
-    record_decision(tool_name, "ALLOW", "cron capability pre-approval")
-    return await handler(request)
+# batch_processor.py — Cron fail-closed 决策
+if is_cron:
+    if config.capabilities == DEFAULT_CAPABILITIES:
+        record_decision(tool_name, "CRON_DENY", "cron fail-closed: no explicit capability declaration")
+    elif is_integration_mutation_command(shell_cmd):
+        record_decision(tool_name, "CRON_DENY", "cron fail-closed: integration write mutation")
+    else:
+        record_decision(tool_name, "ALLOW", "cron capability pre-approval")
 ```
 
 ---

@@ -3,7 +3,7 @@ import zipfile
 
 import pytest
 
-from myrm_agent_harness.agent.skills.discovery.installers.batch_installer import HermesBatchParser
+from myrm_agent_harness.agent.skills.market.installers.batch_installer import HermesBatchParser
 
 
 def create_mock_zip(files: dict) -> bytes:

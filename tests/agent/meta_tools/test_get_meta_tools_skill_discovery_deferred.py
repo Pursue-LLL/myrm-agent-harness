@@ -1,4 +1,4 @@
-"""Tests that skill_market_tool is Turn1 eager when discovery_backend is provided."""
+"""Tests that skill_market_tool is Turn1 eager when market_backend is provided."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 
 
 @pytest.fixture
-def discovery_backend() -> MagicMock:
+def market_backend() -> MagicMock:
     backend = MagicMock()
     backend.install_from_url = MagicMock()
     backend.uninstall = MagicMock()
@@ -23,10 +23,10 @@ def skill_backend() -> MagicMock:
     return MagicMock()
 
 
-class TestSkillDiscoveryEager:
-    def test_skill_discovery_in_resolved_tools(
+class TestSkillMarketEager:
+    def test_skill_market_in_resolved_tools(
         self,
-        discovery_backend: MagicMock,
+        market_backend: MagicMock,
         skill_backend: MagicMock,
     ) -> None:
         registry = ToolRegistry()
@@ -34,7 +34,7 @@ class TestSkillDiscoveryEager:
             [],
             skill_backend,
             registry=registry,
-            discovery_backend=discovery_backend,
+            market_backend=market_backend,
             enable_file_tools=False,
             enable_shell_tools=False,
             enable_answer_tool=False,
@@ -43,9 +43,9 @@ class TestSkillDiscoveryEager:
         returned_names = {t.name for t in tools}
         assert "skill_market_tool" in returned_names
 
-    def test_skill_discovery_not_runtime_only(
+    def test_skill_market_not_runtime_only(
         self,
-        discovery_backend: MagicMock,
+        market_backend: MagicMock,
         skill_backend: MagicMock,
     ) -> None:
         registry = ToolRegistry()
@@ -53,7 +53,7 @@ class TestSkillDiscoveryEager:
             [],
             skill_backend,
             registry=registry,
-            discovery_backend=discovery_backend,
+            market_backend=market_backend,
             enable_file_tools=False,
             enable_shell_tools=False,
             enable_answer_tool=False,

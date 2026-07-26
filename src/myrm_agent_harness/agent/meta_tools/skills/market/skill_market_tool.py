@@ -3,7 +3,7 @@
 Provides Agent with abilities to search, install, uninstall skills
 and install directly from GitHub URLs.
 
-Uses SkillDiscoveryBackend Protocol for search/install/get_detail.
+Uses SkillMarketBackend Protocol for search/install/get_detail.
 install_from_url and uninstall are optional capabilities injected
 as callbacks from the business layer when available.
 
@@ -11,7 +11,7 @@ user_id is extracted at runtime from RunnableConfig context (framework pattern),
 keeping the tool layer free from business concepts.
 
 [INPUT]
-- backends.skills.discovery_protocols::SkillMarketBackend, (POS: SkillBackend SkillBackend SkillMarketBackend)
+- backends.skills.market_protocols::SkillMarketBackend, (POS: SkillBackend SkillBackend SkillMarketBackend)
 
 [OUTPUT]
 - create_skill_market_tool: Create the skill market tool (LLM name: skill_market_tool).
@@ -34,7 +34,7 @@ from myrm_agent_harness.agent.context_management.context import extract_context_
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
-    from myrm_agent_harness.backends.skills.discovery_protocols import SkillMarketBackend, SkillInstallResult
+    from myrm_agent_harness.backends.skills.market_protocols import SkillMarketBackend, SkillInstallResult
 
 TOOL_DESCRIPTION = """Install NEW skills from external markets (GitHub, skills.sh, etc.).
 NOT for searching skills already bound to this agent — use `skill_search_tool` for that.
@@ -87,7 +87,7 @@ def create_skill_market_tool(
         uninstall_fn: Optional callback for uninstall (business layer)
     """
 
-    class SkillDiscoveryInput(BaseModel):
+    class SkillMarketInput(BaseModel):
         action: Literal["search", "install", "install_from_url", "uninstall"] = Field(
             description=(
                 "Action: 'search' to find skills, 'install' to install by ID, "
@@ -99,27 +99,27 @@ def create_skill_market_tool(
         source: str = Field(default="", description="Skill source from search results (required for action='install')")
         url: str = Field(default="", description="GitHub URL or owner/repo (required for action='install_from_url')")
 
-    @tool("skill_market_tool", description=TOOL_DESCRIPTION, args_schema=SkillDiscoveryInput)
-    async def skill_discovery_func(
+    @tool("skill_market_tool", description=TOOL_DESCRIPTION, args_schema=SkillMarketInput)
+    async def skill_market_func(
         action: str, query: str = "", skill_id: str = "", source: str = "", url: str = "", *, config: RunnableConfig
     ) -> str:
         """Install or uninstall skills from external marketplaces (not in-agent library search)."""
         if action == "search":
-            return await _handle_search(discovery_backend, query)
+            return await _handle_search(market_backend, query)
 
         user_id = _extract_user_id(config)
         if action == "install":
-            return await _handle_install(discovery_backend, skill_id, source, user_id)
+            return await _handle_install(market_backend, skill_id, source, user_id)
         elif action == "install_from_url":
             return await _handle_install_from_url(install_from_url_fn, url, user_id)
         elif action == "uninstall":
             return await _handle_uninstall(uninstall_fn, skill_id, user_id)
         return f"Unknown action: {action}. Use 'search', 'install', 'install_from_url', or 'uninstall'."
 
-    return skill_discovery_func
+    return skill_market_func
 
 
-async def _handle_search(backend: SkillDiscoveryBackend, query: str) -> str:
+async def _handle_search(backend: SkillMarketBackend, query: str) -> str:
     if not query.strip():
         return "Error: 'query' is required for search action."
 
@@ -151,7 +151,7 @@ async def _handle_search(backend: SkillDiscoveryBackend, query: str) -> str:
     return "\n".join(lines)
 
 
-async def _handle_install(backend: SkillDiscoveryBackend, skill_id: str, source: str, user_id: str | None) -> str:
+async def _handle_install(backend: SkillMarketBackend, skill_id: str, source: str, user_id: str | None) -> str:
     if not skill_id or not source:
         return "Error: 'skill_id' and 'source' are required for install action."
 

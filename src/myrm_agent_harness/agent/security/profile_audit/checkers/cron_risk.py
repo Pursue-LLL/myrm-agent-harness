@@ -36,7 +36,7 @@ class CronRiskChecker(BaseChecker):
                         severity=AuditSeverity.HIGH,
                         title=f"Cron job '{job.job_id}' runs with dangerous tools",
                         description=f"Schedule: {job.schedule}. Unattended execution with high-privilege tools.",
-                        recommendation="Add post-run verification or restrict tools available to cron-triggered executions.",
+                        recommendation="Dangerous tools require explicit capability declaration or YOLO mode in cron jobs (fail-closed policy). Configure capability fence in task settings.",
                         source_location=f"cron_jobs[{job.job_id}].has_dangerous_tools",
                     )
                 )

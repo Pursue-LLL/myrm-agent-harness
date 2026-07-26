@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.skills.discovery.sources.modelscope import (
+from myrm_agent_harness.agent.skills.market.sources.modelscope import (
     ModelScopeSource,
     _int,
     _str,
@@ -60,7 +60,7 @@ class TestSearch:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.discovery.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
             results = await source.search("weather", limit=10)
 
         assert len(results) == 1
@@ -86,7 +86,7 @@ class TestSearch:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.discovery.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
             results = await source.search("", limit=10)
 
         assert results == []
@@ -100,7 +100,7 @@ class TestSearch:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.discovery.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
             results = await source.search("test", limit=5)
 
         assert results == []
@@ -114,7 +114,7 @@ class TestSearch:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
 
-        with patch("myrm_agent_harness.agent.skills.discovery.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
             results = await source.search("test", limit=5)
 
         assert results == []
@@ -128,7 +128,7 @@ class TestSearch:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.discovery.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
             results = await source.search("test", limit=5)
 
         assert results == []
@@ -143,7 +143,7 @@ class TestSearch:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.discovery.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
             await source.search("test", limit=200)
 
         call_kwargs = mock_client.get.call_args
@@ -174,7 +174,7 @@ class TestSearch:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.discovery.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
             results = await source.search("test", limit=5)
 
         assert len(results) == 1
@@ -200,7 +200,7 @@ class TestGetDetail:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.discovery.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
             result = await source.get_detail("@org/skill-x")
 
         assert result is not None
@@ -217,7 +217,7 @@ class TestGetDetail:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.discovery.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
             result = await source.get_detail("nonexistent")
 
         assert result is None
@@ -268,7 +268,7 @@ class TestParseItem:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.discovery.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
             results = await source.search("tool", limit=5)
 
         assert results[0].author == "myorg"

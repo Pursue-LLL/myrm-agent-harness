@@ -359,7 +359,7 @@ class SecurityConfig:
     network_blocklist: tuple[str, ...] = ()
     domain_hitl_enabled: bool = True
     privacy_policy: PrivacyPolicy = field(default_factory=_default_privacy_policy)
-    auto_mode_enabled: bool = False
+    auto_mode_enabled: bool = True
     auto_review_model: str | None = None
     auto_review_timeout_seconds: float = 3.0
     transcript_window_size: int = 20

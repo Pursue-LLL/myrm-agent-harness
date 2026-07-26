@@ -41,7 +41,7 @@ class SkillAgentToolsMixin:
     """Mixin providing tool building methods for SkillAgent.
 
     Requires the following attributes from SkillAgent:
-    - skill_backend, discovery_backend, write_backend
+    - skill_backend, market_backend, write_backend
     - _embedding_config, skill_configs, _similarity_checker
     - _enable_file_tools, _enable_shell_tools
     - _skill_env_map, _default_skill_instances, state_manager
@@ -84,7 +84,7 @@ class SkillAgentToolsMixin:
         meta_tools = get_meta_tools(
             skills,
             self.skill_backend,  # type: ignore[attr-defined]
-            discovery_backend=self.discovery_backend,  # type: ignore[attr-defined]
+            market_backend=self.market_backend,  # type: ignore[attr-defined]
             write_backend=self.write_backend,  # type: ignore[attr-defined]
             embedding_config=self._embedding_config,  # type: ignore[attr-defined]
             skill_env_map=skill_env_map,

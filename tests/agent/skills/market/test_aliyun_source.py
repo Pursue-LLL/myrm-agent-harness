@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.skills.discovery.sources.aliyun import (
+from myrm_agent_harness.agent.skills.market.sources.aliyun import (
     AliyunSource,
     _extract_skill_items,
     _opt_int,

@@ -133,22 +133,23 @@ class TestChannelPresets:
         preset = CHANNEL_PRESETS[ChannelType.WEB_CHAT]
         assert preset.ruleset == ()
 
-    def test_cron_allows_shell(self) -> None:
+    def test_cron_no_shell_allow_rule(self) -> None:
+        """Cron preset has no ALLOW for shell_exec (fail-closed via batch_processor)."""
         preset = CHANNEL_PRESETS[ChannelType.CRON]
         shell_rules = [r for r in preset.ruleset if r.permission == "shell_exec"]
-        assert any(r.action == PermissionAction.ALLOW for r in shell_rules)
+        assert not any(r.action == PermissionAction.ALLOW for r in shell_rules)
 
-    def test_cron_allows_code_interpreter(self) -> None:
-        """Cron jobs run unattended — code_interpreter is auto-allowed."""
+    def test_cron_no_code_interpreter_allow_rule(self) -> None:
+        """Cron preset has no ALLOW for code_interpreter (fail-closed via batch_processor)."""
         preset = CHANNEL_PRESETS[ChannelType.CRON]
         ci_rules = [r for r in preset.ruleset if r.permission == "code_interpreter"]
-        assert any(r.action == PermissionAction.ALLOW for r in ci_rules)
+        assert not any(r.action == PermissionAction.ALLOW for r in ci_rules)
 
-    def test_cron_allows_mcp_invoke(self) -> None:
-        """Cron jobs run unattended — mcp_invoke is auto-allowed."""
+    def test_cron_no_mcp_invoke_allow_rule(self) -> None:
+        """Cron preset has no ALLOW for mcp_invoke (fail-closed via batch_processor)."""
         preset = CHANNEL_PRESETS[ChannelType.CRON]
         mcp_rules = [r for r in preset.ruleset if r.permission == "mcp_invoke"]
-        assert any(r.action == PermissionAction.ALLOW for r in mcp_rules)
+        assert not any(r.action == PermissionAction.ALLOW for r in mcp_rules)
 
     def test_cron_denies_desktop_capture(self) -> None:
         preset = CHANNEL_PRESETS[ChannelType.CRON]

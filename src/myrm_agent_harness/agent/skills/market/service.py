@@ -1,20 +1,20 @@
-"""Skill discovery service.
+"""Skill market service.
 
 Aggregates search results from multiple sources, orchestrates install flow.
-Implements SkillDiscoveryBackend protocol.
+Implements SkillMarketBackend protocol.
 
 [INPUT]
-- backends.skills.discovery_protocols::SkillInstallResult, (POS: SkillBackend SkillBackend SkillDiscoveryBackend)
+- backends.skills.market_protocols::SkillInstallResult, (POS: SkillBackend SkillBackend SkillMarketBackend)
 - backends.skills.scanning::ScanFinding, (POS: Scan result cache layer. Stores scan results in Volume (~/.myrm/skill_scans/) to avoid redundant scanning. Critical for performance: 20x speedup for repeat scans. Cache key: SHA256 hash of skill content Cache location: ~/.myrm/skill_scans/{content_hash}.json Expiration: 60 days TTL (auto-cleanup on get))
 - backends.skills.scanning.archive_security::format_archive_security_user_message (POS: Canonical archive-security contract for typed/untyped ZIP guard errors.)
 
 [OUTPUT]
 - EnrichedSearchResult: Search result enriched with local installation info.
 - SkillPreviewResult: Preview result before installation (includes security scan).
-- BaseSkillDiscoveryService: Aggregates skill sources for search deduplication and qua...
+- BaseSkillMarketService: Aggregates skill sources for search deduplication and qua...
 
 [POS]
-Skill discovery service.
+Skill market service.
 """
 
 from __future__ import annotations
@@ -28,15 +28,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.backends.skills.discovery_protocols import SkillInstallResult, SkillSearchResult
+from myrm_agent_harness.backends.skills.market_protocols import SkillInstallResult, SkillSearchResult
 from myrm_agent_harness.backends.skills.scanning.archive_security import (
     classify_archive_security_issue,
     format_archive_security_user_message,
 )
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.backends.skills.discovery_protocols import InstalledSkillStore
-from myrm_agent_harness.agent.skills.discovery.sanitizer import sanitize_skill_files
+    from myrm_agent_harness.backends.skills.market_protocols import InstalledSkillStore
+from myrm_agent_harness.agent.skills.market.sanitizer import sanitize_skill_files
 from myrm_agent_harness.backends.skills.scanning import ScanFinding, SkillTrustRecommendation
 from myrm_agent_harness.backends.skills.versioning import compare_versions
 
@@ -89,7 +89,7 @@ class SkillPreviewResult:
     is_clean: bool = True
 
 
-class BaseSkillDiscoveryService:
+class BaseSkillMarketService:
     """Aggregates skill sources for search deduplication and quarantine-based install.
     Framework-layer service: does not depend on server database or event bus.
     """

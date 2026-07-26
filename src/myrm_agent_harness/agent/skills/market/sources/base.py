@@ -1,7 +1,7 @@
 """技能数据源 Protocol
 
 [INPUT]
-- backends.skills.discovery_protocols::SkillSearchResult (POS: SkillBackend SkillBackend SkillDiscoveryBackend)
+- backends.skills.market_protocols::SkillSearchResult (POS: SkillBackend SkillBackend SkillMarketBackend)
 
 [OUTPUT]
 - SkillSource: class — Skill Source
@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from myrm_agent_harness.backends.skills.discovery_protocols import SkillSearchResult
+from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
 
 
 @runtime_checkable
@@ -22,7 +22,7 @@ class SkillSource(Protocol):
     """技能搜索数据源协议
 
     每个实现对应一个外部技能源（GitHub、skills.sh、本地预构建等）。
-    SkillDiscoveryService 聚合多个 SkillSource 的结果。
+    SkillMarketService 聚合多个 SkillSource 的结果。
     """
 
     @property

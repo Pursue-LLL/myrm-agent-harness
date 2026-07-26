@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.skills.discovery.sources.github import analyze_github_url
+from myrm_agent_harness.agent.skills.market.sources.github import analyze_github_url
 
 
 @pytest.fixture
@@ -106,7 +106,7 @@ async def test_analyze_github_url_no_skills_found(mock_httpx):
     assert refs[0].repo == "repo"
     assert refs[0].subdirectory is None
 
-from myrm_agent_harness.agent.skills.discovery.sources.github import (
+from myrm_agent_harness.agent.skills.market.sources.github import (
     GitHubSkillSource,
     _extract_description_from_skill_md,
     _extract_skill_directory,

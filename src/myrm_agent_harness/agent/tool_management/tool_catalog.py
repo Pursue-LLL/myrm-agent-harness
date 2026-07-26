@@ -63,7 +63,7 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
     "request_answer_user_tool": "enabled_builtin_tools: answer_tool",
     "todo_write": "planning or existing workspace todos",
     "bash_process_tool": "Turn1 when shell enabled (CORE; co-mounted with bash_code_execute)",
-    "skill_market_tool": "Turn1 when discovery_backend present",
+    "skill_market_tool": "Turn1 when market_backend present",
     "skill_search_tool": "Turn1 when searchable skills exist",
     "conversation_search_tool": "Harness test/legacy; product uses memory_search_tool corpus=sessions",
     "wiki_compile_tool": "Settings REST + create_wiki_admin_tools(); not Turn1 LLM",

@@ -6,7 +6,7 @@
 - file_search::create_glob_tool, create_grep_tool (POS: 文件搜索工具创建函数)
 - skills.select::create_select_skill_tool (POS: 技能选择工具创建函数)
 - discover_capability::sync_discover_capability_tool (POS: 统一能力发现网关，由 SkillAgent 调用)
-- skills.discovery::create_skill_market_tool (POS: 外部技能市场工具创建函数)
+- skills.market::create_skill_market_tool (POS: 外部技能市场工具创建函数)
 - skills.manage::create_skill_manage_tool (POS: 技能管理工具创建函数)
 - spawn_subagent::create_delegate_task_tool, create_subagent_control_tool (POS: Subagent 委派与控制 LLM 工具)
 [OUTPUT]
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
     from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
-    from myrm_agent_harness.backends.skills.discovery_protocols import (
+    from myrm_agent_harness.backends.skills.market_protocols import (
         SkillMarketBackend,
     )
     from myrm_agent_harness.backends.skills.protocols import SkillBackend
@@ -51,7 +51,7 @@ from .file_ops import (
     create_file_write_tool,
 )
 from .file_search import create_glob_tool, create_grep_tool
-from .skills.discovery import create_skill_market_tool
+from .skills.market import create_skill_market_tool
 from .skills.manage import create_skill_manage_tool
 from .skills.select import create_select_skill_tool
 from .spawn_subagent import (
@@ -320,7 +320,7 @@ __all__ = [
     "create_glob_tool",
     "create_grep_tool",
     "create_select_skill_tool",
-    "create_skill_discovery_tool",
+    "create_skill_market_tool",
     "create_skill_manage_tool",
     "get_meta_tools",
     "request_answer_user_tool",

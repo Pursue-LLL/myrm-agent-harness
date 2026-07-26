@@ -15,7 +15,7 @@ import pytest
 from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
     create_discover_capability_tool,
 )
-from myrm_agent_harness.agent.meta_tools.skills.discovery.skill_discovery_tool import (
+from myrm_agent_harness.agent.meta_tools.skills.market.skill_market_tool import (
     create_skill_market_tool,
 )
 

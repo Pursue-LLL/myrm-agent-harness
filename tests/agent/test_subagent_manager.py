@@ -557,7 +557,7 @@ class FakeSkillManageTool(BaseTool):
         return "managed"
 
 
-class FakeSkillDiscoveryTool(BaseTool):
+class FakeSkillMarketTool(BaseTool):
     name: str = "skill_market_tool"
     description: str = "Discover skills"
 
@@ -621,7 +621,7 @@ def test_filter_tools_blocks_all_global_blacklisted_tools() -> None:
         FakeListSubagentsTool(),
         FakeCancelSubagentTool(),
         FakeSkillManageTool(),
-        FakeSkillDiscoveryTool(),
+        FakeSkillMarketTool(),
     ]
 
     config = SubagentConfig(system_prompt="test", tools=())

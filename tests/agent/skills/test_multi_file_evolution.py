@@ -144,7 +144,7 @@ class TestCollectSkillFiles:
     """Test _collect_skill_files in GitInstaller."""
 
     def test_empty_directory(self) -> None:
-        from myrm_agent_harness.agent.skills.discovery.installers.git_installer import GitInstaller
+        from myrm_agent_harness.agent.skills.market.installers.git_installer import GitInstaller
 
         installer = GitInstaller.__new__(GitInstaller)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -154,7 +154,7 @@ class TestCollectSkillFiles:
             assert "SKILL.md" in result.files
 
     def test_with_auxiliary_files(self) -> None:
-        from myrm_agent_harness.agent.skills.discovery.installers.git_installer import GitInstaller
+        from myrm_agent_harness.agent.skills.market.installers.git_installer import GitInstaller
 
         installer = GitInstaller.__new__(GitInstaller)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -170,7 +170,7 @@ class TestCollectSkillFiles:
             assert "config.yaml" in result.files
 
     def test_skips_hidden_dirs(self) -> None:
-        from myrm_agent_harness.agent.skills.discovery.installers.git_installer import GitInstaller
+        from myrm_agent_harness.agent.skills.market.installers.git_installer import GitInstaller
 
         installer = GitInstaller.__new__(GitInstaller)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -182,7 +182,7 @@ class TestCollectSkillFiles:
             assert "good.txt" in result.files
 
     def test_collects_nested_files(self) -> None:
-        from myrm_agent_harness.agent.skills.discovery.installers.git_installer import GitInstaller
+        from myrm_agent_harness.agent.skills.market.installers.git_installer import GitInstaller
 
         installer = GitInstaller.__new__(GitInstaller)
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -6,7 +6,7 @@
 - 从已注册的 SkillBackend 实例打包
 
 [INPUT]
-- agent.skills.discovery.sanitizer::SKILL_MD_FILE (POS: Provides is_blocked_file, sanitize_skill_files.)
+- agent.skills.market.sanitizer::SKILL_MD_FILE (POS: Provides is_blocked_file, sanitize_skill_files.)
 - backends.skills.protocols::SkillBackend (POS: Protocols for Skill Optimization Subsystem)
 
 [OUTPUT]
@@ -24,7 +24,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from myrm_agent_harness.agent.skills.discovery.sanitizer import SKILL_MD_FILE
+from myrm_agent_harness.agent.skills.market.sanitizer import SKILL_MD_FILE
 from myrm_agent_harness.backends.skills.protocols import SkillBackend
 
 from .validator import is_forbidden_file, parse_skill_md

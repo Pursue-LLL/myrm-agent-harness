@@ -4,7 +4,7 @@
 同时提供 parse_github_url() 用于智能解析各种 GitHub URL 格式。
 
 [INPUT]
-- backends.skills.discovery_protocols::SkillSearchResult (POS: SkillBackend SkillBackend SkillDiscoveryBackend)
+- backends.skills.market_protocols::SkillSearchResult (POS: SkillBackend SkillBackend SkillMarketBackend)
 
 [OUTPUT]
 - GitHubSkillSource: class — Git Hub Skill Source
@@ -28,7 +28,7 @@ import httpx
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
 import yaml
 
-from myrm_agent_harness.backends.skills.discovery_protocols import SkillSearchResult
+from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
 
 logger = logging.getLogger(__name__)
 

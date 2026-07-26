@@ -11,7 +11,7 @@ API 端点:
 认证: 可选，通过 CLAWHUB_TOKEN 环境变量配置。
 
 [INPUT]
-- backends.skills.discovery_protocols::SkillSearchResult (POS: SkillBackend SkillBackend SkillDiscoveryBackend)
+- backends.skills.market_protocols::SkillSearchResult (POS: SkillBackend SkillBackend SkillMarketBackend)
 
 [OUTPUT]
 - ClawHubSource: class — Claw Hub Source
@@ -30,7 +30,7 @@ import httpx
 
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
-from myrm_agent_harness.backends.skills.discovery_protocols import SkillSearchResult
+from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
 
 logger = logging.getLogger(__name__)
 

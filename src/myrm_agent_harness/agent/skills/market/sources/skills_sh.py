@@ -4,7 +4,7 @@
 skills.sh 是 Vercel Labs 维护的开源技能注册表。
 
 [INPUT]
-- backends.skills.discovery_protocols::SkillSearchResult (POS: SkillBackend SkillBackend SkillDiscoveryBackend)
+- backends.skills.market_protocols::SkillSearchResult (POS: SkillBackend SkillBackend SkillMarketBackend)
 
 [OUTPUT]
 - SkillsShSource: class — Skills Sh Source
@@ -22,7 +22,7 @@ import httpx
 
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
-from myrm_agent_harness.backends.skills.discovery_protocols import SkillSearchResult
+from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
 
 logger = logging.getLogger(__name__)
 

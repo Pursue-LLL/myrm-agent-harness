@@ -9,7 +9,7 @@ API:
   GET /openapi/skills/{skillName}           — GetSkillContent
 
 [INPUT]
-- backends.skills.discovery_protocols::SkillSearchResult
+- backends.skills.market_protocols::SkillSearchResult
 
 [OUTPUT]
 - AliyunSource: class — Aliyun AgentExplorer Skill Source
@@ -25,7 +25,7 @@ import os
 from typing import Any
 from urllib.parse import quote
 
-from myrm_agent_harness.backends.skills.discovery_protocols import SkillSearchResult
+from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
 
 logger = logging.getLogger(__name__)
 

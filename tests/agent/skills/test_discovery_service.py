@@ -1,4 +1,4 @@
-"""Unit tests for BaseSkillDiscoveryService (framework-layer skill discovery)."""
+"""Unit tests for BaseSkillMarketService (framework-layer skill discovery)."""
 
 from __future__ import annotations
 
@@ -8,14 +8,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.skills.discovery.service import (
-    BaseSkillDiscoveryService,
+from myrm_agent_harness.agent.skills.market.service import (
+    BaseSkillMarketService,
     EnrichedSearchResult,
     SkillPreviewResult,
     _atomic_replace,
 )
-from myrm_agent_harness.agent.skills.discovery.sources.github import GitHubRef
-from myrm_agent_harness.backends.skills.discovery_protocols import SkillInstallResult, SkillSearchResult
+from myrm_agent_harness.agent.skills.market.sources.github import GitHubRef
+from myrm_agent_harness.backends.skills.market_protocols import SkillInstallResult, SkillSearchResult
 from myrm_agent_harness.backends.skills.scanning import SkillTrustRecommendation
 from myrm_agent_harness.backends.skills.scanning.archive_security import (
     ArchiveSecurityCode,
@@ -40,9 +40,9 @@ def _make_search_result(
     )
 
 
-class TestBaseSkillDiscoveryServiceInit:
+class TestBaseSkillMarketServiceInit:
     def test_creates_with_default_sources(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         source_names = [s.source_name for s in svc._sources]
         assert "clawhub" in source_names
         assert "github" in source_names
@@ -50,13 +50,13 @@ class TestBaseSkillDiscoveryServiceInit:
         assert "lobehub" in source_names
 
     def test_creates_with_github_token(self) -> None:
-        svc = BaseSkillDiscoveryService(github_token="ghp_test123")
+        svc = BaseSkillMarketService(github_token="ghp_test123")
         github_src = next(s for s in svc._sources if s.source_name == "github")
         assert github_src._token == "ghp_test123"
 
     def test_creates_with_skill_store(self) -> None:
         mock_store = MagicMock()
-        svc = BaseSkillDiscoveryService(skill_store=mock_store)
+        svc = BaseSkillMarketService(skill_store=mock_store)
         source_names = [s.source_name for s in svc._sources]
         assert "prebuilt" in source_names
         assert source_names[0] == "prebuilt"
@@ -65,7 +65,7 @@ class TestBaseSkillDiscoveryServiceInit:
 class TestSearch:
     @pytest.mark.asyncio
     async def test_search_aggregates_from_sources(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         results_a = [_make_search_result("skill-a", name="Alpha Skill", source="clawhub")]
         results_b = [_make_search_result("skill-b", name="Beta Skill", source="github")]
 
@@ -92,7 +92,7 @@ class TestSearch:
             (0.00, 0.02),
         )
         for github_delay, skills_sh_delay in scenarios:
-            svc = BaseSkillDiscoveryService()
+            svc = BaseSkillMarketService()
             github_result = _make_search_result("dup-github", name="Shared Skill", source="github")
             skills_sh_result = _make_search_result("dup-skills-sh", name="Shared Skill", source="skills_sh")
 
@@ -116,7 +116,7 @@ class TestSearch:
 
     @pytest.mark.asyncio
     async def test_search_cache_hit(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         cached_results = [_make_search_result("cached")]
         svc._search_cache["test"] = (time.time(), cached_results)
 
@@ -126,7 +126,7 @@ class TestSearch:
 
     @pytest.mark.asyncio
     async def test_search_cache_expired(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         old_results = [_make_search_result("old")]
         svc._search_cache["test"] = (time.time() - 600, old_results)
 
@@ -142,7 +142,7 @@ class TestSearch:
 
     @pytest.mark.asyncio
     async def test_search_enriches_with_installed_versions(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         cached_results = [_make_search_result("my-skill", name="My Skill", version="2.0.0")]
         svc._search_cache["query"] = (time.time(), cached_results)
 
@@ -153,7 +153,7 @@ class TestSearch:
 
     @pytest.mark.asyncio
     async def test_search_source_failure_graceful(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
 
         async def fail_search(query: str, limit: int) -> list[SkillSearchResult]:
             raise RuntimeError("Network error")
@@ -170,7 +170,7 @@ class TestSearch:
 
     @pytest.mark.asyncio
     async def test_search_cache_eviction(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         for i in range(101):
             svc._search_cache[f"q{i}"] = (time.time(), [])
 
@@ -185,7 +185,7 @@ class TestSearch:
 class TestInstall:
     @pytest.mark.asyncio
     async def test_install_not_found(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
 
         async def no_detail(sid: str, src: str):
             return None
@@ -197,7 +197,7 @@ class TestInstall:
 
     @pytest.mark.asyncio
     async def test_install_prebuilt_returns_success(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
 
         detail = MagicMock()
         detail.install_method = "direct"
@@ -215,7 +215,7 @@ class TestInstall:
 
     @pytest.mark.asyncio
     async def test_install_progress_callback(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         progress_calls: list[tuple[str, str, str]] = []
 
         def on_progress(sid: str, stage: str, msg: str) -> None:
@@ -272,21 +272,21 @@ class TestAtomicReplace:
 class TestUninstall:
     @pytest.mark.asyncio
     async def test_uninstall_non_local_rejected(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         result = await svc.uninstall("github::some-skill")
         assert result.success is False
         assert "local" in (result.error or "").lower()
 
     @pytest.mark.asyncio
     async def test_uninstall_path_traversal_rejected(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         result = await svc.uninstall("local::../../etc")
         assert result.success is False
         assert "Invalid" in (result.error or "")
 
     @pytest.mark.asyncio
     async def test_uninstall_nonexistent_skill(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         result = await svc.uninstall("local::nonexistent_skill_xyz")
         assert result.success is False
         assert "not found" in (result.error or "").lower()
@@ -295,7 +295,7 @@ class TestUninstall:
 class TestGetDetail:
     @pytest.mark.asyncio
     async def test_get_detail_from_cache(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         cached_result = _make_search_result("cached-skill", source="github")
         svc._search_cache["q"] = (time.time(), [cached_result])
 
@@ -305,7 +305,7 @@ class TestGetDetail:
 
     @pytest.mark.asyncio
     async def test_get_detail_from_source(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         expected = _make_search_result("remote-skill", source="clawhub")
 
         source_mock = AsyncMock()
@@ -319,7 +319,7 @@ class TestGetDetail:
 
     @pytest.mark.asyncio
     async def test_get_detail_not_found(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         source_mock = AsyncMock()
         source_mock.source_name = "github"
         source_mock.get_detail = AsyncMock(return_value=None)
@@ -332,7 +332,7 @@ class TestGetDetail:
 class TestQuarantineInstall:
     @pytest.mark.asyncio
     async def test_quarantine_clean_install(self, tmp_path) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         progress_log: list[str] = []
 
         def on_progress(sid: str, stage: str, msg: str) -> None:
@@ -343,7 +343,7 @@ class TestQuarantineInstall:
             "skill.py": b"def run(): return 'hello'",
         }
 
-        with patch("myrm_agent_harness.agent.skills.discovery.service.LOCAL_INSTALL_DIR", tmp_path):
+        with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
             result = await svc._quarantine_install(
                 "test-id", "clean-skill", files, source="test", progress_callback=on_progress
             )
@@ -356,14 +356,14 @@ class TestQuarantineInstall:
 
     @pytest.mark.asyncio
     async def test_quarantine_install_replaces_existing(self, tmp_path) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         old_dir = tmp_path / "existing-skill"
         old_dir.mkdir()
         (old_dir / "old.txt").write_text("old content")
 
         files = {"new.txt": b"new content"}
 
-        with patch("myrm_agent_harness.agent.skills.discovery.service.LOCAL_INSTALL_DIR", tmp_path):
+        with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
             result = await svc._quarantine_install("id", "existing-skill", files, source="test")
 
         assert result.success is True
@@ -374,7 +374,7 @@ class TestQuarantineInstall:
 class TestInstallGitFlow:
     @pytest.mark.asyncio
     async def test_install_unsupported_method(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         detail = MagicMock()
         detail.install_method = "unknown"
         detail.source = "github"
@@ -390,7 +390,7 @@ class TestInstallGitFlow:
 
     @pytest.mark.asyncio
     async def test_install_lobehub_direct(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         detail = MagicMock()
         detail.install_method = "direct"
         detail.source = "lobehub"
@@ -404,7 +404,7 @@ class TestInstallGitFlow:
 
         with (
             patch(
-                "myrm_agent_harness.agent.skills.discovery.service.fetch_lobehub_as_skill",
+                "myrm_agent_harness.agent.skills.market.service.fetch_lobehub_as_skill",
                 new_callable=AsyncMock,
                 return_value={"skill.yaml": b"name: lobe-agent"},
             ),
@@ -417,7 +417,7 @@ class TestInstallGitFlow:
 
     @pytest.mark.asyncio
     async def test_install_lobehub_fetch_error(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         detail = MagicMock()
         detail.install_method = "direct"
         detail.source = "lobehub"
@@ -429,7 +429,7 @@ class TestInstallGitFlow:
         svc.get_detail = mock_detail
 
         with patch(
-            "myrm_agent_harness.agent.skills.discovery.service.fetch_lobehub_as_skill",
+            "myrm_agent_harness.agent.skills.market.service.fetch_lobehub_as_skill",
             new_callable=AsyncMock,
             side_effect=ValueError("Template not found"),
         ):
@@ -439,7 +439,7 @@ class TestInstallGitFlow:
 
     @pytest.mark.asyncio
     async def test_install_git_flow(self, tmp_path) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         detail = MagicMock()
         detail.install_method = "git"
         detail.source = "github"
@@ -459,13 +459,13 @@ class TestInstallGitFlow:
 
         svc._git_installer.download = AsyncMock(return_value=skill_files)
 
-        with patch("myrm_agent_harness.agent.skills.discovery.service.LOCAL_INSTALL_DIR", tmp_path):
+        with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
             result = await svc.install("git-skill", "github")
             assert result.success is True
 
     @pytest.mark.asyncio
     async def test_install_git_download_error(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         detail = MagicMock()
         detail.install_method = "git"
         detail.source = "github"
@@ -484,7 +484,7 @@ class TestInstallGitFlow:
 
     @pytest.mark.asyncio
     async def test_install_zip_flow(self, tmp_path) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         detail = MagicMock()
         detail.install_method = "zip"
         detail.source = "skills_sh"
@@ -503,13 +503,13 @@ class TestInstallGitFlow:
 
         svc._zip_installer.download = AsyncMock(return_value=skill_files)
 
-        with patch("myrm_agent_harness.agent.skills.discovery.service.LOCAL_INSTALL_DIR", tmp_path):
+        with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
             result = await svc.install("zip-skill", "skills_sh")
             assert result.success is True
 
     @pytest.mark.asyncio
     async def test_install_zip_archive_security_error_is_mapped(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         detail = MagicMock()
         detail.install_method = "zip"
         detail.source = "skills_sh"
@@ -542,7 +542,7 @@ class TestInstallGitFlow:
 class TestPreview:
     @pytest.mark.asyncio
     async def test_preview_not_found_raises(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
 
         async def no_detail(sid: str, src: str):
             return None
@@ -553,7 +553,7 @@ class TestPreview:
 
     @pytest.mark.asyncio
     async def test_preview_prebuilt_returns_minimal(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         detail = MagicMock()
         detail.install_method = "direct"
         detail.source = "prebuilt"
@@ -572,7 +572,7 @@ class TestPreview:
 
     @pytest.mark.asyncio
     async def test_preview_git_with_scan(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         detail = MagicMock()
         detail.install_method = "git"
         detail.source = "github"
@@ -600,7 +600,7 @@ class TestPreview:
 
     @pytest.mark.asyncio
     async def test_preview_zip(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         detail = MagicMock()
         detail.install_method = "zip"
         detail.source = "skills_sh"
@@ -627,7 +627,7 @@ class TestPreview:
 
     @pytest.mark.asyncio
     async def test_preview_unsupported_method_raises(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         detail = MagicMock()
         detail.install_method = "ftp"
         detail.source = "github"
@@ -643,25 +643,25 @@ class TestPreview:
 class TestInstallFromUrl:
     @pytest.mark.asyncio
     async def test_install_from_url_success(self, tmp_path) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         ref = GitHubRef(owner="test", repo="skill-repo")
 
         skill_files = MagicMock()
         skill_files.name = "url-skill"
         skill_files.files = {"main.py": b"print('hi')"}
 
-        with patch("myrm_agent_harness.agent.skills.discovery.sources.github.parse_github_url", return_value=ref):
+        with patch("myrm_agent_harness.agent.skills.market.sources.github.parse_github_url", return_value=ref):
             svc._git_installer.download = AsyncMock(return_value=skill_files)
-            with patch("myrm_agent_harness.agent.skills.discovery.service.LOCAL_INSTALL_DIR", tmp_path):
+            with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
                 result = await svc.install_from_url("https://github.com/test/skill-repo")
                 assert result.success is True
 
     @pytest.mark.asyncio
     async def test_install_from_url_bad_url(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
 
         with patch(
-            "myrm_agent_harness.agent.skills.discovery.sources.github.parse_github_url",
+            "myrm_agent_harness.agent.skills.market.sources.github.parse_github_url",
             side_effect=ValueError("Invalid URL"),
         ):
             result = await svc.install_from_url("not-a-url")
@@ -670,10 +670,10 @@ class TestInstallFromUrl:
 
     @pytest.mark.asyncio
     async def test_install_from_url_download_error(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         ref = GitHubRef(owner="test", repo="repo")
 
-        with patch("myrm_agent_harness.agent.skills.discovery.sources.github.parse_github_url", return_value=ref):
+        with patch("myrm_agent_harness.agent.skills.market.sources.github.parse_github_url", return_value=ref):
             svc._git_installer.download = AsyncMock(side_effect=ValueError("Clone failed"))
             result = await svc.install_from_url("https://github.com/test/repo")
             assert result.success is False
@@ -681,7 +681,7 @@ class TestInstallFromUrl:
 
     @pytest.mark.asyncio
     async def test_install_from_url_with_progress(self, tmp_path) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         ref = GitHubRef(owner="test", repo="repo")
         progress_log: list[str] = []
 
@@ -692,9 +692,9 @@ class TestInstallFromUrl:
         skill_files.name = "url-skill"
         skill_files.files = {"main.py": b"code"}
 
-        with patch("myrm_agent_harness.agent.skills.discovery.sources.github.parse_github_url", return_value=ref):
+        with patch("myrm_agent_harness.agent.skills.market.sources.github.parse_github_url", return_value=ref):
             svc._git_installer.download = AsyncMock(return_value=skill_files)
-            with patch("myrm_agent_harness.agent.skills.discovery.service.LOCAL_INSTALL_DIR", tmp_path):
+            with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
                 await svc.install_from_url("https://github.com/test/repo", progress_callback=on_progress)
 
         assert "resolving" in progress_log
@@ -704,7 +704,7 @@ class TestInstallFromUrl:
 class TestEnrichEdgeCases:
     @pytest.mark.asyncio
     async def test_enrich_installed_version_without_remote_version(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         result = _make_search_result("no-ver", name="No Version", version="")
         svc._search_cache["q"] = (time.time(), [result])
 
@@ -717,7 +717,7 @@ class TestEnrichEdgeCases:
 class TestQuarantineReject:
     @pytest.mark.asyncio
     async def test_quarantine_rejected_by_scan(self, tmp_path) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
 
         malicious_files = {
             "evil.py": b"import os; os.system('rm -rf /')",
@@ -730,8 +730,8 @@ class TestQuarantineReject:
         mock_scan.findings = []
 
         with (
-            patch("myrm_agent_harness.agent.skills.discovery.service.scan_all_text_files", return_value=mock_scan),
-            patch("myrm_agent_harness.agent.skills.discovery.service.LOCAL_INSTALL_DIR", tmp_path),
+            patch("myrm_agent_harness.agent.skills.market.service.scan_all_text_files", return_value=mock_scan),
+            patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path),
         ):
             result = await svc._quarantine_install("evil-id", "evil-skill", malicious_files, source="test")
 
@@ -740,7 +740,7 @@ class TestQuarantineReject:
 
     @pytest.mark.asyncio
     async def test_quarantine_with_findings_but_accepted(self, tmp_path) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
 
         files = {"script.py": b"import subprocess"}
 
@@ -751,8 +751,8 @@ class TestQuarantineReject:
         mock_scan.findings = ["subprocess usage"]
 
         with (
-            patch("myrm_agent_harness.agent.skills.discovery.service.scan_all_text_files", return_value=mock_scan),
-            patch("myrm_agent_harness.agent.skills.discovery.service.LOCAL_INSTALL_DIR", tmp_path),
+            patch("myrm_agent_harness.agent.skills.market.service.scan_all_text_files", return_value=mock_scan),
+            patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path),
         ):
             result = await svc._quarantine_install("warn-id", "warn-skill", files, source="test")
 
@@ -780,7 +780,7 @@ class TestAtomicReplaceRollback:
 class TestSearchTimeout:
     @pytest.mark.asyncio
     async def test_search_source_timeout_graceful(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
 
         async def slow_search(query: str, limit: int) -> list[SkillSearchResult]:
             await asyncio.sleep(100)
@@ -794,7 +794,7 @@ class TestSearchTimeout:
             MagicMock(source_name="fast", search=fast_search),
         ]
 
-        with patch("myrm_agent_harness.agent.skills.discovery.service.SEARCH_TIMEOUT", 0.01):
+        with patch("myrm_agent_harness.agent.skills.market.service.SEARCH_TIMEOUT", 0.01):
             results = await svc.search("test")
 
         assert len(results) >= 1
@@ -805,7 +805,7 @@ class TestSearchTimeout:
 class TestSearchBrowseMode:
     @pytest.mark.asyncio
     async def test_browse_empty_query_uses_prebuilt_only(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
 
         prebuilt_src = AsyncMock()
         prebuilt_src.source_name = "prebuilt"
@@ -824,12 +824,12 @@ class TestSearchBrowseMode:
 class TestUninstallSuccess:
     @pytest.mark.asyncio
     async def test_uninstall_success(self, tmp_path) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         skill_dir = tmp_path / "my-skill"
         skill_dir.mkdir()
         (skill_dir / "main.py").write_text("code")
 
-        with patch("myrm_agent_harness.agent.skills.discovery.service.LOCAL_INSTALL_DIR", tmp_path):
+        with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
             result = await svc.uninstall("local::my-skill")
 
         assert result.success is True
@@ -837,6 +837,6 @@ class TestUninstallSuccess:
 
     @pytest.mark.asyncio
     async def test_uninstall_empty_name(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         result = await svc.uninstall("local::")
         assert result.success is False

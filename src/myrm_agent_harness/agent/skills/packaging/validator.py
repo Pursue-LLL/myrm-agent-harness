@@ -3,7 +3,7 @@
 提供技能 ZIP 包的验证、安全检查和元数据解析。
 
 [INPUT]
-- agent.skills.discovery.sanitizer::SKILL_MD_FILE, (POS: Provides is_blocked_file, sanitize_skill_files.)
+- agent.skills.market.sanitizer::SKILL_MD_FILE, (POS: Provides is_blocked_file, sanitize_skill_files.)
 - backends.skills.scanning.zip_extract::MAX_ZIP_ENTRY_COUNT (POS: Framework-level ZIP security utility for archive limits.)
 - backends.skills.scanning.archive_security::is_executable_binary_content (POS: Canonical archive-security contract and executable signature detection.)
 
@@ -27,7 +27,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from myrm_agent_harness.agent.skills.discovery.sanitizer import SKILL_MD_FILE, SKILL_NAME_PATTERN
+from myrm_agent_harness.agent.skills.market.sanitizer import SKILL_MD_FILE, SKILL_NAME_PATTERN
 from myrm_agent_harness.backends.skills.scanning.archive_security import (
     ArchiveSecurityCode,
     ArchiveSecurityViolation,

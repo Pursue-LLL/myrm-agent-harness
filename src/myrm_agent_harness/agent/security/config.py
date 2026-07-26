@@ -159,7 +159,7 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
 
     domain_hitl_enabled = bool(raw.get("domainHitlEnabled", True))
 
-    auto_review_enabled = bool(raw.get("autoModeEnabled") or raw.get("autoReviewEnabled", False))
+    auto_review_enabled = bool(raw.get("autoModeEnabled") or raw.get("autoReviewEnabled", True))
     auto_review_model_raw = raw.get("autoReviewModel")
     auto_review_model = str(auto_review_model_raw) if auto_review_model_raw else None
     auto_review_timeout_raw = raw.get("autoReviewTimeoutSeconds", 3.0)

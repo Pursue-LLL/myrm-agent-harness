@@ -9,7 +9,7 @@ Strategy:
 - update_skill() re-installs via quarantine (download → scan → replace)
 
 [INPUT]
-- backends.skills.discovery_protocols::SkillInstallResult (POS: SkillBackend SkillBackend SkillDiscoveryBackend)
+- backends.skills.market_protocols::SkillInstallResult (POS: SkillBackend SkillBackend SkillMarketBackend)
 - backends.skills.versioning::VersionDelta (POS: Skill version comparison utilities.)
 
 [OUTPUT]
@@ -29,12 +29,12 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.agent.skills.discovery.service import LOCAL_INSTALL_DIR, BaseSkillDiscoveryService
-from myrm_agent_harness.backends.skills.discovery_protocols import SkillInstallResult
+from myrm_agent_harness.agent.skills.market.service import LOCAL_INSTALL_DIR, BaseSkillMarketService
+from myrm_agent_harness.backends.skills.market_protocols import SkillInstallResult
 from myrm_agent_harness.backends.skills.versioning import VersionDelta, compare_versions
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.backends.skills.discovery_protocols import InstalledSkillStore
+    from myrm_agent_harness.backends.skills.market_protocols import InstalledSkillStore
 
 logger = logging.getLogger(__name__)
 
@@ -73,17 +73,17 @@ class SkillAutoUpdateChecker:
     """Lazy update checker with cooldown.
 
     Calls to check_updates() within the cooldown window return cached results.
-    Requires a BaseSkillDiscoveryService for querying remote sources.
+    Requires a BaseSkillMarketService for querying remote sources.
     """
 
     def __init__(
         self,
         skill_store: InstalledSkillStore | None = None,
-        discovery_service: BaseSkillDiscoveryService | None = None,
+        market_service: BaseSkillMarketService | None = None,
     ) -> None:
         self._last_check: UpdateCheckResult | None = None
         self._skill_store = skill_store
-        self._discovery_service = discovery_service
+        self._market_service = market_service
 
     async def check_updates(self, *, force: bool = False) -> UpdateCheckResult:
         """Check all installed skills for available updates.
@@ -100,8 +100,8 @@ class SkillAutoUpdateChecker:
             logger.warning("No InstalledSkillStore configured, skipping update check")
             return UpdateCheckResult()
 
-        if not self._discovery_service:
-            logger.warning("No SkillDiscoveryService configured, skipping update check")
+        if not self._market_service:
+            logger.warning("No SkillMarketService configured, skipping update check")
             return UpdateCheckResult()
 
         installed = await self._skill_store.list_installed()
@@ -110,9 +110,9 @@ class SkillAutoUpdateChecker:
             self._last_check = result
             return result
 
-        from myrm_agent_harness.agent.skills.discovery.helpers import read_origin
+        from myrm_agent_harness.agent.skills.market.helpers import read_origin
 
-        non_prebuilt_sources = [s for s in self._discovery_service._sources if s.source_name != "prebuilt"]
+        non_prebuilt_sources = [s for s in self._market_service._sources if s.source_name != "prebuilt"]
         update_infos: list[SkillUpdateInfo] = []
 
         for skill in installed:
@@ -162,10 +162,10 @@ class SkillAutoUpdateChecker:
 
         Downloads the new version -> quarantine -> security scan -> replace.
         """
-        if not self._discovery_service:
-            return SkillInstallResult(success=False, error="No SkillDiscoveryService configured")
+        if not self._market_service:
+            return SkillInstallResult(success=False, error="No SkillMarketService configured")
 
-        return await self._discovery_service.install(skill_id=update_info.skill_id, source=update_info.source)
+        return await self._market_service.install(skill_id=update_info.skill_id, source=update_info.source)
 
 
 _checker: SkillAutoUpdateChecker | None = None
@@ -173,10 +173,10 @@ _checker: SkillAutoUpdateChecker | None = None
 
 def get_update_checker(
     skill_store: InstalledSkillStore | None = None,
-    discovery_service: BaseSkillDiscoveryService | None = None,
+    market_service: BaseSkillMarketService | None = None,
 ) -> SkillAutoUpdateChecker:
-    """Singleton accessor. Pass skill_store and discovery_service on first call to configure."""
+    """Singleton accessor. Pass skill_store and market_service on first call to configure."""
     global _checker
     if _checker is None:
-        _checker = SkillAutoUpdateChecker(skill_store=skill_store, discovery_service=discovery_service)
+        _checker = SkillAutoUpdateChecker(skill_store=skill_store, market_service=market_service)
     return _checker

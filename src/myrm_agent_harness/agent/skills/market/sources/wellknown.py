@@ -4,7 +4,7 @@ Discovers skills from domains exposing the standard /.well-known/skills/index.js
 Any website or enterprise internal server can publish skills by serving this JSON.
 
 [INPUT]
-- backends.skills.discovery_protocols::SkillSearchResult
+- backends.skills.market_protocols::SkillSearchResult
 
 [OUTPUT]
 - WellKnownSkillSource: class — Well-Known Skills Endpoint Source
@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from myrm_agent_harness.backends.skills.discovery_protocols import SkillSearchResult
+from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
 logger = logging.getLogger(__name__)

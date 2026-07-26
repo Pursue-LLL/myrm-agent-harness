@@ -31,7 +31,7 @@ class SkillInstaller(Protocol):
     """技能安装器协议
 
     负责从外部源下载技能文件。
-    不负责最终存储（由 SkillDiscoveryService 决定存储位置）。
+    不负责最终存储（由 SkillMarketService 决定存储位置）。
     """
 
     async def download(self, install_url: str, subdirectory: str | None = None) -> InstalledSkillFiles:

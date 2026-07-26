@@ -1,9 +1,9 @@
 """Prebuilt skill search source.
 
-Searches locally installed prebuilt skills as the highest-priority discovery source.
+Searches locally installed prebuilt skills as the highest-priority market source.
 
 [INPUT]
-- backends.skills.discovery_protocols::SkillSearchResult (POS: SkillBackend SkillBackend SkillDiscoveryBackend)
+- backends.skills.market_protocols::SkillSearchResult (POS: SkillBackend SkillBackend SkillMarketBackend)
 
 [OUTPUT]
 - PrebuiltSkillSource: Prebuilt skill data source.
@@ -17,10 +17,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.backends.skills.discovery_protocols import SkillSearchResult
+from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.backends.skills.discovery_protocols import InstalledSkillStore
+    from myrm_agent_harness.backends.skills.market_protocols import InstalledSkillStore
 
 logger = logging.getLogger(__name__)
 

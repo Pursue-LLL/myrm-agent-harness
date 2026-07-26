@@ -18,8 +18,8 @@ SSRF-protected outbound HTTP primitives shared by harness toolkits, agent pipeli
 ## Consumers
 
 - `agent/context_management/pipeline/processors/media_resolver.py`
-- `agent/skills/discovery/installers/zip_installer.py`
-- `agent/skills/discovery/helpers.py`
+- `agent/skills/market/installers/zip_installer.py`
+- `agent/skills/market/helpers.py`
 - `agent/hooks/executor.py`
 - `toolkits/a2a/resolver.py`
 - `toolkits/cron/delivery.py`

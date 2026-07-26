@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from myrm_agent_harness.agent.skills.discovery.sources.wellknown import WellKnownSkillSource
+from myrm_agent_harness.agent.skills.market.sources.wellknown import WellKnownSkillSource
 
 
 class TestWellKnownSkillSourceInit:
@@ -156,7 +156,7 @@ class TestWellKnownSkillSourceFetchIndex:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("myrm_agent_harness.agent.skills.discovery.sources.wellknown.create_httpx_client", return_value=mock_client):
+        with patch("myrm_agent_harness.agent.skills.market.sources.wellknown.create_httpx_client", return_value=mock_client):
             result = await source._fetch_index()
             assert result == [{"name": "a"}]
 
@@ -170,7 +170,7 @@ class TestWellKnownSkillSourceFetchIndex:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("myrm_agent_harness.agent.skills.discovery.sources.wellknown.create_httpx_client", return_value=mock_client):
+        with patch("myrm_agent_harness.agent.skills.market.sources.wellknown.create_httpx_client", return_value=mock_client):
             result = await source._fetch_index()
             assert result is None
 
@@ -181,7 +181,7 @@ class TestWellKnownSkillSourceFetchIndex:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("myrm_agent_harness.agent.skills.discovery.sources.wellknown.create_httpx_client", return_value=mock_client):
+        with patch("myrm_agent_harness.agent.skills.market.sources.wellknown.create_httpx_client", return_value=mock_client):
             result = await source._fetch_index()
             assert result is None
 
@@ -196,14 +196,14 @@ class TestWellKnownSkillSourceFetchIndex:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("myrm_agent_harness.agent.skills.discovery.sources.wellknown.create_httpx_client", return_value=mock_client):
+        with patch("myrm_agent_harness.agent.skills.market.sources.wellknown.create_httpx_client", return_value=mock_client):
             result = await source._fetch_index()
             assert result is None
 
 
 class TestRegisterUnregisterSource:
     def test_register_source(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         initial_count = len(svc._sources)
         source = WellKnownSkillSource("https://private.corp.com")
         svc.register_source(source)
@@ -211,7 +211,7 @@ class TestRegisterUnregisterSource:
         assert svc._sources[-1].source_name == "well-known:https://private.corp.com"
 
     def test_register_source_idempotent(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         source = WellKnownSkillSource("https://private.corp.com")
         svc.register_source(source)
         count_after_first = len(svc._sources)
@@ -219,7 +219,7 @@ class TestRegisterUnregisterSource:
         assert len(svc._sources) == count_after_first
 
     def test_unregister_source(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         source = WellKnownSkillSource("https://private.corp.com")
         svc.register_source(source)
         removed = svc.unregister_source("well-known:https://private.corp.com")
@@ -227,10 +227,10 @@ class TestRegisterUnregisterSource:
         assert not any(s.source_name == "well-known:https://private.corp.com" for s in svc._sources)
 
     def test_unregister_nonexistent(self) -> None:
-        svc = BaseSkillDiscoveryService()
+        svc = BaseSkillMarketService()
         removed = svc.unregister_source("well-known:https://nonexistent.com")
         assert removed is False
 
 
 # Need import for register/unregister tests
-from myrm_agent_harness.agent.skills.discovery.service import BaseSkillDiscoveryService
+from myrm_agent_harness.agent.skills.market.service import BaseSkillMarketService

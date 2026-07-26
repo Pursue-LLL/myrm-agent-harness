@@ -43,7 +43,7 @@ class _StubSkillBackend:
         return b""
 
 
-class _StubDiscoveryBackend:
+class _StubMarketBackend:
     """Minimal discovery backend so skill_market_tool mounts Turn1 eager."""
 
     async def install_from_url(self, url: str, user_id: str) -> dict[str, object]:
@@ -83,13 +83,13 @@ def test_registry_wiring_exposes_skill_tools_with_boundary_descriptions() -> Non
     skills = [_sample_skill()]
     registry = ToolRegistry()
     skill_backend = _StubSkillBackend(skills)
-    discovery_backend = _StubDiscoveryBackend()
+    market_backend = _StubMarketBackend()
 
     meta_tools = get_meta_tools(
         skills,
         skill_backend,
         registry=registry,
-        discovery_backend=discovery_backend,
+        market_backend=market_backend,
         enable_file_tools=False,
         enable_shell_tools=False,
         enable_answer_tool=False,
@@ -118,7 +118,7 @@ async def test_skill_agent_build_tools_wires_boundary_descriptions() -> None:
     agent = SkillAgent(
         llm=AsyncMock(),
         skill_backend=_StubSkillBackend(skills),
-        discovery_backend=_StubDiscoveryBackend(),
+        market_backend=_StubMarketBackend(),
         enable_file_tools=False,
         enable_shell_tools=False,
         enable_answer_tool=False,
@@ -138,15 +138,15 @@ async def test_skill_agent_build_tools_wires_boundary_descriptions() -> None:
 
 
 @pytest.mark.integration
-def test_registry_omits_marketplace_tool_without_discovery_backend() -> None:
-    """skill_market_tool mounts only when discovery_backend is provided."""
+def test_registry_omits_marketplace_tool_without_market_backend() -> None:
+    """skill_market_tool mounts only when market_backend is provided."""
     skills = [_sample_skill()]
     registry = ToolRegistry()
     meta_tools = get_meta_tools(
         skills,
         _StubSkillBackend(skills),
         registry=registry,
-        discovery_backend=None,
+        market_backend=None,
         enable_file_tools=False,
         enable_shell_tools=False,
         enable_answer_tool=False,
@@ -167,7 +167,7 @@ def test_registry_omits_discover_tool_when_no_searchable_skills() -> None:
         [],
         _StubSkillBackend([]),
         registry=registry,
-        discovery_backend=_StubDiscoveryBackend(),
+        market_backend=_StubMarketBackend(),
         enable_file_tools=False,
         enable_shell_tools=False,
         enable_answer_tool=False,
@@ -190,7 +190,7 @@ async def test_discover_runtime_returns_bound_skills_xml() -> None:
         skills,
         _StubSkillBackend(skills),
         registry=registry,
-        discovery_backend=_StubDiscoveryBackend(),
+        market_backend=_StubMarketBackend(),
         enable_file_tools=False,
         enable_shell_tools=False,
         enable_answer_tool=False,

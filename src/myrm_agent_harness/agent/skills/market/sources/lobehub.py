@@ -6,7 +6,7 @@ Agent 本质是 system-prompt 模板，搜索到后按 SKILL.md 格式返回。
 数据源: chat-agents.lobehub.com (GitHub: lobehub/lobe-chat-agents)
 
 [INPUT]
-- backends.skills.discovery_protocols::SkillSearchResult (POS: SkillBackend SkillBackend SkillDiscoveryBackend)
+- backends.skills.market_protocols::SkillSearchResult (POS: SkillBackend SkillBackend SkillMarketBackend)
 
 [OUTPUT]
 - LobeHubSource: class — Lobe Hub Source
@@ -23,7 +23,7 @@ import httpx
 
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
-from myrm_agent_harness.backends.skills.discovery_protocols import SkillSearchResult
+from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
 
 logger = logging.getLogger(__name__)
 

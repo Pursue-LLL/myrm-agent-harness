@@ -1,9 +1,9 @@
-"""Skill discovery helper functions.
+"""Skill market helper functions.
 
 Shared utilities for scanning, deduplication, ranking, origin tracking, and LobeHub conversion.
 
 [INPUT]
-- backends.skills.discovery_protocols::SkillSearchResult (POS: unified skill discovery result type)
+- backends.skills.market_protocols::SkillSearchResult (POS: unified skill market result type)
 - backends.skills.scanning::ScanResult (POS: scan result cache layer for skill content)
 - core.security.http.secure_fetch::secure_get (POS: SSRF-protected outbound HTTP)
 
@@ -15,7 +15,7 @@ Shared utilities for scanning, deduplication, ranking, origin tracking, and Lobe
 - write_origin: Write origin.json to skill directory for update tracking.
 
 [POS]
-Skill discovery helper functions.
+Skill market helper functions.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
-from myrm_agent_harness.backends.skills.discovery_protocols import SkillSearchResult
+from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
 from myrm_agent_harness.backends.skills.scanning import ScanResult, scan_skill_content
 
 logger = logging.getLogger(__name__)

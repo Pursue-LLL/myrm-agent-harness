@@ -21,9 +21,9 @@ class TestSecurityConfigReadonly:
         config = SecurityConfig.readonly()
         assert config.yolo_mode_enabled is False
 
-    def test_readonly_auto_mode_disabled(self) -> None:
+    def test_readonly_auto_mode_enabled_by_default(self) -> None:
         config = SecurityConfig.readonly()
-        assert config.auto_mode_enabled is False
+        assert config.auto_mode_enabled is True
 
     def test_readonly_denies_file_write(self) -> None:
         config = SecurityConfig.readonly()

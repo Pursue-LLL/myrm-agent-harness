@@ -34,8 +34,8 @@ if TYPE_CHECKING:
     from myrm_agent_harness.agent.types import AgentRuntimeSpec
     from myrm_agent_harness.backends.secrets.protocols import AgentSecretBackend
     from myrm_agent_harness.backends.skills.creation_protocols import SkillWriteBackend
-    from myrm_agent_harness.backends.skills.discovery_protocols import (
-        SkillDiscoveryBackend,
+    from myrm_agent_harness.backends.skills.market_protocols import (
+        SkillMarketBackend,
     )
     from myrm_agent_harness.backends.skills.protocols import (
         SkillBackend as SkillBackendProtocol,
@@ -62,7 +62,7 @@ async def create_skill_agent(
     executor: CodeExecutor | None = None,
     storage_backend: StorageProvider | None = None,
     skill_backend: SkillBackendProtocol | None = None,
-    discovery_backend: SkillDiscoveryBackend | None = None,
+    market_backend: SkillMarketBackend | None = None,
     write_backend: SkillWriteBackend | None = None,
     secret_backend: AgentSecretBackend | None = None,
     memory_manager: MemoryManager | None = None,
@@ -320,7 +320,7 @@ async def create_skill_agent(
         executor=executor,
         storage_backend=storage_backend,
         skill_backend=final_skill_backend,
-        discovery_backend=discovery_backend,
+        market_backend=market_backend,
         write_backend=final_write_backend,
         secret_backend=secret_backend,
         memory_manager=memory_manager,

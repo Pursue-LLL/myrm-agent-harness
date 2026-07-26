@@ -1,7 +1,7 @@
 """History tracking skill write backend.
 
 [INPUT]
-- myrm_agent_harness.backends.skills.creation_protocols::SkillWriteBackend, (POS: SkillBackend SkillDiscoveryBackend SkillBackend)
+- myrm_agent_harness.backends.skills.creation_protocols::SkillWriteBackend, (POS: SkillBackend SkillMarketBackend SkillBackend)
 - myrm_agent_harness.backends.skills.protocols::SkillBackend (POS: Protocols for Skill Optimization Subsystem)
 - .protocols::SkillHistoryBackend (POS: Protocols for Skill Optimization Subsystem)
 - .types::SkillHistoryRecord, (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 
-from myrm_agent_harness.agent.skills.discovery.sanitizer import SKILL_MD_FILE
+from myrm_agent_harness.agent.skills.market.sanitizer import SKILL_MD_FILE
 from myrm_agent_harness.backends.skills.creation_protocols import (
     SkillDeleteResult,
     SkillResourceWriteResult,
