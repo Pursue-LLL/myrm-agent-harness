@@ -14,14 +14,17 @@ agent/context_management/PROMPT_CACHE_PRACTICE.md §6.1-6.2 whenever this file c
 [POS]
 LLM core. LiteLLM wrapper providing a unified multi-model invocation interface
 (OpenAI, Anthropic, Gemini, etc.). Provides a factory function to create LiteLLM instances,
-automatically merging model_kwargs into extra_body. Supports native model capability passthrough
-(web_search_options) via tri-state native_tools config (None=auto-detect / set=explicit /
-empty set=disabled) for zero-config out-of-the-box usage.
+automatically merging model_kwargs into extra_body. Integrates reasoning_timeout floor,
+local endpoint stall-detection relaxation (auto-detect localhost/RFC1918 → relax first_event/
+inter_chunk/request timeouts), and native model capability passthrough (web_search_options)
+via tri-state native_tools config (None=auto-detect / set=explicit / empty set=disabled).
 Core layer used by LLMManager and business layer as the unified entry point for multi-model calls.
 """
 
+import ipaddress
 import logging
 from typing import Any
+from urllib.parse import urlparse
 
 # Side-effect import: registers custom providers into litellm.custom_provider_map
 from myrm_agent_harness.toolkits.llms import providers  # noqa: F401
@@ -34,6 +37,29 @@ logger = logging.getLogger(__name__)
 # Explicit cache (Claude/Qwen): controlled by Pipeline ExplicitCacheProcessor
 # via dynamic cache_control injection in message additional_kwargs.
 # OpenAI/DeepSeek/Gemini: rely on API auto-prefix cache, no explicit processing needed.
+
+_LOCAL_FIRST_EVENT_TIMEOUT = 300.0
+_LOCAL_INTER_CHUNK_TIMEOUT = 600.0
+_LOCAL_REQUEST_TIMEOUT = 1800.0
+
+
+def _is_local_endpoint(url: str | None) -> bool:
+    """Detect whether a URL points to a local/private-network LLM service.
+
+    Local models (Ollama, LM Studio, vLLM) have zero network latency but
+    potentially long compute latency (prefill). Stall detection thresholds
+    designed for cloud APIs will cause false kills on local endpoints.
+    """
+    if not url:
+        return False
+    host = (urlparse(url).hostname or "").lower()
+    if host in ("localhost", "0.0.0.0"):
+        return True
+    try:
+        addr = ipaddress.ip_address(host)
+        return addr.is_private or addr.is_loopback
+    except ValueError:
+        return False
 
 
 def _merge_model_kwargs_to_extra_body(llm_kwargs: dict[str, Any], model_kwargs: dict[str, Any] | None) -> None:
@@ -154,10 +180,23 @@ def create_litellm_model(
             llm_kwargs["ssl_verify"] = verify
 
     # Apply reasoning model timeout floor (e.g. o3 needs 600s for thinking phase)
-    if "request_timeout" not in llm_kwargs:
-        floor = get_reasoning_timeout_floor(model)
-        if floor is not None:
-            llm_kwargs["request_timeout"] = floor
+    reasoning_floor = get_reasoning_timeout_floor(model)
+
+    if "request_timeout" not in llm_kwargs and reasoning_floor is not None:
+        llm_kwargs["request_timeout"] = reasoning_floor
+
+    if "first_event_timeout" not in llm_kwargs and reasoning_floor is not None:
+        llm_kwargs["first_event_timeout"] = min(reasoning_floor / 2, 300.0)
+
+    # Local endpoints: relax stall detection to avoid killing long prefills
+    if _is_local_endpoint(base_url):
+        logger.info("Local endpoint detected (%s), relaxing stall timeouts", base_url)
+        if "first_event_timeout" not in llm_kwargs:
+            llm_kwargs["first_event_timeout"] = _LOCAL_FIRST_EVENT_TIMEOUT
+        if "inter_chunk_timeout" not in llm_kwargs:
+            llm_kwargs["inter_chunk_timeout"] = _LOCAL_INTER_CHUNK_TIMEOUT
+        if "request_timeout" not in llm_kwargs:
+            llm_kwargs["request_timeout"] = _LOCAL_REQUEST_TIMEOUT
 
     llm_kwargs = clean_model_kwargs(llm_kwargs, model)
 

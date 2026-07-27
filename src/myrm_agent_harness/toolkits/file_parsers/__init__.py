@@ -8,6 +8,7 @@ Provides parsers for various file formats:
 - PDF page render fallback (pypdfium2 via pdfplumber transitive dependency)
 - Text: Plain text and Markdown files
 - Jupyter Notebook (stdlib json): IPYNB cell extraction (Markdown/code/raw)
+- Legacy formats (.doc/.xls/.ppt): OLE2 detection with soffice auto-conversion
 
 
 [INPUT]
@@ -19,9 +20,11 @@ Provides parsers for various file formats:
 - pdf_content_extractor::PDFExtractConfig, PDFExtractResult, PDFImageContent, extract_pdf_content (POS: PDF content extraction)
 - text::TextParser (POS: plain text and Markdown parser)
 - ipynb::IpynbParser (POS: Jupyter Notebook parser)
+- legacy::LegacyFormatParser (POS: OLE2 legacy format parser with soffice conversion)
 
 [OUTPUT]
 - FileParser, PDFPlumberParser, DocxParser, ExcelParser, PptxParser, TextParser, IpynbParser: parser classes
+- LegacyFormatParser: OLE2 legacy format parser with soffice auto-conversion
 - PDFParseResult, PDFTable: PDF-specific result models
 - PDFExtractConfig, PDFExtractResult, PDFImageContent, extract_pdf_content: PDF extraction utilities
 - parse_file(): auto-detect file type and parse
@@ -33,6 +36,11 @@ a unified parse_file() function for auto-detection.
 
 from __future__ import annotations
 
+import asyncio
+import logging
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 
 from myrm_agent_harness.toolkits.file_parsers.base import (
@@ -59,6 +67,7 @@ __all__ = [
     "ExcelParser",
     "FileParser",
     "IpynbParser",
+    "LegacyFormatParser",
     "OCRLine",
     "OCRParser",
     "OCRResult",
@@ -76,6 +85,108 @@ __all__ = [
     "get_pdf_parser",
     "is_supported",
 ]
+
+
+# ====================== Legacy Format Support ======================
+
+_logger = logging.getLogger(__name__)
+
+# OLE2 Compound Binary File magic bytes (shared by .doc, .xls, .ppt)
+_OLE2_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
+_LEGACY_TO_MODERN: dict[str, str] = {
+    ".doc": ".docx",
+    ".xls": ".xlsx",
+    ".ppt": ".pptx",
+}
+
+
+class LegacyFormatParser(FileParser):
+    """Parser for legacy Office formats (.doc/.xls/.ppt) via soffice conversion.
+
+    python-docx/openpyxl/python-pptx only support the modern Open XML formats.
+    Legacy OLE2 files (pre-2007) must be converted first.  This parser detects
+    the OLE2 magic number and converts via ``soffice --headless`` before
+    delegating to the corresponding modern parser.
+    """
+
+    def __init__(self, target_ext: str, delegate: FileParser) -> None:
+        self._target_ext = target_ext
+        self._delegate = delegate
+
+    async def parse(self, file_path: str) -> str:
+        path = Path(file_path)
+        if not path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        if self._is_ole2(path):
+            converted = await self._convert_with_soffice(path)
+            if converted is None:
+                raise RuntimeError(
+                    f"Cannot parse legacy {path.suffix} file: soffice is not available. "
+                    f"Please convert to {self._target_ext} first, or install LibreOffice."
+                )
+            try:
+                return await self._delegate.parse(str(converted))
+            finally:
+                shutil.rmtree(converted.parent, ignore_errors=True)
+
+        return await self._delegate.parse(file_path)
+
+    def _is_ole2(self, path: Path) -> bool:
+        """Check whether the file starts with OLE2 magic bytes."""
+        try:
+            with path.open("rb") as f:
+                header = f.read(8)
+            return header == _OLE2_MAGIC
+        except OSError:
+            return False
+
+    async def _convert_with_soffice(self, path: Path) -> Path | None:
+        """Convert OLE2 file to modern format using soffice headless."""
+        soffice = shutil.which("soffice")
+        if soffice is None:
+            return None
+
+        tmpdir = Path(tempfile.mkdtemp(prefix="legacy_convert_"))
+        fmt_map = {".docx": "docx", ".xlsx": "xlsx", ".pptx": "pptx"}
+        out_fmt = fmt_map.get(self._target_ext, "docx")
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                soffice,
+                "--headless",
+                "--convert-to", out_fmt,
+                "--outdir", str(tmpdir),
+                str(path),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+            if proc.returncode != 0:
+                _logger.warning(
+                    "soffice exited with code %d for %s: %s",
+                    proc.returncode, path.name, stderr.decode(errors="replace")[:500],
+                )
+                shutil.rmtree(tmpdir, ignore_errors=True)
+                return None
+        except (asyncio.TimeoutError, OSError) as exc:
+            _logger.warning("soffice conversion failed for %s: %s", path.name, exc)
+            shutil.rmtree(tmpdir, ignore_errors=True)
+            return None
+
+        converted_files = list(tmpdir.glob(f"*{self._target_ext}"))
+        if not converted_files:
+            _logger.warning("soffice produced no output for %s", path.name)
+            shutil.rmtree(tmpdir, ignore_errors=True)
+            return None
+
+        return converted_files[0]
+
+    @property
+    def supported_extensions(self) -> list[str]:
+        src_ext = next((k for k, v in _LEGACY_TO_MODERN.items() if v == self._target_ext), "")
+        return [src_ext] if src_ext else []
 
 
 # ====================== Parser Registry ======================
@@ -101,11 +212,11 @@ _PARSERS: dict[str, FileParser] = {
     ".text": TextParser(),
     ".pdf": _DEFAULT_PDF_PARSER,
     ".docx": DocxParser(),
-    ".doc": DocxParser(),
+    ".doc": LegacyFormatParser(".docx", DocxParser()),
     ".xlsx": ExcelParser(),
-    ".xls": ExcelParser(),
+    ".xls": LegacyFormatParser(".xlsx", ExcelParser()),
     ".pptx": PptxParser(),
-    ".ppt": PptxParser(),
+    ".ppt": LegacyFormatParser(".pptx", PptxParser()),
     ".ipynb": IpynbParser(),
     # Image files via OCR (PaddleOCR, optional dependency)
     ".png": _OCR_PARSER,

@@ -288,4 +288,4 @@ class ExcelParser(FileParser):
 
     @property
     def supported_extensions(self) -> list[str]:
-        return [".xlsx", ".xls"]
+        return [".xlsx"]

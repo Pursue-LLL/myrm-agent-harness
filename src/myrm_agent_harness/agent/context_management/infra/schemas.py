@@ -12,7 +12,7 @@
 - CompactToolCall: Compact tool call dataclass (compressed tool call format)
 - CompressionIntent: Structured compression focus (injected by server / plane)
 - StructuredSummary: Structured summary dataclass (deterministic output, not free-form)
-- ContextConfig: Context configuration (compress_threshold, summarize_threshold, keep_recent_calls, compress_start_ratio)
+- ContextConfig: Context configuration (compress_threshold, summarize_threshold, keep_recent_calls, compress_start_ratio, compaction_inactivity_timeout_s, compaction_total_ceiling_s)
 - ToolProtectionConfig: Tool protection configuration (defines non-compressible tools)
 - EvictedToolCall: Evicted tool call dataclass (contains original uncompressed content)
 - SummaryPersistCallback: Summary persistence callback protocol (dependency inversion)
@@ -127,6 +127,15 @@ class ContextConfig:
 
     # Memory forgetting half-life in days. Frontend can tune the agent's forgetting curve.
     time_decay_half_life_days: float = 90.0
+
+    # Summarization inactivity timeout: if no streaming token arrives within this
+    # window, the summarization call is considered hung and will be cancelled.
+    # The cancelled summarization degrades to deterministic fallback.
+    compaction_inactivity_timeout_s: float = 90.0
+
+    # Summarization total ceiling: absolute maximum wall-clock time for a single
+    # summarization call. Prevents degenerate trickle streams from holding a turn.
+    compaction_total_ceiling_s: float = 600.0
 
     def _effective_ratio(self) -> float | None:
         """Return clamped compress_start_ratio or None for default behavior."""

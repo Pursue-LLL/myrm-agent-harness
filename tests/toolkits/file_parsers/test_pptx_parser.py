@@ -14,7 +14,7 @@ import pytest
 from pptx import Presentation
 from pptx.util import Inches
 
-from myrm_agent_harness.toolkits.file_parsers import PptxParser, get_parser, is_supported
+from myrm_agent_harness.toolkits.file_parsers import LegacyFormatParser, PptxParser, get_parser, is_supported
 
 
 class TestPptxParserRegistry:
@@ -33,7 +33,10 @@ class TestPptxParserRegistry:
     def test_supported_extensions(self) -> None:
         parser = PptxParser()
         assert ".pptx" in parser.supported_extensions
-        assert ".ppt" in parser.supported_extensions
+
+    def test_ppt_uses_legacy_parser(self) -> None:
+        parser = get_parser("old.ppt")
+        assert isinstance(parser, LegacyFormatParser)
 
 
 class TestPptxParserBasic:

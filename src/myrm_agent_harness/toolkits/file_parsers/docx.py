@@ -5,7 +5,7 @@ Uses python-docx for parsing DOCX files with support for:
 - List item formatting (bullet and numbered)
 - Table extraction with Markdown output and merged cell deduplication
 - Document-order interleaving of paragraphs, lists, and tables
-- Structure mode: JSON metadata with paragraph IDs, styles, table structures for incremental edits
+- Structure mode: JSON metadata with paragraph IDs, styles, table cell map (row/col/value) for incremental edits and form filling
 
 [INPUT]
 - (none)
@@ -160,17 +160,31 @@ class DocxParser(FileParser):
                             cells.append("")
                         else:
                             seen_tc.add(tc_id)
-                            cells.append(cell.text.strip()[:100])
+                            cells.append(cell.text.strip()[:200])
                     rows_data.append(cells)
+
+                num_rows = len(rows_data)
+                num_cols = len(rows_data[0]) if rows_data else 0
 
                 tbl_info: dict[str, object] = {
                     "type": "table",
                     "index": element_idx,
-                    "rows": len(rows_data),
-                    "cols": len(rows_data[0]) if rows_data else 0,
+                    "rows": num_rows,
+                    "cols": num_cols,
                 }
                 if rows_data:
                     tbl_info["header_cells"] = rows_data[0][:10]
+                    cell_map: list[dict[str, str | int]] = []
+                    for r_idx, row_cells in enumerate(rows_data):
+                        for c_idx, cell_text in enumerate(row_cells):
+                            if cell_text:
+                                cell_map.append({"r": r_idx, "c": c_idx, "v": cell_text})
+                                if len(cell_map) >= 500:
+                                    break
+                        if len(cell_map) >= 500:
+                            break
+                    if cell_map:
+                        tbl_info["cells"] = cell_map
                 elements.append(tbl_info)
 
             element_idx += 1
@@ -235,4 +249,4 @@ class DocxParser(FileParser):
 
     @property
     def supported_extensions(self) -> list[str]:
-        return [".docx", ".doc"]
+        return [".docx"]

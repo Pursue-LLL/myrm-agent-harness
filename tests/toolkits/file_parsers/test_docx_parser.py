@@ -13,7 +13,7 @@ import tempfile
 import pytest
 from docx import Document
 
-from myrm_agent_harness.toolkits.file_parsers import DocxParser, get_parser, is_supported
+from myrm_agent_harness.toolkits.file_parsers import DocxParser, LegacyFormatParser, get_parser, is_supported
 
 
 class TestDocxParserRegistry:
@@ -32,7 +32,10 @@ class TestDocxParserRegistry:
     def test_supported_extensions(self) -> None:
         parser = DocxParser()
         assert ".docx" in parser.supported_extensions
-        assert ".doc" in parser.supported_extensions
+
+    def test_doc_uses_legacy_parser(self) -> None:
+        parser = get_parser("old.doc")
+        assert isinstance(parser, LegacyFormatParser)
 
 
 class TestDocxParserBasic:
@@ -487,6 +490,11 @@ class TestDocxParserStructure:
             assert tables[0]["cols"] == 2
             assert "Name" in tables[0]["header_cells"]
             assert "Age" in tables[0]["header_cells"]
+            # cell_map with row/col coordinates
+            assert "cells" in tables[0]
+            cells = tables[0]["cells"]
+            assert any(c["r"] == 1 and c["c"] == 0 and c["v"] == "Alice" for c in cells)
+            assert any(c["r"] == 2 and c["c"] == 1 and c["v"] == "25" for c in cells)
         finally:
             os.unlink(tmp)
 

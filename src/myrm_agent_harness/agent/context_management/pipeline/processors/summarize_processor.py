@@ -20,6 +20,8 @@ Design:
 9. Anti-consecutive-summarize: skip one API token check after summarization to prevent
    stale API values from triggering an infinite loop
 10. Cold Cache Drain Architecture: bypass when cache is hot to protect Prompt Cache
+11. Cancellation-safe guard: finally block ensures asyncio tasks are cleaned up on all
+    exit paths (normal, timeout, external CancelledError)
 
 [INPUT]
 - agent.context_management.infra.schemas::DEFAULT_CONTEXT_CONFIG (POS: Planner Schema Definitions)
@@ -28,11 +30,12 @@ Design:
 - SummarizeProcessor: class — Summarize Processor
 
 [POS]
-Provides SummarizeProcessor.
+Provides SummarizeProcessor with progress-aware timeout and cancellation-safe task cleanup.
 """
 
 from __future__ import annotations
 
+import asyncio
 import re
 import time
 
@@ -46,6 +49,11 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
 
 from ...infra.schemas import ContextConfig, StructuredSummary
+from ...strategies.progress_timeout import (
+    InactivityTimeoutError,
+    ProgressClock,
+    TotalCeilingTimeoutError,
+)
 from ...strategies.summarizer import generate_structured_summary, should_summarize
 from ...strategies.summary_builder import (
     create_summary_message,
@@ -281,7 +289,7 @@ class SummarizeProcessor(BaseProcessor):
         pre_compact_message = get_pre_compact_message(context)
 
         try:
-            context.messages, summary = await generate_structured_summary(
+            context.messages, summary = await _guarded_summarize(
                 messages=context.messages,
                 llm=summarize_llm,
                 chat_id=context.chat_id,
@@ -289,6 +297,16 @@ class SummarizeProcessor(BaseProcessor):
                 focus_topic=focus_topic,
                 pre_compact_message=pre_compact_message,
             )
+        except (InactivityTimeoutError, TotalCeilingTimeoutError) as timeout_exc:
+            prev = _get_failures()
+            _set_failures(prev + 1, "transient")
+            _record_fallback_call()
+            circuit_breaker_failures_total.labels(component="summarize", error_type="timeout").inc()
+            logger.warning(
+                "[Summarize] Progress-aware timeout (%s) — degrading to deterministic fallback",
+                timeout_exc,
+            )
+            return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
         except Exception as exc:
             from myrm_agent_harness.observability.auth_detector import (
                 detect_auth_failure,
@@ -505,3 +523,85 @@ def _extract_focus_topic(metadata: dict[str, object]) -> str:
         if isinstance(hint, str):
             return hint.strip()
     return ""
+
+
+# ---------------------------------------------------------------------------
+# Progress-aware timeout guard
+# ---------------------------------------------------------------------------
+
+
+async def _guarded_summarize(
+    messages: list[BaseMessage],
+    llm: object,
+    chat_id: str | None,
+    config: ContextConfig,
+    focus_topic: str,
+    pre_compact_message: BaseMessage | None,
+) -> tuple[list[BaseMessage], StructuredSummary]:
+    """Wrap generate_structured_summary with inactivity + total ceiling timeouts.
+
+    Monitors streaming progress via _DefaultProgressTracker. If the LLM call
+    stalls (no token for inactivity_timeout) or exceeds total ceiling, raises
+    InactivityTimeoutError / TotalCeilingTimeoutError which the caller converts
+    to a deterministic fallback.
+    """
+    inactivity_s = config.compaction_inactivity_timeout_s
+    ceiling_s = config.compaction_total_ceiling_s
+    tracker = ProgressClock()
+
+    async def _watchdog() -> None:
+        """Background coroutine that checks tracker liveness periodically."""
+        start = time.monotonic()
+        check_interval = min(inactivity_s / 3, 10.0)
+        while True:
+            await asyncio.sleep(check_interval)
+            elapsed = time.monotonic() - start
+            if elapsed >= ceiling_s:
+                raise TotalCeilingTimeoutError(elapsed)
+            idle = tracker.seconds_since_last_touch
+            if idle >= inactivity_s:
+                raise InactivityTimeoutError(idle)
+
+    async def _summarize() -> tuple[list[BaseMessage], StructuredSummary]:
+        return await generate_structured_summary(
+            messages=messages,
+            llm=llm,  # type: ignore[arg-type]
+            chat_id=chat_id,
+            config=config,
+            focus_topic=focus_topic,
+            pre_compact_message=pre_compact_message,
+            progress_tracker=tracker,
+        )
+
+    summarize_task = asyncio.ensure_future(_summarize())
+    watchdog_task = asyncio.ensure_future(_watchdog())
+
+    try:
+        done, pending = await asyncio.wait(
+            {summarize_task, watchdog_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
+
+        for task in done:
+            exc = task.exception()
+            if exc is not None:
+                raise exc
+            if task is summarize_task:
+                return task.result()
+
+        raise RuntimeError("Unexpected: no task completed with result")
+    except (InactivityTimeoutError, TotalCeilingTimeoutError):
+        raise
+    finally:
+        # Ensure tasks are cleaned up on ALL exit paths (including external CancelledError)
+        for task in (summarize_task, watchdog_task):
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(summarize_task, watchdog_task, return_exceptions=True)

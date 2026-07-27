@@ -229,4 +229,4 @@ class PptxParser(FileParser):
 
     @property
     def supported_extensions(self) -> list[str]:
-        return [".pptx", ".ppt"]
+        return [".pptx"]

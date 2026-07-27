@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from myrm_agent_harness.toolkits.file_parsers import LegacyFormatParser, get_parser
 from myrm_agent_harness.toolkits.file_parsers.excel import ExcelParser
 
 
@@ -222,4 +223,7 @@ class TestExcelParserEdgeCases:
     async def test_supported_extensions(self) -> None:
         parser = ExcelParser()
         assert ".xlsx" in parser.supported_extensions
-        assert ".xls" in parser.supported_extensions
+
+    def test_xls_uses_legacy_parser(self) -> None:
+        parser = get_parser("old.xls")
+        assert isinstance(parser, LegacyFormatParser)

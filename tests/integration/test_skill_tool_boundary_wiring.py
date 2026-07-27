@@ -203,3 +203,32 @@ async def test_discover_runtime_returns_bound_skills_xml() -> None:
     assert "<BoundSkills>" in result
     assert "<ExternalSkills>" not in result
     assert "github_pr" in result
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_discover_runtime_bm25_synonym_expansion_finds_skill() -> None:
+    """BM25 + SynonymExpander through skill_search_tool on mock_skills corpus."""
+    from tests.agent.meta_tools.skill_search.fixtures import (
+        create_comprehensive_mock_skills,
+    )
+
+    skills = create_comprehensive_mock_skills()
+    registry = ToolRegistry()
+    meta_tools = get_meta_tools(
+        skills,
+        _StubSkillBackend(skills),
+        registry=registry,
+        market_backend=_StubMarketBackend(),
+        enable_file_tools=False,
+        enable_shell_tools=False,
+        enable_answer_tool=False,
+    )
+    registry.register_many(meta_tools, source=ToolSource.META)
+    sync_discover_capability_tool(registry, skills=skills)
+
+    discover = next(t for t in registry.resolve() if t.name == _DISCOVER_TOOL)
+    result = await discover.ainvoke({"query": "auth", "mode": "bm25"})
+    assert "<BoundSkills>" in result
+    assert any(name in result for name in ("oauth_auth", "jwt_auth", "session_auth"))
+    assert "No capabilities found" not in result

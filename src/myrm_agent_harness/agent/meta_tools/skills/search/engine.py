@@ -47,7 +47,8 @@ class SkillSearchEngine:
 
         Args:
             skills: 技能列表
-            min_relevance_score: BM25最低相关性阈值, BM25分数范围[0, +∞), 通常[0, 10]
+            min_relevance_score: BM25 最低相关性阈值（anti-noise）。rank_bm25 弱匹配可为负分；
+                仅返回 score >= 阈值的命中。强相关命中典型区间 [0, 10]。
             enable_query_expansion: 是否启用查询扩展（同义词、拼写纠正）
         """
         self._skills = list(skills)
@@ -55,7 +56,9 @@ class SkillSearchEngine:
         self._enable_expansion = enable_query_expansion
         self._expander = QueryExpander() if enable_query_expansion else None
         # Normalize skill names: replace underscores with spaces for better tokenization
-        documents = [f"{s.name.replace('_', ' ')} {s.description}" for s in self._skills]
+        documents = [
+            f"{s.name.replace('_', ' ')} {s.description}" for s in self._skills
+        ]
         self._retriever = BM25Retriever(documents)
         logger.info(
             " SkillSearchEngine 已构建(%d 个技能已索引) | BM25阈值: %.2f | 查询扩展: %s",
@@ -64,7 +67,9 @@ class SkillSearchEngine:
             "enabled" if enable_query_expansion else "disabled",
         )
 
-    def search_bm25(self, query: str, top_k: int = SKILL_SEARCH_TOP_K) -> list[SkillSearchResult]:
+    def search_bm25(
+        self, query: str, top_k: int = SKILL_SEARCH_TOP_K
+    ) -> list[SkillSearchResult]:
         """BM25 自然语言搜索
 
         特殊查询:
@@ -77,8 +82,15 @@ class SkillSearchEngine:
             return []
 
         if query.strip() in ["*", "all"]:
-            logger.info(" [SkillSearch] 特殊查询 '%s' -> 返回全部 %d 个技能", query, len(self._skills))
-            return [SkillSearchResult(name=s.name, description=s.description, score=1.0) for s in self._skills]
+            logger.info(
+                " [SkillSearch] 特殊查询 '%s' -> 返回全部 %d 个技能",
+                query,
+                len(self._skills),
+            )
+            return [
+                SkillSearchResult(name=s.name, description=s.description, score=1.0)
+                for s in self._skills
+            ]
 
         start_time = time.perf_counter()
 
@@ -86,22 +98,34 @@ class SkillSearchEngine:
         if self._enable_expansion and self._expander:
             expanded_queries = self._expander.expand(query)
             if len(expanded_queries) > 1:
-                logger.info(" [QueryExpansion] '%s' -> %d variations", query, len(expanded_queries))
+                logger.info(
+                    " [QueryExpansion] '%s' -> %d variations",
+                    query,
+                    len(expanded_queries),
+                )
         else:
             expanded_queries = [query]
 
         # Search with all query variations and merge results
         all_results: dict[int, float] = {}  # idx -> max_score
         for expanded_query in expanded_queries:
-            raw_results = self._retriever.search(expanded_query, top_k=top_k * 2, only_relevant=False)
+            raw_results = self._retriever.search(
+                expanded_query, top_k=top_k * 2, only_relevant=False
+            )
             for idx, score in raw_results:
                 if score >= self._min_relevance_score:
                     all_results[idx] = max(all_results.get(idx, 0.0), score)
 
         # Sort by score (desc) and skill name (asc) for stable tie-break
-        sorted_results = sorted(all_results.items(), key=lambda x: (-x[1], self._skills[x[0]].name))[:top_k]
+        sorted_results = sorted(
+            all_results.items(), key=lambda x: (-x[1], self._skills[x[0]].name)
+        )[:top_k]
         results = [
-            SkillSearchResult(name=self._skills[idx].name, description=self._skills[idx].description, score=score)
+            SkillSearchResult(
+                name=self._skills[idx].name,
+                description=self._skills[idx].description,
+                score=score,
+            )
             for idx, score in sorted_results
         ]
 
@@ -127,7 +151,9 @@ class SkillSearchEngine:
 
         return results
 
-    def search_regex(self, pattern: str, top_k: int = SKILL_SEARCH_TOP_K) -> list[SkillSearchResult]:
+    def search_regex(
+        self, pattern: str, top_k: int = SKILL_SEARCH_TOP_K
+    ) -> list[SkillSearchResult]:
         """Regex 模式匹配搜索
 
         特殊模式:
@@ -137,8 +163,15 @@ class SkillSearchEngine:
             return []
 
         if pattern.strip() in [".*", "^.*$", ".+", "^.+$"]:
-            logger.info(" [SkillSearch] 特殊模式 '%s' -> 返回全部 %d 个技能", pattern, len(self._skills))
-            return [SkillSearchResult(name=s.name, description=s.description, score=1.0) for s in self._skills[:top_k]]
+            logger.info(
+                " [SkillSearch] 特殊模式 '%s' -> 返回全部 %d 个技能",
+                pattern,
+                len(self._skills),
+            )
+            return [
+                SkillSearchResult(name=s.name, description=s.description, score=1.0)
+                for s in self._skills[:top_k]
+            ]
 
         start_time = time.perf_counter()
         try:
@@ -151,11 +184,20 @@ class SkillSearchEngine:
         for skill in self._skills:
             text = f"{skill.name} {skill.description}"
             if regex.search(text):
-                results.append(SkillSearchResult(name=skill.name, description=skill.description, score=1.0))
+                results.append(
+                    SkillSearchResult(
+                        name=skill.name, description=skill.description, score=1.0
+                    )
+                )
                 if len(results) >= top_k:
                     break
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
-        logger.info(" [RegexSearch] 模式 '%s' | 结果数: %d | 耗时: %.2fms", pattern, len(results), elapsed_ms)
+        logger.info(
+            " [RegexSearch] 模式 '%s' | 结果数: %d | 耗时: %.2fms",
+            pattern,
+            len(results),
+            elapsed_ms,
+        )
 
         return results

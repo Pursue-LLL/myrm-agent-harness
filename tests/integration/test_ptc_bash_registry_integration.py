@@ -9,9 +9,16 @@ from pathlib import Path
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import create_bash_code_execute_tool
-from myrm_agent_harness.agent.skills.mcp.builtin_registry import get_builtin_tool_registry
-from myrm_agent_harness.agent.skills.mcp.ipc_proxy import IPCCallContext, _ipc_call_context
+from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
+    create_bash_code_execute_tool,
+)
+from myrm_agent_harness.agent.skills.mcp.builtin_registry import (
+    get_builtin_tool_registry,
+)
+from myrm_agent_harness.agent.skills.mcp.ipc_proxy import (
+    IPCCallContext,
+    _ipc_call_context,
+)
 
 
 def _ipc_ctx(session_id: str, workspace_root: Path) -> IPCCallContext:
@@ -40,8 +47,13 @@ def test_bash_tool_description_merges_registry_without_web_stubs() -> None:
     assert "myrm_tools.web_fetch(" not in ptc_section
     assert "函数名/参数与 Agent tool schema 一致" in description
     assert "myrm_tools.web_search_tool" not in description
-    assert "单次调用仍用 native tool" in description
-    assert set(registry.tool_names) == {"session_store", "session_load", "session_keys", "notify"}
+    assert "Single native tool calls — do not use PTC." in description
+    assert set(registry.tool_names) == {
+        "session_store",
+        "session_load",
+        "session_keys",
+        "notify",
+    }
     registry_mod._registry = None
 
 

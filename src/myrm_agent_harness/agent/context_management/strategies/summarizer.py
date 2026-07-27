@@ -2,6 +2,7 @@
 
 [INPUT]
 - schemas::StructuredSummary (POS: structured summary dataclass with Handoff fields)
+- progress_timeout::SummaryProgressTracker, ProgressClock (POS: progress-aware timeout primitives for stall detection)
 - summary_prompts::SUMMARY_PROMPT_TEMPLATE, SUMMARY_MERGE_PROMPT_TEMPLATE, FOCUS_TOPIC_SUFFIX (POS: summary prompt templates)
 - summary_parser (POS: summary parsing utilities)
 - summary_builder (POS: summary message reconstruction)
@@ -13,10 +14,10 @@
 
 [OUTPUT]
 - should_summarize: dual-signal check (local estimate OR API input_tokens)
-- generate_structured_summary: core summarization function with cache-safe message-prefix invocation (supports focus_topic)
+- generate_structured_summary: core summarization function with streaming progress tracking, cache-safe message-prefix invocation (supports focus_topic + progress_tracker)
 
 [POS]
-Context summarizer. Pure in-memory summarization strategy using structured summary schema (StructuredSummary + Handoff fields), cache-safe message-prefix invocation, and aux-model context guard (_guard_aux_context: auto-trims messages when summarizer LLM has a smaller context window, preventing context_length_exceeded hard failures).
+Context summarizer. Pure in-memory summarization strategy using structured summary schema (StructuredSummary + Handoff fields), streaming progress tracking for timeout-aware invocation, cache-safe message-prefix invocation, and aux-model context guard (_guard_aux_context: auto-trims messages when summarizer LLM has a smaller context window).
 
 """
 
@@ -34,6 +35,12 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
 
 from ..infra.schemas import ContextConfig, StructuredSummary
+from .progress_timeout import (
+    InactivityTimeoutError,
+    ProgressClock,
+    SummaryProgressTracker,
+    TotalCeilingTimeoutError,
+)
 from .summary_builder import create_summary_message, extract_recent_messages
 from .summary_parser import (
     extract_existing_summary,
@@ -129,21 +136,54 @@ async def _invoke_summary(
     prompt: str,
     dump_path: str,
     cache_prefix_messages: list[BaseMessage] | None = None,
+    progress_tracker: SummaryProgressTracker | None = None,
 ) -> StructuredSummary:
+    tracker = progress_tracker or ProgressClock()
+
     if parser:
         instructions = parser.get_format_instructions()
         final_prompt = f"{prompt}\n\n{instructions}"
-        response = await llm.ainvoke(_build_summary_invocation_messages(final_prompt, cache_prefix_messages))
+        messages = _build_summary_invocation_messages(final_prompt, cache_prefix_messages)
+        response = await _stream_with_progress(llm, messages, tracker)
         parsed = parser.invoke(response)
         summary = parsed.to_structured_summary()
     else:
-        summary = await structured_llm.ainvoke(  # type: ignore
-            _build_summary_invocation_messages(prompt, cache_prefix_messages)
-        )
+        messages = _build_summary_invocation_messages(prompt, cache_prefix_messages)
+        tracker.touch()
+        summary = await structured_llm.ainvoke(messages)  # type: ignore
+        tracker.touch()
 
     summary.context_dump_path = dump_path
     summary = _redact_summary_fields(summary)
     return summary
+
+
+async def _stream_with_progress(
+    llm: BaseChatModel,
+    messages: list[BaseMessage],
+    tracker: SummaryProgressTracker | ProgressClock,
+) -> AIMessage:
+    """Stream LLM response token-by-token, calling tracker.touch() on each chunk.
+
+    Falls back to ainvoke if the model does not support astream or if
+    astream fails (e.g. in test mocks that don't implement async iteration).
+    """
+    try:
+        stream = llm.astream(messages)
+        if not hasattr(stream, "__aiter__"):
+            raise NotImplementedError("astream did not return an async iterator")
+        chunks: list[str] = []
+        async for chunk in stream:
+            token = chunk.content if hasattr(chunk, "content") else str(chunk)
+            if token:
+                chunks.append(token)
+                tracker.touch()
+        return AIMessage(content="".join(chunks))
+    except (NotImplementedError, TypeError, AttributeError):
+        tracker.touch()
+        response = await llm.ainvoke(messages)
+        tracker.touch()
+        return response if isinstance(response, AIMessage) else AIMessage(content=str(getattr(response, "content", response)))
 
 
 def _build_summary_invocation_messages(
@@ -292,6 +332,7 @@ async def generate_structured_summary(
     config: ContextConfig | None = None,
     focus_topic: str = "",
     pre_compact_message: BaseMessage | None = None,
+    progress_tracker: SummaryProgressTracker | None = None,
 ) -> tuple[list[BaseMessage], StructuredSummary]:
     """Generate structured summary and rebuild message list (pure in-memory).
 
@@ -327,13 +368,16 @@ async def generate_structured_summary(
                 messages,
                 entities,
                 focus_topic=focus_topic,
+                progress_tracker=progress_tracker,
             )
         else:
             summary = existing_summary
             summary.context_dump_path = dump_path
             logger.warning(" No new content, keeping existing summary")
     else:
-        summary = await _summarize_full_with_audit(llm, messages, dump_path, entities, focus_topic=focus_topic)
+        summary = await _summarize_full_with_audit(
+            llm, messages, dump_path, entities, focus_topic=focus_topic, progress_tracker=progress_tracker
+        )
 
     tail_budget = int((cfg.max_context_tokens or 128000) * getattr(cfg, "tail_budget_ratio", 0.20))
     recent_messages = extract_recent_messages(messages, tail_budget)
@@ -506,6 +550,7 @@ async def _summarize_full_with_audit(
     dump_path: str,
     entities: set[str],
     focus_topic: str = "",
+    progress_tracker: SummaryProgressTracker | None = None,
 ) -> StructuredSummary:
     """Generate a full summary with quality audit and retry."""
     from .summary_auditor import audit_summary, build_retry_guidance
@@ -542,6 +587,7 @@ async def _summarize_full_with_audit(
                 prompt,
                 dump_path,
                 cache_prefix_messages=guarded_messages,
+                progress_tracker=progress_tracker,
             )
         except Exception as e:
             logger.warning(" Structured output failed: %s", e)
@@ -585,6 +631,7 @@ async def _summarize_incremental_with_audit(
     all_messages: list[BaseMessage],
     entities: set[str],
     focus_topic: str = "",
+    progress_tracker: SummaryProgressTracker | None = None,
 ) -> StructuredSummary:
     """Generate an incremental summary with quality audit and retry."""
     from .summary_auditor import audit_summary, build_retry_guidance
@@ -624,6 +671,7 @@ async def _summarize_incremental_with_audit(
                 prompt,
                 dump_path,
                 cache_prefix_messages=guarded_new_messages,
+                progress_tracker=progress_tracker,
             )
         except Exception as e:
             logger.warning(" Structured output failed: %s", e)

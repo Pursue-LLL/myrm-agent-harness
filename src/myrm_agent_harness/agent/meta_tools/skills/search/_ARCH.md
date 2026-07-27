@@ -14,7 +14,7 @@ Skill search module.
 | query_expansion.py | Core | Improves search robustness through a clean, modular pipeline. | ✅ |
 | query_normalizer.py | Core | Handles case normalization, punctuation removal, underscore replacement, | ✅ |
 | query_parser.py | Core | - Detects "/" delimiter to identify multilingual format | ✅ |
-| synonym_expander.py | Core | Loads synonyms from external YAML config if available. | ✅ |
+| synonym_expander.py | Core | Synonym expansion with whole-word English matching and YAML-backed mappings. | ✅ |
 | types.py | Config | Provides SearchMetadata, SkillSearchResult. | ✅ |
 | typo_corrector.py | Core | Loads typo corrections from external YAML config if available. | ✅ |
 

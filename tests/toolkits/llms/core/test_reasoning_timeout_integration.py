@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
+from myrm_agent_harness.agent.config.litellm_routing import normalize_env_model_selection_string
 from myrm_agent_harness.toolkits.llms.core.llm import create_litellm_model
 from myrm_agent_harness.toolkits.llms.core.reasoning_timeout import get_reasoning_timeout_floor
 
@@ -145,6 +146,7 @@ class TestReasoningTimeoutRealAPI:
         model = os.environ.get("LITE_MODEL", "")
         if not all([api_key, base_url, model]):
             pytest.skip("LITE_MODEL/LITE_API_KEY/LITE_BASE_URL not configured")
+        model = normalize_env_model_selection_string(model)
         return {"api_key": api_key, "base_url": base_url, "model": model}
 
     def test_real_call_uses_default_timeout(self, env_config: dict[str, str]) -> None:

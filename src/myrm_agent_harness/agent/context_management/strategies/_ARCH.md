@@ -16,7 +16,8 @@ Three-tier context reduction strategies: Filter, Compress, Summarize.
 | integrity_guard.py | Core | Tool pair integrity guard for compacted message histories. | ✅ |
 | priority_signals.py | Core | Priority signal helpers for compression planning. | ✅ |
 | smart_fallback.py | Core | Smart fallback strategy for extreme token overflow scenarios. | ✅ |
-| summarizer.py | Core | Context summarizer. Pure in-memory summarization strategy using structured summary schema, cache-safe message-prefix invocation, and aux-model context guard (auto-trims messages when summarizer LLM has a smaller context window). | ✅ |
+| progress_timeout.py | Core | Progress-aware timeout primitives (SummaryProgressTracker Protocol, ProgressClock, InactivityTimeoutError, TotalCeilingTimeoutError) for detecting stalled summarization. | ✅ |
+| summarizer.py | Core | Context summarizer. Pure in-memory summarization strategy using structured summary schema, cache-safe message-prefix invocation, streaming progress tracking, and aux-model context guard. | ✅ |
 | summary_auditor.py | Core | Quality gate for the summarizer.  Runs *after* LLM generates a summary | ✅ |
 | summary_builder.py | Core | Message reconstruction after summarisation. | ✅ |
 | summary_parser.py | Core | Summary parsing and message formatting utilities. | ✅ |

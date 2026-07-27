@@ -1,13 +1,15 @@
 """Document file reader for file_read_tool
 
-Reads structured documents (.docx, .xlsx, .xls, .pptx, .ppt, .ipynb) via Harness
-file_parsers, returning AI-friendly Markdown text.
+Reads structured documents (.docx, .doc, .xlsx, .xls, .pptx, .ppt, .ipynb) via Harness
+file_parsers, returning AI-friendly Markdown text. Legacy OLE2 formats (.doc/.xls/.ppt)
+are auto-converted via LegacyFormatParser (soffice headless).
 
 [INPUT]
 - toolkits.file_parsers::DocxParser (POS: Word document parser)
 - toolkits.file_parsers::ExcelParser (POS: Excel file parser)
 - toolkits.file_parsers::PptxParser (POS: PowerPoint document parser)
 - toolkits.file_parsers::IpynbParser (POS: Jupyter Notebook parser)
+- toolkits.file_parsers::LegacyFormatParser (POS: OLE2 legacy format parser with soffice conversion)
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
 
 [OUTPUT]
@@ -15,7 +17,7 @@ file_parsers, returning AI-friendly Markdown text.
 - read_document_as_text: Read document and return parsed Markdown text
 
 [POS]
-Document file reader for file_read_tool. Converts .docx/.xlsx/.xls/.pptx/.ppt/.ipynb
+Document file reader for file_read_tool. Converts .docx/.doc/.xlsx/.xls/.pptx/.ppt/.ipynb
 to Markdown via existing file_parsers.
 """
 
@@ -34,14 +36,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-DOCUMENT_EXTENSIONS: frozenset[str] = frozenset({".docx", ".xlsx", ".xls", ".pptx", ".ppt", ".ipynb"})
+DOCUMENT_EXTENSIONS: frozenset[str] = frozenset({".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt", ".ipynb"})
 
 _FALLBACK_MAX_CHARS = 200_000
 _EXCEL_STRUCTURE_THRESHOLD_BYTES = 50 * 1024
 
 
 def is_document_path(path: str) -> bool:
-    """Detect if path is a structured document file (.docx/.xlsx/.xls/.pptx/.ppt/.ipynb)"""
+    """Detect if path is a structured document file (.docx/.doc/.xlsx/.xls/.pptx/.ppt/.ipynb)"""
     suffix = PurePosixPath(path).suffix.lower()
     return suffix in DOCUMENT_EXTENSIONS
 
@@ -96,13 +98,16 @@ async def read_document_as_text(
             from myrm_agent_harness.toolkits.file_parsers.ipynb import IpynbParser
 
             parser = IpynbParser()
-        elif suffix == ".docx":
+        elif suffix in (".docx", ".doc"):
             from myrm_agent_harness.toolkits.file_parsers.docx import DocxParser
 
-            if parse_mode == "structure":
-                parser = DocxParser(output_format="structure")
+            docx_delegate = DocxParser(output_format="structure") if parse_mode == "structure" else DocxParser()
+            if suffix == ".doc":
+                from myrm_agent_harness.toolkits.file_parsers import LegacyFormatParser
+
+                parser = LegacyFormatParser(".docx", docx_delegate)
             else:
-                parser = DocxParser()
+                parser = docx_delegate
         elif suffix in (".xlsx", ".xls"):
             from myrm_agent_harness.toolkits.file_parsers.excel import ExcelParser
 
@@ -111,16 +116,26 @@ async def read_document_as_text(
                 effective_mode = "structure"
 
             if effective_mode in ("structure", "audit"):
-                parser = ExcelParser(output_format=effective_mode)
+                excel_delegate = ExcelParser(output_format=effective_mode)
             else:
-                parser = ExcelParser()
+                excel_delegate = ExcelParser()
+
+            if suffix == ".xls":
+                from myrm_agent_harness.toolkits.file_parsers import LegacyFormatParser
+
+                parser = LegacyFormatParser(".xlsx", excel_delegate)
+            else:
+                parser = excel_delegate
         elif suffix in (".pptx", ".ppt"):
             from myrm_agent_harness.toolkits.file_parsers.pptx import PptxParser
 
-            if parse_mode == "structure":
-                parser = PptxParser(output_format="structure")
+            pptx_delegate = PptxParser(output_format="structure") if parse_mode == "structure" else PptxParser()
+            if suffix == ".ppt":
+                from myrm_agent_harness.toolkits.file_parsers import LegacyFormatParser
+
+                parser = LegacyFormatParser(".pptx", pptx_delegate)
             else:
-                parser = PptxParser()
+                parser = pptx_delegate
         else:
             return f"[Document: {path}] (Unsupported document format: {suffix})"
 

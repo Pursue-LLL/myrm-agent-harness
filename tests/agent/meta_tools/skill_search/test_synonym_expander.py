@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.agent.meta_tools.skills.search.synonym_expander import SynonymExpander
+from myrm_agent_harness.agent.meta_tools.skills.search.synonym_expander import (
+    SynonymExpander,
+)
 
 
 class TestSynonymExpander:
@@ -68,7 +70,9 @@ class TestSynonymExpander:
         expander = SynonymExpander()
         expanded = expander.expand("authenticate user")
         assert expanded == ["authenticate user"]
-        assert not any("enticate user" in q and q != "authenticate user" for q in expanded)
+        assert not any(
+            "enticate user" in q and q != "authenticate user" for q in expanded
+        )
 
     def test_expand_whole_word_auth(self) -> None:
         """Whole-word auth should still expand to authentication."""
@@ -76,6 +80,24 @@ class TestSynonymExpander:
         expanded = expander.expand("auth token")
         assert "auth token" in expanded
         assert any("authentication token" in q for q in expanded)
+
+    def test_hardcoded_fallback_when_config_empty(self) -> None:
+        """Use built-in mappings when external config sections are empty."""
+        from unittest.mock import patch
+
+        from myrm_agent_harness.agent.meta_tools.skills.search.config_loader import (
+            ConfigLoader,
+        )
+
+        with patch.object(
+            ConfigLoader,
+            "load_synonyms",
+            return_value={"english": {}, "chinese": {}, "typos": {}},
+        ):
+            expander = SynonymExpander()
+        expanded = expander.expand("database")
+        assert "database" in expanded
+        assert any("db" in q for q in expanded)
 
     def test_external_config_loading(self) -> None:
         """Test that external config can be loaded"""
