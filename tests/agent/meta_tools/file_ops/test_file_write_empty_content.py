@@ -16,7 +16,7 @@ _DUMMY_CONFIG = RunnableConfig()
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("empty_content", ["", "   ", "\n\t  \n"])
+@pytest.mark.parametrize("empty_content", ["", "   ", "\n\t  \n", "\u200b", "\ufeff", "\u200b\u2060"])
 async def test_file_write_rejects_empty_content(empty_content: str) -> None:
     tool = create_file_write_tool()
 

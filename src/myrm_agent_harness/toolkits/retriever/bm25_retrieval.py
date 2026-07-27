@@ -244,7 +244,7 @@ def preprocess_text(text: str, enable_english_enhancement: bool = False) -> list
 
     Args:
         text: Raw text
-        enable_english_enhancement: Whether to enable stemming and stopword filtering for English
+        enable_english_enhancement: Whether to enable native English stopword + suffix normalization.
 
     Returns:
         List of tokens
@@ -329,7 +329,7 @@ class BM25Retriever:
 
         Args:
             documents: List of documents, each a string
-            enable_english_enhancement: Enable English enhancement (default off to avoid overhead)
+            enable_english_enhancement: Enable native English normalization (default off to avoid overhead)
         """
         self.documents = documents
         self.enable_english_enhancement = enable_english_enhancement

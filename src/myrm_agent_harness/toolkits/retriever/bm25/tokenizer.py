@@ -5,11 +5,12 @@ Lazy-loaded tokenizer supporting CJK/English hybrid tokenization.
 Core capabilities:
 - Chinese segmentation: jieba (precise + search-engine modes)
 - CJK bigram fallback: character unigram + bigram when jieba unavailable
-- English enhancement: NLTK stemming + stopword filtering (optional)
+- English enhancement: zero-dependency stopword + suffix normalization
 - Smart detection: auto-identifies mixed CJK/English text
 
 [INPUT]
-(no external module dependencies at import time — jieba and nltk are lazy-loaded)
+- retriever.bm25.english_normalizer::normalize_english_token (POS: Zero-dependency English stopword + suffix normalization for BM25)
+(no external module dependencies at import time — jieba is lazy-loaded)
 
 [OUTPUT]
 TokenizerService: Singleton tokenizer with tokenize method and backend property
@@ -23,11 +24,14 @@ the BM25 inverted index with properly segmented tokens.
 
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import re
-import threading
 from typing import Literal
+
+from myrm_agent_harness.toolkits.retriever.bm25.english_normalizer import normalize_english_token
 
 logger = logging.getLogger(__name__)
 
@@ -61,20 +65,15 @@ def _cjk_bigram_tokenize(text: str) -> list[str]:
 class TokenizerService:
     """Unified tokenizer service (singleton).
 
-    Lazy-loads jieba and NLTK to avoid startup overhead.
+    Lazy-loads jieba to avoid startup overhead.
     Falls back to CJK bigram tokenization when jieba is unavailable.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._jieba = None
         self._initialized = False
 
-        self._stemmer = None
-        self._stopwords: set[str] | None = None
-        self._nltk_init_failed = False
-        self._nltk_init_lock = threading.Lock()
-
-    def _init_jieba_sync(self):
+    def _init_jieba_sync(self) -> None:
         """Sync-initialize jieba tokenizer (idempotent)."""
         if self._jieba is not None:
             return
@@ -98,83 +97,30 @@ class TokenizerService:
         self._initialize()
         return "jieba" if self._jieba else "bigram_fallback"
 
-    def _initialize(self):
+    def _initialize(self) -> None:
         """Initialize tokenizer (sync)."""
         if not self._initialized:
             self._init_jieba_sync()
             self._initialized = True
 
-    async def _async_initialize(self):
+    async def _async_initialize(self) -> None:
         """Initialize tokenizer (async)."""
         if not self._initialized:
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self._init_jieba_sync)
             self._initialized = True
 
-    def _lazy_init_nltk(self) -> bool:
-        """Lazy-load NLTK on first use.
-
-        Returns:
-            True if initialization succeeded, False otherwise.
-        """
-        if self._nltk_init_failed:
-            return False
-
-        if self._stemmer is not None:
-            return True
-
-        with self._nltk_init_lock:
-            # Double-check locking
-            if self._stemmer is not None:
-                return True
-
-            try:
-                from nltk.corpus import stopwords
-                from nltk.stem import PorterStemmer
-
-                try:
-                    self._stopwords = set(stopwords.words("english"))
-                except LookupError:
-                    logger.warning("NLTK stopwords not found, downloading...")
-                    import nltk
-
-                    nltk.download("stopwords", quiet=True)
-                    self._stopwords = set(stopwords.words("english"))
-
-                self._stemmer = PorterStemmer()
-                logger.info("NLTK initialized successfully")
-                return True
-
-            except (ImportError, TypeError):
-                logger.warning("NLTK not installed or broken, English enhancement disabled")
-                self._nltk_init_failed = True
-                return False
-            except Exception as e:
-                logger.warning(f"NLTK initialization failed: {e}, falling back to basic")
-                self._nltk_init_failed = True
-                return False
-
     def _enhance_english(self, tokens: list[str]) -> list[str]:
-        """Apply stemming and stopword filtering to English tokens."""
-        if not self._lazy_init_nltk():
-            return tokens
-
-        enhanced = []
+        """Apply stopword filtering and suffix normalization to English tokens."""
+        result: list[str] = []
         for token in tokens:
             if _ENGLISH_WORD_PATTERN.match(token):
-                token_lower = token.lower()
-
-                if token_lower in self._stopwords:
-                    continue
-
-                try:
-                    token = self._stemmer.stem(token_lower)
-                except Exception:
-                    token = token_lower
-
-            enhanced.append(token)
-
-        return enhanced
+                normalized = normalize_english_token(token)
+                if normalized is not None:
+                    result.append(normalized)
+            else:
+                result.append(token)
+        return result
 
     def tokenize(
         self,
@@ -189,7 +135,7 @@ class TokenizerService:
             mode: Tokenization mode.
                 - simple: precise segmentation (for BM25 index building)
                 - search: search-engine mode (higher recall, for queries)
-            enable_english_enhancement: Enable English stemming + stopword filtering.
+            enable_english_enhancement: Enable English stopword + suffix normalization.
 
         Returns:
             List of tokens.
@@ -202,11 +148,8 @@ class TokenizerService:
             else:
                 tokens = list(self._jieba.cut(text))
         else:
-            # CJK bigram fallback: split CJK into char unigrams + bigrams
-            # for partial-match capability; non-CJK uses word splitting.
             tokens = _cjk_bigram_tokenize(text)
 
-        # Filter whitespace-only tokens
         tokens = [t for token in tokens if (t := token.strip())]
 
         if enable_english_enhancement:
@@ -214,21 +157,13 @@ class TokenizerService:
 
         return tokens
 
-    async def preload(self, enable_english_enhancement: bool = False):
-        """Async-preload tokenizer (jieba + optionally NLTK)."""
+    async def preload(self, *, enable_english_enhancement: bool = False) -> None:
+        """Async-preload tokenizer (jieba; English normalizer is zero-dep, no preload needed)."""
+        _ = enable_english_enhancement
         logger.info("Preloading tokenizer...")
         try:
             await self._async_initialize()
             logger.info("jieba preloaded successfully")
-
-            if enable_english_enhancement:
-                loop = asyncio.get_running_loop()
-                success = await loop.run_in_executor(None, self._lazy_init_nltk)
-                if success:
-                    logger.info("NLTK preloaded successfully")
-                else:
-                    logger.warning("NLTK preload failed, English enhancement will degrade gracefully")
-
         except Exception as e:
             logger.error(f"Tokenizer preload failed: {e}")
             raise
@@ -243,6 +178,6 @@ def get_tokenizer_service() -> TokenizerService:
     return _tokenizer_service
 
 
-async def preload_tokenizer(enable_english_enhancement: bool = False):
+async def preload_tokenizer(enable_english_enhancement: bool = False) -> None:
     """Preload tokenizer at application startup (convenience function)."""
     await _tokenizer_service.preload(enable_english_enhancement=enable_english_enhancement)

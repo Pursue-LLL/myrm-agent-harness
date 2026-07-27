@@ -185,3 +185,24 @@ class TestSkillSearchEngine:
                     f"{results1[i].name} (score={results1[i].score:.6f}) should come before "
                     f"{results1[i + 1].name} (score={results1[i + 1].score:.6f})"
                 )
+
+    def test_english_morphology_recall(self) -> None:
+        """-ing query form should match indexed description stem with BM25 score > 0."""
+        skills = [
+            SkillMetadata(
+                name="weather_forecast_skill",
+                description="Weather forecast query service for cities worldwide",
+                storage_skill_id="weather_forecast_skill",
+            ),
+            SkillMetadata(
+                name="payment_status_skill",
+                description="Payment status lookup and reconciliation",
+                storage_skill_id="payment_status_skill",
+            ),
+        ]
+        engine = SkillSearchEngine(skills, min_relevance_score=0.0)
+        results = engine.search_bm25("weather forecasting", top_k=2)
+
+        assert results
+        assert results[0].name == "weather_forecast_skill"
+        assert results[0].score > 0.0

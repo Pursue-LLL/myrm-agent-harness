@@ -181,10 +181,9 @@ def test_performance_comparison(large_document_corpus, test_queries):
     print(f"性能开销:         +{overhead_pct:.1f}%")
     print(f"{'=' * 70}")
 
-    # NLTK cold-start overhead varies wildly by system load (from 200% to 5000%+).
-    # Only assert warm-path per-query latency; cold-start ratio is informational.
+    # English-enhancement overhead varies with corpus size; ratio is informational only.
     if overhead_pct > 2000:
-        pytest.skip(f"NLTK cold-start overhead ({overhead_pct:.0f}%) too noisy to assert under load")
+        pytest.skip(f"English enhancement overhead ({overhead_pct:.0f}%) too noisy to assert under load")
 
 
 def test_tokenizer_stats(large_document_corpus, test_queries):

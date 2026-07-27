@@ -1876,7 +1876,6 @@ all = [
     { name = "imagequant", marker = "python_full_version < '3.14'" },
     { name = "jieba", marker = "python_full_version < '3.14'" },
     { name = "langchain-text-splitters", marker = "python_full_version < '3.14'" },
-    { name = "nltk", marker = "python_full_version < '3.14'" },
     { name = "numpy", marker = "python_full_version < '3.14'" },
     { name = "openinference-instrumentation-langchain", marker = "python_full_version < '3.14'" },
     { name = "openpyxl", marker = "python_full_version < '3.14'" },
@@ -1933,7 +1932,6 @@ qdrant = [
 retrieval = [
     { name = "jieba", marker = "python_full_version < '3.14'" },
     { name = "langchain-text-splitters", marker = "python_full_version < '3.14'" },
-    { name = "nltk", marker = "python_full_version < '3.14'" },
     { name = "numpy", marker = "python_full_version < '3.14'" },
     { name = "rank-bm25", marker = "python_full_version < '3.14'" },
     { name = "tenacity", marker = "python_full_version < '3.14'" },
@@ -1947,7 +1945,6 @@ web = [
 build = [
     { name = "build", marker = "python_full_version < '3.14'" },
     { name = "nuitka", marker = "python_full_version < '3.14'" },
-    { name = "pyyaml", marker = "python_full_version < '3.14'" },
 ]
 dev = [
     { name = "aiosqlite", marker = "python_full_version < '3.14'" },
@@ -1999,7 +1996,6 @@ requires-dist = [
     { name = "myrm-agent-harness-core-win32-arm64", marker = "platform_machine == 'ARM64' and sys_platform == 'win32' and extra == 'compiled-core'", specifier = "==0.1.0rc5" },
     { name = "myrm-agent-harness-core-win32-x64", marker = "platform_machine == 'AMD64' and sys_platform == 'win32' and extra == 'compiled-core'", specifier = "==0.1.0rc5" },
     { name = "nanoid", specifier = ">=2.0.0" },
-    { name = "nltk", marker = "extra == 'retrieval'", specifier = ">=3.9.4" },
     { name = "numpy", marker = "extra == 'retrieval'", specifier = ">=2.5.0" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'observability'", specifier = ">=0.1.67" },
     { name = "openpyxl", marker = "extra == 'file-parsers'", specifier = ">=3.1.5" },
@@ -2031,7 +2027,6 @@ provides-extras = ["browser", "qdrant", "retrieval", "acp", "image-processing", 
 build = [
     { name = "build", specifier = ">=1.5.0" },
     { name = "nuitka", specifier = ">=4.1.2" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
 ]
 dev = [
     { name = "aiosqlite", specifier = ">=0.22.1" },
@@ -2134,21 +2129,6 @@ source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple/" }
 sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/62/3c/c4ef2164a71c1a63d7f1ae411c4082c5fa872405106db60a4b7114989ad7/narwhals-2.22.1.tar.gz", hash = "sha256:d62920805a0a43b7ff8b54b0c0d3142d796f8a9301836ada37e573d6a33cbcd9", size = 647493, upload-time = "2026-06-05T12:34:34.051Z" }
 wheels = [
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/48/ca/36339329c4604adbcc99c899b7eb1ce1a555c499b6a6860757dc9bfed36d/narwhals-2.22.1-py3-none-any.whl", hash = "sha256:60567d774edf77db53906f89d9fbd164e66e56d66d388e1e6990f17ac33cfb53", size = 454815, upload-time = "2026-06-05T12:34:32.289Z" },
-]
-
-[[package]]
-name = "nltk"
-version = "3.9.4"
-source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple/" }
-dependencies = [
-    { name = "click", marker = "python_full_version < '3.14'" },
-    { name = "joblib", marker = "python_full_version < '3.14'" },
-    { name = "regex", marker = "python_full_version < '3.14'" },
-    { name = "tqdm", marker = "python_full_version < '3.14'" },
-]
-sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/74/a1/b3b4adf15585a5bc4c357adde150c01ebeeb642173ded4d871e89468767c/nltk-3.9.4.tar.gz", hash = "sha256:ed03bc098a40481310320808b2db712d95d13ca65b27372f8a403949c8b523d0", size = 2946864, upload-time = "2026-03-24T06:13:40.641Z" }
-wheels = [
-    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/9d/91/04e965f8e717ba0ab4bdca5c112deeab11c9e750d94c4d4602f050295d39/nltk-3.9.4-py3-none-any.whl", hash = "sha256:f2fa301c3a12718ce4a0e9305c5675299da5ad9e26068218b69d692fda84828f", size = 1552087, upload-time = "2026-03-24T06:13:38.47Z" },
 ]
 
 [[package]]

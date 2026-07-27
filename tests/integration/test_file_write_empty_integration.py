@@ -164,3 +164,22 @@ async def test_empty_write_records_mutation_failure_for_sse(workspace: Path) -> 
         reset_mutation_state()
 
     assert not (workspace / "notes" / "meeting.md").exists()
+
+
+@pytest.mark.asyncio
+async def test_zero_width_content_rejected_no_file_on_disk(workspace: Path) -> None:
+    target = workspace / "notes" / "zwsp.md"
+    executor = _make_local_executor(workspace)
+    token = set_executor(executor)
+    write_tool = create_file_write_tool()
+    try:
+        with pytest.raises(ToolError) as exc_info:
+            await write_tool.ainvoke(
+                {"path": "notes/zwsp.md", "content": "\u200b"},
+                config=_DUMMY_CONFIG,
+            )
+        assert "empty" in str(exc_info.value.user_hint).lower()
+    finally:
+        reset_executor(token)
+
+    assert not target.exists()

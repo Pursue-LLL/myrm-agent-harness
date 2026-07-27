@@ -39,6 +39,20 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Zero-width / BOM-only payloads bypass str.strip() but are not meaningful file content.
+_INVISIBLE_WRITE_CHARS = frozenset({"\u200b", "\ufeff", "\u2060"})
+
+
+def _is_blank_file_content(content: str) -> bool:
+    """True when content is empty, whitespace-only, or invisible-char-only."""
+    collapsed = content.strip()
+    if not collapsed:
+        return True
+    without_invisible = "".join(
+        ch for ch in collapsed if ch not in _INVISIBLE_WRITE_CHARS
+    ).strip()
+    return not without_invisible
+
 
 class FileWriteInput(BaseModel):
     """文件写入工具输入参数"""
@@ -112,7 +126,7 @@ def create_file_write_tool(skills: list[SkillMetadata] | None = None) -> BaseToo
         """
         logger.info("file_write_func called for path: %s", path)
         try:
-            if not content.strip():
+            if _is_blank_file_content(content):
                 raise ToolError(
                     message="Cannot write empty file content",
                     user_hint=(
