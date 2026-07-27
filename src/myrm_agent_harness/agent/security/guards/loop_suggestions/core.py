@@ -96,7 +96,8 @@ TOOL_SUGGESTIONS: dict[str, str] = {
         "Check: (1) URL format is correct (include http:// or https://), "
         "(2) website is accessible, (3) network connectivity, "
         "(4) wait_until parameter is appropriate (load/domcontentloaded/networkidle), "
-        "or (5) try a different URL or use 'web_search_tool' to find it."
+        "(5) for read-only pages try 'web_fetch_tool' instead (faster, cheaper), "
+        "or (6) use 'web_search_tool' to find the correct URL."
     ),
     "browser_interact_tool": (
         "Check: (1) use 'browser_snapshot_tool' to get current page structure and valid refs, "

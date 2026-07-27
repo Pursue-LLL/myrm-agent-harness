@@ -185,6 +185,14 @@ class TestGetToolSuggestion:
         s = get_tool_suggestion("memory_search_tool")
         assert "categories" in s or "profile_key" in s
 
+    def test_browser_navigate_suggests_web_fetch_for_read_only(self) -> None:
+        s = get_tool_suggestion("browser_navigate_tool")
+        assert "web_fetch_tool" in s
+
+    def test_web_fetch_suggests_browser_for_js_pages(self) -> None:
+        s = get_tool_suggestion("web_fetch_tool")
+        assert "browser_navigate_tool" in s
+
     def test_unknown_tool(self) -> None:
         assert get_tool_suggestion("unknown_tool_xyz") == DEFAULT_SUGGESTION
 
