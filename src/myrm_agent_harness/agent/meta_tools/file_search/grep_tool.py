@@ -16,7 +16,7 @@
 
 [POS]
 Content search tool (Claude Code compatible). Searches file contents for matching text patterns
-with regex support, flat path:line output, intelligent line truncation,
+with regex and literal (--fixed-strings) modes, flat path:line output, intelligent line truncation,
 and three-tier performance optimization (ripgrep > mmap+concurrency > pure Python).
 
 """
@@ -75,9 +75,14 @@ async def _ripgrep_search(
     context_lines: int,
     max_results: int,
     timeout_seconds: float = 10.0,
+    *,
+    literal: bool = False,
 ) -> list[dict[str, str | int]]:
     """Execute search using ripgrep (fastest tier). Returns raw match list."""
     cmd = ["rg", "--json"]
+
+    if literal:
+        cmd.append("--fixed-strings")
 
     if ignore_case:
         cmd.append("--ignore-case")
@@ -196,6 +201,10 @@ class GrepInput(BaseModel):
     path: str = Field(default=".", description="搜索路径（默认当前目录）")
     file_pattern: str = Field(default="**/*", description="文件匹配模式（默认所有文件）")
     ignore_case: bool = Field(default=False, description="是否忽略大小写（默认 False）")
+    literal: bool = Field(
+        default=False,
+        description="精确匹配模式：当 pattern 包含特殊字符（如 .()[]{}$^|*+?\\）时使用，跳过正则解析直接匹配文本",
+    )
     context_lines: int = Field(default=0, ge=0, le=10, description="匹配行前后的上下文行数（默认 0，最大 10）")
 
 
@@ -207,40 +216,22 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
     io_cfg = io_config or DEFAULT_FILE_IO_CONFIG
     regex_validator = RegexValidator(io_cfg)
 
-    tool_description = f"""搜索文件内容（支持正则表达式）。Output: one line per match as 'path:line_number: content'.
-
-用途：
-- 查找函数/类定义
-- 搜索变量引用
-- 代码审查
-- 查找 TODO/FIXME
+    tool_description = f"""搜索文件内容。Output: one line per match as 'path:line_number: content'.
 
 参数：
-- pattern: 搜索模式（必需，支持正则表达式）
+- pattern: 搜索模式（必需）
 - path: 搜索路径（默认当前目录）
-- file_pattern: 文件匹配模式（默认 **/*，即所有文件）
+- file_pattern: 文件匹配模式（默认 **/*）
 - ignore_case: 忽略大小写（默认 False）
+- literal: 精确文本匹配（默认 False）。当 pattern 包含 .()[]{{}}$^|*+?\\ 等特殊字符时使用，无需转义
 
 示例：
 - 查找函数定义：grep_tool(pattern="def main")
-- 在 Python 文件中查找：grep_tool(pattern="TODO", file_pattern="**/*.py")
-- 忽略大小写：grep_tool(pattern="error", ignore_case=True)
+- 精确匹配含特殊字符的文本：grep_tool(pattern="response.json()", literal=True)
 - 正则搜索：grep_tool(pattern="class \\w+\\(.*\\):")
-- 查找导入语句：grep_tool(pattern="^import ", file_pattern="**/*.py")
+- 在 Python 文件中查找：grep_tool(pattern="TODO", file_pattern="**/*.py")
 
-限制：
-- 最多显示前 {io_cfg.max_search_results} 个匹配结果
-- 最多搜索 {io_cfg.max_search_files} 个文件
-- 搜索超时：{int(io_cfg.search_timeout_seconds)}秒
-- 自动跳过二进制文件
-
-安全性：
-- 自动检测危险正则表达式（防止 ReDoS 攻击）
-- 限制搜索时间和资源使用
-
-注意：
-- 使用 Python 正则表达式语法
-- 特殊字符需要转义（如 \\.、\\(、\\)）
+限制：最多 {io_cfg.max_search_results} 个结果，{io_cfg.max_search_files} 个文件，超时 {int(io_cfg.search_timeout_seconds)}s
 """
 
     @tool("grep_tool", description=tool_description, args_schema=GrepInput)
@@ -249,6 +240,7 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
         path: str = ".",
         file_pattern: str = "**/*",
         ignore_case: bool = False,
+        literal: bool = False,
         context_lines: int = 0,
         *,
         config: RunnableConfig,  #  纯净设计：从 config 获取 context
@@ -256,10 +248,11 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
         """搜索文件内容
 
         Args:
-            pattern: 搜索模式（支持正则表达式）
+            pattern: 搜索模式（支持正则表达式，或 literal=True 时为精确文本）
             path: 搜索路径
             file_pattern: 文件匹配模式
             ignore_case: 是否忽略大小写
+            literal: 精确文本匹配模式（跳过正则解析）
             context_lines: 匹配行前后的上下文行数
             config: LangChain 运行时配置（自动注入）
 
@@ -300,13 +293,22 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
                     user_hint=format_path_not_found_hint(path, suggestions),
                 )
 
+            if not pattern.strip():
+                raise ToolError(
+                    message="Empty search pattern",
+                    user_hint="Please provide a non-empty search pattern.",
+                )
+
             flags = re.IGNORECASE if ignore_case else 0
-            regex = regex_validator.validate_and_compile(pattern, flags)
+            if literal:
+                regex = re.compile(re.escape(pattern), flags)
+            else:
+                regex = regex_validator.validate_and_compile(pattern, flags)
 
             if io_cfg.enable_audit_log:
                 logger.info(
                     f"SECURITY AUDIT: grep_tool - pattern={pattern}, path={path}, "
-                    f"file_pattern={file_pattern}, ignore_case={ignore_case}"
+                    f"file_pattern={file_pattern}, ignore_case={ignore_case}, literal={literal}"
                 )
 
             # --- Search phase: collect raw results from ripgrep or Python fallback ---
@@ -324,6 +326,7 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
                         context_lines,
                         io_cfg.max_search_results,
                         io_cfg.search_timeout_seconds,
+                        literal=literal,
                     )
                     used_ripgrep = True
                 except Exception as e:
@@ -437,7 +440,7 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
                 pattern,
                 files_searched,
                 io_cfg.max_search_results,
-                is_regex=True,
+                is_regex=not literal,
             )
 
             output = redact_sensitive_text(output)

@@ -10,7 +10,7 @@ with path-grouped densified output (auto-deduplicates repeated paths) and intell
 |------|------|-------------|-------|
 | __init__.py | Package | File search tool module exports | — |
 | glob_tool.py | Core | File search tool. Searches for files using glob patterns (* and **) | ✅ |
-| grep_tool.py | Core | Content search tool. Path-grouped densified output, line truncation, non-code capping. Three-tier search engine (ripgrep > mmap > Python) | ✅ |
+| grep_tool.py | Core | Content search tool. Regex and literal (--fixed-strings) modes. Path-grouped densified output, line truncation, non-code capping. Three-tier search engine (ripgrep > mmap > Python) | ✅ |
 | fallback_discovery.py | Core | Shared fallback candidate discovery for glob/grep (git-aware listing, root ignore files for non-git fallback, hidden policy, bounded scan). | ✅ |
 | path_hint.py | Core | Similar-path suggestions when glob/grep/file_read targets are missing | ✅ |
 | skill_path_filter.py | Core | Block paths under disabled skill roots (from RunnableConfig `disabled_skill_roots`) | ✅ |
