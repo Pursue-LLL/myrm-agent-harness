@@ -1,4 +1,4 @@
-"""Shared helpers for bash_code_execute_tool factory (schema, context restore, OS hints).
+"""Shared helpers for bash_code_execute_tool factory (schema, OS hints, context tracking).
 
 [INPUT]
 - runtime.context.file_access_tracker::get_file_access_tracker (POS: Context file access audit)
@@ -7,7 +7,7 @@
 
 [OUTPUT]
 - BashInput: Pydantic args schema for bash_code_execute_tool
-- restore_context_vars, get_os_hint, track_context_access_in_command
+- get_os_hint, track_context_access_in_command
 
 [POS]
 Non-factory helpers consumed by bash_code_execute_tool and tests via aggregate re-exports.
@@ -123,36 +123,3 @@ class BashInput(BaseModel):
     )
 
 
-def restore_context_vars(context: dict[str, object], executor: object) -> None:
-    """Restore ContextVars that may be lost when LangGraph executes tool nodes."""
-    from pathlib import Path
-
-    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
-        normalize_delivery_chat_id,
-    )
-    from myrm_agent_harness.agent.middlewares.approval import set_workspace_root
-    from myrm_agent_harness.core.context_vars import chat_id_var, workspace_root_var
-    from myrm_agent_harness.toolkits.code_execution.executors.base import set_executor
-    from myrm_agent_harness.toolkits.code_execution.workspace.storage_root_bind import (
-        _workspace_storage_fs_root,
-        bind_workspace_storage_root,
-    )
-
-    set_executor(executor)  # type: ignore[arg-type]
-
-    workspace_path = context.get("workspace_path")
-    if workspace_path:
-        set_workspace_root(str(workspace_path))
-        workspace_root_var.set(str(workspace_path))
-
-    delivery_chat_id = str(context.get("chat_id") or "").strip()
-    if not delivery_chat_id:
-        session_id = str(context.get("session_id") or context.get("approval_session_key") or "")
-        delivery_chat_id = normalize_delivery_chat_id(session_id)
-    if delivery_chat_id:
-        chat_id_var.set(delivery_chat_id)
-
-    if _workspace_storage_fs_root.get() is None:
-        ws_root = context.get("workspaces_storage_root")
-        if ws_root:
-            bind_workspace_storage_root(Path(str(ws_root)))

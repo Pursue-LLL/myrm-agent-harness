@@ -100,7 +100,7 @@ async def test_append_media_vision_fallback_path() -> None:
             executor=mock_executor,
             supports_vision=False,
             vision_fallback_model_cfg={"model": "gpt-4o-mini", "api_key": "k"},
-            excel_mode=None,
+            parse_mode=None,
         )
     assert "described" in parts[0]
 
@@ -173,7 +173,7 @@ async def test_append_media_text_parts_with_executor(tmp_path: Path) -> None:
             executor=mock_executor,
             supports_vision=True,
             vision_fallback_model_cfg=None,
-            excel_mode=None,
+            parse_mode=None,
         )
     assert parts == ["image text", "pdf text", "doc text", "video text"]
 
@@ -438,7 +438,7 @@ async def test_append_media_vision_fallback_failure() -> None:
             executor=mock_executor,
             supports_vision=False,
             vision_fallback_model_cfg={"model": "gpt-4o-mini", "api_key": "k"},
-            excel_mode=None,
+            parse_mode=None,
         )
     assert "Vision fallback failed" in parts[0]
 

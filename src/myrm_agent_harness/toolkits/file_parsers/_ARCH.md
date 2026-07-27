@@ -9,7 +9,7 @@ File parsers toolkit entry point. Aggregates all file format parsers and provide
 |------|------|-------------|-------|
 | __init__.py | Package | File parsers toolkit entry point. Aggregates all file format parsers and provides | ✅ |
 | base.py | Core | File parser base classes and data structures | ✅ |
-| docx.py | Core | Word document parser (headings, lists, tables with merged-cell dedup, document order) | ✅ |
+| docx.py | Core | Word document parser. Supports markdown (headings, lists, tables with merged-cell dedup, document order) and structure mode (JSON metadata with paragraph IDs, styles, table structures for incremental edits). | ✅ |
 | excel.py | Core | Excel file parser. Supports markdown/text (content), structure (JSON metadata for token-efficient overview), audit (formula error detection). Dynamic data_only based on mode. | ✅ |
 | image_filter.py | Core | Smart image ablation filter. Intercepts UI noise, decorative lines, tiny logos, | ✅ |
 | ocr.py | Core | OCR parser for images using PaddleOCR. Supports CJK languages natively. | ✅ |
@@ -17,7 +17,7 @@ File parsers toolkit entry point. Aggregates all file format parsers and provide
 | pdf_heading.py | Core | Font-based heading detection for PDFs without bookmarks. Uses statistical font size analysis. | ✅ |
 | pdf_content_extractor.py | Core | Smart PDF extraction orchestrator. Auto-selects Text/Hybrid(embedded image)/Image(full-page | ✅ |
 | pdf_heuristic_table.py | Core | Heuristic table extractor for borderless forms: spatial clustering, dynamic line-height gap merging, CJK-aware same-row and cross-row cell concatenation. | ✅ |
-| pptx.py | Core | PowerPoint document parser (slide text, tables, speaker notes) | ✅ |
+| pptx.py | Core | PowerPoint document parser. Supports markdown (slide text, tables, speaker notes) and structure mode (JSON metadata with shape IDs, types, positions, layouts for incremental edits). | ✅ |
 | text.py | Core | Text file parser | ✅ |
 | ipynb.py | Core | Jupyter Notebook parser. Extracts Markdown/code/raw cells, strips metadata/outputs. | ✅ |
 

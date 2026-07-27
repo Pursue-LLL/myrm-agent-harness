@@ -26,16 +26,16 @@
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
-| 4a | web_fetch_tool | 280 | `harness/toolkits/web_fetch/web_fetch_agent_tools.py` | HTTP 抓取/深读 | Turn1 基线 |
-| 6 | **bash_code_execute_tool** | **~1,020** | `harness/agent/meta_tools/bash/_tool_description.py` | Shell/Python；静态 slim 描述 + OS hint + PTC stub（2026-07-19 估算） | 通用 Agent 基线 |
-| 6b | **bash_process_tool** | **~120** | `harness/agent/meta_tools/bash/bash_process_tools.py` | 后台进程 list/output/kill（CORE；与 bash_code_execute 同挂） | enable_shell_tools |
+| 4a | web_fetch_tool | 119 | `harness/toolkits/web_fetch/web_fetch_agent_tools.py` | HTTP 抓取/深读 | Turn1 基线 |
+| 6 | **bash_code_execute_tool** | **839** | `harness/agent/meta_tools/bash/_tool_description.py` | Shell/Python；静态 slim 描述 + OS hint + PTC stub | 通用 Agent 基线 |
+| 6b | **bash_process_tool** | **79** | `harness/agent/meta_tools/bash/bash_process_tools.py` | 后台进程 list/output/kill（CORE；与 bash_code_execute 同挂） | enable_shell_tools |
 | 7 | file_edit_tool | 184 | `harness/agent/meta_tools/file_ops/file_edit_tool.py` | 批量 edits[] 原子编辑 | 通用 Agent 基线 |
 | 8 | file_read_tool | 420 | `harness/agent/meta_tools/file_ops/file_read_tool.py` | 读取文件 | 通用 Agent 基线 |
 | 9 | file_write_tool | 153 | `harness/agent/meta_tools/file_ops/file_write_tool.py` | 创建/覆盖写入 | 通用 Agent 基线 |
 | 10 | glob_tool | 263 | `harness/agent/meta_tools/file_search/glob_tool.py` | 通配符搜索 | 通用 Agent 基线 |
-| 11 | grep_tool | 344 | `harness/agent/meta_tools/file_search/grep_tool.py` | 正则搜索 | 通用 Agent 基线 |
+| 11 | grep_tool | 224 | `harness/agent/meta_tools/file_search/grep_tool.py` | 正则搜索 | 通用 Agent 基线 |
 
-**CORE 描述小计（Turn1）**：**~2,362 tokens**（8 工具；含 bash_process ~120；2026-07-23 file_edit batch schema + file_read 描述 ≤15% 精简后实测）
+**CORE 描述小计（Turn1）**：**2,281 tokens**（8 工具；`scripts/measure_turn1_token_inventory.py` 实测）
 
 ---
 
@@ -311,7 +311,7 @@ Token 明细（历史 tiktoken 计量保留）：
   ↑ 同用户会话内稳定
 ```
 
-**实测 Turn1 工具层合计**：描述 **7,379** + schema **975** = **8,354 tokens**（15 工具，`measure_turn1_token_inventory.py`）。
+**实测 Turn1 工具层合计**：描述 **5,141** + schema **910** = **6,051 tokens**（14 工具，`measure_turn1_token_inventory.py`）。
 
 ---
 

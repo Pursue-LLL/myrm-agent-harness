@@ -254,7 +254,7 @@ class TestCreateGrepTool:
     async def test_path_not_found(self, mock_executor: MagicMock, runnable_config: RunnableConfig) -> None:
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
         ), pytest.raises(ToolError, match="Path not found"):
             await tool_fn.ainvoke(
@@ -268,7 +268,7 @@ class TestCreateGrepTool:
         # Since we removed the is_dir() restriction, this test should now pass and return results
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
         ):
             # The test sets up a file, so we should be able to grep it
@@ -283,7 +283,7 @@ class TestCreateGrepTool:
     ) -> None:
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke(
@@ -299,7 +299,7 @@ class TestCreateGrepTool:
         (workspace / "case_test.txt").write_text("HELLO\nhello\nHeLLo\n")
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke(
@@ -313,7 +313,7 @@ class TestCreateGrepTool:
     ) -> None:
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result1 = await tool_fn.ainvoke(
@@ -332,7 +332,7 @@ class TestCreateGrepTool:
         (workspace / "secrets.py").write_text('API_KEY = "sk-abc123def456"\n')
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke(
@@ -346,7 +346,7 @@ class TestCreateGrepTool:
     ) -> None:
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
         ), pytest.raises(ToolError, match=r"[Dd]angerous|[Nn]ested"):
             await tool_fn.ainvoke(
@@ -359,7 +359,7 @@ class TestCreateGrepTool:
     ) -> None:
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke(
@@ -373,7 +373,7 @@ class TestCreateGrepTool:
     ) -> None:
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke(
@@ -388,7 +388,7 @@ class TestCreateGrepTool:
         mock_executor_bad.resolve_path = AsyncMock(side_effect=ValueError("path traversal"))
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor_bad,
         ), pytest.raises(ToolError, match="Invalid path"):
             await tool_fn.ainvoke(
@@ -411,7 +411,7 @@ class TestPythonFallback:
         tool_fn = create_grep_tool()
         with (
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
                 return_value=mock_executor,
             ),
             patch(
@@ -433,7 +433,7 @@ class TestPythonFallback:
         tool_fn = create_grep_tool()
         with (
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
                 return_value=mock_executor,
             ),
             patch(
@@ -455,7 +455,7 @@ class TestPythonFallback:
         tool_fn = create_grep_tool(cfg)
         with (
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
                 return_value=mock_executor,
             ),
             patch(
@@ -478,7 +478,7 @@ class TestPythonFallback:
         tool_fn = create_grep_tool(cfg)
         with (
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
                 return_value=mock_executor,
             ),
             patch(
@@ -498,7 +498,7 @@ class TestPythonFallback:
         tool_fn = create_grep_tool()
         with (
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
                 return_value=mock_executor,
             ),
             patch(
@@ -523,7 +523,7 @@ class TestPythonFallback:
         tool_fn = create_grep_tool()
         with (
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
                 return_value=mock_executor,
             ),
             patch(
@@ -543,7 +543,7 @@ class TestPythonFallback:
         tool_fn = create_grep_tool()
         with (
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
                 return_value=mock_executor,
             ),
             patch(
@@ -564,7 +564,7 @@ class TestPythonFallback:
         tool_fn = create_grep_tool()
         with (
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
                 return_value=mock_executor,
             ),
             patch(
@@ -585,7 +585,7 @@ class TestPythonFallback:
         tool_fn = create_grep_tool()
         with (
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
                 return_value=mock_executor,
             ),
             patch(
@@ -610,7 +610,7 @@ class TestPythonFallback:
         tool_fn = create_grep_tool()
         with (
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
                 return_value=mock_executor,
             ),
             patch(
@@ -631,7 +631,7 @@ class TestPythonFallback:
         tool_fn = create_grep_tool()
         with (
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
                 return_value=mock_executor,
             ),
             patch(
@@ -654,7 +654,7 @@ class TestPythonFallback:
         tool_fn = create_grep_tool(cfg)
         with (
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
                 return_value=mock_executor,
             ),
             patch(
@@ -682,7 +682,7 @@ class TestUnexpectedExceptionWrapping:
         mock_executor_bad.resolve_path = AsyncMock(side_effect=RuntimeError("unexpected boom"))
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor_bad,
         ), pytest.raises(ToolError, match=r"[Uu]nexpected"):
             await tool_fn.ainvoke(
@@ -705,7 +705,7 @@ class TestAuditLog:
             (workspace / f"mod_{i}.py").write_text(f"DENSE_TOKEN = {i}\n")
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke(
@@ -726,7 +726,7 @@ class TestAuditLog:
             (workspace / f"small_{i}.py").write_text(f"FLAT_TOKEN = {i}\n")
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke(
@@ -745,7 +745,7 @@ class TestAuditLog:
         cfg = FileIOConfig(enable_audit_log=True)
         tool_fn = create_grep_tool(cfg)
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
         ):
             await tool_fn.ainvoke(
@@ -773,7 +773,7 @@ class TestGrepLiteralMode:
         (workspace / "api.py").write_text('result = response.json()\ndata = result["key"]\n')
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke(
@@ -790,7 +790,7 @@ class TestGrepLiteralMode:
         (workspace / "test_lit.py").write_text("responseXjson_call\nresponse.json()\n")
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke(
@@ -807,7 +807,7 @@ class TestGrepLiteralMode:
         (workspace / "mixed.txt").write_text("Response.JSON()\nresponse.json()\nNOTHING\n")
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke(
@@ -824,7 +824,7 @@ class TestGrepLiteralMode:
         """literal=True with empty pattern raises ToolError."""
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
         ):
             with pytest.raises(ToolError):
@@ -840,7 +840,7 @@ class TestGrepLiteralMode:
         (workspace / "regex_test.py").write_text("def hello():\ndef world():\nclass Foo:\n")
         tool_fn = create_grep_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke(

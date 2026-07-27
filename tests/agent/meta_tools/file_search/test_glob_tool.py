@@ -106,7 +106,7 @@ class TestCreateGlobTool:
     ) -> None:
         tool_fn = create_glob_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke({"pattern": "*.py"}, config=runnable_config)
@@ -118,7 +118,7 @@ class TestCreateGlobTool:
     ) -> None:
         tool_fn = create_glob_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke({"pattern": "**/*.py"}, config=runnable_config)
@@ -130,7 +130,7 @@ class TestCreateGlobTool:
     ) -> None:
         tool_fn = create_glob_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke({"pattern": "**/test_*.py"}, config=runnable_config)
@@ -142,7 +142,7 @@ class TestCreateGlobTool:
     ) -> None:
         tool_fn = create_glob_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke({"pattern": "*.xyz"}, config=runnable_config)
@@ -153,7 +153,7 @@ class TestCreateGlobTool:
     ) -> None:
         tool_fn = create_glob_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
             return_value=mock_executor,
         ), pytest.raises(ToolError, match="Path not found"):
             await tool_fn.ainvoke(
@@ -166,7 +166,7 @@ class TestCreateGlobTool:
     ) -> None:
         tool_fn = create_glob_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
             return_value=mock_executor,
         ), pytest.raises(ToolError, match="Not a directory"):
             await tool_fn.ainvoke(
@@ -181,7 +181,7 @@ class TestCreateGlobTool:
         mock_exec.resolve_path = AsyncMock(side_effect=ValueError("path traversal"))
         tool_fn = create_glob_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
             return_value=mock_exec,
         ), pytest.raises(ToolError, match="Invalid path"):
             await tool_fn.ainvoke(
@@ -195,7 +195,7 @@ class TestCreateGlobTool:
         cfg = FileIOConfig(max_search_results=2)
         tool_fn = create_glob_tool(cfg)
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke({"pattern": "**/*.py"}, config=runnable_config)
@@ -206,7 +206,7 @@ class TestCreateGlobTool:
     ) -> None:
         tool_fn = create_glob_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke({"pattern": "*.py"}, config=runnable_config)
@@ -222,7 +222,7 @@ class TestCreateGlobTool:
     ) -> None:
         tool_fn = create_glob_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke({"pattern": "*.py", "path": "src"}, config=runnable_config)
@@ -234,7 +234,7 @@ class TestCreateGlobTool:
     ) -> None:
         tool_fn = create_glob_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke({"pattern": "*.py"}, config=runnable_config)
@@ -248,7 +248,7 @@ class TestCreateGlobTool:
         mock_exec.resolve_path = AsyncMock(side_effect=RuntimeError("unexpected boom"))
         tool_fn = create_glob_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
             return_value=mock_exec,
         ), pytest.raises(ToolError, match=r"[Uu]nexpected"):
             await tool_fn.ainvoke(
@@ -265,7 +265,7 @@ class TestCreateGlobTool:
         cfg = FileIOConfig(enable_audit_log=True)
         tool_fn = create_glob_tool(cfg)
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
             return_value=mock_executor,
         ):
             await tool_fn.ainvoke({"pattern": "*.py"}, config=runnable_config)
@@ -278,7 +278,7 @@ class TestCreateGlobTool:
     ) -> None:
         tool_fn = create_glob_tool()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
             return_value=mock_executor,
         ):
             result = await tool_fn.ainvoke({"pattern": "*.json"}, config=runnable_config)
@@ -300,7 +300,7 @@ class TestCreateGlobTool:
         tool_fn = create_glob_tool()
         with (
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+                "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
                 return_value=mock_executor,
             ),
             patch(
@@ -328,7 +328,7 @@ class TestCreateGlobTool:
         tool_fn = create_glob_tool()
         with (
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+                "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
                 return_value=mock_executor,
             ),
             patch(
@@ -355,7 +355,7 @@ class TestCreateGlobTool:
         tool_fn = create_glob_tool()
         with (
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+                "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
                 return_value=mock_executor,
             ),
             patch(
@@ -380,7 +380,7 @@ class TestCreateGlobTool:
         tool_fn = create_glob_tool()
         with (
             patch(
-                "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.require_executor",
+                "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
                 return_value=mock_executor,
             ),
             patch(

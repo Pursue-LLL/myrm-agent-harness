@@ -4,11 +4,12 @@
 - ._tool_description::TOOL_DESCRIPTION (POS: Static LLM-facing description prompt)
 - ._preflight_checks (POS: Security preflight checks)
 - .bash_executor::BashExecutor, BashExecutionError (POS: Code execution orchestrator)
-- .bash_tool_helpers (POS: BashInput, context restore, OS hint, context tracking)
+- .bash_tool_helpers (POS: BashInput, OS hint, context tracking)
 - .bash_tool_formatting (POS: Output formatting and truncation)
 - .bash_tool_background_listeners (POS: Background ptc_notify listeners)
 - .bash_tool_multimodal (POS: Vision ContentBlock return path)
 - .bash_tool_exit_semantics (POS: Exit-code semantic interpretation)
+- .._context_recovery::ensure_executor, restore_context_vars (POS: Executor ContextVar recovery)
 
 [OUTPUT]
 - create_bash_code_execute_tool: Factory creating the bash_code_execute_tool LangChain Tool
@@ -58,11 +59,14 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_tool_formatting import (
     format_result,
     truncate_bash_output,
 )
+from myrm_agent_harness.agent.meta_tools._context_recovery import (
+    ensure_executor,
+    restore_context_vars,
+)
 from myrm_agent_harness.agent.meta_tools.bash.bash_tool_helpers import (
     CONTEXT_PATH_PATTERNS,
     BashInput,
     get_os_hint,
-    restore_context_vars,
     track_context_access_in_command,
 )
 from myrm_agent_harness.agent.meta_tools.bash.bash_tool_multimodal import (
@@ -167,19 +171,8 @@ def create_bash_code_execute_tool(
             from myrm_agent_harness.agent.skills.mcp.notify_registry import (
                 session_scope,
             )
-            from myrm_agent_harness.toolkits.code_execution.executors.base import (
-                get_executor,
-                get_stashed_executor,
-            )
 
-            executor = get_executor()
-            if executor is None and session_id:
-                executor = get_stashed_executor(session_id)
-            if executor is None:
-                raise RuntimeError(
-                    "CodeExecutor not available. Call set_executor() to bind an "
-                    "executor to the current async context first."
-                )
+            executor = ensure_executor(config)
             restore_context_vars(context, executor)
             bash_executor = BashExecutor(executor=executor, ptc_tools=ptc_tools)
             if skill_oauth_issuers:

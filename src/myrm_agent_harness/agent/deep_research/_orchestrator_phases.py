@@ -368,7 +368,7 @@ class DeepResearchPhasesMixin:
     ) -> AsyncGenerator[dict[str, object]]:
         """Phase 4: Generate the final comprehensive report with streaming."""
         from .config import DeepResearchPhase
-        from .helpers import accumulate_usage
+        from .helpers import accumulate_usage, audit_citations, format_numbered_sources
         from .prompts import FINAL_REPORT_PROMPT, FINAL_REPORT_QUERY
 
         self._phase = DeepResearchPhase.REPORT  # type: ignore[attr-defined]
@@ -387,6 +387,11 @@ class DeepResearchPhasesMixin:
 
         if research_context:
             messages.append(HumanMessage(content=f"# Research Findings\n\n{research_context}"))
+
+        all_sources = self._source_tracker.all_sources  # type: ignore[attr-defined]
+        sources_block = format_numbered_sources(all_sources)
+        if sources_block:
+            messages.append(HumanMessage(content=f"# Available Sources\n\n{sources_block}"))
 
         messages.append(HumanMessage(content=user_query))
 
@@ -431,6 +436,32 @@ class DeepResearchPhasesMixin:
                 estimated_input,
                 estimated_output,
             )
+
+        # Citation audit + CITATION_MAP event
+        if self._result.report and all_sources:  # type: ignore[attr-defined]
+            try:
+                audit_result = audit_citations(self._result.report, len(all_sources))  # type: ignore[attr-defined]
+                self._result.citation_audit = audit_result  # type: ignore[attr-defined]
+                yield self._make_event(  # type: ignore[attr-defined]
+                    AgentEventType.CITATION_MAP,
+                    message_id,
+                    data={
+                        "sources": all_sources,
+                        "audit": {
+                            "total_markers": audit_result.total_markers,
+                            "valid": audit_result.valid,
+                            "unresolved": audit_result.unresolved,
+                        },
+                    },
+                )
+                logger.info(
+                    "[deep-research] Citation audit: %d total, %d valid, %d unresolved",
+                    audit_result.total_markers,
+                    audit_result.valid,
+                    audit_result.unresolved,
+                )
+            except Exception:
+                logger.warning("[deep-research] Citation audit failed, skipping", exc_info=True)
 
         end_data: dict[str, object] = {
             "phase": "report",

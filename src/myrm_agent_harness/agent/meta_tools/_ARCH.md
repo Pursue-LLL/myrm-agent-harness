@@ -10,6 +10,7 @@ Detailed design: [META_TOOLS_SYSTEM.md](META_TOOLS_SYSTEM.md)
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Agent meta-tools module. Provides tools that depend on Agent framework infrastructure (Bash, File Op | ✅ |
+| _context_recovery.py | Core | Executor ContextVar recovery after LangGraph interrupt/resume. Provides `ensure_executor` and `restore_context_vars`. | ✅ |
 | answer_user_tool.py | Core | Agent answer-phase gating tool. Scheduling signal for completion_guard middleware. | ✅ |
 
 | Submodule | Description |

@@ -1,10 +1,12 @@
 """Tests for DocxParser
 
 Tests heading, list, table extraction and document-order interleaving from .docx files.
+Tests structure mode JSON metadata output with paragraph IDs and styles.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 
@@ -409,5 +411,202 @@ class TestDocxParserEdgeCases:
             # The table should still have valid Markdown structure
             table_lines = [l for l in result.split("\n") if l.startswith("|")]
             assert len(table_lines) >= 3  # header + separator + at least 1 data row
+        finally:
+            os.unlink(tmp)
+
+
+class TestDocxParserStructure:
+    """Test structure mode JSON metadata output."""
+
+    @pytest.mark.asyncio
+    async def test_returns_valid_json(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+            doc = Document()
+            doc.add_heading("Title", level=1)
+            doc.add_paragraph("Body text")
+            doc.save(f.name)
+            tmp = f.name
+
+        try:
+            parser = DocxParser(output_format="structure")
+            result = await parser.parse(tmp)
+            data = json.loads(result)
+            assert "elements" in data
+            assert "element_count" in data
+        finally:
+            os.unlink(tmp)
+
+    @pytest.mark.asyncio
+    async def test_paragraph_metadata(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+            doc = Document()
+            doc.add_heading("My Heading", level=1)
+            doc.add_paragraph("Normal paragraph")
+            doc.add_paragraph("Bullet item", style="List Bullet")
+            doc.save(f.name)
+            tmp = f.name
+
+        try:
+            parser = DocxParser(output_format="structure")
+            result = await parser.parse(tmp)
+            data = json.loads(result)
+
+            paragraphs = [e for e in data["elements"] if e["type"] == "paragraph"]
+            assert len(paragraphs) >= 3
+
+            heading = next(p for p in paragraphs if "Heading" in p["style"])
+            assert "My Heading" in heading["text_preview"]
+            assert "para_id" in heading
+            assert "index" in heading
+        finally:
+            os.unlink(tmp)
+
+    @pytest.mark.asyncio
+    async def test_table_metadata(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+            doc = Document()
+            doc.add_paragraph("Before table")
+            table = doc.add_table(rows=3, cols=2)
+            table.cell(0, 0).text = "Name"
+            table.cell(0, 1).text = "Age"
+            table.cell(1, 0).text = "Alice"
+            table.cell(1, 1).text = "30"
+            table.cell(2, 0).text = "Bob"
+            table.cell(2, 1).text = "25"
+            doc.save(f.name)
+            tmp = f.name
+
+        try:
+            parser = DocxParser(output_format="structure")
+            result = await parser.parse(tmp)
+            data = json.loads(result)
+
+            tables = [e for e in data["elements"] if e["type"] == "table"]
+            assert len(tables) == 1
+            assert tables[0]["rows"] == 3
+            assert tables[0]["cols"] == 2
+            assert "Name" in tables[0]["header_cells"]
+            assert "Age" in tables[0]["header_cells"]
+        finally:
+            os.unlink(tmp)
+
+    @pytest.mark.asyncio
+    async def test_fallback_para_id(self) -> None:
+        """When w14:paraId is absent, a fallback index-based ID is generated."""
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+            doc = Document()
+            doc.add_paragraph("Test paragraph")
+            doc.save(f.name)
+            tmp = f.name
+
+        try:
+            parser = DocxParser(output_format="structure")
+            result = await parser.parse(tmp)
+            data = json.loads(result)
+            paragraphs = [e for e in data["elements"] if e["type"] == "paragraph"]
+            for p in paragraphs:
+                assert "para_id" in p
+                assert isinstance(p["para_id"], str)
+        finally:
+            os.unlink(tmp)
+
+    @pytest.mark.asyncio
+    async def test_empty_document_structure(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+            doc = Document()
+            doc.save(f.name)
+            tmp = f.name
+
+        try:
+            parser = DocxParser(output_format="structure")
+            result = await parser.parse(tmp)
+            data = json.loads(result)
+            assert data["element_count"] == 0 or all(
+                e.get("text_preview", "") == "" for e in data["elements"]
+                if e["type"] == "paragraph"
+            )
+        finally:
+            os.unlink(tmp)
+
+    @pytest.mark.asyncio
+    async def test_section_count_metadata(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+            doc = Document()
+            doc.add_paragraph("Content")
+            doc.save(f.name)
+            tmp = f.name
+
+        try:
+            parser = DocxParser(output_format="structure")
+            result = await parser.parse(tmp)
+            data = json.loads(result)
+            assert "section_count" in data
+            assert data["section_count"] >= 1
+        finally:
+            os.unlink(tmp)
+
+    @pytest.mark.asyncio
+    async def test_text_preview_truncated(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+            doc = Document()
+            doc.add_paragraph("A" * 500)
+            doc.save(f.name)
+            tmp = f.name
+
+        try:
+            parser = DocxParser(output_format="structure")
+            result = await parser.parse(tmp)
+            data = json.loads(result)
+            paragraphs = [e for e in data["elements"] if e["type"] == "paragraph"]
+            long_para = next(p for p in paragraphs if p["text_preview"])
+            assert len(long_para["text_preview"]) == 200
+        finally:
+            os.unlink(tmp)
+
+    @pytest.mark.asyncio
+    async def test_mixed_content_structure(self) -> None:
+        """Full document with mixed content types preserves correct element order."""
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+            doc = Document()
+            doc.add_heading("Title", level=1)
+            doc.add_paragraph("Intro")
+            table = doc.add_table(rows=2, cols=2)
+            table.cell(0, 0).text = "H1"
+            table.cell(0, 1).text = "H2"
+            doc.add_paragraph("Closing")
+            doc.save(f.name)
+            tmp = f.name
+
+        try:
+            parser = DocxParser(output_format="structure")
+            result = await parser.parse(tmp)
+            data = json.loads(result)
+            types = [e["type"] for e in data["elements"]]
+            assert "paragraph" in types
+            assert "table" in types
+
+            table_idx = next(
+                e["index"] for e in data["elements"] if e["type"] == "table"
+            )
+            para_before = next(
+                e for e in data["elements"]
+                if e["type"] == "paragraph" and "Intro" in e.get("text_preview", "")
+            )
+            assert para_before["index"] < table_idx
+        finally:
+            os.unlink(tmp)
+
+    @pytest.mark.asyncio
+    async def test_default_format_is_markdown(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+            doc = Document()
+            doc.add_heading("Default", level=1)
+            doc.save(f.name)
+            tmp = f.name
+
+        try:
+            parser = DocxParser()
+            result = await parser.parse(tmp)
+            assert "# Default" in result
         finally:
             os.unlink(tmp)

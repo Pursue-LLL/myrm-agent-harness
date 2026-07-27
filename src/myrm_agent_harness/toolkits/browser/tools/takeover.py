@@ -169,8 +169,7 @@ def create_takeover_tool(session: BrowserSession):
         if post_screenshot_desc:
             result_parts.append(post_screenshot_desc)
         result_parts.append(
-            "You may take a snapshot if you need to inspect the page state, "
-            "or respond directly if no further action is needed."
+            "Please respond to the user with the outcome now."
         )
 
         return "\n".join(result_parts)

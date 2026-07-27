@@ -14,9 +14,11 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_tool_background_listeners imp
     build_background_listeners,
     classify_background_exit,
 )
+from myrm_agent_harness.agent.meta_tools._context_recovery import (
+    restore_context_vars,
+)
 from myrm_agent_harness.agent.meta_tools.bash.bash_tool_helpers import (
     get_os_hint,
-    restore_context_vars,
     track_context_access_in_command,
 )
 
@@ -29,11 +31,13 @@ class _FakeBackgroundInfo:
         command: str = "sleep 1",
         status: str = "exited",
         exit_code: int | None = 0,
+        job_id: str = "job-1",
     ) -> None:
         self.pid = pid
         self.command = command
         self.status = status
         self.exit_code = exit_code
+        self.job_id = job_id
 
 
 @pytest.mark.asyncio
@@ -209,7 +213,7 @@ async def test_bash_tool_background_path_returns_pid_metadata() -> None:
     ):
         tool = create_bash_code_execute_tool()
         result = await tool.ainvoke(
-            {"command": "sleep 60", "reason": "bg", "run_in_background": True},
+            {"command": "sleep 60", "reason": "long running background task", "run_in_background": True},
             config={"configurable": {"context": {"session_id": "s"}}},
         )
 
@@ -294,7 +298,7 @@ async def test_bash_tool_foreground_success_returns_content() -> None:
     with patches[0], patches[1], patches[2], patches[3], patches[4]:
         tool = create_bash_code_execute_tool()
         result = await tool.ainvoke(
-            {"command": "echo ok", "reason": "test"},
+            {"command": "echo ok", "reason": "unit test validation check"},
             config={"configurable": {"context": {"session_id": "s"}}},
         )
 
@@ -358,7 +362,7 @@ async def test_bash_tool_foreground_with_truncation_eviction_and_hint() -> None:
             global_env={"G": "1"},
         )
         result = await tool.ainvoke(
-            {"command": "cat /persistent/x/.context/y.txt", "reason": "test"},
+            {"command": "cat /persistent/x/.context/y.txt", "reason": "unit test validation check"},
             config={"configurable": {"context": {"session_id": "s"}}},
         )
 
@@ -407,7 +411,7 @@ async def test_bash_tool_restores_stashed_executor() -> None:
             return_value=mock_executor,
         ),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.restore_context_vars",
+            "myrm_agent_harness.agent.meta_tools._context_recovery.restore_context_vars",
         ) as mock_restore,
         patch(
             "myrm_agent_harness.agent.meta_tools.bash.bash_executor.BashExecutor",
@@ -427,7 +431,7 @@ async def test_bash_tool_restores_stashed_executor() -> None:
     ):
         tool = create_bash_code_execute_tool()
         await tool.ainvoke(
-            {"command": "echo ok", "reason": "test"},
+            {"command": "echo ok", "reason": "unit test validation check"},
             config={"configurable": {"context": {"session_id": "sess-1"}}},
         )
 
@@ -454,7 +458,7 @@ async def test_bash_tool_background_requires_session_id() -> None:
         tool = create_bash_code_execute_tool()
         with pytest.raises(Exception, match="run_in_background requires"):
             await tool.ainvoke(
-                {"command": "sleep 1", "reason": "bg", "run_in_background": True},
+                {"command": "sleep 1", "reason": "background task for session test", "run_in_background": True},
                 config={"configurable": {"context": {}}},
             )
 

@@ -55,6 +55,7 @@ class ExtensionStatus:
         authorized_domains: Domains the user has granted access to.
         available_tabs: Tabs currently open that match authorized domains.
         last_heartbeat_at: Monotonic timestamp of last successful heartbeat.
+        capabilities: Extension capability flags from hello handshake.
     """
 
     connected: bool = False
@@ -63,6 +64,7 @@ class ExtensionStatus:
     authorized_domains: list[str] = field(default_factory=list)
     available_tabs: list[ExtensionTab] = field(default_factory=list)
     last_heartbeat_at: float = 0.0
+    capabilities: list[str] = field(default_factory=list)
 
 
 @runtime_checkable
@@ -107,6 +109,22 @@ class ExtensionBridge(Protocol):
 
         Raises:
             BrowserLaunchError: If no tab for the domain exists or domain is not authorized.
+        """
+        ...
+
+    async def navigate_to_url(
+        self,
+        url: str,
+        *,
+        domain: str | None = None,
+        background: bool = True,
+        timeout: float = 20.0,
+    ) -> ExtensionTab:
+        """Navigate an extension-controlled tab without requiring direct CDP endpoint.
+
+        This is used by private-network fallback flows where the cloud sandbox cannot
+        reach local/private URLs directly. Implementations should pick or create an
+        authorized tab, navigate it, and return the resulting tab metadata.
         """
         ...
 

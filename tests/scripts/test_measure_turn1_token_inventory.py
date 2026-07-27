@@ -150,16 +150,16 @@ async def test_build_default_turn1_tools_resolves_default_profile() -> None:
     assert "spawn_subagent" not in names
 
 
-# SSOT: DEFAULT_AGENT_TOKEN_INVENTORY.md §二–§四 (2026-07-23 file_edit batch + file_read trim)
+# SSOT: DEFAULT_AGENT_TOKEN_INVENTORY.md §二–§四
 _DOC_TURN1_TOOL_TOKENS: dict[str, int] = {
-    "web_fetch_tool": 70,
-    "bash_code_execute_tool": 808,
-    "bash_process_tool": 58,
+    "web_fetch_tool": 119,
+    "bash_code_execute_tool": 839,
+    "bash_process_tool": 79,
     "file_edit_tool": 184,
     "file_read_tool": 420,
     "file_write_tool": 153,
     "glob_tool": 263,
-    "grep_tool": 344,
+    "grep_tool": 224,
     "web_search_tool": 1175,
     "memory_search_tool": 204,
     "memory_save_tool": 688,
@@ -182,7 +182,7 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
         == report["description_tokens"] + report["schema_wrapper_tokens"]
     )
     layer_totals = report["layer_totals"]
-    assert layer_totals["CORE"] == 2242
+    assert layer_totals["CORE"] == 2281
     assert layer_totals["COMMON"] == 2314
-    assert layer_totals["EXTENDED"] == 604
-    assert report["tools_subtotal"] == 6070
+    assert layer_totals["EXTENDED"] == 546
+    assert report["tools_subtotal"] == 6051

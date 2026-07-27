@@ -152,7 +152,7 @@ async def test_append_media_text_parts_no_executor() -> None:
         executor=None,
         supports_vision=False,
         vision_fallback_model_cfg=None,
-        excel_mode=None,
+        parse_mode=None,
     )
     assert len(parts) == 4
     assert all("No workspace filesystem available" in p for p in parts)

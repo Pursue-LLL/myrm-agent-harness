@@ -4,7 +4,7 @@
 
 [INPUT]
 - core::FileOperationService, OperationContext, OperationType (POS: 文件操作服务和上下文)
-- toolkits.code_execution.executors.base::require_executor (POS: 从 ContextVar 获取 executor)
+- agent.meta_tools._context_recovery::ensure_executor (POS: Executor ContextVar recovery)
 - langchain.tools::tool (POS: LangChain 工具装饰器)
 - pydantic::BaseModel, Field (POS: 参数验证)
 
@@ -26,7 +26,7 @@ from langchain.tools import tool
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field, model_validator
 
-from myrm_agent_harness.toolkits.code_execution.executors.base import require_executor
+from myrm_agent_harness.agent.meta_tools._context_recovery import ensure_executor
 from myrm_agent_harness.utils.errors import ToolError
 
 from .core import FileOperationService, OperationContext, OperationType, StrReplaceEdit
@@ -128,7 +128,7 @@ def create_file_edit_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
     ) -> str:
         """精确编辑文件（批量原子替换）"""
         try:
-            executor = require_executor()
+            executor = ensure_executor(config)
 
             edit_tuple = tuple(
                 StrReplaceEdit(old_str=item.old_str, new_str=item.new_str)

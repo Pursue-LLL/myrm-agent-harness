@@ -23,7 +23,7 @@ async def test_file_edit_tool_success() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool.ensure_executor",
             return_value=mock_executor,
         ),
         patch(
@@ -50,7 +50,7 @@ async def test_file_edit_tool_file_not_found() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool.ensure_executor",
             return_value=MagicMock(),
         ),
         patch(
@@ -74,7 +74,7 @@ async def test_file_edit_tool_permission_denied() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool.ensure_executor",
             return_value=MagicMock(),
         ),
         patch(
@@ -109,7 +109,7 @@ async def test_file_edit_tool_value_error_hints(
 
     with (
         patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool.ensure_executor",
             return_value=MagicMock(),
         ),
         patch(
@@ -133,7 +133,7 @@ async def test_file_edit_tool_unexpected_error() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool.ensure_executor",
             return_value=MagicMock(),
         ),
         patch(
@@ -157,7 +157,7 @@ async def test_file_edit_tool_passthrough_tool_error() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool.require_executor",
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool.ensure_executor",
             return_value=MagicMock(),
         ),
         patch(

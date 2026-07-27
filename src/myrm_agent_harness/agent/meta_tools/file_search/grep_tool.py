@@ -5,6 +5,7 @@
 - pydantic::BaseModel, Field (POS: 参数验证)
 - agent.config.file_io::FileIOConfig (POS: I/O 配置)
 - agent.security.redact::redact_sensitive_text (POS: 工具输出脱敏，防止凭证泄露到 LLM 上下文)
+- agent.meta_tools._context_recovery::ensure_executor (POS: Executor ContextVar recovery)
 - regex_validator::RegexValidator (POS: 正则表达式验证器，防止 ReDoS)
 - utils.lru_cache::LRUCache (POS: LRU 缓存)
 - _formatter (POS: Grep flat path:line output formatter with line truncation)
@@ -41,7 +42,7 @@ from pydantic import BaseModel, Field
 
 from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
 from myrm_agent_harness.agent.security.redact import redact_sensitive_text
-from myrm_agent_harness.toolkits.code_execution.executors.base import require_executor
+from myrm_agent_harness.agent.meta_tools._context_recovery import ensure_executor
 from myrm_agent_harness.utils.errors import ToolError
 
 from ._formatter import format_grep_results
@@ -266,7 +267,7 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
             ToolError: 正则表达式错误或安全问题
         """
         try:
-            executor = require_executor()
+            executor = ensure_executor(config)
 
             try:
                 search_path = await executor.resolve_path(path)

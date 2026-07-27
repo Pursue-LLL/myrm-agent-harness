@@ -209,7 +209,8 @@ Original research plan (reference only — do not limit yourself to it):
 Based on ALL research findings, provide a comprehensive, well-structured answer to the user's \
 original query. Be extremely thorough and address ALL relevant aspects.
 
-Inline citations: 【1】, 【2】, 【3】 etc. (just a number in fullwidth brackets, nothing more).\
+Inline citations: use 【N】 where N matches the source number in the "Available Sources" section. \
+Only cite sources that are listed. Place citations immediately after the specific claim they support.\
 """
 
 FIRST_CYCLE_REMINDER = """\

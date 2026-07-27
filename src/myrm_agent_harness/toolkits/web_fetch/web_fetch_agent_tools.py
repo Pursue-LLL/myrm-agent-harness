@@ -94,7 +94,8 @@ def create_web_fetch_tool(
 
     tool_description = f"""web_fetch_tool extracts detailed content from specific webpage URLs.
 {sections}
-For JS-heavy or interactive pages, use browser tools. For many pages, call web_fetch with multiple URLs.
+For read-only content retrieval (articles, docs, blog posts), always prefer this tool over browser_navigate — it's faster, cheaper, and handles JS rendering internally.
+For JS-heavy or interactive pages (clicking, filling forms, scrolling), use browser tools. For many pages, call web_fetch with multiple URLs.
 """.strip()
 
     preview_budget = model_preview_chars

@@ -58,7 +58,7 @@ async def build_multimodal_result(
     supports_vision: bool,
     vision_fallback_model_cfg: object | None = None,
     video_paths: list[str] | None = None,
-    excel_mode: str | None = None,
+    parse_mode: str | None = None,
     mode: str = "all",
     *,
     config: RunnableConfig,
@@ -102,7 +102,7 @@ async def build_multimodal_result(
             blocks.append(create_text_block(result))
 
     for doc_path in document_paths:
-        result = await read_document_as_text(doc_path, executor, excel_mode=excel_mode)
+        result = await read_document_as_text(doc_path, executor, parse_mode=parse_mode)
         blocks.append(create_text_block(result))
 
     for vid_path in video_paths or []:
@@ -149,7 +149,7 @@ async def append_media_text_parts(
     executor: CodeExecutor | None,
     supports_vision: bool,
     vision_fallback_model_cfg: object | None,
-    excel_mode: str | None,
+    parse_mode: str | None,
 ) -> None:
     """Append text-mode results for media paths when multimodal is unavailable."""
     for img_path in image_paths:
@@ -188,7 +188,7 @@ async def append_media_text_parts(
 
     for doc_path in document_paths:
         if executor is not None:
-            doc_result = await read_document_as_text(doc_path, executor, excel_mode=excel_mode)
+            doc_result = await read_document_as_text(doc_path, executor, parse_mode=parse_mode)
             text_parts.append(doc_result)
         else:
             text_parts.append(f"[Document: {doc_path}] (No workspace filesystem available)")

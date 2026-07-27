@@ -95,7 +95,7 @@ computer-use = [
 ]
 # toolkits/web_fetch/ - L1 HTTP / L3 stealth 爬取 + YouTube 字幕快路径
 web = [
-  "scrapling[fetchers]>=0.4.11",      # L1: curl_cffi TLS 指纹 HTTP / L3: Patchright+BrowserForge 反检测
+  "scrapling[fetchers]>=0.4.12",      # L1: curl_cffi TLS 指纹 HTTP / L3: Patchright+BrowserForge 反检测
   "youtube-transcript-api>=1.2.4",   # YouTube 字幕提取 (youtube_extractor; HTML fallback when missing)
 ]
 
@@ -107,12 +107,12 @@ file-parsers = [
 ]
 # infra/security/signature.py - FastAPI webhook signature verification
 fastapi = [
-  "fastapi>=0.139.2",
+  "fastapi>=0.140.0",
 ]
 
 # 全链路追踪与指标 (SaaS 级监控)
 observability = [
-  "prometheus-client>=0.25.0",
+  "prometheus-client>=0.26.0",
   "opentelemetry-sdk>=1.44.0",
   "opentelemetry-exporter-otlp-proto-grpc>=1.44.0",
   "openinference-instrumentation-langchain>=0.1.67",

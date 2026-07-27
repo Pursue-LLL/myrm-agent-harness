@@ -6,6 +6,7 @@
 - langchain.tools::tool (POS: LangChain 工具装饰器)
 - pydantic::BaseModel, Field (POS: 参数验证)
 - agent.config.file_io::FileIOConfig (POS: I/O 配置)
+- agent.meta_tools._context_recovery::ensure_executor (POS: Executor ContextVar recovery)
 - toolkits.storage.base::StorageProvider (POS: 存储协议/接口)
 - fallback_discovery::collect_candidate_files (POS: 无 ripgrep 时的候选文件发现与 git-aware ignore 策略)
 
@@ -30,7 +31,7 @@ from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
 from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
-from myrm_agent_harness.toolkits.code_execution.executors.base import require_executor
+from myrm_agent_harness.agent.meta_tools._context_recovery import ensure_executor
 from myrm_agent_harness.utils.errors import ToolError
 
 from .fallback_discovery import collect_candidate_files
@@ -118,7 +119,7 @@ def create_glob_tool(io_config: FileIOConfig | None = None) -> BaseTool:
             ValueError: 路径不安全或参数错误
         """
         try:
-            executor = require_executor()
+            executor = ensure_executor(config)
 
             try:
                 search_path = await executor.resolve_path(path)

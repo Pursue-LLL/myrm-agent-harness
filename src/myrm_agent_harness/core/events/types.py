@@ -151,6 +151,7 @@ class AgentEventType(StrEnum):
     COUNCIL_PHASE = "council_phase"
     CAPABILITY_GAP = "capability_gap"
     SKILL_GAP = "skill_gap"
+    CITATION_MAP = "citation_map"
 
 
 @dataclass

@@ -1,10 +1,12 @@
 """Tests for document_reader module
 
 Tests is_document_path() and read_document_as_text() for .docx, .xlsx, .xls, .pptx, .ppt.
+Tests parse_mode='structure' dispatching for PPTX/DOCX.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 from unittest.mock import patch
@@ -235,3 +237,121 @@ class TestReadDocumentAsText:
             assert mock_unlink.call_count == 1
             args, _ = mock_unlink.call_args
             assert args[0].endswith(".docx")
+
+
+class TestReadDocumentStructureMode:
+    """Tests for parse_mode='structure' dispatching."""
+
+    @pytest.mark.asyncio
+    async def test_pptx_structure_mode(self) -> None:
+        """parse_mode='structure' returns JSON metadata for PPTX."""
+        pptx_mod = pytest.importorskip("pptx", reason="python-pptx not installed")
+        Presentation = pptx_mod.Presentation
+
+        with tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as f:
+            prs = Presentation()
+            slide = prs.slides.add_slide(prs.slide_layouts[0])
+            slide.shapes.title.text = "Structure Test"
+            prs.save(f.name)
+            f.seek(0)
+            pptx_bytes = open(f.name, "rb").read()
+            os.unlink(f.name)
+
+        executor = MockExecutor({"test.pptx": pptx_bytes})
+        result = await read_document_as_text("test.pptx", executor, parse_mode="structure")
+        assert "[Document: test.pptx]" in result
+
+        json_part = result.split("\n", 1)[1]
+        data = json.loads(json_part)
+        assert "slides" in data
+        assert data["slide_count"] == 1
+        shapes = data["slides"][0]["shapes"]
+        assert any(s["type"] == "title" for s in shapes)
+
+    @pytest.mark.asyncio
+    async def test_docx_structure_mode(self) -> None:
+        """parse_mode='structure' returns JSON metadata for DOCX."""
+        docx_mod = pytest.importorskip("docx", reason="python-docx not installed")
+        Document = docx_mod.Document
+
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+            doc = Document()
+            doc.add_heading("Structure Heading", level=1)
+            doc.add_paragraph("Test paragraph")
+            doc.save(f.name)
+            f.seek(0)
+            docx_bytes = open(f.name, "rb").read()
+            os.unlink(f.name)
+
+        executor = MockExecutor({"test.docx": docx_bytes})
+        result = await read_document_as_text("test.docx", executor, parse_mode="structure")
+        assert "[Document: test.docx]" in result
+
+        json_part = result.split("\n", 1)[1]
+        data = json.loads(json_part)
+        assert "elements" in data
+        paragraphs = [e for e in data["elements"] if e["type"] == "paragraph"]
+        assert any("Structure Heading" in p.get("text_preview", "") for p in paragraphs)
+
+    @pytest.mark.asyncio
+    async def test_pptx_default_mode_returns_markdown(self) -> None:
+        """When parse_mode is None, PPTX returns Markdown."""
+        pptx_mod = pytest.importorskip("pptx", reason="python-pptx not installed")
+        Presentation = pptx_mod.Presentation
+
+        with tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as f:
+            prs = Presentation()
+            slide = prs.slides.add_slide(prs.slide_layouts[0])
+            slide.shapes.title.text = "Markdown Test"
+            prs.save(f.name)
+            f.seek(0)
+            pptx_bytes = open(f.name, "rb").read()
+            os.unlink(f.name)
+
+        executor = MockExecutor({"test.pptx": pptx_bytes})
+        result = await read_document_as_text("test.pptx", executor)
+        assert "## Slide 1" in result
+        assert "Markdown Test" in result
+
+    @pytest.mark.asyncio
+    async def test_docx_default_mode_returns_markdown(self) -> None:
+        """When parse_mode is None, DOCX returns Markdown."""
+        docx_mod = pytest.importorskip("docx", reason="python-docx not installed")
+        Document = docx_mod.Document
+
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+            doc = Document()
+            doc.add_heading("Heading", level=1)
+            doc.save(f.name)
+            f.seek(0)
+            docx_bytes = open(f.name, "rb").read()
+            os.unlink(f.name)
+
+        executor = MockExecutor({"test.docx": docx_bytes})
+        result = await read_document_as_text("test.docx", executor)
+        assert "# Heading" in result
+
+    @pytest.mark.asyncio
+    async def test_xlsx_structure_mode_still_works(self) -> None:
+        """parse_mode='structure' still works for XLSX."""
+        openpyxl = pytest.importorskip("openpyxl", reason="openpyxl not installed")
+        Workbook = openpyxl.Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        assert ws is not None
+        ws.append(["Product", "Price"])
+        ws.append(["Widget", 100])
+
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as f:
+            wb.save(f.name)
+            xlsx_bytes = open(f.name, "rb").read()
+            os.unlink(f.name)
+
+        executor = MockExecutor({"data.xlsx": xlsx_bytes})
+        result = await read_document_as_text("data.xlsx", executor, parse_mode="structure")
+        assert "[Document: data.xlsx]" in result
+
+        json_part = result.split("\n", 1)[1]
+        data = json.loads(json_part)
+        assert "sheets" in data

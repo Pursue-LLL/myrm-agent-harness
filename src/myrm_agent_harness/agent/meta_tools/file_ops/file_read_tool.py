@@ -197,14 +197,14 @@ class FileReadInput(BaseModel):
         default=10, description="streaming模式下的块大小（MB），默认10MB"
     )
 
-    excel_mode: str | None = Field(
+    parse_mode: str | None = Field(
         default=None,
         description=(
-            "Excel 文件专用读取模式（仅对 .xlsx/.xls 生效）：\n"
-            "- None（默认）：小文件完整输出 Markdown 表格；大文件(>50KB)自动输出结构概览\n"
-            "- 'content'：强制输出完整 Markdown 表格内容\n"
-            "- 'structure'：仅输出 JSON 结构元数据（sheet名/行列数/列头/公式分布）\n"
-            "- 'audit'：输出 JSON 公式错误审计报告"
+            "Office 文档解析模式（对 .xlsx/.xls/.pptx/.ppt/.docx 生效）：\n"
+            "- None（默认）：输出 Markdown 内容（Excel 大文件 >50KB 自动切换 structure）\n"
+            "- 'content'：强制输出完整 Markdown 内容\n"
+            "- 'structure'：输出 JSON 结构元数据（Excel: sheet/列头/公式; PPTX: slide/shape_id/位置; DOCX: 段落ID/样式/表格）\n"
+            "- 'audit'：输出 JSON 审计报告（仅 Excel 生效）"
         ),
     )
 
@@ -257,7 +257,7 @@ def create_file_read_tool(
 - mode: 读取模式（'all'默认 | 'preview'快速预览 | 'stream'大文件防OOM）
   - 大文件建议：>100MB 使用 mode='preview' 或行号范围
 - chunk_size_mb: streaming 块大小（默认 10MB）
-- excel_mode: Excel 专用（structure/content/audit，仅 .xlsx/.xls）
+- parse_mode: Office 文档解析模式（structure/content/audit）
 
 **注意**: 必须是 JSON 数组，不是字符串！禁止凭空编造不存在的路径！
 **不支持 URL（http/https）**：此工具仅读取本地文件，不能访问网页 URL。
@@ -268,7 +268,7 @@ def create_file_read_tool(
         paths: list[str],
         mode: str = "all",
         chunk_size_mb: int = 10,
-        excel_mode: str | None = None,
+        parse_mode: str | None = None,
         reason: str | None = None,
         preserve_in_context: bool = False,
         *,
@@ -359,7 +359,7 @@ def create_file_read_tool(
                     supports_vision=supports_vision,
                     vision_fallback_model_cfg=vision_fallback_model_cfg,
                     video_paths=video_paths,
-                    excel_mode=excel_mode,
+                    parse_mode=parse_mode,
                     mode=mode,
                     config=config,
                 )
@@ -378,7 +378,7 @@ def create_file_read_tool(
                 executor=executor,
                 supports_vision=supports_vision,
                 vision_fallback_model_cfg=vision_fallback_model_cfg,
-                excel_mode=excel_mode,
+                parse_mode=parse_mode,
             )
 
             if vault_paths:

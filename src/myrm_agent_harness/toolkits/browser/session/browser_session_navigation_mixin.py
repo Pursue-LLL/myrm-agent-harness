@@ -361,7 +361,7 @@ class BrowserSessionNavigationMixin:
         """Navigate to a private URL via the Extension Bridge (user's local browser).
 
         Called when a private URL is detected and extension_bridge is available.
-        Falls back to a descriptive ToolError if the bridge is disconnected.
+        Raises a descriptive ToolError when capability or connectivity is missing.
         """
         from urllib.parse import urlparse
 
@@ -386,39 +386,45 @@ class BrowserSessionNavigationMixin:
 
         domain = urlparse(url).hostname or ""
         try:
-            instance = await self._extension_bridge.connect_to_domain(domain, timeout=15.0)
-        except ExtensionBridgeNotAvailable:
-            raise ToolError(
-                message=f"Extension bridge lost connection while navigating to '{url}'.",
-                user_hint="The browser extension disconnected. Please reconnect it and retry.",
-                error_code="PRIVATE_URL_EXTENSION_LOST",
-                recovery_suggestions=["Retry navigation after extension reconnects"],
+            tab = await self._extension_bridge.navigate_to_url(
+                url,
+                domain=domain,
+                background=True,
+                timeout=20.0,
             )
-
-        browser = instance.browser
-        contexts = browser.contexts
-        if not contexts:
-            raise ToolError(
-                message=f"Extension bridge returned browser with no contexts for '{url}'.",
-                user_hint="The extension-connected browser has no usable context. Reconnect and retry.",
-                error_code="PRIVATE_URL_NO_CONTEXT",
+            return (
+                f"Navigated to {tab.url} (title={tab.title}) "
+                "[via extension bridge — private network]"
             )
-        pages = contexts[0].pages
-        page = pages[0] if pages else await contexts[0].new_page()
-
-        try:
-            response = await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-            title = await page.title()
-            final_url = page.url
-            status_code = response.status if response else 0
-        except Exception as exc:
-            raise ToolError(
-                message=f"Navigation to private URL '{url}' via extension failed: {exc}",
-                user_hint="The private URL may be unreachable from the user's browser as well.",
-                error_code="PRIVATE_URL_NAV_FAILED",
-            ) from exc
-
-        return f"Navigated to {final_url} (status={status_code}, title={title}) [via extension bridge — private network]"
+        except ExtensionBridgeNotAvailable as exc:
+            error_text = str(exc).lower()
+            if "not connected" in error_text or "disconnected" in error_text:
+                raise ToolError(
+                    message=f"Extension bridge lost connection while navigating to '{url}'.",
+                    user_hint="The browser extension disconnected. Please reconnect it and retry.",
+                    error_code="PRIVATE_URL_EXTENSION_LOST",
+                    recovery_suggestions=["Retry navigation after extension reconnects"],
+                ) from exc
+            if (
+                "missing required capability" in error_text
+                or "handshake is not completed" in error_text
+                or "unknown action" in error_text
+            ):
+                raise ToolError(
+                    message=f"Extension bridge cannot navigate private URL '{url}' with current extension version.",
+                    user_hint="Upgrade the browser extension to the latest version, reconnect it, then retry.",
+                    error_code="PRIVATE_URL_EXTENSION_UPGRADE_REQUIRED",
+                    recovery_suggestions=[
+                        "Upgrade myrm-agent-extension to latest",
+                        "Reconnect extension and retry",
+                    ],
+                ) from exc
+            else:
+                raise ToolError(
+                    message=f"Navigation to private URL '{url}' via extension failed: {exc}",
+                    user_hint="The browser extension is connected but failed to navigate this URL. Reconnect and retry.",
+                    error_code="PRIVATE_URL_NAV_FAILED",
+                ) from exc
 
     async def _handle_captcha_if_detected(self) -> CaptchaHandleResult | None:
         """Detect and handle blocking CAPTCHAs on the current page.

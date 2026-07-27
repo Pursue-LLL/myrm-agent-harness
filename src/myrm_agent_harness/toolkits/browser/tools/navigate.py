@@ -58,5 +58,8 @@ def create_navigate_tool(session: BrowserSession):
 
     return with_dynamic_hints(
         browser_navigate,
-        {"web_search_tool": "For simple information retrieval, prefer web_search_tool (faster, cheaper)."},
+        {
+            "web_search_tool": "For simple information retrieval, prefer web_search_tool (faster, cheaper).",
+            "web_fetch_tool": "For read-only content retrieval (no interaction needed), prefer web_fetch_tool (faster, cheaper, handles JS internally).",
+        },
     )

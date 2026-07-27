@@ -7,9 +7,11 @@
 
 [OUTPUT]
 - DeepResearchResult: result container dataclass
+- CitationAuditResult: citation verification result
 - Helper functions: context limit, usage tracking, cost estimation,
   reasoning model detection, tool call extraction, message compaction,
-  text truncation, subagent config building
+  text truncation, subagent config building, source formatting,
+  citation auditing
 
 [POS]
 Stateless helper functions for Deep Research orchestration —
@@ -18,6 +20,7 @@ token counting, content formatting, and configuration utilities.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from langchain_core.language_models import BaseChatModel
@@ -31,6 +34,15 @@ from .config import DeepResearchConfig
 from .prompts import RESEARCH_AGENT_PROMPT
 
 logger = get_agent_logger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class CitationAuditResult:
+    """Result of post-report citation verification (zero LLM cost)."""
+
+    total_markers: int = 0
+    valid: int = 0
+    unresolved: int = 0
 
 
 @dataclass
@@ -48,6 +60,7 @@ class DeepResearchResult:
     total_input_tokens: int = 0
     total_output_tokens: int = 0
     estimated_cost_usd: float = 0.0
+    citation_audit: CitationAuditResult | None = None
 
 
 def get_datetime_str() -> str:
@@ -152,3 +165,67 @@ def extract_tool_calls(response: AIMessage) -> list[dict[str, object]]:
             for tc in response.tool_calls
         ]
     return []
+
+
+# ---------------------------------------------------------------------------
+# Citation helpers
+# ---------------------------------------------------------------------------
+
+_CITATION_MARKER_RE = re.compile(r"\u3010(\d+)\u3011")
+_SOURCE_SNIPPET_BUDGET = 200
+
+
+def format_numbered_sources(sources: list[dict[str, object]], char_budget: int = 8000) -> str:
+    """Format sources into a numbered text block for injection into the report prompt.
+
+    Each entry: ``[N] title - url\\nsnippet…``
+    Respects *char_budget* to avoid token explosion when source count is high.
+    """
+    if not sources:
+        return ""
+
+    parts: list[str] = []
+    used = 0
+    for src in sources:
+        idx = src.get("index", 0)
+        title = str(src.get("title", "")).strip() or "Untitled"
+        url = str(src.get("url", "")).strip()
+        snippet = str(src.get("snippet", "")).strip()
+        if len(snippet) > _SOURCE_SNIPPET_BUDGET:
+            snippet = snippet[:_SOURCE_SNIPPET_BUDGET] + "…"
+
+        entry = f"[{idx}] {title}"
+        if url:
+            entry += f" - {url}"
+        if snippet:
+            entry += f"\n{snippet}"
+
+        cost = len(entry) + 2
+        if used + cost > char_budget and parts:
+            parts.append(f"[… {len(sources) - len(parts)} more sources omitted]")
+            break
+        parts.append(entry)
+        used += cost
+
+    return "\n\n".join(parts)
+
+
+def audit_citations(report: str, source_count: int) -> CitationAuditResult:
+    """Lightweight post-report citation audit (zero LLM cost).
+
+    Extracts all 【N】 markers and verifies N is within [1, source_count].
+    """
+    markers = _CITATION_MARKER_RE.findall(report)
+    if not markers:
+        return CitationAuditResult()
+
+    valid = 0
+    unresolved = 0
+    for num_str in markers:
+        n = int(num_str)
+        if 1 <= n <= source_count:
+            valid += 1
+        else:
+            unresolved += 1
+
+    return CitationAuditResult(total_markers=len(markers), valid=valid, unresolved=unresolved)

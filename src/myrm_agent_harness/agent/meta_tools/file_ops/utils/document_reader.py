@@ -62,9 +62,9 @@ async def read_document_as_text(
     path: str,
     executor: CodeExecutor,
     *,
-    excel_mode: str | None = None,
+    parse_mode: str | None = None,
 ) -> str:
-    """Read a structured document and return parsed Markdown text.
+    """Read a structured document and return parsed text.
 
     Uses DocxParser for .docx, ExcelParser for .xlsx/.xls, PptxParser for .pptx/.ppt,
     IpynbParser for .ipynb. Falls back to a descriptive error message on failure.
@@ -72,9 +72,11 @@ async def read_document_as_text(
     Args:
         path: File path within the sandbox.
         executor: Code executor for sandbox file access.
-        excel_mode: Optional override for Excel output format
-            ("content", "structure", "audit"). When None, large Excel files
-            (>50KB) automatically use "structure" to prevent token explosion.
+        parse_mode: Optional override for document output format.
+            - "content": force full Markdown output
+            - "structure": JSON structural metadata (all Office formats)
+            - "audit": JSON formula audit (Excel only)
+            - None: auto-select (Excel large files auto-switch to structure)
     """
     suffix = PurePosixPath(path).suffix.lower()
 
@@ -97,11 +99,14 @@ async def read_document_as_text(
         elif suffix == ".docx":
             from myrm_agent_harness.toolkits.file_parsers.docx import DocxParser
 
-            parser = DocxParser()
+            if parse_mode == "structure":
+                parser = DocxParser(output_format="structure")
+            else:
+                parser = DocxParser()
         elif suffix in (".xlsx", ".xls"):
             from myrm_agent_harness.toolkits.file_parsers.excel import ExcelParser
 
-            effective_mode = excel_mode
+            effective_mode = parse_mode
             if effective_mode is None and len(raw_bytes) > _EXCEL_STRUCTURE_THRESHOLD_BYTES:
                 effective_mode = "structure"
 
@@ -112,7 +117,10 @@ async def read_document_as_text(
         elif suffix in (".pptx", ".ppt"):
             from myrm_agent_harness.toolkits.file_parsers.pptx import PptxParser
 
-            parser = PptxParser()
+            if parse_mode == "structure":
+                parser = PptxParser(output_format="structure")
+            else:
+                parser = PptxParser()
         else:
             return f"[Document: {path}] (Unsupported document format: {suffix})"
 
