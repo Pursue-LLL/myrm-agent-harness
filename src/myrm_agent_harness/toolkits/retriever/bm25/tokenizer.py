@@ -5,11 +5,9 @@ Lazy-loaded tokenizer supporting CJK/English hybrid tokenization.
 Core capabilities:
 - Chinese segmentation: jieba (precise + search-engine modes)
 - CJK bigram fallback: character unigram + bigram when jieba unavailable
-- English enhancement: zero-dependency stopword + suffix normalization
 - Smart detection: auto-identifies mixed CJK/English text
 
 [INPUT]
-- retriever.bm25.english_normalizer::normalize_english_token (POS: Zero-dependency English stopword + suffix normalization for BM25)
 (no external module dependencies at import time — jieba is lazy-loaded)
 
 [OUTPUT]
@@ -31,11 +29,8 @@ import logging
 import re
 from typing import Literal
 
-from myrm_agent_harness.toolkits.retriever.bm25.english_normalizer import normalize_english_token
-
 logger = logging.getLogger(__name__)
 
-_ENGLISH_WORD_PATTERN = re.compile(r"^[a-zA-Z]([a-zA-Z\-']*[a-zA-Z])?$")
 _CJK_RUN = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+")
 _NON_CJK_WORD = re.compile(r"[a-zA-Z0-9]+")
 
@@ -110,23 +105,10 @@ class TokenizerService:
             await loop.run_in_executor(None, self._init_jieba_sync)
             self._initialized = True
 
-    def _enhance_english(self, tokens: list[str]) -> list[str]:
-        """Apply stopword filtering and suffix normalization to English tokens."""
-        result: list[str] = []
-        for token in tokens:
-            if _ENGLISH_WORD_PATTERN.match(token):
-                normalized = normalize_english_token(token)
-                if normalized is not None:
-                    result.append(normalized)
-            else:
-                result.append(token)
-        return result
-
     def tokenize(
         self,
         text: str,
         mode: Literal["simple", "search"] = "simple",
-        enable_english_enhancement: bool = False,
     ) -> list[str]:
         """Unified tokenization entry point.
 
@@ -135,7 +117,6 @@ class TokenizerService:
             mode: Tokenization mode.
                 - simple: precise segmentation (for BM25 index building)
                 - search: search-engine mode (higher recall, for queries)
-            enable_english_enhancement: Enable English stopword + suffix normalization.
 
         Returns:
             List of tokens.
@@ -150,16 +131,10 @@ class TokenizerService:
         else:
             tokens = _cjk_bigram_tokenize(text)
 
-        tokens = [t for token in tokens if (t := token.strip())]
+        return [t for token in tokens if (t := token.strip())]
 
-        if enable_english_enhancement:
-            tokens = self._enhance_english(tokens)
-
-        return tokens
-
-    async def preload(self, *, enable_english_enhancement: bool = False) -> None:
-        """Async-preload tokenizer (jieba; English normalizer is zero-dep, no preload needed)."""
-        _ = enable_english_enhancement
+    async def preload(self) -> None:
+        """Async-preload tokenizer (jieba)."""
         logger.info("Preloading tokenizer...")
         try:
             await self._async_initialize()
@@ -178,6 +153,6 @@ def get_tokenizer_service() -> TokenizerService:
     return _tokenizer_service
 
 
-async def preload_tokenizer(enable_english_enhancement: bool = False) -> None:
+async def preload_tokenizer() -> None:
     """Preload tokenizer at application startup (convenience function)."""
-    await _tokenizer_service.preload(enable_english_enhancement=enable_english_enhancement)
+    await _tokenizer_service.preload()

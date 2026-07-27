@@ -186,31 +186,18 @@ class TestSkillSearchEngine:
                     f"{results1[i + 1].name} (score={results1[i + 1].score:.6f})"
                 )
 
-    def test_english_morphology_recall(self) -> None:
-        """English enhancement is opt-in; verify token rules and explicit enable path."""
-        from myrm_agent_harness.toolkits.retriever.bm25_retrieval import BM25Retriever, preprocess_text
+    def test_synonym_expansion_recall(self) -> None:
+        """Synonym expansion improves recall for auth-related queries."""
+        from myrm_agent_harness.backends.skills.types import SkillMetadata
 
         skills = [
             SkillMetadata(
-                name="weather_forecast_skill",
-                description="Weather forecast query service",
-                storage_skill_id="weather_forecast_skill",
+                name="user_authentication",
+                description="User authentication and login flow",
+                storage_skill_id="user_authentication",
             ),
         ]
-        engine = SkillSearchEngine(skills, min_relevance_score=0.0, enable_query_expansion=False)
-        assert engine._retriever.enable_english_enhancement is False
-
-        enhanced_query_tokens = preprocess_text("weather forecasting", enable_english_enhancement=True)
-        plain_query_tokens = preprocess_text("weather forecasting", enable_english_enhancement=False)
-        doc_tokens = preprocess_text("Weather forecast query service", enable_english_enhancement=True)
-
-        assert "forecast" in enhanced_query_tokens
-        assert "forecast" in doc_tokens
-        assert "forecasting" in plain_query_tokens
-        assert "forecast" not in plain_query_tokens
-
-        documents = [f"{skills[0].name.replace('_', ' ')} {skills[0].description}"]
-        enhanced_retriever = BM25Retriever(documents, enable_english_enhancement=True)
-        hits = enhanced_retriever.search("weather forecasting", top_k=1, only_relevant=False)
-        assert hits
-        assert hits[0][0] == 0
+        engine = SkillSearchEngine(skills, min_relevance_score=-1.0, enable_query_expansion=True)
+        results = engine.search_bm25("login user", top_k=1)
+        assert results
+        assert results[0].name == "user_authentication"

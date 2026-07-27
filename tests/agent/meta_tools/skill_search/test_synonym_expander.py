@@ -63,6 +63,20 @@ class TestSynonymExpander:
         expanded = expander.expand("api")
         assert len(expanded) <= 5
 
+    def test_expand_no_substring_false_positive(self) -> None:
+        """auth/authentication must not match inside authenticate."""
+        expander = SynonymExpander()
+        expanded = expander.expand("authenticate user")
+        assert expanded == ["authenticate user"]
+        assert not any("enticate user" in q and q != "authenticate user" for q in expanded)
+
+    def test_expand_whole_word_auth(self) -> None:
+        """Whole-word auth should still expand to authentication."""
+        expander = SynonymExpander()
+        expanded = expander.expand("auth token")
+        assert "auth token" in expanded
+        assert any("authentication token" in q for q in expanded)
+
     def test_external_config_loading(self) -> None:
         """Test that external config can be loaded"""
         from pathlib import Path

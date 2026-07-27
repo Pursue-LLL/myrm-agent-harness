@@ -237,14 +237,13 @@ def extract_special_patterns(text: str) -> list[str]:
     return special_tokens
 
 
-def preprocess_text(text: str, enable_english_enhancement: bool = False) -> list[str]:
+def preprocess_text(text: str) -> list[str]:
     """Enhanced tokenization strategy integrating special pattern extraction.
 
     Supports version numbers, URLs, and other intelligent tokenization patterns.
 
     Args:
         text: Raw text
-        enable_english_enhancement: Whether to enable native English stopword + suffix normalization.
 
     Returns:
         List of tokens
@@ -284,7 +283,7 @@ def preprocess_text(text: str, enable_english_enhancement: bool = False) -> list
 
         # CJK text: use jieba tokenization
         if re.search(r"[\u4e00-\u9fff]", word):
-            chinese_tokens = tokenizer.tokenize(word, mode="search", enable_english_enhancement=False)
+            chinese_tokens = tokenizer.tokenize(word, mode="search")
             tokens.extend(chinese_tokens)
         else:
             # Check for version number pattern
@@ -296,12 +295,7 @@ def preprocess_text(text: str, enable_english_enhancement: bool = False) -> list
                 camel_tokens = split_camelcase(word)
                 tokens.extend(camel_tokens)
             else:
-                # Regular English word: use unified tokenizer service
-                if enable_english_enhancement:
-                    enhanced_tokens = tokenizer.tokenize(word, mode="simple", enable_english_enhancement=True)
-                    tokens.extend(enhanced_tokens)
-                else:
-                    tokens.append(word)
+                tokens.append(word)
 
     # 5. Deduplicate and filter empty values
     result = []
@@ -321,21 +315,16 @@ class BM25Retriever:
     - Pre-built index supporting multiple queries
     - Auto-filters empty documents
     - Smart CJK/English hybrid tokenization
-    - Optional English enhancement (stemming + stopword filtering)
     """
 
-    def __init__(self, documents: list[str], enable_english_enhancement: bool = False):
+    def __init__(self, documents: list[str]) -> None:
         """Initialize the BM25 retriever.
 
         Args:
             documents: List of documents, each a string
-            enable_english_enhancement: Enable native English normalization (default off to avoid overhead)
         """
         self.documents = documents
-        self.enable_english_enhancement = enable_english_enhancement
-        self.processed_docs = [
-            preprocess_text(doc, enable_english_enhancement=enable_english_enhancement) for doc in documents
-        ]
+        self.processed_docs = [preprocess_text(doc) for doc in documents]
 
         # Filter empty documents
         valid_indices = [i for i, doc in enumerate(self.processed_docs) if doc]
@@ -372,7 +361,7 @@ class BM25Retriever:
 
         # Preprocess query (using same enhancement settings as documents)
         preprocess_start_time = time.perf_counter()
-        processed_query = preprocess_text(query, enable_english_enhancement=self.enable_english_enhancement)
+        processed_query = preprocess_text(query)
         preprocess_time = time.perf_counter() - preprocess_start_time
 
         if not processed_query:

@@ -9,7 +9,7 @@ Skill search module.
 |------|------|-------------|-------|
 | __init__.py | Package | Skill search module. | — |
 | config_loader.py | Config | Loads external configuration for flexible synonym management. | ✅ |
-| engine.py | Core | BM25 + regex skill search; QueryExpander on by default; BM25 `enable_english_enhancement` off by default. | ✅ |
+| engine.py | Core | BM25 + regex skill search; QueryExpander on by default. | ✅ |
 | hybrid_engine.py | Core | Hybrid search (BM25 + embedding, RRF). Lazy-imports numpy; missing numpy raises RuntimeError pointing to `[retrieval]`. | ✅ |
 | query_expansion.py | Core | Improves search robustness through a clean, modular pipeline. | ✅ |
 | query_normalizer.py | Core | Handles case normalization, punctuation removal, underscore replacement, | ✅ |

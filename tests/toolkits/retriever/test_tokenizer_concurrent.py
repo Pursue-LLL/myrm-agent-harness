@@ -15,7 +15,7 @@ def test_concurrent_lazy_init() -> None:
 
     def init_and_tokenize(thread_id: int) -> None:
         try:
-            tokens = tokenizer.tokenize(f"running test {thread_id}", enable_english_enhancement=True)
+            tokens = tokenizer.tokenize(f"running test {thread_id}")
             results.append((thread_id, tokens))
         except Exception as exc:
             errors.append((thread_id, str(exc)))
@@ -34,12 +34,12 @@ def test_concurrent_lazy_init() -> None:
     assert elapsed < 30.0
 
     for thread_id, tokens in results[:5]:
-        assert "run" in tokens or "test" in tokens, f"thread {thread_id}: {tokens}"
+        assert "running" in tokens or "test" in tokens, f"thread {thread_id}: {tokens}"
 
 
 def test_concurrent_tokenize() -> None:
     tokenizer = get_tokenizer_service()
-    tokenizer.tokenize("warmup", enable_english_enhancement=True)
+    tokenizer.tokenize("warmup")
 
     results: list[tuple[int, int, list[str]]] = []
     errors: list[tuple[int, str]] = []
@@ -47,10 +47,7 @@ def test_concurrent_tokenize() -> None:
     def tokenize_task(thread_id: int) -> None:
         try:
             for i in range(100):
-                tokens = tokenizer.tokenize(
-                    f"machine learning algorithm {thread_id}-{i}",
-                    enable_english_enhancement=True,
-                )
+                tokens = tokenizer.tokenize(f"machine learning algorithm {thread_id}-{i}")
                 results.append((thread_id, i, tokens))
         except Exception as exc:
             errors.append((thread_id, str(exc)))
@@ -66,6 +63,6 @@ def test_concurrent_tokenize() -> None:
     assert len(results) == 2000
 
     for thread_id, i, tokens in results[::100]:
-        assert "machin" in tokens or "learn" in tokens or "algorithm" in tokens, (
+        assert "machine" in tokens or "learning" in tokens or "algorithm" in tokens, (
             f"thread {thread_id}-{i}: {tokens}"
         )
