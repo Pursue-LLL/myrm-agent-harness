@@ -7,7 +7,7 @@ BM25 retrieval module providing CJK/English hybrid tokenization for sparse retri
 
 - **CJK Fallback Strategy**: When `jieba` is unavailable, uses character unigram + bigram tokenization (industry standard, same as openclaw/CodePilot). This ensures partial-match recall for Chinese text.
 - **Backend Property**: `TokenizerService.backend` exposes the active backend ("jieba" or "bigram_fallback") for diagnostics and health checks.
-- **English Normalization**: Zero-dependency stopword + conservative suffix rules (-ies/-ing/-ed only) in `english_normalizer.py`. Skill search enables this on BM25 index build; other call sites opt in via `enable_english_enhancement`.
+- **English Normalization**: Zero-dependency stopword + conservative suffix rules (-ies/-ing/-ed only) in `english_normalizer.py`. Opt in via `enable_english_enhancement` on `BM25Retriever`; `SkillSearchEngine` keeps it off by default.
 - **Diagnostic Integration**: Registered via `check_tokenizer_health` probe in `diagnostics/probes.py`.
 
 ## File & Submodule Index

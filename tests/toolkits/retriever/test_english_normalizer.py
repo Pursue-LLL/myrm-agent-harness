@@ -22,7 +22,7 @@ def test_suffix_normalization_golden_cases() -> None:
 
 
 def test_plural_and_status_tokens_are_not_over_stripped() -> None:
-    """Bare -s/-es stripping removed: skill names like status/alias must stay intact."""
+    """Skill-adjacent tokens like status/alias must remain exact for BM25 recall."""
     assert normalize_english_token("status") == "status"
     assert normalize_english_token("alias") == "alias"
     assert normalize_english_token("boxes") == "boxes"
@@ -30,7 +30,7 @@ def test_plural_and_status_tokens_are_not_over_stripped() -> None:
 
 
 def test_batch_preserves_order_and_filters_stopwords() -> None:
-    tokens = normalize_english_tokens(["The", "quick", "fox", "jumps"])
+    tokens = normalize_english_tokens(["The", "quick", "fox", "jumping"])
     assert tokens == ["quick", "fox", "jump"]
 
 

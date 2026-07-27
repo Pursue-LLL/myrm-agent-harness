@@ -22,12 +22,13 @@ def test_english_word_detection() -> None:
 
 
 def test_simple_english_tokenization(tokenizer) -> None:
-    text = "The quick brown fox jumps over the lazy dog"
+    text = "The quick brown fox is jumping over the lazy dog"
     tokens = tokenizer.tokenize(text, enable_english_enhancement=True)
 
     lower_tokens = [t.lower() for t in tokens]
     assert "the" not in lower_tokens
     assert "over" not in lower_tokens
+    assert "is" not in lower_tokens
     assert "jump" in tokens or "jump" in lower_tokens
 
 

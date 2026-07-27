@@ -187,22 +187,30 @@ class TestSkillSearchEngine:
                 )
 
     def test_english_morphology_recall(self) -> None:
-        """-ing query form should match indexed description stem with BM25 score > 0."""
+        """English enhancement is opt-in; verify token rules and explicit enable path."""
+        from myrm_agent_harness.toolkits.retriever.bm25_retrieval import BM25Retriever, preprocess_text
+
         skills = [
             SkillMetadata(
                 name="weather_forecast_skill",
-                description="Weather forecast query service for cities worldwide",
+                description="Weather forecast query service",
                 storage_skill_id="weather_forecast_skill",
             ),
-            SkillMetadata(
-                name="payment_status_skill",
-                description="Payment status lookup and reconciliation",
-                storage_skill_id="payment_status_skill",
-            ),
         ]
-        engine = SkillSearchEngine(skills, min_relevance_score=0.0)
-        results = engine.search_bm25("weather forecasting", top_k=2)
+        engine = SkillSearchEngine(skills, min_relevance_score=0.0, enable_query_expansion=False)
+        assert engine._retriever.enable_english_enhancement is False
 
-        assert results
-        assert results[0].name == "weather_forecast_skill"
-        assert results[0].score > 0.0
+        enhanced_query_tokens = preprocess_text("weather forecasting", enable_english_enhancement=True)
+        plain_query_tokens = preprocess_text("weather forecasting", enable_english_enhancement=False)
+        doc_tokens = preprocess_text("Weather forecast query service", enable_english_enhancement=True)
+
+        assert "forecast" in enhanced_query_tokens
+        assert "forecast" in doc_tokens
+        assert "forecasting" in plain_query_tokens
+        assert "forecast" not in plain_query_tokens
+
+        documents = [f"{skills[0].name.replace('_', ' ')} {skills[0].description}"]
+        enhanced_retriever = BM25Retriever(documents, enable_english_enhancement=True)
+        hits = enhanced_retriever.search("weather forecasting", top_k=1, only_relevant=False)
+        assert hits
+        assert hits[0][0] == 0

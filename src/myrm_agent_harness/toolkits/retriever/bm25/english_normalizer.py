@@ -11,8 +11,8 @@ corpus downloads (airgap/sandbox safe).
 - normalize_english_tokens: Batch normalize token list
 
 [POS]
-English enhancement backend for BM25 sparse retrieval. Deterministic embeddable
-rules suitable for skill search and code-adjacent text.
+Opt-in English enhancement backend for BM25 sparse retrieval (-ies/-ing/-ed + stopwords).
+Call sites enable via `enable_english_enhancement`; skill search keeps the default off.
 """
 
 from __future__ import annotations
@@ -95,7 +95,7 @@ def _strip_doubled_consonant(stem: str) -> str:
 
 
 def _apply_suffix_rules(word: str) -> str:
-    """Conservative suffix normalization for BM25 recall."""
+    """Apply -ies/-ing/-ed suffix rules only (no bare plural -s stripping)."""
     if len(word) <= 3:
         return word
 

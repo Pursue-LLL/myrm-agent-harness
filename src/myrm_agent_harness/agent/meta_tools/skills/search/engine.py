@@ -56,7 +56,7 @@ class SkillSearchEngine:
         self._expander = QueryExpander() if enable_query_expansion else None
         # Normalize skill names: replace underscores with spaces for better tokenization
         documents = [f"{s.name.replace('_', ' ')} {s.description}" for s in self._skills]
-        self._retriever = BM25Retriever(documents, enable_english_enhancement=True)
+        self._retriever = BM25Retriever(documents, enable_english_enhancement=False)
         logger.info(
             " SkillSearchEngine 已构建(%d 个技能已索引) | BM25阈值: %.2f | 查询扩展: %s",
             len(self._skills),
