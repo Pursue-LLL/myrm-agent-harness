@@ -11,9 +11,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.messages import AIMessage
 
-from myrm_agent_harness.toolkits.wiki.core.parsers import parse_concepts_response
-
 from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, WikiConfig
+from myrm_agent_harness.toolkits.wiki.core.parsers import parse_concepts_response
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import ConceptInfo
 from myrm_agent_harness.toolkits.wiki.pipeline.compiler import WikiCompiler
@@ -320,7 +319,7 @@ async def test_purpose_injection(wiki_structure: WikiStructure, mock_llm: AsyncM
 
     class DummyConcept:
         name = "AI"
-        source_files = ["ai.md"]
+        source_files = ("ai.md",)
 
     await compiler._generate_article(DummyConcept())
 
@@ -820,11 +819,11 @@ async def test_generate_article_no_indexer_fallback(
 
     with patch(
         "myrm_agent_harness.toolkits.wiki.retrieval.indexer.WikiIndexer"
-    ) as MockIndexer:
+    ) as mock_indexer_cls:
         mock_idx_instance = MagicMock()
         mock_idx_instance.upsert = AsyncMock()
         mock_idx_instance.extract_and_upsert_edges = MagicMock()
-        MockIndexer.return_value = mock_idx_instance
+        mock_indexer_cls.return_value = mock_idx_instance
 
         await compiler._generate_article(concept)
 
@@ -883,10 +882,10 @@ async def test_generate_backlinks_no_indexer_fallback(
 
     with patch(
         "myrm_agent_harness.toolkits.wiki.retrieval.indexer.WikiIndexer"
-    ) as MockIndexer:
+    ) as mock_indexer_cls:
         mock_idx_instance = MagicMock()
         mock_idx_instance.extract_and_upsert_edges = MagicMock()
-        MockIndexer.return_value = mock_idx_instance
+        mock_indexer_cls.return_value = mock_idx_instance
 
         count = await compiler._generate_backlinks(concepts)
         assert count == 1

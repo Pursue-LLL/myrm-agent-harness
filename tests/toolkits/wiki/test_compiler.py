@@ -41,7 +41,7 @@ async def test_wiki_compiler_generate_article(wiki_structure, mock_llm, mock_ind
     class DummyConcept:
         name = "Test Concept"
         reason = "test"
-        source_files = ["test.md"]
+        source_files = ("test.md",)
 
     await compiler._generate_article(DummyConcept())
 
@@ -63,7 +63,7 @@ async def test_wiki_compiler_require_approval(wiki_structure, mock_llm, mock_ind
     class DummyConcept:
         name = "Test Concept"
         reason = "test"
-        source_files = ["test.md"]
+        source_files = ("test.md",)
 
     await compiler._generate_article(DummyConcept())
 

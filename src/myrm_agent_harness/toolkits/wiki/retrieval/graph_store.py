@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 class WikiGraphStore:
     """Knowledge graph storage and BFS traversal over federated wiki databases."""
 
-    def __init__(self, get_conn_fn: ConnFactory, structure: "WikiStructure") -> None:
+    def __init__(self, get_conn_fn: ConnFactory, structure: WikiStructure) -> None:
         self._get_conn = get_conn_fn
         self._structure = structure
 

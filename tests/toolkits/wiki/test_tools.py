@@ -334,6 +334,48 @@ async def test_wiki_query_with_should_archive(direct_mock_tools: tuple) -> None:
 
 
 @pytest.mark.asyncio
+async def test_wiki_query_includes_sidecar_sources(direct_mock_tools: tuple) -> None:
+    """wiki_query emits directory sidecar citations alongside article citations."""
+    from myrm_agent_harness.toolkits.wiki.core.types import QueryResult, SourceSnippet
+
+    tools, _, mock_qe, _ = direct_mock_tools
+    query_tool = next(t for t in tools if t.name == "wiki_query_tool")
+
+    mock_qe.query = AsyncMock(
+        return_value=QueryResult(
+            question="test",
+            answer="Layered wiki answer",
+            related_articles=["/tmp/wiki/concept-a.md"],
+            confidence_score=0.9,
+            source_snippets=[
+                SourceSnippet(
+                    article_path="domain/.abstract.md",
+                    article_name="domain",
+                    snippet="Domain summary",
+                    section="Directory Abstract",
+                    level="L0",
+                ),
+                SourceSnippet(
+                    article_path="/tmp/wiki/concept-a.md",
+                    article_name="concept-a",
+                    snippet="Concept details",
+                    section="Compiled Truth",
+                    level="L2",
+                ),
+            ],
+        )
+    )
+
+    result = await query_tool.ainvoke({"question": "test"})
+    sources = result["metadata"]["sources"]
+    assert len(sources) == 2
+    assert sources[0]["level"] == "L0"
+    assert sources[0]["path"] == "domain/.abstract.md"
+    assert sources[1]["level"] == "L2"
+    assert sources[1]["path"] == "/tmp/wiki/concept-a.md"
+
+
+@pytest.mark.asyncio
 async def test_wiki_maintain_exception_at_tools_layer(direct_mock_tools: tuple) -> None:
     """Test wiki_maintain error path when linter.lint_and_maintain raises."""
     tools, _, _, mock_linter = direct_mock_tools
@@ -430,9 +472,9 @@ class TestFetchUrlAsMarkdown:
     @pytest.mark.asyncio
     async def test_raises_on_non_200(self) -> None:
         """Test that non-200 status raises ValueError via secure_get fallback."""
-        from myrm_agent_harness.toolkits.wiki.wiki_agent_tools import _fetch_url_as_markdown
-
         from unittest.mock import AsyncMock, patch
+
+        from myrm_agent_harness.toolkits.wiki.wiki_agent_tools import _fetch_url_as_markdown
 
         mock_response = type("MockResponse", (), {"status_code": 404, "text": ""})()
 
@@ -444,9 +486,8 @@ class TestFetchUrlAsMarkdown:
             "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
             new_callable=AsyncMock,
             return_value=mock_response,
-        ):
-            with pytest.raises(ValueError, match="HTTP 404"):
-                await _fetch_url_as_markdown("http://example.com/missing")
+        ), pytest.raises(ValueError, match="HTTP 404"):
+            await _fetch_url_as_markdown("http://example.com/missing")
 
     @pytest.mark.asyncio
     async def test_uses_fetch_engine_when_available(self) -> None:
@@ -644,9 +685,8 @@ class TestParseBinaryDocument:
         with patch(
             "myrm_agent_harness.toolkits.file_parsers.is_supported",
             return_value=False,
-        ):
-            with pytest.raises(ValueError, match="Unsupported file type"):
-                await _parse_binary_document(str(bad_path))
+        ), pytest.raises(ValueError, match="Unsupported file type"):
+            await _parse_binary_document(str(bad_path))
 
 
 class TestIngestPathTraversalDefense:

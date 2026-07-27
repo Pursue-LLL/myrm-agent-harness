@@ -18,6 +18,7 @@ detection, knowledge-gap analysis (isolated/bridge nodes), and cross-reference d
 
 from __future__ import annotations
 
+import inspect
 import json
 import random
 import re
@@ -329,7 +330,10 @@ class WikiLinter:
                 )
 
                 response = await self._llm.ainvoke([system_msg, human_msg])
-                response_text = response.content.strip()
+                raw_content = response.content
+                if inspect.isawaitable(raw_content):
+                    raw_content = await raw_content
+                response_text = str(raw_content).strip()
 
                 try:
                     if response_text.startswith("```"):
@@ -363,7 +367,12 @@ class WikiLinter:
                     concept_path.write_text(content, encoding="utf-8")
                     if self._indexer:
                         await self._indexer.upsert(concept_path.stem, content)
-                        self._indexer.extract_and_upsert_edges(concept_path.stem, content)
+                        edge_result = self._indexer.extract_and_upsert_edges(
+                            concept_path.stem,
+                            content,
+                        )
+                        if inspect.isawaitable(edge_result):
+                            await edge_result
 
             except Exception as e:
                 logger.warning(f"LLM link enrichment failed for {concept_path}: {e}")

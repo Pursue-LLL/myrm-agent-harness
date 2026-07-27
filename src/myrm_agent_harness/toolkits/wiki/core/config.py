@@ -42,6 +42,7 @@ class WikiConfig:
         enable_version_control: Enable Git version control for wiki articles
         parallel_compilation: Enable parallel document compilation (10x faster for batch)
         max_parallel_workers: Maximum parallel workers for compilation
+        enable_directory_sidecars: Enable L0/L1 directory sidecar generation for hierarchical retrieval
         enable_statistics: Track wiki usage statistics (query frequency, hot concepts)
         enable_auto_maintenance: Enable automatic wiki maintenance (lint + repair)
         maintenance_interval_hours: Hours between automatic maintenance runs
@@ -60,6 +61,7 @@ class WikiConfig:
     enable_version_control: bool = False
     parallel_compilation: bool = True
     max_parallel_workers: int = 4
+    enable_directory_sidecars: bool = True
     enable_statistics: bool = True
     enable_auto_maintenance: bool = True
     maintenance_interval_hours: int = 24
@@ -130,10 +132,18 @@ class WikiQueryConfig:
         auto_enhance_enabled: Enable automatic enhancement (archive query results)
         min_query_quality_score: Minimum quality score to trigger enhancement (0-1)
         max_context_articles: Maximum articles to load as context
+        max_full_articles: Maximum L2 full articles loaded after directory-level context
+        max_context_chars: Hard cap for assembled query context
+        sidecar_retrieval_enabled: Enable L0/L1 sidecar-first retrieval routing
+        max_sidecar_directories: Maximum directories selected from sidecar retrieval
         enable_related_concepts: Show related concepts in query results
     """
 
     auto_enhance_enabled: bool = True
     min_query_quality_score: float = 0.7
     max_context_articles: int = 5
+    max_full_articles: int = 3
+    max_context_chars: int = 12_000
+    sidecar_retrieval_enabled: bool = True
+    max_sidecar_directories: int = 3
     enable_related_concepts: bool = True

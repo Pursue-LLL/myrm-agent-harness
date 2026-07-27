@@ -15,8 +15,12 @@ and other file system operations.
 
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING, ClassVar
 
 from myrm_agent_harness.core.security.path_security import safe_join_path
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
 
 
 class WikiStructure:
@@ -29,6 +33,9 @@ class WikiStructure:
     - index/: Index files and catalogs
     - concepts/: Concept articles
     """
+
+    DIRECTORY_ABSTRACT_FILENAME = ".abstract.md"
+    DIRECTORY_OVERVIEW_FILENAME = ".overview.md"
 
     def __init__(self, base_dir: Path | str, public_dirs: list[Path | str] | None = None):
         """
@@ -69,6 +76,22 @@ class WikiStructure:
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
 
+    def get_directory_sidecar_paths(
+        self,
+        concept_dir: str,
+        *,
+        create: bool = True,
+    ) -> tuple[Path, Path]:
+        """Get directory sidecar paths (L0 abstract + L1 overview) for a concept directory."""
+        safe_dir = self._sanitize_path(concept_dir)
+        base_dir = self.concepts_dir if not safe_dir else self.concepts_dir / safe_dir
+        if create:
+            base_dir.mkdir(parents=True, exist_ok=True)
+        return (
+            base_dir / self.DIRECTORY_ABSTRACT_FILENAME,
+            base_dir / self.DIRECTORY_OVERVIEW_FILENAME,
+        )
+
     def resolve_concept_file_path(self, concept_path: str) -> Path | None:
         """Resolve path for reading, checking public enterprise mounts if not found locally."""
         local_path = self.get_concept_file_path(concept_path)
@@ -93,11 +116,15 @@ class WikiStructure:
 
     def list_concepts(self) -> list[Path]:
         """List all concept articles, including from public federated mounts."""
-        concepts = sorted(self.concepts_dir.rglob("*.md"))
+        concepts = [
+            p for p in sorted(self.concepts_dir.rglob("*.md")) if not self._is_directory_sidecar(p)
+        ]
         for p_dir in self.public_dirs:
             p_concepts = p_dir / "wiki" / "concepts"
             if p_concepts.exists():
-                concepts.extend(sorted(p_concepts.rglob("*.md")))
+                concepts.extend(
+                    p for p in sorted(p_concepts.rglob("*.md")) if not self._is_directory_sidecar(p)
+                )
         return concepts
 
     def get_purpose_path(self) -> Path:
@@ -127,6 +154,8 @@ class WikiStructure:
 
         # 1. Recursively find all markdown files and delete them from indexer
         for md_file in target_dir.rglob("*.md"):
+            if self._is_directory_sidecar(md_file):
+                continue
             try:
                 # Calculate the concept name (relative path without extension)
                 rel_path = md_file.relative_to(self.concepts_dir)
@@ -146,7 +175,7 @@ class WikiStructure:
 
         return deleted_count
 
-    _IGNORED_DIRS: set[str] = {
+    _IGNORED_DIRS: ClassVar[set[str]] = {
         ".git", ".svn", ".hg", "node_modules", "__pycache__",
         ".venv", ".env", "__MACOSX", ".obsidian", ".idea", ".vscode",
     }
@@ -208,3 +237,10 @@ class WikiStructure:
             if safe:
                 parts.append(safe)
         return "/".join(parts)
+
+    @classmethod
+    def _is_directory_sidecar(cls, path: Path) -> bool:
+        return path.name in {
+            cls.DIRECTORY_ABSTRACT_FILENAME,
+            cls.DIRECTORY_OVERVIEW_FILENAME,
+        }

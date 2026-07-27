@@ -3,7 +3,7 @@
 ## Overview
 Wiki compilation pipeline. SHA256-based incremental compilation, Semaphore-limited parallel
 batch ingestion, SQLite persistent queue with auto-retry, purpose-aware article generation
-with provenance, HITL pending edits.
+with provenance, HITL pending edits, and bottom-up incremental L0/L1 directory sidecars.
 
 ## File & Submodule Index
 
@@ -12,6 +12,7 @@ with provenance, HITL pending edits.
 | __init__.py | Package | Init | — |
 | compiler.py | Core | LLM compiler: parallel batch ingestion, SHA256 incremental cache, purpose injection, auto-retry worker | ✅ |
 | postprocess.py | Core | Post-compilation steps: index building, backlink generation, metadata persistence | ✅ |
+| sidecar.py | Core | Directory sidecar builder (`.abstract.md`/`.overview.md`): bottom-up DAG invalidation + incremental rebuild + index sync | ✅ |
 | pending.py | Core | HITL pending edits manager | ✅ |
 | queue.py | Core | SQLite persistent ingestion queue with retry + stale recovery | ✅ |
 

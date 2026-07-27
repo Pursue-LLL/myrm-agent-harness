@@ -9,6 +9,7 @@ langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message typ
 ..core.parsers::parse_concepts_response (POS: LLM response parser)
 .postprocess::build_index, generate_backlinks, save_metadata (POS: post-compilation steps)
 .queue::WikiIngestionQueue (POS: persistent ingestion queue)
+.sidecar::build_directory_sidecars (POS: bottom-up directory sidecar builder)
 
 [OUTPUT]
 WikiCompiler: LLM-Wiki compilation engine
@@ -16,14 +17,16 @@ WikiCompiler: LLM-Wiki compilation engine
 [POS]
 Wiki compilation core engine. Uses LLM to compile raw documents into structured wiki articles:
 concept extraction and article generation. Post-compilation steps (index, backlinks, metadata)
-are delegated to postprocess module. Supports incremental compilation, Semaphore-limited
-parallel batch ingestion, and SQLite-based persistent controlled batch processing.
+and sidecar generation are delegated to dedicated modules. Supports incremental compilation,
+Semaphore-limited parallel batch ingestion, and SQLite-based persistent controlled batch
+processing.
 """
 
 from __future__ import annotations
 
 import asyncio
 import hashlib
+import inspect
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -44,6 +47,7 @@ from myrm_agent_harness.toolkits.wiki.core.types import CompileResult, ConceptIn
 
 from .postprocess import build_index, generate_backlinks, save_metadata
 from .queue import WikiIngestionQueue
+from .sidecar import build_directory_sidecars
 
 logger = get_agent_logger(__name__)
 
@@ -158,6 +162,8 @@ class WikiCompiler:
                     await self._build_index(all_concepts)
                     if self._config.enable_backlinks:
                         await self._generate_backlinks(all_concepts)
+                    if self._config.enable_directory_sidecars:
+                        await self._build_sidecars(all_concepts)
                     await self._save_metadata(len(all_concepts), articles)
 
                 await asyncio.sleep(1)
@@ -219,7 +225,11 @@ class WikiCompiler:
             backlinks_count = await self._generate_backlinks(all_concepts)
             logger.info(f"Created {backlinks_count} backlinks")
 
-        # Step 5: Update metadata
+        # Step 5: Build directory sidecars (L0/L1)
+        if self._config.enable_directory_sidecars:
+            await self._build_sidecars(all_concepts)
+
+        # Step 6: Update metadata
         await self._save_metadata(len(all_concepts), articles)
 
         duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
@@ -331,8 +341,12 @@ class WikiCompiler:
 
         try:
             response = await self._llm.ainvoke([system_msg, human_msg])
-            logger.info(f"LLM extraction response for {doc_path}: {response.content}")
-            concepts = parse_concepts_response(response.content, str(relative_path))
+            raw_content = response.content
+            if inspect.isawaitable(raw_content):
+                raw_content = await raw_content
+            response_text = str(raw_content)
+            logger.info(f"LLM extraction response for {doc_path}: {response_text}")
+            concepts = parse_concepts_response(response_text, str(relative_path))
             return concepts
         except Exception as e:
             logger.error(f"LLM extraction failed for {doc_path}: {e}")
@@ -393,7 +407,10 @@ class WikiCompiler:
 
         try:
             response = await self._llm.ainvoke([system_msg, human_msg])
-            article_content = response.content
+            raw_content = response.content
+            if inspect.isawaitable(raw_content):
+                raw_content = await raw_content
+            article_content = str(raw_content)
 
             if len(article_content) > self._compile_config.max_article_length:
                 article_content = article_content[: self._compile_config.max_article_length] + "\n\n(truncated)"
@@ -411,13 +428,23 @@ class WikiCompiler:
                 # FTS5 and Vector Upsert
                 if self._indexer:
                     await self._indexer.upsert(concept.name, article_content)
-                    self._indexer.extract_and_upsert_edges(concept.name, article_content)
+                    edge_result = self._indexer.extract_and_upsert_edges(
+                        concept.name,
+                        article_content,
+                    )
+                    if inspect.isawaitable(edge_result):
+                        await edge_result
                 else:
                     from ..retrieval.indexer import WikiIndexer
 
                     indexer = WikiIndexer(self._structure, self._config)
                     await indexer.upsert(concept.name, article_content)
-                    indexer.extract_and_upsert_edges(concept.name, article_content)
+                    edge_result = indexer.extract_and_upsert_edges(
+                        concept.name,
+                        article_content,
+                    )
+                    if inspect.isawaitable(edge_result):
+                        await edge_result
 
                 logger.info(f"Generated and indexed article: {article_path.name}")
 
@@ -436,3 +463,19 @@ class WikiCompiler:
     async def _save_metadata(self, concepts_count: int, articles_count: int) -> None:
         """Delegate to postprocess.save_metadata."""
         await save_metadata(self._structure, concepts_count, articles_count)
+
+    async def _build_sidecars(self, concepts: list[ConceptInfo]) -> None:
+        """Build L0/L1 directory sidecars via incremental bottom-up DAG."""
+        result = await build_directory_sidecars(
+            self._llm,
+            self._structure,
+            self._compile_config,
+            touched_concepts=concepts,
+            indexer=self._indexer,
+        )
+        logger.info(
+            "Directory sidecars built: rebuilt=%d skipped=%d removed=%d",
+            result.rebuilt_directories,
+            result.skipped_directories,
+            result.removed_directories,
+        )

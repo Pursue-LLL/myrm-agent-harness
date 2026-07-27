@@ -63,12 +63,13 @@ class CompileResult:
 
 @dataclass(frozen=True, slots=True)
 class SourceSnippet:
-    """Chunk-level snippet extracted from a wiki article for citation linking."""
+    """Citation snippet with explicit abstraction level (L0/L1/L2)."""
 
     article_path: str
     article_name: str
     snippet: str
     section: str = ""
+    level: str = "L2"
 
 
 @dataclass(frozen=True, slots=True)

@@ -13,7 +13,8 @@ WikiQueryEngine: Wiki query and enhancement engine
 [POS]
 Wiki query core engine. Responsible for querying the wiki knowledge base and answering questions:
 concept search, context loading, LLM answer generation, and automatic archival of high-value results.
-Uses semantic search when enable_semantic_search=True and search_fn is injected; falls back to keyword matching otherwise.
+Uses sidecar-first hierarchical routing with context-budgeted loading (L0/L1 before L2),
+and falls back to keyword matching when semantic retrieval is unavailable.
 """
 
 from __future__ import annotations
@@ -60,7 +61,7 @@ class WikiQueryEngine:
         self._config = config
         self._query_config = query_config or WikiQueryConfig()
         self._search_fn = search_fn
-        self._indexer = WikiIndexer(structure)
+        self._indexer = WikiIndexer(structure, config)
 
     async def query(self, question: str) -> QueryResult:
         """
@@ -116,6 +117,12 @@ class WikiQueryEngine:
             return []
 
         top_n = self._query_config.max_context_articles
+
+        if self._query_config.sidecar_retrieval_enabled:
+            routed = await self._search_concepts_via_sidecars(query, concepts, top_n=top_n)
+            if routed:
+                return routed
+
         seed_results: list[str] = []
 
         if self._config.enable_semantic_search:
@@ -141,6 +148,69 @@ class WikiQueryEngine:
         # Graph traversal expansion: discover related concepts via edges
         expanded = self._expand_via_graph(seed_results, top_n)
         return [self._structure.get_concept_file_path(name) for name in expanded]
+
+    async def _search_concepts_via_sidecars(
+        self,
+        query: str,
+        concepts: list[Path],
+        *,
+        top_n: int,
+    ) -> list[Path]:
+        """Use L0/L1 sidecars to route retrieval into high-value directories first."""
+        limit = max(top_n * 3, 8)
+        try:
+            sidecar_hits = await self._indexer.search_sidecars(query, limit=limit)
+        except Exception as e:
+            logger.warning("Sidecar retrieval failed: %s", e)
+            return []
+        if not sidecar_hits:
+            return []
+
+        max_dirs = max(0, self._query_config.max_sidecar_directories)
+        if max_dirs == 0:
+            return []
+        ordered_dirs: list[str] = []
+        seen_dirs: set[str] = set()
+        for dir_path, _level, _score in sidecar_hits:
+            if dir_path in seen_dirs:
+                continue
+            seen_dirs.add(dir_path)
+            ordered_dirs.append(dir_path)
+            if len(ordered_dirs) >= max_dirs:
+                break
+        if not ordered_dirs:
+            return []
+
+        candidates = self._collect_concepts_from_directory_scopes(ordered_dirs, concepts)
+        if not candidates:
+            return []
+
+        candidate_name_to_path = {
+            self._concept_name_from_path(path): path
+            for path in candidates
+        }
+        ranked_names: list[str] = []
+        try:
+            indexed_hits = await self._indexer.search(query, limit=max(top_n * 6, 20))
+            for concept_name, _score in indexed_hits:
+                if concept_name in candidate_name_to_path and concept_name not in ranked_names:
+                    ranked_names.append(concept_name)
+                if len(ranked_names) >= top_n:
+                    break
+        except Exception as e:
+            logger.warning("Concept rerank after sidecar routing failed: %s", e)
+
+        if len(ranked_names) < top_n:
+            for path in self._keyword_search(query, candidates, top_n):
+                concept_name = self._concept_name_from_path(path)
+                if concept_name not in ranked_names:
+                    ranked_names.append(concept_name)
+                if len(ranked_names) >= top_n:
+                    break
+
+        if ranked_names:
+            return [candidate_name_to_path[name] for name in ranked_names if name in candidate_name_to_path]
+        return candidates[:top_n]
 
     def _expand_via_graph(self, seed_names: list[str], max_results: int) -> list[str]:
         """Expand seed results via 1-hop weighted graph traversal."""
@@ -194,8 +264,23 @@ class WikiQueryEngine:
         """
         context_parts: list[str] = []
         snippets: list[SourceSnippet] = []
+        remaining_chars = max(500, self._query_config.max_context_chars)
 
+        # Step 1: directory-level L0/L1 context
+        if self._query_config.sidecar_retrieval_enabled:
+            sidecar_parts, sidecar_chars, sidecar_snippets = self._load_directory_sidecars(article_paths)
+            if sidecar_parts:
+                context_parts.extend(sidecar_parts)
+                remaining_chars = max(0, remaining_chars - sidecar_chars)
+            if sidecar_snippets:
+                snippets.extend(sidecar_snippets)
+
+        # Step 2: full article context (L2), bounded by count and hard char budget
+        max_full_articles = max(1, min(len(article_paths), self._query_config.max_full_articles))
+        loaded_articles = 0
         for path in article_paths:
+            if loaded_articles >= max_full_articles or remaining_chars <= 0:
+                break
             try:
                 content = path.read_text(encoding="utf-8")
 
@@ -214,7 +299,15 @@ class WikiQueryEngine:
                 else:
                     truth_content = content
 
-                context_parts.append(f"# {path.stem}\n\n{truth_content}")
+                block = f"# {path.stem}\n\n{truth_content}".strip()
+                if len(block) > remaining_chars:
+                    clipped = block[:remaining_chars].rsplit(" ", 1)[0].strip()
+                    if not clipped:
+                        break
+                    block = f"{clipped}\n\n[... truncated by context budget]"
+                context_parts.append(block)
+                remaining_chars -= len(block)
+                loaded_articles += 1
 
                 # 3. Extract snippet: first meaningful section or paragraph (≤500 chars)
                 snippet_text, section_name = self._extract_snippet(truth_content)
@@ -224,12 +317,101 @@ class WikiQueryEngine:
                         article_name=path.stem,
                         snippet=snippet_text,
                         section=section_name,
+                        level="L2",
                     )
                 )
             except Exception as e:
                 logger.warning(f"Failed to load {path}: {e}")
 
         return "\n\n---\n\n".join(context_parts), snippets
+
+    def _load_directory_sidecars(self, article_paths: list[Path]) -> tuple[list[str], int, list[SourceSnippet]]:
+        parts: list[str] = []
+        total_chars = 0
+        snippets: list[SourceSnippet] = []
+        seen: set[str] = set()
+        max_dirs = max(0, self._query_config.max_sidecar_directories)
+        if max_dirs == 0:
+            return parts, total_chars, snippets
+        for article in article_paths:
+            try:
+                rel = article.relative_to(self._structure.concepts_dir).with_suffix("")
+            except ValueError:
+                continue
+            dir_path = "" if str(rel.parent) in (".", "") else str(rel.parent).replace("\\", "/")
+            if dir_path in seen:
+                continue
+            seen.add(dir_path)
+            if len(seen) > max_dirs:
+                break
+            abstract = self._indexer.get_sidecar_truth(dir_path, level=0)
+            overview = self._indexer.get_sidecar_truth(dir_path, level=1)
+            if abstract:
+                block = f"# Directory {dir_path or '/'} (L0)\n\n{abstract.strip()}"
+                parts.append(block)
+                total_chars += len(block)
+                abstract_snippet, abstract_section = self._extract_snippet(abstract, max_chars=300)
+                snippets.append(
+                    SourceSnippet(
+                        article_path=self._sidecar_source_path(dir_path, level="L0"),
+                        article_name=dir_path or "/",
+                        snippet=abstract_snippet or abstract.strip()[:300],
+                        section=abstract_section or "Directory Abstract",
+                        level="L0",
+                    )
+                )
+            if overview:
+                block = f"# Directory {dir_path or '/'} (L1)\n\n{overview.strip()}"
+                parts.append(block)
+                total_chars += len(block)
+                overview_snippet, overview_section = self._extract_snippet(overview, max_chars=300)
+                snippets.append(
+                    SourceSnippet(
+                        article_path=self._sidecar_source_path(dir_path, level="L1"),
+                        article_name=dir_path or "/",
+                        snippet=overview_snippet or overview.strip()[:300],
+                        section=overview_section or "Directory Overview",
+                        level="L1",
+                    )
+                )
+        return parts, total_chars, snippets
+
+    def _collect_concepts_from_directory_scopes(
+        self,
+        dir_paths: list[str],
+        concepts: list[Path],
+    ) -> list[Path]:
+        ordered: list[Path] = []
+        seen_paths: set[Path] = set()
+
+        for dir_path in dir_paths:
+            normalized = dir_path.strip("/").replace("\\", "/")
+            for concept in concepts:
+                try:
+                    rel = concept.relative_to(self._structure.concepts_dir).with_suffix("")
+                except ValueError:
+                    continue
+                concept_name = str(rel).replace("\\", "/")
+                if normalized and not concept_name.startswith(f"{normalized}/"):
+                    continue
+                if concept not in seen_paths:
+                    seen_paths.add(concept)
+                    ordered.append(concept)
+        return ordered
+
+    def _concept_name_from_path(self, path: Path) -> str:
+        rel = path.relative_to(self._structure.concepts_dir).with_suffix("")
+        return str(rel).replace("\\", "/")
+
+    @staticmethod
+    def _sidecar_source_path(dir_path: str, *, level: str) -> str:
+        filename = (
+            WikiStructure.DIRECTORY_ABSTRACT_FILENAME if level == "L0" else WikiStructure.DIRECTORY_OVERVIEW_FILENAME
+        )
+        normalized = dir_path.strip("/")
+        if not normalized:
+            return f"/{filename}"
+        return f"{normalized}/{filename}"
 
     @staticmethod
     def _extract_snippet(content: str, max_chars: int = 500) -> tuple[str, str]:

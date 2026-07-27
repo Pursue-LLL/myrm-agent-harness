@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import inspect
 import json
 import re
 from datetime import UTC, datetime
@@ -54,9 +55,9 @@ async def build_index(structure: WikiStructure, concepts: list[ConceptInfo]) -> 
 
 async def generate_backlinks(
     structure: WikiStructure,
-    config: "WikiConfig",
+    config: WikiConfig,
     concepts: list[ConceptInfo],
-    indexer: "WikiIndexer | None" = None,
+    indexer: WikiIndexer | None = None,
 ) -> int:
     """Generate backlinks between related concepts (Obsidian format).
 
@@ -85,12 +86,16 @@ async def generate_backlinks(
             article_path.write_text(content, encoding="utf-8")
 
             if indexer:
-                indexer.extract_and_upsert_edges(concept.name, content)
+                edge_result = indexer.extract_and_upsert_edges(concept.name, content)
+                if inspect.isawaitable(edge_result):
+                    await edge_result
             else:
                 from ..retrieval.indexer import WikiIndexer as _WikiIndexer
 
                 _idx = _WikiIndexer(structure, config)
-                _idx.extract_and_upsert_edges(concept.name, content)
+                edge_result = _idx.extract_and_upsert_edges(concept.name, content)
+                if inspect.isawaitable(edge_result):
+                    await edge_result
 
         except Exception as e:
             logger.error(f"Failed to add backlinks for {concept.name}: {e}")

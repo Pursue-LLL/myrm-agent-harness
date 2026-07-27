@@ -9,14 +9,16 @@ myrm_agent_harness.toolkits.vector.base::VectorDocument (POS: vector document)
 myrm_agent_harness.toolkits.retriever.fusion_strategies::rrf_fusion (POS: result fusion strategy)
 .tokenizer::tokenize_for_fts (POS: FTS5 query tokenizer)
 .graph_store::WikiGraphStore (POS: knowledge graph storage)
+.sidecar_index::SidecarIndexMixin (POS: L0/L1 sidecar index operations)
 
 [OUTPUT]
 WikiIndexer: high-performance hybrid search engine based on FTS5 + Qdrant
 
 [POS]
-Solves the critical blocking issue of dynamic full-file BM25 scanning on every query,
-while improving semantic understanding through hybrid retrieval.
-Only indexes `Compiled Truth`, discards `Timeline`, greatly protecting Agent cache.
+Wiki concept indexer core. Manages FTS5 + Qdrant hybrid search for L2 concept entries,
+knowledge graph edges, and federated multi-database queries. Sidecar (L0/L1) indexing
+operations are provided by SidecarIndexMixin to keep this file focused on concept-level
+indexing while protecting Agent prompt cache.
 """
 
 import asyncio
@@ -24,7 +26,6 @@ import contextlib
 import logging
 import re
 import sqlite3
-import uuid
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.retriever.fusion_strategies import rrf_fusion
@@ -34,6 +35,7 @@ from myrm_agent_harness.utils.db.fts5 import fts5_auto_heal, fts5_integrity_chec
 from ..core.config import WikiConfig
 from ..core.structure import WikiStructure
 from .graph_store import WikiGraphStore
+from .sidecar_index import SidecarIndexMixin, _SIDECAR_PREFIX
 from .tokenizer import tokenize_for_fts
 
 if TYPE_CHECKING:
@@ -43,7 +45,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class WikiIndexer:
+class WikiIndexer(SidecarIndexMixin):
     """
     SQLite FTS5 + Qdrant Vector powered indexer for Wiki articles.
 
@@ -212,10 +214,6 @@ class WikiIndexer:
         except Exception as e:
             logger.warning(f"Failed to ensure wiki vector collection: {e}")
 
-    def _concept_to_uuid(self, concept_name: str) -> str:
-        """Convert concept name to a deterministic UUID for Qdrant."""
-        return str(uuid.uuid5(uuid.NAMESPACE_OID, concept_name))
-
     def index_raw_text(self, name: str, text: str) -> None:
         """Index raw text into FTS5 for immediate searchability before compilation.
 
@@ -259,7 +257,12 @@ class WikiIndexer:
                     id=doc_id,
                     content=truth_content,
                     vector=vec,
-                    metadata={"concept_name": concept_name},
+                    metadata={
+                        "concept_name": concept_name,
+                        "entry_type": "concept",
+                        "level": "L2",
+                        "dir_path": self._concept_dir_path(concept_name),
+                    },
                 )
                 await self._vector.upsert(self._collection_name, [doc])
             except Exception as e:
@@ -320,7 +323,12 @@ class WikiIndexer:
                         # In SQLite FTS5, the MATCH operator can be used on the table name.
                         # e.g., pub_0.wiki_fts MATCH ? is valid, but the column name inside WHERE is wiki_fts MATCH ?
                         fts_union = " UNION ALL ".join(
-                            f"SELECT concept_name, rank FROM {t} WHERE {t.split('.')[-1]} MATCH ?" for t in fts_tables
+                            (
+                                f"SELECT concept_name, rank FROM {t} "
+                                f"WHERE {t.split('.')[-1]} MATCH ? "
+                                f"AND concept_name NOT GLOB '{_SIDECAR_PREFIX}:*'"
+                            )
+                            for t in fts_tables
                         )
                         params = (fts_query,) * len(fts_tables)
 
@@ -335,6 +343,8 @@ class WikiIndexer:
                         )
 
                         for row in cursor.fetchall():
+                            if self._is_sidecar_entry(str(row["concept_name"])):
+                                continue
                             # FTS5 rank is negative, lower is better. We invert it for RRF fusion.
                             score = 1.0 / (abs(row["rank"]) + 1.0)
                             results.append((row["concept_name"], score))
@@ -354,6 +364,8 @@ class WikiIndexer:
                                 (*params, limit * 2, offset),
                             )
                             for row in cursor.fetchall():
+                                if self._is_sidecar_entry(str(row["concept_name"])):
+                                    continue
                                 score = 1.0 / (abs(row["rank"]) + 1.0)
                                 results.append((row["concept_name"], score))
             return results
@@ -372,15 +384,17 @@ class WikiIndexer:
                     self._collection_name, query_vector=query_vec, limit=search_limit
                 )
                 for res in search_res[offset:]:
-                    vec_results.append((res.document.metadata.get("concept_name", res.document.id), res.score))
+                    candidate = str(res.document.metadata.get("concept_name", res.document.id))
+                    if self._is_sidecar_entry(candidate):
+                        continue
+                    vec_results.append((candidate, res.score))
             except Exception as e:
                 logger.error(f"Wiki vector search failed: {e}")
 
         # 3. Hybrid Fusion (RRF)
         if self._config.enable_hybrid_search and self._vector and self._embedding:
             if fts_results or vec_results:
-                fused = rrf_fusion([fts_results, vec_results], k=getattr(self._config, "rrf_k", 60))
-                final_results = [(doc_id, score) for doc_id, score in fused]
+                final_results = rrf_fusion([fts_results, vec_results], k=getattr(self._config, "rrf_k", 60))
             else:
                 final_results = []
         else:

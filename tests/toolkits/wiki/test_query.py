@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 import pytest
 from langchain_core.messages import AIMessage
 
-from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig
+from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig, WikiQueryConfig
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.retrieval.query import WikiQueryEngine
 
@@ -52,6 +52,57 @@ async def test_wiki_query_engine_fts5(wiki_structure, mock_llm):
     result = await engine.query("What is gravity?")
     assert len(result.related_articles) == 1
     assert "test-concept.md" in str(result.related_articles[0])
+
+
+@pytest.mark.asyncio
+async def test_wiki_query_engine_uses_directory_sidecars(wiki_structure, mock_llm):
+    config = WikiConfig(enable_semantic_search=True)
+    engine = WikiQueryEngine(llm=mock_llm, structure=wiki_structure, config=config)
+
+    article_path = wiki_structure.get_concept_file_path("ProjectA/API")
+    article_path.write_text("## Compiled Truth\nAPI supports key rotation.", encoding="utf-8")
+
+    await engine._indexer.upsert("ProjectA/API", "## Compiled Truth\nAPI supports key rotation.")
+    await engine._indexer.upsert_sidecar(
+        "projecta",
+        level=0,
+        content="ProjectA service abstraction summary.",
+    )
+    await engine._indexer.upsert_sidecar(
+        "projecta",
+        level=1,
+        content="ProjectA API and deployment overview.",
+    )
+
+    result = await engine.query("How does projecta api work?")
+    assert "Directory projecta (L0)" in result.answer
+    assert "Directory projecta (L1)" in result.answer
+    assert any("projecta/api.md" in article.lower() for article in result.related_articles)
+    assert any(s.level == "L0" and s.article_path.endswith("/.abstract.md") for s in result.source_snippets)
+    assert any(s.level == "L1" and s.article_path.endswith("/.overview.md") for s in result.source_snippets)
+    assert any(s.level == "L2" for s in result.source_snippets)
+
+
+@pytest.mark.asyncio
+async def test_wiki_query_engine_respects_zero_sidecar_directory_budget(wiki_structure, mock_llm):
+    config = WikiConfig(enable_semantic_search=True)
+    query_config = WikiQueryConfig(max_sidecar_directories=0)
+    engine = WikiQueryEngine(
+        llm=mock_llm,
+        structure=wiki_structure,
+        config=config,
+        query_config=query_config,
+    )
+
+    article_path = wiki_structure.get_concept_file_path("ProjectB/Guide")
+    article_path.write_text("## Compiled Truth\nGuide content.", encoding="utf-8")
+    await engine._indexer.upsert("ProjectB/Guide", "## Compiled Truth\nGuide content.")
+    await engine._indexer.upsert_sidecar("projectb", level=0, content="ProjectB summary.")
+
+    result = await engine.query("ProjectB")
+    assert "Directory projectb (L0)" not in result.answer
+    assert any("projectb/guide.md" in article.lower() for article in result.related_articles)
+    assert all(s.level != "L0" for s in result.source_snippets)
 
 
 @pytest.mark.asyncio
@@ -118,6 +169,24 @@ async def test_load_articles_context_extraction(wiki_structure, mock_llm):
     assert snippets[0].snippet == "The real content."
     assert snippets[0].section == "Compiled Truth"
     assert snippets[0].article_name == "testarticle"
+
+
+@pytest.mark.asyncio
+async def test_load_articles_context_emits_sidecar_snippets(wiki_structure, mock_llm):
+    config = WikiConfig(enable_semantic_search=True)
+    engine = WikiQueryEngine(llm=mock_llm, structure=wiki_structure, config=config)
+
+    p = wiki_structure.get_concept_file_path("TeamA/Runbook")
+    p.write_text("## Compiled Truth\nRunbook details.", encoding="utf-8")
+    await engine._indexer.upsert("TeamA/Runbook", "## Compiled Truth\nRunbook details.")
+    await engine._indexer.upsert_sidecar("teama", level=0, content="TeamA abstract summary.")
+    await engine._indexer.upsert_sidecar("teama", level=1, content="TeamA overview notes.")
+
+    _context, snippets = await engine._load_articles_context([p])
+    levels = {snippet.level for snippet in snippets}
+    assert {"L0", "L1", "L2"} <= levels
+    assert any(snippet.article_path == "teama/.abstract.md" for snippet in snippets)
+    assert any(snippet.article_path == "teama/.overview.md" for snippet in snippets)
 
 
 class TestExtractSnippet:

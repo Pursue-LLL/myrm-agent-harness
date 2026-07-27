@@ -34,6 +34,26 @@ def test_list_concepts(temp_wiki_dir):
     assert p1 in concepts
     assert p2 in concepts
 
+
+def test_list_concepts_excludes_directory_sidecars(temp_wiki_dir):
+    article = temp_wiki_dir.get_concept_file_path("A/B/Topic")
+    article.write_text("## Compiled Truth\nTopic")
+    abstract_path, overview_path = temp_wiki_dir.get_directory_sidecar_paths("A/B")
+    abstract_path.write_text("L0 summary")
+    overview_path.write_text("L1 summary")
+
+    concepts = temp_wiki_dir.list_concepts()
+    assert article in concepts
+    assert abstract_path not in concepts
+    assert overview_path not in concepts
+
+
+def test_get_directory_sidecar_paths(temp_wiki_dir):
+    abstract_path, overview_path = temp_wiki_dir.get_directory_sidecar_paths("Work/ProjectA")
+    assert abstract_path.name == ".abstract.md"
+    assert overview_path.name == ".overview.md"
+    assert abstract_path.parent.name == "projecta"
+
 @pytest.mark.asyncio
 async def test_delete_folder_safe(temp_wiki_dir):
     class MockIndexer:

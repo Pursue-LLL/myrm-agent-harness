@@ -148,24 +148,44 @@ def create_wiki_agent_tools(
 
             wrapped_context = wrap_with_external_sources_tag(result.answer, source="LLM-Wiki")
 
-            snippet_by_path = {s.article_path: s for s in result.source_snippets}
+            sources_by_path: dict[str, dict[str, object]] = {}
+            ordered_paths: list[str] = []
 
-            sources = []
+            for snip in result.source_snippets:
+                source_path = snip.article_path
+                entry = sources_by_path.get(source_path)
+                if entry is None:
+                    display_name = snip.article_name or Path(source_path).stem or "wiki-source"
+                    entry = {
+                        "type": "knowledge",
+                        "kb_name": "LLM-Wiki",
+                        "filename": display_name,
+                        "score": result.confidence_score,
+                        "path": source_path,
+                    }
+                    sources_by_path[source_path] = entry
+                    ordered_paths.append(source_path)
+                if snip.snippet:
+                    entry["snippet"] = snip.snippet
+                if snip.section:
+                    entry["section"] = snip.section
+                if snip.level:
+                    entry["level"] = snip.level
+
             for path_str in result.related_articles:
+                if path_str in sources_by_path:
+                    continue
                 p = Path(path_str)
-                entry: dict[str, object] = {
+                sources_by_path[path_str] = {
                     "type": "knowledge",
                     "kb_name": "LLM-Wiki",
                     "filename": p.stem,
                     "score": result.confidence_score,
+                    "path": path_str,
                 }
-                snip = snippet_by_path.get(path_str)
-                if snip:
-                    if snip.snippet:
-                        entry["snippet"] = snip.snippet
-                    if snip.section:
-                        entry["section"] = snip.section
-                sources.append(entry)
+                ordered_paths.append(path_str)
+
+            sources = [sources_by_path[path] for path in ordered_paths]
 
             if result.should_archive:
                 try:
