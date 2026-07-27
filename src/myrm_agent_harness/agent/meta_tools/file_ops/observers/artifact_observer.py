@@ -25,12 +25,15 @@ class ArtifactObserver(FileOperationObserver):
 
     async def on_file_created(self, path: str, content: str) -> None:
         try:
-            from myrm_agent_harness.agent.artifacts.registry import register_generated_files
-            from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
+            from myrm_agent_harness.agent.artifacts.registry import (
+                register_generated_files,
+            )
+            from myrm_agent_harness.toolkits.code_execution.executors.base import (
+                get_executor,
+            )
 
             actual_path = path
             executor = get_executor()
-            logger.warning(f" [ArtifactObserver] on_file_created: path={path}, executor={executor}")
             if executor:
                 from pathlib import Path as _Path
 
@@ -41,17 +44,22 @@ class ArtifactObserver(FileOperationObserver):
                 if not _Path(clean).is_absolute():
                     actual_path = str((wp / clean).resolve())
 
-            logger.warning(f" [ArtifactObserver] on_file_created: actual_path={actual_path}")
             register_generated_files([actual_path])
             self._push_realtime_content(path, content)
             logger.info(f"Registered artifact: {actual_path}")
         except Exception as e:
             logger.debug(f"Failed to register artifact: {e}")
 
-    async def on_file_modified(self, path: str, old_content: str, new_content: str) -> None:
+    async def on_file_modified(
+        self, path: str, old_content: str, new_content: str
+    ) -> None:
         try:
-            from myrm_agent_harness.agent.artifacts.registry import register_generated_files
-            from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
+            from myrm_agent_harness.agent.artifacts.registry import (
+                register_generated_files,
+            )
+            from myrm_agent_harness.toolkits.code_execution.executors.base import (
+                get_executor,
+            )
 
             actual_path = path
             executor = get_executor()
@@ -79,7 +87,9 @@ class ArtifactObserver(FileOperationObserver):
                 infer_artifact_type_from_extension,
                 infer_language_from_extension,
             )
-            from myrm_agent_harness.agent.artifacts.registry import push_realtime_content
+            from myrm_agent_harness.agent.artifacts.registry import (
+                push_realtime_content,
+            )
 
             filename = os.path.basename(path)
             push_realtime_content(

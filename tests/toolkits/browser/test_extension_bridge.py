@@ -35,13 +35,19 @@ class MockExtensionBridge:
             raise ExtensionBridgeNotAvailable("Extension not connected")
         browser = MagicMock()
         browser.contexts = []
-        return BrowserInstance(browser=browser, engine="chromium-patchright", is_managed=False)
+        return BrowserInstance(
+            browser=browser, engine="chromium-patchright", is_managed=False
+        )
 
-    async def connect_to_domain(self, domain: str, *, timeout: float = 10.0) -> BrowserInstance:
+    async def connect_to_domain(
+        self, domain: str, *, timeout: float = 10.0
+    ) -> BrowserInstance:
         self.connect_domain_called = True
         browser = MagicMock()
         browser.contexts = []
-        return BrowserInstance(browser=browser, engine="chromium-patchright", is_managed=False)
+        return BrowserInstance(
+            browser=browser, engine="chromium-patchright", is_managed=False
+        )
 
     async def get_status(self) -> ExtensionStatus:
         return ExtensionStatus(connected=self._connected)
@@ -51,11 +57,34 @@ class MockExtensionBridge:
 
     async def list_tabs(self) -> list[ExtensionTab]:
         return [
-            ExtensionTab(tab_id=1, url="https://github.com", title="GitHub", domain="github.com", active=True),
+            ExtensionTab(
+                tab_id=1,
+                url="https://github.com",
+                title="GitHub",
+                domain="github.com",
+                active=True,
+            ),
         ]
 
     async def disconnect(self) -> None:
         self._connected = False
+
+    async def navigate_to_url(
+        self,
+        url: str,
+        *,
+        domain: str | None = None,
+        background: bool = True,
+        timeout: float = 20.0,
+    ) -> ExtensionTab:
+        target_domain = domain or "example.com"
+        return ExtensionTab(
+            tab_id=99,
+            url=url,
+            title="Navigated",
+            domain=target_domain,
+            active=not background,
+        )
 
 
 class TestExtensionBridgeProtocol:
@@ -74,13 +103,21 @@ class TestExtensionBridgeProtocol:
 
 class TestExtensionTab:
     def test_frozen_dataclass(self) -> None:
-        tab = ExtensionTab(tab_id=1, url="https://example.com", title="Test", domain="example.com")
+        tab = ExtensionTab(
+            tab_id=1, url="https://example.com", title="Test", domain="example.com"
+        )
         assert tab.tab_id == 1
         assert tab.domain == "example.com"
         assert tab.active is False
 
     def test_active_tab(self) -> None:
-        tab = ExtensionTab(tab_id=2, url="https://github.com", title="GH", domain="github.com", active=True)
+        tab = ExtensionTab(
+            tab_id=2,
+            url="https://github.com",
+            title="GH",
+            domain="github.com",
+            active=True,
+        )
         assert tab.active is True
 
 
@@ -88,6 +125,7 @@ class TestExtensionStatus:
     def test_default_values(self) -> None:
         status = ExtensionStatus()
         assert status.connected is False
+        assert status.handshake_ready is False
         assert status.extension_version == ""
         assert status.authorized_domains == []
         assert status.available_tabs == []
@@ -96,13 +134,17 @@ class TestExtensionStatus:
         tab = ExtensionTab(tab_id=1, url="https://x.com", title="X", domain="x.com")
         status = ExtensionStatus(
             connected=True,
+            handshake_ready=True,
             extension_version="1.0.0",
             browser_name="Chrome",
             authorized_domains=["x.com"],
             available_tabs=[tab],
+            capabilities=["navigate_url", "list_tabs"],
         )
         assert status.connected is True
+        assert status.handshake_ready is True
         assert len(status.available_tabs) == 1
+        assert status.capabilities == ["navigate_url", "list_tabs"]
 
 
 class TestLaunchModeExtension:
@@ -148,7 +190,9 @@ class TestLaunchModeExtension:
             launch_mode=LaunchMode.EXTENSION,
             extension_bridge="not_a_bridge",
         )
-        with pytest.raises(BrowserLaunchError, match="must implement ExtensionBridge Protocol"):
+        with pytest.raises(
+            BrowserLaunchError, match="must implement ExtensionBridge Protocol"
+        ):
             await launcher.create_browser()
 
 

@@ -50,6 +50,7 @@ class ExtensionStatus:
 
     Attributes:
         connected: Whether the extension WebSocket is currently connected.
+        handshake_ready: Whether the extension hello handshake has completed.
         extension_version: Version string reported by the extension.
         browser_name: Browser name (e.g., "Chrome", "Edge").
         authorized_domains: Domains the user has granted access to.
@@ -59,6 +60,7 @@ class ExtensionStatus:
     """
 
     connected: bool = False
+    handshake_ready: bool = False
     extension_version: str = ""
     browser_name: str = ""
     authorized_domains: list[str] = field(default_factory=list)
@@ -97,7 +99,9 @@ class ExtensionBridge(Protocol):
         """
         ...
 
-    async def connect_to_domain(self, domain: str, *, timeout: float = 10.0) -> BrowserInstance:
+    async def connect_to_domain(
+        self, domain: str, *, timeout: float = 10.0
+    ) -> BrowserInstance:
         """Connect to a specific authorized domain's tab.
 
         Args:

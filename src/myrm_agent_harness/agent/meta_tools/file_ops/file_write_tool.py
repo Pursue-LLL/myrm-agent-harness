@@ -13,7 +13,7 @@
 - create_file_write_tool: 创建文件写入工具的工厂函数
 
 [POS]
-File write tool (Claude Code compatible). Creates new files with auto File ID resolution (@file_001), automatic artifact registration, and real-time frontend push.
+File write tool (Claude Code compatible). Creates new files; rejects empty/whitespace-only content; auto File ID resolution (@file_001), automatic artifact registration, and real-time frontend push.
 
 """
 
@@ -44,12 +44,14 @@ class FileWriteInput(BaseModel):
     """文件写入工具输入参数"""
 
     path: str = Field(description="文件路径（支持 File ID，如 @file_001）")
-    content: str = Field(description="文件内容")
+    content: str = Field(description="文件内容（不能为空或纯空白）")
     verify_command: str | None = Field(
         default=None,
         description="写入后自动执行的校验命令（如 'python -m py_compile file.py' 或 'node --check file.js'）。如果校验失败，将拒绝写入并返回错误。",
     )
-    reason: str | None = Field(default=None, description="执行命令的原因（可选，用于日志）")
+    reason: str | None = Field(
+        default=None, description="执行命令的原因（可选，用于日志）"
+    )
 
 
 def create_file_write_tool(skills: list[SkillMetadata] | None = None) -> BaseTool:
@@ -78,7 +80,7 @@ def create_file_write_tool(skills: list[SkillMetadata] | None = None) -> BaseToo
 
 参数：
 - path: 文件路径 (支持普通路径或 "@file_id")
-- content: 写入的完整内容
+- content: 写入的完整内容（不能为空或纯空白）
 - verify_command: 写入后自动执行的语法/类型校验命令（强烈建议提供，如 'python -m py_compile file.py'）。校验失败会拒绝写入，避免死循环。
 - reason: 操作原因（可选）
 """,
@@ -110,6 +112,15 @@ def create_file_write_tool(skills: list[SkillMetadata] | None = None) -> BaseToo
         """
         logger.info("file_write_func called for path: %s", path)
         try:
+            if not content.strip():
+                raise ToolError(
+                    message="Cannot write empty file content",
+                    user_hint=(
+                        "The file content is empty or whitespace-only. "
+                        "Please provide the actual file content you want to write."
+                    ),
+                )
+
             # 检查文件大小（5MB 限制）
             content_bytes = content.encode("utf-8")
             content_size = len(content_bytes)
