@@ -1,7 +1,8 @@
 # loop_suggestions/
 
 ## Overview
-Suggestion generation subsystem for LoopGuard. Analyzes parameters and
+
+Suggestion generation subsystem for LoopGuard. Static `TOOL_SUGGESTIONS` in `core.py` plus dynamic generators per tool (web, file, browser snapshot, etc.).
 
 ## File & Submodule Index
 

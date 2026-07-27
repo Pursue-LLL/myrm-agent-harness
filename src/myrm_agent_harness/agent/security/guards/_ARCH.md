@@ -23,7 +23,7 @@ Session-level security guards integrated into tool_interceptor_middleware.
 
 | Submodule | Description |
 |-----------|-------------|
-| loop_suggestions/ | Suggestion generation subsystem for LoopGuard. Analyzes parameters and |
+| loop_suggestions/ | Static and dynamic suggestion strings when LoopGuard detects stuck tool loops; includes web_fetch ↔ browser_navigate cross-hints in `core.py`. |
 
 ## Key Dependencies
 

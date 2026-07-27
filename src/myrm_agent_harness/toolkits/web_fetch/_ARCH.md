@@ -42,6 +42,10 @@ chain (Jina then Firecrawl when enabled in server config). Providers bind per ag
 
 - L2 Browser respects `get_bound_browser_launch_mode()` for extension CDP pages.
 
+## Tool routing (web_fetch vs browser)
+
+When both tools are mounted: read-only pages → `web_fetch_tool` (CORE); interactive flows → browser tools (EXTENDED). Guidance lives in tool descriptions + Dynamic Hints (`browser/tools/navigate.py`), not System Prompt. Loop Guard provides symmetric fallback suggestions. See `toolkits/browser/BROWSER_SYSTEM.md` §web_fetch 与 browser 分工.
+
 ## Key Dependencies
 
 - `toolkits.retriever` (for fetch_and_extract mode)

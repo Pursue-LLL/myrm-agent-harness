@@ -604,6 +604,24 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 
 导航成功后自动附加最多 20 行 `scope=interactive` 的 compact ARIA refs（`browser_session_navigation_mixin._append_navigate_interactive_summary`），帮助 Agent 跳过首轮 snapshot。失败时静默降级，不影响导航结果。
 
+#### web_fetch 与 browser 分工（工具描述层）
+
+当 Agent 同时启用 `web_fetch_tool`（CORE，Turn1）与 browser 工具组（EXTENDED，按需）时，通过**工具描述 + Dynamic Hints** 引导选型，**不写入 System Prompt**（Prompt Cache 安全）：
+
+| 场景 | 优先工具 | 说明 |
+|------|----------|------|
+| 只读内容（文章、文档、博客） | `web_fetch_tool` | 更快、更省 Token；内部 L2 Browser 使用 `ContextType.CRAWL` 池 |
+| 登录、表单、点击、无限滚动 | browser 工具组 | 完整交互；`ContextType.AGENT` 池 + Extension Bridge 登录态 |
+| 先发现 URL | `web_search_tool` | 搜索后再 fetch 或 navigate |
+
+**实现位置**：
+- `web_fetch/web_fetch_agent_tools.py` — web_fetch 描述声明只读优先
+- `browser/tools/navigate.py` — `with_dynamic_hints` 注入 web_search / web_fetch 提示（工具不可用时 weave 自动剥离）
+- `agent/security/guards/loop_suggestions/core.py` — 失败时双向互指（web_fetch ↔ browser_navigate）
+- `agent/middlewares/completion_guard.py` — 回答前要求 web_search / web_fetch / browser 证据
+
+Loop Guard 与 Completion Guard 为兜底；正常路径由 Turn1 工具描述完成选型。
+
 #### URL blocklist（Settings → 安全策略）
 
 用户可编辑 `network_blocklist`（Settings `DomainBlocklistEditor` → server `SecurityConfig` → harness `BrowserSession.domain_blocklist`）。评估顺序：**blocklist DENY 优先于 allowlist HITL**。会话层在 `navigate()` 入口硬拦截（`BROWSER_URL_BLOCKLIST`）；`domain_filter` 四层过滤同步注入 blocklist 模式。
@@ -936,6 +954,7 @@ Frontend → POST /agents/agent-stream { resume_value: { action: "completed" } }
 | **MutationObserver变化检测** | ✅ | ❌ | ❌ | ❌ |
 | **CAPTCHA 协调（可插拔）** | ✅ | ❌ | ⚠️ CDP 耦合 | ❌ |
 | **Agent 触发人类接管** | ✅ | ❌ | ❌ | ❌ |
+| **web_fetch ↔ browser 双向工具描述引导** | ✅ Dynamic Hints + Loop Guard | ⚠️ browser→web 单向 | ⚠️ web_fetch 单工具描述 | ❌ |
 
 ### 架构对比
 
