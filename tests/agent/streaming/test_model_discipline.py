@@ -5,7 +5,8 @@ Covers all public/internal functions and constants:
 - _extract_model_name: model name extraction from LLM instances
 - _should_enforce: family matching for tool-use enforcement
 - _get_family_discipline: per-family discipline resolution
-- resolve_execution_discipline: full 3-layer composition
+- _is_opus_tier: Opus-class model detection
+- resolve_execution_discipline: full 3.5-layer composition (including Opus supplement)
 """
 
 from __future__ import annotations
@@ -18,14 +19,17 @@ from langchain_core.language_models import BaseChatModel
 from myrm_agent_harness.agent.streaming.model_discipline import (
     _CHINESE_MODEL_DISCIPLINE,
     _CLAUDE_DISCIPLINE,
+    _CLAUDE_OPUS_TIER_SUPPLEMENT,
     _ENFORCEMENT_FAMILIES,
     _ESCALATION_CONTRACT_TEMPLATE,
     _GEMINI_DISCIPLINE,
     _GPT_DISCIPLINE,
+    _OPUS_TIER_SUBSTRINGS,
     _TOOL_ENFORCEMENT,
     AGENT_CORE_RULES,
     _extract_model_name,
     _get_family_discipline,
+    _is_opus_tier,
     _should_enforce,
     resolve_escalation_contract,
     resolve_execution_discipline,
@@ -225,6 +229,65 @@ class TestGetFamilyDiscipline:
 
 
 # ============================================================================
+# _is_opus_tier
+# ============================================================================
+
+
+class TestIsOpusTier:
+    @pytest.mark.parametrize(
+        "model_name",
+        ["claude-opus-5", "claude-opus-4-8", "anthropic/claude-opus-5-20260724"],
+    )
+    def test_opus_models_detected(self, model_name: str) -> None:
+        assert _is_opus_tier(model_name) is True
+
+    @pytest.mark.parametrize(
+        "model_name",
+        ["claude-3.5-sonnet", "claude-sonnet-4", "claude-haiku-3.5", "gpt-4o"],
+    )
+    def test_non_opus_models_not_detected(self, model_name: str) -> None:
+        assert _is_opus_tier(model_name) is False
+
+    def test_claude_3_opus_also_detected(self) -> None:
+        """Claude 3 Opus contains 'opus' — supplement is harmless for older Opus."""
+        assert _is_opus_tier("claude-3-opus") is True
+
+    def test_empty_string(self) -> None:
+        assert _is_opus_tier("") is False
+
+    def test_uppercase_opus_not_detected(self) -> None:
+        """_is_opus_tier expects lowercase (from _extract_model_name)."""
+        assert _is_opus_tier("CLAUDE-OPUS-5") is False
+
+    def test_opus_substrings_tuple_is_frozen(self) -> None:
+        assert isinstance(_OPUS_TIER_SUBSTRINGS, tuple)
+
+
+# ============================================================================
+# _CLAUDE_OPUS_TIER_SUPPLEMENT constant
+# ============================================================================
+
+
+class TestClaudeOpusTierSupplement:
+    def test_wrapped_in_xml_tags(self) -> None:
+        assert "<opus_behavior_tuning>" in _CLAUDE_OPUS_TIER_SUPPLEMENT
+        assert "</opus_behavior_tuning>" in _CLAUDE_OPUS_TIER_SUPPLEMENT
+
+    def test_scope_constraint_present(self) -> None:
+        assert "scope intended" in _CLAUDE_OPUS_TIER_SUPPLEMENT
+
+    def test_self_correction_control_present(self) -> None:
+        assert "Only correct an earlier statement" in _CLAUDE_OPUS_TIER_SUPPLEMENT
+
+    def test_conciseness_present(self) -> None:
+        assert "focused and concise" in _CLAUDE_OPUS_TIER_SUPPLEMENT
+
+    def test_is_string_constant(self) -> None:
+        assert isinstance(_CLAUDE_OPUS_TIER_SUPPLEMENT, str)
+        assert _CLAUDE_OPUS_TIER_SUPPLEMENT is _CLAUDE_OPUS_TIER_SUPPLEMENT
+
+
+# ============================================================================
 # resolve_execution_discipline — integration
 # ============================================================================
 
@@ -319,6 +382,36 @@ class TestResolveExecutionDiscipline:
         result = resolve_execution_discipline(llm)
         assert _CLAUDE_DISCIPLINE in result
 
+    def test_opus_5_gets_supplement(self) -> None:
+        llm = _make_llm(model_name="claude-opus-5")
+        result = resolve_execution_discipline(llm)
+        assert AGENT_CORE_RULES in result
+        assert _TOOL_ENFORCEMENT in result
+        assert _CLAUDE_DISCIPLINE in result
+        assert _CLAUDE_OPUS_TIER_SUPPLEMENT in result
+
+    def test_opus_48_gets_supplement(self) -> None:
+        llm = _make_llm(model_name="claude-opus-4-8")
+        result = resolve_execution_discipline(llm)
+        assert _CLAUDE_OPUS_TIER_SUPPLEMENT in result
+
+    def test_sonnet_no_supplement(self) -> None:
+        llm = _make_llm(model_name="claude-sonnet-4")
+        result = resolve_execution_discipline(llm)
+        assert _CLAUDE_DISCIPLINE in result
+        assert _CLAUDE_OPUS_TIER_SUPPLEMENT not in result
+
+    def test_haiku_no_supplement(self) -> None:
+        llm = _make_llm(model_name="claude-haiku-3.5")
+        result = resolve_execution_discipline(llm)
+        assert _CLAUDE_DISCIPLINE in result
+        assert _CLAUDE_OPUS_TIER_SUPPLEMENT not in result
+
+    def test_gpt_no_supplement(self) -> None:
+        llm = _make_llm(model_name="gpt-4o")
+        result = resolve_execution_discipline(llm)
+        assert _CLAUDE_OPUS_TIER_SUPPLEMENT not in result
+
     def test_layer_order_correct(self) -> None:
         """Verify layers are concatenated in order: core → enforcement → family."""
         llm = _make_llm(model_name="gpt-4o")
@@ -327,6 +420,16 @@ class TestResolveExecutionDiscipline:
         enf_pos = result.index(_TOOL_ENFORCEMENT)
         disc_pos = result.index(_GPT_DISCIPLINE)
         assert core_pos < enf_pos < disc_pos
+
+    def test_opus_layer_order_correct(self) -> None:
+        """Verify Opus layers: core → enforcement → claude → opus supplement."""
+        llm = _make_llm(model_name="claude-opus-5")
+        result = resolve_execution_discipline(llm)
+        core_pos = result.index(AGENT_CORE_RULES)
+        enf_pos = result.index(_TOOL_ENFORCEMENT)
+        claude_pos = result.index(_CLAUDE_DISCIPLINE)
+        opus_pos = result.index(_CLAUDE_OPUS_TIER_SUPPLEMENT)
+        assert core_pos < enf_pos < claude_pos < opus_pos
 
 
 # ============================================================================
@@ -423,11 +526,12 @@ class TestEdgeCases:
         assert resolve_execution_discipline(llm1) == resolve_execution_discipline(llm2)
 
     def test_result_length_varies_by_family(self) -> None:
-        """Different families produce outputs of different lengths (GPT longest)."""
+        """Different families produce outputs of different lengths (GPT longest, Opus > Sonnet)."""
         gpt = resolve_execution_discipline(_make_llm(model_name="gpt-4o"))
-        claude = resolve_execution_discipline(_make_llm(model_name="claude-3.5-sonnet"))
+        opus = resolve_execution_discipline(_make_llm(model_name="claude-opus-5"))
+        sonnet = resolve_execution_discipline(_make_llm(model_name="claude-3.5-sonnet"))
         unknown = resolve_execution_discipline(_make_llm(model_name="llama-3"))
-        assert len(gpt) > len(claude) > len(unknown)
+        assert len(gpt) > len(opus) > len(sonnet) > len(unknown)
 
     def test_enforcement_families_tuple_is_frozen(self) -> None:
         """_ENFORCEMENT_FAMILIES is a tuple (immutable)."""
@@ -501,3 +605,65 @@ class TestResolveEscalationContract:
     def test_template_uses_format_correctly(self) -> None:
         assert "{current_model}" in _ESCALATION_CONTRACT_TEMPLATE
         assert "{target_model}" in _ESCALATION_CONTRACT_TEMPLATE
+
+
+# ============================================================================
+# Integration: system prompt assembly simulation
+# ============================================================================
+
+
+class TestSystemPromptAssemblyIntegration:
+    """Simulate the real assembly path from base_agent._ensure_initialized.
+
+    Tests the full chain: resolve_execution_discipline(llm) → string
+    concatenation → _cached_system_prompt, without mocking any critical path.
+    """
+
+    def _assemble_system_prompt(self, model_name: str) -> str:
+        """Simulate base_agent.py:173-181 system prompt assembly."""
+        llm = _make_llm(model_name=model_name)
+        user_prompt = "You are a helpful assistant."
+        return user_prompt + resolve_execution_discipline(llm)
+
+    def test_opus_5_full_assembly_contains_supplement(self) -> None:
+        prompt = self._assemble_system_prompt("claude-opus-5")
+        assert "opus_behavior_tuning" in prompt
+        assert "scope intended" in prompt
+        assert "Only correct an earlier statement" in prompt
+        assert "focused and concise" in prompt
+
+    def test_sonnet_full_assembly_no_supplement(self) -> None:
+        prompt = self._assemble_system_prompt("claude-sonnet-4")
+        assert "opus_behavior_tuning" not in prompt
+        assert "execution_discipline" in prompt
+
+    def test_gpt_full_assembly_no_supplement(self) -> None:
+        prompt = self._assemble_system_prompt("gpt-4o")
+        assert "opus_behavior_tuning" not in prompt
+
+    def test_opus_assembly_preserves_all_layers(self) -> None:
+        prompt = self._assemble_system_prompt("claude-opus-5")
+        assert "agent_behavior_rules" in prompt
+        assert "tool_use_enforcement" in prompt
+        assert "execution_discipline" in prompt
+        assert "opus_behavior_tuning" in prompt
+
+    def test_opus_assembly_is_deterministic(self) -> None:
+        """KV Cache safety: identical inputs → identical outputs."""
+        p1 = self._assemble_system_prompt("claude-opus-5")
+        p2 = self._assemble_system_prompt("claude-opus-5")
+        assert p1 == p2
+
+    def test_claude_3_opus_gets_supplement_harmlessly(self) -> None:
+        """Claude 3 Opus contains 'opus' — supplement is harmless."""
+        prompt = self._assemble_system_prompt("claude-3-opus")
+        assert "opus_behavior_tuning" in prompt
+
+    def test_deepseek_no_supplement(self) -> None:
+        prompt = self._assemble_system_prompt("deepseek-r1")
+        assert "opus_behavior_tuning" not in prompt
+
+    def test_unknown_model_no_supplement(self) -> None:
+        prompt = self._assemble_system_prompt("llama-3-70b")
+        assert "opus_behavior_tuning" not in prompt
+        assert "agent_behavior_rules" in prompt

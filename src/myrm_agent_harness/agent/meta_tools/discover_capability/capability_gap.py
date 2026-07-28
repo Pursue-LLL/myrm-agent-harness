@@ -4,9 +4,8 @@
 - core.security.tool_registry::TOOL_GROUP_MAP (POS: harness tool group SSOT)
 
 [OUTPUT]
-- detect_capability_gap / detect_skill_gap: entitlement gap hits
-- format_capability_gap_block / format_skill_gap_block: XML blocks for tool messages
-- CAPABILITY_GAP_REGISTRY: substring trigger SSOT for 15 GUI-togglable IDs (excludes skill_market/skill_evolution; baseline excluded)
+- detect_capability_gap: entitlement gap intent hits for preflight
+- CAPABILITY_GAP_REGISTRY: substring trigger SSOT for 15 GUI-togglable IDs (excludes skill_market/skill_manage; baseline excluded)
 - BUILTIN_TOOL_ID_TO_GROUP: derived view for server catalog parity tests
 
 [POS]
@@ -14,15 +13,13 @@ Detects when a user query matches **substring triggers** for a GUI-togglable bui
 that is not enabled on the current Agent profile. Primary runtime consumer: server
 ``entitlement_gap_preflight`` render_ui **surface_unavailable** intent detection (form-fill queries on IM).
 Substring enable-and-resend SSE toasts were removed; registry entries remain for intent matching only.
-``skill_market`` / ``skill_evolution`` are profile toggles but excluded from this registry (install/author via Settings or explicit profile opt-in).
+``skill_market`` / ``skill_manage`` are profile toggles but excluded from this registry (install/author via Settings or explicit profile opt-in).
 ``AGENT_BASELINE_BUILTIN_TOOLS`` (file_ops, code_execute) are forced at runtime and omitted from
 ``CAPABILITY_GAP_REGISTRY``.
 """
 
 from __future__ import annotations
 
-import json
-import re
 from dataclasses import dataclass
 
 
@@ -201,11 +198,6 @@ class CapabilityGapHit:
     tool_group: str
 
 
-@dataclass(frozen=True, slots=True)
-class SkillGapHit:
-    skill_id: str
-
-
 def _normalized_query(query: str) -> str:
     return query.strip().lower()
 
@@ -225,38 +217,3 @@ def detect_capability_gap(
         if any(term in normalized for term in entry.triggers):
             return CapabilityGapHit(tool_id=entry.tool_id, tool_group=entry.tool_group)
     return None
-
-
-def detect_skill_gap(
-    query: str,
-    bound_skill_names: frozenset[str],
-    library_skill_names: frozenset[str],
-) -> SkillGapHit | None:
-    """Detect when the user names a skill that is not bound to this Agent."""
-    for match in re.finditer(r"([a-zA-Z0-9][\w-]*_skill)", query):
-        skill_id = match.group(1)
-        if skill_id in bound_skill_names:
-            continue
-        if library_skill_names and skill_id not in library_skill_names:
-            continue
-        return SkillGapHit(skill_id=skill_id)
-    return None
-
-
-def format_capability_gap_block(hit: CapabilityGapHit) -> str:
-    payload = json.dumps(
-        {"tool_id": hit.tool_id, "tool_group": hit.tool_group},
-        ensure_ascii=False,
-    )
-    return (
-        f"### Capability Gap (enable required builtin tool):\n"
-        f"<CapabilityGap>\n{payload}\n</CapabilityGap>"
-    )
-
-
-def format_skill_gap_block(hit: SkillGapHit) -> str:
-    payload = json.dumps({"skill_id": hit.skill_id}, ensure_ascii=False)
-    return (
-        f"### Skill Gap (bind skill to this Agent):\n"
-        f"<SkillGap>\n{payload}\n</SkillGap>"
-    )

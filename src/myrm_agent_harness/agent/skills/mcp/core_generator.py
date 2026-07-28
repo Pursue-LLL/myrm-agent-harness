@@ -196,21 +196,10 @@ class MCPSkillGenerator:
         if not skill_meta.mcp:
             return f"Error: Skill '{skill_meta.name}' is not an MCP skill."
 
+        from myrm_agent_harness.agent.skills.mcp.tool_name_utils import resolve_mcp_tool_name
+
         mcp_tools = skill_meta.mcp.tools
-
-        if ":" in tool_name:
-            tool_name = tool_name.split(":")[-1]
-
-        matched_tool_name = tool_name if tool_name in mcp_tools else None
-
-        if not matched_tool_name:
-            alt_name = tool_name.replace("_", "-")
-            if alt_name in mcp_tools:
-                matched_tool_name = alt_name
-            else:
-                alt_name = tool_name.replace("-", "_")
-                if alt_name in mcp_tools:
-                    matched_tool_name = alt_name
+        matched_tool_name = resolve_mcp_tool_name(tool_name, mcp_tools)
 
         if not matched_tool_name:
             available_tools = ", ".join(mcp_tools[:5])

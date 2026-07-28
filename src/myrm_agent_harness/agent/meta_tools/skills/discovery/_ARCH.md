@@ -1,16 +1,16 @@
 # discovery/
 
 ## Overview
-External marketplace skill install/uninstall meta-tool (LLM-facing name: `skill_market_tool`). Turn1 eager when `market_backend` is provided.
+Legacy skill discovery package. External marketplace install lives under `skills/market/` (`skill_market_tool`). Agent-bound library search uses `discover_capability` (`skill_search_tool`).
 
-**Boundary**: searches and installs from **external sources** (GitHub, skills.sh, etc.). For skills already bound to the agent, use `skill_search_tool` + `skill_select_tool` instead.
+**Boundary**: For skills already bound to the agent, use `skill_search_tool` + `skill_select_tool`. For external marketplace install, use `skill_market_tool` when Turn1-mounted, or product Settings → Skills → Discover.
 
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Skill discovery meta-tool. | — |
-| skill_discovery_tool.py | Core | Skill market meta-tool (LLM name: `skill_market_tool`). | ✅ |
+| __init__.py | Package | Skill discovery package marker. | — |
+| skill_discovery_tool.py | Legacy | Historical discovery helper; prefer `discover_capability` meta-tool. | ✅ |
 
 ## Key Dependencies
 

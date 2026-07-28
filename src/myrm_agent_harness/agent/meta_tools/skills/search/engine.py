@@ -27,6 +27,45 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEFAULT_BM25_MIN_RELEVANCE_SCORE = 0.5
+MCP_SKILL_TOOL_INDEX_THRESHOLD = 3
+MCP_TOOL_SHORT_DESC_MAX_CHARS = 80
+
+
+def _truncate_tool_desc(description: str, max_chars: int = MCP_TOOL_SHORT_DESC_MAX_CHARS) -> str:
+    text = " ".join((description or "").split())
+    if not text:
+        return ""
+    match = re.search(r"[。.\n!?]", text)
+    if match and match.end() <= max_chars:
+        return text[: match.end()].strip()
+    if len(text) <= max_chars:
+        return text
+    clipped = text[:max_chars].rsplit(" ", 1)[0] if " " in text[:max_chars] else text[:max_chars]
+    return clipped.rstrip(",;: ") + "…"
+
+
+def _build_skill_index_document(skill: SkillMetadata) -> str:
+    """Build BM25 index text for a skill; enrich MCP skills with tool-level tokens."""
+    base = f"{skill.name.replace('_', ' ')} {skill.description}"
+    if not skill.mcp or not skill.mcp.tools:
+        return base
+    tool_count = len(skill.mcp.tools)
+    if tool_count <= MCP_SKILL_TOOL_INDEX_THRESHOLD:
+        return base
+    tool_schemas = skill.mcp.tool_schemas or {}
+    tool_parts: list[str] = []
+    for tool_name in skill.mcp.tools:
+        schema_entry = tool_schemas.get(tool_name)
+        if not isinstance(schema_entry, dict):
+            tool_parts.append(tool_name.replace("_", " "))
+            continue
+        desc_raw = schema_entry.get("description")
+        desc = _truncate_tool_desc(str(desc_raw)) if isinstance(desc_raw, str) else ""
+        token = tool_name.replace("_", " ")
+        tool_parts.append(f"{token} {desc}".strip() if desc else token)
+    if not tool_parts:
+        return base
+    return f"{base} {' '.join(tool_parts)}"
 
 
 class SkillSearchEngine:
@@ -56,9 +95,7 @@ class SkillSearchEngine:
         self._enable_expansion = enable_query_expansion
         self._expander = QueryExpander() if enable_query_expansion else None
         # Normalize skill names: replace underscores with spaces for better tokenization
-        documents = [
-            f"{s.name.replace('_', ' ')} {s.description}" for s in self._skills
-        ]
+        documents = [_build_skill_index_document(s) for s in self._skills]
         self._retriever = BM25Retriever(documents)
         logger.info(
             " SkillSearchEngine 已构建(%d 个技能已索引) | BM25阈值: %.2f | 查询扩展: %s",

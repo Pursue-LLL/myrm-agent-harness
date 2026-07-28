@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 
 from myrm_agent_harness.agent._factory.mcp_routing import (
     DIRECT_MCP_DESCRIPTION_SOFT_LIMIT,
-    FALLBACK_PTC_BRIDGE_TOKENS,
+    FALLBACK_PTC_OVERHEAD_TOKENS,
     PTC_OVERHEAD_MULTIPLIER,
     _compact_description,
     _compress_direct_tools,
@@ -95,31 +95,31 @@ class TestDirectToolDescriptionCompaction:
 
 
 class TestDynamicThreshold:
-    """Test compute_direct_threshold based on PTC bridge overhead."""
+    """Test compute_direct_threshold based on PTC skill-search overhead."""
 
-    def test_fallback_without_bridge_tools(self) -> None:
+    def test_fallback_without_overhead_tools(self) -> None:
         threshold = compute_direct_threshold()
-        assert threshold == FALLBACK_PTC_BRIDGE_TOKENS * PTC_OVERHEAD_MULTIPLIER
+        assert threshold == FALLBACK_PTC_OVERHEAD_TOKENS * PTC_OVERHEAD_MULTIPLIER
 
-    def test_with_actual_bridge_tools(self) -> None:
-        bridge = [_make_mock_tool("skill_select_tool", schema_size=200),
-                  _make_mock_tool("skill_search_tool", schema_size=100)]
-        threshold = compute_direct_threshold(bridge_tools=bridge)
-        expected = estimate_schema_tokens(bridge) * PTC_OVERHEAD_MULTIPLIER
+    def test_with_actual_overhead_tools(self) -> None:
+        overhead = [_make_mock_tool("skill_select_tool", schema_size=200),
+                    _make_mock_tool("skill_search_tool", schema_size=100)]
+        threshold = compute_direct_threshold(ptc_overhead_tools=overhead)
+        expected = estimate_schema_tokens(overhead) * PTC_OVERHEAD_MULTIPLIER
         assert threshold == expected
 
     def test_multiplier_is_2(self) -> None:
         assert PTC_OVERHEAD_MULTIPLIER == 2
 
-    def test_fallback_bridge_tokens_is_450(self) -> None:
-        assert FALLBACK_PTC_BRIDGE_TOKENS == 450
+    def test_fallback_overhead_tokens_is_450(self) -> None:
+        assert FALLBACK_PTC_OVERHEAD_TOKENS == 450
 
-    def test_threshold_scales_with_bridge_complexity(self) -> None:
-        small_bridge = [_make_mock_tool("b1", schema_size=50)]
-        large_bridge = [_make_mock_tool("b1", schema_size=500),
-                        _make_mock_tool("b2", schema_size=300)]
-        t_small = compute_direct_threshold(bridge_tools=small_bridge)
-        t_large = compute_direct_threshold(bridge_tools=large_bridge)
+    def test_threshold_scales_with_overhead_complexity(self) -> None:
+        small_overhead = [_make_mock_tool("b1", schema_size=50)]
+        large_overhead = [_make_mock_tool("b1", schema_size=500),
+                          _make_mock_tool("b2", schema_size=300)]
+        t_small = compute_direct_threshold(ptc_overhead_tools=small_overhead)
+        t_large = compute_direct_threshold(ptc_overhead_tools=large_overhead)
         assert t_large > t_small
 
 

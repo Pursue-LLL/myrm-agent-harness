@@ -242,15 +242,16 @@ class TestCouncilTypes:
         d = result.to_dict()
         assert d["error"] == "Something broke"
 
-    def test_opinion_content_truncated_in_dict(self) -> None:
+    def test_opinion_content_preserved_in_dict(self) -> None:
         long_content = "x" * 1000
         result = CouncilResult(
             success=True,
             synthesis="ok",
-            opinions=(CouncilOpinion("e1", "a", 1, long_content, True),),
+            opinions=(CouncilOpinion("e1", "a", 1, long_content, True, 2.5),),
         )
         d = result.to_dict()
-        assert len(d["opinions"][0]["content"]) == 500
+        assert len(d["opinions"][0]["content"]) == 1000
+        assert d["opinions"][0]["duration_seconds"] == 2.5
 
 
 # ---------------------------------------------------------------------------

@@ -216,11 +216,6 @@ def _resolve_target(
     Returns ``"*"`` when no target extraction is needed.
     """
     if permission == "mcp_invoke" and tool_name:
-        # Bridge tool_call: extract the underlying MCP tool name for rule matching
-        if tool_name == "mcp_tool_call":
-            inner = tool_input.get("name", "")
-            if isinstance(inner, str) and inner:
-                return inner
         return tool_name
     key = _TARGET_EXTRACTORS.get(permission)
     if not key:

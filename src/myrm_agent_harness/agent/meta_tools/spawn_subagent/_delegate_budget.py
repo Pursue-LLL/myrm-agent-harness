@@ -400,7 +400,7 @@ async def _build_dynamic_description(catalog: SubagentCatalog, allowed_types: li
     visible_ids = [tid for tid in available_ids if tid in allowed_types] if allowed_types is not None else available_ids
 
     lines = [
-        "Delegate tasks to specialized subagents. Use mode=single|batch|parallel.",
+        "Delegate tasks to specialized subagents. Use mode=single|batch|parallel|council|alternatives.",
         "",
         "## Available agent types",
     ]

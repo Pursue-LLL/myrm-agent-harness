@@ -13,6 +13,10 @@ Architecture:
              Gemini/Gemma    → absolute paths, parallel calls, non-interactive
              Claude          → execute when instructed, reduce disclaimers
              DeepSeek/Qwen/GLM → reduce over-explanation, enforce tool calls
+    Layer 3.5: OPUS_TIER_SUPPLEMENT — Opus-class Claude behavior tuning
+             Only injected when model name contains "opus".
+             Addresses scope expansion, self-correction narration, and
+             default verbosity documented by Anthropic for Opus 5+.
     Layer 4: ESCALATION_CONTRACT — conditional model self-upgrade contract
              Only injected when escalation_target_llm differs from current model.
              Guides the model to emit <<<NEEDS_PRO>>> when tasks exceed its tier.
@@ -26,7 +30,7 @@ See: agent/context_management/PROMPT_CACHE_PRACTICE.md §2.2
 
 [OUTPUT]
 - AGENT_CORE_RULES: base behavior rules constant (anti-narration + tool honesty + anti-negative-claim + proactive grounding search + XML defense + context-first + proactive capability discovery)
-- resolve_execution_discipline(): model-aware discipline resolver (Layer 1-3)
+- resolve_execution_discipline(): model-aware discipline resolver (Layer 1-3.5)
 - resolve_escalation_contract(): conditional escalation contract resolver (Layer 4)
 
 [POS]
@@ -219,6 +223,40 @@ _FAMILY_DISCIPLINE: dict[tuple[str, ...], str] = {
     ("deepseek", "qwen", "glm"): _CHINESE_MODEL_DISCIPLINE,
 }
 
+# ============================================================================
+# Layer 3.5: Claude Opus Tier Supplement (Opus 5+ only)
+# ============================================================================
+
+# Addresses three Opus 5 behavioral differences documented by Anthropic
+# (prompting-claude-opus-5, 2026-07-24): scope expansion, self-correction
+# narration, and default verbosity.  Injected only when the model name
+# contains "opus"; other Claude models (Sonnet, Haiku) are unaffected.
+_CLAUDE_OPUS_TIER_SUPPLEMENT = (
+    "\n<opus_behavior_tuning>"
+    "Deliver what was asked, at the scope intended. Make routine judgment "
+    "calls yourself, and check in only when different readings of the request "
+    "would lead to materially different work. If the request seems mistaken "
+    "or a better approach exists, say so in a sentence and continue with the "
+    "task as asked rather than quietly narrowing, widening, or transforming it. "
+    "Finish the whole task, and stop short of actions that are clearly beyond "
+    "what was asked.\n"
+    "Only correct an earlier statement when the error would change the user's "
+    "code, conclusions, or decisions. State corrections plainly and briefly, "
+    "then continue the task. For slips that change nothing for the user, make "
+    "the fix and move on without noting it.\n"
+    "Keep responses focused and concise. Match the length of written documents "
+    "to what the task needs — do not pad with filler sections, redundant "
+    "summaries, or boilerplate."
+    "</opus_behavior_tuning>"
+)
+
+_OPUS_TIER_SUBSTRINGS: tuple[str, ...] = ("opus",)
+
+
+def _is_opus_tier(model_lower: str) -> bool:
+    """Check whether the model is an Opus-class Claude model."""
+    return any(s in model_lower for s in _OPUS_TIER_SUBSTRINGS)
+
 
 def _extract_model_name(llm: BaseChatModel) -> str:
     """Extract model name from a LangChain LLM instance."""
@@ -286,10 +324,11 @@ def resolve_execution_discipline(llm: BaseChatModel) -> str:
     Content is determined by the model name and does not change within a
     session, preserving KV Cache stability.
 
-    Layers (1-3 only; Layer 4 is handled by resolve_escalation_contract):
+    Layers (1-3.5; Layer 4 is handled by resolve_escalation_contract):
         1. AGENT_CORE_RULES — always included (anti-narration + tool honesty + anti-negative-claim)
         2. TOOL_ENFORCEMENT — if model family matches enforcement list
         3. MODEL_FAMILY_DISCIPLINE — per-family-specific corrections
+        3.5. OPUS_TIER_SUPPLEMENT — Opus-class behavior tuning (scope + narration + conciseness)
     """
     model_lower = _extract_model_name(llm)
 
@@ -301,5 +340,8 @@ def resolve_execution_discipline(llm: BaseChatModel) -> str:
     family_discipline = _get_family_discipline(model_lower)
     if family_discipline:
         parts.append(family_discipline)
+
+    if _is_opus_tier(model_lower):
+        parts.append(_CLAUDE_OPUS_TIER_SUPPLEMENT)
 
     return "".join(parts)

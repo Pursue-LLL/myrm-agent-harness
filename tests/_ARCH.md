@@ -26,6 +26,9 @@ Harness test suite: unit, integration, architecture gates, and performance bench
 | `dev/` | 单元 | vortexai 维护者脚本回归（`test_run_pytest_safe.py`） |
 | `agent/skills/curator/test_curator_engine.py` | 单元 | SkillCurator 生命周期与 LRU 驱逐（勿用通用名 `test_engine.py`，会与 `agent/dynamic_workflow/test_engine.py` 触发 collect import mismatch） |
 | `agent/skills/` | 单元 | 技能子系统测试树 · [agent/skills/_ARCH.md](agent/skills/_ARCH.md) |
+| `agent/_factory/test_mcp_routing_route.py` | 单元 | `route_mcp_servers` direct/PTC/aggregate demotion + compress 边界（mock connection） |
+| `agent/_factory/test_mcp_routing_real_stdio_integration.py` | 集成 | 真实 FastMCP stdio **55 tools** → PTC/Skill 路径（无 mock） |
+| `agent/meta_tools/skill_search/test_engine_mcp_index.py` | 单元 | MCP skill BM25 index enrichment（>3 tools） |
 | `agent/skills/evolution/` | 单元 | Skill evolution pipeline tests (incl. trace analyzer takeover, variant generator) |
 
 ## Test file naming

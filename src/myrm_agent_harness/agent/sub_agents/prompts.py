@@ -45,6 +45,16 @@ If none apply, execute directly.
 - single: one subagent (agent_type + objective)
 - batch: concurrent tasks via tasks[]; optional race/tournament
 - parallel: Swarm Fission yield-resume for heavy Map-Reduce workloads
+- council: multi-expert cross-review with chair synthesis (expert_agent_types + objective)
+- alternatives: N parallel solutions for user comparison (expert_agent_types + objective)
+
+## Council vs Alternatives
+- council: when you need cognitive diversity — multiple experts analyse the SAME question, \
+challenge each other's assumptions in cross-review, and a chair synthesises consensus. \
+Use for architectural decisions, security reviews, or any task where blind spots are dangerous.
+- alternatives: when you need solution diversity — N agents produce independent solutions \
+to the SAME task, and the user picks the best one. Use for creative tasks, UI designs, \
+or any task where "the best" is subjective.
 
 ## Result retrieval
 Async results (wait=false) are NOT auto-injected. Use subagent_control_tool action=list.

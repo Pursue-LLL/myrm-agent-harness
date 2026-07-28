@@ -1,18 +1,21 @@
-"""Delegate task meta-tool (dual-mode: bound custom agent + dynamic ephemeral).
+"""Delegate task meta-tool (multi-mode: single|batch|parallel|council|alternatives).
 
 [INPUT]
 - _delegate_budget (POS: Budget admission, policy enforcement, result caching, dynamic description)
+- _delegate_batch (POS: Batch and parallel delegation execution engine)
+- _delegate_cognitive (POS: Council and alternatives mode execution)
 - agent.sub_agents.types::SubagentCatalog, ControlScope, DelegateRole
 - agent.base_agent::BaseAgent (POS: Base agent with streaming, token tracking, and artifacts)
 - langchain.tools::tool
 - pydantic::BaseModel, Field
 
 [OUTPUT]
-- create_delegate_task_tool: Unified delegate tool (mode=single|batch|parallel)
+- create_delegate_task_tool: Unified delegate tool (mode=single|batch|parallel|council|alternatives)
 - update_delegate_task_description: Async description refresher for catalog roster injection
 
 [POS]
 Unified delegate_task LLM tool. Single/batch/parallel modes share spawn engine in _delegate_batch.py.
+Council/alternatives modes delegate to _delegate_cognitive.py for multi-expert orchestration.
 Budget admission, policy denial, result caching, and dynamic roster live in _delegate_budget.py.
 """
 
@@ -41,6 +44,9 @@ from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import 
     _policy_denied,
     _put_cache,
 )
+from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_cognitive import (
+    execute_cognitive_mode,
+)
 from myrm_agent_harness.agent.parallel.summary import (
     inject_capacity_signal as _inject_capacity_signal,
 )
@@ -49,6 +55,7 @@ from myrm_agent_harness.agent.sub_agents.types import (
     DelegateRole,
     MemoryIsolationPolicy,
     SubagentCatalog,
+    SubagentConfig,
     SubAgentResult,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
@@ -84,11 +91,13 @@ def create_delegate_task_tool(
     """
 
     class DelegateTaskInput(BaseModel):
-        mode: Literal["single", "batch", "parallel"] = Field(
+        mode: Literal["single", "batch", "parallel", "council", "alternatives"] = Field(
             default="single",
             description=(
                 "Delegation mode: single=one subagent; batch=concurrent batch with optional race/tournament; "
-                "parallel=Swarm Fission yield-resume Map-Reduce."
+                "parallel=Swarm Fission yield-resume Map-Reduce; "
+                "council=multi-expert cross-review with chair synthesis (requires expert_agent_types); "
+                "alternatives=N parallel solutions for user comparison (requires expert_agent_types)."
             ),
         )
         agent_type: str | None = Field(
@@ -97,7 +106,7 @@ def create_delegate_task_tool(
         )
         objective: str | None = Field(
             default=None,
-            description="(single) Clear description of the core objective for the subagent",
+            description="(single/council/alternatives) Clear description of the core objective",
         )
         context_files: list[str] = Field(
             default_factory=list,
@@ -106,7 +115,7 @@ def create_delegate_task_tool(
         context: dict[str, object] | None = Field(default=None, description="Optional context data")
         wait: bool | None = Field(
             default=None,
-            description="Wait for results. Defaults: single=false, batch=true.",
+            description="Wait for results. Defaults: single=false, batch/council/alternatives=true.",
         )
         readonly: bool = Field(
             default=False,
@@ -152,12 +161,27 @@ def create_delegate_task_tool(
             default=None,
             description="(batch) Max parallel workers (default: 3 for race, 1 otherwise).",
         )
+        expert_agent_types: list[str] | None = Field(
+            default=None,
+            description=(
+                "(council/alternatives) Agent types to use as experts. "
+                "Each type is resolved from the catalog. Min 2 for council."
+            ),
+        )
+        cross_review_rounds: int = Field(
+            default=1,
+            description="(council) Number of cross-review rounds between experts (1-3).",
+        )
+        chair_agent_type: str | None = Field(
+            default=None,
+            description="(council) Agent type for the synthesis chair. Defaults to first expert.",
+        )
 
     _delegate_tool_holder: dict[str, BaseTool] = {}
 
     @tool("delegate_task_tool", args_schema=DelegateTaskInput)
     async def delegate_task_func(
-        mode: Literal["single", "batch", "parallel"] = "single",
+        mode: Literal["single", "batch", "parallel", "council", "alternatives"] = "single",
         agent_type: str | None = None,
         objective: str | None = None,
         context_files: list[str] | None = None,
@@ -174,8 +198,11 @@ def create_delegate_task_tool(
         tournament: bool = False,
         judge_criteria: str | None = None,
         max_concurrent: int | None = None,
+        expert_agent_types: list[str] | None = None,
+        cross_review_rounds: int = 1,
+        chair_agent_type: str | None = None,
     ) -> dict[str, object]:
-        """Delegate work to specialized subagents (mode=single|batch|parallel)."""
+        """Delegate work to specialized subagents (mode=single|batch|parallel|council|alternatives)."""
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegation_pause_gate import (
             is_delegation_paused,
         )
@@ -204,6 +231,24 @@ def create_delegate_task_tool(
                 judge_criteria=judge_criteria,
                 max_concurrent=max_concurrent,
                 parent_type=parent_type,
+            )
+
+        if mode in ("council", "alternatives"):
+            return await execute_cognitive_mode(
+                mode=mode,
+                parent_agent=parent_agent,
+                catalog=catalog,
+                objective=objective,
+                expert_agent_types=expert_agent_types,
+                context=context,
+                context_files=context_files or [],
+                tool_registry_getter=tool_registry_getter,
+                readonly=readonly,
+                cross_review_rounds=cross_review_rounds,
+                chair_agent_type=chair_agent_type,
+                cancel_token=get_cancel_token(),
+                session_id=sid,
+                allowed_types=allowed_types,
             )
 
         if is_delegation_paused(sid):

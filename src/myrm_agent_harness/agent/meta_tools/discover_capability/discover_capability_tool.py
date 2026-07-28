@@ -156,9 +156,6 @@ def sync_discover_capability_tool(
     skills: list[SkillMetadata] | None = None,
     embedding_config: EmbeddingConfig | None = None,
     embedding_cache: EmbeddingCacheProtocol | None = None,
-    active_tool_groups: frozenset[str] | None = None,
-    bound_skill_names: frozenset[str] | None = None,
-    library_skill_names: frozenset[str] | None = None,
 ) -> BaseTool | None:
     """Register discover_capability_tool when searchable skills exist.
 

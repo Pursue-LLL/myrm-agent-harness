@@ -1,4 +1,4 @@
-"""Unit tests: MCP whole-server aggregate demotion (→ bridge path)."""
+"""Unit tests: MCP whole-server aggregate demotion (→ PTC/Skill path)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 from myrm_agent_harness.agent._factory.mcp_routing import (
     AGGREGATE_DIRECT_TOKEN_BUDGET,
     _DirectServerBundle,
-    demote_direct_servers_to_bridge,
+    demote_direct_servers_over_budget,
     estimate_schema_tokens,
     estimate_single_tool_tokens,
 )
@@ -35,15 +35,15 @@ def _bundle(name: str, tools: list[MagicMock]) -> _DirectServerBundle:
     return _DirectServerBundle(config=cfg, tools=tuple(tools), schema_tokens=tokens)
 
 
-class TestDemoteDirectServersToBridge:
+class TestDemoteDirectServersOverBudget:
     def test_under_budget_keeps_all(self) -> None:
         bundles = [_bundle("s1", [_make_mock_tool("t1", 20, 1)])]
-        kept, demoted = demote_direct_servers_to_bridge(bundles, budget=10000)
+        kept, demoted = demote_direct_servers_over_budget(bundles, budget=10000)
         assert len(kept) == 1
         assert demoted == []
 
     def test_empty_returns_empty(self) -> None:
-        kept, demoted = demote_direct_servers_to_bridge([])
+        kept, demoted = demote_direct_servers_over_budget([])
         assert kept == []
         assert demoted == []
 
@@ -51,18 +51,18 @@ class TestDemoteDirectServersToBridge:
         small = _bundle("small", [_make_mock_tool("small_t", 30, 1)])
         large = _bundle("large", [_make_mock_tool("large_t", 500, 6)])
         budget = small.schema_tokens + 10
-        kept, demoted = demote_direct_servers_to_bridge([small, large], budget=budget)
+        kept, demoted = demote_direct_servers_over_budget([small, large], budget=budget)
         assert len(kept) == 1
         assert kept[0].config.name == "small"
         assert len(demoted) == 1
-        assert demoted[0].config.name == "large"
+        assert demoted[0].name == "large"
 
     def test_kept_total_within_budget(self) -> None:
         bundles = [
             _bundle(f"s{i}", [_make_mock_tool(f"t_{i}", 300, 4)])
             for i in range(5)
         ]
-        kept, _ = demote_direct_servers_to_bridge(bundles, budget=1500)
+        kept, _ = demote_direct_servers_over_budget(bundles, budget=1500)
         kept_tokens = sum(b.schema_tokens for b in kept)
         assert kept_tokens <= 1500
 

@@ -14,10 +14,10 @@ IPC Server 内部使用此服务处理子进程的 MCP 工具调用请求。
 - toolkits.mcp.client::MCPServerConfigProtocol (POS: MCP client management layer. Handles MCP server connection setup, transport config conversion, and multi-server client initialization with optional auth injection.)
 
 [OUTPUT]
-- MCPSkillProxyService: class — M C P Skill Proxy Service
-- MCPInvokeResult: class — M C P Invoke Result
-- get_mcp_skill_proxy_service: function — get_mcp_skill_proxy_service
-- handle_mcp_invoke: Args:
+- MCPSkillProxyService: MCP skill invoke with LRU cache and required-arg probe validation
+- MCPInvokeResult: handle_mcp_invoke result envelope
+- get_mcp_skill_proxy_service: singleton accessor
+- handle_mcp_invoke: framework entry for PTC MCP tool calls
 
 [POS]
 Provides MCPSkillProxyService, MCPInvokeResult, get_mcp_skill_proxy_service.
@@ -41,6 +41,49 @@ logger = logging.getLogger(__name__)
 
 # 缓存有效期（秒）
 CACHE_TTL_SECONDS = 600  # 10 分钟
+
+
+def _resolve_mcp_input_schema(tool_schema_entry: dict[str, object]) -> dict[str, object]:
+    """Normalize MCP tool schema entry to JSON Schema dict."""
+    from typing import cast
+
+    raw = tool_schema_entry.get("inputSchema")
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return cast("dict[str, object]", raw)
+    model_json_schema = getattr(raw, "model_json_schema", None)
+    if callable(model_json_schema):
+        return cast("dict[str, object]", model_json_schema())
+    return {}
+
+
+def _validate_required_mcp_params(
+    tool_name: str,
+    params: dict[str, object],
+    tool_schema_entry: dict[str, object] | None,
+) -> dict[str, object] | None:
+    """Check required arguments before dispatch; return error payload if missing."""
+    if not tool_schema_entry:
+        return None
+    try:
+        schema = _resolve_mcp_input_schema(tool_schema_entry)
+        required = schema.get("required")
+        if not isinstance(required, list) or not required:
+            return None
+        missing = [name for name in required if isinstance(name, str) and name not in params]
+        if not missing:
+            return None
+        return {
+            "error": (
+                f"tool_call to '{tool_name}' is missing required argument(s): "
+                f"{', '.join(missing)}. The tool was NOT invoked."
+            ),
+            "parameters": schema,
+            "hint": "Retry tool_call with 'arguments' matching the parameters schema above.",
+        }
+    except Exception:
+        return None
 
 
 class MCPSkillProxyService:
@@ -134,6 +177,7 @@ class MCPSkillProxyService:
         Raises:
             RuntimeError: 如果找不到技能或技能不是 MCP 技能
         """
+        from myrm_agent_harness.agent.skills.mcp.tool_name_utils import resolve_mcp_tool_name
         from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
 
         skill_meta = skill_registry.get_skill(skill_name)
@@ -148,7 +192,22 @@ class MCPSkillProxyService:
         assert skill_meta.mcp is not None
         mcp_server = skill_meta.mcp.server
 
-        return await self._find_and_invoke(mcp_config, mcp_server, tool_name, params)
+        matched_tool_name = resolve_mcp_tool_name(tool_name, skill_meta.mcp.tools)
+        if not matched_tool_name:
+            raise RuntimeError(
+                f"Tool '{tool_name}' not found in MCP skill '{skill_name}'. "
+                f"Available: {', '.join(skill_meta.mcp.tools[:5])}"
+            )
+
+        validation_error = _validate_required_mcp_params(
+            matched_tool_name,
+            params,
+            skill_meta.mcp.tool_schemas.get(matched_tool_name),
+        )
+        if validation_error is not None:
+            return validation_error
+
+        return await self._find_and_invoke(mcp_config, mcp_server, matched_tool_name, params)
 
     async def _find_and_invoke(
         self, mcp_config: list[MCPConfig], mcp_server: str, tool_name: str, params: dict[str, object]

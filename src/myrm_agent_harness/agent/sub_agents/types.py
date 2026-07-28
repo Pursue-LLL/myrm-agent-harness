@@ -159,8 +159,9 @@ class CouncilResult:
                     "expert_id": o.expert_id,
                     "agent_type": o.agent_type,
                     "round_num": o.round_num,
-                    "content": o.content[:500],
+                    "content": o.content,
                     "success": o.success,
+                    "duration_seconds": round(o.duration_seconds, 3),
                 }
                 for o in self.opinions
             ],

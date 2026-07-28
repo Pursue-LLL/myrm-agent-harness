@@ -14,7 +14,7 @@ Tests mirroring `src/myrm_agent_harness/agent/skills/` layout.
 | `curator/` | SkillCurator lifecycle + consolidation |
 | `optimization/` | Batch executor, scheduler, observability |
 | `packaging/` | Skill pack/unpack/validate |
-| `mcp/` | MCP session store + notify |
+| `mcp/` | MCP proxy validation, tool name SSOT, session store + notify · `test_proxy_service.py` · `test_tool_name_utils.py` · `test_proxy_validation.py` |
 | `history/` | JSONL / tracking backends |
 | Root `test_*.py` | Cross-cutting skill utilities (sanitizer, discovery service, fallback) |
 
