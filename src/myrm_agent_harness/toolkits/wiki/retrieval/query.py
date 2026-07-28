@@ -133,11 +133,11 @@ class WikiQueryEngine:
         """Prefix wiki_query responses with hot.md when available (zero LLM)."""
         if hot_context and article_context:
             return (
-                f"## Wiki session context (from hot.md)\n{hot_context}\n\n"
+                f"## Recent vault context\n{hot_context}\n\n"
                 f"## Retrieved articles for: {question}\n{article_context}"
             )
         if hot_context:
-            return f"## Wiki session context (from hot.md)\n{hot_context}"
+            return f"## Recent vault context\n{hot_context}"
         return article_context
 
     async def _search_concepts(self, query: str) -> list[Path]:

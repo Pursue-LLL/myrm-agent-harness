@@ -17,7 +17,7 @@ directory sidecars, bottom-up incremental DAG refresh, and LLM-driven wikilink e
 |-----------|-------------|
 | core/ | Config (purpose, compile strategy), types (ConceptInfo, WikiArticle, CompileResult, SourceSnippet, QueryResult, LintIssue/Result, WikiMetadata), file structure (incl. scan_folder with auto-ignore for .git/node_modules/etc), parsers (LLM response → ConceptInfo) |
 | maintenance/ | Linter: health checks, drift/stale detection, knowledge-gap analysis, LLM link enrichment |
-| pipeline/ | Compiler (parallel batch ingestion, SHA256 cache, auto-retry queue, raw text FTS5 pre-indexing on enqueue), sidecar builder (L0/L1 bottom-up DAG), postprocess (index building, backlink generation, metadata persistence), pending edits (HITL) |
+| pipeline/ | Compiler (parallel batch ingestion, SHA256 cache, auto-retry queue, raw text FTS5 pre-indexing on enqueue), sidecar builder (L0/L1 bottom-up DAG), cognitive_map (OKF index/log/hot writers), postprocess (backlink generation, metadata persistence), pending edits (HITL) |
 | retrieval/ | Indexer (FTS5 hybrid search, vector upsert/delete, sidecar tiered indexing), tokenizer (CJK bigram FTS5 query builder), graph_store (BFS traversal, federated graph queries, insights), query engine (graph expansion, sidecar-first routing, citation snippet extraction) |
 
 ## Key Dependencies

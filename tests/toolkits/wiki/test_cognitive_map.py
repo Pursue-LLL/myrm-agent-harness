@@ -58,7 +58,7 @@ def test_write_index_log_hot_on_refresh(wiki_structure: WikiStructure) -> None:
 
 def test_index_uses_directory_abstract_summary(wiki_structure: WikiStructure) -> None:
     abstract_path, _ = wiki_structure.get_directory_sidecar_paths("", create=True)
-    abstract_path.write_text("# Catalog\nSidecar abstract summary for index.\n", encoding="utf-8")
+    abstract_path.write_text("Sidecar abstract summary for index.\n", encoding="utf-8")
 
     concept_path = wiki_structure.get_concept_file_path("alpha-topic")
     concept_path.write_text(
