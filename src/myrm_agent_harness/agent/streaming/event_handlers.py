@@ -1,17 +1,19 @@
 """LangGraph 流事件处理器
 
 [INPUT]
-- langchain_core.messages::AIMessage, (POS: Core message type definitions. All cross-channel communication data structures are defined here; zero I/O, pure data.)
-- agent.streaming.step_builder::build_step_data (POS: Agent)
-- agent.streaming.source_tracker::SourceTracker (POS: BaseAgent  SourceTracker)
-- agent.types::AgentEventType, (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
+- langchain_core.messages::AIMessage, ToolMessage (POS: LangChain core message types)
+- agent.streaming.step_builder::build_step_data, get_step_key (POS: Agent step data builder. Constructs frontend display data from tool names and arguments with per-tool-type customization.)
+- agent.streaming.source_tracker::SourceTracker (POS: Source reference forwarding capability for BaseAgent.)
+- agent.types::AgentRunStatistics (POS: Agent core runtime type definitions.)
+- agent.streaming.types::AgentEventType (POS: Streaming module core type definitions.)
 
 [OUTPUT]
-- process_updates_chunk(): 处理 LangGraph updates 流 → 业务事件（含自动 sources 转发，空 AIMessage 过滤）
+- process_updates_chunk(): 处理 LangGraph updates 流 → 业务事件（含自动 sources 转发，空 AIMessage 过滤，bridge tool display unwrap）
 - process_messages_chunk(): 处理 LangGraph messages 流 → 消息块事件（含 message/reasoning 统一清洗、工具调用文本抑制）
 
 [POS]
 LangGraph stream event to business event transformer. Core event handler for BaseAgent.run().
+Bridge tool display unwrap: mcp_tool_call → underlying MCP tool name for ProgressSteps UI.
 Emits TOOL_IMAGE_OUTPUT for all image blocks in multimodal ToolMessage content
 (base64 and URL images from MCP tools, ResourceLink, computer_use screenshots, etc.).
 
@@ -35,6 +37,8 @@ from myrm_agent_harness.utils.text_sanitizer import sanitize_llm_output
 from ..types import AgentRunStatistics
 from .source_tracker import SourceTracker
 from .step_builder import build_step_data, get_step_key
+
+_BRIDGE_TOOL_CALL_NAME = "mcp_tool_call"
 
 logger = get_agent_logger(__name__)
 
@@ -138,15 +142,21 @@ async def _handle_tool_calls(
             args_str += "..."
         logger.debug(" Args: %s", args_str)
 
-        step_result = build_step_data(tool_name, tool_args)
+        display_name = tool_name
+        if tool_name == _BRIDGE_TOOL_CALL_NAME:
+            underlying = tool_args.get("name")
+            if isinstance(underlying, str) and underlying:
+                display_name = underlying
+
+        step_result = build_step_data(display_name, tool_args)
         reason = tool_args.get("reason", "")
-        step_key = step_result.get("step_key") or get_step_key(tool_name)
+        step_key = step_result.get("step_key") or get_step_key(display_name)
 
         yield {
             "type": AgentEventType.TASKS_STEPS.value,
             "step_key": step_key,
             "tool_call_id": tc.get("id"),
-            "tool_name": tool_name,
+            "tool_name": display_name,
             "reason": scrub_sensitive_info(reason),
             "data": step_result.get("data", []),
             "messageId": message_id,

@@ -1,17 +1,22 @@
-"""MCP hybrid routing — direct tool vs PTC skill path selection.
+"""MCP hybrid routing — three-path tool routing (direct / bridge / PTC).
 
 [INPUT]
 - toolkits.mcp.connection_manager::get_mcp_connection_manager (POS: MCP connection pool)
 - agent.skills.mcp.core_generator::mcp_skill_generator (POS: PTC skill metadata generator)
+- agent._factory.tool_search_bridge (POS: Bridge catalog and bridge tools)
 
 [OUTPUT]
-- route_mcp_servers(): split MCP servers into direct tools vs PTC skills
-- demote_direct_servers_over_budget(): whole-server Skill demotion when aggregate direct budget exceeded
+- route_mcp_servers(): split MCP servers into direct tools, bridge tools, or PTC skills
+- demote_direct_servers_to_bridge(): medium servers → bridge path (retains native FC)
+- demote_bridge_servers_to_ptc(): mega servers → PTC/Skill path (SOP-driven)
 - PTC_OVERHEAD_MULTIPLIER, FALLBACK_PTC_BRIDGE_TOKENS, compute_direct_threshold, estimate_schema_tokens
 - _compact_description/_compress_direct_tools: direct MCP tool description compaction for token-noise control
 
 [POS]
-MCP schema-token routing for SkillAgent factory. Keeps hybrid direct/PTC decision isolated from assembly.
+MCP schema-token routing for SkillAgent factory. Three-path co-existence:
+- Direct: small servers fit in token budget → native FC with full schema
+- Bridge: medium servers exceed aggregate budget → deferred native FC via tool_search/describe/call
+- PTC: mega servers exceed per-server threshold → converted to Skill SOPs
 """
 
 from __future__ import annotations
@@ -66,16 +71,20 @@ class _DirectServerBundle:
     schema_tokens: int
 
 
-def demote_direct_servers_over_budget(
+def demote_direct_servers_to_bridge(
     bundles: list[_DirectServerBundle],
     budget: int = AGGREGATE_DIRECT_TOKEN_BUDGET,
-) -> tuple[list[_DirectServerBundle], list[MCPConfig]]:
-    """Demote largest direct MCP servers to Skill until aggregate schema fits budget."""
+) -> tuple[list[_DirectServerBundle], list[_DirectServerBundle]]:
+    """Demote largest direct MCP servers to bridge path until aggregate schema fits budget.
+
+    Returns (kept_direct, demoted_to_bridge). Demoted servers retain their tools
+    for bridge catalog indexing — they are NOT converted to PTC skills.
+    """
     if not bundles:
         return [], []
 
     remaining = list(bundles)
-    demoted: list[MCPConfig] = []
+    demoted: list[_DirectServerBundle] = []
 
     def _total_tokens(items: list[_DirectServerBundle]) -> int:
         return sum(b.schema_tokens for b in items)
@@ -83,9 +92,9 @@ def demote_direct_servers_over_budget(
     while remaining and _total_tokens(remaining) > budget:
         largest = max(remaining, key=lambda b: b.schema_tokens)
         remaining.remove(largest)
-        demoted.append(largest.config)
+        demoted.append(largest)
         logger.info(
-            "MCP aggregate demotion: server '%s' (~%d tokens) → PTC/Skill",
+            "MCP aggregate demotion: server '%s' (~%d tokens) → Bridge (deferred native FC)",
             largest.config.name,
             largest.schema_tokens,
         )
@@ -212,10 +221,26 @@ def _config_to_dict(cfg: MCPServerConfigProtocol) -> dict[str, object]:
     }
 
 
+@dataclass(frozen=True, slots=True)
+class MCPRoutingResult:
+    """Result of MCP three-path routing."""
+
+    skills: list[SkillMetadata]
+    direct_tools: list[BaseTool]
+    bridge_tools: list[BaseTool]
+
+
 async def route_mcp_servers(
     mcp_servers: Sequence[MCPServerConfigProtocol],
-) -> tuple[list[SkillMetadata], list[BaseTool]]:
-    """Route MCP servers into direct-tool or PTC-skill paths based on schema token cost."""
+) -> MCPRoutingResult:
+    """Route MCP servers into three paths based on schema token cost.
+
+    Path selection:
+    1. Direct — server schema fits per-server threshold AND aggregate budget
+    2. Bridge — server individually fits threshold but aggregate exceeds budget
+       (deferred native FC via tool_search/describe/call bridge tools)
+    3. PTC/Skill — mega server exceeds per-server threshold (converted to Skill SOP)
+    """
     from myrm_agent_harness.toolkits.mcp.connection_manager import (
         get_mcp_connection_manager,
     )
@@ -270,18 +295,58 @@ async def route_mcp_servers(
                 direct_threshold,
             )
 
-    kept_bundles, demoted_configs = demote_direct_servers_over_budget(direct_bundles)
-    ptc_servers.extend(demoted_configs)
+    # Three-path split: direct stays, excess → bridge (not PTC)
+    kept_bundles, bridge_bundles = demote_direct_servers_to_bridge(direct_bundles)
 
+    # Assemble direct tools
     mcp_direct_tools: list[BaseTool] = []
     for bundle in kept_bundles:
         mcp_direct_tools.extend(bundle.tools)
 
+    # Assemble bridge tools (deferred native FC)
+    bridge_tools: list[BaseTool] = []
+    if bridge_bundles:
+        from myrm_agent_harness.agent._factory.tool_search_bridge import (
+            DeferredServerBundle,
+            build_bridge_tools,
+            build_catalog,
+            register_deferred_tools,
+        )
+
+        deferred_bundles = [
+            DeferredServerBundle(
+                config=b.config,
+                tools=b.tools,
+                schema_tokens=b.schema_tokens,
+            )
+            for b in bridge_bundles
+        ]
+        register_deferred_tools(deferred_bundles)
+        catalog = build_catalog(deferred_bundles)
+        bridge_tools = build_bridge_tools(catalog)
+
+        bridge_server_names = [b.config.name for b in bridge_bundles]
+        bridge_tool_count = sum(len(b.tools) for b in bridge_bundles)
+        logger.info(
+            "MCP bridge path: %d server(s) %s → %d tools deferred behind %d bridge tools",
+            len(bridge_bundles),
+            bridge_server_names,
+            bridge_tool_count,
+            len(bridge_tools),
+        )
+
+    # Assemble PTC skills (mega servers)
     mcp_skills = await _generate_mcp_skills(ptc_servers)
 
     logger.info(
-        "MCP hybrid summary: %d direct tools, %d PTC skills",
+        "MCP routing summary: %d direct tools, %d bridge tools (%d deferred), %d PTC skills",
         len(mcp_direct_tools),
+        len(bridge_tools),
+        sum(len(b.tools) for b in bridge_bundles) if bridge_bundles else 0,
         len(mcp_skills),
     )
-    return mcp_skills, mcp_direct_tools
+    return MCPRoutingResult(
+        skills=mcp_skills,
+        direct_tools=mcp_direct_tools,
+        bridge_tools=bridge_tools,
+    )

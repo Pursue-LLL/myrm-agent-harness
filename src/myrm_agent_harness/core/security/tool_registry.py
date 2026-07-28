@@ -329,6 +329,11 @@ def resolve_permission_type(
         return "desktop_control"
     if tool_name == "desktop_snapshot_tool":
         return "desktop_capture"
+    # Bridge tool_call: resolve to mcp_invoke using the inner tool name
+    if tool_name == "mcp_tool_call" and tool_input:
+        inner = tool_input.get("name")
+        if isinstance(inner, str) and inner:
+            return "mcp_invoke"
 
     if tool_name in TOOL_PERMISSION_MAP:
         return TOOL_PERMISSION_MAP[tool_name]

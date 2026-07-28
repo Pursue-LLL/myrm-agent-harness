@@ -165,8 +165,12 @@ async def create_skill_agent(
 
     mcp_skills: list[SkillMetadata] = []
     mcp_direct_tools: list[BaseTool] = []
+    mcp_bridge_tools: list[BaseTool] = []
     if spec.mcp_servers:
-        mcp_skills, mcp_direct_tools = await route_mcp_servers(spec.mcp_servers)
+        routing_result = await route_mcp_servers(spec.mcp_servers)
+        mcp_skills = routing_result.skills
+        mcp_direct_tools = routing_result.direct_tools
+        mcp_bridge_tools = routing_result.bridge_tools
 
     openapi_tools: list[BaseTool] = []
     if spec.openapi_services:
@@ -190,7 +194,7 @@ async def create_skill_agent(
 
     if tools is None:
         tools = []
-    tools = list(tools) + openapi_tools + mcp_direct_tools
+    tools = list(tools) + openapi_tools + mcp_direct_tools + mcp_bridge_tools
 
     final_skill_backend: SkillBackendProtocol | None = skill_backend
     if mcp_skills:
