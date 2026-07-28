@@ -183,3 +183,22 @@ async def test_zero_width_content_rejected_no_file_on_disk(workspace: Path) -> N
         reset_executor(token)
 
     assert not target.exists()
+
+
+@pytest.mark.asyncio
+async def test_soft_hyphen_content_rejected_no_file_on_disk(workspace: Path) -> None:
+    target = workspace / "notes" / "shyph.md"
+    executor = _make_local_executor(workspace)
+    token = set_executor(executor)
+    write_tool = create_file_write_tool()
+    try:
+        with pytest.raises(ToolError) as exc_info:
+            await write_tool.ainvoke(
+                {"path": "notes/shyph.md", "content": "\u00ad"},
+                config=_DUMMY_CONFIG,
+            )
+        assert "empty" in str(exc_info.value.user_hint).lower()
+    finally:
+        reset_executor(token)
+
+    assert not target.exists()

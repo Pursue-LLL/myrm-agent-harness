@@ -20,6 +20,7 @@ File write tool (Claude Code compatible). Creates new files; rejects empty/white
 from __future__ import annotations
 
 import logging
+import unicodedata
 from typing import TYPE_CHECKING
 
 from langchain.tools import tool
@@ -39,8 +40,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Zero-width / BOM-only payloads bypass str.strip() but are not meaningful file content.
-_INVISIBLE_WRITE_CHARS = frozenset({"\u200b", "\ufeff", "\u2060"})
+
+def _is_invisible_format_char(ch: str) -> bool:
+    """Unicode Cf (format) chars are not meaningful standalone file content."""
+    return unicodedata.category(ch) == "Cf"
 
 
 def _is_blank_file_content(content: str) -> bool:
@@ -49,7 +52,7 @@ def _is_blank_file_content(content: str) -> bool:
     if not collapsed:
         return True
     without_invisible = "".join(
-        ch for ch in collapsed if ch not in _INVISIBLE_WRITE_CHARS
+        ch for ch in collapsed if not _is_invisible_format_char(ch)
     ).strip()
     return not without_invisible
 
