@@ -113,6 +113,16 @@ class TestMCPSkillProxyServiceInvoke:
         assert result == "cached-value"
 
     @pytest.mark.asyncio
+    async def test_invoke_tool_cache_hit_canonical_tool_name(self, mcp_skill_meta: SkillMetadata) -> None:
+        service = MCPSkillProxyService()
+        skill_registry.register(mcp_skill_meta)
+        cache_key = service._make_cache_key("mcp_test_skill", "create_issue", {"title": "bug"})
+        service._cache.set(cache_key, "cached-issue")
+
+        result = await service.invoke_tool("mcp_test_skill", "create-issue", {"title": "bug"})
+        assert result == "cached-issue"
+
+    @pytest.mark.asyncio
     async def test_invoke_tool_validation_short_circuit(self, mcp_skill_meta: SkillMetadata) -> None:
         service = MCPSkillProxyService()
         skill_registry.register(mcp_skill_meta)

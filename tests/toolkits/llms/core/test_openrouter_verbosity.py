@@ -51,12 +51,13 @@ class TestApplyOpenrouterReasoningEffort:
         assert kwargs["extra_body"]["reasoning"]["effort"] == "high"
         assert "reasoning_effort" not in kwargs["extra_body"]
 
-    def test_none_effort_is_noop(self) -> None:
+    def test_none_effort_disables_reasoning(self) -> None:
         kwargs: dict = {"reasoning_effort": "none", "temperature": 0.7}
         apply_openrouter_reasoning_effort(_OR_CLAUDE_46, kwargs)
 
-        assert "extra_body" not in kwargs or "reasoning" not in kwargs.get("extra_body", {})
+        assert kwargs["extra_body"]["reasoning"]["effort"] == "none"
         assert "reasoning_effort" not in kwargs
+        assert kwargs["temperature"] == 0.7
 
     def test_absent_effort_is_noop(self) -> None:
         kwargs: dict = {"temperature": 0.7}

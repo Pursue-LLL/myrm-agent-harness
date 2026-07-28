@@ -41,6 +41,7 @@ class SteeringToken:
         self._activated_messages: list[str] = []
         self._active: bool = False
         self._steering_applied: bool = False
+        self._redirect_requested: bool = False
         self._lock = threading.Lock()
 
     def steer(self, message: str) -> None:
@@ -53,11 +54,32 @@ class SteeringToken:
             self._queue.append(message)
         logger.warning(f"Steering message queued: {message[:80]}...")
 
+    def redirect(self, message: str) -> None:
+        """中断当前生成并立即注入消息（外部 API，线程安全）
+
+        与 steer 不同：redirect 会立即中断正在进行的模型生成，
+        保留已生成的 partial 输出，然后注入新消息开始新 turn。
+        steer 则需等待当前生成/工具完成后才注入。
+
+        Args:
+            message: 用户的新消息
+        """
+        with self._lock:
+            self._queue.append(message)
+            self._redirect_requested = True
+        logger.warning(f"Redirect requested: {message[:80]}...")
+
     @property
     def has_pending(self) -> bool:
         """是否有待处理的 steering 消息"""
         with self._lock:
             return bool(self._queue)
+
+    @property
+    def redirect_requested(self) -> bool:
+        """是否请求了 redirect（立即中断生成）"""
+        with self._lock:
+            return self._redirect_requested
 
     @property
     def is_active(self) -> bool:
@@ -108,11 +130,12 @@ class SteeringToken:
     def reset_turn(self) -> None:
         """重置 turn 级状态（新 turn 开始时调用）
 
-        重置 _active、_steering_applied 和 _activated_messages，
+        重置 _active、_steering_applied、_redirect_requested 和 _activated_messages，
         但保留队列中的消息。
         """
         self._active = False
         self._steering_applied = False
+        self._redirect_requested = False
         self._activated_messages.clear()
 
 

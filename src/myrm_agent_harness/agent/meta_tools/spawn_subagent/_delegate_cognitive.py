@@ -9,6 +9,8 @@
 - agent.sub_agents.orchestrator::run_alternatives (POS: Alternatives generation primitive)
 - agent.parallel.summary::inject_capacity_signal (POS: Capacity signal injection for context management)
 - delegation_pause_gate::is_delegation_paused (POS: Session delegation pause check)
+- _delegate_budget::_estimate_batch_cost, _BatchBudgetAdmission (POS: Pre-flight cost estimation)
+- _delegate_batch::TaskRequest, _DEFAULT_COST_APPROVAL_THRESHOLD_USD (POS: Cost approval threshold)
 
 [OUTPUT]
 - execute_cognitive_mode: Execute council or alternatives delegation mode
@@ -16,7 +18,8 @@
 [POS]
 Cognitive delegation executor. Handles council (multi-expert cross-review with chair synthesis) and
 alternatives (N parallel solutions for user comparison) modes, separate from single/batch/parallel in
-_delegate_batch.py. Validates inputs, resolves expert configs, and delegates to orchestrator primitives.
+_delegate_batch.py. Validates inputs, resolves expert configs, runs pre-flight cost estimation with
+user approval interrupt when above threshold, and delegates to orchestrator primitives.
 """
 
 from __future__ import annotations
@@ -120,6 +123,19 @@ async def execute_cognitive_mode(
     if parent_manager is None:
         return {"success": False, "error": "Parent agent has no subagent manager."}
 
+    rejection = await _preflight_cost_check(
+        parent_agent=parent_agent,
+        catalog=catalog,
+        expert_agent_types=expert_agent_types,
+        objective=objective,
+        context_files=context_files,
+        context=context,
+        mode=mode,
+        cross_review_rounds=cross_review_rounds,
+    )
+    if rejection is not None:
+        return rejection
+
     parent_ctx = getattr(parent_agent, "_last_context", None) or {}
     child_context = dict(context or {})
     for _ctx_key in ("workspace_binding", "workspaces_storage_root", "user_id", "session_id"):
@@ -180,3 +196,98 @@ async def execute_cognitive_mode(
             "error": f"{type(e).__name__}: {e}",
             "mode": mode,
         }
+
+
+async def _preflight_cost_check(
+    *,
+    parent_agent: BaseAgent,
+    catalog: SubagentCatalog,
+    expert_agent_types: list[str],
+    objective: str,
+    context_files: list[str],
+    context: dict[str, object] | None,
+    mode: str,
+    cross_review_rounds: int,
+) -> dict[str, object] | None:
+    """Estimate cost for cognitive modes and interrupt for user approval if above threshold.
+
+    Council mode multiplies expert count by (1 + cross_review_rounds) to account for
+    independent analysis + cross-review rounds. Alternatives uses expert count directly.
+
+    Returns None if approved or estimation unavailable; returns rejection dict otherwise.
+    """
+    from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+        TaskRequest,
+        _DEFAULT_COST_APPROVAL_THRESHOLD_USD,
+    )
+    from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+        _estimate_batch_cost,
+    )
+
+    if mode == "council":
+        rounds = max(1, min(cross_review_rounds, 3))
+        effective_count = len(expert_agent_types) * (1 + rounds)
+    else:
+        effective_count = len(expert_agent_types)
+
+    synthetic_tasks = [
+        TaskRequest(
+            agent_type=expert_agent_types[i % len(expert_agent_types)],
+            objective=objective,
+            context_files=context_files,
+            context=context,
+        )
+        for i in range(effective_count)
+    ]
+
+    try:
+        estimate = await _estimate_batch_cost(
+            parent_agent=parent_agent,
+            catalog=catalog,
+            tasks=synthetic_tasks,
+        )
+    except Exception as exc:
+        logger.debug("Cognitive pre-flight cost estimation failed: %s", exc)
+        return None
+
+    if (
+        estimate.status == "unavailable"
+        or estimate.estimated_cost_usd is None
+        or estimate.estimated_cost_usd < _DEFAULT_COST_APPROVAL_THRESHOLD_USD
+    ):
+        return None
+
+    from langgraph.types import interrupt
+
+    interrupt_payload = {
+        "action_type": "batch_cost_approval",
+        "task_count": effective_count,
+        "estimated_cost_usd": round(estimate.estimated_cost_usd, 4),
+        "remaining_budget_usd": (
+            round(estimate.remaining_budget_usd, 4)
+            if estimate.remaining_budget_usd is not None
+            else None
+        ),
+        "cost_status": estimate.cost_status,
+        "mode": mode,
+        "expert_count": len(expert_agent_types),
+    }
+    decision = interrupt(interrupt_payload)
+
+    approved = True
+    if isinstance(decision, dict):
+        approved = decision.get("approved", True)
+    elif isinstance(decision, list) and decision:
+        first = decision[0]
+        approved = first.get("approved", True) if isinstance(first, dict) else bool(first)
+
+    if not approved:
+        return {
+            "success": False,
+            "status": "user_rejected",
+            "reason": "cognitive_cost_rejected_by_user",
+            "estimated_cost_usd": estimate.estimated_cost_usd,
+            "mode": mode,
+        }
+
+    return None

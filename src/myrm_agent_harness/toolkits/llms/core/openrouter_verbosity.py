@@ -22,9 +22,7 @@ routed through OpenRouter and ``reasoning_effort`` is present in kwargs,
 it rewrites it into ``extra_body.reasoning.effort`` — the format
 OpenRouter documents for all reasoning-capable models.
 
-See:
-- OpenRouter docs: https://openrouter.ai/docs/guides/best-practices/reasoning-tokens
-- Hermes bug: https://github.com/NousResearch/hermes-agent/issues/43432
+See: https://openrouter.ai/docs/guides/best-practices/reasoning-tokens
 """
 
 from __future__ import annotations
@@ -65,7 +63,7 @@ def apply_openrouter_reasoning_effort(model: str, llm_kwargs: dict[str, Any]) ->
     if effort is None:
         effort = extra_body.pop("reasoning_effort", None)
 
-    if effort is None or effort == "none":
+    if effort is None:
         return
 
     if not isinstance(extra_body, dict):

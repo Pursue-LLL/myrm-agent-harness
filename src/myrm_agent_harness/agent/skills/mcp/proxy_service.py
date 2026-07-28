@@ -14,7 +14,7 @@ IPC Server 内部使用此服务处理子进程的 MCP 工具调用请求。
 - toolkits.mcp.client::MCPServerConfigProtocol (POS: MCP client management layer. Handles MCP server connection setup, transport config conversion, and multi-server client initialization with optional auth injection.)
 
 [OUTPUT]
-- MCPSkillProxyService: MCP skill invoke with LRU cache and required-arg probe validation
+- MCPSkillProxyService: MCP skill invoke with LRU cache (canonical tool-name keys), required-arg probe validation
 - MCPInvokeResult: handle_mcp_invoke result envelope
 - get_mcp_skill_proxy_service: singleton accessor
 - handle_mcp_invoke: framework entry for PTC MCP tool calls
@@ -117,6 +117,17 @@ class MCPSkillProxyService:
         params_hash = hashlib.md5(params_json.encode()).hexdigest()[:16]
         return f"{skill_name}.{tool_name}:{params_hash}"
 
+    def _canonical_cache_tool_name(self, skill_name: str, tool_name: str) -> str:
+        """Resolve caller tool name to the MCP catalog name for cache keys."""
+        from myrm_agent_harness.agent.skills.mcp.tool_name_utils import resolve_mcp_tool_name
+        from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
+
+        skill_meta = skill_registry.get_skill(skill_name)
+        if skill_meta is None or skill_meta.mcp is None:
+            return tool_name
+        matched = resolve_mcp_tool_name(tool_name, skill_meta.mcp.tools)
+        return matched or tool_name
+
     async def invoke_tool(
         self, skill_name: str, tool_name: str, params: dict[str, object], *, trace_id: str = "-"
     ) -> object:
@@ -141,7 +152,8 @@ class MCPSkillProxyService:
         """
         log_prefix = f"[PTC:{trace_id}]"
         cleaned_params = {k: v for k, v in params.items() if v is not None}
-        cache_key = self._make_cache_key(skill_name, tool_name, cleaned_params)
+        cache_tool_name = self._canonical_cache_tool_name(skill_name, tool_name)
+        cache_key = self._make_cache_key(skill_name, cache_tool_name, cleaned_params)
         cached_result = self._cache.get(cache_key)
         if cached_result is not None:
             logger.info(f"{log_prefix} Cache hit: {skill_name}.{tool_name}")

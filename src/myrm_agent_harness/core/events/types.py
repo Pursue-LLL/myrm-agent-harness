@@ -113,6 +113,7 @@ class AgentEventType(StrEnum):
     APPROVAL_INTERCEPTED = "approval_intercepted"
     REASONING = "reasoning"
     STEERING = "steering"
+    REDIRECTED = "redirected"
     TOOL_APPROVAL_REQUEST = "tool_approval_request"
     STATUS = "status"
     TOOLS_SNAPSHOT = "tools_snapshot"

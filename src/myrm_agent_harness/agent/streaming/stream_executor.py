@@ -244,6 +244,19 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                             )
                             break
 
+                        if ctx.steering_token and ctx.steering_token.redirect_requested:
+                            logger.warning(
+                                " Redirect-in-place: breaking astream, partial preserved"
+                            )
+                            await self._compactor.put(
+                                {
+                                    "type": AgentEventType.REDIRECTED.value,
+                                    "data": "Redirected by user correction",
+                                    "messageId": ctx.message_id,
+                                }
+                            )
+                            break
+
                         await self._dispatch_chunk(chunk, ctx, collected_messages)
 
                 except Exception as astream_exc:

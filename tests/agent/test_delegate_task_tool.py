@@ -2712,3 +2712,332 @@ class TestRaceModeBudgetException:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Cognitive mode cost approval (_preflight_cost_check)
+# ---------------------------------------------------------------------------
+
+
+class TestCognitiveCostApproval:
+    """Cost pre-check for council/alternatives mirrors batch cost approval."""
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_cognitive._preflight_cost_check",
+        new_callable=AsyncMock,
+    )
+    async def test_council_triggers_cost_approval(self, mock_preflight):
+        """Council mode calls _preflight_cost_check before execution."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_cognitive import (
+            execute_cognitive_mode,
+        )
+
+        mock_preflight.return_value = {
+            "success": False,
+            "status": "user_rejected",
+            "reason": "cognitive_cost_rejected_by_user",
+            "estimated_cost_usd": 1.50,
+            "mode": "council",
+        }
+
+        parent = _make_mock_parent()
+        parent._subagent_manager = MagicMock()
+        catalog = AsyncMock()
+
+        result = await execute_cognitive_mode(
+            mode="council",
+            parent_agent=parent,
+            catalog=catalog,
+            objective="analyze design",
+            expert_agent_types=["arch", "reviewer", "security"],
+            context=None,
+            context_files=[],
+            tool_registry_getter=lambda: [],
+            readonly=False,
+            cross_review_rounds=1,
+            chair_agent_type=None,
+            cancel_token=None,
+            session_id="test-sid",
+            allowed_types=None,
+        )
+
+        assert result["success"] is False
+        assert result["status"] == "user_rejected"
+        assert result["reason"] == "cognitive_cost_rejected_by_user"
+        mock_preflight.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_cognitive._preflight_cost_check",
+        new_callable=AsyncMock,
+    )
+    async def test_alternatives_triggers_cost_approval(self, mock_preflight):
+        """Alternatives mode calls _preflight_cost_check before execution."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_cognitive import (
+            execute_cognitive_mode,
+        )
+
+        mock_preflight.return_value = {
+            "success": False,
+            "status": "user_rejected",
+            "reason": "cognitive_cost_rejected_by_user",
+            "estimated_cost_usd": 0.80,
+            "mode": "alternatives",
+        }
+
+        parent = _make_mock_parent()
+        parent._subagent_manager = MagicMock()
+        catalog = AsyncMock()
+
+        result = await execute_cognitive_mode(
+            mode="alternatives",
+            parent_agent=parent,
+            catalog=catalog,
+            objective="generate solutions",
+            expert_agent_types=["creative", "pragmatic"],
+            context=None,
+            context_files=[],
+            tool_registry_getter=lambda: [],
+            readonly=False,
+            cross_review_rounds=1,
+            chair_agent_type=None,
+            cancel_token=None,
+            session_id="test-sid",
+            allowed_types=None,
+        )
+
+        assert result["success"] is False
+        assert result["mode"] == "alternatives"
+        mock_preflight.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    @patch("langgraph.types.interrupt")
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget._estimate_batch_cost"
+    )
+    async def test_preflight_triggers_interrupt_above_threshold(
+        self, mock_estimate, mock_interrupt
+    ):
+        """_preflight_cost_check triggers interrupt when cost >= $0.50."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _BatchBudgetAdmission,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_cognitive import (
+            _preflight_cost_check,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="admitted",
+            reason="cost_estimated",
+            estimated_cost_usd=1.20,
+            remaining_budget_usd=5.0,
+            cost_status="configured_max_cost",
+        )
+        mock_interrupt.return_value = {"approved": True}
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+
+        result = await _preflight_cost_check(
+            parent_agent=parent,
+            catalog=catalog,
+            expert_agent_types=["arch", "reviewer", "security"],
+            objective="review code",
+            context_files=[],
+            context=None,
+            mode="council",
+            cross_review_rounds=1,
+        )
+
+        assert result is None
+        mock_interrupt.assert_called_once()
+        payload = mock_interrupt.call_args[0][0]
+        assert payload["action_type"] == "batch_cost_approval"
+        assert payload["estimated_cost_usd"] == 1.20
+        assert payload["mode"] == "council"
+        assert payload["expert_count"] == 3
+        # council 3 experts × (1 + 1 round) = 6 effective tasks
+        assert payload["task_count"] == 6
+
+    @pytest.mark.asyncio
+    @patch("langgraph.types.interrupt")
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget._estimate_batch_cost"
+    )
+    async def test_preflight_user_rejection(self, mock_estimate, mock_interrupt):
+        """User rejection returns failure dict."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _BatchBudgetAdmission,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_cognitive import (
+            _preflight_cost_check,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="admitted",
+            reason="cost_estimated",
+            estimated_cost_usd=2.00,
+        )
+        mock_interrupt.return_value = {"approved": False}
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+
+        result = await _preflight_cost_check(
+            parent_agent=parent,
+            catalog=catalog,
+            expert_agent_types=["a", "b"],
+            objective="task",
+            context_files=[],
+            context=None,
+            mode="alternatives",
+            cross_review_rounds=1,
+        )
+
+        assert result is not None
+        assert result["success"] is False
+        assert result["status"] == "user_rejected"
+        assert result["reason"] == "cognitive_cost_rejected_by_user"
+        assert result["estimated_cost_usd"] == 2.00
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget._estimate_batch_cost"
+    )
+    async def test_preflight_skips_when_below_threshold(self, mock_estimate):
+        """No interrupt when estimated cost is below $0.50 threshold."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _BatchBudgetAdmission,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_cognitive import (
+            _preflight_cost_check,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="admitted",
+            reason="cost_estimated",
+            estimated_cost_usd=0.30,
+        )
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+
+        result = await _preflight_cost_check(
+            parent_agent=parent,
+            catalog=catalog,
+            expert_agent_types=["a", "b"],
+            objective="small task",
+            context_files=[],
+            context=None,
+            mode="alternatives",
+            cross_review_rounds=1,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget._estimate_batch_cost"
+    )
+    async def test_preflight_skips_when_unavailable(self, mock_estimate):
+        """No interrupt when cost estimation returns unavailable status."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _BatchBudgetAdmission,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_cognitive import (
+            _preflight_cost_check,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="unavailable",
+            reason="model_cost_unavailable",
+        )
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+
+        result = await _preflight_cost_check(
+            parent_agent=parent,
+            catalog=catalog,
+            expert_agent_types=["a", "b"],
+            objective="task",
+            context_files=[],
+            context=None,
+            mode="council",
+            cross_review_rounds=2,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_preflight_skips_on_estimation_exception(self):
+        """Gracefully returns None when _estimate_batch_cost raises."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_cognitive import (
+            _preflight_cost_check,
+        )
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+
+        with patch(
+            "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget._estimate_batch_cost",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("estimation crashed"),
+        ):
+            result = await _preflight_cost_check(
+                parent_agent=parent,
+                catalog=catalog,
+                expert_agent_types=["a", "b"],
+                objective="task",
+                context_files=[],
+                context=None,
+                mode="council",
+                cross_review_rounds=1,
+            )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    @patch("langgraph.types.interrupt")
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget._estimate_batch_cost"
+    )
+    async def test_council_effective_task_count_with_rounds(
+        self, mock_estimate, mock_interrupt
+    ):
+        """Council with 2 rounds: 3 experts × (1 + 2) = 9 effective tasks."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _BatchBudgetAdmission,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_cognitive import (
+            _preflight_cost_check,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="admitted",
+            reason="cost_estimated",
+            estimated_cost_usd=3.00,
+            remaining_budget_usd=10.0,
+            cost_status="configured_max_cost",
+        )
+        mock_interrupt.return_value = {"approved": True}
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+
+        await _preflight_cost_check(
+            parent_agent=parent,
+            catalog=catalog,
+            expert_agent_types=["arch", "reviewer", "security"],
+            objective="big review",
+            context_files=["a.py"],
+            context={"key": "val"},
+            mode="council",
+            cross_review_rounds=2,
+        )
+
+        payload = mock_interrupt.call_args[0][0]
+        assert payload["task_count"] == 9
+        assert payload["expert_count"] == 3
+        assert mock_estimate.call_count == 1
+        tasks_passed = mock_estimate.call_args[1]["tasks"]
+        assert len(tasks_passed) == 9

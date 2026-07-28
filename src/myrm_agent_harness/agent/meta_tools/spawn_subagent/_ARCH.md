@@ -18,7 +18,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](../../sub_agents/SUB_AGENT_SYSTEM.md) · 
 | _manager_control.py (via manager) | Core | list/cancel/steer + running token observability patch | ✅ |
 | _delegate_budget.py | Internal | Budget admission, caching, dynamic roster for delegate_task_tool | ✅ |
 | _delegate_batch.py | Internal | `execute_batch_delegation` / `execute_parallel_delegation` engines | ✅ |
-| _delegate_cognitive.py | Internal | `execute_cognitive_mode` — council cross-review and alternatives multi-solution execution | ✅ |
+| _delegate_cognitive.py | Internal | `execute_cognitive_mode` — council cross-review and alternatives multi-solution execution with pre-flight cost estimation | ✅ |
 
 ## Key Dependencies
 
