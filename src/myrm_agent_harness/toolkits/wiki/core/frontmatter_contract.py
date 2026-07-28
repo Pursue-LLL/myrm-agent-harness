@@ -110,7 +110,11 @@ def infer_type_for_import(
 def serialize_frontmatter(metadata: dict[str, object]) -> str:
     """Serialize metadata dict to a YAML frontmatter block (minimal, Obsidian-compatible)."""
     lines = ["---"]
-    for key, value in metadata.items():
+    ordered_keys = ["type", *[key for key in metadata if key != "type"]]
+    for key in ordered_keys:
+        if key not in metadata:
+            continue
+        value = metadata[key]
         if isinstance(value, list):
             lines.append(f"{key}:")
             for item in value:
@@ -146,7 +150,7 @@ def ensure_frontmatter_type(
 
 
 def apply_compile_gate(content: str, concept_name: str, source_files: list[str]) -> str:
-    """Ensure compiled LLM output passes the type gate; auto-inject `concept` when missing."""
+    """Ensure compiled LLM output passes the type gate; inject or repair `concept` type when invalid."""
     validation = validate_wiki_frontmatter(content)
     if validation.ok:
         return content
@@ -165,7 +169,12 @@ def assert_valid_wiki_frontmatter(content: str) -> None:
         raise FrontmatterValidationError(result.errors)
 
 
-def repair_file_frontmatter(path: Path, *, is_raw_import: bool) -> bool:
+def repair_file_frontmatter(
+    path: Path,
+    *,
+    is_raw_import: bool,
+    relative_path: str | None = None,
+) -> bool:
     """Repair a single markdown file in place. Returns True when content was rewritten."""
     try:
         content = path.read_text(encoding="utf-8")
@@ -177,15 +186,10 @@ def repair_file_frontmatter(path: Path, *, is_raw_import: bool) -> bool:
         return False
 
     metadata, _body = parse_frontmatter(content)
-    try:
-        rel = path.name if is_raw_import else str(path)
-        page_type = infer_type_for_import(rel, metadata, is_raw_import=is_raw_import)
-    except Exception:
-        page_type = WikiPageType.SOURCE if is_raw_import else WikiPageType.CONCEPT
+    rel = relative_path if relative_path is not None else path.name
+    page_type = infer_type_for_import(rel, metadata, is_raw_import=is_raw_import)
 
-    sources: list[str] | None = None
-    if is_raw_import:
-        sources = [path.name]
+    sources: list[str] | None = [rel] if is_raw_import else None
     repaired = ensure_frontmatter_type(content, page_type, sources=sources, provenance="repaired")
     path.write_text(repaired, encoding="utf-8")
     return True
@@ -200,8 +204,9 @@ def repair_missing_types(structure: WikiStructure) -> TypeRepairResult:
 
     for concept_path in structure.list_concepts():
         scanned += 1
+        rel = str(concept_path.relative_to(structure.concepts_dir).with_suffix("")).replace("\\", "/")
         try:
-            if repair_file_frontmatter(concept_path, is_raw_import=False):
+            if repair_file_frontmatter(concept_path, is_raw_import=False, relative_path=rel):
                 repaired += 1
             else:
                 skipped += 1
@@ -210,8 +215,9 @@ def repair_missing_types(structure: WikiStructure) -> TypeRepairResult:
 
     for raw_path in structure.list_raw_files():
         scanned += 1
+        rel = str(raw_path.relative_to(structure.raw_dir)).replace("\\", "/")
         try:
-            if repair_file_frontmatter(raw_path, is_raw_import=True):
+            if repair_file_frontmatter(raw_path, is_raw_import=True, relative_path=rel):
                 repaired += 1
             else:
                 skipped += 1

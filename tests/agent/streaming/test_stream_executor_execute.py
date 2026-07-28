@@ -383,6 +383,54 @@ async def test_execute_redirect_without_partial_text(fire_hook_mock, base_ctx):
 
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_execute_redirect_dedup_when_complete_aimessage_exists(fire_hook_mock, base_ctx):
+    """Redirect after tool_calls: no duplicate AIMessage when updates already emitted one."""
+    from langchain_core.messages import ToolMessage
+
+    from myrm_agent_harness.utils.runtime.steering import SteeringToken
+
+    steering_token = SteeringToken()
+    base_ctx.steering_token = steering_token
+
+    executor = _make_executor(base_ctx)
+    call_count = [0]
+
+    async def _astream_tool_then_redirect(*args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            yield ("messages", (AIMessage(content="I will search "), {"langgraph_node": "model"}))
+            yield ("messages", (AIMessage(content="weather"), {"langgraph_node": "model"}))
+            yield (
+                "updates",
+                {
+                    "model": {
+                        "messages": [
+                            AIMessage(
+                                content="I will search weather",
+                                tool_calls=[{"id": "tc1", "name": "search", "args": {"q": "weather"}}],
+                            )
+                        ]
+                    }
+                },
+            )
+            yield ("updates", {"tools": {"messages": [ToolMessage(content="sunny", tool_call_id="tc1")]}})
+            steering_token.redirect("No, search Shanghai")
+            yield ("messages", (AIMessage(content="extra"), {"langgraph_node": "model"}))
+        else:
+            yield ("updates", {"model": {"messages": [AIMessage(content="Shanghai is sunny")]}})
+
+    base_ctx.agent.astream = _astream_tool_then_redirect
+    await executor.execute()
+
+    messages_after = base_ctx.agent_input["messages"]
+    ai_msgs = [m for m in messages_after if isinstance(m, AIMessage)]
+    contents = [str(m.content) for m in ai_msgs]
+    duplicates = [c for c in contents if contents.count(c) > 1]
+    assert not duplicates, f"Duplicate AIMessage content found: {set(duplicates)}"
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
 async def test_execute_subagent_notification(fire_hook_mock, base_ctx):
     """Subagent notification is emitted as SSE event without triggering new iteration."""
     drain_called = [False]
@@ -550,3 +598,232 @@ async def test_emit_fatal_error_no_recovery_actions_on_diagnostic_failure(
     assert len(error_events) == 1
     assert "diagnostic_result" not in error_events[0]
     assert "recovery_actions" not in error_events[0]
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_execute_with_token_tracker(fire_hook_mock, base_ctx):
+    """Token tracker ContextVar is set when ctx.token_tracker is provided."""
+    from myrm_agent_harness.utils.token_economics.tracker import (
+        TokenTracker,
+        _current_tracker,
+    )
+
+    tracker = TokenTracker()
+    base_ctx.token_tracker = tracker
+
+    executor = _make_executor(base_ctx)
+    base_ctx.agent.astream = _mock_astream_normal
+
+    captured_tracker = [None]
+
+    async def _dispatch_capturing(*args, **kwargs):
+        captured_tracker[0] = _current_tracker.get(None)
+
+    with patch.object(executor, "_dispatch_chunk", side_effect=_dispatch_capturing):
+        await executor.execute()
+
+    assert captured_tracker[0] is tracker
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_execute_with_command_input(fire_hook_mock, base_ctx):
+    """Command input mode (resume) skips messages list extraction."""
+    from langgraph.types import Command
+
+    base_ctx.agent_input = Command(resume="checkpoint_123")
+    executor = _make_executor(base_ctx)
+    base_ctx.agent.astream = _mock_astream_normal
+
+    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
+        await executor.execute()
+
+    assert executor._compactor.events[-1] is STREAM_DONE
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_execute_iteration_limit_in_goal_mode(fire_hook_mock, base_ctx):
+    """Iteration limit with goal_provider falls through to goal continuation."""
+    from langgraph.errors import GraphRecursionError
+
+    base_ctx.goal_provider = MagicMock()
+    base_ctx.goal_provider.current_goal = MagicMock()
+
+    executor = _make_executor(base_ctx)
+    call_count = [0]
+
+    async def _astream_recursion_then_ok(*args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            raise GraphRecursionError("Recursion limit of 25 reached")
+        yield ("messages", (AIMessage(content="done"), {"tags": []}))
+
+    base_ctx.agent.astream = _astream_recursion_then_ok
+
+    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
+        with patch.object(executor, "_handle_goal_continuation", new_callable=AsyncMock, return_value=False):
+            await executor.execute()
+
+    assert call_count[0] >= 1
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_execute_teammate_messages_triggers_continue(fire_hook_mock, base_ctx):
+    """_handle_teammate_messages returning True triggers loop continuation."""
+    executor = _make_executor(base_ctx)
+    call_count = [0]
+
+    async def _astream_two_turns(*args, **kwargs):
+        call_count[0] += 1
+        yield ("messages", (AIMessage(content=f"turn {call_count[0]}"), {"tags": []}))
+
+    base_ctx.agent.astream = _astream_two_turns
+    teammate_call = [0]
+
+    original_handle_teammate = executor._handle_teammate_messages
+
+    async def _mock_teammate(collected):
+        teammate_call[0] += 1
+        if teammate_call[0] == 1:
+            return True
+        return await original_handle_teammate(collected)
+
+    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
+        with patch.object(executor, "_handle_teammate_messages", side_effect=_mock_teammate):
+            await executor.execute()
+
+    assert call_count[0] == 2
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_execute_escalation_triggers_continue(fire_hook_mock, base_ctx):
+    """_handle_escalation returning True triggers loop continuation."""
+    executor = _make_executor(base_ctx)
+    call_count = [0]
+
+    async def _astream_multi(*args, **kwargs):
+        call_count[0] += 1
+        yield ("messages", (AIMessage(content=f"turn {call_count[0]}"), {"tags": []}))
+
+    base_ctx.agent.astream = _astream_multi
+    escalation_call = [0]
+
+    async def _mock_escalation(collected):
+        escalation_call[0] += 1
+        if escalation_call[0] == 1:
+            return True
+        return False
+
+    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
+        with patch.object(executor, "_handle_escalation", side_effect=_mock_escalation):
+            await executor.execute()
+
+    assert call_count[0] == 2
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_execute_length_truncation_triggers_continue(fire_hook_mock, base_ctx):
+    """_handle_length_truncation returning True increments counter and continues."""
+    executor = _make_executor(base_ctx)
+    call_count = [0]
+
+    async def _astream_multi(*args, **kwargs):
+        call_count[0] += 1
+        yield ("messages", (AIMessage(content=f"turn {call_count[0]}"), {"tags": []}))
+
+    base_ctx.agent.astream = _astream_multi
+    trunc_call = [0]
+
+    async def _mock_truncation(collected, retries):
+        trunc_call[0] += 1
+        if trunc_call[0] == 1:
+            return True
+        return False
+
+    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
+        with patch.object(executor, "_handle_length_truncation", side_effect=_mock_truncation):
+            await executor.execute()
+
+    assert call_count[0] == 2
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_execute_safety_refusal_triggers_continue(fire_hook_mock, base_ctx):
+    """_handle_safety_refusal_fallback returning True triggers loop continuation."""
+    executor = _make_executor(base_ctx)
+    call_count = [0]
+
+    async def _astream_multi(*args, **kwargs):
+        call_count[0] += 1
+        yield ("messages", (AIMessage(content=f"turn {call_count[0]}"), {"tags": []}))
+
+    base_ctx.agent.astream = _astream_multi
+    refusal_call = [0]
+
+    async def _mock_refusal():
+        refusal_call[0] += 1
+        if refusal_call[0] == 1:
+            return True
+        return False
+
+    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
+        with patch.object(executor, "_handle_safety_refusal_fallback", side_effect=_mock_refusal):
+            await executor.execute()
+
+    assert call_count[0] == 2
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_execute_empty_response_triggers_continue(fire_hook_mock, base_ctx):
+    """_handle_empty_response returning True increments counter and continues."""
+    executor = _make_executor(base_ctx)
+    call_count = [0]
+
+    async def _astream_multi(*args, **kwargs):
+        call_count[0] += 1
+        yield ("messages", (AIMessage(content=f"turn {call_count[0]}"), {"tags": []}))
+
+    base_ctx.agent.astream = _astream_multi
+    empty_call = [0]
+
+    async def _mock_empty(collected, retries):
+        empty_call[0] += 1
+        if empty_call[0] == 1:
+            return True
+        return False
+
+    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
+        with patch.object(executor, "_handle_empty_response", side_effect=_mock_empty):
+            await executor.execute()
+
+    assert call_count[0] == 2
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_execute_escalation_scrubber_flush(fire_hook_mock, base_ctx):
+    """Escalation scrubber pending content is flushed in finally block."""
+    executor = _make_executor(base_ctx)
+    base_ctx.agent.astream = _mock_astream_normal
+
+    executor._escalation_scrubber.flush = MagicMock(return_value="escalated text")
+    executor._reasoning_scrubber.process = MagicMock(
+        return_value=[(AgentEventType.MESSAGE, "clean text")]
+    )
+
+    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
+        with patch.object(executor, "_emit_event", new_callable=AsyncMock) as emit_mock:
+            await executor.execute()
+
+    emitted_dicts = [call.args[0] for call in emit_mock.call_args_list]
+    assert any(
+        d.get("type") == AgentEventType.MESSAGE.value and d.get("data") == "clean text"
+        for d in emitted_dicts
+    )

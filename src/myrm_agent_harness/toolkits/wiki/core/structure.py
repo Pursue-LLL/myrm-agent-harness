@@ -29,8 +29,7 @@ class WikiStructure:
 
     Manages the standard directory layout for Karpathy-style LLM wikis:
     - raw/: Original documents (PDFs, markdown, web clips)
-    - wiki/: Compiled wiki articles
-    - index/: Index files and catalogs
+    - wiki/: Compiled wiki articles and OKF cognitive map (index.md, log.md, hot.md)
     - concepts/: Concept articles
     """
 
@@ -51,7 +50,6 @@ class WikiStructure:
         self.public_dirs = [Path(p) for p in public_dirs] if public_dirs else []
         self.raw_dir = self.base_dir / "raw"
         self.wiki_dir = self.base_dir / "wiki"
-        self.index_dir = self.wiki_dir / "index"
         self.concepts_dir = self.wiki_dir / "concepts"
 
     def ensure_structure(self) -> None:
@@ -60,7 +58,6 @@ class WikiStructure:
             self.base_dir,
             self.raw_dir,
             self.wiki_dir,
-            self.index_dir,
             self.concepts_dir,
         ]:
             directory.mkdir(parents=True, exist_ok=True)
@@ -105,9 +102,17 @@ class WikiStructure:
                 return public_path
         return None
 
-    def get_index_file_path(self, index_name: str = "main") -> Path:
-        """Get path for an index file."""
-        return self.index_dir / f"{index_name}.md"
+    def get_index_file_path(self) -> Path:
+        """Get path for the OKF root index catalog (wiki/index.md)."""
+        return self.wiki_dir / "index.md"
+
+    def get_log_file_path(self) -> Path:
+        """Get path for the human-readable activity log (wiki/log.md)."""
+        return self.wiki_dir / "log.md"
+
+    def get_hot_file_path(self) -> Path:
+        """Get path for the session hot cache (wiki/hot.md)."""
+        return self.wiki_dir / "hot.md"
 
     def list_raw_files(self, pattern: str = "*.md") -> list[Path]:
         """List all raw documents matching the pattern from local sandbox (recursive)."""

@@ -15,6 +15,7 @@ agent/context_management/PROMPT_CACHE_PRACTICE.md §6.1-6.2 whenever this file c
 LLM core. LiteLLM wrapper providing a unified multi-model invocation interface
 (OpenAI, Anthropic, Gemini, etc.). Provides a factory function to create LiteLLM instances,
 automatically merging model_kwargs into extra_body. Integrates reasoning_timeout floor,
+thinking model max_tokens headroom (auto-raise floor to prevent thinking-phase truncation),
 local endpoint stall-detection relaxation (auto-detect localhost/RFC1918 → relax first_event/
 inter_chunk/request timeouts), OpenRouter reasoning_effort → reasoning.effort rewrite,
 and native model capability passthrough (web_search_options) via tri-state native_tools config
@@ -33,6 +34,7 @@ from myrm_agent_harness.infra.tls_compat import build_httpx_verify, tls_strict_d
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM, clean_model_kwargs
 from myrm_agent_harness.toolkits.llms.core.openrouter_verbosity import apply_openrouter_reasoning_effort
 from myrm_agent_harness.toolkits.llms.core.reasoning_timeout import get_reasoning_timeout_floor
+from myrm_agent_harness.toolkits.llms.core.thinking_headroom import ensure_thinking_headroom
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +176,9 @@ def create_litellm_model(
 
     # OpenRouter: rewrite reasoning_effort → extra_body.reasoning.effort
     apply_openrouter_reasoning_effort(model, llm_kwargs)
+
+    # Thinking models: raise max_tokens floor to prevent thinking-phase truncation
+    ensure_thinking_headroom(model, llm_kwargs)
 
     resolved_wso = _resolve_web_search_options(model, native_tools, web_search_options)
     if resolved_wso is not None:

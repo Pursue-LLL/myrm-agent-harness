@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 
-MAX_EPHEMERAL_OUTPUT_TOKENS = 32768
+MAX_EPHEMERAL_OUTPUT_TOKENS = 65536
 
 ephemeral_max_output_tokens: ContextVar[int | None] = ContextVar(
     "ephemeral_max_output_tokens",

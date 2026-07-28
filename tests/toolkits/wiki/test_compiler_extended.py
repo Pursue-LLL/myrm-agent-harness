@@ -1,5 +1,5 @@
 """Extended tests for WikiCompiler - covering _filter_changed_files, compile_all,
-_extract_concepts_from_doc, parse_concepts_response, build_index, generate_backlinks,
+_extract_concepts_from_doc, parse_concepts_response, refresh_cognitive_map, generate_backlinks,
 save_metadata, purpose injection, visual element prompt guidance, parallel batch ingestion,
 worker loop, and edge cases."""
 
@@ -138,11 +138,11 @@ async def test_extract_concepts_from_doc_file_not_found(wiki_structure: WikiStru
     assert concepts == []
 
 
-# --- _build_index ---
+# --- _refresh_cognitive_map ---
 
 
 @pytest.mark.asyncio
-async def test_build_index(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
+async def test_refresh_cognitive_map(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     from myrm_agent_harness.toolkits.wiki.core.types import ConceptInfo
 
     compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
@@ -150,12 +150,19 @@ async def test_build_index(wiki_structure: WikiStructure, mock_llm: AsyncMock) -
         ConceptInfo(name="Alpha", definition="def A", mentions=2, source_files=["a.md"]),
         ConceptInfo(name="Beta", definition="def B", mentions=2, source_files=["b.md"]),
     ]
-    await compiler._build_index(concepts)
+    concept_path = wiki_structure.get_concept_file_path("Alpha")
+    concept_path.write_text("---\ntype: concept\n---\n# Alpha\nAlpha page.\n", encoding="utf-8")
+    concept_path = wiki_structure.get_concept_file_path("Beta")
+    concept_path.write_text("---\ntype: entity\n---\n# Beta\nBeta page.\n", encoding="utf-8")
+
+    compiler._refresh_cognitive_map(concepts, batch=True)
     index_path = wiki_structure.get_index_file_path()
     assert index_path.exists()
     content = index_path.read_text()
-    assert "[[Alpha]]" in content
-    assert "[[Beta]]" in content
+    assert "[[alpha]]" in content
+    assert "[[beta]]" in content
+    assert wiki_structure.get_hot_file_path().exists()
+    assert wiki_structure.get_log_file_path().exists()
 
 
 # --- _save_metadata ---

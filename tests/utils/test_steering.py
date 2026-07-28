@@ -68,6 +68,34 @@ def test_reset_turn_clears_flags_keeps_queue() -> None:
     assert t.collect_all_steering_messages() == ["q2"]
 
 
+def test_redirect_queues_and_sets_flag() -> None:
+    t = SteeringToken()
+    t.redirect("correction")
+    assert t.has_pending is True
+    assert t.redirect_requested is True
+
+
+def test_redirect_requested_false_initially() -> None:
+    t = SteeringToken()
+    assert t.redirect_requested is False
+
+
+def test_redirect_reset_by_reset_turn() -> None:
+    t = SteeringToken()
+    t.redirect("x")
+    assert t.redirect_requested is True
+    t.reset_turn()
+    assert t.redirect_requested is False
+    assert t.has_pending is True
+
+
+def test_redirect_messages_collectible() -> None:
+    t = SteeringToken()
+    t.redirect("fix this")
+    msgs = t.collect_all_steering_messages()
+    assert msgs == ["fix this"]
+
+
 def test_get_set_steering_token() -> None:
     prev = get_steering_token()
     token = SteeringToken()

@@ -36,6 +36,11 @@ from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
 )
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import LintIssue, LintResult
+from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map import (
+    WikiCognitiveMapService,
+    WikiMapEvent,
+    WikiMapEventType,
+)
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -146,6 +151,21 @@ class WikiLinter:
         logger.info(
             f"Maintenance complete: {len(all_issues)} issues found, "
             f"{fixed_count} fixed, {connections_count} connections discovered"
+        )
+
+        WikiCognitiveMapService(self._structure).refresh(
+            WikiMapEvent(
+                event_type=WikiMapEventType.MAINTAIN,
+                summary=(
+                    f"Maintenance finished: {len(all_issues)} issue(s), "
+                    f"{fixed_count} fixed, {connections_count} new connection(s)"
+                ),
+                details={
+                    "issues_found": len(all_issues),
+                    "issues_fixed": fixed_count,
+                    "connections_discovered": connections_count,
+                },
+            )
         )
 
         return LintResult(
@@ -291,9 +311,15 @@ class WikiLinter:
         """Automatically fix an issue if possible."""
         if issue.issue_type == "invalid_frontmatter_type":
             article_path = Path(issue.location)
-            if article_path.exists():
-                repair_file_frontmatter(article_path, is_raw_import=False)
-                logger.info("Repaired frontmatter type for %s", article_path.name)
+            if not article_path.exists():
+                return
+            rel = str(article_path.relative_to(self._structure.concepts_dir).with_suffix("")).replace("\\", "/")
+            repair_file_frontmatter(article_path, is_raw_import=False, relative_path=rel)
+            logger.info("Repaired frontmatter type for %s", article_path.name)
+            if self._indexer:
+                content = article_path.read_text(encoding="utf-8")
+                await self._indexer.upsert(rel, content)
+                self._indexer.extract_and_upsert_edges(rel, content)
             return
 
         if issue.issue_type == "incomplete":

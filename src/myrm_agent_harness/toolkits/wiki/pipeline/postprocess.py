@@ -6,13 +6,12 @@
 ..core.types::ConceptInfo, WikiMetadata (POS: Wiki toolkit type definitions)
 
 [OUTPUT]
-build_index(): Build the wiki index file
 generate_backlinks(): Generate Obsidian-compatible backlinks between concepts
 save_metadata(): Persist compilation metadata with SHA256 file hashes
 
 [POS]
-Post-compilation steps: index generation, backlink creation, and metadata persistence
-after concept extraction and article generation are complete.
+Post-compilation steps: backlink creation and metadata persistence after concept
+extraction and article generation. OKF index/log/hot live in cognitive_map/.
 """
 
 from __future__ import annotations
@@ -37,20 +36,6 @@ if TYPE_CHECKING:
 logger = get_agent_logger(__name__)
 
 _RELATED_SECTION_RE: re.Pattern[str] = re.compile(r"\n+## Related Concepts\n.*", re.DOTALL)
-
-
-async def build_index(structure: WikiStructure, concepts: list[ConceptInfo]) -> None:
-    """Build main wiki index file."""
-    index_content = "# Wiki Index\n\n"
-    index_content += f"*Last updated: {datetime.now(UTC).isoformat()}*\n\n"
-    index_content += "## Concepts\n\n"
-
-    for concept in sorted(concepts, key=lambda c: c.name):
-        index_content += f"- [[{concept.name}]]\n"
-
-    index_path = structure.get_index_file_path()
-    index_path.write_text(index_content, encoding="utf-8")
-    logger.info(f"Built index: {index_path}")
 
 
 async def generate_backlinks(

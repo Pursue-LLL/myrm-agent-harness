@@ -220,7 +220,7 @@ class StreamTruncationRecoveryMixin:
         """Set ephemeral output token override with progressive scaling.
 
         retries=0 → 2x base, retries=1 → 3x base, retries>=2 → 4x base.
-        Capped at MAX_EPHEMERAL_OUTPUT_TOKENS (32768).
+        Capped at MAX_EPHEMERAL_OUTPUT_TOKENS (65536).
         """
         base = self._get_configured_max_tokens()
         if base is None:

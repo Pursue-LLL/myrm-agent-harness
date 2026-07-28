@@ -11,7 +11,7 @@ LLM-driven wikilink enrichment, and proactive knowledge-gap analysis
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Init | — |
-| linter.py | Core | Health checker: broken links, completeness, consistency, drift, stale, link enrichment, knowledge-gap analysis | ✅ |
+| linter.py | Core | Health checker: broken links, completeness, frontmatter type gate, consistency, drift, stale, link enrichment, knowledge-gap analysis | ✅ |
 
 ## Key Dependencies
 

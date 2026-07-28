@@ -10,10 +10,11 @@ with provenance, HITL pending edits, and bottom-up incremental L0/L1 directory s
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Init | — |
-| compiler.py | Core | LLM compiler: parallel batch ingestion, SHA256 incremental cache, purpose injection, auto-retry worker | ✅ |
-| postprocess.py | Core | Post-compilation steps: index building, backlink generation, metadata persistence | ✅ |
+| compiler.py | Core | LLM compiler: parallel batch ingestion, SHA256 incremental cache, purpose injection, frontmatter type compile gate, auto-retry worker | ✅ |
+| postprocess.py | Core | Post-compilation: backlink generation, metadata persistence | ✅ |
+| cognitive_map/ | Core | OKF index.md, log.md, hot.md deterministic writers + refresh service | ✅ |
 | sidecar.py | Core | Directory sidecar builder (`.abstract.md`/`.overview.md`): bottom-up DAG invalidation + incremental rebuild + index sync | ✅ |
-| pending.py | Core | HITL pending edits manager | ✅ |
+| pending.py | Core | HITL pending edits manager; approve blocked on invalid frontmatter `type` | ✅ |
 | queue.py | Core | SQLite persistent ingestion queue with retry + stale recovery | ✅ |
 
 ## Key Dependencies

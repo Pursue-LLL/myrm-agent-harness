@@ -89,7 +89,7 @@ class StreamContinuationRecoveryMixin:
         messages = cast(list["BaseMessage"], messages_dict.get("messages", []))
 
         is_redirect = ctx.steering_token.redirect_requested
-        partial_text = getattr(self, "_partial_text_buffer", "")
+        partial_preserved = getattr(self, "_redirect_partial_preserved", False)
 
         logger.warning(
             " %s: injecting %d message(s) for new turn",
@@ -99,21 +99,12 @@ class StreamContinuationRecoveryMixin:
         messages.clear()
         messages.extend(collected_messages)
 
-        if is_redirect and partial_text:
-            from langchain_core.messages import AIMessage
-
-            messages.append(AIMessage(content=partial_text))
-            logger.info(
-                " Redirect: preserving %d chars of partial AI response",
-                len(partial_text),
-            )
-
         for msg_text in all_steering:
             messages.append(HumanMessage(content=msg_text))
 
         messages_dict["messages"] = cast("list[AnyMessage]", messages)
         self.streaming_final_answer = False
-        self._partial_text_buffer = ""
+        self._redirect_partial_preserved = False
         truncated = [m[:200] for m in all_steering]
         event_type = AgentEventType.REDIRECTED if is_redirect else AgentEventType.STEERING
         await self._compactor.put(
@@ -122,7 +113,7 @@ class StreamContinuationRecoveryMixin:
                 "data": {
                     "count": len(all_steering),
                     "messages": truncated,
-                    "partial_preserved": is_redirect and bool(partial_text),
+                    "partial_preserved": is_redirect and partial_preserved,
                 },
                 "messageId": ctx.message_id,
             }

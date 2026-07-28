@@ -10,7 +10,6 @@ from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     FrontmatterValidationError,
     WikiPageType,
     apply_compile_gate,
-    assert_valid_wiki_frontmatter,
     infer_type_for_import,
     repair_missing_types,
     validate_wiki_frontmatter,
@@ -77,6 +76,14 @@ def test_repair_missing_types_updates_files(tmp_path: Path) -> None:
     assert concept_validation.page_type == "concept"
     assert raw_validation.ok is True
     assert raw_validation.page_type == "source"
+
+
+def test_apply_compile_gate_repairs_invalid_type() -> None:
+    raw = "---\ntype: blogpost\n---\n\n## Compiled Truth"
+    gated = apply_compile_gate(raw, "Demo", ["raw/demo.md"])
+    result = validate_wiki_frontmatter(gated)
+    assert result.ok is True
+    assert result.page_type == "concept"
 
 
 @pytest.mark.asyncio

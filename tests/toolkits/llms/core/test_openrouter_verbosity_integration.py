@@ -74,7 +74,11 @@ class TestOpenrouterVerbosityIntegration:
         assert "reasoning_effort" not in params
 
     def test_openrouter_with_temperature_and_max_tokens(self) -> None:
-        """Additional kwargs should survive alongside reasoning rewrite."""
+        """Additional kwargs should survive alongside reasoning rewrite.
+
+        claude-fable-5 is a thinking model with effort=xhigh → headroom
+        floor=65536, so max_tokens=4096 is raised to 65536.
+        """
         llm = create_litellm_model(
             "openrouter/anthropic/claude-fable-5",
             api_key="sk-test",
@@ -85,7 +89,7 @@ class TestOpenrouterVerbosityIntegration:
         params = llm._default_params
         assert params["extra_body"]["reasoning"]["effort"] == "xhigh"
         assert params["temperature"] == 0.3
-        assert params["max_tokens"] == 4096
+        assert params["max_tokens"] == 65536
 
 
 class TestOpenrouterVerbosityLLMManagerPath:

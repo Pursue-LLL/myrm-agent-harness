@@ -6,6 +6,7 @@ langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message typ
 ..core.config::WikiConfig, WikiQueryConfig (POS: Wiki configuration center)
 ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 ..core.types::QueryResult (POS: Wiki toolkit type definition center)
+..pipeline.cognitive_map::read_hot_context (POS: OKF hot.md reader for wiki_query prefix)
 
 [OUTPUT]
 WikiQueryEngine: Wiki query and enhancement engine
@@ -14,6 +15,7 @@ WikiQueryEngine: Wiki query and enhancement engine
 Wiki query core engine. Responsible for querying the wiki knowledge base and answering questions:
 concept search, context loading, LLM answer generation, and automatic archival of high-value results.
 Uses sidecar-first hierarchical routing with context-budgeted loading (L0/L1 before L2),
+prepends hot.md vault status inside wiki_query answers only (no global agent middleware),
 and falls back to keyword matching when semantic retrieval is unavailable.
 """
 
@@ -30,6 +32,7 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from ..core.config import WikiConfig, WikiQueryConfig
 from ..core.structure import WikiStructure
 from ..core.types import QueryResult, SourceSnippet
+from ..pipeline.cognitive_map import read_hot_context
 from .indexer import WikiIndexer
 
 logger = get_agent_logger(__name__)
@@ -75,11 +78,21 @@ class WikiQueryEngine:
         """
         logger.info(f"Querying wiki: {question[:100]}")
 
+        hot_context = read_hot_context(self._structure)
+
         # Step 1: Search for related concepts
         related_articles = await self._search_concepts(question)
         logger.info(f"Found {len(related_articles)} related articles")
 
         if not related_articles:
+            if hot_context:
+                return QueryResult(
+                    question=question,
+                    answer=self._compose_hot_only_answer(hot_context),
+                    related_articles=[],
+                    should_archive=False,
+                    confidence_score=0.1,
+                )
             return QueryResult(
                 question=question,
                 answer="No relevant information found in wiki. Consider ingesting more documents.",
@@ -90,6 +103,7 @@ class WikiQueryEngine:
 
         # Step 2: Load article context and extract citation snippets
         context, snippets = await self._load_articles_context(related_articles)
+        context = self._compose_answer(hot_context, context, question)
 
         # Step 3: Determine if should archive
         confidence = 1.0
@@ -105,6 +119,26 @@ class WikiQueryEngine:
             confidence_score=confidence,
             source_snippets=snippets,
         )
+
+    @staticmethod
+    def _compose_hot_only_answer(hot_context: str) -> str:
+        """Return vault status when no articles match — do not pretend to answer the question."""
+        return (
+            "No matching wiki articles were found for this question.\n\n"
+            f"## Vault status\n{hot_context}"
+        )
+
+    @staticmethod
+    def _compose_answer(hot_context: str, article_context: str, question: str) -> str:
+        """Prefix wiki_query responses with hot.md when available (zero LLM)."""
+        if hot_context and article_context:
+            return (
+                f"## Wiki session context (from hot.md)\n{hot_context}\n\n"
+                f"## Retrieved articles for: {question}\n{article_context}"
+            )
+        if hot_context:
+            return f"## Wiki session context (from hot.md)\n{hot_context}"
+        return article_context
 
     async def _search_concepts(self, query: str) -> list[Path]:
         """Search for relevant concept articles with graph traversal expansion.

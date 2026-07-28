@@ -106,6 +106,25 @@ async def test_wiki_query_engine_respects_zero_sidecar_directory_budget(wiki_str
 
 
 @pytest.mark.asyncio
+async def test_wiki_query_hot_only_when_no_matches(wiki_structure, mock_llm) -> None:
+    config = WikiConfig(enable_semantic_search=True)
+    engine = WikiQueryEngine(llm=mock_llm, structure=wiki_structure, config=config)
+
+    from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map import WikiCognitiveMapService, WikiMapEvent, WikiMapEventType
+
+    WikiCognitiveMapService(wiki_structure).refresh(
+        WikiMapEvent(event_type=WikiMapEventType.COMPILE, summary="Test refresh for hot-only query"),
+    )
+
+    result = await engine.query("Unknown concept with no wiki hits")
+    assert result.confidence_score == 0.1
+    assert "No matching wiki articles were found" in result.answer
+    assert "Vault status" in result.answer
+    assert "Test refresh for hot-only query" in result.answer
+    assert result.related_articles == []
+
+
+@pytest.mark.asyncio
 async def test_wiki_query_engine_no_results(wiki_structure, mock_llm):
     config = WikiConfig(enable_semantic_search=True)
     engine = WikiQueryEngine(llm=mock_llm, structure=wiki_structure, config=config)

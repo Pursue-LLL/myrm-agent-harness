@@ -820,12 +820,12 @@ async def test_ephemeral_contextvar_reset_after_execute():
 
 
 # ---------------------------------------------------------------------------
-# Boost cap: ensure 32768 ceiling even with large base
+# Boost cap: ensure 65536 ceiling even with large base
 # ---------------------------------------------------------------------------
 
 
-def test_boost_caps_at_32768():
-    """_boost_output_tokens never exceeds _MAX_EPHEMERAL_OUTPUT_TOKENS (32768)."""
+def test_boost_caps_at_65536():
+    """_boost_output_tokens never exceeds MAX_EPHEMERAL_OUTPUT_TOKENS (65536)."""
     from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
         get_ephemeral_max_output_tokens,
         reset_ephemeral_max_output_tokens,
@@ -853,7 +853,7 @@ def test_boost_caps_at_32768():
     executor._boost_output_tokens(2)
 
     val = get_ephemeral_max_output_tokens()
-    assert val == 32768
+    assert val == 65536
     reset_ephemeral_max_output_tokens()
 
 
@@ -905,8 +905,10 @@ async def test_boost_no_op_when_model_kwargs_max_tokens_invalid(mock_context):
     """model_kwargs.max_tokens <= 0 is ignored, boost is no-op."""
     from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
         get_ephemeral_max_output_tokens,
+        reset_ephemeral_max_output_tokens,
     )
 
+    reset_ephemeral_max_output_tokens()
     llm_mock = MagicMock()
     llm_mock.max_tokens = None
     llm_mock.model_kwargs = {"max_tokens": 0}
@@ -922,8 +924,10 @@ async def test_boost_no_op_when_model_kwargs_empty(mock_context):
     """Empty model_kwargs means no fallback, boost is no-op."""
     from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
         get_ephemeral_max_output_tokens,
+        reset_ephemeral_max_output_tokens,
     )
 
+    reset_ephemeral_max_output_tokens()
     llm_mock = MagicMock()
     llm_mock.max_tokens = None
     llm_mock.model_kwargs = {}

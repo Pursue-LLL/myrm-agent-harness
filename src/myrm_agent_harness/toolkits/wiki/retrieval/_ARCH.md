@@ -15,7 +15,7 @@ and sidecar-first hierarchical retrieval (L0/L1 route + L2 article grounding).
 | tokenizer.py | Core | FTS5 query tokenizer with CJK bigram support and stop word filtering | ✅ |
 | graph_store.py | Core | Knowledge graph BFS traversal, federated graph queries, insight delegation | ✅ |
 | graph_analysis.py | Core | LPA community detection, knowledge gap discovery, graph insights | ✅ |
-| query.py | Core | Query engine with graph traversal expansion and context budgeted L0/L1→L2 loading; emits layered source snippets for sidecar + article evidence | ✅ |
+| query.py | Core | Query engine with graph traversal expansion and context budgeted L0/L1→L2 loading; prepends `hot.md` context inside wiki_query only (no global middleware); emits layered source snippets for sidecar + article evidence | ✅ |
 
 ## Key Dependencies
 

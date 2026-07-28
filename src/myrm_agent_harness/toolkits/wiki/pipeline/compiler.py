@@ -7,7 +7,8 @@ langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message typ
 ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 ..core.types::ConceptInfo, CompileResult (POS: Wiki toolkit type definitions)
 ..core.parsers::parse_concepts_response (POS: LLM response parser)
-.postprocess::build_index, generate_backlinks, save_metadata (POS: post-compilation steps)
+.postprocess::generate_backlinks, save_metadata (POS: post-compilation steps)
+.cognitive_map::WikiCognitiveMapService (POS: OKF index/log/hot writers)
 .queue::WikiIngestionQueue (POS: persistent ingestion queue)
 .sidecar::build_directory_sidecars (POS: bottom-up directory sidecar builder)
 
@@ -45,7 +46,8 @@ if TYPE_CHECKING:
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import CompileResult, ConceptInfo
 
-from .postprocess import build_index, generate_backlinks, save_metadata
+from .cognitive_map import WikiCognitiveMapService, WikiMapEvent, WikiMapEventType
+from .postprocess import generate_backlinks, save_metadata
 from .queue import WikiIngestionQueue
 from .sidecar import build_directory_sidecars
 
@@ -159,7 +161,7 @@ class WikiCompiler:
                 all_concepts = await self._extract_concepts_batch(pending_items)
                 if all_concepts:
                     articles = await self._generate_articles_batch(all_concepts)
-                    await self._build_index(all_concepts)
+                    self._refresh_cognitive_map(all_concepts, batch=True)
                     if self._config.enable_backlinks:
                         await self._generate_backlinks(all_concepts)
                     if self._config.enable_directory_sidecars:
@@ -199,6 +201,7 @@ class WikiCompiler:
 
         if not pending_items:
             logger.info("No pending files to compile in queue")
+            self._refresh_cognitive_map([], summary="Compile requested; ingestion queue empty")
             return CompileResult(
                 concepts_count=0,
                 articles_generated=0,
@@ -216,8 +219,8 @@ class WikiCompiler:
         articles = await self._generate_articles_batch(all_concepts)
         logger.info(f"Generated {articles} articles")
 
-        # Step 3: Build index
-        await self._build_index(all_concepts)
+        # Step 3: Refresh OKF cognitive map (index/log/hot)
+        self._refresh_cognitive_map(all_concepts, batch=True)
 
         # Step 4: Generate backlinks
         backlinks_count = 0
@@ -460,9 +463,34 @@ class WikiCompiler:
             logger.error(f"Failed to generate article for {concept.name}: {e}")
             raise
 
-    async def _build_index(self, concepts: list[ConceptInfo]) -> None:
-        """Delegate to postprocess.build_index."""
-        await build_index(self._structure, concepts)
+    def _cognitive_map_service(self) -> WikiCognitiveMapService:
+        stats = self._queue.get_stats()
+        pending_queue = stats.get("pending", 0)
+        return WikiCognitiveMapService(
+            self._structure,
+            get_queue_pending=lambda: pending_queue,
+        )
+
+    def _refresh_cognitive_map(
+        self,
+        concepts: list[ConceptInfo],
+        *,
+        batch: bool = False,
+        summary: str | None = None,
+    ) -> None:
+        """Rebuild OKF index/log/hot after compilation."""
+        if summary is None:
+            summary = (
+                f"Compiled batch finished ({len(concepts)} concept(s) extracted)"
+                if batch
+                else f"Compiled {len(concepts)} concept(s)"
+            )
+        event = WikiMapEvent(
+            event_type=WikiMapEventType.COMPILE,
+            summary=summary,
+            details={"concepts_extracted": len(concepts)},
+        )
+        self._cognitive_map_service().refresh(event)
 
     async def _generate_backlinks(self, concepts: list[ConceptInfo]) -> int:
         """Delegate to postprocess.generate_backlinks."""

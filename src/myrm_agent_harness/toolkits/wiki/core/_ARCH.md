@@ -11,6 +11,7 @@ knowledge direction, compile/query configs, and recursive file system operations
 | __init__.py | Package | Init | — |
 | config.py | Config | WikiConfig (purpose, compile strategy), WikiCompileConfig (provenance prompts), WikiQueryConfig | ✅ |
 | parsers.py | Core | LLM response parsers — JSON and bullet-point format to ConceptInfo list | ✅ |
-| structure.py | Core | File system layout (raw/, wiki/, concepts/, purpose.md), directory sidecar path helpers (`.abstract.md`/`.overview.md`), tree CRUD, `delete_folder_safe` with indexer sync | ✅ |
+| structure.py | Core | File system layout (raw/, wiki/, concepts/, purpose.md), OKF cognitive map paths (`index.md`/`log.md`/`hot.md`), directory sidecar path helpers (`.abstract.md`/`.overview.md`), tree CRUD, `delete_folder_safe` with indexer sync | ✅ |
 | types.py | Types | Data models: ConceptInfo, WikiArticle, CompileResult, LintIssue, LintResult | ✅ |
+| frontmatter_contract.py | Contract | WikiPageType enum, validate/infer/repair frontmatter `type` gate (Molio/OKF aligned) | ✅ |
 | refactor.py | Core | LinkRefactorEngine — update relative markdown links when wiki files move or rename | ✅ |
