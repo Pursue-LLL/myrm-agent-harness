@@ -5,6 +5,9 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
+import pytest
+
+openpyxl = pytest.importorskip("openpyxl")
 from openpyxl import Workbook
 
 from myrm_agent_harness.agent.meta_tools.file_ops.utils.office_opc import (

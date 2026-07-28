@@ -58,6 +58,7 @@ class StreamDispatcherMixin:
     streaming_final_answer: bool
     _pseudonym_restorer: _PseudonymRestorer | None
     _slice_tool_call_ids: list[str]
+    _partial_text_buffer: str
 
     async def _dispatch_chunk(
         self,
@@ -164,11 +165,13 @@ class StreamDispatcherMixin:
         ):
             if not is_tool_start and not self.streaming_final_answer:
                 self.streaming_final_answer = True
+                self._partial_text_buffer = ""
                 logger.info(" 开始流式输出最终答案...")
 
             if isinstance(event, dict) and event.get("type") == AgentEventType.MESSAGE.value:
                 content = event.get("data", "")
                 if isinstance(content, str):
+                    self._partial_text_buffer += content
                     forwarded = self._escalation_scrubber.process(content)
                     if forwarded is None:
                         continue

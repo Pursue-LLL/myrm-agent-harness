@@ -6,6 +6,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
+openpyxl = pytest.importorskip("openpyxl")
 from openpyxl import Workbook
 
 from myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit import (

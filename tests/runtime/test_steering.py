@@ -175,6 +175,69 @@ class TestSteeringToken:
             assert not token.steering_applied
 
 
+class TestSteeringRedirect:
+    """SteeringToken redirect-specific tests."""
+
+    def test_redirect_sets_redirect_requested(self) -> None:
+        token = SteeringToken()
+        assert not token.redirect_requested
+        token.redirect("fix this")
+        assert token.redirect_requested
+        assert token.has_pending
+
+    def test_redirect_message_in_queue(self) -> None:
+        token = SteeringToken()
+        token.redirect("correction message")
+        msgs = token.collect_all_steering_messages()
+        assert msgs == ["correction message"]
+
+    def test_redirect_combined_with_steer(self) -> None:
+        """Redirect message is collected alongside earlier steer messages."""
+        token = SteeringToken()
+        token.steer("early")
+        token.redirect("correction")
+        msgs = token.collect_all_steering_messages()
+        assert msgs == ["early", "correction"]
+
+    def test_redirect_requested_resets_on_turn(self) -> None:
+        token = SteeringToken()
+        token.redirect("fix")
+        assert token.redirect_requested
+        token.reset_turn()
+        assert not token.redirect_requested
+
+    def test_redirect_thread_safety(self) -> None:
+        """redirect() is thread-safe like steer()."""
+        token = SteeringToken()
+        barrier = threading.Barrier(5)
+
+        def worker(i: int) -> None:
+            barrier.wait()
+            token.redirect(f"redirect-{i}")
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert token.redirect_requested
+        msgs = token.collect_all_steering_messages()
+        assert len(msgs) == 5
+        assert set(msgs) == {f"redirect-{i}" for i in range(5)}
+
+    def test_redirect_after_activate_still_pending(self) -> None:
+        """Redirect after activate puts message in queue (not activated list)."""
+        token = SteeringToken()
+        token.steer("first")
+        token.activate()
+        token.redirect("second")
+        assert token.has_pending
+        msgs = token.collect_all_steering_messages()
+        assert "first" in msgs
+        assert "second" in msgs
+
+
 class TestSteeringContextVar:
     """Tests for ContextVar-based request isolation."""
 

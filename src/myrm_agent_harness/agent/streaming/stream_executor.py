@@ -126,6 +126,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
         self._escalation_used = False
         self._consecutive_overloaded = 0
         self.streaming_final_answer = False
+        self._partial_text_buffer = ""
         self._tool_truncation_retries = 0
         self._compactor = StreamCompactor(ctx.output_queue)
         self._reasoning_scrubber = ReasoningScrubber()
@@ -221,6 +222,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
 
                 if ctx.steering_token:
                     ctx.steering_token.reset_turn()
+                self._partial_text_buffer = ""
 
                 try:
                     async for chunk in ctx.agent.astream(
@@ -246,8 +248,15 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
 
                         if ctx.steering_token and ctx.steering_token.redirect_requested:
                             logger.warning(
-                                " Redirect-in-place: breaking astream, partial preserved"
+                                " Redirect-in-place: breaking astream, partial preserved (%d chars buffered)",
+                                len(self._partial_text_buffer),
                             )
+                            if self._partial_text_buffer:
+                                from langchain_core.messages import AIMessage
+
+                                collected_messages.append(
+                                    AIMessage(content=self._partial_text_buffer)
+                                )
                             await self._compactor.put(
                                 {
                                     "type": AgentEventType.REDIRECTED.value,

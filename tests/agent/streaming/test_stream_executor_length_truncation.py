@@ -855,3 +855,80 @@ def test_boost_caps_at_32768():
     val = get_ephemeral_max_output_tokens()
     assert val == 32768
     reset_ephemeral_max_output_tokens()
+
+
+# ---------------------------------------------------------------------------
+# _get_configured_max_tokens: model_kwargs fallback
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_boost_uses_model_kwargs_max_tokens(mock_context):
+    """When llm.max_tokens is None but model_kwargs has max_tokens, boost works."""
+    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+        get_ephemeral_max_output_tokens,
+        reset_ephemeral_max_output_tokens,
+    )
+
+    llm_mock = MagicMock()
+    llm_mock.max_tokens = None
+    llm_mock.model_kwargs = {"max_tokens": 4096}
+    mock_context.llm = llm_mock
+    executor = _make_executor(mock_context)
+
+    executor._boost_output_tokens(0)
+    assert get_ephemeral_max_output_tokens() == 8192  # 4096 × 2
+    reset_ephemeral_max_output_tokens()
+
+
+@pytest.mark.asyncio
+async def test_boost_prefers_direct_max_tokens_over_model_kwargs(mock_context):
+    """llm.max_tokens takes precedence over model_kwargs.max_tokens."""
+    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+        get_ephemeral_max_output_tokens,
+        reset_ephemeral_max_output_tokens,
+    )
+
+    llm_mock = MagicMock()
+    llm_mock.max_tokens = 8000
+    llm_mock.model_kwargs = {"max_tokens": 4096}
+    mock_context.llm = llm_mock
+    executor = _make_executor(mock_context)
+
+    executor._boost_output_tokens(0)
+    assert get_ephemeral_max_output_tokens() == 16000  # 8000 × 2 (direct wins)
+    reset_ephemeral_max_output_tokens()
+
+
+@pytest.mark.asyncio
+async def test_boost_no_op_when_model_kwargs_max_tokens_invalid(mock_context):
+    """model_kwargs.max_tokens <= 0 is ignored, boost is no-op."""
+    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+        get_ephemeral_max_output_tokens,
+    )
+
+    llm_mock = MagicMock()
+    llm_mock.max_tokens = None
+    llm_mock.model_kwargs = {"max_tokens": 0}
+    mock_context.llm = llm_mock
+    executor = _make_executor(mock_context)
+
+    executor._boost_output_tokens(0)
+    assert get_ephemeral_max_output_tokens() is None
+
+
+@pytest.mark.asyncio
+async def test_boost_no_op_when_model_kwargs_empty(mock_context):
+    """Empty model_kwargs means no fallback, boost is no-op."""
+    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+        get_ephemeral_max_output_tokens,
+    )
+
+    llm_mock = MagicMock()
+    llm_mock.max_tokens = None
+    llm_mock.model_kwargs = {}
+    mock_context.llm = llm_mock
+    executor = _make_executor(mock_context)
+
+    executor._boost_output_tokens(0)
+    assert get_ephemeral_max_output_tokens() is None

@@ -415,6 +415,14 @@ class WikiCompiler:
             if len(article_content) > self._compile_config.max_article_length:
                 article_content = article_content[: self._compile_config.max_article_length] + "\n\n(truncated)"
 
+            from ..core.frontmatter_contract import apply_compile_gate
+
+            article_content = apply_compile_gate(
+                article_content,
+                concept.name,
+                concept.source_files,
+            )
+
             if self._compile_config.require_approval:
                 from .pending import WikiPendingEditsManager
 

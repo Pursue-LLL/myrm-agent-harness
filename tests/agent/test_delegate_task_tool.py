@@ -2855,8 +2855,8 @@ class TestCognitiveCostApproval:
         assert payload["estimated_cost_usd"] == 1.20
         assert payload["mode"] == "council"
         assert payload["expert_count"] == 3
-        # council 3 experts × (1 + 1 round) = 6 effective tasks
-        assert payload["task_count"] == 6
+        # council: 3 experts × (1 + 1 round) + 1 chair = 7 effective tasks
+        assert payload["task_count"] == 7
 
     @pytest.mark.asyncio
     @patch("langgraph.types.interrupt")
@@ -3036,8 +3036,9 @@ class TestCognitiveCostApproval:
         )
 
         payload = mock_interrupt.call_args[0][0]
-        assert payload["task_count"] == 9
+        # council: 3 experts × (1 + 2 rounds) + 1 chair = 10 effective tasks
+        assert payload["task_count"] == 10
         assert payload["expert_count"] == 3
         assert mock_estimate.call_count == 1
         tasks_passed = mock_estimate.call_args[1]["tasks"]
-        assert len(tasks_passed) == 9
+        assert len(tasks_passed) == 10

@@ -282,6 +282,107 @@ async def test_execute_steering_injection(fire_hook_mock, base_ctx):
 
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_execute_redirect_breaks_and_preserves_partial(fire_hook_mock, base_ctx):
+    """Redirect breaks astream mid-generation, preserves partial text, and triggers new turn."""
+    from myrm_agent_harness.utils.runtime.steering import SteeringToken
+
+    steering_token = SteeringToken()
+    base_ctx.steering_token = steering_token
+
+    executor = _make_executor(base_ctx)
+    call_count = [0]
+
+    async def _astream_with_redirect(*args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            yield ("messages", (AIMessage(content="partial answer "), {"langgraph_node": "model"}))
+            yield ("messages", (AIMessage(content="more text"), {"langgraph_node": "model"}))
+            steering_token.redirect("Actually, do Y instead")
+            yield ("messages", (AIMessage(content=" this should not appear"), {"langgraph_node": "model"}))
+        else:
+            yield ("updates", {"model": {"messages": [AIMessage(content="Final correct answer")]}})
+
+    base_ctx.agent.astream = _astream_with_redirect
+    await executor.execute()
+
+    assert call_count[0] == 2
+    events = executor._compactor.events
+    redirected_events = [
+        e for e in events
+        if isinstance(e, dict) and e.get("type") == AgentEventType.REDIRECTED.value
+    ]
+    assert len(redirected_events) == 1
+    assert redirected_events[0]["data"]["partial_preserved"] is True
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_execute_redirect_partial_buffer_in_messages(fire_hook_mock, base_ctx):
+    """Redirect preserves partial text as AIMessage in the context for next turn."""
+    from myrm_agent_harness.utils.runtime.steering import SteeringToken
+
+    steering_token = SteeringToken()
+    base_ctx.steering_token = steering_token
+
+    executor = _make_executor(base_ctx)
+    call_count = [0]
+
+    async def _astream_redirect_scenario(*args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            yield ("messages", (AIMessage(content="Hello, "), {"langgraph_node": "model"}))
+            yield ("messages", (AIMessage(content="I think"), {"langgraph_node": "model"}))
+            steering_token.redirect("Wrong direction, do Z")
+            yield ("messages", (AIMessage(content=" wrong text"), {"langgraph_node": "model"}))
+        else:
+            pass
+        return
+        yield
+
+    base_ctx.agent.astream = _astream_redirect_scenario
+    await executor.execute()
+
+    messages_after = base_ctx.agent_input["messages"]
+    ai_msgs = [m for m in messages_after if isinstance(m, AIMessage)]
+    assert len(ai_msgs) >= 1
+    partial_ai = ai_msgs[-1] if ai_msgs else None
+    assert partial_ai is not None
+    assert "Hello, " in partial_ai.content or "I think" in partial_ai.content
+
+    human_msgs = [m for m in messages_after if isinstance(m, HumanMessage)]
+    assert any("Wrong direction" in m.content for m in human_msgs)
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_execute_redirect_without_partial_text(fire_hook_mock, base_ctx):
+    """Redirect with no partial text (immediate redirect before any streaming) still works."""
+    from myrm_agent_harness.utils.runtime.steering import SteeringToken
+
+    steering_token = SteeringToken()
+    base_ctx.steering_token = steering_token
+
+    executor = _make_executor(base_ctx)
+    call_count = [0]
+
+    async def _astream_immediate_redirect(*args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            steering_token.redirect("Changed my mind")
+            yield ("messages", (AIMessage(content="ignored"), {"langgraph_node": "model"}))
+        else:
+            pass
+        return
+        yield
+
+    base_ctx.agent.astream = _astream_immediate_redirect
+    await executor.execute()
+
+    assert call_count[0] == 2
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
 async def test_execute_subagent_notification(fire_hook_mock, base_ctx):
     """Subagent notification is emitted as SSE event without triggering new iteration."""
     drain_called = [False]

@@ -19,6 +19,7 @@ import contextlib
 import sqlite3
 from typing import TYPE_CHECKING, Literal, TypedDict
 
+from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import assert_valid_wiki_frontmatter
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 
 if TYPE_CHECKING:
@@ -111,6 +112,8 @@ class WikiPendingEditsManager:
 
             # Use modified_content if provided by user inline editing, otherwise use original draft
             final_content = modified_content if modified_content is not None else proposed_content
+
+            assert_valid_wiki_frontmatter(final_content)
 
             # Write to filesystem
             article_path = self._structure.get_concept_file_path(concept_name)

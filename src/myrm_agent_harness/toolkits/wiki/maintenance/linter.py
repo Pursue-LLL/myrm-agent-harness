@@ -30,6 +30,10 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig
+from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
+    repair_file_frontmatter,
+    validate_wiki_frontmatter,
+)
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import LintIssue, LintResult
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
@@ -81,6 +85,10 @@ class WikiLinter:
         # Check 2: Completeness
         incomplete = await self._check_completeness()
         all_issues.extend(incomplete)
+
+        # Check 2b: Frontmatter type gate
+        invalid_types = await self._check_frontmatter_types()
+        all_issues.extend(invalid_types)
 
         # Check 3: Consistency (advanced, requires LLM)
         if self._config.enable_auto_maintenance:
@@ -214,6 +222,29 @@ class WikiLinter:
 
         return issues
 
+    async def _check_frontmatter_types(self) -> list[LintIssue]:
+        """Check concept articles for required frontmatter `type` field."""
+        issues: list[LintIssue] = []
+        for concept_path in self._structure.list_concepts():
+            try:
+                content = concept_path.read_text(encoding="utf-8")
+                validation = validate_wiki_frontmatter(content)
+                if validation.ok:
+                    continue
+                issues.append(
+                    LintIssue(
+                        issue_type="invalid_frontmatter_type",
+                        severity="high",
+                        location=str(concept_path),
+                        description="; ".join(validation.errors),
+                        can_auto_fix=True,
+                        suggested_fix="Repair page metadata to add a valid page type",
+                    )
+                )
+            except OSError as exc:
+                logger.warning("Failed to check frontmatter type for %s: %s", concept_path, exc)
+        return issues
+
     async def _check_consistency(self) -> list[LintIssue]:
         """
         Check for contradictions or inconsistencies (using LLM).
@@ -258,6 +289,13 @@ class WikiLinter:
 
     async def _auto_fix_issue(self, issue: LintIssue) -> None:
         """Automatically fix an issue if possible."""
+        if issue.issue_type == "invalid_frontmatter_type":
+            article_path = Path(issue.location)
+            if article_path.exists():
+                repair_file_frontmatter(article_path, is_raw_import=False)
+                logger.info("Repaired frontmatter type for %s", article_path.name)
+            return
+
         if issue.issue_type == "incomplete":
             logger.info(f"Auto-fixing incomplete article: {issue.location}")
 

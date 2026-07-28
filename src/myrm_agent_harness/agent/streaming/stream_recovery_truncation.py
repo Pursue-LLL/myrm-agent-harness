@@ -238,13 +238,22 @@ class StreamTruncationRecoveryMixin:
         )
 
     def _get_configured_max_tokens(self) -> int | None:
-        """Read the configured max_tokens from the LLM instance."""
+        """Read the configured max_tokens from the LLM instance.
+
+        Checks ``llm.max_tokens`` first (direct Pydantic field), then falls
+        back to ``llm.model_kwargs["max_tokens"]`` which is where the value
+        lands when users set it via the frontend ModelKwargsEditor.
+        """
         ctx = self._ctx
         llm = ctx.llm
         if llm is None:
             return None
         max_tokens: int | None = getattr(llm, "max_tokens", None)
-        return max_tokens if isinstance(max_tokens, int) and max_tokens > 0 else None
+        if not isinstance(max_tokens, int) or max_tokens <= 0:
+            model_kwargs = getattr(llm, "model_kwargs", None) or {}
+            raw = model_kwargs.get("max_tokens")
+            max_tokens = raw if isinstance(raw, int) and raw > 0 else None
+        return max_tokens
 
     async def _emit_truncation_warning(self, truncation_type: str, locale: str) -> None:
         """Emit a STATUS event with optional i18n diagnostic for truncation."""

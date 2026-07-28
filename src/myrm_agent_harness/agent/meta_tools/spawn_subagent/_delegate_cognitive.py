@@ -226,7 +226,8 @@ async def _preflight_cost_check(
 
     if mode == "council":
         rounds = max(1, min(cross_review_rounds, 3))
-        effective_count = len(expert_agent_types) * (1 + rounds)
+        # Phase1(N independent) + Phase2(N × rounds cross-review) + Phase3(1 chair)
+        effective_count = len(expert_agent_types) * (1 + rounds) + 1
     else:
         effective_count = len(expert_agent_types)
 

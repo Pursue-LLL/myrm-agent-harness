@@ -5,10 +5,10 @@
 - agent.streaming.types::AgentEventType (POS: streaming event type constants)
 
 [OUTPUT]
-- StreamContinuationRecoveryMixin: handles steering, teammate P2P drain, subagent completion events, and goal continuation.
+- StreamContinuationRecoveryMixin: handles steering/redirect (with partial AIMessage preservation), teammate P2P drain, subagent completion events, and goal continuation.
 
 [POS]
-Streaming continuation layer. Handles external steering, subagent notifications, and goal lifecycle continuation without changing prompt-cache behavior.
+Streaming continuation layer. Handles external steering/redirect, subagent notifications, and goal lifecycle continuation without changing prompt-cache behavior.
 """
 
 from __future__ import annotations
@@ -56,13 +56,19 @@ class StreamContinuationRecoveryMixin:
     _ctx: StreamContext
     _compactor: StreamCompactor
     streaming_final_answer: bool
+    _partial_text_buffer: str
 
     async def _check_and_emit_trace_slice(self, force_flush: bool = False) -> None:
         """Type hint stub; implementation provided by StreamExecutor."""
         pass
 
     async def _handle_steering(self, collected_messages: list[BaseMessage]) -> bool:
-        """Handle steering injection and trigger a new turn when needed."""
+        """Handle steering injection and trigger a new turn when needed.
+
+        For redirect scenarios (mid-stream interruption), preserves the partial
+        AI response text as an AIMessage so that the LLM context remains consistent
+        with what the user has already seen.
+        """
         ctx = self._ctx
         if ctx.stats.was_cancelled or ctx.steering_token is None:
             return False
@@ -82,24 +88,41 @@ class StreamContinuationRecoveryMixin:
         messages_dict = ctx.agent_input
         messages = cast(list["BaseMessage"], messages_dict.get("messages", []))
 
+        is_redirect = ctx.steering_token.redirect_requested
+        partial_text = getattr(self, "_partial_text_buffer", "")
+
         logger.warning(
-            " Steering: injecting %d message(s) for new turn",
+            " %s: injecting %d message(s) for new turn",
+            "Redirect" if is_redirect else "Steering",
             len(all_steering),
         )
         messages.clear()
         messages.extend(collected_messages)
+
+        if is_redirect and partial_text:
+            from langchain_core.messages import AIMessage
+
+            messages.append(AIMessage(content=partial_text))
+            logger.info(
+                " Redirect: preserving %d chars of partial AI response",
+                len(partial_text),
+            )
+
         for msg_text in all_steering:
             messages.append(HumanMessage(content=msg_text))
 
         messages_dict["messages"] = cast("list[AnyMessage]", messages)
         self.streaming_final_answer = False
+        self._partial_text_buffer = ""
         truncated = [m[:200] for m in all_steering]
+        event_type = AgentEventType.REDIRECTED if is_redirect else AgentEventType.STEERING
         await self._compactor.put(
             {
-                "type": AgentEventType.STEERING.value,
+                "type": event_type.value,
                 "data": {
                     "count": len(all_steering),
                     "messages": truncated,
+                    "partial_preserved": is_redirect and bool(partial_text),
                 },
                 "messageId": ctx.message_id,
             }
