@@ -16,7 +16,9 @@ from myrm_agent_harness.backends.skills.types import MCPSkillData, SkillMetadata
 from myrm_agent_harness.toolkits.mcp.config import MCPConfig
 
 
-def _make_mock_tool(name: str, schema_size: int = 50, *, param_props: int = 1) -> MagicMock:
+def _make_mock_tool(
+    name: str, schema_size: int = 50, *, param_props: int = 1
+) -> MagicMock:
     tool = MagicMock()
     tool.name = name
     tool.description = f"Tool {name}"
@@ -67,7 +69,11 @@ async def test_route_mcp_servers_ptc_path() -> None:
     skill_meta = SkillMetadata(
         name="mcp_large_skill",
         description="Large MCP",
-        mcp=MCPSkillData(server="large", tools=["tool_0"], config=[{"name": "large", "type": "stdio", "command": "echo"}]),
+        mcp=MCPSkillData(
+            server="large",
+            tools=["tool_0"],
+            config=[{"name": "large", "type": "stdio", "command": "echo"}],
+        ),
     )
 
     with (
@@ -79,7 +85,9 @@ async def test_route_mcp_servers_ptc_path() -> None:
             "myrm_agent_harness.agent.skills.mcp.core_generator.mcp_skill_generator.generate_metadata_only",
             AsyncMock(return_value=[skill_meta]),
         ),
-        patch("myrm_agent_harness.agent.skills.runtime.registry.skill_registry.register") as register_mock,
+        patch(
+            "myrm_agent_harness.agent.skills.runtime.registry.skill_registry.register"
+        ) as register_mock,
     ):
         result = await route_mcp_servers([cfg])
 
@@ -125,8 +133,12 @@ async def test_route_mcp_servers_aggregate_demotion() -> None:
     """Multiple small servers can demote largest when aggregate budget exceeded."""
     cfg_a = MCPConfig(name="server_a", type="stdio", command="echo")
     cfg_b = MCPConfig(name="server_b", type="stdio", command="echo")
-    tools_a = [_make_mock_tool(f"a_{i}", schema_size=400, param_props=4) for i in range(3)]
-    tools_b = [_make_mock_tool(f"b_{i}", schema_size=400, param_props=4) for i in range(3)]
+    tools_a = [
+        _make_mock_tool(f"a_{i}", schema_size=400, param_props=4) for i in range(3)
+    ]
+    tools_b = [
+        _make_mock_tool(f"b_{i}", schema_size=400, param_props=4) for i in range(3)
+    ]
 
     async def get_connection(_configs: list[MCPConfig]) -> MagicMock:
         name = _configs[0].name
@@ -164,7 +176,9 @@ async def test_route_mcp_servers_aggregate_demotion() -> None:
             "myrm_agent_harness.agent.skills.mcp.core_generator.mcp_skill_generator.generate_metadata_only",
             AsyncMock(return_value=[skill_meta]),
         ),
-        patch("myrm_agent_harness.agent.skills.runtime.registry.skill_registry.register"),
+        patch(
+            "myrm_agent_harness.agent.skills.runtime.registry.skill_registry.register"
+        ),
     ):
         result = await route_mcp_servers([cfg_a, cfg_b])
 
@@ -216,7 +230,10 @@ class TestCompressDirectToolsEdgeCases:
         fallback.name = tool.name  # type: ignore[attr-defined]
         fallback.get_input_schema = tool.get_input_schema  # type: ignore[attr-defined]
 
-        with patch("myrm_agent_harness.agent._factory.mcp_routing.copy.copy", return_value=fallback):
+        with patch(
+            "myrm_agent_harness.agent._factory.mcp_routing.copy.copy",
+            return_value=fallback,
+        ):
             compressed = _compress_direct_tools([tool])[0]
         assert compressed is tool
 

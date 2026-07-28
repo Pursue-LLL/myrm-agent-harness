@@ -85,7 +85,9 @@ class TestDirectToolDescriptionCompaction:
         assert compressed.name == tool.name
         assert len(compressed.description) < len(original)
 
-    def test_compress_direct_tools_avoids_in_place_mutation_without_model_copy(self) -> None:
+    def test_compress_direct_tools_avoids_in_place_mutation_without_model_copy(
+        self,
+    ) -> None:
         tool = _make_mock_tool("plain", schema_size=2000)
         tool.model_copy = None
         original = tool.description
@@ -102,8 +104,10 @@ class TestDynamicThreshold:
         assert threshold == FALLBACK_PTC_OVERHEAD_TOKENS * PTC_OVERHEAD_MULTIPLIER
 
     def test_with_actual_overhead_tools(self) -> None:
-        overhead = [_make_mock_tool("skill_select_tool", schema_size=200),
-                    _make_mock_tool("skill_search_tool", schema_size=100)]
+        overhead = [
+            _make_mock_tool("skill_select_tool", schema_size=200),
+            _make_mock_tool("skill_search_tool", schema_size=100),
+        ]
         threshold = compute_direct_threshold(ptc_overhead_tools=overhead)
         expected = estimate_schema_tokens(overhead) * PTC_OVERHEAD_MULTIPLIER
         assert threshold == expected
@@ -116,8 +120,10 @@ class TestDynamicThreshold:
 
     def test_threshold_scales_with_overhead_complexity(self) -> None:
         small_overhead = [_make_mock_tool("b1", schema_size=50)]
-        large_overhead = [_make_mock_tool("b1", schema_size=500),
-                          _make_mock_tool("b2", schema_size=300)]
+        large_overhead = [
+            _make_mock_tool("b1", schema_size=500),
+            _make_mock_tool("b2", schema_size=300),
+        ]
         t_small = compute_direct_threshold(ptc_overhead_tools=small_overhead)
         t_large = compute_direct_threshold(ptc_overhead_tools=large_overhead)
         assert t_large > t_small
@@ -128,14 +134,22 @@ class TestMCPConfigClean:
 
     def test_no_invocation_mode_field(self) -> None:
         cfg = MCPConfig(name="test", type="stdio", command="echo")
-        assert not hasattr(cfg, "invocation_mode") or "invocation_mode" not in cfg.model_fields
+        assert (
+            not hasattr(cfg, "invocation_mode")
+            or "invocation_mode" not in cfg.model_fields
+        )
 
     def test_no_direct_tool_threshold_field(self) -> None:
         cfg = MCPConfig(name="test", type="stdio", command="echo")
-        assert not hasattr(cfg, "direct_tool_threshold") or "direct_tool_threshold" not in cfg.model_fields
+        assert (
+            not hasattr(cfg, "direct_tool_threshold")
+            or "direct_tool_threshold" not in cfg.model_fields
+        )
 
     def test_ptc_config_projection_keeps_host_serial(self) -> None:
-        cfg = MCPConfig(name="stateful-host", type="stdio", command="echo", host_serial=True)
+        cfg = MCPConfig(
+            name="stateful-host", type="stdio", command="echo", host_serial=True
+        )
         payload = _config_to_dict(cfg)
         assert payload["host_serial"] is True
 
@@ -162,7 +176,10 @@ class TestNormalizeMcpResult:
     def test_multiple_text_blocks(self) -> None:
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
 
-        result = ([{"type": "text", "text": "line1"}, {"type": "text", "text": "line2"}], None)
+        result = (
+            [{"type": "text", "text": "line1"}, {"type": "text", "text": "line2"}],
+            None,
+        )
         assert MCPAgent._normalize_mcp_result(result) == "line1\nline2"
 
     def test_image_block_passthrough(self) -> None:

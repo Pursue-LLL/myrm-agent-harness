@@ -5,6 +5,7 @@ sqlite3 (POS: standard library database)
 re (POS: standard library regex)
 ..core.structure::WikiStructure (POS: database path resolution)
 ..core.config::WikiConfig (POS: Wiki configuration)
+..core.frontmatter_contract::WikiPublishStatus (POS: publish_status SSOT)
 myrm_agent_harness.toolkits.vector.base::VectorDocument (POS: vector document)
 myrm_agent_harness.toolkits.retriever.fusion_strategies::rrf_fusion (POS: result fusion strategy)
 .tokenizer::tokenize_for_fts (POS: FTS5 query tokenizer)
@@ -12,13 +13,13 @@ myrm_agent_harness.toolkits.retriever.fusion_strategies::rrf_fusion (POS: result
 .sidecar_index::SidecarIndexMixin (POS: L0/L1 sidecar index operations)
 
 [OUTPUT]
-WikiIndexer: high-performance hybrid search engine based on FTS5 + Qdrant
+WikiIndexer: hybrid search engine; wiki_index_meta publish_status gate for FTS/vector/get_truth
 
 [POS]
 Wiki concept indexer core. Manages FTS5 + Qdrant hybrid search for L2 concept entries,
-knowledge graph edges, and federated multi-database queries. Sidecar (L0/L1) indexing
-operations are provided by SidecarIndexMixin to keep this file focused on concept-level
-indexing while protecting Agent prompt cache.
+knowledge graph edges, and federated multi-database queries. Only `publish_status=published`
+entries are searchable and vector-indexed. Sidecar (L0/L1) indexing operations are provided
+by SidecarIndexMixin to keep this file focused on concept-level indexing.
 """
 
 import asyncio
@@ -32,7 +33,10 @@ from myrm_agent_harness.toolkits.retriever.fusion_strategies import rrf_fusion
 from myrm_agent_harness.toolkits.vector.base import VectorDocument
 from myrm_agent_harness.utils.db.fts5 import fts5_auto_heal, fts5_integrity_check, fts5_rebuild
 
+from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter import parse_frontmatter
+
 from ..core.config import WikiConfig
+from ..core.frontmatter_contract import PUBLISH_STATUS_KEY, WIKI_PUBLISH_STATUSES, WikiPublishStatus
 from ..core.structure import WikiStructure
 from .graph_store import WikiGraphStore
 from .sidecar_index import SidecarIndexMixin, _SIDECAR_PREFIX
@@ -117,6 +121,12 @@ class WikiIndexer(SidecarIndexMixin):
 
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_wiki_edges_target ON wiki_edges(target)
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS wiki_index_meta(
+                    concept_name TEXT PRIMARY KEY,
+                    publish_status TEXT NOT NULL DEFAULT 'published'
+                )
             """)
 
             if not fts5_integrity_check(conn, "wiki_fts"):
@@ -231,11 +241,33 @@ class WikiIndexer(SidecarIndexMixin):
                 (raw_key, preview),
             )
 
+    @staticmethod
+    def _resolve_publish_status(full_markdown: str) -> str:
+        metadata, _body = parse_frontmatter(full_markdown)
+        status = str(metadata.get(PUBLISH_STATUS_KEY, "")).strip().lower()
+        if status in WIKI_PUBLISH_STATUSES:
+            return status
+        return WikiPublishStatus.PUBLISHED.value
+
+    def _is_published(self, conn: sqlite3.Connection, concept_name: str) -> bool:
+        cursor = conn.execute(
+            "SELECT publish_status FROM wiki_index_meta WHERE concept_name = ?",
+            (concept_name,),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return True
+        return str(row["publish_status"]) == WikiPublishStatus.PUBLISHED.value
+
+    def _filter_published(self, conn: sqlite3.Connection, results: list[tuple[str, float]]) -> list[tuple[str, float]]:
+        return [(name, score) for name, score in results if self._is_published(conn, name)]
+
     async def upsert(self, concept_name: str, full_markdown: str) -> None:
         """
         Extract Compiled Truth and upsert into FTS5 index and Vector Store.
         """
         truth_content = self._extract_truth(full_markdown)
+        publish_status = self._resolve_publish_status(full_markdown)
 
         def sync_upsert():
             with self._get_conn() as conn:
@@ -244,11 +276,20 @@ class WikiIndexer(SidecarIndexMixin):
                 conn.execute(
                     "INSERT INTO wiki_fts (concept_name, truth_content) VALUES (?, ?)", (concept_name, truth_content)
                 )
+                conn.execute(
+                    "INSERT OR REPLACE INTO wiki_index_meta (concept_name, publish_status) VALUES (?, ?)",
+                    (concept_name, publish_status),
+                )
 
         await asyncio.to_thread(sync_upsert)
 
-        # 2. Upsert to Vector Store (Async)
-        if self._config.enable_hybrid_search and self._vector and self._embedding:
+        # 2. Upsert to Vector Store (Async) — published entries only
+        if (
+            publish_status == WikiPublishStatus.PUBLISHED.value
+            and self._config.enable_hybrid_search
+            and self._vector
+            and self._embedding
+        ):
             await self._ensure_collection()
             try:
                 vec = await self._embedding.embed(truth_content)
@@ -278,6 +319,7 @@ class WikiIndexer(SidecarIndexMixin):
             with self._get_conn() as conn:
                 conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (concept_name,))
                 conn.execute("DELETE FROM wiki_edges WHERE source = ? OR target = ?", (concept_name, concept_name))
+                conn.execute("DELETE FROM wiki_index_meta WHERE concept_name = ?", (concept_name,))
 
         await asyncio.to_thread(sync_delete)
 
@@ -348,6 +390,7 @@ class WikiIndexer(SidecarIndexMixin):
                             # FTS5 rank is negative, lower is better. We invert it for RRF fusion.
                             score = 1.0 / (abs(row["rank"]) + 1.0)
                             results.append((row["concept_name"], score))
+                    results[:] = self._filter_published(conn, results)
                 except sqlite3.OperationalError as e:
                     logger.error(f"FTS search error: {e}")
                     healed = fts5_auto_heal(conn, "wiki_fts")
@@ -368,6 +411,7 @@ class WikiIndexer(SidecarIndexMixin):
                                     continue
                                 score = 1.0 / (abs(row["rank"]) + 1.0)
                                 results.append((row["concept_name"], score))
+                        results[:] = self._filter_published(conn, results)
             return results
 
         fts_results = await asyncio.to_thread(sync_fts_search)
@@ -391,6 +435,14 @@ class WikiIndexer(SidecarIndexMixin):
             except Exception as e:
                 logger.error(f"Wiki vector search failed: {e}")
 
+        if vec_results:
+
+            def sync_filter_vec(results: list[tuple[str, float]]) -> list[tuple[str, float]]:
+                with self._get_conn() as conn:
+                    return self._filter_published(conn, results)
+
+            vec_results = await asyncio.to_thread(sync_filter_vec, vec_results)
+
         # 3. Hybrid Fusion (RRF)
         if self._config.enable_hybrid_search and self._vector and self._embedding:
             if fts_results or vec_results:
@@ -405,8 +457,10 @@ class WikiIndexer(SidecarIndexMixin):
         return final_results[:limit]
 
     def get_truth(self, concept_name: str) -> str | None:
-        """Get the cached truth content for context injection."""
+        """Get the cached truth content for context injection (published entries only)."""
         with self._get_conn() as conn:
+            if not self._is_published(conn, concept_name):
+                return None
             fts_tables = ["wiki_fts"]
             for idx, p_dir in enumerate(self._structure.public_dirs):
                 if (p_dir / ".wiki_index.db").exists():

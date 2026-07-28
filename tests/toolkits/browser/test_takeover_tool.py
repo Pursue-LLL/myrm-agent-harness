@@ -274,7 +274,7 @@ class TestTakeoverToolScreenshotFailure:
             result = asyncio.run(tool.ainvoke({"reason": "Enter 2FA code"}))
 
         assert "User completed" in result
-        assert "take a snapshot" in result.lower()
+        assert "respond to the user" in result.lower()
 
     def test_continues_when_initial_url_read_fails(self, mock_session):
         from myrm_agent_harness.toolkits.browser.tools.takeover import create_takeover_tool

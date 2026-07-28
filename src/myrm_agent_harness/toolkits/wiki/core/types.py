@@ -58,6 +58,9 @@ class CompileResult:
     articles_generated: int
     backlinks_created: int
     duration_ms: int = 0
+    articles_pending: int = 0
+    articles_published: int = 0
+    articles_blocked: int = 0
     errors: list[str] = field(default_factory=list)
 
 

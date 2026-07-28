@@ -43,7 +43,9 @@ logger = logging.getLogger(__name__)
 CACHE_TTL_SECONDS = 600  # 10 分钟
 
 
-def _resolve_mcp_input_schema(tool_schema_entry: dict[str, object]) -> dict[str, object]:
+def _resolve_mcp_input_schema(
+    tool_schema_entry: dict[str, object],
+) -> dict[str, object]:
     """Normalize MCP tool schema entry to JSON Schema dict."""
     from typing import cast
 
@@ -71,7 +73,9 @@ def _validate_required_mcp_params(
         required = schema.get("required")
         if not isinstance(required, list) or not required:
             return None
-        missing = [name for name in required if isinstance(name, str) and name not in params]
+        missing = [
+            name for name in required if isinstance(name, str) and name not in params
+        ]
         if not missing:
             return None
         return {
@@ -99,9 +103,13 @@ class MCPSkillProxyService:
 
     def __init__(self) -> None:
         """初始化代理服务"""
-        self._cache: LRUCache[object] = LRUCache(maxsize=1000, ttl=CACHE_TTL_SECONDS, id="mcp_skill_cache")
+        self._cache: LRUCache[object] = LRUCache(
+            maxsize=1000, ttl=CACHE_TTL_SECONDS, id="mcp_skill_cache"
+        )
 
-    def _make_cache_key(self, skill_name: str, tool_name: str, params: dict[str, object]) -> str:
+    def _make_cache_key(
+        self, skill_name: str, tool_name: str, params: dict[str, object]
+    ) -> str:
         """生成缓存键
 
         Args:
@@ -119,7 +127,9 @@ class MCPSkillProxyService:
 
     def _canonical_cache_tool_name(self, skill_name: str, tool_name: str) -> str:
         """Resolve caller tool name to the MCP catalog name for cache keys."""
-        from myrm_agent_harness.agent.skills.mcp.tool_name_utils import resolve_mcp_tool_name
+        from myrm_agent_harness.agent.skills.mcp.tool_name_utils import (
+            resolve_mcp_tool_name,
+        )
         from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
 
         skill_meta = skill_registry.get_skill(skill_name)
@@ -129,7 +139,12 @@ class MCPSkillProxyService:
         return matched or tool_name
 
     async def invoke_tool(
-        self, skill_name: str, tool_name: str, params: dict[str, object], *, trace_id: str = "-"
+        self,
+        skill_name: str,
+        tool_name: str,
+        params: dict[str, object],
+        *,
+        trace_id: str = "-",
     ) -> object:
         """调用 MCP 工具
 
@@ -168,14 +183,18 @@ class MCPSkillProxyService:
 
         self._cache.set(cache_key, result)
 
-        logger.info(f"{log_prefix} MCP {skill_name}.{tool_name} completed in {elapsed_ms:.0f}ms")
+        logger.info(
+            f"{log_prefix} MCP {skill_name}.{tool_name} completed in {elapsed_ms:.0f}ms"
+        )
         return result
 
     # =========================================================================
     # 调用实现
     # =========================================================================
 
-    async def _invoke_from_registry(self, skill_name: str, tool_name: str, params: dict[str, object]) -> object:
+    async def _invoke_from_registry(
+        self, skill_name: str, tool_name: str, params: dict[str, object]
+    ) -> object:
         """从 skill_registry 获取配置并调用工具
 
         Args:
@@ -189,7 +208,9 @@ class MCPSkillProxyService:
         Raises:
             RuntimeError: 如果找不到技能或技能不是 MCP 技能
         """
-        from myrm_agent_harness.agent.skills.mcp.tool_name_utils import resolve_mcp_tool_name
+        from myrm_agent_harness.agent.skills.mcp.tool_name_utils import (
+            resolve_mcp_tool_name,
+        )
         from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
 
         skill_meta = skill_registry.get_skill(skill_name)
@@ -219,10 +240,16 @@ class MCPSkillProxyService:
         if validation_error is not None:
             return validation_error
 
-        return await self._find_and_invoke(mcp_config, mcp_server, matched_tool_name, params)
+        return await self._find_and_invoke(
+            mcp_config, mcp_server, matched_tool_name, params
+        )
 
     async def _find_and_invoke(
-        self, mcp_config: list[MCPConfig], mcp_server: str, tool_name: str, params: dict[str, object]
+        self,
+        mcp_config: list[MCPConfig],
+        mcp_server: str,
+        tool_name: str,
+        params: dict[str, object],
     ) -> object:
         """Invoke an MCP tool on the warm pooled session.
 
@@ -237,7 +264,9 @@ class MCPSkillProxyService:
         from typing import cast
 
         from myrm_agent_harness.toolkits.mcp.client import MCPServerConfigProtocol
-        from myrm_agent_harness.toolkits.mcp.connection_manager import get_mcp_connection_manager
+        from myrm_agent_harness.toolkits.mcp.connection_manager import (
+            get_mcp_connection_manager,
+        )
 
         manager = await get_mcp_connection_manager()
         # MCPConfig implements MCPServerConfigProtocol — safe structural cast.
@@ -271,7 +300,9 @@ class MCPSkillProxyService:
         # 从 mcp.config 中获取配置
         mcp_config_raw = skill_meta.mcp.config
         if not mcp_config_raw:
-            raise RuntimeError(f"mcp_config not found in skill metadata for: {skill_meta.name}")
+            raise RuntimeError(
+                f"mcp_config not found in skill metadata for: {skill_meta.name}"
+            )
 
         mcp_config: list[MCPConfig] = []
         for cfg in mcp_config_raw:
@@ -388,7 +419,9 @@ class MCPInvokeResult(TypedDict, total=False):
     error: str
 
 
-async def handle_mcp_invoke(skill_name: str, tool_name: str, params: dict[str, object]) -> MCPInvokeResult:
+async def handle_mcp_invoke(
+    skill_name: str, tool_name: str, params: dict[str, object]
+) -> MCPInvokeResult:
     """处理 MCP 工具调用（纯 Python，Web 框架无关）
 
     被 IPC Proxy 内部调用，也可供自定义集成使用。
@@ -407,5 +440,7 @@ async def handle_mcp_invoke(skill_name: str, tool_name: str, params: dict[str, o
         return MCPInvokeResult(success=True, result=result)
     except Exception as e:
         error_msg = f"{type(e).__name__}: {e}"
-        logger.warning(f"handle_mcp_invoke failed: {skill_name}.{tool_name}, error: {error_msg}")
+        logger.warning(
+            f"handle_mcp_invoke failed: {skill_name}.{tool_name}, error: {error_msg}"
+        )
         return MCPInvokeResult(success=False, error=error_msg)

@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Literal, TypedDict
 
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import assert_valid_wiki_frontmatter
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
+from myrm_agent_harness.toolkits.wiki.pipeline.publication import publish_concept_article
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
@@ -69,6 +70,28 @@ class WikiPendingEditsManager:
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_status ON pending_edits(status)")
 
+    async def stage_pending_edit(
+        self,
+        concept_name: str,
+        proposed_content: str,
+        *,
+        source_files: list[str] | None = None,
+    ) -> int:
+        """Stage a pending draft and demote stale published articles from RAG."""
+        from myrm_agent_harness.toolkits.wiki.pipeline.publication.stale_guard import (
+            demote_stale_published_article,
+            sources_newer_than_article,
+        )
+
+        if sources_newer_than_article(
+            self._structure,
+            concept_name,
+            proposed_content,
+            source_files=source_files,
+        ):
+            await demote_stale_published_article(self._structure, self._indexer, concept_name)
+        return self.add_pending_edit(concept_name, proposed_content)
+
     def add_pending_edit(self, concept_name: str, proposed_content: str) -> int:
         """Add a new draft edit. If one exists for the same concept, overwrite it."""
         with self._get_conn() as conn:
@@ -115,20 +138,22 @@ class WikiPendingEditsManager:
 
             assert_valid_wiki_frontmatter(final_content)
 
-            # Write to filesystem
-            article_path = self._structure.get_concept_file_path(concept_name)
-            article_path.write_text(final_content, encoding="utf-8")
+            from myrm_agent_harness.toolkits.wiki.pipeline.publication.stale_guard import (
+                StalePendingApprovalError,
+                sources_newer_than_article,
+            )
 
-            # Upsert to FTS5 Index and Graph Edges
-            if self._indexer:
-                await self._indexer.upsert(concept_name, final_content)
-                self._indexer.extract_and_upsert_edges(concept_name, final_content)
-            else:
-                from ..retrieval.indexer import WikiIndexer
+            if sources_newer_than_article(self._structure, concept_name, final_content):
+                raise StalePendingApprovalError(
+                    "Source files updated since this draft was staged. Recompile before approving."
+                )
 
-                indexer = WikiIndexer(self._structure)
-                await indexer.upsert(concept_name, final_content)
-                indexer.extract_and_upsert_edges(concept_name, final_content)
+            await publish_concept_article(
+                self._structure,
+                self._indexer,
+                concept_name,
+                final_content,
+            )
 
             # Update DB
             conn.execute("UPDATE pending_edits SET status = 'approved' WHERE id = ?", (edit_id,))

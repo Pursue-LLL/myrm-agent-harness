@@ -4,8 +4,9 @@
 agent.meta_tools.file_ops.utils.markdown_frontmatter::parse_frontmatter (POS: YAML FM parse SSOT)
 
 [OUTPUT]
-WikiPageType, validate_wiki_frontmatter, infer_type_for_import, repair_missing_types,
-apply_compile_gate, ensure_frontmatter_type, FrontmatterValidationError
+WikiPageType, WikiPublishStatus, validate_wiki_frontmatter, infer_type_for_import, repair_missing_types,
+apply_compile_gate, ensure_frontmatter_type, ensure_published_frontmatter, ensure_draft_frontmatter,
+repair_publication_on_disk, PublicationOnDiskRepairResult, FrontmatterValidationError
 
 [POS]
 Harness SSOT for wiki page type gate used by compile, import writeback, linter, pending approve,
@@ -15,6 +16,7 @@ and server repair API.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 
@@ -33,6 +35,17 @@ class WikiPageType(StrEnum):
 
 
 WIKI_PAGE_TYPES: frozenset[str] = frozenset(member.value for member in WikiPageType)
+
+PUBLISH_STATUS_KEY = "publish_status"
+
+
+class WikiPublishStatus(StrEnum):
+    PUBLISHED = "published"
+    DRAFT = "draft"
+    BLOCKED = "blocked"
+
+
+WIKI_PUBLISH_STATUSES: frozenset[str] = frozenset(member.value for member in WikiPublishStatus)
 
 
 class FrontmatterValidationError(ValueError):
@@ -55,6 +68,15 @@ class TypeRepairResult:
     files_scanned: int
     files_repaired: int
     files_skipped: int
+    errors: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class PublicationOnDiskRepairResult:
+    files_scanned: int
+    files_repaired: int
+    files_skipped_published: int
+    files_skipped_intentional_draft: int
     errors: tuple[str, ...] = ()
 
 
@@ -110,7 +132,7 @@ def infer_type_for_import(
 def serialize_frontmatter(metadata: dict[str, object]) -> str:
     """Serialize metadata dict to a YAML frontmatter block (minimal, Obsidian-compatible)."""
     lines = ["---"]
-    ordered_keys = ["type", *[key for key in metadata if key != "type"]]
+    ordered_keys = ["type", PUBLISH_STATUS_KEY, *[key for key in metadata if key not in {"type", PUBLISH_STATUS_KEY}]]
     for key in ordered_keys:
         if key not in metadata:
             continue
@@ -147,6 +169,67 @@ def ensure_frontmatter_type(
     if provenance is not None and "provenance" not in metadata:
         metadata["provenance"] = provenance
     return serialize_frontmatter(metadata) + body.lstrip("\n")
+
+
+def ensure_published_frontmatter(content: str) -> str:
+    """Stamp or refresh publish_status=published and published_at on concept content."""
+    metadata, body = parse_frontmatter(content)
+    metadata[PUBLISH_STATUS_KEY] = WikiPublishStatus.PUBLISHED.value
+    metadata["published_at"] = datetime.now(UTC).replace(microsecond=0).isoformat()
+    return serialize_frontmatter(metadata) + body.lstrip("\n")
+
+
+def ensure_draft_frontmatter(content: str) -> str:
+    """Stamp publish_status=draft while preserving other frontmatter fields."""
+    metadata, body = parse_frontmatter(content)
+    metadata[PUBLISH_STATUS_KEY] = WikiPublishStatus.DRAFT.value
+    metadata.pop("published_at", None)
+    return serialize_frontmatter(metadata) + body.lstrip("\n")
+
+
+def repair_publication_on_disk(structure: WikiStructure) -> PublicationOnDiskRepairResult:
+    """Grandfather missing publish_status to published; skip intentional draft/blocked pages."""
+    scanned = 0
+    repaired = 0
+    skipped_published = 0
+    skipped_intentional_draft = 0
+    errors: list[str] = []
+
+    intentional_statuses = {
+        WikiPublishStatus.DRAFT.value,
+        WikiPublishStatus.BLOCKED.value,
+    }
+
+    for concept_path in structure.list_concepts():
+        scanned += 1
+        try:
+            content = concept_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            errors.append(f"{concept_path}: {exc}")
+            continue
+
+        metadata, _body = parse_frontmatter(content)
+        status = str(metadata.get(PUBLISH_STATUS_KEY, "")).strip().lower()
+        if status == WikiPublishStatus.PUBLISHED.value:
+            skipped_published += 1
+            continue
+        if status in intentional_statuses:
+            skipped_intentional_draft += 1
+            continue
+
+        try:
+            concept_path.write_text(ensure_published_frontmatter(content), encoding="utf-8")
+            repaired += 1
+        except OSError as exc:
+            errors.append(f"{concept_path}: {exc}")
+
+    return PublicationOnDiskRepairResult(
+        files_scanned=scanned,
+        files_repaired=repaired,
+        files_skipped_published=skipped_published,
+        files_skipped_intentional_draft=skipped_intentional_draft,
+        errors=tuple(errors),
+    )
 
 
 def apply_compile_gate(content: str, concept_name: str, source_files: list[str]) -> str:

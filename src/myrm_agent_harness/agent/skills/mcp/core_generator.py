@@ -99,7 +99,9 @@ class MCPSkillGenerator:
 
     # ========== Level 1: Metadata Generation ==========
 
-    async def generate_metadata_only(self, mcp_configs: list[MCPConfig]) -> list[SkillMetadata]:
+    async def generate_metadata_only(
+        self, mcp_configs: list[MCPConfig]
+    ) -> list[SkillMetadata]:
         """Generate MCP skill metadata from server configs.
 
         Acquires a warm pooled session per server (reused later at call time),
@@ -126,7 +128,9 @@ class MCPSkillGenerator:
             get_mcp_connection_manager,
         )
 
-        config_desc_map = {cfg.name: cfg.description for cfg in mcp_configs if cfg.description}
+        config_desc_map = {
+            cfg.name: cfg.description for cfg in mcp_configs if cfg.description
+        }
         manager = await get_mcp_connection_manager()
 
         skills: list[SkillMetadata] = []
@@ -134,7 +138,9 @@ class MCPSkillGenerator:
             try:
                 conn = await manager.get_connection([cfg])
             except Exception as e:
-                logger.warning("MCP skill gen: server '%s' connect failed: %s", cfg.name, e)
+                logger.warning(
+                    "MCP skill gen: server '%s' connect failed: %s", cfg.name, e
+                )
                 continue
 
             server_tools = conn.tools_by_server.get(cfg.name) or next(
@@ -145,9 +151,13 @@ class MCPSkillGenerator:
                 continue
 
             instructions = conn.instructions_by_server.get(cfg.name)
-            skill = self._create_skill_metadata(cfg.name, server_tools, config_desc_map.get(cfg.name, ""), instructions)
+            skill = self._create_skill_metadata(
+                cfg.name, server_tools, config_desc_map.get(cfg.name, ""), instructions
+            )
             skills.append(skill)
-            logger.warning("Generated MCP skill: %s (%d tool(s))", skill.name, len(server_tools))
+            logger.warning(
+                "Generated MCP skill: %s (%d tool(s))", skill.name, len(server_tools)
+            )
 
         return skills
 
@@ -166,12 +176,16 @@ class MCPSkillGenerator:
         instructions = tool_schemas.get("__instructions__", {}).get("content", "")
 
         tool_count = len(skill_meta.mcp.tools)
-        tool_list = self._build_tool_list(skill_meta.mcp.tools, tool_schemas, tool_count)
+        tool_list = self._build_tool_list(
+            skill_meta.mcp.tools, tool_schemas, tool_count
+        )
 
         _, skill_name = self._get_safe_names(server_name)
 
         usage_section = (
-            SKILL_USAGE_TEMPLATE.format(skill_name=skill_name) if tool_count > USAGE_GUIDE_TOOL_THRESHOLD else ""
+            SKILL_USAGE_TEMPLATE.format(skill_name=skill_name)
+            if tool_count > USAGE_GUIDE_TOOL_THRESHOLD
+            else ""
         )
 
         intro = f"{instructions}\n\n" if instructions else ""
@@ -196,7 +210,9 @@ class MCPSkillGenerator:
         if not skill_meta.mcp:
             return f"Error: Skill '{skill_meta.name}' is not an MCP skill."
 
-        from myrm_agent_harness.agent.skills.mcp.tool_name_utils import resolve_mcp_tool_name
+        from myrm_agent_harness.agent.skills.mcp.tool_name_utils import (
+            resolve_mcp_tool_name,
+        )
 
         mcp_tools = skill_meta.mcp.tools
         matched_tool_name = resolve_mcp_tool_name(tool_name, mcp_tools)
@@ -260,7 +276,9 @@ class MCPSkillGenerator:
 
         return self._build_description_from_tools(tools, server_name)
 
-    def _build_description_from_tools(self, tools: list[BaseTool], server_name: str) -> str:
+    def _build_description_from_tools(
+        self, tools: list[BaseTool], server_name: str
+    ) -> str:
         """Build a concise description from tool descriptions (for metadata)."""
         functions: list[str] = []
         for tool in tools:
@@ -281,7 +299,9 @@ class MCPSkillGenerator:
 
     # ========== Internal: Tool List & Documentation ==========
 
-    def _build_tool_list(self, tools: list[str], tool_schemas: dict[str, JsonDict], tool_count: int) -> str:
+    def _build_tool_list(
+        self, tools: list[str], tool_schemas: dict[str, JsonDict], tool_count: int
+    ) -> str:
         """Build tool list for SKILL.md.
 
         Few tools (<=3): show full description with parameters.
@@ -295,7 +315,9 @@ class MCPSkillGenerator:
 
             if tool_count <= USAGE_GUIDE_TOOL_THRESHOLD:
                 params_str = self._format_params_inline(schema.get("inputSchema", {}))
-                full_desc = f"{desc}\n\n  **Parameters:**\n{params_str}" if params_str else desc
+                full_desc = (
+                    f"{desc}\n\n  **Parameters:**\n{params_str}" if params_str else desc
+                )
                 full_desc += "\n\n  **Returns:** parsed Python object (do NOT call `json.loads()` on it)"
                 lines.append(f"- **{python_func_name}**: {full_desc}")
             else:
@@ -400,7 +422,9 @@ class MCPSkillGenerator:
         tool_names = [tool.name for tool in tools]
         _, skill_name = self._get_safe_names(server_name)
 
-        skill_description = self._resolve_description(user_description, instructions, tools, server_name)
+        skill_description = self._resolve_description(
+            user_description, instructions, tools, server_name
+        )
 
         tool_schemas: dict[str, dict[str, object]] = {}
         for tool in tools:
@@ -411,9 +435,13 @@ class MCPSkillGenerator:
 
         tool_schemas["__instructions__"] = {"content": instructions or ""}
 
-        mcp_data = MCPSkillData(server=server_name, tools=tool_names, config=[], tool_schemas=tool_schemas)
+        mcp_data = MCPSkillData(
+            server=server_name, tools=tool_names, config=[], tool_schemas=tool_schemas
+        )
 
-        return SkillMetadata(name=skill_name, description=skill_description, mcp=mcp_data)
+        return SkillMetadata(
+            name=skill_name, description=skill_description, mcp=mcp_data
+        )
 
 
 mcp_skill_generator = MCPSkillGenerator()

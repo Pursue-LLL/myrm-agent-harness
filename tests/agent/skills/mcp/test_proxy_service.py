@@ -43,7 +43,10 @@ def mcp_skill_meta() -> SkillMetadata:
                         "required": ["title"],
                     },
                 },
-                "ping": {"description": "Ping", "inputSchema": {"type": "object", "properties": {}}},
+                "ping": {
+                    "description": "Ping",
+                    "inputSchema": {"type": "object", "properties": {}},
+                },
             },
         ),
     )
@@ -68,7 +71,9 @@ class TestValidateRequiredMcpParamsExtended:
         assert _validate_required_mcp_params("ping", {}, None) is None
 
     def test_malformed_schema_returns_none(self) -> None:
-        assert _validate_required_mcp_params("ping", {}, {"inputSchema": object()}) is None
+        assert (
+            _validate_required_mcp_params("ping", {}, {"inputSchema": object()}) is None
+        )
 
 
 class TestMCPSkillProxyServiceParse:
@@ -113,17 +118,25 @@ class TestMCPSkillProxyServiceInvoke:
         assert result == "cached-value"
 
     @pytest.mark.asyncio
-    async def test_invoke_tool_cache_hit_canonical_tool_name(self, mcp_skill_meta: SkillMetadata) -> None:
+    async def test_invoke_tool_cache_hit_canonical_tool_name(
+        self, mcp_skill_meta: SkillMetadata
+    ) -> None:
         service = MCPSkillProxyService()
         skill_registry.register(mcp_skill_meta)
-        cache_key = service._make_cache_key("mcp_test_skill", "create_issue", {"title": "bug"})
+        cache_key = service._make_cache_key(
+            "mcp_test_skill", "create_issue", {"title": "bug"}
+        )
         service._cache.set(cache_key, "cached-issue")
 
-        result = await service.invoke_tool("mcp_test_skill", "create-issue", {"title": "bug"})
+        result = await service.invoke_tool(
+            "mcp_test_skill", "create-issue", {"title": "bug"}
+        )
         assert result == "cached-issue"
 
     @pytest.mark.asyncio
-    async def test_invoke_tool_validation_short_circuit(self, mcp_skill_meta: SkillMetadata) -> None:
+    async def test_invoke_tool_validation_short_circuit(
+        self, mcp_skill_meta: SkillMetadata
+    ) -> None:
         service = MCPSkillProxyService()
         skill_registry.register(mcp_skill_meta)
 
@@ -132,12 +145,16 @@ class TestMCPSkillProxyServiceInvoke:
         assert "missing required argument" in str(result.get("error"))
 
     @pytest.mark.asyncio
-    async def test_invoke_tool_success_path(self, mcp_skill_meta: SkillMetadata) -> None:
+    async def test_invoke_tool_success_path(
+        self, mcp_skill_meta: SkillMetadata
+    ) -> None:
         service = MCPSkillProxyService()
         skill_registry.register(mcp_skill_meta)
 
         mock_conn = MagicMock()
-        mock_conn.call = AsyncMock(return_value=({"type": "text", "text": "pong"}, None))
+        mock_conn.call = AsyncMock(
+            return_value=({"type": "text", "text": "pong"}, None)
+        )
         mock_manager = MagicMock()
         mock_manager.get_connection = AsyncMock(return_value=mock_conn)
 
@@ -158,24 +175,32 @@ class TestMCPSkillProxyServiceInvoke:
     @pytest.mark.asyncio
     async def test_invoke_tool_not_mcp_skill(self) -> None:
         service = MCPSkillProxyService()
-        skill_registry.register(SkillMetadata(name="plain_skill", description="Not MCP"))
+        skill_registry.register(
+            SkillMetadata(name="plain_skill", description="Not MCP")
+        )
         with pytest.raises(RuntimeError, match="not an MCP skill"):
             await service.invoke_tool("plain_skill", "ping", {})
 
     @pytest.mark.asyncio
-    async def test_invoke_tool_tool_not_found(self, mcp_skill_meta: SkillMetadata) -> None:
+    async def test_invoke_tool_tool_not_found(
+        self, mcp_skill_meta: SkillMetadata
+    ) -> None:
         service = MCPSkillProxyService()
         skill_registry.register(mcp_skill_meta)
         with pytest.raises(RuntimeError, match="Tool 'missing' not found"):
             await service.invoke_tool("mcp_test_skill", "missing", {})
 
-    def test_convert_skill_meta_config_dict_and_model(self, mcp_skill_meta: SkillMetadata) -> None:
+    def test_convert_skill_meta_config_dict_and_model(
+        self, mcp_skill_meta: SkillMetadata
+    ) -> None:
         service = MCPSkillProxyService()
         configs = service._convert_skill_meta_config(mcp_skill_meta)
         assert len(configs) == 1
         assert isinstance(configs[0], MCPConfig)
 
-        mcp_skill_meta.mcp.config = [MCPConfig(name="test-server", type="stdio", command="echo")]
+        mcp_skill_meta.mcp.config = [
+            MCPConfig(name="test-server", type="stdio", command="echo")
+        ]
         configs_model = service._convert_skill_meta_config(mcp_skill_meta)
         assert configs_model[0].command == "echo"
 
@@ -201,7 +226,9 @@ class TestProxyServiceSingleton:
         mod._service = None
 
     @pytest.mark.asyncio
-    async def test_handle_mcp_invoke_success(self, mcp_skill_meta: SkillMetadata) -> None:
+    async def test_handle_mcp_invoke_success(
+        self, mcp_skill_meta: SkillMetadata
+    ) -> None:
         skill_registry.register(mcp_skill_meta)
         service = get_mcp_skill_proxy_service()
         service._cache.clear()
@@ -215,7 +242,9 @@ class TestProxyServiceSingleton:
     @pytest.mark.asyncio
     async def test_handle_mcp_invoke_failure(self) -> None:
         service = get_mcp_skill_proxy_service()
-        with patch.object(service, "invoke_tool", AsyncMock(side_effect=RuntimeError("boom"))):
+        with patch.object(
+            service, "invoke_tool", AsyncMock(side_effect=RuntimeError("boom"))
+        ):
             result = await handle_mcp_invoke("missing", "ping", {})
         assert result["success"] is False
         assert "RuntimeError" in str(result.get("error"))

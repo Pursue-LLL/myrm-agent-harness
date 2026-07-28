@@ -11,9 +11,9 @@ langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message typ
 WikiLinter: Wiki health check and maintenance engine
 
 [POS]
-Wiki health maintenance core engine. Performs wiki quality checks and automatic repairs:
-broken link detection, completeness checks, consistency checks (LLM-driven), stale/drift
-detection, knowledge-gap analysis (isolated/bridge nodes), and cross-reference discovery.
+Wiki health maintenance core engine. Performs wiki quality checks and targeted repairs:
+broken link detection, completeness checks (report-only; no LLM auto-write), consistency
+checks (LLM-driven), stale/drift detection, knowledge-gap analysis, and cross-reference discovery.
 """
 
 from __future__ import annotations
@@ -41,6 +41,7 @@ from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map import (
     WikiMapEvent,
     WikiMapEventType,
 )
+from myrm_agent_harness.toolkits.wiki.pipeline.publication import publish_concept_article
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -221,7 +222,7 @@ class WikiLinter:
                             severity="low",
                             location=str(concept_path),
                             description=f"Article too short ({len(content)} chars)",
-                            can_auto_fix=True,
+                            can_auto_fix=False,
                             suggested_fix="Enhance article with more details",
                         )
                     )
@@ -316,38 +317,9 @@ class WikiLinter:
             rel = str(article_path.relative_to(self._structure.concepts_dir).with_suffix("")).replace("\\", "/")
             repair_file_frontmatter(article_path, is_raw_import=False, relative_path=rel)
             logger.info("Repaired frontmatter type for %s", article_path.name)
-            if self._indexer:
-                content = article_path.read_text(encoding="utf-8")
-                await self._indexer.upsert(rel, content)
-                self._indexer.extract_and_upsert_edges(rel, content)
-            return
-
-        if issue.issue_type == "incomplete":
-            logger.info(f"Auto-fixing incomplete article: {issue.location}")
-
-            article_path = Path(issue.location)
-            if not article_path.exists():
-                return
-
             content = article_path.read_text(encoding="utf-8")
-
-            system_msg = SystemMessage(content="You are enhancing a wiki article.")
-            human_msg = HumanMessage(content=f"Enhance this article with more details:\n\n{content}")
-
-            try:
-                response = await self._llm.ainvoke([system_msg, human_msg])
-                enhanced_content = response.content
-                article_path.write_text(enhanced_content, encoding="utf-8")
-                logger.info(f"Enhanced article: {article_path.name}")
-
-                if self._indexer:
-                    concept_name = article_path.stem
-                    await self._indexer.upsert(concept_name, enhanced_content)
-                    self._indexer.extract_and_upsert_edges(concept_name, enhanced_content)
-
-            except Exception as e:
-                logger.error(f"Failed to enhance article: {e}")
-                raise
+            await publish_concept_article(self._structure, self._indexer, rel, content)
+            return
 
     async def _discover_connections(self) -> int:
         """
@@ -428,15 +400,8 @@ class WikiLinter:
                     logger.info(f"LLM discovered link: {current_name} -> {link_name}")
 
                 if article_modified:
-                    concept_path.write_text(content, encoding="utf-8")
-                    if self._indexer:
-                        await self._indexer.upsert(concept_path.stem, content)
-                        edge_result = self._indexer.extract_and_upsert_edges(
-                            concept_path.stem,
-                            content,
-                        )
-                        if inspect.isawaitable(edge_result):
-                            await edge_result
+                    rel = str(concept_path.relative_to(self._structure.concepts_dir).with_suffix("")).replace("\\", "/")
+                    await publish_concept_article(self._structure, self._indexer, rel, content)
 
             except Exception as e:
                 logger.warning(f"LLM link enrichment failed for {concept_path}: {e}")

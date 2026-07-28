@@ -29,6 +29,7 @@ import asyncio
 import hashlib
 import inspect
 import json
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
@@ -52,6 +53,14 @@ from .queue import WikiIngestionQueue
 from .sidecar import build_directory_sidecars
 
 logger = get_agent_logger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class _ArticleBatchStats:
+    generated: int
+    pending: int
+    published: int
+    blocked: int
 
 
 class WikiCompiler:
@@ -207,6 +216,9 @@ class WikiCompiler:
                 articles_generated=0,
                 backlinks_created=0,
                 duration_ms=0,
+                articles_pending=0,
+                articles_published=0,
+                articles_blocked=0,
             )
 
         logger.info(f"Processing batch of {len(pending_items)} files from queue")
@@ -216,8 +228,14 @@ class WikiCompiler:
         logger.info(f"Extracted {len(all_concepts)} concepts from batch")
 
         # Step 2: Generate articles for each concept
-        articles = await self._generate_articles_batch(all_concepts)
-        logger.info(f"Generated {articles} articles")
+        batch_stats = await self._generate_articles_batch(all_concepts)
+        logger.info(
+            "Generated %s articles (published=%s pending=%s blocked=%s)",
+            batch_stats.generated,
+            batch_stats.published,
+            batch_stats.pending,
+            batch_stats.blocked,
+        )
 
         # Step 3: Refresh OKF cognitive map (index/log/hot)
         self._refresh_cognitive_map(all_concepts, batch=True)
@@ -233,7 +251,7 @@ class WikiCompiler:
             await self._build_sidecars(all_concepts)
 
         # Step 6: Update metadata
-        await self._save_metadata(len(all_concepts), articles)
+        await self._save_metadata(len(all_concepts), batch_stats.generated)
 
         duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
 
@@ -242,9 +260,12 @@ class WikiCompiler:
 
         return CompileResult(
             concepts_count=len(all_concepts),
-            articles_generated=articles,
+            articles_generated=batch_stats.generated,
             backlinks_created=backlinks_count,
             duration_ms=duration_ms,
+            articles_pending=batch_stats.pending,
+            articles_published=batch_stats.published,
+            articles_blocked=batch_stats.blocked,
         )
 
     async def _filter_changed_files(self, raw_files: list[Path]) -> list[Path]:
@@ -355,22 +376,20 @@ class WikiCompiler:
             logger.error(f"LLM extraction failed for {doc_path}: {e}")
             return []
 
-    async def _generate_articles_batch(self, concepts: list[ConceptInfo]) -> int:
+    async def _generate_articles_batch(self, concepts: list[ConceptInfo]) -> _ArticleBatchStats:
         """Generate wiki articles with configurable parallelism."""
         filtered = [c for c in concepts if c.mentions >= self._compile_config.min_concept_mentions]
         logger.info(f"Generating articles for {len(filtered)} concepts")
 
-        async def _gen_one(concept: ConceptInfo) -> bool:
+        async def _gen_one(concept: ConceptInfo) -> str:
             try:
                 if self._semaphore:
                     async with self._semaphore:
-                        await self._generate_article(concept)
-                else:
-                    await self._generate_article(concept)
-                return True
+                        return await self._generate_article(concept)
+                return await self._generate_article(concept)
             except Exception as e:
                 logger.error(f"Failed to generate article for {concept.name}: {e}")
-                return False
+                return "blocked"
 
         if self._parallel:
             results = await asyncio.gather(
@@ -380,9 +399,29 @@ class WikiCompiler:
         else:
             results = [await _gen_one(c) for c in filtered]
 
-        return sum(1 for r in results if r is True)
+        pending = 0
+        published = 0
+        blocked = 0
+        for result in results:
+            if isinstance(result, BaseException):
+                blocked += 1
+                continue
+            if result == "pending":
+                pending += 1
+            elif result == "published":
+                published += 1
+            else:
+                blocked += 1
 
-    async def _generate_article(self, concept: ConceptInfo) -> None:
+        generated = pending + published
+        return _ArticleBatchStats(
+            generated=generated,
+            pending=pending,
+            published=published,
+            blocked=blocked,
+        )
+
+    async def _generate_article(self, concept: ConceptInfo) -> str:
         """Generate wiki article for a concept in Obsidian format."""
         article_path = self._structure.get_concept_file_path(concept.name)
         existing_content = ""
@@ -430,34 +469,24 @@ class WikiCompiler:
                 from .pending import WikiPendingEditsManager
 
                 pending_mgr = WikiPendingEditsManager(self._structure, self._indexer)
-                pending_mgr.add_pending_edit(concept.name, article_content)
+                await pending_mgr.stage_pending_edit(
+                    concept.name,
+                    article_content,
+                    source_files=concept.source_files,
+                )
                 logger.info(f"Generated pending draft for article: {concept.name}")
-            else:
-                article_path = self._structure.get_concept_file_path(concept.name)
-                article_path.write_text(article_content, encoding="utf-8")
+                return "pending"
 
-                # FTS5 and Vector Upsert
-                if self._indexer:
-                    await self._indexer.upsert(concept.name, article_content)
-                    edge_result = self._indexer.extract_and_upsert_edges(
-                        concept.name,
-                        article_content,
-                    )
-                    if inspect.isawaitable(edge_result):
-                        await edge_result
-                else:
-                    from ..retrieval.indexer import WikiIndexer
+            from .publication import publish_concept_article
 
-                    indexer = WikiIndexer(self._structure, self._config)
-                    await indexer.upsert(concept.name, article_content)
-                    edge_result = indexer.extract_and_upsert_edges(
-                        concept.name,
-                        article_content,
-                    )
-                    if inspect.isawaitable(edge_result):
-                        await edge_result
-
-                logger.info(f"Generated and indexed article: {article_path.name}")
+            await publish_concept_article(
+                self._structure,
+                self._indexer,
+                concept.name,
+                article_content,
+            )
+            logger.info(f"Generated and published article: {concept.name}")
+            return "published"
 
         except Exception as e:
             logger.error(f"Failed to generate article for {concept.name}: {e}")

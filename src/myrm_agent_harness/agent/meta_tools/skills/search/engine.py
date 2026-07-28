@@ -31,7 +31,9 @@ MCP_SKILL_TOOL_INDEX_THRESHOLD = 3
 MCP_TOOL_SHORT_DESC_MAX_CHARS = 80
 
 
-def _truncate_tool_desc(description: str, max_chars: int = MCP_TOOL_SHORT_DESC_MAX_CHARS) -> str:
+def _truncate_tool_desc(
+    description: str, max_chars: int = MCP_TOOL_SHORT_DESC_MAX_CHARS
+) -> str:
     text = " ".join((description or "").split())
     if not text:
         return ""
@@ -40,7 +42,11 @@ def _truncate_tool_desc(description: str, max_chars: int = MCP_TOOL_SHORT_DESC_M
         return text[: match.end()].strip()
     if len(text) <= max_chars:
         return text
-    clipped = text[:max_chars].rsplit(" ", 1)[0] if " " in text[:max_chars] else text[:max_chars]
+    clipped = (
+        text[:max_chars].rsplit(" ", 1)[0]
+        if " " in text[:max_chars]
+        else text[:max_chars]
+    )
     return clipped.rstrip(",;: ") + "…"
 
 

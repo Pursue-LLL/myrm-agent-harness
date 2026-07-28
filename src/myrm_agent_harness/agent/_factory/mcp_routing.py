@@ -95,7 +95,9 @@ def demote_direct_servers_over_budget(
     return remaining, demoted
 
 
-def compute_direct_threshold(ptc_overhead_tools: Sequence[BaseTool] | None = None) -> int:
+def compute_direct_threshold(
+    ptc_overhead_tools: Sequence[BaseTool] | None = None,
+) -> int:
     """Compute the schema token threshold for direct-vs-PTC routing."""
     if ptc_overhead_tools:
         overhead_tokens = estimate_schema_tokens(ptc_overhead_tools)
@@ -118,7 +120,11 @@ def estimate_schema_tokens(tools: Sequence[BaseTool]) -> int:
     total_chars = 0
     for tool in tools:
         schema = _input_schema(tool)
-        entry = {"name": tool.name, "description": tool.description or "", "parameters": schema}
+        entry = {
+            "name": tool.name,
+            "description": tool.description or "",
+            "parameters": schema,
+        }
         total_chars += len(json.dumps(entry, ensure_ascii=False, separators=(",", ":")))
     return int(total_chars / CHARS_PER_TOKEN + 0.5)
 
@@ -126,11 +132,21 @@ def estimate_schema_tokens(tools: Sequence[BaseTool]) -> int:
 def estimate_single_tool_tokens(tool: BaseTool) -> int:
     """Estimate schema tokens for a single tool."""
     schema = _input_schema(tool)
-    entry = {"name": tool.name, "description": tool.description or "", "parameters": schema}
-    return int(len(json.dumps(entry, ensure_ascii=False, separators=(",", ":"))) / CHARS_PER_TOKEN + 0.5)
+    entry = {
+        "name": tool.name,
+        "description": tool.description or "",
+        "parameters": schema,
+    }
+    return int(
+        len(json.dumps(entry, ensure_ascii=False, separators=(",", ":")))
+        / CHARS_PER_TOKEN
+        + 0.5
+    )
 
 
-def _compact_description(description: str, limit: int = DIRECT_MCP_DESCRIPTION_SOFT_LIMIT) -> str:
+def _compact_description(
+    description: str, limit: int = DIRECT_MCP_DESCRIPTION_SOFT_LIMIT
+) -> str:
     """Compact verbose MCP tool descriptions while preserving a clear summary."""
     normalized = " ".join(description.split())
     if len(normalized) <= limit:
@@ -190,7 +206,9 @@ async def _generate_mcp_skills(
 
     for skill in mcp_skills:
         if skill.mcp:
-            server_configs = [cfg for cfg in ptc_servers if cfg.name == skill.mcp.server]
+            server_configs = [
+                cfg for cfg in ptc_servers if cfg.name == skill.mcp.server
+            ]
             if server_configs:
                 skill.mcp.config = [_config_to_dict(cfg) for cfg in server_configs]
             else:
@@ -241,7 +259,9 @@ async def route_mcp_servers(
         try:
             conn = await manager.get_connection([cfg])
         except Exception as e:
-            logger.warning("MCP server '%s' failed to connect, skipping: %s", cfg.name, e)
+            logger.warning(
+                "MCP server '%s' failed to connect, skipping: %s", cfg.name, e
+            )
             continue
 
         server_tools = conn.tools_by_server.get(cfg.name) or next(

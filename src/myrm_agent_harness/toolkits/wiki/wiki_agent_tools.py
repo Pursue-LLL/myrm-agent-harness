@@ -228,7 +228,10 @@ def create_wiki_admin_tools(
             return (
                 f"Wiki compilation complete:\n"
                 f"- Concepts: {result.concepts_count}\n"
-                f"- Articles: {result.articles_generated}\n"
+                f"- Articles generated: {result.articles_generated}\n"
+                f"- Published: {result.articles_published}\n"
+                f"- Pending review: {result.articles_pending}\n"
+                f"- Blocked: {result.articles_blocked}\n"
                 f"- Backlinks: {result.backlinks_created}\n"
                 f"- Duration: {result.duration_ms}ms"
             )
@@ -244,9 +247,9 @@ def create_wiki_admin_tools(
 
         Performs:
         - Broken link detection
-        - Completeness checks (find short/incomplete articles)
+        - Completeness checks (report short/incomplete articles; no auto LLM rewrite)
         - Consistency checks (find contradictions)
-        - Automatic repairs (enhance incomplete articles)
+        - Frontmatter type repairs (via publish gate)
         - Connection discovery (find potential cross-references)
         - Knowledge graph gap analysis (isolated/bridge concepts)
 

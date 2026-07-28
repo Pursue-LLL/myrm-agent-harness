@@ -14,7 +14,8 @@ with provenance, HITL pending edits, and bottom-up incremental L0/L1 directory s
 | postprocess.py | Core | Post-compilation: backlink generation, metadata persistence | ✅ |
 | cognitive_map/ | Core | OKF index.md, log.md, hot.md deterministic writers + refresh service | ✅ |
 | sidecar.py | Core | Directory sidecar builder (`.abstract.md`/`.overview.md`): bottom-up DAG invalidation + incremental rebuild + index sync | ✅ |
-| pending.py | Core | HITL pending edits manager; approve blocked on invalid frontmatter `type` | ✅ |
+| pending.py | Core | HITL pending edits; `stage_pending_edit` demotes stale published; approve blocks stale + uses `publish_concept_article` | ✅ |
+| publication/ | Core | WPG publish SSOT: `publish_concept_article`, `repair_publication_status` | ✅ |
 | queue.py | Core | SQLite persistent ingestion queue with retry + stale recovery | ✅ |
 
 ## Key Dependencies

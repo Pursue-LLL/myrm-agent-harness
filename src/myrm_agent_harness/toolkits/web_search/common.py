@@ -39,6 +39,10 @@ class SearchResult(BaseModel):
     snippet: str = Field(..., description="Result summary snippet")
     date: str | None = Field(default=None, description="Published or last-updated date")
     is_error: bool = Field(default=False, description="Whether this result represents an error entry")
+    is_degraded: bool = Field(
+        default=False,
+        description="True when results may be based on model knowledge rather than sourced data",
+    )
     engines: list[str] = Field(default_factory=list, description="Source search engines that returned this result")
     citations: list[Citation] = Field(default_factory=list, description="Inline citations with positional info")
 
@@ -60,6 +64,7 @@ class SearchResult(BaseModel):
             "snippet": cleaned_snippet,
             "date": data.get("date"),
             "is_error": data.get("is_error", False),
+            "is_degraded": data.get("is_degraded", False),
             "engines": data.get("engines", []),
         }
 

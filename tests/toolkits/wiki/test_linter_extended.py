@@ -163,7 +163,7 @@ async def test_check_consistency_detects_issues(mock_llm: MagicMock, linter_auto
 
 
 @pytest.mark.asyncio
-async def test_auto_fix_incomplete_article(mock_llm: MagicMock, linter_auto: WikiLinter, temp_wiki: WikiStructure) -> None:
+async def test_incomplete_article_not_auto_fixed(mock_llm: MagicMock, linter_auto: WikiLinter, temp_wiki: WikiStructure) -> None:
     concept = temp_wiki.get_concept_file_path("Short")
     concept.write_text("Short.")
 
@@ -174,13 +174,13 @@ async def test_auto_fix_incomplete_article(mock_llm: MagicMock, linter_auto: Wik
         severity="low",
         location=str(concept),
         description="Too short",
-        can_auto_fix=True,
+        can_auto_fix=False,
         suggested_fix="Enhance",
     )
 
-    mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content="## Compiled Truth\nEnhanced article."))
     await linter_auto._auto_fix_issue(issue)
-    assert "Enhanced article" in concept.read_text()
+    assert concept.read_text() == "Short."
+    mock_llm.ainvoke.assert_not_called()
 
 
 # --- _discover_connections (LLM-driven) ---
@@ -192,10 +192,10 @@ async def test_discover_connections_llm(mock_llm: MagicMock, temp_wiki: WikiStru
     linter = WikiLinter(mock_llm, temp_wiki, config)
 
     c1 = temp_wiki.get_concept_file_path("Alpha")
-    c1.write_text("# Alpha\n\nAlpha is about ML.\n## Compiled Truth\nML content.")
+    c1.write_text("---\ntype: concept\n---\n\n# Alpha\n\nAlpha is about ML.\n## Compiled Truth\nML content.")
 
     c2 = temp_wiki.get_concept_file_path("Beta")
-    c2.write_text("# Beta\n\nBeta is about ML.\n## Compiled Truth\nRelated content.")
+    c2.write_text("---\ntype: concept\n---\n\n# Beta\n\nBeta is about ML.\n## Compiled Truth\nRelated content.")
 
     mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content='["Beta"]'))
     connections = await linter._discover_connections()

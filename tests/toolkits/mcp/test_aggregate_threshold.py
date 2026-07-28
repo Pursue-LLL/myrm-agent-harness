@@ -18,7 +18,10 @@ def _make_mock_tool(name: str, desc_size: int = 50, n_params: int = 2) -> MagicM
     tool = MagicMock()
     tool.name = name
     tool.description = f"Tool: {name}" + "x" * desc_size
-    props = {f"param_{i}": {"type": "string", "description": "y" * 30} for i in range(n_params)}
+    props = {
+        f"param_{i}": {"type": "string", "description": "y" * 30}
+        for i in range(n_params)
+    }
     mock_schema = MagicMock()
     mock_schema.model_json_schema.return_value = {
         "type": "object",
@@ -59,8 +62,7 @@ class TestDemoteDirectServersOverBudget:
 
     def test_kept_total_within_budget(self) -> None:
         bundles = [
-            _bundle(f"s{i}", [_make_mock_tool(f"t_{i}", 300, 4)])
-            for i in range(5)
+            _bundle(f"s{i}", [_make_mock_tool(f"t_{i}", 300, 4)]) for i in range(5)
         ]
         kept, _ = demote_direct_servers_over_budget(bundles, budget=1500)
         kept_tokens = sum(b.schema_tokens for b in kept)

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.agent.skills.mcp.proxy_service import _validate_required_mcp_params
+from myrm_agent_harness.agent.skills.mcp.proxy_service import (
+    _validate_required_mcp_params,
+)
 
 
 class TestValidateRequiredMcpParams:
@@ -28,7 +30,12 @@ class TestValidateRequiredMcpParams:
                 "required": ["title"],
             },
         }
-        assert _validate_required_mcp_params("create_issue", {"title": "bug"}, schema_entry) is None
+        assert (
+            _validate_required_mcp_params(
+                "create_issue", {"title": "bug"}, schema_entry
+            )
+            is None
+        )
 
     def test_no_required_field_returns_none(self) -> None:
         schema_entry = {"inputSchema": {"type": "object", "properties": {}}}
