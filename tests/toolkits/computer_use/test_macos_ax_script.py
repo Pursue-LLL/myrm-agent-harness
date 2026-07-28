@@ -34,3 +34,9 @@ def test_ax_invoke_escape_script_compiles() -> None:
         timeout=15,
     )
     assert "syntax error" not in result.stderr.lower()
+
+
+def test_textedit_target_uses_bundle_id_selector() -> None:
+    script = _build_ax_snapshot_script(target_app="TextEdit")
+    assert 'bundle identifier is "com.apple.TextEdit"' in script
+    assert 'application process "TextEdit"' not in script

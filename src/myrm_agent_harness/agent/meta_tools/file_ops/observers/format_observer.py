@@ -192,6 +192,12 @@ class FormatObserver(FileOperationObserver):
         if not ext:
             return
 
+        from ..utils.vault_scope import is_vault_markdown_path
+
+        if is_vault_markdown_path(path):
+            logger.debug("Skipping formatter for vault markdown note: %s", path)
+            return
+
         rule = await _cache.resolve(ext, path)
         if rule is None:
             return
@@ -213,6 +219,10 @@ class FormatObserver(FileOperationObserver):
             if not _Path(clean).is_absolute():
                 actual_path = str((wp / clean).resolve())
                 cwd = str(wp)
+
+        if is_vault_markdown_path(actual_path):
+            logger.debug("Skipping formatter for vault markdown note: %s", actual_path)
+            return
 
         cmd = rule.build_cmd(actual_path)
         try:

@@ -26,6 +26,7 @@ async def collect_stream(
     messages: list[BaseMessage],
     temperature: float,
     max_tokens: int | None = None,
+    reasoning_effort: str | None = None,
 ) -> str:
     """Stream a model's answer into a single string.
 
@@ -42,12 +43,18 @@ async def collect_stream(
     to limit advisor verbosity (the aggregator only needs concise advice).
     ``None`` (default) omits the parameter, preserving prior uncapped behavior.
 
+    ``reasoning_effort``, when set, controls how deeply reasoning models think.
+    ``None`` (default) uses the provider default.  Unsupported models silently
+    ignore it via ``litellm.drop_params``.
+
     Falls back to ``reasoning_content`` when a reasoning model (e.g.
     DeepSeek-R1, GLM) streams its answer there with an empty ``content``.
     """
     bind_kwargs: dict[str, object] = {"temperature": temperature}
     if max_tokens is not None:
         bind_kwargs["max_tokens"] = max_tokens
+    if reasoning_effort is not None:
+        bind_kwargs["reasoning_effort"] = reasoning_effort
     content_parts: list[str] = []
     reasoning_parts: list[str] = []
     async for chunk in llm.bind(**bind_kwargs).astream(messages):

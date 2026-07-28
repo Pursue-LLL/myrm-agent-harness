@@ -112,6 +112,12 @@ class BashExecutorExecuteMixin:
 
         timeout = self._maybe_extend_timeout_for_mcp(mcp_config_items, timeout)
 
+        from myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit import (
+            OfficeBashAudit,
+        )
+
+        office_snapshots = OfficeBashAudit.prepare_snapshots(workspace_root_str, command)
+
         context = self._build_execution_context(
             prepared_code=prepared_code,
             original_code=command,
@@ -162,6 +168,13 @@ class BashExecutorExecuteMixin:
         else:
             logger.info(" Command executed successfully")
 
+        office_warnings = await OfficeBashAudit.finalize_audit(
+            office_snapshots,
+            workspace_root_str,
+            command,
+            list(result.generated_files or []),
+        )
+
         clean_stdout, mcp_metadata = self._metadata_extractor.extract_metadata(result.stdout)
 
         from myrm_agent_harness.agent.meta_tools.bash._output_eviction import maybe_evict_large_output
@@ -191,4 +204,5 @@ class BashExecutorExecuteMixin:
             "evicted_stored_chars": eviction_result.stored_chars,
             "evicted_total_lines": eviction_result.total_lines,
             "evicted_storage_truncated": eviction_result.storage_truncated,
+            "office_warnings": office_warnings,
         }

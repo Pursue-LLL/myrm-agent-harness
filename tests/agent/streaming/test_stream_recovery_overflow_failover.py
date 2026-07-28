@@ -1,7 +1,7 @@
-"""stream_recovery.py 的 overflow / failover / steering / subagent 测试。
+"""stream_recovery.py 的 overflow / failover / safety refusal / steering / subagent 测试。
 
-补充覆盖 stream_recovery.py 中 _handle_overflow、_handle_failover、
-_handle_steering、_handle_subagent_notifications 等方法。
+覆盖 stream_recovery.py 中 _handle_overflow、_handle_failover、
+_handle_safety_refusal_fallback、_handle_steering、_handle_subagent_notifications 等方法。
 """
 
 import asyncio
@@ -276,6 +276,95 @@ async def test_safety_fallback(ctx):
     rebuild_fn.assert_called_once_with(safety_llm)
     events = executor._compactor.events
     assert any(e.get("step_key") == "safety_fallback_active" for e in events if isinstance(e, dict))
+
+
+# ─── _handle_safety_refusal_fallback ─────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_safety_refusal_fallback_triggers_on_refusal(ctx):
+    """HTTP 200 safety refusal finish_reason triggers safety_fallback_llm."""
+    safety_llm = MagicMock()
+    safety_llm.model_name = "gpt-4o-safe"
+    rebuild_fn = MagicMock()
+
+    executor = StreamExecutor(
+        ctx=ctx, fallback_llm=None, safety_fallback_llm=safety_llm, rebuild_agent_fn=rebuild_fn
+    )
+    executor._compactor = FakeCompactor()
+
+    tracker_mock = MagicMock()
+    tracker_mock.last_finish_reason = "refusal"
+
+    with patch(
+        "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",
+        return_value=tracker_mock,
+    ):
+        result = await executor._handle_safety_refusal_fallback()
+
+    assert result is True
+    assert executor.failover_used is True
+    rebuild_fn.assert_called_once_with(safety_llm)
+    events = executor._compactor.events
+    assert any(e.get("step_key") == "safety_fallback_active" for e in events if isinstance(e, dict))
+
+
+@pytest.mark.asyncio
+async def test_safety_refusal_fallback_skips_normal_finish_reason(ctx):
+    """Normal finish_reason (e.g. 'stop') does NOT trigger refusal fallback."""
+    executor = _make_executor(ctx)
+
+    tracker_mock = MagicMock()
+    tracker_mock.last_finish_reason = "stop"
+
+    with patch(
+        "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",
+        return_value=tracker_mock,
+    ):
+        result = await executor._handle_safety_refusal_fallback()
+
+    assert result is False
+    assert executor.failover_used is False
+
+
+@pytest.mark.asyncio
+async def test_safety_refusal_fallback_skips_when_already_failed_over(ctx):
+    """Refusal fallback must NOT fire twice (failover_used=True)."""
+    safety_llm = MagicMock()
+    executor = StreamExecutor(
+        ctx=ctx, fallback_llm=None, safety_fallback_llm=safety_llm, rebuild_agent_fn=MagicMock()
+    )
+    executor._compactor = FakeCompactor()
+    executor.failover_used = True
+
+    tracker_mock = MagicMock()
+    tracker_mock.last_finish_reason = "content_filter"
+
+    with patch(
+        "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",
+        return_value=tracker_mock,
+    ):
+        result = await executor._handle_safety_refusal_fallback()
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_safety_refusal_fallback_skips_without_safety_llm(ctx):
+    """No safety_fallback_llm configured → silently skip."""
+    executor = _make_executor(ctx)
+
+    tracker_mock = MagicMock()
+    tracker_mock.last_finish_reason = "refusal"
+
+    with patch(
+        "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",
+        return_value=tracker_mock,
+    ):
+        result = await executor._handle_safety_refusal_fallback()
+
+    assert result is False
+    assert executor.failover_used is False
 
 
 # ─── _handle_steering ────────────────────────────────────────────────────────

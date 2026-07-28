@@ -47,7 +47,7 @@ def test_subagent_config_dataclass():
     config = SubagentConfig(
         tools=("tool1", "tool2"),
         system_prompt="Test prompt",
-        timeout_seconds=10,
+        timeout_seconds=60,
         concurrency_limit=5,
         max_retries=3,
         retry_backoff_seconds=2.0,
@@ -56,7 +56,7 @@ def test_subagent_config_dataclass():
 
     assert config.tools == ("tool1", "tool2")
     assert config.system_prompt == "Test prompt"
-    assert config.timeout_seconds == 10
+    assert config.timeout_seconds == 60
     assert config.concurrency_limit == 5
     assert config.max_retries == 3
     assert config.retry_backoff_seconds == 2.0

@@ -19,6 +19,8 @@ class TestConsensusConfig:
         assert cfg.timeout_total == 300.0
         assert cfg.max_retries_per_model == 2
         assert cfg.reference_max_tokens is None
+        assert cfg.reference_reasoning_effort is None
+        assert cfg.aggregator_reasoning_effort is None
 
     def test_frozen(self):
         cfg = ConsensusConfig()
@@ -36,12 +38,16 @@ class TestConsensusConfig:
             timeout_total=180.0,
             max_retries_per_model=5,
             reference_max_tokens=600,
+            reference_reasoning_effort="low",
+            aggregator_reasoning_effort="high",
         )
         assert cfg.reference_temperature == 0.8
         assert cfg.aggregator_temperature == 0.2
         assert cfg.min_successful == 3
         assert cfg.max_retries_per_model == 5
         assert cfg.reference_max_tokens == 600
+        assert cfg.reference_reasoning_effort == "low"
+        assert cfg.aggregator_reasoning_effort == "high"
 
 
 class TestReferenceResponse:

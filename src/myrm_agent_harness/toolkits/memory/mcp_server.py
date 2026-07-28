@@ -23,12 +23,16 @@ MCP server adapter that lets external AI agents (Claude Code, Cursor, Codex)
 access the memory system via standard MCP protocol. Four MCP tools:
 recall (semantic search with categories/time/profile), list (enumeration
 and audit), store (5 categories), and manage (update/delete/correct/rate).
+Supports optional manager_resolver for per-request dynamic scoping
+(e.g. per-token agent binding via ContextVar).
 """
 
 from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
+from contextvars import ContextVar, Token
 from typing import TYPE_CHECKING
 
 from mcp.server.fastmcp import FastMCP
@@ -63,6 +67,21 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
 logger = logging.getLogger(__name__)
+
+_request_memory_manager: ContextVar[MemoryManager | None] = ContextVar(
+    "myrm_mcp_request_memory_manager",
+    default=None,
+)
+
+
+def set_request_memory_manager(manager: MemoryManager | None) -> Token[MemoryManager | None]:
+    """Bind the MemoryManager used by MCP tool handlers for the current request."""
+    return _request_memory_manager.set(manager)
+
+
+def reset_request_memory_manager(token: Token[MemoryManager | None]) -> None:
+    """Restore the previous MemoryManager binding after a request completes."""
+    _request_memory_manager.reset(token)
 
 _CATEGORY_TO_TYPE: dict[str, MemoryType] = {
     "knowledge": MemoryType.SEMANTIC,
@@ -104,10 +123,17 @@ class MemoryMCPServer:
     Provides memory_recall, memory_list, memory_store, and memory_manage
     tools that external agents can invoke via MCP protocol.
 
+    Supports two modes:
+    - Fixed: a single MemoryManager bound at construction.
+    - Resolver: a callable that returns the MemoryManager for the current
+      request context (e.g. per-token agent scoping via ContextVar).
+
     Usage:
-        manager = MemoryManager(...)
+        # Fixed mode
         mcp_server = MemoryMCPServer(manager)
-        app = mcp_server.get_streamable_http_app()  # Mount on FastAPI
+
+        # Resolver mode (multi-scope)
+        mcp_server = MemoryMCPServer(manager, manager_resolver=my_resolver)
     """
 
     def __init__(
@@ -115,8 +141,10 @@ class MemoryMCPServer:
         memory_manager: MemoryManager,
         *,
         server_name: str = "myrm-memory",
+        manager_resolver: Callable[[], MemoryManager] | None = None,
     ) -> None:
-        self._manager = memory_manager
+        self._default_manager = memory_manager
+        self._manager_resolver = manager_resolver
         self._mcp = FastMCP(
             server_name,
             instructions=(
@@ -129,6 +157,15 @@ class MemoryMCPServer:
         )
         self._register_tools()
 
+    def _resolve_manager(self) -> MemoryManager:
+        """Return the active MemoryManager for the current request context."""
+        bound = _request_memory_manager.get()
+        if bound is not None:
+            return bound
+        if self._manager_resolver is not None:
+            return self._manager_resolver()
+        return self._default_manager
+
     # ── Tool Registration ────────────────────────────────────────────
 
     def _register_tools(self) -> None:
@@ -139,7 +176,7 @@ class MemoryMCPServer:
         self._register_manage()
 
     def _register_recall(self) -> None:
-        mgr = self._manager
+        resolve = self._resolve_manager
 
         @self._mcp.tool(
             name="memory_recall",
@@ -178,6 +215,7 @@ class MemoryMCPServer:
                 until: Only return memories created before this time.
                     Accepts relative shorthand or ISO 8601.
             """
+            mgr = resolve()
             if profile_key:
                 if not mgr.has_relational:
                     return "Profile memory is not enabled."
@@ -262,7 +300,7 @@ class MemoryMCPServer:
             return text
 
     def _register_list(self) -> None:
-        mgr = self._manager
+        resolve = self._resolve_manager
 
         @self._mcp.tool(
             name="memory_list",
@@ -296,6 +334,7 @@ class MemoryMCPServer:
             page_size = max(1, min(page_size, 50))
             page = max(1, page)
 
+            mgr = resolve()
             if category is not None:
                 mem_type = _CATEGORY_TO_TYPE.get(category)
                 if mem_type is None:
@@ -394,7 +433,7 @@ class MemoryMCPServer:
         return "\n".join(lines)
 
     def _register_store(self) -> None:
-        mgr = self._manager
+        resolve = self._resolve_manager
 
         @self._mcp.tool(
             name="memory_store",
@@ -451,6 +490,7 @@ class MemoryMCPServer:
             if write_target not in ("bound", "shared"):
                 return "Error: write_target must be 'bound' or 'shared'."
 
+            mgr = resolve()
             parsed_tags = _parse_string_list(tags)
             parsed_kw = _parse_string_list(rule_keywords)
             pending = mgr.approval_required
@@ -503,7 +543,7 @@ class MemoryMCPServer:
             return f"Unknown category: {category}"
 
     def _register_manage(self) -> None:
-        mgr = self._manager
+        resolve = self._resolve_manager
 
         @self._mcp.tool(
             name="memory_manage",
@@ -545,6 +585,7 @@ class MemoryMCPServer:
             if mem_type is None or category not in valid_manage_cats:
                 return f"Error: invalid category '{category}'. Valid for manage: {', '.join(valid_manage_cats)}"
 
+            mgr = resolve()
             try:
                 if action == "rate":
                     if rating_score is None:
@@ -621,17 +662,30 @@ def create_memory_mcp_server(
     memory_manager: MemoryManager,
     *,
     server_name: str = "myrm-memory",
+    manager_resolver: Callable[[], MemoryManager] | None = None,
 ) -> MemoryMCPServer:
     """Factory: create a MemoryMCPServer from a MemoryManager instance.
 
     Args:
-        memory_manager: The MemoryManager to expose via MCP.
+        memory_manager: The default MemoryManager to expose via MCP.
         server_name: MCP server name visible to external agents.
+        manager_resolver: Optional callable returning the MemoryManager for the
+            current request context. When provided, tool calls resolve the
+            manager dynamically (e.g. per-token agent scoping).
 
     Returns:
         Configured MemoryMCPServer ready to be mounted.
     """
-    return MemoryMCPServer(memory_manager, server_name=server_name)
+    return MemoryMCPServer(
+        memory_manager,
+        server_name=server_name,
+        manager_resolver=manager_resolver,
+    )
 
 
-__all__ = ["MemoryMCPServer", "create_memory_mcp_server"]
+__all__ = [
+    "MemoryMCPServer",
+    "create_memory_mcp_server",
+    "reset_request_memory_manager",
+    "set_request_memory_manager",
+]

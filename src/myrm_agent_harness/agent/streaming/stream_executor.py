@@ -300,6 +300,9 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                     length_continue_retries += 1
                     continue
 
+                if await self._handle_safety_refusal_fallback():
+                    continue
+
                 if await self._handle_empty_response(collected_messages, empty_response_retries):
                     empty_response_retries += 1
                     continue

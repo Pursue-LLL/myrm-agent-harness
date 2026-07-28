@@ -4,6 +4,8 @@
 - agent._internals.agent_recovery (POS: message compression/truncation utilities)
 - toolkits.llms.errors.classifier (POS: error classification)
 - toolkits.llms.reliability.jittered_backoff (POS: jittered backoff)
+- toolkits.llms.adapters.safety_termination_detector (POS: Safety termination detector)
+- utils.token_economics.tracker (POS: LLM call metadata tracker)
 - agent.streaming.stream_recovery_oneshot (POS: one-shot recovery strategies)
 - agent.streaming.stream_recovery_continuation (POS: steering, subagent, and goal continuation recovery)
 - agent.streaming.stream_recovery_truncation (POS: length truncation recovery)
@@ -15,7 +17,7 @@
 - _is_escalation_marker_message: module-level helper function
 
 [POS]
-StreamRecoveryMixin composes overflow, deferred failover (429 never failover; 529 after 3 consecutive), escalation, transient retry, iteration-limit (with grace-call summary), empty-response, truncation, steering, subagent, and goal continuation recovery strategies.
+StreamRecoveryMixin composes overflow, deferred failover (429 never failover; 529 after 3 consecutive), safety refusal fallback (HTTP 200 refusal/content_filter → safety_fallback_llm), escalation, transient retry, iteration-limit (with grace-call summary), empty-response, truncation, steering, subagent, and goal continuation recovery strategies.
 
 """
 
@@ -203,6 +205,63 @@ class StreamRecoveryMixin(
         step_key = "safety_fallback_active" if error_kind == ErrorKind.SAFETY_BLOCK else "model_failover"
 
         await self._emit_recovery_event(step_key, error_kind=error_kind.value, fallback_model=fallback_model)
+        self.streaming_final_answer = False
+        return True
+
+    async def _handle_safety_refusal_fallback(self) -> bool:
+        """Fallback on HTTP 200 safety refusal (finish_reason in SAFETY_FINISH_REASONS).
+
+        When the LLM returns a successful response but with a safety-related
+        finish_reason (e.g. ``refusal``, ``content_filter``, ``SAFETY``), the
+        response is typically empty. Without this handler, it falls through to
+        ``_handle_empty_response`` which wastes 2 retries on a deterministic
+        refusal, then raises FORMAT_ERROR (non-failoverable) — making the
+        configured ``safety_fallback_llm`` unreachable.
+
+        This handler intercepts the safety refusal *before* the empty-response
+        retry path and routes it through the existing safety fallback mechanism.
+
+        Returns True when a safety fallback was activated (caller should ``continue``).
+        """
+        from myrm_agent_harness.toolkits.llms.adapters.safety_termination_detector import (
+            detect_safety_termination,
+        )
+        from myrm_agent_harness.utils.token_economics.tracker import get_token_tracker
+
+        tracker = get_token_tracker()
+        if tracker is None:
+            return False
+
+        finish_reason = tracker.last_finish_reason
+        if not finish_reason or not detect_safety_termination(finish_reason):
+            return False
+
+        if self._safety_fallback_llm is None or self.failover_used:
+            logger.warning(
+                " Safety refusal (finish_reason=%s) but no fallback available (fallback_used=%s)",
+                finish_reason,
+                self.failover_used,
+            )
+            return False
+
+        self.failover_used = True
+        rebuild_fn = cast("Callable[[BaseChatModel], None]", self._rebuild_agent_fn)
+        rebuild_fn(self._safety_fallback_llm)
+        fallback_model = getattr(self._safety_fallback_llm, "model_name", None) or getattr(
+            self._safety_fallback_llm, "model", "backup"
+        )
+
+        logger.warning(
+            " Safety refusal fallback: finish_reason=%s → switching to %s",
+            finish_reason,
+            fallback_model,
+        )
+
+        await self._emit_recovery_event(
+            "safety_fallback_active",
+            error_kind=ErrorKind.SAFETY_BLOCK.value,
+            fallback_model=fallback_model,
+        )
         self.streaming_final_answer = False
         return True
 

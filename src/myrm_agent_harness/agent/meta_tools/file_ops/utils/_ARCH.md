@@ -12,10 +12,20 @@ Utility functions module.
 | file_utils.py | Core | Provides parse_path_with_range. | ✅ |
 | image_reader.py | Core | Provides is_image_path, read_image_as_content_blocks. | ✅ |
 | line_endings.py | Core | Line ending detection and normalization. Preserves CRLF/LF across agent edits. | ✅ |
+| markdown_frontmatter.py | Core | YAML frontmatter parse/preserve helpers for vault markdown notes | ✅ |
+| vault_scope.py | Core | Obsidian vault root detection via `.obsidian/` marker | ✅ |
+| office_scope.py | Core | Office `.docx`/`.xlsx` extension scope for write guards | ✅ |
+| office_opc.py | Core | OPC metrics + xlsx formula snapshots + corrupt Office file audit read errors for bash post-audit | ✅ |
+| office_recalc.py | Core | Optional LibreOffice recalc + Excel error cell scan after xlsx edits | ✅ |
 | video_reader.py | Core | Provides is_video_path, read_video_as_content_blocks. | ✅ |
 | path_utils.py | Core | Provides resolve_file_id_path. | ✅ |
 | vault_read.py | Core | vault:// URI read, workspace resolve, batch read for file_read_tool | ✅ |
 | pdf_reader.py | Core | PDF file reader with Large Document Smart RAG Diverter. Auto-ingests large PDFs (>20 pages) into wiki knowledge base for RAG retrieval. | ✅ |
+
+## Tests
+
+- `tests/agent/meta_tools/file_ops/utils/test_office_opc.py`
+- `tests/agent/meta_tools/file_ops/utils/test_office_recalc.py`
 
 ## Key Dependencies
 

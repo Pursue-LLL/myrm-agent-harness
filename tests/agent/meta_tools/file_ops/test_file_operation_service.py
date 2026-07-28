@@ -568,6 +568,91 @@ async def test_execute_str_replace_delta_failure_rolls_back() -> None:
 
 
 @pytest.mark.asyncio
+async def test_execute_str_replace_preserves_vault_frontmatter(tmp_path) -> None:
+    """STR_REPLACE on vault .md must reinject YAML frontmatter dropped by the edit."""
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / ".obsidian").mkdir()
+    note = vault / "daily.md"
+    note.write_text(
+        "---\ndate: 2026-07-28\n---\n# Daily\n\nOld body\n",
+        encoding="utf-8",
+    )
+    context = _str_replace_ctx(
+        executor=None,
+        path=str(note),
+        old_str="---\ndate: 2026-07-28\n---\n# Daily\n\nOld body",
+        new_str="# Daily\n\nUpdated journal",
+    )
+    service = FileOperationService(context)
+    written: list[str] = []
+
+    async def capture_write(_path: str, content: str) -> None:
+        written.append(content)
+
+    with ExitStack() as stack:
+        stack.enter_context(patch.object(context, "validate"))
+        stack.enter_context(
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.utils.path_utils.resolve_file_id_path",
+                return_value=str(note),
+            )
+        )
+        mock_factory = stack.enter_context(
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.FileSystemStrategyFactory.create_strategy",
+            )
+        )
+        mock_vc = stack.enter_context(
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.ValidatorChain",
+            )
+        )
+        stack.enter_context(
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
+                return_value=None,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.check_conflict_pre_write",
+                return_value=None,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.validators.delta_syntax_validator.DeltaSyntaxValidator.validate",
+            )
+        )
+        stack.enter_context(
+            patch.object(
+                service.observer_manager,
+                "notify_file_modified",
+                new_callable=AsyncMock,
+            )
+        )
+        strategy = AsyncMock()
+        old_lines = note.read_text(encoding="utf-8").splitlines()
+        strategy.read_file = AsyncMock(
+            side_effect=[
+                old_lines,
+                old_lines,
+            ]
+        )
+        strategy.write_file = AsyncMock(side_effect=capture_write)
+        mock_factory.return_value = strategy
+        mock_vc.return_value.validate = AsyncMock()
+
+        result = await service.execute()
+
+    assert written, "write_file should have been called"
+    assert "date: 2026-07-28" in written[0]
+    assert "Updated journal" in written[0]
+    assert "Vault: Preserved YAML frontmatter" in result
+
+
+@pytest.mark.asyncio
 async def test_execute_str_replace_appends_conflict_warning() -> None:
     context = _str_replace_ctx(executor=None, path="/w/a.py")
     service = FileOperationService(context)

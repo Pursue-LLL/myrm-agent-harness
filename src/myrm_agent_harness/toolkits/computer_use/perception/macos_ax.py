@@ -89,14 +89,28 @@ def _applescript_string_list(values: tuple[str, ...]) -> str:
     return ", ".join(f'"{value}"' for value in values)
 
 
+_TARGET_APP_BUNDLE_IDS: dict[str, str] = {
+    "TextEdit": "com.apple.TextEdit",
+}
+
+
+def _build_app_selector(target_app: str | None) -> str:
+    if not target_app:
+        return "set targetApp to first application process whose frontmost is true"
+    bundle_id = _TARGET_APP_BUNDLE_IDS.get(target_app)
+    if bundle_id:
+        return (
+            f'set targetApp to first application process '
+            f'whose bundle identifier is "{bundle_id}"'
+        )
+    escaped = target_app.replace('"', '\\"')
+    return f'set targetApp to application process "{escaped}"'
+
+
 def _build_ax_snapshot_script(*, target_app: str | None = None) -> str:
     role_filter = _applescript_string_list(_SNAPSHOT_ROLE_FILTER)
     always_emit_roles = _applescript_string_list(_SNAPSHOT_ALWAYS_EMIT_ROLES)
-    if target_app:
-        escaped = target_app.replace('"', '\\"')
-        app_selector = f'set targetApp to application process "{escaped}"'
-    else:
-        app_selector = "set targetApp to first application process whose frontmost is true"
+    app_selector = _build_app_selector(target_app)
     return f"""
 on serializeElement(idx, elemRole, elemName, elemValue, posX, posY, sizeW, sizeH)
     set safeName to my escapeText(elemName)
@@ -321,11 +335,7 @@ def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -
 
 
 def _build_ax_invoke_script(target_app: str | None = None) -> str:
-    if target_app:
-        escaped = target_app.replace('"', '\\"')
-        app_selector = f'set targetApp to application process "{escaped}"'
-    else:
-        app_selector = "set targetApp to first application process whose frontmost is true"
+    app_selector = _build_app_selector(target_app)
     return f"""
 on escapeText(t)
     if t is missing value then return ""

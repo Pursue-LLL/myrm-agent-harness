@@ -224,6 +224,7 @@ class CronJob:
     monitor_config: MonitorConfig | None = None
     triggers: TriggerConfig | None = None
     pre_condition_script: str | None = None
+    acceptance_criteria: tuple[dict[str, object], ...] = ()
 
     next_run_at: datetime | None = None
     last_run_at: datetime | None = None
@@ -294,6 +295,8 @@ class CronJobPatch:
     clear_monitor_config: bool = False
     triggers: TriggerConfig | None = None
     clear_triggers: bool = False
+    acceptance_criteria: tuple[dict[str, object], ...] | None = None
+    clear_acceptance_criteria: bool = False
 
 
 class DeliveryStatus(StrEnum):

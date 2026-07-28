@@ -357,7 +357,13 @@ class ConsensusEngine:
             t0 = time.monotonic()
             try:
                 streamed = await asyncio.wait_for(
-                    collect_stream(llm, messages, cfg.reference_temperature, cfg.reference_max_tokens),
+                    collect_stream(
+                        llm,
+                        messages,
+                        cfg.reference_temperature,
+                        cfg.reference_max_tokens,
+                        cfg.reference_reasoning_effort,
+                    ),
                     timeout=cfg.timeout_per_model,
                 )
                 content = streamed.strip()
@@ -418,7 +424,12 @@ class ConsensusEngine:
         try:
             for attempt in (1, 2):
                 streamed = await asyncio.wait_for(
-                    collect_stream(self._agg, messages, self._cfg.aggregator_temperature),
+                    collect_stream(
+                        self._agg,
+                        messages,
+                        self._cfg.aggregator_temperature,
+                        reasoning_effort=self._cfg.aggregator_reasoning_effort,
+                    ),
                     timeout=self._cfg.timeout_per_model,
                 )
                 content = streamed.strip()
@@ -462,7 +473,10 @@ class ConsensusEngine:
         output is kept as-is.
         """
         messages = build_aggregation_messages(query, successful, system_prompt, chat_history)
-        agg = self._agg.bind(temperature=self._cfg.aggregator_temperature)
+        agg_bind: dict[str, object] = {"temperature": self._cfg.aggregator_temperature}
+        if self._cfg.aggregator_reasoning_effort is not None:
+            agg_bind["reasoning_effort"] = self._cfg.aggregator_reasoning_effort
+        agg = self._agg.bind(**agg_bind)
         saw_content = False
         try:
             reasoning_parts: list[str] = []

@@ -17,6 +17,7 @@ File operations tool module (Claude Code compatible).
 | file_read_truncation.py | Internal | Output truncation helpers for file_read_tool | ✅ |
 | file_write_tool.py | Core | File write tool (Claude Code compatible). Creates new files; rejects empty/whitespace-only content; auto File ID resolution (@file_001) | ✅ |
 | revert_service.py | Core | File revert service — undo AI file changes; surfaces revertible/skip_reason; skips non-revertible snapshots on revert. | ✅ |
+| validators/ | Submodule | Pre/post write validators including vault markdown FM guard and Office text-write warnings. | ✅ |
 | streaming.py | Core | File streaming reader. Adaptive large-file handling to prevent OOM with configurable StreamingConfig | ✅ |
 
 | Submodule | Description |

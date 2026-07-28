@@ -17,11 +17,11 @@ Bash tool module.
 | bash_execution_error.py | Core | Structured BashExecutionError with diagnostic previews. | ✅ |
 | bash_executor_constants.py | Internal | Shared BashExecutor constants (MCP timeout floor). | — |
 | bash_executor.py | Core | BashExecutor aggregate root (DI-based orchestrator). MRO: Execute → Background → Prepare → Context. | ✅ |
-| bash_executor_execute_mixin.py | Core | Synchronous ``execute()`` orchestration. | ✅ |
+| bash_executor_execute_mixin.py | Core | Synchronous ``execute()`` orchestration; post-bash ``OfficeBashAudit`` fidelity warnings. | ✅ |
 | bash_executor_background_mixin.py | Core | ``spawn_background()`` via background process registry. | ✅ |
 | bash_executor_prepare_mixin.py | Core | MCP proxy, code-type detection, skill staging, PTC routing. | ✅ |
 | bash_executor_context_mixin.py | Core | ExecutionContext build, OAuth issuer scoping, event logging. | ✅ |
-| bash_code_execute_tool.py | Core | ``create_bash_code_execute_tool`` LangChain factory aggregate root; re-exports test helpers. | ✅ |
+| bash_code_execute_tool.py | Core | ``create_bash_code_execute_tool`` LangChain factory aggregate root; re-exports test helpers; appends ``office_warnings`` to tool output. | ✅ |
 | bash_tool_exit_semantics.py | Core | Exit-code semantic interpretation (grep=1, git diff, signals). | ✅ |
 | bash_tool_formatting.py | Core | Output compression, truncation, redaction, tool_output wrapping. | ✅ |
 | bash_tool_background_listeners.py | Core | Background spawn ptc_notify listeners and exit classification; natural ``exited`` finish emits progress + optional server finish hook; ``killed`` (session cancel) is silent (no finish ptc_notify, no chat persistence). | ✅ |

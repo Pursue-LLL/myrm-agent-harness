@@ -289,6 +289,14 @@ def create_bash_code_execute_tool(
 
             formatted_content, is_truncated, trunc_meta = format_result(result, command)
 
+            office_warnings = result.get("office_warnings")
+            if isinstance(office_warnings, list) and office_warnings:
+                warning_lines = "\n".join(
+                    f"Office: {item}" for item in office_warnings if isinstance(item, str)
+                )
+                if warning_lines:
+                    formatted_content = f"{formatted_content}\n\n{warning_lines}"
+
             if is_truncated:
                 from myrm_agent_harness.utils.event_utils import dispatch_custom_event
 

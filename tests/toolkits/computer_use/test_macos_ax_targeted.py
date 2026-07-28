@@ -56,9 +56,14 @@ class TestBuildAxSnapshotScript:
         script = _build_ax_snapshot_script()
         assert "first application process whose frontmost is true" in script
 
-    def test_target_app_uses_explicit_name(self) -> None:
+    def test_target_app_uses_bundle_id_when_known(self) -> None:
         script = _build_ax_snapshot_script(target_app="TextEdit")
-        assert 'application process "TextEdit"' in script
+        assert 'whose bundle identifier is "com.apple.TextEdit"' in script
+        assert "frontmost" not in script
+
+    def test_target_app_uses_explicit_name_when_unknown(self) -> None:
+        script = _build_ax_snapshot_script(target_app="SomeUnknownApp")
+        assert 'application process "SomeUnknownApp"' in script
         assert "frontmost" not in script
 
     def test_target_app_escapes_quotes(self) -> None:

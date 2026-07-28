@@ -42,9 +42,18 @@ def mock_executor():
 @pytest.mark.usefixtures("_mock_should_filter", "_mock_detect_non_structural")
 async def test_eviction_hint_references_file_read_tool(mock_executor):
     """Main branch: hint must reference file_read_tool, not cat."""
+    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+        EvictedPersistResult,
+    )
+
+    persist_result = EvictedPersistResult(
+        evicted_ref="output.txt",
+        rel_path=".context/s/evicted/output.txt",
+        stored_chars=50000,
+    )
     with patch(
         "myrm_agent_harness.agent.meta_tools.bash._output_eviction._save_to_file",
-        return_value="output.txt",
+        return_value=(".context/s/evicted/output.txt", persist_result),
     ):
         result = await maybe_evict_large_output("x" * 50000, mock_executor)
 
@@ -60,10 +69,19 @@ async def test_eviction_hint_references_file_read_tool(mock_executor):
 @pytest.mark.usefixtures("_mock_should_filter")
 async def test_eviction_fallback_hint_references_file_read_tool(mock_executor):
     """Fallback branch (structural filter fails): hint must reference file_read_tool."""
+    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+        EvictedPersistResult,
+    )
+
+    persist_result = EvictedPersistResult(
+        evicted_ref="output.txt",
+        rel_path=".context/s/evicted/output.txt",
+        stored_chars=50000,
+    )
     with (
         patch(
             "myrm_agent_harness.agent.meta_tools.bash._output_eviction._save_to_file",
-            return_value="output.txt",
+            return_value=(".context/s/evicted/output.txt", persist_result),
         ),
         patch(
             "myrm_agent_harness.agent.meta_tools.bash._output_eviction.detect_content_type",
@@ -109,10 +127,19 @@ async def test_eviction_file_save_failure_still_has_preview(mock_executor):
 @pytest.mark.usefixtures("_mock_should_filter")
 async def test_eviction_hint_includes_actual_file_path(mock_executor):
     """Hint must include the actual file path in the line range example."""
+    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+        EvictedPersistResult,
+    )
+
+    persist_result = EvictedPersistResult(
+        evicted_ref="output_abc.txt",
+        rel_path=".context/session123/evicted/output_abc.txt",
+        stored_chars=50000,
+    )
     with (
         patch(
             "myrm_agent_harness.agent.meta_tools.bash._output_eviction._save_to_file",
-            return_value=".context/session123/evicted/output_abc.txt",
+            return_value=(".context/session123/evicted/output_abc.txt", persist_result),
         ),
         patch(
             "myrm_agent_harness.agent.meta_tools.bash._output_eviction.detect_content_type",
@@ -153,11 +180,20 @@ async def test_eviction_no_session_skips_file_persist(mock_executor):
 @pytest.mark.usefixtures("_mock_should_filter")
 async def test_eviction_structural_content_preview(mock_executor):
     """Structural JSON content uses structural filter summary path."""
+    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+        EvictedPersistResult,
+    )
+
+    persist_result = EvictedPersistResult(
+        evicted_ref="output_ab12cd34.txt",
+        rel_path=".context/s1/evicted/output_ab12cd34.txt",
+        stored_chars=6000,
+    )
     payload = '{"items": [' + '{"id": 1},' * 500 + '{"id": 999}]}'
     with (
         patch(
             "myrm_agent_harness.agent.meta_tools.bash._output_eviction._save_to_file",
-            return_value=".context/s1/evicted/output_ab12cd34.txt",
+            return_value=(".context/s1/evicted/output_ab12cd34.txt", persist_result),
         ),
         patch(
             "myrm_agent_harness.agent.meta_tools.bash._output_eviction.detect_content_type",
@@ -210,8 +246,12 @@ async def test_save_to_file_persists_with_session(mock_executor):
             ),
         ) as persist_mock,
     ):
-        rel = await mod._save_to_file(mock_executor, "payload")
+        result = await mod._save_to_file(mock_executor, "payload")
 
-    assert rel == ".context/session_save/evicted/output_abcd1234.txt"
+    assert result is not None
+    rel_path, persist_stats = result
+    assert rel_path == ".context/session_save/evicted/output_abcd1234.txt"
+    assert persist_stats is not None
+    assert persist_stats.evicted_ref == "output_abcd1234.txt"
     persist_mock.assert_awaited_once()
     mock_executor.write_file.assert_not_called()

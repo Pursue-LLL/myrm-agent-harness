@@ -107,3 +107,16 @@ class TestFormatObserver:
         with patch("myrm_agent_harness.agent.meta_tools.file_ops.observers.format_observer._cache") as mock_cache:
             await observer._try_format("/Makefile")
             mock_cache.resolve.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_vault_markdown_skips_formatter(self, tmp_path: Path) -> None:
+        vault = tmp_path / "vault"
+        vault.mkdir()
+        (vault / ".obsidian").mkdir()
+        note = vault / "daily.md"
+        note.write_text("# Daily\n", encoding="utf-8")
+
+        observer = FormatObserver()
+        with patch("myrm_agent_harness.agent.meta_tools.file_ops.observers.format_observer._cache") as mock_cache:
+            await observer._try_format(str(note))
+            mock_cache.resolve.assert_not_called()

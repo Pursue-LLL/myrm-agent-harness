@@ -12,7 +12,7 @@ Text Editor core business logic module.
 | batch_str_replace.py | Core | Batch str-replace engine. In-memory sequential apply with overlap precheck before single disk write. | ✅ |
 | file_conflict_guard.py | Core | File edit conflict guard. Calculates affected line ranges and blocks overlapping concurrent subagent edits. | ✅ |
 | file_path_lock_manager.py | Core | Per-path asyncio lock manager for write serialization (canonical realpath+normcase identity; same file aliases serialize, disjoint paths parallel). | ✅ |
-| file_operation_service.py | Core | File operation service; CREATE over existing path notifies modified (pre/post disk) not created; archive context reads enforce session ownership, pre-read full-restore budgets, range-aware restore budgets, and structured blocked payloads before exposing content. | ✅ |
+| file_operation_service.py | Core | File operation service; vault markdown FM preserve + Office text-write warnings on CREATE/STR_REPLACE; CREATE over existing path notifies modified (pre/post disk) not created; archive context reads enforce session ownership, pre-read full-restore budgets, range-aware restore budgets, and structured blocked payloads before exposing content. | ✅ |
 | operation_context.py | Core | Provides OperationType, ViewRange, OperationContext. | ✅ |
 | read_semaphore.py | Core | Event-loop scoped read semaphore registry for concurrent file read limits. | ✅ |
 | result_formatter.py | Core | Provides FileContent, DirectoryListing, ResultFormatter. | ✅ |

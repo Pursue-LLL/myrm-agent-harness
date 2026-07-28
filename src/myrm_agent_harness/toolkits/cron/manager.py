@@ -193,6 +193,7 @@ class CronManager:
         triggers: TriggerConfig | None = None,
         context_from: tuple[str, ...] = (),
         pre_condition_script: str | None = None,
+        acceptance_criteria: tuple[dict[str, object], ...] = (),
     ) -> CronJob:
         self._validate_create(job_type, schedule, prompt, command)
 
@@ -245,6 +246,7 @@ class CronManager:
                 triggers=triggers,
                 context_from=context_from,
                 pre_condition_script=pre_condition_script,
+                acceptance_criteria=acceptance_criteria,
                 next_run_at=compute_next_run(schedule, now),
                 created_at=now,
                 updated_at=now,
@@ -467,6 +469,10 @@ class CronManager:
             job.pre_condition_script = None
         elif patch.pre_condition_script is not None:
             job.pre_condition_script = patch.pre_condition_script
+        if patch.clear_acceptance_criteria:
+            job.acceptance_criteria = ()
+        elif patch.acceptance_criteria is not None:
+            job.acceptance_criteria = patch.acceptance_criteria
         job.updated_at = now
 
         if reset_reason:

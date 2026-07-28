@@ -23,10 +23,13 @@
 - core.file_conflict_guard::check_conflict_pre_write (POS: 文件并发编辑冲突守卫)
 - core.batch_str_replace::apply_batch_str_replace, compute_batch_edit_line_range (POS: Batch str-replace engine)
 - core.read_semaphore::get_read_semaphore (POS: 读取并发控制)
+- validators.markdown_vault_write_guard::MarkdownVaultWriteGuard (POS: vault markdown FM preserve guard)
+- validators.office_write_guard::OfficeWriteGuard (POS: secondary Office path text-write warnings)
 
 [OUTPUT]
 - FileOperationService: 文件操作服务类(统一的文件操作接口).CREATE 若覆盖已存在路径则
   notify_file_modified(pre_disk, post_write);否则 notify_file_created(post_write).
+  Appends Vault/Office fidelity warnings on CREATE and STR_REPLACE responses.
 
 [POS]
 File operation service. Provides a unified file operation interface integrating strategies, validator chains, observer pipelines, archive restore read guards, concurrency control, resource limits, security validation, and concurrent subagent conflict detection.
@@ -327,6 +330,18 @@ class FileOperationService:
             resolved_path, file_text, pre_content=pre_content_str
         )
 
+        from ..validators.markdown_vault_write_guard import MarkdownVaultWriteGuard
+
+        file_text, vault_warnings = MarkdownVaultWriteGuard.apply(
+            resolved_path,
+            pre_content_str,
+            file_text,
+        )
+
+        from ..validators.office_write_guard import OfficeWriteGuard
+
+        file_text, office_warnings = OfficeWriteGuard.apply(resolved_path, file_text)
+
         # 写入文件
         await strategy.write_file(resolved_path, file_text)
 
@@ -396,7 +411,10 @@ class FileOperationService:
             response = f"{response}\n\n{conflict_warning}"
         if auto_verify_report:
             response = f"{response}\n{auto_verify_report}"
-        return response
+        return self._append_office_warnings(
+            self._append_vault_warnings(response, vault_warnings),
+            office_warnings,
+        )
 
     async def _execute_str_replace(self) -> str:
         """执行 STR_REPLACE 操作（单事务批量 edits）"""
@@ -441,6 +459,18 @@ class FileOperationService:
                 resolved_path,
                 strategies,
             )
+
+        from ..validators.markdown_vault_write_guard import MarkdownVaultWriteGuard
+
+        new_content, vault_warnings = MarkdownVaultWriteGuard.apply(
+            resolved_path,
+            old_content,
+            new_content,
+        )
+
+        from ..validators.office_write_guard import OfficeWriteGuard
+
+        new_content, office_warnings = OfficeWriteGuard.apply(resolved_path, new_content)
 
         await strategy.write_file(resolved_path, new_content)
 
@@ -508,7 +538,24 @@ class FileOperationService:
             response = f"{response}\n\n{conflict_warning}"
         if auto_verify_report:
             response = f"{response}\n{auto_verify_report}"
-        return response
+        return self._append_office_warnings(
+            self._append_vault_warnings(response, vault_warnings),
+            office_warnings,
+        )
+
+    @staticmethod
+    def _append_vault_warnings(response: str, warnings: list[str]) -> str:
+        if not warnings:
+            return response
+        warning_lines = "\n".join(f"Vault: {item}" for item in warnings)
+        return f"{response}\n\n{warning_lines}"
+
+    @staticmethod
+    def _append_office_warnings(response: str, warnings: list[str]) -> str:
+        if not warnings:
+            return response
+        warning_lines = "\n".join(f"Office: {item}" for item in warnings)
+        return f"{response}\n\n{warning_lines}"
 
     @staticmethod
     def _raise_if_integrity_rejection(

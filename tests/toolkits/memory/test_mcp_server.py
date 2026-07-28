@@ -449,6 +449,77 @@ class TestMemoryManageTool:
         assert "cannot be deleted" in result
 
 
+class TestManagerResolver:
+    """Validate dynamic manager resolution for multi-agent MCP scoping."""
+
+    @pytest.mark.asyncio
+    async def test_resolver_overrides_default_manager(self, mock_manager):
+        alt_manager = AsyncMock()
+        alt_manager.search = AsyncMock(return_value=[_make_search_result("from resolver", 0.8)])
+        alt_manager.has_relational = True
+        alt_manager.has_vector = True
+        alt_manager.approval_required = False
+
+        server = MemoryMCPServer(
+            mock_manager,
+            server_name="resolver-test",
+            manager_resolver=lambda: alt_manager,
+        )
+        result = await _get_tool_fn(server, "memory_recall")(query="test")
+        assert "from resolver" in result
+        alt_manager.search.assert_called_once()
+        mock_manager.search.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_contextvar_takes_priority_over_resolver(self, mock_manager):
+        from myrm_agent_harness.toolkits.memory.mcp_server import (
+            set_request_memory_manager,
+            reset_request_memory_manager,
+        )
+
+        resolver_manager = AsyncMock()
+        resolver_manager.search = AsyncMock(return_value=[])
+
+        ctx_manager = AsyncMock()
+        ctx_manager.search = AsyncMock(return_value=[_make_search_result("from ctx", 0.7)])
+        ctx_manager.has_relational = True
+        ctx_manager.has_vector = True
+        ctx_manager.approval_required = False
+
+        server = MemoryMCPServer(
+            mock_manager,
+            server_name="ctx-test",
+            manager_resolver=lambda: resolver_manager,
+        )
+
+        token = set_request_memory_manager(ctx_manager)
+        try:
+            result = await _get_tool_fn(server, "memory_recall")(query="test")
+            assert "from ctx" in result
+            ctx_manager.search.assert_called_once()
+            resolver_manager.search.assert_not_called()
+            mock_manager.search.assert_not_called()
+        finally:
+            reset_request_memory_manager(token)
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_default_when_no_resolver(self, mcp_server, mock_manager):
+        mock_manager.search.return_value = [_make_search_result("from default", 0.6)]
+        result = await _get_tool_fn(mcp_server, "memory_recall")(query="test")
+        assert "from default" in result
+        mock_manager.search.assert_called_once()
+
+    def test_factory_accepts_manager_resolver(self, mock_manager):
+        resolver = lambda: mock_manager
+        server = create_memory_mcp_server(
+            mock_manager,
+            server_name="factory-resolver",
+            manager_resolver=resolver,
+        )
+        assert isinstance(server, MemoryMCPServer)
+        assert server._manager_resolver is resolver
+
+
 class TestFactoryFunction:
     def test_factory_creates_server(self, mock_manager):
         server = create_memory_mcp_server(mock_manager, server_name="factory-test")

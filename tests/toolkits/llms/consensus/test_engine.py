@@ -695,6 +695,106 @@ class TestReferenceMaxTokens:
 
 
 # -----------------------------------------------------------------------
+# reasoning_effort — per-role reasoning intensity lever
+# -----------------------------------------------------------------------
+
+
+class TestReasoningEffort:
+    """``reference_reasoning_effort`` and ``aggregator_reasoning_effort`` must
+    reach the respective model calls via ``bind(reasoning_effort=…)``.
+    When ``None`` (default) the parameter must be omitted entirely.
+    """
+
+    async def test_batch_binds_reasoning_effort_to_both_roles(self):
+        ref_a = _make_llm("ref-a", "reference answer a")
+        ref_b = _make_llm("ref-b", "reference answer b")
+        agg = _make_llm("agg", "synthesis")
+        cfg = ConsensusConfig(
+            reference_temperature=0.7,
+            aggregator_temperature=0.3,
+            reference_reasoning_effort="low",
+            aggregator_reasoning_effort="high",
+        )
+
+        engine = ConsensusEngine(
+            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
+        )
+        result = await engine.run("q")
+
+        assert result.success
+        ref_a.bind.assert_called_with(temperature=0.7, reasoning_effort="low")
+        ref_b.bind.assert_called_with(temperature=0.7, reasoning_effort="low")
+        agg.bind.assert_called_with(temperature=0.3, reasoning_effort="high")
+
+    async def test_stream_binds_reasoning_effort_to_both_roles(self):
+        ref_a = _make_llm("ref-a", "reference answer a")
+        ref_b = _make_llm("ref-b", "reference answer b")
+        agg = _make_llm("agg", "synthesis")
+        cfg = ConsensusConfig(
+            reference_temperature=0.8,
+            aggregator_temperature=0.2,
+            reference_reasoning_effort="low",
+            aggregator_reasoning_effort="high",
+        )
+
+        engine = ConsensusEngine(
+            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
+        )
+        async for _ in engine.run_stream("q"):
+            pass
+
+        ref_a.bind.assert_called_with(temperature=0.8, reasoning_effort="low")
+        agg.bind.assert_called_with(temperature=0.2, reasoning_effort="high")
+
+    async def test_none_omits_reasoning_effort_from_bind(self):
+        """Default ``None`` must not inject ``reasoning_effort`` at all."""
+        ref = _make_llm("ref", "reference answer")
+        agg = _make_llm("agg", "synthesis")
+        cfg = ConsensusConfig(
+            reference_reasoning_effort=None,
+            aggregator_reasoning_effort=None,
+        )
+
+        engine = ConsensusEngine(
+            reference_llms=[ref], aggregator_llm=agg, config=cfg
+        )
+        result = await engine.run("q")
+
+        assert result.success
+        ref.bind.assert_called_with(temperature=cfg.reference_temperature)
+        agg.bind.assert_not_called()
+
+    async def test_combined_with_max_tokens(self):
+        """Both ``reference_max_tokens`` and ``reference_reasoning_effort`` must
+        coexist in the same ``bind()`` call without interference.
+        """
+        ref_a = _make_llm("ref-a", "reference answer a")
+        ref_b = _make_llm("ref-b", "reference answer b")
+        agg = _make_llm("agg", "synthesis")
+        cfg = ConsensusConfig(
+            reference_temperature=0.7,
+            aggregator_temperature=0.3,
+            reference_max_tokens=600,
+            reference_reasoning_effort="low",
+            aggregator_reasoning_effort="high",
+        )
+
+        engine = ConsensusEngine(
+            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
+        )
+        result = await engine.run("q")
+
+        assert result.success
+        ref_a.bind.assert_called_with(
+            temperature=0.7, max_tokens=600, reasoning_effort="low"
+        )
+        ref_b.bind.assert_called_with(
+            temperature=0.7, max_tokens=600, reasoning_effort="low"
+        )
+        agg.bind.assert_called_with(temperature=0.3, reasoning_effort="high")
+
+
+# -----------------------------------------------------------------------
 # Reasoning-content fallback — robustness for reasoning models
 # -----------------------------------------------------------------------
 

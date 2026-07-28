@@ -39,6 +39,14 @@ class ConsensusConfig:
             aggregator only needs the gist, so a cap measurably cuts per-turn
             wall time without meaningful quality loss.  Does NOT cap the
             aggregator (its output is the user-visible answer).
+        reference_reasoning_effort: reasoning effort level for reference model
+            calls (e.g. ``"low"``).  ``None`` (default) = provider default.
+            Reducing this for references cuts thinking-token cost on reasoning
+            models (o3, R1) without quality loss — references are advisors,
+            not decision-makers.  Unsupported models silently ignore it via
+            ``litellm.drop_params``.
+        aggregator_reasoning_effort: reasoning effort level for the aggregator
+            call (e.g. ``"high"``).  ``None`` (default) = provider default.
     """
 
     reference_temperature: float = 0.6
@@ -48,6 +56,8 @@ class ConsensusConfig:
     timeout_total: float = 300.0
     max_retries_per_model: int = 2
     reference_max_tokens: int | None = None
+    reference_reasoning_effort: str | None = None
+    aggregator_reasoning_effort: str | None = None
 
 
 @dataclass(slots=True)

@@ -156,7 +156,10 @@ class FlakyLLM:
 
 
 class SlowLLM:
-    """LLM that takes longer than the configured timeout."""
+    """LLM that takes longer than the configured timeout.
+
+    Uses a 60s sleep to guarantee it always exceeds any test timeout config.
+    """
 
     def bind(self, **kwargs: object) -> SlowLLM:
         return self
@@ -167,7 +170,7 @@ class SlowLLM:
     async def ainvoke(
         self, messages: object, config: object | None = None
     ) -> AIMessage:
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(60)
         return AIMessage(content="too late")
 
 
@@ -299,7 +302,7 @@ async def test_spawn_child_times_out_when_execution_is_too_slow() -> None:
     config = SubagentConfig(
         tools=SUBAGENT_CONFIGS["search"].tools,
         system_prompt=SUBAGENT_CONFIGS["search"].system_prompt,
-        timeout_seconds=0.05,
+        timeout_seconds=0.5,
         concurrency_limit=SUBAGENT_CONFIGS["search"].concurrency_limit,
         max_retries=1,
         retry_backoff_seconds=0.0,
