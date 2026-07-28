@@ -66,6 +66,10 @@ class ProposalBuilder:
             original = skill.content
             diff = self._generate_diff(original, content)
 
+        updated_eval_cases = None
+        if edit_summary and isinstance(edit_summary.get("updated_eval_cases"), list):
+            updated_eval_cases = edit_summary["updated_eval_cases"]
+
         proposal = EvolutionProposal(
             skill_id=skill.skill_id,
             evolution_type=evolution_type,
@@ -78,6 +82,7 @@ class ProposalBuilder:
             trajectory=trajectory,
             is_general=is_general,
             edit_summary=edit_summary,
+            updated_eval_cases=updated_eval_cases,
             created_at=datetime.now(),
         )
 

@@ -3,8 +3,7 @@
 # Fractal IOP header baseline (paths relative to src/, one per line).
 # New .py files MUST include [INPUT]/[OUTPUT]/[POS] and must NOT be listed here.
 myrm_agent_harness/__init__.py
-myrm_agent_harness/_core_ip_manifest.py
-myrm_agent_harness/_distribution.py
+myrm_agent_harness/distribution/core_ip_manifest.py
 myrm_agent_harness/agent/__init__.py
 myrm_agent_harness/agent/artifacts/__init__.py
 myrm_agent_harness/agent/artifacts/constants.py

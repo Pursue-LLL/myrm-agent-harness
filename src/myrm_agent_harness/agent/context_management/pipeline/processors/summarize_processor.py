@@ -22,6 +22,8 @@ Design:
 10. Cold Cache Drain Architecture: bypass when cache is hot to protect Prompt Cache
 11. Cancellation-safe guard: finally block ensures asyncio tasks are cleaned up on all
     exit paths (normal, timeout, external CancelledError)
+12. Lifecycle event emission: dispatch_custom_event for frontend progress display
+    (3s debounce → active heartbeat → timeout/circuit_open/fallback/completed)
 
 [INPUT]
 - agent.context_management.infra.schemas::DEFAULT_CONTEXT_CONFIG (POS: Planner Schema Definitions)
@@ -213,6 +215,18 @@ class SummarizeProcessor(BaseProcessor):
 
     _HOT_CACHE_WINDOW_SECONDS: float = 300.0  # 5 minutes
 
+    async def _emit_compaction_status(self, context: ProcessorContext, phase: str, **extra: object) -> None:
+        """Emit a context_compaction status event (best-effort, never throws)."""
+        from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
+        try:
+            payload: dict[str, object] = {"step_key": "context_compaction", "phase": phase}
+            payload.update(extra)
+            runnable_config = context.metadata.get("runnable_config")
+            await dispatch_custom_event("agent_status", payload, config=runnable_config)  # type: ignore[arg-type]
+        except Exception:
+            pass
+
     def _should_bypass_for_hot_cache(self, context: ProcessorContext, current_tokens: int) -> bool:
         """Check whether to bypass summarization due to hot cache."""
         max_tokens = self.config.max_context_tokens or 128000
@@ -277,6 +291,7 @@ class SummarizeProcessor(BaseProcessor):
             reason = "circuit breaker tripped" if circuit_open else "no LLM client"
             logger.warning("[Summarize] %s — using deterministic fallback", reason)
             _record_fallback_call()
+            await self._emit_compaction_status(context, "circuit_open", reason=reason)
             return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
 
         if circuit_open:
@@ -288,6 +303,8 @@ class SummarizeProcessor(BaseProcessor):
 
         pre_compact_message = get_pre_compact_message(context)
 
+        runnable_config = context.metadata.get("runnable_config")
+
         try:
             context.messages, summary = await _guarded_summarize(
                 messages=context.messages,
@@ -296,6 +313,7 @@ class SummarizeProcessor(BaseProcessor):
                 config=self.config,
                 focus_topic=focus_topic,
                 pre_compact_message=pre_compact_message,
+                runnable_config=runnable_config,
             )
         except (InactivityTimeoutError, TotalCeilingTimeoutError) as timeout_exc:
             prev = _get_failures()
@@ -306,6 +324,7 @@ class SummarizeProcessor(BaseProcessor):
                 "[Summarize] Progress-aware timeout (%s) — degrading to deterministic fallback",
                 timeout_exc,
             )
+            await self._emit_compaction_status(context, "fallback", reason="timeout")
             return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
         except Exception as exc:
             from myrm_agent_harness.observability.auth_detector import (
@@ -353,6 +372,7 @@ class SummarizeProcessor(BaseProcessor):
                 type(exc).__name__,
                 exc,
             )
+            await self._emit_compaction_status(context, "fallback", reason=error_type_classified)
             return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
 
         _set_failures(0)
@@ -364,6 +384,8 @@ class SummarizeProcessor(BaseProcessor):
         new_tokens = estimate_messages_tokens(context.messages)
         saved = original_tokens - new_tokens
         context.tokens_saved += saved
+
+        await self._emit_compaction_status(context, "completed", tokens_saved=saved)
 
         context.structured_summary = summary
         if isinstance(last_msg_db_id, str) and last_msg_db_id:
@@ -537,6 +559,7 @@ async def _guarded_summarize(
     config: ContextConfig,
     focus_topic: str,
     pre_compact_message: BaseMessage | None,
+    runnable_config: object | None = None,
 ) -> tuple[list[BaseMessage], StructuredSummary]:
     """Wrap generate_structured_summary with inactivity + total ceiling timeouts.
 
@@ -544,23 +567,50 @@ async def _guarded_summarize(
     stalls (no token for inactivity_timeout) or exceeds total ceiling, raises
     InactivityTimeoutError / TotalCeilingTimeoutError which the caller converts
     to a deterministic fallback.
+
+    Emits `context_compaction` lifecycle events via dispatch_custom_event for
+    frontend progress display (debounced: only after 3s to avoid flashing).
     """
+    from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
     inactivity_s = config.compaction_inactivity_timeout_s
     ceiling_s = config.compaction_total_ceiling_s
     tracker = ProgressClock()
+    _DEBOUNCE_SECONDS = 3.0
+
+    async def _emit_compaction_event(phase: str, elapsed_s: float = 0, **extra: object) -> None:
+        """Emit a context_compaction event to the frontend (best-effort, never throws)."""
+        try:
+            payload: dict[str, object] = {
+                "step_key": "context_compaction",
+                "phase": phase,
+                "elapsed_s": round(elapsed_s, 1),
+            }
+            payload.update(extra)
+            await dispatch_custom_event("agent_status", payload, config=runnable_config)  # type: ignore[arg-type]
+        except Exception:
+            pass
 
     async def _watchdog() -> None:
         """Background coroutine that checks tracker liveness periodically."""
         start = time.monotonic()
         check_interval = min(inactivity_s / 3, 10.0)
+        debounce_emitted = False
         while True:
             await asyncio.sleep(check_interval)
             elapsed = time.monotonic() - start
             if elapsed >= ceiling_s:
+                await _emit_compaction_event("timeout", elapsed_s=elapsed, reason="ceiling")
                 raise TotalCeilingTimeoutError(elapsed)
             idle = tracker.seconds_since_last_touch
             if idle >= inactivity_s:
+                await _emit_compaction_event("timeout", elapsed_s=elapsed, reason="inactivity")
                 raise InactivityTimeoutError(idle)
+            if not debounce_emitted and elapsed >= _DEBOUNCE_SECONDS:
+                debounce_emitted = True
+                await _emit_compaction_event("active", elapsed_s=elapsed)
+            elif debounce_emitted:
+                await _emit_compaction_event("active", elapsed_s=elapsed)
 
     async def _summarize() -> tuple[list[BaseMessage], StructuredSummary]:
         return await generate_structured_summary(

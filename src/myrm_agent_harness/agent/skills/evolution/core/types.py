@@ -247,6 +247,7 @@ class SkillRecord:
 
     traps: list[dict[str, Any]] = field(default_factory=list)
     verification_steps: list[dict[str, Any]] = field(default_factory=list)
+    eval_cases: list[dict[str, Any]] = field(default_factory=list)
 
     def add_trap(self, trap: dict[str, Any]) -> bool:
         """Add trap with deduplication by description. Returns True if added."""
@@ -298,6 +299,7 @@ class SkillRecord:
             "evolution_locked": self.evolution_locked,
             "traps": self.traps,
             "verification_steps": self.verification_steps,
+            "eval_cases": self.eval_cases,
         }
 
     @classmethod
@@ -333,6 +335,7 @@ class SkillRecord:
             evolution_locked=data.get("evolution_locked", False),
             traps=data.get("traps", []),
             verification_steps=data.get("verification_steps", []),
+            eval_cases=data.get("eval_cases", []),
         )
 
 
@@ -385,6 +388,7 @@ class EvolutionProposal:
     environment: EnvironmentFingerprint | None = None
     agent_id: str | None = None
     edit_summary: dict[str, Any] | None = None  # {preserved_sections, changed_sections, notes}
+    updated_eval_cases: list[dict[str, Any]] | None = None
     recommended_form: str = "skill"  # "skill" | "cron_job" | "skip"
     form_metadata: dict[str, Any] | None = None  # {schedule_hint, form_reasoning}
     created_at: datetime = field(default_factory=datetime.now)
@@ -404,6 +408,7 @@ class EvolutionProposal:
             "environment": self.environment.to_dict() if self.environment else None,
             "agent_id": self.agent_id,
             "edit_summary": self.edit_summary,
+            "updated_eval_cases": self.updated_eval_cases,
             "recommended_form": self.recommended_form,
             "form_metadata": self.form_metadata,
             "created_at": self.created_at.isoformat(),

@@ -2,10 +2,14 @@
 
 Implements 4 evolution types + evidence-driven evolution as a lightweight orchestrator:
 - FIX: Auto-repair failed skills via trace analysis
-- DERIVED: Optimize based on feedback
+- DERIVED: Optimize based on feedback (with Improvement Gate)
 - CAPTURED: Learn from patterns
 - OPTIMIZE_DESCRIPTION: Refine description for better matching
-- Evidence-driven: Aggregated success+failure analysis with action routing
+- Evidence-driven: Aggregated success+failure analysis with action routing (with Improvement Gate)
+
+Improvement Gate: DERIVED and evidence-driven paths inject the original skill
+as a baseline candidate in evaluation. If no variant scores higher than the
+original, evolution is skipped to prevent quality regression.
 
 Returns standardized EvolutionProposal objects, delegating application
 and persistence to the business layer (Server/GUI).
@@ -20,6 +24,7 @@ and persistence to the business layer (Server/GUI).
 - agent.skills.evolution.pipeline.structured_extractor::StructuredExtractor (POS: Provides SkillCaptureResult, StructuredExtractor.)
 - agent.skills.evolution.safety.validator::SkillValidator (POS: Skill evolution validation system.)
 - agent.skills.evolution.execution.sandbox_validator::SandboxValidator (POS: Sandbox validation for evolved skills.)
+- agent.skills.evolution.core.eval_regression::filter_variants_by_regression (POS: Non-blocking regression gate for the skill evolution pipeline.)
 
 [OUTPUT]
 - SkillEvolutionEngine: Core orchestrator for skill self-evolution.
@@ -56,6 +61,7 @@ from myrm_agent_harness.agent.skills.evolution.pipeline.variant_generator import
     VariantGenerator,
 )
 from .engine_batch_mixin import SkillEvolutionEngineBatchMixin
+from .eval_regression import filter_variants_by_regression
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.event_log.protocols import EventLogBackend
@@ -184,6 +190,14 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
         if not variants:
             return None
 
+        # 2.5. EvalCase Regression Gate (non-blocking score penalty)
+        variants, regression_penalties = await filter_variants_by_regression(
+            old_skill, variants, logger,
+        )
+        if not variants:
+            logger.warning("All variants failed EvalCase regression for '%s'", old_skill.name)
+            return None
+
         # 3. Evaluate Variants
         best_variant, score, reason, is_general = await self._evaluator.evaluate_variants(
             original_skill=old_skill,
@@ -191,6 +205,12 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
             feedback=feedback,
             trajectory=trajectory,
         )
+
+        # Apply regression penalty to final score (non-blocking)
+        penalty = regression_penalties.get(best_variant, 0.0)
+        if penalty > 0:
+            score = max(0.0, score - penalty)
+            reason = f"[Regression penalty: -{penalty:.2f}] {reason}"
 
         # 4. Build Proposal
         proposal = self._proposal_builder.build_proposal(
@@ -242,12 +262,32 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
         if not variants:
             return None
 
+        # EvalCase Regression Gate (non-blocking score penalty)
+        variants, regression_penalties = await filter_variants_by_regression(
+            old_skill, variants, logger,
+        )
+        if not variants:
+            logger.warning("All variants failed EvalCase regression for '%s'", old_skill.name)
+            return None
+
+        # Improvement Gate: inject original as baseline to prevent quality regression
+        variants_with_baseline = [old_skill.content] + variants
+
         best_variant, score, reason, is_general = await self._evaluator.evaluate_variants(
             original_skill=old_skill,
-            variants=variants,
+            variants=variants_with_baseline,
             feedback=user_feedback,
             trajectory=trajectory,
         )
+
+        if best_variant == old_skill.content:
+            logger.info("DERIVED improvement gate: original skill won evaluation for '%s'", old_skill.name)
+            return None
+
+        penalty = regression_penalties.get(best_variant, 0.0)
+        if penalty > 0:
+            score = max(0.0, score - penalty)
+            reason = f"[Regression penalty: -{penalty:.2f}] {reason}"
 
         proposal = self._proposal_builder.build_proposal(
             skill=old_skill,
@@ -353,18 +393,38 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
         if not variants:
             return None
 
+        # EvalCase Regression Gate (non-blocking score penalty)
+        variants, regression_penalties = await filter_variants_by_regression(
+            old_skill, variants, logger,
+        )
+        if not variants:
+            logger.warning("All variants failed EvalCase regression for '%s'", old_skill.name)
+            return None
+
         feedback_summary = (
             f"Evidence-driven: {len(evidence.success_cases)} successes, "
             f"{len(evidence.failure_cases)} failures. "
             f"Common errors: {'; '.join(evidence.common_error_patterns[:3]) or 'N/A'}"
         )
 
+        # Improvement Gate: inject original as baseline to prevent quality regression
+        variants_with_baseline = [old_skill.content] + variants
+
         best_variant, score, reason, is_general = await self._evaluator.evaluate_variants(
             original_skill=old_skill,
-            variants=variants,
+            variants=variants_with_baseline,
             feedback=feedback_summary,
             trajectory="Evidence-based analysis (aggregated across multiple executions).",
         )
+
+        if best_variant == old_skill.content:
+            logger.info("Evidence improvement gate: original skill won evaluation for '%s'", old_skill.name)
+            return None
+
+        penalty = regression_penalties.get(best_variant, 0.0)
+        if penalty > 0:
+            score = max(0.0, score - penalty)
+            reason = f"[Regression penalty: -{penalty:.2f}] {reason}"
 
         proposal = self._proposal_builder.build_proposal(
             skill=old_skill,

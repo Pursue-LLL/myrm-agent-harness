@@ -19,7 +19,7 @@ Pipeline processors module.
 | normalize_processor.py | Core | Provides NormalizeProcessor. | ✅ |
 | post_compaction_reread_processor.py | Core | Post-compaction active file reread. After compaction (tokens_saved > 0), reads top-5 recently modified files from ArtifactTracker and injects their content as HumanMessage, eliminating redundant read_file tool calls. | ✅ |
 | session_notes_processor.py | Core | Provides SessionNotesProcessor. | ✅ |
-| summarize_processor.py | Core | Provides SummarizeProcessor with progress-aware timeout guard (`_guarded_summarize`) and cancellation-safe task cleanup via `finally` block. | ✅ |
+| summarize_processor.py | Core | Provides SummarizeProcessor with progress-aware timeout guard (`_guarded_summarize`), cancellation-safe task cleanup via `finally` block, and frontend lifecycle event emission (3s debounce → active heartbeat → timeout/fallback/completed). | ✅ |
 | pre_compact_processor.py | Core | Pre-compaction semantic memory recall processor. Invokes ContextPreCompactCallback before Compress/SessionNotes/Summarize and stores protected HumanMessage recall in context metadata. | ✅ |
 | thinking_cleaner.py | Core | Provides ThinkingBlockCleaner: three-scope cleanup — (1) strips content thinking/redacted_thinking blocks from non-latest assistant turns, (2) removes reasoning_content from additional_kwargs per-provider (Anthropic always; DeepSeek/MiMo/Kimi on plain-text before last user turn), (3) removes thinking_blocks from additional_kwargs for non-Anthropic models. | ✅ |
 

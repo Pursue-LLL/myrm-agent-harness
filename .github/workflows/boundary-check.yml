@@ -15,7 +15,8 @@ on:
       - 'scripts/build_release_wheel.py'
       - 'scripts/assemble_production.py'
       - 'scripts/sync_distribution_metadata.py'
-      - 'src/myrm_agent_harness/_verify_distribution.py'
+      - 'src/myrm_agent_harness/distribution/verify.py'
+      - 'scripts/check_package_root_layout.py'
       - 'packages/myrm-agent-harness-core/**'
       - '.pre-commit-config.yaml'
 
@@ -51,6 +52,9 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --dev --group build
+
+      - name: Run package root layout gate
+        run: uv run python scripts/check_package_root_layout.py
 
       - name: Run architecture tests
         run: uv run pytest tests/architecture/ -m "architecture and not slow" -n0 -v --tb=short

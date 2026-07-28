@@ -1,4 +1,15 @@
-"""Tests for continuation_checkpoint — per-todo checkpoint guard."""
+"""Tests for continuation_checkpoint — per-todo checkpoint guard.
+
+[INPUT]
+- agent.goals.continuation_checkpoint::check_todo_checkpoint (POS: Per-todo checkpoint guard)
+- agent.goals.types::Goal (POS: Goal data model)
+
+[OUTPUT]
+- Unit tests asserting checkpoint snapshot persistence and resume behavior.
+
+[POS]
+Regression tests for goal continuation checkpoint mode.
+"""
 
 from __future__ import annotations
 

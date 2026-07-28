@@ -1,4 +1,14 @@
-"""Format conversation search hits for agent tool output."""
+"""Format conversation search hits for agent tool output.
+
+[INPUT]
+- toolkits.memory.conversation_search.types::ConversationSearchHit, ConversationSearchResponse (POS: Conversation search DTOs)
+
+[OUTPUT]
+- format_conversation_search_response: Render hits and emit conversation_history sources.
+
+[POS]
+Agent-facing formatter for memory_search conversation corpus results.
+"""
 
 from __future__ import annotations
 

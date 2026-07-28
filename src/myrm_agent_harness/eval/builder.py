@@ -4,10 +4,12 @@
 - protocol::EvalCase, MultiTurnEvalCase (POS: Eval framework type system and AgentExecutor protocol.)
 
 [OUTPUT]
-- extract_case_from_trajectory: converts messages & tool calls to an EvalCase.
+- extract_case_from_trajectory: converts messages & tool calls to a MultiTurnEvalCase.
+- build_skill_eval_cases: generates lightweight EvalCase dicts suitable for SkillRecord binding.
 
 [POS]
-Provides utility to seamlessly capture agent trajectories and transform them into reusable EvalCases.
+Provides utilities to capture agent trajectories and transform them into reusable
+EvalCases, and to build lightweight regression test cases for skill evolution.
 """
 
 from __future__ import annotations
@@ -34,28 +36,22 @@ def extract_case_from_trajectory(
     """
     user_turns: list[str] = []
 
-    # Collect all user inputs as sequential turns
     for msg in messages:
         if msg.get("role") == "user":
             content = msg.get("content", "")
             if isinstance(content, list):
-                # Handle multimodal or complex content block
                 text_content = " ".join([str(part.get("text", "")) for part in content if part.get("type") == "text"])
                 user_turns.append(text_content)
             elif isinstance(content, str):
                 user_turns.append(content)
 
-    # If no user messages, we can't create a valid case, but let's provide a fallback
     if not user_turns:
         user_turns = ["<empty trajectory>"]
 
     eval_cases: list[EvalCase] = []
 
-    # All turns except the last one are purely conversational (no tools expected to simplify assertion)
     for i, turn_msg in enumerate(user_turns):
         is_last_turn = i == len(user_turns) - 1
-
-        # Attach the expected tools to the final turn where we assert the outcome
         expected_tools = tools_called if is_last_turn else []
         require_all = bool(expected_tools)
 
@@ -71,3 +67,46 @@ def extract_case_from_trajectory(
         turns=eval_cases,
         metadata=metadata or {},
     )
+
+
+def build_skill_eval_cases(
+    skill_content: str,
+    skill_name: str,
+    trigger_message: str | None = None,
+    required_patterns: list[str] | None = None,
+    forbidden_patterns: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Build lightweight EvalCase dicts suitable for SkillRecord.eval_cases binding.
+
+    Generates objective sandbox_assertions that can be checked without agent
+    execution — purely static code-level checks.
+
+    Args:
+        skill_content: The skill's full content (used to extract invariant patterns).
+        skill_name: The skill name (used as default trigger message).
+        trigger_message: An example user message that should trigger this skill.
+        required_patterns: Strings that must appear in any valid variant of this skill.
+        forbidden_patterns: Strings that must NOT appear in any valid variant.
+
+    Returns:
+        A list of EvalCase dicts ready for SkillRecord.eval_cases.
+    """
+    cases: list[dict[str, Any]] = []
+    assertions: list[dict[str, str]] = []
+
+    assertions.append({"type": "ast_valid", "target": ""})
+
+    if required_patterns:
+        for pattern in required_patterns:
+            assertions.append({"type": "code_contains", "target": pattern})
+
+    if forbidden_patterns:
+        for pattern in forbidden_patterns:
+            assertions.append({"type": "code_not_contains", "target": pattern})
+
+    cases.append({
+        "message": trigger_message or f"Use skill: {skill_name}",
+        "sandbox_assertions": assertions,
+    })
+
+    return cases

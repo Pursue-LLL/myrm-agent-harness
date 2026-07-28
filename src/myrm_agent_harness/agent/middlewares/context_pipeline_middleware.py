@@ -332,21 +332,8 @@ def create_context_pipeline_middleware(
                 result.messages = guarded_messages
                 result.operations.append("integrity_guard")
 
-            if "summarize" in result.operations:
-                from myrm_agent_harness.utils.event_utils import dispatch_custom_event
-
-                try:
-                    await dispatch_custom_event(
-                        "agent_status",
-                        {
-                            "step_key": "memory_archived",
-                            "message": "Early history archived",
-                            "tokens_saved": result.tokens_saved,
-                        },
-                        config=getattr(request, "config", None),
-                    )
-                except Exception as e:
-                    logger.debug("Failed to dispatch agent_status event: %s", e)
+            # context_compaction lifecycle events are emitted by SummarizeProcessor
+            # during execution (no separate post-pipeline event needed).
 
             if "cache_ttl_prune" in result.operations:
                 from myrm_agent_harness.utils.event_utils import dispatch_custom_event

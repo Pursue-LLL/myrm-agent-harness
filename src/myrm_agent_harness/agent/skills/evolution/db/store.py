@@ -1,10 +1,12 @@
 """SQLite persistence for skill evolution system.
 
-Simplified design (2 tables vs OpenSpace's 5 tables):
-- skills: Main skill records with embedded metrics and lineage
-- No separate tables for parents/analyses/judgments/deps/tags (95% complexity reduction)
+4-table design:
+- skills: Skill records with embedded metrics, lineage, traps, eval_cases
+- execution_analyses: Per-execution error analysis records
+- evolution_rejections: Screener rejection audit trail
+- evolution_constraints: Historical fix constraints for preventing repeated mistakes
 
-Retains OpenSpace's core strengths:
+Core properties:
 - WAL mode for concurrent reads
 - db_retry decorator for robustness
 - Async-safe write path
@@ -116,6 +118,7 @@ CREATE TABLE IF NOT EXISTS skills (
 
     traps               TEXT NOT NULL DEFAULT '[]',
     verification_steps  TEXT NOT NULL DEFAULT '[]',
+    eval_cases          TEXT NOT NULL DEFAULT '[]',
     environment         TEXT,
 
     created_at          TEXT NOT NULL,
@@ -282,12 +285,14 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
             self._conn.commit()
 
     def _migrate_add_traps_columns(self) -> None:
-        """Add traps/verification_steps/evolution_locked columns for existing DBs."""
+        """Add traps/verification_steps/eval_cases/evolution_locked columns for existing DBs."""
         cols = {row[1] for row in self._conn.execute("PRAGMA table_info(skills)").fetchall()}
         if "traps" not in cols:
             self._conn.execute("ALTER TABLE skills ADD COLUMN traps TEXT NOT NULL DEFAULT '[]'")
         if "verification_steps" not in cols:
             self._conn.execute("ALTER TABLE skills ADD COLUMN verification_steps TEXT NOT NULL DEFAULT '[]'")
+        if "eval_cases" not in cols:
+            self._conn.execute("ALTER TABLE skills ADD COLUMN eval_cases TEXT NOT NULL DEFAULT '[]'")
         if "evolution_locked" not in cols:
             self._conn.execute("ALTER TABLE skills ADD COLUMN evolution_locked INTEGER NOT NULL DEFAULT 0")
         if "environment" not in cols:
@@ -410,9 +415,9 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
                     lineage_created_at, lineage_created_by,
                     total_selections, applied_count, completed_count, success_count,
                     last_success_at, last_failure_at, consecutive_failures,
-                    traps, verification_steps, environment,
+                    traps, verification_steps, eval_cases, environment,
                     created_at, updated_at, is_active, evolution_locked
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.skill_id,
@@ -435,6 +440,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
                     record.metrics.consecutive_failures,
                     json.dumps(record.traps, ensure_ascii=False),
                     json.dumps(record.verification_steps, ensure_ascii=False),
+                    json.dumps(record.eval_cases, ensure_ascii=False),
                     (json.dumps(record.environment.to_dict(), ensure_ascii=False) if record.environment else None),
                     record.created_at.isoformat(),
                     record.updated_at.isoformat(),
@@ -450,7 +456,6 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
         if not records:
             return
         with self._mu:
-            # executemany automatically handles the transaction (BEGIN ... COMMIT) under the hood
             self._conn.executemany(
                 """
                 INSERT OR REPLACE INTO skills (
@@ -459,9 +464,9 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
                     lineage_created_at, lineage_created_by,
                     total_selections, applied_count, completed_count, success_count,
                     last_success_at, last_failure_at, consecutive_failures,
-                    traps, verification_steps, environment,
+                    traps, verification_steps, eval_cases, environment,
                     created_at, updated_at, is_active, evolution_locked
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -485,6 +490,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
                         record.metrics.consecutive_failures,
                         json.dumps(record.traps, ensure_ascii=False),
                         json.dumps(record.verification_steps, ensure_ascii=False),
+                        json.dumps(record.eval_cases, ensure_ascii=False),
                         (json.dumps(record.environment.to_dict(), ensure_ascii=False) if record.environment else None),
                         record.created_at.isoformat(),
                         record.updated_at.isoformat(),
@@ -678,6 +684,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
             ),
             traps=json.loads(row.get("traps", "[]")),
             verification_steps=json.loads(row.get("verification_steps", "[]")),
+            eval_cases=json.loads(row.get("eval_cases", "[]")),
             environment=(EnvironmentFingerprint.from_dict(env_dict) if env_dict else None),
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),

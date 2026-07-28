@@ -6,7 +6,7 @@
 - harness_packaging.version::read_harness_version (POS: Harness version reader)
 
 [OUTPUT]
-- sync_distribution_metadata(): Regenerate _core_ip_manifest.py + pyproject compiled-core pins
+- sync_distribution_metadata(): Regenerate distribution/core_ip_manifest.py + pyproject compiled-core pins
 - write_core_ip_manifest(): Write runtime manifest module only
 
 [POS]
@@ -43,7 +43,7 @@ _COMPILED_CORE_MUSL_END = "# END compiled-core-musl"
 def generated_core_ip_manifest_path(root: Path | None = None) -> Path:
     """Return path to the generated runtime manifest module."""
     project_root = root or repo_root()
-    return project_root / "src" / "myrm_agent_harness" / "_core_ip_manifest.py"
+    return project_root / "src" / "myrm_agent_harness" / "distribution" / "core_ip_manifest.py"
 
 
 def _render_tuple(name: str, values: tuple[str, ...]) -> str:
@@ -58,14 +58,14 @@ def render_core_ip_manifest_module(
     import_names: tuple[str, ...],
     source_relpaths: tuple[str, ...],
 ) -> str:
-    """Render Python source for ``_core_ip_manifest.py``."""
+    """Render Python source for ``distribution/core_ip_manifest.py``."""
     body = _render_tuple("CORE_IP_IMPORTS", import_names)
     body += _render_tuple("CORE_IP_SOURCE_RELPATHS", source_relpaths)
     return _GENERATED_HEADER + body
 
 
 def write_core_ip_manifest(root: Path | None = None) -> Path:
-    """Write ``_core_ip_manifest.py`` from the YAML manifest."""
+    """Write ``distribution/core_ip_manifest.py`` from the YAML manifest."""
     project_root = root or repo_root()
     path = generated_core_ip_manifest_path(project_root)
     path.write_text(

@@ -20,6 +20,7 @@ Variant Generator for Skill Evolution.
 """
 
 import asyncio
+import json
 import logging
 
 from langchain_core.language_models import BaseChatModel
@@ -89,14 +90,23 @@ section if no existing section fits.
 - The preference must be phrased generically enough to apply across sessions, \
 not tied to a specific one-time request."""
 
+_EVAL_CASE_COEVOLUTION = """\
+## Bound EvalCases (Regression Tests)
+The following regression test cases are bound to this skill. Your variant MUST \
+continue to satisfy them (they test invariant properties). If your edit changes \
+the skill's scope, update the eval_cases in the EDIT_SUMMARY.
+{eval_cases_json}"""
+
 _STRUCTURED_OUTPUT = """\
 ## Output Requirements
 Output the updated skill content directly (no markdown fences wrapping).
 After the content, append a JSON block on a new line starting with `---EDIT_SUMMARY---`:
 ```
 ---EDIT_SUMMARY---
-{"preserved_sections": ["..."], "changed_sections": ["..."], "notes": "..."}
-```"""
+{"preserved_sections": ["..."], "changed_sections": ["..."], "notes": "...", "updated_eval_cases": null}
+```
+If any eval_case needs updating due to scope change, set `updated_eval_cases` to \
+the new list (same format as input). Otherwise leave it as null."""
 
 _DESCRIPTION_SYSTEM = """\
 You are a skill description optimizer. Your ONLY task is to rewrite the skill's \
@@ -261,6 +271,10 @@ class VariantGenerator:
         if traps_section:
             sections.append(traps_section)
 
+        eval_section = self._build_eval_cases_section(skill)
+        if eval_section:
+            sections.append(eval_section)
+
         if constraints:
             sections.append(f"\n## Historical Constraints (MUST obey or rejection is guaranteed)\n{constraints}")
 
@@ -318,6 +332,10 @@ class VariantGenerator:
         if traps_section:
             sections.append(traps_section)
 
+        eval_section = self._build_eval_cases_section(skill)
+        if eval_section:
+            sections.append(eval_section)
+
         if constraints:
             sections.append(f"\n## Historical Constraints (MUST obey)\n{constraints}")
 
@@ -346,6 +364,17 @@ class VariantGenerator:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _build_eval_cases_section(skill: SkillRecord) -> str:
+        """Inject bound EvalCases so the LLM is aware of regression constraints."""
+        if not skill.eval_cases:
+            return ""
+        try:
+            cases_json = json.dumps(skill.eval_cases, indent=2, ensure_ascii=False)
+        except (TypeError, ValueError):
+            return ""
+        return _EVAL_CASE_COEVOLUTION.format(eval_cases_json=cases_json)
 
     @staticmethod
     def _build_traps_section(skill: SkillRecord) -> str:

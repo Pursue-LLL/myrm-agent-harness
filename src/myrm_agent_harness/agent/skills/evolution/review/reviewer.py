@@ -106,6 +106,19 @@ class SkillExtractionRubric(BaseModel):
     skill_steps: str | None = Field(None, description="For skill_draft: Step-by-step guide or code snippet.")
     patch_content: str | None = Field(None, description="For skill_patch: DIFF patch blocks.")
 
+    eval_cases: list[dict[str, object]] | None = Field(
+        None,
+        description=(
+            "For skill_draft or skill_patch: 1-3 lightweight regression test cases. "
+            "Each case is a dict with keys: "
+            "'message' (str, a sample user input that triggers this skill), "
+            "'sandbox_assertions' (list of dicts with 'type' and 'target', "
+            "where type is one of: 'code_contains', 'code_not_contains', 'ast_valid', 'imports_module', 'regex_match'). "
+            "Prioritize objective sandbox_assertions over subjective semantic checks. "
+            "Example: [{'message': 'deploy nginx', 'sandbox_assertions': [{'type': 'code_contains', 'target': 'nginx'}]}]"
+        ),
+    )
+
     @property
     def total_score(self) -> float:
         """Calculate weighted total score."""
@@ -154,6 +167,10 @@ _REVIEW_PROMPT_TEMPLATE = """You are an expert software architect reviewing an A
    b. **skill_patch** to an existing umbrella skill.
    c. **skill_draft** only when no existing skill covers it.
 6. If the scores across the 10 dimensions are generally low (< 0.6 average) or if the skill is trivial, output `result_type: "nothing"`.
+7. **EVAL CASES** (for skill_draft and skill_patch only): Generate 1-3 lightweight regression test cases in `eval_cases`. Each case should have:
+   - `message`: A representative user input that would trigger this skill.
+   - `sandbox_assertions`: Objective checks on the skill code (prefer `code_contains`, `ast_valid`, `imports_module` over subjective semantic assertions).
+   These cases will be used to prevent regression when the skill evolves. Focus on invariant properties that should always hold.
 
 **Output Format**: Use the provided structured JSON schema.
 """
@@ -179,6 +196,7 @@ class SkillReviewResult:
         user_id: str | None = None,
         agent_id: str | None = None,
         chat_id: str | None = None,
+        eval_cases: list[dict[str, object]] | None = None,
     ) -> None:
         self.has_value = has_value
         self.result_type = result_type
@@ -191,6 +209,7 @@ class SkillReviewResult:
         self.user_id = user_id
         self.agent_id = agent_id
         self.chat_id = chat_id
+        self.eval_cases = eval_cases or []
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -205,6 +224,7 @@ class SkillReviewResult:
             "user_id": self.user_id,
             "agent_id": self.agent_id,
             "chat_id": self.chat_id,
+            "eval_cases": self.eval_cases,
         }
 
 
@@ -291,6 +311,7 @@ async def review_trajectory_with_llm(
                 skill_description=str(rubric.skill_description or "").strip(),
                 trigger_condition=str(rubric.trigger_condition or "").strip(),
                 skill_steps=skill_steps,
+                eval_cases=rubric.eval_cases,
             )
 
         elif rubric.result_type == "skill_patch":
@@ -305,6 +326,7 @@ async def review_trajectory_with_llm(
                 result_type="skill_patch",
                 skill_name=skill_name,
                 patch_content=patch_content,
+                eval_cases=rubric.eval_cases,
             )
 
         else:

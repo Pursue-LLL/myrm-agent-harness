@@ -14,7 +14,7 @@ Detailed design: [SKILL_SYSTEM.md](SKILL_SYSTEM.md)
 | Submodule | Description |
 |-----------|-------------|
 | curator/ | Skill Curator — automated lifecycle governance (stale/archive transitions). |
-| discovery/ | Skill discovery module. |
+| market/ | Skill market — search, install, update from external sources. |
 | evolution/ | Skill Evolution System - Framework Layer. |
 | history/ | Skill modification history tracking with pluggable backends. |
 | mcp/ | MCP Skills — Agent-layer MCP skill transformation. |

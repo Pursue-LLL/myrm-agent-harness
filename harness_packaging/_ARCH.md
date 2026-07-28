@@ -9,7 +9,7 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 |------|------|-------------|
 | core_manifest.yaml | Core | Core IP directories + explicit modules (SSOT) |
 | manifest.py | Core | Manifest loader: explicit modules + directory expansion |
-| codegen.py | Core | Codegen `_core_ip_manifest.py` + compiled-core version pins |
+| codegen.py | Core | Codegen `distribution/core_ip_manifest.py` + compiled-core version pins |
 | platforms.py | Core | Platform keys + PEP508 markers; build-time detection via `runtime_platform` |
 | runtime_platform.py | Core | Build-time platform key (no installed package required) |
 | nuitka_compile.py | Core | Map manifest ``.py`` paths to Nuitka ``--module`` inputs |
@@ -22,7 +22,7 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 
 | Script | Role |
 |--------|------|
-| `scripts/sync_distribution_metadata.py` | Regenerate `_core_ip_manifest.py` + pyproject compiled-core pins |
+| `scripts/sync_distribution_metadata.py` | Regenerate `distribution/core_ip_manifest.py` + pyproject compiled-core pins |
 | `scripts/build_core.py` | Nuitka compile + platform core wheel + inline artifact verify |
 | `scripts/build_release_wheel.py` | Release wheel via `uv build` + strip manifest `.py` + inline verify |
 | `scripts/assemble_production.py` | Full production pipeline + optional `--install` |

@@ -481,7 +481,8 @@ class CacheTtlPruneProcessor(BaseProcessor):
             tokens_saved = max(0, before_tokens - after_tokens)
             context.messages = messages
             context.tokens_saved += tokens_saved
-            self._record_metrics(context, tokens_saved, stats, policy)
+            prune_elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+            self._record_metrics(context, tokens_saved, stats, policy, elapsed_ms=prune_elapsed_ms)
             detector = get_cache_break_detector()
             if detector is not None:
                 detector.notify_compaction()
@@ -494,7 +495,8 @@ class CacheTtlPruneProcessor(BaseProcessor):
                 tokens_saved,
             )
         elif stats.deferred > 0 or stats.offload_failed > 0 or stats.archive_deferred > 0:
-            self._record_metrics(context, 0, stats, policy)
+            prune_elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+            self._record_metrics(context, 0, stats, policy, elapsed_ms=prune_elapsed_ms)
 
         return context
 
@@ -655,6 +657,8 @@ class CacheTtlPruneProcessor(BaseProcessor):
         tokens_saved: int,
         stats: _PruneStats,
         policy: _EffectivePrunePolicy,
+        *,
+        elapsed_ms: int = 0,
     ) -> None:
         """Record task-level pruning metrics when a chat-scoped metrics object exists."""
         if not context.chat_id:
@@ -703,4 +707,5 @@ class CacheTtlPruneProcessor(BaseProcessor):
             backoff_sample_count=policy.backoff_sample_count,
             backoff_bad_signal_count=policy.backoff_bad_signal_count,
             backoff_recovery_sample_count=policy.backoff_recovery_sample_count,
+            elapsed_ms=elapsed_ms,
         )

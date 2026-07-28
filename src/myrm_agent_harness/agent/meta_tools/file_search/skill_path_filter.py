@@ -4,11 +4,17 @@ Disabled skill roots are passed from the business layer via RunnableConfig conte
 (``disabled_skill_roots``). glob/grep/file_read use this to avoid surfacing files
 under skills the user has turned off.
 
+[INPUT]
+- agent.context_management.context::extract_context_from_runnable_config (POS: RunnableConfig context extraction)
+
 [OUTPUT]
 - normalize_path: normalize a path for prefix comparison
 - is_under_disabled_skill_root: check whether a path is under a disabled root
 - filter_disabled_skill_paths: drop paths under disabled skill roots
 - get_disabled_skill_roots: read roots from RunnableConfig context
+
+[POS]
+ACL filter preventing file tools from reading disabled skill directories.
 """
 
 from __future__ import annotations

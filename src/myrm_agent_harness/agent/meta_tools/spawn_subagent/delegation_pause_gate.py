@@ -2,6 +2,13 @@
 
 Blocks new subagent spawns while allowing in-flight children to finish.
 Used by REST control plane and delegate_task_tool entry points.
+
+[OUTPUT]
+- pause_delegation, resume_delegation: Toggle spawn gate per session alias set.
+- is_delegation_paused, delegation_pause_status: Query pause state for REST/control plane.
+
+[POS]
+Session-scoped spawn throttle for control-plane pause/resume without killing children.
 """
 
 from __future__ import annotations

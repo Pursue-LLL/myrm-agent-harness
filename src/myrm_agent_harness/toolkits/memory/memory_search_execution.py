@@ -1,4 +1,15 @@
-"""Memory search execution helpers for memory_search_tool."""
+"""Memory search execution helpers for memory_search_tool.
+
+[INPUT]
+- toolkits.memory.manager::MemoryManager (POS: Memory store orchestrator)
+- toolkits.memory.conversation_search.types::ConversationSearchRequest (POS: Conversation search request DTO)
+
+[OUTPUT]
+- search_memory_corpus, search_wiki_corpus, search_sessions_corpus: Corpus-specific recall execution.
+
+[POS]
+Runtime execution layer for memory_search_tool corpus routing and formatting.
+"""
 
 from __future__ import annotations
 

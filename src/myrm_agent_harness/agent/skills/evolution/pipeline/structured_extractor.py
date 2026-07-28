@@ -73,6 +73,14 @@ class SkillCaptureResult(BaseModel):
         default="",
         description="Brief explanation of why this form was chosen over alternatives.",
     )
+    eval_cases: list[dict[str, object]] | None = Field(
+        default=None,
+        description=(
+            "1-3 lightweight regression test cases for this skill. "
+            "Each case: {'message': str, 'sandbox_assertions': [{'type': str, 'target': str}]}. "
+            "Types: 'code_contains', 'code_not_contains', 'ast_valid', 'imports_module', 'regex_match'."
+        ),
+    )
 
 
 _EXTRACTION_PROMPT = """You are an expert AI Architect and Skill Extraction Engine.
@@ -91,7 +99,13 @@ FORM ROUTING — Choose the smallest appropriate form:
 - "cron_job": The pattern involves a task the user performs on a regular schedule (daily, weekly, etc.) and would benefit from automatic execution. Look for temporal cues like "every day", "every week", "check regularly", or repeated identical requests across sessions.
 - "skip": The conversation is too trivial, too specific, or a one-off to be worth capturing.
 
-If the conversation meets the criteria, you must output the structured data containing `is_general`, `confidence`, `safety_analysis`, `name`, `content`, `recommended_form`, `schedule_hint`, and `form_reasoning`.
+If the conversation meets the criteria, you must output the structured data containing `is_general`, `confidence`, `safety_analysis`, `name`, `content`, `recommended_form`, `schedule_hint`, `form_reasoning`, and `eval_cases`.
+
+EVAL CASES (required for non-skip skills):
+Generate 1-3 lightweight regression test cases in `eval_cases`. Each case should have:
+- `message`: A representative user input that would trigger this skill.
+- `sandbox_assertions`: Objective checks on the skill code. Each assertion has `type` (one of: `code_contains`, `code_not_contains`, `ast_valid`, `imports_module`, `regex_match`) and `target` (the value to check).
+Focus on invariant properties that should always hold when the skill evolves.
 
 The SKILL.md `content` MUST strictly follow this structure:
 ---

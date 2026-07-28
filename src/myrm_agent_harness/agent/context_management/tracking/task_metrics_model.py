@@ -80,6 +80,20 @@ class TaskMetrics(TaskMetricsRestoreMixin):
         return len(self.compression_events)
 
     @property
+    def avg_compression_elapsed_ms(self) -> int:
+        """Average elapsed milliseconds across compression events that recorded timing."""
+        timed = [e.elapsed_ms for e in self.compression_events if e.elapsed_ms > 0]
+        return int(sum(timed) / len(timed)) if timed else 0
+
+    @property
+    def last_compression_elapsed_ms(self) -> int:
+        """Elapsed milliseconds of the most recent compression event (0 if none)."""
+        for event in reversed(self.compression_events):
+            if event.elapsed_ms > 0:
+                return event.elapsed_ms
+        return 0
+
+    @property
     def refetch_count(self) -> int:
         """重新获取事件总数"""
         return len(self.refetch_events)
@@ -361,6 +375,7 @@ class TaskMetrics(TaskMetricsRestoreMixin):
         backoff_sample_count: int = 0,
         backoff_bad_signal_count: int = 0,
         backoff_recovery_sample_count: int = 0,
+        elapsed_ms: int = 0,
     ) -> None:
         """记录压缩事件"""
         with self._lock:
@@ -397,6 +412,7 @@ class TaskMetrics(TaskMetricsRestoreMixin):
                     backoff_sample_count=max(backoff_sample_count, 0),
                     backoff_bad_signal_count=max(backoff_bad_signal_count, 0),
                     backoff_recovery_sample_count=max(backoff_recovery_sample_count, 0),
+                    elapsed_ms=max(elapsed_ms, 0),
                 )
             )
         logger.warning(
@@ -481,6 +497,8 @@ class TaskMetrics(TaskMetricsRestoreMixin):
             "net_tokens_saved": self.net_tokens_saved,
             "compression_efficiency": self.compression_efficiency,
             "compression_count": self.compression_count,
+            "avg_compression_elapsed_ms": self.avg_compression_elapsed_ms,
+            "last_compression_elapsed_ms": self.last_compression_elapsed_ms,
             "compression_events": [event.to_dict() for event in self.compression_events],
             "archive_count": self.archive_count,
             "soft_trimmed_count": self.soft_trimmed_count,

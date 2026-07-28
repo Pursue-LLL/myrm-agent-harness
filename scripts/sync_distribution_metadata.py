@@ -5,7 +5,7 @@
 - harness_packaging.codegen::sync_distribution_metadata (POS: Distribution metadata codegen)
 
 [OUTPUT]
-- main(): Regenerate _core_ip_manifest.py and compiled-core pins in pyproject.toml
+- main(): Regenerate distribution/core_ip_manifest.py and compiled-core pins in pyproject.toml
 
 [POS]
 Keeps runtime manifest and pyproject optional-deps aligned with core_manifest.yaml SSOT.

@@ -24,6 +24,7 @@ Message compactor. Priority-aware compression strategy with structured offload r
 
 import asyncio
 import json
+import time
 from datetime import datetime
 from typing import cast
 
@@ -158,11 +159,12 @@ async def compress_messages_async(
     Returns:
         (压缩后的消息列表, 节省的 token 数)
     """
+    _compress_start = time.monotonic()
+
     from ..infra.schemas import DEFAULT_CONTEXT_CONFIG
 
     cfg = config or DEFAULT_CONTEXT_CONFIG
 
-    # 【新增】L0: 去重重复内容(参考Hermes)
     messages, dedup_saved = deduplicate_tool_results(messages, cfg)
 
     groups = build_tool_call_groups(messages)
@@ -274,8 +276,8 @@ async def compress_messages_async(
     if compressed_count > 0:
         logger.warning(f" [压缩] 压缩 {compressed_count} 个工具调用组,节省 ~{total_saved} tokens")
 
-    # Record compression output and archive write/reuse telemetry in one event.
     final_saved = total_saved + dedup_saved
+    _compress_elapsed_ms = int((time.monotonic() - _compress_start) * 1000)
     _record_compression_to_metrics(
         final_saved,
         "compress",
@@ -288,6 +290,7 @@ async def compress_messages_async(
         archive_reused_count=sum(1 for item in offload_results if item.reused),
         archive_bytes_written=sum(item.stored_bytes for item in offload_results if not item.reused),
         archive_bytes_reused=sum(item.stored_bytes for item in offload_results if item.reused),
+        elapsed_ms=_compress_elapsed_ms,
     )
 
     return messages, final_saved
@@ -305,14 +308,9 @@ def _record_compression_to_metrics(
     archive_reused_count: int = 0,
     archive_bytes_written: int = 0,
     archive_bytes_reused: int = 0,
+    elapsed_ms: int = 0,
 ) -> None:
-    """记录压缩事件到 TaskMetrics
-
-    Args:
-        tokens_saved: 节省的 token 数
-        compression_type: 压缩类型
-        details: 详细信息
-    """
+    """记录压缩事件到 TaskMetrics"""
     try:
         from myrm_agent_harness.agent.context_management.infra.session_lock import get_current_chat_id
         from myrm_agent_harness.agent.context_management.tracking.task_metrics import get_task_metrics
@@ -321,7 +319,6 @@ def _record_compression_to_metrics(
         if chat_id:
             metrics = get_task_metrics(chat_id)
             if metrics:
-                # 类型转换
                 valid_types = ("filter", "cache_ttl_prune", "compress", "summarize")
                 ct = compression_type if compression_type in valid_types else "compress"
                 metrics.record_compression(
@@ -335,6 +332,7 @@ def _record_compression_to_metrics(
                     archive_reused_count=archive_reused_count,
                     archive_bytes_written=archive_bytes_written,
                     archive_bytes_reused=archive_bytes_reused,
+                    elapsed_ms=elapsed_ms,
                 )
     except Exception as e:
         logger.warning(f"[压缩] 记录到 TaskMetrics 失败: {e}")

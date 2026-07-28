@@ -1,4 +1,12 @@
-"""Agent meta-tools for user interaction (UI rendering)."""
+"""Agent meta-tools for user interaction (UI rendering).
+
+[OUTPUT]
+- render_ui, render_ui_tool, update_ui_data, update_ui_data_tool: Inline UI meta-tools.
+- ClientSurface, resolve_client_surface, supports_inline_interactive_ui: Client capability probes.
+
+[POS]
+Public exports for agent-driven inline UI rendering on supported clients.
+"""
 
 from myrm_agent_harness.agent.meta_tools.interaction.inline_ui_capability import (
     ClientSurface,

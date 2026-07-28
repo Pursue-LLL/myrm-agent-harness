@@ -1,6 +1,13 @@
 """Stable application identity helpers for desktop trust keys.
 
 Trust keys prefer platform-stable app_id (bundle ID, process exe) over display names.
+
+[OUTPUT]
+- resolve_trust_key: Canonical trust key from app_id or normalized app_name.
+- trust_key_matches: Compare stored trust key against resolved identity.
+
+[POS]
+Desktop computer-use trust key normalization for allowlist matching.
 """
 
 from __future__ import annotations

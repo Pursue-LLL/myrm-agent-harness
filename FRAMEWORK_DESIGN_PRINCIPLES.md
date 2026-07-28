@@ -33,11 +33,11 @@ Myrm Agent Harness 是一个独立于业务逻辑的底层执行引擎与编排�
 | **核心 IP** (`harness_packaging/core_manifest.yaml`) | Nuitka 编译 `.so` | skill 进化、context pipeline、memory 策略等 |
 | **平台包** (`myrm-agent-harness-core-{platform}`) | 按平台 optional dep | 与 Claude Code 的 `@anthropic-ai/claude-code-darwin-arm64` 同模式（8 平台含 musl） |
 
-- **开发模式**：editable install，全部 `.py` 源码，`_distribution.get_distribution_mode()` 返回 `source`
+- **开发模式**：editable install，全部 `.py` 源码，`distribution.probe.get_distribution_mode()` 返回 `source`
 - **发行模式**：`pip install 'myrm-agent-harness[compiled-core]'` 或手动安装平台包 `myrm-agent-harness-core-darwin-arm64`
 - **构建**：`uv sync --group build && .venv/bin/python scripts/assemble_production.py`（推荐）或 `build_core.py` + `build_release_wheel.py`（CI: `publish-pypi.yml`、`build-core-wheels.yml`）
 - **安装验证**：`verify-harness-distribution` console script（Docker builder/runtime、Tauri、`assemble_production.py --install`）
-- **Release 保护**：`core_manifest.yaml` 用 `directories` 声明算法子树；`scripts/sync_distribution_metadata.py` 生成 `_core_ip_manifest.py` 与 compiled-core pin；主 wheel 剥离 manifest `.py`；平台 wheel 注入 `.so`；`_distribution` 校验 release/core 版本与 `__platform_key__`
+- **Release 保护**：`core_manifest.yaml` 用 `directories` 声明算法子树；`scripts/sync_distribution_metadata.py` 生成 `distribution/core_ip_manifest.py` 与 compiled-core pin；主 wheel 剥离 manifest `.py`；平台 wheel 注入 `.so`；`distribution.probe` 校验 release/core 版本与 `__platform_key__`
 - **外部消费者**：优先 `from myrm_agent_harness.api import create_skill_agent`，禁止依赖 `_core` 内部模块
 
 ## 6. 基础设施环境变量 vs Agent 配置 (Infra Env vs Agent Config)

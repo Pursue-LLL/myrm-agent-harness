@@ -14,7 +14,7 @@ from .assertions import (
     evaluate_state_assertions,
     evaluate_tool_assertions,
 )
-from .builder import extract_case_from_trajectory
+from .builder import build_skill_eval_cases, extract_case_from_trajectory
 from .loader import load_cases, load_multi_turn_cases
 from .protocols import (
     AgentExecutor,
@@ -46,6 +46,7 @@ __all__ = [
     "SandboxAssertion",
     "StateAssertion",
     "ToolAssertion",
+    "build_skill_eval_cases",
     "evaluate_sandbox_assertions",
     "evaluate_state_assertions",
     "evaluate_tool_assertions",

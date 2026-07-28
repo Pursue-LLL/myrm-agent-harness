@@ -8,7 +8,7 @@ Tests mirroring `src/myrm_agent_harness/agent/skills/` layout.
 
 | Path | Coverage |
 |------|----------|
-| `discovery/` | Aliyun/ModelScope sources + batch installers |
+| `market/` | Market sources (Aliyun/ModelScope) + batch installers + BaseSkillMarketService |
 | `sync/` | Manifest (`test_sync_manifest.py`), manager (`test_sync_manager.py`), quality gate, integration (`test_skill_sync.py`) |
 | `evolution/` | Skill evolution pipeline components |
 | `curator/` | SkillCurator lifecycle + consolidation |

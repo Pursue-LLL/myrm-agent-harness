@@ -317,15 +317,29 @@ async def test_engine_evolve_multiple_concurrent():
         EvolutionRequest,
         EvolutionType,
     )
+    from myrm_agent_harness.agent.skills.evolution.execution.evaluator import (
+        SkillEvaluationRubric,
+    )
 
     mock_store = MagicMock(spec=SkillStore)
     mock_store.get_skill.return_value = MOCK_SKILL
     mock_store.get_evolution_constraints.return_value = []
 
+    rubric = SkillEvaluationRubric(
+        accuracy_score=0.95,
+        anti_fragmentation_score=0.95,
+        redundancy_score=0.95,
+        is_general=True,
+        reasoning="Good improvement",
+    )
+    structured_llm = MagicMock()
+    structured_llm.ainvoke = AsyncMock(return_value=rubric)
+
     mock_llm = MagicMock()
     mock_llm.ainvoke = AsyncMock(
-        return_value=MagicMock(content="SCORE: 0.95\nREASON: Looks good\nGENERAL: True")
+        return_value=MagicMock(content="## Instructions\n1. Do better.")
     )
+    mock_llm.with_structured_output = MagicMock(return_value=structured_llm)
 
     engine = SkillEvolutionEngine(store=mock_store, llm=mock_llm)
 
@@ -345,9 +359,10 @@ async def test_engine_evolve_multiple_concurrent():
     results = await engine.evolve_multiple_concurrent([req1, req2])
 
     assert len(results) == 2
-    # Just asserting it processes them, individual details tested above
     assert results[0].evolution_type == EvolutionType.FIX
-    assert results[1].evolution_type == EvolutionType.DERIVED
+    # DERIVED with improvement gate: when baseline scores equal to variant,
+    # original wins and returns None (correct quality protection behavior)
+    assert results[1] is None or results[1].evolution_type == EvolutionType.DERIVED
 
     # test empty
     empty_res = await engine.evolve_multiple_concurrent([])

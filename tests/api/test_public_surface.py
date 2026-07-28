@@ -21,6 +21,7 @@ def test_api_package_exports_match_all() -> None:
             "AgentRuntimeConfig",
             "AgentRuntimeSpec",
             "AgentStreamEvent",
+            "build_parent_delegatable_toolkit",
             "CompletionStatus",
             "ConfigIncompleteError",
             "HookEvent",
@@ -33,6 +34,7 @@ def test_api_package_exports_match_all() -> None:
             "create_skill_agent",
             "get_distribution_mode",
             "is_compiled_distribution",
+            "track_background_task",
         ]
     )
 
@@ -111,7 +113,7 @@ def test_create_skill_agent_is_async_factory() -> None:
 
 @pytest.mark.api
 def test_distribution_helpers_report_source_mode_in_dev() -> None:
-    from myrm_agent_harness._distribution import DistributionMode
+    from myrm_agent_harness.distribution import DistributionMode
     from myrm_agent_harness.api import get_distribution_mode, is_compiled_distribution
 
     assert get_distribution_mode() is DistributionMode.SOURCE

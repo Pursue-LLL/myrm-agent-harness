@@ -684,6 +684,7 @@ class TestRecordCompressionSuccess:
             tokens_saved=500,
             compression_type="summarize",
             details="test detail",
+            elapsed_ms=0,
         )
 
 

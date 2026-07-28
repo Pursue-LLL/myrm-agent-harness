@@ -60,6 +60,7 @@ class CompressionEvent:
     backoff_sample_count: int = 0
     backoff_bad_signal_count: int = 0
     backoff_recovery_sample_count: int = 0
+    elapsed_ms: int = 0
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -93,6 +94,7 @@ class CompressionEvent:
             "backoff_sample_count": self.backoff_sample_count,
             "backoff_bad_signal_count": self.backoff_bad_signal_count,
             "backoff_recovery_sample_count": self.backoff_recovery_sample_count,
+            "elapsed_ms": self.elapsed_ms,
         }
 
 

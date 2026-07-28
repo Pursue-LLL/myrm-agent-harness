@@ -31,15 +31,15 @@ Ship `myrm-agent-harness` as a **closed-source Python package** that third-party
 | Public API | `src/myrm_agent_harness/api/` | Stable import surface (factory, Protocol, DTO, `hooks`, `skills`) |
 | Core manifest | `harness_packaging/core_manifest.yaml` | Modules compiled to native extensions |
 | Platform detection | `harness_packaging/platforms.py` | Eight supported platform keys (incl. linux-*-musl) |
-| Metadata codegen | `scripts/sync_distribution_metadata.py` | Generate `_core_ip_manifest.py` + sync compiled-core pins |
+| Metadata codegen | `scripts/sync_distribution_metadata.py` | Generate `distribution/core_ip_manifest.py` + sync compiled-core pins |
 | Core build | `scripts/build_core.py` | Nuitka `--module` + static hatch `force-include` wheel + inline artifact verify |
 | Release build | `scripts/build_release_wheel.py` | `uv build --wheel` + `finalize_stripped_release_wheel` (strip + verify) |
 | Browser data assets | `pyproject.toml` `[tool.hatch.build.targets.wheel.force-include]` | Ships `toolkits/browser/assets/ad_domains.txt` in release wheel (guard: `tests/architecture/test_wheel_browser_assets.py`) |
 | Production assemble | `harness_packaging/assemble.py` | Core + release via same finalize helper + optional `--install` |
-| Post-install verify | `src/myrm_agent_harness/_verify_distribution.py` | Console script `verify-harness-distribution` |
+| Post-install verify | `src/myrm_agent_harness/distribution/verify.py` | Console script `verify-harness-distribution` |
 | Wheel artifact gate | `harness_packaging/integrity.py` + `release.py::finalize_stripped_release_wheel` | Zip scan: no manifest `.py` / debug maps in release; compiled-only core; inline at all build entrypoints |
-| Distribution probe | `src/myrm_agent_harness/_distribution.py` | `source` vs `compiled` + fail-closed + version + platform key match |
-| Runtime platform | `src/myrm_agent_harness/_runtime_platform.py` | Platform key SSOT for install validation and build tooling |
+| Distribution probe | `src/myrm_agent_harness/distribution/probe.py` | `source` vs `compiled` + fail-closed + version + platform key match |
+| Runtime platform | `src/myrm_agent_harness/distribution/runtime_platform.py` | Platform key SSOT for install validation and build tooling |
 
 ## Build Pipeline
 
@@ -65,7 +65,7 @@ Editable dev: `pip install -e /path/to/myrm-agent-harness[...]` when harness sou
 
 ## Development Mode
 
-Editable install ships all `.py` source. `_distribution.get_distribution_mode()` returns `source`.
+Editable install ships all `.py` source. `distribution.probe.get_distribution_mode()` returns `source`.
 
 **Monorepo dev** (sibling `myrm-agent-harness`): `myrm-agent/scripts/dev/setup.sh` delegates to `install_harness.sh`; `myrm dev` / `myrm start` exit 1 when the server venv is not editable (set `MYRM_SKIP_HARNESS_EDITABLE_CHECK=1` for PyPI consumer testing). OSS-only clones still use `uv sync` + PyPI wheels. See `myrm-agent/scripts/_ARCH.md`.
 

@@ -18,16 +18,16 @@ from harness_packaging.codegen import (  # noqa: E402
 from harness_packaging.integrity import manifest_import_names, manifest_source_relpaths  # noqa: E402
 from harness_packaging.manifest import load_core_manifest  # noqa: E402
 from harness_packaging.version import read_harness_version  # noqa: E402
-from myrm_agent_harness._core_ip_manifest import CORE_IP_IMPORTS  # noqa: E402
+from myrm_agent_harness.distribution.core_ip_manifest import CORE_IP_IMPORTS  # noqa: E402
 
 
 @pytest.mark.architecture
 def test_core_manifest_directory_expansion_covers_algorithm_subtrees() -> None:
     """Core IP directories must resolve to the expected protected module count."""
     manifest = load_core_manifest()
-    assert len(manifest.module_paths) == 72
-    assert len(manifest_import_names()) == 72
-    assert len(manifest_source_relpaths()) == 72
+    assert len(manifest.module_paths) == 75
+    assert len(manifest_import_names()) == 75
+    assert len(manifest_source_relpaths()) == 75
 
 
 @pytest.mark.architecture
@@ -39,7 +39,7 @@ def test_generated_core_ip_manifest_matches_yaml_ssot() -> None:
 
 @pytest.mark.architecture
 def test_generated_core_ip_manifest_file_is_fresh() -> None:
-    """Fail when _core_ip_manifest.py drifts from core_manifest.yaml."""
+    """Fail when distribution/core_ip_manifest.py drifts from core_manifest.yaml."""
     from harness_packaging.integrity import manifest_import_names, manifest_source_relpaths
 
     path = generated_core_ip_manifest_path(_REPO_ROOT)
@@ -101,7 +101,7 @@ def test_runtime_platform_key_is_supported() -> None:
     """Runtime platform detection must resolve to a published core wheel key."""
     from harness_packaging.runtime_platform import get_runtime_platform_key
     from harness_packaging.platforms import SUPPORTED_PLATFORMS
-    from myrm_agent_harness._runtime_platform import get_runtime_platform_key as shipped_key
+    from myrm_agent_harness.distribution.runtime_platform import get_runtime_platform_key as shipped_key
 
     key = get_runtime_platform_key()
     assert key in SUPPORTED_PLATFORMS

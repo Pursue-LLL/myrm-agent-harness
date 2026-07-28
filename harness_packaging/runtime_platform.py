@@ -7,7 +7,7 @@
 - get_runtime_platform_key(): Normalized platform key (e.g. ``linux-x64-musl``)
 
 [POS]
-Build-time platform key SSOT. Logic must match ``myrm_agent_harness._runtime_platform``.
+Build-time platform key SSOT. Logic must match ``myrm_agent_harness.distribution.runtime_platform``.
 """
 
 from __future__ import annotations

@@ -540,16 +540,39 @@ class TestEngineEvolveFromEvidence:
         from myrm_agent_harness.agent.skills.evolution.core.engine import (
             SkillEvolutionEngine,
         )
+        from myrm_agent_harness.agent.skills.evolution.execution.evaluator import (
+            SkillEvaluationRubric,
+        )
 
         skill = self._make_skill()
         store = MagicMock()
         store.get_skill.return_value = skill
         store.get_evolution_constraints.return_value = []
 
+        baseline_rubric = SkillEvaluationRubric(
+            accuracy_score=0.75,
+            anti_fragmentation_score=0.75,
+            redundancy_score=0.75,
+            is_general=True,
+            reasoning="Original is okay",
+        )
+        variant_rubric = SkillEvaluationRubric(
+            accuracy_score=0.95,
+            anti_fragmentation_score=0.95,
+            redundancy_score=0.95,
+            is_general=True,
+            reasoning="Good improvement",
+        )
+        structured_llm = MagicMock()
+        structured_llm.ainvoke = AsyncMock(
+            side_effect=[baseline_rubric, variant_rubric]
+        )
+
         llm = MagicMock()
         resp_mock = MagicMock()
-        resp_mock.content = "improved skill content"
+        resp_mock.content = "test improved"
         llm.ainvoke = AsyncMock(return_value=resp_mock)
+        llm.with_structured_output = MagicMock(return_value=structured_llm)
 
         engine = SkillEvolutionEngine(
             store=store, llm=llm, num_variants_per_evolution=1

@@ -60,8 +60,8 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "SkillAgent": ("myrm_agent_harness.api.factory", "SkillAgent"),
     "SkillBackend": ("myrm_agent_harness.api.protocols", "SkillBackend"),
     "create_skill_agent": ("myrm_agent_harness.api.factory", "create_skill_agent"),
-    "get_distribution_mode": ("myrm_agent_harness._distribution", "get_distribution_mode"),
-    "is_compiled_distribution": ("myrm_agent_harness._distribution", "is_compiled_distribution"),
+    "get_distribution_mode": ("myrm_agent_harness.distribution.probe", "get_distribution_mode"),
+    "is_compiled_distribution": ("myrm_agent_harness.distribution.probe", "is_compiled_distribution"),
     "track_background_task": ("myrm_agent_harness.agent._skill_agent_context", "track_background_task"),
 }
 

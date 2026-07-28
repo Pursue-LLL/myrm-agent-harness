@@ -1,15 +1,6 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .combo import (
-        ComboConfig,
-        ComboResolver,
-        ComboTarget,
-        ResolvedTarget,
-        RoutingStrategy,
-        StrategyContext,
-        apply_strategy,
-    )
     from .complexity_router import (
         DEFAULT_JUDGE_SYSTEM_PROMPT,
         DEFAULT_REASONING_KEYWORDS,
@@ -25,28 +16,20 @@ if TYPE_CHECKING:
     from .privacy_routing import PrivacyRoutingModel
 
 __all__ = [
-    "ComboConfig",
-    "ComboResolver",
-    "ComboTarget",
     "DEFAULT_JUDGE_SYSTEM_PROMPT",
     "DEFAULT_REASONING_KEYWORDS",
     "DEFAULT_SIMPLE_INDICATORS",
     "DEFAULT_STANDARD_KEYWORDS",
     "PenaltyTracker",
     "PrivacyRoutingModel",
-    "ResolvedTarget",
     "RoutingResult",
-    "RoutingStrategy",
     "RoutingTier",
-    "StrategyContext",
-    "apply_strategy",
     "get_penalty_tracker",
     "record_misroute",
     "route_task",
 ]
 
 _CR = "myrm_agent_harness.toolkits.llms.routing.complexity_router"
-_COMBO = "myrm_agent_harness.toolkits.llms.routing.combo"
 
 _LAZY_IMPORTS = {
     "PrivacyRoutingModel": ("myrm_agent_harness.toolkits.llms.routing.privacy_routing", "PrivacyRoutingModel"),
@@ -60,13 +43,6 @@ _LAZY_IMPORTS = {
     "PenaltyTracker": (_CR, "PenaltyTracker"),
     "record_misroute": (_CR, "record_misroute"),
     "get_penalty_tracker": (_CR, "get_penalty_tracker"),
-    "ComboConfig": (_COMBO, "ComboConfig"),
-    "ComboTarget": (_COMBO, "ComboTarget"),
-    "RoutingStrategy": (_COMBO, "RoutingStrategy"),
-    "ComboResolver": (_COMBO, "ComboResolver"),
-    "ResolvedTarget": (_COMBO, "ResolvedTarget"),
-    "StrategyContext": (_COMBO, "StrategyContext"),
-    "apply_strategy": (_COMBO, "apply_strategy"),
 }
 
 

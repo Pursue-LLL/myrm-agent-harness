@@ -17,11 +17,13 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | `test_artifact_vault_path_boundary.py` | Gate | harness `src/` 禁止 `.myrm/vault` 等品牌 vault 路径字面量 | — |
 | `test_harness_boundary.py` | Gate | harness 禁止 import 业务层（server/control-plane） | — |
 | `test_wheel_browser_assets.py` | Gate | wheel 须含 `browser/assets/ad_domains.txt`（≥3500 域） | — |
+| `test_package_root_flat_layout.py` | Gate | 包根禁止平铺实现模块；`distribution/` 子包 layout 与 legacy 文件名回归 |
 | `test_distribution_packaging.py` | Gate | 分发打包管线不变量（wheel build/install；`slow` 标记项在 CI `distribution-packaging-slow` job） | — |
 | `test_distribution_wheel_artifact.py` | Gate | release/core wheel zip + `finalize_stripped_release_wheel` strip+verify | — |
 | `distribution_wheel_helpers.py` | 辅助 | architecture 测试用最小合法 wheel zip 构造 | — |
 | `test_distribution_manifest_gate.py` | Gate | 算法区新增模块须 manifest 或 `@distribution-public` | — |
 | `test_distribution_codegen.py` | Gate | manifest codegen 新鲜度 + core IP import 可加载 | — |
+| `test_distribution_module.py` | Gate | distribution probe/runtime_platform/verify 单元覆盖（≥90%） | — |
 | `test_public_api.py` | Gate | 公开 API 边界 smoke | — |
 | `test_arch_no_placeholder.py` | Gate | `_ARCH.md` 禁止「见源码」等占位语 | — |
 | `test_no_temp_docs_links.py` | Gate | tracked markdown 禁止链到 dev-shell `temp-docs/` | — |

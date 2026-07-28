@@ -28,7 +28,7 @@ from harness_packaging.manifest import load_core_manifest
 from harness_packaging.platforms import SUPPORTED_PLATFORMS, get_current_platform
 from harness_packaging.release import manifest_source_paths, strip_manifest_sources_from_wheel
 from harness_packaging.version import read_harness_version
-from myrm_agent_harness._core_ip_manifest import CORE_IP_IMPORTS
+from myrm_agent_harness.distribution.core_ip_manifest import CORE_IP_IMPORTS
 
 _MANIFEST_PATH = _REPO_ROOT / "harness_packaging" / "core_manifest.yaml"
 
@@ -212,7 +212,7 @@ def test_dual_wheel_compiled_mode_e2e(tmp_path: Path) -> None:
             str(venv_python),
             "-c",
             (
-                "from myrm_agent_harness._distribution import ("
+                "from myrm_agent_harness.distribution.probe import ("
                 "DistributionMode, assert_distribution_ready, get_distribution_mode"
                 "); "
                 "assert_distribution_ready(); "
@@ -240,7 +240,7 @@ def test_verify_distribution_in_source_mode() -> None:
 
     subprocess.run([str(verify_cmd)], check=True, cwd=_REPO_ROOT)
     subprocess.run(
-        [sys.executable, "-m", "myrm_agent_harness._verify_distribution"],
+        [sys.executable, "-m", "myrm_agent_harness.distribution.verify"],
         check=True,
         cwd=_REPO_ROOT,
     )

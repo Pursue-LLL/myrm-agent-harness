@@ -59,7 +59,7 @@ dependencies = [
 Repository = "https://github.com/myrm-agent/myrm-agent-harness"
 
 [project.scripts]
-verify-harness-distribution = "myrm_agent_harness._verify_distribution:main"
+verify-harness-distribution = "myrm_agent_harness.distribution.verify:main"
 
 [project.optional-dependencies]
 # toolkits/browser/ - 浏览器自动化（需要 Patchright）

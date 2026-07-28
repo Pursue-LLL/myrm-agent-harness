@@ -1,4 +1,11 @@
-"""Similar-path hints when a requested file or directory is not found."""
+"""Similar-path hints when a requested file or directory is not found.
+
+[OUTPUT]
+- suggest_similar_paths: Return basename-close paths under parent or grandparent dirs.
+
+[POS]
+File-search UX helper for mistyped or moved workspace paths.
+"""
 
 from __future__ import annotations
 

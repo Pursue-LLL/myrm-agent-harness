@@ -2,6 +2,13 @@
 
 Framework-level ACL for ``memory_search_tool`` corpus routing. Server binds wiki
 and conversation providers; runtime cannot broaden corpora beyond policy flags.
+
+[OUTPUT]
+- MemorySearchPolicy: Runtime ACL flags for wiki/sessions corpora.
+- resolve_search_corpora: Merge policy flags with requested corpus selection.
+
+[POS]
+Framework ACL gate for memory_search_tool corpus expansion beyond memory-only recall.
 """
 
 from __future__ import annotations

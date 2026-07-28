@@ -23,6 +23,8 @@ Context summarizer. Pure in-memory summarization strategy using structured summa
 
 from __future__ import annotations
 
+import time
+
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.output_parsers import PydanticOutputParser
@@ -340,6 +342,8 @@ async def generate_structured_summary(
     1. Full: generate a complete new summary
     2. Incremental: merge new content into an existing summary
     """
+    _summarize_start = time.monotonic()
+
     from ..infra.schemas import DEFAULT_CONTEXT_CONFIG
 
     cfg = config or DEFAULT_CONTEXT_CONFIG
@@ -450,7 +454,10 @@ async def generate_structured_summary(
     logger.warning(" Summary done: %d -> %d tokens (saved %d)", original_tokens, new_tokens, saved_tokens)
 
     mode_detail = "incremental" if is_incremental else "full"
-    _record_summarize_to_metrics(saved_tokens, f"Summarized {len(messages)} messages ({mode_detail})")
+    _elapsed_ms = int((time.monotonic() - _summarize_start) * 1000)
+    _record_summarize_to_metrics(
+        saved_tokens, f"Summarized {len(messages)} messages ({mode_detail})", elapsed_ms=_elapsed_ms
+    )
 
     return new_messages, summary
 
@@ -748,7 +755,7 @@ def _log_merge_quality(before: StructuredSummary, after: StructuredSummary) -> N
         logger.warning(f" Incremental merge quality: {', '.join(changes)}")
 
 
-def _record_summarize_to_metrics(tokens_saved: int, details: str = "") -> None:
+def _record_summarize_to_metrics(tokens_saved: int, details: str = "", *, elapsed_ms: int = 0) -> None:
     """Record a summarize event to TaskMetrics."""
     try:
         from myrm_agent_harness.agent.context_management.infra.session_lock import (
@@ -766,6 +773,7 @@ def _record_summarize_to_metrics(tokens_saved: int, details: str = "") -> None:
                     tokens_saved=tokens_saved,
                     compression_type="summarize",
                     details=details,
+                    elapsed_ms=elapsed_ms,
                 )
     except Exception as e:
         logger.warning("[Summarize] Failed to record to TaskMetrics: %s", e)

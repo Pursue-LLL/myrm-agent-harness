@@ -1,8 +1,14 @@
 """Distribution mode detection for source vs compiled core artifacts.
 
-Release wheels may ship core IP modules as Nuitka-compiled native extensions
-(``.so`` / ``.pyd``) via optional platform packages (``myrm-agent-harness-core-*``).
-Development editable installs always use readable ``.py`` source.
+[INPUT]
+- distribution.core_ip_manifest::CORE_IP_IMPORTS (POS: Generated core IP import path list)
+- distribution.runtime_platform::get_runtime_platform_key (POS: Runtime platform key SSOT)
+
+[OUTPUT]
+- DistributionMode, DistributionNotReadyError, assert_distribution_ready, get_distribution_mode, is_compiled_distribution
+
+[POS]
+Release vs editable install probe. Validates compiled core wheel version and platform key match.
 """
 
 from __future__ import annotations
@@ -15,7 +21,10 @@ from importlib.metadata import version as pkg_version
 from importlib.util import find_spec
 from pathlib import Path
 
-from myrm_agent_harness._core_ip_manifest import CORE_IP_IMPORTS, CORE_IP_SOURCE_RELPATHS
+from myrm_agent_harness.distribution.core_ip_manifest import (
+    CORE_IP_IMPORTS,
+    CORE_IP_SOURCE_RELPATHS,
+)
 
 
 class DistributionNotReadyError(RuntimeError):
@@ -112,7 +121,8 @@ def _assert_core_platform_key_match() -> None:
         return
 
     import myrm_agent_harness_core
-    from myrm_agent_harness._runtime_platform import get_runtime_platform_key
+
+    from myrm_agent_harness.distribution.runtime_platform import get_runtime_platform_key
 
     installed_key = myrm_agent_harness_core.get_platform_key()
     if installed_key == "unknown":

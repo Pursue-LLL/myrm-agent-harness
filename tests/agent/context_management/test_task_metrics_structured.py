@@ -29,6 +29,37 @@ def test_record_compression_stores_structured_fields() -> None:
     assert event.group_count == 2
     assert event.dedup_tokens_saved == 300
     assert event.integrity_skipped == 1
+    assert event.elapsed_ms == 0
+
+
+def test_record_compression_stores_elapsed_ms() -> None:
+    metrics = TaskMetrics(task_id="chat_elapsed")
+    metrics.record_compression(tokens_saved=500, compression_type="summarize", elapsed_ms=3200)
+    metrics.record_compression(tokens_saved=300, compression_type="compress", elapsed_ms=1800)
+
+    assert metrics.compression_events[0].elapsed_ms == 3200
+    assert metrics.compression_events[1].elapsed_ms == 1800
+    assert metrics.avg_compression_elapsed_ms == 2500
+    assert metrics.last_compression_elapsed_ms == 1800
+
+    exported = metrics.to_dict()
+    assert exported["avg_compression_elapsed_ms"] == 2500
+    assert exported["last_compression_elapsed_ms"] == 1800
+    assert exported["compression_events"][0]["elapsed_ms"] == 3200
+    assert exported["compression_events"][1]["elapsed_ms"] == 1800
+
+
+def test_elapsed_ms_properties_with_no_timed_events() -> None:
+    metrics = TaskMetrics(task_id="chat_no_elapsed")
+    metrics.record_compression(tokens_saved=100, compression_type="compress")
+    assert metrics.avg_compression_elapsed_ms == 0
+    assert metrics.last_compression_elapsed_ms == 0
+
+
+def test_elapsed_ms_negative_clamped_to_zero() -> None:
+    metrics = TaskMetrics(task_id="chat_neg_elapsed")
+    metrics.record_compression(tokens_saved=100, compression_type="compress", elapsed_ms=-5)
+    assert metrics.compression_events[0].elapsed_ms == 0
 
 
 def test_task_metrics_to_dict_exports_compression_events() -> None:
