@@ -138,6 +138,28 @@ async def test_skill_agent_build_tools_wires_boundary_descriptions() -> None:
 
 
 @pytest.mark.integration
+def test_discover_description_omits_market_tool_when_market_not_mounted() -> None:
+    """skill_search_tool must not ghost-reference skill_market_tool when market is off."""
+    skills = [_sample_skill()]
+    registry = ToolRegistry()
+    meta_tools = get_meta_tools(
+        skills,
+        _StubSkillBackend(skills),
+        registry=registry,
+        market_backend=None,
+        enable_file_tools=False,
+        enable_shell_tools=False,
+        enable_answer_tool=False,
+    )
+    registry.register_many(meta_tools, source=ToolSource.META)
+    sync_discover_capability_tool(registry, skills=skills)
+
+    description = _tool_description_by_name(registry.resolve(), _DISCOVER_TOOL)
+    assert _MARKETPLACE_TOOL not in description
+    assert "Settings" in description or "Discover" in description
+
+
+@pytest.mark.integration
 def test_registry_omits_marketplace_tool_without_market_backend() -> None:
     """skill_market_tool mounts only when market_backend is provided."""
     skills = [_sample_skill()]

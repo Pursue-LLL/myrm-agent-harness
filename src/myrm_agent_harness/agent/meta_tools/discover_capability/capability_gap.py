@@ -6,15 +6,17 @@
 [OUTPUT]
 - detect_capability_gap / detect_skill_gap: entitlement gap hits
 - format_capability_gap_block / format_skill_gap_block: XML blocks for tool messages
-- CAPABILITY_GAP_REGISTRY: SSOT for GUI-togglable builtin tool_id → group + triggers (15 entries; baseline excluded)
+- CAPABILITY_GAP_REGISTRY: substring trigger SSOT for 15 GUI-togglable IDs (excludes skill_market/skill_evolution; baseline excluded)
 - BUILTIN_TOOL_ID_TO_GROUP: derived view for server catalog parity tests
 
 [POS]
-Detects when a user query needs a **GUI-togglable** builtin tool group or skill that is not
-enabled on the current Agent profile. Consumed by ``discover_capability_tool`` (XML + SSE on miss)
-and server ``entitlement_gap_preflight`` (early SSE before Agent run).
+Detects when a user query matches **substring triggers** for a GUI-togglable builtin tool group
+that is not enabled on the current Agent profile. Primary runtime consumer: server
+``entitlement_gap_preflight`` render_ui **surface_unavailable** intent detection (form-fill queries on IM).
+Substring enable-and-resend SSE toasts were removed; registry entries remain for intent matching only.
+``skill_market`` / ``skill_evolution`` are profile toggles but excluded from this registry (install/author via Settings or explicit profile opt-in).
 ``AGENT_BASELINE_BUILTIN_TOOLS`` (file_ops, code_execute) are forced at runtime and omitted from
-``CAPABILITY_GAP_REGISTRY`` — they must never emit entitlement gaps.
+``CAPABILITY_GAP_REGISTRY``.
 """
 
 from __future__ import annotations

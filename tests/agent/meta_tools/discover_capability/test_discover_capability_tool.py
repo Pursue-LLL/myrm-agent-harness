@@ -58,47 +58,30 @@ async def test_no_matches(mock_skills):
 
 
 @pytest.mark.asyncio
-async def test_capability_gap_block_on_miss() -> None:
-    tool = create_discover_capability_tool(
-        active_tool_groups=frozenset({"web", "memory", "file_ops", "shell"}),
-    )
+async def test_miss_returns_plain_not_found_without_gap() -> None:
+    tool = create_discover_capability_tool()
     result = await tool.ainvoke({"query": "please browse this website"})
     assert "No capabilities found" in result
-    assert "<CapabilityGap>" in result
-    assert "browser" in result
+    assert "<CapabilityGap>" not in result
+    assert "<SkillGap>" not in result
 
 
 @pytest.mark.asyncio
-async def test_capability_gap_block_on_hit() -> None:
-    """Search hits must still append browser gap when browser group is disabled."""
+async def test_hit_returns_bound_skills_without_gap() -> None:
     skills = [
         SkillMetadata(name="browse_helper_skill", description="Browse websites and extract content"),
         SkillMetadata(name="other_skill", description="Another skill"),
     ]
-    tool = create_discover_capability_tool(
-        skills=skills,
-        active_tool_groups=frozenset({"web", "memory", "file_ops", "shell"}),
-    )
+    tool = create_discover_capability_tool(skills=skills)
     result = await tool.ainvoke({"query": "browse", "mode": "regex"})
     assert "Found bound skills" in result
-    assert "<CapabilityGap>" in result
-    assert "browser" in result
+    assert "<BoundSkills>" in result
+    assert "<CapabilityGap>" not in result
+    assert "<SkillGap>" not in result
 
 
 @pytest.mark.asyncio
-async def test_skill_gap_block_on_miss() -> None:
-    tool = create_discover_capability_tool(
-        bound_skill_names=frozenset(),
-        library_skill_names=frozenset({"github_pr_skill"}),
-    )
-    result = await tool.ainvoke({"query": "run github_pr_skill workflow"})
-    assert "No capabilities found" in result
-    assert "<SkillGap>" in result
-    assert "github_pr_skill" in result
-
-
-@pytest.mark.asyncio
-async def test_gap_dispatch_events_on_miss(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_miss_does_not_dispatch_gap_events(monkeypatch: pytest.MonkeyPatch) -> None:
     events: list[tuple[str, object]] = []
 
     async def _capture(event_name: str, payload: object, config: object | None = None) -> None:
@@ -108,15 +91,26 @@ async def test_gap_dispatch_events_on_miss(monkeypatch: pytest.MonkeyPatch) -> N
         "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
         _capture,
     )
-    tool = create_discover_capability_tool(
-        active_tool_groups=frozenset({"web", "memory", "file_ops", "shell"}),
-        bound_skill_names=frozenset(),
-        library_skill_names=frozenset({"github_pr_skill"}),
-    )
+    tool = create_discover_capability_tool()
     await tool.ainvoke({"query": "browse website with github_pr_skill"})
     event_names = [name for name, _ in events]
-    assert "capability_gap" in event_names
-    assert "skill_gap" in event_names
+    assert "capability_gap" not in event_names
+    assert "skill_gap" not in event_names
+
+
+@pytest.mark.asyncio
+async def test_description_mentions_skill_market_tool_when_mounted() -> None:
+    tool = create_discover_capability_tool(market_tool_mounted=True)
+    assert "skill_market_tool" in tool.description
+    assert "Settings" not in tool.description
+
+
+@pytest.mark.asyncio
+async def test_description_points_to_settings_when_market_not_mounted() -> None:
+    tool = create_discover_capability_tool(market_tool_mounted=False)
+    assert "skill_market_tool" not in tool.description
+    assert "Settings" in tool.description
+    assert "Discover" in tool.description
 
 
 @pytest.mark.asyncio

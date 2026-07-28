@@ -348,6 +348,7 @@ include = [
   "*/myrm_agent_harness/observability/*",
   "*/myrm_agent_harness/toolkits/file_parsers/*",
   "*/myrm_agent_harness/toolkits/computer_use/*",
+  "*/myrm_agent_harness/toolkits/llms/consensus/*",
 ]
 exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "\\.\\.\\."]
 

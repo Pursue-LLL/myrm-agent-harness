@@ -793,6 +793,90 @@ class TestReasoningEffort:
         )
         agg.bind.assert_called_with(temperature=0.3, reasoning_effort="high")
 
+    async def test_only_reference_reasoning_effort(self):
+        """Only ``reference_reasoning_effort`` set; aggregator must not get it."""
+        ref_a = _make_llm("ref-a", "answer a")
+        ref_b = _make_llm("ref-b", "answer b")
+        agg = _make_llm("agg", "synthesis")
+        cfg = ConsensusConfig(
+            reference_reasoning_effort="low",
+            aggregator_reasoning_effort=None,
+        )
+
+        engine = ConsensusEngine(
+            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
+        )
+        result = await engine.run("q")
+
+        assert result.success
+        ref_a.bind.assert_called_with(
+            temperature=cfg.reference_temperature, reasoning_effort="low"
+        )
+        agg.bind.assert_called_with(temperature=cfg.aggregator_temperature)
+
+    async def test_only_aggregator_reasoning_effort(self):
+        """Only ``aggregator_reasoning_effort`` set; references must not get it."""
+        ref_a = _make_llm("ref-a", "answer a")
+        ref_b = _make_llm("ref-b", "answer b")
+        agg = _make_llm("agg", "synthesis")
+        cfg = ConsensusConfig(
+            reference_reasoning_effort=None,
+            aggregator_reasoning_effort="high",
+        )
+
+        engine = ConsensusEngine(
+            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
+        )
+        result = await engine.run("q")
+
+        assert result.success
+        ref_a.bind.assert_called_with(temperature=cfg.reference_temperature)
+        agg.bind.assert_called_with(
+            temperature=cfg.aggregator_temperature, reasoning_effort="high"
+        )
+
+    async def test_stream_only_reference_reasoning_effort(self):
+        """Stream path: only reference side set."""
+        ref_a = _make_llm("ref-a", "answer a")
+        ref_b = _make_llm("ref-b", "answer b")
+        agg = _make_llm("agg", "synthesis")
+        cfg = ConsensusConfig(
+            reference_reasoning_effort="medium",
+            aggregator_reasoning_effort=None,
+        )
+
+        engine = ConsensusEngine(
+            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
+        )
+        async for _ in engine.run_stream("q"):
+            pass
+
+        ref_a.bind.assert_called_with(
+            temperature=cfg.reference_temperature, reasoning_effort="medium"
+        )
+        agg.bind.assert_called_with(temperature=cfg.aggregator_temperature)
+
+    async def test_stream_only_aggregator_reasoning_effort(self):
+        """Stream path: only aggregator side set."""
+        ref_a = _make_llm("ref-a", "answer a")
+        ref_b = _make_llm("ref-b", "answer b")
+        agg = _make_llm("agg", "synthesis")
+        cfg = ConsensusConfig(
+            reference_reasoning_effort=None,
+            aggregator_reasoning_effort="max",
+        )
+
+        engine = ConsensusEngine(
+            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
+        )
+        async for _ in engine.run_stream("q"):
+            pass
+
+        ref_a.bind.assert_called_with(temperature=cfg.reference_temperature)
+        agg.bind.assert_called_with(
+            temperature=cfg.aggregator_temperature, reasoning_effort="max"
+        )
+
 
 # -----------------------------------------------------------------------
 # Reasoning-content fallback — robustness for reasoning models
