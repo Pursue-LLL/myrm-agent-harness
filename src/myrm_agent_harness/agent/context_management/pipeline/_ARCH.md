@@ -13,7 +13,7 @@ Pipeline module.
 
 | Submodule | Description |
 |-----------|-------------|
-| processors/ | Pipeline processors for filtering, cache-TTL pruning, pre-compaction recall, compression, session notes, summarization, normalization, and explicit cache-control markers. |
+| processors/ | Pipeline processors for filtering, active per-step tool-result pruning, cache-TTL pruning, pre-compaction recall, compression, session notes, summarization, normalization, and explicit cache-control markers. |
 
 ## Key Dependencies
 

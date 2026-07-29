@@ -32,7 +32,7 @@ class CompressionEvent:
 
     timestamp: datetime
     tokens_saved: int
-    compression_type: Literal["filter", "cache_ttl_prune", "compress", "summarize"]
+    compression_type: Literal["filter", "cache_ttl_prune", "active_tool_prune", "compress", "summarize"]
     details: str = ""
     group_count: int = 0
     dedup_tokens_saved: int = 0

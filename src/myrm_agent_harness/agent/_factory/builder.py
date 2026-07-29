@@ -284,7 +284,13 @@ async def create_skill_agent(
 
         final_middlewares = []
         if engine_params.enable_context_compression:
-            final_middlewares.append(create_context_pipeline_middleware(llm=llm))
+            final_middlewares.append(
+                create_context_pipeline_middleware(
+                    llm=llm,
+                    enable_active_tool_prune=engine_params.enable_active_tool_prune,
+                    active_prune_threshold_tokens=engine_params.active_prune_threshold_tokens,
+                )
+            )
             logger.info(f" 使用主 LLM 创建默认上下文管理中间件: {type(llm).__name__}")
         else:
             logger.info(" 上下文管理中间件已通过 EngineParams 禁用")

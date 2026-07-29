@@ -3,6 +3,7 @@
 提供各种上下文处理器实现。
 """
 
+from .active_tool_result_prune_processor import ActiveToolResultPruneProcessor
 from .cache_optimizer import ExplicitCacheProcessor
 from .cache_ttl_prune_processor import CacheTtlPruneProcessor
 from .compress_processor import CompressProcessor
@@ -17,6 +18,7 @@ from .summarize_processor import SummarizeProcessor
 from .thinking_cleaner import ThinkingBlockCleaner
 
 __all__ = [
+    "ActiveToolResultPruneProcessor",
     "CacheTtlPruneProcessor",
     "CompressProcessor",
     "ExplicitCacheProcessor",

@@ -8,6 +8,7 @@ Pipeline processors module.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Pipeline processors module. | — |
+| active_tool_result_prune_processor.py | Core | Per-step active pruning of large tool results from earlier steps. Replaces results exceeding threshold (default 2048 tokens) with archive placeholders at zero LLM cost. Records `active_tool_prune` compression events via TaskMetrics. Positioned after FilterProcessor, before CacheTtlPruneProcessor. | ✅ |
 | cache_breakpoint_validator.py | Core | Validates breakpoints against provider constraints: | ✅ |
 | cache_optimizer.py | Core | ExplicitCacheProcessor for Anthropic/Qwen: 4-strategy breakpoints, 20-block window protection, endpoint-aware TTL (1h for direct API/LiteLLM anthropic routing, 5min for proxies). | ✅ |
 | cache_ttl_prune_processor.py | Core | Provides CacheTtlPruneProcessor for token-aware pruning with adaptive backoff and delegates archive-summary checkpoints to injected `ArchiveSummaryService`. | ✅ |

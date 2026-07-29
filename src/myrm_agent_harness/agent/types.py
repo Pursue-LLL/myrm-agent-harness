@@ -169,6 +169,8 @@ class EngineParams:
     max_replan_attempts: int = field(default=3)
     enable_replan: bool = field(default=True)
     enable_context_compression: bool = field(default=True)
+    enable_active_tool_prune: bool = field(default=True)
+    active_prune_threshold_tokens: int = field(default=2048)
     enable_parallel_tool_calls: bool | None = field(default=None)
     timeout_seconds: int | None = field(default=None)
 

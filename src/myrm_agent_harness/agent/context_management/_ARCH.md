@@ -20,7 +20,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 |-----------|-------------|
 | archive_checkpoint/ | Lite-LLM archive summary checkpoints: Protocol store, EpisodicMemory persistence, bounded async `ArchiveSummaryService`. |
 | infra/ | Context management infrastructure: shared types, token estimation, budget management, session locks, archive references, cache policy. |
-| pipeline/ | Ordered context processors for filtering, cache-TTL pruning, pre-compaction recall, compression, session notes, summarization, normalization, and explicit cache markers. |
+| pipeline/ | Ordered context processors for filtering, active per-step tool-result pruning, cache-TTL pruning, pre-compaction recall, compression, session notes, summarization, normalization, and explicit cache markers. |
 | strategies/ | Three-tier context reduction strategies: Filter, Compress, Summarize. `Summarize` enforces structural validation via `with_structured_output` to eliminate JSON parsing fragility. |
 | tracking/ | Observation and tracking: artifact tracking, task metrics, archive refetch cost, restore-block events, and archive read budgets. |
 

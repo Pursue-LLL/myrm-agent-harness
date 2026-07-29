@@ -275,8 +275,15 @@ async def build_child_agent(
     from myrm_agent_harness.agent.types import AgentRuntimeConfig
 
     middlewares = []
-    if parent_agent.config.engine_params.enable_context_compression:
-        middlewares.append(create_context_pipeline_middleware(llm=llm))
+    parent_engine_params = parent_agent.config.engine_params
+    if parent_engine_params.enable_context_compression:
+        middlewares.append(
+            create_context_pipeline_middleware(
+                llm=llm,
+                enable_active_tool_prune=parent_engine_params.enable_active_tool_prune,
+                active_prune_threshold_tokens=parent_engine_params.active_prune_threshold_tokens,
+            )
+        )
 
     child = BaseAgent(
         llm=llm,

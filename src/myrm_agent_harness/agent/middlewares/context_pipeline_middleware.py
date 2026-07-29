@@ -130,6 +130,8 @@ def create_context_pipeline_middleware(
     budget_pressure_fn: Callable[[], bool] | None = None,
     time_decay_half_life_days: float | None = None,
     cache_ttl_prune_config: CacheTtlPruneConfig | None = None,
+    enable_active_tool_prune: bool = True,
+    active_prune_threshold_tokens: int = 2048,
 ) -> AgentMiddleware:
     """Create the context pipeline middleware.
 
@@ -215,6 +217,7 @@ def create_context_pipeline_middleware(
                 session_notes_manager=_notes_manager,
                 time_decay_half_life_days=time_decay_half_life_days,
                 cache_ttl_prune_config=cache_policy.config,
+                active_prune_threshold_tokens=active_prune_threshold_tokens,
             )
 
             _pipelines[key] = ContextPipeline(processors)
@@ -323,6 +326,7 @@ def create_context_pipeline_middleware(
                     "last_activity_time": _last_successful_call_time or None,
                     "cache_usage_feedback": resolve_cache_usage_feedback(merged_ctx),
                     "runnable_config": getattr(request, "config", None),
+                    "enable_active_tool_prune": enable_active_tool_prune,
                 },
             )
 

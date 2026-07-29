@@ -126,15 +126,16 @@ def create_default_pipeline(max_context_tokens: int | None = None) -> ContextPip
     1. ThinkingBlockCleaner — clean thinking blocks
     2. MediaFilterProcessor — strip media for text-only models (proactive)
     3. FilterProcessor — truncate large tool results
-    4. CacheTtlPruneProcessor — rule-based pruning of expired tool results (zero API cost)
-    5. PreCompactProcessor — semantic memory recall before compaction (optional)
-    6. CompressProcessor — compress old tool calls (dynamic thresholds)
-    7. SessionNotesProcessor — zero-API compression (conditionally enabled)
-    8. SummarizeProcessor — summarize history (last resort)
-    9. PostCompactionRereadProcessor — re-read recently modified files after compaction
-    10. NormalizeProcessor — content normalization (clean empty lines, newlines)
-    11. MediaResolverProcessor — resolve URL references to base64 (just before LLM call)
-    12. ExplicitCacheProcessor — explicit cache (Claude/Qwen only, auto-detected)
+    4. ActiveToolResultPruneProcessor — per-step active prune of large prior tool results (zero API cost)
+    5. CacheTtlPruneProcessor — rule-based pruning of expired tool results (zero API cost)
+    6. PreCompactProcessor — semantic memory recall before compaction (optional)
+    7. CompressProcessor — compress old tool calls (dynamic thresholds)
+    8. SessionNotesProcessor — zero-API compression (conditionally enabled)
+    9. SummarizeProcessor — summarize history (last resort)
+    10. PostCompactionRereadProcessor — re-read recently modified files after compaction
+    11. NormalizeProcessor — content normalization (clean empty lines, newlines)
+    12. MediaResolverProcessor — resolve URL references to base64 (just before LLM call)
+    13. ExplicitCacheProcessor — explicit cache (Claude/Qwen only, auto-detected)
 
     External data security isolation is handled by the tool layer (content_boundary module),
     not duplicated in the pipeline layer.
@@ -159,6 +160,7 @@ def build_default_processors(
     session_notes_manager: "SessionNotesManager | None" = None,
     time_decay_half_life_days: float | None = None,
     cache_ttl_prune_config: "CacheTtlPruneConfig | None" = None,
+    active_prune_threshold_tokens: int = 2048,
 ) -> list[BaseProcessor]:
     """Build the unified default processor chain.
 
@@ -168,6 +170,7 @@ def build_default_processors(
     """
     from ..infra.schemas import ContextConfig
     from .processors import (
+        ActiveToolResultPruneProcessor,
         CacheTtlPruneProcessor,
         CompressProcessor,
         ExplicitCacheProcessor,
@@ -218,6 +221,10 @@ def build_default_processors(
         ThinkingBlockCleaner(),
         MediaFilterProcessor(),
         FilterProcessor(),
+        ActiveToolResultPruneProcessor(
+            threshold_tokens=active_prune_threshold_tokens,
+            on_prune_offload=on_compress_offload,
+        ),
         CacheTtlPruneProcessor(
             config=cache_ttl_prune_config,
             max_context_tokens=max_context,
