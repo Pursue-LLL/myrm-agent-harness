@@ -13,13 +13,15 @@ without entering backoff or failover loops.
 
 [POS]
 Targeted one-shot recovery handlers for THINKING_SIGNATURE, IMAGE_TOO_LARGE,
-MEDIA_REJECTED, and LONG_CONTEXT_TIER errors. Includes model name resolution
+MEDIA_REJECTED, ALLOWED_TOOLS_TOOL_CHOICE_REJECTED, and LONG_CONTEXT_TIER errors. Includes model name resolution
 via llm_info for capability learning.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
+
+import re
 
 from langgraph.types import Command
 
@@ -41,6 +43,11 @@ if TYPE_CHECKING:
     from myrm_agent_harness.agent.streaming.stream_executor import StreamContext
 
 logger = get_agent_logger(__name__)
+
+_TOOL_CHOICE_REJECTED_RE = re.compile(
+    r"tool_choice|allowed_tools|(?:unsupported|invalid).*tool.?choice",
+    re.IGNORECASE,
+)
 
 _IMAGE_SHRINK_THRESHOLD = 4 * 1024 * 1024  # 4 MB — safe margin under Anthropic 5 MB
 _THINKING_BLOCK_TYPES = frozenset(("thinking", "redacted_thinking"))
@@ -203,6 +210,46 @@ class OneshotRecoveryMixin:
             stripped,
         )
         await self._emit_recovery_event("media_rejected_recovery", stripped_count=stripped)
+        self.streaming_final_answer = False
+        return True
+
+    async def _handle_allowed_tools_tool_choice_rejected(
+        self,
+        exc: Exception,
+        attempted: bool,
+    ) -> bool:
+        """Learn unsupported allowed_tools and retry once without model-layer hint."""
+        if attempted:
+            return False
+        if not _TOOL_CHOICE_REJECTED_RE.search(str(exc)):
+            return False
+
+        model_name = _resolve_model_name_from_ctx(self._ctx)
+        if model_name:
+            from myrm_agent_harness.toolkits.llms.allowed_tools_capability import (
+                CAPABILITY_REJECTS_ALLOWED_TOOLS,
+                normalize_model_capability_key,
+            )
+            from myrm_agent_harness.toolkits.llms.capability_learner import (
+                get_capability_learner,
+            )
+
+            learner = get_capability_learner()
+            learner.learn(
+                normalize_model_capability_key(str(model_name)),
+                CAPABILITY_REJECTS_ALLOWED_TOOLS,
+                True,
+            )
+            logger.info(
+                "Learned: model %s rejects allowed_tools tool_choice — "
+                "future requests skip model-layer hint",
+                model_name,
+            )
+
+        logger.warning(
+            " Provider rejected allowed_tools tool_choice — retrying without model-layer hint"
+        )
+        await self._emit_recovery_event("allowed_tools_rejected_recovery")
         self.streaming_final_answer = False
         return True
 
