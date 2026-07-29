@@ -94,8 +94,9 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | Tool | Layer | Role | Product ID | Load condition |
 |------|-------|------|------------|----------------|
 | `bash_code_execute_tool` | CORE | user_capability | — | Agent baseline file_ops+code_execute; Turn1 |
+| `bash_process_tool` | CORE | user_capability | — | Turn1 when shell enabled (CORE; co-mounted with bash_code_execute) |
 | `file_edit_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
-| `file_read_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
+| `file_read_tool` | CORE | user_capability | — | Agent baseline file_ops; or UECD read-only when enable_evicted_read (WEB_FAST) |
 | `file_write_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
 | `glob_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
 | `grep_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
@@ -104,8 +105,8 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `memory_save_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
 | `memory_search_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory; corpus=sessions when memoryEnableConversationSearch |
 | `web_search_tool` | COMMON | user_capability | web_search | enabled_builtin_tools: web_search (default on) |
+| `artifact_publish` | EXTENDED | user_capability | — | Opt-in Turn1; see product switch |
 | `ask_question_tool` | EXTENDED | user_capability | structured_clarify | server mount policy (interactive web_chat); requires_confirmation WebUI emphasis; ClarificationGuardMiddleware one call/turn; HitlToolPolicy L1 subagent block |
-| `bash_process_tool` | CORE | user_capability | — | Turn1 when shell enabled (co-mounted with bash_code_execute) |
 | `browser_ask_human_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `browser_execute_script_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `browser_extract_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
@@ -122,7 +123,6 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `desktop_interact_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_snapshot_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_vision_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
-| `skill_search_tool` | EXTENDED | user_capability | — | Turn1 when searchable skills exist |
 | `image_tool` | EXTENDED | user_capability | image_generation | enabled_builtin_tools: image_generation |
 | `kanban_add_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_attach` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
@@ -136,14 +136,16 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `render_ui_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
 | `request_answer_user_tool` | EXTENDED | user_capability | answer_tool | enabled_builtin_tools: answer_tool |
 | `send_teammate_message_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
-| `skill_market_tool` | EXTENDED | user_capability | — | Turn1 when market_backend present |
-| `skill_manage_tool` | EXTENDED | user_capability | — | write_backend present |
+| `skill_manage_tool` | EXTENDED | user_capability | — | enabled_builtin_tools: skill_manage or /learn force_skill_manage (server Turn1) |
+| `skill_market_tool` | EXTENDED | user_capability | — | enabled_builtin_tools: skill_market (server ToolSetupMixin Turn1) |
+| `skill_search_tool` | EXTENDED | user_capability | — | Turn1 when searchable skills exist |
 | `skill_select_tool` | EXTENDED | user_capability | — | skill_backend present |
 | `subagent_control_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `todo_write` | EXTENDED | user_capability | planning | planning or existing workspace todos |
 | `tts_generate` | EXTENDED | user_capability | tts | enabled_builtin_tools: tts |
 | `update_ui_data_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
 | `video_tool` | EXTENDED | user_capability | video_generation | enabled_builtin_tools: video_generation |
+| `wiki_apply_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
 | `wiki_compile_tool` | EXTENDED | user_capability | — | Settings REST + create_wiki_admin_tools(); not Turn1 LLM |
 | `wiki_ingest_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
 | `wiki_maintain_tool` | EXTENDED | user_capability | — | Settings REST + create_wiki_admin_tools(); not Turn1 LLM |
