@@ -5,6 +5,7 @@ sqlite3 (POS: standard library database)
 pathlib::Path (POS: standard library file path operations)
 typing::Literal, TypedDict (POS: standard library types)
 ..core.structure::WikiStructure (POS: database path retrieval)
+.resilience::CompileCircuitStore, is_transient_error_kind (POS: compile pause + retry policy)
 
 [OUTPUT]
 WikiIngestionQueue: SQLite-driven persistent file ingestion queue
@@ -16,12 +17,16 @@ with checkpoint recovery, retry mechanism, and status tracking. Solves OOM and A
 during large-scale knowledge base imports.
 """
 
+from __future__ import annotations
+
 import contextlib
 import sqlite3
 from pathlib import Path
 from typing import Literal, TypedDict
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
+
+from .resilience import CompileCircuitStore, CompileRunSnapshot, is_transient_error_kind, sanitize_display_message
 
 
 class QueueItem(TypedDict):
@@ -30,6 +35,8 @@ class QueueItem(TypedDict):
     status: Literal["pending", "processing", "completed", "failed"]
     retry_count: int
     error_message: str | None
+    error_kind: str | None
+    retry_after: str | None
     created_at: str
     updated_at: str
 
@@ -39,9 +46,13 @@ class WikiIngestionQueue:
 
     def __init__(self, structure: WikiStructure):
         self._structure = structure
-        # Put DB in the base directory of the wiki
         self.db_path = self._structure.base_dir / ".ingestion_queue.db"
+        self._circuit = CompileCircuitStore(self.db_path)
         self._init_db()
+
+    @property
+    def circuit(self) -> CompileCircuitStore:
+        return self._circuit
 
     @contextlib.contextmanager
     def _get_conn(self):
@@ -65,14 +76,23 @@ class WikiIngestionQueue:
                     status TEXT NOT NULL DEFAULT 'pending',
                     retry_count INTEGER DEFAULT 0,
                     error_message TEXT,
+                    error_kind TEXT,
+                    retry_after TIMESTAMP,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            # Create index for fast status querying
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_status ON ingestion_queue(status)
             """)
+            self._migrate_schema(conn)
+
+    def _migrate_schema(self, conn: sqlite3.Connection) -> None:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(ingestion_queue)").fetchall()}
+        if "error_kind" not in columns:
+            conn.execute("ALTER TABLE ingestion_queue ADD COLUMN error_kind TEXT")
+        if "retry_after" not in columns:
+            conn.execute("ALTER TABLE ingestion_queue ADD COLUMN retry_after TIMESTAMP")
 
     def add_item(self, file_path: Path | str) -> int:
         """Add a file to the queue. Returns item ID."""
@@ -86,6 +106,8 @@ class WikiIngestionQueue:
                     status = 'pending',
                     retry_count = 0,
                     error_message = NULL,
+                    error_kind = NULL,
+                    retry_after = NULL,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (path_str,),
@@ -103,6 +125,8 @@ class WikiIngestionQueue:
                     status = 'pending',
                     retry_count = 0,
                     error_message = NULL,
+                    error_kind = NULL,
+                    retry_after = NULL,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 [(str(p),) for p in file_paths],
@@ -120,8 +144,20 @@ class WikiIngestionQueue:
                 """,
                 (limit,),
             )
-            # The type ignore is needed because sqlite3.Row isn't exactly matching TypedDict
-            return [dict(row) for row in cursor.fetchall()]  # type: ignore
+            return [dict(row) for row in cursor.fetchall()]  # type: ignore[misc]
+
+    def get_failed_items(self, limit: int = 20) -> list[QueueItem]:
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                """
+                SELECT * FROM ingestion_queue
+                WHERE status = 'failed'
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            return [dict(row) for row in cursor.fetchall()]  # type: ignore[misc]
 
     def mark_processing(self, item_id: int) -> None:
         with self._get_conn() as conn:
@@ -133,68 +169,147 @@ class WikiIngestionQueue:
     def mark_completed(self, item_id: int) -> None:
         with self._get_conn() as conn:
             conn.execute(
-                "UPDATE ingestion_queue SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                (item_id,),
-            )
-
-    def mark_failed(self, item_id: int, error_message: str) -> None:
-        with self._get_conn() as conn:
-            conn.execute(
                 """
                 UPDATE ingestion_queue
-                SET status = 'failed',
-                    retry_count = retry_count + 1,
-                    error_message = ?,
+                SET status = 'completed',
+                    error_message = NULL,
+                    error_kind = NULL,
+                    retry_after = NULL,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
                 """,
-                (error_message, item_id),
+                (item_id,),
             )
 
-    def get_retryable_items(self, max_retries: int = 3, limit: int = 5) -> list[QueueItem]:
-        """Get failed items that haven't exceeded max retry count."""
+    def mark_failed(
+        self,
+        item_id: int,
+        error_message: str,
+        *,
+        error_kind: str = "unknown",
+        retry_after_seconds: int = 0,
+    ) -> None:
+        safe_message = sanitize_display_message(error_message)
+        with self._get_conn() as conn:
+            if retry_after_seconds > 0:
+                conn.execute(
+                    """
+                    UPDATE ingestion_queue
+                    SET status = 'failed',
+                        retry_count = retry_count + 1,
+                        error_message = ?,
+                        error_kind = ?,
+                        retry_after = datetime('now', ? || ' seconds'),
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    (safe_message, error_kind, f"+{retry_after_seconds}", item_id),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE ingestion_queue
+                    SET status = 'failed',
+                        retry_count = retry_count + 1,
+                        error_message = ?,
+                        error_kind = ?,
+                        retry_after = NULL,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    (safe_message, error_kind, item_id),
+                )
+
+    def get_transient_retryable_items(self, max_retries: int = 3, limit: int = 5) -> list[QueueItem]:
+        """Failed transient items eligible for automatic retry (respects backoff)."""
         with self._get_conn() as conn:
             cursor = conn.execute(
                 """
                 SELECT * FROM ingestion_queue
-                WHERE status = 'failed' AND retry_count < ?
+                WHERE status = 'failed'
+                  AND retry_count < ?
+                  AND error_kind IS NOT NULL
+                  AND (
+                    retry_after IS NULL
+                    OR retry_after <= CURRENT_TIMESTAMP
+                  )
                 ORDER BY updated_at ASC
                 LIMIT ?
                 """,
-                (max_retries, limit),
+                (max_retries, limit * 3),
             )
-            return [dict(row) for row in cursor.fetchall()]  # type: ignore
+            items = [dict(row) for row in cursor.fetchall()]  # type: ignore[misc]
+        return [item for item in items if is_transient_error_kind(item.get("error_kind") or "")][:limit]
 
     def reset_for_retry(self, item_id: int) -> None:
-        """Reset a specific failed item to pending for retry."""
         with self._get_conn() as conn:
             conn.execute(
-                "UPDATE ingestion_queue SET status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                """
+                UPDATE ingestion_queue
+                SET status = 'pending',
+                    retry_after = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
                 (item_id,),
             )
 
+    def reset_transient_failed(self) -> int:
+        """Reset only transient failed items back to pending."""
+        with self._get_conn() as conn:
+            cursor = conn.execute("SELECT id, error_kind FROM ingestion_queue WHERE status = 'failed'")
+            reset_ids = [
+                row["id"]
+                for row in cursor.fetchall()
+                if is_transient_error_kind(row["error_kind"] or "")
+            ]
+            if not reset_ids:
+                return 0
+            conn.executemany(
+                """
+                UPDATE ingestion_queue
+                SET status = 'pending',
+                    error_message = NULL,
+                    retry_after = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                [(item_id,) for item_id in reset_ids],
+            )
+            return len(reset_ids)
+
     def reset_failed(self) -> int:
-        """Reset all failed items to pending."""
+        """Reset all failed items to pending (manual recovery)."""
         with self._get_conn() as conn:
             cursor = conn.execute(
-                "UPDATE ingestion_queue SET status = 'pending', error_message = NULL WHERE status = 'failed'"
+                """
+                UPDATE ingestion_queue
+                SET status = 'pending',
+                    error_message = NULL,
+                    error_kind = NULL,
+                    retry_after = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE status = 'failed'
+                """
             )
             return cursor.rowcount
 
     def cancel_pending(self) -> int:
-        """Cancel all pending items."""
         with self._get_conn() as conn:
             cursor = conn.execute(
-                "UPDATE ingestion_queue SET status = 'failed', error_message = 'Cancelled by user' WHERE status = 'pending'"
+                """
+                UPDATE ingestion_queue
+                SET status = 'failed',
+                    error_message = 'Cancelled by user',
+                    error_kind = 'cancelled',
+                    retry_after = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE status = 'pending'
+                """
             )
             return cursor.rowcount
 
     def reset_stale_processing(self, stale_seconds: int = 300) -> int:
-        """Reset items stuck in 'processing' state back to 'pending'.
-
-        Items remain in 'processing' if a worker crashes mid-flight.
-        This method recovers them based on a staleness threshold.
-        """
         with self._get_conn() as conn:
             cursor = conn.execute(
                 """
@@ -208,7 +323,6 @@ class WikiIngestionQueue:
             return cursor.rowcount
 
     def get_stats(self) -> dict[str, int]:
-        """Get queue statistics."""
         with self._get_conn() as conn:
             cursor = conn.execute("SELECT status, COUNT(*) as count FROM ingestion_queue GROUP BY status")
             stats = {"pending": 0, "processing": 0, "completed": 0, "failed": 0}
@@ -217,3 +331,15 @@ class WikiIngestionQueue:
                 if status in stats:
                     stats[status] = row["count"]
             return stats
+
+    def get_compile_run(self) -> CompileRunSnapshot:
+        return self._circuit.get_snapshot()
+
+    def pause_compile(self, reason: str, primary_error_kind: str) -> None:
+        self._circuit.pause(reason, primary_error_kind)
+
+    def resume_compile(self) -> None:
+        self._circuit.resume()
+
+    def is_compile_paused(self) -> bool:
+        return self._circuit.is_paused()

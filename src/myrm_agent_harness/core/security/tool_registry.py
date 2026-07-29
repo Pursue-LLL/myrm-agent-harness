@@ -199,6 +199,7 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
         {
             "wiki_query_tool",
             "wiki_ingest_tool",
+            "wiki_apply_tool",
         }
     ),
     "planning": frozenset({"todo_write"}),

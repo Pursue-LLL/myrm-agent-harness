@@ -29,6 +29,7 @@ class WebSearchMetrics:
     fallback_triggered_count: int = 0
     fallback_successes: int = 0
     fallback_failures: int = 0
+    chain_hop_count: int = 0
 
     def record_attempt(self) -> None:
         with self._lock:
@@ -66,6 +67,12 @@ class WebSearchMetrics:
         with self._lock:
             self.fallback_failures += 1
 
+    def record_chain_hop(self, *, from_provider: str, to_provider: str) -> None:
+        """Record failover hop between providers in a priority chain."""
+        _ = (from_provider, to_provider)
+        with self._lock:
+            self.chain_hop_count += 1
+
     def snapshot(self) -> dict[str, int]:
         with self._lock:
             return {
@@ -77,6 +84,7 @@ class WebSearchMetrics:
                 "fallback_triggered_count": self.fallback_triggered_count,
                 "fallback_successes": self.fallback_successes,
                 "fallback_failures": self.fallback_failures,
+                "chain_hop_count": self.chain_hop_count,
             }
 
 

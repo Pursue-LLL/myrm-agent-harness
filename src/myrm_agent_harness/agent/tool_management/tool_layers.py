@@ -116,7 +116,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "kanban_list_tasks": ToolLayer.EXTENDED,
     "kanban_unblock": ToolLayer.EXTENDED,
     # --- 记忆工具（search/save/manage → COMMON；sessions/wiki 通过 corpus ACL）---
-    "conversation_search_tool": ToolLayer.EXTENDED,
     # --- 技能工具 ---
     "skill_search_tool": ToolLayer.EXTENDED,
     "skill_market_tool": ToolLayer.EXTENDED,
@@ -129,6 +128,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # --- Wiki 知识库 ---
     "wiki_ingest_tool": ToolLayer.EXTENDED,
     "wiki_query_tool": ToolLayer.EXTENDED,
+    "wiki_apply_tool": ToolLayer.EXTENDED,
     "wiki_compile_tool": ToolLayer.EXTENDED,
     "wiki_maintain_tool": ToolLayer.EXTENDED,
 }

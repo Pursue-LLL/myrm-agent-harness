@@ -1,10 +1,10 @@
 """Memory search policy and optional server-provided backends.
 
-Framework-level ACL for ``memory_search_tool`` corpus routing. Server binds wiki
-and conversation providers; runtime cannot broaden corpora beyond policy flags.
+Framework-level ACL for ``memory_search_tool`` corpus routing. Server binds wiki,
+conversation, and web corpus providers; runtime cannot broaden corpora beyond policy flags.
 
 [OUTPUT]
-- MemorySearchPolicy: Runtime ACL flags for wiki/sessions corpora.
+- MemorySearchPolicy: Runtime ACL flags for wiki/sessions/web corpora.
 - resolve_search_corpora: Merge policy flags with requested corpus selection.
 
 [POS]
@@ -20,7 +20,7 @@ from typing import Literal, TYPE_CHECKING
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.protocols.conversation_search import ConversationSearchProtocol
 
-MemorySearchCorpus = Literal["memory", "wiki", "sessions", "all"]
+MemorySearchCorpus = Literal["memory", "wiki", "sessions", "web", "all"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +29,7 @@ class MemorySearchPolicy:
 
     allow_wiki: bool = False
     allow_sessions: bool = False
+    allow_web: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +38,7 @@ class MemorySearchBackends:
 
     query_wiki: Callable[[str], Awaitable[str]] | None = None
     conversation_provider: ConversationSearchProtocol | None = None
+    query_web_corpus: Callable[[str, int], Awaitable[str]] | None = None
 
 
 def resolve_search_corpora(
@@ -57,11 +59,20 @@ def resolve_search_corpora(
                 "Conversation history search is disabled. Enable it in Memory settings.",
             )
         return (["sessions"], None)
+    if corpus == "web":
+        if not policy.allow_web:
+            return (
+                [],
+                "Web corpus is not enabled. Enable it in Memory settings.",
+            )
+        return (["web"], None)
     if corpus == "all":
         corpora: list[MemorySearchCorpus] = ["memory"]
         if policy.allow_wiki:
             corpora.append("wiki")
         if policy.allow_sessions:
             corpora.append("sessions")
+        if policy.allow_web:
+            corpora.append("web")
         return (corpora, None)
     return ([], f"Unknown corpus: {corpus}")

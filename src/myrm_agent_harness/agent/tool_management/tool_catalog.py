@@ -44,9 +44,7 @@ _GROUP_TO_PRODUCT_ID: dict[str, str] = {
 
 _BASELINE_TOOL_GROUPS: frozenset[str] = frozenset({"file_ops", "shell"})
 
-_PRODUCT_ID_TOOL_OVERRIDES: dict[str, str] = {
-    "conversation_search_tool": "memory",
-}
+_PRODUCT_ID_TOOL_OVERRIDES: dict[str, str] = {}
 
 _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
     "web_fetch_tool": "Agent baseline; Turn1 when enable_web_fetch (Fast mode may omit file/bash only)",
@@ -63,13 +61,12 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
     "request_answer_user_tool": "enabled_builtin_tools: answer_tool",
     "todo_write": "planning or existing workspace todos",
     "bash_process_tool": "Turn1 when shell enabled (CORE; co-mounted with bash_code_execute)",
-    "skill_market_tool": "Turn1 when market_backend present",
+    "skill_market_tool": "enabled_builtin_tools: skill_market (server ToolSetupMixin Turn1)",
     "skill_search_tool": "Turn1 when searchable skills exist",
-    "conversation_search_tool": "Harness test/legacy; product uses memory_search_tool corpus=sessions",
+    "skill_select_tool": "skill_backend present",
+    "skill_manage_tool": "enabled_builtin_tools: skill_manage or /learn force_skill_manage (server Turn1)",
     "wiki_compile_tool": "Settings REST + create_wiki_admin_tools(); not Turn1 LLM",
     "wiki_maintain_tool": "Settings REST + create_wiki_admin_tools(); not Turn1 LLM",
-    "skill_select_tool": "skill_backend present",
-    "skill_manage_tool": "write_backend present",
     "delegate_task_tool": "SubagentManagementExtension + entitlements",
     "subagent_control_tool": "SubagentManagementExtension + entitlements",
     "send_teammate_message_tool": "SubagentManagementExtension + entitlements",
@@ -118,7 +115,6 @@ CORE_ACTION_TOOL_NAMES: frozenset[str] = frozenset(
 EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS: frozenset[str] = frozenset(
     {
         "ask_question_tool",
-        "conversation_search_tool",
     }
 )
 

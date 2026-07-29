@@ -66,13 +66,14 @@ def wiki_admin_tools(
     return create_wiki_admin_tools(compiler, linter)
 
 
-def test_create_wiki_tools_returns_two_tools(wiki_tools: list) -> None:
+def test_create_wiki_tools_returns_three_tools(wiki_tools: list) -> None:
     """Test that create_wiki_tools returns agent-facing tools only."""
-    assert len(wiki_tools) == 2
+    assert len(wiki_tools) == 3
 
     tool_names = [tool.name for tool in wiki_tools]
     assert "wiki_ingest_tool" in tool_names
     assert "wiki_query_tool" in tool_names
+    assert "wiki_apply_tool" in tool_names
     assert "wiki_compile_tool" not in tool_names
     assert "wiki_maintain_tool" not in tool_names
 
@@ -373,6 +374,48 @@ async def test_wiki_query_includes_sidecar_sources(direct_mock_tools: tuple) -> 
     assert sources[0]["path"] == "domain/.abstract.md"
     assert sources[1]["level"] == "L2"
     assert sources[1]["path"] == "/tmp/wiki/concept-a.md"
+
+
+@pytest.mark.asyncio
+async def test_wiki_query_emits_claim_snapshot_status(direct_mock_tools: tuple) -> None:
+    """wiki_query should forward claim evidence snapshot_status to chat metadata sources."""
+    from myrm_agent_harness.toolkits.wiki.core.types import QueryResult, SourceSnippet
+
+    tools, _, mock_qe, _ = direct_mock_tools
+    query_tool = next(t for t in tools if t.name == "wiki_query_tool")
+
+    mock_qe.query = AsyncMock(
+        return_value=QueryResult(
+            question="Budget?",
+            answer="Budget fact",
+            related_articles=["/tmp/wiki/budget.md"],
+            confidence_score=0.85,
+            source_snippets=[
+                SourceSnippet(
+                    article_path="/tmp/wiki/budget.md",
+                    article_name="budget",
+                    snippet="Budget fact",
+                    section="Claim",
+                    level="L2",
+                    claim_id="claim.budget",
+                    claim_text="Budget fact",
+                    evidence_path="raw/source.md",
+                    line_range="1-3",
+                    claim_status="supported",
+                    evidence_content_sha256="abc123",
+                    evidence_snapshot_status="stale",
+                )
+            ],
+        )
+    )
+
+    result = await query_tool.ainvoke({"question": "Budget?"})
+    sources = result["metadata"]["sources"]
+    assert len(sources) == 1
+    assert sources[0]["snapshot_status"] == "stale"
+    assert sources[0]["claim_id"] == "claim.budget"
+    assert sources[0]["evidence_path"] == "raw/source.md"
+    assert "claim.budget" in str(sources[0]["source_key"])
 
 
 @pytest.mark.asyncio

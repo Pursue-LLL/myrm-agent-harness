@@ -28,7 +28,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.backends.skills.market_protocols import SkillInstallResult, SkillSearchResult
+from myrm_agent_harness.backends.skills.market_protocols import (
+    SkillInstallResult,
+    SkillSearchResult,
+)
 from myrm_agent_harness.backends.skills.scanning.archive_security import (
     classify_archive_security_issue,
     format_archive_security_user_message,
@@ -37,10 +40,20 @@ from myrm_agent_harness.backends.skills.scanning.archive_security import (
 if TYPE_CHECKING:
     from myrm_agent_harness.backends.skills.market_protocols import InstalledSkillStore
 from myrm_agent_harness.agent.skills.market.sanitizer import sanitize_skill_files
-from myrm_agent_harness.backends.skills.scanning import ScanFinding, SkillTrustRecommendation
+from myrm_agent_harness.backends.skills.scanning import (
+    ScanFinding,
+    SkillTrustRecommendation,
+)
 from myrm_agent_harness.backends.skills.versioning import compare_versions
 
-from .helpers import SOURCE_PRIORITY, deduplicate, fetch_lobehub_as_skill, rank_results, scan_all_text_files, write_origin
+from .helpers import (
+    SOURCE_PRIORITY,
+    deduplicate,
+    fetch_lobehub_as_skill,
+    rank_results,
+    scan_all_text_files,
+    write_origin,
+)
 from .installers.git_installer import GitInstaller
 from .installers.zip_installer import ZipInstaller
 from .sources.aliyun import AliyunSource
@@ -94,7 +107,11 @@ class BaseSkillMarketService:
     Framework-layer service: does not depend on server database or event bus.
     """
 
-    def __init__(self, github_token: str | None = None, skill_store: InstalledSkillStore | None = None) -> None:
+    def __init__(
+        self,
+        github_token: str | None = None,
+        skill_store: InstalledSkillStore | None = None,
+    ) -> None:
         sources: list[SkillSource] = [
             ClawHubSource(),
             GitHubSkillSource(token=github_token),
@@ -130,7 +147,10 @@ class BaseSkillMarketService:
         return removed
 
     async def search(
-        self, query: str, limit: int = 30, installed_versions_map: dict[str, str] | None = None
+        self,
+        query: str,
+        limit: int = 30,
+        installed_versions_map: dict[str, str] | None = None,
     ) -> list[EnrichedSearchResult]:
         import time
 
@@ -143,41 +163,50 @@ class BaseSkillMarketService:
             raw_results = cached[1][:limit]
         else:
             if is_browse:
-                sources = [s for s in self._sources if s.source_name == "prebuilt"]
+                raw_results: list[SkillSearchResult] = []
             else:
                 sources = self._sources
 
-            async def _search_with_meta(source_index: int, source: SkillSource) -> tuple[int, str, list[SkillSearchResult]]:
-                results = await self._search_source(source, query, limit)
-                return source_index, source.source_name, results
+                async def _search_with_meta(
+                    source_index: int, source: SkillSource
+                ) -> tuple[int, str, list[SkillSearchResult]]:
+                    results = await self._search_source(source, query, limit)
+                    return source_index, source.source_name, results
 
-            tasks = [_search_with_meta(source_index, source) for source_index, source in enumerate(sources)]
-            source_batches: list[tuple[int, str, list[SkillSearchResult]]] = []
-            for coro in asyncio.as_completed(tasks):
-                try:
-                    source_batches.append(await asyncio.wait_for(coro, timeout=SEARCH_TIMEOUT))
-                except TimeoutError:
-                    logger.warning("A skill source timed out during search")
-                except Exception as e:
-                    logger.warning("Skill source search error: %s", e)
+                tasks = [
+                    _search_with_meta(source_index, source)
+                    for source_index, source in enumerate(sources)
+                ]
+                source_batches: list[tuple[int, str, list[SkillSearchResult]]] = []
+                for coro in asyncio.as_completed(tasks):
+                    try:
+                        source_batches.append(
+                            await asyncio.wait_for(coro, timeout=SEARCH_TIMEOUT)
+                        )
+                    except TimeoutError:
+                        logger.warning("A skill source timed out during search")
+                    except Exception as e:
+                        logger.warning("Skill source search error: %s", e)
 
-            source_batches.sort(
-                key=lambda batch: (
-                    -SOURCE_PRIORITY.get(batch[1], 0),
-                    batch[0],
-                    batch[1],
+                source_batches.sort(
+                    key=lambda batch: (
+                        -SOURCE_PRIORITY.get(batch[1], 0),
+                        batch[0],
+                        batch[1],
+                    )
                 )
-            )
-            all_results: list[SkillSearchResult] = []
-            for _, _, source_results in source_batches:
-                all_results.extend(source_results)
+                all_results: list[SkillSearchResult] = []
+                for _, _, source_results in source_batches:
+                    all_results.extend(source_results)
 
-            deduped = deduplicate(all_results)
-            ranked = rank_results(deduped, query)
-            raw_results = ranked[:limit]
+                deduped = deduplicate(all_results)
+                ranked = rank_results(deduped, query)
+                raw_results = ranked[:limit]
 
             if len(self._search_cache) >= CACHE_MAX_ENTRIES:
-                oldest_key = min(self._search_cache, key=lambda k: self._search_cache[k][0])
+                oldest_key = min(
+                    self._search_cache, key=lambda k: self._search_cache[k][0]
+                )
                 del self._search_cache[oldest_key]
             self._search_cache[cache_key] = (now, raw_results)
 
@@ -199,9 +228,13 @@ class BaseSkillMarketService:
             )
 
         if detail.install_method == "git":
-            skill_files = await self._git_installer.download(detail.install_url, detail.subdirectory)
+            skill_files = await self._git_installer.download(
+                detail.install_url, detail.subdirectory
+            )
         elif detail.install_method == "zip":
-            skill_files = await self._zip_installer.download(detail.install_url, detail.subdirectory)
+            skill_files = await self._zip_installer.download(
+                detail.install_url, detail.subdirectory
+            )
         else:
             raise ValueError(f"Unsupported install method: {detail.install_method}")
 
@@ -218,7 +251,10 @@ class BaseSkillMarketService:
         )
 
     async def install(
-        self, skill_id: str, source: str, progress_callback: Callable[[str, str, str], None] | None = None
+        self,
+        skill_id: str,
+        source: str,
+        progress_callback: Callable[[str, str, str], None] | None = None,
     ) -> SkillInstallResult:
         def _emit(stage: str, msg: str):
             if progress_callback:
@@ -228,12 +264,17 @@ class BaseSkillMarketService:
         detail = await self.get_detail(skill_id, source)
         if not detail:
             _emit("failed", "Skill not found")
-            return SkillInstallResult(success=False, error=f"Skill not found: {skill_id} from {source}")
+            return SkillInstallResult(
+                success=False, error=f"Skill not found: {skill_id} from {source}"
+            )
 
         if detail.install_method == "direct" and detail.source == "prebuilt":
             _emit("completed", "Prebuilt skill ready")
             return SkillInstallResult(
-                success=True, skill_name=detail.name, skill_id=detail.id, installed_path="prebuilt (already installed)"
+                success=True,
+                skill_name=detail.name,
+                skill_id=detail.id,
+                installed_path="prebuilt (already installed)",
             )
 
         if detail.install_method == "direct" and detail.source == "lobehub":
@@ -243,28 +284,47 @@ class BaseSkillMarketService:
             except ValueError as e:
                 resolved_error, error_code = _resolve_install_error(e)
                 _emit("failed", resolved_error)
-                return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
+                return SkillInstallResult(
+                    success=False, error=resolved_error, error_code=error_code
+                )
             return await self._quarantine_install(
-                skill_id, detail.name, files, source=source, progress_callback=progress_callback
+                skill_id,
+                detail.name,
+                files,
+                source=source,
+                progress_callback=progress_callback,
             )
 
         _emit("downloading", f"Downloading from {source}...")
         try:
             if detail.install_method == "git":
-                skill_files = await self._git_installer.download(detail.install_url, detail.subdirectory)
+                skill_files = await self._git_installer.download(
+                    detail.install_url, detail.subdirectory
+                )
             elif detail.install_method == "zip":
-                skill_files = await self._zip_installer.download(detail.install_url, detail.subdirectory)
+                skill_files = await self._zip_installer.download(
+                    detail.install_url, detail.subdirectory
+                )
             else:
                 _emit("failed", "Unsupported install method")
-                return SkillInstallResult(success=False, error=f"Unsupported install method: {detail.install_method}")
+                return SkillInstallResult(
+                    success=False,
+                    error=f"Unsupported install method: {detail.install_method}",
+                )
         except ValueError as e:
             resolved_error, error_code = _resolve_install_error(e)
             _emit("failed", resolved_error)
-            return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
+            return SkillInstallResult(
+                success=False, error=resolved_error, error_code=error_code
+            )
 
         sanitized = sanitize_skill_files(skill_files.files)
         return await self._quarantine_install(
-            skill_id, skill_files.name, sanitized, source=source, progress_callback=progress_callback
+            skill_id,
+            skill_files.name,
+            sanitized,
+            source=source,
+            progress_callback=progress_callback,
         )
 
     async def install_from_url(
@@ -288,41 +348,58 @@ class BaseSkillMarketService:
 
         _emit("downloading", "Cloning repository...")
         try:
-            skill_files = await self._git_installer.download(ref.clone_url, subdirectory=ref.subdirectory, ref=ref.ref)
+            skill_files = await self._git_installer.download(
+                ref.clone_url, subdirectory=ref.subdirectory, ref=ref.ref
+            )
         except ValueError as e:
             resolved_error, error_code = _resolve_install_error(e)
             _emit("failed", resolved_error)
-            return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
+            return SkillInstallResult(
+                success=False, error=resolved_error, error_code=error_code
+            )
 
         sanitized = sanitize_skill_files(skill_files.files)
         return await self._quarantine_install(
-            skill_id, skill_files.name, sanitized, source="github", progress_callback=progress_callback
+            skill_id,
+            skill_files.name,
+            sanitized,
+            source="github",
+            progress_callback=progress_callback,
         )
 
     async def uninstall(self, skill_id: str) -> SkillInstallResult:
         """Uninstall a locally installed skill."""
         if not skill_id.startswith("local::"):
             return SkillInstallResult(
-                success=False, error=f"Only local skills can be uninstalled via this method: {skill_id}"
+                success=False,
+                error=f"Only local skills can be uninstalled via this method: {skill_id}",
             )
 
-        skill_name = skill_id.removeprefix("local::")
-        if not skill_name or "/" in skill_name or "\\" in skill_name or ".." in skill_name:
-            return SkillInstallResult(success=False, error=f"Invalid skill name: {skill_name}")
+        from myrm_agent_harness.backends.skills.local_skill_id import (
+            resolve_local_install_dir,
+        )
 
-        target_dir = LOCAL_INSTALL_DIR / skill_name
+        target_dir = resolve_local_install_dir(skill_id, LOCAL_INSTALL_DIR)
+        if target_dir is None:
+            return SkillInstallResult(
+                success=False, error=f"Skill directory not found for id: {skill_id}"
+            )
 
-        if not target_dir.exists():
-            return SkillInstallResult(success=False, error=f"Skill directory not found: {target_dir}")
+        skill_name = target_dir.name
 
         try:
             shutil.rmtree(target_dir)
         except Exception as e:
-            return SkillInstallResult(success=False, error=f"Failed to remove skill directory: {e}")
+            return SkillInstallResult(
+                success=False, error=f"Failed to remove skill directory: {e}"
+            )
 
         logger.info("Uninstalled skill: %s", skill_name)
         return SkillInstallResult(
-            success=True, skill_name=skill_name, skill_id=skill_id, installed_path=str(target_dir)
+            success=True,
+            skill_name=skill_name,
+            skill_id=skill_id,
+            installed_path=str(target_dir),
         )
 
     async def get_detail(self, skill_id: str, source: str) -> SkillSearchResult | None:
@@ -343,7 +420,9 @@ class BaseSkillMarketService:
         return None
 
     def _enrich_results(
-        self, results: list[SkillSearchResult], installed_versions: dict[str, str] | None
+        self,
+        results: list[SkillSearchResult],
+        installed_versions: dict[str, str] | None,
     ) -> list[EnrichedSearchResult]:
         if not installed_versions or not results:
             return [EnrichedSearchResult(result=r) for r in results]
@@ -354,15 +433,23 @@ class BaseSkillMarketService:
             if local_ver and r.version:
                 delta = compare_versions(local_ver, r.version)
                 enriched.append(
-                    EnrichedSearchResult(result=r, installed_version=local_ver, upgrade_available=delta.has_update)
+                    EnrichedSearchResult(
+                        result=r,
+                        installed_version=local_ver,
+                        upgrade_available=delta.has_update,
+                    )
                 )
             elif local_ver:
-                enriched.append(EnrichedSearchResult(result=r, installed_version=local_ver))
+                enriched.append(
+                    EnrichedSearchResult(result=r, installed_version=local_ver)
+                )
             else:
                 enriched.append(EnrichedSearchResult(result=r))
         return enriched
 
-    async def _search_source(self, source: SkillSource, query: str, limit: int) -> list[SkillSearchResult]:
+    async def _search_source(
+        self, source: SkillSource, query: str, limit: int
+    ) -> list[SkillSearchResult]:
         try:
             return await source.search(query, limit)
         except Exception as e:
@@ -390,7 +477,9 @@ class BaseSkillMarketService:
             for rel_path, content in files.items():
                 file_path = (quarantine_dir / rel_path).resolve()
                 if not str(file_path).startswith(str(quarantine_resolved)):
-                    logger.warning("Blocked path escape in skill '%s': %s", name, rel_path)
+                    logger.warning(
+                        "Blocked path escape in skill '%s': %s", name, rel_path
+                    )
                     continue
                 file_path.parent.mkdir(parents=True, exist_ok=True)
                 file_path.write_bytes(content)
@@ -399,7 +488,11 @@ class BaseSkillMarketService:
             scan_result = scan_all_text_files(name, files)
 
             if scan_result.trust_recommendation == SkillTrustRecommendation.REJECT:
-                logger.warning("Skill '%s' rejected by security scan: %s", name, scan_result.summary)
+                logger.warning(
+                    "Skill '%s' rejected by security scan: %s",
+                    name,
+                    scan_result.summary,
+                )
                 _emit("rejected", scan_result.summary)
                 return SkillInstallResult(
                     success=False,
@@ -417,15 +510,25 @@ class BaseSkillMarketService:
 
             scan_summary = scan_result.summary if not scan_result.is_clean else ""
             if scan_summary:
-                logger.warning("Installed skill with findings: %s -> %s (%s)", name, target_dir, scan_summary)
+                logger.warning(
+                    "Installed skill with findings: %s -> %s (%s)",
+                    name,
+                    target_dir,
+                    scan_summary,
+                )
             else:
                 logger.info("Installed skill: %s -> %s", name, target_dir)
 
             _emit("completed", f"Installed to {target_dir}")
+            from myrm_agent_harness.backends.skills.local_skill_id import (
+                local_skill_id_from_path,
+            )
+
+            canonical_id = local_skill_id_from_path(target_dir)
             return SkillInstallResult(
                 success=True,
                 skill_name=name,
-                skill_id=f"local::{name}",
+                skill_id=canonical_id,
                 installed_path=str(target_dir),
                 scan_summary=scan_summary,
             )

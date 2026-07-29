@@ -15,6 +15,9 @@ from myrm_agent_harness.agent.meta_tools import get_meta_tools
 from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
     sync_discover_capability_tool,
 )
+from myrm_agent_harness.agent.meta_tools.skills.market.skill_market_tool import (
+    create_skill_market_tool,
+)
 from myrm_agent_harness.agent.skill_agent import SkillAgent
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry, ToolSource
 from myrm_agent_harness.backends.skills.types import SkillMetadata
@@ -77,9 +80,21 @@ def _assert_mutual_boundary(descriptions: tuple[str, str]) -> None:
     assert "bound" in marketplace_description.lower()
 
 
+def _mount_market_tool(
+    market_backend: _StubMarketBackend,
+) -> object:
+    install_url_fn = getattr(market_backend, "install_from_url", None)
+    uninstall_fn = getattr(market_backend, "uninstall", None)
+    return create_skill_market_tool(
+        market_backend,
+        install_from_url_fn=install_url_fn,
+        uninstall_fn=uninstall_fn,
+    )
+
+
 @pytest.mark.integration
 def test_registry_wiring_exposes_skill_tools_with_boundary_descriptions() -> None:
-    """get_meta_tools + sync_discover registers both tools with cross-referenced descriptions."""
+    """user_tools skill_market + get_meta_tools registers both tools with cross-referenced descriptions."""
     skills = [_sample_skill()]
     registry = ToolRegistry()
     skill_backend = _StubSkillBackend(skills)
@@ -89,12 +104,12 @@ def test_registry_wiring_exposes_skill_tools_with_boundary_descriptions() -> Non
         skills,
         skill_backend,
         registry=registry,
-        market_backend=market_backend,
         enable_file_tools=False,
         enable_shell_tools=False,
         enable_answer_tool=False,
     )
     registry.register_many(meta_tools, source=ToolSource.META)
+    registry.register(_mount_market_tool(market_backend), source=ToolSource.USER)
     sync_discover_capability_tool(registry, skills=skills)
 
     resolved = registry.resolve()
@@ -189,12 +204,12 @@ def test_registry_omits_discover_tool_when_no_searchable_skills() -> None:
         [],
         _StubSkillBackend([]),
         registry=registry,
-        market_backend=_StubMarketBackend(),
         enable_file_tools=False,
         enable_shell_tools=False,
         enable_answer_tool=False,
     )
     registry.register_many(meta_tools, source=ToolSource.META)
+    registry.register(_mount_market_tool(_StubMarketBackend()), source=ToolSource.USER)
     sync_discover_capability_tool(registry, skills=[])
 
     resolved_names = {t.name for t in registry.resolve()}
@@ -212,12 +227,12 @@ async def test_discover_runtime_returns_bound_skills_xml() -> None:
         skills,
         _StubSkillBackend(skills),
         registry=registry,
-        market_backend=_StubMarketBackend(),
         enable_file_tools=False,
         enable_shell_tools=False,
         enable_answer_tool=False,
     )
     registry.register_many(meta_tools, source=ToolSource.META)
+    registry.register(_mount_market_tool(_StubMarketBackend()), source=ToolSource.USER)
     sync_discover_capability_tool(registry, skills=skills)
 
     discover = next(t for t in registry.resolve() if t.name == _DISCOVER_TOOL)
@@ -241,12 +256,12 @@ async def test_discover_runtime_bm25_synonym_expansion_finds_skill() -> None:
         skills,
         _StubSkillBackend(skills),
         registry=registry,
-        market_backend=_StubMarketBackend(),
         enable_file_tools=False,
         enable_shell_tools=False,
         enable_answer_tool=False,
     )
     registry.register_many(meta_tools, source=ToolSource.META)
+    registry.register(_mount_market_tool(_StubMarketBackend()), source=ToolSource.USER)
     sync_discover_capability_tool(registry, skills=skills)
 
     discover = next(t for t in registry.resolve() if t.name == _DISCOVER_TOOL)

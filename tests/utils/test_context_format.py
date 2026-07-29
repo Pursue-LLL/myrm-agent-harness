@@ -26,22 +26,30 @@ class TestFormatDocumentHeader:
 
     def test_header_with_title(self):
         """测试包含标题"""
-        header = format_document_header(2, "https://test.com", title="Test Title", include_title=True)
+        header = format_document_header(
+            2, "https://test.com", title="Test Title", include_title=True
+        )
         assert "Title: Test Title" in header
 
     def test_header_without_title(self):
         """测试排除标题"""
-        header = format_document_header(2, "https://test.com", title="Test Title", include_title=False)
+        header = format_document_header(
+            2, "https://test.com", title="Test Title", include_title=False
+        )
         assert "Title:" not in header
 
     def test_header_with_date(self):
         """测试包含日期"""
-        header = format_document_header(3, "https://test.com", date="2024-03-18", include_date=True)
+        header = format_document_header(
+            3, "https://test.com", date="2024-03-18", include_date=True
+        )
         assert "Date: 2024-03-18" in header
 
     def test_header_without_date(self):
         """测试排除日期"""
-        header = format_document_header(3, "https://test.com", date="2024-03-18", include_date=False)
+        header = format_document_header(
+            3, "https://test.com", date="2024-03-18", include_date=False
+        )
         assert "Date:" not in header
 
     def test_full_header(self):
@@ -54,7 +62,9 @@ class TestFormatDocumentHeader:
             include_title=True,
             include_date=True,
         )
-        assert all(x in header for x in ["【5】", "example.com", "Example", "2024-03-18"])
+        assert all(
+            x in header for x in ["【5】", "example.com", "Example", "2024-03-18"]
+        )
 
     def test_empty_optional_fields(self):
         """测试空的可选字段"""
@@ -111,7 +121,10 @@ class TestFormatCrawlResults:
 
     def test_single_result(self):
         """测试单个结果"""
-        doc = Document(page_content="Test content", metadata={"url": "https://test.com", "title": "Test"})
+        doc = Document(
+            page_content="Test content",
+            metadata={"url": "https://test.com", "title": "Test"},
+        )
         result = format_crawl_results([("https://test.com", doc)])
 
         assert "【1】" in result
@@ -123,11 +136,17 @@ class TestFormatCrawlResults:
         results = [
             (
                 "https://test1.com",
-                Document(page_content="Content 1", metadata={"url": "https://test1.com", "title": "Title 1"}),
+                Document(
+                    page_content="Content 1",
+                    metadata={"url": "https://test1.com", "title": "Title 1"},
+                ),
             ),
             (
                 "https://test2.com",
-                Document(page_content="Content 2", metadata={"url": "https://test2.com", "title": "Title 2"}),
+                Document(
+                    page_content="Content 2",
+                    metadata={"url": "https://test2.com", "title": "Title 2"},
+                ),
             ),
         ]
         result = format_crawl_results(results)
@@ -137,22 +156,33 @@ class TestFormatCrawlResults:
 
     def test_without_title(self):
         """测试不包含标题"""
-        doc = Document(page_content="Content", metadata={"url": "https://test.com", "title": "Title"})
+        doc = Document(
+            page_content="Content",
+            metadata={"url": "https://test.com", "title": "Title"},
+        )
         result = format_crawl_results([("https://test.com", doc)], include_title=False)
 
         assert "Title:" not in result
 
     def test_with_date(self):
         """测试包含日期"""
-        doc = Document(page_content="Content", metadata={"url": "https://test.com", "date": "2024-03-18"})
+        doc = Document(
+            page_content="Content",
+            metadata={"url": "https://test.com", "date": "2024-03-18"},
+        )
         result = format_crawl_results([("https://test.com", doc)], include_date=True)
 
         assert "Date: 2024-03-18" in result
 
     def test_extract_clean_content(self):
         """测试提取clean content"""
-        doc = Document(page_content="---\nsection: Test\n---\n\nContent", metadata={"url": "https://test.com"})
-        result = format_crawl_results([("https://test.com", doc)], extract_clean_content=True)
+        doc = Document(
+            page_content="---\nsection: Test\n---\n\nContent",
+            metadata={"url": "https://test.com"},
+        )
+        result = format_crawl_results(
+            [("https://test.com", doc)], extract_clean_content=True
+        )
 
         assert "section: Test" in result
         assert "Content" in result
@@ -170,7 +200,10 @@ class TestFormatDocumentsWithMetadata:
 
     def test_single_document(self):
         """测试单文档"""
-        doc = Document(page_content="测试内容", metadata={"url": "https://test.com", "title": "测试"})
+        doc = Document(
+            page_content="测试内容",
+            metadata={"url": "https://test.com", "title": "测试"},
+        )
         sources, context, _ = format_documents_with_metadata([doc])
 
         assert len(sources) == 1
@@ -182,7 +215,10 @@ class TestFormatDocumentsWithMetadata:
     def test_multiple_documents(self):
         """测试多文档"""
         docs = [
-            Document(page_content=f"内容{i}", metadata={"url": f"https://test{i}.com", "title": f"标题{i}"})
+            Document(
+                page_content=f"内容{i}",
+                metadata={"url": f"https://test{i}.com", "title": f"标题{i}"},
+            )
             for i in range(1, 4)
         ]
         sources, context, _ = format_documents_with_metadata(docs)
@@ -195,7 +231,10 @@ class TestFormatDocumentsWithMetadata:
     def test_url_deduplication_and_merging(self):
         """测试URL去重和内容合并"""
         docs = [
-            Document(page_content="片段1", metadata={"url": "https://same.com", "title": "标题"}),
+            Document(
+                page_content="片段1",
+                metadata={"url": "https://same.com", "title": "标题"},
+            ),
             Document(page_content="片段2", metadata={"url": "https://same.com"}),
             Document(page_content="片段3", metadata={"url": "https://same.com"}),
         ]
@@ -219,7 +258,9 @@ class TestFormatDocumentsWithMetadata:
     def test_questions_prefix(self):
         """测试查询前缀"""
         doc = Document(page_content="内容", metadata={"url": "https://test.com"})
-        _sources, context, _ = format_documents_with_metadata([doc], questions=["python", "async"])
+        _sources, context, _ = format_documents_with_metadata(
+            [doc], questions=["python", "async"]
+        )
 
         assert context.startswith("relevant results for keywords")
         assert "python, async" in context
@@ -233,22 +274,34 @@ class TestFormatDocumentsWithMetadata:
 
     def test_include_title_false(self):
         """测试排除标题"""
-        doc = Document(page_content="内容", metadata={"url": "https://test.com", "title": "标题"})
-        _sources, context, _ = format_documents_with_metadata([doc], include_title=False)
+        doc = Document(
+            page_content="内容", metadata={"url": "https://test.com", "title": "标题"}
+        )
+        _sources, context, _ = format_documents_with_metadata(
+            [doc], include_title=False
+        )
 
         assert "Title:" not in context
 
     def test_include_date_true(self):
         """测试包含日期"""
-        doc = Document(page_content="内容", metadata={"url": "https://test.com", "date": "2024-03-18"})
+        doc = Document(
+            page_content="内容",
+            metadata={"url": "https://test.com", "date": "2024-03-18"},
+        )
         _sources, context, _ = format_documents_with_metadata([doc], include_date=True)
 
         assert "Date: 2024-03-18" in context
 
     def test_extract_clean_content_true(self):
         """测试启用clean content"""
-        doc = Document(page_content="---\nsection: Test\n---\n\n正文", metadata={"url": "https://test.com"})
-        _sources, context, _ = format_documents_with_metadata([doc], extract_clean_content=True)
+        doc = Document(
+            page_content="---\nsection: Test\n---\n\n正文",
+            metadata={"url": "https://test.com"},
+        )
+        _sources, context, _ = format_documents_with_metadata(
+            [doc], extract_clean_content=True
+        )
 
         assert "section: Test" in context
         assert "正文" in context
@@ -257,29 +310,55 @@ class TestFormatDocumentsWithMetadata:
         """测试禁用clean content"""
         content = "---\nsection: Test\n---\n\n正文"
         doc = Document(page_content=content, metadata={"url": "https://test.com"})
-        _sources, context, _ = format_documents_with_metadata([doc], extract_clean_content=False)
+        _sources, context, _ = format_documents_with_metadata(
+            [doc], extract_clean_content=False
+        )
 
         assert content in context
 
     def test_snippet_field(self):
         """测试snippet字段"""
-        doc = Document(page_content="内容", metadata={"url": "https://test.com", "snippet": "摘要"})
+        doc = Document(
+            page_content="内容", metadata={"url": "https://test.com", "snippet": "摘要"}
+        )
         sources, _context, _ = format_documents_with_metadata([doc])
         assert sources[0]["snippet"] == "摘要"
 
     def test_description_fallback(self):
         """测试description作为snippet fallback"""
-        doc = Document(page_content="内容", metadata={"url": "https://test.com", "description": "描述"})
+        doc = Document(
+            page_content="内容",
+            metadata={"url": "https://test.com", "description": "描述"},
+        )
         sources, _context, _ = format_documents_with_metadata([doc])
         assert sources[0]["snippet"] == "描述"
 
     def test_snippet_priority(self):
         """测试snippet优先于description"""
         doc = Document(
-            page_content="内容", metadata={"url": "https://test.com", "snippet": "摘要", "description": "描述"}
+            page_content="内容",
+            metadata={
+                "url": "https://test.com",
+                "snippet": "摘要",
+                "description": "描述",
+            },
         )
         sources, _context, _ = format_documents_with_metadata([doc])
         assert sources[0]["snippet"] == "摘要"
+
+    def test_summary_passthrough(self):
+        """Provider summary is forwarded to sources metadata for UI hover."""
+        doc = Document(
+            page_content="内容",
+            metadata={
+                "url": "https://test.com",
+                "snippet": "短摘要",
+                "summary": "NeedSummary 长摘要内容",
+            },
+        )
+        sources, _context, _ = format_documents_with_metadata([doc])
+        assert sources[0]["snippet"] == "短摘要"
+        assert sources[0]["summary"] == "NeedSummary 长摘要内容"
 
 
 class TestWrappers:
@@ -347,7 +426,9 @@ class TestEdgeCases:
 
     def test_zero_length_content(self):
         """测试空内容"""
-        doc = Document(page_content="", metadata={"url": "https://test.com", "title": "Empty"})
+        doc = Document(
+            page_content="", metadata={"url": "https://test.com", "title": "Empty"}
+        )
         sources, context, _ = format_documents_with_metadata([doc])
 
         assert len(sources) == 1
@@ -355,14 +436,21 @@ class TestEdgeCases:
 
     def test_whitespace_only_content(self):
         """测试纯空白内容"""
-        doc = Document(page_content="   \n\n  \t  ", metadata={"url": "https://test.com"})
+        doc = Document(
+            page_content="   \n\n  \t  ", metadata={"url": "https://test.com"}
+        )
         _sources, context, _ = format_documents_with_metadata([doc])
 
         assert "【1】" in context
 
     def test_many_documents(self):
         """测试大量文档"""
-        docs = [Document(page_content=f"Content {i}", metadata={"url": f"https://test{i}.com"}) for i in range(50)]
+        docs = [
+            Document(
+                page_content=f"Content {i}", metadata={"url": f"https://test{i}.com"}
+            )
+            for i in range(50)
+        ]
         sources, context, _ = format_documents_with_metadata(docs)
 
         assert len(sources) == 50
@@ -378,7 +466,10 @@ class TestFormatCrawlResultsComplete:
         results = [
             (
                 "https://test.com",
-                Document(page_content="Content", metadata={"url": "https://test.com", "title": "Test"}),
+                Document(
+                    page_content="Content",
+                    metadata={"url": "https://test.com", "title": "Test"},
+                ),
             ),
         ]
         formatted = format_crawl_results(results)
@@ -388,7 +479,9 @@ class TestFormatCrawlResultsComplete:
 
     def test_crawl_vs_documents_consistency(self):
         """测试crawl_results和documents格式化的一致性"""
-        doc = Document(page_content="Test", metadata={"url": "https://test.com", "title": "Title"})
+        doc = Document(
+            page_content="Test", metadata={"url": "https://test.com", "title": "Title"}
+        )
 
         # 使用format_crawl_results
         crawl_result = format_crawl_results([("https://test.com", doc)])
@@ -409,7 +502,11 @@ class TestRealWorldScenarios:
         docs = [
             Document(
                 page_content="Python is great.",
-                metadata={"url": "https://python.org", "title": "Python", "snippet": "Intro"},
+                metadata={
+                    "url": "https://python.org",
+                    "title": "Python",
+                    "snippet": "Intro",
+                },
             ),
             Document(
                 page_content="Async programming.",
@@ -417,7 +514,9 @@ class TestRealWorldScenarios:
             ),
         ]
 
-        sources, context, _ = format_documents_with_metadata(docs, questions=["python async"])
+        sources, context, _ = format_documents_with_metadata(
+            docs, questions=["python async"]
+        )
 
         assert len(sources) == 2
         assert "relevant results for keywords [python async]" in context
@@ -455,8 +554,13 @@ class TestRealWorldScenarios:
         """测试混合文档类型"""
         docs = [
             Document(page_content="Short", metadata={"url": "https://short.com"}),
-            Document(page_content="Medium text. " * 50, metadata={"url": "https://medium.com"}),
-            Document(page_content="", metadata={"url": "https://empty.com", "title": "Empty"}),
+            Document(
+                page_content="Medium text. " * 50,
+                metadata={"url": "https://medium.com"},
+            ),
+            Document(
+                page_content="", metadata={"url": "https://empty.com", "title": "Empty"}
+            ),
         ]
 
         sources, context, _ = format_documents_with_metadata(docs)
@@ -499,7 +603,10 @@ class TestMetadataStructure:
     def test_metadata_order_preserved(self):
         """测试元数据顺序保持"""
         docs = [
-            Document(page_content=f"C{i}", metadata={"url": f"https://test{i}.com", "title": f"T{i}"})
+            Document(
+                page_content=f"C{i}",
+                metadata={"url": f"https://test{i}.com", "title": f"T{i}"},
+            )
             for i in [3, 1, 2]
         ]
         sources, _context, _ = format_documents_with_metadata(docs)
@@ -527,7 +634,11 @@ class TestIntegration:
             ),
             Document(
                 page_content="Content two.",
-                metadata={"url": "https://test2.com", "title": "Title 2", "description": "Desc 2"},
+                metadata={
+                    "url": "https://test2.com",
+                    "title": "Title 2",
+                    "description": "Desc 2",
+                },
             ),
         ]
 
@@ -548,7 +659,10 @@ class TestIntegration:
     def test_stress_many_urls(self):
         """压力测试：大量URL"""
         docs = [
-            Document(page_content=f"Content {i}", metadata={"url": f"https://test{i}.com", "title": f"T{i}"})
+            Document(
+                page_content=f"Content {i}",
+                metadata={"url": f"https://test{i}.com", "title": f"T{i}"},
+            )
             for i in range(100)
         ]
 
@@ -561,7 +675,10 @@ class TestIntegration:
     def test_stress_duplicate_urls(self):
         """压力测试：大量重复URL"""
         docs = [
-            Document(page_content=f"Fragment {i}", metadata={"url": "https://same.com", "title": "Same"})
+            Document(
+                page_content=f"Fragment {i}",
+                metadata={"url": "https://same.com", "title": "Same"},
+            )
             for i in range(50)
         ]
 

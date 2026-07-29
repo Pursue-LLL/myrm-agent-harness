@@ -68,12 +68,15 @@ class SourceTracker:
         return self._all_sources.copy()
 
     def _dedup_key(self, src: dict[str, object]) -> str:
-        """生成去重键（纯通用，不硬编码任何业务字段）
+        """Generate dedup key (pure generic, no business field hardcoding beyond stable keys).
 
-        策略：
-        1. 有 url → 按 url 去重（最常见）
-        2. 否则 → 按所有非 index 字段的内容哈希去重
+        Strategy:
+        1. source_key → explicit stable key from tool metadata (preferred)
+        2. url → URL dedup (web sources)
+        3. otherwise → hash of all non-index fields
         """
+        if source_key := src.get("source_key"):
+            return f"source_key:{source_key}"
         if url := src.get("url"):
             return f"url:{url}"
         stable = sorted((k, str(v)) for k, v in src.items() if k != "index")

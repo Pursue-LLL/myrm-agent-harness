@@ -4,6 +4,7 @@
 - (none)
 
 [OUTPUT]
+- is_quota_or_rate_limit_error: Quota / rate-limit detection (chain hop + non-retryable)
 - is_retryable_search_error: function — is_retryable_search_error
 - build_search_error_context: Build structured context for a single failed search attempt.
 
@@ -15,7 +16,23 @@ from __future__ import annotations
 
 import asyncio
 
-from myrm_agent_harness.toolkits.web_search.exceptions import ErrorContext
+from myrm_agent_harness.toolkits.web_search.exceptions import (
+    ErrorContext,
+    SearchAPIError,
+)
+
+_QUOTA_RATE_LIMIT_MARKERS: frozenset[str] = frozenset(
+    {
+        "429",
+        "10406",
+        "10407",
+        "700429",
+        "quota",
+        "usage limit",
+        "flowlimit",
+        "rate limit",
+    }
+)
 
 
 def _status_from_exception(exc: BaseException) -> int | None:
@@ -40,12 +57,33 @@ def _response_body_snippet(exc: BaseException, max_len: int = 2000) -> str | Non
     return msg[:max_len] if msg else None
 
 
+def _text_indicates_quota_or_rate_limit(text: str) -> bool:
+    lowered = text.lower()
+    return any(marker in lowered for marker in _QUOTA_RATE_LIMIT_MARKERS)
+
+
+def is_quota_or_rate_limit_error(exc: BaseException) -> bool:
+    """Quota / rate-limit failures should hop chain providers and skip intra-hop retry."""
+    if _text_indicates_quota_or_rate_limit(str(exc)):
+        return True
+    if isinstance(exc, SearchAPIError) and exc.context is not None:
+        body = exc.context.response_body or ""
+        if _text_indicates_quota_or_rate_limit(body):
+            return True
+        if exc.context.status_code == 429:
+            return True
+    status = _status_from_exception(exc)
+    return status == 429
+
+
 def is_retryable_search_error(exc: BaseException) -> bool:
     """Return True when a failed search attempt may succeed after backoff."""
     text = str(exc).lower()
 
     # Non-retryable: quota/plan limit or invalid credentials — must check before
     # status codes because LiteLLM wraps provider errors as APIConnectionError(status=500).
+    if is_quota_or_rate_limit_error(exc):
+        return False
     if "exceeds" in text and ("usage limit" in text or "plan" in text):
         return False
     if "invalid api key" in text or "invalid_api_key" in text:
@@ -55,13 +93,11 @@ def is_retryable_search_error(exc: BaseException) -> bool:
         return True
     status = _status_from_exception(exc)
     if status is not None:
-        if status in (408, 425, 429, 500, 502, 503, 504):
+        if status in (408, 425, 500, 502, 503, 504):
             return True
         if status in (400, 401, 403, 404, 405, 422):
             return False
 
-    if "429" in text or "rate limit" in text:
-        return True
     if "502" in text or "503" in text or "504" in text or "500" in text:
         return True
     if "timeout" in text or "timed out" in text:

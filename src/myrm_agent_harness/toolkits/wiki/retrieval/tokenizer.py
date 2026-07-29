@@ -5,6 +5,7 @@ re (POS: standard library regex)
 
 [OUTPUT]
 tokenize_for_fts(): Build FTS5 query with CJK bigram support
+extract_query_terms(): Normalized query term set for index routing and keyword overlap
 STOP_WORDS: English + Chinese stop words for FTS filtering
 
 [POS]
@@ -113,3 +114,23 @@ def tokenize_for_fts(query: str) -> str:
             tokens.append(f'"{word}"')
 
     return " ".join(tokens)
+
+
+def extract_query_terms(query: str) -> set[str]:
+    """Extract normalized terms for index routing and keyword overlap (EN + CJK bigrams)."""
+    terms: set[str] = set()
+
+    for segment in CJK_RE.findall(query):
+        if len(segment) == 1:
+            terms.add(segment)
+            continue
+        for index in range(len(segment) - 1):
+            terms.add(segment[index : index + 2])
+
+    latin_text = CJK_RE.sub(" ", query)
+    for match in re.finditer(r"\w+", latin_text.lower()):
+        word = match.group(0)
+        if word and word not in STOP_WORDS:
+            terms.add(word)
+
+    return terms

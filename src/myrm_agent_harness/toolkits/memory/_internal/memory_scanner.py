@@ -33,13 +33,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from myrm_agent_harness.core.security.detection.content_boundary import (
-    has_invisible_unicode,
-    strip_invisible_unicode,
+from myrm_agent_harness.core.security.persistence.content_scan import (
+    PersistScanProfile,
+    PersistScanVerdict,
+    scan_persistable_content,
+    set_pii_pseudonymizer as _set_core_pii_pseudonymizer,
 )
-from myrm_agent_harness.core.security.detection.harmful_state_detector import scan_for_harmful_states
-from myrm_agent_harness.core.security.detection.leak_detector import redact_leaks, scan_for_leaks
-from myrm_agent_harness.core.security.detection.prompt_guard import scan_input
 
 logger = logging.getLogger(__name__)
 
@@ -81,86 +80,44 @@ class MemoryTaintedError(Exception):
         super().__init__(f"Memory write blocked: injection score={score:.2f}, patterns={','.join(patterns)}")
 
 
+def _map_persist_verdict(verdict: PersistScanVerdict) -> ScanVerdict:
+    return ScanVerdict(verdict.value)
+
+
 def scan_memory_content(text: str, *, block_threshold: float = 0.8) -> ScanResult:
-    """Scan a text field for security threats.
-
-    Returns ScanResult with verdict and cleaned text. The caller decides
-    how to handle each verdict (block, use cleaned text, or store as-is).
-    """
-    if not text:
-        return ScanResult(verdict=ScanVerdict.CLEAN, cleaned_text=text)
-
-    cleaned = text
-    verdict = ScanVerdict.CLEAN
-    injection_score = 0.0
-    injection_patterns: list[str] = []
-    credential_patterns: list[str] = []
-    harmful_state_patterns: list[str] = []
-    had_invisible = False
-
-    harmful_matches = scan_for_harmful_states(text)
-    if harmful_matches:
-        harmful_state_patterns = harmful_matches
-        return ScanResult(
-            verdict=ScanVerdict.BLOCKED,
-            cleaned_text=text,
-            harmful_state_patterns=harmful_state_patterns,
-        )
-
-    guard_result = scan_input(text)
-    if not guard_result.safe:
-        injection_score = guard_result.max_score
-        injection_patterns = guard_result.patterns
-        if injection_score >= block_threshold:
-            return ScanResult(
-                verdict=ScanVerdict.BLOCKED,
-                cleaned_text=text,
-                injection_score=injection_score,
-                injection_patterns=injection_patterns,
-            )
-        verdict = ScanVerdict.WARN
-
-    cred_matches = scan_for_leaks(text)
-    if cred_matches:
-        credential_patterns = cred_matches
-        cleaned = redact_leaks(cleaned)
-        verdict = ScanVerdict.REDACTED
-
-    if has_invisible_unicode(cleaned):
-        had_invisible = True
-        cleaned = strip_invisible_unicode(cleaned)
-        if verdict == ScanVerdict.CLEAN:
-            verdict = ScanVerdict.WARN
-
-    cleaned = _apply_pii_pseudonymization(cleaned)
-
+    """Scan a text field for security threats."""
+    persist = scan_persistable_content(
+        text,
+        profile=PersistScanProfile.MEMORY_WRITE,
+        block_threshold=block_threshold,
+    )
     return ScanResult(
-        verdict=verdict,
-        cleaned_text=cleaned,
-        injection_score=injection_score,
-        injection_patterns=injection_patterns,
-        credential_patterns=credential_patterns,
-        harmful_state_patterns=harmful_state_patterns,
-        had_invisible_unicode=had_invisible,
+        verdict=_map_persist_verdict(persist.verdict),
+        cleaned_text=persist.cleaned_text,
+        injection_score=persist.injection_score,
+        injection_patterns=persist.injection_patterns,
+        credential_patterns=persist.credential_patterns,
+        harmful_state_patterns=persist.harmful_state_patterns,
+        had_invisible_unicode=persist.had_invisible_unicode,
     )
 
 
 PseudonymizeFn = Callable[[str], str]
 
-_pii_pseudonymizer: PseudonymizeFn | None = None
-
 
 def set_pii_pseudonymizer(fn: PseudonymizeFn | None) -> None:
     """Register a PII pseudonymization function (called by agent layer at session start)."""
-    global _pii_pseudonymizer
-    _pii_pseudonymizer = fn
+    _set_core_pii_pseudonymizer(fn)
 
 
 def _apply_pii_pseudonymization(text: str) -> str:
     """Apply PII pseudonymization via the registered function (if any)."""
-    if _pii_pseudonymizer is None:
+    from myrm_agent_harness.core.security.persistence.content_scan import get_pii_pseudonymizer
+
+    fn = get_pii_pseudonymizer()
+    if fn is None:
         return text
-    return _pii_pseudonymizer(text)
+    return fn(text)
 
 
 def _handle_blocked_verdict(result: ScanResult, content: str) -> ScanResult:

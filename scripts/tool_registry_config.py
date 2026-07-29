@@ -43,6 +43,11 @@ CROSS_MODULE_CONSTANTS: dict[str, str] = {
     "CONVERSATION_SEARCH_TOOL_NAME": "conversation_search_tool",
 }
 
+# Legacy harness factories — declared in code but not Turn1 Action Tool SSOT.
+LAYER_EXEMPT_TOOL_NAMES: frozenset[str] = frozenset({
+    "conversation_search_tool",
+})
+
 ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset({
     "create_desktop_tools",
     "create_browser_tools",

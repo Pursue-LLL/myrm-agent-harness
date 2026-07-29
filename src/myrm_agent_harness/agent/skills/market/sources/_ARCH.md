@@ -13,6 +13,7 @@ individual failures are logged and silently skipped.
 | aliyun.py | Core | Aliyun AgentExplorer 技能搜索源（需 AK/SK，无凭据时静默跳过）。 | ✅ |
 | base.py | Core | Provides SkillSource protocol. | ✅ |
 | clawhub.py | Core | Provides ClawHubSource. | ✅ |
+| clawhub_registry.py | Core | ClawHub registry URL SSOT (`CLAWHUB_URL`), legacy env bootstrap, strict JSON probe. | ✅ |
 | github.py | Core | Provides GitHubSkillSource, GitHubRef, parse_github_url. | ✅ |
 | lobehub.py | Core | Provides LobeHubSource. | ✅ |
 | modelscope.py | Core | ModelScope 魔搭社区技能搜索源（搜索无需认证，80K+ 技能）。 | ✅ |

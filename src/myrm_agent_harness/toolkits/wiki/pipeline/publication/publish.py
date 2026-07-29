@@ -20,11 +20,13 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.core.security.persistence.content_scan import PersistScanVerdict
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     assert_valid_wiki_frontmatter,
     ensure_published_frontmatter,
     repair_publication_on_disk,
 )
+from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.security_hook import scan_publish_article_content
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
@@ -57,6 +59,13 @@ async def publish_concept_article(
     """Validate frontmatter, stamp publish_status=published, write file, upsert search index."""
     assert_valid_wiki_frontmatter(content)
     published_content = ensure_published_frontmatter(content)
+
+    scan = scan_publish_article_content(published_content)
+    if scan.verdict == PersistScanVerdict.BLOCKED:
+        logger.warning("Blocked wiki publish for %s: %s", concept_name, scan.finding_codes)
+        return ArticlePublishOutcome.BLOCKED
+    if scan.verdict == PersistScanVerdict.REDACTED:
+        published_content = ensure_published_frontmatter(scan.cleaned_text)
 
     article_path = structure.get_concept_file_path(concept_name)
     article_path.write_text(published_content, encoding="utf-8")

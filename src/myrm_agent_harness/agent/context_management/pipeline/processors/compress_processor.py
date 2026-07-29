@@ -40,6 +40,7 @@ from ...infra.schemas import (
     ContextConfig,
     ContextSnapshotCallback,
 )
+from ...infra.retention_helpers import extract_failed_tool_call_ids
 from ...strategies.compactor import compress_messages_async
 from ...strategies.smart_fallback import apply_smart_fallback
 from ..base import BaseProcessor, ProcessorContext
@@ -251,7 +252,7 @@ class CompressProcessor(BaseProcessor):
             on_compress_eviction=self._on_compress_eviction,
             chat_id=context.chat_id,
             user_id=context.user_id,
-            failed_tool_call_ids=_extract_failed_tool_call_ids(context),
+            failed_tool_call_ids=extract_failed_tool_call_ids(context.metadata),
             focus_files=_extract_focus_files(context),
             focus_modules=_extract_focus_modules(context),
             user_goal_hint=_extract_user_goal_hint(context),
@@ -323,18 +324,6 @@ class CompressProcessor(BaseProcessor):
     def _is_compressed(self, tool_msg: BaseMessage) -> bool:
         content = str(tool_msg.content)
         return content.startswith("COMPACTED:")
-
-
-def _extract_failed_tool_call_ids(context: ProcessorContext) -> frozenset[str]:
-    raw_intent = context.metadata.get("compression_intent")
-    if not isinstance(raw_intent, dict):
-        return frozenset()
-
-    raw_failed_ids = raw_intent.get("failed_tool_call_ids")
-    if not isinstance(raw_failed_ids, list):
-        return frozenset()
-
-    return frozenset(tool_call_id for tool_call_id in raw_failed_ids if isinstance(tool_call_id, str) and tool_call_id)
 
 
 def _extract_focus_files(context: ProcessorContext) -> frozenset[str]:

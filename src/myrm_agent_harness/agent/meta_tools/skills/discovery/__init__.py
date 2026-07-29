@@ -1,8 +1,5 @@
-"""Skill market meta-tool.
+"""Legacy import path — SSOT is ``skills.market``."""
 
-让 Agent 能够搜索和安装外部技能。
-"""
-
-from .skill_discovery_tool import create_skill_market_tool
+from myrm_agent_harness.agent.meta_tools.skills.market import create_skill_market_tool
 
 __all__ = ["create_skill_market_tool"]

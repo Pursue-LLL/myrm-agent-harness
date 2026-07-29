@@ -120,9 +120,8 @@ class ContextConfig:
     # Defines the percentage of max_context_tokens to preserve verbatim before compressing.
     tail_budget_ratio: float = 0.20
 
-    # Keep N most recent tool calls in full format (used in L0-L2 Compaction).
-    # Protects recent tool outputs from being individually truncated or compacted.
-    # Eco mode auto-reduces by 2 (minimum 2).
+    # Keep N most recent tool-call groups during Compress (see compactor.py).
+    # Filter/ActivePrune use separate thresholds; failed IDs come from compression_intent.
     keep_recent_calls: int = 5
 
     # Memory forgetting half-life in days. Frontend can tune the agent's forgetting curve.

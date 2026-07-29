@@ -105,6 +105,37 @@ class WikiLinter:
         stale = await self._check_stale()
         all_issues.extend(stale)
 
+        # Check 4b: Redact sensitive content in existing raw vault files
+        from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate import scan_existing_raw_vault
+
+        raw_scan = await scan_existing_raw_vault(self._structure, self._indexer)
+        redacted_paths = raw_scan.get("redacted_paths", [])
+        if isinstance(redacted_paths, list):
+            for rel_path in redacted_paths:
+                if isinstance(rel_path, str):
+                    all_issues.append(
+                        LintIssue(
+                            issue_type="security_redacted",
+                            severity="medium",
+                            location=rel_path,
+                            description="Sensitive content redacted in raw source",
+                            can_auto_fix=False,
+                        )
+                    )
+        removed_paths = raw_scan.get("removed_paths", [])
+        if isinstance(removed_paths, list):
+            for rel_path in removed_paths:
+                if isinstance(rel_path, str):
+                    all_issues.append(
+                        LintIssue(
+                            issue_type="security_removed",
+                            severity="high",
+                            location=rel_path,
+                            description="Blocked raw source removed during maintenance",
+                            can_auto_fix=False,
+                        )
+                    )
+
         # Check 5: Knowledge drift (wiki diverged from raw source facts)
         if self._config.enable_auto_maintenance:
             drift = await self._check_drift()
@@ -169,12 +200,23 @@ class WikiLinter:
             )
         )
 
+        removed_count = raw_scan.get("files_removed", 0)
+        removed_paths_list = raw_scan.get("removed_paths", [])
+        raw_security_removed = int(removed_count) if isinstance(removed_count, int) else 0
+        raw_security_removed_paths = (
+            [str(path) for path in removed_paths_list if isinstance(path, str)]
+            if isinstance(removed_paths_list, list)
+            else []
+        )
+
         return LintResult(
             issues_found=len(all_issues),
             issues_fixed=fixed_count,
             connections_discovered=connections_count,
             duration_ms=duration_ms,
             issues=all_issues,
+            raw_security_removed=raw_security_removed,
+            raw_security_removed_paths=raw_security_removed_paths,
         )
 
     async def _check_broken_links(self) -> list[LintIssue]:
@@ -410,39 +452,20 @@ class WikiLinter:
 
     async def _check_stale(self) -> list[LintIssue]:
         """Detect wiki articles whose source raw files have been modified after compilation."""
-        issues: list[LintIssue] = []
+        from myrm_agent_harness.toolkits.wiki.maintenance.stale_summary import collect_stale_raw_files
 
-        metadata_path = self._structure.get_wiki_metadata_path()
-        if not metadata_path.exists():
-            return issues
-
-        try:
-            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-            last_compile = metadata.get("last_compile_time", "")
-            if not last_compile:
-                return issues
-            compile_ts = datetime.fromisoformat(last_compile).timestamp()
-        except Exception:
-            return issues
-
-        raw_files = self._structure.list_raw_files()
-        for raw_file in raw_files:
-            try:
-                if raw_file.stat().st_mtime > compile_ts:
-                    issues.append(
-                        LintIssue(
-                            issue_type="stale",
-                            severity="medium",
-                            location=str(raw_file),
-                            description="Raw source updated after last compilation",
-                            can_auto_fix=True,
-                            suggested_fix="Recompile to update wiki from this source",
-                        )
-                    )
-            except OSError:
-                pass
-
-        return issues
+        summary = collect_stale_raw_files(self._structure)
+        return [
+            LintIssue(
+                issue_type="stale",
+                severity="medium",
+                location=item.relative_path,
+                description="Raw source updated after last compilation",
+                can_auto_fix=True,
+                suggested_fix="Recompile to update wiki from this source",
+            )
+            for item in summary.stale_files
+        ]
 
     async def _check_drift(self) -> list[LintIssue]:
         """

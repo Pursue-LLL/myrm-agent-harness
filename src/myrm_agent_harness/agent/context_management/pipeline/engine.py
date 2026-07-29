@@ -223,6 +223,7 @@ def build_default_processors(
         FilterProcessor(),
         ActiveToolResultPruneProcessor(
             threshold_tokens=active_prune_threshold_tokens,
+            keep_recent_calls=keep_recent_calls,
             on_prune_offload=on_compress_offload,
         ),
         CacheTtlPruneProcessor(

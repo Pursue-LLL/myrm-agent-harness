@@ -23,6 +23,9 @@ class WikiMapEventType(StrEnum):
     IMPORT = "import"
     PENDING_APPROVE = "pending_approve"
     REPAIR_TYPES = "repair_types"
+    RAW_SUPERSEDE = "raw_supersede"
+    RAW_SECURITY = "raw_security"
+    EVIDENCE_FORGOTTEN = "evidence_forgotten"
 
 
 @dataclass(frozen=True, slots=True)

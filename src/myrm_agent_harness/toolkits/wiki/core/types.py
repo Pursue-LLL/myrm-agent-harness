@@ -73,6 +73,13 @@ class SourceSnippet:
     snippet: str
     section: str = ""
     level: str = "L2"
+    claim_id: str = ""
+    claim_text: str = ""
+    evidence_path: str = ""
+    line_range: str = ""
+    claim_status: str = ""
+    evidence_content_sha256: str = ""
+    evidence_snapshot_status: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +115,8 @@ class LintResult:
     connections_discovered: int
     duration_ms: int = 0
     issues: list[LintIssue] = field(default_factory=list)
+    raw_security_removed: int = 0
+    raw_security_removed_paths: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)

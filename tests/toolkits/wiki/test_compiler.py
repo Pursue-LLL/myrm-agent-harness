@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 import pytest
 from langchain_core.messages import AIMessage
 
+from myrm_agent_harness.toolkits.wiki.core.claims_contract import parse_claims_from_content
 from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.compiler import WikiCompiler
@@ -45,13 +46,20 @@ async def test_wiki_compiler_generate_article(wiki_structure, mock_llm, mock_ind
 
     await compiler._generate_article(DummyConcept())
 
-    # Verify file is written
+    # Verify file is written with structured claims
     article_path = wiki_structure.get_concept_file_path("Test Concept")
     assert article_path.exists()
-    assert "Generated article content." in article_path.read_text(encoding="utf-8")
+    saved = article_path.read_text(encoding="utf-8")
+    assert "Generated article content." in saved
+    claims = parse_claims_from_content(saved)
+    assert len(claims) == 1
+    assert claims[0].evidence[0].path == "test.md"
 
     # Verify indexer is called
-    mock_indexer.upsert.assert_awaited_once_with("Test Concept", "## Compiled Truth\nGenerated article content.")
+    mock_indexer.upsert.assert_awaited_once()
+    upsert_content = mock_indexer.upsert.await_args.args[1]
+    assert "Generated article content." in upsert_content
+    assert parse_claims_from_content(upsert_content)
 
 
 @pytest.mark.asyncio
@@ -81,3 +89,4 @@ async def test_wiki_compiler_require_approval(wiki_structure, mock_llm, mock_ind
     edits = mgr.get_pending_edits()
     assert len(edits) == 1
     assert edits[0]["concept_name"] == "Test Concept"
+    assert parse_claims_from_content(edits[0]["proposed_content"])

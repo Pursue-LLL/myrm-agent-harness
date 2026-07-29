@@ -101,10 +101,6 @@ def test_validate_layer_product_rejects_default_on_in_extended() -> None:
     assert any("default-on but tool is EXTENDED" in err for err in errors)
 
 
-def test_conversation_search_product_id_override() -> None:
-    assert get_tool_product_id("conversation_search_tool") == "memory"
-
-
 def test_conversation_history_group_without_override_returns_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

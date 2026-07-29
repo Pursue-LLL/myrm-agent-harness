@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter import parse_frontmatter
+from myrm_agent_harness.toolkits.wiki.core.claims_contract import parse_claims_from_content
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     PUBLISH_STATUS_KEY,
     WikiPublishStatus,
@@ -42,6 +43,37 @@ async def test_publish_concept_article_stamps_frontmatter_and_indexes(wiki_struc
 
     results = await indexer.search("Hello", limit=5)
     assert any(name == "demo/article" for name, _score in results)
+
+
+@pytest.mark.asyncio
+async def test_publish_concept_article_preserves_nested_claims(wiki_structure: WikiStructure) -> None:
+    content = """---
+type: concept
+claims:
+  - id: claim.demo.item
+    text: Demo fact
+    status: supported
+    confidence: 0.8
+    evidence:
+      - kind: raw-source
+        sourceId: source.demo
+        path: notes.md
+        lines: ""
+        weight: 1.0
+        confidence: 0.7
+---
+
+## Compiled Truth
+Body.
+"""
+    await publish_concept_article(wiki_structure, None, "demo/claims", content)
+
+    saved = wiki_structure.get_concept_file_path("demo/claims").read_text(encoding="utf-8")
+    claims = parse_claims_from_content(saved)
+    assert len(claims) == 1
+    assert claims[0].id == "claim.demo.item"
+    metadata, _body = parse_frontmatter(saved)
+    assert metadata[PUBLISH_STATUS_KEY] == WikiPublishStatus.PUBLISHED.value
 
 
 @pytest.mark.asyncio

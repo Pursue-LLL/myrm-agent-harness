@@ -6,10 +6,12 @@ from unittest.mock import AsyncMock
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
+from myrm_agent_harness.agent.context_management.infra.retention_helpers import (
+    find_keep_recent_prune_cutoff,
+)
 from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
 from myrm_agent_harness.agent.context_management.pipeline.processors.active_tool_result_prune_processor import (
     ActiveToolResultPruneProcessor,
-    _find_latest_completed_step_cutoff,
 )
 
 
@@ -45,10 +47,10 @@ def _make_ai_msg(tool_calls: list[dict] | None = None) -> AIMessage:
     )
 
 
-class TestFindLatestCompletedStepCutoff:
-    def test_no_ai_message(self):
+class TestFindKeepRecentPruneCutoff:
+    def test_no_groups(self):
         messages = [HumanMessage(content="hi")]
-        assert _find_latest_completed_step_cutoff(messages) == -1
+        assert find_keep_recent_prune_cutoff(messages, keep_recent_calls=5) == 0
 
     def test_single_step(self):
         messages = [
@@ -56,9 +58,9 @@ class TestFindLatestCompletedStepCutoff:
             _make_ai_msg(),
             _make_tool_msg("result"),
         ]
-        assert _find_latest_completed_step_cutoff(messages) == 1
+        assert find_keep_recent_prune_cutoff(messages, keep_recent_calls=5) == 2
 
-    def test_two_steps(self):
+    def test_two_steps_both_protected(self):
         messages = [
             HumanMessage(content="hi"),
             _make_ai_msg([{"id": "tc1", "name": "grep_tool", "args": {}}]),
@@ -66,7 +68,7 @@ class TestFindLatestCompletedStepCutoff:
             _make_ai_msg([{"id": "tc2", "name": "web_search", "args": {}}]),
             _make_tool_msg("result2", name="web_search", tool_call_id="tc2"),
         ]
-        assert _find_latest_completed_step_cutoff(messages) == 3
+        assert find_keep_recent_prune_cutoff(messages, keep_recent_calls=5) == 2
 
 
 class TestShouldProcess:
@@ -120,10 +122,33 @@ class TestShouldProcess:
 
 class TestProcess:
     @pytest.mark.asyncio
-    async def test_prune_large_earlier_result(self):
+    async def test_prune_large_earlier_result_outside_keep_recent(self):
         offload = AsyncMock(return_value="/archive/test.gz")
         proc = ActiveToolResultPruneProcessor(
-            threshold_tokens=100, on_prune_offload=offload
+            threshold_tokens=100, keep_recent_calls=2, on_prune_offload=offload
+        )
+        large = _large_content(3000)
+        messages = [HumanMessage(content="hi")]
+        for i in range(3):
+            tc_id = f"tc{i}"
+            messages.extend(
+                [
+                    _make_ai_msg([{"id": tc_id, "name": "grep_tool", "args": {}}]),
+                    _make_tool_msg(large if i == 0 else "small", tool_call_id=tc_id),
+                ]
+            )
+        ctx = _build_context(messages)
+        result = await proc.process(ctx)
+
+        assert result.tokens_saved > 0
+        assert "[Tool result archived" in result.messages[2].content
+        offload.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_keep_recent_protects_earlier_step_within_window(self):
+        offload = AsyncMock(return_value="/archive/test.gz")
+        proc = ActiveToolResultPruneProcessor(
+            threshold_tokens=100, keep_recent_calls=5, on_prune_offload=offload
         )
         large = _large_content(3000)
         messages = [
@@ -136,10 +161,9 @@ class TestProcess:
         ctx = _build_context(messages)
         result = await proc.process(ctx)
 
-        assert result.tokens_saved > 0
-        assert "active_prune" in result.operations[0]
-        assert "[Tool result archived" in result.messages[2].content
-        offload.assert_called_once()
+        assert result.tokens_saved == 0
+        assert large.split()[0] in result.messages[2].content
+        offload.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_skip_protected_tools(self):
@@ -245,7 +269,9 @@ class TestProcess:
             return f"/archive/test_{call_count}.gz"
 
         proc = ActiveToolResultPruneProcessor(
-            threshold_tokens=100, on_prune_offload=counting_offload
+            threshold_tokens=100,
+            keep_recent_calls=1,
+            on_prune_offload=counting_offload,
         )
         large = _large_content(3000)
         messages = [

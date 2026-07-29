@@ -25,8 +25,12 @@ class Citation(BaseModel):
 
     url: str = Field(..., description="Citation URL")
     title: str = Field(default="", description="Citation title")
-    start_index: int | None = Field(default=None, description="Start character index in response text")
-    end_index: int | None = Field(default=None, description="End character index in response text")
+    start_index: int | None = Field(
+        default=None, description="Start character index in response text"
+    )
+    end_index: int | None = Field(
+        default=None, description="End character index in response text"
+    )
 
 
 class SearchResult(BaseModel):
@@ -37,14 +41,24 @@ class SearchResult(BaseModel):
     title: str = Field(..., description="Result heading")
     link: str = Field(..., description="Result URL")
     snippet: str = Field(..., description="Result summary snippet")
+    summary: str | None = Field(
+        default=None, description="Longer provider summary (e.g. NeedSummary)"
+    )
     date: str | None = Field(default=None, description="Published or last-updated date")
-    is_error: bool = Field(default=False, description="Whether this result represents an error entry")
+    is_error: bool = Field(
+        default=False, description="Whether this result represents an error entry"
+    )
     is_degraded: bool = Field(
         default=False,
         description="True when results may be based on model knowledge rather than sourced data",
     )
-    engines: list[str] = Field(default_factory=list, description="Source search engines that returned this result")
-    citations: list[Citation] = Field(default_factory=list, description="Inline citations with positional info")
+    engines: list[str] = Field(
+        default_factory=list,
+        description="Source search engines that returned this result",
+    )
+    citations: list[Citation] = Field(
+        default_factory=list, description="Inline citations with positional info"
+    )
 
     @property
     def url(self) -> str:
@@ -54,7 +68,9 @@ class SearchResult(BaseModel):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "SearchResult":
         """Build a SearchResult from a raw API response dict, applying content cleaning."""
-        snippet = data.get("snippet", "") or data.get("content", "") or data.get("text", "")
+        snippet = (
+            data.get("snippet", "") or data.get("content", "") or data.get("text", "")
+        )
         cleaned_snippet = clean_text(snippet)
         title = data.get("title") or "Untitled"
 
@@ -63,6 +79,7 @@ class SearchResult(BaseModel):
             "link": data.get("link", "") or data.get("url", ""),
             "snippet": cleaned_snippet,
             "date": data.get("date"),
+            "summary": data.get("summary"),
             "is_error": data.get("is_error", False),
             "is_degraded": data.get("is_degraded", False),
             "engines": data.get("engines", []),

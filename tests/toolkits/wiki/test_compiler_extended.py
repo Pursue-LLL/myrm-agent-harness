@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.messages import AIMessage
 
+from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.parsers import parse_concepts_response
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
@@ -284,7 +285,8 @@ async def test_extract_concepts_batch_file_not_found(wiki_structure: WikiStructu
     compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
     compiler._queue.add_item("/nonexistent/file.md")
     items = compiler._queue.get_pending_items()
-    concepts = await compiler._extract_concepts_batch(items)
+    batch_outcome = await compiler._extract_concepts_batch(items)
+    concepts = batch_outcome.concepts
     assert concepts == []
     stats = compiler._queue.get_stats()
     assert stats["failed"] == 1
@@ -306,7 +308,8 @@ async def test_extract_concepts_batch_merge_duplicates(wiki_structure: WikiStruc
 
     compiler._queue.add_batch([raw1, raw2])
     items = compiler._queue.get_pending_items(limit=10)
-    concepts = await compiler._extract_concepts_batch(items)
+    batch_outcome = await compiler._extract_concepts_batch(items)
+    concepts = batch_outcome.concepts
     assert len(concepts) == 1
     assert len(concepts[0].source_files) == 2
 
@@ -388,7 +391,8 @@ async def test_extract_concepts_batch_parallel(wiki_structure: WikiStructure, mo
     queue.add_batch([raw_dir / f"doc{i}.md" for i in range(3)])
     items = queue.get_pending_items(limit=3)
 
-    concepts = await compiler._extract_concepts_batch(items)
+    batch_outcome = await compiler._extract_concepts_batch(items)
+    concepts = batch_outcome.concepts
     assert len(concepts) >= 1
     assert llm.ainvoke.await_count == 3
 
@@ -410,7 +414,8 @@ async def test_extract_concepts_batch_sequential(wiki_structure: WikiStructure, 
     queue.add_item(raw_dir / "seq_doc.md")
     items = queue.get_pending_items(limit=1)
 
-    concepts = await compiler._extract_concepts_batch(items)
+    batch_outcome = await compiler._extract_concepts_batch(items)
+    concepts = batch_outcome.concepts
     assert len(concepts) == 1
     assert concepts[0].name == "SeqConcept"
 
@@ -432,7 +437,7 @@ async def test_generate_articles_batch_parallel(wiki_structure: WikiStructure, m
     ]
 
     count = await compiler._generate_articles_batch(concepts)
-    assert count == 3
+    assert count.generated == 3
     assert llm.ainvoke.await_count == 3
 
 
@@ -448,7 +453,8 @@ async def test_extract_concepts_batch_handles_missing_file(wiki_structure: WikiS
     queue.add_item(wiki_structure.raw_dir / "nonexistent.md")
     items = queue.get_pending_items(limit=1)
 
-    concepts = await compiler._extract_concepts_batch(items)
+    batch_outcome = await compiler._extract_concepts_batch(items)
+    concepts = batch_outcome.concepts
     assert concepts == []
     assert llm.ainvoke.await_count == 0
 
@@ -478,7 +484,8 @@ async def test_extract_concepts_batch_merges_duplicates(wiki_structure: WikiStru
     queue.add_batch([raw_dir / "a.md", raw_dir / "b.md"])
     items = queue.get_pending_items(limit=2)
 
-    concepts = await compiler._extract_concepts_batch(items)
+    batch_outcome = await compiler._extract_concepts_batch(items)
+    concepts = batch_outcome.concepts
     assert len(concepts) == 1
     assert concepts[0].mentions == 2
     assert set(concepts[0].source_files) == {"raw/a.md", "raw/b.md"}
@@ -565,7 +572,12 @@ async def test_worker_loop_retries_failed_items(wiki_structure: WikiStructure, m
     compiler._queue.add_item(raw)
     items = compiler._queue.get_pending_items(limit=1)
     compiler._queue.mark_processing(items[0]["id"])
-    compiler._queue.mark_failed(items[0]["id"], "simulated failure")
+    compiler._queue.mark_failed(
+        items[0]["id"],
+        "429 Too Many Requests",
+        error_kind=ErrorKind.RATE_LIMIT.value,
+        retry_after_seconds=0,
+    )
 
     original_sleep = asyncio.sleep
 
@@ -690,7 +702,8 @@ async def test_extract_concepts_batch_gather_exception(
     compiler._queue.add_batch([raw_dir / "good.md", raw_dir / "bad.md"])
     items = compiler._queue.get_pending_items(limit=2)
 
-    concepts = await compiler._extract_concepts_batch(items)
+    batch_outcome = await compiler._extract_concepts_batch(items)
+    concepts = batch_outcome.concepts
     assert len(concepts) >= 0
 
 
@@ -753,7 +766,7 @@ async def test_generate_articles_batch_sequential(
         ConceptInfo(name="SeqArt", definition="Def", mentions=2, source_files=["a.md"])
     ]
     count = await compiler._generate_articles_batch(concepts)
-    assert count == 1
+    assert count.generated == 1
 
 
 @pytest.mark.asyncio
@@ -771,7 +784,8 @@ async def test_generate_articles_batch_exception_in_gen(
         ConceptInfo(name="FailArt", definition="Def", mentions=2, source_files=["a.md"])
     ]
     count = await compiler._generate_articles_batch(concepts)
-    assert count == 0
+    assert count.generated == 0
+    assert count.blocked == 1
 
 
 # --- _generate_article edge cases ---
@@ -943,5 +957,6 @@ async def test_extract_concepts_batch_process_exception(
     items = compiler._queue.get_pending_items(limit=1)
 
     with patch.object(compiler._queue, "mark_completed", side_effect=RuntimeError("DB error")):
-        concepts = await compiler._extract_concepts_batch(items)
-        assert concepts == []
+        batch_outcome = await compiler._extract_concepts_batch(items)
+    concepts = batch_outcome.concepts
+    assert concepts == []

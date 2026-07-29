@@ -118,6 +118,7 @@ glob_tool / grep_tool 登记在 CORE 层，Turn1 与 file 工具一并 bind。�
 |---|--------|------------------:|----------|------|
 | 48 | wiki_query_tool | 33 | `harness/toolkits/wiki/wiki_agent_tools.py` | 查询 Wiki 知识库 |
 | 49 | wiki_ingest_tool | 62 | `harness/toolkits/wiki/wiki_agent_tools.py` | 导入内容到 Wiki |
+| 50 | wiki_apply_tool | 58 | `harness/toolkits/wiki/wiki_agent_tools.py` | 窄写更新 Wiki 词条（truth/timeline/metadata/create） |
 
 > `wiki_compile_tool` / `wiki_maintain_tool` 仅保留在 Settings REST 与 `create_wiki_admin_tools()`，不进入 Turn1 LLM 工具集。
 

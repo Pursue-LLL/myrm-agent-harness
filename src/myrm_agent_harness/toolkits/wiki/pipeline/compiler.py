@@ -50,6 +50,7 @@ from myrm_agent_harness.toolkits.wiki.core.types import CompileResult, ConceptIn
 from .cognitive_map import WikiCognitiveMapService, WikiMapEvent, WikiMapEventType
 from .postprocess import generate_backlinks, save_metadata
 from .queue import WikiIngestionQueue
+from .resilience import CompileRunSnapshot, evaluate_batch_pause, resolve_io_failure, resolve_llm_failure
 from .sidecar import build_directory_sidecars
 
 logger = get_agent_logger(__name__)
@@ -61,6 +62,13 @@ class _ArticleBatchStats:
     pending: int
     published: int
     blocked: int
+
+
+@dataclass(frozen=True, slots=True)
+class _BatchExtractOutcome:
+    concepts: list[ConceptInfo]
+    success_count: int
+    failure_kinds: list[str]
 
 
 class WikiCompiler:
@@ -117,6 +125,13 @@ class WikiCompiler:
 
         self.start_background_worker()
 
+    def get_compile_run(self) -> CompileRunSnapshot:
+        return self._queue.get_compile_run()
+
+    def resume_compile_worker(self) -> None:
+        self._queue.resume_compile()
+        self.start_background_worker()
+
     def start_background_worker(self) -> None:
         """Start a background worker to continuously drain the ingestion queue."""
 
@@ -149,15 +164,20 @@ class WikiCompiler:
 
         try:
             while consecutive_empty < 3:  # Exit after 3 empty checks (15s idle)
+                if self._queue.is_compile_paused():
+                    await asyncio.sleep(5)
+                    consecutive_empty += 1
+                    continue
+
                 pending_items = self._queue.get_pending_items(limit=5)
 
-                # Auto-retry failed items when no pending work
                 if not pending_items:
-                    retryable = self._queue.get_retryable_items(max_retries=3, limit=3)
+                    retryable = self._queue.get_transient_retryable_items(max_retries=3, limit=3)
                     if retryable:
                         for item in retryable:
                             self._queue.reset_for_retry(item["id"])
-                        logger.info(f"Auto-retrying {len(retryable)} failed items")
+                        logger.info(f"Auto-retrying {len(retryable)} transient failed items")
+                        consecutive_empty = 0
                         continue
 
                     consecutive_empty += 1
@@ -167,7 +187,17 @@ class WikiCompiler:
                 consecutive_empty = 0
                 logger.info(f"Worker draining {len(pending_items)} items from queue...")
 
-                all_concepts = await self._extract_concepts_batch(pending_items)
+                batch_outcome = await self._extract_concepts_batch(pending_items)
+                should_pause, pause_reason, primary_kind = evaluate_batch_pause(
+                    success_count=batch_outcome.success_count,
+                    failure_kinds=batch_outcome.failure_kinds,
+                )
+                if should_pause:
+                    self._queue.pause_compile(pause_reason, primary_kind)
+                    logger.warning("Compile worker paused: %s", pause_reason)
+                    continue
+
+                all_concepts = batch_outcome.concepts
                 if all_concepts:
                     articles = await self._generate_articles_batch(all_concepts)
                     self._refresh_cognitive_map(all_concepts, batch=True)
@@ -208,6 +238,18 @@ class WikiCompiler:
 
         pending_items = self._queue.get_pending_items(limit=batch_size)
 
+        if self._queue.is_compile_paused():
+            logger.warning("Compile requested while circuit is paused; skipping batch drain")
+            return CompileResult(
+                concepts_count=0,
+                articles_generated=0,
+                backlinks_created=0,
+                duration_ms=int((datetime.now(UTC) - start_time).total_seconds() * 1000),
+                articles_pending=0,
+                articles_published=0,
+                articles_blocked=0,
+            )
+
         if not pending_items:
             logger.info("No pending files to compile in queue")
             self._refresh_cognitive_map([], summary="Compile requested; ingestion queue empty")
@@ -224,7 +266,14 @@ class WikiCompiler:
         logger.info(f"Processing batch of {len(pending_items)} files from queue")
 
         # Step 1: Extract concepts sequentially from the queue batch
-        all_concepts = await self._extract_concepts_batch(pending_items)
+        batch_outcome = await self._extract_concepts_batch(pending_items)
+        should_pause, pause_reason, primary_kind = evaluate_batch_pause(
+            success_count=batch_outcome.success_count,
+            failure_kinds=batch_outcome.failure_kinds,
+        )
+        if should_pause:
+            self._queue.pause_compile(pause_reason, primary_kind)
+        all_concepts = batch_outcome.concepts
         logger.info(f"Extracted {len(all_concepts)} concepts from batch")
 
         # Step 2: Generate articles for each concept
@@ -292,27 +341,53 @@ class WikiCompiler:
                 changed.append(f)
         return changed
 
-    async def _extract_concepts_batch(self, queue_items: list[dict]) -> list[ConceptInfo]:
+    async def _extract_concepts_batch(self, queue_items: list[dict]) -> _BatchExtractOutcome:
         """Extract concepts from queue items with configurable parallelism."""
+        failure_kinds: list[str] = []
+        success_count = 0
 
         async def _process_single_item(item: dict) -> list[ConceptInfo]:
+            nonlocal success_count
             item_id = item["id"]
             raw_file = Path(item["file_path"])
             self._queue.mark_processing(item_id)
             try:
                 if not raw_file.exists():
-                    self._queue.mark_failed(item_id, "File not found")
+                    resolution = resolve_io_failure("File not found")
+                    self._queue.mark_failed(
+                        item_id,
+                        "File not found",
+                        error_kind=resolution.error_kind,
+                    )
                     return []
                 if self._semaphore:
                     async with self._semaphore:
                         concepts = await self._extract_concepts_from_doc(raw_file)
                 else:
                     concepts = await self._extract_concepts_from_doc(raw_file)
+                if not concepts:
+                    resolution = resolve_llm_failure(RuntimeError("Concept extraction returned no concepts"))
+                    self._queue.mark_failed(
+                        item_id,
+                        "Concept extraction returned no concepts",
+                        error_kind=resolution.error_kind,
+                        retry_after_seconds=resolution.retry_after_seconds,
+                    )
+                    failure_kinds.append(resolution.error_kind)
+                    return []
                 self._queue.mark_completed(item_id)
+                success_count += 1
                 return concepts
             except Exception as e:
                 logger.error(f"Failed to extract concepts from {raw_file}: {e}")
-                self._queue.mark_failed(item_id, str(e))
+                resolution = resolve_llm_failure(e)
+                self._queue.mark_failed(
+                    item_id,
+                    str(e),
+                    error_kind=resolution.error_kind,
+                    retry_after_seconds=resolution.retry_after_seconds,
+                )
+                failure_kinds.append(resolution.error_kind)
                 return []
 
         if self._parallel:
@@ -327,6 +402,8 @@ class WikiCompiler:
         for result in results:
             if isinstance(result, BaseException):
                 logger.error(f"Unexpected error in concept extraction: {result}")
+                resolution = resolve_llm_failure(result)
+                failure_kinds.append(resolution.error_kind)
                 continue
             for concept in result:
                 if concept.name in all_concepts:
@@ -341,7 +418,11 @@ class WikiCompiler:
                 else:
                     all_concepts[concept.name] = concept
 
-        return list(all_concepts.values())
+        return _BatchExtractOutcome(
+            concepts=list(all_concepts.values()),
+            success_count=success_count,
+            failure_kinds=failure_kinds,
+        )
 
     async def _extract_concepts_from_doc(self, doc_path: Path) -> list[ConceptInfo]:
         """Extract concepts from a single document using LLM, with path as context."""
@@ -374,7 +455,7 @@ class WikiCompiler:
             return concepts
         except Exception as e:
             logger.error(f"LLM extraction failed for {doc_path}: {e}")
-            return []
+            raise
 
     async def _generate_articles_batch(self, concepts: list[ConceptInfo]) -> _ArticleBatchStats:
         """Generate wiki articles with configurable parallelism."""
@@ -463,6 +544,15 @@ class WikiCompiler:
                 article_content,
                 concept.name,
                 concept.source_files,
+            )
+
+            from ..core.claims_contract import ensure_compile_claims
+
+            article_content = ensure_compile_claims(
+                article_content,
+                concept.name,
+                list(concept.source_files),
+                structure=self._structure,
             )
 
             if self._compile_config.require_approval:

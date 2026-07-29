@@ -130,3 +130,39 @@ class TestFilterProcessor:
         ):
             result = await fp.process(ctx)
             assert result.tokens_saved == 3000
+
+    @pytest.mark.asyncio
+    async def test_process_retains_failed_tool_with_structure_trim(self) -> None:
+        fp = FilterProcessor()
+        error_body = ("Traceback (most recent call last):\nValueError: boom\n" + "detail line\n") * 800
+        ctx = _make_context(
+            [
+                ToolMessage(
+                    content=error_body,
+                    tool_call_id="call_failed",
+                    name="web_search_tool",
+                )
+            ],
+            metadata={
+                "compression_intent": {
+                    "failed_tool_call_ids": ["call_failed"],
+                }
+            },
+        )
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.persist_large_tool_output",
+                new_callable=AsyncMock,
+                return_value="/tmp/saved.txt",
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.create_filtered_result",
+                new_callable=AsyncMock,
+            ) as mock_llm_filter,
+        ):
+            result = await fp.process(ctx)
+            mock_llm_filter.assert_not_called()
+            assert "RETAINED TOOL OUTPUT" in str(result.messages[0].content)
+            assert "Traceback" in str(result.messages[0].content)
+            assert "ValueError" in str(result.messages[0].content)

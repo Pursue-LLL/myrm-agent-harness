@@ -7,6 +7,8 @@ langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message typ
 ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 ..core.types::QueryResult (POS: Wiki toolkit type definition center)
 ..pipeline.cognitive_map::read_hot_context (POS: OKF hot.md reader for wiki_query prefix)
+..pipeline.cognitive_map.index_routing::format_index_route_context, match_index_entries, read_index_entries (POS: OKF index-first routing)
+.best_first::RetrievalSeed, converge_retrieval_candidates (POS: budgeted best-first graph convergence + raw_claim rerank)
 
 [OUTPUT]
 WikiQueryEngine: Wiki query and enhancement engine
@@ -14,15 +16,17 @@ WikiQueryEngine: Wiki query and enhancement engine
 [POS]
 Wiki query core engine. Responsible for querying the wiki knowledge base and answering questions:
 concept search, context loading, LLM answer generation, and automatic archival of high-value results.
-Uses sidecar-first hierarchical routing with context-budgeted loading (L0/L1 before L2),
-prepends hot.md vault status inside wiki_query answers only (no global agent middleware),
-and falls back to keyword matching when semantic retrieval is unavailable.
+Uses index-first seeding, then sidecar hierarchical routing, FTS rerank, and best-first graph
+convergence with context-budgeted loading (L0/L1 before L2). Prepends hot.md vault status inside
+wiki_query answers only (no global agent middleware), and falls back to keyword matching when
+semantic retrieval is unavailable. Supports raw_claim rerank via frontmatter claim overlap.
 """
 
 from __future__ import annotations
 
 import re
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from langchain_core.language_models import BaseChatModel
@@ -33,11 +37,26 @@ from ..core.config import WikiConfig, WikiQueryConfig
 from ..core.structure import WikiStructure
 from ..core.types import QueryResult, SourceSnippet
 from ..pipeline.cognitive_map import read_hot_context
+from ..pipeline.cognitive_map.index_routing import (
+    IndexRouteEntry,
+    INDEX_ROUTING_SECTION,
+    format_index_route_context,
+    match_index_entries,
+    read_index_entries,
+)
+from .best_first import RetrievalSeed, converge_retrieval_candidates
 from .indexer import WikiIndexer
+from .tokenizer import extract_query_terms
 
 logger = get_agent_logger(__name__)
 
 SemanticSearchFn = Callable[[str, int], Awaitable[list[tuple[Path, float]]]]
+
+
+@dataclass(frozen=True, slots=True)
+class _ConceptSearchResult:
+    article_paths: list[Path]
+    index_matches: list[tuple[IndexRouteEntry, float]]
 
 
 class WikiQueryEngine:
@@ -66,22 +85,29 @@ class WikiQueryEngine:
         self._search_fn = search_fn
         self._indexer = WikiIndexer(structure, config)
 
-    async def query(self, question: str) -> QueryResult:
+    async def query(
+        self,
+        question: str,
+        query_config: WikiQueryConfig | None = None,
+    ) -> QueryResult:
         """
         Query the wiki and get an answer.
 
         Args:
             question: User's question
+            query_config: Optional per-query config override (e.g. raw_claim mode)
 
         Returns:
             QueryResult with context and related articles
         """
+        effective_query_config = query_config or self._query_config
         logger.info(f"Querying wiki: {question[:100]}")
 
         hot_context = read_hot_context(self._structure)
 
         # Step 1: Search for related concepts
-        related_articles = await self._search_concepts(question)
+        search_result = await self._search_concepts(question, effective_query_config)
+        related_articles = search_result.article_paths
         logger.info(f"Found {len(related_articles)} related articles")
 
         if not related_articles:
@@ -102,13 +128,18 @@ class WikiQueryEngine:
             )
 
         # Step 2: Load article context and extract citation snippets
-        context, snippets = await self._load_articles_context(related_articles)
+        context, snippets = await self._load_articles_context(
+            related_articles,
+            search_result.index_matches,
+            effective_query_config,
+        )
         context = self._compose_answer(hot_context, context, question)
 
         # Step 3: Determine if should archive
         confidence = 1.0
         should_archive = (
-            self._query_config.auto_enhance_enabled and confidence >= self._query_config.min_query_quality_score
+            effective_query_config.auto_enhance_enabled
+            and confidence >= effective_query_config.min_query_quality_score
         )
 
         return QueryResult(
@@ -140,57 +171,180 @@ class WikiQueryEngine:
             return f"## Recent vault context\n{hot_context}"
         return article_context
 
-    async def _search_concepts(self, query: str) -> list[Path]:
-        """Search for relevant concept articles with graph traversal expansion.
-
-        Priority: injected search_fn > FTS5 indexer > keyword fallback.
-        Then expands results via 1-hop graph traversal for deeper discovery.
-        """
+    async def _search_concepts(
+        self,
+        query: str,
+        query_config: WikiQueryConfig | None = None,
+    ) -> _ConceptSearchResult:
+        """Search for relevant concept articles via unified best-first convergence."""
+        qc = query_config or self._query_config
         concepts = self._structure.list_concepts()
         if not concepts:
-            return []
+            return _ConceptSearchResult([], [])
 
-        top_n = self._query_config.max_context_articles
+        top_n = qc.max_context_articles
+        index_matches = self._resolve_index_matches(query, qc)
+        seed_names = [entry.link_name for entry, _score in index_matches]
+        if index_matches:
+            logger.info("wiki_index_route_hit=true seed_count=%d", len(seed_names))
 
-        if self._query_config.sidecar_retrieval_enabled:
-            routed = await self._search_concepts_via_sidecars(query, concepts, top_n=top_n)
-            if routed:
-                return routed
+        scoped_concepts = self._scope_concepts_for_index_seeds(concepts, seed_names)
+        valid_names = (
+            frozenset(self._concept_name_from_path(path) for path in scoped_concepts)
+            if seed_names
+            else None
+        )
+        seeds = await self._collect_retrieval_seeds(
+            query,
+            scoped_concepts,
+            index_matches=index_matches,
+            seed_names=seed_names,
+            top_n=top_n,
+            query_config=qc,
+        )
+        if not seeds:
+            keyword_paths = self._keyword_search(query, scoped_concepts, top_n)
+            return _ConceptSearchResult(keyword_paths, index_matches)
 
-        seed_results: list[str] = []
+        expanded = converge_retrieval_candidates(
+            query=query,
+            query_config=qc,
+            structure=self._structure,
+            indexer=self._indexer,
+            seeds=seeds,
+            max_results=top_n,
+            valid_names=valid_names,
+        )
+        if not expanded and qc.query_mode == "raw_claim":
+            expanded = converge_retrieval_candidates(
+                query=query,
+                query_config=replace(qc, query_mode="auto"),
+                structure=self._structure,
+                indexer=self._indexer,
+                seeds=seeds,
+                max_results=top_n,
+                valid_names=valid_names,
+            )
+
+        resolved: list[Path] = []
+        seen_paths: set[Path] = set()
+        for name in expanded:
+            path = self._structure.get_concept_file_path(name)
+            if path.exists() and path not in seen_paths:
+                seen_paths.add(path)
+                resolved.append(path)
+        return _ConceptSearchResult(resolved[:top_n], index_matches)
+
+    async def _collect_retrieval_seeds(
+        self,
+        query: str,
+        scoped_concepts: list[Path],
+        *,
+        index_matches: list[tuple[IndexRouteEntry, float]],
+        seed_names: list[str],
+        top_n: int,
+        query_config: WikiQueryConfig,
+    ) -> list[RetrievalSeed]:
+        seeds: list[RetrievalSeed] = []
+        seen: set[str] = set()
+
+        def add_seed(name: str, score: float, source: str) -> None:
+            normalized = self._normalize_concept_name(name)
+            if not normalized or normalized in seen:
+                return
+            seen.add(normalized)
+            seeds.append(RetrievalSeed(normalized, score, source))
+
+        for entry, score in index_matches:
+            add_seed(entry.link_name, score, "index")
+
+        if query_config.sidecar_retrieval_enabled:
+            sidecar_names = await self._collect_sidecar_seed_names(
+                query,
+                scoped_concepts,
+                top_n=top_n,
+                seed_names=seed_names,
+                query_config=query_config,
+            )
+            for index, name in enumerate(sidecar_names):
+                add_seed(name, max(0.4, 1.0 - index * 0.05), "sidecar")
 
         if self._config.enable_semantic_search:
             if self._search_fn is not None:
                 try:
                     results = await self._search_fn(query, top_n)
-                    if results:
-                        seed_results = [path.stem for path, _score in results[:top_n]]
+                    for path, score in results[:top_n]:
+                        add_seed(self._concept_name_from_path(path), float(score), "fts")
                 except Exception as e:
                     logger.warning(f"Injected search_fn failed: {e}")
 
-            if not seed_results:
-                try:
-                    results = await self._indexer.search(query, limit=top_n)
-                    if results:
-                        seed_results = [name for name, _score in results]
-                except Exception as e:
-                    logger.warning(f"FTS5 semantic search failed: {e}")
+            try:
+                results = await self._indexer.search(query, limit=max(top_n * 6, 20))
+                for concept_name, score in results:
+                    add_seed(concept_name, float(score), "fts")
+                    if len(seeds) >= top_n * 3:
+                        break
+            except Exception as e:
+                logger.warning(f"FTS5 semantic search failed: {e}")
 
-        if not seed_results:
-            return self._keyword_search(query, concepts, top_n)
+        if len(seeds) < top_n:
+            for path in self._keyword_search(query, scoped_concepts, top_n):
+                add_seed(self._concept_name_from_path(path), 0.35, "keyword")
 
-        # Graph traversal expansion: discover related concepts via edges
-        expanded = self._expand_via_graph(seed_results, top_n)
-        return [self._structure.get_concept_file_path(name) for name in expanded]
+        return seeds
 
-    async def _search_concepts_via_sidecars(
+    def _resolve_index_matches(
+        self,
+        query: str,
+        query_config: WikiQueryConfig | None = None,
+    ) -> list[tuple[IndexRouteEntry, float]]:
+        qc = query_config or self._query_config
+        if not qc.index_first_enabled:
+            return []
+        entries = read_index_entries(self._structure)
+        if not entries:
+            return []
+        return match_index_entries(
+            query,
+            entries,
+            max_hits=max(1, qc.max_index_hits),
+            min_score=qc.index_min_match_score,
+        )
+
+    def _scope_concepts_for_index_seeds(self, concepts: list[Path], seed_names: list[str]) -> list[Path]:
+        if not seed_names:
+            return concepts
+        seed_dirs = self._directories_from_seed_names(seed_names)
+        if not seed_dirs:
+            return concepts
+        scoped = self._collect_concepts_from_directory_scopes(seed_dirs, concepts)
+        return scoped if scoped else concepts
+
+    @staticmethod
+    def _directories_from_seed_names(seed_names: list[str]) -> list[str]:
+        ordered_dirs: list[str] = []
+        seen_dirs: set[str] = set()
+        for seed_name in seed_names:
+            parent = Path(seed_name).parent
+            if str(parent) in (".", ""):
+                continue
+            normalized = str(parent).replace("\\", "/").strip("/")
+            if normalized and normalized not in seen_dirs:
+                seen_dirs.add(normalized)
+                ordered_dirs.append(normalized)
+        return ordered_dirs
+
+    async def _collect_sidecar_seed_names(
         self,
         query: str,
         concepts: list[Path],
         *,
         top_n: int,
-    ) -> list[Path]:
-        """Use L0/L1 sidecars to route retrieval into high-value directories first."""
+        seed_names: list[str] | None = None,
+        query_config: WikiQueryConfig | None = None,
+    ) -> list[str]:
+        """Use L0/L1 sidecars to collect concept seed names for best-first convergence."""
+        qc = query_config or self._query_config
         limit = max(top_n * 3, 8)
         try:
             sidecar_hits = await self._indexer.search_sidecars(query, limit=limit)
@@ -200,7 +354,7 @@ class WikiQueryEngine:
         if not sidecar_hits:
             return []
 
-        max_dirs = max(0, self._query_config.max_sidecar_directories)
+        max_dirs = max(0, qc.max_sidecar_directories)
         if max_dirs == 0:
             return []
         ordered_dirs: list[str] = []
@@ -224,6 +378,12 @@ class WikiQueryEngine:
             for path in candidates
         }
         ranked_names: list[str] = []
+        if seed_names:
+            for concept_name in seed_names:
+                if concept_name in candidate_name_to_path and concept_name not in ranked_names:
+                    ranked_names.append(concept_name)
+                if len(ranked_names) >= top_n:
+                    break
         try:
             indexed_hits = await self._indexer.search(query, limit=max(top_n * 6, 20))
             for concept_name, _score in indexed_hits:
@@ -243,43 +403,33 @@ class WikiQueryEngine:
                     break
 
         if ranked_names:
-            return [candidate_name_to_path[name] for name in ranked_names if name in candidate_name_to_path]
-        return candidates[:top_n]
+            return [name for name in ranked_names if name in candidate_name_to_path]
+        return [self._concept_name_from_path(path) for path in candidates[:top_n]]
 
     def _expand_via_graph(self, seed_names: list[str], max_results: int) -> list[str]:
-        """Expand seed results via 1-hop weighted graph traversal."""
+        """Expand seed results via best-first weighted graph convergence."""
         if not seed_names:
             return []
 
-        result_set: list[str] = list(seed_names)
-        seen = set(seed_names)
-
-        try:
-            with self._indexer._get_conn() as conn:
-                placeholders = ",".join(["?"] * len(seed_names))
-                cursor = conn.execute(
-                    f"SELECT target, weight FROM wiki_edges WHERE source IN ({placeholders}) ORDER BY weight DESC",
-                    tuple(seed_names),
-                )
-                for row in cursor.fetchall():
-                    target = row["target"]
-                    if target not in seen and len(result_set) < max_results:
-                        result_set.append(target)
-                        seen.add(target)
-        except Exception as e:
-            logger.warning(f"Graph expansion failed: {e}")
-
-        return result_set[:max_results]
+        seeds = [RetrievalSeed(name, 1.0, "index") for name in seed_names]
+        return converge_retrieval_candidates(
+            query="",
+            query_config=self._query_config,
+            structure=self._structure,
+            indexer=self._indexer,
+            seeds=seeds,
+            max_results=max_results,
+        )
 
     def _keyword_search(self, query: str, concepts: list[Path], top_n: int) -> list[Path]:
         """Score concepts by keyword overlap with query."""
-        query_keywords = set(re.findall(r"\w+", query.lower()))
+        query_keywords = extract_query_terms(query)
         scored: list[tuple[Path, float]] = []
 
         for concept_path in concepts:
             try:
                 content = concept_path.read_text(encoding="utf-8")
-                content_keywords = set(re.findall(r"\w+", content.lower()))
+                content_keywords = extract_query_terms(content)
                 overlap = len(query_keywords & content_keywords)
                 score = overlap / max(len(query_keywords), 1)
                 if score > 0:
@@ -290,19 +440,44 @@ class WikiQueryEngine:
         scored.sort(key=lambda x: x[1], reverse=True)
         return [path for path, _ in scored[:top_n]]
 
-    async def _load_articles_context(self, article_paths: list[Path]) -> tuple[str, list[SourceSnippet]]:
+    async def _load_articles_context(
+        self,
+        article_paths: list[Path],
+        index_matches: list[tuple[IndexRouteEntry, float]],
+        query_config: WikiQueryConfig | None = None,
+    ) -> tuple[str, list[SourceSnippet]]:
         """Load article content as context and extract citation snippets.
 
         Returns:
             Tuple of (context_string, list_of_source_snippets).
         """
+        qc = query_config or self._query_config
         context_parts: list[str] = []
         snippets: list[SourceSnippet] = []
-        remaining_chars = max(500, self._query_config.max_context_chars)
+        remaining_chars = max(500, qc.max_context_chars)
+
+        if index_matches:
+            index_block = format_index_route_context(index_matches)
+            if index_block:
+                context_parts.append(index_block)
+                remaining_chars = max(0, remaining_chars - len(index_block))
+                top_entry, _score = index_matches[0]
+                snippets.append(
+                    SourceSnippet(
+                        article_path=self._structure.get_index_catalog_relative_path(),
+                        article_name="index",
+                        snippet=f"[[{top_entry.link_name}]] — {top_entry.summary}",
+                        section=INDEX_ROUTING_SECTION,
+                        level="L0",
+                    )
+                )
 
         # Step 1: directory-level L0/L1 context
-        if self._query_config.sidecar_retrieval_enabled:
-            sidecar_parts, sidecar_chars, sidecar_snippets = self._load_directory_sidecars(article_paths)
+        if qc.sidecar_retrieval_enabled:
+            sidecar_parts, sidecar_chars, sidecar_snippets = self._load_directory_sidecars(
+                article_paths,
+                query_config=qc,
+            )
             if sidecar_parts:
                 context_parts.extend(sidecar_parts)
                 remaining_chars = max(0, remaining_chars - sidecar_chars)
@@ -310,7 +485,7 @@ class WikiQueryEngine:
                 snippets.extend(sidecar_snippets)
 
         # Step 2: full article context (L2), bounded by count and hard char budget
-        max_full_articles = max(1, min(len(article_paths), self._query_config.max_full_articles))
+        max_full_articles = max(1, min(len(article_paths), qc.max_full_articles))
         loaded_articles = 0
         for path in article_paths:
             if loaded_articles >= max_full_articles or remaining_chars <= 0:
@@ -354,17 +529,23 @@ class WikiQueryEngine:
                         level="L2",
                     )
                 )
+                snippets.extend(self._claim_snippets_from_content(content, path))
             except Exception as e:
                 logger.warning(f"Failed to load {path}: {e}")
 
         return "\n\n---\n\n".join(context_parts), snippets
 
-    def _load_directory_sidecars(self, article_paths: list[Path]) -> tuple[list[str], int, list[SourceSnippet]]:
+    def _load_directory_sidecars(
+        self,
+        article_paths: list[Path],
+        query_config: WikiQueryConfig | None = None,
+    ) -> tuple[list[str], int, list[SourceSnippet]]:
+        qc = query_config or self._query_config
         parts: list[str] = []
         total_chars = 0
         snippets: list[SourceSnippet] = []
         seen: set[str] = set()
-        max_dirs = max(0, self._query_config.max_sidecar_directories)
+        max_dirs = max(0, qc.max_sidecar_directories)
         if max_dirs == 0:
             return parts, total_chars, snippets
         for article in article_paths:
@@ -437,6 +618,16 @@ class WikiQueryEngine:
         rel = path.relative_to(self._structure.concepts_dir).with_suffix("")
         return str(rel).replace("\\", "/")
 
+    def _normalize_concept_name(self, name: str) -> str:
+        """Map FTS/index aliases to the canonical on-disk concept relative path."""
+        candidate = name.strip().replace("\\", "/")
+        if not candidate:
+            return ""
+        path = self._structure.get_concept_file_path(candidate)
+        if path.exists():
+            return self._concept_name_from_path(path)
+        return candidate
+
     @staticmethod
     def _sidecar_source_path(dir_path: str, *, level: str) -> str:
         filename = (
@@ -446,6 +637,49 @@ class WikiQueryEngine:
         if not normalized:
             return f"/{filename}"
         return f"{normalized}/{filename}"
+
+    def _claim_snippets_from_content(self, content: str, path: Path) -> list[SourceSnippet]:
+        from ..core.claims_contract import parse_claims_from_content, resolve_evidence_snapshot_status
+
+        claim_snippets: list[SourceSnippet] = []
+        for claim in parse_claims_from_content(content):
+            if claim.evidence:
+                for evidence in claim.evidence:
+                    snapshot_status = resolve_evidence_snapshot_status(
+                        evidence.path,
+                        evidence.content_sha256,
+                        self._structure,
+                    )
+                    claim_snippets.append(
+                        SourceSnippet(
+                            article_path=str(path),
+                            article_name=path.stem,
+                            snippet=claim.text,
+                            section="Claim",
+                            level="L2",
+                            claim_id=claim.id,
+                            claim_text=claim.text,
+                            evidence_path=evidence.path,
+                            line_range=evidence.lines,
+                            claim_status=claim.status,
+                            evidence_content_sha256=evidence.content_sha256,
+                            evidence_snapshot_status=snapshot_status,
+                        )
+                    )
+            else:
+                claim_snippets.append(
+                    SourceSnippet(
+                        article_path=str(path),
+                        article_name=path.stem,
+                        snippet=claim.text,
+                        section="Claim",
+                        level="L2",
+                        claim_id=claim.id,
+                        claim_text=claim.text,
+                        claim_status=claim.status,
+                    )
+                )
+        return claim_snippets
 
     @staticmethod
     def _extract_snippet(content: str, max_chars: int = 500) -> tuple[str, str]:

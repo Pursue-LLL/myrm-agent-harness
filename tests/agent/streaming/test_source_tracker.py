@@ -62,6 +62,32 @@ class TestSourceTrackerDedup:
         )
         assert len(batch) == 2
 
+    def test_source_key_dedup(self) -> None:
+        tracker = SourceTracker()
+        batch1 = tracker.add_batch(
+            [
+                {
+                    "type": "knowledge",
+                    "kb_name": "LLM-Wiki",
+                    "source_key": "kb:LLM-Wiki:concepts/budget:claim:c1:evidence:raw/a.md:1-2",
+                    "snapshot_status": "stale",
+                }
+            ]
+        )
+        assert len(batch1) == 1
+
+        batch2 = tracker.add_batch(
+            [
+                {
+                    "type": "knowledge",
+                    "kb_name": "LLM-Wiki",
+                    "source_key": "kb:LLM-Wiki:concepts/budget:claim:c1:evidence:raw/a.md:1-2",
+                    "snapshot_status": "verified",
+                }
+            ]
+        )
+        assert len(batch2) == 0
+
 
 class TestSourceTrackerIndex:
     """Global index assignment."""

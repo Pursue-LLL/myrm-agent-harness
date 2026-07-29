@@ -1,4 +1,4 @@
-"""Tests that skill_market_tool is Turn1 eager when market_backend is provided."""
+"""Tests that skill_market_tool is NOT created by get_meta_tools (server/user_tools SSOT)."""
 
 from __future__ import annotations
 
@@ -11,22 +11,13 @@ from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 
 
 @pytest.fixture
-def market_backend() -> MagicMock:
-    backend = MagicMock()
-    backend.install_from_url = MagicMock()
-    backend.uninstall = MagicMock()
-    return backend
-
-
-@pytest.fixture
 def skill_backend() -> MagicMock:
     return MagicMock()
 
 
-class TestSkillMarketEager:
-    def test_skill_market_in_resolved_tools(
+class TestSkillMarketNotInGetMetaTools:
+    def test_skill_market_not_returned_by_get_meta_tools(
         self,
-        market_backend: MagicMock,
         skill_backend: MagicMock,
     ) -> None:
         registry = ToolRegistry()
@@ -34,30 +25,38 @@ class TestSkillMarketEager:
             [],
             skill_backend,
             registry=registry,
-            market_backend=market_backend,
             enable_file_tools=False,
             enable_shell_tools=False,
             enable_answer_tool=False,
         )
 
         returned_names = {t.name for t in tools}
-        assert "skill_market_tool" in returned_names
+        assert "skill_market_tool" not in returned_names
+        assert "skill_manage_tool" not in returned_names
 
-    def test_skill_market_not_runtime_only(
+    def test_has_manage_tool_injects_evolution_rules_without_manage_factory(
         self,
-        market_backend: MagicMock,
         skill_backend: MagicMock,
     ) -> None:
+        from myrm_agent_harness.backends.skills.types import SkillMetadata
+
+        skills = [
+            SkillMetadata(
+                name="demo_skill",
+                description="Demo",
+                model_invocable=True,
+                available=True,
+            )
+        ]
         registry = ToolRegistry()
-        get_meta_tools(
-            [],
+        tools = get_meta_tools(
+            skills,
             skill_backend,
             registry=registry,
-            market_backend=market_backend,
+            has_manage_tool=True,
             enable_file_tools=False,
             enable_shell_tools=False,
             enable_answer_tool=False,
         )
-
-        runtime_names = {t.name for t in registry.get_runtime_tools()}
-        assert "skill_market_tool" not in runtime_names
+        select_tool = next(t for t in tools if t.name == "skill_select_tool")
+        assert "skill_manage_tool" in select_tool.description

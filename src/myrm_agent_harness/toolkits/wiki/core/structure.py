@@ -35,6 +35,7 @@ class WikiStructure:
 
     DIRECTORY_ABSTRACT_FILENAME = ".abstract.md"
     DIRECTORY_OVERVIEW_FILENAME = ".overview.md"
+    INDEX_CATALOG_RELATIVE_PATH = "wiki/index.md"
 
     def __init__(self, base_dir: Path | str, public_dirs: list[Path | str] | None = None):
         """
@@ -105,6 +106,10 @@ class WikiStructure:
     def get_index_file_path(self) -> Path:
         """Get path for the OKF root index catalog (wiki/index.md)."""
         return self.wiki_dir / "index.md"
+
+    def get_index_catalog_relative_path(self) -> str:
+        """Vault-relative path for wiki/index.md citations."""
+        return self.INDEX_CATALOG_RELATIVE_PATH
 
     def get_log_file_path(self) -> Path:
         """Get path for the human-readable activity log (wiki/log.md)."""

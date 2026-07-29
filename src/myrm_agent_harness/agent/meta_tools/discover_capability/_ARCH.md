@@ -3,7 +3,7 @@
 ## Overview
 Unified Capability Discovery gateway. Indexes agent-bound searchable skills (MCP PTC + user skills) into a semantic search index. When searchable skills exist, ``sync_discover_capability_tool()`` registers the discovery tool (LLM-facing name: `skill_search_tool`).
 
-**Boundary**: searches the **agent-bound skill library**. External marketplace install uses ``skill_market_tool`` only when that tool is Turn1-mounted (`market_backend` present); otherwise the discovery tool description points users to Settings → Skills → Discover.
+**Boundary**: searches the **agent-bound skill library**. External marketplace install uses ``skill_market_tool`` when **product Turn1-mount** enables it (`enable_skill_market` / market backend wired in server `tool_setup.py`); otherwise the discovery tool description points users to Settings → Skills → Discover.
 
 ## File & Submodule Index
 

@@ -21,18 +21,27 @@
 Provides FilterProcessor.
 """
 
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import ToolMessage
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.text_utils import get_token_count
 
+from ...infra.retention_helpers import (
+    extract_failed_tool_call_ids,
+    format_retained_tool_trim_message,
+    should_retain_tool_message,
+    structure_trim_tokens_saved,
+)
 from ...infra.schemas import (
+    DEFAULT_CACHE_TTL_PRUNE_CONFIG,
     DEFAULT_CONTEXT_CONFIG,
     TOOL_PROTECTION_CONFIG,
     ContextConfig,
     ToolProtectionConfig,
 )
 from ...infra.tool_output_persister import persist_large_tool_output
+from ...infra.tool_result_trimming import trim_tool_result_content
 from ...strategies.filter import (
     create_filtered_result,
     format_filtered_message,
@@ -110,8 +119,10 @@ class FilterProcessor(BaseProcessor):
 
         filtered_count = 0
         protected_count = 0
+        retained_count = 0
         protected_tools: list[str] = []
         total_saved = 0
+        failed_tool_call_ids = extract_failed_tool_call_ids(context.metadata)
 
         # 1. Single-tool filtering
         for msg in context.messages:
@@ -126,27 +137,30 @@ class FilterProcessor(BaseProcessor):
                 if should_filter(
                     content, threshold=self.context_config.tool_result_evict_threshold
                 ):
-                    saved_path = await persist_large_tool_output(content, msg.name)
-
-                    result = await create_filtered_result(
+                    saved, retained = await self._filter_tool_message(
+                        msg=msg,
                         content=content,
-                        file_path="",
+                        failed_tool_call_ids=failed_tool_call_ids,
+                        filter_llm=filter_llm,
                         user_query=context.user_query,
-                        llm=filter_llm,
                     )
-
-                    msg.content = format_filtered_message(result, saved_path=saved_path)
-                    filtered_count += 1
-                    total_saved += result.estimated_tokens
+                    if saved <= 0:
+                        continue
+                    total_saved += saved
+                    if retained:
+                        retained_count += 1
+                    else:
+                        filtered_count += 1
 
         # 2. Turn-level aggregate filtering
         latest_turn_msgs = self._get_latest_turn_tool_messages(context.messages)
 
-        # Filter out protected messages from aggregate consideration
+        # Filter out protected and retained messages from aggregate consideration
         unprotected_turn_msgs = [
             m
             for m in latest_turn_msgs
             if not (m.name and self.protection_config.is_protected(m.name))
+            and not should_retain_tool_message(m, failed_tool_call_ids)
         ]
 
         # Calculate current aggregate tokens
@@ -168,34 +182,35 @@ class FilterProcessor(BaseProcessor):
 
                 content = msg.content if isinstance(msg.content, str) else ""
                 # Skip if already filtered by single-tool limit
-                if "LARGE OUTPUT TRUNCATED" in content:
+                if "LARGE OUTPUT TRUNCATED" in content or "RETAINED TOOL OUTPUT" in content:
                     continue
 
                 msg_tokens = _get_tokens(msg)
 
-                saved_path = await persist_large_tool_output(content, msg.name)
-                result = await create_filtered_result(
+                saved, _retained = await self._filter_tool_message(
+                    msg=msg,
                     content=content,
-                    file_path="",
+                    failed_tool_call_ids=failed_tool_call_ids,
+                    filter_llm=filter_llm,
                     user_query=context.user_query,
-                    llm=filter_llm,
                 )
+                if saved <= 0:
+                    continue
 
-                msg.content = format_filtered_message(result, saved_path=saved_path)
                 filtered_count += 1
-                total_saved += result.estimated_tokens
+                total_saved += saved
 
                 # Update aggregate tokens (subtract original, add preview size)
-                aggregate_tokens = (
-                    aggregate_tokens - msg_tokens + result.estimated_tokens
-                )
+                aggregate_tokens = aggregate_tokens - msg_tokens + _get_tokens(msg)
 
-        if filtered_count > 0 or protected_count > 0:
+        if filtered_count > 0 or protected_count > 0 or retained_count > 0:
             log_parts = []
             if filtered_count > 0:
                 log_parts.append(
                     f"过滤 {filtered_count} 个，节省 ~{total_saved} tokens"
                 )
+            if retained_count > 0:
+                log_parts.append(f"保留 {retained_count} 个失败/错误工具输出(结构裁剪)")
             if protected_count > 0:
                 log_parts.append(f"保护 {protected_count} 个关键工具")
             logger.warning(f" [Filter] {' | '.join(log_parts)}")
@@ -208,3 +223,30 @@ class FilterProcessor(BaseProcessor):
             )
 
         return context
+
+    async def _filter_tool_message(
+        self,
+        *,
+        msg: ToolMessage,
+        content: str,
+        failed_tool_call_ids: frozenset[str],
+        filter_llm: BaseChatModel | None,
+        user_query: str,
+    ) -> tuple[int, bool]:
+        """Filter one tool message. Returns (tokens_saved, retained_error_path)."""
+        saved_path = await persist_large_tool_output(content, msg.name)
+
+        if should_retain_tool_message(msg, failed_tool_call_ids):
+            trimmed = trim_tool_result_content(content, DEFAULT_CACHE_TTL_PRUNE_CONFIG)
+            preview = trimmed.content if trimmed is not None else content
+            msg.content = format_retained_tool_trim_message(preview, saved_path=saved_path)
+            return structure_trim_tokens_saved(content, preview), True
+
+        result = await create_filtered_result(
+            content=content,
+            file_path="",
+            user_query=user_query,
+            llm=filter_llm,
+        )
+        msg.content = format_filtered_message(result, saved_path=saved_path)
+        return result.estimated_tokens, False

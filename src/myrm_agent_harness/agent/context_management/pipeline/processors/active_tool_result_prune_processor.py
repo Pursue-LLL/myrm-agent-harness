@@ -30,12 +30,13 @@ from __future__ import annotations
 import hashlib
 from typing import TYPE_CHECKING
 
-from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
+from langchain_core.messages import BaseMessage, ToolMessage
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_estimation import estimate_content_tokens
 
 from ...infra.archive_reference import build_tool_result_archive_reference
+from ...infra.retention_helpers import effective_keep_recent_calls, find_keep_recent_prune_cutoff
 from ...infra.schemas import BUILTIN_PROTECTED_TOOLS, normalize_context_offload_result
 from ...tracking.task_metrics import get_task_metrics
 from ..base import BaseProcessor, ProcessorContext
@@ -67,9 +68,11 @@ class ActiveToolResultPruneProcessor(BaseProcessor):
         self,
         *,
         threshold_tokens: int = 2048,
+        keep_recent_calls: int = 5,
         on_prune_offload: "ContextCompressOffloadCallback | None" = None,
     ) -> None:
         self._threshold_tokens = max(threshold_tokens, 256)
+        self._keep_recent_calls = max(keep_recent_calls, 0)
         self._on_prune_offload = on_prune_offload
         self._placeholder_cache: dict[str, str] = {}
 
@@ -86,7 +89,11 @@ class ActiveToolResultPruneProcessor(BaseProcessor):
 
     async def process(self, context: ProcessorContext) -> ProcessorContext:
         messages = context.messages
-        cutoff = _find_latest_completed_step_cutoff(messages)
+        keep_recent = effective_keep_recent_calls(
+            keep_recent_calls=self._keep_recent_calls,
+            eco_mode=bool(context.metadata.get("eco_mode", False)),
+        )
+        cutoff = find_keep_recent_prune_cutoff(messages, keep_recent)
         if cutoff <= 0:
             return context
 
@@ -190,18 +197,3 @@ class ActiveToolResultPruneProcessor(BaseProcessor):
         except Exception:
             logger.debug("active_prune: failed to copy ToolMessage")
             return None
-
-
-def _find_latest_completed_step_cutoff(messages: list[BaseMessage]) -> int:
-    """Find the index before the last assistant+tool exchange.
-
-    Returns the index up to which tool results can be pruned. Results at or
-    after this index belong to the most recent step and must be preserved so
-    the model can consume them on this LLM call.
-    """
-    last_ai_index = -1
-    for i in range(len(messages) - 1, -1, -1):
-        if isinstance(messages[i], AIMessage):
-            last_ai_index = i
-            break
-    return last_ai_index

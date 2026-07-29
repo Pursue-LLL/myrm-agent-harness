@@ -5,8 +5,9 @@ agent.meta_tools.file_ops.utils.markdown_frontmatter::parse_frontmatter (POS: YA
 
 [OUTPUT]
 WikiPageType, WikiPublishStatus, validate_wiki_frontmatter, infer_type_for_import, repair_missing_types,
-apply_compile_gate, ensure_frontmatter_type, ensure_published_frontmatter, ensure_draft_frontmatter,
-repair_publication_on_disk, PublicationOnDiskRepairResult, FrontmatterValidationError
+apply_compile_gate, load_frontmatter_metadata, serialize_frontmatter_block, ensure_frontmatter_type,
+ensure_published_frontmatter, ensure_draft_frontmatter, repair_publication_on_disk,
+PublicationOnDiskRepairResult, FrontmatterValidationError
 
 [POS]
 Harness SSOT for wiki page type gate used by compile, import writeback, linter, pending approve,
@@ -19,6 +20,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
+import re
+
+import yaml
 
 from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter import parse_frontmatter
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
@@ -46,6 +50,37 @@ class WikiPublishStatus(StrEnum):
 
 
 WIKI_PUBLISH_STATUSES: frozenset[str] = frozenset(member.value for member in WikiPublishStatus)
+
+_FRONTMATTER_BLOCK_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+
+
+def load_frontmatter_metadata(content: str) -> tuple[dict[str, object], str]:
+    """Load frontmatter metadata, preserving nested YAML structures such as claims."""
+    match = _FRONTMATTER_BLOCK_RE.match(content)
+    if match is not None:
+        parsed = yaml.safe_load(match.group(1))
+        body = content[match.end() :]
+        if isinstance(parsed, dict):
+            return parsed, body
+    metadata, body = parse_frontmatter(content)
+    return dict(metadata), body
+
+
+def _metadata_requires_yaml_dump(metadata: dict[str, object]) -> bool:
+    for value in metadata.values():
+        if isinstance(value, dict):
+            return True
+        if isinstance(value, list) and any(isinstance(item, dict) for item in value):
+            return True
+    return False
+
+
+def serialize_frontmatter_block(metadata: dict[str, object]) -> str:
+    """Serialize metadata to a YAML frontmatter block."""
+    if _metadata_requires_yaml_dump(metadata):
+        dumped = yaml.safe_dump(metadata, allow_unicode=True, sort_keys=False, default_flow_style=False).strip()
+        return f"---\n{dumped}\n---\n"
+    return serialize_frontmatter(metadata)
 
 
 class FrontmatterValidationError(ValueError):
@@ -161,30 +196,30 @@ def ensure_frontmatter_type(
     provenance: str | None = None,
 ) -> str:
     """Merge or inject frontmatter with a valid `type` while preserving body content."""
-    metadata, body = parse_frontmatter(content)
+    metadata, body = load_frontmatter_metadata(content)
     resolved = page_type.value if isinstance(page_type, WikiPageType) else str(page_type).strip().lower()
     metadata["type"] = resolved
     if sources is not None and "sources" not in metadata:
         metadata["sources"] = sources
     if provenance is not None and "provenance" not in metadata:
         metadata["provenance"] = provenance
-    return serialize_frontmatter(metadata) + body.lstrip("\n")
+    return serialize_frontmatter_block(metadata) + body.lstrip("\n")
 
 
 def ensure_published_frontmatter(content: str) -> str:
     """Stamp or refresh publish_status=published and published_at on concept content."""
-    metadata, body = parse_frontmatter(content)
+    metadata, body = load_frontmatter_metadata(content)
     metadata[PUBLISH_STATUS_KEY] = WikiPublishStatus.PUBLISHED.value
     metadata["published_at"] = datetime.now(UTC).replace(microsecond=0).isoformat()
-    return serialize_frontmatter(metadata) + body.lstrip("\n")
+    return serialize_frontmatter_block(metadata) + body.lstrip("\n")
 
 
 def ensure_draft_frontmatter(content: str) -> str:
     """Stamp publish_status=draft while preserving other frontmatter fields."""
-    metadata, body = parse_frontmatter(content)
+    metadata, body = load_frontmatter_metadata(content)
     metadata[PUBLISH_STATUS_KEY] = WikiPublishStatus.DRAFT.value
     metadata.pop("published_at", None)
-    return serialize_frontmatter(metadata) + body.lstrip("\n")
+    return serialize_frontmatter_block(metadata) + body.lstrip("\n")
 
 
 def repair_publication_on_disk(structure: WikiStructure) -> PublicationOnDiskRepairResult:
@@ -268,7 +303,7 @@ def repair_file_frontmatter(
     if validation.ok:
         return False
 
-    metadata, _body = parse_frontmatter(content)
+    metadata, _body = load_frontmatter_metadata(content)
     rel = relative_path if relative_path is not None else path.name
     page_type = infer_type_for_import(rel, metadata, is_raw_import=is_raw_import)
 

@@ -28,7 +28,10 @@ from collections import Counter
 from langchain_core.documents import Document
 
 from myrm_agent_harness.toolkits.web_search.common import SearchResult
-from myrm_agent_harness.toolkits.web_search.exceptions import ErrorContext, SearchAPIError
+from myrm_agent_harness.toolkits.web_search.exceptions import (
+    ErrorContext,
+    SearchAPIError,
+)
 from myrm_agent_harness.utils.document_utils import enhance_document_content
 from myrm_agent_harness.utils.hash_utils import get_content_hash
 from myrm_agent_harness.utils.text_cleaner import clean_search_snippet
@@ -59,6 +62,8 @@ def search_results_to_documents(results: list[SearchResult]) -> list[Document]:
 
         if result.date:
             metadata["date"] = result.date
+        if result.summary:
+            metadata["summary"] = result.summary
         if result.engines:
             metadata["engines"] = result.engines
 
@@ -100,7 +105,9 @@ def combine_search_results_unified(
         return [], []
 
     # Layer 1: URL → best candidate (longest content wins)
-    url_best: dict[str, tuple[int, Document, str]] = {}  # url → (content_len, doc, semantic_url)
+    url_best: dict[str, tuple[int, Document, str]] = (
+        {}
+    )  # url → (content_len, doc, semantic_url)
     # Layer 2: content_hash → first seen URL (for mirror site dedup)
     content_hash_seen: dict[str, str] = {}  # hash → normalized_url
 
@@ -137,7 +144,9 @@ def combine_search_results_unified(
 
             content_len = len(page_content)
             content_prefix = page_content if content_len <= 500 else page_content[:500]
-            content_hash = get_content_hash(content_prefix, strategy="builtin", use_cache=True)
+            content_hash = get_content_hash(
+                content_prefix, strategy="builtin", use_cache=True
+            )
 
             # Layer 2: mirror site dedup (different URL, same content)
             existing_url = content_hash_seen.get(content_hash)
@@ -186,7 +195,9 @@ def combine_search_results_unified(
             "description": doc.metadata.get("description", ""),
         }
 
-        unified_docs.append(Document(page_content=enhanced_content, metadata=new_metadata))
+        unified_docs.append(
+            Document(page_content=enhanced_content, metadata=new_metadata)
+        )
         url_metadata_list.append({"url": semantic_url, "title": new_metadata["title"]})
 
     logger.debug(

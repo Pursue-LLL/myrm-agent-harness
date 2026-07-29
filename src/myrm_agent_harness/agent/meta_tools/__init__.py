@@ -59,26 +59,25 @@ from .spawn_subagent import (
     create_subagent_control_tool,
 )
 
-SKILL_INLINE_THRESHOLD = 15
+SKILL_INLINE_THRESHOLD = 20
 SKILL_CORE_MAX = 10
+SKILL_SELECT_INLINE_MAX = 20
 
 
 def get_meta_tools(
     skills: list[SkillMetadata],
     skill_backend: SkillBackend | None = None,
-    market_backend: SkillMarketBackend | None = None,
-    write_backend: ScanningSkillWriteBackend | None = None,
     embedding_config: EmbeddingConfig | None = None,
     embedding_cache: EmbeddingCacheProtocol | None = None,
     skill_env_map: dict[str, dict[str, str]] | None = None,
     skill_configs: dict[str, dict[str, object]] | None = None,
     global_env: dict[str, str] | None = None,
-    similarity_checker: SkillSimilarityChecker | None = None,
     registry: ToolRegistry | None = None,
     enable_file_tools: bool = True,
     enable_evicted_read: bool = False,
     enable_shell_tools: bool = True,
     enable_answer_tool: bool = False,
+    has_manage_tool: bool = False,
     available_tool_names: frozenset[str] | None = None,
     available_tool_groups: frozenset[str] | None = None,
 ) -> list[BaseTool]:
@@ -103,8 +102,7 @@ def get_meta_tools(
         skills: 可用的技能列表
         skill_backend: 技能后端(用于 skill_select_tool)
         registry: ToolRegistry（必填；skill_search_tool 由 SkillAgent 末尾 sync 注册）
-        market_backend: 技能市场后端(用于 skill_market_tool)
-        write_backend: 技能写入后端(用于 skill_manage_tool, ScanningSkillWriteBackend)
+        has_manage_tool: skill_manage_tool 是否 Turn1 挂载（由 server user_tools 或 SkillAgent 后端注入）
         embedding_config: Embedding 配置(可选, 用于语义搜索)
         embedding_cache: Embedding 缓存实例(可选, 仅 Hybrid 模式使用)
         skill_env_map: Per-skill resolved env vars (skill_name -> env dict).
@@ -150,20 +148,23 @@ def get_meta_tools(
         skills = visible
 
     tools = []
-    has_manage_tool = write_backend is not None
+
+    def _sorted_inline(skills_to_inline: list[SkillMetadata]) -> list[SkillMetadata]:
+        return sorted(skills_to_inline, key=lambda skill: skill.name)[
+            :SKILL_SELECT_INLINE_MAX
+        ]
 
     if skills and skill_backend is not None:
         available_skills = [s for s in skills if s.available]
         model_visible_skills = [s for s in available_skills if s.model_invocable]
 
         if skill_configs is not None:
-            # Per-agent cognitive control (User-defined Core vs Peripheral)
-            inline_skills = []
-            for s in model_visible_skills:
-                cfg = skill_configs.get(s.id, {})
-                if cfg.get("is_core", False):
-                    inline_skills.append(s)
-
+            core_candidates = [
+                s
+                for s in model_visible_skills
+                if skill_configs.get(s.id, {}).get("is_core", False)
+            ]
+            inline_skills = _sorted_inline(core_candidates)
             hidden_count = len(model_visible_skills) - len(inline_skills)
             skill_select_tool = create_select_skill_tool(
                 skills,
@@ -179,13 +180,18 @@ def get_meta_tools(
                 hidden_count,
             )
         else:
-            # Fallback to legacy hardcoded logic
-            always_skills = [s for s in model_visible_skills if s.always]
-            non_always_skills = [s for s in model_visible_skills if not s.always]
+            always_skills = sorted(
+                [s for s in model_visible_skills if s.always], key=lambda skill: skill.name
+            )
+            non_always_skills = sorted(
+                [s for s in model_visible_skills if not s.always],
+                key=lambda skill: skill.name,
+            )
 
             if len(model_visible_skills) > SKILL_INLINE_THRESHOLD:
-                core_non_always = non_always_skills[:SKILL_CORE_MAX]
-                inline_skills = always_skills + core_non_always
+                remaining = max(SKILL_SELECT_INLINE_MAX - len(always_skills), 0)
+                core_non_always = non_always_skills[: min(SKILL_CORE_MAX, remaining)]
+                inline_skills = _sorted_inline(always_skills + core_non_always)
                 hidden_count = len(model_visible_skills) - len(inline_skills)
                 skill_select_tool = create_select_skill_tool(
                     skills,
@@ -203,37 +209,26 @@ def get_meta_tools(
                     hidden_count,
                 )
             else:
+                inline_skills = _sorted_inline(model_visible_skills)
+                hidden_count = len(model_visible_skills) - len(inline_skills)
                 skill_select_tool = create_select_skill_tool(
-                    skills, skill_backend, has_manage_tool=has_manage_tool
+                    skills,
+                    skill_backend,
+                    inline_skills=inline_skills,
+                    hidden_skill_count=hidden_count,
+                    has_manage_tool=has_manage_tool,
                 )
                 tools.append(skill_select_tool)
                 logger.info(
-                    f" skill_select_tool 已加载({len(model_visible_skills)} 个模型可见技能全部内联)"
+                    " skill_select_tool 已加载(%d 个模型可见技能内联, %d 个走 search)",
+                    len(inline_skills),
+                    hidden_count,
                 )
     else:
         if not skills:
             logger.info(" skill_select_tool 未加载(无可用技能)")
         else:
             logger.info(" skill_select_tool 未加载(skill_backend 未提供)")
-
-    skill_market_pending: BaseTool | None = None
-    if market_backend is not None:
-        install_url_fn = getattr(market_backend, "install_from_url", None)
-        uninstall_fn = getattr(market_backend, "uninstall", None)
-        skill_market_pending = create_skill_market_tool(
-            market_backend,
-            install_from_url_fn=install_url_fn,
-            uninstall_fn=uninstall_fn,
-        )
-        logger.info(" skill_market_tool registered (Turn1)")
-
-    if has_manage_tool:
-        assert write_backend is not None  # narrowed by has_manage_tool
-        skill_mgmt_tool = create_skill_manage_tool(
-            write_backend, skill_backend, similarity_checker
-        )
-        tools.append(skill_mgmt_tool)
-        logger.info(" skill_manage_tool 已加载")
 
     if enable_answer_tool:
         tools.append(request_answer_user_tool)
@@ -277,9 +272,6 @@ def get_meta_tools(
     else:
         logger.info("Bash tool disabled by caller configuration")
 
-    if skill_market_pending is not None:
-        tools.append(skill_market_pending)
-
     # discover_capability_tool → skill_search_tool SSOT: SkillAgent calls sync_discover_capability_tool()
     # after all skills are registered.
     discoverable_skills = [s for s in skills if s.model_invocable] if skills else []
@@ -310,6 +302,7 @@ def get_meta_tools(
 __all__ = [
     "SKILL_CORE_MAX",
     "SKILL_INLINE_THRESHOLD",
+    "SKILL_SELECT_INLINE_MAX",
     "create_bash_code_execute_tool",
     "create_bash_process_tool",
     "create_delegate_task_tool",

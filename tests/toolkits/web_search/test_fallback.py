@@ -1,101 +1,152 @@
-"""Fallback Provider功能测试"""
+"""Priority provider chain tests."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from myrm_agent_harness.toolkits.web_search.common import SearchResult
-from myrm_agent_harness.toolkits.web_search.exceptions import SearchAPIError
+from myrm_agent_harness.toolkits.web_search.exceptions import (
+    AllQueriesFailedError,
+    SearchAPIError,
+)
 from myrm_agent_harness.toolkits.web_search.metrics import WebSearchMetrics
-from myrm_agent_harness.toolkits.web_search.web_searcher import SearchServiceConfig, WebSearcher
+from myrm_agent_harness.toolkits.web_search.web_searcher import (
+    SearchServiceConfig,
+    WebSearcher,
+)
 
 
-class TestFallbackProvider:
-    """测试Fallback Provider功能"""
+def _chain_config(*hops: SearchServiceConfig) -> SearchServiceConfig:
+    head = hops[0]
+    return SearchServiceConfig(
+        search_service=head.search_service,
+        api_key=head.api_key,
+        api_base=head.api_base,
+        provider_chain=list(hops),
+    )
+
+
+class TestProviderChain:
+    """测试 provider chain 故障转移"""
 
     @pytest.mark.asyncio
-    async def test_fallback_on_auth_error(self):
-        """测试认证失败时触发fallback"""
-        fallback_config = SearchServiceConfig(search_service="searxng")
-        primary_config = SearchServiceConfig(
-            search_service="tavily",
-            api_key="invalid",
-            fallback_config=fallback_config,
+    async def test_chain_on_auth_error(self):
+        cfg = _chain_config(
+            SearchServiceConfig(search_service="tavily", api_key="invalid"),
+            SearchServiceConfig(
+                search_service="searxng", api_base="http://127.0.0.1:8081"
+            ),
         )
         metrics = WebSearchMetrics()
-        searcher = WebSearcher(primary_config, metrics=metrics)
+        searcher = WebSearcher(cfg, metrics=metrics)
 
         mock_primary = AsyncMock()
         mock_primary.search = AsyncMock(side_effect=Exception("HTTP 401 Unauthorized"))
 
-        fallback_results = [SearchResult(link="https://fallback.com", title="Fallback", snippet="S")]
+        fallback_results = [
+            SearchResult(link="https://fallback.com", title="Fallback", snippet="S")
+        ]
 
-        with patch.object(searcher, "_get_search_service", return_value=mock_primary):
-            mock_fb = MagicMock()
-            mock_fb.search = AsyncMock(return_value=fallback_results)
+        async def mock_get_service(instance, bypass_gateway=False):
+            if instance.config.search_service == "tavily":
+                return mock_primary
+            fb = AsyncMock()
+            fb.search = AsyncMock(return_value=fallback_results)
+            return fb
 
-            with patch("myrm_agent_harness.toolkits.web_search.web_searcher.WebSearcher", return_value=mock_fb):
-                results = await searcher.search("fallback_auth_unique_456", num_results=5)
+        with patch.object(WebSearcher, "_get_search_service", mock_get_service):
+            results = await searcher.search("fallback_auth_unique_456", num_results=5)
 
-                assert len(results) == 1
-                snap = metrics.snapshot()
-                assert snap["fallback_triggered_count"] == 1
-                assert snap["fallback_successes"] == 1
+        assert len(results) == 1
+        assert metrics.chain_hop_count >= 1
 
     @pytest.mark.asyncio
-    async def test_no_fallback_when_retryable_error(self):
-        """测试可重试错误不触发fallback"""
-        fallback_config = SearchServiceConfig(search_service="searxng")
-        primary_config = SearchServiceConfig(
-            search_service="tavily",
-            api_key="key",
-            fallback_config=fallback_config,
-            search_max_retries=0,
+    async def test_chain_hops_on_quota_error(self):
+        cfg = _chain_config(
+            SearchServiceConfig(
+                search_service="tavily", api_key="key", search_max_retries=0
+            ),
+            SearchServiceConfig(
+                search_service="searxng", api_base="http://127.0.0.1:8081"
+            ),
         )
         metrics = WebSearchMetrics()
-        searcher = WebSearcher(primary_config, metrics=metrics)
+        searcher = WebSearcher(cfg, metrics=metrics)
+
+        mock_primary = AsyncMock()
+        mock_primary.search = AsyncMock(
+            side_effect=Exception("API Error [10406]: quota exhausted")
+        )
+
+        fallback_results = [
+            SearchResult(link="https://fallback.com", title="Fallback", snippet="S")
+        ]
+
+        async def mock_get_service(instance, bypass_gateway=False):
+            if instance.config.search_service == "tavily":
+                return mock_primary
+            fb = AsyncMock()
+            fb.search = AsyncMock(return_value=fallback_results)
+            return fb
+
+        with patch.object(WebSearcher, "_get_search_service", mock_get_service):
+            results = await searcher.search("quota_hop_unique", num_results=5)
+
+        assert len(results) == 1
+        assert metrics.chain_hop_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_no_chain_advance_on_retryable_error(self):
+        cfg = _chain_config(
+            SearchServiceConfig(
+                search_service="tavily", api_key="key", search_max_retries=0
+            ),
+            SearchServiceConfig(
+                search_service="searxng", api_base="http://127.0.0.1:8081"
+            ),
+        )
+        metrics = WebSearchMetrics()
+        searcher = WebSearcher(cfg, metrics=metrics)
 
         mock_primary = AsyncMock()
         mock_primary.search = AsyncMock(side_effect=Exception("Connection timeout"))
 
-        with patch.object(searcher, "_get_search_service", return_value=mock_primary):
-            with pytest.raises(SearchAPIError):
-                await searcher.search("no_fallback_retryable_unique", num_results=5)
+        with patch.object(
+            WebSearcher, "_get_search_service", return_value=mock_primary
+        ):
+            with pytest.raises(AllQueriesFailedError):
+                await searcher.search("no_chain_retryable_unique", num_results=5)
 
-            snap = metrics.snapshot()
-            assert snap["fallback_triggered_count"] == 0
+        assert metrics.chain_hop_count == 0
 
     @pytest.mark.asyncio
-    async def test_no_fallback_config(self):
-        """测试无fallback配置时正常失败"""
+    async def test_no_chain_config(self):
         config = SearchServiceConfig(search_service="tavily", api_key="key")
         metrics = WebSearchMetrics()
         searcher = WebSearcher(config, metrics=metrics)
 
         mock_service = AsyncMock()
-        mock_service.search = AsyncMock(side_effect=Exception("HTTP 429 Quota exceeded"))
+        mock_service.search = AsyncMock(
+            side_effect=Exception("HTTP 429 Quota exceeded")
+        )
 
         with patch.object(searcher, "_get_search_service", return_value=mock_service):
             with pytest.raises(SearchAPIError):
-                await searcher.search("no_fallback_config_unique", num_results=5)
+                await searcher.search("no_chain_config_unique", num_results=5)
 
-            snap = metrics.snapshot()
-            assert snap["fallback_triggered_count"] == 0
+        assert metrics.chain_hop_count == 0
 
-    def test_fallback_config_structure(self):
-        """测试fallback配置结构"""
-        fallback = SearchServiceConfig(search_service="searxng")
-        primary = SearchServiceConfig(search_service="tavily", api_key="key", fallback_config=fallback)
+    def test_provider_chain_structure(self):
+        chain = [
+            SearchServiceConfig(search_service="tavily", api_key="key1"),
+            SearchServiceConfig(
+                search_service="searxng", api_base="http://127.0.0.1:8081"
+            ),
+        ]
+        primary = SearchServiceConfig(
+            search_service="tavily", api_key="key1", provider_chain=chain
+        )
 
-        assert primary.fallback_config is not None
-        assert primary.fallback_config.search_service == "searxng"
-        assert primary.fallback_config.fallback_config is None
-
-    def test_nested_fallback_config(self):
-        """测试多层fallback配置"""
-        level2 = SearchServiceConfig(search_service="exa_ai", api_key="key2")
-        level1 = SearchServiceConfig(search_service="searxng", fallback_config=level2)
-        primary = SearchServiceConfig(search_service="tavily", api_key="key1", fallback_config=level1)
-
-        assert primary.fallback_config.search_service == "searxng"
-        assert primary.fallback_config.fallback_config.search_service == "exa_ai"
+        assert primary.provider_chain is not None
+        assert len(primary.provider_chain) == 2
+        assert primary.provider_chain[1].search_service == "searxng"

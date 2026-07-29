@@ -8,6 +8,7 @@ typing::Literal (POS: standard library type hints)
 WikiConfig: Wiki overall configuration class
 WikiCompileConfig: compilation strategy configuration class
 WikiQueryConfig: query strategy configuration class
+WikiQueryMode: query retrieval mode literal (auto | raw_claim)
 
 [POS]
 Wiki configuration center. Defines Wiki behavior configuration (compilation strategy, parallel
@@ -19,6 +20,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Literal
+
+WikiQueryMode = Literal["auto", "raw_claim"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,7 +113,10 @@ class WikiCompileConfig:
             "5. NEVER paraphrase numbers, percentages, dates, or proper nouns from sources. "
             "Quote them exactly as they appear.\n"
             "6. For key facts, annotate provenance inline: (source: filename.md L42-45).\n"
-            "7. Where appropriate, use rich visual elements to maximize information density:\n"
+            "7. Include a `claims:` list in YAML frontmatter for each key factual assertion. Each claim MUST have:\n"
+            "   id, text, status (supported|contested|unsupported|unknown), confidence (0-1), and evidence[] "
+            "with kind, sourceId, path, lines.\n"
+            "8. Where appropriate, use rich visual elements to maximize information density:\n"
             "   - Use Mermaid diagrams (```mermaid) for workflows, architectures, and relationships.\n"
             "   - Use GFM tables for comparisons, feature matrices, and structured data.\n"
             "   - Use fenced code blocks with language tags for code examples.\n"
@@ -137,6 +143,13 @@ class WikiQueryConfig:
         max_context_chars: Hard cap for assembled query context
         sidecar_retrieval_enabled: Enable L0/L1 sidecar-first retrieval routing
         max_sidecar_directories: Maximum directories selected from sidecar retrieval
+        index_first_enabled: Seed retrieval from wiki/index.md before sidecar/FTS
+        max_index_hits: Maximum index catalog rows to use as retrieval seeds
+        index_min_match_score: Minimum normalized score for an index row to qualify
+        query_mode: Retrieval mode — auto (default) or raw_claim (boost frontmatter claims)
+        best_first_max_expansions: Max graph neighbor enqueues during best-first convergence
+        best_first_graph_decay: Score decay applied when expanding graph neighbors
+        raw_claim_boost: Score boost multiplier for query-matching frontmatter claims
         enable_related_concepts: Show related concepts in query results
     """
 
@@ -147,4 +160,11 @@ class WikiQueryConfig:
     max_context_chars: int = 12_000
     sidecar_retrieval_enabled: bool = True
     max_sidecar_directories: int = 3
+    index_first_enabled: bool = True
+    max_index_hits: int = 5
+    index_min_match_score: float = 0.25
+    query_mode: WikiQueryMode = "auto"
+    best_first_max_expansions: int = 32
+    best_first_graph_decay: float = 0.65
+    raw_claim_boost: float = 1.5
     enable_related_concepts: bool = True

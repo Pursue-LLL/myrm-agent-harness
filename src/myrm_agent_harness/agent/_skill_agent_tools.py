@@ -81,20 +81,60 @@ class SkillAgentToolsMixin:
 
         registry = self._tool_registry  # type: ignore[attr-defined]
 
+        def _user_has_tool(tool_name: str) -> bool:
+            return any(
+                getattr(tool, "name", None) == tool_name
+                for tool in self.user_tools  # type: ignore[attr-defined]
+            )
+
+        supplemental_user_tools: list[BaseTool] = []
+        if self.market_backend is not None and not _user_has_tool("skill_market_tool"):  # type: ignore[attr-defined]
+            from myrm_agent_harness.agent.meta_tools.skills.market import (
+                create_skill_market_tool,
+            )
+
+            market_backend = self.market_backend  # type: ignore[attr-defined]
+            install_url_fn = getattr(market_backend, "install_from_url", None)
+            uninstall_fn = getattr(market_backend, "uninstall", None)
+            supplemental_user_tools.append(
+                create_skill_market_tool(
+                    market_backend,
+                    install_from_url_fn=install_url_fn,
+                    uninstall_fn=uninstall_fn,
+                )
+            )
+            logger.info(" skill_market_tool mounted via market_backend (server/user_tools SSOT)")
+
+        if self.write_backend is not None and not _user_has_tool("skill_manage_tool"):  # type: ignore[attr-defined]
+            from myrm_agent_harness.agent.meta_tools.skills.manage import (
+                create_skill_manage_tool,
+            )
+
+            supplemental_user_tools.append(
+                create_skill_manage_tool(
+                    self.write_backend,  # type: ignore[attr-defined]
+                    self.skill_backend,  # type: ignore[attr-defined]
+                    self._similarity_checker,  # type: ignore[attr-defined]
+                )
+            )
+            logger.info(" skill_manage_tool mounted via write_backend (server/user_tools SSOT)")
+
+        has_manage_tool = _user_has_tool("skill_manage_tool") or bool(
+            self.write_backend  # type: ignore[attr-defined]
+        )
+
         meta_tools = get_meta_tools(
             skills,
             self.skill_backend,  # type: ignore[attr-defined]
-            market_backend=self.market_backend,  # type: ignore[attr-defined]
-            write_backend=self.write_backend,  # type: ignore[attr-defined]
             embedding_config=self._embedding_config,  # type: ignore[attr-defined]
             skill_env_map=skill_env_map,
             skill_configs=self.skill_configs,  # type: ignore[attr-defined]
-            similarity_checker=self._similarity_checker,  # type: ignore[attr-defined]
             registry=registry,
             enable_file_tools=self._enable_file_tools,  # type: ignore[attr-defined]
             enable_evicted_read=self._enable_evicted_read,  # type: ignore[attr-defined]
             enable_shell_tools=self._enable_shell_tools,  # type: ignore[attr-defined]
             enable_answer_tool=self._enable_answer_tool,  # type: ignore[attr-defined]
+            has_manage_tool=has_manage_tool,
             available_tool_names=self._available_tool_names,  # type: ignore[attr-defined]
             available_tool_groups=self._available_tool_groups,  # type: ignore[attr-defined]
         )
@@ -109,7 +149,9 @@ class SkillAgentToolsMixin:
 
         registry.register_many(meta_tools, source=ToolSource.META)
         registry.register_many(
-            normalize_tool_names(self.user_tools),
+            normalize_tool_names(
+                [*self.user_tools, *supplemental_user_tools]  # type: ignore[attr-defined]
+            ),
             source=ToolSource.USER,  # type: ignore[attr-defined]
         )
 

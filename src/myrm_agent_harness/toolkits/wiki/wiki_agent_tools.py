@@ -11,14 +11,16 @@ toolkits.web_fetch.markdown_generator::MarkdownGenerator (POS: HTML to Markdown 
 core.security.http.secure_fetch::secure_get (POS: SSRF-protected outbound HTTP, fallback path)
 
 [OUTPUT]
-create_wiki_tools(): creates 2 LangChain agent tools (ingest, query)
+create_wiki_tools(): creates 3 LangChain agent tools (ingest, query, apply)
 create_wiki_admin_tools(): creates compile/maintain tools for REST and tests
+_wiki_source_entry(): builds chat citation metadata incl. claim snapshot_status and source_key
 
 [POS]
 LangChain tool integration layer for Wiki toolkit. Wraps WikiCompiler, WikiQueryEngine,
-and WikiLinter into 4 LangChain StructuredTools for Agent use. Provides end-to-end
+and WikiLinter into agent-facing StructuredTools for Agent use. Provides end-to-end
 automation: ingest triggers compilation, query archives high-value results for knowledge
 compounding, and URL fetching uses FetchEngine (YouTube/Bilibili subtitle extraction, multi-tier fallback).
+Query metadata forwards layered citations and read-time evidence snapshot_status for Chat/Settings UI.
 """
 
 from __future__ import annotations
@@ -32,14 +34,54 @@ from langchain_core.tools import tool
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .core.structure import WikiStructure
+from .core.types import SourceSnippet
 from .maintenance.linter import WikiLinter
 from .pipeline.compiler import WikiCompiler
+from .pipeline.apply import WikiApplyError, WikiApplyOp, WikiApplyRequest, apply_wiki_mutation
+from .retrieval.indexer import WikiIndexer
 from .retrieval.query import WikiQueryEngine
 
 logger = get_agent_logger(__name__)
 
 _BINARY_DOC_EXTENSIONS = frozenset({".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt"})
 _LARGE_DOC_CHUNK_THRESHOLD = 80_000
+
+
+def _wiki_source_dedup_key(snip: SourceSnippet) -> str:
+    if snip.claim_id and snip.evidence_path:
+        return (
+            f"kb:LLM-Wiki:{snip.article_path}:claim:{snip.claim_id}:evidence:{snip.evidence_path}:{snip.line_range}"
+        )
+    return f"kb:LLM-Wiki:{snip.article_path}:{snip.section}:{snip.level}"
+
+
+def _wiki_source_entry(snip: SourceSnippet, *, confidence_score: float) -> dict[str, object]:
+    display_name = snip.article_name or Path(snip.article_path).stem or "wiki-source"
+    entry: dict[str, object] = {
+        "type": "knowledge",
+        "kb_name": "LLM-Wiki",
+        "filename": display_name,
+        "score": confidence_score,
+        "path": snip.article_path,
+        "source_key": _wiki_source_dedup_key(snip),
+    }
+    if snip.snippet:
+        entry["snippet"] = snip.snippet
+    if snip.section:
+        entry["section"] = snip.section
+    if snip.level:
+        entry["level"] = snip.level
+    if snip.claim_id:
+        entry["claim_id"] = snip.claim_id
+    if snip.evidence_path:
+        entry["evidence_path"] = snip.evidence_path
+    if snip.line_range:
+        entry["line_range"] = snip.line_range
+    if snip.claim_status:
+        entry["claim_status"] = snip.claim_status
+    if snip.evidence_snapshot_status:
+        entry["snapshot_status"] = snip.evidence_snapshot_status
+    return entry
 
 
 def create_wiki_tools(
@@ -113,12 +155,46 @@ def create_wiki_agent_tools(
             chunks = _split_if_large(content, full_path)
             ingested_count = 0
 
+            from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate import (
+                RawConflictPolicy,
+                RawGateError,
+                RawPublishRequest,
+                publish_raw,
+            )
+
             for chunk_path, chunk_content in chunks:
-                raw_path = structure.get_raw_file_path(chunk_path)
-                raw_path.parent.mkdir(parents=True, exist_ok=True)
-                raw_path.write_text(chunk_content, encoding="utf-8")
-                compiler.enqueue_file(raw_path)
-                ingested_count += 1
+                try:
+                    result = await publish_raw(
+                        structure,
+                        RawPublishRequest(
+                            relative_path=chunk_path,
+                            content=chunk_content,
+                            conflict_policy=RawConflictPolicy.FAIL,
+                        ),
+                        caller="agent",
+                    )
+                except RawGateError as exc:
+                    if exc.code == "raw_conflict":
+                        return (
+                            f"Raw source already exists with different content: {chunk_path}. "
+                            "Use Settings Wiki import to supersede or choose a different filename."
+                        )
+                    if exc.code == "raw_security_blocked":
+                        return (
+                            f"Raw source rejected due to sensitive content: {chunk_path}. "
+                            "Remove credentials before ingesting."
+                        )
+                    return f"Failed to ingest document: {exc.message}"
+
+                if result.security_blocked:
+                    return (
+                        f"Raw source rejected due to sensitive content: {chunk_path}. "
+                        "Remove credentials before ingesting."
+                    )
+
+                if result.written:
+                    compiler.enqueue_file(result.absolute_path)
+                    ingested_count += 1
 
             logger.info(f"Ingested {ingested_count} chunk(s) for: {full_path}")
             suffix = f" ({ingested_count} chunks)" if ingested_count > 1 else ""
@@ -148,48 +224,44 @@ def create_wiki_agent_tools(
 
             wrapped_context = wrap_with_external_sources_tag(result.answer, source="LLM-Wiki")
 
-            sources_by_path: dict[str, dict[str, object]] = {}
-            ordered_paths: list[str] = []
+            sources_by_key: dict[str, dict[str, object]] = {}
+            ordered_keys: list[str] = []
 
             for snip in result.source_snippets:
-                source_path = snip.article_path
-                entry = sources_by_path.get(source_path)
-                if entry is None:
-                    display_name = snip.article_name or Path(source_path).stem or "wiki-source"
-                    entry = {
-                        "type": "knowledge",
-                        "kb_name": "LLM-Wiki",
-                        "filename": display_name,
-                        "score": result.confidence_score,
-                        "path": source_path,
-                    }
-                    sources_by_path[source_path] = entry
-                    ordered_paths.append(source_path)
-                if snip.snippet:
-                    entry["snippet"] = snip.snippet
-                if snip.section:
-                    entry["section"] = snip.section
-                if snip.level:
-                    entry["level"] = snip.level
+                key = _wiki_source_dedup_key(snip)
+                if key in sources_by_key:
+                    entry = sources_by_key[key]
+                    if snip.snippet:
+                        entry["snippet"] = snip.snippet
+                    if snip.evidence_snapshot_status:
+                        entry["snapshot_status"] = snip.evidence_snapshot_status
+                    continue
+                sources_by_key[key] = _wiki_source_entry(snip, confidence_score=result.confidence_score)
+                ordered_keys.append(key)
 
+            snippet_paths = {snip.article_path for snip in result.source_snippets}
             for path_str in result.related_articles:
-                if path_str in sources_by_path:
+                if path_str in snippet_paths:
+                    continue
+                path_key = f"kb:LLM-Wiki:{path_str}::L2"
+                if path_key in sources_by_key:
                     continue
                 p = Path(path_str)
-                sources_by_path[path_str] = {
+                sources_by_key[path_key] = {
                     "type": "knowledge",
                     "kb_name": "LLM-Wiki",
                     "filename": p.stem,
                     "score": result.confidence_score,
                     "path": path_str,
+                    "source_key": path_key,
                 }
-                ordered_paths.append(path_str)
+                ordered_keys.append(path_key)
 
-            sources = [sources_by_path[path] for path in ordered_paths]
+            sources = [sources_by_key[key] for key in ordered_keys]
 
             if result.should_archive:
                 try:
-                    _archive_query_result(structure, compiler, question, result.answer)
+                    await _archive_query_result(structure, compiler, question, result.answer)
                 except Exception as archive_err:
                     logger.warning(f"Query archive failed (non-blocking): {archive_err}")
 
@@ -199,7 +271,68 @@ def create_wiki_agent_tools(
             logger.error(f"Query failed: {e}")
             return f"Query failed: {e}"
 
-    return [wiki_ingest, wiki_query]
+    @tool("wiki_apply_tool")
+    async def wiki_apply(
+        op: Annotated[
+            str,
+            "Operation: update_metadata, patch_compiled_truth, append_timeline, or create_note",
+        ],
+        concept_name: Annotated[str, "Concept path, e.g. 'research/react-hooks'"],
+        compiled_truth: Annotated[str, "New Compiled Truth section body"] = "",
+        timeline_entry: Annotated[str, "Timeline bullet to append"] = "",
+        body: Annotated[str, "Body content for create_note"] = "",
+        tags: Annotated[str, "Comma-separated tags for update_metadata/create_note"] = "",
+        aliases: Annotated[str, "Comma-separated aliases for update_metadata/create_note"] = "",
+        sources: Annotated[str, "Comma-separated source refs for update_metadata/create_note"] = "",
+        clear_confidence: Annotated[bool, "Clear frontmatter confidence on update_metadata"] = False,
+    ) -> str:
+        """
+        Apply a narrow, structured mutation to a wiki concept page.
+
+        Protects managed sections (Compiled Truth, Timeline, claims frontmatter).
+        Do not use whole-page rewrites; pick the smallest op that fits.
+        """
+        try:
+            apply_op = WikiApplyOp(op.strip().lower())
+        except ValueError:
+            allowed = ", ".join(
+                member.value
+                for member in WikiApplyOp
+                if member != WikiApplyOp.REPLACE_FULL_DOCUMENT
+            )
+            return f"Invalid op '{op}'. Allowed: {allowed}"
+
+        def _split_csv(raw: str) -> tuple[str, ...] | None:
+            if not raw.strip():
+                return None
+            return tuple(part.strip() for part in raw.split(",") if part.strip())
+
+        request = WikiApplyRequest(
+            op=apply_op,
+            concept_name=concept_name.strip(),
+            compiled_truth=compiled_truth,
+            timeline_entry=timeline_entry,
+            body=body,
+            tags=_split_csv(tags),
+            aliases=_split_csv(aliases),
+            sources=_split_csv(sources),
+            clear_confidence=clear_confidence,
+            provenance="agent",
+        )
+        indexer = WikiIndexer(structure)
+        try:
+            result = await apply_wiki_mutation(structure, indexer, request, caller="agent")
+        except WikiApplyError as exc:
+            return f"Wiki apply failed ({exc.code}): {exc.message}"
+
+        suffix = ""
+        if result.created:
+            suffix = " (created)"
+        elif result.appended is False and apply_op == WikiApplyOp.APPEND_TIMELINE:
+            suffix = " (duplicate skipped)"
+        return f"{result.message}{suffix}"
+
+    return [wiki_ingest, wiki_query, wiki_apply]
 
 
 def create_wiki_admin_tools(
@@ -283,7 +416,7 @@ def create_wiki_admin_tools(
     return [wiki_compile, wiki_maintain]
 
 
-def _archive_query_result(
+async def _archive_query_result(
     structure: WikiStructure,
     compiler: WikiCompiler,
     question: str,
@@ -294,12 +427,25 @@ def _archive_query_result(
     doc_hash = hashlib.sha256(question.encode()).hexdigest()[:12]
     filename = f"query_archive_{doc_hash}.md"
 
-    raw_path = structure.get_raw_file_path(filename)
-    if raw_path.exists():
+    from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate import (
+        RawConflictPolicy,
+        RawPublishRequest,
+        publish_raw,
+    )
+
+    result = await publish_raw(
+        structure,
+        RawPublishRequest(
+            relative_path=filename,
+            content=content,
+            conflict_policy=RawConflictPolicy.PUT_IF_ABSENT,
+        ),
+        caller="agent",
+    )
+    if not result.written:
         return
 
-    raw_path.write_text(content, encoding="utf-8")
-    compiler.enqueue_file(raw_path)
+    compiler.enqueue_file(result.absolute_path)
     logger.info(f"Archived query result for knowledge compounding: {filename}")
 
 

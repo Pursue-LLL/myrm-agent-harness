@@ -6,9 +6,9 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
+from myrm_agent_harness.agent.context_management.infra.retention_helpers import extract_failed_tool_call_ids
 from myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor import (
     CompressProcessor,
-    _extract_failed_tool_call_ids,
     _extract_focus_files,
     _extract_focus_modules,
     _extract_user_goal_hint,
@@ -248,7 +248,7 @@ class TestCompressionIntentExtraction:
             }
         )
 
-        assert _extract_failed_tool_call_ids(context) == frozenset({"call_1"})
+        assert extract_failed_tool_call_ids(context.metadata) == frozenset({"call_1"})
         assert _extract_focus_files(context) == frozenset({"src/app.py"})
         assert _extract_focus_modules(context) == frozenset({"agent.context"})
         assert _extract_user_goal_hint(context) == "fix timeout"
@@ -256,7 +256,7 @@ class TestCompressionIntentExtraction:
     def test_extract_helpers_ignore_invalid_payload_shape(self) -> None:
         context = _build_context(metadata={"compression_intent": "invalid"})
 
-        assert _extract_failed_tool_call_ids(context) == frozenset()
+        assert extract_failed_tool_call_ids(context.metadata) == frozenset()
         assert _extract_focus_files(context) == frozenset()
         assert _extract_focus_modules(context) == frozenset()
         assert _extract_user_goal_hint(context) == ""
@@ -265,7 +265,7 @@ class TestCompressionIntentExtraction:
         """Intent is dict but individual fields are missing or wrong type."""
         context = _build_context(metadata={"compression_intent": {}})
 
-        assert _extract_failed_tool_call_ids(context) == frozenset()
+        assert extract_failed_tool_call_ids(context.metadata) == frozenset()
         assert _extract_focus_files(context) == frozenset()
         assert _extract_focus_modules(context) == frozenset()
         assert _extract_user_goal_hint(context) == ""
@@ -283,7 +283,7 @@ class TestCompressionIntentExtraction:
             }
         )
 
-        assert _extract_failed_tool_call_ids(context) == frozenset()
+        assert extract_failed_tool_call_ids(context.metadata) == frozenset()
         assert _extract_focus_files(context) == frozenset()
         assert _extract_focus_modules(context) == frozenset()
         assert _extract_user_goal_hint(context) == ""

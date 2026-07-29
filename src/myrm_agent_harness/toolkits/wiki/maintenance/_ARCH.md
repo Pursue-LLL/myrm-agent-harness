@@ -11,7 +11,8 @@ LLM-driven wikilink enrichment, and proactive knowledge-gap analysis
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Init | — |
-| linter.py | Core | Health checker: broken links, completeness (report-only), frontmatter auto-fix + link enrichment via publish gate | ✅ |
+| linter.py | Core | Health checker: broken links, completeness (report-only), frontmatter auto-fix + link enrichment via publish gate; stale via `stale_summary` | ✅ |
+| stale_summary.py | Core | Raw-source stale detection vs `last_compile_time`; path set + concept stale-source matching + raw ingest tri-state resolver for linter, product API, and tree badges | ✅ |
 
 ## Key Dependencies
 

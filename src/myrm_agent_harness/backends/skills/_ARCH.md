@@ -45,6 +45,7 @@ Skill backend implementations — read/write/discovery protocols, local/memory/s
 | types_instance.py | Core | SkillInstanceConfig, SkillStateProtocol, SkillInstance. | ✅ |
 | types_visibility.py | Core | skill_visible_for_tools tool-conditional visibility filter. | ✅ |
 | versioning.py | Core | Semantic skill version comparison utilities. | ✅ |
+| local_skill_id.py | Core | Canonical path-hash local skill ID + install dir resolution. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

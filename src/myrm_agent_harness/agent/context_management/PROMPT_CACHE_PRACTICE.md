@@ -583,9 +583,11 @@ ThinkingBlockCleaner     ← 首先清理 thinking blocks，减少无效 token
        ↓
 MediaFilterProcessor     ← 文本模型主动剥离 image/video/audio（避免 400 + 省 token）
        ↓
-FilterProcessor          ← 大型工具结果 → 磁盘持久化 + 智能预览 + 文件引用
+FilterProcessor                ← 大型工具结果 → 磁盘持久化 + 智能预览 + 文件引用
        ↓
-CacheTtlPruneProcessor   ← cache 过期时归档/裁剪旧工具结果（零 API 成本、结构化引用、预算化恢复）
+ActiveToolResultPruneProcessor ← 每步主动归档超 2048 tok 的旧工具结果（零 API 成本、protected tools 豁免）
+       ↓
+CacheTtlPruneProcessor         ← cache 过期时归档/裁剪旧工具结果（零 API 成本、结构化引用、预算化恢复）
        ↓
 CompressProcessor        ← 旧工具调用 → 紧凑格式（批量清理）
        ↓

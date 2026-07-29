@@ -31,17 +31,19 @@ import httpx
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
 from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
+from myrm_agent_harness.agent.skills.market.sources.clawhub_registry import (
+    CLAWHUB_DEFAULT_URL as CLAWHUB_API_BASE,
+    resolve_registry_base_url,
+)
 
 logger = logging.getLogger(__name__)
 
-CLAWHUB_API_BASE = "https://clawhub.ai"
 CLAWHUB_API_TIMEOUT = 10.0
 CLAWHUB_ENRICH_MAX = 5
 
 
 def _resolve_clawhub_base_url() -> str:
-    url = os.environ.get("CLAWHUB_URL", "").strip().rstrip("/")
-    return url or CLAWHUB_API_BASE
+    return resolve_registry_base_url()
 
 
 def _resolve_clawhub_token() -> str | None:
@@ -57,13 +59,22 @@ class ClawHubSource:
     """
 
     def __init__(self) -> None:
-        self._base_url = _resolve_clawhub_base_url()
         self._token = _resolve_clawhub_token()
         self._client: httpx.AsyncClient | None = None
+        self._client_base_url: str | None = None
 
     @property
     def source_name(self) -> str:
         return "clawhub"
+
+    @property
+    def _base_url(self) -> str:
+        return _resolve_clawhub_base_url()
+
+    def reset_client(self) -> None:
+        if self._client is not None and not self._client.is_closed:
+            self._client = None
+        self._client_base_url = None
 
     def _build_headers(self) -> dict[str, str]:
         headers: dict[str, str] = {"Accept": "application/json"}
@@ -72,15 +83,24 @@ class ClawHubSource:
         return headers
 
     def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None or self._client.is_closed:
-            self._client = create_httpx_client(timeout=CLAWHUB_API_TIMEOUT, headers=self._build_headers())
+        base_url = self._base_url
+        if (
+            self._client is None
+            or self._client.is_closed
+            or self._client_base_url != base_url
+        ):
+            self._client = create_httpx_client(
+                timeout=CLAWHUB_API_TIMEOUT, headers=self._build_headers()
+            )
+            self._client_base_url = base_url
         return self._client
 
     async def search(self, query: str, limit: int = 10) -> list[SkillSearchResult]:
         try:
             client = self._get_client()
             resp = await client.get(
-                f"{self._base_url}/api/v1/search", params={"q": query.strip() or "*", "limit": str(limit)}
+                f"{self._base_url}/api/v1/search",
+                params={"q": query.strip() or "*", "limit": str(limit)},
             )
             if resp.status_code != 200:
                 logger.warning("ClawHub search returned %d", resp.status_code)
@@ -108,7 +128,9 @@ class ClawHubSource:
 
         try:
             client = self._get_client()
-            resp = await client.get(f"{self._base_url}/api/v1/skills/{_url_encode_slug(slug)}")
+            resp = await client.get(
+                f"{self._base_url}/api/v1/skills/{_url_encode_slug(slug)}"
+            )
             if resp.status_code != 200:
                 return None
 
@@ -119,7 +141,9 @@ class ClawHubSource:
             logger.warning("ClawHub get_detail error for %s: %s", skill_id, e)
             return None
 
-    def _parse_search_response(self, data: dict[str, object] | list[dict[str, object]]) -> list[SkillSearchResult]:
+    def _parse_search_response(
+        self, data: dict[str, object] | list[dict[str, object]]
+    ) -> list[SkillSearchResult]:
         raw_results: list[dict[str, object]]
 
         if isinstance(data, list):
@@ -131,7 +155,9 @@ class ClawHubSource:
             return []
 
         return [
-            self._search_item_to_result(item) for item in raw_results if isinstance(item, dict) and item.get("slug")
+            self._search_item_to_result(item)
+            for item in raw_results
+            if isinstance(item, dict) and item.get("slug")
         ]
 
     def _search_item_to_result(self, item: dict[str, object]) -> SkillSearchResult:
@@ -154,7 +180,9 @@ class ClawHubSource:
             stars=_safe_int(item.get("score", 0)),
         )
 
-    def _parse_detail_response(self, slug: str, data: dict[str, object]) -> SkillSearchResult | None:
+    def _parse_detail_response(
+        self, slug: str, data: dict[str, object]
+    ) -> SkillSearchResult | None:
         skill = data.get("skill")
         if not isinstance(skill, dict):
             return None
@@ -172,7 +200,9 @@ class ClawHubSource:
         downloads = 0
         if isinstance(stats, dict):
             stars = _safe_int(stats.get("stars", 0))
-            downloads = _safe_int(stats.get("downloads", stats.get("installsCurrent", 0)))
+            downloads = _safe_int(
+                stats.get("downloads", stats.get("installsCurrent", 0))
+            )
 
         owner_data = data.get("owner")
         author = ""
@@ -204,15 +234,21 @@ class ClawHubSource:
             tags=tags,
         )
 
-    async def _enrich_results(self, client: httpx.AsyncClient, results: list[SkillSearchResult]) -> None:
+    async def _enrich_results(
+        self, client: httpx.AsyncClient, results: list[SkillSearchResult]
+    ) -> None:
         """Enrich top-N search results with detail data (stars, downloads, author).
 
         Best-effort: failures silently keep original values.
         """
 
-        async def _fetch_detail(idx: int, slug: str) -> tuple[int, dict[str, object] | None]:
+        async def _fetch_detail(
+            idx: int, slug: str
+        ) -> tuple[int, dict[str, object] | None]:
             try:
-                resp = await client.get(f"{self._base_url}/api/v1/skills/{_url_encode_slug(slug)}")
+                resp = await client.get(
+                    f"{self._base_url}/api/v1/skills/{_url_encode_slug(slug)}"
+                )
                 if resp.status_code == 200:
                     return idx, resp.json()
             except Exception:

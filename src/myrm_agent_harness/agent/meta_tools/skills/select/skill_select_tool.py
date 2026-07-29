@@ -62,21 +62,18 @@ def create_select_skill_tool(
     display_skills = inline_skills if inline_skills is not None else [s for s in skills if s.model_invocable]
     skills_xml = get_metadata_summary(display_skills)
 
-    peripheral_hint = ""
+    hidden_total = hidden_skill_count
     if inline_skills is not None:
         display_names = {s.name for s in display_skills}
-        peripheral_skills = [s for s in skills if s.name not in display_names and s.model_invocable]
-        if peripheral_skills:
-            top_peripherals = peripheral_skills[:50]
-            peripheral_list = "\n".join([f"- {s.name}: {s.description[:100]}" for s in top_peripherals])
-            peripheral_hint = f"\n<peripheral_skills>\n{peripheral_list}\n</peripheral_skills>\n"
-            hidden_skill_count = len(peripheral_skills) - len(top_peripherals)
+        hidden_total = sum(
+            1 for s in skills if s.model_invocable and s.name not in display_names
+        )
 
     search_hint = ""
-    if hidden_skill_count > 0:
+    if hidden_total > 0:
         search_hint = (
-            f"\n {hidden_skill_count} more skills are hidden to save context. "
-            f'Use `skill_search_tool` (query="*") to find them.\n'
+            f"\n {hidden_total} more bound skills are not listed here to save context. "
+            f'Use `skill_search_tool` (query=\"*\") to find them, then `skill_select_tool` to load.\n'
         )
 
     evolution_rules = ""
@@ -86,25 +83,23 @@ def create_select_skill_tool(
             "8. If a loaded skill is outdated or wrong, patch it with skill_manage_tool(action='patch') before finishing.\n"
         )
 
-    tool_description = f"""
-Select skills from the list below and load their SOP documentation.
+    tool_description = f"""Select bound skills and load their SOP documentation.
 
 {skills_xml}
-{peripheral_hint}
 {search_hint}
 Rules:
-1. Select skills from the <skills> or <peripheral_skills> list above → read and follow the returned SOP.
-2. Select each skill only ONCE — it stays available for the entire conversation (even after resume). Do NOT re-select; instead use file_read_tool for parameter details, then bash_code_execute_tool to run.
-3. You may select multiple skills if they help solve the user's problem.
-4. Skills with available="false" cannot be loaded — skip them.
-5. Do NOT confuse tools (_tool suffix, callable) with skills (_skill suffix, select via this tool only).
-6. When the user's message starts with [use <skill_name>], you MUST immediately select that skill.
-{evolution_rules}
-"""
+1. Select skills from the <skills> list above → read and follow the returned SOP.
+2. Skills not listed here are still available — search with `skill_search_tool` first, then select.
+3. Select each skill only ONCE — it stays available for the entire conversation (even after resume). Do NOT re-select; instead use file_read_tool for parameter details, then bash_code_execute_tool to run.
+4. You may select multiple skills if they help solve the user's problem.
+5. Skills with available="false" cannot be loaded — skip them.
+6. Do NOT confuse tools (_tool suffix, callable) with skills (_skill suffix, select via this tool only).
+7. When the user's message starts with [use <skill_name>], you MUST immediately select that skill.
+{evolution_rules}"""
 
     class SelectSkillInput(BaseModel):
         skill_names: list[str] = Field(
-            description="Skill names from the <skills> or <peripheral_skills> list (must end with _skill). One or more allowed.",
+            description="Skill names from the <skills> list or from skill_search_tool results (must end with _skill). One or more allowed.",
             min_length=1,
         )
         reason: str = Field(description="Brief reason for selecting these skills (required, max 100 chars)")

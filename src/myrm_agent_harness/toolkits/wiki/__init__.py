@@ -82,7 +82,7 @@ tools = create_wiki_tools(compiler, query_engine, linter, structure)
 - **Parallel-optimized**: 10x faster compilation with concurrency
 """
 
-from .core.config import WikiCompileConfig, WikiConfig, WikiQueryConfig
+from .core.config import WikiCompileConfig, WikiConfig, WikiQueryConfig, WikiQueryMode
 from .core.structure import WikiStructure
 from .core.types import (
     CompileResult,
@@ -117,6 +117,7 @@ __all__ = [
     "WikiPendingEditsManager",
     "WikiQueryConfig",
     "WikiQueryEngine",
+    "WikiQueryMode",
     "WikiStructure",
     "create_wiki_admin_tools",
     "create_wiki_tools",

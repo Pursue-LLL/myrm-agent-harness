@@ -137,3 +137,40 @@ async def test_approve_blocks_stale_pending(wiki_structure, mock_indexer, monkey
 
     with pytest.raises(StalePendingApprovalError):
         await mgr.approve_edit(edit_id)
+
+
+_CLAIMS_DRAFT = """---
+type: concept
+claims:
+  - id: claim.pending.item
+    text: Pending fact
+    status: supported
+    confidence: 0.8
+    evidence:
+      - kind: raw-source
+        sourceId: source.pending
+        path: notes.md
+        lines: ""
+        weight: 1.0
+        confidence: 0.7
+---
+
+## Compiled Truth
+Pending body.
+"""
+
+
+@pytest.mark.asyncio
+async def test_approve_preserves_nested_claims(wiki_structure, mock_indexer) -> None:
+    from myrm_agent_harness.toolkits.wiki.core.claims_contract import parse_claims_from_content
+
+    mgr = WikiPendingEditsManager(wiki_structure, indexer=mock_indexer)
+    mgr.add_pending_edit("Claims Concept", _CLAIMS_DRAFT)
+    edit_id = mgr.get_pending_edits()[0]["id"]
+
+    assert await mgr.approve_edit(edit_id) is True
+
+    saved = wiki_structure.get_concept_file_path("Claims Concept").read_text(encoding="utf-8")
+    claims = parse_claims_from_content(saved)
+    assert len(claims) == 1
+    assert claims[0].id == "claim.pending.item"

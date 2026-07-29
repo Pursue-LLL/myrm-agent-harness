@@ -17,7 +17,7 @@ Detailed design: [STREAMING_SYSTEM.md](STREAMING_SYSTEM.md)
 | message_builder.py | Core | Pure-function module for message preparation and timestamp injection. | ✅ |
 | model_discipline.py | Config | Per-model execution discipline. Resolves model-family-specific behavior guidance (anti-narration, tool honesty, anti-negative-claim, proactive grounding search, XML tool-call defense, context-first check, proactive capability discovery, tool enforcement, per-family corrections for GPT/Claude/Gemini/DeepSeek/Qwen/GLM), Opus-tier supplement (scope constraint, self-correction narration control, default conciseness for Opus 5+), and escalation contract prompt (conditional: only when escalation_target_llm is configured and differs from current model). | ✅ |
 | reasoning_scrubber.py | Core | 流式清洗器。处理非标准模型泄漏在普通 content 流中的思考过程标签，将其跨 Chunk 无损转化为独立事件。导出 THINKING_TAG_NAMES 供渲染层 strip_thinking_tags 复用。 | ✅ |
-| source_tracker.py | Core | Source reference forwarding capability for BaseAgent. | ✅ |
+| source_tracker.py | Core | Source reference forwarding; dedup by `source_key` / url / content hash; global citation index. | ✅ |
 | step_builder.py | Core | Agent step data builder. Constructs frontend display data from tool names and arguments with per-too | ✅ |
 | stream_buffer.py | Core | Harness engine-layer stream state persistence component. | ✅ |
 | stream_compactor.py | Core | Provides StreamCompactor. | ✅ |

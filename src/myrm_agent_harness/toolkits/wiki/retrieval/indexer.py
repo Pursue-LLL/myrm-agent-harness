@@ -143,6 +143,15 @@ class WikiIndexer(SidecarIndexMixin):
         """Delegate to WikiGraphStore for graph structural analysis."""
         return self._graph_store.graph_insights()
 
+    def get_outgoing_edges(self, source: str) -> list[tuple[str, float]]:
+        """Return weighted outgoing graph edges for a concept, highest weight first."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT target, weight FROM wiki_edges WHERE source = ? ORDER BY weight DESC",
+                (source,),
+            )
+            return [(str(row["target"]), float(row["weight"])) for row in cursor.fetchall()]
+
     def upsert_edges(self, source: str, targets: list[str], source_files: list[str] | None = None) -> None:
         """Upsert directional edges with multi-dimensional weight calculation."""
         with self._get_conn() as conn:
@@ -223,6 +232,12 @@ class WikiIndexer(SidecarIndexMixin):
             self._collection_ready = True
         except Exception as e:
             logger.warning(f"Failed to ensure wiki vector collection: {e}")
+
+    def remove_raw_text_index(self, name: str) -> None:
+        """Remove interim raw FTS entry (see :meth:`index_raw_text`)."""
+        raw_key = f"raw:{name}"
+        with self._get_conn() as conn:
+            conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (raw_key,))
 
     def index_raw_text(self, name: str, text: str) -> None:
         """Index raw text into FTS5 for immediate searchability before compilation.

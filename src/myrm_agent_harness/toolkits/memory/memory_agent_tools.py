@@ -42,6 +42,18 @@ from myrm_agent_harness.toolkits.memory.types import MemoryType, RuleSource
 
 logger = logging.getLogger(__name__)
 
+
+async def _search_web_corpus(
+    backends: MemorySearchBackends,
+    query: str,
+    limit: int,
+) -> str:
+    if backends.query_web_corpus is None:
+        return "Web corpus search is not available."
+    result = await backends.query_web_corpus(query, limit)
+    return result.strip() or "No matching web pages found in local corpus."
+
+
 CATEGORY_TO_TYPE: dict[str, MemoryType] = {
     "knowledge": MemoryType.SEMANTIC,
     "claim": MemoryType.CLAIM,
@@ -88,15 +100,16 @@ def create_memory_tools(
         since: str | None = None,
         until: str | None = None,
     ) -> str:
-        """Unified search across long-term memory, wiki, and prior conversations.
+        """Unified search across long-term memory, wiki, prior conversations, and web corpus.
 
         Use when the user's question relates to personal context, preferences, wiki docs,
-        or earlier chat evidence ("last time", "we discussed", "continue that thread").
+        previously fetched web pages, or earlier chat evidence.
 
         **Corpus guide**:
         - memory (default): durable facts, preferences, profile, learned rules
         - sessions: prior chat snippets and summaries (when enabled)
         - wiki: agent wiki vault content (when enabled)
+        - web: previously fetched/searched web pages (when enabled)
         - all: search every corpus enabled for this agent
 
         **Search tips**:
@@ -105,6 +118,7 @@ def create_memory_tools(
         - Use profile_key for instant attribute lookup (memory corpus only)
         - Use since/until for time-scoped queries (7d, 2w, 1m, 24h, 1y, or ISO 8601)
         - For recent chats without a query, use corpus=sessions with query="*"
+        - Use corpus=web to re-query pages you've already searched or fetched
         """
         if profile_key:
             if corpus not in ("memory", "all"):
@@ -153,11 +167,20 @@ def create_memory_tools(
                     until=parsed_until,
                 )
                 sections.append(f"## Sessions\n{session_text}")
+            elif target == "web":
+                web_text = await _search_web_corpus(backends, query, recall_limit)
+                sections.append(f"## Web\n{web_text}")
 
         if len(sections) == 1 and corpus != "all":
             single = sections[0]
-            prefix = "## Memory\n" if corpus == "memory" else "## Wiki\n" if corpus == "wiki" else "## Sessions\n"
-            if single.startswith(prefix):
+            _prefix_map: dict[MemorySearchCorpus, str] = {
+                "memory": "## Memory\n",
+                "wiki": "## Wiki\n",
+                "sessions": "## Sessions\n",
+                "web": "## Web\n",
+            }
+            prefix = _prefix_map.get(corpus, "")
+            if prefix and single.startswith(prefix):
                 return single[len(prefix) :]
         return "\n\n".join(sections)
 

@@ -12,6 +12,7 @@ from pathlib import Path
 from scripts.tool_registry_config import (
     INTERNAL_TOOL_NAMES,
     INTERNAL_TOOL_PREFIXES,
+    LAYER_EXEMPT_TOOL_NAMES,
     ORPHAN_FACTORY_WHITELIST,
     PTC_RUNTIME_TOOL_NAMES,
     SCHEMA_ONLY_TOOL_NAMES,
@@ -48,7 +49,7 @@ class ScanReport:
         return {
             name
             for name in self.declared_names - self.registered_names
-            if not self._is_internal(name)
+            if not self._is_internal(name) and name not in LAYER_EXEMPT_TOOL_NAMES
         }
 
     def ghost_registrations(self) -> set[str]:

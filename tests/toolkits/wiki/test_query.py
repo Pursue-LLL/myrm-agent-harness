@@ -180,7 +180,7 @@ async def test_load_articles_context_extraction(wiki_structure, mock_llm):
         encoding="utf-8",
     )
 
-    context, snippets = await engine._load_articles_context([p])
+    context, snippets = await engine._load_articles_context([p], [])
     assert "The real content" in context
     assert "Raw Notes" not in context
     assert "sources:" in context
@@ -201,7 +201,7 @@ async def test_load_articles_context_emits_sidecar_snippets(wiki_structure, mock
     await engine._indexer.upsert_sidecar("teama", level=0, content="TeamA abstract summary.")
     await engine._indexer.upsert_sidecar("teama", level=1, content="TeamA overview notes.")
 
-    _context, snippets = await engine._load_articles_context([p])
+    _context, snippets = await engine._load_articles_context([p], [])
     levels = {snippet.level for snippet in snippets}
     assert {"L0", "L1", "L2"} <= levels
     assert any(snippet.article_path == "teama/.abstract.md" for snippet in snippets)
@@ -272,7 +272,7 @@ async def test_load_articles_context_no_compiled_truth(wiki_structure, mock_llm)
     p = wiki_structure.get_concept_file_path("PlainArticle")
     p.write_text("Just plain text without any section headers.", encoding="utf-8")
 
-    context, snippets = await engine._load_articles_context([p])
+    context, snippets = await engine._load_articles_context([p], [])
     assert "plain text" in context
     assert len(snippets) == 1
     assert "plain text" in snippets[0].snippet
@@ -285,9 +285,49 @@ async def test_load_articles_context_missing_file(wiki_structure, mock_llm):
     engine = WikiQueryEngine(llm=mock_llm, structure=wiki_structure, config=config)
 
     missing = wiki_structure.get_concept_file_path("NonExistent")
-    context, snippets = await engine._load_articles_context([missing])
+    context, snippets = await engine._load_articles_context([missing], [])
     assert context == ""
     assert snippets == []
+
+
+@pytest.mark.asyncio
+async def test_load_articles_context_claim_snapshot_status_stale(wiki_structure, mock_llm) -> None:
+    """Claim evidence snippets should expose stale snapshot when raw source changes."""
+    import hashlib
+
+    config = WikiConfig(enable_semantic_search=False)
+    engine = WikiQueryEngine(llm=mock_llm, structure=wiki_structure, config=config)
+
+    raw_file = wiki_structure.raw_dir / "source.md"
+    raw_bytes = b"original body"
+    raw_file.write_bytes(raw_bytes)
+    pinned = hashlib.sha256(raw_bytes).hexdigest()
+
+    concept_path = wiki_structure.get_concept_file_path("Budget")
+    concept_path.write_text(
+        f"""---
+type: concept
+claims:
+  - id: claim.budget
+    text: Budget fact
+    status: supported
+    evidence:
+      - kind: raw-note
+        path: raw/source.md
+        contentSha256: {pinned}
+---
+## Compiled Truth
+Budget fact
+""",
+        encoding="utf-8",
+    )
+    raw_file.write_bytes(b"modified body")
+
+    _context, snippets = await engine._load_articles_context([concept_path], [])
+    claim_snippets = [snippet for snippet in snippets if snippet.section == "Claim"]
+    assert len(claim_snippets) == 1
+    assert claim_snippets[0].evidence_snapshot_status == "stale"
+    assert claim_snippets[0].evidence_path == "raw/source.md"
 
 
 def test_expand_via_graph_empty_seeds(wiki_structure, mock_llm):
@@ -312,3 +352,127 @@ async def test_keyword_search_unreadable_file(wiki_structure, mock_llm):
         assert results == []
     finally:
         bad_path.chmod(0o644)
+
+
+@pytest.mark.asyncio
+async def test_wiki_query_engine_index_first_routing(wiki_structure, mock_llm) -> None:
+    """Index catalog seeds retrieval before keyword/FTS when rows match the query."""
+    config = WikiConfig(enable_semantic_search=False)
+    engine = WikiQueryEngine(llm=mock_llm, structure=wiki_structure, config=config)
+
+    ml_path = wiki_structure.get_concept_file_path("MachineLearning/Transformers")
+    ml_path.write_text("## Compiled Truth\nTransformers use self-attention.", encoding="utf-8")
+
+    cooking_path = wiki_structure.get_concept_file_path("Cooking/Pasta")
+    cooking_path.write_text(
+        "## Compiled Truth\nPasta cooking techniques and kitchen attention to detail.",
+        encoding="utf-8",
+    )
+
+    index_path = wiki_structure.get_index_file_path()
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(
+        """# Wiki Index
+
+## concept
+
+- [[MachineLearning/Transformers]] — Neural network architecture using self-attention
+- [[Cooking/Pasta]] — Italian noodle dishes
+""",
+        encoding="utf-8",
+    )
+
+    result = await engine.query("transformers architecture attention")
+    assert any("machinelearning/transformers" in article.lower() for article in result.related_articles)
+    assert "Index routing (L0)" in result.answer
+    index_snippets = [snippet for snippet in result.source_snippets if snippet.section == "index_routing"]
+    assert len(index_snippets) == 1
+    assert index_snippets[0].level == "L0"
+    assert index_snippets[0].article_path == "wiki/index.md"
+
+
+@pytest.mark.asyncio
+async def test_wiki_query_engine_index_first_with_sidecar_scope(wiki_structure, mock_llm) -> None:
+    """Index seeds scope sidecar routing instead of short-circuiting it."""
+    config = WikiConfig(enable_semantic_search=True)
+    engine = WikiQueryEngine(llm=mock_llm, structure=wiki_structure, config=config)
+
+    article_path = wiki_structure.get_concept_file_path("ProjectA/API")
+    article_path.write_text("## Compiled Truth\nAPI supports key rotation.", encoding="utf-8")
+    await engine._indexer.upsert("ProjectA/API", "## Compiled Truth\nAPI supports key rotation.")
+    await engine._indexer.upsert_sidecar("projecta", level=0, content="ProjectA service abstraction summary.")
+
+    index_path = wiki_structure.get_index_file_path()
+    index_path.write_text(
+        """# Wiki Index
+
+## concept
+
+- [[ProjectA/API]] — ProjectA API key rotation policy
+""",
+        encoding="utf-8",
+    )
+
+    result = await engine.query("How does projecta api rotation work?")
+    assert "Directory projecta (L0)" in result.answer
+    assert any("projecta/api.md" in article.lower() for article in result.related_articles)
+    assert any(snippet.section == "index_routing" for snippet in result.source_snippets)
+
+
+@pytest.mark.asyncio
+async def test_wiki_query_engine_index_first_disabled_falls_back(wiki_structure, mock_llm) -> None:
+    config = WikiConfig(enable_semantic_search=False)
+    query_config = WikiQueryConfig(index_first_enabled=False)
+    engine = WikiQueryEngine(
+        llm=mock_llm,
+        structure=wiki_structure,
+        config=config,
+        query_config=query_config,
+    )
+
+    concept_path = wiki_structure.get_concept_file_path("OnlyKeyword")
+    concept_path.write_text("## Compiled Truth\nOnly keyword concept body.", encoding="utf-8")
+
+    index_path = wiki_structure.get_index_file_path()
+    index_path.write_text(
+        "- [[Other/Concept]] — Unrelated index row summary\n",
+        encoding="utf-8",
+    )
+
+    result = await engine.query("Only keyword concept body")
+    assert any("onlykeyword" in article.lower() for article in result.related_articles)
+    assert "Index routing (L0)" not in result.answer
+
+
+@pytest.mark.asyncio
+async def test_best_first_query_expands_graph_within_budget(wiki_structure, mock_llm) -> None:
+    """End-to-end query should include high-weight graph neighbors within expansion budget."""
+    config = WikiConfig(enable_semantic_search=False)
+    query_config = WikiQueryConfig(max_context_articles=3, best_first_max_expansions=12)
+    engine = WikiQueryEngine(
+        llm=mock_llm,
+        structure=wiki_structure,
+        config=config,
+        query_config=query_config,
+    )
+
+    for name in ("AlphaNode", "BetaNode", "GammaNode"):
+        path = wiki_structure.get_concept_file_path(name)
+        path.write_text(f"## Compiled Truth\n{name} shared expansion keyword.", encoding="utf-8")
+
+    engine._indexer.upsert_edges("AlphaNode", ["BetaNode", "GammaNode"])
+    with engine._indexer._get_conn() as conn:
+        conn.execute(
+            "UPDATE wiki_edges SET weight = ? WHERE source = ? AND target = ?",
+            (10.0, "AlphaNode", "BetaNode"),
+        )
+        conn.execute(
+            "UPDATE wiki_edges SET weight = ? WHERE source = ? AND target = ?",
+            (1.0, "AlphaNode", "GammaNode"),
+        )
+
+    result = await engine.query("AlphaNode shared expansion keyword")
+    lowered = [article.lower() for article in result.related_articles]
+    assert any("alphanode" in article for article in lowered)
+    assert any("betanode" in article for article in lowered)
+

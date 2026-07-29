@@ -11,9 +11,11 @@ from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     WikiPageType,
     apply_compile_gate,
     infer_type_for_import,
+    repair_file_frontmatter,
     repair_missing_types,
     validate_wiki_frontmatter,
 )
+from myrm_agent_harness.toolkits.wiki.core.claims_contract import parse_claims_from_content
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.pending import WikiPendingEditsManager
 
@@ -76,6 +78,44 @@ def test_repair_missing_types_updates_files(tmp_path: Path) -> None:
     assert concept_validation.page_type == "concept"
     assert raw_validation.ok is True
     assert raw_validation.page_type == "source"
+
+
+def test_repair_file_frontmatter_preserves_nested_claims(tmp_path: Path) -> None:
+    structure = WikiStructure(tmp_path)
+    structure.ensure_structure()
+    concept_path = structure.get_concept_file_path("Team/Budget")
+    concept_path.parent.mkdir(parents=True, exist_ok=True)
+    concept_path.write_text(
+        """---
+claims:
+  - id: claim.budget.q3
+    text: Q3 budget is 50M
+    status: supported
+    confidence: 0.9
+    evidence:
+      - kind: raw-source
+        sourceId: source.budget
+        path: raw/budget.md
+        lines: ""
+        weight: 1.0
+        confidence: 0.8
+---
+
+## Compiled Truth
+Budget.
+""",
+        encoding="utf-8",
+    )
+
+    repaired = repair_file_frontmatter(concept_path, is_raw_import=False, relative_path="Team/Budget")
+    assert repaired is True
+
+    claims = parse_claims_from_content(concept_path.read_text(encoding="utf-8"))
+    assert len(claims) == 1
+    assert claims[0].id == "claim.budget.q3"
+    validation = validate_wiki_frontmatter(concept_path.read_text(encoding="utf-8"))
+    assert validation.ok is True
+    assert validation.page_type == "concept"
 
 
 def test_apply_compile_gate_repairs_invalid_type() -> None:
