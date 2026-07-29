@@ -166,3 +166,116 @@ class TestFilterProcessor:
             assert "RETAINED TOOL OUTPUT" in str(result.messages[0].content)
             assert "Traceback" in str(result.messages[0].content)
             assert "ValueError" in str(result.messages[0].content)
+
+    @pytest.mark.asyncio
+    async def test_process_turn_aggregate_filters_latest_parallel_tools(self) -> None:
+        fp = FilterProcessor()
+        large_chunk = "word " * 8_000
+        ctx = _make_context(
+            [
+                HumanMessage(content="hi"),
+                AIMessage(
+                    content="parallel tools",
+                    tool_calls=[
+                        {"id": "t1", "name": "grep_tool", "args": {}},
+                        {"id": "t2", "name": "grep_tool", "args": {}},
+                    ],
+                ),
+                ToolMessage(content=large_chunk, tool_call_id="t1", name="grep_tool"),
+                ToolMessage(content=large_chunk, tool_call_id="t2", name="grep_tool"),
+            ]
+        )
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.persist_large_tool_output",
+                new_callable=AsyncMock,
+                return_value="/tmp/saved.txt",
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.create_filtered_result",
+                new_callable=AsyncMock,
+                return_value=type("R", (), {"estimated_tokens": 4000, "structured_summary": "summary"})(),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.format_filtered_message",
+                return_value="[Filtered] aggregate",
+            ),
+        ):
+            result = await fp.process(ctx)
+
+        assert result.tokens_saved > 0
+        assert "[Filtered]" in str(result.messages[-1].content)
+
+    @pytest.mark.asyncio
+    async def test_process_turn_aggregate_filters_medium_parallel_tools(self) -> None:
+        fp = FilterProcessor()
+        medium_chunk = "word " * 3_500
+        ctx = _make_context(
+            [
+                HumanMessage(content="hi"),
+                AIMessage(
+                    content="parallel",
+                    tool_calls=[
+                        {"id": "t1", "name": "grep_tool", "args": {}},
+                        {"id": "t2", "name": "grep_tool", "args": {}},
+                        {"id": "t3", "name": "grep_tool", "args": {}},
+                        {"id": "t4", "name": "grep_tool", "args": {}},
+                        {"id": "t5", "name": "grep_tool", "args": {}},
+                    ],
+                ),
+                ToolMessage(content=medium_chunk, tool_call_id="t1", name="grep_tool"),
+                ToolMessage(content=medium_chunk, tool_call_id="t2", name="grep_tool"),
+                ToolMessage(content=medium_chunk, tool_call_id="t3", name="grep_tool"),
+                ToolMessage(content=medium_chunk, tool_call_id="t4", name="grep_tool"),
+                ToolMessage(content=medium_chunk, tool_call_id="t5", name="grep_tool"),
+            ]
+        )
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.persist_large_tool_output",
+                new_callable=AsyncMock,
+                return_value="/tmp/saved.txt",
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.create_filtered_result",
+                new_callable=AsyncMock,
+                return_value=type("R", (), {"estimated_tokens": 2000, "structured_summary": "summary"})(),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.format_filtered_message",
+                return_value="[Filtered] medium aggregate",
+            ),
+        ):
+            result = await fp.process(ctx)
+
+        assert result.tokens_saved > 0
+        assert any("[Filtered]" in str(msg.content) for msg in result.messages if isinstance(msg, ToolMessage))
+
+    @pytest.mark.asyncio
+    async def test_process_skips_zero_savings_single_tool(self) -> None:
+        fp = FilterProcessor()
+        large_content = "word " * 25_000
+        ctx = _make_context([ToolMessage(content=large_content, tool_call_id="t1", name="some_tool")])
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.persist_large_tool_output",
+                new_callable=AsyncMock,
+                return_value="/tmp/saved.txt",
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.create_filtered_result",
+                new_callable=AsyncMock,
+                return_value=type("R", (), {"estimated_tokens": 0, "structured_summary": "summary"})(),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.format_filtered_message",
+                return_value="[Filtered]",
+            ),
+        ):
+            result = await fp.process(ctx)
+
+        assert result.tokens_saved == 0
+        assert result.messages[0].content == "[Filtered]"

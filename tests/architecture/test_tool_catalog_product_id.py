@@ -36,7 +36,3 @@ def test_cron_manage_tool_in_cron_group() -> None:
     assert "cron_manage_tool" in TOOL_GROUP_MAP["cron"]
     assert get_tool_product_id("cron_manage_tool") == "cron"
 
-
-@pytest.mark.architecture
-def test_conversation_search_override_maps_to_memory() -> None:
-    assert get_tool_product_id("conversation_search_tool") == "memory"

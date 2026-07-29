@@ -103,7 +103,9 @@ class SkillAgentToolsMixin:
                     uninstall_fn=uninstall_fn,
                 )
             )
-            logger.info(" skill_market_tool mounted via market_backend (server/user_tools SSOT)")
+            logger.info(
+                " skill_market_tool mounted via market_backend (server/user_tools SSOT)"
+            )
 
         if self.write_backend is not None and not _user_has_tool("skill_manage_tool"):  # type: ignore[attr-defined]
             from myrm_agent_harness.agent.meta_tools.skills.manage import (
@@ -117,7 +119,9 @@ class SkillAgentToolsMixin:
                     self._similarity_checker,  # type: ignore[attr-defined]
                 )
             )
-            logger.info(" skill_manage_tool mounted via write_backend (server/user_tools SSOT)")
+            logger.info(
+                " skill_manage_tool mounted via write_backend (server/user_tools SSOT)"
+            )
 
         has_manage_tool = _user_has_tool("skill_manage_tool") or bool(
             self.write_backend  # type: ignore[attr-defined]

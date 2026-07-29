@@ -34,7 +34,6 @@ _READ_ONLY_TOOL_ALLOWLIST: frozenset[str] = frozenset(
         "web_search_tool",
         "web_fetch_tool",
         "memory_search_tool",
-        "conversation_search_tool",
         "file_read_tool",
         "glob_tool",
         "grep_tool",
@@ -55,7 +54,6 @@ _READ_ONLY_PERMISSIONS: frozenset[str] = frozenset(
         "web_search_tool",
         "browser_read",
         "desktop_capture",
-        "conversation_search_tool",
         "memory_search_tool",
         "ask_question_tool",
     }

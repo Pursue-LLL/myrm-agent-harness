@@ -64,9 +64,7 @@ glob_tool / grep_tool 登记在 CORE 层，Turn1 与 file 工具一并 bind。�
 
 ### 4.2 历史会话搜索（opt-in，已并入 memory_search_tool）
 
-历史聊天检索通过 `memory_search_tool` 的 `corpus=sessions` ACL 启用（用户开启 `memoryEnableConversationSearch` 且非无痕）。Standalone `conversation_search_tool` 工厂保留供 CustomAgent/测试；GeneralAgent Turn1 不单独 bind。
-
-`conversation_search` 模块仍作为 sessions corpus 的执行后端（`memory_search_execution.search_sessions_corpus`）。
+历史聊天检索通过 `memory_search_tool` 的 `corpus=sessions` ACL 启用（用户开启 `memoryEnableConversationSearch` 且非无痕）。`conversation_search/` 模块为 sessions corpus 执行后端；`create_conversation_search_tool` 工厂仅 harness 单元测试使用，非 Turn1 LLM 工具。
 
 ### 4.3 技能工具（有技能后端时加载）
 
@@ -258,7 +256,7 @@ Token 明细（历史 tiktoken 计量保留）：
 | System Prompt 层 | ~2,607 | 固定，跨用户缓存 |
 | CORE 工具层 | **~2,881** | 8 工具（含 bash_process ~120；bash slim 后自 ~4,097 下调，2026-07-19 估算） |
 | COMMON 工具层 | **~2,468** | memory×3 + web_search |
-| EXTENDED 工具层 | **~769** | skill×2 + discover（默认无 conversation_search） |
+| EXTENDED 工具层 | **~769** | skill×2 + discover |
 | 工具 JSON schema | **~975** | 15 工具 × ~65 |
 | 动态注入 | ~1,200 | user_instructions + memory_context + inline_skills |
 | 消息格式 | ~500 | role tags, boundaries 等 |
@@ -302,7 +300,7 @@ Token 明细（历史 tiktoken 计量保留）：
 [COMMON: memory_* + web_search (~2,468 tok)]
   ↑ memory 组优先；web_search GUI 可关
 
-[EXTENDED: skill_* + discover (~769 tok); + conversation_search when opt-in]
+[EXTENDED: skill_* + discover (~769 tok)]
   ↑ 按需变化，不影响 CORE/COMMON 前缀
 
 [System Prompt: ~2,607]

@@ -141,7 +141,7 @@ class ToolLayer(IntEnum):
 | **COMMON** | product_id ∈ `DEFAULT_ENABLED_BUILTIN_TOOLS` 且非 HITL 重工具 | `todo_write`（product=`planning`，opt-in） |
 | **EXTENDED** | opt-in / 多工具簇 / HITL / 无 product_id 的运行时工具 | 把 `web_search_tool` 登记进 EXTENDED 且 product 默认开 |
 
-**唯一例外表** `EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS`：`ask_question_tool`（默认开 HITL/cache）、`conversation_search_tool`（legacy harness 测试；产品用 memory_search_tool）。
+**唯一例外表** `EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS`：`ask_question_tool`（默认开 HITL/cache）。
 
 新增 LLM 工具时必须同步：`register_tool_layer()` + product_id 映射 + 跑 `validate_tool_registry.py`（含 pre-commit `--incremental` 静态层门禁）。
 

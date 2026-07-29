@@ -1,5 +1,8 @@
 """SkillAgent explicit [use skill] preload mixin.
 
+[OUTPUT]
+- SkillAgentPreloadMixin._preload_explicit_skill(): (query, primary_skill, preloaded_skills)
+
 [POS]
 Detects [use skill] prefix and pre-injects bundled SOP content before run().
 """
@@ -20,7 +23,9 @@ class SkillAgentPreloadMixin:
     _TOKEN_BUDGET_MAX = 12000
     """Soft cap (in estimated characters) for combined SOP injection to prevent token explosion."""
 
-    async def _preload_explicit_skill(self, query: str) -> tuple[str, SkillMetadata | None]:
+    async def _preload_explicit_skill(
+        self, query: str
+    ) -> tuple[str, SkillMetadata | None, list[SkillMetadata]]:
         """Detect ``[use skill_name]`` or ``[use s1,s2,s3]`` prefix and pre-inject SOP(s).
 
         Supports both single-skill and multi-skill (bundle) invocation. When multiple
@@ -31,22 +36,23 @@ class SkillAgentPreloadMixin:
         for ephemeral bundle guidance.
 
         Returns:
-            (modified_query, first_matched_skill_meta) — original query unchanged on failure.
+            (modified_query, primary_skill_meta, preloaded_skills) — on failure the
+            query is unchanged and both skill slots are empty.
         """
         match = self._USE_SKILL_PATTERN.match(query)
         if not match:
-            return query, None
+            return query, None, []
 
         raw_names = match.group(1)
         user_args = match.group(2).strip()
 
         skill_names = [n.strip() for n in raw_names.split(",") if n.strip()]
         if not skill_names:
-            return query, None
+            return query, None, []
 
         if not self.skill_backend:
             logger.debug("Explicit skill(s) %s requested but no skill_backend", skill_names)
-            return query, None
+            return query, None, []
 
         skills = await self._get_cached_skills()
         skill_map = {s.name: s for s in skills}
@@ -60,7 +66,7 @@ class SkillAgentPreloadMixin:
                 logger.info("Explicit skill '%s' not found in %d skills — skipped", name, len(skills))
 
         if not matched:
-            return query, None
+            return query, None, []
 
         from myrm_agent_harness.agent.meta_tools.skills.select import (
             get_skill_document,
@@ -105,7 +111,7 @@ class SkillAgentPreloadMixin:
             loaded_names.append(skill_meta.name)
 
         if not sop_sections:
-            return query, None
+            return query, None, []
 
         is_bundle = len(sop_sections) > 1
         names_str = ", ".join(loaded_names)
@@ -138,11 +144,12 @@ class SkillAgentPreloadMixin:
         )
         from myrm_agent_harness.backends.skills.usage_recorder import record_skill_selection
 
-        for skill_meta in matched:
-            if skill_meta.name in loaded_names:
-                record_skill_selection(skill_meta, success=True)
+        preloaded_skills = [skill_meta for skill_meta in matched if skill_meta.name in loaded_names]
 
-        return "\n".join(parts), matched[0]
+        for skill_meta in preloaded_skills:
+            record_skill_selection(skill_meta, success=True)
+
+        return "\n".join(parts), preloaded_skills[0], preloaded_skills
 
     @staticmethod
     def _list_skill_auxiliary_files(skill_meta: SkillMetadata) -> str:

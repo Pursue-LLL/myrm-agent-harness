@@ -335,6 +335,26 @@ class TestAttenuatorScannerGating:
         assert set(result.tool_names) == {"file_write_tool", "web_search_tool"}
         assert result.min_trust == SkillTrust.INSTALLED
 
+    def test_bundle_two_trusted_skills_union_allowed_tools(self) -> None:
+        """Both bundle skills must be in active_skills for allowed_tools union."""
+        from dataclasses import replace
+
+        skill_a = replace(
+            _make_skill(SkillTrust.TRUSTED, allowed_tools=["file_write_tool"]),
+            name="skill_a",
+        )
+        skill_b = replace(
+            _make_skill(SkillTrust.TRUSTED, allowed_tools=["web_search_tool"]),
+            name="skill_b",
+        )
+
+        first_only = attenuate_tools(ALL_TOOLS, [skill_a])
+        both = attenuate_tools(ALL_TOOLS, [skill_a, skill_b])
+
+        assert "web_search_tool" in set(both.tool_names)
+        assert "web_search_tool" not in set(first_only.tool_names)
+        assert "file_write_tool" in set(both.tool_names)
+
 
 # ---------------------------------------------------------------------------
 # User trust override in SkillAgent._get_cached_skills

@@ -177,11 +177,6 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
             "memory_manage_tool",
         }
     ),
-    "conversation_history": frozenset(
-        {
-            "conversation_search_tool",
-        }
-    ),
     "kanban": frozenset(
         {
             "kanban_show",

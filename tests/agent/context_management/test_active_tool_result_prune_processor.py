@@ -1,7 +1,7 @@
 """Tests for ActiveToolResultPruneProcessor."""
 
 import asyncio
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -245,19 +245,22 @@ class TestProcess:
 
     @pytest.mark.asyncio
     async def test_no_prune_without_offload_callback(self):
-        proc = ActiveToolResultPruneProcessor(threshold_tokens=100)
+        proc = ActiveToolResultPruneProcessor(threshold_tokens=100, keep_recent_calls=1)
         large = _large_content(3000)
-        messages = [
-            HumanMessage(content="hi"),
-            _make_ai_msg([{"id": "tc1", "name": "grep_tool", "args": {}}]),
-            _make_tool_msg(large, tool_call_id="tc1"),
-            _make_ai_msg([{"id": "tc2", "name": "web_search", "args": {}}]),
-            _make_tool_msg("small", name="web_search", tool_call_id="tc2"),
-        ]
+        messages = [HumanMessage(content="hi")]
+        for i in range(3):
+            tc_id = f"tc{i}"
+            messages.extend(
+                [
+                    _make_ai_msg([{"id": tc_id, "name": "grep_tool", "args": {}}]),
+                    _make_tool_msg(large if i == 0 else "small", tool_call_id=tc_id),
+                ]
+            )
         ctx = _build_context(messages)
         result = await proc.process(ctx)
 
         assert result.tokens_saved == 0
+        assert large.split()[0] in result.messages[2].content
 
     @pytest.mark.asyncio
     async def test_placeholder_cache_reuse(self):
@@ -299,6 +302,87 @@ class TestProcess:
 
         assert call_count == 1
         assert result2.tokens_saved > 0
+
+    @pytest.mark.asyncio
+    async def test_early_return_when_no_prunable_groups(self):
+        proc = ActiveToolResultPruneProcessor(threshold_tokens=100)
+        ctx = _build_context([HumanMessage(content="only human")])
+        result = await proc.process(ctx)
+        assert result.tokens_saved == 0
+
+    @pytest.mark.asyncio
+    async def test_skip_multimodal_tool_content(self):
+        offload = AsyncMock(return_value="/archive/test.gz")
+        proc = ActiveToolResultPruneProcessor(
+            threshold_tokens=100, keep_recent_calls=1, on_prune_offload=offload
+        )
+        large = _large_content(3000)
+        tool_msg = _make_tool_msg(large, tool_call_id="tc1")
+        tool_msg.content = [{"type": "text", "text": large}]
+        messages = [
+            HumanMessage(content="hi"),
+            _make_ai_msg([{"id": "tc1", "name": "grep_tool", "args": {}}]),
+            tool_msg,
+            _make_ai_msg([{"id": "tc2", "name": "web_search", "args": {}}]),
+            _make_tool_msg("small", name="web_search", tool_call_id="tc2"),
+        ]
+        ctx = _build_context(messages)
+        result = await proc.process(ctx)
+        assert isinstance(result.messages[2].content, list)
+        offload.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_offload_failure_result_preserves_original(self):
+        offload = AsyncMock(return_value={"success": False, "path": None})
+        proc = ActiveToolResultPruneProcessor(
+            threshold_tokens=100, keep_recent_calls=1, on_prune_offload=offload
+        )
+        large = _large_content(3000)
+        messages = [
+            HumanMessage(content="hi"),
+            _make_ai_msg([{"id": "tc1", "name": "grep_tool", "args": {}}]),
+            _make_tool_msg(large, tool_call_id="tc1"),
+            _make_ai_msg([{"id": "tc2", "name": "web_search", "args": {}}]),
+            _make_tool_msg("small", name="web_search", tool_call_id="tc2"),
+        ]
+        ctx = _build_context(messages)
+        result = await proc.process(ctx)
+        assert result.messages[2].content == large
+        assert result.tokens_saved == 0
+
+    @pytest.mark.asyncio
+    async def test_records_task_metrics_when_prune_succeeds(self):
+        offload = AsyncMock(return_value="/archive/test.gz")
+        proc = ActiveToolResultPruneProcessor(
+            threshold_tokens=100, keep_recent_calls=1, on_prune_offload=offload
+        )
+        large = _large_content(3000)
+        messages = [
+            HumanMessage(content="hi"),
+            _make_ai_msg([{"id": "tc1", "name": "grep_tool", "args": {}}]),
+            _make_tool_msg(large, tool_call_id="tc1"),
+            _make_ai_msg([{"id": "tc2", "name": "web_search", "args": {}}]),
+            _make_tool_msg("small", name="web_search", tool_call_id="tc2"),
+        ]
+        ctx = _build_context(messages, chat_id="metrics-chat")
+
+        class FakeMetrics:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, object]] = []
+
+            def record_compression(self, **kwargs: object) -> None:
+                self.calls.append(kwargs)
+
+        fake_metrics = FakeMetrics()
+        with patch(
+            "myrm_agent_harness.agent.context_management.pipeline.processors.active_tool_result_prune_processor.get_task_metrics",
+            return_value=fake_metrics,
+        ):
+            result = await proc.process(ctx)
+
+        assert result.tokens_saved > 0
+        assert len(fake_metrics.calls) == 1
+        assert fake_metrics.calls[0]["compression_type"] == "active_tool_prune"
 
 
 class TestProcessorName:

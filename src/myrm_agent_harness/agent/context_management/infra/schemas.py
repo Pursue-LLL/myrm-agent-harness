@@ -223,9 +223,7 @@ DEFAULT_BUSINESS_PROTECTED_TOOLS: set[str] = {
     "memory_search",
 }
 
-DEFAULT_SOFT_ONLY_TOOLS: set[str] = {
-    "conversation_search_tool",
-}
+DEFAULT_SOFT_ONLY_TOOLS: set[str] = set()
 
 ToolPruneMode = Literal["allow", "soft_only", "protect"]
 

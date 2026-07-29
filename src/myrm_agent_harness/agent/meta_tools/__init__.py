@@ -181,7 +181,8 @@ def get_meta_tools(
             )
         else:
             always_skills = sorted(
-                [s for s in model_visible_skills if s.always], key=lambda skill: skill.name
+                [s for s in model_visible_skills if s.always],
+                key=lambda skill: skill.name,
             )
             non_always_skills = sorted(
                 [s for s in model_visible_skills if not s.always],

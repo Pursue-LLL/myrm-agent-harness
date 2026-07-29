@@ -5,13 +5,17 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.context_management.infra.retention_helpers import (
+    effective_keep_recent_calls,
     extract_failed_tool_call_ids,
     find_keep_recent_prune_cutoff,
     should_retain_tool_message,
 )
 
 
-def test_extract_failed_tool_call_ids_from_metadata() -> None:
+def test_extract_failed_tool_call_ids_invalid_shape() -> None:
+    assert extract_failed_tool_call_ids({}) == frozenset()
+    assert extract_failed_tool_call_ids({"compression_intent": "bad"}) == frozenset()
+    assert extract_failed_tool_call_ids({"compression_intent": {"failed_tool_call_ids": "bad"}}) == frozenset()
     metadata = {
         "compression_intent": {
             "failed_tool_call_ids": ["call_1", "", 123],
@@ -56,3 +60,18 @@ def test_find_keep_recent_prune_cutoff_with_many_groups() -> None:
 
     # keep 5 of 6 groups -> first protected group is tc1 at message index 4
     assert find_keep_recent_prune_cutoff(messages, keep_recent_calls=5) == 4
+
+
+def test_find_keep_recent_prune_cutoff_zero_disables_prune() -> None:
+    messages = [
+        HumanMessage(content="hi"),
+        AIMessage(content="", tool_calls=[{"id": "tc1", "name": "grep_tool", "args": {}}]),
+        ToolMessage(content="result1", name="grep_tool", tool_call_id="tc1"),
+    ]
+    assert find_keep_recent_prune_cutoff(messages, keep_recent_calls=0) == 3
+
+
+def test_effective_keep_recent_calls_eco_mode() -> None:
+    assert effective_keep_recent_calls(keep_recent_calls=5, eco_mode=True) == 3
+    assert effective_keep_recent_calls(keep_recent_calls=2, eco_mode=True) == 2
+    assert effective_keep_recent_calls(keep_recent_calls=5, eco_mode=False) == 5

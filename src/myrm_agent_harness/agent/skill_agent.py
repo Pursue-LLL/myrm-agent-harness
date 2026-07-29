@@ -338,8 +338,9 @@ class SkillAgent(
         active_skill: SkillMetadata | None = None,
     ) -> AsyncGenerator[dict[str, object]]:
         """流式运行 Agent(覆盖 BaseAgent),增加 Hook 生命周期和记忆会话管理."""
+        preloaded_skills: list[SkillMetadata] = []
         if active_skill is None and isinstance(query, str):
-            query, active_skill = await self._preload_explicit_skill(query)
+            query, active_skill, preloaded_skills = await self._preload_explicit_skill(query)
 
         from myrm_agent_harness.backends.skills.usage_recorder import (
             reset_turn_usage_dedupe,
@@ -367,7 +368,10 @@ class SkillAgent(
         )
         if rehydrated:
             set_loaded_skills(rehydrated)
-        if active_skill:
+        for skill_meta in preloaded_skills:
+            if not any(s.name == skill_meta.name for s in get_loaded_skills()):
+                add_loaded_skill(skill_meta)
+        if active_skill and not preloaded_skills:
             if not any(s.name == active_skill.name for s in get_loaded_skills()):
                 add_loaded_skill(active_skill)
         await self._init_hook_lifecycle(active_skill, message_id, query)

@@ -19,61 +19,75 @@ SERVER_SRC = SERVER_ROOT / "app"
 
 SCAN_ROOTS: tuple[Path, ...] = (HARNESS_SRC, SERVER_SRC)
 
-PTC_RUNTIME_TOOL_NAMES: frozenset[str] = frozenset({
-    "spawn_subagent",
-    "notify",
-})
+PTC_RUNTIME_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "spawn_subagent",
+        "notify",
+    }
+)
 
 INTERNAL_TOOL_PREFIXES: tuple[str, ...] = ("_",)
 
 # Orchestration signals + runtime hooks — excluded from _TOOL_LAYERS (see agent/orchestration/).
-INTERNAL_TOOL_NAMES: frozenset[str] = frozenset({
-    "_completion_check",
-    "submit_verdict",
-})
+INTERNAL_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "_completion_check",
+        "submit_verdict",
+    }
+)
 
 # JSON schema signals (no @tool AST) — DR orchestrator bind_tools only.
-SCHEMA_ONLY_TOOL_NAMES: frozenset[str] = frozenset({
-    "dispatch_research",
-    "finalize_report",
-    "think",
-})
+SCHEMA_ONLY_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "dispatch_research",
+        "finalize_report",
+        "think",
+    }
+)
 
 CROSS_MODULE_CONSTANTS: dict[str, str] = {
     "CONVERSATION_SEARCH_TOOL_NAME": "conversation_search_tool",
 }
 
 # Legacy harness factories — declared in code but not Turn1 Action Tool SSOT.
-LAYER_EXEMPT_TOOL_NAMES: frozenset[str] = frozenset({
-    "conversation_search_tool",
-})
+LAYER_EXEMPT_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "conversation_search_tool",
+    }
+)
 
-ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset({
-    "create_desktop_tools",
-    "create_browser_tools",
-    "create_skill_select_tool",
-    "create_kanban_tools",
-    "create_conversation_search_tool",
-    "create_cron_tools",
-    "create_delegate_to_agent_tool",
-    "create_goal_tools",
-    "create_memory_tools",
-    "create_submit_verdict_tool",
-})
+ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset(
+    {
+        "create_desktop_tools",
+        "create_browser_tools",
+        "create_skill_select_tool",
+        "create_kanban_tools",
+        "create_conversation_search_tool",
+        "create_cron_tools",
+        "create_delegate_to_agent_tool",
+        "create_goal_tools",
+        "create_memory_tools",
+        "create_submit_verdict_tool",
+    }
+)
 
-BOOTSTRAP_FILES: frozenset[str] = frozenset({
-    "myrm-agent/myrm-agent-server/app/ai_agents/general_agent/tools/_tool_layer_bootstrap.py",
-})
+BOOTSTRAP_FILES: frozenset[str] = frozenset(
+    {
+        "myrm-agent/myrm-agent-server/app/ai_agents/general_agent/tools/_tool_layer_bootstrap.py",
+    }
+)
 
-EXCLUDED_DIRS: frozenset[str] = frozenset({
-    "__pycache__",
-    "tests",
-    "node_modules",
-    ".venv",
-    "venv",
-    "build",
-    "dist",
-})
+EXCLUDED_DIRS: frozenset[str] = frozenset(
+    {
+        "__pycache__",
+        "tests",
+        "node_modules",
+        ".venv",
+        "venv",
+        "build",
+        "dist",
+    }
+)
 
 
 def is_test_path(path: Path) -> bool:
@@ -90,9 +104,9 @@ def validate_config() -> None:
     for name in INTERNAL_TOOL_NAMES:
         assert name and isinstance(name, str), f"Invalid internal tool name: {name!r}"
     for factory in ORPHAN_FACTORY_WHITELIST:
-        assert factory.startswith("create_"), (
-            f"ORPHAN_FACTORY_WHITELIST entries must start with 'create_': {factory}"
-        )
+        assert factory.startswith(
+            "create_"
+        ), f"ORPHAN_FACTORY_WHITELIST entries must start with 'create_': {factory}"
 
 
 validate_config()

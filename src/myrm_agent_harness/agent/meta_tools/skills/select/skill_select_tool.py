@@ -59,7 +59,11 @@ def create_select_skill_tool(
     """
     from myrm_agent_harness.agent.skills.runtime.registry import get_metadata_summary
 
-    display_skills = inline_skills if inline_skills is not None else [s for s in skills if s.model_invocable]
+    display_skills = (
+        inline_skills
+        if inline_skills is not None
+        else [s for s in skills if s.model_invocable]
+    )
     skills_xml = get_metadata_summary(display_skills)
 
     hidden_total = hidden_skill_count
@@ -73,7 +77,7 @@ def create_select_skill_tool(
     if hidden_total > 0:
         search_hint = (
             f"\n {hidden_total} more bound skills are not listed here to save context. "
-            f'Use `skill_search_tool` (query=\"*\") to find them, then `skill_select_tool` to load.\n'
+            f'Use `skill_search_tool` (query="*") to find them, then `skill_select_tool` to load.\n'
         )
 
     evolution_rules = ""
@@ -102,18 +106,29 @@ Rules:
             description="Skill names from the <skills> list or from skill_search_tool results (must end with _skill). One or more allowed.",
             min_length=1,
         )
-        reason: str = Field(description="Brief reason for selecting these skills (required, max 100 chars)")
+        reason: str = Field(
+            description="Brief reason for selecting these skills (required, max 100 chars)"
+        )
         file_path: str | None = Field(
             default=None,
             description="Optional path to a specific file within the skill (e.g. 'scripts/setup.py', 'references/api.md'). "
             "Only allowed subdirs: scripts/, references/, templates/, assets/.",
         )
 
-    @tool("skill_select_tool", description=tool_description, args_schema=SelectSkillInput)
-    async def select_skill_func(skill_names: list[str], reason: str, file_path: str | None = None) -> str:
+    @tool(
+        "skill_select_tool", description=tool_description, args_schema=SelectSkillInput
+    )
+    async def select_skill_func(
+        skill_names: list[str], reason: str, file_path: str | None = None
+    ) -> str:
         """Select skills and load their SOP documentation or specific auxiliary files."""
-        from myrm_agent_harness.agent._skill_agent_context import add_loaded_skill, get_loaded_skills
-        from myrm_agent_harness.backends.skills.usage_recorder import record_skill_selection
+        from myrm_agent_harness.agent._skill_agent_context import (
+            add_loaded_skill,
+            get_loaded_skills,
+        )
+        from myrm_agent_harness.backends.skills.usage_recorder import (
+            record_skill_selection,
+        )
 
         available_names = [s.name for s in skills]
         loaded_names = {s.name for s in get_loaded_skills()}
@@ -123,11 +138,15 @@ Rules:
             skill_meta = next((s for s in skills if s.name == skill_name), None)
             if not skill_meta:
                 hint = ", ".join(available_names[:15])
-                selected_skills_info.append(f"\nError: skill '{skill_name}' not found. Available: [{hint}]")
+                selected_skills_info.append(
+                    f"\nError: skill '{skill_name}' not found. Available: [{hint}]"
+                )
                 continue
 
             if file_path:
-                file_content = await _get_skill_file(skill_meta, skill_backend, file_path)
+                file_content = await _get_skill_file(
+                    skill_meta, skill_backend, file_path
+                )
                 if file_content is not None:
                     selected_skills_info.append(file_content)
                     record_skill_selection(skill_meta, success=True)
@@ -145,13 +164,17 @@ Rules:
                     add_loaded_skill(skill_meta)
                     record_skill_selection(skill_meta, success=True)
                 else:
-                    selected_skills_info.append(f"# {skill_name}\n\nError: failed to load skill document")
+                    selected_skills_info.append(
+                        f"# {skill_name}\n\nError: failed to load skill document"
+                    )
                     record_skill_selection(skill_meta, success=False)
 
         skill_docs_formatted: list[str] = []
         for idx, skill_name in enumerate(skill_names):
             if idx < len(selected_skills_info):
-                skill_docs_formatted.append(f"{skill_name}：{selected_skills_info[idx]}")
+                skill_docs_formatted.append(
+                    f"{skill_name}：{selected_skills_info[idx]}"
+                )
 
         return f"<skills_sop>\n{chr(10).join(skill_docs_formatted)}\n</skills_sop>"
 
@@ -184,7 +207,9 @@ def _build_reload_summary(skill_meta: SkillMetadata) -> str:
     )
 
 
-async def get_skill_document(skill_meta: SkillMetadata, skill_backend: SkillBackend) -> str:
+async def get_skill_document(
+    skill_meta: SkillMetadata, skill_backend: SkillBackend
+) -> str:
     """Load a skill's SOP document content, ready for injection into context.
 
     Handles two sources:
@@ -217,7 +242,9 @@ async def get_skill_document(skill_meta: SkillMetadata, skill_backend: SkillBack
         skill_doc = mcp_skill_generator.generate_skill_content(skill_meta)
     elif skill_meta.storage_skill_id:
         try:
-            skill_doc = await skill_backend.get_skill_content(skill_meta.storage_skill_id)
+            skill_doc = await skill_backend.get_skill_content(
+                skill_meta.storage_skill_id
+            )
         except Exception as e:
             return f"# {skill_meta.name}\n\nError: failed to load skill document - {e}"
 
@@ -262,7 +289,9 @@ async def get_skill_document(skill_meta: SkillMetadata, skill_backend: SkillBack
 _ALLOWED_FILE_DIRS = frozenset({"scripts", "references", "templates", "assets"})
 
 
-async def _get_skill_file(skill_meta: SkillMetadata, skill_backend: SkillBackend, file_path: str) -> str | None:
+async def _get_skill_file(
+    skill_meta: SkillMetadata, skill_backend: SkillBackend, file_path: str
+) -> str | None:
     """Read a specific auxiliary file from a skill directory.
 
     Validates path safety (allowed subdirs only, no traversal) before reading.
@@ -293,7 +322,9 @@ async def _get_skill_file(skill_meta: SkillMetadata, skill_backend: SkillBackend
         )
         return None
     except Exception as e:
-        logger.warning("Failed to read skill file '%s/%s': %s", skill_meta.name, file_path, e)
+        logger.warning(
+            "Failed to read skill file '%s/%s': %s", skill_meta.name, file_path, e
+        )
         return None
 
 
@@ -329,7 +360,9 @@ def _check_load_time_safety(skill_name: str, content: str) -> str:
     if not high_or_critical:
         return content
 
-    warning_lines = [f"- {f.threat_type}: {f.description}" for f in high_or_critical[:3]]
+    warning_lines = [
+        f"- {f.threat_type}: {f.description}" for f in high_or_critical[:3]
+    ]
     warning = (
         f">  **SECURITY WARNING**: This skill content has {len(high_or_critical)} "
         f"high/critical security finding(s) detected at load time:\n"
@@ -366,7 +399,9 @@ async def _resolve_dynamic_context(content: str) -> str:
             proc = await asyncio.create_subprocess_shell(
                 cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=_DYNAMIC_CMD_TIMEOUT)
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(), timeout=_DYNAMIC_CMD_TIMEOUT
+            )
             output = stdout.decode("utf-8", errors="replace").strip()
             if proc.returncode != 0 and not output:
                 err = stderr.decode("utf-8", errors="replace").strip()
